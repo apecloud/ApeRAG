@@ -27,7 +27,7 @@ export function DateTimePicker24h({
   const [date, setDate] = React.useState<Date>();
   const [isOpen, setIsOpen] = React.useState(false);
 
-  const datetime_picker_24h = useTranslations("components.datetime_picker_24h")
+  const datetime_picker_24h = useTranslations('components.datetime_picker_24h');
 
   const hours = Array.from({ length: 24 }, (_, i) => i);
 

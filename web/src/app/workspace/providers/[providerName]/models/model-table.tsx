@@ -48,6 +48,7 @@ import {
 import { DataGrid, DataGridPagination } from '@/components/data-grid';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { ModelActions } from './model-actions';
 import { ModelTagSwitch } from './model-tag-switch';
@@ -70,6 +71,7 @@ export function ModelTable({
   data: LlmProviderModel[];
   pathnamePrefix: string;
 }) {
+  const page_models = useTranslations('page_models');
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({
@@ -123,7 +125,7 @@ export function ModelTable({
       },
       {
         accessorKey: 'model',
-        header: 'Model',
+        header: page_models('model.name'),
         cell: ({ row }) => {
           return (
             <div className="flex flex-col gap-2">
@@ -141,7 +143,7 @@ export function ModelTable({
       },
       {
         accessorKey: 'params',
-        header: 'LLM params',
+        header: page_models('model.llm_params'),
         cell: ({ row }) => {
           return (
             <div className="flex items-center gap-6">
@@ -169,7 +171,7 @@ export function ModelTable({
       },
       {
         accessorKey: 'agent',
-        header: 'Agent',
+        header: page_models('model.agent'),
         cell: ({ row }) => {
           return (
             <ModelTagSwitch
@@ -182,7 +184,7 @@ export function ModelTable({
       },
       {
         accessorKey: 'collection',
-        header: 'Collection',
+        header: page_models('model.collection'),
         cell: ({ row }) => {
           return (
             <ModelTagSwitch
@@ -195,7 +197,7 @@ export function ModelTable({
       },
       {
         accessorKey: 'api',
-        header: 'API Type',
+        header: page_models('model.api_type'),
         cell: ({ row }) => {
           let icon;
           switch (row.original.api) {
@@ -248,7 +250,7 @@ export function ModelTable({
                 model={row.original}
               >
                 <DropdownMenuItem>
-                  <SquarePen /> Edit
+                  <SquarePen /> {page_models('model.edit')}
                 </DropdownMenuItem>
               </ModelActions>
               <DropdownMenuSeparator />
@@ -258,7 +260,7 @@ export function ModelTable({
                 model={row.original}
               >
                 <DropdownMenuItem variant="destructive">
-                  <Trash /> Delete
+                  <Trash /> {page_models('model.delete')}
                 </DropdownMenuItem>
               </ModelActions>
             </DropdownMenuContent>
@@ -267,7 +269,7 @@ export function ModelTable({
       },
     ];
     return cols;
-  }, [provider]);
+  }, [page_models, provider]);
 
   const table = useReactTable({
     data,
@@ -305,17 +307,25 @@ export function ModelTable({
             </Link>
           </Button>
           <Input
-            placeholder="Search"
+            placeholder={page_models('model.search_placeholder')}
             value={searchValue}
             onChange={(e) => setSearchValue(e.currentTarget.value)}
           />
         </div>
         <div className="flex items-center gap-2">
+          <ModelActions action="add" provider={provider}>
+            <Button>
+              <Plus />
+              <span className="hidden lg:inline">
+                {page_models('model.add_model')}
+              </span>
+            </Button>
+          </ModelActions>
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
                 <Columns3 />
-                <span className="hidden lg:inline">Columns</span>
                 <ChevronDown />
               </Button>
             </DropdownMenuTrigger>
@@ -343,13 +353,6 @@ export function ModelTable({
                 })}
             </DropdownMenuContent>
           </DropdownMenu>
-
-          <ModelActions action="add" provider={provider}>
-            <Button>
-              <Plus />
-              <span className="hidden lg:inline">Add Model</span>
-            </Button>
-          </ModelActions>
         </div>
       </div>
       <DataGrid table={table} />

@@ -11,6 +11,7 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { apiClient } from '@/lib/api/client';
 import { DialogDescription } from '@radix-ui/react-dialog';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
@@ -19,7 +20,9 @@ export const ProviderToggle = ({ provider }: { provider: LlmProvider }) => {
   const [enabledVisible, setEnabledVisible] = useState<boolean>(false);
   const [disabledVisible, setDisabledVisible] = useState<boolean>(false);
   const [apiKey, setApiKey] = useState<string>(provider.api_key || '');
-
+  const page_models = useTranslations('page_models');
+  const common_action = useTranslations('common.action');
+  const common_tips = useTranslations('common.tips');
   const router = useRouter();
 
   const handleEnabled = useCallback(async () => {
@@ -74,28 +77,25 @@ export const ProviderToggle = ({ provider }: { provider: LlmProvider }) => {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>API Key</DialogTitle>
+            <DialogTitle>{page_models('provider.api_key')}</DialogTitle>
           </DialogHeader>
           <div>
             <Textarea
               value={apiKey}
               onChange={(e) => setApiKey(e.currentTarget.value)}
-              placeholder="Please enter the api key for the model provider."
+              placeholder={page_models('provider.api_key_placeholder')}
               className="w-115 resize-none"
             />
 
             <div className="text-muted-foreground mt-2 text-sm">
-              To access the AI model&apos;s capabilities, you need to provide a
-              valid API Key from your chosen model provider. This key serves as
-              a secure authentication method, allowing the system to process
-              your requests while maintaining privacy and usage control.
+              {page_models('provider.api_key_description')}
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEnabledVisible(false)}>
-              Cancel
+              {common_action('cancel')}
             </Button>
-            <Button onClick={handleEnabled}>OK</Button>
+            <Button onClick={handleEnabled}>{common_action('continue')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -106,17 +106,17 @@ export const ProviderToggle = ({ provider }: { provider: LlmProvider }) => {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Confirm</DialogTitle>
+            <DialogTitle>{common_tips('confirm')}</DialogTitle>
             <DialogDescription>
-              Confirm disabling this Provider?
+              {page_models('provider.confirm_disabled')}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDisabledVisible(false)}>
-              Cancel
+              {common_action('cancel')}
             </Button>
             <Button variant="destructive" onClick={handleDisabled}>
-              OK
+              {common_action('continue')}
             </Button>
           </DialogFooter>
         </DialogContent>

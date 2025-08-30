@@ -2,6 +2,7 @@ import { LlmProvider, LlmProviderModel } from '@/api';
 import { Switch } from '@/components/ui/switch';
 import { apiClient } from '@/lib/api/client';
 import _ from 'lodash';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useCallback } from 'react';
 import { toast } from 'sonner';
@@ -15,6 +16,7 @@ export const ModelTagSwitch = ({
   provider: LlmProvider;
   tag: string;
 }) => {
+  const common_tips = useTranslations('common.tips');
   const router = useRouter();
   const handleTagChange = useCallback(
     async (checked: boolean) => {
@@ -35,10 +37,10 @@ export const ModelTagSwitch = ({
 
       if (res?.status === 200) {
         setTimeout(router.refresh, 300);
-        toast.success('Saved successfully.');
+        toast.success(common_tips('update_success'));
       }
     },
-    [model, provider.name, router.refresh, tag],
+    [common_tips, model, provider.name, router.refresh, tag],
   );
 
   return (

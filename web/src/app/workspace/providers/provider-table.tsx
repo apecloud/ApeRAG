@@ -43,6 +43,7 @@ import {
   SquarePen,
   Trash,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { ModelsDefaultConfiguration } from './models-default-configuration';
 import { ProviderActions } from './provider-actions';
@@ -58,6 +59,7 @@ export const ProviderTable = ({
   urlPrefix: string;
 }) => {
   const { user } = useAppContext();
+  const page_models = useTranslations('page_models');
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({
@@ -112,7 +114,7 @@ export const ProviderTable = ({
       },
       {
         accessorKey: 'label',
-        header: 'Name',
+        header: page_models('provider.name'),
         cell: ({ row }) => {
           return (
             <Link
@@ -126,11 +128,11 @@ export const ProviderTable = ({
       },
       {
         accessorKey: 'base_url',
-        header: 'Base Url',
+        header: page_models('provider.base_url'),
       },
       {
         accessorKey: 'name',
-        header: 'Models',
+        header: page_models('provider.models_count'),
         cell: ({ row }) => {
           const providerModels = models.filter(
             (m) => m.provider_name === row.original.name,
@@ -140,9 +142,12 @@ export const ProviderTable = ({
       },
       {
         accessorKey: 'user_id',
-        header: 'Scope',
+        header: page_models('provider.scope'),
         cell: ({ row }) => {
-          const text = row.original.user_id === 'public' ? 'Public' : 'Private';
+          const text =
+            row.original.user_id === 'public'
+              ? page_models('provider.public')
+              : page_models('provider.private');
           const variant =
             row.original.user_id === 'public' ? 'default' : 'destructive';
           return <Badge variant={variant}>{text}</Badge>;
@@ -150,14 +155,14 @@ export const ProviderTable = ({
       },
       {
         accessorKey: 'enabled',
-        header: 'Enabled',
+        header: page_models('provider.enabled'),
         cell: ({ row }) => {
           return <ProviderToggle provider={row.original} />;
         },
       },
       {
         accessorKey: 'created',
-        header: 'Creation time',
+        header: page_models('provider.creation_time'),
         cell: ({ row }) => {
           return row.original.created ? (
             <FormatDate datetime={new Date(row.original.created)} />
@@ -184,13 +189,13 @@ export const ProviderTable = ({
             <DropdownMenuContent align="end" className="w-32">
               <ProviderActions action="edit" provider={row.original}>
                 <DropdownMenuItem>
-                  <SquarePen /> Edit
+                  <SquarePen /> {page_models('provider.edit')}
                 </DropdownMenuItem>
               </ProviderActions>
               <DropdownMenuSeparator />
               <ProviderActions action="delete" provider={row.original}>
                 <DropdownMenuItem variant="destructive">
-                  <Trash /> Delete
+                  <Trash /> {page_models('provider.delete')}
                 </DropdownMenuItem>
               </ProviderActions>
             </DropdownMenuContent>
@@ -199,7 +204,7 @@ export const ProviderTable = ({
       },
     ];
     return cols;
-  }, [models, urlPrefix]);
+  }, [models, page_models, urlPrefix]);
 
   const table = useReactTable({
     data,
@@ -232,17 +237,27 @@ export const ProviderTable = ({
       <div className="flex items-center justify-between">
         <div className="flex flex-row items-center gap-2">
           <Input
-            placeholder="Search"
+            placeholder={page_models('provider.search_placeholder')}
             value={searchValue}
             onChange={(e) => setSearchValue(e.currentTarget.value)}
           />
         </div>
         <div className="flex items-center gap-2">
+          {user?.role === 'admin' && <ModelsDefaultConfiguration />}
+
+          <ProviderActions action="add">
+            <Button>
+              <Plus />
+              <span className="hidden lg:inline">
+                {page_models('provider.add_provider')}
+              </span>
+            </Button>
+          </ProviderActions>
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
                 <Columns3 />
-                <span className="hidden lg:inline">Columns</span>
                 <ChevronDown />
               </Button>
             </DropdownMenuTrigger>
@@ -270,15 +285,6 @@ export const ProviderTable = ({
                 })}
             </DropdownMenuContent>
           </DropdownMenu>
-
-          {user?.role === 'admin' && <ModelsDefaultConfiguration />}
-
-          <ProviderActions action="add">
-            <Button>
-              <Plus />
-              <span className="hidden lg:inline">Add Provider</span>
-            </Button>
-          </ProviderActions>
         </div>
       </div>
       <DataGrid table={table} />

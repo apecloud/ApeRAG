@@ -34,6 +34,7 @@ import { Input } from '@/components/ui/input';
 import { apiClient } from '@/lib/api/client';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Slot } from '@radix-ui/react-slot';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -69,6 +70,10 @@ export const ProviderActions = ({
     useState<boolean>(false);
   const [deleteVisible, setDeleteVisible] = useState<boolean>(false);
   const router = useRouter();
+
+  const page_models = useTranslations('page_models');
+  const common_action = useTranslations('common.action');
+  const common_tips = useTranslations('common.tips');
 
   const form = useForm<z.infer<typeof providerSchema>>({
     resolver: zodResolver(providerSchema),
@@ -109,10 +114,10 @@ export const ProviderActions = ({
       if (res?.status === 200) {
         setCreateOrUpdateVisible(false);
         setTimeout(router.refresh, 300);
-        toast.success('Saved successfully.');
+        toast.success(common_tips('save_success'));
       }
     },
-    [action, provider?.name, router],
+    [action, common_tips, provider?.name, router.refresh],
   );
 
   if (action === 'delete') {
@@ -133,19 +138,18 @@ export const ProviderActions = ({
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogTitle>{common_tips('confirm')}</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete
-              provider and remove your data from our servers.
+              {page_models('provider.delete_confirm')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogDescription></AlertDialogDescription>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setDeleteVisible(false)}>
-              Cancel
+              {common_action('cancel')}
             </AlertDialogCancel>
             <AlertDialogAction onClick={() => handleDelete()}>
-              Continue
+              {common_action('continue')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -174,7 +178,10 @@ export const ProviderActions = ({
               className="space-y-8"
             >
               <DialogHeader>
-                <DialogTitle>Provider</DialogTitle>
+                <DialogTitle>
+                  {action === 'add' && page_models('provider.add_provider')}
+                  {action === 'edit' && page_models('provider.edit_provider')}
+                </DialogTitle>
                 <DialogDescription></DialogDescription>
               </DialogHeader>
               <FormField
@@ -182,9 +189,12 @@ export const ProviderActions = ({
                 name="label"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Name</FormLabel>
+                    <FormLabel>{page_models('provider.name')}</FormLabel>
                     <FormControl>
-                      <Input placeholder="Provider display name." {...field} />
+                      <Input
+                        placeholder={page_models('provider.name_placeholder')}
+                        {...field}
+                      />
                     </FormControl>
                   </FormItem>
                 )}
@@ -194,20 +204,24 @@ export const ProviderActions = ({
                 name="base_url"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>API base url</FormLabel>
+                    <FormLabel>{page_models('provider.base_url')}</FormLabel>
                     <FormControl>
-                      <Input placeholder="API base url" {...field} />
+                      <Input
+                        placeholder={page_models(
+                          'provider.base_url_placeholder',
+                        )}
+                        {...field}
+                      />
                     </FormControl>
                     <FormDescription>
-                      The LLM API baseUrl refers to the root endpoint URL used
-                      to access a Large Language Model (LLM) API service.
+                      {page_models('provider.base_url_description')}
                     </FormDescription>
                   </FormItem>
                 )}
               />
               <div>
                 <FormLabel className="text-muted-foreground mb-4">
-                  API Dialect
+                  {page_models('provider.api_dialect')}
                 </FormLabel>
                 <div className="grid grid-cols-3 gap-4">
                   <FormField
@@ -258,9 +272,7 @@ export const ProviderActions = ({
                   />
                 </div>
                 <div className="text-muted-foreground mt-2 text-sm">
-                  Completion API Dialect suggests possible outputs, Embedding
-                  API Dialect converts them to vectors, and Rerank API Dialect
-                  optimizes their order based on semantic relevance.
+                  {page_models('provider.api_dialect_description')}
                 </div>
               </div>
 
@@ -270,9 +282,9 @@ export const ProviderActions = ({
                   variant="outline"
                   onClick={() => setCreateOrUpdateVisible(false)}
                 >
-                  Cancel
+                  {common_action('cancel')}
                 </Button>
-                <Button type="submit">Save</Button>
+                <Button type="submit">{common_action('save')}</Button>
               </DialogFooter>
             </form>
           </Form>

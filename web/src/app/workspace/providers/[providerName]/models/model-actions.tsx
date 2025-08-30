@@ -29,6 +29,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { apiClient } from '@/lib/api/client';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Slot } from '@radix-ui/react-slot';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -60,6 +61,10 @@ export const ModelActions = ({
   action: 'add' | 'edit' | 'delete';
   children?: React.ReactNode;
 }) => {
+  const page_models = useTranslations('page_models');
+  const common_action = useTranslations('common.action');
+  const common_tips = useTranslations('common.tips');
+
   const [createOrUpdateVisible, setCreateOrUpdateVisible] =
     useState<boolean>(false);
   const [deleteVisible, setDeleteVisible] = useState<boolean>(false);
@@ -121,10 +126,17 @@ export const ModelActions = ({
       if (res?.status === 200) {
         setCreateOrUpdateVisible(false);
         setTimeout(router.refresh, 300);
-        toast.success('Saved successfully.');
+        toast.success(common_tips('save_success'));
       }
     },
-    [action, model?.api, model?.model, provider.name, router],
+    [
+      action,
+      common_tips,
+      model?.api,
+      model?.model,
+      provider.name,
+      router.refresh,
+    ],
   );
 
   if (action === 'delete') {
@@ -142,18 +154,18 @@ export const ModelActions = ({
         </DialogTrigger>
         <DialogContent showCloseButton={false}>
           <DialogHeader>
-            <DialogTitle>Confirm</DialogTitle>
+            <DialogTitle>{common_tips('confirm')}</DialogTitle>
             <DialogDescription>
-              Confirm deletion of the model?
+              {page_models('model.delete_confirm')}
             </DialogDescription>
           </DialogHeader>
           <DialogDescription></DialogDescription>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteVisible(false)}>
-              Cancel
+              {common_action('cancel')}
             </Button>
             <Button variant="destructive" onClick={() => handleDelete()}>
-              OK
+              {common_action('continue')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -182,7 +194,10 @@ export const ModelActions = ({
               className="space-y-8"
             >
               <DialogHeader>
-                <DialogTitle>Model</DialogTitle>
+                <DialogTitle>
+                  {action === 'add' && page_models('model.add_model')}
+                  {action === 'edit' && page_models('model.edit_model')}
+                </DialogTitle>
                 <DialogDescription></DialogDescription>
               </DialogHeader>
               <FormField
@@ -190,11 +205,11 @@ export const ModelActions = ({
                 name="model"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Name</FormLabel>
+                    <FormLabel>{page_models('model.name')}</FormLabel>
                     <FormControl>
                       <Input
                         disabled={model !== undefined}
-                        placeholder="Model name."
+                        placeholder={page_models('model.name_placeholder')}
                         {...field}
                       />
                     </FormControl>
@@ -206,7 +221,7 @@ export const ModelActions = ({
                 name="api"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>API Type</FormLabel>
+                    <FormLabel>{page_models('model.api_type')}</FormLabel>
                     <FormControl>
                       <RadioGroup
                         className="grid grid-cols-3 gap-4"
@@ -257,36 +272,13 @@ export const ModelActions = ({
                           </Label>
                         </div>
                       </RadioGroup>
-
-                      {/* <Select {...field}>
-                        <SelectTrigger className="w-[180px]">
-                          <SelectValue placeholder="API Type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem
-                            value={LlmProviderModelCreateApiEnum.completion}
-                          >
-                            Completion
-                          </SelectItem>
-                          <SelectItem
-                            value={LlmProviderModelCreateApiEnum.embedding}
-                          >
-                            Embedding
-                          </SelectItem>
-                          <SelectItem
-                            value={LlmProviderModelCreateApiEnum.rerank}
-                          >
-                            Rerank
-                          </SelectItem>
-                        </SelectContent>
-                      </Select> */}
                     </FormControl>
                   </FormItem>
                 )}
               />
               <div>
                 <FormLabel className="text-muted-foreground mb-4">
-                  LLM Params
+                  {page_models('model.llm_params')}
                 </FormLabel>
                 <div className="grid grid-cols-3 gap-4">
                   <FormField
@@ -335,9 +327,9 @@ export const ModelActions = ({
                   variant="outline"
                   onClick={() => setCreateOrUpdateVisible(false)}
                 >
-                  Cancel
+                  {common_action('cancel')}
                 </Button>
-                <Button type="submit">Save</Button>
+                <Button type="submit">{common_action('save')}</Button>
               </DialogFooter>
             </form>
           </Form>

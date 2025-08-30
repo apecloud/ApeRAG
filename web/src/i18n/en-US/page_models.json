@@ -1,0 +1,47 @@
+{
+  "metadata": {
+    "provider_title": "Model Provider",
+    "provider_description": "This section allows you to connect and customize your preferred Large Language Model (LLM) providers and models for personal use. Set up API keys, choose models, and adjust settings to enhance your AI experience.",
+    "model_title": "Models",
+    "model_description": "This section allows you to connect and customize your preferred Large Language Model (LLM) providers and models for personal use. Set up API keys, choose models, and adjust settings to enhance your AI experience."
+  },
+  "provider": {
+    "search_placeholder": "Search model provider",
+    "add_provider": "Add Provider",
+    "name": "Name",
+    "name_placeholder": "Provider display name.",
+    "base_url": "Base Url",
+    "base_url_placeholder": "Api base url",
+    "base_url_description": "The LLM API baseUrl refers to the root endpoint URL used to access a Large Language Model (LLM) API service.",
+    "api_dialect": "API Dialect",
+    "api_dialect_description": "Completion API Dialect suggests possible outputs, Embedding API Dialect converts them to vectors, and Rerank API Dialect optimizes their order based on semantic relevance.",
+    "models_count": "Models",
+    "scope": "Scope",
+    "creation_time": "Creation Time",
+    "enabled": "Enabled",
+    "confirm_disabled": "Confirm disabling this Provider",
+    "private": "Private",
+    "public": "Public",
+    "edit": "Edit",
+    "api_key": "API Key",
+    "api_key_placeholder": "Please enter the api key for the model provider.",
+    "api_key_description": "To access the AI model's capabilities, you need to provide a valid API Key from your chosen model provider. This key serves as a secure authentication method, allowing the system to process your requests while maintaining privacy and usage control.",
+    "edit_provider": "Edit Provider",
+    "delete": "Delete",
+    "delete_confirm": "This action cannot be undone. This will permanently delete provider and remove your data from our servers."
+  },
+  "model": {
+    "search_placeholder": "Search Models",
+    "add_model": "Add Model",
+    "name": "Model Name",
+    "name_placeholder": "Enter the model name",
+    "llm_params": "LLM params",
+    "agent": "Agent",
+    "collection": "Collection",
+    "api_type": "API Type",
+    "edit": "Edit",
+    "edit_model": "Edit Model",
+    "delete": "Delete",
+    "delete_confirm": "Confirm deletion of the model?"
+  }
+}
