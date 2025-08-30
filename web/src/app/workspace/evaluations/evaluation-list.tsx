@@ -27,7 +27,7 @@ export const EvaluationList = ({
   evaluations: Evaluation[];
 }) => {
   const [searchValue, setSearchValue] = useState<string>('');
-  const page_evaluation = useTranslations('page-evaluation');
+  const page_evaluation = useTranslations('page_evaluation');
   return (
     <>
       <div className="mb-4 flex flex-row items-center">

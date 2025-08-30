@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Plus } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useState } from 'react';
 import { QuestionSetActions } from './question-set-actions';
@@ -22,13 +23,13 @@ export const QuestionSetList = ({
   questionSets: QuestionSet[];
 }) => {
   const [searchValue, setSearchValue] = useState<string>('');
-
+  const page_question_set = useTranslations('page_question_set');
   return (
     <div>
       <div className="mb-4 flex flex-row items-center">
         <div>
           <Input
-            placeholder="Search"
+            placeholder={page_question_set('search')}
             value={searchValue}
             onChange={(e) => setSearchValue(e.currentTarget.value)}
           />
@@ -37,7 +38,9 @@ export const QuestionSetList = ({
           <QuestionSetActions action="add">
             <Button>
               <Plus />
-              <span className="hidden md:inline">Add Question Set</span>
+              <span className="hidden md:inline">
+                {page_question_set('add_question_set')}
+              </span>
             </Button>
           </QuestionSetActions>
         </div>

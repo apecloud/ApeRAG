@@ -1,7 +1,6 @@
 'use client';
 import { Collection, ModelSpec, QuestionSet } from '@/api';
 import { ProviderModel } from '@/app/workspace/collections/collection-form';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -33,7 +32,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { apiClient } from '@/lib/api/client';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Slot } from '@radix-ui/react-slot';
-import { Bot, CircleQuestionMark, LoaderCircle } from 'lucide-react';
+import { Bot, LoaderCircle } from 'lucide-react';
+import { useLocale, useTranslations } from 'next-intl';
 
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
@@ -71,6 +71,36 @@ Please generate {NUMBER_OF_QUESTIONS} questions based on the document above. The
 ]
 `;
 
+const defaultPromptCN = `你是一个善于提出问题的专家。请仔细阅读以下文档内容，并根据内容生成两种类型的问题和对应的标准答案。
+
+**问题类型:**
+1.  **事实性问题 (Factual)**: 可以直接从文本中找到明确答案的问题。
+2.  **推理性问题 (Inferential)**: 需要结合文本中多个信息点进行推理、比较或总结才能得出答案的问题。
+
+**文档内容:**
+
+{DOCUMENT_CONTENT}
+
+**你的任务:**
+请根据以上文档，生成 {NUMBER_OF_QUESTIONS} 个问题。事实性问题和推理性问题的数量应各占一半。提问的语言应与文档的语言尽量保持一致。请以 JSON 格式输出一个问题列表，每个问题对象包含三个字段: \`question_type\` ('FACTUAL' 或 'INFERENTIAL'), \`question_text\` (问题内容), 和 \`ground_truth\` (基于文档内容得到的标准答案)。
+
+**重要提示**: 你的回答应该只包含 JSON 对象，不应有任何其他文本或解释。
+
+**输出示例:**
+[
+  {
+    "question_type": "FACTUAL",
+    "question_text": "文档中提到的项目启动于哪一年？",
+    "ground_truth": "根据文档，该项目于2021年正式启动。"
+  },
+  {
+    "question_type": "INFERENTIAL",
+    "question_text": "项目早期阶段和后期阶段的主要挑战有何不同？",
+    "ground_truth": "项目早期挑战主要是技术选型和团队组建，后期挑战则转变为系统性能优化和市场推广。"
+  }
+]
+`;
+
 const generateSchema = z.object({
   collection_id: z.string().min(1),
   llm_config: z.object({
@@ -91,9 +121,12 @@ export const QuestionGenerate = ({
 }) => {
   const [visible, setVisible] = useState<boolean>(false);
   const router = useRouter();
+  const page_question_set = useTranslations('page_question_set');
+  const common_action = useTranslations('common.action');
   const [loading, setLoading] = useState<boolean>(false);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [agentModels, setAgentModels] = useState<ProviderModel[]>([]);
+  const locale = useLocale();
   const form = useForm<z.infer<typeof generateSchema>>({
     resolver: zodResolver(generateSchema),
     defaultValues: {
@@ -104,7 +137,7 @@ export const QuestionGenerate = ({
         model_service_provider: '',
       },
       question_count: 10,
-      prompt: defaultPrompt,
+      prompt: locale === 'zh-CN' ? defaultPromptCN : defaultPrompt,
     },
   });
   const agentModelName = useWatch({
@@ -222,7 +255,9 @@ export const QuestionGenerate = ({
             className="space-y-6"
           >
             <DialogHeader>
-              <DialogTitle>Generate from Collection</DialogTitle>
+              <DialogTitle>
+                {page_question_set('add_question_generator')}
+              </DialogTitle>
               <DialogDescription></DialogDescription>
             </DialogHeader>
 
@@ -231,11 +266,15 @@ export const QuestionGenerate = ({
               name="collection_id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Collection</FormLabel>
+                  <FormLabel>{page_question_set('collection')}</FormLabel>
                   <FormControl>
                     <Select {...field} onValueChange={field.onChange}>
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select a model" />
+                        <SelectValue
+                          placeholder={page_question_set(
+                            'collection_placeholder',
+                          )}
+                        />
                       </SelectTrigger>
                       <SelectContent>
                         {collections.map((item) => {
@@ -257,11 +296,15 @@ export const QuestionGenerate = ({
               name="llm_config.model_name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>LLM</FormLabel>
+                  <FormLabel>{page_question_set('question_llm')}</FormLabel>
                   <FormControl>
                     <Select {...field} onValueChange={field.onChange}>
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select a model" />
+                        <SelectValue
+                          placeholder={page_question_set(
+                            'question_llm_placeholder',
+                          )}
+                        />
                       </SelectTrigger>
                       <SelectContent>
                         {agentModels.map((item) => {
@@ -293,9 +336,17 @@ export const QuestionGenerate = ({
               name="question_count"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Question Count</FormLabel>
+                  <FormLabel>{page_question_set('question_count')}</FormLabel>
                   <FormControl>
-                    <Input type="number" min={1} max={20} {...field} />
+                    <Input
+                      type="number"
+                      min={1}
+                      max={20}
+                      {...field}
+                      placeholder={page_question_set(
+                        'question_count_placeholder',
+                      )}
+                    />
                   </FormControl>
                 </FormItem>
               )}
@@ -306,27 +357,24 @@ export const QuestionGenerate = ({
               name="prompt"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Prompt Template</FormLabel>
+                  <FormLabel>{page_question_set('prompt_template')}</FormLabel>
                   <FormControl>
                     <Textarea
                       {...field}
                       className="max-h-40 resize-none"
-                      placeholder="Enter your prompt..."
+                      placeholder={page_question_set(
+                        'prompt_template_placeholder',
+                      )}
                     />
                   </FormControl>
 
-                  <Alert>
-                    <CircleQuestionMark />
-                    <AlertTitle>
-                      The following variables will be replaced by the system:
-                    </AlertTitle>
-                    <AlertDescription className="text-xs">
-                      {`{DOCUMENT_CONTENT}: The content of the document from the collection.`}
-                    </AlertDescription>
-                    <AlertDescription className="text-xs">
-                      {`{NUMBER_OF_QUESTIONS}: The number of questions to be generated.`}
-                    </AlertDescription>
-                  </Alert>
+                  <div className="mt-4 text-sm">
+                    {page_question_set('prompt_template_tips')}
+                  </div>
+                  <ul className="text-muted-foreground text-sm">
+                    <li className="ml-4 list-disc">{`{DOCUMENT_CONTENT}: ${page_question_set('prompt_template_document_content')}`}</li>
+                    <li className="ml-4 list-disc">{`{NUMBER_OF_QUESTIONS}: ${page_question_set('prompt_template_number_of_question')}`}</li>
+                  </ul>
                 </FormItem>
               )}
             />
@@ -337,11 +385,11 @@ export const QuestionGenerate = ({
                 variant="outline"
                 onClick={() => setVisible(false)}
               >
-                Cancel
+                {common_action('cancel')}
               </Button>
               <Button type="submit" disabled={loading}>
                 {loading ? <LoaderCircle className="animate-spin" /> : <Bot />}
-                Generate
+                {common_action('continue')}
               </Button>
             </DialogFooter>
           </form>

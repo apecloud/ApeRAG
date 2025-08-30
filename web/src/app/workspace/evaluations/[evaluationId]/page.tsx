@@ -17,7 +17,7 @@ export default async function Page({
 }) {
   const { evaluationId } = await params;
   const serverApi = await getServerApi();
-  const page_evaluation = await getTranslations('page-evaluation');
+  const page_evaluation = await getTranslations('page_evaluation');
   let evaluation;
 
   try {

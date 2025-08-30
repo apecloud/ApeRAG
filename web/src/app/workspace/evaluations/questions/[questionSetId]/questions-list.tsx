@@ -27,6 +27,7 @@ import {
   SquarePen,
   Trash,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { QuestionSetActions } from '../question-set-actions';
 import { QuestionSetDelete } from '../question-set-delete';
 import { QuestionActions } from './question-actions';
@@ -38,6 +39,7 @@ export const QuestionsList = ({
 }: {
   questionSet: QuestionSetDetail;
 }) => {
+  const page_question_set = useTranslations('page_question_set');
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-row items-center justify-between gap-4 font-bold">
@@ -47,7 +49,9 @@ export const QuestionsList = ({
             <DropdownMenuTrigger asChild>
               <Button>
                 <Plus />
-                <span className="hidden md:inline">Add Questions</span>
+                <span className="hidden md:inline">
+                  {page_question_set('add_question')}
+                </span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="w-56" align="start">
@@ -55,19 +59,19 @@ export const QuestionsList = ({
                 <QuestionActions action="add" questionSet={questionSet}>
                   <DropdownMenuItem>
                     <ListPlus />
-                    Manual
+                    {page_question_set('add_question_manual')}
                   </DropdownMenuItem>
                 </QuestionActions>
 
                 <QuestionGenerate questionSet={questionSet}>
                   <DropdownMenuItem>
                     <BookOpen />
-                    Generate from Collection
+                    {page_question_set('add_question_generator')}
                   </DropdownMenuItem>
                 </QuestionGenerate>
 
                 <DropdownMenuItem disabled>
-                  <FileUp /> Import from File
+                  <FileUp /> {page_question_set('add_question_import')}
                 </DropdownMenuItem>
               </DropdownMenuGroup>
             </DropdownMenuContent>
@@ -82,13 +86,13 @@ export const QuestionsList = ({
             <DropdownMenuContent align="end" className="w-48">
               <QuestionSetActions action="edit" questionSet={questionSet}>
                 <DropdownMenuItem>
-                  <SquarePen /> Edit Question Set
+                  <SquarePen /> {page_question_set('update_question_set')}
                 </DropdownMenuItem>
               </QuestionSetActions>
               <DropdownMenuSeparator />
               <QuestionSetDelete questionSet={questionSet}>
                 <DropdownMenuItem variant="destructive">
-                  <Trash /> Delete
+                  <Trash /> {page_question_set('delete_question_set')}
                 </DropdownMenuItem>
               </QuestionSetDelete>
             </DropdownMenuContent>
@@ -98,7 +102,7 @@ export const QuestionsList = ({
 
       {_.isEmpty(questionSet.questions) ? (
         <div className="bg-accent/50 text-muted-foreground rounded-lg py-40 text-center">
-          No question found
+          {page_question_set('no_question_found')}
         </div>
       ) : (
         questionSet.questions?.map((question) => {
@@ -121,7 +125,7 @@ export const QuestionsList = ({
                         questionSet={questionSet}
                       >
                         <DropdownMenuItem>
-                          <SquarePen /> Edit
+                          <SquarePen /> {page_question_set('update_question')}
                         </DropdownMenuItem>
                       </QuestionActions>
                       <DropdownMenuSeparator />
@@ -130,7 +134,7 @@ export const QuestionsList = ({
                         question={question}
                       >
                         <DropdownMenuItem variant="destructive">
-                          <Trash /> Delete
+                          <Trash /> {page_question_set('delete_question')}
                         </DropdownMenuItem>
                       </QuestionDelete>
                     </DropdownMenuContent>

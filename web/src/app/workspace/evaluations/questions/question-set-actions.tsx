@@ -22,6 +22,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { apiClient } from '@/lib/api/client';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Slot } from '@radix-ui/react-slot';
+import { useTranslations } from 'next-intl';
 
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
@@ -51,6 +52,9 @@ export const QuestionSetActions = ({
       description: questionSet?.description || '',
     },
   });
+
+  const page_question_set = useTranslations('page_question_set');
+  const common_action = useTranslations('common.action');
 
   const handleCreateOrUpdate = useCallback(
     async (values: z.infer<typeof questionSetSchema>) => {
@@ -103,7 +107,9 @@ export const QuestionSetActions = ({
           >
             <DialogHeader>
               <DialogTitle>
-                {action === 'add' ? 'Add Question Set' : 'Update Question Set'}
+                {action === 'add'
+                  ? page_question_set('add_question_set')
+                  : page_question_set('update_question_set')}
               </DialogTitle>
               <DialogDescription></DialogDescription>
             </DialogHeader>
@@ -113,11 +119,15 @@ export const QuestionSetActions = ({
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Question set name</FormLabel>
+                  <FormLabel>
+                    {page_question_set('question_set_name')}
+                  </FormLabel>
                   <FormControl>
                     <Input
                       {...field}
-                      placeholder="Enter your question set name."
+                      placeholder={page_question_set(
+                        'question_set_name_placeholder',
+                      )}
                     />
                   </FormControl>
                 </FormItem>
@@ -129,10 +139,14 @@ export const QuestionSetActions = ({
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Description</FormLabel>
+                  <FormLabel>
+                    {page_question_set('question_set_description')}
+                  </FormLabel>
                   <FormControl>
                     <Textarea
-                      placeholder="Enter your question set description."
+                      placeholder={page_question_set(
+                        'question_set_description_placeholder',
+                      )}
                       {...field}
                     />
                   </FormControl>
@@ -146,10 +160,12 @@ export const QuestionSetActions = ({
                 variant="outline"
                 onClick={() => setVisible(false)}
               >
-                Cancel
+                {common_action('cancel')}
               </Button>
               <Button type="submit">
-                {action === 'add' ? 'Create' : 'Update'}
+                {action === 'add'
+                  ? common_action('save')
+                  : common_action('update')}
               </Button>
             </DialogFooter>
           </form>

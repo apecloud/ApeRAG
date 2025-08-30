@@ -11,7 +11,7 @@ import { EvaluationList } from './evaluation-list';
 
 export default async function Page() {
   const serverApi = await getServerApi();
-  const page_evaluation = await getTranslations('page-evaluation');
+  const page_evaluation = await getTranslations('page_evaluation');
   const [resEvaluations] = await Promise.all([
     serverApi.evaluationApi.listEvaluationsApiV1EvaluationsGet({
       page: 1,

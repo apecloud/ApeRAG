@@ -14,6 +14,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { apiClient } from '@/lib/api/client';
 import { Slot } from '@radix-ui/react-slot';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
 
@@ -26,6 +27,9 @@ export const QuestionSetDelete = ({
 }) => {
   const [visible, setVisible] = useState<boolean>(false);
   const router = useRouter();
+  const page_question_set = useTranslations('page_question_set');
+  const common_action = useTranslations('common.action');
+  const common_tips = useTranslations('common.tips');
 
   const handleDelete = useCallback(async () => {
     if (questionSet?.id) {
@@ -53,19 +57,18 @@ export const QuestionSetDelete = ({
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+          <AlertDialogTitle>{common_tips('confirm')}</AlertDialogTitle>
           <AlertDialogDescription>
-            This action cannot be undone. This will permanently delete question
-            set and remove your question set from our servers.
+            {page_question_set('delete_question_set_confirm')}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogDescription></AlertDialogDescription>
         <AlertDialogFooter>
           <AlertDialogCancel onClick={() => setVisible(false)}>
-            Cancel
+            {common_action('cancel')}
           </AlertDialogCancel>
           <Button variant="destructive" onClick={() => handleDelete()}>
-            Continue
+            {common_action('continue')}
           </Button>
         </AlertDialogFooter>
       </AlertDialogContent>

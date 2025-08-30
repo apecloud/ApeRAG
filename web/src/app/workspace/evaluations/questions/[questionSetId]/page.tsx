@@ -6,6 +6,7 @@ import {
   PageTitle,
 } from '@/components/page-container';
 import { getServerApi } from '@/lib/api/server';
+import { getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { QuestionsList } from './questions-list';
 
@@ -15,6 +16,7 @@ export default async function Page({
   params: Promise<{ questionSetId: string }>;
 }) {
   const { questionSetId } = await params;
+  const page_question_set = await getTranslations('page_question_set');
 
   const serverApi = await getServerApi();
 
@@ -39,15 +41,17 @@ export default async function Page({
     <PageContainer>
       <PageHeader
         breadcrumbs={[
-          { title: 'Question Sets', href: `/workspace/evaluations/questions` },
+          {
+            title: page_question_set('metadata.title'),
+            href: `/workspace/evaluations/questions`,
+          },
           { title: questionSet.name ?? '--' },
         ]}
       />
       <PageContent>
-        <PageTitle>Question Sets</PageTitle>
+        <PageTitle>{page_question_set('metadata.title')}</PageTitle>
         <PageDescription className="mb-8">
-          An Evaluation Question Set is a focused collection of questions
-          designed to systematically assess the effectiveness, impact.
+          {page_question_set('metadata.description')}
         </PageDescription>
 
         <QuestionsList questionSet={questionSet} />

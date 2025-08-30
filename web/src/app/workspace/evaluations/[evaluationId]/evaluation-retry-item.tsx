@@ -32,7 +32,7 @@ export const EvaluationRetryItem = ({
   onRetry: () => void;
 }) => {
   const [visible, setVisible] = useState<boolean>(false);
-  const page_evaluation = useTranslations('page-evaluation');
+  const page_evaluation = useTranslations('page_evaluation');
   const common_action = useTranslations('common.action');
   const common_tips = useTranslations('common.tips');
   const handleRetry = useCallback(async () => {

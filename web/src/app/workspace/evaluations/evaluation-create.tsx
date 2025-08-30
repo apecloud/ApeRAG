@@ -71,7 +71,7 @@ export const EvaluationCreate = ({
   const [agentModels, setAgentModels] = useState<ProviderModel[]>([]);
   const router = useRouter();
   const common_action = useTranslations('common.action');
-  const page_evaluation = useTranslations('page-evaluation');
+  const page_evaluation = useTranslations('page_evaluation');
   const form = useForm<z.infer<typeof evaluationSchema>>({
     resolver: zodResolver(evaluationSchema),
     defaultValues: {

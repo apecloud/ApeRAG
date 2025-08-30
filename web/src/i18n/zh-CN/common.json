@@ -6,14 +6,15 @@
         "url": "https://github.com/apecloud/ApeRAG",
         "name": "ApeCloud"
       },
-      "title": "云猿生数据",
+      "title": "ApeRAG",
       "description": ""
     }
   },
   "action": {
     "save": "保存",
     "cancel": "取消",
-    "continue": "继续"
+    "continue": "继续",
+    "update": "更新"
   },
   "tips": {
     "confirm": "请确认操作",

@@ -1,0 +1,48 @@
+{
+  "metadata": {
+    "title": "问题集管理",
+    "description": "问题集是用于系统衡量效能与影响力的针对性评测问题集合"
+  },
+  "search": "搜索问题集",
+  "add_question_set": "新增问题集",
+  "update_question_set": "更新问题集",
+  "delete_question_set": "删除问题集",
+  "delete_question_set_confirm": "此操作不可撤销。将会永久删除该问题集，并从服务器中移除您的问题集数据。",
+
+  "question_set_name": "问题集名称",
+  "question_set_name_placeholder": "请输入问题集名称",
+
+  "question_set_description": "问题集描述",
+  "question_set_description_placeholder": "请输入问题集描述",
+
+  "add_question": "添加问题",
+  "add_question_manual": "手动添加",
+  "add_question_generator": "自动生成问题",
+  "add_question_import": "从文件导入",
+  "update_question": "更新问题",
+  "delete_question": "删除问提",
+  "delete_question_confirm": "此操作不可撤销，将会永久删除该问题。",
+
+  "question_content": "问题",
+  "question_content_placeholder": "请输入您的问题",
+
+  "ground_truth": "标准答案",
+  "ground_truth_placeholder": "请输入标准答案",
+
+  "no_question_found": "当前问题集内没有数据",
+
+  "collection": "知识库",
+  "collection_placeholder": "选择一个知识库",
+
+  "question_count": "生成的问题数量",
+  "question_count_placeholder": "请输入问题数量",
+
+  "question_llm": "LLM 模型",
+  "question_llm_placeholder": "选择一个模型",
+
+  "prompt_template": "提示词模版",
+  "prompt_template_placeholder": "请输入提示词模版",
+  "prompt_template_tips": "以下变量将被系统替换：",
+  "prompt_template_document_content": "从知识库中提取的文档内容",
+  "prompt_template_number_of_question": "需要生成的问题数量"
+}

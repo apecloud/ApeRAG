@@ -27,7 +27,7 @@ export const EvaluationDeleteItem = ({
 }) => {
   const [visible, setVisible] = useState<boolean>(false);
   const router = useRouter();
-  const page_evaluation = useTranslations('page-evaluation');
+  const page_evaluation = useTranslations('page_evaluation');
   const common_action = useTranslations('common.action');
   const common_tips = useTranslations('common.tips');
   const handleDelete = useCallback(async () => {

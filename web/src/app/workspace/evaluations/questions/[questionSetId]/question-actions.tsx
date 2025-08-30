@@ -21,6 +21,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { apiClient } from '@/lib/api/client';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Slot } from '@radix-ui/react-slot';
+import { useTranslations } from 'next-intl';
 
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
@@ -46,6 +47,8 @@ export const QuestionActions = ({
 }) => {
   const [visible, setVisible] = useState<boolean>(false);
   const router = useRouter();
+  const page_question_set = useTranslations('page_question_set');
+  const common_action = useTranslations('common.action');
   const form = useForm<z.infer<typeof questionSchema>>({
     resolver: zodResolver(questionSchema),
     defaultValues: {
@@ -117,7 +120,9 @@ export const QuestionActions = ({
           >
             <DialogHeader>
               <DialogTitle>
-                {action === 'add' ? 'Add Question' : 'Update Question'}
+                {action === 'add'
+                  ? page_question_set('add_question')
+                  : page_question_set('update_question')}
               </DialogTitle>
               <DialogDescription></DialogDescription>
             </DialogHeader>
@@ -127,9 +132,14 @@ export const QuestionActions = ({
               name="question_text"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Question</FormLabel>
+                  <FormLabel>{page_question_set('question_content')}</FormLabel>
                   <FormControl>
-                    <Textarea {...field} placeholder="Enter your question..." />
+                    <Textarea
+                      {...field}
+                      placeholder={page_question_set(
+                        'question_content_placeholder',
+                      )}
+                    />
                   </FormControl>
                 </FormItem>
               )}
@@ -140,10 +150,12 @@ export const QuestionActions = ({
               name="ground_truth"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Ground Truth</FormLabel>
+                  <FormLabel>{page_question_set('ground_truth')}</FormLabel>
                   <FormControl>
                     <Textarea
-                      placeholder="Enter the ground truth..."
+                      placeholder={page_question_set(
+                        'ground_truth_placeholder',
+                      )}
                       {...field}
                     />
                   </FormControl>
@@ -157,10 +169,12 @@ export const QuestionActions = ({
                 variant="outline"
                 onClick={() => setVisible(false)}
               >
-                Cancel
+                {common_action('cancel')}
               </Button>
               <Button type="submit">
-                {action === 'add' ? 'Create' : 'Update'}
+                {action === 'add'
+                  ? common_action('save')
+                  : common_action('update')}
               </Button>
             </DialogFooter>
           </form>

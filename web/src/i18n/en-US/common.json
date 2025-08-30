@@ -6,14 +6,15 @@
         "url": "https://github.com/apecloud/ApeRAG",
         "name": "ApeCloud"
       },
-      "title": "ApeCloud",
+      "title": "ApeRAG",
       "description": "Production-Ready RAG Platform with Graph, Vector & Full-Text Search."
     }
   },
   "action": {
     "save": "Save",
     "cancel": "Cancel",
-    "continue": "Contunue"
+    "continue": "Contunue",
+    "update": "Update"
   },
   "tips": {
     "confirm": "Are you absolutely sure?",

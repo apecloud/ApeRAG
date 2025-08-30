@@ -1,0 +1,48 @@
+{
+  "metadata": {
+    "title": "Question Sets",
+    "description": "An Evaluation Question Set is a focused collection of questions designed to systematically assess the effectiveness, impact."
+  },
+  "search": "Search",
+  "add_question_set": "Add Question Set",
+  "update_question_set": "Update Question Set",
+  "delete_question_set": "Delete Question Set",
+  "delete_question_set_confirm": "This action cannot be undone. This will permanently delete question set and remove your question set from our servers.",
+
+  "question_set_name": "Question set name",
+  "question_set_name_placeholder": "Enter your question set name.",
+
+  "question_set_description": "description",
+  "question_set_description_placeholder": "Enter your question set description.",
+
+  "add_question": "Add Question",
+  "add_question_manual": "Manual",
+  "add_question_generator": "Generate from collection",
+  "add_question_import": "Import from File",
+  "update_question": "Update Question",
+  "delete_question": "Delete Question",
+  "delete_question_confirm": "This action cannot be undone. This will permanently delete question.",
+
+  "question_content": "Question",
+  "question_content_placeholder": "Enter your question...",
+
+  "ground_truth": "Ground Truth",
+  "ground_truth_placeholder": "Enter the ground truth...",
+
+  "no_question_found": "No question found",
+
+  "collection": "Collection",
+  "collection_placeholder": "Select a collection",
+
+  "question_count": "Question Count",
+  "question_count_placeholder": "Enter the question count",
+
+  "question_llm": "LLM model",
+  "question_llm_placeholder": "Select a model",
+
+  "prompt_template": "Prompt Template",
+  "prompt_template_placeholder": "Enter your prompt...",
+  "prompt_template_tips": "The following variables will be replaced by the system:",
+  "prompt_template_document_content": "The content of the document from the collection.",
+  "prompt_template_number_of_question": "The number of questions to be generated."
+}
