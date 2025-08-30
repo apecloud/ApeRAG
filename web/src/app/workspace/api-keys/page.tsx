@@ -8,23 +8,22 @@ import {
 
 import { getServerApi } from '@/lib/api/server';
 import { toJson } from '@/lib/utils';
+import { getTranslations } from 'next-intl/server';
 import { ApiKeyTable } from './api-key-table';
 
 export default async function Page() {
   const serverApi = await getServerApi();
   const res = await serverApi.defaultApi.apikeysGet();
   const data = res.data.items || [];
+  const page_api_keys = await getTranslations('page_api_keys');
 
   return (
     <PageContainer>
-      <PageHeader breadcrumbs={[{ title: 'API keys' }]} />
+      <PageHeader breadcrumbs={[{ title: page_api_keys('metadata.title') }]} />
       <PageContent>
-        <PageTitle>API keys</PageTitle>
+        <PageTitle>{page_api_keys('metadata.title')}</PageTitle>
         <PageDescription>
-          This section allows you to securely store, update, and manage API keys
-          for different AI services (such as OpenAI, Anthropic, Gemini, etc.).
-          Connecting your keys enables personalized AI interactions while
-          keeping your credentials protected.
+          {page_api_keys('metadata.description')}
         </PageDescription>
         <ApiKeyTable data={toJson(data)} />
       </PageContent>

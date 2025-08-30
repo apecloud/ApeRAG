@@ -23,6 +23,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { apiClient } from '@/lib/api/client';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Slot } from '@radix-ui/react-slot';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -41,6 +42,9 @@ export const ApiKeyActions = ({
   action: 'add' | 'edit' | 'delete';
   children?: React.ReactNode;
 }) => {
+  const page_api_keys = useTranslations('page_api_keys');
+  const common_action = useTranslations('common.action');
+  const common_tips = useTranslations('common.tips');
   const [createOrUpdateVisible, setCreateOrUpdateVisible] =
     useState<boolean>(false);
   const [deleteVisible, setDeleteVisible] = useState<boolean>(false);
@@ -101,18 +105,18 @@ export const ApiKeyActions = ({
         </DialogTrigger>
         <DialogContent showCloseButton={false}>
           <DialogHeader>
-            <DialogTitle>Confirm</DialogTitle>
+            <DialogTitle>{common_tips('confirm')}</DialogTitle>
             <DialogDescription>
-              Confirm deletion of the API key?
+              {page_api_keys('delete_api_key_confirm')}
             </DialogDescription>
           </DialogHeader>
           <DialogDescription></DialogDescription>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteVisible(false)}>
-              Cancel
+              {common_action('cancel')}
             </Button>
             <Button variant="destructive" onClick={() => handleDelete()}>
-              OK
+              {common_action('continue')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -151,14 +155,12 @@ export const ApiKeyActions = ({
                   <FormItem>
                     <FormControl>
                       <Textarea
-                        placeholder="Please describe the purpose of an API Key."
+                        placeholder={page_api_keys('api_key_placeholder')}
                         {...field}
                       />
                     </FormControl>
                     <FormDescription>
-                      API keys must be kept confidential (e.g., stored in
-                      environment variables) to avoid exploitation or unexpected
-                      charges.
+                      {page_api_keys('api_key_description')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -170,9 +172,9 @@ export const ApiKeyActions = ({
                   variant="outline"
                   onClick={() => setCreateOrUpdateVisible(false)}
                 >
-                  Cancel
+                  {common_action('cancel')}
                 </Button>
-                <Button type="submit">Save</Button>
+                <Button type="submit">{common_action('save')}</Button>
               </DialogFooter>
             </form>
           </Form>

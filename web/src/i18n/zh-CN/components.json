@@ -6,6 +6,11 @@
   "copy_to_clipboard": {
     "copied": "复制成功"
   },
+    "datetime_picker_24h": {
+    "clear": "清除",
+    "close": "关闭",
+    "now": "现在"
+  },
   "datagrid": {
     "empty": "没有数据"
   },

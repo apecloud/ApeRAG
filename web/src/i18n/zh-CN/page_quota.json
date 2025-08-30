@@ -1,0 +1,24 @@
+{
+  "metadata": {
+    "title": "配额管理",
+    "description": "在此模块管理AI模型使用量、API调用次数等资源的额度限制。配额功能帮助您控制成本、防止过度使用并优化使用体验。"
+  },
+  "limit": "限额",
+  "usage": "用量",
+  "bot_count": {
+    "title": "机器人数量",
+    "description": "系统内同时活跃的机器人数量上限，防止资源过度使用并确保系统稳定性。"
+  },
+  "collection_count": {
+    "title": "知识库数量",
+    "description": "允许创建的最大知识库数量。"
+  },
+  "document_count": {
+    "title": "总文档数量",
+    "description": "限定所有集合中文档的总数量，统筹管理整体存储容量。"
+  },
+  "documents_per_collection": {
+    "title": "单知识库文档数",
+    "description": "限制每个知识库内的文档数量，优化查询性能并保持数据均衡分布。"
+  }
+}

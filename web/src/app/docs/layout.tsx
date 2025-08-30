@@ -1,4 +1,4 @@
-import { AppLogo, AppUserDropdownMenu } from '@/components/app-topbar';
+import { AppLogo } from '@/components/app-topbar';
 import {
   PageContainer,
   PageContent,
@@ -7,7 +7,6 @@ import {
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarHeader,
   SidebarInset,
   SidebarProvider,
@@ -34,9 +33,6 @@ export default async function Layout({
               <DocsSideBarItem key={child.name} child={child} />
             ))}
           </SidebarContent>
-          <SidebarFooter className="border-t">
-            <AppUserDropdownMenu />
-          </SidebarFooter>
         </Sidebar>
         <SidebarInset>
           <PageContainer>

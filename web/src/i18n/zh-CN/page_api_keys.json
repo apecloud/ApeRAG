@@ -1,0 +1,17 @@
+{
+  "metadata": {
+    "title": "API密钥",
+    "description": "支持安全存储、更新和管理不同AI服务（如OpenAI、Anthropic、Gemini等）的API密钥。关联密钥既可实现个性化AI交互，又能确保凭证安全。"
+  },
+  "description": "描述信息",
+  "search_api_keys": "搜索密钥",
+  "creation_time": "创建时间",
+  "last_used_time": "最后使用时间",
+  "api_keys": "API密钥",
+  "api_key_placeholder": "请描述该API密钥的用途",
+  "api_key_description": "API密钥需严格保密（如存储在环境变量中），避免被恶意利用或产生意外费用",
+  "add_api_keys": "创建API密钥",
+  "edit_api_keys": "编辑",
+  "delete_api_key": "删除API密钥",
+  "delete_api_key_confirm": "确认删除此API密钥？"
+}

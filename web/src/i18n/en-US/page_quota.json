@@ -1,0 +1,24 @@
+{
+  "metadata": {
+    "title": "Quotas",
+    "description": "Manage your usage limits for AI models, API calls, and other resources in this section. Quotas help you control costs, prevent overuse, and optimize your experience."
+  },
+  "limit": "Limit",
+  "usage": "Usage",
+  "bot_count": {
+    "title": "Bot Count",
+    "description": "The upper limit for active bots in a system, preventing resource overuse and ensuring stability."
+  },
+  "collection_count": {
+    "title": "Collection Count",
+    "description": "The maximum allowed collections in a database, controlling data structure complexity."
+  },
+  "document_count": {
+    "title": "Documents Overall",
+    "description": "Caps the total documents across all collections, managing overall storage capacity."
+  },
+  "documents_per_collection": {
+    "title": "Documents per Collection",
+    "description": "Limits documents per collection, optimizing query performance and data balance."
+  }
+}

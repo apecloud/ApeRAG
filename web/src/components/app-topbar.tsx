@@ -66,22 +66,6 @@ export const AppUserDropdownMenu = () => {
   const locale = useLocale();
   const page_auth = useTranslations('page_auth');
 
-  // if (!user) {
-  //   return (
-  //     <Button
-  //       variant="ghost"
-  //       onClick={() => {
-  //         signIn();
-  //       }}
-  //     >
-  //       <UserAvatar user={user} />
-  //       <div className="grid flex-1 text-left text-sm leading-tight">
-  //         Sign In
-  //       </div>
-  //     </Button>
-  //   );
-  // }
-
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>

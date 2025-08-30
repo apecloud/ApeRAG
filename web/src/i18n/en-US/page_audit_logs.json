@@ -1,0 +1,10 @@
+{
+  "metadata": {
+    "title": "Audit Logs",
+    "description": "Track and review all critical system activities with Audit Logs—a detailed record of user actions, API calls, and administrative changes. Ensure transparency, security, and compliance by monitoring who did what, when, and from where."
+  },
+  "search_placeholder": "Search by API Name",
+  "status": "Status",
+  "duration": "Duration",
+  "start_time": "Start Time"
+}

@@ -33,7 +33,7 @@ import { DataGrid, DataGridPagination } from '@/components/data-grid';
 import { DateTimePicker24h } from '@/components/date-time-picker-24h';
 import { cn, objectKeys, parsePageParams } from '@/lib/utils';
 import { ChevronDown, Columns3 } from 'lucide-react';
-import { useFormatter } from 'next-intl';
+import { useFormatter, useTranslations } from 'next-intl';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { AuditLogDetail } from './audit-log-detail';
 
@@ -54,6 +54,7 @@ export function AuditLogTable({
     [],
   );
   const [apiNameValue, setApiNameValue] = React.useState<string>('');
+  const page_audit_logs = useTranslations('page_audit_logs');
 
   const format = useFormatter();
   const [sorting, setSorting] = React.useState<SortingState>([]);
@@ -141,7 +142,7 @@ export function AuditLogTable({
       },
       {
         accessorKey: 'status_code',
-        header: 'Status',
+        header: page_audit_logs('status'),
         cell: ({ row }) => {
           let color;
           switch (row.original.status_code) {
@@ -158,14 +159,14 @@ export function AuditLogTable({
       },
       {
         accessorKey: 'duration_ms',
-        header: 'Duration',
+        header: page_audit_logs('duration'),
         cell: ({ row }) => {
           return row.original.duration_ms + 'ms';
         },
       },
       {
         accessorKey: 'start_time',
-        header: 'Start Time',
+        header: page_audit_logs('start_time'),
         cell: ({ row }) =>
           row.original.start_time
             ? format.dateTime(row.original.start_time, 'medium')
@@ -173,7 +174,7 @@ export function AuditLogTable({
       },
     ];
     return cols;
-  }, [format]);
+  }, [format, page_audit_logs]);
 
   const table = useReactTable({
     data,
@@ -220,7 +221,7 @@ export function AuditLogTable({
       <div className="flex items-center justify-between">
         <div className="flex flex-row items-center gap-2">
           <Input
-            placeholder="Search api name"
+            placeholder={page_audit_logs('search_placeholder')}
             value={apiNameValue}
             onChange={(e) => setApiNameValue(e.currentTarget.value)}
             onKeyDown={(e) => {
@@ -258,7 +259,6 @@ export function AuditLogTable({
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
                 <Columns3 />
-                <span className="hidden lg:inline">Columns</span>
                 <ChevronDown />
               </Button>
             </DropdownMenuTrigger>

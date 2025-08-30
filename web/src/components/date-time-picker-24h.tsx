@@ -13,6 +13,7 @@ import {
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { CalendarIcon } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 export function DateTimePicker24h({
   date: initDate,
@@ -25,6 +26,8 @@ export function DateTimePicker24h({
 }) {
   const [date, setDate] = React.useState<Date>();
   const [isOpen, setIsOpen] = React.useState(false);
+
+  const datetime_picker_24h = useTranslations("components.datetime_picker_24h")
 
   const hours = Array.from({ length: 24 }, (_, i) => i);
 
@@ -134,15 +137,15 @@ export function DateTimePicker24h({
         <div className="flex justify-between gap-2 border-t p-2">
           <div className="flex gap-2">
             <Button size="sm" variant="outline" onClick={handleSetNow}>
-              Now
+              {datetime_picker_24h('now')}
             </Button>
             <Button variant="outline" size="sm" onClick={handleClear}>
-              Clear
+              {datetime_picker_24h('clear')}
             </Button>
           </div>
 
           <Button size="sm" onClick={() => setIsOpen(false)}>
-            Close
+            {datetime_picker_24h('close')}
           </Button>
         </div>
       </PopoverContent>

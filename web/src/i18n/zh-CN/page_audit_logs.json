@@ -1,0 +1,10 @@
+{
+  "metadata": {
+    "title": "审计日志",
+    "description": "通过审计日志跟踪和审查所有关键系统活动—、API调用和管理变更，确保透明度、安全性和合规性。"
+  },
+  "search_placeholder": "按API名称搜索",
+  "status": "状态",
+  "duration": "持续时间",
+  "start_time": "开始时间"
+}

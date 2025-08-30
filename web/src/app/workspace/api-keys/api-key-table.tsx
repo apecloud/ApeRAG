@@ -14,8 +14,8 @@ import {
   VisibilityState,
 } from '@tanstack/react-table';
 import * as React from 'react';
-import { CopyToClipboard } from 'react-copy-to-clipboard';
-import { toast } from 'sonner';
+
+import { CopyToClipboard } from '@/components/copy-to-clipboard';
 
 import { z } from 'zod';
 
@@ -37,7 +37,6 @@ import { FormatDate } from '@/components/format-date';
 import {
   ChevronDown,
   Columns3,
-  Copy,
   EllipsisVertical,
   Plus,
   SquarePen,
@@ -48,6 +47,7 @@ import { ApiKeyActions } from './api-key-actions';
 
 import { DataGrid, DataGridPagination } from '@/components/data-grid';
 import { Input } from '@/components/ui/input';
+import { useTranslations } from 'next-intl';
 export const schema = z.object({
   id: z.number(),
   header: z.string(),
@@ -60,6 +60,7 @@ export const schema = z.object({
 
 export function ApiKeyTable({ data }: { data: ApiKey[] }) {
   const [rowSelection, setRowSelection] = React.useState({});
+  const page_api_keys = useTranslations('page_api_keys');
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({});
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
@@ -101,22 +102,13 @@ export function ApiKeyTable({ data }: { data: ApiKey[] }) {
     },
     {
       accessorKey: 'key',
-      header: 'API Keys',
+      header: page_api_keys('api_keys'),
       cell: ({ row }) => {
         return (
           <div className="flex flex-row items-center gap-2">
             <span>{row.original.key}</span>
             {row.original.key && (
-              <CopyToClipboard
-                text={row.original.key}
-                onCopy={() => {
-                  toast.success('Copied');
-                }}
-              >
-                <Button size="icon" variant="ghost" className="cursor-pointer">
-                  <Copy className="text-muted-foreground size-4" />
-                </Button>
-              </CopyToClipboard>
+              <CopyToClipboard variant="ghost" text={row.original.key} />
             )}
           </div>
         );
@@ -124,11 +116,11 @@ export function ApiKeyTable({ data }: { data: ApiKey[] }) {
     },
     {
       accessorKey: 'description',
-      header: 'Description',
+      header: page_api_keys('description'),
     },
     {
       accessorKey: 'created_at',
-      header: 'Creation time',
+      header: page_api_keys('creation_time'),
       cell: ({ row }) => {
         if (row.original.created_at) {
           return <FormatDate datetime={new Date(row.original.created_at)} />;
@@ -137,7 +129,7 @@ export function ApiKeyTable({ data }: { data: ApiKey[] }) {
     },
     {
       accessorKey: 'last_used_at',
-      header: 'Last used time',
+      header: page_api_keys('last_used_time'),
       cell: ({ row }) => {
         if (row.original.last_used_at) {
           return <FormatDate datetime={new Date(row.original.last_used_at)} />;
@@ -162,13 +154,13 @@ export function ApiKeyTable({ data }: { data: ApiKey[] }) {
           <DropdownMenuContent align="end" className="w-32">
             <ApiKeyActions action="edit" apiKey={row.original}>
               <DropdownMenuItem>
-                <SquarePen /> Edit
+                <SquarePen /> {page_api_keys('edit_api_keys')}
               </DropdownMenuItem>
             </ApiKeyActions>
             <DropdownMenuSeparator />
             <ApiKeyActions action="delete" apiKey={row.original}>
               <DropdownMenuItem variant="destructive">
-                <Trash /> Delete
+                <Trash /> {page_api_keys('delete_api_key')}
               </DropdownMenuItem>
             </ApiKeyActions>
           </DropdownMenuContent>
@@ -208,18 +200,24 @@ export function ApiKeyTable({ data }: { data: ApiKey[] }) {
       <div className="flex items-center justify-between">
         <div>
           <Input
-            placeholder="Search"
+            placeholder={page_api_keys('search_api_keys')}
             value={searchValue}
             onChange={(e) => setSearchValue(e.currentTarget.value)}
           />
         </div>
         <div className="flex items-center gap-2">
+          <ApiKeyActions action="add">
+            <Button>
+              <Plus />
+              <span className="hidden lg:inline">
+                {page_api_keys('add_api_keys')}
+              </span>
+            </Button>
+          </ApiKeyActions>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
                 <Columns3 />
-                <span className="hidden lg:inline">Columns</span>
-                <span className="lg:hidden">Columns</span>
                 <ChevronDown />
               </Button>
             </DropdownMenuTrigger>
@@ -247,12 +245,6 @@ export function ApiKeyTable({ data }: { data: ApiKey[] }) {
                 })}
             </DropdownMenuContent>
           </DropdownMenu>
-          <ApiKeyActions action="add">
-            <Button>
-              <Plus />
-              <span className="hidden lg:inline">Create API Key</span>
-            </Button>
-          </ApiKeyActions>
         </div>
       </div>
       <DataGrid table={table} />

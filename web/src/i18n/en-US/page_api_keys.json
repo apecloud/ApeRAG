@@ -1,0 +1,17 @@
+{
+  "metadata": {
+    "title": "API keys",
+    "description": "This section allows you to securely store, update, and manage API keys for different AI services (such as OpenAI, Anthropic, Gemini, etc.). Connecting your keys enables personalized AI interactions while keeping your credentials protected."
+  },
+  "description": "Description",
+  "search_api_keys": "Search",
+  "creation_time": "Creation time",
+  "last_used_time": "Last used time",
+  "api_keys": "API Keys",
+  "api_key_placeholder": "Please describe the purpose of an Api Key.",
+  "api_key_description": "API keys must be kept confidential (e.g., stored in environment variables) to avoid exploitation or unexpected charges.",
+  "add_api_keys": "Create Api Key",
+  "edit_api_keys": "Edit",
+  "delete_api_key": "Delete Api Key",
+  "delete_api_key_confirm": "Confirm deletion of the API key?"
+}
