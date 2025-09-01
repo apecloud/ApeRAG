@@ -1,6 +1,6 @@
 import { SIDEBAR_WIDTH, TOPBAR_HEIGHT } from '@/constants';
 import { getLogo } from '@/utils';
-import { ExperimentOutlined } from '@ant-design/icons';
+import { AppstoreOutlined, ExperimentOutlined } from '@ant-design/icons';
 import { GlobalToken, Image, theme, Tooltip } from 'antd';
 import { BsChatText, BsFiletypeDoc, BsGear } from 'react-icons/bs';
 import { css, Link, styled, useIntl, useLocation, useModel } from 'umi';

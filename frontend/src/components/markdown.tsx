@@ -13,6 +13,7 @@ import remarkGithubAdmonitionsToDirectives from 'remark-github-admonitions-to-di
 import { css, styled } from 'umi';
 import { v4 as uuidV4 } from 'uuid';
 import { AuthAssetImage } from './AuthAssetImage';
+import { ChartMermaid } from './chart-mermaid';
 
 type MarkdownProps = {
   children?: string;
@@ -202,20 +203,29 @@ export const ApeMarkdown = ({ children, isAgent = false }: MarkdownProps) => {
           a: (props) => <a {...props} target="_blank" />,
           code: ({ className, children }) => {
             const match = /language-(\w+)/.exec(className || '');
+            const language = match?.[1];
             const id = uuidV4();
-            if (match?.length) {
-              return (
-                <code id={id} className={className + ' copy-to-clipboard'}>
-                  <StyledCopyButton
-                    className="copy-to-clipboard-trigger"
-                    token={token}
-                    onClick={() => onCopy(id)}
-                  >
-                    <CopyOutlined />
-                  </StyledCopyButton>
-                  {children}
-                </code>
-              );
+            if (language) {
+              if (language === 'mermaid') {
+                return (
+                  <ChartMermaid>
+                    {typeof children === 'string' ? children : ''}
+                  </ChartMermaid>
+                );
+              } else {
+                return (
+                  <code id={id} className={className + ' copy-to-clipboard'}>
+                    <StyledCopyButton
+                      className="copy-to-clipboard-trigger"
+                      token={token}
+                      onClick={() => onCopy(id)}
+                    >
+                      <CopyOutlined />
+                    </StyledCopyButton>
+                    {children}
+                  </code>
+                );
+              }
             } else {
               return <code>{children}</code>;
             }
