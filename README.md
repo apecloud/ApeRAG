@@ -6,7 +6,7 @@
 
 ![HarryPotterKG2.png](docs%2Fimages%2FHarryPotterKG2.png)
 
-![chat.png](docs%2Fimages%2Fchat.png)
+![chat2.png](docs%2Fimages%2Fchat2.png)
 
 
 ApeRAG is a production-ready RAG (Retrieval-Augmented Generation) platform that combines Graph RAG, vector search, and full-text search with advanced AI agents. Build sophisticated AI applications with hybrid retrieval, multimodal document processing, intelligent agents, and enterprise-grade management features.
