@@ -3,7 +3,7 @@
 
 [![Trust Score](https://archestra.ai/mcp-catalog/api/badge/quality/apecloud/ApeRAG)](https://archestra.ai/mcp-catalog/apecloud__aperag)
 
-![HarryPotterKG.png](docs%2Fimages%2FHarryPotterKG.png)
+![HarryPotterKG2.png](docs%2Fimages%2FHarryPotterKG2.png)
 
 
 ApeRAG is a production-ready RAG (Retrieval-Augmented Generation) platform that combines Graph RAG, vector search, and full-text search with advanced AI agents. Build sophisticated AI applications with hybrid retrieval, multimodal document processing, intelligent agents, and enterprise-grade management features.
