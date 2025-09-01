@@ -3,9 +3,11 @@
 
 ![HarryPotterKG.png](docs%2Fimages%2FHarryPotterKG.png)
 
-ApeRAG is a production-ready RAG (Retrieval-Augmented Generation) platform that combines Graph RAG, vector search, and full-text search. Build sophisticated AI applications with hybrid retrieval, multimodal document processing, and enterprise-grade management features.
+ApeRAG is a production-ready RAG (Retrieval-Augmented Generation) platform that combines Graph RAG, vector search, and full-text search with advanced AI agents. Build sophisticated AI applications with hybrid retrieval, multimodal document processing, intelligent agents, and enterprise-grade management features.
 
-ApeRAG is the best choice for building your own Knowledge Graph and for Context Engineering.
+**🚀 [Try ApeRAG Live Demo](https://rag.apecloud.com/)** - Experience the full platform capabilities with our hosted demo
+
+ApeRAG is the best choice for building your own Knowledge Graph, Context Engineering, and deploying intelligent AI agents that can autonomously search and reason across your knowledge base.
 
 [阅读中文文档](README-zh.md)
 
@@ -95,29 +97,35 @@ For developers interested in source code development, advanced configurations, o
 
 ## Key Features
 
-**1. Hybrid Retrieval Engine**:
-Combines Graph RAG, vector search, and full-text search for comprehensive document understanding and retrieval.
+**1. Advanced Index Types**:
+Five comprehensive index types for optimal retrieval: **Vector**, **Full-text**, **Graph**, **Summary**, and **Vision** - providing multi-dimensional document understanding and search capabilities.
 
-**2. Graph RAG with LightRAG**:
-Enhanced version of LightRAG for advanced graph-based knowledge extraction, enabling deep relational and contextual queries.
+**2. Intelligent AI Agents**:
+Built-in AI agents with MCP (Model Context Protocol) tool support that can automatically identify relevant collections, search content intelligently, and provide web search capabilities for comprehensive question answering.
 
-**3. MinerU Integration**:
+**3. Enhanced Graph RAG with Entity Normalization**:
+Deeply modified LightRAG implementation with advanced entity normalization (entity merging) for cleaner knowledge graphs and improved relational understanding.
+
+**4. Multimodal Processing & Vision Support**:
+Complete multimodal document processing including vision capabilities for images, charts, and visual content analysis alongside traditional text processing.
+
+**5. Hybrid Retrieval Engine**:
+Sophisticated retrieval system combining Graph RAG, vector search, full-text search, summary-based retrieval, and vision-based search for comprehensive document understanding.
+
+**6. MinerU Integration**:
 Advanced document parsing service powered by MinerU technology, providing superior parsing for complex documents, tables, formulas, and scientific content with optional GPU acceleration.
 
-**4. Production-Grade Deployment**:
+**7. Production-Grade Deployment**:
 Full Kubernetes support with Helm charts and KubeBlocks integration for simplified deployment of production-grade databases (PostgreSQL, Redis, Qdrant, Elasticsearch, Neo4j).
 
-**5. Multimodal Document Processing**:
-Supports various document formats (PDF, DOCX, etc.) with intelligent content extraction and structure recognition.
+**8. Enterprise Management**:
+Built-in audit logging, LLM model management, graph visualization, comprehensive document management interface, and agent workflow management.
 
-**6. Enterprise Management**:
-Built-in audit logging, LLM model management, graph visualization, and comprehensive document management interface.
-
-**7. MCP Integration**:
+**9. MCP Integration**:
 Full support for Model Context Protocol (MCP), enabling seamless integration with AI assistants and tools for direct knowledge base access and intelligent querying.
 
-**8. Developer Friendly**:
-FastAPI backend, React frontend, async task processing with Celery, extensive testing, and comprehensive development guides for easy contribution and customization.
+**10. Developer Friendly**:
+FastAPI backend, React frontend, async task processing with Celery, extensive testing, comprehensive development guides, and agent development framework for easy contribution and customization.
 
 ## Kubernetes Deployment (Recommended for Production)
 
