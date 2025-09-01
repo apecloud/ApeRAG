@@ -14,11 +14,10 @@
 
 import json
 import logging
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException, UploadFile
 
-from aperag.db.models import Document, DocumentStatus
 from aperag.db.ops import async_db_ops
 from aperag.schema import view_models
 from aperag.service.chat_collection_service import chat_collection_service
@@ -26,6 +25,7 @@ from aperag.service.document_service import document_service
 from aperag.utils.utils import utc_now
 
 logger = logging.getLogger(__name__)
+
 
 class ChatDocumentService:
     """
@@ -35,9 +35,7 @@ class ChatDocumentService:
     def __init__(self):
         self.db_ops = async_db_ops
 
-    async def upload_chat_document(
-        self, chat_id: str, user_id: str, file: UploadFile
-    ) -> view_models.Document:
+    async def upload_chat_document(self, chat_id: str, user_id: str, file: UploadFile) -> view_models.Document:
         """Upload chat document to user's chat collection"""
         # Get user's chat collection (should exist from registration)
         collection = await chat_collection_service.get_user_chat_collection(user_id)
@@ -52,10 +50,8 @@ class ChatDocumentService:
         }
 
         # Use document service to create document
-        documents = await document_service.create_documents(
-            user_id, collection.id, [file], doc_metadata
-        )
-        
+        documents = await document_service.create_documents(user_id, collection.id, [file], doc_metadata)
+
         if not documents.items:
             raise HTTPException(status_code=500, detail="Failed to upload document")
 
@@ -77,10 +73,7 @@ class ChatDocumentService:
 
         return document
 
-
-    async def get_documents_metadata(
-        self, chat_id: str, document_ids: List[str], user_id: str
-    ) -> List[Dict[str, Any]]:
+    async def get_documents_metadata(self, chat_id: str, document_ids: List[str], user_id: str) -> List[Dict[str, Any]]:
         """Get metadata for documents to be stored in chat message"""
         if not document_ids:
             return []
@@ -100,8 +93,7 @@ class ChatDocumentService:
             if document.doc_metadata:
                 try:
                     metadata = json.loads(document.doc_metadata)
-                    if (metadata.get("file_type") == "chat_upload" and 
-                        metadata.get("chat_id") == chat_id):
+                    if metadata.get("file_type") == "chat_upload" and metadata.get("chat_id") == chat_id:
                         # Build file metadata for message storage
                         file_info = {
                             "id": document.id,
@@ -136,13 +128,12 @@ class ChatDocumentService:
             if document.doc_metadata:
                 try:
                     metadata = json.loads(document.doc_metadata)
-                    if (metadata.get("file_type") == "chat_upload" and 
-                        metadata.get("chat_id") == chat_id):
+                    if metadata.get("file_type") == "chat_upload" and metadata.get("chat_id") == chat_id:
                         # Update metadata with message_id
                         metadata["message_id"] = message_id
                         document.doc_metadata = json.dumps(metadata)
                         document.gmt_updated = utc_now()
-                        
+
                         # Save the updated document
                         await self.db_ops.update_document(document)
                         logger.info(f"Associated document {document_id} with message {message_id}")

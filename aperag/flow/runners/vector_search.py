@@ -119,7 +119,13 @@ class VectorSearchService:
         self.repository = repository
 
     async def execute_vector_search(
-        self, user, query: str, top_k: int, similarity_threshold: float, collection_ids: List[str], chat_id: Optional[str] = None
+        self,
+        user,
+        query: str,
+        top_k: int,
+        similarity_threshold: float,
+        collection_ids: List[str],
+        chat_id: Optional[str] = None,
     ) -> List[DocumentWithScore]:
         """Execute vector search with given parameters"""
         collection = None
@@ -145,7 +151,12 @@ class VectorSearchService:
 
             # Query vector database for vector and vision indexes only (excluding summary)
             results = context_manager.query(
-                query, score_threshold=similarity_threshold, topk=top_k, vector=vector, index_types=["vector", "vision"], chat_id=chat_id
+                query,
+                score_threshold=similarity_threshold,
+                topk=top_k,
+                vector=vector,
+                index_types=["vector", "vision"],
+                chat_id=chat_id,
             )
 
             # Add recall type metadata
@@ -186,10 +197,10 @@ class VectorSearchNodeRunner(BaseNodeRunner):
         Run vector search node. ui: user configurable params; si: system injected params (SystemInput).
         Returns (uo, so)
         """
-        chat_id = ui.chat_id or getattr(si, 'chat_id', None)
+        chat_id = ui.chat_id or getattr(si, "chat_id", None)
 
-        collection_ids = ui.collection_ids or getattr(si, 'collection_ids', [])
-        
+        collection_ids = ui.collection_ids or getattr(si, "collection_ids", [])
+
         docs = await self.service.execute_vector_search(
             user=si.user,
             query=si.query,

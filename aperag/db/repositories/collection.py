@@ -131,9 +131,9 @@ class AsyncCollectionRepositoryMixin(AsyncRepositoryProtocol):
             stmt = (
                 select(Collection)
                 .where(
-                    Collection.user.in_(users), 
+                    Collection.user.in_(users),
                     Collection.status != CollectionStatus.DELETED,
-                    Collection.type != CollectionType.CHAT # Exclude chat collections from regular list
+                    Collection.type != CollectionType.CHAT,  # Exclude chat collections from regular list
                 )
                 .order_by(desc(Collection.gmt_created))
             )
@@ -170,9 +170,9 @@ class AsyncCollectionRepositoryMixin(AsyncRepositoryProtocol):
                     ),
                 )
                 .where(
-                    Collection.user == user_id, 
+                    Collection.user == user_id,
                     Collection.status != CollectionStatus.DELETED,
-                    Collection.type != CollectionType.CHAT  # Exclude chat collections from regular list
+                    Collection.type != CollectionType.CHAT,  # Exclude chat collections from regular list
                 )
                 .order_by(desc(Collection.gmt_created))
             )
@@ -187,9 +187,9 @@ class AsyncCollectionRepositoryMixin(AsyncRepositoryProtocol):
                 select(func.count())
                 .select_from(Collection)
                 .where(
-                    Collection.user == user, 
+                    Collection.user == user,
                     Collection.status != CollectionStatus.DELETED,
-                    Collection.type != CollectionType.CHAT  # Exclude chat collections from regular count
+                    Collection.type != CollectionType.CHAT,  # Exclude chat collections from regular count
                 )
             )
             return await session.scalar(stmt)

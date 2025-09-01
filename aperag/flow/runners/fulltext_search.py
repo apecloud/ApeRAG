@@ -59,7 +59,13 @@ class FulltextSearchService:
         self.repository = repository
 
     async def execute_fulltext_search(
-        self, user, query: str, top_k: int, collection_ids: List[str], keywords: List[str], chat_id: Optional[str] = None
+        self,
+        user,
+        query: str,
+        top_k: int,
+        collection_ids: List[str],
+        keywords: List[str],
+        chat_id: Optional[str] = None,
     ) -> List[DocumentWithScore]:
         """Execute fulltext search with given parameters"""
         collection = None
@@ -112,16 +118,16 @@ class FulltextSearchNodeRunner(BaseNodeRunner):
         Run fulltext search node. ui: user input; si: system input (SystemInput).
         Returns (output, system_output)
         """
-        chat_id = ui.chat_id or getattr(si, 'chat_id', None)
+        chat_id = ui.chat_id or getattr(si, "chat_id", None)
 
-        collection_ids = ui.collection_ids or getattr(si, 'collection_ids', [])
-        
+        collection_ids = ui.collection_ids or getattr(si, "collection_ids", [])
+
         docs = await self.service.execute_fulltext_search(
             user=si.user,
             query=si.query,
             top_k=ui.top_k,
             collection_ids=collection_ids,
             keywords=ui.keywords,
-            chat_id=chat_id
+            chat_id=chat_id,
         )
         return FulltextSearchOutput(docs=docs), {}

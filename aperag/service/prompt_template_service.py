@@ -263,7 +263,9 @@ def list_prompt_templates(language: str) -> view_models.PromptTemplateList:
     return view_models.PromptTemplateList(items=response)
 
 
-def build_agent_query_prompt(chat_id: str, agent_message: view_models.AgentMessage, user: str, language: str = "en-US") -> str:
+def build_agent_query_prompt(
+    chat_id: str, agent_message: view_models.AgentMessage, user: str, language: str = "en-US"
+) -> str:
     """
     Build a comprehensive prompt for LLM that includes context about user preferences,
     available collections, and web search status.

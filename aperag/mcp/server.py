@@ -225,18 +225,18 @@ async def search_chat_files(
     Note:
         Uses SearchResult view model for type-safe response parsing and validation.
         This tool searches within files uploaded to the specified chat.
-        
-        The search behavior is similar to search_collection, but limited to documents 
+
+        The search behavior is similar to search_collection, but limited to documents
         uploaded in the specified chat context.
-        
+
         Return format follows the same structure as search_collection:
         - rank: Result rank
-        - score: Result score  
+        - score: Result score
         - content: Result content
         - source: Source document or metadata
         - recall_type: Type of search that found this result
         - metadata: Additional metadata including page_idx, asset_id, etc.
-        
+
         Images are handled the same way as in collection search:
         - metadata["indexer"] == "vision" indicates an image
         - Use asset:// URLs for displaying images in markdown

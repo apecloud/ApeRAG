@@ -12,11 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import logging
-from typing import Dict, List, Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 
 from aperag.db.models import User
 from aperag.schema import view_models
@@ -38,11 +36,7 @@ async def upload_chat_document_view(
     user: User = Depends(current_user),
 ) -> view_models.Document:
     """Upload a document to a chat session"""
-    return await chat_document_service.upload_chat_document(
-        chat_id=chat_id,
-        user_id=str(user.id),
-        file=file
-    )
+    return await chat_document_service.upload_chat_document(chat_id=chat_id, user_id=str(user.id), file=file)
 
 
 @router.get("/chats/{chat_id}/documents/{document_id}", tags=["chat-documents"])
@@ -54,17 +48,10 @@ async def get_chat_document_view(
 ) -> view_models.Document:
     """Get chat document details"""
     document = await chat_document_service.get_chat_document_by_id(
-        chat_id=chat_id,
-        document_id=document_id,
-        user_id=str(user.id)
+        chat_id=chat_id, document_id=document_id, user_id=str(user.id)
     )
-    
+
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
-    
+
     return document
-
-
-
-
-

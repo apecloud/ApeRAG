@@ -251,7 +251,9 @@ class FulltextIndexer(BaseIndexer):
         }
         self.es.index(index=index, id=chunk_id, document=doc)
 
-    async def search_document(self, index: str, keywords: List[str], topk=3, chat_id: str = None) -> List[DocumentWithScore]:
+    async def search_document(
+        self, index: str, keywords: List[str], topk=3, chat_id: str = None
+    ) -> List[DocumentWithScore]:
         try:
             resp = await self.async_es.indices.exists(index=index)
             if not resp.body:
@@ -271,9 +273,7 @@ class FulltextIndexer(BaseIndexer):
 
             # Add chat_id filter if provided
             if chat_id:
-                query["bool"]["filter"] = [
-                    {"term": {"metadata.chat_id": chat_id}}
-                ]
+                query["bool"]["filter"] = [{"term": {"metadata.chat_id": chat_id}}]
             sort = [{"_score": {"order": "desc"}}]
             resp = await self.async_es.search(index=index, query=query, sort=sort, size=topk)
             hits = resp.body["hits"]
@@ -453,7 +453,6 @@ Do not include any other text or explanation, just the JSON object."""
 
     def _parse_json_response(self, response: str) -> List[str]:
         """Parse JSON response to extract keywords"""
-        import json
 
         # Clean up the response
         response = response.strip()

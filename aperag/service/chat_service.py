@@ -254,13 +254,13 @@ class ChatService:
         self, chat_id: str, message_id: str, files: List[str], user: str
     ) -> List[Dict[str, Any]]:
         """Handle file metadata retrieval and document association for chat messages.
-        
+
         Args:
             chat_id: The chat ID
             message_id: The message ID to associate documents with
             files: List of document IDs
             user: User ID
-            
+
         Returns:
             List of file metadata dictionaries
         """
@@ -270,22 +270,18 @@ class ChatService:
         result = []
         try:
             from aperag.service.chat_document_service import chat_document_service
+
             # Get document metadata for storing in the message
             result = await chat_document_service.get_documents_metadata(
-                chat_id=chat_id,
-                document_ids=files,
-                user_id=user
+                chat_id=chat_id, document_ids=files, user_id=user
             )
             # Associate documents with message
             await chat_document_service.associate_documents_with_message(
-                chat_id=chat_id,
-                message_id=message_id,
-                document_ids=files,
-                user_id=user
+                chat_id=chat_id, message_id=message_id, document_ids=files, user_id=user
             )
         except Exception as e:
             logger.warning(f"Failed to associate documents with message {message_id}: {e}")
-        
+
         return result
 
     def stream_frontend_sse_response(
@@ -302,16 +298,20 @@ class ChatService:
         return event_stream()
 
     async def frontend_chat_completions(
-        self, user: str, message: str, stream: bool, bot_id: str, chat_id: str, msg_id: str, upload_files: List[str] = None
+        self,
+        user: str,
+        message: str,
+        stream: bool,
+        bot_id: str,
+        chat_id: str,
+        msg_id: str,
+        upload_files: List[str] = None,
     ) -> Any:
         """Frontend chat completions with special error handling for UI responses"""
 
         # Get document metadata and associate documents with message if files are provided
         files = await self.associate_documents_with_message(
-            chat_id=chat_id,
-            message_id=msg_id,
-            files=upload_files or [],
-            user=user
+            chat_id=chat_id, message_id=msg_id, files=upload_files or [], user=user
         )
 
         # Validate bot_id - return formatted error for frontend
@@ -358,6 +358,7 @@ class ChatService:
 
             # Save user message to history with file metadata
             from aperag.utils.history import RedisChatMessageHistory, get_async_redis_client
+
             history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
             await history.add_user_message(message, msg_id, files=files)
 
@@ -483,10 +484,7 @@ class ChatService:
 
                 # Get document metadata and associate documents with message if files are provided
                 files = await self.associate_documents_with_message(
-                    chat_id=chat_id,
-                    message_id=message_id,
-                    files=data.get("files", []),
-                    user=user
+                    chat_id=chat_id, message_id=message_id, files=data.get("files", []), user=user
                 )
 
                 # Add user message to history with file metadata

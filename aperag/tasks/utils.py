@@ -57,17 +57,14 @@ def parse_document_content(document, collection) -> Tuple[str, List[Any], Any]:
                     chat_id = doc_metadata.get("chat_id")
                     if chat_id:
                         for part in doc_parts:
-                            if hasattr(part, 'metadata'):
+                            if hasattr(part, "metadata"):
                                 if part.metadata is None:
                                     part.metadata = {}
                                 part.metadata["chat_id"] = chat_id
                                 part.metadata["document_id"] = document.id
                             else:
                                 # Create metadata if it doesn't exist
-                                part.metadata = {
-                                    "chat_id": chat_id,
-                                    "document_id": document.id
-                                }
+                                part.metadata = {"chat_id": chat_id, "document_id": document.id}
             except json.JSONDecodeError:
                 pass
 

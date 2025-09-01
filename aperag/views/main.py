@@ -22,8 +22,10 @@ from aperag.db.models import User
 from aperag.exceptions import BusinessException
 from aperag.schema import view_models
 from aperag.service.bot_service import bot_service
+from aperag.service.chat_collection_service import chat_collection_service
 from aperag.service.chat_service import chat_service_global
 from aperag.service.chat_title_service import chat_title_service
+from aperag.service.collection_service import collection_service
 from aperag.service.default_model_service import default_model_service
 from aperag.service.flow_service import flow_service_global
 from aperag.service.llm_available_model_service import llm_available_model_service
@@ -39,8 +41,6 @@ from aperag.service.llm_provider_service import (
     update_llm_provider_model,
 )
 from aperag.service.prompt_template_service import list_prompt_templates
-from aperag.service.chat_collection_service import chat_collection_service
-from aperag.service.collection_service import collection_service
 from aperag.utils.audit_decorator import audit
 
 # Import authentication dependencies
@@ -198,7 +198,7 @@ async def update_default_models_view(
 @router.post("/chat/completions/frontend", tags=["chats"])
 async def frontend_chat_completions_view(request: Request, user: User = Depends(current_user)):
     body = await request.body()
-    
+
     # Try to parse JSON first, fallback to text for backward compatibility
     try:
         data = json.loads(body.decode("utf-8"))
@@ -208,13 +208,13 @@ async def frontend_chat_completions_view(request: Request, user: User = Depends(
         # Fallback to text message for backward compatibility
         message = body.decode("utf-8")
         files = []
-    
+
     query_params = dict(request.query_params)
     stream = query_params.get("stream", "false").lower() == "true"
     bot_id = query_params.get("bot_id", "")
     chat_id = query_params.get("chat_id", "")
     msg_id = request.headers.get("msg_id", "")
-    
+
     return await chat_service_global.frontend_chat_completions(
         str(user.id), message, stream, bot_id, chat_id, msg_id, files
     )
@@ -281,7 +281,7 @@ async def search_chat_files_view(
         chat_collection_id = await chat_collection_service.get_user_chat_collection_id(str(user.id))
         if not chat_collection_id:
             raise HTTPException(status_code=404, detail="Chat collection not found")
-        
+
         if not chat_id:
             raise HTTPException(status_code=400, detail="Chat ID is required")
 
@@ -297,6 +297,7 @@ async def search_chat_files_view(
 
         # Return search result without saving to database for chat searches
         from aperag.schema.view_models import SearchResult
+
         return SearchResult(
             id=None,  # No ID since not saved
             query=data.query,
@@ -307,7 +308,7 @@ async def search_chat_files_view(
             items=items,
             created=None,  # No creation time since not saved
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:

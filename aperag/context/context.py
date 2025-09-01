@@ -96,7 +96,9 @@ class ContextManager(ABC):
 
         return None
 
-    def _create_combined_filter(self, index_types: Optional[List[str]] = None, chat_id: Optional[str] = None) -> Optional[Any]:
+    def _create_combined_filter(
+        self, index_types: Optional[List[str]] = None, chat_id: Optional[str] = None
+    ) -> Optional[Any]:
         """
         Create a combined filter for index types and chat_id
 
@@ -111,7 +113,14 @@ class ContextManager(ABC):
             return None
 
         if self.vectordb_type == "qdrant":
-            from qdrant_client.models import FieldCondition, Filter, IsEmptyCondition, MatchValue, MatchAny, PayloadField
+            from qdrant_client.models import (
+                FieldCondition,
+                Filter,
+                IsEmptyCondition,
+                MatchAny,
+                MatchValue,
+                PayloadField,
+            )
 
             conditions = []
 
@@ -129,12 +138,7 @@ class ContextManager(ABC):
                 chat_id_condition = FieldCondition(key="chat_id", match=MatchValue(value=chat_id))
                 if conditions:
                     # If we have index_types conditions, combine them with AND logic
-                    return Filter(
-                        must=[
-                            chat_id_condition,
-                            Filter(should=conditions)
-                        ]
-                    )
+                    return Filter(must=[chat_id_condition, Filter(should=conditions)])
                 else:
                     # Only chat_id filter
                     return Filter(must=[chat_id_condition])
