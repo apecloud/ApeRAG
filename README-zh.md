@@ -1,6 +1,6 @@
 # ApeRAG
 
-![HarryPotterKG.png](docs%2Fimages%2FHarryPotterKG.png)
+![HarryPotterKG2.png](docs%2Fimages%2FHarryPotterKG2.png)
 
 ApeRAG 是一个生产级 RAG（检索增强生成）平台，结合了图 RAG、向量搜索、全文搜索和先进的 AI 智能体。构建具有混合检索、多模态文档处理、智能代理和企业级管理功能的复杂 AI 应用程序。
 
