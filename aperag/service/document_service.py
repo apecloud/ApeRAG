@@ -696,6 +696,60 @@ class DocumentService:
         _trigger_index_reconciliation()
         return result
 
+    async def rebuild_failed_indexes(self, user_id: str, collection_id: str) -> dict:
+        """
+        Rebuild all failed indexes for all documents in a collection
+        Args:
+            user_id: User ID
+            collection_id: Collection ID
+        Returns:
+            dict: Success response with affected documents count
+        """
+        logger.info(f"Rebuilding failed indexes for collection {collection_id}")
+
+        from aperag.db.models import DocumentIndexType
+
+        async def _rebuild_failed_indexes_atomically(session):
+            # First verify collection access
+            collection = await self.db_ops.query_collection(user_id, collection_id)
+            if not collection or collection.user != user_id:
+                raise ResourceNotFoundException(f"Collection {collection_id} not found or access denied")
+
+            # Get collection config to check graph indexing
+            collection_config = json.loads(collection.config)
+            enable_knowledge_graph = collection_config.get("enable_knowledge_graph", False)
+
+            # Query documents with failed indexes (no type filter)
+            failed_docs = await self.db_ops.query_documents_with_failed_indexes(user_id, collection_id, None)
+
+            if not failed_docs:
+                return {"code": "200", "message": "No failed indexes found to rebuild", "affected_documents": 0}
+
+            # Process each document with failed indexes
+            affected_documents = 0
+            for document_id, failed_index_types in failed_docs:
+                # Filter out GRAPH type if not enabled in collection config
+                rebuild_types = failed_index_types
+                if not enable_knowledge_graph:
+                    rebuild_types = [t for t in failed_index_types if t != DocumentIndexType.GRAPH]
+
+                if rebuild_types:
+                    await document_index_manager.create_or_update_document_indexes(session, document_id, rebuild_types)
+                    affected_documents += 1
+                    logger.info(
+                        f"Triggered rebuild for document {document_id} indexes: {[t.value for t in rebuild_types]}"
+                    )
+
+            return {
+                "code": "200",
+                "message": f"Failed indexes rebuild initiated for {affected_documents} documents",
+                "affected_documents": affected_documents,
+            }
+
+        result = await self.db_ops.execute_with_transaction(_rebuild_failed_indexes_atomically)
+        _trigger_index_reconciliation()
+        return result
+
     async def get_document_chunks(self, user_id: str, collection_id: str, document_id: str) -> List[Chunk]:
         """
         Get all chunks of a document.

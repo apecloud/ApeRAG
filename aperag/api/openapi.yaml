@@ -61,6 +61,8 @@ paths:
     $ref: './paths/collections.yaml#/document'
   /collections/{collection_id}/documents/{document_id}/rebuild_indexes:
     $ref: './paths/collections.yaml#/rebuild_indexes'
+  /collections/{collection_id}/rebuild_failed_indexes:
+    $ref: './paths/collections.yaml#/rebuild_failed_indexes'
   /collections/{collection_id}/documents/{document_id}/preview:
     $ref: './paths/collections.yaml#/document_preview'
   /collections/{collection_id}/documents/{document_id}/object:

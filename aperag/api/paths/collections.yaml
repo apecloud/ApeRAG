@@ -437,6 +437,50 @@ rebuild_indexes:
             schema:
               $ref: '../components/schemas/common.yaml#/failResponse'
 
+rebuild_failed_indexes:
+  post:
+    summary: Rebuild all failed indexes in collection
+    description: Rebuild all failed indexes for all documents in the specified collection
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: collection_id
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Failed indexes rebuild initiated successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                code:
+                  type: string
+                message:
+                  type: string
+                affected_documents:
+                  type: integer
+                  description: Number of documents with failed indexes that will be rebuilt
+              required:
+                - code
+                - message
+                - affected_documents
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Collection not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+
 upload_document:
   post:
     summary: Upload a single document

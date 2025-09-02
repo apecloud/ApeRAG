@@ -234,6 +234,10 @@ ApeRAG 中基于图的知识检索能力由深度修改的 [LightRAG](https://gi
 
 我们对 LightRAG 进行了广泛修改，以支持生产级并发处理、分布式任务队列（Celery/Prefect）和无状态操作。详情请参见我们的 [LightRAG 修改更新日志](./aperag/graph/changelog.md)。
 
+## 社区
+
+* [Discord](https://discord.gg/FsKpXukFuB)
+
 ## 许可证
 
 ApeRAG 采用 Apache License 2.0 许可。详情请参见 [LICENSE](./LICENSE) 文件。 

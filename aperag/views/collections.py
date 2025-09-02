@@ -337,6 +337,17 @@ async def rebuild_document_indexes_view(
     )
 
 
+@router.post("/collections/{collection_id}/rebuild_failed_indexes", tags=["documents"])
+@audit(resource_type="collection", api_name="RebuildFailedIndexes")
+async def rebuild_failed_indexes_view(
+    request: Request,
+    collection_id: str,
+    user: User = Depends(current_user),
+):
+    """Rebuild all failed indexes for all documents in a collection"""
+    return await document_service.rebuild_failed_indexes(str(user.id), collection_id)
+
+
 # Knowledge Graph API endpoints
 @router.get("/collections/{collection_id}/graphs/labels", tags=["graph"])
 async def get_graph_labels_view(

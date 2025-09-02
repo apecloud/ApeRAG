@@ -237,6 +237,10 @@ The graph-based knowledge retrieval capabilities in ApeRAG are powered by a deep
 
 We have extensively modified LightRAG to support production-grade concurrent processing, distributed task queues (Celery/Prefect), and stateless operations. See our [LightRAG modifications changelog](./aperag/graph/changelog.md) for details.
 
+## Community
+
+* [Discord](https://discord.gg/FsKpXukFuB)
+
 ## License
 
 ApeRAG is licensed under the Apache License 2.0. See the [LICENSE](./LICENSE) file for details.
