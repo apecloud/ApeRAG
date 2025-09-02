@@ -241,20 +241,16 @@ async def list_documents_view(
 ):
     """List documents with pagination, sorting and search capabilities"""
     
-    # Check if user is authenticated
+    # Determine user_id based on authentication status
     if user:
-        # Authenticated user - use normal flow
         user_id = str(user.id)
     else:
-        # Unauthenticated user - check if collection is published in marketplace
-        marketplace_record = await marketplace_service.get_raw_sharing_status(collection_id)
-        if not marketplace_record or marketplace_record.status != "PUBLISHED":
-            raise HTTPException(status_code=401, detail="Authentication required")
+        # For unauthenticated users, validate collection is in marketplace
+        await marketplace_service.validate_marketplace_collection(collection_id)
         user_id = ""
-        
-    # Allow access to published marketplace collection
+    
     result = await document_service.list_documents(
-        user=user_id,  # Empty user for unauthenticated access
+        user=user_id,
         collection_id=collection_id,
         page=page,
         page_size=page_size,
@@ -281,18 +277,15 @@ async def get_document_view(
     document_id: str,
     user: Optional[User] = Depends(current_user),
 ) -> view_models.Document:
-    # Check if user is authenticated
+    # Determine user_id based on authentication status
     if user:
-        # Authenticated user - use normal flow
-        return await document_service.get_document(str(user.id), collection_id, document_id)
+        user_id = str(user.id)
     else:
-        # Unauthenticated user - check if collection is published in marketplace
-        marketplace_record = await marketplace_service.get_raw_sharing_status(collection_id)
-        if not marketplace_record or marketplace_record.status != "PUBLISHED":
-            raise HTTPException(status_code=401, detail="Authentication required")
-        
-        # Allow access to published marketplace collection
-        return await document_service.get_document("", collection_id, document_id)
+        # For unauthenticated users, validate collection is in marketplace
+        await marketplace_service.validate_marketplace_collection(collection_id)
+        user_id = ""
+    
+    return await document_service.get_document(user_id, collection_id, document_id)
 
 
 @router.delete("/collections/{collection_id}/documents/{document_id}", tags=["documents"])
@@ -325,9 +318,17 @@ async def delete_documents_view(
 async def get_document_preview(
     collection_id: str,
     document_id: str,
-    user: User = Depends(current_user),
+    user: Optional[User] = Depends(current_user),
 ):
-    return await document_service.get_document_preview(user.id, collection_id, document_id)
+    # Determine user_id based on authentication status
+    if user:
+        user_id = str(user.id)
+    else:
+        # For unauthenticated users, validate collection is in marketplace
+        await marketplace_service.validate_marketplace_collection(collection_id)
+        user_id = ""
+    
+    return await document_service.get_document_preview(user_id, collection_id, document_id)
 
 
 @router.get(
@@ -340,10 +341,18 @@ async def get_document_object(
     collection_id: str,
     document_id: str,
     path: str,
-    user: User = Depends(current_user),
+    user: Optional[User] = Depends(current_user),
 ):
+    # Determine user_id based on authentication status
+    if user:
+        user_id = str(user.id)
+    else:
+        # For unauthenticated users, validate collection is in marketplace
+        await marketplace_service.validate_marketplace_collection(collection_id)
+        user_id = ""
+    
     range_header = request.headers.get("range")
-    return await document_service.get_document_object(user.id, collection_id, document_id, path, range_header)
+    return await document_service.get_document_object(user_id, collection_id, document_id, path, range_header)
 
 
 @router.post("/collections/{collection_id}/documents/{document_id}/rebuild_indexes", tags=["documents"])
