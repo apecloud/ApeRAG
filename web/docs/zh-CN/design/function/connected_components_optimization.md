@@ -1,3 +1,9 @@
+---
+title: LightRAG 连通分量优化技术文档
+description:
+keywords:
+---
+
 # LightRAG 连通分量优化技术文档
 
 ## 概述
@@ -49,6 +55,7 @@ def _find_connected_components(self, chunk_results) -> List[List[str]]:
 ```
 
 此方法：
+
 - 从所有提取的实体和关系构建邻接表
 - 使用广度优先搜索（BFS）识别连通分量
 - 返回一个列表，其中每个元素是一组连接的实体名称
@@ -64,6 +71,7 @@ async def _process_entity_groups(self, chunk_results, components, collection_id)
 ```
 
 此方法：
+
 - 分别处理每个连通分量
 - 仅为每个分量内的实体创建锁
 - 允许无关分量的并行处理
@@ -71,6 +79,7 @@ async def _process_entity_groups(self, chunk_results, components, collection_id)
 #### 3. 更新后的图索引处理 (`aprocess_graph_indexing`)
 
 主要处理流程现在：
+
 1. 提取实体和关系（不变）
 2. 查找连通分量
 3. 使用各自的锁范围处理每个分量
@@ -104,7 +113,7 @@ async def _process_entity_groups(self, chunk_results, components, collection_id)
 
 - 对于多样化文档集合，**吞吐量提高2-3倍**
 - 对于无关内容，与CPU核心数**接近线性扩展**
-- 分量检测的**最小开销**（总处理时间的1%）
+- 分量检测的**最小开销**（<总处理时间的1%）
 
 ### 最佳情况场景
 
@@ -162,17 +171,17 @@ print(f"处理了 {result['groups_processed']} 个独立组")
 def _find_connected_components(self, chunk_results):
     """
     使用BFS算法查找连通分量
-    
+
     Args:
         chunk_results: 包含实体和关系的提取结果
-        
+
     Returns:
         List[List[str]]: 连通分量列表，每个分量包含相关实体名称
     """
     # 1. 构建邻接表
     adjacency = defaultdict(set)
     all_entities = set()
-    
+
     # 从关系中构建图
     for result in chunk_results:
         for relationship in result.get('relationships', []):
@@ -182,28 +191,28 @@ def _find_connected_components(self, chunk_results):
             adjacency[tgt].add(src)
             all_entities.add(src)
             all_entities.add(tgt)
-    
+
     # 2. 使用BFS查找连通分量
     visited = set()
     components = []
-    
+
     for entity in all_entities:
         if entity not in visited:
             component = []
             queue = [entity]
             visited.add(entity)
-            
+
             while queue:
                 current = queue.pop(0)
                 component.append(current)
-                
+
                 for neighbor in adjacency[current]:
                     if neighbor not in visited:
                         visited.add(neighbor)
                         queue.append(neighbor)
-            
+
             components.append(component)
-    
+
     return components
 ```
 
@@ -215,24 +224,24 @@ def _find_connected_components(self, chunk_results):
 async def _process_entity_groups(self, chunk_results, components, collection_id):
     """
     并发处理多个连通分量
-    
+
     Args:
         chunk_results: 提取的结果数据
         components: 连通分量列表
         collection_id: 集合ID，用于工作空间隔离
     """
     tasks = []
-    
+
     for i, component in enumerate(components):
         # 为每个分量创建独立的处理任务
         task = self._process_single_component(
             chunk_results, component, collection_id, i
         )
         tasks.append(task)
-    
+
     # 并发执行所有分量处理任务
     results = await asyncio.gather(*tasks, return_exceptions=True)
-    
+
     return self._merge_component_results(results)
 
 async def _process_single_component(self, chunk_results, component, collection_id, component_id):
@@ -241,18 +250,18 @@ async def _process_single_component(self, chunk_results, component, collection_i
     """
     # 1. 过滤属于此分量的数据
     filtered_results = self._filter_results_for_component(chunk_results, component)
-    
+
     # 2. 创建分量级别的锁
     component_locks = [f"entity:{entity}:{collection_id}" for entity in component]
-    
+
     # 3. 使用细粒度锁处理
     async with self.concurrent_manager.multi_lock(component_locks, timeout=30):
         # 处理实体合并
         merged_entities = await self._merge_entities_in_component(filtered_results)
-        
+
         # 处理关系合并
         merged_relationships = await self._merge_relationships_in_component(filtered_results)
-        
+
         return {
             'component_id': component_id,
             'entities': merged_entities,
@@ -278,4 +287,4 @@ component_stats = {
 logger.info(f"连通分量分析完成: {component_stats}")
 ```
 
-这种优化策略在处理多样化文档集合时效果显著，特别是当文档涵盖不同主题领域时，能够实现真正的并行处理，大幅提升系统整体性能。 
+这种优化策略在处理多样化文档集合时效果显著，特别是当文档涵盖不同主题领域时，能够实现真正的并行处理，大幅提升系统整体性能。

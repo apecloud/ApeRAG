@@ -1,10 +1,5 @@
 import { AppLogo } from '@/components/app-topbar';
 import {
-  PageContainer,
-  PageContent,
-  PageHeader,
-} from '@/components/page-container';
-import {
   Sidebar,
   SidebarContent,
   SidebarHeader,
@@ -19,7 +14,7 @@ export default async function Layout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const sidebarData = getDocsSideBar();
+  const sidebarData = await getDocsSideBar();
 
   return (
     <>
@@ -30,16 +25,11 @@ export default async function Layout({
           </SidebarHeader>
           <SidebarContent className="gap-0">
             {sidebarData.map((child) => (
-              <DocsSideBarItem key={child.name} child={child} />
+              <DocsSideBarItem key={child.id} child={child} />
             ))}
           </SidebarContent>
         </Sidebar>
-        <SidebarInset>
-          <PageContainer>
-            <PageHeader breadcrumbs={[{ title: 'Documents' }]} />
-            <PageContent className="pb-20">{children}</PageContent>
-          </PageContainer>
-        </SidebarInset>
+        <SidebarInset>{children}</SidebarInset>
       </SidebarProvider>
     </>
   );

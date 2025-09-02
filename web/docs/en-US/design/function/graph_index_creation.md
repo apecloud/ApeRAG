@@ -1,3 +1,9 @@
+---
+title: Graph Index Creation Process Technical Documentation
+description:
+keywords:
+---
+
 # ApeRAG Graph Index Creation Process Technical Documentation
 
 ## Overview
@@ -9,6 +15,7 @@ The ApeRAG Graph Index creation process is the core pipeline of the entire knowl
 The original LightRAG has numerous limitations: non-stateless design leading to global state management concurrency conflicts, lack of effective concurrency control mechanisms, storage layer stability and consistency issues, and coarse-grained locking affecting performance. **Most critically, the original LightRAG does not support data isolation - all collection nodes and edges are stored in the same global space, causing data conflicts and pollution between different users and projects, making true multi-tenant support impossible**.
 
 We have conducted large-scale refactoring to address these issues:
+
 - **Complete rewrite to stateless architecture**: Each task uses independent instances, completely resolving concurrency conflicts
 - **Introduced workspace data isolation mechanism**: Each collection has independent data space, completely solving data conflicts and pollution
 - **Self-developed Concurrent Control model**: Implementing fine-grained lock management for high concurrency processing
@@ -17,6 +24,7 @@ We have conducted large-scale refactoring to address these issues:
 - **Connected component concurrency optimization**: Intelligent concurrency strategy based on graph topology analysis
 
 The Graph Index creation process includes the following core stages:
+
 1. **Task reception and instance creation**: Celery task scheduling, LightRAG instance initialization
 2. **Document chunking processing**: Intelligent chunking algorithms maintaining semantic coherence
 3. **Entity relationship extraction**: LLM-based entity and relationship identification
@@ -37,66 +45,66 @@ flowchart TD
     classDef optimization fill:#fce4ec,stroke:#c2185b,stroke-width:2px,color:#000
     classDef storage fill:#e8eaf6,stroke:#3f51b5,stroke-width:2px,color:#000
     classDef complete fill:#c8e6c9,stroke:#388e3c,stroke-width:3px,color:#000,font-weight:bold
-    
+
     %% Entry layer
     START["🚀 Graph Index Task Start"]
-    
+
     %% Management layer
     MANAGER["🎯 LightRAG Instance Management<br/>• create_lightrag_instance<br/>• workspace isolation"]
-    
+
     %% Document processing branch
     DOC_PROCESS["📄 Document Chunking Processing<br/>• ainsert_and_chunk_document<br/>• chunking_by_token_size"]
     DOC_STORE["💾 Chunk Data Storage<br/>• chunks_vdb.upsert<br/>• text_chunks.upsert"]
-    
+
     %% Graph indexing processing branch
     GRAPH_START["🏛️ Graph Index Construction Start<br/>• aprocess_graph_indexing"]
-    
+
     %% Intelligent extraction layer
     AI_EXTRACT["🔬 AI Intelligent Extraction<br/>• extract_entities<br/>• LLM concurrent calls"]
     ENTITY_REL["🎭 Entity Relationship Recognition<br/>• Entity Recognition<br/>• Relationship Extraction"]
-    
+
     %% Topology optimization layer
     TOPO_ANALYSIS["🧠 Topology Analysis<br/>• _find_connected_components<br/>• BFS algorithm"]
     COMPONENT_GROUP["🌐 Connected Component Grouping<br/>• Component Grouping<br/>• Concurrent task allocation"]
-    
+
     %% Concurrent merging layer
     CONCURRENT_MERGE["⚡ Concurrent Intelligent Merging<br/>• merge_nodes_and_edges<br/>• Fine-grained lock control"]
-    
+
     %% Storage layer (parallel writing)
     STORAGE_GRAPH["🗄️ Graph Database<br/>Neo4j/NebulaGraph/PG"]
     STORAGE_VECTOR["🎯 Vector Database<br/>Qdrant/Elasticsearch"]
     STORAGE_TEXT["📝 Text Storage<br/>Raw chunk data"]
-    
+
     %% Completion
     COMPLETE["✅ Knowledge Graph Construction Complete<br/>🎉 Multi-dimensional retrieval ready"]
-    
+
     %% Main process connections
     START --> MANAGER
     MANAGER --> DOC_PROCESS
     MANAGER --> GRAPH_START
-    
+
     DOC_PROCESS --> DOC_STORE
     DOC_STORE -.->|"Data preparation complete"| GRAPH_START
-    
+
     GRAPH_START --> AI_EXTRACT
     AI_EXTRACT --> ENTITY_REL
     AI_EXTRACT --> TOPO_ANALYSIS
-    
+
     ENTITY_REL --> COMPONENT_GROUP
     TOPO_ANALYSIS --> COMPONENT_GROUP
-    
+
     COMPONENT_GROUP --> CONCURRENT_MERGE
-    
+
     %% Parallel storage
     CONCURRENT_MERGE --> STORAGE_GRAPH
     CONCURRENT_MERGE --> STORAGE_VECTOR
     DOC_STORE --> STORAGE_TEXT
-    
+
     %% Converge to completion
     STORAGE_GRAPH --> COMPLETE
     STORAGE_VECTOR --> COMPLETE
     STORAGE_TEXT --> COMPLETE
-    
+
     %% Apply styles
     class START entry
     class MANAGER manager
@@ -118,6 +126,7 @@ We completely rewrote LightRAG's instance management code, implementing a statel
 ### 2. Staged Pipeline Processing
 
 **Document processing and graph indexing separation**:
+
 - **ainsert_and_chunk_document**: Responsible for document chunking and storage
 - **aprocess_graph_indexing**: Responsible for graph index construction
 - **Advantages**: Modular design, easy to test and maintain
@@ -188,19 +197,19 @@ flowchart TD
     classDef summaryStage fill:#e0f2f1,stroke:#00695c,stroke-width:2px,color:#000
     classDef storageStage fill:#e8eaf6,stroke:#3f51b5,stroke-width:2px,color:#000
     classDef resultStage fill:#c8e6c9,stroke:#388e3c,stroke-width:3px,color:#000
-    
+
     %% Data input stage
     subgraph InputStage ["📥 Raw Data Input"]
         A["📄 Raw Documents<br/><small>PDF/Word/Markdown etc.</small>"]
         B["🧹 Document Cleaning<br/><small>Format removal/noise filtering</small>"]
         C["✂️ Smart Chunking<br/><small>Based on semantics and token limits</small>"]
     end
-    
+
     %% Chunk data stage
     subgraph ChunkStage ["📦 Structured Chunk Data"]
         D["🔢 Chunk Collection<br/><small>With ID/content/metadata</small>"]
     end
-    
+
     %% Concurrent extraction stage
     subgraph ExtractStage ["🔬 AI Intelligent Extraction"]
         E["🤖 LLM Concurrent Calls<br/><small>Large model concurrent recognition</small>"]
@@ -209,14 +218,14 @@ flowchart TD
         H["📋 Raw Entity List<br/><small>Undeduped entity data</small>"]
         I["📋 Raw Relationship List<br/><small>Unaggregated relationship data</small>"]
     end
-    
+
     %% Topology analysis stage
     subgraph TopoStage ["🧠 Graph Topology Analysis"]
         J["🕸️ Build Adjacency Graph<br/><small>Entity relationship modeling</small>"]
         K["🔍 Connected Component Discovery<br/><small>BFS algorithm identifies groups</small>"]
         L["📦 Component Grouping<br/><small>Divide by connectivity</small>"]
     end
-    
+
     %% Concurrent merging stage
     subgraph MergeStage ["⚡ Intelligent Data Merging"]
         M["🔄 Component Concurrent Processing<br/><small>Group parallel processing</small>"]
@@ -225,7 +234,7 @@ flowchart TD
         P["✨ Merged Entity Data<br/><small>Deduped entities</small>"]
         Q["✨ Merged Relationship Data<br/><small>Aggregated relationships</small>"]
     end
-    
+
     %% Intelligent summarization stage
     subgraph SummaryStage ["📝 Intelligent Content Summarization"]
         R{"📏 Content Length Check"}
@@ -237,7 +246,7 @@ flowchart TD
         X["✅ Keep Original Relationship<br/><small>Short relationships direct retention</small>"]
         Y["📄 Final Relationship Content<br/><small>Optimized descriptions</small>"]
     end
-    
+
     %% Multi-storage writing stage
     subgraph StorageStage ["💾 Multi-Storage System Writing"]
         Z1["🗄️ Graph Database<br/><small>Neo4j/NebulaGraph/PG</small>"]
@@ -246,45 +255,45 @@ flowchart TD
         Z4["📚 Chunk Vector DB<br/><small>Raw chunk indexing</small>"]
         Z5["📝 Text Storage<br/><small>Chunk text storage</small>"]
     end
-    
+
     %% Completion stage
     AA["🎉 Knowledge Graph Construction Complete<br/><small>Multi-dimensional retrieval ready</small>"]
-    
+
     %% Main data flow connections
     A --> B
     B --> C
     C --> D
-    
+
     D --> E
     E --> F
     E --> G
     F --> H
     G --> I
-    
+
     H --> J
     I --> J
     J --> K
     K --> L
-    
+
     L --> M
     M --> N
     M --> O
     N --> P
     O --> Q
-    
+
     %% Intelligent summarization flow
     P --> R
     R -->|"Content too long"| S
     R -->|"Content appropriate"| T
     S --> U
     T --> U
-    
+
     Q --> V
     V -->|"Description too long"| W
     V -->|"Description appropriate"| X
     W --> Y
     X --> Y
-    
+
     %% Storage writing flow
     U --> Z1
     U --> Z2
@@ -292,14 +301,14 @@ flowchart TD
     Y --> Z3
     D --> Z4
     D --> Z5
-    
+
     %% Converge to completion
     Z1 --> AA
     Z2 --> AA
     Z3 --> AA
     Z4 --> AA
     Z5 --> AA
-    
+
     %% Apply styles
     class A,B,C inputStage
     class D chunkStage
@@ -314,22 +323,29 @@ flowchart TD
 ### Data Flow Transformation Process Analysis
 
 #### 🚀 **Document Input → Structured Chunking**
+
 Raw documents undergo format cleaning and noise filtering, using intelligent chunking algorithms to segment according to semantic boundaries and token limits, generating chunk collections with unique identifiers and metadata. This step ensures data quality and traceability for subsequent processing.
 
-#### 🔬 **Chunk Data → AI Extraction Results** 
+#### 🔬 **Chunk Data → AI Extraction Results**
+
 Chunk data undergoes intelligent analysis through LLM concurrent calls, simultaneously identifying entities (people, organizations, concepts, etc.) and semantic relationships between entities in the text. This stage produces raw, undeduped entity and relationship lists, providing raw materials for subsequent graph construction.
 
 #### 🧠 **Extraction Results → Topology Grouping**
+
 Based on extracted entity relationships, adjacency graph networks are constructed, using BFS algorithms to discover connected components and identify groups of mutually related entities. For example: technology team-related entities form one group, finance department-related entities form another group. This topology analysis lays the foundation for parallel processing.
 
 #### ⚡ **Topology Grouping → Intelligent Merging**
+
 Different connected components can be processed completely in parallel, with same-named entities undergoing intelligent deduplication and information aggregation, and same-direction relationships undergoing weight accumulation and description merging. This process integrates fragmented information into complete knowledge units.
 
 #### 📝 **Merged Data → Content Optimization**
+
 Length checks are performed on merged entity and relationship descriptions, with overly long content undergoing intelligent summary compression through LLM, ensuring a balance between information density and storage efficiency. Short content is retained directly, while long content is intelligently summarized.
 
 #### 💾 **Optimized Content → Multi-dimensional Storage**
+
 Final knowledge content is written simultaneously to multiple storage systems:
+
 - **Graph Database**: Stores entity nodes and relationship edges, supporting graph queries
 - **Vector Database**: Stores semantic vectors, supporting similarity search
 - **Text Storage**: Retains original chunks, supporting full-text search
@@ -339,12 +355,15 @@ This multi-dimensional storage architecture ensures optimal performance of knowl
 ### Data Flow Optimization Features
 
 #### 1. Fine-grained Concurrency Control
+
 We implemented precise locking mechanisms at entity and relationship levels: `entity:{entity_name}:{workspace}` and `relationship:{src}:{tgt}:{workspace}`, minimizing lock scope to only during merge writes, with completely parallel entity extraction stages. Through sorted lock acquisition order, we effectively prevent circular waiting and deadlocks.
 
 #### 2. Connected Component-driven Concurrency Optimization
+
 We designed topology analysis based on BFS algorithms, discovering independent entity relationship networks and grouping them for parallel processing. Different connected components are processed completely independently, achieving zero lock competition, while processing in batches by component effectively controls memory peaks.
 
 #### 3. Intelligent Data Merging Strategy
+
 We implemented intelligent entity deduplication based on entity_name, supporting intelligent concatenation and summarization of multiple description fragments, quantitative accumulation of relationship strength, and established complete data lineage recording mechanisms.
 
 ## Performance Optimization Strategies
@@ -352,6 +371,7 @@ We implemented intelligent entity deduplication based on entity_name, supporting
 ### 1. Connected Component Optimization
 
 **Topology-driven Concurrency Strategy**:
+
 - **Independent Processing**: Different connected components processed completely in parallel
 - **Lock Competition Minimization**: Entities within components don't conflict across components
 - **Memory Efficiency**: Batch processing by component, controlling memory usage
@@ -361,6 +381,7 @@ The system automatically collects connected component distribution statistics, i
 ### 2. LLM Call Optimization
 
 **Batch Processing and Caching Strategy**:
+
 - **Concurrency Control**: Use semaphores to limit concurrent LLM calls
 - **Batch Optimization**: Batch processing of similar content
 - **Caching Mechanism**: Reuse of entity description summary caching
@@ -370,6 +391,7 @@ The system intelligently checks description length, automatically calling LLM to
 ### 3. Storage Write Optimization
 
 **Batch Writing and Connection Reuse**:
+
 - **Batch Operations**: Reduce database round trips
 - **Connection Pooling**: Reuse database connections
 - **Async Writing**: Parallel writing to different storage systems
@@ -377,6 +399,7 @@ The system intelligently checks description length, automatically calling LLM to
 ### 4. Memory Management Optimization
 
 **Streaming Processing and Memory Control**:
+
 - **Chunk Processing**: Streaming chunking of large documents
 - **Timely Release**: Immediate memory release after processing completion
 - **Monitoring Alerts**: Memory usage monitoring
@@ -412,12 +435,15 @@ config/
 ### Core Interface Design
 
 #### LightRAG Management Interface
+
 Responsible for instance creation, document processing and deletion entry management, as well as dynamic generation of embedding and LLM functions.
 
-#### LightRAG Core Interface  
+#### LightRAG Core Interface
+
 Implements document chunk storage, graph index construction, document deletion, connected component discovery and grouping processing and other core functions.
 
 #### Operation Function Interface
+
 Provides entity extraction, node edge merging, chunk processing and other low-level operation functions, supporting asynchronous concurrent execution.
 
 ### Data Structure Design
@@ -438,6 +464,7 @@ All data structures support multi-source aggregation, using delimiters (such as 
 ### 1. Performance Metrics
 
 **Key Performance Indicators (KPIs)**:
+
 - **Document Processing Throughput**: Documents processed per minute
 - **Entity Extraction Accuracy**: Quality assessment of extracted entities
 - **Connected Component Distribution**: Complexity analysis of topological structure
@@ -446,28 +473,26 @@ All data structures support multi-source aggregation, using delimiters (such as 
 
 ### 2. Debugging Tools
 
-**Structured Logging**:
-The system provides complete structured logging functionality, including entity extraction progress tracking, entity merge detail recording, relationship merge status monitoring, etc. Logs record processing progress percentages, entity relationship quantity statistics, summary generation types and other key information.
+**Structured Logging**: The system provides complete structured logging functionality, including entity extraction progress tracking, entity merge detail recording, relationship merge status monitoring, etc. Logs record processing progress percentages, entity relationship quantity statistics, summary generation types and other key information.
 
 ### 3. Performance Analysis
 
-**Execution Time Statistics**:
-Through performance decorators, key functions undergo execution time statistics, including entity extraction, node edge merging and other core operation duration analysis, facilitating performance optimization and bottleneck identification.
+**Execution Time Statistics**: Through performance decorators, key functions undergo execution time statistics, including entity extraction, node edge merging and other core operation duration analysis, facilitating performance optimization and bottleneck identification.
 
 ## Configuration and Environment
 
 ### 1. Core Configuration Parameters
 
-**LightRAG Configuration**:
-The system supports rich configuration parameter tuning, including chunk size, overlap size, LLM concurrency count, similarity thresholds, batch size, summary parameters, embedding token limits, etc. Default configurations are optimized for Chinese environments, supporting flexible adjustment according to actual needs.
+**LightRAG Configuration**: The system supports rich configuration parameter tuning, including chunk size, overlap size, LLM concurrency count, similarity thresholds, batch size, summary parameters, embedding token limits, etc. Default configurations are optimized for Chinese environments, supporting flexible adjustment according to actual needs.
 
 ### 2. Storage Configuration
 
 **Multi-storage Backend Support**:
+
 ```bash
 # Environment variable configuration
 GRAPH_INDEX_KV_STORAGE=PGOpsSyncKVStorage          # KV storage
-GRAPH_INDEX_VECTOR_STORAGE=PGOpsSyncVectorStorage  # Vector storage  
+GRAPH_INDEX_VECTOR_STORAGE=PGOpsSyncVectorStorage  # Vector storage
 GRAPH_INDEX_GRAPH_STORAGE=Neo4JSyncStorage         # Graph storage
 
 # PostgreSQL configuration
@@ -509,6 +534,7 @@ We conducted large-scale refactoring and optimization of the original LightRAG, 
 ### Performance Improvements
 
 Through these technical improvements, we achieved:
+
 - **5-10x performance improvement** in concurrent processing capability
 - **95%+ reduction** in lock competition
 - **True multi-tenant concurrent processing** support
@@ -523,4 +549,4 @@ The refactored system transforms the original research prototype into a producti
 
 - 📋 [Indexing Architecture Design](./indexing_architecture.md) - Overall indexing architecture
 - 📖 [LightRAG Entity Extraction and Merging Mechanism](./lightrag_entity_extraction_and_merging.md) - Core algorithm details
-- 🏗️ [Graph Index 创建流程技术文档](./graph_index_creation_zh.md) - Chinese Version 
+- 🏗️ [Graph Index 创建流程技术文档](./graph_index_creation_zh.md) - Chinese Version

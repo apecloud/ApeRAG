@@ -1,65 +1,148 @@
+import { getLocale } from '@/services/cookies';
 import fs from 'fs';
+import grayMatter from 'gray-matter';
 import _ from 'lodash';
 import path from 'path';
+import readYamlFile from 'read-yaml-file';
 
-export const ROOT_DIR = process.cwd();
+const ROOT_DIR = process.cwd();
 export const DOCS_DIR = path.join(ROOT_DIR, 'docs');
 
-const getUrlName = (str: string) => {
-  return getUrlPath(str)
+const getId = (pathname: string) => {
+  const href = getHref(pathname);
+  return href
     .split('/')
     .filter((s) => s !== '')
     .join('-');
 };
 
-const getUrlPath = (str: string) => {
-  return trimSurfix(str.replace(ROOT_DIR, ''));
+const getHref = (pathname: string) => {
+  const url = trimSurfix(pathname.replace(ROOT_DIR, ''));
+  return url.replace(/\/(en-US|zh-CN)/, '');
 };
 
 const trimSurfix = (str: string) => {
-  return str.replace(/\.mdx/, '');
+  return str.replace(/\.mdx?$/, '');
 };
 
-const getTitle = (str: string) => {
+const getTitleByFilename = (str: string) => {
   return _.startCase(trimSurfix(str));
 };
 
 export type DocsSideBar = {
-  name: string;
+  id: string;
   title: string;
-  href?: string;
   type: 'group' | 'folder' | 'file';
+
+  description?: string;
+  href?: string;
   children?: DocsSideBar[];
+  collapsed?: boolean;
 };
 
-export const getDocsSideBar = (dir = DOCS_DIR): DocsSideBar[] => {
-  const dirs = fs.readdirSync(dir);
+type FileMetadata = {
+  title?: string;
+  description?: string;
+  keywords?: string;
+};
+const readFile = async (filepath: string, folder: string) => {
+  const isExists = fs.existsSync(filepath);
 
-  return dirs.map((group) => {
-    const p = path.join(dir, group);
-    const stat = fs.statSync(p);
-    const items = {
-      name: getUrlName(p),
-      title: getTitle(group),
+  let metadata: FileMetadata = {};
+
+  if (isExists) {
+    const { data } = grayMatter(fs.readFileSync(filepath, 'utf8'));
+    metadata = data as FileMetadata;
+  }
+
+  const item: DocsSideBar = {
+    id: getId(filepath),
+    title: metadata.title || getTitleByFilename(folder),
+    description: metadata.description,
+    type: 'file',
+    href: getHref(filepath),
+  };
+  return item;
+};
+
+type FolderMetadata = {
+  title?: string;
+  position?: number;
+  collapsed?: boolean;
+};
+const readFolder = async (folderDir: string, parent: string) => {
+  const children = await getDocsSideBar(folderDir);
+  const metadataFilePath = path.join(folderDir, '_category.yaml');
+  let metadata: FolderMetadata = {
+    position: 0,
+    collapsed: true,
+  };
+
+  if (fs.existsSync(metadataFilePath)) {
+    metadata = {
+      ...metadata,
+      ...(await readYamlFile<FolderMetadata>(metadataFilePath)),
     };
-    if (stat.isDirectory()) {
-      const children = getDocsSideBar(p);
-      return {
-        ...items,
-        type:
-          dir === DOCS_DIR
-            ? 'group'
-            : children.some((child) => child.type === 'folder')
-              ? 'group'
-              : 'folder',
-        children,
-      };
-    } else {
-      return {
-        ...items,
-        type: 'file',
-        href: getUrlPath(p),
-      };
-    }
-  });
+  }
+
+  const parentIsDocsRoot =
+    folderDir.replace(DOCS_DIR, '').split('/').length === 3;
+  const childrenIsParent = children.some((child) => child.type === 'folder');
+
+  const item: DocsSideBar = {
+    id: getId(folderDir),
+    title: metadata.title || getTitleByFilename(parent),
+    type: parentIsDocsRoot || childrenIsParent ? 'group' : 'folder',
+    children,
+  };
+
+  return item;
 };
+
+export async function getDocsSideBar(dir?: string): Promise<DocsSideBar[]> {
+  const locale = await getLocale();
+  const baseDir = dir || path.join(DOCS_DIR, locale);
+  const dirs = fs.readdirSync(baseDir);
+  const result = await Promise.all(
+    dirs.map(async (parent) => {
+      const pathname = path.join(baseDir, parent);
+      const stat = fs.statSync(pathname);
+      if (stat.isDirectory()) {
+        return await readFolder(pathname, parent);
+      }
+
+      // should be a mdx file
+      if (pathname.match(/\.mdx?$/) === null) {
+        return;
+      }
+
+      return await readFile(pathname, parent);
+    }),
+  );
+
+  return result.filter((item) => item !== undefined);
+}
+
+export async function getIndexPageUrl(
+  dir?: string,
+): Promise<string | undefined> {
+  const locale = await getLocale();
+  const baseDir = dir || path.join(DOCS_DIR, locale);
+  const dirs = fs.readdirSync(baseDir);
+  let url: string | undefined;
+
+  for (const i in dirs) {
+    const pathname = path.join(baseDir, dirs[i]);
+    const stat = fs.statSync(pathname);
+
+    if (stat.isFile() && pathname.match(/\.mdx?$/)) {
+      url = getHref(pathname);
+    } else if (stat.isDirectory()) {
+      url = await getIndexPageUrl(pathname);
+    }
+    if (url) {
+      break;
+    }
+  }
+  return url;
+}

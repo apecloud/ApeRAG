@@ -1,3 +1,9 @@
+---
+title: Agent接口设计
+description:
+keywords:
+---
+
 # ApeRAG Agent 后端接口设计方案
 
 ## 1. 设计概述
@@ -35,18 +41,21 @@ Frontend → Agent API → Agent Service → [
 ### 3.1 Agent对话管理接口
 
 #### 3.1.1 创建Agent对话
+
 ```
 POST /api/v1/agent/chats
 ```
 
 **请求体**：
+
 ```json
 {
-  "title": "新对话"  // 可选，默认自动生成
+  "title": "新对话" // 可选，默认自动生成
 }
 ```
 
 **响应**：
+
 ```json
 {
   "id": "chat_12345",
@@ -57,11 +66,13 @@ POST /api/v1/agent/chats
 ```
 
 #### 3.1.2 获取对话列表
+
 ```
 GET /api/v1/agent/chats
 ```
 
 **响应**：
+
 ```json
 {
   "items": [
@@ -76,11 +87,13 @@ GET /api/v1/agent/chats
 ```
 
 #### 3.1.3 获取对话详情
+
 ```
 GET /api/v1/agent/chats/{chat_id}
 ```
 
 **响应**：
+
 ```json
 {
   "id": "chat_12345",
@@ -106,7 +119,7 @@ GET /api/v1/agent/chats/{chat_id}
           "collection_name": "技术文档",
           "score": 0.95,
           "text": "相关文档内容...",
-          "metadata": {"source": "doc1.pdf"}
+          "metadata": { "source": "doc1.pdf" }
         }
       ],
       "web_search_results": null,
@@ -118,21 +131,24 @@ GET /api/v1/agent/chats/{chat_id}
 ```
 
 #### 3.1.4 发送消息
+
 ```
 POST /api/v1/agent/chats/{chat_id}/messages
 ```
 
 **请求体**：
+
 ```json
 {
   "content": "请介绍一下ApeRAG的架构",
-  "model_id": "claude-3-5-sonnet",       // 可选，使用默认模型
-  "web_search_enabled": false,           // 可选，默认false
-  "stream": true                         // 可选，是否流式响应
+  "model_id": "claude-3-5-sonnet", // 可选，使用默认模型
+  "web_search_enabled": false, // 可选，默认false
+  "stream": true // 可选，是否流式响应
 }
 ```
 
 **流式响应**（Server-Sent Events）：
+
 ```
 data: {"type": "start", "message_id": "msg_67890"}
 
@@ -146,6 +162,7 @@ data: {"type": "end", "message_id": "msg_67890"}
 ```
 
 **非流式响应**：
+
 ```json
 {
   "id": "msg_67890",
@@ -156,7 +173,7 @@ data: {"type": "end", "message_id": "msg_67890"}
       "collection_name": "技术文档",
       "score": 0.95,
       "text": "相关文档内容...",
-      "metadata": {"source": "doc1.pdf"}
+      "metadata": { "source": "doc1.pdf" }
     }
   ],
   "web_search_results": null,
@@ -170,11 +187,13 @@ data: {"type": "end", "message_id": "msg_67890"}
 #### 3.2.1 Web搜索接口
 
 **HTTP接口**：
+
 ```
 POST /api/v1/web/search
 ```
 
 **MCP工具**：
+
 ```
 web_search(query, max_results, search_engine, ...)
 ```
@@ -182,17 +201,19 @@ web_search(query, max_results, search_engine, ...)
 参考[JINA Reader API](https://jina.ai/reader)的`s.jina.ai`设计。
 
 **请求体**：
+
 ```json
 {
   "query": "ApeRAG 2025年最新发展",
-  "max_results": 5,                    // 可选，默认5
-  "search_engine": "google",           // 可选，默认google
-  "timeout": 30,                       // 可选，超时时间（秒）
-  "locale": "zh-CN"                    // 可选，浏览器语言
+  "max_results": 5, // 可选，默认5
+  "search_engine": "google", // 可选，默认google
+  "timeout": 30, // 可选，超时时间（秒）
+  "locale": "zh-CN" // 可选，浏览器语言
 }
 ```
 
 **响应**：
+
 ```json
 {
   "query": "ApeRAG 2025年最新发展",
@@ -215,11 +236,13 @@ web_search(query, max_results, search_engine, ...)
 #### 3.2.2 Web内容读取接口
 
 **HTTP接口**：
+
 ```
 POST /api/v1/web/read
 ```
 
 **MCP工具**：
+
 ```
 web_read(urls, timeout, ...)
 ```
@@ -227,23 +250,26 @@ web_read(urls, timeout, ...)
 参考[JINA Reader API](https://jina.ai/reader)的`r.jina.ai`设计。
 
 **请求体**：
+
 ```json
 {
-  "urls": [                            // 支持单个URL字符串或URL数组
+  "urls": [
+    // 支持单个URL字符串或URL数组
     "https://example.com/aperag-2025-roadmap",
     "https://example.com/another-page"
   ],
-  "timeout": 30,                       // 可选，超时时间
-  "css_selector": null,                // 可选，CSS选择器，提取特定内容
-  "wait_for_selector": null,           // 可选，等待选择器，适用于SPA页面
-  "exclude_selector": null,            // 可选，排除选择器，去掉广告等无用内容
-  "bypass_cache": false,               // 可选，绕过缓存，获取最新内容
-  "locale": "zh-CN",                   // 可选，浏览器语言
-  "max_concurrent": 3                  // 可选，最大并发数（仅对多个URL有效）
+  "timeout": 30, // 可选，超时时间
+  "css_selector": null, // 可选，CSS选择器，提取特定内容
+  "wait_for_selector": null, // 可选，等待选择器，适用于SPA页面
+  "exclude_selector": null, // 可选，排除选择器，去掉广告等无用内容
+  "bypass_cache": false, // 可选，绕过缓存，获取最新内容
+  "locale": "zh-CN", // 可选，浏览器语言
+  "max_concurrent": 3 // 可选，最大并发数（仅对多个URL有效）
 }
 ```
 
 **响应**：
+
 ```json
 {
   "results": [
@@ -280,7 +306,7 @@ sequenceDiagram
     participant A as Agent API
     participant S as Agent Service
     participant D as Database
-    
+
     F->>A: POST /api/v1/agent/chats
     A->>S: agent_service.create_chat()
     S->>D: 创建对话记录
@@ -299,19 +325,19 @@ sequenceDiagram
     participant MCP as MCP Service
     participant WS as Web Service
     participant LLM as LLM Service
-    
+
     F->>A: POST /api/v1/agent/chats/{chat_id}/messages
     A->>S: agent_service.send_message()
-    
+
     Note over S: Agent后端智能选择collections
     S->>MCP: 调用MCP搜索接口
     MCP-->>S: 返回搜索结果
-    
+
     alt 如果启用web搜索
         S->>WS: 调用Web搜索/读取接口
         WS-->>S: 返回web结果
     end
-    
+
     S->>LLM: 调用LLM生成回答
     LLM-->>S: 返回流式响应
     S-->>A: 返回流式响应
@@ -327,7 +353,7 @@ sequenceDiagram
     participant MCP as MCP Tools
     participant WS as Web Service
     participant JINA as JINA API (初期)
-    
+
     alt HTTP调用
         Client->>HTTP: POST /api/v1/web/search
         HTTP->>WS: 执行搜索
@@ -406,16 +432,19 @@ class WebResult:
 ### 6.1 分阶段实现
 
 **第一阶段：JINA集成**
+
 - 直接集成[JINA Reader API](https://jina.ai/reader)作为后端
 - 提供标准化的HTTP和MCP接口
 - 支持JINA的主要参数和功能
 
 **第二阶段：自研实现**
+
 - 实现自己的web搜索引擎集成
 - 实现自己的网页内容提取
 - 逐步替换JINA依赖
 
 **第三阶段：优化增强**
+
 - 添加缓存机制
 - 实现智能内容摘要
 - 支持更多搜索引擎
@@ -423,6 +452,7 @@ class WebResult:
 ### 6.2 接口兼容性
 
 无论使用JINA还是自研实现，都保持相同的接口格式，确保：
+
 - HTTP API接口不变
 - MCP工具接口不变
 - 响应格式保持一致
@@ -445,16 +475,16 @@ class WebResult:
 
 ### 7.2 常见错误码
 
-| 错误码 | HTTP状态码 | 描述 |
-|--------|-----------|------|
-| CHAT_NOT_FOUND | 404 | 对话不存在 |
-| MODEL_NOT_AVAILABLE | 400 | 模型不可用 |
-| WEB_SEARCH_FAILED | 500 | Web搜索失败 |
-| WEB_READ_FAILED | 500 | 网页读取失败 |
-| URL_NOT_ACCESSIBLE | 400 | URL无法访问 |
-| QUOTA_EXCEEDED | 429 | 超过配额限制 |
-| INVALID_URL_FORMAT | 400 | URL格式错误 |
-| TIMEOUT_ERROR | 408 | 请求超时 |
+| 错误码              | HTTP状态码 | 描述         |
+| ------------------- | ---------- | ------------ |
+| CHAT_NOT_FOUND      | 404        | 对话不存在   |
+| MODEL_NOT_AVAILABLE | 400        | 模型不可用   |
+| WEB_SEARCH_FAILED   | 500        | Web搜索失败  |
+| WEB_READ_FAILED     | 500        | 网页读取失败 |
+| URL_NOT_ACCESSIBLE  | 400        | URL无法访问  |
+| QUOTA_EXCEEDED      | 429        | 超过配额限制 |
+| INVALID_URL_FORMAT  | 400        | URL格式错误  |
+| TIMEOUT_ERROR       | 408        | 请求超时     |
 
 ## 8. 性能优化设计
 

@@ -31,7 +31,7 @@ export const DocsSideBarItem = ({ child }: { child: DocsSideBar }) => {
 
       if (item.type === 'group') {
         content = (
-          <SidebarGroup key={item.name}>
+          <SidebarGroup key={item.id}>
             <SidebarGroupLabel>{item.title}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
@@ -46,7 +46,7 @@ export const DocsSideBarItem = ({ child }: { child: DocsSideBar }) => {
 
       if (item.type === 'folder') {
         content = (
-          <Collapsible key={item.name} asChild className="group/collapsible">
+          <Collapsible key={item.id} asChild className="group/collapsible">
             <SidebarMenuItem>
               <CollapsibleTrigger asChild>
                 <SidebarMenuButton>
@@ -69,7 +69,7 @@ export const DocsSideBarItem = ({ child }: { child: DocsSideBar }) => {
       if (item.type === 'file') {
         if (parentType === 'folder') {
           content = (
-            <SidebarMenuSubItem key={item.name}>
+            <SidebarMenuSubItem key={item.id}>
               <SidebarMenuSubButton
                 asChild
                 isActive={pathname === item.href}
@@ -83,7 +83,7 @@ export const DocsSideBarItem = ({ child }: { child: DocsSideBar }) => {
           );
         } else if (parentType === 'group') {
           content = (
-            <SidebarMenu key={item.name}>
+            <SidebarMenu key={item.id}>
               <SidebarMenuItem>
                 <SidebarMenuButton
                   asChild
@@ -99,7 +99,7 @@ export const DocsSideBarItem = ({ child }: { child: DocsSideBar }) => {
           );
         } else {
           content = (
-            <SidebarGroup key={item.name}>
+            <SidebarGroup key={item.id}>
               <SidebarGroupContent>
                 <SidebarMenu>
                   <SidebarMenuItem>

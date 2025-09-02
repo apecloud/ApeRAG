@@ -11,7 +11,12 @@ import { cn } from '@/lib/utils';
 import { House } from 'lucide-react';
 import Link from 'next/link';
 import React, { useMemo } from 'react';
-import { AppDocs, AppGithub, AppThemeDropdownMenu } from './app-topbar';
+import {
+  AppDocs,
+  AppGithub,
+  AppLocaleDropdownMenu,
+  AppThemeDropdownMenu,
+} from './app-topbar';
 import { Separator } from './ui/separator';
 import { SidebarTrigger, useSidebar } from './ui/sidebar';
 
@@ -89,6 +94,7 @@ export const PageHeader = ({
         <div className="flex flex-row items-center gap-2 pr-4">
           <AppGithub />
           <AppDocs />
+          <AppLocaleDropdownMenu />
           <AppThemeDropdownMenu />
         </div>
       </header>

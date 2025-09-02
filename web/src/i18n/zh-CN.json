@@ -46,6 +46,33 @@
       "page_info": "第{page}页，共{total}页"
     }
   },
+  "page_api_keys": {
+    "metadata": {
+      "title": "API密钥",
+      "description": "支持安全存储、更新和管理不同AI服务（如OpenAI、Anthropic、Gemini等）的API密钥。关联密钥既可实现个性化AI交互，又能确保凭证安全。"
+    },
+    "description": "描述信息",
+    "search_api_keys": "搜索密钥",
+    "creation_time": "创建时间",
+    "last_used_time": "最后使用时间",
+    "api_keys": "API密钥",
+    "api_key_placeholder": "请描述该API密钥的用途",
+    "api_key_description": "API密钥需严格保密（如存储在环境变量中），避免被恶意利用或产生意外费用",
+    "add_api_keys": "创建API密钥",
+    "edit_api_keys": "编辑",
+    "delete_api_key": "删除API密钥",
+    "delete_api_key_confirm": "确认删除此API密钥？"
+  },
+  "page_audit_logs": {
+    "metadata": {
+      "title": "审计日志",
+      "description": "通过审计日志跟踪和审查所有关键系统活动—、API调用和管理变更，确保透明度、安全性和合规性。"
+    },
+    "search_placeholder": "按API名称搜索",
+    "status": "状态",
+    "duration": "持续时间",
+    "start_time": "开始时间"
+  },
   "page_auth": {
     "account": "我的账号",
     "administrator": "系统设置",
@@ -261,129 +288,6 @@
     "no_description_available": "没有可用的描述",
     "search": "搜索社区知识库"
   },
-  "page_question_set": {
-    "metadata": {
-      "title": "问题集管理",
-      "description": "问题集是用于系统衡量效能与影响力的针对性评测问题集合"
-    },
-    "search": "搜索问题集",
-    "add_question_set": "新增问题集",
-    "update_question_set": "更新问题集",
-    "delete_question_set": "删除问题集",
-    "delete_question_set_confirm": "此操作不可撤销。将会永久删除该问题集，并从服务器中移除您的问题集数据。",
-    "question_set_name": "问题集名称",
-    "question_set_name_placeholder": "请输入问题集名称",
-    "question_set_description": "问题集描述",
-    "question_set_description_placeholder": "请输入问题集描述",
-    "add_question": "添加问题",
-    "add_question_manual": "手动添加",
-    "add_question_generator": "自动生成问题",
-    "add_question_import": "从文件导入",
-    "update_question": "更新问题",
-    "delete_question": "删除问提",
-    "delete_question_confirm": "此操作不可撤销，将会永久删除该问题。",
-    "question_content": "问题",
-    "question_content_placeholder": "请输入您的问题",
-    "ground_truth": "标准答案",
-    "ground_truth_placeholder": "请输入标准答案",
-    "no_question_found": "当前问题集内没有数据",
-    "collection": "知识库",
-    "collection_placeholder": "选择一个知识库",
-    "question_count": "生成的问题数量",
-    "question_count_placeholder": "请输入问题数量",
-    "question_llm": "LLM 模型",
-    "question_llm_placeholder": "选择一个模型",
-    "prompt_template": "提示词模版",
-    "prompt_template_placeholder": "请输入提示词模版",
-    "prompt_template_tips": "以下变量将被系统替换：",
-    "prompt_template_document_content": "从知识库中提取的文档内容",
-    "prompt_template_number_of_question": "需要生成的问题数量"
-  },
-  "page_search": {
-    "metadata": {
-      "title": "检索测试"
-    },
-    "search": "搜索",
-    "test": "测试",
-    "questions": "问题",
-    "questions_placeholder": "描述您的问题...",
-    "creation_time": "创建时间",
-    "search_result": "检索结果",
-    "delete": "删除",
-    "delete_confirm": "此操作不可撤销。搜索结果将被永久删除。",
-    "vector_search": "向量检索",
-    "fulltext_search": "全文检索",
-    "graph_search": "图检索",
-    "summary_search": "摘要检索"
-  },
-  "sidebar_workspace": {
-    "repositories": "知识库",
-    "marketplace": "市场",
-    "collections": "我的知识库",
-    "chats": "会话",
-    "chats_new": "新建会话",
-    "display_empty_title": "新会话",
-    "more": "更多",
-    "question_evaluation": "问题评测",
-    "evaluations": "评测记录",
-    "question_sets": "问题集",
-    "settings": "设置",
-    "models": "模型",
-    "api_keys": "API密钥",
-    "audit_logs": "审计日志",
-    "quotas": "配额"
-  },
-  "page_quota": {
-    "metadata": {
-      "title": "配额管理",
-      "description": "在此模块管理AI模型使用量、API调用次数等资源的额度限制。配额功能帮助您控制成本、防止过度使用并优化使用体验。"
-    },
-    "limit": "限额",
-    "usage": "用量",
-    "bot_count": {
-      "title": "机器人数量",
-      "description": "系统内同时活跃的机器人数量上限，防止资源过度使用并确保系统稳定性。"
-    },
-    "collection_count": {
-      "title": "知识库数量",
-      "description": "允许创建的最大知识库数量。"
-    },
-    "document_count": {
-      "title": "总文档数量",
-      "description": "限定所有集合中文档的总数量，统筹管理整体存储容量。"
-    },
-    "documents_per_collection": {
-      "title": "单知识库文档数",
-      "description": "限制每个知识库内的文档数量，优化查询性能并保持数据均衡分布。"
-    }
-  },
-  "page_audit_logs": {
-    "metadata": {
-      "title": "审计日志",
-      "description": "通过审计日志跟踪和审查所有关键系统活动—、API调用和管理变更，确保透明度、安全性和合规性。"
-    },
-    "search_placeholder": "按API名称搜索",
-    "status": "状态",
-    "duration": "持续时间",
-    "start_time": "开始时间"
-  },
-  "page_api_keys": {
-    "metadata": {
-      "title": "API密钥",
-      "description": "支持安全存储、更新和管理不同AI服务（如OpenAI、Anthropic、Gemini等）的API密钥。关联密钥既可实现个性化AI交互，又能确保凭证安全。"
-    },
-    "description": "描述信息",
-    "search_api_keys": "搜索密钥",
-    "creation_time": "创建时间",
-    "last_used_time": "最后使用时间",
-    "api_keys": "API密钥",
-    "api_key_placeholder": "请描述该API密钥的用途",
-    "api_key_description": "API密钥需严格保密（如存储在环境变量中），避免被恶意利用或产生意外费用",
-    "add_api_keys": "创建API密钥",
-    "edit_api_keys": "编辑",
-    "delete_api_key": "删除API密钥",
-    "delete_api_key_confirm": "确认删除此API密钥？"
-  },
   "page_models": {
     "metadata": {
       "provider_title": "模型供应商",
@@ -429,6 +333,107 @@
       "edit_model": "模型设置",
       "delete": "删除",
       "delete_confirm": "此操作不可逆。将永久删除模型配置及相关数据。"
+    }
+  },
+  "page_question_set": {
+    "metadata": {
+      "title": "问题集管理",
+      "description": "问题集是用于系统衡量效能与影响力的针对性评测问题集合"
+    },
+    "search": "搜索问题集",
+    "add_question_set": "新增问题集",
+    "update_question_set": "更新问题集",
+    "delete_question_set": "删除问题集",
+    "delete_question_set_confirm": "此操作不可撤销。将会永久删除该问题集，并从服务器中移除您的问题集数据。",
+    "question_set_name": "问题集名称",
+    "question_set_name_placeholder": "请输入问题集名称",
+    "question_set_description": "问题集描述",
+    "question_set_description_placeholder": "请输入问题集描述",
+    "add_question": "添加问题",
+    "add_question_manual": "手动添加",
+    "add_question_generator": "自动生成问题",
+    "add_question_import": "从文件导入",
+    "update_question": "更新问题",
+    "delete_question": "删除问提",
+    "delete_question_confirm": "此操作不可撤销，将会永久删除该问题。",
+    "question_content": "问题",
+    "question_content_placeholder": "请输入您的问题",
+    "ground_truth": "标准答案",
+    "ground_truth_placeholder": "请输入标准答案",
+    "no_question_found": "当前问题集内没有数据",
+    "collection": "知识库",
+    "collection_placeholder": "选择一个知识库",
+    "question_count": "生成的问题数量",
+    "question_count_placeholder": "请输入问题数量",
+    "question_llm": "LLM 模型",
+    "question_llm_placeholder": "选择一个模型",
+    "prompt_template": "提示词模版",
+    "prompt_template_placeholder": "请输入提示词模版",
+    "prompt_template_tips": "以下变量将被系统替换：",
+    "prompt_template_document_content": "从知识库中提取的文档内容",
+    "prompt_template_number_of_question": "需要生成的问题数量"
+  },
+  "page_quota": {
+    "metadata": {
+      "title": "配额管理",
+      "description": "在此模块管理AI模型使用量、API调用次数等资源的额度限制。配额功能帮助您控制成本、防止过度使用并优化使用体验。"
+    },
+    "limit": "限额",
+    "usage": "用量",
+    "bot_count": {
+      "title": "机器人数量",
+      "description": "系统内同时活跃的机器人数量上限，防止资源过度使用并确保系统稳定性。"
+    },
+    "collection_count": {
+      "title": "知识库数量",
+      "description": "允许创建的最大知识库数量。"
+    },
+    "document_count": {
+      "title": "总文档数量",
+      "description": "限定所有集合中文档的总数量，统筹管理整体存储容量。"
+    },
+    "documents_per_collection": {
+      "title": "单知识库文档数",
+      "description": "限制每个知识库内的文档数量，优化查询性能并保持数据均衡分布。"
+    }
+  },
+  "page_search": {
+    "metadata": {
+      "title": "检索测试"
+    },
+    "search": "搜索",
+    "test": "测试",
+    "questions": "问题",
+    "questions_placeholder": "描述您的问题...",
+    "creation_time": "创建时间",
+    "search_result": "检索结果",
+    "delete": "删除",
+    "delete_confirm": "此操作不可撤销。搜索结果将被永久删除。",
+    "vector_search": "向量检索",
+    "fulltext_search": "全文检索",
+    "graph_search": "图检索",
+    "summary_search": "摘要检索"
+  },
+  "sidebar_workspace": {
+    "repositories": "知识库",
+    "marketplace": "市场",
+    "collections": "我的知识库",
+    "chats": "会话",
+    "chats_new": "新建会话",
+    "display_empty_title": "新会话",
+    "more": "更多",
+    "question_evaluation": "问题评测",
+    "evaluations": "评测记录",
+    "question_sets": "问题集",
+    "settings": "设置",
+    "models": "模型",
+    "api_keys": "API密钥",
+    "audit_logs": "审计日志",
+    "quotas": "配额"
+  },
+  "page_docs": {
+    "metadata": {
+      "title": "文档"
     }
   }
 }

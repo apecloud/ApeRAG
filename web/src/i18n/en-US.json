@@ -46,6 +46,33 @@
       "page_info": "Page {page} of {total}"
     }
   },
+  "page_api_keys": {
+    "metadata": {
+      "title": "API keys",
+      "description": "This section allows you to securely store, update, and manage API keys for different AI services (such as OpenAI, Anthropic, Gemini, etc.). Connecting your keys enables personalized AI interactions while keeping your credentials protected."
+    },
+    "description": "Description",
+    "search_api_keys": "Search",
+    "creation_time": "Creation time",
+    "last_used_time": "Last used time",
+    "api_keys": "API Keys",
+    "api_key_placeholder": "Please describe the purpose of an Api Key.",
+    "api_key_description": "API keys must be kept confidential (e.g., stored in environment variables) to avoid exploitation or unexpected charges.",
+    "add_api_keys": "Create Api Key",
+    "edit_api_keys": "Edit",
+    "delete_api_key": "Delete Api Key",
+    "delete_api_key_confirm": "Confirm deletion of the API key?"
+  },
+  "page_audit_logs": {
+    "metadata": {
+      "title": "Audit Logs",
+      "description": "Track and review all critical system activities with Audit Logs—a detailed record of user actions, API calls, and administrative changes. Ensure transparency, security, and compliance by monitoring who did what, when, and from where."
+    },
+    "search_placeholder": "Search by API Name",
+    "status": "Status",
+    "duration": "Duration",
+    "start_time": "Start Time"
+  },
   "page_auth": {
     "account": "Account",
     "administrator": "Administrator",
@@ -261,129 +288,6 @@
     "no_description_available": "No description available",
     "search": "Search"
   },
-  "page_question_set": {
-    "metadata": {
-      "title": "Question Sets",
-      "description": "An Evaluation Question Set is a focused collection of questions designed to systematically assess the effectiveness, impact."
-    },
-    "search": "Search",
-    "add_question_set": "Add Question Set",
-    "update_question_set": "Update Question Set",
-    "delete_question_set": "Delete Question Set",
-    "delete_question_set_confirm": "This action cannot be undone. This will permanently delete question set and remove your question set from our servers.",
-    "question_set_name": "Question set name",
-    "question_set_name_placeholder": "Enter your question set name.",
-    "question_set_description": "description",
-    "question_set_description_placeholder": "Enter your question set description.",
-    "add_question": "Add Question",
-    "add_question_manual": "Manual",
-    "add_question_generator": "Generate from collection",
-    "add_question_import": "Import from File",
-    "update_question": "Update Question",
-    "delete_question": "Delete Question",
-    "delete_question_confirm": "This action cannot be undone. This will permanently delete question.",
-    "question_content": "Question",
-    "question_content_placeholder": "Enter your question...",
-    "ground_truth": "Ground Truth",
-    "ground_truth_placeholder": "Enter the ground truth...",
-    "no_question_found": "No question found",
-    "collection": "Collection",
-    "collection_placeholder": "Select a collection",
-    "question_count": "Question Count",
-    "question_count_placeholder": "Enter the question count",
-    "question_llm": "LLM model",
-    "question_llm_placeholder": "Select a model",
-    "prompt_template": "Prompt Template",
-    "prompt_template_placeholder": "Enter your prompt...",
-    "prompt_template_tips": "The following variables will be replaced by the system:",
-    "prompt_template_document_content": "The content of the document from the collection.",
-    "prompt_template_number_of_question": "The number of questions to be generated."
-  },
-  "page_search": {
-    "metadata": {
-      "title": "Search Test"
-    },
-    "search": "Search",
-    "test": "Test",
-    "questions": "Questions",
-    "questions_placeholder": "Enter your question.",
-    "creation_time": "Creation time",
-    "search_result": "Search Result",
-    "delete": "Delete",
-    "delete_confirm": "This action cannot be undone. This will permanently delete search result.",
-    "vector_search": "Vector",
-    "fulltext_search": "Fulltext",
-    "graph_search": "Graph",
-    "summary_search": "Summary"
-  },
-  "sidebar_workspace": {
-    "repositories": "Repositories",
-    "marketplace": "Marketplace",
-    "collections": "Collections",
-    "chats": "Chats",
-    "chats_new": "Create chat",
-    "display_empty_title": "New chat",
-    "more": "More",
-    "question_evaluation": "Question Evaluation",
-    "evaluations": "Evaluations",
-    "question_sets": "Question Sets",
-    "settings": "Settings",
-    "models": "Models",
-    "api_keys": "API Keys",
-    "audit_logs": "Audit Logs",
-    "quotas": "Quotas"
-  },
-  "page_quota": {
-    "metadata": {
-      "title": "Quotas",
-      "description": "Manage your usage limits for AI models, API calls, and other resources in this section. Quotas help you control costs, prevent overuse, and optimize your experience."
-    },
-    "limit": "Limit",
-    "usage": "Usage",
-    "bot_count": {
-      "title": "Bot Count",
-      "description": "The upper limit for active bots in a system, preventing resource overuse and ensuring stability."
-    },
-    "collection_count": {
-      "title": "Collection Count",
-      "description": "The maximum allowed collections in a database, controlling data structure complexity."
-    },
-    "document_count": {
-      "title": "Documents Overall",
-      "description": "Caps the total documents across all collections, managing overall storage capacity."
-    },
-    "documents_per_collection": {
-      "title": "Documents per Collection",
-      "description": "Limits documents per collection, optimizing query performance and data balance."
-    }
-  },
-  "page_audit_logs": {
-    "metadata": {
-      "title": "Audit Logs",
-      "description": "Track and review all critical system activities with Audit Logs—a detailed record of user actions, API calls, and administrative changes. Ensure transparency, security, and compliance by monitoring who did what, when, and from where."
-    },
-    "search_placeholder": "Search by API Name",
-    "status": "Status",
-    "duration": "Duration",
-    "start_time": "Start Time"
-  },
-  "page_api_keys": {
-    "metadata": {
-      "title": "API keys",
-      "description": "This section allows you to securely store, update, and manage API keys for different AI services (such as OpenAI, Anthropic, Gemini, etc.). Connecting your keys enables personalized AI interactions while keeping your credentials protected."
-    },
-    "description": "Description",
-    "search_api_keys": "Search",
-    "creation_time": "Creation time",
-    "last_used_time": "Last used time",
-    "api_keys": "API Keys",
-    "api_key_placeholder": "Please describe the purpose of an Api Key.",
-    "api_key_description": "API keys must be kept confidential (e.g., stored in environment variables) to avoid exploitation or unexpected charges.",
-    "add_api_keys": "Create Api Key",
-    "edit_api_keys": "Edit",
-    "delete_api_key": "Delete Api Key",
-    "delete_api_key_confirm": "Confirm deletion of the API key?"
-  },
   "page_models": {
     "metadata": {
       "provider_title": "Model Provider",
@@ -429,6 +333,107 @@
       "edit_model": "Edit Model",
       "delete": "Delete",
       "delete_confirm": "Confirm deletion of the model?"
+    }
+  },
+  "page_question_set": {
+    "metadata": {
+      "title": "Question Sets",
+      "description": "An Evaluation Question Set is a focused collection of questions designed to systematically assess the effectiveness, impact."
+    },
+    "search": "Search",
+    "add_question_set": "Add Question Set",
+    "update_question_set": "Update Question Set",
+    "delete_question_set": "Delete Question Set",
+    "delete_question_set_confirm": "This action cannot be undone. This will permanently delete question set and remove your question set from our servers.",
+    "question_set_name": "Question set name",
+    "question_set_name_placeholder": "Enter your question set name.",
+    "question_set_description": "description",
+    "question_set_description_placeholder": "Enter your question set description.",
+    "add_question": "Add Question",
+    "add_question_manual": "Manual",
+    "add_question_generator": "Generate from collection",
+    "add_question_import": "Import from File",
+    "update_question": "Update Question",
+    "delete_question": "Delete Question",
+    "delete_question_confirm": "This action cannot be undone. This will permanently delete question.",
+    "question_content": "Question",
+    "question_content_placeholder": "Enter your question...",
+    "ground_truth": "Ground Truth",
+    "ground_truth_placeholder": "Enter the ground truth...",
+    "no_question_found": "No question found",
+    "collection": "Collection",
+    "collection_placeholder": "Select a collection",
+    "question_count": "Question Count",
+    "question_count_placeholder": "Enter the question count",
+    "question_llm": "LLM model",
+    "question_llm_placeholder": "Select a model",
+    "prompt_template": "Prompt Template",
+    "prompt_template_placeholder": "Enter your prompt...",
+    "prompt_template_tips": "The following variables will be replaced by the system:",
+    "prompt_template_document_content": "The content of the document from the collection.",
+    "prompt_template_number_of_question": "The number of questions to be generated."
+  },
+  "page_quota": {
+    "metadata": {
+      "title": "Quotas",
+      "description": "Manage your usage limits for AI models, API calls, and other resources in this section. Quotas help you control costs, prevent overuse, and optimize your experience."
+    },
+    "limit": "Limit",
+    "usage": "Usage",
+    "bot_count": {
+      "title": "Bot Count",
+      "description": "The upper limit for active bots in a system, preventing resource overuse and ensuring stability."
+    },
+    "collection_count": {
+      "title": "Collection Count",
+      "description": "The maximum allowed collections in a database, controlling data structure complexity."
+    },
+    "document_count": {
+      "title": "Documents Overall",
+      "description": "Caps the total documents across all collections, managing overall storage capacity."
+    },
+    "documents_per_collection": {
+      "title": "Documents per Collection",
+      "description": "Limits documents per collection, optimizing query performance and data balance."
+    }
+  },
+  "page_search": {
+    "metadata": {
+      "title": "Search Test"
+    },
+    "search": "Search",
+    "test": "Test",
+    "questions": "Questions",
+    "questions_placeholder": "Enter your question.",
+    "creation_time": "Creation time",
+    "search_result": "Search Result",
+    "delete": "Delete",
+    "delete_confirm": "This action cannot be undone. This will permanently delete search result.",
+    "vector_search": "Vector",
+    "fulltext_search": "Fulltext",
+    "graph_search": "Graph",
+    "summary_search": "Summary"
+  },
+  "sidebar_workspace": {
+    "repositories": "Repositories",
+    "marketplace": "Marketplace",
+    "collections": "Collections",
+    "chats": "Chats",
+    "chats_new": "Create chat",
+    "display_empty_title": "New chat",
+    "more": "More",
+    "question_evaluation": "Question Evaluation",
+    "evaluations": "Evaluations",
+    "question_sets": "Question Sets",
+    "settings": "Settings",
+    "models": "Models",
+    "api_keys": "API Keys",
+    "audit_logs": "Audit Logs",
+    "quotas": "Quotas"
+  },
+  "page_docs": {
+    "metadata": {
+      "title": "Documents"
     }
   }
 }

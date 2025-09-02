@@ -1,3 +1,9 @@
+---
+title: Connected Components Optimization for LightRAG
+description:
+keywords:
+---
+
 # Connected Components Optimization for LightRAG
 
 ## Overview
@@ -49,6 +55,7 @@ def _find_connected_components(self, chunk_results) -> List[List[str]]:
 ```
 
 This method:
+
 - Builds an adjacency list from all extracted entities and relationships
 - Uses Breadth-First Search (BFS) to identify connected components
 - Returns a list where each element is a group of connected entity names
@@ -64,6 +71,7 @@ async def _process_entity_groups(self, chunk_results, components, collection_id)
 ```
 
 This method:
+
 - Processes each connected component separately
 - Creates locks only for entities within each component
 - Allows parallel processing of unrelated components
@@ -71,6 +79,7 @@ This method:
 #### 3. Updated Graph Indexing (`aprocess_graph_indexing`)
 
 The main processing flow now:
+
 1. Extracts entities and relationships (unchanged)
 2. Finds connected components
 3. Processes each component with its own lock scope
@@ -150,4 +159,4 @@ Comprehensive unit tests are provided in `test_lightrag_connected_components.py`
 
 ## Conclusion
 
-The connected components optimization is a significant improvement to LightRAG's graph indexing process. By identifying and processing independent entity groups separately, we achieve better concurrency, reduced lock contention, and improved scalability - all while maintaining the correctness and consistency of the knowledge graph. 
+The connected components optimization is a significant improvement to LightRAG's graph indexing process. By identifying and processing independent entity groups separately, we achieve better concurrency, reduced lock contention, and improved scalability - all while maintaining the correctness and consistency of the knowledge graph.
