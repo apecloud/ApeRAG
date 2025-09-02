@@ -42,7 +42,7 @@ The easiest way to start ApeRAG is through Docker Compose. Before running the fo
 git clone https://github.com/apecloud/ApeRAG.git
 cd ApeRAG
 cp envs/env.template .env
-cp frontend/deploy/env.local.template frontend/.env
+cp web/deploy/env.local.template web/.env
 docker-compose up -d --pull always
 ```
 
