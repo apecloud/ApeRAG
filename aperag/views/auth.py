@@ -271,7 +271,7 @@ async def current_user(
         request.state.user_id = api_user.id
         request.state.username = api_user.username
         return api_user
-    raise HTTPException(status_code=401, detail="Unauthorized")
+    return None
 
 
 async def get_current_active_user(user: Optional[User] = Depends(current_user)) -> User:
