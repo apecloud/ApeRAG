@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
@@ -36,11 +36,13 @@ router = APIRouter(tags=["marketplace"])
 async def list_marketplace_collections(
     page: int = Query(1, ge=1),
     page_size: int = Query(30, ge=1, le=100),
-    user: User = Depends(current_user),
+    user: Optional[User] = Depends(current_user),
 ) -> view_models.SharedCollectionList:
     """List all published Collections in marketplace"""
     try:
-        result = await marketplace_service.list_published_collections(user.id, page, page_size)
+        # Allow unauthenticated access - use empty user_id for anonymous users
+        user_id = user.id if user else ""
+        result = await marketplace_service.list_published_collections(user_id, page, page_size)
         return result
     except Exception as e:
         logger.error(f"Error listing marketplace collections: {e}")

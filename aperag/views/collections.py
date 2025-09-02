@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import logging
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, Request, Response, UploadFile
 
@@ -23,6 +23,7 @@ from aperag.schema import view_models
 from aperag.service.collection_service import collection_service
 from aperag.service.collection_summary_service import collection_summary_service
 from aperag.service.document_service import document_service
+from aperag.service.marketplace_service import marketplace_service
 from aperag.utils.audit_decorator import audit
 from aperag.views.auth import current_user, get_current_active_user
 
@@ -236,12 +237,24 @@ async def list_documents_view(
     sort_by: str = Query("created", description="Field to sort by"),
     sort_order: str = Query("desc", regex="^(asc|desc)$", description="Sort order"),
     search: str = Query(None, description="Search documents by name"),
-    user: User = Depends(current_user),
+    user: Optional[User] = Depends(current_user),
 ):
     """List documents with pagination, sorting and search capabilities"""
-
+    
+    # Check if user is authenticated
+    if user:
+        # Authenticated user - use normal flow
+        user_id = str(user.id)
+    else:
+        # Unauthenticated user - check if collection is published in marketplace
+        marketplace_record = await marketplace_service.get_raw_sharing_status(collection_id)
+        if not marketplace_record or marketplace_record.status != "PUBLISHED":
+            raise HTTPException(status_code=401, detail="Authentication required")
+        user_id = ""
+        
+    # Allow access to published marketplace collection
     result = await document_service.list_documents(
-        user=str(user.id),
+        user=user_id,  # Empty user for unauthenticated access
         collection_id=collection_id,
         page=page,
         page_size=page_size,
@@ -266,9 +279,20 @@ async def get_document_view(
     request: Request,
     collection_id: str,
     document_id: str,
-    user: User = Depends(current_user),
+    user: Optional[User] = Depends(current_user),
 ) -> view_models.Document:
-    return await document_service.get_document(str(user.id), collection_id, document_id)
+    # Check if user is authenticated
+    if user:
+        # Authenticated user - use normal flow
+        return await document_service.get_document(str(user.id), collection_id, document_id)
+    else:
+        # Unauthenticated user - check if collection is published in marketplace
+        marketplace_record = await marketplace_service.get_raw_sharing_status(collection_id)
+        if not marketplace_record or marketplace_record.status != "PUBLISHED":
+            raise HTTPException(status_code=401, detail="Authentication required")
+        
+        # Allow access to published marketplace collection
+        return await document_service.get_document("", collection_id, document_id)
 
 
 @router.delete("/collections/{collection_id}/documents/{document_id}", tags=["documents"])
