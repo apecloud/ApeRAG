@@ -45,7 +45,7 @@ services:
 
   frontend:
     build:
-      context: ./frontend
+      context: ./web
       dockerfile: ./Dockerfile
     image: ${REGISTRY:-docker.io}/apecloud/aperag-frontend:${VERSION:-v0.0.0-nightly}
     container_name: aperag-frontend
@@ -53,10 +53,10 @@ services:
       api:
         condition: service_healthy
     env_file:
-      - frontend/deploy/env.local.template
+      - web/deploy/env.local.template
     environment:
-      - APERAG_CONSOLE_SERVICE_HOST=aperag-api
-      - APERAG_CONSOLE_SERVICE_PORT=8000
+      - API_SERVER_ENDPOINT=http://localhost:8000
+      - API_SERVER_BASE_PATH=/api/v1
     ports:
       - "3000:3000"
 

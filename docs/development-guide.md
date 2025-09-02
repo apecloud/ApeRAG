@@ -16,7 +16,6 @@ First, get the source code and configure environment variables:
 git clone https://github.com/apecloud/ApeRAG.git
 cd ApeRAG
 cp envs/env.template .env
-cp frontend/deploy/env.local.template frontend/.env
 ```
 
 Edit the `.env` file to configure your AI service settings if needed. The default settings work with the local database services started in the next step.

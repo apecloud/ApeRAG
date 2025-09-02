@@ -37,10 +37,10 @@ spec:
             - containerPort: 3000
               protocol: TCP
           env:
-            - name: APERAG_CONSOLE_SERVICE_HOST
-              value: aperag
-            - name: APERAG_CONSOLE_SERVICE_PORT
-              value: "8000"
+            - name: API_SERVER_ENDPOINT
+              value: http://aperag.default.svc.cluster.local:8000
+            - name: API_SERVER_BASE_PATH
+              value: /api/v1
           {{- with .Values.frontend.resources }}
           resources:
             {{- toYaml . | nindent 12 }}

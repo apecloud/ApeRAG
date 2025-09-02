@@ -16,7 +16,6 @@
 git clone https://github.com/apecloud/ApeRAG.git
 cd ApeRAG
 cp envs/env.template .env
-cp frontend/deploy/env.local.template frontend/.env
 ```
 
 如果需要，编辑 `.env` 文件以配置您的 AI 服务设置。默认设置适用于下一步启动的本地数据库服务。
