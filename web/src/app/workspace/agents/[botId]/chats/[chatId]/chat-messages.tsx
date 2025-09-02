@@ -40,7 +40,7 @@ export const ChatMessages = ({ chat }: { chat?: ChatDetails }) => {
   }, []);
 
   const { sendMessage, readyState, disconnect, connect } = useWebSocket(
-    `${protocol}${host}${process.env.NEXT_PUBLIC_BASE_PATH}${process.env.NEXT_PUBLIC_API_SERVER_BASE_PATH}/bots/${botId}/chats/${chatId}/connect`,
+    `${protocol}${host}${process.env.NEXT_PUBLIC_BASE_PATH || ''}/api/v1/bots/${botId}/chats/${chatId}/connect`,
     {
       onMessage: (message) => {
         const fragment = JSON.parse(message.data) as ChatMessage;

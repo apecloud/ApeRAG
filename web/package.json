@@ -7,7 +7,7 @@
     "api:bundle": "redocly bundle ../aperag/api/openapi.yaml > ./src/api/openapi.merged.yaml",
     "api:clean": "rm -rf ./src/api/*",
     "api:clear": "rm -rf ./src/api/.openapi-generator && rm -rf ./src/api/.gitignore && rm -rf ./src/api/.npmignore && rm -rf ./src/api/.openapi-generator-ignore && rm -rf ./src/api/git_push.sh",
-    "build": "cp ./deploy/env.prod.template ./.env && yarn install && next build",
+    "build": "yarn install && next build",
     "dev": "cp ./deploy/env.local.template ./.env && yarn install && next dev --turbopack",
     "lint": "next lint",
     "prettier": "prettier --cache --write ./ && yarn lint",

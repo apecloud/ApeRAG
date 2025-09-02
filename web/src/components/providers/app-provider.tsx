@@ -91,7 +91,7 @@ export const AppProvider = ({
       if (['github', 'google'].includes(options.type)) {
         try {
           const response = await fetch(
-            `${process.env.NEXT_PUBLIC_BASE_PATH}${process.env.NEXT_PUBLIC_API_SERVER_BASE_PATH}/auth/${options.type}/authorize`,
+            `${process.env.NEXT_PUBLIC_BASE_PATH || ''}/api/v1/auth/${options.type}/authorize`,
           );
           const data = await response.json();
           if (data.authorization_url) {

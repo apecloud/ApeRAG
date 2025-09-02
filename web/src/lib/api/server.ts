@@ -16,8 +16,8 @@ const configuration = new Configuration();
 
 const request = axios.create({
   baseURL:
-    (process.env.NEXT_PUBLIC_API_SERVER_ENDPOINT || 'http://localhost:8000') +
-    (process.env.NEXT_PUBLIC_API_SERVER_BASE_PATH || '/api/v1'),
+    (process.env.API_SERVER_ENDPOINT || 'http://localhost:8000') +
+    (process.env.API_SERVER_BASE_PATH || '/api/v1'),
   timeout: 1000 * 5,
 });
 

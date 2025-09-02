@@ -1,4 +1,5 @@
 import { NextMiddleware, NextResponse } from 'next/server';
+import { withApiProxy } from './middlewares/apiProxy';
 
 type MiddlewareFactory = (next: NextMiddleware) => NextMiddleware;
 
@@ -14,7 +15,7 @@ const stackMiddlewares = (
   return () => NextResponse.next();
 };
 
-export default stackMiddlewares([]);
+export default stackMiddlewares([withApiProxy]);
 
 // Routes Middleware should not run on
 export const config = {

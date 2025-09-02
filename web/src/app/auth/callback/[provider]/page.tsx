@@ -54,7 +54,7 @@ export default function Page() {
 
   useEffect(() => {
     if (!code || !state) return;
-    const callbackUrl = `${process.env.NEXT_PUBLIC_BASE_PATH || ''}${process.env.NEXT_PUBLIC_API_SERVER_BASE_PATH}/auth/${provider}/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`;
+    const callbackUrl = `${process.env.NEXT_PUBLIC_BASE_PATH || ''}/api/v1/auth/${provider}/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`;
     fetch(callbackUrl, {
       method: 'GET',
       credentials: 'include',

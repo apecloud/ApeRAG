@@ -15,9 +15,6 @@ import rehypeHighlight from 'rehype-highlight';
 // import rehypeHighlightLines from 'rehype-highlight-code-lines';
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
-const apiServerEndpoint =
-  (process.env.NEXT_PUBLIC_API_SERVER_ENDPOINT || 'http://localhost:8000') +
-  (process.env.NEXT_PUBLIC_API_SERVER_BASE_PATH || '/api/v1');
 
 const nextConfig: NextConfig = {
   /* config options here */
@@ -48,15 +45,6 @@ const nextConfig: NextConfig = {
   modularizeImports: {},
 
   transpilePackages: [],
-
-  rewrites: async () => {
-    return [
-      {
-        source: `${process.env.NEXT_PUBLIC_API_SERVER_BASE_PATH}/:path*`,
-        destination: `${apiServerEndpoint}/:path*`,
-      },
-    ];
-  },
 };
 
 const withNextIntl = createNextIntlPlugin({
