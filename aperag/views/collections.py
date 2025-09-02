@@ -24,7 +24,7 @@ from aperag.service.collection_service import collection_service
 from aperag.service.collection_summary_service import collection_summary_service
 from aperag.service.document_service import document_service
 from aperag.utils.audit_decorator import audit
-from aperag.views.auth import current_user
+from aperag.views.auth import current_user, get_current_active_user
 
 logger = logging.getLogger(__name__)
 
@@ -342,7 +342,7 @@ async def rebuild_document_indexes_view(
 async def rebuild_failed_indexes_view(
     request: Request,
     collection_id: str,
-    user: User = Depends(current_user),
+    user: User = Depends(get_current_active_user),
 ):
     """Rebuild all failed indexes for all documents in a collection"""
     return await document_service.rebuild_failed_indexes(str(user.id), collection_id)
