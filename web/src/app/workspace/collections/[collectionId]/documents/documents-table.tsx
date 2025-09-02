@@ -49,6 +49,7 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { DocumentDelete } from './document-delete';
 import { DocumentIndexStatus } from './document-index-status';
+import { DocumentReBuildFailedIndex } from './document-rebuild-failed-index';
 import { DocumentReBuildIndex } from './document-rebuild-index';
 
 export function DocumentsTable({
@@ -356,6 +357,20 @@ export function DocumentsTable({
                     </DropdownMenuCheckboxItem>
                   );
                 })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="icon" variant="outline">
+                <EllipsisVertical />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-45">
+              <DocumentReBuildFailedIndex>
+                <DropdownMenuItem>
+                  <FolderSync /> {page_documents('index_rebuild_failed')}
+                </DropdownMenuItem>
+              </DocumentReBuildFailedIndex>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

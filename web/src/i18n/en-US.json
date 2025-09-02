@@ -14,7 +14,7 @@
     "action": {
       "save": "Save",
       "cancel": "Cancel",
-      "continue": "Contunue",
+      "continue": "Continue",
       "update": "Update"
     },
     "tips": {
@@ -210,12 +210,21 @@
     "completion_model": "Completion Model",
     "completion_model_description": "A completion model is an AI that generates new content by predicting the most likely subsequent text based on a given input."
   },
+  "page_docs": {
+    "metadata": {
+      "title": "Documents"
+    }
+  },
   "page_documents": {
     "metadata": {
       "title": "Documents"
     },
     "add_documents": "Add Documents",
-    "index_rebuild": "Index Rebuild",
+    "index_rebuild": "Rebuild Index",
+    "index_rebuild_should_select_index_type": "You have to select at least one item.",
+    "index_rebuild_failed": "Rebuild Failed Index",
+    "index_rebuild_failed_success": "Rebuild successfully.",
+    "index_rebuild_failed_confirm": "Are you sure you want to rebuild all failed indexes?",
     "index_rebuild_tips": "You can configure the index types in Settings.",
     "index_rebuild_with": "Index rebuild initiated for types: {types}",
     "delete_document": "Delete document",
@@ -430,10 +439,5 @@
     "api_keys": "API Keys",
     "audit_logs": "Audit Logs",
     "quotas": "Quotas"
-  },
-  "page_docs": {
-    "metadata": {
-      "title": "Documents"
-    }
   }
 }

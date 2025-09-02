@@ -73,7 +73,7 @@ export const DocumentReBuildIndex = ({
     if (!collection.id || !file.id) return;
 
     if (values.index_types.length === 0) {
-      toast.error('You have to select at least one item.');
+      toast.error(page_documents('index_rebuild_should_select_index_type'));
       return;
     }
 
