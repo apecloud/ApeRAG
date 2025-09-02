@@ -161,7 +161,7 @@ export function DocumentsTable({
                 <div className="max-w-60 truncate">
                   {row.original.vector_index_status === 'ACTIVE' ? (
                     <Link
-                      href={`/workspace/market/collections/${collection.id}/documents/${row.original.id}`}
+                      href={`/marketplace/collections/${collection.id}/documents/${row.original.id}`}
                       className={cn('hover:text-primary')}
                     >
                       {row.original.name}

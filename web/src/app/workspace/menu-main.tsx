@@ -4,10 +4,11 @@ import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarMenu,
+  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { BookOpen, LayoutGrid } from 'lucide-react';
+import { BookOpen, ExternalLink, LayoutGrid } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -20,16 +21,15 @@ export const MenuMain = () => {
       <SidebarGroupLabel>{sidebar_workspace('repositories')}</SidebarGroupLabel>
       <SidebarMenu>
         <SidebarMenuItem>
-          <SidebarMenuButton
-            className="data-[active=true]:font-normal"
-            asChild
-            isActive={pathname.match('/workspace/market/collections') !== null}
-          >
-            <Link href="/workspace/market/collections">
+          <SidebarMenuButton className="data-[active=true]:font-normal" asChild>
+            <Link href="/marketplace" target="_blank">
               <LayoutGrid />
               {sidebar_workspace('marketplace')}
             </Link>
           </SidebarMenuButton>
+          <SidebarMenuAction>
+            <ExternalLink />
+          </SidebarMenuAction>
         </SidebarMenuItem>
         <SidebarMenuItem>
           <SidebarMenuButton

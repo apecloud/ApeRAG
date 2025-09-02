@@ -67,7 +67,7 @@ export const CollectionList = ({
                   key={collection.id}
                   href={
                     collection.subscription_id
-                      ? `/workspace/market/collections/${collection.id}/documents`
+                      ? `/marketplace/collections/${collection.id}/documents`
                       : `/workspace/collections/${collection.id}/documents`
                   }
                   target={collection.subscription_id ? '_blank' : '_self'}

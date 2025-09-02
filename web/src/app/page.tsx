@@ -81,8 +81,8 @@ export default function Home() {
                 <Link href="/workspace/collections">Get started</Link>
               </Button>
               <Button asChild variant="outline">
-                <Link href="/docs">
-                  Learn more <ArrowRight />
+                <Link href="/marketplace">
+                  Marketplace <ArrowRight />
                 </Link>
               </Button>
             </div>

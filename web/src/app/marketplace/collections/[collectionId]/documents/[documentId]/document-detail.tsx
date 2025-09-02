@@ -51,9 +51,7 @@ export const DocumentDetail = ({
         <div className="flex flex-row items-center justify-between gap-2">
           <div className="flex flex-row items-center gap-4">
             <Button asChild variant="ghost" size="icon">
-              <Link
-                href={`/workspace/market/collections/${collectionId}/documents`}
-              >
+              <Link href={`/marketplace/collections/${collectionId}/documents`}>
                 <ArrowLeft />
               </Link>
             </Button>

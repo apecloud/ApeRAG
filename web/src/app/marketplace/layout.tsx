@@ -1,3 +1,4 @@
+import { AppTopbar } from '@/components/app-topbar';
 import { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
 
@@ -9,10 +10,16 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default async function MarketplaceLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  return children;
+  return (
+    <>
+      <AppTopbar className="border-b" />
+      <div className="h-16" />
+      {children}
+    </>
+  );
 }

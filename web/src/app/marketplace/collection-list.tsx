@@ -58,7 +58,7 @@ export const CollectionList = ({
             return (
               <Link
                 key={collection.id}
-                href={`/workspace/market/collections/${collection.id}/documents`}
+                href={`/marketplace/collections/${collection.id}/documents`}
               >
                 <Card className="hover:bg-accent/30 cursor-pointer gap-2 rounded-md">
                   <CardHeader className="px-4">
