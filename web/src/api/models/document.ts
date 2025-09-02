@@ -106,12 +106,6 @@ export interface Document {
     'summary'?: string;
     /**
      * 
-     * @type {string}
-     * @memberof Document
-     */
-    'config'?: string;
-    /**
-     * 
      * @type {number}
      * @memberof Document
      */

@@ -449,6 +449,85 @@ paths:
       responses:
         '200':
           description: A message
+  /chats/{chat_id}/documents:
+    post:
+      summary: Upload document to chat
+      description: Upload a document file to a chat session for temporary knowledge augmentation
+      tags:
+        - chat-documents
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: chat_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Chat session ID
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Document file to upload
+                message_id:
+                  type: string
+                  description: Message ID to associate the document with
+              required:
+                - file
+                - message_id
+      responses:
+        '200':
+          description: Document uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/document'
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Chat not found
+  /chats/{chat_id}/documents/{document_id}:
+    get:
+      summary: Get chat document details
+      description: Get details of a specific document in a chat session
+      tags:
+        - chat-documents
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: chat_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Chat session ID
+        - name: document_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Document ID
+      responses:
+        '200':
+          description: Document details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/document'
+        '401':
+          description: Unauthorized
+        '404':
+          description: Document or chat not found
   /collections:
     get:
       summary: List collections
@@ -802,6 +881,49 @@ paths:
                 $ref: '#/components/schemas/failResponse'
         '404':
           description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+  /collections/{collection_id}/rebuild_failed_indexes:
+    post:
+      summary: Rebuild all failed indexes in collection
+      description: Rebuild all failed indexes for all documents in the specified collection
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: collection_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Failed indexes rebuild initiated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  affected_documents:
+                    type: integer
+                    description: Number of documents with failed indexes that will be rebuilt
+                required:
+                  - code
+                  - message
+                  - affected_documents
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: Collection not found
           content:
             application/json:
               schema:
@@ -4844,6 +4966,105 @@ components:
           description: Generated title string
       required:
         - title
+    document:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+          enum:
+            - UPLOADED
+            - EXPIRED
+            - PENDING
+            - RUNNING
+            - COMPLETE
+            - FAILED
+            - DELETING
+            - DELETED
+        vector_index_status:
+          type: string
+          enum:
+            - PENDING
+            - CREATING
+            - ACTIVE
+            - DELETING
+            - DELETION_IN_PROGRESS
+            - FAILED
+            - SKIPPED
+        fulltext_index_status:
+          type: string
+          enum:
+            - PENDING
+            - CREATING
+            - ACTIVE
+            - DELETING
+            - DELETION_IN_PROGRESS
+            - FAILED
+            - SKIPPED
+        graph_index_status:
+          type: string
+          enum:
+            - PENDING
+            - CREATING
+            - ACTIVE
+            - DELETING
+            - DELETION_IN_PROGRESS
+            - FAILED
+            - SKIPPED
+        summary_index_status:
+          type: string
+          enum:
+            - PENDING
+            - CREATING
+            - ACTIVE
+            - DELETING
+            - DELETION_IN_PROGRESS
+            - FAILED
+            - SKIPPED
+        vision_index_status:
+          type: string
+          enum:
+            - PENDING
+            - CREATING
+            - ACTIVE
+            - DELETING
+            - DELETION_IN_PROGRESS
+            - FAILED
+            - SKIPPED
+        vector_index_updated:
+          type: string
+          format: date-time
+          description: Vector index last updated time
+        fulltext_index_updated:
+          type: string
+          format: date-time
+          description: Fulltext index last updated time
+        graph_index_updated:
+          type: string
+          format: date-time
+          description: Graph index last updated time
+        summary_index_updated:
+          type: string
+          format: date-time
+          description: Summary index last updated time
+        vision_index_updated:
+          type: string
+          format: date-time
+          description: Vision index last updated time
+        summary:
+          type: string
+          description: Summary of the document
+        size:
+          type: number
+        created:
+          type: string
+          format: date-time
+        updated:
+          type: string
+          format: date-time
     collectionView:
       type: object
       description: Lightweight collection information for lists, MCP and agents
@@ -5247,107 +5468,6 @@ components:
           $ref: '#/components/schemas/collectionConfig'
         source:
           $ref: '#/components/schemas/collectionSource'
-    document:
-      type: object
-      properties:
-        id:
-          type: string
-        name:
-          type: string
-        status:
-          type: string
-          enum:
-            - UPLOADED
-            - EXPIRED
-            - PENDING
-            - RUNNING
-            - COMPLETE
-            - FAILED
-            - DELETING
-            - DELETED
-        vector_index_status:
-          type: string
-          enum:
-            - PENDING
-            - CREATING
-            - ACTIVE
-            - DELETING
-            - DELETION_IN_PROGRESS
-            - FAILED
-            - SKIPPED
-        fulltext_index_status:
-          type: string
-          enum:
-            - PENDING
-            - CREATING
-            - ACTIVE
-            - DELETING
-            - DELETION_IN_PROGRESS
-            - FAILED
-            - SKIPPED
-        graph_index_status:
-          type: string
-          enum:
-            - PENDING
-            - CREATING
-            - ACTIVE
-            - DELETING
-            - DELETION_IN_PROGRESS
-            - FAILED
-            - SKIPPED
-        summary_index_status:
-          type: string
-          enum:
-            - PENDING
-            - CREATING
-            - ACTIVE
-            - DELETING
-            - DELETION_IN_PROGRESS
-            - FAILED
-            - SKIPPED
-        vision_index_status:
-          type: string
-          enum:
-            - PENDING
-            - CREATING
-            - ACTIVE
-            - DELETING
-            - DELETION_IN_PROGRESS
-            - FAILED
-            - SKIPPED
-        vector_index_updated:
-          type: string
-          format: date-time
-          description: Vector index last updated time
-        fulltext_index_updated:
-          type: string
-          format: date-time
-          description: Fulltext index last updated time
-        graph_index_updated:
-          type: string
-          format: date-time
-          description: Graph index last updated time
-        summary_index_updated:
-          type: string
-          format: date-time
-          description: Summary index last updated time
-        vision_index_updated:
-          type: string
-          format: date-time
-          description: Vision index last updated time
-        summary:
-          type: string
-          description: Summary of the document
-        config:
-          type: string
-        size:
-          type: number
-        created:
-          type: string
-          format: date-time
-        updated:
-          type: string
-          format: date-time
     documentList:
       type: object
       description: A list of documents with pagination

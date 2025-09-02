@@ -15,6 +15,7 @@
 
 
 export * from './apis/audit-api';
+export * from './apis/chat-documents-api';
 export * from './apis/default-api';
 export * from './apis/evaluation-api';
 export * from './apis/graph-api';

@@ -64,6 +64,8 @@ import type { CollectionViewList } from '../models';
 // @ts-ignore
 import type { CollectionsCollectionIdGraphsExportKgEvalGet200Response } from '../models';
 // @ts-ignore
+import type { CollectionsCollectionIdRebuildFailedIndexesPost200Response } from '../models';
+// @ts-ignore
 import type { CollectionsCollectionIdSummaryGeneratePost200Response } from '../models';
 // @ts-ignore
 import type { Config } from '../models';
@@ -1557,6 +1559,44 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
             localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
             localVarRequestOptions.data = serializeDataIfNeeded(collectionUpdate, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Rebuild all failed indexes for all documents in the specified collection
+         * @summary Rebuild all failed indexes in collection
+         * @param {string} collectionId 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        collectionsCollectionIdRebuildFailedIndexesPost: async (collectionId: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'collectionId' is not null or undefined
+            assertParamExists('collectionsCollectionIdRebuildFailedIndexesPost', 'collectionId', collectionId)
+            const localVarPath = `/collections/{collection_id}/rebuild_failed_indexes`
+                .replace(`{${"collection_id"}}`, encodeURIComponent(String(collectionId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
 
             return {
                 url: toPathString(localVarUrlObj),
@@ -3740,6 +3780,19 @@ export const DefaultApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Rebuild all failed indexes for all documents in the specified collection
+         * @summary Rebuild all failed indexes in collection
+         * @param {string} collectionId 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async collectionsCollectionIdRebuildFailedIndexesPost(collectionId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<CollectionsCollectionIdRebuildFailedIndexesPost200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.collectionsCollectionIdRebuildFailedIndexesPost(collectionId, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.collectionsCollectionIdRebuildFailedIndexesPost']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Get the history of searches
          * @summary Get search history
          * @param {string} collectionId 
@@ -4682,6 +4735,16 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
             return localVarFp.collectionsCollectionIdPut(requestParameters.collectionId, requestParameters.collectionUpdate, options).then((request) => request(axios, basePath));
         },
         /**
+         * Rebuild all failed indexes for all documents in the specified collection
+         * @summary Rebuild all failed indexes in collection
+         * @param {DefaultApiCollectionsCollectionIdRebuildFailedIndexesPostRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        collectionsCollectionIdRebuildFailedIndexesPost(requestParameters: DefaultApiCollectionsCollectionIdRebuildFailedIndexesPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<CollectionsCollectionIdRebuildFailedIndexesPost200Response> {
+            return localVarFp.collectionsCollectionIdRebuildFailedIndexesPost(requestParameters.collectionId, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Get the history of searches
          * @summary Get search history
          * @param {DefaultApiCollectionsCollectionIdSearchesGetRequest} requestParameters Request parameters.
@@ -5459,6 +5522,16 @@ export interface DefaultApiInterface {
      * @memberof DefaultApiInterface
      */
     collectionsCollectionIdPut(requestParameters: DefaultApiCollectionsCollectionIdPutRequest, options?: RawAxiosRequestConfig): AxiosPromise<Collection>;
+
+    /**
+     * Rebuild all failed indexes for all documents in the specified collection
+     * @summary Rebuild all failed indexes in collection
+     * @param {DefaultApiCollectionsCollectionIdRebuildFailedIndexesPostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    collectionsCollectionIdRebuildFailedIndexesPost(requestParameters: DefaultApiCollectionsCollectionIdRebuildFailedIndexesPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<CollectionsCollectionIdRebuildFailedIndexesPost200Response>;
 
     /**
      * Get the history of searches
@@ -6576,6 +6649,20 @@ export interface DefaultApiCollectionsCollectionIdPutRequest {
 }
 
 /**
+ * Request parameters for collectionsCollectionIdRebuildFailedIndexesPost operation in DefaultApi.
+ * @export
+ * @interface DefaultApiCollectionsCollectionIdRebuildFailedIndexesPostRequest
+ */
+export interface DefaultApiCollectionsCollectionIdRebuildFailedIndexesPostRequest {
+    /**
+     * 
+     * @type {string}
+     * @memberof DefaultApiCollectionsCollectionIdRebuildFailedIndexesPost
+     */
+    readonly collectionId: string
+}
+
+/**
  * Request parameters for collectionsCollectionIdSearchesGet operation in DefaultApi.
  * @export
  * @interface DefaultApiCollectionsCollectionIdSearchesGetRequest
@@ -7668,6 +7755,18 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
      */
     public collectionsCollectionIdPut(requestParameters: DefaultApiCollectionsCollectionIdPutRequest, options?: RawAxiosRequestConfig) {
         return DefaultApiFp(this.configuration).collectionsCollectionIdPut(requestParameters.collectionId, requestParameters.collectionUpdate, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Rebuild all failed indexes for all documents in the specified collection
+     * @summary Rebuild all failed indexes in collection
+     * @param {DefaultApiCollectionsCollectionIdRebuildFailedIndexesPostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public collectionsCollectionIdRebuildFailedIndexesPost(requestParameters: DefaultApiCollectionsCollectionIdRebuildFailedIndexesPostRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).collectionsCollectionIdRebuildFailedIndexesPost(requestParameters.collectionId, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
