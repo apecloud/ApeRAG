@@ -1,7 +1,6 @@
 {
   "metadata": {
-    "title": "Question Sets",
-    "description": "An Evaluation Question Set is a focused collection of questions designed to systematically assess the effectiveness, impact."
+    "title": "Question Sets"
   },
   "search": "Search",
   "add_question_set": "Add Question Set",
@@ -30,9 +29,6 @@
   "ground_truth_placeholder": "Enter the ground truth...",
 
   "no_question_found": "No question found",
-
-  "collection": "Collection",
-  "collection_placeholder": "Select a collection",
 
   "question_count": "Question Count",
   "question_count_placeholder": "Enter the question count",

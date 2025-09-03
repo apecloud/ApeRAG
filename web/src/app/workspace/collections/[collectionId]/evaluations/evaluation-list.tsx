@@ -17,6 +17,7 @@ import _ from 'lodash';
 import { Plus } from 'lucide-react';
 import Link from 'next/link';
 
+import { useCollectionContext } from '@/components/providers/collection-provider';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import { EvaluationCreate } from './evaluation-create';
@@ -28,6 +29,7 @@ export const EvaluationList = ({
 }) => {
   const [searchValue, setSearchValue] = useState<string>('');
   const page_evaluation = useTranslations('page_evaluation');
+  const { collection } = useCollectionContext();
   return (
     <>
       <div className="mb-4 flex flex-row items-center">
@@ -65,7 +67,7 @@ export const EvaluationList = ({
               return (
                 <Link
                   key={evaluation.id}
-                  href={`/workspace/evaluations/${evaluation.id}`}
+                  href={`/workspace/collections/${collection.id}/evaluations/${evaluation.id}`}
                 >
                   <Card className="hover:bg-accent/30 cursor-pointer gap-4 rounded-md py-4">
                     <CardHeader className="px-4">

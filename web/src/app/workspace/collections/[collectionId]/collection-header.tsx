@@ -28,7 +28,9 @@ import {
   Calendar,
   EllipsisVertical,
   Files,
-  FolderSearch,
+  FlaskConical,
+  History,
+  MailQuestionMark,
   Settings,
   Trash,
   VectorSquare,
@@ -53,7 +55,8 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
   const page_collections = useTranslations('page_collections');
   const page_documents = useTranslations('page_documents');
   const page_graph = useTranslations('page_graph');
-  const page_search = useTranslations('page_search');
+  const page_evaluation = useTranslations('page_evaluation');
+
   const urls = useMemo(() => {
     return {
       documents: `/workspace/collections/${collection.id}/documents`,
@@ -205,7 +208,7 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
             </Button>
           )}
 
-          <Button
+          {/* <Button
             asChild
             data-active={Boolean(pathname.match(urls.search))}
             className="hover:border-b-primary data-[active=true]:border-b-primary h-10 rounded-none border-y-2 border-y-transparent px-1 has-[>svg]:px-2"
@@ -217,7 +220,35 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
                 {page_search('metadata.title')}
               </span>
             </Link>
-          </Button>
+          </Button> */}
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                data-active={Boolean(pathname.match(/(evaluations|questions)/))}
+                className="hover:border-b-primary data-[active=true]:border-b-primary h-10 rounded-none border-y-2 border-y-transparent px-1 focus-visible:border-transparent focus-visible:ring-0 has-[>svg]:px-2"
+              >
+                <FlaskConical /> {page_evaluation('metadata.title')}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-45">
+              <DropdownMenuItem asChild>
+                <Link
+                  href={`/workspace/collections/${collection.id}/evaluations`}
+                >
+                  <History /> {page_evaluation('evaluation_history')}
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link
+                  href={`/workspace/collections/${collection.id}/questions`}
+                >
+                  <MailQuestionMark /> {page_evaluation('question_set')}
+                </Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           <Button
             asChild

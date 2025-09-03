@@ -1,22 +1,22 @@
 import {
   PageContainer,
   PageContent,
-  PageDescription,
   PageHeader,
-  PageTitle,
 } from '@/components/page-container';
 import { getServerApi } from '@/lib/api/server';
 import { getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
+import { CollectionHeader } from '../../collection-header';
 import { QuestionsList } from './questions-list';
 
 export default async function Page({
   params,
 }: {
-  params: Promise<{ questionSetId: string }>;
+  params: Promise<{ questionSetId: string; collectionId: string }>;
 }) {
-  const { questionSetId } = await params;
+  const { questionSetId, collectionId } = await params;
   const page_question_set = await getTranslations('page_question_set');
+  const page_collections = await getTranslations('page_collections');
 
   const serverApi = await getServerApi();
 
@@ -42,18 +42,18 @@ export default async function Page({
       <PageHeader
         breadcrumbs={[
           {
-            title: page_question_set('metadata.title'),
-            href: `/workspace/evaluations/questions`,
+            title: page_collections('metadata.title'),
+            href: '/workspace/collections',
           },
-          { title: questionSet.name ?? '--' },
+          {
+            title: page_question_set('metadata.title'),
+            href: `/workspace/collections/${collectionId}/questions`,
+          },
+          { title: questionSet.name || '--' },
         ]}
       />
+      <CollectionHeader />
       <PageContent>
-        <PageTitle>{page_question_set('metadata.title')}</PageTitle>
-        <PageDescription className="mb-8">
-          {page_question_set('metadata.description')}
-        </PageDescription>
-
         <QuestionsList questionSet={questionSet} />
       </PageContent>
     </PageContainer>

@@ -1,5 +1,6 @@
 'use client';
 import { QuestionSet } from '@/api';
+import { useCollectionContext } from '@/components/providers/collection-provider';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -43,6 +44,7 @@ export const QuestionSetActions = ({
   action: 'add' | 'edit';
   children: React.ReactNode;
 }) => {
+  const { collection } = useCollectionContext();
   const [visible, setVisible] = useState<boolean>(false);
   const router = useRouter();
   const form = useForm<z.infer<typeof questionSetSchema>>({
@@ -62,6 +64,7 @@ export const QuestionSetActions = ({
         await apiClient.evaluationApi.createQuestionSetApiV1QuestionSetsPost({
           questionSetCreate: {
             ...values,
+            collection_id: collection.id,
             questions: [],
           },
         });
@@ -78,7 +81,7 @@ export const QuestionSetActions = ({
       router.refresh();
       setVisible(false);
     },
-    [action, questionSet?.id, router],
+    [action, collection.id, questionSet?.id, router],
   );
 
   useEffect(() => {

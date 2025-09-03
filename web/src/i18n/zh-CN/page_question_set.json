@@ -31,9 +31,6 @@
 
   "no_question_found": "当前问题集内没有数据",
 
-  "collection": "知识库",
-  "collection_placeholder": "选择一个知识库",
-
   "question_count": "生成的问题数量",
   "question_count_placeholder": "请输入问题数量",
 

@@ -1,9 +1,8 @@
 {
   "metadata": {
-    "title": "Evaluation",
-    "description": "Efficiently track, manage, and review the historical performance of your Retrieval-Augmented Generation (RAG) evaluations all in one place."
+    "title": "Evaluations"
   },
-  "search": "Search",
+  "search": "Search history",
   "add_evaluation": "Add evaluation",
   "delete_evaluation": "Delete evaluation",
   "delete_evaluation_confirm": "This action cannot be undone. This will permanently delete evaluation and remove your evaluation from our servers.",
@@ -12,15 +11,13 @@
   "retry_failed_evaluation": "Retry Failed",
   "retry_failed_evaluation_confirm": "Are you sure you want to re-evaluate these failed questions?",
 
+  "evaluation_history": "Evaluation history",
+
   "questions": "Question",
   "avg_score": "Avg. Score",
 
   "evaluation_name": "Evaluation name",
   "evaluation_name_placeholder": "Enter the evaluation name",
-
-  "collection": "Collection",
-  "collection_placeholder": "Select a collection",
-  "add_collection": "Add Collection",
 
   "question_set": "Question Set",
   "question_set_placeholder": "Select a question set",

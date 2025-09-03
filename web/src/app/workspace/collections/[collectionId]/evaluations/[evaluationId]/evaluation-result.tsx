@@ -1,16 +1,9 @@
 'use client';
 
 import { EvaluationDetail, EvaluationItem } from '@/api';
-import { FormatDate } from '@/components/format-date';
 import { Markdown } from '@/components/markdown';
+import { useCollectionContext } from '@/components/providers/collection-provider';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardAction,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
 import {
   Collapsible,
   CollapsibleContent,
@@ -28,6 +21,7 @@ import { apiClient } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import _ from 'lodash';
 import {
+  ArrowLeft,
   ChevronRight,
   EllipsisVertical,
   ListRestart,
@@ -88,6 +82,7 @@ export const EvaluationResult = ({
 }: {
   evaluation: EvaluationDetail;
 }) => {
+  const { collection } = useCollectionContext();
   const [evaluation, setEvaluation] = useState<EvaluationDetail>(initData);
   const page_evaluation = useTranslations('page_evaluation');
   const loadData = useCallback(async () => {
@@ -113,101 +108,90 @@ export const EvaluationResult = ({
 
   return (
     <>
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-2xl">{evaluation.name || '--'}</CardTitle>
-          <CardDescription className="flex flex-row items-center gap-6 text-sm">
-            {evaluation.gmt_created && (
-              <FormatDate datetime={new Date(evaluation.gmt_created)} />
-            )}
+      <div className="mb-4 flex flex-row items-center justify-between gap-4">
+        <div className="flex flex-1 flex-row items-center gap-2 truncate text-lg font-bold">
+          <Button size="icon" variant="secondary">
+            <Link href={`/workspace/collections/${collection.id}/evaluations`}>
+              <ArrowLeft />
+            </Link>
+          </Button>
+          {evaluation.name}
+        </div>
+        <div className="flex flex-row items-center gap-4 text-sm">
+          <div className="flex flex-row items-center gap-2">
+            <div
+              data-status={evaluation.status}
+              className={cn(
+                'size-2 rounded-lg',
+                'data-[status=COMPLETED]:bg-green-700',
+                'data-[status=FAILED]:bg-red-500',
+                'data-[status=PENDING]:bg-gray-500',
+                'data-[status=PAUSED]:bg-amber-500',
+                'data-[status=RUNNING]:bg-sky-500',
+              )}
+            />
+            {_.upperFirst(_.lowerCase(evaluation.status))}
+          </div>
 
-            <div className="flex flex-row items-center gap-2">
-              <div
-                data-status={evaluation.status}
-                className={cn(
-                  'size-2 rounded-lg',
-                  'data-[status=COMPLETED]:bg-green-700',
-                  'data-[status=FAILED]:bg-red-500',
-                  'data-[status=PENDING]:bg-gray-500',
-                  'data-[status=PAUSED]:bg-amber-500',
-                  'data-[status=RUNNING]:bg-sky-500',
-                )}
-              />
-              {_.upperFirst(_.lowerCase(evaluation.status))}
-            </div>
-
-            <div className="flex flex-row gap-1">
-              <span className="text-muted-foreground">
-                {page_evaluation('collection')}:{' '}
-              </span>
+          <div className="flex flex-row gap-1">
+            <span className="text-muted-foreground">
+              {page_evaluation('question_set')}:{' '}
+            </span>
+            <span>
               <Link
-                href={`/workspace/collections/${evaluation.config?.collection_id}/documents`}
+                href={`/workspace/collections/${collection.id}/questions/${evaluation.config?.question_set_id}`}
                 className="hover:text-primary underline"
               >
-                {_.truncate(evaluation.collection_name, { length: 20 })}
+                {_.truncate(evaluation.question_set_name, { length: 20 })}
               </Link>
-            </div>
+            </span>
+          </div>
 
-            <div className="flex flex-row gap-1">
-              <span className="text-muted-foreground">
-                {page_evaluation('question_set')}:{' '}
-              </span>
-              <span>
-                <Link
-                  href={`/workspace/evaluations/questions/${evaluation.config?.question_set_id}`}
-                  className="hover:text-primary underline"
-                >
-                  {_.truncate(evaluation.question_set_name, { length: 20 })}
-                </Link>
-              </span>
-            </div>
-          </CardDescription>
-          <CardAction className="flex flex-row gap-4">
-            <div className="flex flex-row items-center">
-              <span className="text-muted-foreground text-sm">
-                {page_evaluation('avg_score')}: &nbsp;
-              </span>
-              <span className="text-2xl font-bold">
-                {evaluation.average_score}
-              </span>
-            </div>
+          <div className="flex flex-row items-center">
+            <span className="text-muted-foreground text-sm">
+              {page_evaluation('avg_score')}: &nbsp;
+            </span>
+            <span className="text-2xl font-bold">
+              {evaluation.average_score || 0}
+            </span>
+          </div>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button size="icon" variant="ghost">
-                  <EllipsisVertical />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-60">
-                <EvaluationRetryItem
-                  onRetry={loadData}
-                  scope={'failed'}
-                  evaluation={evaluation}
-                >
-                  <ListRestart />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="icon" variant="ghost">
+                <EllipsisVertical />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-60">
+              <EvaluationRetryItem
+                onRetry={loadData}
+                scope={'failed'}
+                evaluation={evaluation}
+              >
+                <ListRestart />
 
-                  {page_evaluation('retry_failed_evaluation')}
-                </EvaluationRetryItem>
-                <EvaluationRetryItem
-                  onRetry={loadData}
-                  scope="all"
-                  evaluation={evaluation}
-                >
-                  <RotateCcw />
-                  {page_evaluation('retry_all_evaluation')}
-                </EvaluationRetryItem>
+                {page_evaluation('retry_failed_evaluation')}
+              </EvaluationRetryItem>
+              <EvaluationRetryItem
+                onRetry={loadData}
+                scope="all"
+                evaluation={evaluation}
+              >
+                <RotateCcw />
+                {page_evaluation('retry_all_evaluation')}
+              </EvaluationRetryItem>
 
-                <DropdownMenuSeparator />
-                <EvaluationDeleteItem evaluation={evaluation}>
-                  <DropdownMenuItem variant="destructive">
-                    <Trash /> {page_evaluation('delete_evaluation')}
-                  </DropdownMenuItem>
-                </EvaluationDeleteItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </CardAction>
-        </CardHeader>
-      </Card>
+              <DropdownMenuSeparator />
+              <EvaluationDeleteItem evaluation={evaluation}>
+                <DropdownMenuItem variant="destructive">
+                  <Trash /> {page_evaluation('delete_evaluation')}
+                </DropdownMenuItem>
+              </EvaluationDeleteItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
       <div className="flex flex-col gap-4">
         {evaluation.items?.map((item, index) => {
           return (

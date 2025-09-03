@@ -1,6 +1,7 @@
 'use client';
-import { Collection, ModelSpec, QuestionSet } from '@/api';
+import { ModelSpec, QuestionSet } from '@/api';
 import { ProviderModel } from '@/app/workspace/collections/collection-form';
+import { useCollectionContext } from '@/components/providers/collection-provider';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -102,7 +103,6 @@ const defaultPromptCN = `你是一个善于提出问题的专家。请仔细阅�
 `;
 
 const generateSchema = z.object({
-  collection_id: z.string().min(1),
   llm_config: z.object({
     model_name: z.string().min(1),
     custom_llm_provider: z.string().min(1),
@@ -124,13 +124,12 @@ export const QuestionGenerate = ({
   const page_question_set = useTranslations('page_question_set');
   const common_action = useTranslations('common.action');
   const [loading, setLoading] = useState<boolean>(false);
-  const [collections, setCollections] = useState<Collection[]>([]);
   const [agentModels, setAgentModels] = useState<ProviderModel[]>([]);
   const locale = useLocale();
+  const { collection } = useCollectionContext();
   const form = useForm<z.infer<typeof generateSchema>>({
     resolver: zodResolver(generateSchema),
     defaultValues: {
-      collection_id: '',
       llm_config: {
         model_name: '',
         custom_llm_provider: '',
@@ -153,7 +152,10 @@ export const QuestionGenerate = ({
         const generateRes =
           await apiClient.evaluationApi.generateQuestionSetApiV1QuestionSetsGeneratePost(
             {
-              questionSetGenerate: values,
+              questionSetGenerate: {
+                ...values,
+                collection_id: collection.id || '',
+              },
             },
             {
               timeout: 1000 * 60,
@@ -181,23 +183,17 @@ export const QuestionGenerate = ({
         setLoading(false);
       }
     },
-    [questionSet?.id, router],
+    [collection.id, questionSet.id, router],
   );
 
   const loadData = useCallback(async () => {
-    const [collectionRes, agentModelsRes] = await Promise.all([
-      apiClient.defaultApi.collectionsGet({
-        page: 1,
-        pageSize: 100,
-        includeSubscribed: false,
-      }),
+    const [agentModelsRes] = await Promise.all([
       apiClient.defaultApi.availableModelsPost({
         tagFilterRequest: {
           tag_filters: [{ operation: 'AND', tags: ['enable_for_agent'] }],
         },
       }),
     ]);
-    setCollections(collectionRes.data.items || []);
     setAgentModels(
       agentModelsRes.data.items?.map((m) => ({
         label: m.label,
@@ -260,36 +256,6 @@ export const QuestionGenerate = ({
               </DialogTitle>
               <DialogDescription></DialogDescription>
             </DialogHeader>
-
-            <FormField
-              control={form.control}
-              name="collection_id"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{page_question_set('collection')}</FormLabel>
-                  <FormControl>
-                    <Select {...field} onValueChange={field.onChange}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue
-                          placeholder={page_question_set(
-                            'collection_placeholder',
-                          )}
-                        />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {collections.map((item) => {
-                          return (
-                            <SelectItem key={item.id} value={item.id || ''}>
-                              {item.title}
-                            </SelectItem>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
-                  </FormControl>
-                </FormItem>
-              )}
-            />
 
             <FormField
               control={form.control}

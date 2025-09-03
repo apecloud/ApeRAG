@@ -1,6 +1,7 @@
 'use client';
 
 import { QuestionSetDetail } from '@/api';
+import { useCollectionContext } from '@/components/providers/collection-provider';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -19,6 +20,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import _ from 'lodash';
 import {
+  ArrowLeft,
   BookOpen,
   EllipsisVertical,
   FileUp,
@@ -28,6 +30,7 @@ import {
   Trash,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import Link from 'next/link';
 import { QuestionSetActions } from '../question-set-actions';
 import { QuestionSetDelete } from '../question-set-delete';
 import { QuestionActions } from './question-actions';
@@ -39,11 +42,19 @@ export const QuestionsList = ({
 }: {
   questionSet: QuestionSetDetail;
 }) => {
+  const { collection } = useCollectionContext();
   const page_question_set = useTranslations('page_question_set');
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-row items-center justify-between gap-4 font-bold">
-        <div className="flex-1 truncate text-lg">{questionSet.name}</div>
+        <div className="flex flex-1 flex-row items-center gap-2 truncate text-lg">
+          <Button size="icon" variant="secondary">
+            <Link href={`/workspace/collections/${collection.id}/questions`}>
+              <ArrowLeft />
+            </Link>
+          </Button>
+          {questionSet.name}
+        </div>
         <div className="flex flex-row items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

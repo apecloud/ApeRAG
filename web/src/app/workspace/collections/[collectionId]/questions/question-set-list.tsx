@@ -2,6 +2,7 @@
 
 import { QuestionSet } from '@/api';
 import { FormatDate } from '@/components/format-date';
+import { useCollectionContext } from '@/components/providers/collection-provider';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -22,6 +23,7 @@ export const QuestionSetList = ({
 }: {
   questionSets: QuestionSet[];
 }) => {
+  const { collection } = useCollectionContext();
   const [searchValue, setSearchValue] = useState<string>('');
   const page_question_set = useTranslations('page_question_set');
   return (
@@ -61,7 +63,7 @@ export const QuestionSetList = ({
               return (
                 <Link
                   key={questionSet.id}
-                  href={`/workspace/evaluations/questions/${questionSet.id}`}
+                  href={`/workspace/collections/${collection.id}/questions/${questionSet.id}`}
                 >
                   <Card className="hover:bg-accent/30 cursor-pointer gap-4 rounded-md py-4">
                     <CardHeader className="px-4">

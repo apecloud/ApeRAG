@@ -1,6 +1,7 @@
 'use client';
 
-import { Evaluation } from '@/api';
+import { QuestionSet } from '@/api';
+import { useCollectionContext } from '@/components/providers/collection-provider';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -18,29 +19,31 @@ import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
 
-export const EvaluationDeleteItem = ({
-  evaluation,
+export const QuestionSetDelete = ({
+  questionSet,
   children,
 }: {
-  evaluation: Evaluation;
+  questionSet: QuestionSet;
   children?: React.ReactNode;
 }) => {
+  const { collection } = useCollectionContext();
   const [visible, setVisible] = useState<boolean>(false);
   const router = useRouter();
-  const page_evaluation = useTranslations('page_evaluation');
+  const page_question_set = useTranslations('page_question_set');
   const common_action = useTranslations('common.action');
   const common_tips = useTranslations('common.tips');
+
   const handleDelete = useCallback(async () => {
-    if (evaluation?.id) {
-      await apiClient.evaluationApi.deleteEvaluationApiV1EvaluationsEvalIdDelete(
+    if (questionSet?.id) {
+      await apiClient.evaluationApi.deleteQuestionSetApiV1QuestionSetsQsIdDelete(
         {
-          evalId: evaluation.id,
+          qsId: questionSet.id,
         },
       );
       setVisible(false);
-      router.push('/workspace/evaluations');
+      router.push(`/workspace/collections/${collection.id}/questions`);
     }
-  }, [evaluation.id, router]);
+  }, [collection.id, questionSet.id, router]);
 
   return (
     <AlertDialog open={visible} onOpenChange={() => setVisible(false)}>
@@ -58,7 +61,7 @@ export const EvaluationDeleteItem = ({
         <AlertDialogHeader>
           <AlertDialogTitle>{common_tips('confirm')}</AlertDialogTitle>
           <AlertDialogDescription>
-            {page_evaluation('delete_evaluation_confirm')}
+            {page_question_set('delete_question_set_confirm')}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogDescription></AlertDialogDescription>

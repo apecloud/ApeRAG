@@ -244,10 +244,9 @@
   },
   "page_evaluation": {
     "metadata": {
-      "title": "问题评测",
-      "description": "高效追踪、管理和回顾检索增强生成（RAG）评测的历史表现，掌握全周期评估数据。"
+      "title": "问题评测"
     },
-    "search": "搜索",
+    "search": "搜索评测历史",
     "add_evaluation": "新增评测",
     "delete_evaluation": "删除评测",
     "delete_evaluation_confirm": "将会永久删除测评结果，并从服务器中移除您的评估数据。",
@@ -255,6 +254,7 @@
     "retry_all_evaluation_confirm": "确定要对所有问题重新发起评测吗？",
     "retry_failed_evaluation": "重试失败",
     "retry_failed_evaluation_confirm": "确定对失败的记录重新发起评测吗？",
+    "evaluation_history": "评测历史",
     "questions": "问题",
     "avg_score": "平均分",
     "evaluation_name": "评测名称",
@@ -369,8 +369,6 @@
     "ground_truth": "标准答案",
     "ground_truth_placeholder": "请输入标准答案",
     "no_question_found": "当前问题集内没有数据",
-    "collection": "知识库",
-    "collection_placeholder": "选择一个知识库",
     "question_count": "生成的问题数量",
     "question_count_placeholder": "请输入问题数量",
     "question_llm": "LLM 模型",

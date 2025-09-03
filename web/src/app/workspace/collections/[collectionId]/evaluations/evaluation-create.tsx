@@ -1,6 +1,7 @@
 'use client';
 
-import { Collection, ModelSpec, QuestionSet } from '@/api';
+import { ModelSpec, QuestionSet } from '@/api';
+import { useCollectionContext } from '@/components/providers/collection-provider';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -41,7 +42,6 @@ import * as z from 'zod';
 
 const evaluationSchema = z.object({
   name: z.string().min(1),
-  collection_id: z.string().min(1),
   question_set_id: z.string().min(1),
   agent_llm_config: z.object({
     model_name: z.string().min(1),
@@ -65,8 +65,8 @@ export const EvaluationCreate = ({
 }: {
   children?: React.ReactNode;
 }) => {
+  const { collection } = useCollectionContext();
   const [visible, setVisible] = useState<boolean>(false);
-  const [collections, setCollections] = useState<Collection[]>([]);
   const [questionSets, setQuestionSets] = useState<QuestionSet[]>([]);
   const [agentModels, setAgentModels] = useState<ProviderModel[]>([]);
   const router = useRouter();
@@ -76,7 +76,6 @@ export const EvaluationCreate = ({
     resolver: zodResolver(evaluationSchema),
     defaultValues: {
       name: '',
-      collection_id: '',
       question_set_id: '',
       agent_llm_config: {
         model_name: '',
@@ -135,13 +134,9 @@ export const EvaluationCreate = ({
   }, [agentModelName, judgeModelName, agentModels, form]);
 
   const loadData = useCallback(async () => {
-    const [collectionRes, questionSetRes, agentModelsRes] = await Promise.all([
-      apiClient.defaultApi.collectionsGet({
-        page: 1,
-        pageSize: 100,
-        includeSubscribed: false,
-      }),
+    const [questionSetRes, agentModelsRes] = await Promise.all([
       apiClient.evaluationApi.listQuestionSetsApiV1QuestionSetsGet({
+        collectionId: collection.id,
         page: 1,
         pageSize: 100,
       }),
@@ -151,7 +146,6 @@ export const EvaluationCreate = ({
         },
       }),
     ]);
-    setCollections(collectionRes.data.items || []);
     setQuestionSets(questionSetRes.data.items || []);
     setAgentModels(
       agentModelsRes.data.items?.map((m) => ({
@@ -160,18 +154,21 @@ export const EvaluationCreate = ({
         models: m.completion,
       })) || [],
     );
-  }, []);
+  }, [collection.id]);
 
   const handleCreate = useCallback(
     async (values: z.infer<typeof evaluationSchema>) => {
       await apiClient.evaluationApi.createEvaluationApiV1EvaluationsPost({
-        evaluationCreate: values,
+        evaluationCreate: {
+          collection_id: collection.id || '',
+          ...values,
+        },
       });
       setVisible(false);
       setTimeout(router.refresh, 300);
       toast.success('Saved successfully.');
     },
-    [router.refresh],
+    [collection.id, router.refresh],
   );
 
   useEffect(() => {
@@ -223,45 +220,6 @@ export const EvaluationCreate = ({
 
             <FormField
               control={form.control}
-              name="collection_id"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>
-                    <span>{page_evaluation('collection')}</span>
-
-                    <Link
-                      className="text-muted-foreground hover:text-primary ml-auto underline"
-                      href="/workspace/collections/new"
-                    >
-                      {page_evaluation('add_collection')}
-                    </Link>
-                  </FormLabel>
-                  <FormControl>
-                    <Select {...field} onValueChange={field.onChange}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue
-                          placeholder={page_evaluation(
-                            'collection_placeholder',
-                          )}
-                        />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {collections.map((item) => {
-                          return (
-                            <SelectItem key={item.id} value={item.id || ''}>
-                              {item.title}
-                            </SelectItem>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
               name="question_set_id"
               render={({ field }) => (
                 <FormItem>
@@ -269,7 +227,7 @@ export const EvaluationCreate = ({
                     <span>{page_evaluation('question_set')}</span>
                     <Link
                       className="text-muted-foreground hover:text-primary ml-auto underline"
-                      href="/workspace/evaluations/questions"
+                      href={`/workspace/collections/${collection.id}/questions`}
                     >
                       {page_evaluation('add_question_set')}
                     </Link>

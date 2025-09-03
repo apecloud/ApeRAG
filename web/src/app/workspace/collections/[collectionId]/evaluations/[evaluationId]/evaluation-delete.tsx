@@ -1,6 +1,7 @@
 'use client';
 
-import { QuestionSet } from '@/api';
+import { Evaluation } from '@/api';
+import { useCollectionContext } from '@/components/providers/collection-provider';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -18,30 +19,30 @@ import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
 
-export const QuestionSetDelete = ({
-  questionSet,
+export const EvaluationDeleteItem = ({
+  evaluation,
   children,
 }: {
-  questionSet: QuestionSet;
+  evaluation: Evaluation;
   children?: React.ReactNode;
 }) => {
+  const { collection } = useCollectionContext();
   const [visible, setVisible] = useState<boolean>(false);
   const router = useRouter();
-  const page_question_set = useTranslations('page_question_set');
+  const page_evaluation = useTranslations('page_evaluation');
   const common_action = useTranslations('common.action');
   const common_tips = useTranslations('common.tips');
-
   const handleDelete = useCallback(async () => {
-    if (questionSet?.id) {
-      await apiClient.evaluationApi.deleteQuestionSetApiV1QuestionSetsQsIdDelete(
+    if (evaluation?.id) {
+      await apiClient.evaluationApi.deleteEvaluationApiV1EvaluationsEvalIdDelete(
         {
-          qsId: questionSet.id,
+          evalId: evaluation.id,
         },
       );
       setVisible(false);
-      router.push('/workspace/evaluations/questions');
+      router.push(`/workspace/collections/${collection.id}/evaluations`);
     }
-  }, [questionSet.id, router]);
+  }, [collection.id, evaluation.id, router]);
 
   return (
     <AlertDialog open={visible} onOpenChange={() => setVisible(false)}>
@@ -59,7 +60,7 @@ export const QuestionSetDelete = ({
         <AlertDialogHeader>
           <AlertDialogTitle>{common_tips('confirm')}</AlertDialogTitle>
           <AlertDialogDescription>
-            {page_question_set('delete_question_set_confirm')}
+            {page_evaluation('delete_evaluation_confirm')}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogDescription></AlertDialogDescription>
