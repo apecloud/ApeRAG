@@ -231,3 +231,13 @@ class AsyncDocumentRepositoryMixin(AsyncRepositoryProtocol):
             return result.scalars().first()
 
         return await self._execute_query(_query)
+
+    async def query_document_by_id(self, document_id: str, ignore_deleted: bool = True) -> Document:
+        async def _query(session):
+            stmt = select(Document).where(Document.id == document_id)
+            if ignore_deleted:
+                stmt = stmt.where(Document.status != DocumentStatus.DELETED)
+            result = await session.execute(stmt)
+            return result.scalars().first()
+
+        return await self._execute_query(_query)
