@@ -281,7 +281,7 @@ async def required_user(user: Optional[User] = Depends(optional_user)) -> User:
     return user
 
 
-async def get_current_admin(user: User = Depends(optional_user)) -> User:
+async def get_current_admin(user: User = Depends(required_user)) -> User:
     """Get current admin user."""
     if user.role != Role.ADMIN:
         raise HTTPException(status_code=403, detail="Only admin members can perform this action")
