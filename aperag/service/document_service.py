@@ -40,6 +40,7 @@ from aperag.index.manager import document_index_manager
 from aperag.objectstore.base import get_async_object_store
 from aperag.schema import view_models
 from aperag.schema.view_models import Chunk, DocumentList, DocumentPreview, VisionChunk
+from aperag.service.marketplace_service import marketplace_service
 from aperag.utils.pagination import (
     ListParams,
     PaginatedResponse,
@@ -470,6 +471,9 @@ class DocumentService:
     ) -> PaginatedResponse[view_models.Document]:
         """List documents with pagination, sorting and search capabilities."""
 
+        if not user:
+            await marketplace_service.validate_marketplace_collection(collection_id)
+
         # Define sort field mapping
         sort_mapping = {
             "name": db_models.Document.name,
@@ -569,6 +573,9 @@ class DocumentService:
 
     async def get_document(self, user: str, collection_id: str, document_id: str) -> view_models.Document:
         """Get a specific document by ID."""
+        if not user:
+            await marketplace_service.validate_marketplace_collection(collection_id)
+
         documents = await self._query_documents_with_indexes(user, collection_id, document_id)
 
         if not documents:
@@ -922,6 +929,9 @@ class DocumentService:
         """
         Get all preview-related information for a document.
         """
+
+        if not user_id:
+            await marketplace_service.validate_marketplace_collection(collection_id)
 
         # Use database operations with proper session management
         async def _get_document_preview(session: AsyncSession):

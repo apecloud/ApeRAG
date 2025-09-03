@@ -19,7 +19,7 @@ from fastapi.responses import StreamingResponse
 
 from aperag.db.models import User
 from aperag.service.chat_completion_service import OpenAIFormatter, chat_completion_service
-from aperag.views.auth import current_user
+from aperag.views.auth import required_user
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ router = APIRouter()
 
 
 @router.post("/chat/completions", tags=["chats"])
-async def openai_chat_completions_view(request: Request, user: User = Depends(current_user)):
+async def openai_chat_completions_view(request: Request, user: User = Depends(required_user)):
     try:
         body_data = await request.json()
         query_params = dict(request.query_params)

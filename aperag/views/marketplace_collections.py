@@ -25,7 +25,7 @@ from aperag.exceptions import (
 from aperag.schema import view_models
 from aperag.service.document_service import document_service
 from aperag.service.marketplace_collection_service import marketplace_collection_service
-from aperag.views.auth import current_user
+from aperag.views.auth import required_user
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ router = APIRouter(tags=["marketplace-collections"])
 @router.get("/marketplace/collections/{collection_id}", response_model=view_models.SharedCollection)
 async def get_marketplace_collection(
     collection_id: str,
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ) -> view_models.SharedCollection:
     """Get MarketplaceCollection details (read-only)"""
     try:
@@ -57,7 +57,7 @@ async def list_marketplace_collection_documents(
     sort_by: str = Query("created", description="Field to sort by"),
     sort_order: str = Query("desc", regex="^(asc|desc)$", description="Sort order"),
     search: str = Query(None, description="Search documents by name"),
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ):
     """List documents in MarketplaceCollection (read-only) with pagination, sorting and search capabilities"""
     try:
@@ -102,7 +102,7 @@ async def list_marketplace_collection_documents(
 async def get_marketplace_collection_document_preview(
     collection_id: str,
     document_id: str,
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ):
     """Preview document in MarketplaceCollection (read-only)"""
     try:
@@ -131,7 +131,7 @@ async def get_marketplace_collection_document_object(
     collection_id: str,
     document_id: str,
     path: str = Query(..., description="Object path within the document"),
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ):
     """Get document object from MarketplaceCollection (read-only)"""
     try:
@@ -158,7 +158,7 @@ async def get_marketplace_collection_graph(
     label: str = Query("*"),
     max_nodes: int = Query(1000, ge=1, le=10000),
     max_depth: int = Query(3, ge=1, le=10),
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ) -> Dict[str, Any]:
     """Get knowledge graph for MarketplaceCollection (read-only)"""
     from aperag.service.graph_service import graph_service

@@ -20,7 +20,7 @@ from aperag.db.models import User
 from aperag.schema import view_models
 from aperag.service.chat_document_service import chat_document_service
 from aperag.utils.audit_decorator import audit
-from aperag.views.auth import current_user
+from aperag.views.auth import required_user
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ async def upload_chat_document_view(
     request: Request,
     chat_id: str,
     file: UploadFile = File(...),
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ) -> view_models.Document:
     """Upload a document to a chat session"""
     return await chat_document_service.upload_chat_document(chat_id=chat_id, user_id=str(user.id), file=file)
@@ -44,7 +44,7 @@ async def get_chat_document_view(
     request: Request,
     chat_id: str,
     document_id: str,
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ) -> view_models.Document:
     """Get chat document details"""
     document = await chat_document_service.get_chat_document_by_id(

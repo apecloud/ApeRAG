@@ -31,7 +31,7 @@ from aperag.schema.view_models import (
     UserQuotaList,
 )
 from aperag.service.quota_service import quota_service
-from aperag.views.auth import current_user
+from aperag.views.auth import required_user
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +56,7 @@ def _convert_quota_dict_to_list(quota_dict: dict) -> List[QuotaInfo]:
 async def get_quotas(
     user_id: str = Query(None, description="User ID to get quotas for (admin only, defaults to current user)"),
     search: str = Query(None, description="Search term for username, email, or user ID (admin only)"),
-    current_user: User = Depends(current_user),
+    current_user: User = Depends(required_user),
 ):
     """Get quota information for the current user or specific user (admin only)"""
     try:
@@ -138,7 +138,7 @@ async def get_quotas(
 
 
 @router.put("/quotas/{user_id}", response_model=QuotaUpdateResponse)
-async def update_quota(user_id: str, request: QuotaUpdateRequest, current_user: User = Depends(current_user)):
+async def update_quota(user_id: str, request: QuotaUpdateRequest, current_user: User = Depends(required_user)):
     """Update quota limits for a specific user (admin only) - supports both single and batch updates"""
     try:
         # Only admin users can update quotas
@@ -167,7 +167,7 @@ async def update_quota(user_id: str, request: QuotaUpdateRequest, current_user: 
 
 
 @router.post("/quotas/{user_id}/recalculate")
-async def recalculate_quota_usage(user_id: str, current_user: User = Depends(current_user)):
+async def recalculate_quota_usage(user_id: str, current_user: User = Depends(required_user)):
     """Recalculate and update current usage for all quota types for a user (admin only)"""
     try:
         # Only admin users can recalculate quotas
@@ -185,7 +185,7 @@ async def recalculate_quota_usage(user_id: str, current_user: User = Depends(cur
 
 
 @router.get("/system/default-quotas", response_model=SystemDefaultQuotasResponse)
-async def get_system_default_quotas(current_user: User = Depends(current_user)):
+async def get_system_default_quotas(current_user: User = Depends(required_user)):
     """Get system default quota configuration (admin only)"""
     try:
         # Only admin users can view system default quotas
@@ -206,7 +206,7 @@ async def get_system_default_quotas(current_user: User = Depends(current_user)):
 
 @router.put("/system/default-quotas", response_model=SystemDefaultQuotasUpdateResponse)
 async def update_system_default_quotas(
-    request: SystemDefaultQuotasUpdateRequest, current_user: User = Depends(current_user)
+    request: SystemDefaultQuotasUpdateRequest, current_user: User = Depends(required_user)
 ):
     """Update system default quota configuration (admin only)"""
     try:

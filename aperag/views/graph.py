@@ -23,7 +23,7 @@ from aperag.schema import view_models
 from aperag.utils.audit_decorator import audit
 
 # Import authentication dependencies
-from aperag.views.auth import current_user
+from aperag.views.auth import required_user
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ async def merge_nodes_view(
     request: Request,
     collection_id: str,
     merge_request: view_models.NodeMergeRequest,
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ) -> view_models.NodeMergeResponse:
     """Merge multiple graph nodes into one"""
     from aperag.service.graph_service import graph_service
@@ -67,7 +67,7 @@ async def handle_suggestion_action_view(
     collection_id: str,
     suggestion_id: str,
     action_request: view_models.SuggestionActionRequest,
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ) -> view_models.SuggestionActionResponse:
     """Accept or reject a merge suggestion"""
     from aperag.service.graph_service import graph_service
@@ -99,7 +99,7 @@ async def merge_suggestions_view(
     request: Request,
     collection_id: str,
     suggestions_request: Optional[view_models.MergeSuggestionsRequest] = Body(None),
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ) -> view_models.MergeSuggestionsResponse:
     """Get cached suggestions or generate new ones using LLM analysis"""
     from aperag.service.graph_service import graph_service
@@ -142,7 +142,7 @@ async def export_kg_eval_view(
     collection_id: str,
     sample_size: int = 100000,
     include_source_texts: bool = True,
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ) -> Dict[str, Any]:
     """Export collection knowledge graph data in KG-Eval framework format"""
     from aperag.service.graph_service import graph_service

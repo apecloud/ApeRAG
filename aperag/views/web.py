@@ -22,7 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from aperag.db.models import User
 from aperag.db.ops import async_db_ops
 from aperag.schema.view_models import WebReadRequest, WebReadResponse, WebSearchRequest, WebSearchResponse
-from aperag.views.auth import current_user
+from aperag.views.auth import required_user
 from aperag.websearch.reader.reader_service import ReaderService
 from aperag.websearch.search.search_service import SearchService
 
@@ -44,7 +44,7 @@ class WebReadError(Exception):
 
 
 @router.post("/web/search", response_model=WebSearchResponse, tags=["websearch"])
-async def web_search_endpoint(request: WebSearchRequest, user: User = Depends(current_user)) -> WebSearchResponse:
+async def web_search_endpoint(request: WebSearchRequest, user: User = Depends(required_user)) -> WebSearchResponse:
     """
     Perform web search using various search engines with advanced domain targeting.
 
@@ -236,7 +236,7 @@ def _merge_and_rank_results(all_results: List, max_results: int) -> List:
 
 
 @router.post("/web/read", response_model=WebReadResponse, tags=["websearch"])
-async def web_read_endpoint(request: WebReadRequest, user: User = Depends(current_user)) -> WebReadResponse:
+async def web_read_endpoint(request: WebReadRequest, user: User = Depends(required_user)) -> WebReadResponse:
     """
     Read and extract content from web pages.
 

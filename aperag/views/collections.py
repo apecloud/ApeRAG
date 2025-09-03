@@ -25,7 +25,7 @@ from aperag.service.collection_summary_service import collection_summary_service
 from aperag.service.document_service import document_service
 from aperag.service.marketplace_service import marketplace_service
 from aperag.utils.audit_decorator import audit
-from aperag.views.auth import current_user, get_current_active_user
+from aperag.views.auth import required_user, optional_user
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ router = APIRouter()
 async def create_collection_view(
     request: Request,
     collection: view_models.CollectionCreate,
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ) -> view_models.Collection:
     return await collection_service.create_collection(str(user.id), collection)
 
@@ -48,16 +48,18 @@ async def list_collections_view(
     page: int = Query(1),
     page_size: int = Query(50),
     include_subscribed: bool = Query(True),
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ) -> view_models.CollectionViewList:
     return await collection_service.list_collections_view(str(user.id), include_subscribed, page, page_size)
 
 
 @router.get("/collections/{collection_id}", tags=["collections"])
 async def get_collection_view(
-    request: Request, collection_id: str, user: User = Depends(current_user)
+    request: Request, collection_id: str, user: User = Depends(optional_user)
 ) -> view_models.Collection:
-    return await collection_service.get_collection(str(user.id), collection_id)
+    # Determine user_id based on authentication status
+    user_id = str(user.id) if user else ""
+    return await collection_service.get_collection(user_id, collection_id)
 
 
 @router.put("/collections/{collection_id}", tags=["collections"])
@@ -66,7 +68,7 @@ async def update_collection_view(
     request: Request,
     collection_id: str,
     collection: view_models.CollectionUpdate,
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ) -> view_models.Collection:
     instance = await collection_service.update_collection(str(user.id), collection_id, collection)
     return instance
@@ -75,7 +77,7 @@ async def update_collection_view(
 @router.delete("/collections/{collection_id}", tags=["collections"])
 @audit(resource_type="collection", api_name="DeleteCollection")
 async def delete_collection_view(
-    request: Request, collection_id: str, user: User = Depends(current_user)
+    request: Request, collection_id: str, user: User = Depends(required_user)
 ) -> view_models.Collection:
     return await collection_service.delete_collection(str(user.id), collection_id)
 
@@ -83,7 +85,7 @@ async def delete_collection_view(
 @router.post("/collections/{collection_id}/summary/generate", tags=["collections"])
 @audit(resource_type="collection", api_name="GenerateCollectionSummary")
 async def generate_collection_summary_view(
-    request: Request, collection_id: str, user: User = Depends(current_user)
+    request: Request, collection_id: str, user: User = Depends(required_user)
 ) -> dict:
     """Trigger collection summary generation as background task"""
 
@@ -115,7 +117,7 @@ async def generate_collection_summary_view(
 async def test_mineru_token_view(
     request: Request,
     data: dict = Body(...),
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ):
     token = data.get("token")
     if not token:
@@ -127,7 +129,7 @@ async def test_mineru_token_view(
 @router.get("/collections/{collection_id}/sharing", tags=["collections"])
 async def get_collection_sharing_status(
     collection_id: str,
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ) -> view_models.SharingStatusResponse:
     """Get collection sharing status (owner only)"""
     from aperag.exceptions import CollectionNotFoundException, PermissionDeniedError
@@ -148,7 +150,7 @@ async def get_collection_sharing_status(
 @router.post("/collections/{collection_id}/sharing", tags=["collections"])
 async def publish_collection_to_marketplace(
     collection_id: str,
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ):
     """Publish collection to marketplace (owner only)"""
     from aperag.exceptions import CollectionNotFoundException, PermissionDeniedError
@@ -169,7 +171,7 @@ async def publish_collection_to_marketplace(
 @router.delete("/collections/{collection_id}/sharing", tags=["collections"])
 async def unpublish_collection_from_marketplace(
     collection_id: str,
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ):
     """Unpublish collection from marketplace (owner only)"""
     from aperag.exceptions import CollectionNotFoundException, PermissionDeniedError
@@ -194,7 +196,7 @@ async def create_search_view(
     request: Request,
     collection_id: str,
     data: view_models.SearchRequest,
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ) -> view_models.SearchResult:
     return await collection_service.create_search(str(user.id), collection_id, data)
 
@@ -205,14 +207,14 @@ async def delete_search_view(
     request: Request,
     collection_id: str,
     search_id: str,
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ):
     return await collection_service.delete_search(str(user.id), collection_id, search_id)
 
 
 @router.get("/collections/{collection_id}/searches", tags=["search"])
 async def list_searches_view(
-    request: Request, collection_id: str, user: User = Depends(current_user)
+    request: Request, collection_id: str, user: User = Depends(required_user)
 ) -> view_models.SearchResultList:
     return await collection_service.list_searches(str(user.id), collection_id)
 
@@ -223,7 +225,7 @@ async def create_documents_view(
     request: Request,
     collection_id: str,
     files: List[UploadFile] = File(...),
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ) -> view_models.DocumentList:
     return await document_service.create_documents(str(user.id), collection_id, files)
 
@@ -237,17 +239,11 @@ async def list_documents_view(
     sort_by: str = Query("created", description="Field to sort by"),
     sort_order: str = Query("desc", regex="^(asc|desc)$", description="Sort order"),
     search: str = Query(None, description="Search documents by name"),
-    user: Optional[User] = Depends(current_user),
+    user: User = Depends(optional_user),
 ):
     """List documents with pagination, sorting and search capabilities"""
-    
     # Determine user_id based on authentication status
-    if user:
-        user_id = str(user.id)
-    else:
-        # For unauthenticated users, validate collection is in marketplace
-        await marketplace_service.validate_marketplace_collection(collection_id)
-        user_id = ""
+    user_id = str(user.id) if user else ""
     
     result = await document_service.list_documents(
         user=user_id,
@@ -275,16 +271,10 @@ async def get_document_view(
     request: Request,
     collection_id: str,
     document_id: str,
-    user: Optional[User] = Depends(current_user),
+    user: User = Depends(optional_user),
 ) -> view_models.Document:
     # Determine user_id based on authentication status
-    if user:
-        user_id = str(user.id)
-    else:
-        # For unauthenticated users, validate collection is in marketplace
-        await marketplace_service.validate_marketplace_collection(collection_id)
-        user_id = ""
-    
+    user_id = str(user.id) if user else ""
     return await document_service.get_document(user_id, collection_id, document_id)
 
 
@@ -294,7 +284,7 @@ async def delete_document_view(
     request: Request,
     collection_id: str,
     document_id: str,
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ) -> view_models.Document:
     return await document_service.delete_document(str(user.id), collection_id, document_id)
 
@@ -305,7 +295,7 @@ async def delete_documents_view(
     request: Request,
     collection_id: str,
     document_ids: List[str],
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ):
     return await document_service.delete_documents(str(user.id), collection_id, document_ids)
 
@@ -318,16 +308,10 @@ async def delete_documents_view(
 async def get_document_preview(
     collection_id: str,
     document_id: str,
-    user: Optional[User] = Depends(current_user),
+    user: User = Depends(optional_user),
 ):
     # Determine user_id based on authentication status
-    if user:
-        user_id = str(user.id)
-    else:
-        # For unauthenticated users, validate collection is in marketplace
-        await marketplace_service.validate_marketplace_collection(collection_id)
-        user_id = ""
-    
+    user_id = str(user.id) if user else ""
     return await document_service.get_document_preview(user_id, collection_id, document_id)
 
 
@@ -341,7 +325,7 @@ async def get_document_object(
     collection_id: str,
     document_id: str,
     path: str,
-    user: Optional[User] = Depends(current_user),
+    user: User = Depends(optional_user),
 ):
     # Determine user_id based on authentication status
     if user:
@@ -362,7 +346,7 @@ async def rebuild_document_indexes_view(
     collection_id: str,
     document_id: str,
     rebuild_request: view_models.RebuildIndexesRequest,
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ):
     """Rebuild specified indexes for a document"""
     return await document_service.rebuild_document_indexes(
@@ -375,7 +359,7 @@ async def rebuild_document_indexes_view(
 async def rebuild_failed_indexes_view(
     request: Request,
     collection_id: str,
-    user: User = Depends(get_current_active_user),
+    user: User = Depends(optional_user),
 ):
     """Rebuild all failed indexes for all documents in a collection"""
     return await document_service.rebuild_failed_indexes(str(user.id), collection_id)
@@ -386,7 +370,7 @@ async def rebuild_failed_indexes_view(
 async def get_graph_labels_view(
     request: Request,
     collection_id: str,
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ) -> view_models.GraphLabelsResponse:
     """Get all available node labels in the collection's knowledge graph"""
     from aperag.service.graph_service import graph_service
@@ -407,7 +391,7 @@ async def upload_document_view(
     request: Request,
     collection_id: str,
     file: UploadFile = File(...),
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ) -> view_models.UploadDocumentResponse:
     """Upload a single document file to temporary storage"""
     return await document_service.upload_document(str(user.id), collection_id, file)
@@ -419,7 +403,7 @@ async def confirm_documents_view(
     request: Request,
     collection_id: str,
     confirm_request: view_models.ConfirmDocumentsRequest,
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ) -> view_models.ConfirmDocumentsResponse:
     """Confirm uploaded documents and add them to the collection"""
     return await document_service.confirm_documents(str(user.id), collection_id, confirm_request.document_ids)
@@ -432,7 +416,7 @@ async def get_knowledge_graph_view(
     label: str = "*",
     max_nodes: int = 1000,
     max_depth: int = 3,
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ):
     """Get knowledge graph - overview mode or subgraph mode"""
     from aperag.service.graph_service import graph_service

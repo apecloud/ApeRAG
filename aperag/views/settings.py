@@ -19,13 +19,13 @@ from fastapi.responses import JSONResponse
 
 from aperag.schema.view_models import Settings
 from aperag.service.setting_service import setting_service
-from aperag.views.auth import current_user
+from aperag.views.auth import required_user
 
 router = APIRouter()
 
 
 @router.get("/settings", tags=["Settings"])
-async def get_settings(user: dict = Depends(current_user)):
+async def get_settings(user: dict = Depends(required_user)):
     settings = await setting_service.get_all_settings()
     return settings
 
@@ -33,7 +33,7 @@ async def get_settings(user: dict = Depends(current_user)):
 @router.put("/settings", tags=["Settings"])
 async def update_settings(
     settings: Settings,
-    user: dict = Depends(current_user),
+    user: dict = Depends(required_user),
 ):
     await setting_service.update_settings(settings.model_dump())
     return Response(status_code=204)
@@ -42,7 +42,7 @@ async def update_settings(
 @router.post("/settings/test_mineru_token", tags=["Settings"])
 async def test_mineru_token(
     token_data: Optional[dict] = Body(None),
-    user: dict = Depends(current_user),
+    user: dict = Depends(required_user),
 ):
     token_to_test = None
     if token_data and "token" in token_data:

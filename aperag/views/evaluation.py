@@ -22,7 +22,7 @@ from aperag.service.agent_chat_service import AgentChatService
 from aperag.service.collection_service import collection_service
 from aperag.service.evaluation_service import evaluation_service
 from aperag.service.question_set_service import question_set_service
-from aperag.views.auth import current_user
+from aperag.views.auth import required_user
 
 router = APIRouter(tags=["evaluation"])
 
@@ -34,7 +34,7 @@ MAX_QUESTIONS_PER_SET = 1000
 async def list_question_sets(
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ):
     items, total = await question_set_service.list_question_sets(user.id, page, page_size)
     return {"items": items, "total": total, "page": page, "page_size": page_size}
@@ -43,7 +43,7 @@ async def list_question_sets(
 @router.post("/question-sets", response_model=view_models.QuestionSet)
 async def create_question_set(
     request: view_models.QuestionSetCreate,
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ):
     if len(request.questions) > MAX_QUESTIONS_PER_SET:
         raise HTTPException(
@@ -55,7 +55,7 @@ async def create_question_set(
 @router.post("/question-sets/generate", response_model=view_models.QuestionSetDetail)
 async def generate_question_set(
     request: view_models.QuestionSetGenerate,
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ):
     questions = await question_set_service.generate_questions(request, user)
 
@@ -68,7 +68,7 @@ async def generate_question_set(
 @router.get("/question-sets/{qs_id}", response_model=view_models.QuestionSetDetail)
 async def get_question_set(
     qs_id: str,
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ):
     qs = await question_set_service.get_question_set(qs_id, user.id)
     if not qs:
@@ -102,7 +102,7 @@ async def get_question_set(
 async def update_question_set(
     qs_id: str,
     request: view_models.QuestionSetUpdate,
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ):
     qs = await question_set_service.update_question_set(qs_id, request, user.id)
     if not qs:
@@ -113,7 +113,7 @@ async def update_question_set(
 @router.delete("/question-sets/{qs_id}", status_code=204)
 async def delete_question_set(
     qs_id: str,
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ):
     if not await question_set_service.delete_question_set(qs_id, user.id):
         raise HTTPException(status_code=404, detail="Question set not found")
@@ -123,7 +123,7 @@ async def delete_question_set(
 async def add_questions(
     qs_id: str,
     request: view_models.QuestionsAdd,
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ):
     qs = await question_set_service.get_question_set(qs_id, user.id)
     if not qs:
@@ -145,7 +145,7 @@ async def update_question(
     qs_id: str,
     q_id: str,
     request: view_models.QuestionUpdate,
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ):
     qs = await question_set_service.get_question_set(qs_id, user.id)
     if not qs:
@@ -161,7 +161,7 @@ async def update_question(
 async def delete_question(
     qs_id: str,
     q_id: str,
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ):
     qs = await question_set_service.get_question_set(qs_id, user.id)
     if not qs:
@@ -178,7 +178,7 @@ async def delete_question(
 async def list_evaluations(
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ):
     items, total = await evaluation_service.list_evaluations(user.id, page, page_size)
     return view_models.EvaluationList(
@@ -192,7 +192,7 @@ async def list_evaluations(
 @router.post("/evaluations", response_model=view_models.Evaluation)
 async def create_evaluation(
     request: view_models.EvaluationCreate,
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ):
     # TODO: check quota limit
     # The request model is generated from OpenAPI spec, so it should match the new structure.
@@ -203,7 +203,7 @@ async def create_evaluation(
 @router.get("/evaluations/{eval_id}", response_model=view_models.EvaluationDetail)
 async def get_evaluation(
     eval_id: str,
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ):
     evaluation_detail = await evaluation_service.get_evaluation(eval_id, user.id)
     if not evaluation_detail:
@@ -235,7 +235,7 @@ async def get_evaluation(
 @router.delete("/evaluations/{eval_id}", status_code=204)
 async def delete_evaluation(
     eval_id: str,
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ):
     if not await evaluation_service.delete_evaluation(eval_id, user.id):
         raise HTTPException(status_code=404, detail="Evaluation not found")
@@ -244,7 +244,7 @@ async def delete_evaluation(
 @router.post("/evaluations/{eval_id}/pause", response_model=view_models.Evaluation)
 async def pause_evaluation(
     eval_id: str,
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ):
     evaluation = await evaluation_service.pause_evaluation(eval_id, user.id)
     if not evaluation:
@@ -255,7 +255,7 @@ async def pause_evaluation(
 @router.post("/evaluations/{eval_id}/resume", response_model=view_models.Evaluation)
 async def resume_evaluation(
     eval_id: str,
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ):
     evaluation = await evaluation_service.resume_evaluation(eval_id, user.id)
     if not evaluation:
@@ -267,7 +267,7 @@ async def resume_evaluation(
 async def retry_evaluation(
     eval_id: str,
     scope: str = Query("failed", enum=["failed", "all"]),
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ):
     evaluation = await evaluation_service.retry_evaluation(eval_id, user.id, scope)
     if not evaluation:
@@ -281,15 +281,12 @@ async def retry_evaluation(
 )
 async def chat_with_agent_for_evaluation(
     request: view_models.EvaluationChatWithAgentRequest,
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ):
     """
     (Internal) Handles a chat request for an evaluation item.
     This endpoint is called by the Celery worker to execute agent logic in the FastAPI process.
     """
-    if user is None:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-
     agent_service = AgentChatService()
     try:
         collection = await collection_service.get_collection(user.id, request.collection_id)

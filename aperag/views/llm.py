@@ -41,7 +41,7 @@ from aperag.schema.view_models import (
     RerankUsage,
 )
 from aperag.utils.audit_decorator import audit
-from aperag.views.auth import current_user
+from aperag.views.auth import required_user
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ router = APIRouter()
 
 @router.post("/embeddings", response_model=EmbeddingResponse, tags=["llm"])
 @audit(resource_type="llm", api_name="CreateEmbeddings")
-async def create_embeddings(http_request: Request, request: EmbeddingRequest, user: User = Depends(current_user)):
+async def create_embeddings(http_request: Request, request: EmbeddingRequest, user: User = Depends(required_user)):
     """
     Create embeddings for the given input text(s).
     Compatible with OpenAI embeddings API format.
@@ -160,7 +160,7 @@ async def _get_provider_info(provider: str, model: str, user_id: str, api_type: 
 
 @router.post("/rerank", response_model=RerankResponse, tags=["llm"])
 @audit(resource_type="llm", api_name="CreateRerank")
-async def create_rerank(http_request: Request, request: RerankRequest, user: User = Depends(current_user)):
+async def create_rerank(http_request: Request, request: RerankRequest, user: User = Depends(required_user)):
     """
     Rerank documents based on relevance to a query.
     Compatible with industry-standard rerank API format used by Cohere, Jina AI, etc.

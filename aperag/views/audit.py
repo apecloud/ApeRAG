@@ -22,7 +22,7 @@ from aperag.config import get_async_session
 from aperag.db.models import AuditLog, AuditResource, Role, User
 from aperag.schema import view_models
 from aperag.service.audit_service import audit_service
-from aperag.views.auth import current_user
+from aperag.views.auth import required_user
 
 router = APIRouter()
 
@@ -43,7 +43,7 @@ async def list_audit_logs(
     sort_by: Optional[str] = Query(None, description="Sort field"),
     sort_order: str = Query("desc", description="Sort order: asc or desc"),
     search: Optional[str] = Query(None, description="Search term"),
-    user: User = Depends(current_user),
+    user: User = Depends(required_user),
 ):
     """List audit logs with filtering"""
 
@@ -115,7 +115,7 @@ async def list_audit_logs(
 
 
 @router.get("/audit-logs/{audit_id}", tags=["audit"])
-async def get_audit_log(audit_id: str, user: User = Depends(current_user)):
+async def get_audit_log(audit_id: str, user: User = Depends(required_user)):
     """Get a specific audit log by ID"""
 
     async for session in get_async_session():
