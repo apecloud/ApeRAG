@@ -25,7 +25,7 @@ from aperag.exceptions import (
 from aperag.schema import view_models
 from aperag.service.document_service import document_service
 from aperag.service.marketplace_collection_service import marketplace_collection_service
-from aperag.views.auth import required_user
+from aperag.views.auth import required_user, optional_user
 
 logger = logging.getLogger(__name__)
 
@@ -35,11 +35,12 @@ router = APIRouter(tags=["marketplace-collections"])
 @router.get("/marketplace/collections/{collection_id}", response_model=view_models.SharedCollection)
 async def get_marketplace_collection(
     collection_id: str,
-    user: User = Depends(required_user),
+    user: User = Depends(optional_user),
 ) -> view_models.SharedCollection:
     """Get MarketplaceCollection details (read-only)"""
     try:
-        result = await marketplace_collection_service.get_marketplace_collection(user.id, collection_id)
+        user_id = str(user.id) if user else ""
+        result = await marketplace_collection_service.get_marketplace_collection(user_id, collection_id)
         return result
     except CollectionMarketplaceAccessDeniedError as e:
         raise HTTPException(status_code=403, detail=str(e))
@@ -57,12 +58,13 @@ async def list_marketplace_collection_documents(
     sort_by: str = Query("created", description="Field to sort by"),
     sort_order: str = Query("desc", regex="^(asc|desc)$", description="Sort order"),
     search: str = Query(None, description="Search documents by name"),
-    user: User = Depends(required_user),
+    user: User = Depends(optional_user),
 ):
     """List documents in MarketplaceCollection (read-only) with pagination, sorting and search capabilities"""
     try:
         # Check marketplace access first (all logged-in users can view published collections)
-        marketplace_info = await marketplace_collection_service._check_marketplace_access(user.id, collection_id)
+        user_id = str(user.id) if user else ""
+        marketplace_info = await marketplace_collection_service._check_marketplace_access(user_id, collection_id)
 
         # Use the collection owner's user_id to query documents, not the current user's id
         owner_user_id = marketplace_info["owner_user_id"]
@@ -102,12 +104,13 @@ async def list_marketplace_collection_documents(
 async def get_marketplace_collection_document_preview(
     collection_id: str,
     document_id: str,
-    user: User = Depends(required_user),
+    user: User = Depends(optional_user),
 ):
     """Preview document in MarketplaceCollection (read-only)"""
     try:
         # Check marketplace access first (all logged-in users can view published collections)
-        marketplace_info = await marketplace_collection_service._check_marketplace_access(user.id, collection_id)
+        user_id = str(user.id) if user else ""
+        marketplace_info = await marketplace_collection_service._check_marketplace_access(user_id, collection_id)
 
         # Use the collection owner's user_id to query document, not the current user's id
         owner_user_id = marketplace_info["owner_user_id"]
@@ -131,12 +134,13 @@ async def get_marketplace_collection_document_object(
     collection_id: str,
     document_id: str,
     path: str = Query(..., description="Object path within the document"),
-    user: User = Depends(required_user),
+    user: User = Depends(optional_user),
 ):
     """Get document object from MarketplaceCollection (read-only)"""
     try:
         # Check marketplace access first (all logged-in users can view published collections)
-        marketplace_info = await marketplace_collection_service._check_marketplace_access(user.id, collection_id)
+        user_id = str(user.id) if user else ""
+        marketplace_info = await marketplace_collection_service._check_marketplace_access(user_id, collection_id)
 
         # Use the collection owner's user_id to get document object, not the current user's id
         owner_user_id = marketplace_info["owner_user_id"]
@@ -158,7 +162,7 @@ async def get_marketplace_collection_graph(
     label: str = Query("*"),
     max_nodes: int = Query(1000, ge=1, le=10000),
     max_depth: int = Query(3, ge=1, le=10),
-    user: User = Depends(required_user),
+    user: User = Depends(optional_user),
 ) -> Dict[str, Any]:
     """Get knowledge graph for MarketplaceCollection (read-only)"""
     from aperag.service.graph_service import graph_service
@@ -171,7 +175,8 @@ async def get_marketplace_collection_graph(
 
     try:
         # Check marketplace access first (all logged-in users can view published collections)
-        marketplace_info = await marketplace_collection_service._check_marketplace_access(user.id, collection_id)
+        user_id = str(user.id) if user else ""
+        marketplace_info = await marketplace_collection_service._check_marketplace_access(user_id, collection_id)
 
         # Use the collection owner's user_id to query graph, not the current user's id
         owner_user_id = marketplace_info["owner_user_id"]

@@ -254,7 +254,6 @@ class DocumentService:
         """
         Common function to query documents with their indexes using JOIN.
         If document_id is provided, query single document, otherwise query all documents.
-        For marketplace collections, user can be empty string for unauthenticated access.
         """
 
         async def _execute_query(session):
@@ -281,6 +280,7 @@ class DocumentService:
                 )
                 .where(
                     and_(
+                        db_models.Document.user == user,
                         db_models.Document.collection_id == collection_id,
                         db_models.Document.status != db_models.DocumentStatus.DELETED,
                         db_models.Document.status
@@ -291,10 +291,6 @@ class DocumentService:
                 )
                 .order_by(db_models.Document.gmt_created.desc())
             )
-
-            # Add user filter only if user is not empty (for authenticated access)
-            if user:
-                query = query.where(db_models.Document.user == user)
 
             # Add document_id filter if provided (for single document query)
             if document_id:
@@ -490,18 +486,15 @@ class DocumentService:
             from sqlalchemy import and_, desc, select
 
             # Step 1: Build base document query for pagination (without indexes)
-            base_conditions = [
-                db_models.Document.collection_id == collection_id,
-                db_models.Document.status != db_models.DocumentStatus.DELETED,
-                db_models.Document.status != db_models.DocumentStatus.UPLOADED,
-                db_models.Document.status != db_models.DocumentStatus.EXPIRED,
-            ]
-
-            # Add user filter only if user is not empty (for authenticated access)
-            if user:
-                base_conditions.append(db_models.Document.user == user)
-
-            base_query = select(db_models.Document).where(and_(*base_conditions))
+            base_query = select(db_models.Document).where(
+                    and_(
+                        db_models.Document.user == user,
+                        db_models.Document.collection_id == collection_id,
+                        db_models.Document.status != db_models.DocumentStatus.DELETED,
+                        db_models.Document.status != db_models.DocumentStatus.UPLOADED,
+                        db_models.Document.status != db_models.DocumentStatus.EXPIRED,
+                    )
+                )
 
             # Apply search filter
             if search:
@@ -935,18 +928,12 @@ class DocumentService:
 
         # Use database operations with proper session management
         async def _get_document_preview(session: AsyncSession):
-            from sqlalchemy import and_
-
             # 1. Get document and vector index in one go
-            doc_conditions = [
+            doc_stmt = select(db_models.Document).filter(
                 db_models.Document.id == document_id,
                 db_models.Document.collection_id == collection_id,
-            ]
-            # Add user filter only if user_id is not empty (for authenticated access)
-            if user_id:
-                doc_conditions.append(db_models.Document.user == user_id)
-
-            doc_stmt = select(db_models.Document).filter(and_(*doc_conditions))
+                db_models.Document.user == user_id,
+            )
             doc_result = await session.execute(doc_stmt)
             document = doc_result.scalars().first()
             if not document:
@@ -1009,18 +996,12 @@ class DocumentService:
 
         # Use database operations with proper session management
         async def _get_document_object(session):
-            from sqlalchemy import and_
-
             # 1. Verify user has access to the document
-            doc_conditions = [
+            stmt = select(db_models.Document).filter(
                 db_models.Document.id == document_id,
                 db_models.Document.collection_id == collection_id,
-            ]
-            # Add user filter only if user_id is not empty (for authenticated access)
-            if user_id:
-                doc_conditions.append(db_models.Document.user == user_id)
-
-            stmt = select(db_models.Document).filter(and_(*doc_conditions))
+                db_models.Document.user == user_id,
+            )
             result = await session.execute(stmt)
             document = result.scalars().first()
             if not document:

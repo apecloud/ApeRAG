@@ -25,7 +25,7 @@ from aperag.service.collection_summary_service import collection_summary_service
 from aperag.service.document_service import document_service
 from aperag.service.marketplace_service import marketplace_service
 from aperag.utils.audit_decorator import audit
-from aperag.views.auth import optional_user, required_user
+from aperag.views.auth import required_user
 
 logger = logging.getLogger(__name__)
 
@@ -55,11 +55,9 @@ async def list_collections_view(
 
 @router.get("/collections/{collection_id}", tags=["collections"])
 async def get_collection_view(
-    request: Request, collection_id: str, user: User = Depends(optional_user)
+    request: Request, collection_id: str, user: User = Depends(required_user)
 ) -> view_models.Collection:
-    # Determine user_id based on authentication status
-    user_id = str(user.id) if user else ""
-    return await collection_service.get_collection(user_id, collection_id)
+    return await collection_service.get_collection(str(user.id), collection_id)
 
 
 @router.put("/collections/{collection_id}", tags=["collections"])
@@ -239,14 +237,12 @@ async def list_documents_view(
     sort_by: str = Query("created", description="Field to sort by"),
     sort_order: str = Query("desc", regex="^(asc|desc)$", description="Sort order"),
     search: str = Query(None, description="Search documents by name"),
-    user: User = Depends(optional_user),
+    user: User = Depends(required_user),
 ):
     """List documents with pagination, sorting and search capabilities"""
-    # Determine user_id based on authentication status
-    user_id = str(user.id) if user else ""
 
     result = await document_service.list_documents(
-        user=user_id,
+        user=str(user.id),
         collection_id=collection_id,
         page=page,
         page_size=page_size,
@@ -271,11 +267,9 @@ async def get_document_view(
     request: Request,
     collection_id: str,
     document_id: str,
-    user: User = Depends(optional_user),
+    user: User = Depends(required_user),
 ) -> view_models.Document:
-    # Determine user_id based on authentication status
-    user_id = str(user.id) if user else ""
-    return await document_service.get_document(user_id, collection_id, document_id)
+    return await document_service.get_document(str(user.id), collection_id, document_id)
 
 
 @router.delete("/collections/{collection_id}/documents/{document_id}", tags=["documents"])
@@ -308,11 +302,9 @@ async def delete_documents_view(
 async def get_document_preview(
     collection_id: str,
     document_id: str,
-    user: User = Depends(optional_user),
+    user: User = Depends(required_user),
 ):
-    # Determine user_id based on authentication status
-    user_id = str(user.id) if user else ""
-    return await document_service.get_document_preview(user_id, collection_id, document_id)
+    return await document_service.get_document_preview(str(user.id), collection_id, document_id)
 
 
 @router.get(
@@ -325,18 +317,10 @@ async def get_document_object(
     collection_id: str,
     document_id: str,
     path: str,
-    user: User = Depends(optional_user),
+    user: User = Depends(required_user),
 ):
-    # Determine user_id based on authentication status
-    if user:
-        user_id = str(user.id)
-    else:
-        # For unauthenticated users, validate collection is in marketplace
-        await marketplace_service.validate_marketplace_collection(collection_id)
-        user_id = ""
-
     range_header = request.headers.get("range")
-    return await document_service.get_document_object(user_id, collection_id, document_id, path, range_header)
+    return await document_service.get_document_object(str(user.id), collection_id, document_id, path, range_header)
 
 
 @router.post("/collections/{collection_id}/documents/{document_id}/rebuild_indexes", tags=["documents"])
@@ -359,7 +343,7 @@ async def rebuild_document_indexes_view(
 async def rebuild_failed_indexes_view(
     request: Request,
     collection_id: str,
-    user: User = Depends(optional_user),
+    user: User = Depends(required_user),
 ):
     """Rebuild all failed indexes for all documents in a collection"""
     return await document_service.rebuild_failed_indexes(str(user.id), collection_id)
