@@ -37,7 +37,7 @@ import { cn } from '@/lib/utils';
 import { useInterval } from 'ahooks';
 import { motion } from 'framer-motion';
 import _ from 'lodash';
-import { Bot, Globe, Paperclip } from 'lucide-react';
+import { Bot, Globe, LoaderCircle, Paperclip, Trash2 } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { defaultStyles, FileIcon } from 'react-file-icon';
@@ -56,9 +56,14 @@ export type ChatInputSubmitParams = {
   };
   web_search_enabled: boolean;
   language: string;
+  files: {
+    id: string;
+    name: string;
+  }[];
 };
 
 export type Attachment = {
+  id: string;
   file: File;
   progress_status:
     | 'pending'
@@ -106,47 +111,41 @@ export const ChatInput = ({
   const [modelName, setModelName] = useLocalStorageState<string | undefined>(
     'local-agent-completion-model',
   );
-
   const [attachments, setAttachments] = useState<Attachment[]>([]);
 
-  const isAttachmentsReady = useMemo(() => {
-    if (_.isEmpty(attachments)) {
-      return true;
-    }
-    return !attachments.some((item) => item.progress_status !== 'success');
-  }, [attachments]);
+  const handleDeleteAttachment = useCallback(async (attachment: Attachment) => {
+    setAttachments((items) =>
+      items.filter((item) => item.id !== attachment.id),
+    );
+  }, []);
 
   const checkAttachmentStatus = useCallback(async () => {
     const chatId = chat.id;
     if (!chatId) return;
-
     const indexingAttachments = attachments.filter((attachment) => {
       return (
         ['uploaded'].includes(attachment.progress_status) &&
         attachment.document_id
       );
     });
-
     await Promise.all(
       indexingAttachments.map(async (attachment) => {
-        const file = attachment.file;
-
         setAttachments((items) => {
-          const item = items.find((item) => _.isEqual(item.file, file));
+          const item = items.find((item) => item.id === attachment.id);
           if (item) {
             item.progress_status = 'indexing';
           }
-          return items;
+          return [...items];
         });
-
         const res =
           await apiClient.chatDocumentsApi.chatsChatIdDocumentsDocumentIdGet({
             chatId,
             documentId: attachment.document_id || '',
           });
+
         if (res.data) {
           setAttachments((items) => {
-            const item = items.find((item) => _.isEqual(item.file, file));
+            const item = items.find((item) => item.id === attachment.id);
             if (item) {
               switch (res.data.status) {
                 case 'COMPLETE':
@@ -159,7 +158,7 @@ export const ChatInput = ({
                   item.progress_status = 'indexing';
               }
             }
-            return items;
+            return [...items];
           });
         }
       }),
@@ -171,18 +170,20 @@ export const ChatInput = ({
     if (!chatId) return;
 
     const uploadAttachments = attachments.filter((attachment) => {
-      return attachment.document_id === undefined;
+      return (
+        ['pending'].includes(attachment.progress_status) &&
+        !attachment.document_id
+      );
     });
-
     await Promise.all(
       uploadAttachments.map(async (attachment) => {
         const file = attachment.file;
         setAttachments((items) => {
-          const item = items.find((item) => _.isEqual(item.file, file));
+          const item = items.find((item) => item.id === attachment.id);
           if (item) {
             item.progress_status = 'uploading';
           }
-          return items;
+          return [...items];
         });
         const res = await apiClient.chatDocumentsApi.chatsChatIdDocumentsPost({
           chatId,
@@ -191,12 +192,12 @@ export const ChatInput = ({
         });
         if (res.data.id) {
           setAttachments((items) => {
-            const item = items.find((item) => _.isEqual(item.file, file));
+            const item = items.find((item) => item.id === attachment.id);
             if (item) {
               item.document_id = res.data.id;
               item.progress_status = 'uploaded';
             }
-            return items;
+            return [...items];
           });
         }
       }),
@@ -236,14 +237,7 @@ export const ChatInput = ({
 
   const handleSendMessage = useCallback(() => {
     const _query = _.trim(query);
-    if (
-      _.isEmpty(_query) ||
-      isComposing ||
-      loading ||
-      mentionOpen ||
-      !isAttachmentsReady
-    )
-      return;
+    if (_.isEmpty(_query) || isComposing || loading || mentionOpen) return;
 
     let model: ModelSpec | undefined;
     const provider = providerModels?.find((p) =>
@@ -275,14 +269,20 @@ export const ChatInput = ({
       },
       web_search_enabled: webSearchEnabled,
       language: locale,
+      files: attachments
+        .filter((attachment) => attachment.progress_status === 'success')
+        .map((attachment) => ({
+          id: attachment.document_id || '',
+          name: attachment.file.name,
+        })),
     };
 
     setQuery('');
     setSelectedCollections([]);
     onSubmit(data);
   }, [
+    attachments,
     collections,
-    isAttachmentsReady,
     isComposing,
     loading,
     locale,
@@ -383,20 +383,26 @@ export const ChatInput = ({
           }}
           className="relative flex flex-col gap-2"
         >
-          <div className="flex flex-wrap gap-1">
-            {attachments.map((attachment, index) => {
+          <div className="flex flex-wrap gap-2">
+            {attachments.map((attachment) => {
               const extension = _.last(attachment.file.type.split('/')) || '';
               return (
                 <div
-                  key={index}
-                  className="bg-accent flex flex-row items-center gap-1 rounded-md p-1 text-xs"
+                  key={attachment.id}
+                  className="bg-accent group hover:bg-accent/80 relative flex flex-row items-center gap-1 rounded-md border p-1 text-xs transition-colors"
                 >
                   <div className="size-6">
-                    <FileIcon
-                      color="var(--primary)"
-                      extension={extension}
-                      {..._.get(defaultStyles, extension)}
-                    />
+                    {['success', 'failed'].includes(
+                      attachment.progress_status,
+                    ) ? (
+                      <FileIcon
+                        color="var(--primary)"
+                        extension={extension}
+                        {..._.get(defaultStyles, extension)}
+                      />
+                    ) : (
+                      <LoaderCircle className="size-6 animate-spin opacity-50" />
+                    )}
                   </div>
                   <div className="flex-1">
                     <div className="w-30 truncate">{attachment.file.name}</div>
@@ -406,6 +412,12 @@ export const ChatInput = ({
                       </span>
                       <span>{attachment.progress_status}</span>
                     </div>
+                  </div>
+                  <div
+                    onClick={() => handleDeleteAttachment(attachment)}
+                    className="bg-accent absolute -top-2 -right-2 z-10 flex size-6 cursor-pointer flex-col justify-center rounded-full p-1 text-center opacity-0 transition-opacity group-hover:opacity-100"
+                  >
+                    <Trash2 className="m-auto size-3 text-rose-500" />
                   </div>
                 </div>
               );
@@ -480,6 +492,7 @@ export const ChatInput = ({
                           _.isEqual(attachment.file, file),
                         );
                         data.push({
+                          id: String(Math.random()),
                           file,
                           progress_status: 'pending',
                           ...attachment,
