@@ -250,40 +250,6 @@ class ChatService:
 
         return None
 
-    async def associate_documents_with_message(
-        self, chat_id: str, message_id: str, files: List[str], user: str
-    ) -> List[Dict[str, Any]]:
-        """Handle file metadata retrieval and document association for chat messages.
-
-        Args:
-            chat_id: The chat ID
-            message_id: The message ID to associate documents with
-            files: List of document IDs
-            user: User ID
-
-        Returns:
-            List of file metadata dictionaries
-        """
-        if not files:
-            return []
-
-        result = []
-        try:
-            from aperag.service.chat_document_service import chat_document_service
-
-            # Get document metadata for storing in the message
-            result = await chat_document_service.get_documents_metadata(
-                chat_id=chat_id, document_ids=files, user_id=user
-            )
-            # Associate documents with message
-            await chat_document_service.associate_documents_with_message(
-                chat_id=chat_id, message_id=message_id, document_ids=files, user_id=user
-            )
-        except Exception as e:
-            logger.warning(f"Failed to associate documents with message {message_id}: {e}")
-
-        return result
-
     def stream_frontend_sse_response(
         self, generator: AsyncGenerator[Any, Any], formatter: FrontendFormatter, msg_id: str
     ):
@@ -310,7 +276,8 @@ class ChatService:
         """Frontend chat completions with special error handling for UI responses"""
 
         # Get document metadata and associate documents with message if files are provided
-        files = await self.associate_documents_with_message(
+        from aperag.service.chat_document_service import chat_document_service
+        files = await chat_document_service.associate_documents_with_message(
             chat_id=chat_id, message_id=msg_id, files=upload_files or [], user=user
         )
 
@@ -483,7 +450,8 @@ class ChatService:
                 message_id = str(uuid.uuid4())
 
                 # Get document metadata and associate documents with message if files are provided
-                files = await self.associate_documents_with_message(
+                from aperag.service.chat_document_service import chat_document_service
+                files = await chat_document_service.associate_documents_with_message(
                     chat_id=chat_id, message_id=message_id, files=data.get("files", []), user=user
                 )
 

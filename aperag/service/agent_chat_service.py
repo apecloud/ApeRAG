@@ -169,6 +169,15 @@ class AgentChatService:
             message_queue = AgentMessageQueue()
             trace_id = await self.register_message_queue(agent_message.language, chat_id, message_id, message_queue)
 
+            # Get document metadata and associate documents with message if files are provided
+            from aperag.service.chat_document_service import chat_document_service
+            files = await chat_document_service.associate_documents_with_message(
+                chat_id=chat_id, 
+                message_id=message_id, 
+                files=[file.id for file in agent_message.files], 
+                user=user
+            )
+
             # Message Producer: Start background task to process agent generation message
             process_task = asyncio.create_task(
                 self.process_agent_message(agent_message, user, chat_id, message_id, message_queue)
@@ -202,7 +211,7 @@ class AgentChatService:
             references = process_result.get("references", "")
             tool_use_list = consumer_result
             await self._save_conversation_history(
-                chat_id, message_id, trace_id, query, ai_response, tool_use_list, references
+                chat_id, message_id, trace_id, query, ai_response, tool_use_list, references, files
             )
 
         except Exception as e:
@@ -551,6 +560,7 @@ class AgentChatService:
         trace_id: str,
         query: str,
         ai_response: str,
+        files: List[Dict[str, Any]],
         tool_use_list: List[Dict],
         tool_references: List[Dict[str, Any]],
     ) -> None:
@@ -572,6 +582,7 @@ class AgentChatService:
                 history=history,
                 user_query=query,
                 ai_response=ai_response,
+                files=files,
                 tool_use_list=tool_use_list,
                 tool_references=tool_references,
             )

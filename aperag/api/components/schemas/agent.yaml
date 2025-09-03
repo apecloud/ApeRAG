@@ -42,6 +42,17 @@ AgentMessage:
         - it-IT
         - pt-BR
         - ru-RU
+    files:
+      type: array
+      items:
+        type: object
+        properties:
+          id:
+            type: string
+            description: File ID
+          name:
+            type: string
+            description: File name
   required:
     - query
     - collections

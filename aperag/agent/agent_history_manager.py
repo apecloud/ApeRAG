@@ -15,7 +15,7 @@
 """Agent chat history management for persistent storage - pure functions for testability."""
 
 import logging
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from aperag.utils.history import RedisChatMessageHistory, get_async_redis_client
 
@@ -66,6 +66,7 @@ class AgentHistoryManager:
         history: RedisChatMessageHistory,
         user_query: str,
         ai_response: str,
+        files: List[Dict[str, Any]],
         tool_use_list: List[Dict],
         tool_references: List,
     ) -> bool:
@@ -92,6 +93,7 @@ class AgentHistoryManager:
                 chat_id=history.session_id,
                 message_id=message_id,
                 trace_id=trace_id,
+                files=files,
             )
             # Save human message (plain text for agent conversations)
             await history.add_stored_message(user_message)
