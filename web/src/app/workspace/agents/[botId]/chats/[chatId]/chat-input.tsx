@@ -124,7 +124,7 @@ export const ChatInput = ({
     if (!chatId) return;
     const indexingAttachments = attachments.filter((attachment) => {
       return (
-        ['uploaded'].includes(attachment.progress_status) &&
+        ['uploaded', 'indexing'].includes(attachment.progress_status) &&
         attachment.document_id
       );
     });
