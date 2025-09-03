@@ -1,7 +1,13 @@
-import { Collection, ModelSpec } from '@/api';
+import {
+  ChatDetails,
+  Collection,
+  ModelSpec,
+  UploadDocumentResponseStatusEnum,
+} from '@/api';
 import { PageContent } from '@/components/page-container';
 import { useAgentsContext } from '@/components/providers/agents-provider';
 import { Button } from '@/components/ui/button';
+import { FileUpload, FileUploadTrigger } from '@/components/ui/file-upload';
 import { Label } from '@/components/ui/label';
 import {
   Mention,
@@ -26,12 +32,15 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { apiClient } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
+import { useInterval } from 'ahooks';
 import { motion } from 'framer-motion';
 import _ from 'lodash';
-import { Bot, Globe } from 'lucide-react';
+import { Bot, Globe, Paperclip } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { defaultStyles, FileIcon } from 'react-file-icon';
 import { BiSolidRightArrow } from 'react-icons/bi';
 import { PiStopFill } from 'react-icons/pi';
 import { toast } from 'sonner';
@@ -49,13 +58,31 @@ export type ChatInputSubmitParams = {
   language: string;
 };
 
+export type Attachment = {
+  file: File;
+  progress_status:
+    | 'pending'
+    | 'uploading'
+    | 'uploaded'
+    | 'indexing'
+    | 'success'
+    | 'failed';
+
+  document_id?: string;
+  filename?: string;
+  size?: number;
+  status?: UploadDocumentResponseStatusEnum;
+};
+
 export const ChatInput = ({
+  chat,
   welcome,
   loading,
   disabled,
   onSubmit,
   onCancel,
 }: {
+  chat: ChatDetails;
   welcome: boolean;
   loading: boolean;
   disabled: boolean;
@@ -80,9 +107,143 @@ export const ChatInput = ({
     'local-agent-completion-model',
   );
 
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+
+  const isAttachmentsReady = useMemo(() => {
+    if (_.isEmpty(attachments)) {
+      return true;
+    }
+    return !attachments.some((item) => item.progress_status !== 'success');
+  }, [attachments]);
+
+  const checkAttachmentStatus = useCallback(async () => {
+    const chatId = chat.id;
+    if (!chatId) return;
+
+    const indexingAttachments = attachments.filter((attachment) => {
+      return (
+        ['uploaded'].includes(attachment.progress_status) &&
+        attachment.document_id
+      );
+    });
+
+    await Promise.all(
+      indexingAttachments.map(async (attachment) => {
+        const file = attachment.file;
+
+        setAttachments((items) => {
+          const item = items.find((item) => _.isEqual(item.file, file));
+          if (item) {
+            item.progress_status = 'indexing';
+          }
+          return items;
+        });
+
+        const res =
+          await apiClient.chatDocumentsApi.chatsChatIdDocumentsDocumentIdGet({
+            chatId,
+            documentId: attachment.document_id || '',
+          });
+        if (res.data) {
+          setAttachments((items) => {
+            const item = items.find((item) => _.isEqual(item.file, file));
+            if (item) {
+              switch (res.data.status) {
+                case 'COMPLETE':
+                  item.progress_status = 'success';
+                  break;
+                case 'FAILED':
+                  item.progress_status = 'failed';
+                  break;
+                default:
+                  item.progress_status = 'indexing';
+              }
+            }
+            return items;
+          });
+        }
+      }),
+    );
+  }, [attachments, chat.id]);
+
+  const onAttachmentsChange = useCallback(async () => {
+    const chatId = chat.id;
+    if (!chatId) return;
+
+    const uploadAttachments = attachments.filter((attachment) => {
+      return attachment.document_id === undefined;
+    });
+
+    await Promise.all(
+      uploadAttachments.map(async (attachment) => {
+        const file = attachment.file;
+        setAttachments((items) => {
+          const item = items.find((item) => _.isEqual(item.file, file));
+          if (item) {
+            item.progress_status = 'uploading';
+          }
+          return items;
+        });
+        const res = await apiClient.chatDocumentsApi.chatsChatIdDocumentsPost({
+          chatId,
+          file,
+          messageId: '',
+        });
+        if (res.data.id) {
+          setAttachments((items) => {
+            const item = items.find((item) => _.isEqual(item.file, file));
+            if (item) {
+              item.document_id = res.data.id;
+              item.progress_status = 'uploaded';
+            }
+            return items;
+          });
+        }
+      }),
+    );
+  }, [attachments, chat.id]);
+
+  const onFileReject = useCallback((file: File, message: string) => {
+    toast.error(message, {
+      description: `"${file.name.length > 20 ? `${file.name.slice(0, 20)}...` : file.name}" has been rejected`,
+    });
+  }, []);
+
+  const onFileValidate = useCallback(
+    (file: File): string | null => {
+      const doc = attachments.some(
+        (attachment) =>
+          attachment.file.name === file.name &&
+          attachment.file.size === file.size &&
+          attachment.file.lastModified === file.lastModified &&
+          attachment.file.type === file.type,
+      );
+      if (doc) {
+        return 'File already exists.';
+      }
+      return null;
+    },
+    [attachments],
+  );
+
+  useInterval(() => {
+    checkAttachmentStatus();
+  }, 3000);
+
+  useEffect(() => {
+    onAttachmentsChange();
+  }, [attachments, onAttachmentsChange]);
+
   const handleSendMessage = useCallback(() => {
     const _query = _.trim(query);
-    if (_.isEmpty(_query) || isComposing || loading || mentionOpen) return;
+    if (
+      _.isEmpty(_query) ||
+      isComposing ||
+      loading ||
+      mentionOpen ||
+      !isAttachmentsReady
+    )
+      return;
 
     let model: ModelSpec | undefined;
     const provider = providerModels?.find((p) =>
@@ -121,6 +282,7 @@ export const ChatInput = ({
     onSubmit(data);
   }, [
     collections,
+    isAttachmentsReady,
     isComposing,
     loading,
     locale,
@@ -221,6 +383,35 @@ export const ChatInput = ({
           }}
           className="relative flex flex-col gap-2"
         >
+          <div className="flex flex-wrap gap-1">
+            {attachments.map((attachment, index) => {
+              const extension = _.last(attachment.file.type.split('/')) || '';
+              return (
+                <div
+                  key={index}
+                  className="bg-accent flex flex-row items-center gap-1 rounded-md p-1 text-xs"
+                >
+                  <div className="size-6">
+                    <FileIcon
+                      color="var(--primary)"
+                      extension={extension}
+                      {..._.get(defaultStyles, extension)}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <div className="w-30 truncate">{attachment.file.name}</div>
+                    <div className="text-muted-foreground flex flex-row justify-between">
+                      <span>
+                        {(attachment.file.size / 1000).toFixed(0) + ' Kb'}
+                      </span>
+                      <span>{attachment.progress_status}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
           <Label>
             <Mention
               trigger="@"
@@ -274,6 +465,41 @@ export const ChatInput = ({
             <div className="absolute bottom-0 flex w-full flex-row items-center justify-between p-4">
               <div></div>
               <div className="flex gap-2">
+                <FileUpload
+                  maxFiles={10}
+                  maxSize={10 * 1024 * 1024}
+                  accept=".pdf,.doc,.docx,.txt,.md,.ppt,.pptx,.xls,.xlsx"
+                  value={attachments.map((f) => f.file)}
+                  onFileReject={onFileReject}
+                  onFileValidate={onFileValidate}
+                  onValueChange={(files) => {
+                    setAttachments((attachments) => {
+                      const data: Attachment[] = [];
+                      files.forEach((file) => {
+                        const attachment = attachments.find((attachment) =>
+                          _.isEqual(attachment.file, file),
+                        );
+                        data.push({
+                          file,
+                          progress_status: 'pending',
+                          ...attachment,
+                        });
+                      });
+                      return data;
+                    });
+                  }}
+                >
+                  <FileUploadTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="cursor-pointer"
+                    >
+                      <Paperclip />
+                    </Button>
+                  </FileUploadTrigger>
+                </FileUpload>
+
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Toggle

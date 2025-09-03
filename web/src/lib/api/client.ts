@@ -2,6 +2,7 @@
 
 import {
   AuditApi,
+  ChatDocumentsApi,
   Configuration,
   DefaultApi,
   EvaluationApi,
@@ -50,4 +51,5 @@ export const apiClient = {
   quotasApi: new QuotasApi(configuration, undefined, request),
   auditApi: new AuditApi(configuration, undefined, request),
   evaluationApi: new EvaluationApi(configuration, undefined, request),
+  chatDocumentsApi: new ChatDocumentsApi(configuration, undefined, request),
 };

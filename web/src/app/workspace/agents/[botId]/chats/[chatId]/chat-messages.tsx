@@ -228,6 +228,7 @@ export const ChatMessages = ({ chat }: { chat?: ChatDetails }) => {
         );
       })}
       <ChatInput
+        chat={chat}
         welcome={_.isEmpty(messages)}
         onSubmit={handleSendMessage}
         disabled={readyState !== ReadyState.Open}
