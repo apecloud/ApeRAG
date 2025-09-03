@@ -88,20 +88,23 @@ class MarketplaceService:
     async def validate_marketplace_collection(self, collection_id: str):
         """
         Validate if collection is published in marketplace
-        
+
         Args:
             collection_id: Collection ID to validate
-            
+
         Returns:
             bool: True if collection is published in marketplace
-            
+
         Raises:
             HTTPException: If collection is not published in marketplace
         """
         from fastapi import HTTPException
-        
+
         marketplace_record = await self.get_raw_sharing_status(collection_id)
-        if not marketplace_record or marketplace_record.status != db_models.CollectionMarketplaceStatusEnum.PUBLISHED.value:
+        if (
+            not marketplace_record
+            or marketplace_record.status != db_models.CollectionMarketplaceStatusEnum.PUBLISHED.value
+        ):
             raise HTTPException(status_code=401, detail="Authentication required")
 
     async def list_published_collections(

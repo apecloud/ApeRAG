@@ -31,9 +31,9 @@ from aperag.schema.view_models import (
     SearchResultItem,
     SearchResultList,
 )
-from aperag.service.marketplace_service import marketplace_service
 from aperag.service.collection_summary_service import collection_summary_service
 from aperag.service.marketplace_collection_service import marketplace_collection_service
+from aperag.service.marketplace_service import marketplace_service
 from aperag.utils.constant import QuotaType
 from aperag.views.utils import validate_source_connect_config
 from config.celery_tasks import collection_delete_task, collection_init_task

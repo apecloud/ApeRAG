@@ -496,11 +496,11 @@ class DocumentService:
                 db_models.Document.status != db_models.DocumentStatus.UPLOADED,
                 db_models.Document.status != db_models.DocumentStatus.EXPIRED,
             ]
-            
+
             # Add user filter only if user is not empty (for authenticated access)
             if user:
                 base_conditions.append(db_models.Document.user == user)
-            
+
             base_query = select(db_models.Document).where(and_(*base_conditions))
 
             # Apply search filter
@@ -936,6 +936,7 @@ class DocumentService:
         # Use database operations with proper session management
         async def _get_document_preview(session: AsyncSession):
             from sqlalchemy import and_
+
             # 1. Get document and vector index in one go
             doc_conditions = [
                 db_models.Document.id == document_id,
@@ -944,7 +945,7 @@ class DocumentService:
             # Add user filter only if user_id is not empty (for authenticated access)
             if user_id:
                 doc_conditions.append(db_models.Document.user == user_id)
-            
+
             doc_stmt = select(db_models.Document).filter(and_(*doc_conditions))
             doc_result = await session.execute(doc_stmt)
             document = doc_result.scalars().first()
@@ -1009,6 +1010,7 @@ class DocumentService:
         # Use database operations with proper session management
         async def _get_document_object(session):
             from sqlalchemy import and_
+
             # 1. Verify user has access to the document
             doc_conditions = [
                 db_models.Document.id == document_id,
@@ -1017,7 +1019,7 @@ class DocumentService:
             # Add user filter only if user_id is not empty (for authenticated access)
             if user_id:
                 doc_conditions.append(db_models.Document.user == user_id)
-                
+
             stmt = select(db_models.Document).filter(and_(*doc_conditions))
             result = await session.execute(stmt)
             document = result.scalars().first()

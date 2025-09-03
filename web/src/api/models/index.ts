@@ -1,5 +1,6 @@
 export * from './agent-error-response';
 export * from './agent-message';
+export * from './agent-message-files-inner';
 export * from './agent-message-post200-response';
 export * from './api-key';
 export * from './api-key-create';

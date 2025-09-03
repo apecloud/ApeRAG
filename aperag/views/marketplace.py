@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
@@ -25,7 +25,7 @@ from aperag.exceptions import (
 )
 from aperag.schema import view_models
 from aperag.service.marketplace_service import marketplace_service
-from aperag.views.auth import required_user, optional_user
+from aperag.views.auth import optional_user, required_user
 
 logger = logging.getLogger(__name__)
 

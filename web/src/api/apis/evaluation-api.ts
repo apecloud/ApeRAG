@@ -448,12 +448,13 @@ export const EvaluationApiAxiosParamCreator = function (configuration?: Configur
         /**
          * 
          * @summary List all evaluation tasks
+         * @param {string} [collectionId] 
          * @param {number} [page] 
          * @param {number} [pageSize] 
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        listEvaluationsApiV1EvaluationsGet: async (page?: number, pageSize?: number, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+        listEvaluationsApiV1EvaluationsGet: async (collectionId?: string, page?: number, pageSize?: number, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
             const localVarPath = `/evaluations`;
             // use dummy base URL string because the URL constructor only accepts absolute URLs.
             const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
@@ -469,6 +470,10 @@ export const EvaluationApiAxiosParamCreator = function (configuration?: Configur
             // authentication BearerAuth required
             // http bearer authentication required
             await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+            if (collectionId !== undefined) {
+                localVarQueryParameter['collection_id'] = collectionId;
+            }
 
             if (page !== undefined) {
                 localVarQueryParameter['page'] = page;
@@ -492,12 +497,13 @@ export const EvaluationApiAxiosParamCreator = function (configuration?: Configur
         /**
          * 
          * @summary List all question sets for the current user
+         * @param {string} [collectionId] 
          * @param {number} [page] 
          * @param {number} [pageSize] 
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        listQuestionSetsApiV1QuestionSetsGet: async (page?: number, pageSize?: number, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+        listQuestionSetsApiV1QuestionSetsGet: async (collectionId?: string, page?: number, pageSize?: number, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
             const localVarPath = `/question-sets`;
             // use dummy base URL string because the URL constructor only accepts absolute URLs.
             const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
@@ -513,6 +519,10 @@ export const EvaluationApiAxiosParamCreator = function (configuration?: Configur
             // authentication BearerAuth required
             // http bearer authentication required
             await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+            if (collectionId !== undefined) {
+                localVarQueryParameter['collection_id'] = collectionId;
+            }
 
             if (page !== undefined) {
                 localVarQueryParameter['page'] = page;
@@ -885,13 +895,14 @@ export const EvaluationApiFp = function(configuration?: Configuration) {
         /**
          * 
          * @summary List all evaluation tasks
+         * @param {string} [collectionId] 
          * @param {number} [page] 
          * @param {number} [pageSize] 
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async listEvaluationsApiV1EvaluationsGet(page?: number, pageSize?: number, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<EvaluationList>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.listEvaluationsApiV1EvaluationsGet(page, pageSize, options);
+        async listEvaluationsApiV1EvaluationsGet(collectionId?: string, page?: number, pageSize?: number, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<EvaluationList>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.listEvaluationsApiV1EvaluationsGet(collectionId, page, pageSize, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['EvaluationApi.listEvaluationsApiV1EvaluationsGet']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
@@ -899,13 +910,14 @@ export const EvaluationApiFp = function(configuration?: Configuration) {
         /**
          * 
          * @summary List all question sets for the current user
+         * @param {string} [collectionId] 
          * @param {number} [page] 
          * @param {number} [pageSize] 
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async listQuestionSetsApiV1QuestionSetsGet(page?: number, pageSize?: number, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<QuestionSetList>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.listQuestionSetsApiV1QuestionSetsGet(page, pageSize, options);
+        async listQuestionSetsApiV1QuestionSetsGet(collectionId?: string, page?: number, pageSize?: number, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<QuestionSetList>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.listQuestionSetsApiV1QuestionSetsGet(collectionId, page, pageSize, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['EvaluationApi.listQuestionSetsApiV1QuestionSetsGet']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
@@ -1097,7 +1109,7 @@ export const EvaluationApiFactory = function (configuration?: Configuration, bas
          * @throws {RequiredError}
          */
         listEvaluationsApiV1EvaluationsGet(requestParameters: EvaluationApiListEvaluationsApiV1EvaluationsGetRequest = {}, options?: RawAxiosRequestConfig): AxiosPromise<EvaluationList> {
-            return localVarFp.listEvaluationsApiV1EvaluationsGet(requestParameters.page, requestParameters.pageSize, options).then((request) => request(axios, basePath));
+            return localVarFp.listEvaluationsApiV1EvaluationsGet(requestParameters.collectionId, requestParameters.page, requestParameters.pageSize, options).then((request) => request(axios, basePath));
         },
         /**
          * 
@@ -1107,7 +1119,7 @@ export const EvaluationApiFactory = function (configuration?: Configuration, bas
          * @throws {RequiredError}
          */
         listQuestionSetsApiV1QuestionSetsGet(requestParameters: EvaluationApiListQuestionSetsApiV1QuestionSetsGetRequest = {}, options?: RawAxiosRequestConfig): AxiosPromise<QuestionSetList> {
-            return localVarFp.listQuestionSetsApiV1QuestionSetsGet(requestParameters.page, requestParameters.pageSize, options).then((request) => request(axios, basePath));
+            return localVarFp.listQuestionSetsApiV1QuestionSetsGet(requestParameters.collectionId, requestParameters.page, requestParameters.pageSize, options).then((request) => request(axios, basePath));
         },
         /**
          * 
@@ -1502,6 +1514,13 @@ export interface EvaluationApiGetQuestionSetApiV1QuestionSetsQsIdGetRequest {
 export interface EvaluationApiListEvaluationsApiV1EvaluationsGetRequest {
     /**
      * 
+     * @type {string}
+     * @memberof EvaluationApiListEvaluationsApiV1EvaluationsGet
+     */
+    readonly collectionId?: string
+
+    /**
+     * 
      * @type {number}
      * @memberof EvaluationApiListEvaluationsApiV1EvaluationsGet
      */
@@ -1521,6 +1540,13 @@ export interface EvaluationApiListEvaluationsApiV1EvaluationsGetRequest {
  * @interface EvaluationApiListQuestionSetsApiV1QuestionSetsGetRequest
  */
 export interface EvaluationApiListQuestionSetsApiV1QuestionSetsGetRequest {
+    /**
+     * 
+     * @type {string}
+     * @memberof EvaluationApiListQuestionSetsApiV1QuestionSetsGet
+     */
+    readonly collectionId?: string
+
     /**
      * 
      * @type {number}
@@ -1770,7 +1796,7 @@ export class EvaluationApi extends BaseAPI implements EvaluationApiInterface {
      * @memberof EvaluationApi
      */
     public listEvaluationsApiV1EvaluationsGet(requestParameters: EvaluationApiListEvaluationsApiV1EvaluationsGetRequest = {}, options?: RawAxiosRequestConfig) {
-        return EvaluationApiFp(this.configuration).listEvaluationsApiV1EvaluationsGet(requestParameters.page, requestParameters.pageSize, options).then((request) => request(this.axios, this.basePath));
+        return EvaluationApiFp(this.configuration).listEvaluationsApiV1EvaluationsGet(requestParameters.collectionId, requestParameters.page, requestParameters.pageSize, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
@@ -1782,7 +1808,7 @@ export class EvaluationApi extends BaseAPI implements EvaluationApiInterface {
      * @memberof EvaluationApi
      */
     public listQuestionSetsApiV1QuestionSetsGet(requestParameters: EvaluationApiListQuestionSetsApiV1QuestionSetsGetRequest = {}, options?: RawAxiosRequestConfig) {
-        return EvaluationApiFp(this.configuration).listQuestionSetsApiV1QuestionSetsGet(requestParameters.page, requestParameters.pageSize, options).then((request) => request(this.axios, this.basePath));
+        return EvaluationApiFp(this.configuration).listQuestionSetsApiV1QuestionSetsGet(requestParameters.collectionId, requestParameters.page, requestParameters.pageSize, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

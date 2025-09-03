@@ -3992,6 +3992,11 @@ paths:
         - BearerAuth: []
       operationId: list_question_sets_api_v1_question_sets_get
       parameters:
+        - name: collection_id
+          in: query
+          required: false
+          schema:
+            type: string
         - name: page
           in: query
           schema:
@@ -4199,6 +4204,11 @@ paths:
         - BearerAuth: []
       operationId: list_evaluations_api_v1_evaluations_get
       parameters:
+        - name: collection_id
+          in: query
+          required: false
+          schema:
+            type: string
         - name: page
           in: query
           schema:
@@ -7715,6 +7725,8 @@ components:
           type: string
         user_id:
           type: string
+        collection_id:
+          type: string
         name:
           type: string
         description:
@@ -7774,6 +7786,8 @@ components:
           type: string
         description:
           type: string
+        collection_id:
+          type: string
         questions:
           type: array
           description: A list of questions. Maximum 1000 questions are allowed.
@@ -7808,6 +7822,8 @@ components:
         id:
           type: string
         user_id:
+          type: string
+        collection_id:
           type: string
         name:
           type: string
@@ -8098,6 +8114,17 @@ components:
             - it-IT
             - pt-BR
             - ru-RU
+        files:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                description: File ID
+              name:
+                type: string
+                description: File name
       required:
         - query
         - collections

@@ -614,10 +614,12 @@ class EvaluationService:
         return await self.db_ops.get_evaluation_items_by_eval_id(eval_id)
 
     async def list_evaluations(
-        self, user_id: str, page: int, page_size: int
+        self, user_id: str, collection_id: str | None, page: int, page_size: int
     ) -> tuple[list[view_models.Evaluation], int]:
         """Lists all evaluations for a user."""
-        db_items, total = await self.db_ops.list_evaluations_by_user(user_id, page, page_size)
+        db_items, total = await self.db_ops.list_evaluations_by_user(
+            user_id=user_id, collection_id=collection_id, page=page, page_size=page_size
+        )
         items = [self._convert_db_evaluation_to_view_model(item) for item in db_items]
         return items, total
 

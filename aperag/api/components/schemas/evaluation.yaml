@@ -67,6 +67,8 @@ QuestionSet:
       type: string
     user_id:
       type: string
+    collection_id:
+      type: string
     name:
       type: string
     description:
@@ -160,6 +162,8 @@ QuestionSetCreate:
       type: string
     description:
       type: string
+    collection_id:
+      type: string
     questions:
       type: array
       description: "A list of questions. Maximum 1000 questions are allowed."
@@ -244,6 +248,8 @@ QuestionSetDetail:
     id:
       type: string
     user_id:
+      type: string
+    collection_id:
       type: string
     name:
       type: string

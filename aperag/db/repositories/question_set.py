@@ -58,14 +58,21 @@ class AsyncQuestionSetRepositoryMixin(AsyncRepositoryProtocol):
         return await self._execute_query(_query)
 
     async def list_question_sets_by_user(
-        self, user_id: str, page: int, page_size: int
+        self, user_id: str, collection_id: str | None, page: int, page_size: int
     ) -> tuple[list[QuestionSet], int]:
-        """Lists all question sets for a user."""
+        """Lists all question sets for a user, optionally filtered by collection_id."""
 
         async def _query(session: AsyncSession):
+            where_conditions = [
+                QuestionSet.user_id == user_id,
+                QuestionSet.gmt_deleted.is_(None),
+            ]
+            if collection_id:
+                where_conditions.append(QuestionSet.collection_id == collection_id)
+
             stmt = (
                 select(QuestionSet)
-                .where(QuestionSet.user_id == user_id, QuestionSet.gmt_deleted.is_(None))
+                .where(*where_conditions)
                 .offset((page - 1) * page_size)
                 .limit(page_size)
                 .order_by(QuestionSet.gmt_created.desc())
@@ -73,9 +80,7 @@ class AsyncQuestionSetRepositoryMixin(AsyncRepositoryProtocol):
             result = await session.execute(stmt)
             items = result.scalars().all()
 
-            count_stmt = select(func.count(QuestionSet.id)).where(
-                QuestionSet.user_id == user_id, QuestionSet.gmt_deleted.is_(None)
-            )
+            count_stmt = select(func.count(QuestionSet.id)).where(*where_conditions)
             total = await session.scalar(count_stmt)
 
             return items, total

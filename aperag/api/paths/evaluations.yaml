@@ -10,6 +10,11 @@ question_sets:
       - BearerAuth: []
     operationId: list_question_sets_api_v1_question_sets_get
     parameters:
+      - name: collection_id
+        in: query
+        required: false
+        schema:
+          type: string
       - name: page
         in: query
         schema:
@@ -329,6 +334,11 @@ evaluations:
       - BearerAuth: []
     operationId: list_evaluations_api_v1_evaluations_get
     parameters:
+      - name: collection_id
+        in: query
+        required: false
+        schema:
+          type: string
       - name: page
         in: query
         schema:

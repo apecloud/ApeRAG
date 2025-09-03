@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import logging
-from typing import List, Optional
+from typing import List
 
 from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, Request, Response, UploadFile
 
@@ -25,7 +25,7 @@ from aperag.service.collection_summary_service import collection_summary_service
 from aperag.service.document_service import document_service
 from aperag.service.marketplace_service import marketplace_service
 from aperag.utils.audit_decorator import audit
-from aperag.views.auth import required_user, optional_user
+from aperag.views.auth import optional_user, required_user
 
 logger = logging.getLogger(__name__)
 
@@ -244,7 +244,7 @@ async def list_documents_view(
     """List documents with pagination, sorting and search capabilities"""
     # Determine user_id based on authentication status
     user_id = str(user.id) if user else ""
-    
+
     result = await document_service.list_documents(
         user=user_id,
         collection_id=collection_id,
@@ -334,7 +334,7 @@ async def get_document_object(
         # For unauthenticated users, validate collection is in marketplace
         await marketplace_service.validate_marketplace_collection(collection_id)
         user_id = ""
-    
+
     range_header = request.headers.get("range")
     return await document_service.get_document_object(user_id, collection_id, document_id, path, range_header)
 

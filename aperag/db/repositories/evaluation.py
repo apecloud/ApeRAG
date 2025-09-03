@@ -161,13 +161,22 @@ class AsyncEvaluationRepositoryMixin(AsyncRepositoryProtocol):
 
         return await self._execute_query(_query)
 
-    async def list_evaluations_by_user(self, user_id: str, page: int, page_size: int) -> tuple[list[Evaluation], int]:
+    async def list_evaluations_by_user(
+        self, user_id: str, collection_id: str | None, page: int, page_size: int
+    ) -> tuple[list[Evaluation], int]:
         """Lists all evaluations for a user."""
 
         async def _query(session: AsyncSession):
+            where_conditions = [
+                Evaluation.user_id == user_id,
+                Evaluation.gmt_deleted.is_(None),
+            ]
+            if collection_id:
+                where_conditions.append(Evaluation.collection_id == collection_id)
+
             stmt = (
                 select(Evaluation)
-                .where(Evaluation.user_id == user_id, Evaluation.gmt_deleted.is_(None))
+                .where(*where_conditions)
                 .offset((page - 1) * page_size)
                 .limit(page_size)
                 .order_by(Evaluation.gmt_created.desc())
@@ -175,9 +184,7 @@ class AsyncEvaluationRepositoryMixin(AsyncRepositoryProtocol):
             result = await session.execute(stmt)
             items = result.scalars().all()
 
-            count_stmt = select(func.count(Evaluation.id)).where(
-                Evaluation.user_id == user_id, Evaluation.gmt_deleted.is_(None)
-            )
+            count_stmt = select(func.count(Evaluation.id)).where(*where_conditions)
             total = await session.scalar(count_stmt)
 
             return items, total
