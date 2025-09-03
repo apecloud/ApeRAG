@@ -16,7 +16,7 @@ import { ChatInput, ChatInputSubmitParams } from './chat-input';
 import { MessagePartsAi } from './message-parts-ai';
 import { MessagePartsUser } from './message-parts-user';
 
-export const ChatMessages = ({ chat }: { chat?: ChatDetails }) => {
+export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
   const { chatRename } = useWorkspaceContext();
   const { botId, chatId } = useParams<{ botId: string; chatId: string }>();
   const [messages, setMessages] = useState<Array<Array<ChatMessage>>>(
@@ -182,12 +182,13 @@ export const ChatMessages = ({ chat }: { chat?: ChatDetails }) => {
    * should delete for production
    */
   // const loadMessages = useCallback(async () => {
+  //   setMessagesLoading(true);
   //   const res = await apiClient.defaultApi.botsBotIdChatsChatIdGet({
   //     botId,
   //     chatId,
   //   });
   //   setMessages(res.data.history || []);
-  //   setMessagesLoading(true);
+  //   setMessagesLoading(false);
   // }, [botId, chatId]);
 
   // useEffect(() => {
