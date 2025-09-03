@@ -47,9 +47,9 @@ from aperag.utils.audit_decorator import audit
 from aperag.views.auth import (
     UserManager,
     authenticate_websocket_user,
-    required_user,
-    optional_user,
     get_user_manager,
+    optional_user,
+    required_user,
 )
 from aperag.views.quota import router as quota_router
 

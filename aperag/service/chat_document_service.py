@@ -143,7 +143,6 @@ class ChatDocumentService:
 
         return result
 
-
     async def _associate_documents_with_message(
         self, chat_id: str, message_id: str, document_ids: List[str], user_id: str
     ) -> None:

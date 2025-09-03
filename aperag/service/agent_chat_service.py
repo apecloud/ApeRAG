@@ -171,11 +171,9 @@ class AgentChatService:
 
             # Get document metadata and associate documents with message if files are provided
             from aperag.service.chat_document_service import chat_document_service
+
             files = await chat_document_service.associate_documents_with_message(
-                chat_id=chat_id, 
-                message_id=message_id, 
-                files=[file.id for file in agent_message.files], 
-                user=user
+                chat_id=chat_id, message_id=message_id, files=[file.id for file in agent_message.files], user=user
             )
 
             # Message Producer: Start background task to process agent generation message

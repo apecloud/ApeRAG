@@ -15,6 +15,9 @@
 
 // May contain unused imports in some cases
 // @ts-ignore
+import type { AgentMessageFilesInner } from './agent-message-files-inner';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { Collection } from './collection';
 // May contain unused imports in some cases
 // @ts-ignore
@@ -56,6 +59,12 @@ export interface AgentMessage {
      * @memberof AgentMessage
      */
     'language'?: AgentMessageLanguageEnum;
+    /**
+     * 
+     * @type {Array<AgentMessageFilesInner>}
+     * @memberof AgentMessage
+     */
+    'files'?: Array<AgentMessageFilesInner>;
 }
 
 export const AgentMessageLanguageEnum = {

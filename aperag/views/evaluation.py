@@ -32,11 +32,14 @@ MAX_QUESTIONS_PER_SET = 1000
 # region Question Set Management
 @router.get("/question-sets", response_model=view_models.QuestionSetList)
 async def list_question_sets(
+    collection_id: str | None = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
     user: User = Depends(required_user),
 ):
-    items, total = await question_set_service.list_question_sets(user.id, page, page_size)
+    items, total = await question_set_service.list_question_sets(
+        user_id=user.id, collection_id=collection_id, page=page, page_size=page_size
+    )
     return {"items": items, "total": total, "page": page, "page_size": page_size}
 
 
@@ -61,6 +64,7 @@ async def generate_question_set(
 
     return view_models.QuestionSetDetail(
         name=f"Generated Questions for {request.collection_id}",
+        collection_id=request.collection_id,
         questions=questions,
     )
 
@@ -79,6 +83,7 @@ async def get_question_set(
     return view_models.QuestionSetDetail(
         id=qs.id,
         user_id=qs.user_id,
+        collection_id=qs.collection_id,
         name=qs.name,
         description=qs.description,
         gmt_created=qs.gmt_created,
@@ -176,11 +181,14 @@ async def delete_question(
 # region Evaluation Management
 @router.get("/evaluations", response_model=view_models.EvaluationList)
 async def list_evaluations(
+    collection_id: str | None = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
     user: User = Depends(required_user),
 ):
-    items, total = await evaluation_service.list_evaluations(user.id, page, page_size)
+    items, total = await evaluation_service.list_evaluations(
+        user_id=user.id, collection_id=collection_id, page=page, page_size=page_size
+    )
     return view_models.EvaluationList(
         items=items,
         total=total,

@@ -41,6 +41,7 @@ class QuestionSetService:
         """Creates a new question set."""
         db_question_set = QuestionSet(
             user_id=user_id,
+            collection_id=request.collection_id,
             name=request.name,
             description=request.description,
         )
@@ -62,9 +63,13 @@ class QuestionSetService:
         """Gets a question set by its ID."""
         return await self.db_ops.get_question_set_by_id(qs_id, user_id)
 
-    async def list_question_sets(self, user_id: str, page: int, page_size: int) -> tuple[list[QuestionSet], int]:
+    async def list_question_sets(
+        self, user_id: str, collection_id: str | None, page: int, page_size: int
+    ) -> tuple[list[QuestionSet], int]:
         """Lists all question sets for a user."""
-        return await self.db_ops.list_question_sets_by_user(user_id, page, page_size)
+        return await self.db_ops.list_question_sets_by_user(
+            user_id=user_id, collection_id=collection_id, page=page, page_size=page_size
+        )
 
     async def update_question_set(
         self, qs_id: str, request: view_models.QuestionSetUpdate, user_id: str

@@ -277,6 +277,7 @@ class ChatService:
 
         # Get document metadata and associate documents with message if files are provided
         from aperag.service.chat_document_service import chat_document_service
+
         files = await chat_document_service.associate_documents_with_message(
             chat_id=chat_id, message_id=msg_id, files=upload_files or [], user=user
         )
@@ -451,6 +452,7 @@ class ChatService:
 
                 # Get document metadata and associate documents with message if files are provided
                 from aperag.service.chat_document_service import chat_document_service
+
                 files = await chat_document_service.associate_documents_with_message(
                     chat_id=chat_id, message_id=message_id, files=data.get("files", []), user=user
                 )
