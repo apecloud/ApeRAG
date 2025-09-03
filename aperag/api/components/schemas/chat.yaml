@@ -62,6 +62,16 @@ chatMessage:
         type: string
     feedback:
       $ref: './feedback.yaml#/feedback'
+    files:
+      type: array
+      items:
+        type: object
+        properties:
+          id:
+            type: string
+          name:
+            type: string
+          
 
 chatDetails:
   type: object

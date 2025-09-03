@@ -29,7 +29,6 @@ class StoredChatMessagePart(BaseModel):
     urls: List[str] = Field(default_factory=list, description="URL references")
     feedback: Optional[Dict[str, Any]] = Field(None, description="User feedback data")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
-    files: List[Dict[str, Any]] = Field(default_factory=list, description="Associated document files")
 
 
 class StoredChatMessage(BaseModel):
@@ -37,6 +36,7 @@ class StoredChatMessage(BaseModel):
 
     # Message parts - this is now the core content
     parts: List[StoredChatMessagePart] = Field(default_factory=list, description="Message parts")
+    files: List[Dict[str, Any]] = Field(default_factory=list, description="Associated document files")
 
     @property
     def chat_id(self) -> Optional[str]:
@@ -72,6 +72,7 @@ class StoredChatMessage(BaseModel):
                 references=part.references if part.references else None,
                 urls=part.urls if part.urls else None,
                 feedback=part.feedback,
+                files=self.files,
             )
             frontend_messages.append(chatMessage)
         return frontend_messages
@@ -137,10 +138,9 @@ def create_user_message(
         role="human",
         content=content,
         metadata=metadata,
-        files=files or [],
     )
 
-    return StoredChatMessage(parts=[part])
+    return StoredChatMessage(parts=[part], files=files)
 
 
 def create_assistant_message(

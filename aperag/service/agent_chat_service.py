@@ -211,7 +211,7 @@ class AgentChatService:
             references = process_result.get("references", "")
             tool_use_list = consumer_result
             await self._save_conversation_history(
-                chat_id, message_id, trace_id, query, ai_response, tool_use_list, references, files
+                chat_id, message_id, trace_id, query, ai_response, files, tool_use_list, references
             )
 
         except Exception as e:
