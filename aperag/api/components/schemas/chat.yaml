@@ -35,6 +35,14 @@ reference:
       type: object
       additionalProperties: true
 
+file:
+  type: object
+  properties:
+    id:
+      type: string
+    name:
+      type: string
+
 chatMessage:
   type: object
   properties:
@@ -65,12 +73,7 @@ chatMessage:
     files:
       type: array
       items:
-        type: object
-        properties:
-          id:
-            type: string
-          name:
-            type: string
+        $ref: '#/file'
           
 
 chatDetails:

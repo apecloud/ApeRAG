@@ -45,14 +45,7 @@ AgentMessage:
     files:
       type: array
       items:
-        type: object
-        properties:
-          id:
-            type: string
-            description: File ID
-          name:
-            type: string
-            description: File name
+        $ref: './chat.yaml#/file'
   required:
     - query
     - collections
