@@ -3,7 +3,9 @@
 import { apiClient } from '@/lib/api/client';
 import { useCallback, useEffect, useState } from 'react';
 
-import { Collection, ModelSpec } from '@/api';
+import { Bot, Chat, ChatDetails, Collection, ModelSpec } from '@/api';
+import { useLocale } from 'next-intl';
+import { useParams, useRouter } from 'next/navigation';
 import { createContext, useContext } from 'react';
 
 export type ProviderModels = {
@@ -13,11 +15,20 @@ export type ProviderModels = {
 }[];
 
 type AgentsContextProps = {
+  workspace?: boolean;
+  bot: Bot;
+  chats: Chat[];
   collections: Collection[];
   providerModels: ProviderModels;
+  chatDelete?: (chat: Chat) => void;
+  chatCreate?: () => void;
+  chatsReload?: () => void;
+  chatRename?: (chat: Chat | ChatDetails) => void;
 };
 
 const AgentsContext = createContext<AgentsContextProps>({
+  bot: {},
+  chats: [],
   collections: [],
   providerModels: [],
 });
@@ -25,10 +36,21 @@ const AgentsContext = createContext<AgentsContextProps>({
 export const useAgentsContext = () => useContext(AgentsContext);
 
 export const AgentsProvider = ({
+  bot,
+  chats: initChats,
+  workspace,
   children,
 }: {
+  workspace: boolean;
+  bot: Bot;
+  chats: Chat[];
   children?: React.ReactNode;
 }) => {
+  const [chats, setChats] = useState<Chat[]>(initChats || []);
+  const params = useParams();
+  const router = useRouter();
+  const locale = useLocale();
+
   const [collections, setCollections] = useState<Collection[]>([]);
   const [providerModels, setProviderModels] = useState<ProviderModels>([]);
 
@@ -53,12 +75,105 @@ export const AgentsProvider = ({
     setProviderModels(items || []);
   }, []);
 
+  const chatsReload = useCallback(async () => {
+    if (!bot?.id) return;
+    const chatsRes = await apiClient.defaultApi.botsBotIdChatsGet({
+      botId: bot.id,
+    });
+    //@ts-expect-error api define has a bug
+    setChats(chatsRes.data.items || []);
+  }, [bot?.id]);
+
+  const chatDelete = useCallback(
+    async (chat: Chat) => {
+      if (!chat.bot_id || !chat.id) return;
+      await apiClient.defaultApi.botsBotIdChatsChatIdDelete({
+        botId: chat.bot_id,
+        chatId: chat.id,
+      });
+
+      if (params.chatId === chat.id) {
+        const item = chats?.find((c) => c.id !== chat.id);
+        let url = '';
+        if (item) {
+          url = `/agents/${bot.id}/chats/${item.id}`;
+        } else {
+          url = `/agents/${bot.id}/chats`;
+        }
+        if (workspace) {
+          url = '/workspace' + url;
+        }
+        router.push(url);
+      }
+      chatsReload();
+    },
+    [bot.id, chats, chatsReload, params.chatId, router, workspace],
+  );
+
+  const chatRename = useCallback(
+    async (chat: Chat) => {
+      if (chat.title !== 'New Chat' || !chat.id || !chat.bot_id) return;
+      const titleRes = await apiClient.defaultApi.botsBotIdChatsChatIdTitlePost(
+        {
+          chatId: chat.id,
+          botId: chat.bot_id,
+          titleGenerateRequest: {
+            language: locale,
+          },
+        },
+      );
+      const title = titleRes.data.title;
+      if (title) {
+        await apiClient.defaultApi.botsBotIdChatsChatIdPut({
+          chatId: chat.id,
+          botId: chat.bot_id,
+          chatUpdate: {
+            title,
+          },
+        });
+        chatsReload();
+      }
+    },
+    [chatsReload, locale],
+  );
+
+  const chatCreate = useCallback(async () => {
+    if (!bot?.id) return;
+    const res = await apiClient.defaultApi.botsBotIdChatsPost({
+      botId: bot.id,
+      chatCreate: {
+        title: '',
+      },
+    });
+
+    if (res.data.id) {
+      let url = `/agents/${bot.id}/chats/${res.data.id}`;
+      if (workspace) {
+        url = '/workspace' + url;
+      }
+      router.push(url);
+      chatsReload();
+    }
+  }, [bot.id, chatsReload, router, workspace]);
+
   useEffect(() => {
     loadData();
   }, [loadData]);
 
   return (
-    <AgentsContext.Provider value={{ collections, providerModels }}>
+    <AgentsContext.Provider
+      value={{
+        workspace,
+        bot,
+        chats,
+        collections,
+        providerModels,
+        chatDelete,
+        chatCreate,
+        chatsReload,
+        chatRename,
+      }}
+    >
       {children}
     </AgentsContext.Provider>
   );

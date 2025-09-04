@@ -424,17 +424,25 @@
     "repositories": "知识库",
     "marketplace": "市场",
     "collections": "我的知识库",
+    "bots": "机器人",
     "chats": "会话",
     "chats_new": "新建会话",
     "display_empty_title": "新会话",
     "more": "更多",
-    "question_evaluation": "问题评测",
-    "evaluations": "评测记录",
-    "question_sets": "问题集",
     "settings": "设置",
     "models": "模型",
     "api_keys": "API密钥",
     "audit_logs": "审计日志",
     "quotas": "配额"
+  },
+  "page_bot": {
+    "metadata": {
+      "title": "机器人",
+      "description": "ApeRAG 是一种基于本地数据集并利用多种大型语言模型的新型聊天机器人。"
+    },
+    "search": "搜索机器人",
+    "new_bot": "新建机器人",
+    "no_bots_found": "没有可用的机器人",
+    "no_description_available": "没有可用的描述"
   }
 }

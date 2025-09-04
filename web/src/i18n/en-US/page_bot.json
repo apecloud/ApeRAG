@@ -1,0 +1,10 @@
+{
+  "metadata": {
+    "title": "Bots",
+    "description": "ApeRAG is a new chatbot based on local datasets and utilizes multiple large language models."
+  },
+  "search": "Search bot",
+  "new_bot": "Create bot",
+  "no_bots_found": "No bots found",
+  "no_description_available": "No description available"
+}

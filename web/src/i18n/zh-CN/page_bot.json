@@ -1,0 +1,10 @@
+{
+  "metadata": {
+    "title": "机器人",
+    "description": "ApeRAG 是一种基于本地数据集并利用多种大型语言模型的新型聊天机器人。"
+  },
+  "search": "搜索机器人",
+  "new_bot": "新建机器人",
+  "no_bots_found": "没有可用的机器人",
+  "no_description_available": "没有可用的描述"
+}

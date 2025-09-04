@@ -30,9 +30,8 @@ import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 
 export const MenuFooter = () => {
-  const { isMobile } = useSidebar();
   const sidebar_workspace = useTranslations('sidebar_workspace');
-
+  const { isMobile } = useSidebar();
   return (
     <SidebarFooter>
       <SidebarGroup className="p-0">

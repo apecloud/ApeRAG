@@ -5,7 +5,7 @@ import { ChatDetails, ChatMessage, Feedback, Reference } from '@/api';
 import { useWebSocket } from 'ahooks';
 import { animateScroll as scroll } from 'react-scroll';
 
-import { useWorkspaceContext } from '@/components/providers/workspace-provider';
+import { useAgentsContext } from '@/components/providers/agents-provider';
 import { apiClient } from '@/lib/api/client';
 import { ReadyState } from 'ahooks/lib/useWebSocket';
 import { motion } from 'framer-motion';
@@ -17,7 +17,7 @@ import { MessagePartsAi } from './message-parts-ai';
 import { MessagePartsUser } from './message-parts-user';
 
 export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
-  const { chatRename } = useWorkspaceContext();
+  const { chatRename } = useAgentsContext();
   const { botId, chatId } = useParams<{ botId: string; chatId: string }>();
   const [messages, setMessages] = useState<Array<Array<ChatMessage>>>(
     chat?.history || [],

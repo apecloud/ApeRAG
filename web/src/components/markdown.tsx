@@ -103,7 +103,7 @@ export const CustomImage = ({
   useEffect(() => {}, []);
 
   return;
-  
+
   return imageUrl ? (
     <img {...props} alt={props.alt} src={imageUrl} />
   ) : (
