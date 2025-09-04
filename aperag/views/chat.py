@@ -1,11 +1,9 @@
 import json
 import logging
-from fastapi.responses import StreamingResponse
 from aperag.db.models import User
 from aperag.exceptions import BusinessException
 from aperag.schema import view_models
 from aperag.service.chat_collection_service import chat_collection_service
-from aperag.service.chat_completion_service import OpenAIFormatter, chat_completion_service
 from aperag.service.chat_document_service import chat_document_service
 from aperag.service.chat_service import chat_service_global
 from aperag.service.chat_title_service import chat_title_service
@@ -108,30 +106,6 @@ async def generate_chat_title_view(
         return {"title": title}
     except BusinessException as be:
         raise HTTPException(status_code=400, detail={"error_code": be.error_code.name, "message": str(be)})
-
-
-@router.post("/chat/completions")
-async def openai_chat_completions_view(request: Request, user: User = Depends(required_user)):
-    try:
-        body_data = await request.json()
-        query_params = dict(request.query_params)
-        result, error = await chat_completion_service.openai_chat_completions(str(user.id), body_data, query_params)
-        if error:
-            return error
-        api_request, formatter, async_generator = result
-        if api_request.stream:
-            return StreamingResponse(
-                chat_completion_service.stream_openai_sse_response(async_generator(), formatter, api_request.msg_id),
-                media_type="text/event-stream",
-            )
-        else:
-            full_content = ""
-            async for chunk in async_generator():
-                full_content += chunk
-            return formatter.format_complete_response(api_request.msg_id, full_content)
-    except Exception as e:
-        logger.exception(e)
-        return OpenAIFormatter.format_error(str(e))
 
 
 @router.post("/chat/completions/frontend", tags=["chats"])
