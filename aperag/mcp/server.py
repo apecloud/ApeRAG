@@ -261,7 +261,7 @@ async def search_chat_files(
         # Use longer timeout for search operations
         async with httpx.AsyncClient(timeout=120.0) as client:
             response = await client.post(
-                f"{API_BASE_URL}/api/v1/chat/{chat_id}/search",
+                f"{API_BASE_URL}/api/v1/chats/{chat_id}/search",
                 headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
                 json=search_data,
             )
