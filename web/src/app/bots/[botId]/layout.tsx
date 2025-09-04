@@ -12,16 +12,7 @@ import {
 import { getServerApi } from '@/lib/api/server';
 import { toJson } from '@/lib/utils';
 import { Bot } from 'lucide-react';
-import { Metadata } from 'next';
-import { getTranslations } from 'next-intl/server';
 import { notFound, redirect } from 'next/navigation';
-
-export async function generateMetadata(): Promise<Metadata> {
-  const page_chat = await getTranslations('page_chat');
-  return {
-    title: page_chat('metadata.title'),
-  };
-}
 
 export default async function ChatLayout({
   children,
@@ -47,11 +38,20 @@ export default async function ChatLayout({
   const botRes = await apiServer.defaultApi.botsBotIdGet({
     botId,
   });
-  const bot = botRes.data;
+  let bot = botRes.data;
   let chats: Chat[] = [];
 
   if (!bot) {
-    notFound();
+    const createRes = await apiServer.defaultApi.botsPost({
+      botCreate: {
+        title: 'Default Agent Bot',
+        type: 'agent',
+      },
+    });
+    bot = createRes.data;
+    if (!botRes.data.id) {
+      notFound();
+    }
   }
 
   if (bot?.id) {
@@ -65,7 +65,12 @@ export default async function ChatLayout({
   }
 
   return (
-    <BotProvider workspace={false} bot={toJson(bot)} chats={toJson(chats)}>
+    <BotProvider
+      mention={false}
+      workspace={false}
+      bot={toJson(bot)}
+      chats={toJson(chats)}
+    >
       <SidebarProvider>
         <Sidebar>
           <SidebarHeader className="flex h-16 flex-row items-center gap-2 px-2 align-middle">

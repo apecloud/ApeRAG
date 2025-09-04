@@ -18,6 +18,7 @@ type BotContextProps = {
   workspace?: boolean;
   bot: Bot;
   chats: Chat[];
+  mention: boolean;
   collections: Collection[];
   providerModels: ProviderModels;
   chatDelete?: (chat: Chat) => void;
@@ -29,6 +30,7 @@ type BotContextProps = {
 const BotContext = createContext<BotContextProps>({
   bot: {},
   chats: [],
+  mention: true,
   collections: [],
   providerModels: [],
 });
@@ -38,12 +40,14 @@ export const useBotContext = () => useContext(BotContext);
 export const BotProvider = ({
   bot,
   chats: initChats,
+  mention = true,
   workspace,
   children,
 }: {
   workspace: boolean;
   bot: Bot;
   chats: Chat[];
+  mention?: boolean;
   children?: React.ReactNode;
 }) => {
   const [chats, setChats] = useState<Chat[]>(initChats || []);
@@ -163,6 +167,7 @@ export const BotProvider = ({
   return (
     <BotContext.Provider
       value={{
+        mention,
         workspace,
         bot,
         chats,

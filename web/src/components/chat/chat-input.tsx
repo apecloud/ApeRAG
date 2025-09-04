@@ -94,6 +94,7 @@ export const ChatInput = ({
   onSubmit: (params: ChatInputSubmitParams) => void;
   onCancel: () => void;
 }) => {
+  const { mention } = useBotContext();
   const [isComposing, setIsComposing] = useState<boolean>(false);
   const { open, isMobile } = useSidebar();
   const { providerModels, collections } = useBotContext();
@@ -426,7 +427,7 @@ export const ChatInput = ({
 
           <Label>
             <Mention
-              trigger="@"
+              trigger={mention ? '@' : undefined}
               className="w-full"
               open={mentionOpen}
               onOpenChange={setMentionOpen}
@@ -447,7 +448,7 @@ export const ChatInput = ({
                 <Textarea
                   className="resize-none rounded-xl pb-20"
                   value={query}
-                  placeholder={page_chat('mention_a_collection')}
+                  placeholder={mention ? page_chat('mention_a_collection') : ''}
                   disabled={disabled}
                 />
               </MentionInput>

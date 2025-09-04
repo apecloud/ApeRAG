@@ -15,7 +15,7 @@ export default async function Page({
   params: Promise<{ botId: string }>;
 }>) {
   const apiServer = await getServerApi();
-  const page_bot = await getTranslations('page_bot');
+  const page_chat = await getTranslations('page_chat');
   const { botId } = await params;
   const chatsRes = await apiServer.defaultApi.botsBotIdChatsGet({
     botId,
@@ -28,22 +28,12 @@ export default async function Page({
 
   if (chat) {
     redirect(`/bots/${botId}/chats/${chat.id}`);
-  } else {
-    // const res = await apiServer.defaultApi.botsBotIdChatsPost({
-    //   botId,
-    //   chatCreate: {
-    //     title: '',
-    //   },
-    // });
-    // if (res.data.id) {
-    //   redirect(`/bots/${botId}/chats/${res.data.id}`);
-    // }
   }
 
   return (
     <PageContainer>
       <PageHeader
-        breadcrumbs={[{ title: page_bot('metadata.title'), href: `/bots` }]}
+        breadcrumbs={[{ title: page_chat('metadata.title') }]}
         extra=""
       />
       <PageContent></PageContent>
