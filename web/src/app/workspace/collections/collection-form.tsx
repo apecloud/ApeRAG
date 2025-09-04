@@ -356,7 +356,7 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
                     <FormLabel>{page_collections('description')}</FormLabel>
                     <FormControl>
                       <Textarea
-                        className="h-25"
+                        className="h-38"
                         placeholder={page_collections(
                           'description_placeholder',
                         )}
