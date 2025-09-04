@@ -3,7 +3,14 @@
 import { cn } from '@/lib/utils';
 import { ImageIcon } from 'lucide-react';
 import Link from 'next/link';
-import { JSX, MouseEventHandler, useMemo } from 'react';
+import {
+  JSX,
+  MouseEventHandler,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import ReactMarkdown from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeHighlightLines from 'rehype-highlight-code-lines';
@@ -79,6 +86,33 @@ const unSecurityLink = (props: JSX.IntrinsicElements['a']) => {
   );
 };
 
+export const CustomImage = ({
+  src,
+  ...props
+}: JSX.IntrinsicElements['img']) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [imageUrl, setImageUrl] = useState<string>();
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const getImageSrc = useCallback(async () => {
+    if (typeof src !== 'string') return;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const [path, queryString] = src.replace('asset://', '').split('?');
+  }, [src]);
+
+  useEffect(() => {}, []);
+
+  return;
+  
+  return imageUrl ? (
+    <img {...props} alt={props.alt} src={imageUrl} />
+  ) : (
+    <Skeleton className="my-4 h-[125px] w-full rounded-xl py-4 pt-8 text-center">
+      <ImageIcon className="mx-auto size-12 opacity-20" />
+    </Skeleton>
+  );
+};
+
 export const mdComponents = {
   h1: (props: JSX.IntrinsicElements['h1']) => (
     <h1 className="my-6 text-5xl font-bold first:mt-0 last:mb-0">
@@ -135,6 +169,8 @@ export const mdComponents = {
           <ImageIcon className="mx-auto size-12 opacity-20" />
         </Skeleton>
       );
+    } else if (typeof src === 'string' && src.startsWith('asset://')) {
+      return <CustomImage src={src} {...props} />;
     } else {
       return (
         <img
@@ -273,6 +309,7 @@ export const Markdown = ({
     <ReactMarkdown
       rehypePlugins={rehypePlugins}
       remarkPlugins={mdRemarkPlugins}
+      urlTransform={(url) => url}
       components={{
         a: security ? securityLink : unSecurityLink,
         ...mdComponents,
