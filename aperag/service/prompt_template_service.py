@@ -13,6 +13,8 @@
 # limitations under the License.
 
 
+from jinja2 import Template
+
 from aperag.exceptions import invalid_param
 from aperag.llm.prompts import MULTI_ROLE_EN_PROMPT_TEMPLATES, MULTI_ROLE_ZH_PROMPT_TEMPLATES
 from aperag.schema import view_models
@@ -221,6 +223,48 @@ APERAG_AGENT_INSTRUCTION_ZH = """
     * 示例：实体"患者（男性）"变为节点 `A["患者 男性"]` 或 `A["患者 [男性]"]`
 """
 
+# Default Agent Query Prompt Templates - English Version
+DEFAULT_AGENT_QUERY_PROMPT_EN = """**User Query**: {{ query }}
+
+**Session Context**:
+- **User-Specified Collections**: {% if collections %}{% for collection in collections %}{{ collection.title or "Collection " + collection.id }}{% if not loop.last %}, {% endif %}{% endfor %} (PRIORITY: Search these user-specified collections first){% else %}None specified by user (discover and select relevant collections automatically){% endif %}
+- **Web Search**: {% if web_search_enabled %}enabled (Use web search strategically for current information, verification, or gap-filling){% else %}disabled (Rely entirely on knowledge collections; inform user if web search would be helpful){% endif %}
+- **Chat Files**: {% if chat_id %}Chat ID: {{ chat_id }} (Use search_chat_files tool to search files uploaded in this chat){% else %}No chat files{% endif %}
+
+**Research Instructions**:
+1. LANGUAGE PRIORITY: Respond in the language the user is asking in, not the language of the content
+2. If user specified collections (@mentions), search those first (REQUIRED)
+3. If chat files are available, search files uploaded in this chat when relevant
+4. Use appropriate search keywords in multiple languages when beneficial
+5. Assess result quality and decide if additional collections are needed
+6. Use web search strategically if enabled and relevant
+7. Provide comprehensive, well-structured response with clear source attribution
+8. Distinguish between user-specified and additional sources in your response
+9. **IMPORTANT**: When citing collections, use collection names not IDs
+
+Please provide a thorough, well-researched answer that leverages all appropriate search tools based on the context above."""
+
+# Default Agent Query Prompt Templates - Chinese Version
+DEFAULT_AGENT_QUERY_PROMPT_ZH = """**用户查询**: {{ query }}
+
+**会话上下文**:
+- **用户指定的知识库**: {% if collections %}{% for collection in collections %}{{ collection.title or "知识库" + collection.id }}{% if not loop.last %}, {% endif %}{% endfor %} (优先级：首先搜索这些用户指定的知识库){% else %}用户未指定 (自动发现并选择相关的知识库){% endif %}
+- **网络搜索**: {% if web_search_enabled %}已启用 (战略性地使用网络搜索获取当前信息、验证或填补空白){% else %}已禁用 (完全依赖知识库；如果网络搜索有帮助请告知用户){% endif %}
+- **聊天文件**: {% if chat_id %}聊天ID: {{ chat_id }} (可使用 search_chat_files 工具搜索此聊天中上传的文件){% else %}无{% endif %}
+
+**研究指导**:
+1. 语言优先级: 使用用户提问的语言回应，而不是内容的语言
+2. 如果用户指定了知识库（@提及），首先搜索这些（必需）
+3. 如果有聊天文件，可以搜索聊天中上传的文件
+4. 在有益时使用多种语言的适当搜索关键词
+5. 评估结果质量并决定是否需要额外的知识库
+6. 如果启用且相关，战略性地使用网络搜索
+7. 提供全面、结构良好的回应，并清楚标注来源
+8. 在回应中区分用户指定和额外的来源
+9. **重要**：引用知识库时，使用知识库名称而非ID
+
+请提供一个彻底、经过充分研究的答案，基于以上上下文充分利用所有适当的搜索工具。"""
+
 
 def get_agent_system_prompt(language: str = "en-US") -> str:
     """
@@ -241,6 +285,24 @@ def get_agent_system_prompt(language: str = "en-US") -> str:
         return APERAG_AGENT_INSTRUCTION_EN
     else:
         return APERAG_AGENT_INSTRUCTION_EN
+
+
+def get_default_agent_query_prompt_template(language: str = "en-US") -> str:
+    """
+    Get the default ApeRAG agent query prompt template in the specified language.
+
+    Args:
+        language: Language code ("en-US" for English, "zh-CN" for Chinese)
+
+    Returns:
+        The default query prompt template string in the specified language
+    """
+    if language == "zh-CN":
+        return DEFAULT_AGENT_QUERY_PROMPT_ZH
+    elif language == "en-US":
+        return DEFAULT_AGENT_QUERY_PROMPT_EN
+    else:
+        return DEFAULT_AGENT_QUERY_PROMPT_EN
 
 
 def list_prompt_templates(language: str) -> view_models.PromptTemplateList:
@@ -264,122 +326,49 @@ def list_prompt_templates(language: str) -> view_models.PromptTemplateList:
 
 
 def build_agent_query_prompt(
-    chat_id: str, agent_message: view_models.AgentMessage, user: str, language: str = "en-US"
+    chat_id: str,
+    agent_message: view_models.AgentMessage,
+    user: str,
+    custom_template: str = None,
 ) -> str:
     """
-    Build a comprehensive prompt for LLM that includes context about user preferences,
-    available collections, and web search status.
+    Build a comprehensive prompt for LLM using Jinja2 template rendering.
+    Supports both default templates and custom user-defined templates.
 
     Args:
+        chat_id: The chat ID for context
         agent_message: The agent message containing query and configuration
         user: The user identifier
         language: Language code ("en-US" for English, "zh-CN" for Chinese)
+        custom_template: Optional custom Jinja2 template string. If None, uses default template.
 
     Returns:
-        The formatted prompt string in the specified language
+        The formatted prompt string using Jinja2 template rendering
+
+    Available template variables:
+        - query: User's query string
+        - collections: List of collection objects with id and title
+        - web_search_enabled: Boolean indicating if web search is enabled
+        - chat_id: Chat ID string (may be None)
+        - language: Language code
     """
-    # Determine collection context
-    if agent_message.collections:
-        if language == "zh-CN":
-            collection_list = []
-            for c in agent_message.collections:
-                title = c.title or f"知识库{c.id}"
-                collection_list.append(f"- {title} (ID: {c.id})")
-            collection_context = "\n".join(collection_list)
-            collection_instruction = "优先级：首先搜索这些用户指定的知识库"
-        else:
-            collection_list = []
-            for c in agent_message.collections:
-                title = c.title or f"Collection {c.id}"
-                collection_list.append(f"- {title} (ID: {c.id})")
-            collection_context = "\n".join(collection_list)
-            collection_instruction = "PRIORITY: Search these user-specified collections first"
+    # Use custom template if provided, otherwise use default template
+    if custom_template:
+        template_str = custom_template
     else:
-        if language == "zh-CN":
-            collection_context = "用户未指定"
-            collection_instruction = "自动发现并选择相关的知识库"
-        else:
-            collection_context = "None specified by user"
-            collection_instruction = "discover and select relevant collections automatically"
+        template_str = get_default_agent_query_prompt_template(agent_message.language)
 
-    # Determine web search context
-    if language == "zh-CN":
-        web_status = "已启用" if agent_message.web_search_enabled else "已禁用"
-        if agent_message.web_search_enabled:
-            web_instruction = "战略性地使用网络搜索获取当前信息、验证或填补空白"
-        else:
-            web_instruction = "完全依赖知识库；如果网络搜索有帮助请告知用户"
-    else:
-        web_status = "enabled" if agent_message.web_search_enabled else "disabled"
-        if agent_message.web_search_enabled:
-            web_instruction = "Use web search strategically for current information, verification, or gap-filling"
-        else:
-            web_instruction = "Rely entirely on knowledge collections; inform user if web search would be helpful"
+    # Create Jinja2 template
+    template = Template(template_str)
 
-    # Determine chat context
-    if chat_id:
-        if language == "zh-CN":
-            chat_context = f"聊天ID: {chat_id}"
-            chat_instruction = "可使用 search_chat_files 工具搜索此聊天中上传的文件"
-        else:
-            chat_context = f"Chat ID: {chat_id}"
-            chat_instruction = "Use search_chat_files tool to search files uploaded in this chat"
-    else:
-        if language == "zh-CN":
-            chat_context = "无"
-            chat_instruction = ""
-        else:
-            chat_context = "No chat files"
-            chat_instruction = ""
+    # Prepare template variables
+    template_vars = {
+        "query": agent_message.query,
+        "collections": agent_message.collections or [],
+        "web_search_enabled": agent_message.web_search_enabled or False,
+        "chat_id": chat_id,
+        "language": agent_message.language,
+    }
 
-    # Use language-specific template
-    if language == "zh-CN":
-        prompt_template = """**用户查询**: {query}
-
-**会话上下文**:
-- **用户指定的知识库**: {collection_context} ({collection_instruction})
-- **网络搜索**: {web_status} ({web_instruction})
-- **聊天文件**: {chat_context} ({chat_instruction})
-
-**研究指导**:
-1. 语言优先级: 使用用户提问的语言回应，而不是内容的语言
-2. 如果用户指定了知识库（@提及），首先搜索这些（必需）
-3. 如果有聊天文件，可以搜索聊天中上传的文件
-4. 在有益时使用多种语言的适当搜索关键词
-5. 评估结果质量并决定是否需要额外的知识库
-6. 如果启用且相关，战略性地使用网络搜索
-7. 提供全面、结构良好的回应，并清楚标注来源
-8. 在回应中区分用户指定和额外的来源
-9. **重要**：引用知识库时，使用知识库名称而非ID
-
-请提供一个彻底、经过充分研究的答案，基于以上上下文充分利用所有适当的搜索工具。"""
-    else:
-        prompt_template = """**User Query**: {query}
-
-**Session Context**:
-- **User-Specified Collections**: {collection_context} ({collection_instruction})
-- **Web Search**: {web_status} ({web_instruction})
-- **Chat Files**: {chat_context} ({chat_instruction})
-
-**Research Instructions**:
-1. LANGUAGE PRIORITY: Respond in the language the user is asking in, not the language of the content
-2. If user specified collections (@mentions), search those first (REQUIRED)
-3. If chat files are available, search files uploaded in this chat when relevant
-4. Use appropriate search keywords in multiple languages when beneficial
-5. Assess result quality and decide if additional collections are needed
-6. Use web search strategically if enabled and relevant
-7. Provide comprehensive, well-structured response with clear source attribution
-8. Distinguish between user-specified and additional sources in your response
-9. **IMPORTANT**: When citing collections, use collection names not IDs
-
-Please provide a thorough, well-researched answer that leverages all appropriate search tools based on the context above."""
-
-    return prompt_template.format(
-        query=agent_message.query,
-        collection_context=collection_context,
-        collection_instruction=collection_instruction,
-        web_status=web_status,
-        web_instruction=web_instruction,
-        chat_context=chat_context,
-        chat_instruction=chat_instruction,
-    )
+    # Render template
+    return template.render(**template_vars)

@@ -1,3 +1,4 @@
+import json
 import logging
 from fastapi.responses import StreamingResponse
 from aperag.db.models import User
@@ -13,7 +14,9 @@ from aperag.utils.audit_decorator import audit
 from aperag.views.auth import UserManager, authenticate_websocket_user, get_user_manager, optional_user, required_user
 
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, WebSocket
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile, WebSocket
+
+from aperag.views.bot import router
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +73,7 @@ async def feedback_message_view(
     )
 
 
-@router.websocket("/bots/{bot_id}/chats/{chat_id}/connect", tags=["chats"])
+@router.websocket("/bots/{bot_id}/chats/{chat_id}/connect")
 async def websocket_chat_endpoint(
     websocket: WebSocket, bot_id: str, chat_id: str, user_manager: UserManager = Depends(get_user_manager)
 ):
@@ -233,3 +236,10 @@ async def get_chat_document_view(
         raise HTTPException(status_code=404, detail="Document not found")
 
     return document
+
+
+@router.delete("/bots/{bot_id}/chats/{chat_id}")
+@audit(resource_type="chat", api_name="DeleteChat")
+async def delete_chat_view(request: Request, bot_id: str, chat_id: str, user: User = Depends(required_user)):
+    await chat_service_global.delete_chat(str(user.id), bot_id, chat_id)
+    return Response(status_code=204)

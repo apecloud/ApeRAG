@@ -233,23 +233,6 @@ class Collection(Base):
     gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Add index for soft delete queries
 
-    async def bots(self, session, only_ids: bool = False):
-        """Get all active bots related to this collection"""
-        stmt = select(BotCollectionRelation).where(
-            BotCollectionRelation.collection_id == self.id, BotCollectionRelation.gmt_deleted.is_(None)
-        )
-        result = await session.execute(stmt)
-        rels = result.scalars().all()
-        if only_ids:
-            return [rel.bot_id for rel in rels]
-        else:
-            bots = []
-            for rel in rels:
-                bot = await session.get(Bot, rel.bot_id)
-                if bot:
-                    bots.append(bot)
-            return bots
-
 
 class CollectionSummary(Base):
     __tablename__ = "collection_summary"
@@ -417,34 +400,6 @@ class Bot(Base):
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Add index for soft delete queries
-
-    async def collections(self, session, only_ids: bool = False):
-        """Get all active collections related to this bot"""
-        stmt = select(BotCollectionRelation).where(
-            BotCollectionRelation.bot_id == self.id, BotCollectionRelation.gmt_deleted.is_(None)
-        )
-        result = await session.execute(stmt)
-        rels = result.scalars().all()
-        if only_ids:
-            return [rel.collection_id for rel in rels]
-        else:
-            collections = []
-            for rel in rels:
-                collection = await session.get(Collection, rel.collection_id)
-                if collection:
-                    collections.append(collection)
-            return collections
-
-
-class BotCollectionRelation(Base):
-    __tablename__ = "bot_collection_relation"
-    __table_args__ = (UniqueConstraint("bot_id", "collection_id", "gmt_deleted", name="uq_bot_collection_deleted"),)
-
-    id = Column(String(24), primary_key=True, default=lambda: "bcr" + random_id())
-    bot_id = Column(String(24), nullable=False)
-    collection_id = Column(String(24), nullable=False)
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_deleted = Column(DateTime(timezone=True), nullable=True)
 
 
 class ConfigModel(Base):

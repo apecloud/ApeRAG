@@ -2,7 +2,6 @@ import logging
 from aperag.db.models import User
 from aperag.schema import view_models
 from aperag.service.bot_service import bot_service
-from aperag.service.chat_service import chat_service_global
 from aperag.service.flow_service import flow_service_global
 from aperag.utils.audit_decorator import audit
 from aperag.views.auth import required_user
@@ -11,13 +10,6 @@ from fastapi import APIRouter, Depends, Request, Response
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["bots"])
-
-
-@router.delete("/bots/{bot_id}/chats/{chat_id}")
-@audit(resource_type="chat", api_name="DeleteChat")
-async def delete_chat_view(request: Request, bot_id: str, chat_id: str, user: User = Depends(required_user)):
-    await chat_service_global.delete_chat(str(user.id), bot_id, chat_id)
-    return Response(status_code=204)
 
 
 @router.post("/bots")

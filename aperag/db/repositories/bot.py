@@ -132,32 +132,4 @@ class AsyncBotRepositoryMixin(AsyncRepositoryProtocol):
 
         return await self.execute_with_transaction(_operation)
 
-    async def create_bot_collection_relation(self, bot_id: str, collection_id: str):
-        """Create bot-collection relation"""
-        from aperag.db.models import BotCollectionRelation
-
-        async def _operation(session):
-            relation = BotCollectionRelation(bot_id=bot_id, collection_id=collection_id)
-            session.add(relation)
-            await session.flush()
-            return relation
-
-        return await self.execute_with_transaction(_operation)
-
-    async def delete_bot_collection_relations(self, bot_id: str):
-        """Soft delete all bot-collection relations for a bot"""
-        from aperag.db.models import BotCollectionRelation
-
-        async def _operation(session):
-            stmt = select(BotCollectionRelation).where(
-                BotCollectionRelation.bot_id == bot_id, BotCollectionRelation.gmt_deleted.is_(None)
-            )
-            result = await session.execute(stmt)
-            relations = result.scalars().all()
-            for rel in relations:
-                rel.gmt_deleted = utc_now()
-                session.add(rel)
-            await session.flush()
-            return len(relations)
-
-        return await self.execute_with_transaction(_operation)
+    # BotCollectionRelation methods removed - relations now stored in bot config
