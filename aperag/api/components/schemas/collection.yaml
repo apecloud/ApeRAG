@@ -109,33 +109,6 @@ collectionSource:
           type: string
 
 
-crontabConfig:
-  type: object
-  properties:
-    enabled:
-      type: boolean
-      description: Whether to enable scheduled tasks
-    minute:
-      type: string
-      description: Minute field in cron expression
-      example: "0"
-    hour:
-      type: string
-      description: Hour field in cron expression
-      example: "0"
-    day_of_month:
-      type: string
-      description: Day of month field in cron expression
-      example: "*"
-    month:
-      type: string
-      description: Month field in cron expression
-      example: "*"
-    day_of_week:
-      type: string
-      description: Day of week field in cron expression
-      example: "*"
-
 collectionConfig:
   type: object
   properties:
@@ -143,8 +116,6 @@ collectionConfig:
       type: string
       description: Source system identifier
       example: "system"
-    crontab:
-      $ref: '#/crontabConfig'
     enable_vector:
       type: boolean
       description: Whether to enable vector index
