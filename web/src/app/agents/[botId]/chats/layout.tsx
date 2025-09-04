@@ -1,7 +1,7 @@
 import { Chat } from '@/api';
 
 import { AppLogo, AppUserDropdownMenu } from '@/components/app-topbar';
-import { MenuChats } from '@/components/chat/menu-chats';
+import { SideBarMenuChats } from '@/components/chat/sidebar-menu-chats';
 import { AgentsProvider } from '@/components/providers/agents-provider';
 import {
   Sidebar,
@@ -46,10 +46,10 @@ export default async function ChatLayout({
   }
 
   const { botId } = await params;
-  const botsRes = await apiServer.defaultApi.botsBotIdGet({
+  const botRes = await apiServer.defaultApi.botsBotIdGet({
     botId,
   });
-  const bot = botsRes.data;
+  const bot = botRes.data;
   let chats: Chat[] = [];
 
   if (!bot) {
@@ -74,7 +74,7 @@ export default async function ChatLayout({
             <AppLogo />
           </SidebarHeader>
           <SidebarContent className="gap-0">
-            <MenuChats />
+            <SideBarMenuChats />
           </SidebarContent>
           <SidebarFooter>
             <SidebarSeparator className="mx-0" />

@@ -43,6 +43,7 @@ export const CollectionHeader = ({
   const { user, signIn } = useAppContext();
   const page_collections = useTranslations('page_collections');
   const page_documents = useTranslations('page_documents');
+  const page_marketplace = useTranslations('page_marketplace');
   const page_graph = useTranslations('page_graph');
   const sidebar_workspace = useTranslations('sidebar_workspace');
 
@@ -88,21 +89,12 @@ export const CollectionHeader = ({
                   href="/marketplace"
                   className="text-foreground flex flex-row items-center gap-1"
                 >
-                  市场
+                  {page_marketplace('metadata.title')}
                 </Link>
               </BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbLink asChild>
-                <Link
-                  href={`/workspace/collections/${collection.id}`}
-                  className="text-foreground flex flex-row items-center gap-1"
-                >
-                  {collection.title}
-                </Link>
-              </BreadcrumbLink>
-            </BreadcrumbItem>
+            <BreadcrumbItem>{collection.title}</BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
 
@@ -146,7 +138,7 @@ export const CollectionHeader = ({
         </CardHeader>
         <CardDescription className="mb-4 px-4">
           {_.truncate(collection.description || 'No description available', {
-            length: 300,
+            length: 180,
           })}
         </CardDescription>
         <Separator />

@@ -11,7 +11,7 @@ import { getServerApi } from '@/lib/api/server';
 import { toJson } from '@/lib/utils';
 import { notFound, redirect } from 'next/navigation';
 
-import { MenuChats } from '@/components/chat/menu-chats';
+import { SideBarMenuChats } from '@/components/chat/sidebar-menu-chats';
 import { AgentsProvider } from '@/components/providers/agents-provider';
 import { MenuFooter } from './menu-footer';
 import { MenuMain } from './menu-main';
@@ -61,7 +61,7 @@ export default async function Layout({
           </SidebarHeader>
           <SidebarContent className="gap-0">
             <MenuMain />
-            {bot && <MenuChats />}
+            <SideBarMenuChats />
           </SidebarContent>
 
           <MenuFooter />

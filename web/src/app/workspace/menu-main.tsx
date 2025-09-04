@@ -28,7 +28,7 @@ export const MenuMain = () => {
             </Link>
           </SidebarMenuButton>
           <SidebarMenuAction>
-            <ExternalLink />
+            <ExternalLink className="text-muted-foreground" />
           </SidebarMenuAction>
         </SidebarMenuItem>
         <SidebarMenuItem>

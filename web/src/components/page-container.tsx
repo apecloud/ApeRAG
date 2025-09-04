@@ -8,15 +8,9 @@ import {
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
 import { cn } from '@/lib/utils';
-import { House } from 'lucide-react';
 import Link from 'next/link';
 import React, { useMemo } from 'react';
-import {
-  AppDocs,
-  AppGithub,
-  AppLocaleDropdownMenu,
-  AppThemeDropdownMenu,
-} from './app-topbar';
+import { AppLocaleDropdownMenu, AppThemeDropdownMenu } from './app-topbar';
 import { Separator } from './ui/separator';
 import { SidebarTrigger, useSidebar } from './ui/sidebar';
 
@@ -28,9 +22,11 @@ export type AppTopbarBreadcrumbItem = {
 export const PageHeader = ({
   fixed = true,
   breadcrumbs = [],
+  extra,
 }: {
   fixed?: boolean;
   breadcrumbs?: AppTopbarBreadcrumbItem[];
+  extra?: React.ReactNode;
 }) => {
   const { open, isMobile } = useSidebar();
 
@@ -59,25 +55,13 @@ export const PageHeader = ({
           />
           <Breadcrumb>
             <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbLink asChild>
-                  <Link
-                    href="/workspace"
-                    className="text-foreground flex flex-row items-center gap-1"
-                  >
-                    <House className="size-4" />
-                  </Link>
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-
-              {breadcrumbs.length > 0 && <BreadcrumbSeparator />}
               {breadcrumbs.map((item, index) => {
                 const isLast = index === breadcrumbs.length - 1;
                 return (
                   <React.Fragment key={index}>
                     <BreadcrumbItem className="flex flex-row items-center gap-1">
                       {item.href ? (
-                        <BreadcrumbLink asChild>
+                        <BreadcrumbLink asChild className="text-foreground">
                           <Link href={item.href || '#'}>{item.title}</Link>
                         </BreadcrumbLink>
                       ) : (
@@ -92,8 +76,9 @@ export const PageHeader = ({
           </Breadcrumb>
         </div>
         <div className="flex flex-row items-center gap-2 pr-4">
-          <AppGithub />
-          <AppDocs />
+          {extra}
+          {/* <AppGithub />
+              <AppDocs /> */}
           <AppLocaleDropdownMenu />
           <AppThemeDropdownMenu />
         </div>

@@ -38,11 +38,13 @@ export default async function Page({
     <PageContainer>
       <PageHeader
         breadcrumbs={[
-          { title: page_chat('metadata.title') },
           {
-            title: _.isEmpty(chat.history)
-              ? page_chat('display_empty_title')
-              : chat.title || '',
+            title:
+              page_chat('metadata.title') +
+              ': ' +
+              (_.isEmpty(chat.history)
+                ? page_chat('display_empty_title')
+                : chat.title || ''),
           },
         ]}
       />

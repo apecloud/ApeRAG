@@ -172,7 +172,7 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
             collection.description ||
               page_collections('no_description_available'),
             {
-              length: 300,
+              length: 180,
             },
           )}
         </CardDescription>

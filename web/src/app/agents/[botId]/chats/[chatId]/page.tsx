@@ -20,6 +20,7 @@ export default async function Page({
   const { botId, chatId } = await params;
   const serverApi = await getServerApi();
   const page_chat = await getTranslations('page_chat');
+  const page_bot = await getTranslations('page_bot');
 
   let chat;
 
@@ -38,13 +39,17 @@ export default async function Page({
     <PageContainer>
       <PageHeader
         breadcrumbs={[
-          { title: page_chat('metadata.title') },
+          { title: page_bot('metadata.title'), href: `/workspace/agents` },
           {
-            title: _.isEmpty(chat.history)
-              ? page_chat('display_empty_title')
-              : chat.title || '',
+            title:
+              page_chat('metadata.title') +
+              ': ' +
+              (_.isEmpty(chat.history)
+                ? page_chat('display_empty_title')
+                : chat.title || ''),
           },
         ]}
+        extra=""
       />
       <PageContent>
         <ChatMessages chat={chat} />
