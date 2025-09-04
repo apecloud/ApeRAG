@@ -368,7 +368,7 @@ class DocumentService:
         )
 
     async def create_documents(
-        self, user: str, collection_id: str, files: List[UploadFile], custom_metadata: dict = None
+        self, user: str, collection_id: str, files: List[UploadFile], custom_metadata: dict = None, ignore_duplicate: bool = False
     ) -> view_models.DocumentList:
         if len(files) > 50:
             raise invalid_param("file_count", "documents are too many, add document failed")
@@ -414,7 +414,7 @@ class DocumentService:
                     user, collection.id, file_info["filename"], file_info["file_hash"]
                 )
 
-                if existing_doc:
+                if existing_doc and not ignore_duplicate:
                     # Return existing document info (idempotent behavior)
                     logger.info(
                         f"Document '{file_info['filename']}' already exists with same content, returning existing document {existing_doc.id}"
