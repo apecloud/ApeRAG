@@ -31,7 +31,7 @@ export const BotList = ({ bots }: { bots: Bot[] }) => {
         </div>
         <div className="ml-auto flex items-center gap-2">
           <Button asChild>
-            <Link href="/workspace/bots/new">
+            <Link href="/bots/new">
               <Plus /> {page_bot('new_bot')}
             </Link>
           </Button>
@@ -54,7 +54,7 @@ export const BotList = ({ bots }: { bots: Bot[] }) => {
             })
             .map((bot) => {
               return (
-                <Link key={bot.id} href={`/agents/${bot.id}/chats`}>
+                <Link key={bot.id} href={`/bots/${bot.id}/chats`}>
                   <Card className="hover:bg-accent/30 cursor-pointer gap-2 rounded-md">
                     <CardHeader className="px-4">
                       <CardTitle className="h-5 truncate">

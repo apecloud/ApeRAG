@@ -14,7 +14,7 @@ export type ProviderModels = {
   models?: ModelSpec[];
 }[];
 
-type AgentsContextProps = {
+type BotContextProps = {
   workspace?: boolean;
   bot: Bot;
   chats: Chat[];
@@ -26,16 +26,16 @@ type AgentsContextProps = {
   chatRename?: (chat: Chat | ChatDetails) => void;
 };
 
-const AgentsContext = createContext<AgentsContextProps>({
+const BotContext = createContext<BotContextProps>({
   bot: {},
   chats: [],
   collections: [],
   providerModels: [],
 });
 
-export const useAgentsContext = () => useContext(AgentsContext);
+export const useBotContext = () => useContext(BotContext);
 
-export const AgentsProvider = ({
+export const BotProvider = ({
   bot,
   chats: initChats,
   workspace,
@@ -96,9 +96,9 @@ export const AgentsProvider = ({
         const item = chats?.find((c) => c.id !== chat.id);
         let url = '';
         if (item) {
-          url = `/agents/${bot.id}/chats/${item.id}`;
+          url = `/bots/${bot.id}/chats/${item.id}`;
         } else {
-          url = `/agents/${bot.id}/chats`;
+          url = `/bots/${bot.id}/chats`;
         }
         if (workspace) {
           url = '/workspace' + url;
@@ -147,7 +147,7 @@ export const AgentsProvider = ({
     });
 
     if (res.data.id) {
-      let url = `/agents/${bot.id}/chats/${res.data.id}`;
+      let url = `/bots/${bot.id}/chats/${res.data.id}`;
       if (workspace) {
         url = '/workspace' + url;
       }
@@ -161,7 +161,7 @@ export const AgentsProvider = ({
   }, [loadData]);
 
   return (
-    <AgentsContext.Provider
+    <BotContext.Provider
       value={{
         workspace,
         bot,
@@ -175,6 +175,6 @@ export const AgentsProvider = ({
       }}
     >
       {children}
-    </AgentsContext.Provider>
+    </BotContext.Provider>
   );
 };

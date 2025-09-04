@@ -12,7 +12,7 @@ import { toJson } from '@/lib/utils';
 import { notFound, redirect } from 'next/navigation';
 
 import { SideBarMenuChats } from '@/components/chat/sidebar-menu-chats';
-import { AgentsProvider } from '@/components/providers/agents-provider';
+import { BotProvider } from '@/components/providers/bot-provider';
 import { MenuFooter } from './menu-footer';
 import { MenuMain } from './menu-main';
 
@@ -53,7 +53,7 @@ export default async function Layout({
   }
 
   return (
-    <AgentsProvider workspace={true} bot={toJson(bot)} chats={toJson(chats)}>
+    <BotProvider workspace={true} bot={toJson(bot)} chats={toJson(chats)}>
       <SidebarProvider>
         <Sidebar>
           <SidebarHeader className="h-16 flex-row items-center gap-4 px-4 align-middle">
@@ -68,6 +68,6 @@ export default async function Layout({
         </Sidebar>
         <SidebarInset>{children}</SidebarInset>
       </SidebarProvider>
-    </AgentsProvider>
+    </BotProvider>
   );
 }

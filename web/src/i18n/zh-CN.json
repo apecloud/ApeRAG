@@ -104,6 +104,16 @@
     "oauth_verification_failed": "OAuth验证失败",
     "an_unexpected_error_occurred": "发生未预期的错误"
   },
+  "page_bot": {
+    "metadata": {
+      "title": "应用",
+      "description": "ApeRAG 是一种基于本地数据集并利用多种大型语言模型的新型聊天机器人。"
+    },
+    "search": "搜索应用",
+    "new_bot": "新建应用",
+    "no_bots_found": "没有可用的应用",
+    "no_description_available": "没有可用的描述"
+  },
   "page_chat": {
     "metadata": {
       "title": "会话"
@@ -434,15 +444,5 @@
     "api_keys": "API密钥",
     "audit_logs": "审计日志",
     "quotas": "配额"
-  },
-  "page_bot": {
-    "metadata": {
-      "title": "机器人",
-      "description": "ApeRAG 是一种基于本地数据集并利用多种大型语言模型的新型聊天机器人。"
-    },
-    "search": "搜索机器人",
-    "new_bot": "新建机器人",
-    "no_bots_found": "没有可用的机器人",
-    "no_description_available": "没有可用的描述"
   }
 }

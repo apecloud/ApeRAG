@@ -5,7 +5,7 @@ import {
   UploadDocumentResponseStatusEnum,
 } from '@/api';
 import { PageContent } from '@/components/page-container';
-import { useAgentsContext } from '@/components/providers/agents-provider';
+import { useBotContext } from '@/components/providers/bot-provider';
 import { Button } from '@/components/ui/button';
 import { FileUpload, FileUploadTrigger } from '@/components/ui/file-upload';
 import { Label } from '@/components/ui/label';
@@ -96,7 +96,7 @@ export const ChatInput = ({
 }) => {
   const [isComposing, setIsComposing] = useState<boolean>(false);
   const { open, isMobile } = useSidebar();
-  const { providerModels, collections } = useAgentsContext();
+  const { providerModels, collections } = useBotContext();
   const [mentionOpen, setMentionOpen] = useState<boolean>(false);
   const locale = useLocale();
   const [query, setQuery] = useState<string>('');

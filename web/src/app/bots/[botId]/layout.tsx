@@ -1,19 +1,17 @@
 import { Chat } from '@/api';
 
-import { AppLogo, AppUserDropdownMenu } from '@/components/app-topbar';
 import { SideBarMenuChats } from '@/components/chat/sidebar-menu-chats';
-import { AgentsProvider } from '@/components/providers/agents-provider';
+import { BotProvider } from '@/components/providers/bot-provider';
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarHeader,
   SidebarInset,
   SidebarProvider,
-  SidebarSeparator,
 } from '@/components/ui/sidebar';
 import { getServerApi } from '@/lib/api/server';
 import { toJson } from '@/lib/utils';
+import { Bot } from 'lucide-react';
 import { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
 import { notFound, redirect } from 'next/navigation';
@@ -67,22 +65,19 @@ export default async function ChatLayout({
   }
 
   return (
-    <AgentsProvider workspace={false} bot={toJson(bot)} chats={toJson(chats)}>
+    <BotProvider workspace={false} bot={toJson(bot)} chats={toJson(chats)}>
       <SidebarProvider>
         <Sidebar>
-          <SidebarHeader className="h-16 flex-row items-center gap-4 px-4 align-middle">
-            <AppLogo />
+          <SidebarHeader className="flex h-16 flex-row items-center gap-2 px-2 align-middle">
+            <Bot />
+            <div className="flex-1 truncate text-sm font-bold">{bot.title}</div>
           </SidebarHeader>
           <SidebarContent className="gap-0">
             <SideBarMenuChats />
           </SidebarContent>
-          <SidebarFooter>
-            <SidebarSeparator className="mx-0" />
-            <AppUserDropdownMenu />
-          </SidebarFooter>
         </Sidebar>
         <SidebarInset>{children}</SidebarInset>
       </SidebarProvider>
-    </AgentsProvider>
+    </BotProvider>
   );
 }

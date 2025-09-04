@@ -21,7 +21,7 @@ export default async function Page({
   const chat: Chat | undefined = _.first(chatsRes.data.items || []);
 
   if (chat) {
-    redirect(`/agents/${botId}/chats/${chat.id}`);
+    redirect(`/bots/${botId}/chats/${chat.id}`);
   } else {
     const res = await apiServer.defaultApi.botsBotIdChatsPost({
       botId,
@@ -30,7 +30,7 @@ export default async function Page({
       },
     });
     if (res.data.id) {
-      redirect(`/agents/${botId}/chats/${res.data.id}`);
+      redirect(`/bots/${botId}/chats/${res.data.id}`);
     }
   }
 

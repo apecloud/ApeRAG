@@ -10,7 +10,12 @@ import {
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import React, { useMemo } from 'react';
-import { AppDocs, AppGithub, AppLocaleDropdownMenu, AppThemeDropdownMenu } from './app-topbar';
+import {
+  AppDocs,
+  AppGithub,
+  AppLocaleDropdownMenu,
+  AppThemeDropdownMenu,
+} from './app-topbar';
 import { Separator } from './ui/separator';
 import { SidebarTrigger, useSidebar } from './ui/sidebar';
 
@@ -76,11 +81,16 @@ export const PageHeader = ({
           </Breadcrumb>
         </div>
         <div className="flex flex-row items-center gap-2 pr-4">
-          {extra}
-          <AppGithub />
-          <AppDocs />
-          <AppLocaleDropdownMenu />
-          <AppThemeDropdownMenu />
+          {extra !== undefined ? (
+            extra
+          ) : (
+            <>
+              <AppGithub />
+              <AppDocs />
+              <AppLocaleDropdownMenu />
+              <AppThemeDropdownMenu />
+            </>
+          )}
         </div>
       </header>
       {fixed && <div className="h-12" />}

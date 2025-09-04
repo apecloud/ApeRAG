@@ -104,6 +104,16 @@
     "oauth_verification_failed": "oauth_verification_failed",
     "an_unexpected_error_occurred": "An unexpected error occurred"
   },
+  "page_bot": {
+    "metadata": {
+      "title": "Bots",
+      "description": "ApeRAG is a new chatbot based on local datasets and utilizes multiple large language models."
+    },
+    "search": "Search application",
+    "new_bot": "Create application",
+    "no_bots_found": "No application found",
+    "no_description_available": "No description available"
+  },
   "page_chat": {
     "metadata": {
       "title": "Chats"
@@ -430,15 +440,5 @@
     "api_keys": "API Keys",
     "audit_logs": "Audit Logs",
     "quotas": "Quotas"
-  },
-  "page_bot": {
-    "metadata": {
-      "title": "Bots",
-      "description": "ApeRAG is a new chatbot based on local datasets and utilizes multiple large language models."
-    },
-    "search": "Search bot",
-    "new_bot": "Create bot",
-    "no_bots_found": "No bots found",
-    "no_description_available": "No description available"
   }
 }

@@ -2,7 +2,6 @@ import {
   PageContainer,
   PageContent,
   PageDescription,
-  PageHeader,
   PageTitle,
 } from '@/components/page-container';
 
@@ -19,10 +18,6 @@ export default async function Page() {
 
   return (
     <PageContainer>
-      <PageHeader
-        breadcrumbs={[{ title: page_bot('metadata.title') }]}
-        extra=""
-      />
       <PageContent>
         <PageTitle>{page_bot('metadata.title')}</PageTitle>
         <PageDescription>{page_bot('metadata.description')}</PageDescription>
