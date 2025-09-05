@@ -112,7 +112,7 @@ export const ChatInput = ({
   const [modelName, setModelName] = useLocalStorageState<string | undefined>(
     'local-agent-completion-model',
     {
-      defaultValue: bot.config?.agent?.completion?.model,
+      defaultValue: bot?.config?.agent?.completion?.model,
     },
   );
   const [attachments, setAttachments] = useState<Attachment[]>([]);

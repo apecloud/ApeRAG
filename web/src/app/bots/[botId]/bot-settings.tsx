@@ -22,7 +22,7 @@ export const BotSettings = () => {
       <PageHeader
         breadcrumbs={[
           { title: page_bot('metadata.title'), href: `/bots` },
-          { title: bot.title || '' },
+          { title: bot?.title || '' },
         ]}
         extra=""
       />

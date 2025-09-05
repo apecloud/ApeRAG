@@ -32,8 +32,6 @@ export const AuditLogDetail = ({
     return result;
   }, [auditLog.response_data]);
 
-  console.log(auditLog.response_data || 'asdasdasd');
-
   return (
     <>
       <Drawer direction="right" handleOnly={true}>

@@ -16,7 +16,7 @@ export type ProviderModels = {
 
 type BotContextProps = {
   workspace?: boolean;
-  bot: Bot;
+  bot?: Bot;
   chats: Chat[];
   mention: boolean;
   collections: Collection[];
@@ -29,7 +29,6 @@ type BotContextProps = {
 };
 
 const BotContext = createContext<BotContextProps>({
-  bot: {},
   chats: [],
   mention: true,
   collections: [],
@@ -46,12 +45,12 @@ export const BotProvider = ({
   children,
 }: {
   workspace: boolean;
-  bot: Bot;
+  bot?: Bot;
   chats: Chat[];
   mention?: boolean;
   children?: React.ReactNode;
 }) => {
-  const [bot, setBot] = useState<Bot>(initBot);
+  const [bot, setBot] = useState<Bot | undefined>(initBot);
   const [chats, setChats] = useState<Chat[]>(initChats || []);
   const params = useParams();
   const router = useRouter();
@@ -81,6 +80,18 @@ export const BotProvider = ({
     setProviderModels(items || []);
   }, []);
 
+  const botCreate = useCallback(async () => {
+    const createRes = await apiClient.defaultApi.botsPost({
+      botCreate: {
+        title: 'Default Agent Bot',
+        type: 'agent',
+      },
+    });
+    if (createRes.data.id) {
+      setBot(createRes.data);
+    }
+  }, []);
+
   const botReload = useCallback(async () => {
     if (!bot?.id) return;
     const botRes = await apiClient.defaultApi.botsBotIdGet({
@@ -89,7 +100,7 @@ export const BotProvider = ({
     if (botRes.data.id) {
       setBot(botRes.data);
     }
-  }, [bot.id]);
+  }, [bot?.id]);
 
   const chatsReload = useCallback(async () => {
     if (!bot?.id) return;
@@ -112,9 +123,9 @@ export const BotProvider = ({
         const item = chats?.find((c) => c.id !== chat.id);
         let url = '';
         if (item) {
-          url = `/bots/${bot.id}/chats/${item.id}`;
+          url = `/bots/${bot?.id}/chats/${item.id}`;
         } else {
-          url = `/bots/${bot.id}/chats`;
+          url = `/bots/${bot?.id}/chats`;
         }
         if (workspace) {
           url = '/workspace' + url;
@@ -123,7 +134,7 @@ export const BotProvider = ({
       }
       chatsReload();
     },
-    [bot.id, chats, chatsReload, params.chatId, router, workspace],
+    [bot?.id, chats, chatsReload, params.chatId, router, workspace],
   );
 
   const chatRename = useCallback(
@@ -170,7 +181,7 @@ export const BotProvider = ({
       router.push(url);
       chatsReload();
     }
-  }, [bot.id, chatsReload, router, workspace]);
+  }, [bot?.id, chatsReload, router, workspace]);
 
   useEffect(() => {
     if (chats.length === 0) {
@@ -181,6 +192,12 @@ export const BotProvider = ({
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    if (!bot) {
+      botCreate();
+    }
+  }, [bot, botCreate]);
 
   return (
     <BotContext.Provider

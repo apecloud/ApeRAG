@@ -280,11 +280,11 @@ export const CollectionGraph = ({
                 key={key}
                 className={cn(
                   'cursor-pointer capitalize',
-                  isActive ? '' : 'border-transparent'
+                  isActive ? '' : 'border-transparent',
                 )}
                 style={{
                   backgroundColor: color(key),
-                  opacity: isActive ? 1 : 0.7
+                  opacity: isActive ? 1 : 0.7,
                 }}
                 onClick={() =>
                   setActiveEntities((items) => {

@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/sidebar';
 import { getServerApi } from '@/lib/api/server';
 import { toJson } from '@/lib/utils';
-import { notFound, redirect } from 'next/navigation';
+import { redirect } from 'next/navigation';
 
 import { SideBarMenuChats } from '@/components/chat/sidebar-menu-chats';
 import { BotProvider } from '@/components/providers/bot-provider';
@@ -35,21 +35,8 @@ export default async function Layout({
   }
 
   const botsRes = await apiServer.defaultApi.botsGet();
-  let bot = botsRes.data.items?.find((item) => item.type === 'agent');
+  const bot = botsRes.data.items?.find((item) => item.type === 'agent');
   let chats: Chat[] = [];
-
-  if (!bot) {
-    const createRes = await apiServer.defaultApi.botsPost({
-      botCreate: {
-        title: 'Default Agent Bot',
-        type: 'agent',
-      },
-    });
-    bot = createRes.data;
-    if (!bot.id) {
-      notFound();
-    }
-  }
 
   if (bot?.id) {
     const chatsRes = await apiServer.defaultApi.botsBotIdChatsGet({
@@ -62,7 +49,11 @@ export default async function Layout({
   }
 
   return (
-    <BotProvider workspace={true} bot={toJson(bot)} chats={toJson(chats)}>
+    <BotProvider
+      workspace={true}
+      bot={bot ? toJson(bot) : undefined}
+      chats={toJson(chats)}
+    >
       <SidebarProvider>
         <Sidebar>
           <SidebarHeader className="h-16 flex-row items-center gap-4 px-4 align-middle">

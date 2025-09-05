@@ -22,7 +22,7 @@ export const ChatDetail = ({ chat }: { chat: ChatDetails }) => {
       <PageHeader
         breadcrumbs={[
           { title: page_bot('metadata.title'), href: `/bots` },
-          { title: bot.title || '', href: `/bots/${bot.id}` },
+          { title: bot?.title || '', href: `/bots/${bot?.id}` },
           {
             title:
               page_chat('metadata.title') +
@@ -34,7 +34,7 @@ export const ChatDetail = ({ chat }: { chat: ChatDetails }) => {
         ]}
         extra={
           <Button size="icon" variant="ghost">
-            <Link href={`/bots/${bot.id}`}>
+            <Link href={`/bots/${bot?.id}`}>
               <Settings />
             </Link>
           </Button>
