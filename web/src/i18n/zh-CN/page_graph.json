@@ -4,7 +4,7 @@
   },
   "node_group": "节点分组",
   "no_nodes_found": "未找到相关节点",
-  "merge_infomation": "有 {count} 个节点节点合并建议.",
+  "merge_infomation": "{count}个节点节点合并建议.",
   "merge_suggestions": "节点合并",
 
   "merge_accept": "接受",
@@ -12,5 +12,15 @@
 
   "merge_accepted": "已接受",
   "merge_rejected": "已拒绝",
-  "merge_pending": "待处理"
+  "merge_pending": "待处理",
+
+  "entity_person": "人物",
+  "entity_category": "类别",
+  "entity_date": "日期",
+  "entity_product": "产品",
+  "entity_organization": "组织",
+  "entity_technology": "技术",
+  "entity_geo": "位置",
+  "entity_event": "事件",
+  "entity_UNKNOWN": "未知"
 }

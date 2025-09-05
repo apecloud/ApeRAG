@@ -7,19 +7,14 @@ import {
 } from '@/api';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { apiClient } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 
+import { Badge } from '@/components/ui/badge';
 import Color from 'color';
 import * as d3 from 'd3';
 import _ from 'lodash';
-import { ChevronDown, Columns3, LoaderCircle } from 'lucide-react';
+import { LoaderCircle } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useTheme } from 'next-themes';
 import dynamic from 'next/dynamic';
@@ -230,7 +225,7 @@ export const CollectionGraph = ({
   return (
     <>
       <div className="mb-4 flex flex-row items-center justify-between gap-4">
-        <DropdownMenu>
+        {/* <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline">
               <Columns3 />
@@ -243,6 +238,8 @@ export const CollectionGraph = ({
           <DropdownMenuContent align="start" className="w-56">
             {_.map(allEntities, (item, key) => {
               const isActive = activeEntities.includes(key);
+              //@ts-expect-error entity error
+              const title = page_graph(`entity_${key}`);
               return (
                 <DropdownMenuCheckboxItem
                   key={key}
@@ -264,14 +261,46 @@ export const CollectionGraph = ({
                       style={{ background: color(key) }}
                     />
                     <span>
-                      {key}({item.length})
+                      {title} ({item.length})
                     </span>
                   </div>
                 </DropdownMenuCheckboxItem>
               );
             })}
           </DropdownMenuContent>
-        </DropdownMenu>
+        </DropdownMenu> */}
+
+        <div className="flex flex-row flex-wrap gap-1">
+          {_.map(allEntities, (item, key) => {
+            const isActive = activeEntities.includes(key);
+            //@ts-expect-error entity error
+            const title = page_graph(`entity_${key}`);
+            return (
+              <Badge
+                key={key}
+                className={cn(
+                  'cursor-pointer capitalize',
+                  isActive ? '' : 'border-transparent'
+                )}
+                style={{
+                  backgroundColor: color(key),
+                  opacity: isActive ? 1 : 0.7
+                }}
+                onClick={() =>
+                  setActiveEntities((items) => {
+                    if (isActive) {
+                      return _.reject(items, (item) => item === key);
+                    } else {
+                      return _.uniq(items.concat(key));
+                    }
+                  })
+                }
+              >
+                {title} ({item.length})
+              </Badge>
+            );
+          })}
+        </div>
 
         <div className="flex flex-row items-center gap-2">
           {!marketplace && !_.isEmpty(mergeSuggestion?.suggestions) && (
