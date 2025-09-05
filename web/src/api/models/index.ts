@@ -12,7 +12,6 @@ export * from './bot-config';
 export * from './bot-config-agent';
 export * from './bot-create';
 export * from './bot-list';
-export * from './bot-type';
 export * from './bot-update';
 export * from './change-password';
 export * from './chat';

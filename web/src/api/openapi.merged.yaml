@@ -4415,14 +4415,6 @@ components:
       in: cookie
       name: sessionid
   schemas:
-    botType:
-      type: string
-      enum:
-        - knowledge
-        - common
-        - agent
-      description: The type of bot
-      example: knowledge
     modelSpec:
       type: object
       properties:
@@ -4977,7 +4969,13 @@ components:
         description:
           type: string
         type:
-          $ref: '#/components/schemas/botType'
+          type: string
+          enum:
+            - knowledge
+            - common
+            - agent
+          description: The type of bot
+          example: knowledge
         config:
           $ref: '#/components/schemas/botConfig'
         created:
@@ -5028,7 +5026,13 @@ components:
         description:
           type: string
         type:
-          $ref: '#/components/schemas/botType'
+          type: string
+          enum:
+            - knowledge
+            - common
+            - agent
+          description: The type of bot
+          example: knowledge
         config:
           $ref: '#/components/schemas/botConfig'
     botUpdate:

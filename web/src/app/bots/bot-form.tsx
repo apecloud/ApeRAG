@@ -42,6 +42,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
+import { toast } from 'sonner';
 
 import * as z from 'zod';
 
@@ -78,16 +79,18 @@ type ProviderModel = {
 export const BotForm = ({
   bot,
   action,
+  onUpdateSuccess,
 }: {
   bot?: Bot;
   action: 'add' | 'edit';
+  onUpdateSuccess?: (bot: Bot) => void;
 }) => {
   const router = useRouter();
   const common_action = useTranslations('common.action');
+  const common_tips = useTranslations('common.tips');
   const page_bot = useTranslations('page_bot');
   const [completionModels, setCompletionModels] = useState<ProviderModel[]>([]);
   const [collections, setCollections] = useState<Collection[]>([]);
-
   const form = useForm<z.infer<typeof botSchema>>({
     resolver: zodResolver(botSchema),
     defaultValues: {
@@ -116,11 +119,15 @@ export const BotForm = ({
     control: form.control,
     name: 'config.agent.completion.model',
   });
+
   useEffect(() => {
+    if (completionModels.length === 0) return;
+
     let defaultModel: ModelSpec | undefined;
     let currentModel: ModelSpec | undefined;
     let defaultProvider: ProviderModel | undefined;
     let currentProvider: ProviderModel | undefined;
+
     completionModels?.forEach((provider) => {
       provider.models?.forEach((m) => {
         if (m.tags?.some((t) => t === 'default_for_agent_completion')) {
@@ -140,6 +147,7 @@ export const BotForm = ({
         currentModel?.custom_llm_provider ||
         '',
     );
+
     form.setValue(
       'config.agent.completion.model_service_provider',
       currentProvider?.name || defaultProvider?.name || '',
@@ -194,7 +202,7 @@ export const BotForm = ({
           },
         });
         if (res.data.id) {
-          router.push(`/bots/${res.data.id}`);
+          router.push(`/bots/${res.data.id}/chats`);
         }
       }
 
@@ -203,9 +211,16 @@ export const BotForm = ({
           botId: bot.id,
           botUpdate: values,
         });
+        // @ts-expect-error openapi define error
+        const id = res.data.id;
+        if (id) {
+          toast.success(common_tips('save_success'));
+          // @ts-expect-error openapi define error
+          onUpdateSuccess(res.data);
+        }
       }
     },
-    [action, bot?.id, router],
+    [action, bot?.id, common_tips, onUpdateSuccess, router],
   );
 
   return (
@@ -227,7 +242,7 @@ export const BotForm = ({
                   <FormLabel>{page_bot('title')}</FormLabel>
                   <FormControl>
                     <Input
-                      className="w-full cursor-pointer md:w-6/12"
+                      className="w-full md:w-6/12"
                       placeholder={page_bot('title_placeholder')}
                       {...field}
                     />
@@ -245,7 +260,7 @@ export const BotForm = ({
                   <FormLabel>{page_bot('description')}</FormLabel>
                   <FormControl>
                     <Textarea
-                      className="h-30 w-full cursor-pointer md:w-6/12"
+                      className="h-30 w-full md:w-6/12"
                       placeholder={page_bot('description_placeholder')}
                       {...field}
                     />
@@ -419,7 +434,9 @@ export const BotForm = ({
         <div className="flex">
           <div className="ml-auto flex flex-row gap-4">
             <Button variant="secondary" className="px-6" type="button" asChild>
-              <Link href="/bots">{common_action('cancel')}</Link>
+              <Link href={bot ? `/bots/${bot.id}/chats` : '/bots'}>
+                {common_action('cancel')}
+              </Link>
             </Button>
             <Button className="cursor-pointer px-6" type="submit">
               {common_action('save')}

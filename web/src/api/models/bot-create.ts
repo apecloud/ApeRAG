@@ -16,9 +16,6 @@
 // May contain unused imports in some cases
 // @ts-ignore
 import type { BotConfig } from './bot-config';
-// May contain unused imports in some cases
-// @ts-ignore
-import type { BotType } from './bot-type';
 
 /**
  * 
@@ -39,11 +36,11 @@ export interface BotCreate {
      */
     'description'?: string;
     /**
-     * 
-     * @type {BotType}
+     * The type of bot
+     * @type {string}
      * @memberof BotCreate
      */
-    'type'?: BotType;
+    'type'?: BotCreateTypeEnum;
     /**
      * 
      * @type {BotConfig}
@@ -52,5 +49,12 @@ export interface BotCreate {
     'config'?: BotConfig;
 }
 
+export const BotCreateTypeEnum = {
+    knowledge: 'knowledge',
+    common: 'common',
+    agent: 'agent'
+} as const;
+
+export type BotCreateTypeEnum = typeof BotCreateTypeEnum[keyof typeof BotCreateTypeEnum];
 
 

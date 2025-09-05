@@ -35,11 +35,20 @@ export default async function Layout({
   }
 
   const botsRes = await apiServer.defaultApi.botsGet();
-  const bot = botsRes.data.items?.find((item) => item.type === 'agent');
+  let bot = botsRes.data.items?.find((item) => item.type === 'agent');
   let chats: Chat[] = [];
 
   if (!bot) {
-    notFound();
+    const createRes = await apiServer.defaultApi.botsPost({
+      botCreate: {
+        title: 'Default Agent Bot',
+        type: 'agent',
+      },
+    });
+    bot = createRes.data;
+    if (!bot.id) {
+      notFound();
+    }
   }
 
   if (bot?.id) {

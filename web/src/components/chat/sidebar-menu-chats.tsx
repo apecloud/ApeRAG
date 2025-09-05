@@ -30,42 +30,26 @@ export const SideBarMenuChats = () => {
     <SidebarGroup>
       <SidebarGroupLabel className="mb-1 flex flex-row justify-between pr-0">
         <span>{sidebar_workspace('chats')}</span>
-        {_.size(chats) > 0 && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                className="-mr-0.5 size-8 cursor-pointer"
-                onClick={chatCreate}
-                size="icon"
-                variant="secondary"
-              >
-                <Plus />
-                <span className="sr-only">
-                  {sidebar_workspace('chats_new')}
-                </span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="right">
-              {sidebar_workspace('chats_new')}
-            </TooltipContent>
-          </Tooltip>
-        )}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              className="-mr-0.5 size-8 cursor-pointer"
+              onClick={chatCreate}
+              size="icon"
+              variant="secondary"
+            >
+              <Plus />
+              <span className="sr-only">{sidebar_workspace('chats_new')}</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right">
+            {sidebar_workspace('chats_new')}
+          </TooltipContent>
+        </Tooltip>
       </SidebarGroupLabel>
 
       <SidebarGroupContent>
         <SidebarMenu>
-          {_.isEmpty(chats) && (
-            <SidebarMenuItem className="my-2">
-              <SidebarMenuButton
-                onClick={chatCreate}
-                className="bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground min-w-8 cursor-pointer duration-200 ease-linear"
-              >
-                <Plus />
-                <span>{sidebar_workspace('chats_new')}</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          )}
-
           {chats?.map((chat) => {
             let url = `/bots/${bot?.id}/chats/${chat.id}`;
             if (workspace) {

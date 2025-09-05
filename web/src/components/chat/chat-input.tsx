@@ -94,7 +94,7 @@ export const ChatInput = ({
   onSubmit: (params: ChatInputSubmitParams) => void;
   onCancel: () => void;
 }) => {
-  const { mention } = useBotContext();
+  const { mention, bot } = useBotContext();
   const [isComposing, setIsComposing] = useState<boolean>(false);
   const { open, isMobile } = useSidebar();
   const { providerModels, collections } = useBotContext();
@@ -111,6 +111,9 @@ export const ChatInput = ({
   );
   const [modelName, setModelName] = useLocalStorageState<string | undefined>(
     'local-agent-completion-model',
+    {
+      defaultValue: bot.config?.agent?.completion?.model,
+    },
   );
   const [attachments, setAttachments] = useState<Attachment[]>([]);
 
@@ -427,7 +430,7 @@ export const ChatInput = ({
 
           <Label>
             <Mention
-              trigger={mention ? '@' : undefined}
+              trigger={mention ? '@' : ''}
               className="w-full"
               open={mentionOpen}
               onOpenChange={setMentionOpen}

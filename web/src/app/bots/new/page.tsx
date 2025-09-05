@@ -13,7 +13,6 @@ export default async function Page() {
     <PageContainer>
       <PageContent>
         <PageTitle>{page_bot('new_bot')}</PageTitle>
-
         <BotForm action="add" />
       </PageContent>
     </PageContainer>

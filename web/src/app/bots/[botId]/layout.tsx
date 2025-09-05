@@ -12,7 +12,7 @@ import {
 import { getServerApi } from '@/lib/api/server';
 import { toJson } from '@/lib/utils';
 import { Bot } from 'lucide-react';
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 
 export default async function ChatLayout({
   children,
@@ -21,37 +21,17 @@ export default async function ChatLayout({
   children: React.ReactNode;
   params: Promise<{ botId: string }>;
 }>) {
-  let user;
   const apiServer = await getServerApi();
-
-  try {
-    const res = await apiServer.defaultApi.userGet();
-    user = res.data;
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  } catch (err) {}
-
-  if (!user) {
-    redirect(`/auth/signin?callbackUrl=${encodeURIComponent('/workspace')}`);
-  }
 
   const { botId } = await params;
   const botRes = await apiServer.defaultApi.botsBotIdGet({
     botId,
   });
-  let bot = botRes.data;
+  const bot = botRes.data;
   let chats: Chat[] = [];
 
   if (!bot) {
-    const createRes = await apiServer.defaultApi.botsPost({
-      botCreate: {
-        title: 'Default Agent Bot',
-        type: 'agent',
-      },
-    });
-    bot = createRes.data;
-    if (!botRes.data.id) {
-      notFound();
-    }
+    notFound();
   }
 
   if (bot?.id) {
@@ -63,6 +43,8 @@ export default async function ChatLayout({
     //@ts-expect-error api define has a bug
     chats = chatsRes.data.items || [];
   }
+
+  console.log(bot);
 
   return (
     <BotProvider

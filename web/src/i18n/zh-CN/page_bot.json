@@ -6,6 +6,8 @@
   "search": "搜索应用",
   "new_bot": "新建应用",
   "bot_settings": "应用设置",
+  "delete_bot": "删除应用",
+  "delete_bot_confirm": "删除应用将会删除此应用下的所有会话，请确认操作！",
   "no_bots_found": "没有可用的应用",
   "no_description_available": "没有可用的描述",
 

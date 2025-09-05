@@ -1,5 +1,5 @@
-import { BotDetail } from './bot-detail';
+import { BotSettings } from './bot-settings';
 
 export default async function Page() {
-  return <BotDetail />;
+  return <BotSettings />;
 }

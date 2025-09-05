@@ -21,6 +21,7 @@ type BotContextProps = {
   mention: boolean;
   collections: Collection[];
   providerModels: ProviderModels;
+  botReload?: () => void;
   chatDelete?: (chat: Chat) => void;
   chatCreate?: () => void;
   chatsReload?: () => void;
@@ -38,7 +39,7 @@ const BotContext = createContext<BotContextProps>({
 export const useBotContext = () => useContext(BotContext);
 
 export const BotProvider = ({
-  bot,
+  bot: initBot,
   chats: initChats,
   mention = true,
   workspace,
@@ -50,6 +51,7 @@ export const BotProvider = ({
   mention?: boolean;
   children?: React.ReactNode;
 }) => {
+  const [bot, setBot] = useState<Bot>(initBot);
   const [chats, setChats] = useState<Chat[]>(initChats || []);
   const params = useParams();
   const router = useRouter();
@@ -78,6 +80,16 @@ export const BotProvider = ({
     setCollections(collectionsRes.data.items || []);
     setProviderModels(items || []);
   }, []);
+
+  const botReload = useCallback(async () => {
+    if (!bot?.id) return;
+    const botRes = await apiClient.defaultApi.botsBotIdGet({
+      botId: bot.id,
+    });
+    if (botRes.data.id) {
+      setBot(botRes.data);
+    }
+  }, [bot.id]);
 
   const chatsReload = useCallback(async () => {
     if (!bot?.id) return;
@@ -161,6 +173,12 @@ export const BotProvider = ({
   }, [bot.id, chatsReload, router, workspace]);
 
   useEffect(() => {
+    if (chats.length === 0) {
+      chatCreate();
+    }
+  }, [chatCreate, chats]);
+
+  useEffect(() => {
     loadData();
   }, [loadData]);
 
@@ -173,6 +191,7 @@ export const BotProvider = ({
         chats,
         collections,
         providerModels,
+        botReload,
         chatDelete,
         chatCreate,
         chatsReload,
