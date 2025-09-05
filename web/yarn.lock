@@ -328,6 +328,14 @@
   resolved "https://registry.npmjs.org/@date-fns/tz/-/tz-1.4.1.tgz#2d905f282304630e07bef6d02d2e7dbf3f0cc4e4"
   integrity sha512-P5LUNhtbj6YfI3iJjw5EL9eUAG6OitD0W3fWQcpQjDRc/QIsL0tRNuO1PcDvPccWL1fSTXXdE1ds+l95DV/OFA==
 
+"@diceui/combobox@^1.2.0":
+  version "1.2.0"
+  resolved "https://registry.npmjs.org/@diceui/combobox/-/combobox-1.2.0.tgz#dab739b5f48ec6627f8c2675fe0b5171f9e24674"
+  integrity sha512-Q4Q/fRs1orvTSh0uG/fl7q3mPMsxcyhwxkClsT0NLs5ZdGgMJrGk8/x9ysTSEp6Z5Z1lwlCed/FWnpqAOguf8A==
+  dependencies:
+    "@diceui/shared" "0.12.0"
+    "@floating-ui/react" "^0.27.4"
+
 "@diceui/mention@^0.7.1":
   version "0.7.1"
   resolved "https://registry.npmjs.org/@diceui/mention/-/mention-0.7.1.tgz#3a7fc2fa4420efc1bc649b3989c7720f8fa5f3b7"
@@ -350,7 +358,7 @@
 
 "@dnd-kit/core@^6.3.1":
   version "6.3.1"
-  resolved "https://registry.npmjs.org/@dnd-kit/core/-/core-6.3.1.tgz#4c36406a62c7baac499726f899935f93f0e6d003"
+  resolved "https://registry.npmmirror.com/@dnd-kit/core/-/core-6.3.1.tgz#4c36406a62c7baac499726f899935f93f0e6d003"
   integrity sha512-xkGBRQQab4RLwgXxoqETICr6S5JlogafbhNsidmrkVv2YRs5MLwpjoF2qpiGjQt8S9AoxtIV603s0GIUpY5eYQ==
   dependencies:
     "@dnd-kit/accessibility" "^3.1.1"
@@ -359,7 +367,7 @@
 
 "@dnd-kit/modifiers@^9.0.0":
   version "9.0.0"
-  resolved "https://registry.npmjs.org/@dnd-kit/modifiers/-/modifiers-9.0.0.tgz#96a0280c77b10c716ef79d9792ce7ad04370771d"
+  resolved "https://registry.npmmirror.com/@dnd-kit/modifiers/-/modifiers-9.0.0.tgz#96a0280c77b10c716ef79d9792ce7ad04370771d"
   integrity sha512-ybiLc66qRGuZoC20wdSSG6pDXFikui/dCNGthxv4Ndy8ylErY0N3KVxY2bgo7AWwIbxDmXDg3ylAFmnrjcbVvw==
   dependencies:
     "@dnd-kit/utilities" "^3.2.2"
@@ -367,7 +375,7 @@
 
 "@dnd-kit/sortable@^10.0.0":
   version "10.0.0"
-  resolved "https://registry.npmjs.org/@dnd-kit/sortable/-/sortable-10.0.0.tgz#1f9382b90d835cd5c65d92824fa9dafb78c4c3e8"
+  resolved "https://registry.npmmirror.com/@dnd-kit/sortable/-/sortable-10.0.0.tgz#1f9382b90d835cd5c65d92824fa9dafb78c4c3e8"
   integrity sha512-+xqhmIIzvAYMGfBYYnbKuNicfSsk4RksY2XdmJhT+HAC01nix6fHCztU68jooFiMUB01Ky3F0FyOvhG/BZrWkg==
   dependencies:
     "@dnd-kit/utilities" "^3.2.2"
@@ -375,7 +383,7 @@
 
 "@dnd-kit/utilities@^3.2.2":
   version "3.2.2"
-  resolved "https://registry.npmjs.org/@dnd-kit/utilities/-/utilities-3.2.2.tgz#5a32b6af356dc5f74d61b37d6f7129a4040ced7b"
+  resolved "https://registry.npmmirror.com/@dnd-kit/utilities/-/utilities-3.2.2.tgz#5a32b6af356dc5f74d61b37d6f7129a4040ced7b"
   integrity sha512-+MKAJEOfaBe5SmV6t34p80MMKhjvUz0vRrvVJbPT0WElzaOJ/1xs+D+KDv+tD/NE5ujfrChEcshd4fLn0wpiqg==
   dependencies:
     tslib "^2.0.0"

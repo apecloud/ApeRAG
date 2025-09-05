@@ -15,22 +15,18 @@
 
 
 /**
- * 
+ * The type of bot
  * @export
- * @interface AgentMessageFilesInner
+ * @enum {string}
  */
-export interface AgentMessageFilesInner {
-    /**
-     * File ID
-     * @type {string}
-     * @memberof AgentMessageFilesInner
-     */
-    'id'?: string;
-    /**
-     * File name
-     * @type {string}
-     * @memberof AgentMessageFilesInner
-     */
-    'name'?: string;
-}
+
+export const BotType = {
+    knowledge: 'knowledge',
+    common: 'common',
+    agent: 'agent'
+} as const;
+
+export type BotType = typeof BotType[keyof typeof BotType];
+
+
 

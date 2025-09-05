@@ -7,6 +7,7 @@ import {
 } from '@/components/page-container';
 import { useBotContext } from '@/components/providers/bot-provider';
 import { useTranslations } from 'next-intl';
+import { BotForm } from '../bot-form';
 
 export const BotDetail = () => {
   const page_bot = useTranslations('page_bot');
@@ -20,7 +21,9 @@ export const BotDetail = () => {
         ]}
         extra=""
       />
-      <PageContent></PageContent>
+      <PageContent>
+        <BotForm bot={bot} action="edit" />
+      </PageContent>
     </PageContainer>
   );
 };

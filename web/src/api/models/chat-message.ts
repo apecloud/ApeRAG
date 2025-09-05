@@ -80,6 +80,12 @@ export interface ChatMessage {
      * @memberof ChatMessage
      */
     'feedback'?: Feedback;
+    /**
+     * 
+     * @type {Array<any>}
+     * @memberof ChatMessage
+     */
+    'files'?: Array<any>;
 }
 
 export const ChatMessageTypeEnum = {

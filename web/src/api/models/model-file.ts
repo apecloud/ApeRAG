@@ -13,39 +13,24 @@
  */
 
 
-// May contain unused imports in some cases
-// @ts-ignore
-import type { BotConfig } from './bot-config';
 
 /**
  * 
  * @export
- * @interface BotUpdate
+ * @interface ModelFile
  */
-export interface BotUpdate {
+export interface ModelFile {
     /**
      * 
      * @type {string}
-     * @memberof BotUpdate
+     * @memberof ModelFile
      */
     'id'?: string;
     /**
      * 
      * @type {string}
-     * @memberof BotUpdate
+     * @memberof ModelFile
      */
-    'title'?: string;
-    /**
-     * 
-     * @type {string}
-     * @memberof BotUpdate
-     */
-    'description'?: string;
-    /**
-     * 
-     * @type {BotConfig}
-     * @memberof BotUpdate
-     */
-    'config'?: BotConfig;
+    'name'?: string;
 }
 

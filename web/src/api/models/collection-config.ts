@@ -15,9 +15,6 @@
 
 // May contain unused imports in some cases
 // @ts-ignore
-import type { CrontabConfig } from './crontab-config';
-// May contain unused imports in some cases
-// @ts-ignore
 import type { ModelSpec } from './model-spec';
 
 /**
@@ -32,12 +29,6 @@ export interface CollectionConfig {
      * @memberof CollectionConfig
      */
     'source'?: string;
-    /**
-     * 
-     * @type {CrontabConfig}
-     * @memberof CollectionConfig
-     */
-    'crontab'?: CrontabConfig;
     /**
      * Whether to enable vector index
      * @type {boolean}

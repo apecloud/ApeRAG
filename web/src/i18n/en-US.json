@@ -111,8 +111,26 @@
     },
     "search": "Search application",
     "new_bot": "Create application",
+    "bot_settings": "Application settings",
     "no_bots_found": "No application found",
-    "no_description_available": "No description available"
+    "no_description_available": "No description available",
+    "general": "General",
+    "model_config": "Model Settings",
+    "title": "Title",
+    "title_placeholder": "Application title",
+    "description": "Description",
+    "description_placeholder": "Please briefly introduce the purpose of the application.",
+    "collection": "Collection",
+    "collection_placeholder": "Select a collection",
+    "no_collection_found": "No Collection found.",
+    "model": "Model",
+    "model_description": "Setting the default model will serve as the default model for all new sessions.",
+    "system_prompt_template": "System Prompt Template",
+    "system_prompt_template_placeholder": "System Prompt Template",
+    "system_prompt_template_description": "System Prompt defines the AI's role and behavioral rules, setting the overall context for the interaction.",
+    "query_prompt_template": "Query Prompt Template",
+    "query_prompt_template_placeholder": "Query Prompt Template",
+    "query_prompt_template_description": "Query Prompt represents the user's specific input or question, which the AI processes and responds to within the framework set by the System Prompt."
   },
   "page_chat": {
     "metadata": {

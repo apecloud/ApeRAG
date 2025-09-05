@@ -15,42 +15,40 @@
 
 // May contain unused imports in some cases
 // @ts-ignore
-import type { BotConfig } from './bot-config';
+import type { Collection } from './collection';
 // May contain unused imports in some cases
 // @ts-ignore
-import type { BotType } from './bot-type';
+import type { ModelSpec } from './model-spec';
 
 /**
  * 
  * @export
- * @interface BotCreate
+ * @interface BotConfigAgent
  */
-export interface BotCreate {
+export interface BotConfigAgent {
+    /**
+     * 
+     * @type {ModelSpec}
+     * @memberof BotConfigAgent
+     */
+    'completion'?: ModelSpec;
     /**
      * 
      * @type {string}
-     * @memberof BotCreate
+     * @memberof BotConfigAgent
      */
-    'title'?: string;
+    'system_prompt_template'?: string;
     /**
      * 
      * @type {string}
-     * @memberof BotCreate
+     * @memberof BotConfigAgent
      */
-    'description'?: string;
+    'query_prompt_template'?: string;
     /**
      * 
-     * @type {BotType}
-     * @memberof BotCreate
+     * @type {Array<Collection>}
+     * @memberof BotConfigAgent
      */
-    'type'?: BotType;
-    /**
-     * 
-     * @type {BotConfig}
-     * @memberof BotCreate
-     */
-    'config'?: BotConfig;
+    'collections'?: Array<Collection>;
 }
-
-
 
