@@ -101,7 +101,6 @@ class AsyncCollectionRepositoryMixin(AsyncRepositoryProtocol):
             instance = result.scalars().first()
 
             if instance:
-                # Note: BotCollectionRelation table removed, so no need to check related bots
                 instance.status = CollectionStatus.DELETED
                 instance.gmt_deleted = utc_now()
                 session.add(instance)

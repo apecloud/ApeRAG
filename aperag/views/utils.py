@@ -39,41 +39,6 @@ def validate_source_connect_config(config: CollectionConfig) -> Tuple[bool, str]
     return True, ""
 
 
-def validate_bot_config(
-    model_service_provider, model_name, base_url, api_key, config: Dict, type, memory
-) -> Tuple[bool, str]:
-    try:
-        # validate the prompt
-        prompt_template = config.get("prompt_template", None)
-        if not prompt_template and type == BotType.COMMON:
-            return False, "prompt of common bot cannot be null"
-        if prompt_template and type == BotType.KNOWLEDGE:
-            PromptTemplate(template=prompt_template, input_variables=["query", "context"])
-        elif prompt_template and type == BotType.COMMON:
-            PromptTemplate(template=prompt_template, input_variables=["query"])
-            # pass
-    except ValidationError:
-        return False, "Invalid prompt template"
-
-    context_window = config.get("context_window")
-    if context_window > 5120000 or context_window < 0:
-        return False, "Invalid context window"
-
-    similarity_score_threshold = config.get("similarity_score_threshold")
-    if similarity_score_threshold > 1.0 or similarity_score_threshold <= 0:
-        return False, "Invalid similarity score threshold"
-
-    similarity_topk = config.get("similarity_topk")
-    if similarity_topk > 10 or similarity_topk <= 0:
-        return False, "Invalid similarity topk"
-
-    temperature = config.get("temperature")
-    if temperature > 1.0 or temperature < 0:
-        return False, "Invalid temperature"
-
-    return True, ""
-
-
 def validate_url(url):
     from urllib.parse import urlparse
 

@@ -27,7 +27,6 @@ from aperag.exceptions import (
 from aperag.schema import view_models
 from aperag.schema.view_models import Bot, BotList
 from aperag.service.quota_service import quota_service
-from aperag.views.utils import validate_bot_config
 
 
 class BotService:
@@ -127,39 +126,6 @@ class BotService:
         if bot_in.config:
             new_config_str = json.dumps(bot_in.config.model_dump(exclude_none=True))
             
-        # For backward compatibility, still validate if it's a legacy config
-        # This validation logic can be removed in future versions
-        try:
-            new_config_dict = json.loads(new_config_str)
-            if "model_service_provider" in new_config_dict:
-                # Legacy validation for old bot configs
-                model_service_provider = new_config_dict.get("model_service_provider")
-                model_name = new_config_dict.get("model_name")
-                memory = new_config_dict.get("memory", False)
-                llm_config = new_config_dict.get("llm")
-
-                # Get API key for the model service provider
-                api_key = await async_db_ops.query_provider_api_key(model_service_provider, user)
-                if not api_key:
-                    raise invalid_param(
-                        "model_service_provider", f"API KEY not found for LLM Provider: {model_service_provider}"
-                    )
-
-                # Get base_url from LLMProvider
-                try:
-                    llm_provider = await async_db_ops.query_llm_provider_by_name(model_service_provider)
-                    base_url = llm_provider.base_url
-                except Exception:
-                    raise ResourceNotFoundException("LLMProvider", model_service_provider)
-
-                valid, msg = validate_bot_config(
-                    model_service_provider, model_name, base_url, api_key, llm_config, bot_in.type, memory
-                )
-                if not valid:
-                    raise invalid_param("config", msg)
-        except json.JSONDecodeError:
-            pass  # Skip validation for new config format
-
         # Get collection IDs from bot config for validation
         await self.validate_collections(user, bot_in.config)
 

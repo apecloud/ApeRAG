@@ -132,4 +132,3 @@ class AsyncBotRepositoryMixin(AsyncRepositoryProtocol):
 
         return await self.execute_with_transaction(_operation)
 
-    # BotCollectionRelation methods removed - relations now stored in bot config
