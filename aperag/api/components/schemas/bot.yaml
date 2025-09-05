@@ -18,16 +18,6 @@ botConfig:
       $ref: './flow.yaml#/components/schemas/WorkflowDefinition'
 
 
-botType:
-  type: string
-  enum:
-    - knowledge
-    - common
-    - agent
-  description: The type of bot
-  example: knowledge
-
-
 botCreate:
   type: object
   properties:
@@ -36,7 +26,13 @@ botCreate:
     description:
       type: string
     type:
-      $ref: '#/botType'
+      type: string
+      enum:
+        - knowledge
+        - common
+        - agent
+      description: The type of bot
+      example: knowledge
     config:
       $ref: '#/botConfig'
 
@@ -62,7 +58,13 @@ bot:
     description:
       type: string
     type:
-      $ref: '#/botType'
+      type: string
+      enum:
+        - knowledge
+        - common
+        - agent
+      description: The type of bot
+      example: knowledge
     config:
       $ref: '#/botConfig'
     created:

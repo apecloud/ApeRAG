@@ -62,10 +62,11 @@ class BotService:
         )
     
     async def validate_collections(self, user: str, bot_config: view_models.BotConfig):
-        if bot_config and bot_config.agent and bot_config.agent.collections_ids:
-            collections = await self.db_ops.query_collections_by_ids(user, bot_config.agent.collections_ids)
-            if not collections or len(collections) != len(bot_config.agent.collections_ids):
-                raise ResourceNotFoundException("Collection", bot_config.agent.collections_ids)
+        if bot_config and bot_config.agent and bot_config.agent.collections:
+            collection_ids = [collection.id for collection in bot_config.agent.collections]
+            collections = await self.db_ops.query_collections_by_ids(user, collection_ids)
+            if not collections or len(collections) != len(collection_ids):
+                raise ResourceNotFoundException("Collection", collection_ids)
 
     async def create_bot(
         self, user: str, bot_in: view_models.BotCreate, skip_quota_check: bool = False
@@ -122,7 +123,7 @@ class BotService:
             raise ResourceNotFoundException("Bot", bot_id)
 
         # Serialize new config to JSON string
-        new_config_str = "{}"
+        new_config_str = None
         if bot_in.config:
             new_config_str = json.dumps(bot_in.config.model_dump(exclude_none=True))
             
@@ -143,17 +144,19 @@ class BotService:
                 raise ResourceNotFoundException("Bot", bot_id)
 
             # Use the new config directly
-            bot_to_update.title = bot_in.title
-            bot_to_update.description = bot_in.description
-            bot_to_update.type = bot_in.type
-            bot_to_update.config = new_config_str
+            if bot_in.title is not None:
+                bot_to_update.title = bot_in.title
+            if bot_in.description is not None:
+                bot_to_update.description = bot_in.description
+            if new_config_str is not None:
+                bot_to_update.config = new_config_str
             session.add(bot_to_update)
             await session.flush()
             await session.refresh(bot_to_update)
 
             return bot_to_update
 
-        updated_bot, _ = await self.db_ops.execute_with_transaction(_update_bot_atomically)
+        updated_bot = await self.db_ops.execute_with_transaction(_update_bot_atomically)
 
         return await self.build_bot_response(updated_bot)
 
