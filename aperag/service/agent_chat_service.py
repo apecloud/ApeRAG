@@ -100,6 +100,25 @@ class AgentChatService:
         self.memory_manager = AgentMemoryManager()
         self.history_manager = AgentHistoryManager()
 
+    async def _convert_db_collections_to_pydantic(self, db_collections) -> List[view_models.Collection]:
+        """Convert SQLAlchemy Collection models to Pydantic Collection models"""
+        from aperag.schema.utils import parseCollectionConfig
+
+        pydantic_collections = []
+        for db_collection in db_collections:
+            pydantic_collection = view_models.Collection(
+                id=db_collection.id,
+                title=db_collection.title,
+                description=db_collection.description,
+                type=db_collection.type,
+                status=getattr(db_collection, "status", None),
+                config=parseCollectionConfig(db_collection.config),
+                created=db_collection.gmt_created.isoformat(),
+                updated=db_collection.gmt_updated.isoformat(),
+            )
+            pydantic_collections.append(pydantic_collection)
+        return pydantic_collections
+
     def _parse_websocket_message(
         self, raw_data: str
     ) -> Tuple[Optional[view_models.AgentMessage], Optional[AgentErrorResponse]]:
@@ -174,7 +193,9 @@ class AgentChatService:
             # Get default collections once for performance
             if bot_config.agent.collections:
                 collection_ids = [collection.id for collection in bot_config.agent.collections]
-                default_collections = await self.db_ops.query_collections_by_ids(user, collection_ids)
+                db_collections = await self.db_ops.query_collections_by_ids(user, collection_ids)
+                # Convert SQLAlchemy models to Pydantic models
+                default_collections = await self._convert_db_collections_to_pydantic(db_collections)
 
         while True:
             # Receive message from WebSocket
