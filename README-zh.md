@@ -237,6 +237,10 @@ ApeRAG 中基于图的知识检索能力由深度修改的 [LightRAG](https://gi
 
 * [Discord](https://discord.gg/FsKpXukFuB)
 
+## Star History
+
+![star-history-202595.png](docs%2Fimages%2Fstar-history-202595.png)
+
 ## 许可证
 
 ApeRAG 采用 Apache License 2.0 许可。详情请参见 [LICENSE](./LICENSE) 文件。 

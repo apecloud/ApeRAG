@@ -240,6 +240,10 @@ We have extensively modified LightRAG to support production-grade concurrent pro
 
 * [Discord](https://discord.gg/FsKpXukFuB)
 
+## Star History
+
+![star-history-202595.png](docs%2Fimages%2Fstar-history-202595.png)
+
 ## License
 
 ApeRAG is licensed under the Apache License 2.0. See the [LICENSE](./LICENSE) file for details.
