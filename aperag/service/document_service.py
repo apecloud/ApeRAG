@@ -368,7 +368,12 @@ class DocumentService:
         )
 
     async def create_documents(
-        self, user: str, collection_id: str, files: List[UploadFile], custom_metadata: dict = None, ignore_duplicate: bool = False
+        self,
+        user: str,
+        collection_id: str,
+        files: List[UploadFile],
+        custom_metadata: dict = None,
+        ignore_duplicate: bool = False,
     ) -> view_models.DocumentList:
         if len(files) > 50:
             raise invalid_param("file_count", "documents are too many, add document failed")
@@ -487,14 +492,14 @@ class DocumentService:
 
             # Step 1: Build base document query for pagination (without indexes)
             base_query = select(db_models.Document).where(
-                    and_(
-                        db_models.Document.user == user,
-                        db_models.Document.collection_id == collection_id,
-                        db_models.Document.status != db_models.DocumentStatus.DELETED,
-                        db_models.Document.status != db_models.DocumentStatus.UPLOADED,
-                        db_models.Document.status != db_models.DocumentStatus.EXPIRED,
-                    )
+                and_(
+                    db_models.Document.user == user,
+                    db_models.Document.collection_id == collection_id,
+                    db_models.Document.status != db_models.DocumentStatus.DELETED,
+                    db_models.Document.status != db_models.DocumentStatus.UPLOADED,
+                    db_models.Document.status != db_models.DocumentStatus.EXPIRED,
                 )
+            )
 
             # Apply search filter
             if search:

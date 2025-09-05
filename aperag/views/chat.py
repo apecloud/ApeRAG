@@ -1,5 +1,22 @@
+# Copyright 2025 ApeCloud, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import json
 import logging
+
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile, WebSocket
+
 from aperag.db.models import User
 from aperag.exceptions import BusinessException
 from aperag.schema import view_models
@@ -11,14 +28,10 @@ from aperag.service.collection_service import collection_service
 from aperag.utils.audit_decorator import audit
 from aperag.views.auth import UserManager, authenticate_websocket_user, get_user_manager, optional_user, required_user
 
-
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile, WebSocket
-
-from aperag.views.bot import router
-
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["chats"])
+
 
 @router.post("/bots/{bot_id}/chats")
 @audit(resource_type="chat", api_name="CreateChat")

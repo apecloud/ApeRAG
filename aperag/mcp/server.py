@@ -73,6 +73,7 @@ async def search_collection(
     use_fulltext_index: bool = True,
     use_graph_index: bool = True,
     use_summary_index: bool = True,
+    use_vision_index: bool = True,
     rerank: bool = True,
     topk: int = 5,
     query_keywords: list[str] = None,
@@ -87,6 +88,7 @@ async def search_collection(
         use_fulltext_index: Whether to use full-text keyword search (default: True)
         use_graph_index: Whether to use knowledge graph search (default: True)
         use_summary_index: Whether to use summary search (default: True)
+        use_vision_index: Whether to use vision search (default: True)
         rerank: Whether to enable reranking of search results for better relevance (default: True)
         topk: Maximum number of results to return per search type (default: 5)
 
@@ -117,6 +119,7 @@ async def search_collection(
             fulltext_search: Optional[FulltextSearchParams] = None
             graph_search: Optional[GraphSearchParams] = None
             summary_search: Optional[SummarySearchParams] = None
+            vision_search: Optional[VisionSearchParams] = None
             items: Optional[list[SearchResultItem]] = None
             created: Optional[datetime] = Field(
                 None, description='The creation time of the search result'
@@ -164,6 +167,9 @@ async def search_collection(
 
         if use_summary_index:
             search_data["summary_search"] = {"topk": topk, "similarity": 0.2}
+
+        if use_vision_index:
+            search_data["vision_search"] = {"topk": topk, "similarity": 0.2}
 
         # Ensure at least one search type is enabled
         if not any([use_vector_index, use_fulltext_index, use_graph_index, use_summary_index]):

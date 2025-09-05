@@ -401,6 +401,26 @@ class CollectionService:
             merge_node_values["summary_search_docs"] = "{{ nodes.summary_search.output.docs }}"
             edges.append(Edge(source=node_id, target=merge_node_id))
 
+        if data.vision_search:
+            node_id = "vision_search"
+            input_values = {
+                "query": query,
+                "top_k": data.vision_search.topk if data.vision_search else 5,
+                "similarity_threshold": data.vision_search.similarity if data.vision_search else 0.2,
+                "collection_ids": [collection_id],
+            }
+            # Add chat_id for filtering if provided
+            if chat_id:
+                input_values["chat_id"] = chat_id
+
+            nodes[node_id] = NodeInstance(
+                id=node_id,
+                type="vision_search",
+                input_values=input_values,
+            )
+            merge_node_values["vision_search_docs"] = "{{ nodes.vision_search.output.docs }}"
+            edges.append(Edge(source=node_id, target=merge_node_id))
+
         nodes[merge_node_id] = NodeInstance(
             id=merge_node_id,
             type="merge",
@@ -508,6 +528,7 @@ class CollectionService:
                 fulltext_search=data.fulltext_search.model_dump() if data.fulltext_search else None,
                 graph_search=data.graph_search.model_dump() if data.graph_search else None,
                 summary_search=data.summary_search.model_dump() if data.summary_search else None,
+                vision_search=data.vision_search.model_dump() if data.vision_search else None,
                 items=[item.model_dump() for item in items],
             )
             return SearchResult(
@@ -517,6 +538,7 @@ class CollectionService:
                 fulltext_search=record.fulltext_search,
                 graph_search=record.graph_search,
                 summary_search=record.summary_search,
+                vision_search=record.vision_search,
                 items=items,
                 created=record.gmt_created.isoformat(),
             )
@@ -529,6 +551,7 @@ class CollectionService:
                 fulltext_search=data.fulltext_search,
                 graph_search=data.graph_search,
                 summary_search=data.summary_search,
+                vision_search=data.vision_search,
                 items=items,
                 created=None,  # No creation time since not saved
             )

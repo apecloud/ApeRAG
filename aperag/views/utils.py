@@ -14,12 +14,8 @@
 
 import logging
 import uuid
-from typing import Dict, Tuple
+from typing import Tuple
 
-from langchain_core.prompts import PromptTemplate
-from pydantic import ValidationError
-
-from aperag.db.models import BotType
 from aperag.schema.view_models import CollectionConfig
 from aperag.source.base import CustomSourceInitializationError, get_source
 from aperag.utils.utils import AVAILABLE_SOURCE

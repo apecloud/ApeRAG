@@ -50,7 +50,9 @@ class ChatDocumentService:
         }
 
         # Use document service to create document
-        documents = await document_service.create_documents(user_id, collection.id, [file], doc_metadata, ignore_duplicate=True)
+        documents = await document_service.create_documents(
+            user_id, collection.id, [file], doc_metadata, ignore_duplicate=True
+        )
 
         if not documents.items:
             raise HTTPException(status_code=500, detail="Failed to upload document")

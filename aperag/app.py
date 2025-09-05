@@ -41,9 +41,8 @@ from aperag.mcp import mcp_server
 from aperag.views.api_key import router as api_key_router
 from aperag.views.audit import router as audit_router
 from aperag.views.auth import router as auth_router
-from aperag.views.chat import router as chat_router
-from aperag.views.openai import router as openai_router
 from aperag.views.bot import router as bot_router
+from aperag.views.chat import router as chat_router
 from aperag.views.collections import router as collections_router
 from aperag.views.config import router as config_router
 from aperag.views.evaluation import router as evaluation_router
@@ -53,6 +52,7 @@ from aperag.views.llm import router as llm_router
 from aperag.views.main import router as main_router
 from aperag.views.marketplace import router as marketplace_router
 from aperag.views.marketplace_collections import router as marketplace_collections_router
+from aperag.views.openai import router as openai_router
 from aperag.views.settings import router as settings_router
 from aperag.views.web import router as web_router
 

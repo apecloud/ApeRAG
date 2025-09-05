@@ -28,6 +28,9 @@ import type { SummarySearchParams } from './summary-search-params';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { VectorSearchParams } from './vector-search-params';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { VisionSearchParams } from './vision-search-params';
 
 /**
  * 
@@ -71,6 +74,12 @@ export interface SearchResult {
      * @memberof SearchResult
      */
     'summary_search'?: SummarySearchParams;
+    /**
+     * 
+     * @type {VisionSearchParams}
+     * @memberof SearchResult
+     */
+    'vision_search'?: VisionSearchParams;
     /**
      * 
      * @type {Array<SearchResultItem>}

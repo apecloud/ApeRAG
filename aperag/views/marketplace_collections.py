@@ -25,7 +25,7 @@ from aperag.exceptions import (
 from aperag.schema import view_models
 from aperag.service.document_service import document_service
 from aperag.service.marketplace_collection_service import marketplace_collection_service
-from aperag.views.auth import required_user, optional_user
+from aperag.views.auth import optional_user
 
 logger = logging.getLogger(__name__)
 

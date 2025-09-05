@@ -131,4 +131,3 @@ class AsyncBotRepositoryMixin(AsyncRepositoryProtocol):
             return instance
 
         return await self.execute_with_transaction(_operation)
-

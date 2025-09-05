@@ -13,16 +13,14 @@
 # limitations under the License.
 
 import json
-from typing import List, Optional
+from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aperag.db import models as db_models
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.exceptions import (
-    CollectionInactiveException,
     ResourceNotFoundException,
-    invalid_param,
 )
 from aperag.schema import view_models
 from aperag.schema.view_models import Bot, BotList
@@ -46,7 +44,7 @@ class BotService:
         if bot.config:
             config_dict = json.loads(bot.config)
             bot_config = view_models.BotConfig(**config_dict)
-        
+
         return Bot(
             id=bot.id,
             title=bot.title,
@@ -56,7 +54,7 @@ class BotService:
             created=bot.gmt_created.isoformat(),
             updated=bot.gmt_updated.isoformat(),
         )
-    
+
     async def validate_collections(self, user: str, bot_config: view_models.BotConfig):
         if bot_config and bot_config.agent and bot_config.agent.collections:
             collection_ids = [collection.id for collection in bot_config.agent.collections]
@@ -74,7 +72,7 @@ class BotService:
             # Check and consume quota within the transaction (unless skipped for system bots)
             if not skip_quota_check:
                 await quota_service.check_and_consume_quota(user, "max_bot_count", 1, session)
-            
+
             await self.validate_collections(user, bot_in.config)
 
             # Create bot in database directly using session
@@ -122,13 +120,14 @@ class BotService:
         new_config_str = None
         if bot_in.config:
             new_config_str = json.dumps(bot_in.config.model_dump(exclude_none=True))
-            
+
         # Get collection IDs from bot config for validation
         await self.validate_collections(user, bot_in.config)
 
         # Update bot atomically in a single transaction
         async def _update_bot_atomically(session):
             from sqlalchemy import select
+
             from aperag.db.models import Bot, BotStatus
 
             # Update bot
@@ -169,6 +168,7 @@ class BotService:
         # Delete bot atomically in a single transaction
         async def _delete_bot_atomically(session):
             from sqlalchemy import select
+
             from aperag.db.models import Bot, BotStatus, utc_now
 
             # Get and delete bot

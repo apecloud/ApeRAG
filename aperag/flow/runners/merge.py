@@ -34,6 +34,9 @@ class MergeInput(BaseModel):
     summary_search_docs: Optional[List[DocumentWithScore]] = Field(
         default_factory=list, description="Summary search docs"
     )
+    vision_search_docs: Optional[List[DocumentWithScore]] = Field(
+        default_factory=list, description="Vision search docs"
+    )
 
 
 class MergeOutput(BaseModel):
@@ -55,13 +58,14 @@ class MergeNodeRunner(BaseNodeRunner):
         docs_b: List[DocumentWithScore] = ui.fulltext_search_docs or []
         docs_c: List[DocumentWithScore] = ui.graph_search_docs or []
         docs_d: List[DocumentWithScore] = ui.summary_search_docs or []
+        docs_e: List[DocumentWithScore] = ui.vision_search_docs or []
         merge_strategy: str = ui.merge_strategy
         deduplicate: bool = ui.deduplicate
 
         if merge_strategy not in ["union"]:
             raise ValidationError(f"Unknown merge strategy: {merge_strategy}")
 
-        all_docs = docs_a + docs_b + docs_c + docs_d
+        all_docs = docs_a + docs_b + docs_c + docs_d + docs_e
         if deduplicate:
             seen = set()
             unique_docs = []

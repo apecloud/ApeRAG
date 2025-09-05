@@ -178,6 +178,7 @@ export * from './user-quota-info';
 export * from './user-quota-list';
 export * from './vector-search-params';
 export * from './vision-chunk';
+export * from './vision-search-params';
 export * from './web-read-request';
 export * from './web-read-response';
 export * from './web-read-result-item';

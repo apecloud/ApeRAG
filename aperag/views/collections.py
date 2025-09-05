@@ -131,7 +131,6 @@ async def get_collection_sharing_status(
 ) -> view_models.SharingStatusResponse:
     """Get collection sharing status (owner only)"""
     from aperag.exceptions import CollectionNotFoundException, PermissionDeniedError
-    from aperag.service.marketplace_service import marketplace_service
 
     try:
         is_published, published_at = await marketplace_service.get_sharing_status(user.id, collection_id)
@@ -152,7 +151,6 @@ async def publish_collection_to_marketplace(
 ):
     """Publish collection to marketplace (owner only)"""
     from aperag.exceptions import CollectionNotFoundException, PermissionDeniedError
-    from aperag.service.marketplace_service import marketplace_service
 
     try:
         await marketplace_service.publish_collection(user.id, collection_id)
@@ -173,7 +171,6 @@ async def unpublish_collection_from_marketplace(
 ):
     """Unpublish collection from marketplace (owner only)"""
     from aperag.exceptions import CollectionNotFoundException, PermissionDeniedError
-    from aperag.service.marketplace_service import marketplace_service
 
     try:
         await marketplace_service.unpublish_collection(user.id, collection_id)

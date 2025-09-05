@@ -30,6 +30,7 @@ class AsyncSearchRepositoryMixin(AsyncRepositoryProtocol):
         fulltext_search: dict = None,
         graph_search: dict = None,
         summary_search: dict = None,
+        vision_search: dict = None,
         items: List[dict] = None,
     ) -> SearchHistory:
         async def _operation(session):
@@ -41,6 +42,7 @@ class AsyncSearchRepositoryMixin(AsyncRepositoryProtocol):
                 fulltext_search=fulltext_search,
                 graph_search=graph_search,
                 summary_search=summary_search,
+                vision_search=vision_search,
                 items=items,
             )
             session.add(instance)

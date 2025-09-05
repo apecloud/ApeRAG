@@ -17,7 +17,6 @@ import json
 import logging
 import time
 from typing import Any, List
-from urllib.parse import quote_plus
 
 from llama_index.core.schema import TextNode
 from sqlalchemy import and_, select
@@ -98,44 +97,42 @@ class VisionIndexer(BaseIndexer):
         all_ctx_ids = []
 
         # Path A: Pure Vision Embedding
-        try:
-            nodes: List[TextNode] = []
-            image_uris = []
-            for part in image_parts:
-                b64_image = base64.b64encode(part.data).decode("utf-8")
-                mime_type = part.mime_type or "image/png"
-                data_uri = f"data:{mime_type};base64,{b64_image}"
-                image_uris.append(data_uri)
-                metadata = part.metadata.copy()
-                metadata["collection_id"] = collection.id
-                metadata["document_id"] = document_id
-                metadata["source"] = metadata.get("name", "")
-                metadata["asset_id"] = part.asset_id
-                metadata["mimetype"] = mime_type
-                metadata["indexer"] = "vision"
-                metadata["index_method"] = "multimodal_embedding"
-                asset_url = f"asset://{part.asset_id}"
-                if part.mime_type:
-                    asset_url += f"?mime_type={quote_plus(part.mime_type)}"
-                nodes.append(TextNode(text="", metadata=metadata))
+        if embedding_svc.is_multimodal():
+            try:
+                nodes: List[TextNode] = []
+                image_uris = []
+                for part in image_parts:
+                    b64_image = base64.b64encode(part.data).decode("utf-8")
+                    mime_type = part.mime_type or "image/png"
+                    data_uri = f"data:{mime_type};base64,{b64_image}"
+                    image_uris.append(data_uri)
+                    metadata = part.metadata.copy()
+                    metadata["collection_id"] = collection.id
+                    metadata["document_id"] = document_id
+                    metadata["source"] = metadata.get("name", "")
+                    metadata["asset_id"] = part.asset_id
+                    metadata["mimetype"] = mime_type
+                    metadata["indexer"] = "vision"
+                    metadata["index_method"] = "multimodal_embedding"
+                    nodes.append(TextNode(text="", metadata=metadata))
 
-            vectors = embedding_svc.embed_documents(image_uris)
-            for i, node in enumerate(nodes):
-                node.embedding = vectors[i]
+                vectors = embedding_svc.embed_documents(image_uris)
+                for i, node in enumerate(nodes):
+                    node.embedding = vectors[i]
 
-            ctx_ids = vector_store_adaptor.connector.store.add(nodes)
-            all_ctx_ids.extend(ctx_ids)
-            logger.info(f"Created {len(ctx_ids)} direct vision vectors for document {document_id}")
-        except Exception as e:
-            logger.error(f"Failed to create pure vision embedding for document {document_id}: {e}", exc_info=True)
-            return IndexResult(
-                success=False,
-                index_type=self.index_type,
-                metadata={
-                    "message": f"Failed to create pure vision embedding for document {document_id}: {e}",
-                    "status": "failed",
-                },
-            )
+                ctx_ids = vector_store_adaptor.connector.store.add(nodes)
+                all_ctx_ids.extend(ctx_ids)
+                logger.info(f"Created {len(ctx_ids)} direct vision vectors for document {document_id}")
+            except Exception as e:
+                logger.error(f"Failed to create pure vision embedding for document {document_id}: {e}", exc_info=True)
+                return IndexResult(
+                    success=False,
+                    index_type=self.index_type,
+                    metadata={
+                        "message": f"Failed to create pure vision embedding for document {document_id}: {e}",
+                        "status": "failed",
+                    },
+                )
 
         # Path B: Vision-to-Text
         if completion_svc and completion_svc.is_vision_model():

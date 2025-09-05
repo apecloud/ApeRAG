@@ -344,7 +344,6 @@ class Document(Base):
 
     def get_document_indexes(self, session):
         """Get document indexes from the merged table"""
-        from sqlalchemy import select
 
         stmt = select(DocumentIndex).where(DocumentIndex.document_id == self.id)
         result = session.execute(stmt)
@@ -697,6 +696,7 @@ class SearchHistory(Base):
     fulltext_search = Column(JSON, default=lambda: {}, nullable=True)
     graph_search = Column(JSON, default=lambda: {}, nullable=True)
     summary_search = Column(JSON, default=lambda: {}, nullable=True)
+    vision_search = Column(JSON, default=lambda: {}, nullable=True)
     items = Column(JSON, default=lambda: [], nullable=True)
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Add index for soft delete queries

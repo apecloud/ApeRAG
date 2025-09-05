@@ -25,6 +25,9 @@ import type { SummarySearchParams } from './summary-search-params';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { VectorSearchParams } from './vector-search-params';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { VisionSearchParams } from './vision-search-params';
 
 /**
  * Search request
@@ -62,6 +65,12 @@ export interface SearchRequest {
      * @memberof SearchRequest
      */
     'summary_search'?: SummarySearchParams;
+    /**
+     * 
+     * @type {VisionSearchParams}
+     * @memberof SearchRequest
+     */
+    'vision_search'?: VisionSearchParams;
     /**
      * Whether to save search result to database history
      * @type {boolean}
