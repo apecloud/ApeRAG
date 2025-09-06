@@ -21,7 +21,6 @@ type BotContextProps = {
   mention: boolean;
   collections: Collection[];
   providerModels: ProviderModels;
-  botReload?: () => void;
   chatDelete?: (chat: Chat) => void;
   chatCreate?: () => void;
   chatsReload?: () => void;
@@ -91,16 +90,6 @@ export const BotProvider = ({
       setBot(createRes.data);
     }
   }, []);
-
-  const botReload = useCallback(async () => {
-    if (!bot?.id) return;
-    const botRes = await apiClient.defaultApi.botsBotIdGet({
-      botId: bot.id,
-    });
-    if (botRes.data.id) {
-      setBot(botRes.data);
-    }
-  }, [bot?.id]);
 
   const chatsReload = useCallback(async () => {
     if (!bot?.id) return;
@@ -208,7 +197,6 @@ export const BotProvider = ({
         chats,
         collections,
         providerModels,
-        botReload,
         chatDelete,
         chatCreate,
         chatsReload,

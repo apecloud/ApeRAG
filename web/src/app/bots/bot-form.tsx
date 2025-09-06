@@ -58,14 +58,12 @@ const botSchema = z.object({
       }),
       system_prompt_template: z.string(),
       query_prompt_template: z.string(),
-      collections: z
-        .array(
-          z.object({
-            id: z.string(),
-            title: z.string(),
-          }),
-        )
-        .min(1),
+      collections: z.array(
+        z.object({
+          id: z.string(),
+          title: z.string(),
+        }),
+      ),
     }),
   }),
 });
@@ -79,11 +77,9 @@ type ProviderModel = {
 export const BotForm = ({
   bot,
   action,
-  onUpdateSuccess,
 }: {
   bot?: Bot;
   action: 'add' | 'edit';
-  onUpdateSuccess?: (bot: Bot) => void;
 }) => {
   const router = useRouter();
   const common_action = useTranslations('common.action');
@@ -215,12 +211,11 @@ export const BotForm = ({
         const id = res.data.id;
         if (id) {
           toast.success(common_tips('save_success'));
-          // @ts-expect-error openapi define error
-          onUpdateSuccess(res.data);
+          router.refresh();
         }
       }
     },
-    [action, bot?.id, common_tips, onUpdateSuccess, router],
+    [action, bot?.id, common_tips, router],
   );
 
   return (

@@ -44,8 +44,6 @@ export default async function ChatLayout({
     chats = chatsRes.data.items || [];
   }
 
-  console.log(bot);
-
   return (
     <BotProvider
       mention={false}
