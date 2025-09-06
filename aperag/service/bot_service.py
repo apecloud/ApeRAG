@@ -47,10 +47,6 @@ class BotService:
             config_dict = json.loads(bot.config)
             bot_config = view_models.BotConfig(**config_dict)
         
-        if bot_config and bot_config.agent and bot_config.agent.collections:
-            collection_ids = [collection.id for collection in bot_config.agent.collections]
-            bot_config.agent.collections = await self.db_ops.query_collections_by_ids(bot.user, collection_ids)
-        
         return Bot(
             id=bot.id,
             title=bot.title,
