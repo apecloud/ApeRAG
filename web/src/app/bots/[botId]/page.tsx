@@ -6,10 +6,12 @@ import {
 } from '@/components/page-container';
 import { Button } from '@/components/ui/button';
 import { getServerApi } from '@/lib/api/server';
+import { getDefaultPrompt } from '@/lib/prompt-template';
 import { getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { BotForm } from '../bot-form';
 import { BotDelete } from './bot-delete';
+
 export default async function Page({
   params,
 }: Readonly<{
@@ -24,6 +26,8 @@ export default async function Page({
   });
 
   const bot = botRes.data;
+
+  const defaultPrompt = await getDefaultPrompt();
 
   if (!bot) {
     notFound();
@@ -50,7 +54,7 @@ export default async function Page({
             </Button>
           </BotDelete>
         </div>
-        <BotForm bot={bot} action="edit" />
+        <BotForm bot={bot} action="edit" defaultPrompt={defaultPrompt} />
       </PageContent>
     </PageContainer>
   );

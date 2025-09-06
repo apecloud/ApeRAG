@@ -33,5 +33,7 @@
 
   "query_prompt_template": "Query Prompt Template",
   "query_prompt_template_placeholder": "Query Prompt Template",
-  "query_prompt_template_description": "Query Prompt represents the user's specific input or question, which the AI processes and responds to within the framework set by the System Prompt."
+  "query_prompt_template_description": "Query Prompt represents the user's specific input or question, which the AI processes and responds to within the framework set by the System Prompt.",
+
+  "restore_to_default": "Restore to default"
 }

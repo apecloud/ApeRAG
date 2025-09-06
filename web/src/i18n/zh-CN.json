@@ -132,7 +132,8 @@
     "system_prompt_template_description": "用于定义AI的角色和行为规则，为对话设定整体框架和上下文。",
     "query_prompt_template": "查询提示模板",
     "query_prompt_template_placeholder": "查询提示模板",
-    "query_prompt_template_description": "是用户输入的具体问题或指令，AI会基于系统提示的约束对其进行处理和响应。"
+    "query_prompt_template_description": "是用户输入的具体问题或指令，AI会基于系统提示的约束对其进行处理和响应。",
+    "restore_to_default": "设置为默认模版"
   },
   "page_chat": {
     "metadata": {

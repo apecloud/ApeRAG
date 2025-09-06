@@ -32,6 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { apiClient } from '@/lib/api/client';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -77,9 +78,14 @@ type ProviderModel = {
 export const BotForm = ({
   bot,
   action,
+  defaultPrompt,
 }: {
   bot?: Bot;
   action: 'add' | 'edit';
+  defaultPrompt: {
+    query: string;
+    system: string;
+  };
 }) => {
   const router = useRouter();
   const common_action = useTranslations('common.action');
@@ -102,9 +108,13 @@ export const BotForm = ({
               bot?.config?.agent?.completion?.custom_llm_provider || '',
           },
           system_prompt_template:
-            bot?.config?.agent?.system_prompt_template || '',
+            bot?.config?.agent?.system_prompt_template ||
+            defaultPrompt.query ||
+            '',
           query_prompt_template:
-            bot?.config?.agent?.query_prompt_template || '',
+            bot?.config?.agent?.query_prompt_template ||
+            defaultPrompt.system ||
+            '',
           collections: bot?.config?.agent?.collections || [],
         },
       },
@@ -187,6 +197,11 @@ export const BotForm = ({
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  const restoreToDefaultPrompt = useCallback(() => {
+    form.setValue('config.agent.query_prompt_template', defaultPrompt.query);
+    form.setValue('config.agent.system_prompt_template', defaultPrompt.system);
+  }, [defaultPrompt.query, defaultPrompt.system, form]);
 
   const handleCreateOrUpdate = useCallback(
     async (values: z.infer<typeof botSchema>) => {
@@ -380,49 +395,70 @@ export const BotForm = ({
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="config.agent.system_prompt_template"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{page_bot('system_prompt_template')}</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      className="h-35"
-                      placeholder={page_bot(
-                        'system_prompt_template_placeholder',
-                      )}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    {page_bot('system_prompt_template_description')}
-                  </FormDescription>
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="config.agent.query_prompt_template"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{page_bot('query_prompt_template')}</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      className="h-35"
-                      placeholder={page_bot(
-                        'query_prompt_template_placeholder',
-                      )}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    {page_bot('query_prompt_template_description')}
-                  </FormDescription>
-                </FormItem>
-              )}
-            />
+            <Tabs defaultValue="system">
+              <div className="flex">
+                <TabsList>
+                  <TabsTrigger value="system">
+                    {page_bot('system_prompt_template')}
+                  </TabsTrigger>
+                  <TabsTrigger value="query">
+                    {page_bot('query_prompt_template')}
+                  </TabsTrigger>
+                </TabsList>
+                <Button
+                  onClick={restoreToDefaultPrompt}
+                  className="ml-auto cursor-pointer"
+                  variant="secondary"
+                  type="button"
+                >
+                  {page_bot('restore_to_default')}
+                </Button>
+              </div>
+              <TabsContent value="system">
+                <FormField
+                  control={form.control}
+                  name="config.agent.system_prompt_template"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormDescription>
+                        {page_bot('system_prompt_template_description')}
+                      </FormDescription>
+                      <FormControl>
+                        <Textarea
+                          className="h-100"
+                          placeholder={page_bot(
+                            'system_prompt_template_placeholder',
+                          )}
+                          {...field}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </TabsContent>
+              <TabsContent value="query">
+                <FormField
+                  control={form.control}
+                  name="config.agent.query_prompt_template"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormDescription>
+                        {page_bot('query_prompt_template_description')}
+                      </FormDescription>
+                      <FormControl>
+                        <Textarea
+                          className="h-100"
+                          placeholder={page_bot(
+                            'query_prompt_template_placeholder',
+                          )}
+                          {...field}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
 
