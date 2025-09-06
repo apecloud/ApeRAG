@@ -224,12 +224,29 @@ APERAG_AGENT_INSTRUCTION_ZH = """
 """
 
 # Default Agent Query Prompt Templates - English Version
-DEFAULT_AGENT_QUERY_PROMPT_EN = """**User Query**: {{ query }}
+DEFAULT_AGENT_QUERY_PROMPT_EN = """{% set collection_list = [] %}
+{% if collections %}
+{% for c in collections %}
+{% set title = c.title or "Collection " + c.id %}
+{% set _ = collection_list.append("- " + title + " (ID: " + c.id + ")") %}
+{% endfor %}
+{% set collection_context = collection_list | join("\n") %}
+{% set collection_instruction = "PRIORITY: Search these user-specified collections first" %}
+{% else %}
+{% set collection_context = "None specified by user" %}
+{% set collection_instruction = "discover and select relevant collections automatically" %}
+{% endif %}
+{% set web_status = "enabled" if web_search_enabled else "disabled" %}
+{% set web_instruction = "Use web search strategically for current information, verification, or gap-filling" if web_search_enabled else "Rely entirely on knowledge collections; inform user if web search would be helpful" %}
+{% set chat_context = "Chat ID: " + chat_id if chat_id else "No chat files" %}
+{% set chat_instruction = "Use search_chat_files tool to search files uploaded in this chat" if chat_id else "" %}
+
+**User Query**: {{ query }}
 
 **Session Context**:
-- **User-Specified Collections**: {% if collections %}{% for collection in collections %}{{ collection.title or "Collection " + collection.id }}{% if not loop.last %}, {% endif %}{% endfor %} (PRIORITY: Search these user-specified collections first){% else %}None specified by user (discover and select relevant collections automatically){% endif %}
-- **Web Search**: {% if web_search_enabled %}enabled (Use web search strategically for current information, verification, or gap-filling){% else %}disabled (Rely entirely on knowledge collections; inform user if web search would be helpful){% endif %}
-- **Chat Files**: {% if chat_id %}Chat ID: {{ chat_id }} (Use search_chat_files tool to search files uploaded in this chat){% else %}No chat files{% endif %}
+- **User-Specified Collections**: {{ collection_context }} ({{ collection_instruction }})
+- **Web Search**: {{ web_status }} ({{ web_instruction }})
+- **Chat Files**: {{ chat_context }} {% if chat_instruction %}({{ chat_instruction }}){% endif %}
 
 **Research Instructions**:
 1. LANGUAGE PRIORITY: Respond in the language the user is asking in, not the language of the content
@@ -245,12 +262,29 @@ DEFAULT_AGENT_QUERY_PROMPT_EN = """**User Query**: {{ query }}
 Please provide a thorough, well-researched answer that leverages all appropriate search tools based on the context above."""
 
 # Default Agent Query Prompt Templates - Chinese Version
-DEFAULT_AGENT_QUERY_PROMPT_ZH = """**用户查询**: {{ query }}
+DEFAULT_AGENT_QUERY_PROMPT_ZH = """{% set collection_list = [] %}
+{% if collections %}
+{% for c in collections %}
+{% set title = c.title or "知识库" + c.id %}
+{% set _ = collection_list.append("- " + title + " (ID: " + c.id + ")") %}
+{% endfor %}
+{% set collection_context = collection_list | join("\n") %}
+{% set collection_instruction = "优先级：首先搜索这些用户指定的知识库" %}
+{% else %}
+{% set collection_context = "用户未指定" %}
+{% set collection_instruction = "自动发现并选择相关的知识库" %}
+{% endif %}
+{% set web_status = "已启用" if web_search_enabled else "已禁用" %}
+{% set web_instruction = "战略性地使用网络搜索获取当前信息、验证或填补空白" if web_search_enabled else "完全依赖知识库；如果网络搜索有帮助请告知用户" %}
+{% set chat_context = "聊天ID: " + chat_id if chat_id else "无" %}
+{% set chat_instruction = "可使用 search_chat_files 工具搜索此聊天中上传的文件" if chat_id else "" %}
+
+**用户查询**: {{ query }}
 
 **会话上下文**:
-- **用户指定的知识库**: {% if collections %}{% for collection in collections %}{{ collection.title or "知识库" + collection.id }}{% if not loop.last %}, {% endif %}{% endfor %} (优先级：首先搜索这些用户指定的知识库){% else %}用户未指定 (自动发现并选择相关的知识库){% endif %}
-- **网络搜索**: {% if web_search_enabled %}已启用 (战略性地使用网络搜索获取当前信息、验证或填补空白){% else %}已禁用 (完全依赖知识库；如果网络搜索有帮助请告知用户){% endif %}
-- **聊天文件**: {% if chat_id %}聊天ID: {{ chat_id }} (可使用 search_chat_files 工具搜索此聊天中上传的文件){% else %}无{% endif %}
+- **用户指定的知识库**: {{ collection_context }} ({{ collection_instruction }})
+- **网络搜索**: {{ web_status }} ({{ web_instruction }})
+- **聊天文件**: {{ chat_context }} {% if chat_instruction %}({{ chat_instruction }}){% endif %}
 
 **研究指导**:
 1. 语言优先级: 使用用户提问的语言回应，而不是内容的语言
@@ -335,11 +369,13 @@ def build_agent_query_prompt(
     Build a comprehensive prompt for LLM using Jinja2 template rendering.
     Supports both default templates and custom user-defined templates.
 
+    The template internally builds context variables (collection_context, web_status, etc.)
+    from the basic input variables, maintaining the original prompt construction logic.
+
     Args:
         chat_id: The chat ID for context
         agent_message: The agent message containing query and configuration
         user: The user identifier
-        language: Language code ("en-US" for English, "zh-CN" for Chinese)
         custom_template: Optional custom Jinja2 template string. If None, uses default template.
 
     Returns:
