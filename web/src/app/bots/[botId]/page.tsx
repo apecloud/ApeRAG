@@ -15,7 +15,6 @@ import { BotDelete } from './bot-delete';
 export default async function Page({
   params,
 }: Readonly<{
-  children: React.ReactNode;
   params: Promise<{ botId: string }>;
 }>) {
   const { botId } = await params;
