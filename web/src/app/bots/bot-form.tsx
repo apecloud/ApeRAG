@@ -109,11 +109,11 @@ export const BotForm = ({
           },
           system_prompt_template:
             bot?.config?.agent?.system_prompt_template ||
-            defaultPrompt.query ||
+            defaultPrompt.system ||
             '',
           query_prompt_template:
             bot?.config?.agent?.query_prompt_template ||
-            defaultPrompt.system ||
+            defaultPrompt.query ||
             '',
           collections: bot?.config?.agent?.collections || [],
         },
