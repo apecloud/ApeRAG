@@ -236,6 +236,8 @@ ApeRAG 中基于图的知识检索能力由深度修改的 [LightRAG](https://gi
 ## 社区
 
 * [Discord](https://discord.gg/FsKpXukFuB)
+* [Feishu]
+![feishu-qr-code.png](docs%2Fimages%2Ffeishu-qr-code.png)
 
 ## Star History
 

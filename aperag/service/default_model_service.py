@@ -60,7 +60,10 @@ class DefaultModelService:
             if selected_model:
                 default_configs.append(
                     view_models.DefaultModelConfig(
-                        scenario=scenario, provider_name=selected_model.provider_name, model=selected_model.model, custom_llm_provider=selected_model.custom_llm_provider
+                        scenario=scenario,
+                        provider_name=selected_model.provider_name,
+                        model=selected_model.model,
+                        custom_llm_provider=selected_model.custom_llm_provider,
                     )
                 )
             else:
