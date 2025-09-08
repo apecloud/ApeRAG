@@ -241,7 +241,7 @@ We have extensively modified LightRAG to support production-grade concurrent pro
 * [Discord](https://discord.gg/FsKpXukFuB)
 * [Feishu](docs%2Fimages%2Ffeishu-qr-code.png)
 
-<img src="docs/images/feishu-qr-code.png" alt="Feishu" width="100"/>
+<img src="docs/images/feishu-qr-code.png" alt="Feishu" width="150"/>
 
 ## Star History
 
