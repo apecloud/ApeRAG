@@ -60,7 +60,7 @@ class DefaultModelService:
             if selected_model:
                 default_configs.append(
                     view_models.DefaultModelConfig(
-                        scenario=scenario, provider_name=selected_model.provider_name, model=selected_model.model
+                        scenario=scenario, provider_name=selected_model.provider_name, model=selected_model.model, custom_llm_provider=selected_model.custom_llm_provider
                     )
                 )
             else:
@@ -97,7 +97,7 @@ class DefaultModelService:
         for config in default_models.items:
             if config.scenario == "default_for_background_task":
                 if config.provider_name and config.model:
-                    return (config.model, config.provider_name, config.provider_name)
+                    return (config.model, config.provider_name, config.custom_llm_provider)
                 else:
                     return (None, None, None)
         return (None, None, None)

@@ -439,6 +439,8 @@ defaultModelConfig:
         - default_for_background_task
       description: The scenario for which this default model is configured
       example: "default_for_embedding"
+    custom_llm_provider:
+      type: string
     provider_name:
       type: string
       nullable: true
