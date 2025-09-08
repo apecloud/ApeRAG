@@ -239,7 +239,7 @@ We have extensively modified LightRAG to support production-grade concurrent pro
 ## Community
 
 * [Discord](https://discord.gg/FsKpXukFuB)
-* [Feishu]
+* [Feishu](docs%2Fimages%2Ffeishu-qr-code.png)
 
 ![feishu-qr-code.png](docs%2Fimages%2Ffeishu-qr-code.png)
 
