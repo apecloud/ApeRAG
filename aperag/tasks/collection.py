@@ -405,16 +405,16 @@ class CollectionTask:
                 )
             
             # Handle deleted objects (objects that exist in DB but not in storage)
-            storage_object_names = {doc.name for doc in remote_documents}
-            documents_to_delete = []
-            for doc_name, doc in existing_doc_map.items():
-                if doc_name not in storage_object_names:
-                    documents_to_delete.append(doc.id)
+            # storage_object_names = {doc.name for doc in remote_documents}
+            # documents_to_delete = []
+            # for doc_name, doc in existing_doc_map.items():
+            #     if doc_name not in storage_object_names:
+            #         documents_to_delete.append(doc.id)
             
-            if documents_to_delete:
-                stats["deleted_documents"] = self._delete_documents(
-                    collection, documents_to_delete, stats
-                )
+            # if documents_to_delete:
+            #     stats["deleted_documents"] = self._delete_documents(
+            #         collection, documents_to_delete, stats
+            #     )
             
             # Close source connection
             source.close()
