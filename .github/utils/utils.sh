@@ -481,7 +481,7 @@ get_trigger_mode() {
             Dockerfile*)
                 add_trigger_mode "[docker]"
             ;;
-            frontend/*)
+            web/*)
                 add_trigger_mode "[frontend]"
             ;;
             deploy/*)
