@@ -749,7 +749,7 @@ class DocumentService:
                     await document_index_manager.create_or_update_document_indexes(session, document_id, rebuild_types)
                     affected_documents += 1
                     logger.info(
-                        f"Triggered rebuild for document {document_id} indexes: {[t.value for t in rebuild_types]}"
+                        f"Triggered rebuild for document {document_id} indexes: {[t for t in rebuild_types]}"
                     )
 
             return {

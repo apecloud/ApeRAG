@@ -60,7 +60,7 @@ class DocumentIndexManager:
                 # Update existing index to pending and increment version
                 existing_index.status = DocumentIndexStatus.PENDING
                 existing_index.update_version()
-                logger.debug(f"Updated index for {document_id}:{index_type.value} to version {existing_index.version}")
+                logger.debug(f"Updated index for {document_id}:{index_type} to version {existing_index.version}")
             else:
                 # Create new index
                 doc_index = DocumentIndex(
