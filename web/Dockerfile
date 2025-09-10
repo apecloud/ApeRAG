@@ -3,9 +3,7 @@ FROM apecloud-registry.cn-zhangjiakou.cr.aliyuncs.com/apecloud/node:20.18.0-alpi
 
 WORKDIR /app
 
-COPY ./.next/standalone ./
-COPY ./.next/static ./.next/static
-COPY ./public ./public
+COPY ./build ./
 
 RUN yarn global add pm2
 
