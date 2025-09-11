@@ -39,6 +39,7 @@
     "agent": "会话",
     "collection": "知识库",
     "api_type": "API类型",
+    "creation_time": "创建时间",
     "edit": "编辑",
     "edit_model": "模型设置",
     "delete": "删除",

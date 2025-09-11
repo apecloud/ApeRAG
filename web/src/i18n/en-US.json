@@ -374,6 +374,7 @@
       "agent": "Agent",
       "collection": "Collection",
       "api_type": "API Type",
+      "creation_time": "Creation Time",
       "edit": "Edit",
       "edit_model": "Edit Model",
       "delete": "Delete",
