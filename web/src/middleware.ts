@@ -19,5 +19,5 @@ export default stackMiddlewares([withApiProxy]);
 
 // Routes Middleware should not run on
 export const config = {
-  matcher: ['/((?!static|.*\\..*|_next|favicon.ico|robots.txt).*)'],
+  matcher: ['/((?!static|_next|favicon.ico|robots.txt).*)'],
 };
