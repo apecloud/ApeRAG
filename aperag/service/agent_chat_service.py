@@ -627,7 +627,14 @@ class AgentChatService:
                 return tool_calls
 
             process_task = asyncio.create_task(
-                self.process_agent_message(agent_message, user_id, chat_id, message_id, message_queue)
+                self.process_agent_message(
+                    agent_message,
+                    user_id,
+                    None,  # The 'bot' parameter is unused in the target function, so we pass None for now.
+                    chat_id,
+                    message_id,
+                    message_queue,
+                )
             )
             consumer_task = asyncio.create_task(consume_and_collect())
 
