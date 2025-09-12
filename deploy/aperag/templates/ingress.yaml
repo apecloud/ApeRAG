@@ -23,12 +23,12 @@ spec:
             port:
               number: 8000
       - pathType: Prefix
-        path: "/web"
+        path: "/mcp"
         backend:
           service:
-            name: aperag-frontend
+            name: aperag
             port:
-              number: 3000
+              number: 8000
       - pathType: Prefix
         path: "/"
         backend:
