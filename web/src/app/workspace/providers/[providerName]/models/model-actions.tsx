@@ -16,6 +16,12 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   Form,
   FormControl,
   FormField,
@@ -26,16 +32,10 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { apiClient } from '@/lib/api/client';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Slot } from '@radix-ui/react-slot';
+import { ChevronDown } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
@@ -48,6 +48,45 @@ const defaultValue = {
   model: '',
   api: LlmProviderModelCreateApiEnum.completion,
 };
+
+const providers = [
+  {
+    label: 'AlibabaCloud',
+    value: 'alibabacloud',
+  },
+  {
+    label: 'Anthropic',
+    value: 'anthropic',
+  },
+  {
+    label: 'DeepSeek',
+    value: 'deepseek',
+  },
+  {
+    label: 'Google Gemini',
+    value: 'gemini',
+  },
+  {
+    label: 'Jina AI',
+    value: 'jina',
+  },
+  {
+    label: 'OpenAI',
+    value: 'openai',
+  },
+  {
+    label: 'OpenRouter',
+    value: 'openrouter',
+  },
+  {
+    label: 'SiliconFlow',
+    value: 'siliconflow',
+  },
+  {
+    label: 'xAI',
+    value: 'xai',
+  },
+];
 
 const modelSchema = z.object({
   model: z.string().min(1),
@@ -295,36 +334,42 @@ export const ModelActions = ({
                     <FormLabel>
                       {page_models('model.custom_llm_provider')}
                     </FormLabel>
-                    <FormControl>
-                      <Select
-                        {...field}
-                        onValueChange={field.onChange}
-                        value={field.value || ''}
-                      >
-                        <SelectTrigger className="w-full cursor-pointer">
-                          <SelectValue
-                            placeholder={page_models(
-                              'model.custom_llm_provider_placeholder',
-                            )}
-                          />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="alibabacloud">
-                            AlibabaCloud
-                          </SelectItem>
-                          <SelectItem value="anthropic">Anthropic</SelectItem>
-                          <SelectItem value="deepseek">DeepSeek</SelectItem>
-                          <SelectItem value="gemini">Google Gemini</SelectItem>
-                          <SelectItem value="jina">Jina AI</SelectItem>
-                          <SelectItem value="openai">OpenAI</SelectItem>
-                          <SelectItem value="openrouter">OpenRouter</SelectItem>
-                          <SelectItem value="siliconflow">
-                            SiliconFlow
-                          </SelectItem>
-                          <SelectItem value="xai">xAI</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </FormControl>
+
+                    <div className="relative flex flex-row">
+                      <FormControl>
+                        <Input
+                          {...field}
+                          placeholder={page_models(
+                            'model.custom_llm_provider_placeholder',
+                          )}
+                        />
+                      </FormControl>
+
+                      <DropdownMenu>
+                        <DropdownMenuTrigger className="absolute top-0.5 right-0.5">
+                          <Button variant="ghost" className="size-8">
+                            <ChevronDown />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-115.5">
+                          {providers.map((provider) => {
+                            return (
+                              <DropdownMenuItem
+                                key={provider.value}
+                                onClick={() =>
+                                  form.setValue(
+                                    'custom_llm_provider',
+                                    provider.value,
+                                  )
+                                }
+                              >
+                                {provider.label}
+                              </DropdownMenuItem>
+                            );
+                          })}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </FormItem>
                 )}
               />
