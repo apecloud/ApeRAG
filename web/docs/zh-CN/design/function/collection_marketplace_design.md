@@ -839,6 +839,7 @@ const subscribeCollection = async (collectionId: string) => {
   - 订阅Collection显示特殊图标和样式区分
   - 在订阅Collection上提供取消订阅操作
   - **UI 设计增强**:
+
   ```typescript
   // Collection 卡片 Props - 支持两种类型
   interface OwnedCollectionCardProps {
@@ -1001,6 +1002,7 @@ const handleCollectionClick = (item: CollectionListItem) => {
 
 - **文件位置**: `frontend/src/models/collection.ts`
 - **新增状态字段**:
+
   ```typescript
   interface CollectionState {
     // 现有字段...
@@ -1022,6 +1024,7 @@ const handleCollectionClick = (item: CollectionListItem) => {
     };
   }
   ```
+
 - **新增 Effects**:
   - `fetchMarketplaceCollections`: 获取市场 Collection 列表
   - `fetchSubscribedCollections`: 获取用户订阅的 Collection 列表

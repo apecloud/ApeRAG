@@ -20,5 +20,9 @@
   "documents_per_collection": {
     "title": "Documents per Collection",
     "description": "Limits documents per collection, optimizing query performance and data balance."
-  }
+  },
+  "max_document_count_per_collection": "Documents per Collection",
+  "max_document_count": "Documents Overall",
+  "max_collection_count": "Collection Count",
+  "max_bot_count": "Bot Count"
 }

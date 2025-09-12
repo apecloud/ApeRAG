@@ -8,22 +8,32 @@ import {
 } from '@/components/page-container';
 import { getServerApi } from '@/lib/api/server';
 import { toJson } from '@/lib/utils';
+import { Metadata } from 'next';
+import { getTranslations } from 'next-intl/server';
+
+export async function generateMetadata(): Promise<Metadata> {
+  const page_models = await getTranslations('page_models');
+  return {
+    title: page_models('metadata.provider_title'),
+    description: page_models('metadata.provider_description'),
+  };
+}
 
 export default async function Page() {
   const serverApi = await getServerApi();
+  const page_models = await getTranslations('page_models');
 
   const res = await serverApi.defaultApi.llmConfigurationGet();
 
   return (
     <PageContainer>
-      <PageHeader breadcrumbs={[{ title: 'Models' }]} />
+      <PageHeader
+        breadcrumbs={[{ title: page_models('metadata.provider_title') }]}
+      />
       <PageContent>
-        <PageTitle>Models & Providers</PageTitle>
+        <PageTitle>{page_models('metadata.provider_title')}</PageTitle>
         <PageDescription>
-          This section allows administrators to manage and integrate third-party
-          Large Language Model (LLM) providers and their respective models into
-          the system. Configure API keys, model selection, rate limits, and
-          other parameters to customize AI-powered functionalities.
+          {page_models('metadata.provider_description')}
         </PageDescription>
 
         <ProviderTable

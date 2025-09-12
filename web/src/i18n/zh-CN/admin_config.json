@@ -1,0 +1,16 @@
+{
+  "metadata": {
+    "title": "系统配置",
+    "description": "本模块允许管理员定义和管理适用于整个平台的全局设置。这些全局参数控制系统核心功能、安全策略、性能阈值及其他关键配置项。"
+  },
+  "mineru_api": "启用 MinerU API",
+  "mineru_api_description": "启用后，系统将优先使用 MinerU API 进行文档解析，以提升解析质量与速度",
+  "mineru_api_token": "MinerU API 令牌",
+  "mineru_api_token_tips": "提示：官方 MinerU API 令牌有效期为14天，请于到期前更换",
+  "check": "验证",
+  "mineru_api_token_required": "请输入MinerU API Token",
+  "mineru_api_token_invalid": "无效的token",
+
+  "system_default_quota": "用户默认配额",
+  "system_default_quota_description": "默认配额有助于维护系统稳定性，防止资源滥用，并确保用户或应用间的公平分配"
+}

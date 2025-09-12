@@ -9,12 +9,23 @@ import {
 } from '@/components/page-container';
 import { getServerApi } from '@/lib/api/server';
 import { parsePageParams, toJson } from '@/lib/utils';
+import { Metadata } from 'next';
+import { getTranslations } from 'next-intl/server';
+
+export async function generateMetadata(): Promise<Metadata> {
+  const page_audit_logs = await getTranslations('page_audit_logs');
+  return {
+    title: page_audit_logs('metadata.title'),
+    description: page_audit_logs('metadata.description'),
+  };
+}
 
 export default async function Page({
   searchParams,
 }: {
   searchParams: Promise<AuditApiListAuditLogsRequest>;
 }) {
+  const page_audit_logs = await getTranslations('page_audit_logs');
   const serverApi = await getServerApi();
 
   const {
@@ -48,14 +59,13 @@ export default async function Page({
 
   return (
     <PageContainer>
-      <PageHeader breadcrumbs={[{ title: 'Audit Logs' }]} />
+      <PageHeader
+        breadcrumbs={[{ title: page_audit_logs('metadata.title') }]}
+      />
       <PageContent>
-        <PageTitle>Audit Logs</PageTitle>
+        <PageTitle>{page_audit_logs('metadata.title')}</PageTitle>
         <PageDescription>
-          Track and review all critical system activities with Audit Logs—a
-          detailed record of user actions, API calls, and administrative
-          changes. Ensure transparency, security, and compliance by monitoring
-          who did what, when, and from where.
+          {page_audit_logs('metadata.description')}
         </PageDescription>
         <AuditLogTable
           data={toJson(data)}

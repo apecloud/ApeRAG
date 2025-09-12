@@ -6,11 +6,22 @@ import {
   PageTitle,
 } from '@/components/page-container';
 import { getServerApi } from '@/lib/api/server';
+import { Metadata } from 'next';
+import { getTranslations } from 'next-intl/server';
 import { MinerUSettings } from './mineru-settings';
 import { QuotaSettings } from './quota-settings';
 
+export async function generateMetadata(): Promise<Metadata> {
+  const admin_config = await getTranslations('admin_config');
+  return {
+    title: admin_config('metadata.title'),
+    description: admin_config('metadata.description'),
+  };
+}
+
 export default async function Page() {
   const serverApi = await getServerApi();
+  const admin_config = await getTranslations('admin_config');
 
   const [resSettings, resSystemDefaultQuotas] = await Promise.all([
     serverApi.defaultApi.settingsGet(),
@@ -21,14 +32,11 @@ export default async function Page() {
 
   return (
     <PageContainer>
-      <PageHeader breadcrumbs={[{ title: 'Configuration' }]} />
+      <PageHeader breadcrumbs={[{ title: admin_config('metadata.title') }]} />
       <PageContent>
-        <PageTitle>Configuration</PageTitle>
+        <PageTitle>{admin_config('metadata.title')}</PageTitle>
         <PageDescription className="mb-8">
-          This section allows administrators to define and manage system-wide
-          settings that apply across the entire platform. These global
-          parameters control core functionalities, security policies,
-          performance thresholds, and other critical configurations.
+          {admin_config('metadata.description')}
         </PageDescription>
 
         <div className="flex flex-col gap-6">

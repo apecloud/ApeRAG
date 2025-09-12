@@ -20,5 +20,9 @@
   "documents_per_collection": {
     "title": "单知识库文档数",
     "description": "限制每个知识库内的文档数量，优化查询性能并保持数据均衡分布。"
-  }
+  },
+  "max_document_count_per_collection": "单知识库文档数",
+  "max_document_count": "总文档数量",
+  "max_collection_count": "知识库数量",
+  "max_bot_count": "机器人数量"
 }

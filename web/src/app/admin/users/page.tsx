@@ -7,9 +7,20 @@ import {
 } from '@/components/page-container';
 import { getServerApi } from '@/lib/api/server';
 import { toJson } from '@/lib/utils';
+import { Metadata } from 'next';
+import { getTranslations } from 'next-intl/server';
 import { UsersDataTable } from './users-data-table';
 
+export async function generateMetadata(): Promise<Metadata> {
+  const admin_users = await getTranslations('admin_users');
+  return {
+    title: admin_users('metadata.title'),
+    description: admin_users('metadata.description'),
+  };
+}
+
 export default async function Page() {
+  const admin_users = await getTranslations('admin_users');
   const apiServer = await getServerApi();
   const res = await apiServer.defaultApi.usersGet();
 
@@ -17,16 +28,10 @@ export default async function Page() {
 
   return (
     <PageContainer>
-      <PageHeader breadcrumbs={[{ title: 'Users' }]} />
+      <PageHeader breadcrumbs={[{ title: admin_users('metadata.title') }]} />
       <PageContent>
-        <PageTitle>User Management</PageTitle>
-        <PageDescription>
-          This module enables administrators to centrally control and organize
-          all system users with secure access configurations. Efficiently manage
-          identities, permissions, and authentication policies across your
-          organization.
-        </PageDescription>
-
+        <PageTitle>{admin_users('metadata.title')}</PageTitle>
+        <PageDescription>{admin_users('metadata.description')}</PageDescription>
         <UsersDataTable data={toJson(users)} />
       </PageContent>
     </PageContainer>
