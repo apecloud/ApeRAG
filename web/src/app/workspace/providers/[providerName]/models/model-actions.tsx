@@ -26,6 +26,13 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { apiClient } from '@/lib/api/client';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Slot } from '@radix-ui/react-slot';
@@ -45,6 +52,7 @@ const defaultValue = {
 const modelSchema = z.object({
   model: z.string().min(1),
   api: z.string().min(1),
+  custom_llm_provider: z.string().min(1),
   context_window: z.coerce.number<number>().optional(),
   max_input_tokens: z.coerce.number<number>().optional(),
   max_output_tokens: z.coerce.number<number>().optional(),
@@ -72,7 +80,10 @@ export const ModelActions = ({
 
   const form = useForm<z.infer<typeof modelSchema>>({
     resolver: zodResolver(modelSchema),
-    defaultValues: { ...defaultValue, ...model },
+    defaultValues: {
+      ...defaultValue,
+      ...model,
+    },
   });
 
   const handleDelete = useCallback(async () => {
@@ -102,7 +113,7 @@ export const ModelActions = ({
             api: model.api,
             model: model.model,
             llmProviderModelUpdate: {
-              custom_llm_provider: provider.name,
+              custom_llm_provider: values.custom_llm_provider,
               context_window: values.context_window,
               max_input_tokens: values.max_input_tokens,
               max_output_tokens: values.max_output_tokens,
@@ -116,7 +127,7 @@ export const ModelActions = ({
             provider_name: provider.name,
             api: values.api as LlmProviderModelCreateApiEnum,
             model: values.model,
-            custom_llm_provider: provider.name,
+            custom_llm_provider: values.custom_llm_provider,
             context_window: values.context_window,
             max_input_tokens: values.max_input_tokens,
             max_output_tokens: values.max_output_tokens,
@@ -272,6 +283,47 @@ export const ModelActions = ({
                           </Label>
                         </div>
                       </RadioGroup>
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="custom_llm_provider"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      {page_models('model.custom_llm_provider')}
+                    </FormLabel>
+                    <FormControl>
+                      <Select
+                        {...field}
+                        onValueChange={field.onChange}
+                        value={field.value || ''}
+                      >
+                        <SelectTrigger className="w-full cursor-pointer">
+                          <SelectValue
+                            placeholder={page_models(
+                              'model.custom_llm_provider_placeholder',
+                            )}
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="alibabacloud">
+                            AlibabaCloud
+                          </SelectItem>
+                          <SelectItem value="anthropic">Anthropic</SelectItem>
+                          <SelectItem value="deepseek">DeepSeek</SelectItem>
+                          <SelectItem value="gemini">Google Gemini</SelectItem>
+                          <SelectItem value="jina">Jina AI</SelectItem>
+                          <SelectItem value="openai">OpenAI</SelectItem>
+                          <SelectItem value="openrouter">OpenRouter</SelectItem>
+                          <SelectItem value="siliconflow">
+                            SiliconFlow
+                          </SelectItem>
+                          <SelectItem value="xai">xAI</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </FormControl>
                   </FormItem>
                 )}

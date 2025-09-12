@@ -378,7 +378,9 @@
       "edit": "Edit",
       "edit_model": "Edit Model",
       "delete": "Delete",
-      "delete_confirm": "Confirm deletion of the model?"
+      "delete_confirm": "Confirm deletion of the model?",
+      "custom_llm_provider": "LLM Provider",
+      "custom_llm_provider_placeholder": "Enter the llm provider"
     }
   },
   "page_question_set": {

@@ -43,6 +43,8 @@
     "edit": "编辑",
     "edit_model": "模型设置",
     "delete": "删除",
-    "delete_confirm": "此操作不可逆。将永久删除模型配置及相关数据。"
+    "delete_confirm": "此操作不可逆。将永久删除模型配置及相关数据。",
+    "custom_llm_provider": "LLM提供商",
+    "custom_llm_provider_placeholder": "请选择LLM提供商"
   }
 }
