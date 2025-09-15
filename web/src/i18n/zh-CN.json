@@ -1,4 +1,35 @@
 {
+  "admin_config": {
+    "metadata": {
+      "title": "系统配置",
+      "description": "本模块允许管理员定义和管理适用于整个平台的全局设置。这些全局参数控制系统核心功能、安全策略、性能阈值及其他关键配置项。"
+    },
+    "mineru_api": "启用 MinerU API",
+    "mineru_api_description": "启用后，系统将优先使用 MinerU API 进行文档解析，以提升解析质量与速度",
+    "mineru_api_token": "MinerU API 令牌",
+    "mineru_api_token_tips": "提示：官方 MinerU API 令牌有效期为14天，请于到期前更换",
+    "check": "验证",
+    "mineru_api_token_required": "请输入MinerU API Token",
+    "mineru_api_token_invalid": "无效的token",
+    "system_default_quota": "用户默认配额",
+    "system_default_quota_description": "默认配额有助于维护系统稳定性，防止资源滥用，并确保用户或应用间的公平分配"
+  },
+  "admin_users": {
+    "metadata": {
+      "title": "用户管理",
+      "description": "该模块允许管理员通过安全访问配置集中控制和管理系统所有用户，高效管理组织内的身份、权限和认证策略。"
+    },
+    "search": "搜索用户",
+    "user_name": "用户",
+    "user_role": "角色",
+    "user_status": "状态",
+    "user_source": "来源",
+    "user_creation_time": "创建时间",
+    "user_quotas": "用户配额",
+    "user_quotas_recalculate": "重新计算",
+    "user_logs": "审计日志",
+    "user_delete": "删除"
+  },
   "common": {
     "site": {
       "metadata": {
@@ -309,6 +340,7 @@
       "title": "知识图谱"
     },
     "node_group": "节点分组",
+    "node_search": "节点查询",
     "no_nodes_found": "未找到相关节点",
     "merge_infomation": "{count}个节点节点合并建议.",
     "merge_suggestions": "节点合并",
@@ -485,36 +517,5 @@
     "api_keys": "API密钥",
     "audit_logs": "审计日志",
     "quotas": "配额"
-  },
-  "admin_users": {
-    "metadata": {
-      "title": "用户管理",
-      "description": "该模块允许管理员通过安全访问配置集中控制和管理系统所有用户，高效管理组织内的身份、权限和认证策略。"
-    },
-    "search": "搜索用户",
-    "user_name": "用户",
-    "user_role": "角色",
-    "user_status": "状态",
-    "user_source": "来源",
-    "user_creation_time": "创建时间",
-    "user_quotas": "用户配额",
-    "user_quotas_recalculate": "重新计算",
-    "user_logs": "审计日志",
-    "user_delete": "删除"
-  },
-  "admin_config": {
-    "metadata": {
-      "title": "系统配置",
-      "description": "本模块允许管理员定义和管理适用于整个平台的全局设置。这些全局参数控制系统核心功能、安全策略、性能阈值及其他关键配置项。"
-    },
-    "mineru_api": "启用 MinerU API",
-    "mineru_api_description": "启用后，系统将优先使用 MinerU API 进行文档解析，以提升解析质量与速度",
-    "mineru_api_token": "MinerU API 令牌",
-    "mineru_api_token_tips": "提示：官方 MinerU API 令牌有效期为14天，请于到期前更换",
-    "check": "验证",
-    "mineru_api_token_required": "请输入MinerU API Token",
-    "mineru_api_token_invalid": "无效的token",
-    "system_default_quota": "用户默认配额",
-    "system_default_quota_description": "默认配额有助于维护系统稳定性，防止资源滥用，并确保用户或应用间的公平分配"
   }
 }

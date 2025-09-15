@@ -1,4 +1,35 @@
 {
+  "admin_config": {
+    "metadata": {
+      "title": "Configuration",
+      "description": "This section allows administrators to define and manage system-wide settings that apply across the entire platform. These global parameters control core functionalities, security policies, performance thresholds, and other critical configurations."
+    },
+    "mineru_api": "Use MinerU API",
+    "mineru_api_description": "When enabled, the system will prioritize using the MinerU API for document parsing to improve parsing quality and speed.",
+    "mineru_api_token": "MinerU API Token",
+    "mineru_api_token_tips": "Tips: The official MinerU API Token is valid for 14 days, please replace it before it expires.",
+    "check": "Check",
+    "mineru_api_token_required": "MinerU API Token is required.",
+    "mineru_api_token_invalid": "Invalid token",
+    "system_default_quota": "User default quotas",
+    "system_default_quota_description": "These default quotas help maintain system stability, prevent resource abuse, and ensure fair allocation across users or applications."
+  },
+  "admin_users": {
+    "metadata": {
+      "title": "User Management",
+      "description": "This module enables administrators to centrally control and organize all system users with secure access configurations. Efficiently manage identities, permissions, and authentication policies across your organization."
+    },
+    "search": "Search users",
+    "user_name": "User",
+    "user_role": "Role",
+    "user_status": "Status",
+    "user_source": "Source",
+    "user_creation_time": "Creation time",
+    "user_quotas": "Quotas",
+    "user_quotas_recalculate": "Recalculate",
+    "user_logs": "Audit logs",
+    "user_delete": "Delete"
+  },
   "common": {
     "site": {
       "metadata": {
@@ -306,8 +337,9 @@
       "title": "Knowledge Graph"
     },
     "node_group": "Node Group",
+    "node_search": "Node search",
     "no_nodes_found": "No node information found",
-    "merge_infomation": "{count} suggestions",
+    "merge_infomation": "{count} merge suggestions",
     "merge_suggestions": "Merge suggestions",
     "merge_accept": "Accept",
     "merge_reject": "Reject",
@@ -481,36 +513,5 @@
     "api_keys": "API Keys",
     "audit_logs": "Audit Logs",
     "quotas": "Quotas"
-  },
-  "admin_users": {
-    "metadata": {
-      "title": "User Management",
-      "description": "This module enables administrators to centrally control and organize all system users with secure access configurations. Efficiently manage identities, permissions, and authentication policies across your organization."
-    },
-    "search": "Search users",
-    "user_name": "User",
-    "user_role": "Role",
-    "user_status": "Status",
-    "user_source": "Source",
-    "user_creation_time": "Creation time",
-    "user_quotas": "Quotas",
-    "user_quotas_recalculate": "Recalculate",
-    "user_logs": "Audit logs",
-    "user_delete": "Delete"
-  },
-  "admin_config": {
-    "metadata": {
-      "title": "Configuration",
-      "description": "This section allows administrators to define and manage system-wide settings that apply across the entire platform. These global parameters control core functionalities, security policies, performance thresholds, and other critical configurations."
-    },
-    "mineru_api": "Use MinerU API",
-    "mineru_api_description": "When enabled, the system will prioritize using the MinerU API for document parsing to improve parsing quality and speed.",
-    "mineru_api_token": "MinerU API Token",
-    "mineru_api_token_tips": "Tips: The official MinerU API Token is valid for 14 days, please replace it before it expires.",
-    "check": "Check",
-    "mineru_api_token_required": "MinerU API Token is required.",
-    "mineru_api_token_invalid": "Invalid token",
-    "system_default_quota": "User default quotas",
-    "system_default_quota_description": "These default quotas help maintain system stability, prevent resource abuse, and ensure fair allocation across users or applications."
   }
 }

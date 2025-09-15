@@ -3,8 +3,11 @@
     "title": "Knowledge Graph"
   },
   "node_group": "Node Group",
+
+  "node_search": "Node search",
+
   "no_nodes_found": "No node information found",
-  "merge_infomation": "{count} suggestions",
+  "merge_infomation": "{count} merge suggestions",
   "merge_suggestions": "Merge suggestions",
 
   "merge_accept": "Accept",
