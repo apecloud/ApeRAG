@@ -97,6 +97,7 @@ export const DocumentUpload = () => {
   }, [collection.id, documents, router]);
 
   const stopUpload = useCallback(() => {
+    setIsUploading(false);
     uploadController?.abort();
   }, []);
 
@@ -105,38 +106,39 @@ export const DocumentUpload = () => {
    */
   useEffect(() => stopUpload, [stopUpload]);
 
-  const startUpload = useCallback(() => {
-    const tasks: AsyncTask[] = documents
-      .filter((doc) => !doc.document_id)
-      .map((_doc) => async (callback) => {
+  const startUpload = useCallback(
+    (docs: DocumentsWithFile[]) => {
+      const tasks: AsyncTask[] = docs.map((_doc) => async (callback) => {
         const file = _doc.file;
         if (!collection?.id) {
           callback();
           return;
         }
-        const totalChunks = 20;
-        let uploadedChunks = 0;
-        for (let i = 0; i < totalChunks; i++) {
-          // Simulate network delay (20-40ms per chunk)
-          await new Promise((resolve) =>
-            setTimeout(resolve, Math.random() * 20 + 20),
-          );
-          // Update progress for this specific file
-          uploadedChunks++;
-          const progress = (uploadedChunks / totalChunks) * 85;
-          setDocuments((docs) => {
-            const doc = docs.find((doc) => _.isEqual(doc.file, file));
-            if (doc) {
-              doc.progress = Number(progress.toFixed(0));
-              doc.progress_status = 'uploading';
-            }
-            return [...docs];
-          });
-        }
+
+        const networkSimulation = async () => {
+          const totalChunks = 100;
+          let uploadedChunks = 0;
+          for (let i = 0; i < totalChunks; i++) {
+            await new Promise((resolve) =>
+              setTimeout(resolve, Math.random() * 5 + 5),
+            );
+            // Update progress for this specific file
+            uploadedChunks++;
+            const progress = (uploadedChunks / totalChunks) * 99;
+            setDocuments((docs) => {
+              const doc = docs.find((doc) => _.isEqual(doc.file, file));
+              if (doc) {
+                doc.progress = Number(progress.toFixed(0));
+                doc.progress_status = 'uploading';
+              }
+              return [...docs];
+            });
+          }
+        };
 
         try {
-          const res =
-            await apiClient.defaultApi.collectionsCollectionIdDocumentsUploadPost(
+          const [res] = await Promise.all([
+            apiClient.defaultApi.collectionsCollectionIdDocumentsUploadPost(
               {
                 collectionId: collection.id,
                 file: _doc.file,
@@ -144,7 +146,10 @@ export const DocumentUpload = () => {
               {
                 timeout: 1000 * 30,
               },
-            );
+            ),
+            networkSimulation(),
+          ]);
+
           setDocuments((docs) => {
             const doc = docs.find((doc) => _.isEqual(doc.file, file));
             if (doc && res.data.document_id) {
@@ -172,29 +177,31 @@ export const DocumentUpload = () => {
         callback(null);
       });
 
-    setIsUploading(true);
-    uploadController = new AbortController();
-    async.eachLimit(
-      tasks,
-      3,
-      (task, callback) => {
-        if (uploadController?.signal.aborted) {
+      setIsUploading(true);
+      uploadController = new AbortController();
+      async.eachLimit(
+        tasks,
+        3,
+        (task, callback) => {
+          if (uploadController?.signal.aborted) {
+            setIsUploading(false);
+            callback(new Error('stop upload'));
+          } else {
+            task(callback);
+          }
+        },
+        (err) => {
+          if (err) {
+            console.error('Error:', err);
+          } else {
+            console.log('upload complated');
+          }
           setIsUploading(false);
-          callback(new Error('stop upload'));
-        } else {
-          task(callback);
-        }
-      },
-      (err) => {
-        if (err) {
-          console.error('Error:', err);
-        } else {
-          console.log('upload complated');
-        }
-        setIsUploading(false);
-      },
-    );
-  }, [collection.id, documents]);
+        },
+      );
+    },
+    [collection.id],
+  );
 
   const handleRemoveFile = useCallback((item: DocumentsWithFile) => {
     setDocuments((docs) =>
@@ -266,7 +273,10 @@ export const DocumentUpload = () => {
         cell: ({ row }) => {
           return (
             <div className="flex w-50 flex-col">
-              <Progress value={row.original.progress} className="h-1.5" />
+              <Progress
+                value={row.original.progress}
+                className="h-1.5 transition-all"
+              />
               <div className="text-muted-foreground flex flex-row justify-between text-xs">
                 <div>{row.original.progress}%</div>
                 <div
@@ -375,15 +385,21 @@ export const DocumentUpload = () => {
         onValueChange={(files) => {
           setDocuments((docs) => {
             const data: DocumentsWithFile[] = [];
+            const uploadFiles: DocumentsWithFile[] = [];
             files.forEach((file) => {
               const doc = docs.find((doc) => _.isEqual(doc.file, file));
-              data.push({
+              const item: DocumentsWithFile = {
                 file,
                 progress_status: 'pending',
                 progress: 0,
                 ...doc,
-              });
+              };
+              data.push(item);
+              if (item.progress_status === 'pending') {
+                uploadFiles.push(item);
+              }
             });
+            startUpload(uploadFiles);
             return data;
           });
         }}
@@ -457,7 +473,9 @@ export const DocumentUpload = () => {
               ) : (
                 <Button
                   className="w-28 cursor-pointer"
-                  onClick={() => startUpload()}
+                  onClick={() =>
+                    startUpload(documents.filter((doc) => !doc.document_id))
+                  }
                 >
                   <CloudUpload />
                   <span className="hidden lg:inline">
