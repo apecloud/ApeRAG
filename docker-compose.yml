@@ -107,7 +107,6 @@ services:
     command: ["/app/scripts/entrypoint.sh", "/app/scripts/start-celery-beat.sh"]
 
   flower:
-    <<: *api
     image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-v0.0.0-nightly}
     build:
       context: .
