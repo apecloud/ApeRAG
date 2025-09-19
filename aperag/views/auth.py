@@ -214,7 +214,9 @@ async def authenticate_websocket_user(websocket: WebSocket, user_manager: UserMa
             logger.debug("No session cookie found")
             return None
         jwt_strategy = get_jwt_strategy()
+        # print(f'session_token:{session_token}')
         user_data = await jwt_strategy.read_token(session_token, user_manager)
+        # print(f'user_data:{user_data}')
         if user_data:
             logger.debug(f"Successfully authenticated user from WebSocket: {user_data.id}")
             return str(user_data.id)

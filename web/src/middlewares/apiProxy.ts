@@ -1,3 +1,4 @@
+import { cookies } from 'next/headers';
 import {
   NextFetchEvent,
   NextMiddleware,
@@ -27,7 +28,16 @@ export function withApiProxy(next: NextMiddleware): NextMiddleware {
 
       url.basePath = '';
 
-      return NextResponse.rewrite(url);
+      const response = NextResponse.rewrite(url);
+
+      const allCookies = await cookies();
+      const session = allCookies.get('session');
+
+      if (session) {
+        response.headers.set('Authorization', `Bearer ${session.value}`);
+      }
+
+      return response;
     } else {
       return next(req, event);
     }

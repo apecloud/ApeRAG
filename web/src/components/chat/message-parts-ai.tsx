@@ -6,7 +6,6 @@ import { cn } from '@/lib/utils';
 import _ from 'lodash';
 import { Bot, LoaderCircle } from 'lucide-react';
 import { useMemo } from 'react';
-import { MessageFeedback } from './message-feedback';
 import { MessagePartAi } from './message-part-ai';
 import { MessageReference } from './message-reference';
 import { MessageTimestamp } from './message-timestamp';
@@ -15,7 +14,6 @@ export const MessagePartsAi = ({
   pending,
   loading,
   parts,
-  hanldeMessageFeedback,
 }: {
   pending: boolean;
   loading: boolean;
@@ -70,14 +68,6 @@ export const MessagePartsAi = ({
               />
             </>
           )}
-          {/* <MessageFeedback
-            parts={parts}
-            hanldeMessageFeedback={hanldeMessageFeedback}
-          /> */}
-          <Separator
-            orientation="vertical"
-            className="data-[orientation=vertical]:h-4"
-          />
           <CopyToClipboard
             variant="ghost"
             className="text-muted-foreground"

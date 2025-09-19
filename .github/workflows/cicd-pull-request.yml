@@ -87,7 +87,7 @@ jobs:
     with:
       IMG: "apecloud/aperag-frontend"
       BUILDX_PLATFORMS: "linux/amd64"
-      DOCKERFILE_PATH: "./frontend/Dockerfile"
+      DOCKERFILE_PATH: "./web/Dockerfile"
       PYTHON_VERSION: "3.11"
       MAKE_OPS_PRE: "build-aperag-frontend-assets"
     secrets: inherit

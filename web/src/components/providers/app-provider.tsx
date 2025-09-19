@@ -15,13 +15,6 @@ import {
 
 import * as z from 'zod';
 
-function setCookie(cname: string, cvalue: string, exdays: number) {
-  const d = new Date();
-  d.setTime(d.getTime() + exdays * 24 * 60 * 60 * 1000);
-  const expires = 'expires=' + d.toUTCString();
-  document.cookie = cname + '=' + cvalue + ';' + expires + ';path=/';
-}
-
 type SignInOptions = {
   type?: 'local' | 'google' | 'github';
   data?: z.infer<typeof signInLocalSchema>;
@@ -61,13 +54,13 @@ export const signUpLocalSchema = z.object({
 export const useAppContext = () => useContext(AppContext);
 
 export const AppProvider = ({
-  user,
+  user: initUser,
   children,
 }: {
   user?: User;
   children?: React.ReactNode;
 }) => {
-  const [_user, setUser] = useState<User | undefined>(user);
+  const [_user, setUser] = useState<User | undefined>(initUser);
 
   const router = useRouter();
   const handleSignIn = useCallback(
@@ -148,11 +141,11 @@ export const AppProvider = ({
   }, [router]);
 
   useEffect(() => {
-    const isAnyBase = localStorage.getItem('anybase_info') !== null;
-    const token = localStorage.getItem('token');
-    if (isAnyBase && token) {
-      setCookie('abt', token, 30);
-    }
+    apiClient.defaultApi.userGet().then((res) => {
+      if (res.data.id) {
+        setUser(res.data);
+      }
+    });
   }, []);
 
   return (

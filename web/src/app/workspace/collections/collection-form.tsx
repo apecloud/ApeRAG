@@ -261,6 +261,8 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
     name: 'config.completion.model',
   });
   useEffect(() => {
+    if (_.isEmpty(completionModels)) return;
+
     let defaultModel: ModelSpec | undefined;
     let currentModel: ModelSpec | undefined;
     let defaultProvider: ProviderModel | undefined;
@@ -303,10 +305,13 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
     name: 'config.embedding.model',
   });
   useEffect(() => {
+    if (_.isEmpty(embeddingModels)) return;
+
     let defaultModel: ModelSpec | undefined;
     let currentModel: ModelSpec | undefined;
     let defaultProvider: ProviderModel | undefined;
     let currentProvider: ProviderModel | undefined;
+
     embeddingModels?.forEach((provider) => {
       provider.models?.forEach((m) => {
         if (m.tags?.some((t) => t === 'default_for_embedding')) {
@@ -346,7 +351,10 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
     <>
       <Form {...form}>
         <form
-          onSubmit={form.handleSubmit(handleCreateOrUpdate)}
+          onSubmit={(e) => {
+            handleCreateOrUpdate(form.getValues());
+            e.preventDefault();
+          }}
           className="flex flex-col gap-4"
         >
           <Card>

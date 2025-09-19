@@ -179,6 +179,7 @@ export const BotForm = ({
       apiClient.defaultApi.collectionsGet({
         pageSize: 100,
         page: 1,
+        includeSubscribed: true,
       }),
     ]);
 

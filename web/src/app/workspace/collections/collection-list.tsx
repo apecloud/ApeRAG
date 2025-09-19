@@ -70,7 +70,6 @@ export const CollectionList = ({
                       ? `/marketplace/collections/${collection.id}/documents`
                       : `/workspace/collections/${collection.id}/documents`
                   }
-                  target={collection.subscription_id ? '_blank' : '_self'}
                 >
                   <Card className="hover:bg-accent/30 cursor-pointer gap-2 rounded-md">
                     <CardHeader className="px-4">

@@ -8,6 +8,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import _ from 'lodash';
 import { ArrowLeft, LoaderCircle } from 'lucide-react';
@@ -61,9 +66,14 @@ export const DocumentDetail = ({
                 <ArrowLeft />
               </Link>
             </Button>
-            <div className={cn('max-w-80 truncate')}>
-              {documentPreview.doc_filename}
-            </div>
+            <Tooltip>
+              <TooltipTrigger>
+                <div className={cn('max-w-80 truncate')}>
+                  {documentPreview.doc_filename}
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>{documentPreview.doc_filename}</TooltipContent>
+            </Tooltip>
           </div>
 
           <div className="flex flex-row gap-6">

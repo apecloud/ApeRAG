@@ -55,7 +55,7 @@ services:
     env_file:
       - web/deploy/env.local.template
     environment:
-      - API_SERVER_ENDPOINT=http://localhost:8000
+      - API_SERVER_ENDPOINT=http://api:8000
       - API_SERVER_BASE_PATH=/api/v1
     ports:
       - "3000:3000"

@@ -26,10 +26,10 @@ const request = axios.create({
 request.interceptors.request.use(async function (config) {
   const allCookies = await cookies();
 
-  const abt = allCookies.get('abt');
+  const session = allCookies.get('session');
 
-  if (abt) {
-    _.set(config, 'headers.Authorization', `Bearer ${abt.value}`);
+  if (session) {
+    _.set(config, 'headers.Authorization', `Bearer ${session.value}`);
   }
 
   return config;
