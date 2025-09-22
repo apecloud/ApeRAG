@@ -310,6 +310,59 @@ class CollectionMarketplaceAccessDeniedError(MarketplaceError):
         super().__init__(ErrorCode.FORBIDDEN, message)
 
 
+# Bot marketplace related exceptions
+class BotNotPublishedError(MarketplaceError):
+    """Exception raised when trying to access an unpublished bot"""
+
+    def __init__(self, bot_id: str = None):
+        message = "Bot is not published to marketplace"
+        if bot_id:
+            message += f" (ID: {bot_id})"
+        super().__init__(ErrorCode.INVALID_PARAMETER, message)
+
+
+class AlreadySubscribedToBotError(MarketplaceError):
+    """Exception raised when user tries to subscribe to an already subscribed bot"""
+
+    def __init__(self, bot_id: str = None):
+        message = "Already subscribed to this bot"
+        if bot_id:
+            message += f" (ID: {bot_id})"
+        super().__init__(ErrorCode.INVALID_PARAMETER, message)
+
+
+class BotSubscriptionNotFoundError(MarketplaceError):
+    """Exception raised when bot subscription is not found"""
+
+    def __init__(self, bot_id: str = None):
+        message = "Bot subscription not found"
+        if bot_id:
+            message += f" for bot (ID: {bot_id})"
+        super().__init__(ErrorCode.RESOURCE_NOT_FOUND, message)
+
+
+class SelfBotSubscriptionError(MarketplaceError):
+    """Exception raised when user tries to subscribe to their own bot"""
+
+    def __init__(self, bot_id: str = None):
+        message = "Cannot subscribe to your own bot"
+        if bot_id:
+            message += f" (ID: {bot_id})"
+        super().__init__(ErrorCode.INVALID_PARAMETER, message)
+
+
+class BotMarketplaceAccessDeniedError(MarketplaceError):
+    """Exception raised when user doesn't have subscription access to marketplace bot"""
+
+    def __init__(self, bot_id: str = None, reason: str = None):
+        message = "Access denied to marketplace bot"
+        if bot_id:
+            message += f" (ID: {bot_id})"
+        if reason:
+            message += f" - {reason}"
+        super().__init__(ErrorCode.FORBIDDEN, message)
+
+
 # Convenience functions for common exceptions
 def not_found(resource_type: str, resource_id: str = None) -> ResourceNotFoundException:
     """Create a resource not found exception"""

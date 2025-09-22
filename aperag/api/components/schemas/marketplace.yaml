@@ -115,3 +115,109 @@ SharingStatusResponse:
       description: Publication time, null when not published
   required:
     - is_published
+
+BotMarketplaceStatusEnum:
+  type: string
+  enum:
+    - DRAFT
+    - PUBLISHED
+  description: Bot marketplace sharing status
+
+SharedBotConfig:
+  type: object
+  description: Configuration settings for shared bot (read-only version)
+  properties:
+    agent:
+      type: object
+      properties:
+        completion:
+          $ref: './model.yaml#/modelSpec'
+        system_prompt_template:
+          type: string
+        query_prompt_template:
+          type: string
+        collections:
+          type: array
+          items:
+            $ref: './marketplace.yaml#/SharedCollection'
+    flow:
+      $ref: './flow.yaml#/components/schemas/WorkflowDefinition'
+
+SharedBot:
+  type: object
+  description: Shared bot information for marketplace users
+  properties:
+    id:
+      type: string
+      description: Bot ID
+    title:
+      type: string
+      description: Bot title
+    description:
+      type: string
+      nullable: true
+      description: Bot description
+    type:
+      type: string
+      enum:
+        - knowledge
+        - common
+        - agent
+      description: Bot type
+    owner_user_id:
+      type: string
+      description: Original owner user ID
+    owner_username:
+      type: string
+      nullable: true
+      description: Original owner username
+    subscription_id:
+      type: string
+      nullable: true
+      description: Subscription record ID (has value if subscribed, null if not subscribed)
+    gmt_subscribed:
+      type: string
+      format: date-time
+      nullable: true
+      description: Subscription time (only has value when subscribed)
+    config:
+      $ref: '#/SharedBotConfig'
+      description: Bot configuration settings (read-only)
+    is_subscribed:
+      type: boolean
+      description: Whether current user has subscribed to this bot
+    is_owner:
+      type: boolean
+      description: Whether current user is the owner of this bot
+  required:
+    - id
+    - title
+    - type
+    - owner_user_id
+    - config
+    - is_subscribed
+    - is_owner
+
+SharedBotList:
+  type: object
+  description: Shared bot list response
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/SharedBot'
+      description: List of shared bots
+    total:
+      type: integer
+      description: Total count (for pagination)
+    page:
+      type: integer
+      description: Current page number
+    page_size:
+      type: integer
+      description: Page size
+  required:
+    - items
+    - total
+    - page
+    - page_size

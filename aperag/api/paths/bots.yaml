@@ -148,3 +148,113 @@ debugFlow:
           application/json:
             schema:
               $ref: '../components/schemas/common.yaml#/failResponse'
+
+botSharing:
+  get:
+    summary: Get bot sharing status
+    description: Get the sharing status of a bot (owner only)
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: bot_id
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Bot sharing status
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/marketplace.yaml#/SharingStatusResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '403':
+        description: Permission denied
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Bot not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+
+  post:
+    summary: Publish bot to marketplace
+    description: Publish bot to marketplace (owner only)
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: bot_id
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '204':
+        description: Bot published successfully
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '403':
+        description: Permission denied
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Bot not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+
+  delete:
+    summary: Unpublish bot from marketplace
+    description: Remove bot from marketplace (owner only)
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: bot_id
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '204':
+        description: Bot unpublished successfully
+      '400':
+        description: Bot is not published to marketplace
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '403':
+        description: Permission denied
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Bot not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'

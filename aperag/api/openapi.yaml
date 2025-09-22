@@ -116,6 +116,16 @@ paths:
   /marketplace/collections/{collection_id}/graph:
     $ref: './paths/marketplace.yaml#/marketplaceCollectionGraph'
 
+  # Bot marketplace
+  /marketplace/bots:
+    $ref: './paths/marketplace.yaml#/marketplaceBots'
+  /marketplace/bots/subscriptions:
+    $ref: './paths/marketplace.yaml#/marketplaceBotsSubscriptions'
+  /marketplace/bots/{bot_id}/subscribe:
+    $ref: './paths/marketplace.yaml#/marketplaceBotSubscribe'
+  /marketplace/bots/{bot_id}:
+    $ref: './paths/marketplace.yaml#/marketplaceBot'
+
   # object storage sync
   /collections/{collection_id}/sync:
     $ref: './paths/collections.yaml#/sync_object_storage'

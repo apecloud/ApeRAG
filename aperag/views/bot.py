@@ -14,10 +14,16 @@
 
 import logging
 
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 
 from aperag.db.models import User
+from aperag.exceptions import (
+    BotNotFoundException,
+    BotNotPublishedError,
+    PermissionDeniedError,
+)
 from aperag.schema import view_models
+from aperag.service.bot_marketplace_service import bot_marketplace_service
 from aperag.service.bot_service import bot_service
 from aperag.service.flow_service import flow_service_global
 from aperag.utils.audit_decorator import audit
@@ -74,3 +80,60 @@ async def debug_flow_stream_view(
     user: User = Depends(required_user),
 ):
     return await flow_service_global.debug_flow_stream(str(user.id), bot_id, debug)
+
+
+# Bot sharing endpoints
+@router.get("/bots/{bot_id}/sharing", tags=["bots"])
+async def get_bot_sharing_status(
+    bot_id: str,
+    user: User = Depends(required_user),
+) -> view_models.SharingStatusResponse:
+    """Get bot sharing status (owner only)"""
+    try:
+        is_published, published_at = await bot_marketplace_service.get_sharing_status(str(user.id), bot_id)
+        return view_models.SharingStatusResponse(is_published=is_published, published_at=published_at)
+    except BotNotFoundException:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    except PermissionDeniedError:
+        raise HTTPException(status_code=403, detail="Permission denied")
+    except Exception as e:
+        logger.error(f"Error getting bot sharing status {bot_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.post("/bots/{bot_id}/sharing", tags=["bots"])
+async def publish_bot_to_marketplace(
+    bot_id: str,
+    user: User = Depends(required_user),
+):
+    """Publish bot to marketplace (owner only)"""
+    try:
+        await bot_marketplace_service.publish_bot(str(user.id), bot_id)
+        return Response(status_code=204)
+    except BotNotFoundException:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    except PermissionDeniedError:
+        raise HTTPException(status_code=403, detail="Permission denied")
+    except Exception as e:
+        logger.error(f"Error publishing bot {bot_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.delete("/bots/{bot_id}/sharing", tags=["bots"])
+async def unpublish_bot_from_marketplace(
+    bot_id: str,
+    user: User = Depends(required_user),
+):
+    """Unpublish bot from marketplace (owner only)"""
+    try:
+        await bot_marketplace_service.unpublish_bot(str(user.id), bot_id)
+        return Response(status_code=204)
+    except BotNotFoundException:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    except BotNotPublishedError:
+        raise HTTPException(status_code=400, detail="Bot is not published to marketplace")
+    except PermissionDeniedError:
+        raise HTTPException(status_code=403, detail="Permission denied")
+    except Exception as e:
+        logger.error(f"Error unpublishing bot {bot_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")

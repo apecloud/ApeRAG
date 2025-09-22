@@ -406,3 +406,180 @@ marketplaceCollectionGraph:
               $ref: '../components/schemas/common.yaml#/failResponse'
       '500':
         $ref: '../components/schemas/common.yaml#/failResponse'
+marketplaceBots:
+  get:
+    summary: List all published bots in marketplace
+    description: Returns all bots that are published to marketplace with current user's subscription status
+    parameters:
+      - name: page
+        in: query
+        description: Page number
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: page_size
+        in: query
+        description: Page size
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 12
+      - name: type
+        in: query
+        description: Bot type filter
+        schema:
+          type: string
+          enum: ["knowledge", "common", "agent"]
+    responses:
+      '200':
+        description: List of published bots
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/marketplace.yaml#/SharedBotList'
+      '401':
+        $ref: '../components/schemas/common.yaml#/failResponse'
+      '500':
+        $ref: '../components/schemas/common.yaml#/failResponse'
+
+marketplaceBotsSubscriptions:
+  get:
+    summary: Get user's subscribed bots
+    description: Returns all bots that current user has subscribed to
+    parameters:
+      - name: page
+        in: query
+        description: Page number
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: page_size
+        in: query
+        description: Page size
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 12
+    responses:
+      '200':
+        description: List of subscribed bots
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/marketplace.yaml#/SharedBotList'
+      '401':
+        $ref: '../components/schemas/common.yaml#/failResponse'
+      '500':
+        $ref: '../components/schemas/common.yaml#/failResponse'
+
+marketplaceBotSubscribe:
+  post:
+    summary: Subscribe to a bot
+    description: Subscribe to a published bot
+    parameters:
+      - name: bot_id
+        in: path
+        required: true
+        description: Bot ID
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Successfully subscribed
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/marketplace.yaml#/SharedBot'
+      '400':
+        description: Bad request (e.g., bot not published, self-subscription)
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '401':
+        $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Bot not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '409':
+        description: Already subscribed
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '500':
+        $ref: '../components/schemas/common.yaml#/failResponse'
+
+  delete:
+    summary: Unsubscribe from a bot
+    description: Remove subscription to a bot
+    parameters:
+      - name: bot_id
+        in: path
+        required: true
+        description: Bot ID
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Successfully unsubscribed
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                  example: "Successfully unsubscribed"
+      '401':
+        $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Subscription not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '500':
+        $ref: '../components/schemas/common.yaml#/failResponse'
+
+marketplaceBot:
+  get:
+    summary: Get marketplace bot details (read-only)
+    description: Get details of a subscribed bot (read-only access)
+    parameters:
+      - name: bot_id
+        in: path
+        required: true
+        description: Bot ID
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Marketplace bot details
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/marketplace.yaml#/SharedBot'
+      '401':
+        $ref: '../components/schemas/common.yaml#/failResponse'
+      '403':
+        description: Access denied (need subscription)
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Bot not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '500':
+        $ref: '../components/schemas/common.yaml#/failResponse'
