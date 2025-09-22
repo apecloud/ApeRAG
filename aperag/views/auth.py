@@ -785,22 +785,26 @@ async def delete_user_view(
 
 
 async def sync_anybase_departments(session, deps_list: list):
-    """Sync department data from Anybase to ApeRAG database"""
+    """Sync department data from Anybase to ApeRAG database for all tenants"""
     if not deps_list:
         return
-    
-    departments_to_sync = []
+
+    # Group departments by tenant_id
+    departments_by_tenant = {}
     for dept_data in deps_list:
         dept_id = dept_data.get("id")
         dept_name = dept_data.get("name")
         parent_id = dept_data.get("parent_id", "-1")
         group_path = dept_data.get("group_path", f"/{dept_id}")
         tenant_id = dept_data.get("tenant_id")
-        
+
         if not dept_id or not dept_name or not tenant_id:
             logger.warning(f"Incomplete department data: {dept_data}")
             continue
-            
+
+        if tenant_id not in departments_by_tenant:
+            departments_by_tenant[tenant_id] = []
+
         department_data = {
             "id": dept_id,
             "parent_id": parent_id,
@@ -811,13 +815,62 @@ async def sync_anybase_departments(session, deps_list: list):
             "created_at": utc_now(),
             "updated_at": utc_now(),
         }
-        departments_to_sync.append(department_data)
-    
-    if departments_to_sync:
-        try:
-            # Use bulk upsert to sync all departments
-            await async_db_ops.bulk_upsert_departments(departments_to_sync)
-            logger.info(f"Successfully synced {len(departments_to_sync)} departments from Anybase")
-        except Exception as e:
-            logger.error(f"Failed to sync departments from Anybase: {e}")
-            raise
+        departments_by_tenant[tenant_id].append(department_data)
+
+    if not departments_by_tenant:
+        logger.warning("No valid department data found")
+        return
+
+    # Sync departments for each tenant
+    for tenant_id, departments_data in departments_by_tenant.items():
+        await sync_tenant_departments(session, tenant_id, departments_data)
+
+
+async def sync_tenant_departments(session, tenant_id: str, departments_data: list):
+    """Sync department data for a specific tenant"""
+    anybase_dept_ids = {dept["id"] for dept in departments_data}
+
+    try:
+        # Get existing departments for this tenant in database
+        existing_departments = await async_db_ops.get_departments_by_tenant_id(tenant_id)
+        existing_dept_ids = {dept.id for dept in existing_departments}
+
+        # Find departments to delete (exist in database but not in Anybase)
+        departments_to_delete = existing_dept_ids - anybase_dept_ids
+
+        # Delete departments that no longer exist in Anybase
+        if departments_to_delete:
+            # Check if any users are still assigned to departments being deleted
+            from sqlalchemy import select
+            stmt = select(User).where(
+                User.department_id.in_(departments_to_delete),
+                User.is_active.is_(True),
+                User.gmt_deleted.is_(None)
+            )
+            result = await session.execute(stmt)
+            users_in_deleted_depts = result.scalars().all()
+
+            if users_in_deleted_depts:
+                # Don't delete departments that still have active users
+                logger.warning(f"Cannot delete departments {departments_to_delete} because they still have {len(users_in_deleted_depts)} active users")
+                # Remove these departments from deletion list
+                departments_to_delete = departments_to_delete - {user.department_id for user in users_in_deleted_depts}
+
+            if departments_to_delete:
+                from sqlalchemy import delete
+                stmt = delete(Department).where(
+                    Department.tenant_id == tenant_id,
+                    Department.id.in_(departments_to_delete)
+                )
+                result = await session.execute(stmt)
+                deleted_count = result.rowcount
+                logger.info(f"Deleted {deleted_count} departments from tenant {tenant_id} that no longer exist in Anybase")
+
+        # Use bulk upsert to sync/update departments
+        if departments_data:
+            await async_db_ops.bulk_upsert_departments(departments_data)
+            logger.info(f"Successfully synced {len(departments_data)} departments from Anybase for tenant {tenant_id}")
+
+    except Exception as e:
+        logger.error(f"Failed to sync departments for tenant {tenant_id}: {e}")
+        raise
