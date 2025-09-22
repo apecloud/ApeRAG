@@ -14,7 +14,7 @@
 
 import logging
 from datetime import datetime
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -46,14 +46,14 @@ class BotMarketplaceService:
         else:
             self.db_ops = AsyncDatabaseOps(session)  # Create custom instance for transaction control
 
-    async def publish_bot(self, user_id: str, bot_id: str) -> None:
-        """Publish bot to marketplace"""
+    async def publish_bot(self, user_id: str, bot_id: str, group_ids: List[str]) -> None:
+        """Publish bot to marketplace with department scope"""
         # Verify user ownership
         await self._verify_bot_ownership(user_id, bot_id)
 
-        # Create or update bot_marketplace record
-        await self.db_ops.create_or_update_bot_marketplace(
-            bot_id=bot_id, status=db_models.BotMarketplaceStatusEnum.PUBLISHED.value
+        # Publish bot to specified departments
+        await self.db_ops.publish_bot_to_departments(
+            bot_id=bot_id, group_ids=group_ids
         )
 
     async def unpublish_bot(self, user_id: str, bot_id: str) -> None:
@@ -61,10 +61,9 @@ class BotMarketplaceService:
         # Verify user ownership
         await self._verify_bot_ownership(user_id, bot_id)
 
-        # Update bot_marketplace record status to 'DRAFT' and invalidate related subscriptions
-        # Note: This uses transaction to ensure data consistency
-        marketplace = await self.db_ops.unpublish_bot(bot_id)
-        if marketplace is None:
+        # Unpublish bot from all departments
+        count = await self.db_ops.unpublish_bot(bot_id)
+        if count == 0:
             raise BotNotPublishedError(bot_id)
 
     async def get_sharing_status(self, user_id: str, bot_id: str) -> Tuple[bool, Optional[datetime]]:
@@ -72,47 +71,42 @@ class BotMarketplaceService:
         # Verify user ownership first
         await self._verify_bot_ownership(user_id, bot_id)
 
-        marketplace = await self.db_ops.get_bot_marketplace_by_bot_id(bot_id)
-        if marketplace is None:
+        marketplace_entries = await self.db_ops.get_bot_marketplace_entries_by_bot_id(bot_id)
+        if not marketplace_entries:
             return False, None
 
-        is_published = marketplace.status == db_models.BotMarketplaceStatusEnum.PUBLISHED.value
-        published_at = marketplace.gmt_created if is_published else None
+        # Check if any entry is published
+        published_entries = [
+            entry for entry in marketplace_entries 
+            if entry.status == db_models.BotMarketplaceStatusEnum.PUBLISHED.value
+        ]
+        
+        if not published_entries:
+            return False, None
 
-        return is_published, published_at
+        # Return the earliest published date
+        earliest_published = min(published_entries, key=lambda x: x.gmt_created)
+        return True, earliest_published.gmt_created
 
     async def get_raw_sharing_status(self, bot_id: str) -> Optional[db_models.BotMarketplace]:
-        """Get raw sharing status (for permission checks)"""
-        return await self.db_ops.get_bot_marketplace_by_bot_id(bot_id)
-
-    async def validate_marketplace_bot(self, bot_id: str):
-        """
-        Validate if bot is published in marketplace
-
-        Args:
-            bot_id: Bot ID to validate
-
-        Returns:
-            bool: True if bot is published in marketplace
-
-        Raises:
-            HTTPException: If bot is not published in marketplace
-        """
-        from fastapi import HTTPException
-
-        marketplace_record = await self.get_raw_sharing_status(bot_id)
-        if (
-            not marketplace_record
-            or marketplace_record.status != db_models.BotMarketplaceStatusEnum.PUBLISHED.value
-        ):
-            raise HTTPException(status_code=401, detail="Authentication required")
+        """Get raw sharing status (for permission checks) - returns first published entry"""
+        marketplace_entries = await self.db_ops.get_bot_marketplace_entries_by_bot_id(bot_id)
+        published_entries = [
+            entry for entry in marketplace_entries 
+            if entry.status == db_models.BotMarketplaceStatusEnum.PUBLISHED.value
+        ]
+        return published_entries[0] if published_entries else None
 
     async def list_published_bots(
         self, user_id: str, page: int = 1, page_size: int = 12, bot_type: str = None
     ) -> view_models.SharedBotList:
-        """List all published bots in marketplace"""
-        bots_data, total = await self.db_ops.list_published_bots_with_subscription_status(
-            user_id=user_id, page=page, page_size=page_size, bot_type=bot_type
+        """List all published bots accessible to user based on department"""
+        # Get user's department ID
+        user = await self.db_ops.query_user_by_id(user_id)
+        user_department_id = user.department_id if user else None
+        
+        bots_data, total = await self.db_ops.get_accessible_bots_for_user(
+            user_department_id=user_department_id, page=page, page_size=page_size, bot_type=bot_type
         )
 
         # Convert to SharedBot objects
@@ -129,122 +123,16 @@ class BotMarketplaceService:
                 type=data["type"],
                 owner_user_id=data["owner_user_id"],
                 owner_username=data["owner_username"],
-                subscription_id=data["subscription_id"],
-                gmt_subscribed=data["gmt_subscribed"],
+                subscription_id=None,  # No subscription needed anymore
+                gmt_subscribed=None,
                 config=shared_config,
-                is_subscribed=data["subscription_id"] is not None,
+                is_subscribed=True,  # All accessible bots are "subscribed" (accessible)
                 is_owner=data["owner_user_id"] == user_id,
             )
             bots.append(shared_bot)
 
         return view_models.SharedBotList(items=bots, total=total, page=page, page_size=page_size)
 
-    async def subscribe_bot(self, user_id: str, bot_id: str) -> view_models.SharedBot:
-        """Subscribe to bot"""
-        # 1. Find bot's corresponding published marketplace record (status = 'PUBLISHED', gmt_deleted IS NULL)
-        marketplace = await self.db_ops.get_bot_marketplace_by_bot_id(bot_id)
-        if marketplace is None or marketplace.status != db_models.BotMarketplaceStatusEnum.PUBLISHED.value:
-            raise BotNotPublishedError(bot_id)
-
-        # 2. Verify user is not the bot owner (user_id != bot.user)
-        bot = await self.db_ops.query_bot_by_id(bot_id)
-        if bot is None:
-            raise BotNotFoundException(bot_id)
-
-        if bot.user == user_id:
-            raise SelfBotSubscriptionError(bot_id)
-
-        # 3. Check if already subscribed to this marketplace instance, prevent duplicate subscription
-        existing_subscription = await self.db_ops.get_user_bot_subscription_by_marketplace_id(
-            user_id=user_id, bot_marketplace_id=marketplace.id
-        )
-        if existing_subscription is not None:
-            raise AlreadySubscribedToBotError(bot_id)
-
-        # 4. Create user_bot_subscription record (associated with bot_marketplace_id)
-        subscription = await self.db_ops.create_bot_subscription(user_id=user_id, bot_marketplace_id=marketplace.id)
-
-        # Get owner information
-        owner = await self.db_ops.query_user_by_username(bot.user)
-        owner_username = owner.username if owner else bot.user
-
-        # Parse bot config and convert to SharedBotConfig
-        bot_config = parseBotConfig(bot.config)
-        shared_config = convertToSharedBotConfig(bot_config)
-
-        return view_models.SharedBot(
-            id=bot.id,
-            title=bot.title,
-            description=bot.description,
-            type=bot.type,
-            owner_user_id=bot.user,
-            owner_username=owner_username,
-            subscription_id=subscription.id,
-            gmt_subscribed=subscription.gmt_subscribed,
-            config=shared_config,
-            is_subscribed=True,
-            is_owner=False,
-        )
-
-    async def unsubscribe_bot(self, user_id: str, bot_id: str) -> None:
-        """Unsubscribe from bot"""
-        # Check if user has subscribed to this bot
-        subscription = await self.db_ops.get_user_bot_subscription_by_bot_id(user_id, bot_id)
-
-        # If no active subscription found, return silently (idempotent operation)
-        # This handles cases where user clicks unsubscribe multiple times
-        if subscription is None:
-            logger.info(
-                f"User {user_id} attempted to unsubscribe from bot {bot_id}, but no active subscription found. Operation treated as successful (idempotent)."
-            )
-            return
-
-        # Soft delete subscription record (set gmt_deleted = current_timestamp)
-        await self.db_ops.unsubscribe_bot(user_id, bot_id)
-
-    async def get_user_subscription(
-        self, user_id: str, bot_id: str
-    ) -> Optional[db_models.UserBotSubscription]:
-        """Get user's active subscription status for specified bot"""
-        # Find published marketplace record through bot_id, then find corresponding subscription record
-        # Used by permission check functions
-        # Returns None if not subscribed or already unsubscribed
-        return await self.db_ops.get_user_bot_subscription_by_bot_id(user_id, bot_id)
-
-    async def list_user_subscribed_bots(
-        self, user_id: str, page: int = 1, page_size: int = 12
-    ) -> view_models.SharedBotList:
-        """Get all active subscribed bots for user"""
-        # Query WHERE gmt_deleted IS NULL
-        # Join query to get bot details and original owner information
-        # Support pagination
-        bots_data, total = await self.db_ops.list_user_subscribed_bots(
-            user_id=user_id, page=page, page_size=page_size
-        )
-
-        # Convert to SharedBot objects
-        bots = []
-        for data in bots_data:
-            # Parse bot config and convert to SharedBotConfig
-            bot_config = parseBotConfig(data["config"])
-            shared_config = convertToSharedBotConfig(bot_config)
-
-            shared_bot = view_models.SharedBot(
-                id=data["id"],
-                title=data["title"],
-                description=data["description"],
-                type=data["type"],
-                owner_user_id=data["owner_user_id"],
-                owner_username=data["owner_username"],
-                subscription_id=data["subscription_id"],
-                gmt_subscribed=data["gmt_subscribed"],
-                config=shared_config,
-                is_subscribed=True,
-                is_owner=False,
-            )
-            bots.append(shared_bot)
-
-        return view_models.SharedBotList(items=bots, total=total, page=page, page_size=page_size)
 
     async def cleanup_bot_marketplace_data(self, bot_id: str) -> None:
         """Cleanup marketplace data when bot is deleted"""

@@ -413,51 +413,29 @@ class Bot(Base):
 
 
 class BotMarketplace(Base):
-    """Bot sharing status table"""
+    """Bot sharing status table with department-based publishing scope"""
 
     __tablename__ = "bot_marketplace"
     __table_args__ = (
-        UniqueConstraint("bot_id", name="uq_bot_marketplace_bot"),
+        # Remove unique constraint on bot_id since one bot can be published to multiple departments
         Index("idx_bot_marketplace_status", "status"),
         Index("idx_bot_marketplace_gmt_deleted", "gmt_deleted"),
         Index("idx_bot_marketplace_bot_id", "bot_id"),
+        Index("idx_bot_marketplace_group_id", "group_id"),
         Index("idx_bot_marketplace_list", "status", "gmt_created"),
+        Index("idx_bot_marketplace_bot_group", "bot_id", "group_id"),
     )
 
     id = Column(String(24), primary_key=True, default=lambda: "bot_market_" + random_id()[:14])
     bot_id = Column(String(24), nullable=False)
 
+    # Publishing scope: department id or "*" for global
+    group_id = Column(String(64), nullable=False, default="*")  # "*" means global, otherwise department id
+
     # Sharing status: use VARCHAR storage, not database enum type, validated at application layer
     status = Column(String(20), nullable=False, default=BotMarketplaceStatusEnum.DRAFT.value)
 
     # Timestamp fields
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)  # Updated in code layer
-    gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Soft delete timestamp
-
-
-class UserBotSubscription(Base):
-    """User subscription to published bots table"""
-
-    __tablename__ = "user_bot_subscription"
-    __table_args__ = (
-        # Allow multiple history records, but active subscription (gmt_deleted=NULL) must be unique
-        UniqueConstraint(
-            "user_id", "bot_marketplace_id", "gmt_deleted", name="idx_user_bot_marketplace_history_unique"
-        ),
-        Index("idx_user_bot_subscription_marketplace", "bot_marketplace_id"),
-        Index("idx_user_bot_subscription_user", "user_id"),
-        Index("idx_user_bot_subscription_gmt_deleted", "gmt_deleted"),
-    )
-
-    id = Column(String(24), primary_key=True, default=lambda: "bot_sub_" + random_id()[:14])
-    user_id = Column(String(24), nullable=False)  # Related to users table, maintained at application layer
-    bot_marketplace_id = Column(
-        String(24), nullable=False
-    )  # Related to bot_marketplace table, maintained at application layer
-
-    # Timestamp fields
-    gmt_subscribed = Column(DateTime(timezone=True), default=utc_now, nullable=False)  # Subscription time
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)  # Updated in code layer
     gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Soft delete timestamp

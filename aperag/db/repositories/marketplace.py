@@ -25,8 +25,8 @@ from aperag.db.models import (
     CollectionMarketplace,
     CollectionMarketplaceStatusEnum,
     CollectionStatus,
+    Department,
     User,
-    UserBotSubscription,
     UserCollectionSubscription,
 )
 from aperag.db.repositories.base import AsyncRepositoryProtocol
@@ -432,162 +432,154 @@ class AsyncMarketplaceRepositoryMixin(AsyncRepositoryProtocol):
         return await self._execute_query(_query)
 
     # Bot marketplace sharing operations
-    async def create_or_update_bot_marketplace(
-        self, bot_id: str, status: str = BotMarketplaceStatusEnum.PUBLISHED.value
-    ) -> BotMarketplace:
-        """Create or update bot marketplace record"""
+    async def publish_bot_to_departments(
+        self, bot_id: str, group_ids: List[str], status: str = BotMarketplaceStatusEnum.PUBLISHED.value
+    ) -> List[BotMarketplace]:
+        """Publish a bot to specific departments or globally"""
 
         async def _operation(session):
-            # Check if marketplace record already exists
-            stmt = select(BotMarketplace).where(
+            # First, soft delete existing marketplace entries for this bot
+            existing_stmt = select(BotMarketplace).where(
                 BotMarketplace.bot_id == bot_id, BotMarketplace.gmt_deleted.is_(None)
             )
-            result = await session.execute(stmt)
-            marketplace = result.scalars().first()
+            result = await session.execute(existing_stmt)
+            existing_entries = result.scalars().all()
 
             current_time = utc_now()
+            
+            # Soft delete existing entries
+            for entry in existing_entries:
+                entry.gmt_deleted = current_time
+                entry.gmt_updated = current_time
+                session.add(entry)
 
-            if marketplace:
-                # Update existing record
-                marketplace.status = status
-                marketplace.gmt_updated = current_time
-            else:
-                # Create new record
-                marketplace = BotMarketplace(
+            # Create new marketplace entries for each group
+            new_entries = []
+            for group_id in group_ids:
+                marketplace_entry = BotMarketplace(
                     bot_id=bot_id,
+                    group_id=group_id,
                     status=status,
                     gmt_created=current_time,
                     gmt_updated=current_time,
                 )
-                session.add(marketplace)
+                session.add(marketplace_entry)
+                new_entries.append(marketplace_entry)
 
             await session.flush()
-            await session.refresh(marketplace)
-            return marketplace
+            for entry in new_entries:
+                await session.refresh(entry)
+            return new_entries
 
         return await self.execute_with_transaction(_operation)
 
-    async def get_bot_marketplace_by_bot_id(self, bot_id: str) -> Optional[BotMarketplace]:
-        """Get bot marketplace record by bot_id"""
+    async def get_bot_marketplace_entries_by_bot_id(self, bot_id: str) -> List[BotMarketplace]:
+        """Get all bot marketplace records by bot_id"""
 
         async def _query(session):
             stmt = select(BotMarketplace).where(
                 BotMarketplace.bot_id == bot_id, BotMarketplace.gmt_deleted.is_(None)
-            )
+            ).order_by(BotMarketplace.gmt_created.desc())
             result = await session.execute(stmt)
-            return result.scalars().first()
+            return result.scalars().all()
 
         return await self._execute_query(_query)
 
-    async def get_bot_marketplace_by_id(self, marketplace_id: str) -> Optional[BotMarketplace]:
-        """Get bot marketplace record by ID"""
-
-        async def _query(session):
-            stmt = select(BotMarketplace).where(
-                BotMarketplace.id == marketplace_id, BotMarketplace.gmt_deleted.is_(None)
-            )
-            result = await session.execute(stmt)
-            return result.scalars().first()
-
-        return await self._execute_query(_query)
-
-    async def unpublish_bot(self, bot_id: str) -> Optional[BotMarketplace]:
+    async def unpublish_bot(self, bot_id: str) -> int:
         """
-        Unpublish bot from marketplace and invalidate all related subscriptions
-        Returns the marketplace record if found and updated, None if not found
+        Unpublish bot from marketplace by soft deleting all marketplace entries
+        Returns the number of entries that were unpublished
         """
 
         async def _operation(session):
-            # Find the marketplace record
+            # Find all published marketplace records for this bot
             stmt = select(BotMarketplace).where(
                 BotMarketplace.bot_id == bot_id,
                 BotMarketplace.status == BotMarketplaceStatusEnum.PUBLISHED.value,
                 BotMarketplace.gmt_deleted.is_(None),
             )
             result = await session.execute(stmt)
-            marketplace = result.scalars().first()
+            marketplace_entries = result.scalars().all()
 
-            if marketplace is None:
-                return None
+            if not marketplace_entries:
+                return 0
 
             current_time = utc_now()
+            count = 0
 
-            # Update marketplace status to DRAFT
-            marketplace.status = BotMarketplaceStatusEnum.DRAFT.value
-            marketplace.gmt_updated = current_time
-
-            # Soft delete all active subscriptions to this marketplace bot
-            update_stmt = (
-                UserBotSubscription.__table__.update()
-                .where(
-                    and_(
-                        UserBotSubscription.bot_marketplace_id == marketplace.id,
-                        UserBotSubscription.gmt_deleted.is_(None),
-                    )
-                )
-                .values(gmt_deleted=current_time, gmt_updated=current_time)
-            )
-            await session.execute(update_stmt)
+            # Soft delete all marketplace entries
+            for marketplace in marketplace_entries:
+                marketplace.gmt_deleted = current_time
+                marketplace.gmt_updated = current_time
+                session.add(marketplace)
+                count += 1
 
             await session.flush()
-            await session.refresh(marketplace)
-            return marketplace
+            return count
 
         return await self.execute_with_transaction(_operation)
 
     async def soft_delete_bot_marketplace(self, bot_id: str) -> bool:
         """
-        Soft delete bot marketplace record and all related subscriptions
+        Soft delete all bot marketplace records
         This is called when a bot is deleted
-        Returns True if marketplace record was found and deleted, False otherwise
+        Returns True if marketplace records were found and deleted, False otherwise
         """
 
         async def _operation(session):
-            # Find the marketplace record
+            # Find all marketplace records for this bot
             stmt = select(BotMarketplace).where(
                 BotMarketplace.bot_id == bot_id, BotMarketplace.gmt_deleted.is_(None)
             )
             result = await session.execute(stmt)
-            marketplace = result.scalars().first()
+            marketplace_entries = result.scalars().all()
 
-            if marketplace is None:
+            if not marketplace_entries:
                 return False
 
             current_time = utc_now()
 
-            # Soft delete marketplace record
-            marketplace.gmt_deleted = current_time
-            marketplace.gmt_updated = current_time
-
-            # Soft delete all active subscriptions to this marketplace bot
-            update_stmt = (
-                UserBotSubscription.__table__.update()
-                .where(
-                    and_(
-                        UserBotSubscription.bot_marketplace_id == marketplace.id,
-                        UserBotSubscription.gmt_deleted.is_(None),
-                    )
-                )
-                .values(gmt_deleted=current_time, gmt_updated=current_time)
-            )
-            await session.execute(update_stmt)
+            # Soft delete all marketplace records
+            for marketplace in marketplace_entries:
+                marketplace.gmt_deleted = current_time
+                marketplace.gmt_updated = current_time
+                session.add(marketplace)
 
             await session.flush()
             return True
 
         return await self.execute_with_transaction(_operation)
 
-    async def list_published_bots_with_subscription_status(
-        self, user_id: str, page: int = 1, page_size: int = 12, bot_type: str = None
+    async def get_accessible_bots_for_user(
+        self, user_department_id: Optional[str], page: int = 1, page_size: int = 12, bot_type: str = None
     ) -> Tuple[List[dict], int]:
         """
-        List published bots with user's subscription status
+        Get all bots accessible to a user based on their department
         Returns (bots_data, total_count)
         """
 
         async def _query(session):
-            # Base query for published bots
-            base_query = (
+            # Get user's department hierarchy (all parent departments)
+            accessible_group_ids = ["*"]  # Global bots are always accessible
+
+            if user_department_id:
+                # Get user's department
+                dept_result = await session.execute(
+                    select(Department).where(Department.id == user_department_id)
+                )
+                user_dept = dept_result.scalars().first()
+
+                if user_dept and user_dept.group_path:
+                    # Extract all parent department IDs from group_path
+                    # e.g., "/dp_1/dp_2" -> ["dp_1", "dp_2"]
+                    path_parts = user_dept.group_path.strip("/").split("/")
+                    accessible_group_ids.extend([part for part in path_parts if part])
+
+                # Also include the user's direct department
+                accessible_group_ids.append(user_department_id)
+
+            # Base query for accessible published bots
+            base_stmt = (
                 select(
                     Bot.id.label("bot_id"),
                     Bot.title,
@@ -599,6 +591,7 @@ class AsyncMarketplaceRepositoryMixin(AsyncRepositoryProtocol):
                     Bot.user.label("owner_user_id"),
                     User.username.label("owner_username"),
                     BotMarketplace.id.label("marketplace_id"),
+                    BotMarketplace.group_id,
                     BotMarketplace.status.label("marketplace_status"),
                     BotMarketplace.gmt_created.label("published_at"),
                 )
@@ -611,6 +604,7 @@ class AsyncMarketplaceRepositoryMixin(AsyncRepositoryProtocol):
                         Bot.status == BotStatus.ACTIVE.value,
                         Bot.gmt_deleted.is_(None),
                         BotMarketplace.status == BotMarketplaceStatusEnum.PUBLISHED.value,
+                        BotMarketplace.group_id.in_(accessible_group_ids),
                         BotMarketplace.gmt_deleted.is_(None),
                     )
                 )
@@ -618,253 +612,39 @@ class AsyncMarketplaceRepositoryMixin(AsyncRepositoryProtocol):
 
             # Add bot type filter if specified
             if bot_type:
-                base_query = base_query.where(Bot.type == bot_type)
+                base_stmt = base_stmt.where(Bot.type == bot_type)
 
             # Order by published time (newest first)
-            base_query = base_query.order_by(desc(BotMarketplace.gmt_created))
+            base_stmt = base_stmt.order_by(desc(BotMarketplace.gmt_created))
 
-            # Count total records
-            count_stmt = select(func.count()).select_from(base_query.subquery())
-            count_result = await session.execute(count_stmt)
-            total = count_result.scalar()
-
-            # Add subscription status for the user (if user is provided)
-            if user_id:
-                # Join with user subscriptions to get subscription info
-                final_stmt = (
-                    select(
-                        Bot.id.label("bot_id"),
-                        Bot.title,
-                        Bot.description,
-                        Bot.type,
-                        Bot.config,
-                        Bot.gmt_created,
-                        Bot.gmt_updated,
-                        Bot.user.label("owner_user_id"),
-                        User.username.label("owner_username"),
-                        BotMarketplace.id.label("marketplace_id"),
-                        BotMarketplace.status.label("marketplace_status"),
-                        BotMarketplace.gmt_created.label("published_at"),
-                        UserBotSubscription.id.label("subscription_id"),
-                        UserBotSubscription.gmt_subscribed,
-                    )
-                    .select_from(
-                        Bot.join(BotMarketplace, Bot.id == BotMarketplace.bot_id)
-                        .outerjoin(User, Bot.user == User.username)
-                        .outerjoin(
-                            UserBotSubscription,
-                            and_(
-                                UserBotSubscription.bot_marketplace_id == BotMarketplace.id,
-                                UserBotSubscription.user_id == user_id,
-                                UserBotSubscription.gmt_deleted.is_(None),
-                            ),
-                        )
-                    )
-                    .where(
-                        and_(
-                            Bot.status == BotStatus.ACTIVE.value,
-                            Bot.gmt_deleted.is_(None),
-                            BotMarketplace.status == BotMarketplaceStatusEnum.PUBLISHED.value,
-                            BotMarketplace.gmt_deleted.is_(None),
-                        )
-                    )
-                )
-                
-                # Add bot type filter if specified
-                if bot_type:
-                    final_stmt = final_stmt.where(Bot.type == bot_type)
-                    
-                # Order by published time (newest first)
-                final_stmt = final_stmt.order_by(desc(BotMarketplace.gmt_created))
-            else:
-                # For anonymous users, add null subscription fields
-                final_stmt = base_query.add_columns(
-                    func.cast(None, UserBotSubscription.id.type).label("subscription_id"),
-                    func.cast(None, UserBotSubscription.gmt_subscribed.type).label("gmt_subscribed"),
-                )
-
-            # Apply pagination
-            offset = (page - 1) * page_size
-            stmt = final_stmt.limit(page_size).offset(offset)
-            result = await session.execute(stmt)
-
-            bots = []
-            for row in result:
-                bots.append(
-                    {
-                        "subscription_id": row.subscription_id,
-                        "id": row.bot_id,
-                        "title": row.title,
-                        "description": row.description,
-                        "type": row.type,
-                        "config": row.config,
-                        "gmt_created": row.gmt_created,
-                        "gmt_updated": row.gmt_updated,
-                        "marketplace_status": row.marketplace_status,
-                        "published_at": row.published_at,
-                        "owner_user_id": row.owner_user_id,
-                        "owner_username": row.owner_username,
-                        "gmt_subscribed": row.gmt_subscribed,
-                    }
-                )
-
-            return bots, total
-
-        return await self._execute_query(_query)
-
-    # Bot subscription operations
-    async def create_bot_subscription(self, user_id: str, bot_marketplace_id: str) -> UserBotSubscription:
-        """Create bot subscription record"""
-
-        async def _operation(session):
-            current_time = utc_now()
-            subscription = UserBotSubscription(
-                user_id=user_id,
-                bot_marketplace_id=bot_marketplace_id,
-                gmt_subscribed=current_time,
-                gmt_created=current_time,
-                gmt_updated=current_time,
-            )
-            session.add(subscription)
-            await session.flush()
-            await session.refresh(subscription)
-            return subscription
-
-        return await self.execute_with_transaction(_operation)
-
-    async def get_user_bot_subscription_by_bot_id(
-        self, user_id: str, bot_id: str
-    ) -> Optional[UserBotSubscription]:
-        """Get user's active subscription by bot_id"""
-
-        async def _query(session):
-            stmt = (
-                select(UserBotSubscription)
-                .join(BotMarketplace, UserBotSubscription.bot_marketplace_id == BotMarketplace.id)
-                .where(
-                    and_(
-                        UserBotSubscription.user_id == user_id,
-                        BotMarketplace.bot_id == bot_id,
-                        UserBotSubscription.gmt_deleted.is_(None),
-                        BotMarketplace.gmt_deleted.is_(None),
-                    )
-                )
-            )
-            result = await session.execute(stmt)
-            return result.scalars().first()
-
-        return await self._execute_query(_query)
-
-    async def get_user_bot_subscription_by_marketplace_id(
-        self, user_id: str, bot_marketplace_id: str
-    ) -> Optional[UserBotSubscription]:
-        """Get user's active subscription by marketplace_id"""
-
-        async def _query(session):
-            stmt = select(UserBotSubscription).where(
+            # Count total unique bots (since one bot might be published to multiple departments)
+            count_stmt = select(func.count(func.distinct(Bot.id))).select_from(
+                Bot.join(BotMarketplace, Bot.id == BotMarketplace.bot_id)
+            ).where(
                 and_(
-                    UserBotSubscription.user_id == user_id,
-                    UserBotSubscription.bot_marketplace_id == bot_marketplace_id,
-                    UserBotSubscription.gmt_deleted.is_(None),
+                    Bot.status == BotStatus.ACTIVE.value,
+                    Bot.gmt_deleted.is_(None),
+                    BotMarketplace.status == BotMarketplaceStatusEnum.PUBLISHED.value,
+                    BotMarketplace.group_id.in_(accessible_group_ids),
+                    BotMarketplace.gmt_deleted.is_(None),
                 )
             )
-            result = await session.execute(stmt)
-            return result.scalars().first()
-
-        return await self._execute_query(_query)
-
-    async def unsubscribe_bot(self, user_id: str, bot_id: str) -> Optional[UserBotSubscription]:
-        """Unsubscribe user from bot (soft delete subscription record)"""
-
-        async def _operation(session):
-            # Find the subscription through bot_id
-            stmt = (
-                select(UserBotSubscription)
-                .join(BotMarketplace, UserBotSubscription.bot_marketplace_id == BotMarketplace.id)
-                .where(
-                    and_(
-                        UserBotSubscription.user_id == user_id,
-                        BotMarketplace.bot_id == bot_id,
-                        UserBotSubscription.gmt_deleted.is_(None),
-                        BotMarketplace.gmt_deleted.is_(None),
-                    )
-                )
-            )
-            result = await session.execute(stmt)
-            subscription = result.scalars().first()
-
-            if subscription is None:
-                return None
-
-            # Soft delete the subscription
-            current_time = utc_now()
-            subscription.gmt_deleted = current_time
-            subscription.gmt_updated = current_time
-
-            await session.flush()
-            await session.refresh(subscription)
-            return subscription
-
-        return await self.execute_with_transaction(_operation)
-
-    async def list_user_subscribed_bots(
-        self, user_id: str, page: int = 1, page_size: int = 12
-    ) -> Tuple[List[dict], int]:
-        """
-        List user's subscribed bots with details
-        Returns (bots_data, total_count)
-        """
-
-        async def _query(session):
-            # Base query for user's active subscriptions
-            base_stmt = (
-                select(
-                    UserBotSubscription.id.label("subscription_id"),
-                    UserBotSubscription.gmt_subscribed,
-                    Bot.id.label("bot_id"),
-                    Bot.title,
-                    Bot.description,
-                    Bot.type,
-                    Bot.config,
-                    Bot.gmt_created,
-                    Bot.gmt_updated,
-                    Bot.user.label("owner_user_id"),
-                    User.username.label("owner_username"),
-                    BotMarketplace.status.label("marketplace_status"),
-                    BotMarketplace.gmt_created.label("published_at"),
-                )
-                .select_from(
-                    UserBotSubscription.join(BotMarketplace, UserBotSubscription.bot_marketplace_id == BotMarketplace.id)
-                    .join(Bot, BotMarketplace.bot_id == Bot.id)
-                    .outerjoin(User, Bot.user == User.username)
-                )
-                .where(
-                    and_(
-                        UserBotSubscription.user_id == user_id,
-                        UserBotSubscription.gmt_deleted.is_(None),
-                        BotMarketplace.gmt_deleted.is_(None),
-                        Bot.status == BotStatus.ACTIVE.value,
-                        Bot.gmt_deleted.is_(None),
-                    )
-                )
-                .order_by(desc(UserBotSubscription.gmt_subscribed))
-            )
-
-            # Count total records
-            count_stmt = select(func.count()).select_from(base_stmt.subquery())
+            
+            if bot_type:
+                count_stmt = count_stmt.where(Bot.type == bot_type)
+                
             count_result = await session.execute(count_stmt)
             total = count_result.scalar()
 
-            # Apply pagination
+            # Apply pagination and get distinct bots
             offset = (page - 1) * page_size
-            stmt = base_stmt.limit(page_size).offset(offset)
+            stmt = base_stmt.distinct(Bot.id).limit(page_size).offset(offset)
             result = await session.execute(stmt)
 
             bots = []
             for row in result:
                 bots.append(
                     {
-                        "subscription_id": row.subscription_id,
                         "id": row.bot_id,
                         "title": row.title,
                         "description": row.description,
@@ -876,10 +656,11 @@ class AsyncMarketplaceRepositoryMixin(AsyncRepositoryProtocol):
                         "published_at": row.published_at,
                         "owner_user_id": row.owner_user_id,
                         "owner_username": row.owner_username,
-                        "gmt_subscribed": row.gmt_subscribed,
+                        "group_id": row.group_id,
                     }
                 )
 
             return bots, total
 
         return await self._execute_query(_query)
+

@@ -104,11 +104,12 @@ async def get_bot_sharing_status(
 @router.post("/bots/{bot_id}/sharing", tags=["bots"])
 async def publish_bot_to_marketplace(
     bot_id: str,
+    publish_request: view_models.BotPublishRequest,
     user: User = Depends(required_user),
 ):
-    """Publish bot to marketplace (owner only)"""
+    """Publish bot to marketplace with department scope (owner only)"""
     try:
-        await bot_marketplace_service.publish_bot(str(user.id), bot_id)
+        await bot_marketplace_service.publish_bot(str(user.id), bot_id, publish_request.group_ids)
         return Response(status_code=204)
     except BotNotFoundException:
         raise HTTPException(status_code=404, detail="Bot not found")
