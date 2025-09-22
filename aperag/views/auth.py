@@ -31,7 +31,7 @@ from httpx_oauth.clients.github import GitHubOAuth2
 from httpx_oauth.clients.google import GoogleOAuth2
 
 from aperag.config import AsyncSessionDep, settings
-from aperag.db.models import ApiKey, ApiKeyStatus, Invitation, OAuthAccount, Role, User
+from aperag.db.models import ApiKey, ApiKeyStatus, Department, DepartmentStatus, Invitation, OAuthAccount, Role, User
 from aperag.db.ops import async_db_ops
 from aperag.schema import view_models
 from aperag.utils.audit_decorator import audit
@@ -309,6 +309,14 @@ async def authenticate_anybase_token(request: Request, session: AsyncSessionDep)
     anybase_phone = anybase_user_data.get("phone")
     anybase_user_role = anybase_user_data.get("role")
     
+    # Extract new department and tenant info
+    anybase_user_tenant_id = anybase_user_data.get("tenant_id")
+    anybase_user_tenant_name = anybase_user_data.get("tenant_name")
+    anybase_user_deps_id = anybase_user_data.get("deps_id")
+    anybase_user_deps_name = anybase_user_data.get("deps_name")
+    anybase_tenant_list = anybase_user_data.get("tenant_list", [])
+    anybase_deps_list = anybase_user_data.get("deps_list", [])
+    
     if not anybase_user_code:
         logger.error("Anybase user data missing user_id")
         return None
@@ -320,12 +328,25 @@ async def authenticate_anybase_token(request: Request, session: AsyncSessionDep)
     user = result.scalars().first()
     
     if user:
-        # User exists, mark authentication method and return
+        # User exists, sync department data and update user department
+        await sync_anybase_departments(session, anybase_deps_list)
+        
+        # Update user's department_id if it has changed
+        if user.department_id != anybase_user_deps_id:
+            user.department_id = anybase_user_deps_id
+            session.add(user)
+            await session.commit()
+            await session.refresh(user)
+        
+        # Mark authentication method and return
         user._auth_method = "anybase_token"
         return user
     
     # User doesn't exist, create new user automatically
     try:
+        # Sync department data first
+        await sync_anybase_departments(session, anybase_deps_list)
+        
         user_manager = UserManager(SQLAlchemyUserDatabase(session, User))
         
         # Create user with Anybase data
@@ -334,6 +355,7 @@ async def authenticate_anybase_token(request: Request, session: AsyncSessionDep)
             email=anybase_email or f"{anybase_user_code}@anybase.local",  # Use email or generate one
             hashed_password=user_manager.password_helper.hash(secrets.token_urlsafe(32)),  # Random password
             role=Role.ADMIN if "admin" in anybase_user_role else Role.RO,
+            department_id=anybase_user_deps_id,  # Set user's department
             is_active=True,
             is_verified=True,
             date_joined=utc_now(),
@@ -760,3 +782,42 @@ async def delete_user_view(
         raise HTTPException(status_code=400, detail="Cannot delete your own account")
     await async_db_ops.delete_user(session, target)
     return {"message": "User deleted successfully"}
+
+
+async def sync_anybase_departments(session, deps_list: list):
+    """Sync department data from Anybase to ApeRAG database"""
+    if not deps_list:
+        return
+    
+    departments_to_sync = []
+    for dept_data in deps_list:
+        dept_id = dept_data.get("id")
+        dept_name = dept_data.get("name")
+        parent_id = dept_data.get("parent_id", "-1")
+        group_path = dept_data.get("group_path", f"/{dept_id}")
+        tenant_id = dept_data.get("tenant_id")
+        
+        if not dept_id or not dept_name or not tenant_id:
+            logger.warning(f"Incomplete department data: {dept_data}")
+            continue
+            
+        department_data = {
+            "id": dept_id,
+            "parent_id": parent_id,
+            "name": dept_name,
+            "status": DepartmentStatus.ACTIVE,
+            "group_path": group_path,
+            "tenant_id": tenant_id,
+            "created_at": utc_now(),
+            "updated_at": utc_now(),
+        }
+        departments_to_sync.append(department_data)
+    
+    if departments_to_sync:
+        try:
+            # Use bulk upsert to sync all departments
+            await async_db_ops.bulk_upsert_departments(departments_to_sync)
+            logger.info(f"Successfully synced {len(departments_to_sync)} departments from Anybase")
+        except Exception as e:
+            logger.error(f"Failed to sync departments from Anybase: {e}")
+            raise

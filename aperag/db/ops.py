@@ -22,6 +22,7 @@ from aperag.db.repositories.collection import (
     AsyncCollectionRepositoryMixin,
     CollectionRepositoryMixin,
 )
+from aperag.db.repositories.department import AsyncDepartmentRepositoryMixin
 from aperag.db.repositories.document import (
     AsyncDocumentRepositoryMixin,
     DocumentRepositoryMixin,
@@ -65,6 +66,7 @@ class AsyncDatabaseOps(
     AsyncBaseRepository,
     AsyncApiKeyRepositoryMixin,
     AsyncCollectionRepositoryMixin,
+    AsyncDepartmentRepositoryMixin,
     AsyncDocumentRepositoryMixin,
     AsyncBotRepositoryMixin,
     AsyncChatRepositoryMixin,

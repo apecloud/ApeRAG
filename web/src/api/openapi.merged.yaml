@@ -7237,6 +7237,10 @@ components:
         registration_source:
           type: string
           description: The registration source of the user (local, google, github, etc.)
+        department_id:
+          type: string
+          description: The department ID the user belongs to
+          nullable: true
     login:
       type: object
       properties:

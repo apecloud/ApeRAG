@@ -140,6 +140,11 @@ class Role(str, Enum):
     RO = "ro"
 
 
+class DepartmentStatus(int, Enum):
+    INACTIVE = 0
+    ACTIVE = 1
+
+
 class ChatStatus(str, Enum):
     ACTIVE = "ACTIVE"
     DELETED = "DELETED"
@@ -618,6 +623,25 @@ class LLMProviderModel(Base):
         return self.tags or []
 
 
+class Department(Base):
+    __tablename__ = "department"
+
+    id = Column(String(64), primary_key=True)  # Use anybase department id directly
+    parent_id = Column(String(64), nullable=False, default="-1")  # Parent department id, -1 for root
+    name = Column(String(256), nullable=False)  # Department name
+    status = Column(Integer, nullable=False, default=DepartmentStatus.ACTIVE)  # Department status
+    group_path = Column(String(1024), nullable=False)  # Department hierarchy path
+    tenant_id = Column(String(64), nullable=False)  # Tenant id from anybase
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    # Add unique constraint for id and tenant_id combination
+    __table_args__ = (
+        Index("ix_department_tenant_id", "tenant_id"),
+        Index("ix_department_parent_id", "parent_id"),
+    )
+
+
 class User(Base):
     __tablename__ = "user"
 
@@ -631,6 +655,7 @@ class User(Base):
     is_verified = Column(Boolean, default=True, nullable=False)  # fastapi-users requires is_verified
     is_staff = Column(Boolean, default=False, nullable=False)
     chat_collection_id = Column(String(24), nullable=True, index=True)  # Chat collection for user
+    department_id = Column(String(64), nullable=True, index=True)  # Department id from anybase
     date_joined = Column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )  # Unified naming with other time fields

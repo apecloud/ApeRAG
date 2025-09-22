@@ -103,6 +103,10 @@ user:
     registration_source:
       type: string
       description: The registration source of the user (local, google, github, etc.)
+    department_id:
+      type: string
+      description: The department ID the user belongs to
+      nullable: true
 
 userList:
   type: object
@@ -127,3 +131,43 @@ changePassword:
     new_password:
       type: string
       description: The new password of the user
+
+department:
+  type: object
+  properties:
+    id:
+      type: string
+      description: The ID of the department
+    parent_id:
+      type: string
+      description: The parent department ID, -1 for root department
+    name:
+      type: string
+      description: The name of the department
+    status:
+      type: integer
+      description: The status of the department (0=inactive, 1=active)
+      enum: [0, 1]
+    group_path:
+      type: string
+      description: The hierarchical path of the department
+    tenant_id:
+      type: string
+      description: The tenant ID this department belongs to
+    created_at:
+      type: string
+      description: The date and time the department was created
+    updated_at:
+      type: string
+      description: The date and time the department was last updated
+
+departmentList:
+  type: object
+  description: A list of departments
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/department'
+    pageResult:
+      $ref: './common.yaml#/pageResult'
