@@ -66,14 +66,14 @@ class BotMarketplaceService:
         if count == 0:
             raise BotNotPublishedError(bot_id)
 
-    async def get_sharing_status(self, user_id: str, bot_id: str) -> Tuple[bool, Optional[datetime]]:
+    async def get_sharing_status(self, user_id: str, bot_id: str) -> view_models.BotSharingStatusResponse:
         """Get bot sharing status"""
         # Verify user ownership first
         await self._verify_bot_ownership(user_id, bot_id)
 
         marketplace_entries = await self.db_ops.get_bot_marketplace_entries_by_bot_id(bot_id)
         if not marketplace_entries:
-            return False, None
+            return view_models.BotSharingStatusResponse(is_published=False)
 
         # Check if any entry is published
         published_entries = [
@@ -82,11 +82,11 @@ class BotMarketplaceService:
         ]
         
         if not published_entries:
-            return False, None
+            return view_models.BotSharingStatusResponse(is_published=False)
 
         # Return the earliest published date
-        earliest_published = min(published_entries, key=lambda x: x.gmt_created)
-        return True, earliest_published.gmt_created
+        group_ids = [entry.group_id for entry in published_entries]
+        return view_models.BotSharingStatusResponse(is_published=True, group_ids=group_ids)
 
     async def get_raw_sharing_status(self, bot_id: str) -> Optional[db_models.BotMarketplace]:
         """Get raw sharing status (for permission checks) - returns first published entry"""

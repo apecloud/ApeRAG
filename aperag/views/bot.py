@@ -87,11 +87,10 @@ async def debug_flow_stream_view(
 async def get_bot_sharing_status(
     bot_id: str,
     user: User = Depends(required_user),
-) -> view_models.SharingStatusResponse:
+) -> view_models.BotSharingStatusResponse:
     """Get bot sharing status (owner only)"""
     try:
-        is_published, published_at = await bot_marketplace_service.get_sharing_status(str(user.id), bot_id)
-        return view_models.SharingStatusResponse(is_published=is_published, published_at=published_at)
+        return await bot_marketplace_service.get_sharing_status(str(user.id), bot_id)
     except BotNotFoundException:
         raise HTTPException(status_code=404, detail="Bot not found")
     except PermissionDeniedError:
