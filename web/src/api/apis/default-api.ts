@@ -40,6 +40,8 @@ import type { BotCreate } from '../models';
 // @ts-ignore
 import type { BotList } from '../models';
 // @ts-ignore
+import type { BotPublishRequest } from '../models';
+// @ts-ignore
 import type { BotUpdate } from '../models';
 // @ts-ignore
 import type { ChangePassword } from '../models';
@@ -81,6 +83,8 @@ import type { DebugFlowRequest } from '../models';
 import type { DefaultModelsResponse } from '../models';
 // @ts-ignore
 import type { DefaultModelsUpdateRequest } from '../models';
+// @ts-ignore
+import type { DepartmentList } from '../models';
 // @ts-ignore
 import type { Document } from '../models';
 // @ts-ignore
@@ -141,6 +145,10 @@ import type { Settings } from '../models';
 import type { SettingsTestMineruTokenPost200Response } from '../models';
 // @ts-ignore
 import type { SettingsTestMineruTokenPostRequest } from '../models';
+// @ts-ignore
+import type { SharedBot } from '../models';
+// @ts-ignore
+import type { SharedBotList } from '../models';
 // @ts-ignore
 import type { SharedCollection } from '../models';
 // @ts-ignore
@@ -941,6 +949,124 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
             localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
             localVarRequestOptions.data = serializeDataIfNeeded(botUpdate, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Remove bot from marketplace (owner only)
+         * @summary Unpublish bot from marketplace
+         * @param {string} botId 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        botsBotIdSharingDelete: async (botId: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'botId' is not null or undefined
+            assertParamExists('botsBotIdSharingDelete', 'botId', botId)
+            const localVarPath = `/bots/{bot_id}/sharing`
+                .replace(`{${"bot_id"}}`, encodeURIComponent(String(botId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'DELETE', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Get the sharing status of a bot (owner only)
+         * @summary Get bot sharing status
+         * @param {string} botId 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        botsBotIdSharingGet: async (botId: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'botId' is not null or undefined
+            assertParamExists('botsBotIdSharingGet', 'botId', botId)
+            const localVarPath = `/bots/{bot_id}/sharing`
+                .replace(`{${"bot_id"}}`, encodeURIComponent(String(botId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Publish bot to marketplace (owner only)
+         * @summary Publish bot to marketplace
+         * @param {string} botId 
+         * @param {BotPublishRequest} [botPublishRequest] 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        botsBotIdSharingPost: async (botId: string, botPublishRequest?: BotPublishRequest, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'botId' is not null or undefined
+            assertParamExists('botsBotIdSharingPost', 'botId', botId)
+            const localVarPath = `/bots/{bot_id}/sharing`
+                .replace(`{${"bot_id"}}`, encodeURIComponent(String(botId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+    
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(botPublishRequest, localVarRequestOptions, configuration)
 
             return {
                 url: toPathString(localVarUrlObj),
@@ -2105,6 +2231,46 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             };
         },
         /**
+         * Get department organization structure information
+         * @summary Get department organization structure
+         * @param {string} [tenantId] Optional tenant ID to filter departments
+         * @param {boolean} [hierarchical] If true, returns departments in hierarchical structure with children
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        departmentsGet: async (tenantId?: string, hierarchical?: boolean, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            const localVarPath = `/departments`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            if (tenantId !== undefined) {
+                localVarQueryParameter['tenant_id'] = tenantId;
+            }
+
+            if (hierarchical !== undefined) {
+                localVarQueryParameter['hierarchical'] = hierarchical;
+            }
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          * Get an object from a specific document
          * @summary Get document object
          * @param {string} collectionId 
@@ -2733,6 +2899,193 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
             const localVarHeaderParameter = {} as any;
             const localVarQueryParameter = {} as any;
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Get details of a subscribed bot (read-only access)
+         * @summary Get marketplace bot details (read-only)
+         * @param {string} botId Bot ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        marketplaceBotsBotIdGet: async (botId: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'botId' is not null or undefined
+            assertParamExists('marketplaceBotsBotIdGet', 'botId', botId)
+            const localVarPath = `/marketplace/bots/{bot_id}`
+                .replace(`{${"bot_id"}}`, encodeURIComponent(String(botId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Remove subscription to a bot
+         * @summary Unsubscribe from a bot
+         * @param {string} botId Bot ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        marketplaceBotsBotIdSubscribeDelete: async (botId: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'botId' is not null or undefined
+            assertParamExists('marketplaceBotsBotIdSubscribeDelete', 'botId', botId)
+            const localVarPath = `/marketplace/bots/{bot_id}/subscribe`
+                .replace(`{${"bot_id"}}`, encodeURIComponent(String(botId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'DELETE', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Subscribe to a published bot
+         * @summary Subscribe to a bot
+         * @param {string} botId Bot ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        marketplaceBotsBotIdSubscribePost: async (botId: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'botId' is not null or undefined
+            assertParamExists('marketplaceBotsBotIdSubscribePost', 'botId', botId)
+            const localVarPath = `/marketplace/bots/{bot_id}/subscribe`
+                .replace(`{${"bot_id"}}`, encodeURIComponent(String(botId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Returns all bots that are published to marketplace with current user\'s subscription status
+         * @summary List all published bots in marketplace
+         * @param {number} [page] Page number
+         * @param {number} [pageSize] Page size
+         * @param {MarketplaceBotsGetTypeEnum} [type] Bot type filter
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        marketplaceBotsGet: async (page?: number, pageSize?: number, type?: MarketplaceBotsGetTypeEnum, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            const localVarPath = `/marketplace/bots`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            if (page !== undefined) {
+                localVarQueryParameter['page'] = page;
+            }
+
+            if (pageSize !== undefined) {
+                localVarQueryParameter['page_size'] = pageSize;
+            }
+
+            if (type !== undefined) {
+                localVarQueryParameter['type'] = type;
+            }
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Returns all bots that current user has subscribed to
+         * @summary Get user\'s subscribed bots
+         * @param {number} [page] Page number
+         * @param {number} [pageSize] Page size
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        marketplaceBotsSubscriptionsGet: async (page?: number, pageSize?: number, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            const localVarPath = `/marketplace/bots/subscriptions`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            if (page !== undefined) {
+                localVarQueryParameter['page'] = page;
+            }
+
+            if (pageSize !== undefined) {
+                localVarQueryParameter['page_size'] = pageSize;
+            }
 
 
     
@@ -3618,6 +3971,46 @@ export const DefaultApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Remove bot from marketplace (owner only)
+         * @summary Unpublish bot from marketplace
+         * @param {string} botId 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async botsBotIdSharingDelete(botId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<void>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.botsBotIdSharingDelete(botId, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.botsBotIdSharingDelete']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Get the sharing status of a bot (owner only)
+         * @summary Get bot sharing status
+         * @param {string} botId 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async botsBotIdSharingGet(botId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<SharingStatusResponse>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.botsBotIdSharingGet(botId, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.botsBotIdSharingGet']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Publish bot to marketplace (owner only)
+         * @summary Publish bot to marketplace
+         * @param {string} botId 
+         * @param {BotPublishRequest} [botPublishRequest] 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async botsBotIdSharingPost(botId: string, botPublishRequest?: BotPublishRequest, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<void>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.botsBotIdSharingPost(botId, botPublishRequest, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.botsBotIdSharingPost']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Get a list of bots
          * @summary List bots
          * @param {number} [page] 
@@ -4000,6 +4393,20 @@ export const DefaultApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Get department organization structure information
+         * @summary Get department organization structure
+         * @param {string} [tenantId] Optional tenant ID to filter departments
+         * @param {boolean} [hierarchical] If true, returns departments in hierarchical structure with children
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async departmentsGet(tenantId?: string, hierarchical?: boolean, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<DepartmentList>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.departmentsGet(tenantId, hierarchical, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.departmentsGet']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Get an object from a specific document
          * @summary Get document object
          * @param {string} collectionId 
@@ -4227,6 +4634,74 @@ export const DefaultApiFp = function(configuration?: Configuration) {
             const localVarAxiosArgs = await localVarAxiosParamCreator.logoutPost(options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['DefaultApi.logoutPost']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Get details of a subscribed bot (read-only access)
+         * @summary Get marketplace bot details (read-only)
+         * @param {string} botId Bot ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async marketplaceBotsBotIdGet(botId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<SharedBot>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.marketplaceBotsBotIdGet(botId, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.marketplaceBotsBotIdGet']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Remove subscription to a bot
+         * @summary Unsubscribe from a bot
+         * @param {string} botId Bot ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async marketplaceBotsBotIdSubscribeDelete(botId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<MarketplaceCollectionsCollectionIdSubscribeDelete200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.marketplaceBotsBotIdSubscribeDelete(botId, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.marketplaceBotsBotIdSubscribeDelete']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Subscribe to a published bot
+         * @summary Subscribe to a bot
+         * @param {string} botId Bot ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async marketplaceBotsBotIdSubscribePost(botId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<SharedBot>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.marketplaceBotsBotIdSubscribePost(botId, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.marketplaceBotsBotIdSubscribePost']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Returns all bots that are published to marketplace with current user\'s subscription status
+         * @summary List all published bots in marketplace
+         * @param {number} [page] Page number
+         * @param {number} [pageSize] Page size
+         * @param {MarketplaceBotsGetTypeEnum} [type] Bot type filter
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async marketplaceBotsGet(page?: number, pageSize?: number, type?: MarketplaceBotsGetTypeEnum, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<SharedBotList>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.marketplaceBotsGet(page, pageSize, type, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.marketplaceBotsGet']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Returns all bots that current user has subscribed to
+         * @summary Get user\'s subscribed bots
+         * @param {number} [page] Page number
+         * @param {number} [pageSize] Page size
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async marketplaceBotsSubscriptionsGet(page?: number, pageSize?: number, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<SharedBotList>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.marketplaceBotsSubscriptionsGet(page, pageSize, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.marketplaceBotsSubscriptionsGet']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
@@ -4644,6 +5119,36 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
             return localVarFp.botsBotIdPut(requestParameters.botId, requestParameters.botUpdate, options).then((request) => request(axios, basePath));
         },
         /**
+         * Remove bot from marketplace (owner only)
+         * @summary Unpublish bot from marketplace
+         * @param {DefaultApiBotsBotIdSharingDeleteRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        botsBotIdSharingDelete(requestParameters: DefaultApiBotsBotIdSharingDeleteRequest, options?: RawAxiosRequestConfig): AxiosPromise<void> {
+            return localVarFp.botsBotIdSharingDelete(requestParameters.botId, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Get the sharing status of a bot (owner only)
+         * @summary Get bot sharing status
+         * @param {DefaultApiBotsBotIdSharingGetRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        botsBotIdSharingGet(requestParameters: DefaultApiBotsBotIdSharingGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<SharingStatusResponse> {
+            return localVarFp.botsBotIdSharingGet(requestParameters.botId, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Publish bot to marketplace (owner only)
+         * @summary Publish bot to marketplace
+         * @param {DefaultApiBotsBotIdSharingPostRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        botsBotIdSharingPost(requestParameters: DefaultApiBotsBotIdSharingPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<void> {
+            return localVarFp.botsBotIdSharingPost(requestParameters.botId, requestParameters.botPublishRequest, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Get a list of bots
          * @summary List bots
          * @param {DefaultApiBotsGetRequest} requestParameters Request parameters.
@@ -4922,6 +5427,16 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
             return localVarFp.defaultModelsPut(requestParameters.defaultModelsUpdateRequest, options).then((request) => request(axios, basePath));
         },
         /**
+         * Get department organization structure information
+         * @summary Get department organization structure
+         * @param {DefaultApiDepartmentsGetRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        departmentsGet(requestParameters: DefaultApiDepartmentsGetRequest = {}, options?: RawAxiosRequestConfig): AxiosPromise<DepartmentList> {
+            return localVarFp.departmentsGet(requestParameters.tenantId, requestParameters.hierarchical, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Get an object from a specific document
          * @summary Get document object
          * @param {DefaultApiGetDocumentObjectRequest} requestParameters Request parameters.
@@ -5087,6 +5602,56 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
          */
         logoutPost(options?: RawAxiosRequestConfig): AxiosPromise<void> {
             return localVarFp.logoutPost(options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Get details of a subscribed bot (read-only access)
+         * @summary Get marketplace bot details (read-only)
+         * @param {DefaultApiMarketplaceBotsBotIdGetRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        marketplaceBotsBotIdGet(requestParameters: DefaultApiMarketplaceBotsBotIdGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<SharedBot> {
+            return localVarFp.marketplaceBotsBotIdGet(requestParameters.botId, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Remove subscription to a bot
+         * @summary Unsubscribe from a bot
+         * @param {DefaultApiMarketplaceBotsBotIdSubscribeDeleteRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        marketplaceBotsBotIdSubscribeDelete(requestParameters: DefaultApiMarketplaceBotsBotIdSubscribeDeleteRequest, options?: RawAxiosRequestConfig): AxiosPromise<MarketplaceCollectionsCollectionIdSubscribeDelete200Response> {
+            return localVarFp.marketplaceBotsBotIdSubscribeDelete(requestParameters.botId, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Subscribe to a published bot
+         * @summary Subscribe to a bot
+         * @param {DefaultApiMarketplaceBotsBotIdSubscribePostRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        marketplaceBotsBotIdSubscribePost(requestParameters: DefaultApiMarketplaceBotsBotIdSubscribePostRequest, options?: RawAxiosRequestConfig): AxiosPromise<SharedBot> {
+            return localVarFp.marketplaceBotsBotIdSubscribePost(requestParameters.botId, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Returns all bots that are published to marketplace with current user\'s subscription status
+         * @summary List all published bots in marketplace
+         * @param {DefaultApiMarketplaceBotsGetRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        marketplaceBotsGet(requestParameters: DefaultApiMarketplaceBotsGetRequest = {}, options?: RawAxiosRequestConfig): AxiosPromise<SharedBotList> {
+            return localVarFp.marketplaceBotsGet(requestParameters.page, requestParameters.pageSize, requestParameters.type, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Returns all bots that current user has subscribed to
+         * @summary Get user\'s subscribed bots
+         * @param {DefaultApiMarketplaceBotsSubscriptionsGetRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        marketplaceBotsSubscriptionsGet(requestParameters: DefaultApiMarketplaceBotsSubscriptionsGetRequest = {}, options?: RawAxiosRequestConfig): AxiosPromise<SharedBotList> {
+            return localVarFp.marketplaceBotsSubscriptionsGet(requestParameters.page, requestParameters.pageSize, options).then((request) => request(axios, basePath));
         },
         /**
          * Get document preview for a subscribed Collection (read-only mode)
@@ -5443,6 +6008,36 @@ export interface DefaultApiInterface {
     botsBotIdPut(requestParameters: DefaultApiBotsBotIdPutRequest, options?: RawAxiosRequestConfig): AxiosPromise<void>;
 
     /**
+     * Remove bot from marketplace (owner only)
+     * @summary Unpublish bot from marketplace
+     * @param {DefaultApiBotsBotIdSharingDeleteRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    botsBotIdSharingDelete(requestParameters: DefaultApiBotsBotIdSharingDeleteRequest, options?: RawAxiosRequestConfig): AxiosPromise<void>;
+
+    /**
+     * Get the sharing status of a bot (owner only)
+     * @summary Get bot sharing status
+     * @param {DefaultApiBotsBotIdSharingGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    botsBotIdSharingGet(requestParameters: DefaultApiBotsBotIdSharingGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<SharingStatusResponse>;
+
+    /**
+     * Publish bot to marketplace (owner only)
+     * @summary Publish bot to marketplace
+     * @param {DefaultApiBotsBotIdSharingPostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    botsBotIdSharingPost(requestParameters: DefaultApiBotsBotIdSharingPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<void>;
+
+    /**
      * Get a list of bots
      * @summary List bots
      * @param {DefaultApiBotsGetRequest} requestParameters Request parameters.
@@ -5721,6 +6316,16 @@ export interface DefaultApiInterface {
     defaultModelsPut(requestParameters: DefaultApiDefaultModelsPutRequest, options?: RawAxiosRequestConfig): AxiosPromise<DefaultModelsResponse>;
 
     /**
+     * Get department organization structure information
+     * @summary Get department organization structure
+     * @param {DefaultApiDepartmentsGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    departmentsGet(requestParameters?: DefaultApiDepartmentsGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<DepartmentList>;
+
+    /**
      * Get an object from a specific document
      * @summary Get document object
      * @param {DefaultApiGetDocumentObjectRequest} requestParameters Request parameters.
@@ -5886,6 +6491,56 @@ export interface DefaultApiInterface {
      * @memberof DefaultApiInterface
      */
     logoutPost(options?: RawAxiosRequestConfig): AxiosPromise<void>;
+
+    /**
+     * Get details of a subscribed bot (read-only access)
+     * @summary Get marketplace bot details (read-only)
+     * @param {DefaultApiMarketplaceBotsBotIdGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    marketplaceBotsBotIdGet(requestParameters: DefaultApiMarketplaceBotsBotIdGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<SharedBot>;
+
+    /**
+     * Remove subscription to a bot
+     * @summary Unsubscribe from a bot
+     * @param {DefaultApiMarketplaceBotsBotIdSubscribeDeleteRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    marketplaceBotsBotIdSubscribeDelete(requestParameters: DefaultApiMarketplaceBotsBotIdSubscribeDeleteRequest, options?: RawAxiosRequestConfig): AxiosPromise<MarketplaceCollectionsCollectionIdSubscribeDelete200Response>;
+
+    /**
+     * Subscribe to a published bot
+     * @summary Subscribe to a bot
+     * @param {DefaultApiMarketplaceBotsBotIdSubscribePostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    marketplaceBotsBotIdSubscribePost(requestParameters: DefaultApiMarketplaceBotsBotIdSubscribePostRequest, options?: RawAxiosRequestConfig): AxiosPromise<SharedBot>;
+
+    /**
+     * Returns all bots that are published to marketplace with current user\'s subscription status
+     * @summary List all published bots in marketplace
+     * @param {DefaultApiMarketplaceBotsGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    marketplaceBotsGet(requestParameters?: DefaultApiMarketplaceBotsGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<SharedBotList>;
+
+    /**
+     * Returns all bots that current user has subscribed to
+     * @summary Get user\'s subscribed bots
+     * @param {DefaultApiMarketplaceBotsSubscriptionsGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    marketplaceBotsSubscriptionsGet(requestParameters?: DefaultApiMarketplaceBotsSubscriptionsGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<SharedBotList>;
 
     /**
      * Get document preview for a subscribed Collection (read-only mode)
@@ -6410,6 +7065,55 @@ export interface DefaultApiBotsBotIdPutRequest {
 }
 
 /**
+ * Request parameters for botsBotIdSharingDelete operation in DefaultApi.
+ * @export
+ * @interface DefaultApiBotsBotIdSharingDeleteRequest
+ */
+export interface DefaultApiBotsBotIdSharingDeleteRequest {
+    /**
+     * 
+     * @type {string}
+     * @memberof DefaultApiBotsBotIdSharingDelete
+     */
+    readonly botId: string
+}
+
+/**
+ * Request parameters for botsBotIdSharingGet operation in DefaultApi.
+ * @export
+ * @interface DefaultApiBotsBotIdSharingGetRequest
+ */
+export interface DefaultApiBotsBotIdSharingGetRequest {
+    /**
+     * 
+     * @type {string}
+     * @memberof DefaultApiBotsBotIdSharingGet
+     */
+    readonly botId: string
+}
+
+/**
+ * Request parameters for botsBotIdSharingPost operation in DefaultApi.
+ * @export
+ * @interface DefaultApiBotsBotIdSharingPostRequest
+ */
+export interface DefaultApiBotsBotIdSharingPostRequest {
+    /**
+     * 
+     * @type {string}
+     * @memberof DefaultApiBotsBotIdSharingPost
+     */
+    readonly botId: string
+
+    /**
+     * 
+     * @type {BotPublishRequest}
+     * @memberof DefaultApiBotsBotIdSharingPost
+     */
+    readonly botPublishRequest?: BotPublishRequest
+}
+
+/**
  * Request parameters for botsGet operation in DefaultApi.
  * @export
  * @interface DefaultApiBotsGetRequest
@@ -6914,6 +7618,27 @@ export interface DefaultApiDefaultModelsPutRequest {
 }
 
 /**
+ * Request parameters for departmentsGet operation in DefaultApi.
+ * @export
+ * @interface DefaultApiDepartmentsGetRequest
+ */
+export interface DefaultApiDepartmentsGetRequest {
+    /**
+     * Optional tenant ID to filter departments
+     * @type {string}
+     * @memberof DefaultApiDepartmentsGet
+     */
+    readonly tenantId?: string
+
+    /**
+     * If true, returns departments in hierarchical structure with children
+     * @type {boolean}
+     * @memberof DefaultApiDepartmentsGet
+     */
+    readonly hierarchical?: boolean
+}
+
+/**
  * Request parameters for getDocumentObject operation in DefaultApi.
  * @export
  * @interface DefaultApiGetDocumentObjectRequest
@@ -7191,6 +7916,97 @@ export interface DefaultApiLoginPostRequest {
      * @memberof DefaultApiLoginPost
      */
     readonly login: Login
+}
+
+/**
+ * Request parameters for marketplaceBotsBotIdGet operation in DefaultApi.
+ * @export
+ * @interface DefaultApiMarketplaceBotsBotIdGetRequest
+ */
+export interface DefaultApiMarketplaceBotsBotIdGetRequest {
+    /**
+     * Bot ID
+     * @type {string}
+     * @memberof DefaultApiMarketplaceBotsBotIdGet
+     */
+    readonly botId: string
+}
+
+/**
+ * Request parameters for marketplaceBotsBotIdSubscribeDelete operation in DefaultApi.
+ * @export
+ * @interface DefaultApiMarketplaceBotsBotIdSubscribeDeleteRequest
+ */
+export interface DefaultApiMarketplaceBotsBotIdSubscribeDeleteRequest {
+    /**
+     * Bot ID
+     * @type {string}
+     * @memberof DefaultApiMarketplaceBotsBotIdSubscribeDelete
+     */
+    readonly botId: string
+}
+
+/**
+ * Request parameters for marketplaceBotsBotIdSubscribePost operation in DefaultApi.
+ * @export
+ * @interface DefaultApiMarketplaceBotsBotIdSubscribePostRequest
+ */
+export interface DefaultApiMarketplaceBotsBotIdSubscribePostRequest {
+    /**
+     * Bot ID
+     * @type {string}
+     * @memberof DefaultApiMarketplaceBotsBotIdSubscribePost
+     */
+    readonly botId: string
+}
+
+/**
+ * Request parameters for marketplaceBotsGet operation in DefaultApi.
+ * @export
+ * @interface DefaultApiMarketplaceBotsGetRequest
+ */
+export interface DefaultApiMarketplaceBotsGetRequest {
+    /**
+     * Page number
+     * @type {number}
+     * @memberof DefaultApiMarketplaceBotsGet
+     */
+    readonly page?: number
+
+    /**
+     * Page size
+     * @type {number}
+     * @memberof DefaultApiMarketplaceBotsGet
+     */
+    readonly pageSize?: number
+
+    /**
+     * Bot type filter
+     * @type {'knowledge' | 'common' | 'agent'}
+     * @memberof DefaultApiMarketplaceBotsGet
+     */
+    readonly type?: MarketplaceBotsGetTypeEnum
+}
+
+/**
+ * Request parameters for marketplaceBotsSubscriptionsGet operation in DefaultApi.
+ * @export
+ * @interface DefaultApiMarketplaceBotsSubscriptionsGetRequest
+ */
+export interface DefaultApiMarketplaceBotsSubscriptionsGetRequest {
+    /**
+     * Page number
+     * @type {number}
+     * @memberof DefaultApiMarketplaceBotsSubscriptionsGet
+     */
+    readonly page?: number
+
+    /**
+     * Page size
+     * @type {number}
+     * @memberof DefaultApiMarketplaceBotsSubscriptionsGet
+     */
+    readonly pageSize?: number
 }
 
 /**
@@ -7673,6 +8489,42 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
     }
 
     /**
+     * Remove bot from marketplace (owner only)
+     * @summary Unpublish bot from marketplace
+     * @param {DefaultApiBotsBotIdSharingDeleteRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public botsBotIdSharingDelete(requestParameters: DefaultApiBotsBotIdSharingDeleteRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).botsBotIdSharingDelete(requestParameters.botId, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Get the sharing status of a bot (owner only)
+     * @summary Get bot sharing status
+     * @param {DefaultApiBotsBotIdSharingGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public botsBotIdSharingGet(requestParameters: DefaultApiBotsBotIdSharingGetRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).botsBotIdSharingGet(requestParameters.botId, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Publish bot to marketplace (owner only)
+     * @summary Publish bot to marketplace
+     * @param {DefaultApiBotsBotIdSharingPostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public botsBotIdSharingPost(requestParameters: DefaultApiBotsBotIdSharingPostRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).botsBotIdSharingPost(requestParameters.botId, requestParameters.botPublishRequest, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
      * Get a list of bots
      * @summary List bots
      * @param {DefaultApiBotsGetRequest} requestParameters Request parameters.
@@ -8007,6 +8859,18 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
     }
 
     /**
+     * Get department organization structure information
+     * @summary Get department organization structure
+     * @param {DefaultApiDepartmentsGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public departmentsGet(requestParameters: DefaultApiDepartmentsGetRequest = {}, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).departmentsGet(requestParameters.tenantId, requestParameters.hierarchical, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
      * Get an object from a specific document
      * @summary Get document object
      * @param {DefaultApiGetDocumentObjectRequest} requestParameters Request parameters.
@@ -8205,6 +9069,66 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
      */
     public logoutPost(options?: RawAxiosRequestConfig) {
         return DefaultApiFp(this.configuration).logoutPost(options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Get details of a subscribed bot (read-only access)
+     * @summary Get marketplace bot details (read-only)
+     * @param {DefaultApiMarketplaceBotsBotIdGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public marketplaceBotsBotIdGet(requestParameters: DefaultApiMarketplaceBotsBotIdGetRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).marketplaceBotsBotIdGet(requestParameters.botId, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Remove subscription to a bot
+     * @summary Unsubscribe from a bot
+     * @param {DefaultApiMarketplaceBotsBotIdSubscribeDeleteRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public marketplaceBotsBotIdSubscribeDelete(requestParameters: DefaultApiMarketplaceBotsBotIdSubscribeDeleteRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).marketplaceBotsBotIdSubscribeDelete(requestParameters.botId, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Subscribe to a published bot
+     * @summary Subscribe to a bot
+     * @param {DefaultApiMarketplaceBotsBotIdSubscribePostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public marketplaceBotsBotIdSubscribePost(requestParameters: DefaultApiMarketplaceBotsBotIdSubscribePostRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).marketplaceBotsBotIdSubscribePost(requestParameters.botId, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Returns all bots that are published to marketplace with current user\'s subscription status
+     * @summary List all published bots in marketplace
+     * @param {DefaultApiMarketplaceBotsGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public marketplaceBotsGet(requestParameters: DefaultApiMarketplaceBotsGetRequest = {}, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).marketplaceBotsGet(requestParameters.page, requestParameters.pageSize, requestParameters.type, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Returns all bots that current user has subscribed to
+     * @summary Get user\'s subscribed bots
+     * @param {DefaultApiMarketplaceBotsSubscriptionsGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public marketplaceBotsSubscriptionsGet(requestParameters: DefaultApiMarketplaceBotsSubscriptionsGetRequest = {}, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).marketplaceBotsSubscriptionsGet(requestParameters.page, requestParameters.pageSize, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
@@ -8433,6 +9357,15 @@ export const LlmProvidersProviderNameModelsApiModelPutApiEnum = {
     rerank: 'rerank'
 } as const;
 export type LlmProvidersProviderNameModelsApiModelPutApiEnum = typeof LlmProvidersProviderNameModelsApiModelPutApiEnum[keyof typeof LlmProvidersProviderNameModelsApiModelPutApiEnum];
+/**
+ * @export
+ */
+export const MarketplaceBotsGetTypeEnum = {
+    knowledge: 'knowledge',
+    common: 'common',
+    agent: 'agent'
+} as const;
+export type MarketplaceBotsGetTypeEnum = typeof MarketplaceBotsGetTypeEnum[keyof typeof MarketplaceBotsGetTypeEnum];
 /**
  * @export
  */

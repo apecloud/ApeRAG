@@ -200,6 +200,118 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/failResponse'
+  /bots/{bot_id}/sharing:
+    get:
+      summary: Get bot sharing status
+      description: Get the sharing status of a bot (owner only)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: bot_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Bot sharing status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SharingStatusResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '403':
+          description: Permission denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: Bot not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+    post:
+      summary: Publish bot to marketplace
+      description: Publish bot to marketplace (owner only)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: bot_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/botPublishRequest'
+      responses:
+        '204':
+          description: Bot published successfully
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '403':
+          description: Permission denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: Bot not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+    delete:
+      summary: Unpublish bot from marketplace
+      description: Remove bot from marketplace (owner only)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: bot_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Bot unpublished successfully
+        '400':
+          description: Bot is not published to marketplace
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '403':
+          description: Permission denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: Bot not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
   /bots/{bot_id}/chats:
     get:
       summary: List chats
@@ -2281,6 +2393,182 @@ paths:
                 $ref: '#/components/schemas/failResponse'
         '500':
           $ref: '#/components/responses/failResponse'
+  /marketplace/bots:
+    get:
+      summary: List all published bots in marketplace
+      description: Returns all bots that are published to marketplace with current user's subscription status
+      parameters:
+        - name: page
+          in: query
+          description: Page number
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          description: Page size
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 12
+        - name: type
+          in: query
+          description: Bot type filter
+          schema:
+            type: string
+            enum:
+              - knowledge
+              - common
+              - agent
+      responses:
+        '200':
+          description: List of published bots
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SharedBotList'
+        '401':
+          $ref: '#/components/responses/failResponse'
+        '500':
+          $ref: '#/components/responses/failResponse'
+  /marketplace/bots/subscriptions:
+    get:
+      summary: Get user's subscribed bots
+      description: Returns all bots that current user has subscribed to
+      parameters:
+        - name: page
+          in: query
+          description: Page number
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          description: Page size
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 12
+      responses:
+        '200':
+          description: List of subscribed bots
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SharedBotList'
+        '401':
+          $ref: '#/components/responses/failResponse'
+        '500':
+          $ref: '#/components/responses/failResponse'
+  /marketplace/bots/{bot_id}/subscribe:
+    post:
+      summary: Subscribe to a bot
+      description: Subscribe to a published bot
+      parameters:
+        - name: bot_id
+          in: path
+          required: true
+          description: Bot ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successfully subscribed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SharedBot'
+        '400':
+          description: Bad request (e.g., bot not published, self-subscription)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '401':
+          $ref: '#/components/responses/failResponse'
+        '404':
+          description: Bot not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '409':
+          description: Already subscribed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '500':
+          $ref: '#/components/responses/failResponse'
+    delete:
+      summary: Unsubscribe from a bot
+      description: Remove subscription to a bot
+      parameters:
+        - name: bot_id
+          in: path
+          required: true
+          description: Bot ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successfully unsubscribed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Successfully unsubscribed
+        '401':
+          $ref: '#/components/responses/failResponse'
+        '404':
+          description: Subscription not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '500':
+          $ref: '#/components/responses/failResponse'
+  /marketplace/bots/{bot_id}:
+    get:
+      summary: Get marketplace bot details (read-only)
+      description: Get details of a subscribed bot (read-only access)
+      parameters:
+        - name: bot_id
+          in: path
+          required: true
+          description: Bot ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Marketplace bot details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SharedBot'
+        '401':
+          $ref: '#/components/responses/failResponse'
+        '403':
+          description: Access denied (need subscription)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: Bot not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '500':
+          $ref: '#/components/responses/failResponse'
   /collections/{collection_id}/sync:
     post:
       summary: Sync object storage collection
@@ -3578,6 +3866,37 @@ paths:
       responses:
         '200':
           description: User deleted successfully
+  /departments:
+    get:
+      summary: Get department organization structure
+      description: Get department organization structure information
+      parameters:
+        - name: tenant_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Optional tenant ID to filter departments
+        - name: hierarchical
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: true
+          description: If true, returns departments in hierarchical structure with children
+      responses:
+        '200':
+          description: Departments fetched successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/departmentList'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
   /quotas:
     get:
       summary: Get user quotas
@@ -4982,6 +5301,34 @@ components:
           type: string
       required:
         - query
+    SharingStatusResponse:
+      type: object
+      description: Simple sharing status response
+      properties:
+        is_published:
+          type: boolean
+          description: Whether published to marketplace
+        published_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Publication time, null when not published
+      required:
+        - is_published
+    botPublishRequest:
+      type: object
+      properties:
+        group_ids:
+          type: array
+          items:
+            type: string
+          description: List of department IDs to publish to, or ["*"] for global publishing
+          example:
+            - '*'
+            - dp_1
+            - dp_2
+      required:
+        - group_ids
     chat:
       type: object
       properties:
@@ -6179,20 +6526,6 @@ components:
         - message
         - suggestion_id
         - action
-    SharingStatusResponse:
-      type: object
-      description: Simple sharing status response
-      properties:
-        is_published:
-          type: boolean
-          description: Whether published to marketplace
-        published_at:
-          type: string
-          format: date-time
-          nullable: true
-          description: Publication time, null when not published
-      required:
-        - is_published
     SharedCollectionConfig:
       type: object
       description: Configuration settings for shared collection features
@@ -6270,6 +6603,102 @@ components:
           items:
             $ref: '#/components/schemas/SharedCollection'
           description: List of shared Collections
+        total:
+          type: integer
+          description: Total count (for pagination)
+        page:
+          type: integer
+          description: Current page number
+        page_size:
+          type: integer
+          description: Page size
+      required:
+        - items
+        - total
+        - page
+        - page_size
+    SharedBotConfig:
+      type: object
+      description: Configuration settings for shared bot (read-only version)
+      properties:
+        agent:
+          type: object
+          properties:
+            completion:
+              $ref: '#/components/schemas/modelSpec'
+            system_prompt_template:
+              type: string
+            query_prompt_template:
+              type: string
+            collections:
+              type: array
+              items:
+                $ref: '#/components/schemas/SharedCollection'
+        flow:
+          $ref: '#/components/schemas/WorkflowDefinition'
+    SharedBot:
+      type: object
+      description: Shared bot information for marketplace users
+      properties:
+        id:
+          type: string
+          description: Bot ID
+        title:
+          type: string
+          description: Bot title
+        description:
+          type: string
+          nullable: true
+          description: Bot description
+        type:
+          type: string
+          enum:
+            - knowledge
+            - common
+            - agent
+          description: Bot type
+        owner_user_id:
+          type: string
+          description: Original owner user ID
+        owner_username:
+          type: string
+          nullable: true
+          description: Original owner username
+        subscription_id:
+          type: string
+          nullable: true
+          description: Subscription record ID (has value if subscribed, null if not subscribed)
+        gmt_subscribed:
+          type: string
+          format: date-time
+          nullable: true
+          description: Subscription time (only has value when subscribed)
+        config:
+          $ref: '#/components/schemas/SharedBotConfig'
+          description: Bot configuration settings (read-only)
+        is_subscribed:
+          type: boolean
+          description: Whether current user has subscribed to this bot
+        is_owner:
+          type: boolean
+          description: Whether current user is the owner of this bot
+      required:
+        - id
+        - title
+        - type
+        - owner_user_id
+        - config
+        - is_subscribed
+        - is_owner
+    SharedBotList:
+      type: object
+      description: Shared bot list response
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SharedBot'
+          description: List of shared bots
         total:
           type: integer
           description: Total count (for pagination)
@@ -7237,6 +7666,10 @@ components:
         registration_source:
           type: string
           description: The registration source of the user (local, google, github, etc.)
+        department_id:
+          type: string
+          description: The department ID the user belongs to
+          nullable: true
     login:
       type: object
       properties:
@@ -7268,6 +7701,52 @@ components:
         new_password:
           type: string
           description: The new password of the user
+    department:
+      type: object
+      properties:
+        id:
+          type: string
+          description: The ID of the department
+        parent_id:
+          type: string
+          description: The parent department ID, -1 for root department
+        name:
+          type: string
+          description: The name of the department
+        status:
+          type: integer
+          description: The status of the department (0=inactive, 1=active)
+          enum:
+            - 0
+            - 1
+        group_path:
+          type: string
+          description: The hierarchical path of the department
+        tenant_id:
+          type: string
+          description: The tenant ID this department belongs to
+        created_at:
+          type: string
+          description: The date and time the department was created
+        updated_at:
+          type: string
+          description: The date and time the department was last updated
+        children:
+          type: array
+          items:
+            $ref: '#/components/schemas/department'
+          description: Child departments (only present in hierarchical mode)
+          nullable: true
+    departmentList:
+      type: object
+      description: A list of departments
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/department'
+        pageResult:
+          $ref: '#/components/schemas/pageResult'
     quotaInfo:
       type: object
       description: Quota information for a specific quota type

@@ -62,5 +62,11 @@ export interface User {
      * @memberof User
      */
     'registration_source'?: string;
+    /**
+     * The department ID the user belongs to
+     * @type {string}
+     * @memberof User
+     */
+    'department_id'?: string;
 }
 
