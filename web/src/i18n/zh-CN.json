@@ -133,7 +133,12 @@
     "query_prompt_template": "查询提示模板",
     "query_prompt_template_placeholder": "查询提示模板",
     "query_prompt_template_description": "是用户输入的具体问题或指令，AI会基于系统提示的约束对其进行处理和响应。",
-    "restore_to_default": "设置为默认模版"
+    "restore_to_default": "设置为默认模版",
+    "my_bots": "我的应用",
+    "shared_bots": "共享的应用",
+    "share_settings": "共享设置",
+    "share_settings_tips": "通过定义共享对象和权限，来控制信息的传播范围，确保数据安全。",
+    "shared_department": "共享部门"
   },
   "page_chat": {
     "metadata": {

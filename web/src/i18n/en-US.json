@@ -133,7 +133,12 @@
     "query_prompt_template": "Query Prompt Template",
     "query_prompt_template_placeholder": "Query Prompt Template",
     "query_prompt_template_description": "Query Prompt represents the user's specific input or question, which the AI processes and responds to within the framework set by the System Prompt.",
-    "restore_to_default": "Restore to default"
+    "restore_to_default": "Restore to default",
+    "my_bots": "My bots",
+    "shared_bots": "Shared bots",
+    "share_settings": "Share Settings",
+    "share_settings_tips": "By defining shared objects and permissions, you can control the spread of information and ensure data security.",
+    "shared_department": "Shared Department"
   },
   "page_chat": {
     "metadata": {
