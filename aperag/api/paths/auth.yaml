@@ -160,3 +160,35 @@ user:
           application/json:
             schema:
               $ref: '../components/schemas/common.yaml#/failResponse'
+
+departments:
+  get:
+    summary: Get department organization structure
+    description: Get department organization structure information
+    parameters:
+      - name: tenant_id
+        in: query
+        required: false
+        schema:
+          type: string
+        description: Optional tenant ID to filter departments
+      - name: hierarchical
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: true
+        description: If true, returns departments in hierarchical structure with children
+    responses:
+      '200':
+        description: Departments fetched successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/auth.yaml#/departmentList'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'

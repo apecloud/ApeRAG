@@ -874,3 +874,114 @@ async def sync_tenant_departments(session, tenant_id: str, departments_data: lis
     except Exception as e:
         logger.error(f"Failed to sync departments for tenant {tenant_id}: {e}")
         raise
+
+
+@router.get("/departments", tags=["departments"])
+async def get_departments_view(
+    session: AsyncSessionDep,
+    user: User = Depends(required_user),
+    tenant_id: Optional[str] = None,
+    hierarchical: bool = True,
+) -> view_models.DepartmentList:
+    """
+    Get department organization structure information.
+    
+    Args:
+        tenant_id: Optional tenant ID to filter departments. If not provided, uses user's current tenant.
+        hierarchical: If True, returns departments in hierarchical structure with children.
+    
+    Returns:
+        List of departments, optionally structured hierarchically.
+    """
+    from sqlalchemy import select
+
+    # If no tenant_id provided, try to get from user context or use a default approach
+    if not tenant_id:
+        # For now, get all departments if user is admin, or departments from user's tenant
+        if user.role == Role.ADMIN:
+            # Admin can see all departments
+            result = await session.execute(
+                select(Department).where(Department.status == DepartmentStatus.ACTIVE).order_by(Department.name)
+            )
+        else:
+            # Regular users can only see departments from their tenant (if they have department_id)
+            if hasattr(user, 'department_id') and user.department_id:
+                # Get user's department to find tenant_id
+                dept_result = await session.execute(
+                    select(Department).where(Department.id == user.department_id)
+                )
+                user_dept = dept_result.scalars().first()
+                if user_dept:
+                    result = await session.execute(
+                        select(Department).where(
+                            Department.tenant_id == user_dept.tenant_id,
+                            Department.status == DepartmentStatus.ACTIVE
+                        ).order_by(Department.name)
+                    )
+                else:
+                    # User has no valid department, return empty list
+                    return view_models.DepartmentList(items=[])
+            else:
+                # User has no department, return empty list
+                return view_models.DepartmentList(items=[])
+    else:
+        # Get departments for specific tenant
+        result = await session.execute(
+            select(Department).where(
+                Department.tenant_id == tenant_id,
+                Department.status == DepartmentStatus.ACTIVE
+            ).order_by(Department.name)
+        )
+
+    departments = result.scalars().all()
+    
+    if not hierarchical:
+        # Return flat list
+        department_list = []
+        for dept in departments:
+            department_list.append(
+                view_models.Department(
+                    id=dept.id,
+                    parent_id=dept.parent_id,
+                    name=dept.name,
+                    status=dept.status,
+                    group_path=dept.group_path,
+                    tenant_id=dept.tenant_id,
+                    created_at=dept.created_at.isoformat(),
+                    updated_at=dept.updated_at.isoformat(),
+                )
+            )
+        return view_models.DepartmentList(items=department_list)
+    
+    # Return hierarchical structure
+    dept_dict = {}
+    root_departments = []
+    
+    # First pass: create all department objects
+    for dept in departments:
+        dept_obj = view_models.Department(
+            id=dept.id,
+            parent_id=dept.parent_id,
+            name=dept.name,
+            status=dept.status,
+            group_path=dept.group_path,
+            tenant_id=dept.tenant_id,
+            created_at=dept.created_at.isoformat(),
+            updated_at=dept.updated_at.isoformat(),
+            children=[]
+        )
+        dept_dict[dept.id] = dept_obj
+        
+        # Track root departments (parent_id == "-1")
+        if dept.parent_id == "-1":
+            root_departments.append(dept_obj)
+    
+    # Second pass: build hierarchy
+    for dept in departments:
+        if dept.parent_id != "-1" and dept.parent_id in dept_dict:
+            parent_dept = dept_dict[dept.parent_id]
+            if parent_dept.children is None:
+                parent_dept.children = []
+            parent_dept.children.append(dept_dict[dept.id])
+    
+    return view_models.DepartmentList(items=root_departments)

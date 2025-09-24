@@ -160,6 +160,12 @@ department:
     updated_at:
       type: string
       description: The date and time the department was last updated
+    children:
+      type: array
+      items:
+        $ref: '#/department'
+      description: Child departments (only present in hierarchical mode)
+      nullable: true
 
 departmentList:
   type: object
