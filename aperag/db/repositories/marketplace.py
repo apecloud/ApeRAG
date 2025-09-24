@@ -595,10 +595,9 @@ class AsyncMarketplaceRepositoryMixin(AsyncRepositoryProtocol):
                     BotMarketplace.status.label("marketplace_status"),
                     BotMarketplace.gmt_created.label("published_at"),
                 )
-                .select_from(
-                    Bot.join(BotMarketplace, Bot.id == BotMarketplace.bot_id)
-                    .outerjoin(User, Bot.user == User.username)
-                )
+                .select_from(Bot)
+                .join(BotMarketplace, Bot.id == BotMarketplace.bot_id)
+                .outerjoin(User, Bot.user == User.id)
                 .where(
                     and_(
                         Bot.status == BotStatus.ACTIVE.value,
@@ -614,12 +613,14 @@ class AsyncMarketplaceRepositoryMixin(AsyncRepositoryProtocol):
             if bot_type:
                 base_stmt = base_stmt.where(Bot.type == bot_type)
 
-            # Order by published time (newest first)
-            base_stmt = base_stmt.order_by(desc(BotMarketplace.gmt_created))
+            # Order by bot ID first (required for DISTINCT ON), then by published time (newest first)
+            base_stmt = base_stmt.order_by(Bot.id, desc(BotMarketplace.gmt_created))
 
             # Count total unique bots (since one bot might be published to multiple departments)
-            count_stmt = select(func.count(func.distinct(Bot.id))).select_from(
-                Bot.join(BotMarketplace, Bot.id == BotMarketplace.bot_id)
+            count_stmt = (
+                select(func.count(func.distinct(Bot.id)))
+                .select_from(Bot)
+                .join(BotMarketplace, Bot.id == BotMarketplace.bot_id)
             ).where(
                 and_(
                     Bot.status == BotStatus.ACTIVE.value,
