@@ -167,7 +167,7 @@ botSharing:
         content:
           application/json:
             schema:
-              $ref: '../components/schemas/marketplace.yaml#/SharingStatusResponse'
+              $ref: '../components/schemas/marketplace.yaml#/BotSharingStatusResponse'
       '401':
         description: Unauthorized
         content:

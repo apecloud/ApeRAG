@@ -123,23 +123,31 @@ BotMarketplaceStatusEnum:
     - PUBLISHED
   description: Bot marketplace sharing status
 
+
+BotSharingStatusResponse:
+  type: object
+  description: Simple sharing status response
+  properties:
+    is_published:
+      type: boolean
+      description: Whether published to marketplace
+    group_ids:
+      type: array
+      items:
+        type: string
+      description: List of department IDs where the bot is published
+    is_global:
+      type: boolean
+      description: Whether the bot is published globally
+  required:
+    - is_published
+
 SharedBotConfig:
   type: object
   description: Configuration settings for shared bot (read-only version)
   properties:
     agent:
-      type: object
-      properties:
-        completion:
-          $ref: './model.yaml#/modelSpec'
-        system_prompt_template:
-          type: string
-        query_prompt_template:
-          type: string
-        collections:
-          type: array
-          items:
-            $ref: './marketplace.yaml#/SharedCollection'
+      $ref: './bot.yaml#/agentConfig'
     flow:
       $ref: './flow.yaml#/components/schemas/WorkflowDefinition'
 
