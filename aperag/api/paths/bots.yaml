@@ -198,6 +198,11 @@ botSharing:
         required: true
         schema:
           type: string
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/bot.yaml#/botPublishRequest'
     responses:
       '204':
         description: Bot published successfully

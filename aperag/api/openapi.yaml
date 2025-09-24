@@ -29,6 +29,8 @@ paths:
     $ref: './paths/flow.yaml#/flow'
   /bots/{bot_id}/flow/debug:
     $ref: './paths/bots.yaml#/debugFlow'
+  /bots/{bot_id}/sharing:
+    $ref: './paths/bots.yaml#/botSharing'
 
   # chats
   /bots/{bot_id}/chats:
