@@ -121,10 +121,6 @@ paths:
   # Bot marketplace
   /marketplace/bots:
     $ref: './paths/marketplace.yaml#/marketplaceBots'
-  /marketplace/bots/subscriptions:
-    $ref: './paths/marketplace.yaml#/marketplaceBotsSubscriptions'
-  /marketplace/bots/{bot_id}/subscribe:
-    $ref: './paths/marketplace.yaml#/marketplaceBotSubscribe'
   /marketplace/bots/{bot_id}:
     $ref: './paths/marketplace.yaml#/marketplaceBot'
 

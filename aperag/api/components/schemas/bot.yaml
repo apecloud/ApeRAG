@@ -126,21 +126,6 @@ botMarketplace:
       format: date-time
       description: When the bot was published
 
-botPublishScope:
-  type: object
-  properties:
-    bot_id:
-      type: string
-      description: Bot ID
-    group_ids:
-      type: array
-      items:
-        type: string
-      description: List of department IDs where the bot is published
-    is_global:
-      type: boolean
-      description: Whether the bot is published globally
-
 marketplaceBotList:
   type: object
   description: List of marketplace bots accessible to user
