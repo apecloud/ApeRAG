@@ -25,6 +25,15 @@ from aperag.utils.utils import utc_now
 
 
 class AsyncBotRepositoryMixin(AsyncRepositoryProtocol):
+    async def query_bot_by_id(self, bot_id: str):
+        """Query bot by ID without user restriction"""
+        async def _query(session):
+            stmt = select(Bot).where(Bot.id == bot_id, Bot.status != BotStatus.DELETED)
+            result = await session.execute(stmt)
+            return result.scalars().first()
+
+        return await self._execute_query(_query)
+
     async def query_bot(self, user: str, bot_id: str):
         async def _query(session):
             stmt = select(Bot).where(Bot.id == bot_id, Bot.user == user, Bot.status != BotStatus.DELETED)
