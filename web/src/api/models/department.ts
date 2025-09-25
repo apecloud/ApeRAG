@@ -57,6 +57,12 @@ export interface Department {
      */
     'tenant_id'?: string;
     /**
+     * The tenant name this department belongs to
+     * @type {string}
+     * @memberof Department
+     */
+    'tenant_name'?: string;
+    /**
      * The date and time the department was created
      * @type {string}
      * @memberof Department

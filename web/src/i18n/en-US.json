@@ -169,7 +169,10 @@
     "shared_bots": "Shared bots",
     "share_settings": "Share Settings",
     "share_settings_tips": "By defining shared objects and permissions, you can control the spread of information and ensure data security.",
-    "shared_department": "Shared Department"
+    "shared_department": "Shared Department",
+    "shared_global": "Shared Global",
+    "shared_global_tips": "All tenants on the platform can access it.",
+    "current_tanent": "Current tanent"
   },
   "page_chat": {
     "metadata": {

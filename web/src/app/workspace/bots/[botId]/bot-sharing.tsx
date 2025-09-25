@@ -8,6 +8,7 @@ import {
 } from '@/components/tree-multiple-select';
 
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -19,9 +20,10 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { apiClient } from '@/lib/api/client';
+import { cn } from '@/lib/utils';
 import { Slot } from '@radix-ui/react-slot';
 import { useTranslations } from 'next-intl';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 export const BotSharing = ({ children }: { children?: React.ReactNode }) => {
@@ -33,6 +35,11 @@ export const BotSharing = ({ children }: { children?: React.ReactNode }) => {
 
   const common_action = useTranslations('common.action');
   const common_tips = useTranslations('common.tips');
+
+  const isSharedGlobal = useMemo(
+    () => selectedDepartents.length === 1 && selectedDepartents[0] === '*',
+    [selectedDepartents],
+  );
 
   const handleSharing = useCallback(async () => {
     if (!bot?.id) return;
@@ -91,18 +98,48 @@ export const BotSharing = ({ children }: { children?: React.ReactNode }) => {
             {page_bot('share_settings_tips')}
           </DialogDescription>
         </DialogHeader>
-        <div>
-          <div className="mb-2 flex h-4 flex-row items-center gap-2 text-sm">
-            <Label>
-              {page_bot('shared_department')} ({selectedDepartents.length})
-            </Label>
+
+        <Label
+          data-checked={isSharedGlobal}
+          className="hover:bg-accent/50 data-[checked=true]:bg-accent/50 flex cursor-pointer flex-row items-center justify-between gap-2 rounded-md border px-4 py-4 text-sm"
+        >
+          <div className="flex flex-col gap-1">
+            <span>{page_bot('shared_global')}</span>
+            <span className="text-muted-foreground text-xs">
+              {page_bot('shared_global_tips')}
+            </span>
           </div>
-          <TreeMultipleSelect
-            options={departments as TreeSelectItem[]}
-            className="h-60 overflow-auto rounded-md border"
-            values={selectedDepartents}
-            onValuesChange={(v) => setSelectedDepartents(v)}
+
+          <Checkbox
+            checked={isSharedGlobal}
+            onCheckedChange={(checked) => {
+              setSelectedDepartents(checked ? ['*'] : []);
+            }}
           />
+        </Label>
+
+        <div>
+          <div className="mb-2 flex h-4 flex-row items-center justify-between gap-2 text-sm">
+            <div>
+              {page_bot('shared_department')} (
+              {selectedDepartents.filter((d) => d !== '*').length})
+            </div>
+            <div>
+              {page_bot('current_tanent')}: {departments[0]?.tenant_name}
+            </div>
+          </div>
+
+          <div className="relative h-60">
+            <TreeMultipleSelect
+              options={departments as TreeSelectItem[]}
+              values={selectedDepartents.filter((d) => d !== '*')}
+              onValuesChange={(v) => setSelectedDepartents(v)}
+              className={cn('relative h-60 overflow-auto rounded-md border')}
+            />
+            {isSharedGlobal && (
+              <div className="bg-accent/50 absolute top-0 left-0 h-full w-full" />
+            )}
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setSharingVisible(false)}>

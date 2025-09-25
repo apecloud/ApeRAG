@@ -26,7 +26,7 @@ export default async function ChatLayout({
   const apiServer = await getServerApi();
 
   const { botId } = await params;
-  const botRes = await apiServer.defaultApi.botsBotIdGet({
+  const botRes = await apiServer.defaultApi.marketplaceBotsBotIdGet({
     botId,
   });
   const bot = botRes.data;

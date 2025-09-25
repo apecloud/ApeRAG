@@ -218,7 +218,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SharingStatusResponse'
+                $ref: '#/components/schemas/BotSharingStatusResponse'
         '401':
           description: Unauthorized
           content:
@@ -2431,108 +2431,6 @@ paths:
                 $ref: '#/components/schemas/SharedBotList'
         '401':
           $ref: '#/components/responses/failResponse'
-        '500':
-          $ref: '#/components/responses/failResponse'
-  /marketplace/bots/subscriptions:
-    get:
-      summary: Get user's subscribed bots
-      description: Returns all bots that current user has subscribed to
-      parameters:
-        - name: page
-          in: query
-          description: Page number
-          schema:
-            type: integer
-            minimum: 1
-            default: 1
-        - name: page_size
-          in: query
-          description: Page size
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-            default: 12
-      responses:
-        '200':
-          description: List of subscribed bots
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SharedBotList'
-        '401':
-          $ref: '#/components/responses/failResponse'
-        '500':
-          $ref: '#/components/responses/failResponse'
-  /marketplace/bots/{bot_id}/subscribe:
-    post:
-      summary: Subscribe to a bot
-      description: Subscribe to a published bot
-      parameters:
-        - name: bot_id
-          in: path
-          required: true
-          description: Bot ID
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Successfully subscribed
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SharedBot'
-        '400':
-          description: Bad request (e.g., bot not published, self-subscription)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/failResponse'
-        '401':
-          $ref: '#/components/responses/failResponse'
-        '404':
-          description: Bot not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/failResponse'
-        '409':
-          description: Already subscribed
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/failResponse'
-        '500':
-          $ref: '#/components/responses/failResponse'
-    delete:
-      summary: Unsubscribe from a bot
-      description: Remove subscription to a bot
-      parameters:
-        - name: bot_id
-          in: path
-          required: true
-          description: Bot ID
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Successfully unsubscribed
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: Successfully unsubscribed
-        '401':
-          $ref: '#/components/responses/failResponse'
-        '404':
-          description: Subscription not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/failResponse'
         '500':
           $ref: '#/components/responses/failResponse'
   /marketplace/bots/{bot_id}:
@@ -4956,6 +4854,19 @@ components:
           format: date-time
           nullable: true
           description: Publication time, null when not published
+    agentConfig:
+      type: object
+      properties:
+        completion:
+          $ref: '#/components/schemas/modelSpec'
+        system_prompt_template:
+          type: string
+        query_prompt_template:
+          type: string
+        collections:
+          type: array
+          items:
+            $ref: '#/components/schemas/collection'
     ExecutionConfig:
       type: object
       description: Configuration for workflow execution
@@ -5193,18 +5104,7 @@ components:
       type: object
       properties:
         agent:
-          type: object
-          properties:
-            completion:
-              $ref: '#/components/schemas/modelSpec'
-            system_prompt_template:
-              type: string
-            query_prompt_template:
-              type: string
-            collections:
-              type: array
-              items:
-                $ref: '#/components/schemas/collection'
+          $ref: '#/components/schemas/agentConfig'
         flow:
           $ref: '#/components/schemas/WorkflowDefinition'
     bot:
@@ -5301,18 +5201,21 @@ components:
           type: string
       required:
         - query
-    SharingStatusResponse:
+    BotSharingStatusResponse:
       type: object
       description: Simple sharing status response
       properties:
         is_published:
           type: boolean
           description: Whether published to marketplace
-        published_at:
-          type: string
-          format: date-time
-          nullable: true
-          description: Publication time, null when not published
+        group_ids:
+          type: array
+          items:
+            type: string
+          description: List of department IDs where the bot is published
+        is_global:
+          type: boolean
+          description: Whether the bot is published globally
       required:
         - is_published
     botPublishRequest:
@@ -6526,6 +6429,20 @@ components:
         - message
         - suggestion_id
         - action
+    SharingStatusResponse:
+      type: object
+      description: Simple sharing status response
+      properties:
+        is_published:
+          type: boolean
+          description: Whether published to marketplace
+        published_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Publication time, null when not published
+      required:
+        - is_published
     SharedCollectionConfig:
       type: object
       description: Configuration settings for shared collection features
@@ -6622,18 +6539,7 @@ components:
       description: Configuration settings for shared bot (read-only version)
       properties:
         agent:
-          type: object
-          properties:
-            completion:
-              $ref: '#/components/schemas/modelSpec'
-            system_prompt_template:
-              type: string
-            query_prompt_template:
-              type: string
-            collections:
-              type: array
-              items:
-                $ref: '#/components/schemas/SharedCollection'
+          $ref: '#/components/schemas/agentConfig'
         flow:
           $ref: '#/components/schemas/WorkflowDefinition'
     SharedBot:
@@ -7725,6 +7631,9 @@ components:
         tenant_id:
           type: string
           description: The tenant ID this department belongs to
+        tenant_name:
+          type: string
+          description: The tenant name this department belongs to
         created_at:
           type: string
           description: The date and time the department was created

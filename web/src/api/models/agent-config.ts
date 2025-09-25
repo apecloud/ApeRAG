@@ -23,31 +23,31 @@ import type { ModelSpec } from './model-spec';
 /**
  * 
  * @export
- * @interface BotConfigAgent
+ * @interface AgentConfig
  */
-export interface BotConfigAgent {
+export interface AgentConfig {
     /**
      * 
      * @type {ModelSpec}
-     * @memberof BotConfigAgent
+     * @memberof AgentConfig
      */
     'completion'?: ModelSpec;
     /**
      * 
      * @type {string}
-     * @memberof BotConfigAgent
+     * @memberof AgentConfig
      */
     'system_prompt_template'?: string;
     /**
      * 
      * @type {string}
-     * @memberof BotConfigAgent
+     * @memberof AgentConfig
      */
     'query_prompt_template'?: string;
     /**
      * 
      * @type {Array<Collection>}
-     * @memberof BotConfigAgent
+     * @memberof AgentConfig
      */
     'collections'?: Array<Collection>;
 }

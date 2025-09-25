@@ -169,7 +169,10 @@
     "shared_bots": "共享的应用",
     "share_settings": "共享设置",
     "share_settings_tips": "通过定义共享对象和权限，来控制信息的传播范围，确保数据安全。",
-    "shared_department": "共享部门"
+    "shared_department": "共享部门",
+    "shared_global": "全局共享",
+    "shared_global_tips": "全平台所有租户都能访问",
+    "current_tanent": "当前租户"
   },
   "page_chat": {
     "metadata": {
