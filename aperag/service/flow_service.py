@@ -87,8 +87,8 @@ class FlowService:
 
     async def debug_flow_stream(self, user: str, bot_id: str, debug: view_models.DebugFlowRequest):
         """Stream debug flow events as SSE using FastAPI StreamingResponse."""
-        bot = await self.db_ops.query_bot(user, bot_id)
-        if not bot:
+        has_access, bot = await self.db_ops.check_user_access_to_bot(user, bot_id)
+        if not has_access or not bot:
             raise ResourceNotFoundException("Bot", bot_id)
 
         bot_config = json.loads(bot.config)
@@ -108,8 +108,8 @@ class FlowService:
 
     async def get_flow(self, user: str, bot_id: str) -> dict:
         """Get flow config for a bot"""
-        bot = await self.db_ops.query_bot(user, bot_id)
-        if not bot:
+        has_access, bot = await self.db_ops.check_user_access_to_bot(user, bot_id)
+        if not has_access or not bot:
             raise ResourceNotFoundException("Bot", bot_id)
 
         config = json.loads(bot.config or "{}")
@@ -123,9 +123,9 @@ class FlowService:
 
     async def update_flow(self, user: str, bot_id: str, data: view_models.WorkflowDefinition) -> dict:
         """Update flow config for a bot"""
-        # First check if bot exists
-        bot = await self.db_ops.query_bot(user, bot_id)
-        if not bot:
+        # First check if bot exists and user has access
+        has_access, bot = await self.db_ops.check_user_access_to_bot(user, bot_id)
+        if not has_access or not bot:
             raise ResourceNotFoundException("Bot", bot_id)
 
         # Direct operation without nested transaction

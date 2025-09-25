@@ -44,8 +44,8 @@ class ChatTitleService:
         turns = max(1, turns)
 
         # Verify bot and chat ownership
-        bot = await self.db_ops.query_bot(user_id, bot_id)
-        if not bot:
+        has_access, bot = await self.db_ops.check_user_access_to_bot(user_id, bot_id)
+        if not has_access or not bot:
             raise BusinessException(ErrorCode.BOT_NOT_FOUND, "Bot not found")
 
         chat = await self.db_ops.query_chat(user_id, bot_id, chat_id)

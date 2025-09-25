@@ -131,9 +131,9 @@ class ChatService:
         )
 
     async def create_chat(self, user: str, bot_id: str) -> view_models.Chat:
-        # First check if bot exists
-        bot = await self.db_ops.query_bot(user, bot_id)
-        if bot is None:
+        # First check if bot exists and user has access to it
+        has_access, bot = await self.db_ops.check_user_access_to_bot(user, bot_id)
+        if not has_access or bot is None:
             raise ResourceNotFoundException("Bot", bot_id)
 
         # Direct call to repository method, which handles its own transaction
@@ -286,17 +286,17 @@ class ChatService:
         if not bot_id:
             return FrontendFormatter.format_error("bot_id is required")
 
-        bot = await self.db_ops.query_bot(user, bot_id)
-        if not bot:
+        has_access, bot = await self.db_ops.check_user_access_to_bot(user, bot_id)
+        if not has_access or not bot:
             return FrontendFormatter.format_error("Bot not found")
 
         # Get or create chat session
-        chat = await self.db_ops.query_chat_by_peer(bot.user, db_models.ChatPeerType.FEISHU, chat_id)
+        chat = await self.db_ops.query_chat_by_peer(user, db_models.ChatPeerType.FEISHU, chat_id)
 
         if chat is None:
             # Create chat with peer info atomically in single transaction
             chat = await self.db_ops.create_chat(
-                user=bot.user,
+                user=user,
                 bot_id=bot.id,
                 title="Feishu Chat",
                 peer_type=db_models.ChatPeerType.FEISHU,
@@ -419,8 +419,8 @@ class ChatService:
 
         try:
             # Get bot configuration first to determine bot type
-            bot = await self.db_ops.query_bot(user, bot_id)
-            if not bot:
+            has_access, bot = await self.db_ops.check_user_access_to_bot(user, bot_id)
+            if not has_access or not bot:
                 await websocket.send_text(fail_response("error", "Bot not found"))
                 return
 
@@ -430,7 +430,7 @@ class ChatService:
                 from aperag.service.agent_chat_service import AgentChatService
 
                 agent_service = AgentChatService()
-                await agent_service.handle_websocket_agent_chat(websocket, user, bot_id, chat_id)
+                await agent_service.handle_websocket_agent_chat(websocket, user, bot, chat_id)
                 return
 
             # Continue with existing flow for knowledge and common bots

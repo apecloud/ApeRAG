@@ -162,10 +162,9 @@ class AgentChatService:
             return None, error_response
 
     @handle_agent_error("websocket_agent_chat", reraise=False)
-    async def handle_websocket_agent_chat(self, websocket: WebSocket, user: str, bot_id: str, chat_id: str):
+    async def handle_websocket_agent_chat(self, websocket: WebSocket, user: str, bot: any, chat_id: str):
         """Handle WebSocket connections for agent-type bot chats with message queue architecture"""
         # Get bot configuration once at the beginning for performance
-        bot = await self.db_ops.query_bot(user, bot_id)
         if not bot:
             error_response = format_processing_error("Bot not found", "en-US")
             await websocket.send_text(json.dumps(error_response))

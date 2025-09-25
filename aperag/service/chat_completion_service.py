@@ -130,8 +130,8 @@ class ChatCompletionService:
             messages=body_data.get("messages", []),
         )
 
-        bot = await self.db_ops.query_bot(api_request.user, api_request.bot_id)
-        if not bot:
+        has_access, bot = await self.db_ops.check_user_access_to_bot(api_request.user, api_request.bot_id)
+        if not has_access or not bot:
             return None, OpenAIFormatter.format_error("Bot not found")
 
         formatter = OpenAIFormatter()
