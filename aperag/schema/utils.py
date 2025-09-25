@@ -14,7 +14,7 @@
 
 import json
 
-from aperag.schema.view_models import BotConfig, CollectionConfig, SharedCollectionConfig
+from aperag.schema.view_models import BotConfig, CollectionConfig, SharedCollectionConfig, SharedBotConfig
 
 
 def parseCollectionConfig(config: str) -> CollectionConfig:
@@ -60,9 +60,11 @@ def dumpBotConfig(bot_config: BotConfig) -> str:
     return bot_config.model_dump_json()
 
 
-def convertToSharedBotConfig(config: BotConfig):
+def convertToSharedBotConfig(config: BotConfig) -> SharedBotConfig:
     """Convert BotConfig to SharedBotConfig for marketplace display (read-only version)"""
-    # For now, we'll just return the original config since SharedBotConfig structure
-    # will be the same as BotConfig but marked as read-only in the API schema
-    # This function can be extended later if we need to filter or transform certain fields
-    return config
+    # Convert BotConfig to SharedBotConfig by creating a new instance
+    # Both classes have the same structure but SharedBotConfig is used for marketplace display
+    return SharedBotConfig(
+        agent=config.agent,
+        flow=config.flow
+    )
