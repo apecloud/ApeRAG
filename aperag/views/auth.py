@@ -329,7 +329,7 @@ async def authenticate_anybase_token(request: Request, session: AsyncSessionDep)
     
     if user:
         # User exists, sync department data and update user department
-        await sync_anybase_departments(session, anybase_deps_list)
+        await sync_anybase_departments(session, anybase_tenant_list, anybase_deps_list)
         
         # Update user's department_id if it has changed
         if user.department_id != anybase_user_deps_id:
@@ -345,7 +345,7 @@ async def authenticate_anybase_token(request: Request, session: AsyncSessionDep)
     # User doesn't exist, create new user automatically
     try:
         # Sync department data first
-        await sync_anybase_departments(session, anybase_deps_list)
+        await sync_anybase_departments(session, anybase_tenant_list, anybase_deps_list)
         
         user_manager = UserManager(SQLAlchemyUserDatabase(session, User))
         
