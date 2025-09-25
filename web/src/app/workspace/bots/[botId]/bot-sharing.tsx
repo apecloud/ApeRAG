@@ -124,9 +124,6 @@ export const BotSharing = ({ children }: { children?: React.ReactNode }) => {
               {page_bot('shared_department')} (
               {selectedDepartents.filter((d) => d !== '*').length})
             </div>
-            <div>
-              {page_bot('current_tanent')}: {departments[0]?.tenant_name}
-            </div>
           </div>
 
           <div className="relative h-60">
