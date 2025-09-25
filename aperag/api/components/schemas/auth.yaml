@@ -154,6 +154,9 @@ department:
     tenant_id:
       type: string
       description: The tenant ID this department belongs to
+    tenant_name:
+      type: string
+      description: The tenant name this department belongs to
     created_at:
       type: string
       description: The date and time the department was created
