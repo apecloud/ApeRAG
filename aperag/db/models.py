@@ -426,7 +426,7 @@ class BotMarketplace(Base):
         Index("idx_bot_marketplace_bot_group", "bot_id", "group_id"),
     )
 
-    id = Column(String(24), primary_key=True, default=lambda: "bot_market_" + random_id()[:14])
+    id = Column(String(24), primary_key=True, default=lambda: "bot_mkt_" + random_id())
     bot_id = Column(String(24), nullable=False)
 
     # Publishing scope: department id or "*" for global
