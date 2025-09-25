@@ -38,7 +38,7 @@ export default async function Page({
     <PageContainer>
       <BotHeader
         breadcrumbs={[
-          { title: page_bot('metadata.title'), href: `/bots` },
+          { title: page_bot('metadata.title'), href: `/workspace/bots` },
           { title: bot?.title || '' },
         ]}
         extra=""

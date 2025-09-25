@@ -1,13 +1,7 @@
-import { ChatMessages } from '@/components/chat/chat-messages';
-import {
-  PageContainer,
-  PageContent,
-  PageHeader,
-} from '@/components/page-container';
 import { getServerApi } from '@/lib/api/server';
-import _ from 'lodash';
-import { getTranslations } from 'next-intl/server';
+import { toJson } from '@/lib/utils';
 import { notFound } from 'next/navigation';
+import { ChatDetail } from './chat-detail';
 
 export default async function Page({
   params,
@@ -19,7 +13,6 @@ export default async function Page({
 }) {
   const { botId, chatId } = await params;
   const serverApi = await getServerApi();
-  const page_chat = await getTranslations('page_chat');
 
   let chat;
 
@@ -34,23 +27,5 @@ export default async function Page({
     notFound();
   }
 
-  return (
-    <PageContainer>
-      <PageHeader
-        breadcrumbs={[
-          {
-            title:
-              page_chat('metadata.title') +
-              ': ' +
-              (_.isEmpty(chat.history)
-                ? page_chat('display_empty_title')
-                : chat.title || ''),
-          },
-        ]}
-      />
-      <PageContent>
-        <ChatMessages chat={chat} />
-      </PageContent>
-    </PageContainer>
-  );
+  return <ChatDetail chat={toJson(chat)} />;
 }

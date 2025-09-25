@@ -49,7 +49,7 @@ export default async function ChatLayout({
   return (
     <BotProvider
       mention={false}
-      workspace={false}
+      workspace={true}
       bot={toJson(bot)}
       chats={toJson(chats)}
     >
@@ -57,7 +57,7 @@ export default async function ChatLayout({
         <Sidebar>
           <SidebarHeader className="flex h-16 flex-row items-center gap-2 px-2 align-middle">
             <Button variant="secondary" asChild>
-              <Link href="/bots">
+              <Link href="/workspace/bots">
                 <ArrowLeft />
               </Link>
             </Button>

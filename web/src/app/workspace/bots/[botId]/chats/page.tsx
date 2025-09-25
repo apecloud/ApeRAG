@@ -27,7 +27,7 @@ export default async function Page({
   const chat: Chat | undefined = _.first(chatsRes.data.items || []);
 
   if (chat) {
-    redirect(`/bots/${botId}/chats/${chat.id}`);
+    redirect(`/workspace/bots/${botId}/chats/${chat.id}`);
   }
 
   return (

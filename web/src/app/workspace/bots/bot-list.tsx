@@ -22,7 +22,7 @@ import { useCallback, useState } from 'react';
 const BotCard = ({ bot }: { bot: Bot }) => {
   const page_bot = useTranslations('page_bot');
   return (
-    <Link key={bot.id} href={`/bots/${bot.id}/chats`}>
+    <Link key={bot.id} href={`/workspace/bots/${bot.id}/chats`}>
       <Card className="hover:bg-accent/30 cursor-pointer gap-2 rounded-md">
         <CardHeader className="px-4">
           <CardTitle className="h-5 truncate">{bot.title}</CardTitle>

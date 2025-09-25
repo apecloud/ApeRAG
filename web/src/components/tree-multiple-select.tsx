@@ -27,9 +27,11 @@ export type TreeSelectItem = {
 const TreeMultipleSelectContext = createContext<{
   values: string[];
   setValues: (v: string[]) => void;
+  onValuesChange: (v: string[]) => void;
 }>({
   values: [],
   setValues: () => {},
+  onValuesChange: () => {},
 });
 
 const TreeSelectNode = ({
@@ -39,7 +41,9 @@ const TreeSelectNode = ({
   item: TreeSelectItem;
   level: number;
 }) => {
-  const { values, setValues } = useContext(TreeMultipleSelectContext);
+  const { values, setValues, onValuesChange } = useContext(
+    TreeMultipleSelectContext,
+  );
 
   const hasChildren = useMemo(
     () => item.children && item.children.length > 0,
@@ -71,8 +75,9 @@ const TreeSelectNode = ({
 
       setChildrenChecked(item.children);
       setValues(newValues);
+      onValuesChange(newValues);
     },
-    [item.children, item.id, setValues, values],
+    [item.children, item.id, onValuesChange, setValues, values],
   );
 
   if (!hasChildren) {
@@ -150,7 +155,7 @@ export type TreeSelectProps = {
 };
 
 export const TreeMultipleSelect = ({
-  values: initValues,
+  values: initValues = [],
   options = [],
   onValuesChange = () => {},
   ...props
@@ -158,14 +163,15 @@ export const TreeMultipleSelect = ({
   const [values, setValues] = useState<string[]>(initValues || []);
 
   useEffect(() => {
-    onValuesChange(values);
-  }, [onValuesChange, values]);
+    setValues(initValues);
+  }, [initValues]);
 
   return (
     <TreeMultipleSelectContext.Provider
       value={{
         values,
         setValues,
+        onValuesChange,
       }}
     >
       <div {...props}>

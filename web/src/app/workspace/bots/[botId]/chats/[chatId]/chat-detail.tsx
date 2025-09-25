@@ -18,8 +18,8 @@ export const ChatDetail = ({ chat }: { chat: ChatDetails }) => {
     <PageContainer>
       <BotHeader
         breadcrumbs={[
-          { title: page_bot('metadata.title'), href: `/bots` },
-          { title: bot?.title || '', href: `/bots/${bot?.id}` },
+          { title: page_bot('metadata.title'), href: `/workspace/bots` },
+          { title: bot?.title || '', href: `/workspace/bots/${bot?.id}` },
           {
             title:
               page_chat('metadata.title') +
@@ -31,7 +31,7 @@ export const ChatDetail = ({ chat }: { chat: ChatDetails }) => {
         ]}
         extra={
           <Button size="icon" variant="ghost">
-            <Link href={`/bots/${bot?.id}`}>
+            <Link href={`/workspace/bots/${bot?.id}`}>
               <Settings />
             </Link>
           </Button>
