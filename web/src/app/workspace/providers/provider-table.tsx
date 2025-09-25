@@ -39,6 +39,7 @@ import {
   ChevronDown,
   Columns3,
   EllipsisVertical,
+  FolderCog,
   Plus,
   SquarePen,
   Trash,
@@ -118,7 +119,7 @@ export const ProviderTable = ({
         cell: ({ row }) => {
           return (
             <Link
-              className="hover:text-primary"
+              className="hover:text-primary underline"
               href={`${urlPrefix}/providers/${row.original.name}/models`}
             >
               {row.original.label || row.original.name}
@@ -187,12 +188,19 @@ export const ProviderTable = ({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-32">
+              <DropdownMenuItem asChild>
+                <Link
+                  href={`${urlPrefix}/providers/${row.original.name}/models`}
+                >
+                  <FolderCog /> {page_models('metadata.model_title')}
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <ProviderActions action="edit" provider={row.original}>
                 <DropdownMenuItem>
                   <SquarePen /> {page_models('provider.edit')}
                 </DropdownMenuItem>
               </ProviderActions>
-              <DropdownMenuSeparator />
               <ProviderActions action="delete" provider={row.original}>
                 <DropdownMenuItem variant="destructive">
                   <Trash /> {page_models('provider.delete')}

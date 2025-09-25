@@ -16,6 +16,12 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   Form,
   FormControl,
   FormField,
@@ -29,6 +35,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { apiClient } from '@/lib/api/client';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Slot } from '@radix-ui/react-slot';
+import { ChevronDown } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
@@ -42,9 +49,49 @@ const defaultValue = {
   api: LlmProviderModelCreateApiEnum.completion,
 };
 
+const providers = [
+  {
+    label: 'AlibabaCloud',
+    value: 'alibabacloud',
+  },
+  {
+    label: 'Anthropic',
+    value: 'anthropic',
+  },
+  {
+    label: 'DeepSeek',
+    value: 'deepseek',
+  },
+  {
+    label: 'Google Gemini',
+    value: 'gemini',
+  },
+  {
+    label: 'Jina AI',
+    value: 'jina',
+  },
+  {
+    label: 'OpenAI',
+    value: 'openai',
+  },
+  {
+    label: 'OpenRouter',
+    value: 'openrouter',
+  },
+  {
+    label: 'SiliconFlow',
+    value: 'siliconflow',
+  },
+  {
+    label: 'xAI',
+    value: 'xai',
+  },
+];
+
 const modelSchema = z.object({
   model: z.string().min(1),
   api: z.string().min(1),
+  custom_llm_provider: z.string().min(1),
   context_window: z.coerce.number<number>().optional(),
   max_input_tokens: z.coerce.number<number>().optional(),
   max_output_tokens: z.coerce.number<number>().optional(),
@@ -72,7 +119,10 @@ export const ModelActions = ({
 
   const form = useForm<z.infer<typeof modelSchema>>({
     resolver: zodResolver(modelSchema),
-    defaultValues: { ...defaultValue, ...model },
+    defaultValues: {
+      ...defaultValue,
+      ...model,
+    },
   });
 
   const handleDelete = useCallback(async () => {
@@ -102,7 +152,7 @@ export const ModelActions = ({
             api: model.api,
             model: model.model,
             llmProviderModelUpdate: {
-              custom_llm_provider: provider.name,
+              custom_llm_provider: values.custom_llm_provider,
               context_window: values.context_window,
               max_input_tokens: values.max_input_tokens,
               max_output_tokens: values.max_output_tokens,
@@ -116,7 +166,7 @@ export const ModelActions = ({
             provider_name: provider.name,
             api: values.api as LlmProviderModelCreateApiEnum,
             model: values.model,
-            custom_llm_provider: provider.name,
+            custom_llm_provider: values.custom_llm_provider,
             context_window: values.context_window,
             max_input_tokens: values.max_input_tokens,
             max_output_tokens: values.max_output_tokens,
@@ -273,6 +323,53 @@ export const ModelActions = ({
                         </div>
                       </RadioGroup>
                     </FormControl>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="custom_llm_provider"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      {page_models('model.custom_llm_provider')}
+                    </FormLabel>
+
+                    <div className="relative flex flex-row">
+                      <FormControl>
+                        <Input
+                          {...field}
+                          placeholder={page_models(
+                            'model.custom_llm_provider_placeholder',
+                          )}
+                        />
+                      </FormControl>
+
+                      <DropdownMenu>
+                        <DropdownMenuTrigger className="absolute top-0.5 right-0.5">
+                          <Button variant="ghost" className="size-8">
+                            <ChevronDown />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-115.5">
+                          {providers.map((provider) => {
+                            return (
+                              <DropdownMenuItem
+                                key={provider.value}
+                                onClick={() =>
+                                  form.setValue(
+                                    'custom_llm_provider',
+                                    provider.value,
+                                  )
+                                }
+                              >
+                                {provider.label}
+                              </DropdownMenuItem>
+                            );
+                          })}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </FormItem>
                 )}
               />

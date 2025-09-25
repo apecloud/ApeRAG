@@ -83,7 +83,7 @@ class DefaultModelService:
             if config.scenario == "default_for_rerank":
                 if config.provider_name and config.model:
                     # Return configuration tuple: (model, model_service_provider, custom_llm_provider)
-                    return (config.model, config.provider_name, config.provider_name)
+                    return (config.model, config.provider_name, config.custom_llm_provider)
                 else:
                     # No valid rerank model found
                     return (None, None, None)

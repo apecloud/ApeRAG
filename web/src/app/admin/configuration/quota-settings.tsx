@@ -13,6 +13,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { apiClient } from '@/lib/api/client';
+import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -30,7 +31,9 @@ export const QuotaSettings = ({
     ...defaultValue,
     ...initData,
   });
-
+  const admin_config = useTranslations('admin_config');
+  const common_action = useTranslations('common.action');
+  const page_quota = useTranslations('page_quota');
   const handleSave = useCallback(async () => {
     const res = await apiClient.quotasApi.systemDefaultQuotasPut({
       systemDefaultQuotasUpdateRequest: {
@@ -53,17 +56,15 @@ export const QuotaSettings = ({
     <>
       <Card>
         <CardHeader>
-          <CardTitle>System default quotas</CardTitle>
+          <CardTitle>{admin_config('system_default_quota')}</CardTitle>
           <CardDescription>
-            These default quotas help maintain system stability, prevent
-            resource abuse, and ensure fair allocation across users or
-            applications.
+            {admin_config('system_default_quota_description')}
           </CardDescription>
         </CardHeader>
 
         <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           <div className="flex flex-col gap-2">
-            <Label>Bot count</Label>
+            <Label>{page_quota('bot_count.title')}</Label>
             <Input
               type="number"
               value={data.max_bot_count}
@@ -77,7 +78,7 @@ export const QuotaSettings = ({
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label>Collection count</Label>
+            <Label>{page_quota('collection_count.title')}</Label>
             <Input
               type="number"
               value={data.max_collection_count}
@@ -91,7 +92,7 @@ export const QuotaSettings = ({
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label>Documents overall</Label>
+            <Label>{page_quota('document_count.title')}</Label>
             <Input
               type="number"
               value={data.max_document_count}
@@ -105,7 +106,7 @@ export const QuotaSettings = ({
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label>Documents per collection</Label>
+            <Label>{page_quota('documents_per_collection.title')}</Label>
             <Input
               type="number"
               value={data.max_document_count_per_collection}
@@ -122,7 +123,7 @@ export const QuotaSettings = ({
         </CardContent>
 
         <CardFooter className="justify-end">
-          <Button onClick={handleSave}>Save</Button>
+          <Button onClick={handleSave}>{common_action('save')}</Button>
         </CardFooter>
       </Card>
     </>

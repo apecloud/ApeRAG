@@ -242,7 +242,7 @@ ApeRAG 中基于图的知识检索能力由深度修改的 [LightRAG](https://gi
 
 ## Star History
 
-![star-history-202595.png](docs%2Fimages%2Fstar-history-202595.png)
+![star-history-2025922.png](docs%2Fimages%2Fstar-history-2025922.png)
 
 ## 许可证
 

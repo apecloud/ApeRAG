@@ -7,6 +7,16 @@ import {
   PageTitle,
 } from '@/components/page-container';
 import { getServerApi } from '@/lib/api/server';
+import { Metadata } from 'next';
+import { getTranslations } from 'next-intl/server';
+
+export async function generateMetadata(): Promise<Metadata> {
+  const page_models = await getTranslations('page_models');
+  return {
+    title: page_models('metadata.model_title'),
+    description: page_models('metadata.model_description'),
+  };
+}
 
 export default async function Page({
   params,
@@ -15,6 +25,7 @@ export default async function Page({
 }) {
   const { providerName } = await params;
   const serverApi = await getServerApi();
+  const page_models = await getTranslations('page_models');
 
   const [modelsRes, providerRes] = await Promise.all([
     serverApi.defaultApi.llmProvidersProviderNameModelsGet({
@@ -29,18 +40,18 @@ export default async function Page({
     <PageContainer>
       <PageHeader
         breadcrumbs={[
-          { title: 'Providers', href: '/admin/providers' },
+          {
+            title: page_models('metadata.provider_title'),
+            href: '/admin/providers',
+          },
           { title: providerRes.data.label },
-          { title: 'Models' },
+          { title: page_models('metadata.model_title') },
         ]}
       />
       <PageContent>
-        <PageTitle>{providerRes.data.label} Models</PageTitle>
+        <PageTitle>{page_models('metadata.model_title')}</PageTitle>
         <PageDescription>
-          This section allows you to connect and customize your preferred Large
-          Language Model (LLM) providers and models for personal use. Set up API
-          keys, choose models, and adjust settings to enhance your AI
-          experience.
+          {page_models('metadata.model_description')}
         </PageDescription>
         <ModelTable
           provider={providerRes.data}

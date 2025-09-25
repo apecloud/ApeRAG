@@ -11,10 +11,31 @@ import { apiClient } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 
 import { Badge } from '@/components/ui/badge';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Tooltip, TooltipContent } from '@/components/ui/tooltip';
+import { TooltipTrigger } from '@radix-ui/react-tooltip';
 import Color from 'color';
 import * as d3 from 'd3';
 import _ from 'lodash';
-import { LoaderCircle } from 'lucide-react';
+import {
+  Check,
+  ChevronDown,
+  LoaderCircle,
+  Maximize,
+  Minimize,
+} from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useTheme } from 'next-themes';
 import dynamic from 'next/dynamic';
@@ -36,7 +57,7 @@ export const CollectionGraph = ({
   marketplace: boolean;
 }) => {
   const params = useParams();
-
+  const [fullscreen, setFullscreen] = useState<boolean>(false);
   const { resolvedTheme } = useTheme();
   const page_graph = useTranslations('page_graph');
 
@@ -68,8 +89,8 @@ export const CollectionGraph = ({
 
   const { NODE_MIN, NODE_MAX } = useMemo(
     () => ({
-      NODE_MIN: 6,
-      NODE_MAX: 18,
+      NODE_MIN: 7,
+      NODE_MAX: 24,
       LINK_MIN: 18,
       LINK_MAX: 36,
     }),
@@ -171,7 +192,7 @@ export const CollectionGraph = ({
     handleResizeContainer();
     window.addEventListener('resize', handleResizeContainer);
     return () => window.removeEventListener('resize', handleResizeContainer);
-  }, [handleResizeContainer]);
+  }, [handleResizeContainer, fullscreen]);
 
   useEffect(() => {
     highlightNodes.clear();
@@ -223,54 +244,129 @@ export const CollectionGraph = ({
   }, [getGraphData, getMergeSuggestions]);
 
   return (
-    <>
-      <div className="mb-4 flex flex-row items-center justify-between gap-4">
-        {/* <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline">
-              <Columns3 />
-              <span className="hidden lg:inline">
-                {page_graph('node_group')}
-              </span>
+    <div
+      className={cn('top-0 right-0 bottom-0 left-0 flex flex-1 flex-col', {
+        fixed: fullscreen,
+        'bg-background': fullscreen,
+        'z-49': fullscreen,
+      })}
+    >
+      <div
+        className={cn('mb-2 flex flex-row items-center justify-between gap-2', {
+          'px-2': fullscreen,
+          'pt-2': fullscreen,
+        })}
+      >
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className="w-40 justify-between">
+              {page_graph('node_search')}
               <ChevronDown />
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56">
-            {_.map(allEntities, (item, key) => {
-              const isActive = activeEntities.includes(key);
-              //@ts-expect-error entity error
-              const title = page_graph(`entity_${key}`);
-              return (
-                <DropdownMenuCheckboxItem
-                  key={key}
-                  className={cn('capitalize')}
-                  checked={isActive}
-                  onCheckedChange={(value) =>
-                    setActiveEntities((items) => {
-                      if (!value) {
-                        return _.reject(items, (item) => item === key);
-                      } else {
-                        return _.uniq(items.concat(key));
-                      }
-                    })
-                  }
+          </PopoverTrigger>
+          <PopoverContent className="w-[200px] p-0" align="start">
+            <Command>
+              <CommandInput placeholder="Search node..." className="h-9" />
+              <CommandList className="max-h-60">
+                <CommandEmpty>No node found.</CommandEmpty>
+                <CommandGroup>
+                  {_.map(graphData?.nodes, (node, key) => {
+                    const isActive = activeNode?.id === node.id;
+                    return (
+                      <CommandItem
+                        key={key}
+                        className={cn('capitalize')}
+                        value={node.id}
+                        onSelect={() => {
+                          setActiveNode(isActive ? undefined : node);
+                        }}
+                      >
+                        <div className="truncate">{node.id}</div>
+                        <Check
+                          className={cn(
+                            'ml-auto',
+                            isActive ? 'opacity-100' : 'opacity-0',
+                          )}
+                        />
+                      </CommandItem>
+                    );
+                  })}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+        <div className="flex flex-row items-center gap-2">
+          {!marketplace && !_.isEmpty(mergeSuggestion?.suggestions) && (
+            <Tooltip>
+              <TooltipTrigger>
+                <Badge
+                  variant="destructive"
+                  className="mr-4 h-5 min-w-5 cursor-pointer rounded-full px-1 font-mono tabular-nums"
+                  onClick={() => setMergeSuggestionOpen(true)}
                 >
-                  <div className="flex flex-row items-center gap-1">
-                    <div
-                      className="size-2 rounded-full"
-                      style={{ background: color(key) }}
-                    />
-                    <span>
-                      {title} ({item.length})
-                    </span>
-                  </div>
-                </DropdownMenuCheckboxItem>
-              );
-            })}
-          </DropdownMenuContent>
-        </DropdownMenu> */}
+                  {mergeSuggestion?.suggestions?.length &&
+                  mergeSuggestion?.suggestions?.length > 10
+                    ? '10+'
+                    : mergeSuggestion?.suggestions?.length}
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent>
+                {page_graph('merge_infomation', {
+                  count: String(mergeSuggestion?.pending_count || 0),
+                })}
+              </TooltipContent>
+            </Tooltip>
+          )}
 
-        <div className="flex flex-row flex-wrap gap-1">
+          <Button
+            size="icon"
+            variant="outline"
+            className="cursor-pointer"
+            onClick={() => {
+              getGraphData();
+              getMergeSuggestions();
+            }}
+          >
+            <LoaderCircle className={loading ? 'animate-spin' : ''} />
+          </Button>
+
+          <Button
+            size="icon"
+            variant="outline"
+            className="cursor-pointer"
+            onClick={() => {
+              setFullscreen(!fullscreen);
+            }}
+          >
+            {fullscreen ? <Minimize /> : <Maximize />}
+          </Button>
+        </div>
+      </div>
+
+      <Card
+        ref={containerRef}
+        className="bg-card/0 relative flex flex-1 gap-0 py-0"
+      >
+        {graphData === undefined && (
+          <div className="absolute top-4/12 left-6/12">
+            <div className="flex flex-row gap-2 py-2">
+              <div className="bg-muted-foreground animate-caret-blink size-2 rounded-full delay-0"></div>
+              <div className="bg-muted-foreground animate-caret-blink size-2 rounded-full delay-200"></div>
+              <div className="bg-muted-foreground animate-caret-blink size-2 rounded-full delay-400"></div>
+            </div>
+          </div>
+        )}
+
+        {graphData !== undefined && _.isEmpty(graphData?.nodes) && (
+          <div className="absolute top-4/12 w-full">
+            <div className="text-muted-foreground text-center">
+              {page_graph('no_nodes_found')}
+            </div>
+          </div>
+        )}
+
+        <div className="bg-background absolute top-0 right-0 left-0 z-10 flex flex-row flex-wrap gap-1 rounded-xl p-2">
           {_.map(allEntities, (item, key) => {
             const isActive = activeEntities.includes(key);
             //@ts-expect-error entity error
@@ -302,55 +398,6 @@ export const CollectionGraph = ({
           })}
         </div>
 
-        <div className="flex flex-row items-center gap-2">
-          {!marketplace && !_.isEmpty(mergeSuggestion?.suggestions) && (
-            <div className="text-sm">
-              <span
-                className="text-muted-foreground hover:text-primary cursor-pointer"
-                onClick={() => setMergeSuggestionOpen(true)}
-              >
-                {page_graph('merge_infomation', {
-                  count: String(mergeSuggestion?.pending_count || 0),
-                })}
-              </span>
-            </div>
-          )}
-          <Button
-            size="icon"
-            variant="outline"
-            className="cursor-pointer"
-            onClick={() => {
-              getGraphData();
-              getMergeSuggestions();
-            }}
-          >
-            <LoaderCircle className={loading ? 'animate-spin' : ''} />
-          </Button>
-        </div>
-      </div>
-
-      <Card
-        ref={containerRef}
-        className="bg-card/0 relative flex flex-1 gap-0 py-0"
-      >
-        {graphData === undefined && (
-          <div className="absolute top-4/12 left-6/12">
-            <div className="flex flex-row gap-2 py-2">
-              <div className="bg-muted-foreground animate-caret-blink size-2 rounded-full delay-0"></div>
-              <div className="bg-muted-foreground animate-caret-blink size-2 rounded-full delay-200"></div>
-              <div className="bg-muted-foreground animate-caret-blink size-2 rounded-full delay-400"></div>
-            </div>
-          </div>
-        )}
-
-        {graphData !== undefined && _.isEmpty(graphData?.nodes) && (
-          <div className="absolute top-4/12 w-full">
-            <div className="text-muted-foreground text-center">
-              {page_graph('no_nodes_found')}
-            </div>
-          </div>
-        )}
-
         <ForceGraph2D
           graphData={graphData}
           width={dimensions.width}
@@ -363,8 +410,6 @@ export const CollectionGraph = ({
               activeEntities.includes(node.properties.entity_type)
             );
           }}
-          minZoom={0.5}
-          maxZoom={8}
           onNodeClick={(node) => {
             if (activeNode?.id === node.id) {
               handleCloseDetail();
@@ -431,7 +476,7 @@ export const CollectionGraph = ({
             // node circle
             ctx.beginPath();
             ctx.arc(x, y, size, 0, 2 * Math.PI, false);
-            ctx.lineWidth = 1;
+            ctx.lineWidth = 0.5;
             ctx.strokeStyle = highlightNodes.has(node)
               ? Color('#FFF').grayscale().string()
               : '#FFF';
@@ -443,11 +488,16 @@ export const CollectionGraph = ({
             ctx.font = `${fontSize}px Arial`;
             let textWidth = ctx.measureText(String(node.id)).width - offset;
             do {
-              fontSize -= 2;
+              fontSize -= 1;
               ctx.font = `${fontSize}px Arial`;
               textWidth = ctx.measureText(String(node.id)).width - offset;
             } while (textWidth > size && fontSize > 0);
             ctx.fillStyle = '#fff';
+            if (fontSize <= 0) {
+              fontSize = 1;
+              ctx.font = `${fontSize}px Arial`;
+              textWidth = ctx.measureText(String(node.id)).width - offset;
+            }
             ctx.fillText(
               String(node.id),
               x - (textWidth + offset) / 2,
@@ -512,6 +562,6 @@ export const CollectionGraph = ({
           />
         )}
       </Card>
-    </>
+    </div>
   );
 };

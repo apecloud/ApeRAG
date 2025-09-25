@@ -12,29 +12,13 @@ ik_plugin_installed() {
 
 # Function to check if ES is ready
 check_ready() {
-    ik_plugin_installed && is_healthy
-}
-
-# Function to wait for ES to be ready
-wait_for_es() {
-    until is_healthy; do
-        echo "Waiting for Elasticsearch to be ready..."
-        sleep 5
-    done
-    echo "Elasticsearch is ready!"
+    is_healthy
 }
 
 if [ "$1" = "check" ]; then
     check_ready
     exit $?
 fi
-
-# Start ES in background
-/usr/share/elasticsearch/bin/elasticsearch &
-ES_PID=$!
-
-# Wait for ES to be ready
-wait_for_es
 
 # Check and install IK Analyzer if needed
 if ! ik_plugin_installed; then
@@ -45,16 +29,10 @@ if ! ik_plugin_installed; then
         exit 1
     fi
     echo "IK Analyzer installed successfully"
-
-    # Kill the current ES process
-    kill $ES_PID
-    wait $ES_PID
-
-    # Start ES again
-    echo "Restarting Elasticsearch after plugin installation..."
-    exec /usr/share/elasticsearch/bin/elasticsearch
 else
     echo "IK Analyzer is already installed"
-    # Keep the current ES process running
-    wait $ES_PID
 fi
+
+# Start ES in foreground
+echo "Starting Elasticsearch..."
+exec /usr/share/elasticsearch/bin/elasticsearch

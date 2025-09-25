@@ -15,6 +15,7 @@ import { Switch } from '@/components/ui/switch';
 import { apiClient } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { LaptopMinimalCheck, LoaderCircle } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -32,7 +33,9 @@ export const MinerUSettings = ({
     ...defaultValue,
     ...initData,
   });
-
+  const admin_config = useTranslations('admin_config');
+  const common_action = useTranslations('common.action');
+  const common_tips = useTranslations('common.tips');
   const [checked, setChecked] = useState<boolean>(false);
   const [checking, setChecking] = useState<boolean>(false);
 
@@ -56,7 +59,7 @@ export const MinerUSettings = ({
 
   const handleCheckMineruToken = useCallback(async () => {
     if (!data.mineru_api_token) {
-      toast.error('MinerU API Token is required.');
+      toast.error(admin_config('mineru_api_token_required'));
       return;
     }
 
@@ -67,13 +70,13 @@ export const MinerUSettings = ({
       },
     });
     if (res.data.status_code === 401) {
-      toast.error('Invalid token');
+      toast.error(admin_config('mineru_api_token_invalid'));
     } else {
       setChecked(true);
-      toast.success('Successfully verified');
+      toast.success(common_tips('save_success'));
     }
     setChecking(false);
-  }, [data.mineru_api_token]);
+  }, [admin_config, common_tips, data.mineru_api_token]);
 
   useEffect(() => {
     setData({
@@ -88,10 +91,9 @@ export const MinerUSettings = ({
         <CardHeader>
           <div className="flex flex-row items-center justify-between">
             <div>
-              <CardTitle>Use MinerU API</CardTitle>
+              <CardTitle>{admin_config('mineru_api')}</CardTitle>
               <CardDescription>
-                When enabled, the system will prioritize using the MinerU API
-                for document parsing to improve parsing quality and speed.
+                {admin_config('mineru_api_description')}
               </CardDescription>
             </div>
             <Switch
@@ -104,7 +106,7 @@ export const MinerUSettings = ({
         <CardContent className={data.use_mineru ? 'block' : 'hidden'}>
           <div className="flex flex-row gap-4">
             <Input
-              placeholder="MinerU API Token"
+              placeholder={admin_config('mineru_api_token')}
               value={data.mineru_api_token}
               onChange={(e) => {
                 setData({ ...data, mineru_api_token: e.currentTarget.value });
@@ -120,12 +122,11 @@ export const MinerUSettings = ({
               ) : (
                 <LaptopMinimalCheck />
               )}
-              Check
+              {admin_config('check')}
             </Button>
           </div>
           <div className="text-muted-foreground mt-2 text-sm">
-            Tips: The official MinerU API Token is valid for 14 days, please
-            replace it before it expires.
+            {admin_config('mineru_api_token_tips')}
           </div>
         </CardContent>
 
@@ -133,7 +134,7 @@ export const MinerUSettings = ({
           className={cn('justify-end', data.use_mineru ? 'flex' : 'hidden')}
         >
           <Button disabled={!checked} onClick={handleSave}>
-            Save
+            {common_action('save')}
           </Button>
         </CardFooter>
       </Card>

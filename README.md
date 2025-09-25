@@ -245,7 +245,7 @@ We have extensively modified LightRAG to support production-grade concurrent pro
 
 ## Star History
 
-![star-history-202595.png](docs%2Fimages%2Fstar-history-202595.png)
+![star-history-2025922.png](docs%2Fimages%2Fstar-history-2025922.png)
 
 ## License
 

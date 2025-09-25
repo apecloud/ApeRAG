@@ -1,4 +1,35 @@
 {
+  "admin_config": {
+    "metadata": {
+      "title": "Configuration",
+      "description": "This section allows administrators to define and manage system-wide settings that apply across the entire platform. These global parameters control core functionalities, security policies, performance thresholds, and other critical configurations."
+    },
+    "mineru_api": "Use MinerU API",
+    "mineru_api_description": "When enabled, the system will prioritize using the MinerU API for document parsing to improve parsing quality and speed.",
+    "mineru_api_token": "MinerU API Token",
+    "mineru_api_token_tips": "Tips: The official MinerU API Token is valid for 14 days, please replace it before it expires.",
+    "check": "Check",
+    "mineru_api_token_required": "MinerU API Token is required.",
+    "mineru_api_token_invalid": "Invalid token",
+    "system_default_quota": "User default quotas",
+    "system_default_quota_description": "These default quotas help maintain system stability, prevent resource abuse, and ensure fair allocation across users or applications."
+  },
+  "admin_users": {
+    "metadata": {
+      "title": "User Management",
+      "description": "This module enables administrators to centrally control and organize all system users with secure access configurations. Efficiently manage identities, permissions, and authentication policies across your organization."
+    },
+    "search": "Search users",
+    "user_name": "User",
+    "user_role": "Role",
+    "user_status": "Status",
+    "user_source": "Source",
+    "user_creation_time": "Creation time",
+    "user_quotas": "Quotas",
+    "user_quotas_recalculate": "Recalculate",
+    "user_logs": "Audit logs",
+    "user_delete": "Delete"
+  },
   "common": {
     "site": {
       "metadata": {
@@ -311,8 +342,9 @@
       "title": "Knowledge Graph"
     },
     "node_group": "Node Group",
+    "node_search": "Node search",
     "no_nodes_found": "No node information found",
-    "merge_infomation": "{count} suggestions",
+    "merge_infomation": "{count} merge suggestions",
     "merge_suggestions": "Merge suggestions",
     "merge_accept": "Accept",
     "merge_reject": "Reject",
@@ -379,10 +411,17 @@
       "agent": "Agent",
       "collection": "Collection",
       "api_type": "API Type",
+      "creation_time": "Creation Time",
       "edit": "Edit",
       "edit_model": "Edit Model",
       "delete": "Delete",
-      "delete_confirm": "Confirm deletion of the model?"
+      "delete_confirm": "Confirm deletion of the model?",
+      "custom_llm_provider": "LLM Provider",
+      "custom_llm_provider_placeholder": "Enter the llm provider"
+    },
+    "default_model": {
+      "config": "Default models configuration",
+      "help": "Clearing selection will delete the default model configuration for this scenario"
     }
   },
   "page_question_set": {
@@ -442,7 +481,11 @@
     "documents_per_collection": {
       "title": "Documents per Collection",
       "description": "Limits documents per collection, optimizing query performance and data balance."
-    }
+    },
+    "max_document_count_per_collection": "Documents per Collection",
+    "max_document_count": "Documents Overall",
+    "max_collection_count": "Collection Count",
+    "max_bot_count": "Bot Count"
   },
   "page_search": {
     "metadata": {

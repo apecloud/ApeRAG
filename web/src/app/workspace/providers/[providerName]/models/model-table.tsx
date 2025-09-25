@@ -30,7 +30,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-import { LlmProvider, LlmProviderModel } from '@/api';
+import { LlmProvider, LlmProviderModel, LlmProviderModelApiEnum } from '@/api';
 import { FormatDate } from '@/components/format-date';
 import {
   ArrowLeft,
@@ -48,6 +48,13 @@ import {
 import { DataGrid, DataGridPagination } from '@/components/data-grid';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { ModelActions } from './model-actions';
@@ -77,8 +84,18 @@ export function ModelTable({
     React.useState<VisibilityState>({
       created: false,
     });
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
-    [],
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([
+    {
+      id: 'api',
+      value: 'completion',
+    },
+  ]);
+  const currentApiFilter = React.useMemo(
+    () =>
+      columnFilters.find((item) => item.id === 'api')?.value as
+        | LlmProviderModelApiEnum
+        | undefined,
+    [columnFilters],
   );
   const [sorting, setSorting] = React.useState<SortingState>([
     {
@@ -220,7 +237,7 @@ export function ModelTable({
       },
       {
         accessorKey: 'created',
-        header: 'Creation time',
+        header: page_models('model.creation_time'),
         cell: ({ row }) => {
           if (row.original.created) {
             return <FormatDate datetime={new Date(row.original.created)} />;
@@ -306,6 +323,26 @@ export function ModelTable({
               <ArrowLeft />
             </Link>
           </Button>
+          <Select
+            onValueChange={(value) => {
+              setColumnFilters([
+                {
+                  id: 'api',
+                  value,
+                },
+              ]);
+            }}
+            value={currentApiFilter}
+          >
+            <SelectTrigger className="w-full max-w-32">
+              <SelectValue placeholder={page_models('model.api_type')} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="completion">Completion</SelectItem>
+              <SelectItem value="embedding">Embedding</SelectItem>
+              <SelectItem value="rerank">Rerank</SelectItem>
+            </SelectContent>
+          </Select>
           <Input
             placeholder={page_models('model.search_placeholder')}
             value={searchValue}

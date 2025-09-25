@@ -39,9 +39,16 @@
     "agent": "Agent",
     "collection": "Collection",
     "api_type": "API Type",
+    "creation_time": "Creation Time",
     "edit": "Edit",
     "edit_model": "Edit Model",
     "delete": "Delete",
-    "delete_confirm": "Confirm deletion of the model?"
+    "delete_confirm": "Confirm deletion of the model?",
+    "custom_llm_provider": "LLM Provider",
+    "custom_llm_provider_placeholder": "Enter the llm provider"
+  },
+  "default_model": {
+    "config": "Default models configuration",
+    "help": "Clearing selection will delete the default model configuration for this scenario"
   }
 }

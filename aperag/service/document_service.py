@@ -748,9 +748,7 @@ class DocumentService:
                 if rebuild_types:
                     await document_index_manager.create_or_update_document_indexes(session, document_id, rebuild_types)
                     affected_documents += 1
-                    logger.info(
-                        f"Triggered rebuild for document {document_id} indexes: {[t for t in rebuild_types]}"
-                    )
+                    logger.info(f"Triggered rebuild for document {document_id} indexes: {[t for t in rebuild_types]}")
 
             return {
                 "code": "200",

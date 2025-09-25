@@ -1,0 +1,16 @@
+{
+  "metadata": {
+    "title": "用户管理",
+    "description": "该模块允许管理员通过安全访问配置集中控制和管理系统所有用户，高效管理组织内的身份、权限和认证策略。"
+  },
+  "search": "搜索用户",
+  "user_name": "用户",
+  "user_role": "角色",
+  "user_status": "状态",
+  "user_source": "来源",
+  "user_creation_time": "创建时间",
+  "user_quotas": "用户配额",
+  "user_quotas_recalculate": "重新计算",
+  "user_logs": "审计日志",
+  "user_delete": "删除"
+}

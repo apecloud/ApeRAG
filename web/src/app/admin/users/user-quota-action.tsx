@@ -25,6 +25,7 @@ import { apiClient } from '@/lib/api/client';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Slot } from '@radix-ui/react-slot';
 import _ from 'lodash';
+import { useTranslations } from 'next-intl';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -48,6 +49,9 @@ export const UserQuotaAction = ({
   const [userQuotaInfo, setUserQuotaInfo] = useState<UserQuotaInfo>();
   const [visible, setVisible] = useState<boolean>(false);
   const quotaInfo = _.orderBy(userQuotaInfo?.quotas, ['quota_type'], ['desc']);
+  const admin_users = useTranslations('admin_users');
+  const page_quota = useTranslations('page_quota');
+  const common_action = useTranslations('common.action');
 
   const form = useForm<z.infer<typeof quotaSchema>>({
     resolver: zodResolver(quotaSchema),
@@ -129,35 +133,41 @@ export const UserQuotaAction = ({
             key={info.quota_type}
             control={form.control}
             name={info.quota_type as keyof QuotaUpdateRequest}
-            render={({ field }) => (
-              <div>
-                <FormItem>
-                  <FormLabel>{_.startCase(info.quota_type)}</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      {...field}
-                      onChange={(e) => {
-                        const v = Number(e.currentTarget.value);
-                        field.onChange(v);
-                      }}
-                    />
-                  </FormControl>
-                </FormItem>
-                <div className="my-1">
-                  <Progress className="h-1" value={percent} />
+            render={({ field }) => {
+              // @ts-expect-error i18n error
+              const label = page_quota(info.quota_type);
+              return (
+                <div>
+                  <FormItem>
+                    <FormLabel>{label}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        {...field}
+                        onChange={(e) => {
+                          const v = Number(e.currentTarget.value);
+                          field.onChange(v);
+                        }}
+                      />
+                    </FormControl>
+                  </FormItem>
+                  <div className="my-1">
+                    <Progress className="h-1" value={percent} />
+                  </div>
+                  <div className="text-muted-foreground flex flex-row justify-between text-sm">
+                    <div>
+                      {page_quota('usage')}: {info.current_usage}
+                    </div>
+                    <div>{percent.toFixed(2)}%</div>
+                  </div>
                 </div>
-                <div className="text-muted-foreground flex flex-row justify-between text-sm">
-                  <div>Usage: {info.current_usage}</div>
-                  <div>{percent.toFixed(2)}%</div>
-                </div>
-              </div>
-            )}
+              );
+            }}
           />
         );
       });
     }
-  }, [form.control, quotaInfo]);
+  }, [form.control, page_quota, quotaInfo]);
 
   useEffect(() => {
     if (visible) {
@@ -181,7 +191,7 @@ export const UserQuotaAction = ({
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleUpdateQuota)}>
             <DialogHeader>
-              <DialogTitle>User quota</DialogTitle>
+              <DialogTitle>{admin_users('user_quotas')}</DialogTitle>
               <DialogDescription asChild>
                 <div className="flex flex-row gap-2">
                   {user.username && <div>{user.username}</div>}
@@ -199,7 +209,7 @@ export const UserQuotaAction = ({
                 onClick={() => handleRecalculate()}
                 disabled={_.isEmpty(quotaInfo)}
               >
-                Recalculate
+                {admin_users('user_quotas_recalculate')}
               </Button>
               <div className="flex gap-2">
                 <Button
@@ -207,10 +217,10 @@ export const UserQuotaAction = ({
                   variant="outline"
                   onClick={() => setVisible(false)}
                 >
-                  Cancel
+                  {common_action('cancel')}
                 </Button>
                 <Button type="submit" disabled={_.isEmpty(quotaInfo)}>
-                  Save
+                  {common_action('save')}
                 </Button>
               </div>
             </DialogFooter>

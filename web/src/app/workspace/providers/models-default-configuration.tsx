@@ -30,6 +30,7 @@ import {
 import { apiClient } from '@/lib/api/client';
 import _ from 'lodash';
 import { Settings, X } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -37,6 +38,9 @@ export const ModelsDefaultConfiguration = () => {
   const [defaultModels, setDefaultModels] = useState<DefaultModelConfig[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [visible, setVisible] = useState<boolean>(false);
+  const common_action = useTranslations('common.action');
+  const common_tips = useTranslations('common.tips');
+  const page_models = useTranslations('page_models');
   const [scenarioModels, setScenarioModels] = useState<{
     [key in DefaultModelConfigScenarioEnum]: {
       label?: string;
@@ -126,9 +130,9 @@ export const ModelsDefaultConfiguration = () => {
     });
     if (res?.status === 200) {
       setVisible(false);
-      toast.success('update successfully.');
+      toast.success(common_tips('update_success'));
     }
-  }, [defaultModels]);
+  }, [common_tips, defaultModels]);
 
   const content = useMemo(() => {
     if (loading) {
@@ -205,13 +209,18 @@ export const ModelsDefaultConfiguration = () => {
             );
           })}
           <div className="text-muted-foreground text-sm">
-            Clearing selection will delete the default model configuration for
-            this scenario
+            {page_models('default_model.help')}
           </div>
         </>
       );
     }
-  }, [defaultModels, handleScenarioChange, loading, scenarioModels]);
+  }, [
+    defaultModels,
+    handleScenarioChange,
+    loading,
+    page_models,
+    scenarioModels,
+  ]);
 
   useEffect(() => {
     if (visible) {
@@ -227,19 +236,19 @@ export const ModelsDefaultConfiguration = () => {
             <Settings />
           </Button>
         </TooltipTrigger>
-        <TooltipContent>Default models configuration</TooltipContent>
+        <TooltipContent>{page_models('default_model.config')}</TooltipContent>
       </Tooltip>
       <Dialog open={visible} onOpenChange={() => setVisible(false)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Default models configuration</DialogTitle>
+            <DialogTitle>{page_models('default_model.config')}</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-6 py-8">{content}</div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setVisible(false)}>
-              Cancel
+              {common_action('cancel')}
             </Button>
-            <Button onClick={handleSave}>Save</Button>
+            <Button onClick={handleSave}>{common_action('save')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

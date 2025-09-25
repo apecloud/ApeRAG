@@ -50,12 +50,13 @@ import {
   ScrollText,
   Trash,
 } from 'lucide-react';
-import { useFormatter } from 'next-intl';
+import { useFormatter, useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { FaGithub, FaGoogle } from 'react-icons/fa6';
 import { UserQuotaAction } from './user-quota-action';
 
 export function UsersDataTable({ data }: { data: User[] }) {
+  const admin_users = useTranslations('admin_users');
   const { user } = useAppContext();
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] =
@@ -101,7 +102,7 @@ export function UsersDataTable({ data }: { data: User[] }) {
       },
       {
         accessorKey: 'username',
-        header: 'User',
+        header: admin_users('user_name'),
         cell: ({ row }) => {
           return (
             <div className="text-left">
@@ -122,7 +123,7 @@ export function UsersDataTable({ data }: { data: User[] }) {
       },
       {
         accessorKey: 'role',
-        header: 'Role',
+        header: admin_users('user_role'),
         cell: ({ row }) => {
           return (
             <Badge
@@ -136,7 +137,7 @@ export function UsersDataTable({ data }: { data: User[] }) {
       },
       {
         accessorKey: 'is_active',
-        header: 'Status',
+        header: admin_users('user_status'),
         cell: ({ row }) => {
           return (
             <Check
@@ -150,7 +151,7 @@ export function UsersDataTable({ data }: { data: User[] }) {
       },
       {
         accessorKey: 'registration_source',
-        header: 'Source',
+        header: admin_users('user_source'),
         cell: ({ row }) => {
           let icon;
           switch (row.original.registration_source) {
@@ -175,7 +176,7 @@ export function UsersDataTable({ data }: { data: User[] }) {
       },
       {
         accessorKey: 'date_joined',
-        header: 'Creation time',
+        header: admin_users('user_creation_time'),
         cell: ({ row }) =>
           row.original.date_joined
             ? format.dateTime(new Date(row.original.date_joined), 'medium')
@@ -199,17 +200,18 @@ export function UsersDataTable({ data }: { data: User[] }) {
             <DropdownMenuContent align="end" className="w-32">
               <UserQuotaAction user={row.original}>
                 <DropdownMenuItem>
-                  <BatteryMedium /> Quotas
+                  <BatteryMedium />
+                  {admin_users('user_quotas')}
                 </DropdownMenuItem>
               </UserQuotaAction>
               <DropdownMenuItem asChild>
                 <Link href={`/admin/audit-logs?userId=${row.original.id}`}>
-                  <ScrollText /> Audit logs
+                  <ScrollText /> {admin_users('user_logs')}
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem variant="destructive" disabled>
-                <Trash /> Delete
+                <Trash /> {admin_users('user_delete')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -217,7 +219,7 @@ export function UsersDataTable({ data }: { data: User[] }) {
       },
     ];
     return cols;
-  }, [format, user?.id]);
+  }, [admin_users, format, user?.id]);
 
   const table = useReactTable({
     data,
@@ -250,7 +252,7 @@ export function UsersDataTable({ data }: { data: User[] }) {
       <div className="flex items-center justify-between">
         <div className="flex flex-row items-center gap-2">
           <Input
-            placeholder="Search"
+            placeholder={admin_users('search')}
             value={searchValue}
             onChange={(e) => setSearchValue(e.currentTarget.value)}
           />
@@ -260,8 +262,6 @@ export function UsersDataTable({ data }: { data: User[] }) {
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
                 <Columns3 />
-                <span className="hidden lg:inline">Columns</span>
-                <span className="lg:hidden">Columns</span>
                 <ChevronDown />
               </Button>
             </DropdownMenuTrigger>
