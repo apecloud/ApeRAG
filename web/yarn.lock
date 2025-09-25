@@ -1422,21 +1422,6 @@
   resolved "https://registry.npmjs.org/@radix-ui/primitive/-/primitive-1.1.3.tgz#e2dbc13bdc5e4168f4334f75832d7bdd3e2de5ba"
   integrity sha512-JTF99U/6XIjCBo0wqkU5sK10glYe27MRRsfwoiq5zzOEZLHU3A3KCMa5X/azekYRCJ0HlwI0crAXS/5dEHTzDg==
 
-"@radix-ui/react-accordion@^1.2.12":
-  version "1.2.12"
-  resolved "https://registry.npmjs.org/@radix-ui/react-accordion/-/react-accordion-1.2.12.tgz#1fd70d4ef36018012b9e03324ff186de7a29c13f"
-  integrity sha512-T4nygeh9YE9dLRPhAHSeOZi7HBXo+0kYIPJXayZfvWOWA0+n3dESrZbjfDPUABkUNym6Hd+f2IR113To8D2GPA==
-  dependencies:
-    "@radix-ui/primitive" "1.1.3"
-    "@radix-ui/react-collapsible" "1.1.12"
-    "@radix-ui/react-collection" "1.1.7"
-    "@radix-ui/react-compose-refs" "1.1.2"
-    "@radix-ui/react-context" "1.1.2"
-    "@radix-ui/react-direction" "1.1.1"
-    "@radix-ui/react-id" "1.1.1"
-    "@radix-ui/react-primitive" "2.1.3"
-    "@radix-ui/react-use-controllable-state" "1.2.2"
-
 "@radix-ui/react-alert-dialog@^1.1.15":
   version "1.1.15"
   resolved "https://registry.npmjs.org/@radix-ui/react-alert-dialog/-/react-alert-dialog-1.1.15.tgz#fa751d0fdd9aa2a90961c9901dba18e638dd4b41"
@@ -1481,7 +1466,7 @@
     "@radix-ui/react-use-previous" "1.1.1"
     "@radix-ui/react-use-size" "1.1.1"
 
-"@radix-ui/react-collapsible@1.1.12", "@radix-ui/react-collapsible@^1.1.12":
+"@radix-ui/react-collapsible@^1.1.12":
   version "1.1.12"
   resolved "https://registry.npmjs.org/@radix-ui/react-collapsible/-/react-collapsible-1.1.12.tgz#e2cc69a4490a2920f97c3c3150b0bf21281e3c49"
   integrity sha512-Uu+mSh4agx2ib1uIGPP4/CKNULyajb3p92LsVXmH2EHVMTfZWpll88XJ0j4W0z3f8NK1eYl1+Mf/szHPmcHzyA==
@@ -1509,18 +1494,6 @@
   version "1.1.2"
   resolved "https://registry.npmjs.org/@radix-ui/react-compose-refs/-/react-compose-refs-1.1.2.tgz#a2c4c47af6337048ee78ff6dc0d090b390d2bb30"
   integrity sha512-z4eqJvfiNnFMHIIvXP3CY57y2WJs5g2v3X0zm9mEJkrkNv4rDxu+sg9Jh8EkXyeqBkB7SOcboo9dMVqhyrACIg==
-
-"@radix-ui/react-context-menu@^2.2.16":
-  version "2.2.16"
-  resolved "https://registry.npmjs.org/@radix-ui/react-context-menu/-/react-context-menu-2.2.16.tgz#e7bf94a457b68af08f24ad696949144530faab50"
-  integrity sha512-O8morBEW+HsVG28gYDZPTrT9UUovQUlJue5YO836tiTJhuIWBm/zQHc7j388sHWtdH/xUZurK9olD2+pcqx5ww==
-  dependencies:
-    "@radix-ui/primitive" "1.1.3"
-    "@radix-ui/react-context" "1.1.2"
-    "@radix-ui/react-menu" "2.1.16"
-    "@radix-ui/react-primitive" "2.1.3"
-    "@radix-ui/react-use-callback-ref" "1.1.1"
-    "@radix-ui/react-use-controllable-state" "1.2.2"
 
 "@radix-ui/react-context@1.1.2":
   version "1.1.2"
@@ -1589,21 +1562,6 @@
     "@radix-ui/react-compose-refs" "1.1.2"
     "@radix-ui/react-primitive" "2.1.3"
     "@radix-ui/react-use-callback-ref" "1.1.1"
-
-"@radix-ui/react-hover-card@^1.1.15":
-  version "1.1.15"
-  resolved "https://registry.npmjs.org/@radix-ui/react-hover-card/-/react-hover-card-1.1.15.tgz#9bc7ed55c37a9032acdfcc7cfa5c73b117cffe5e"
-  integrity sha512-qgTkjNT1CfKMoP0rcasmlH2r1DAiYicWsDsufxl940sT2wHNEWWv6FMWIQXWhVdmC1d/HYfbhQx60KYyAtKxjg==
-  dependencies:
-    "@radix-ui/primitive" "1.1.3"
-    "@radix-ui/react-compose-refs" "1.1.2"
-    "@radix-ui/react-context" "1.1.2"
-    "@radix-ui/react-dismissable-layer" "1.1.11"
-    "@radix-ui/react-popper" "1.2.8"
-    "@radix-ui/react-portal" "1.1.9"
-    "@radix-ui/react-presence" "1.1.5"
-    "@radix-ui/react-primitive" "2.1.3"
-    "@radix-ui/react-use-controllable-state" "1.2.2"
 
 "@radix-ui/react-id@1.1.1", "@radix-ui/react-id@^1.1.0":
   version "1.1.1"
@@ -3580,15 +3538,42 @@ color-convert@^2.0.1:
   dependencies:
     color-name "~1.1.4"
 
+color-convert@^3.0.1:
+  version "3.1.2"
+  resolved "https://registry.npmjs.org/color-convert/-/color-convert-3.1.2.tgz#cef9e0fd4cb90b07c14697b3fa70af9d7f4870f1"
+  integrity sha512-UNqkvCDXstVck3kdowtOTWROIJQwafjOfXSmddoDrXo4cewMKmusCeF22Q24zvjR8nwWib/3S/dfyzPItPEiJg==
+  dependencies:
+    color-name "^2.0.0"
+
 color-hash@^2.0.2:
   version "2.0.2"
   resolved "https://registry.npmjs.org/color-hash/-/color-hash-2.0.2.tgz#abf735705da71874ddec7dcef50cd7479e7d64e9"
   integrity sha512-6exeENAqBTuIR1wIo36mR8xVVBv6l1hSLd7Qmvf6158Ld1L15/dbahR9VUOiX7GmGJBCnQyS0EY+I8x+wa7egg==
 
+color-name@^2.0.0:
+  version "2.0.2"
+  resolved "https://registry.npmjs.org/color-name/-/color-name-2.0.2.tgz#85054825a23e6d6f81d3503f660c4c4a2a15f04f"
+  integrity sha512-9vEt7gE16EW7Eu7pvZnR0abW9z6ufzhXxGXZEVU9IqPdlsUiMwJeJfRtq0zePUmnbHGT9zajca7mX8zgoayo4A==
+
 color-name@~1.1.4:
   version "1.1.4"
   resolved "https://registry.npmjs.org/color-name/-/color-name-1.1.4.tgz#c2a09a87acbde69543de6f63fa3995c826c536a2"
   integrity sha512-dOy+3AuW3a2wNbZHIuMZpTcgjGuLU/uBL/ubcZF9OXbDo8ff4O8yVp5Bf0efS8uEoYo5q4Fx7dY9OgQGXgAsQA==
+
+color-string@^2.0.0:
+  version "2.1.2"
+  resolved "https://registry.npmjs.org/color-string/-/color-string-2.1.2.tgz#db1dd52414cc9037ada8fa7d936b8e9f6c3366c9"
+  integrity sha512-RxmjYxbWemV9gKu4zPgiZagUxbH3RQpEIO77XoSSX0ivgABDZ+h8Zuash/EMFLTI4N9QgFPOJ6JQpPZKFxa+dA==
+  dependencies:
+    color-name "^2.0.0"
+
+color@^5.0.2:
+  version "5.0.2"
+  resolved "https://registry.npmjs.org/color/-/color-5.0.2.tgz#712ec894007ab27b37207732d182784e001b4a3d"
+  integrity sha512-e2hz5BzbUPcYlIRHo8ieAhYgoajrJr+hWoceg6E345TPsATMUKqDgzt8fSXZJJbxfpiPzkWyphz8yn8At7q3fA==
+  dependencies:
+    color-convert "^3.0.1"
+    color-string "^2.0.0"
 
 colord@^2.9.3:
   version "2.9.3"
@@ -5230,7 +5215,7 @@ forwarded@0.2.0:
   resolved "https://registry.npmjs.org/forwarded/-/forwarded-0.2.0.tgz#2269936428aad4c15c7ebe9779a84bf0b2a81811"
   integrity sha512-buRG0fpBtRHSTCOASe6hD258tEubFoRLb4ZNA6NxMVHNw2gOcwHo9wyablzMzOA5z9xA9L1KNjk/Nt6MT9aYow==
 
-framer-motion@^12.23.20:
+framer-motion@^12.23.12:
   version "12.23.21"
   resolved "https://registry.npmjs.org/framer-motion/-/framer-motion-12.23.21.tgz#8e82b381c79fb843c844121455feba19847c0978"
   integrity sha512-UWDtzzPdRA3UpSNGril5HjUtPF1Uo/BCt5VKG/YQ8tVpSkAZ22+q8o+hYO0C1uDAZuotQjcfzsTsDtQxD46E/Q==
@@ -6595,10 +6580,10 @@ lru-cache@^7.14.1:
   resolved "https://registry.npmjs.org/lru-cache/-/lru-cache-7.18.3.tgz#f793896e0fd0e954a59dfdd82f0773808df6aa89"
   integrity sha512-jumlc0BIUrS3qJGgIkWZsyfAM7NCWiBcCDhnd+3NNM5KbBmLTgHVfWBcg6W+rLUsIpzpERPsvwUP7CckAQSOoA==
 
-lucide-react@^0.544.0:
-  version "0.544.0"
-  resolved "https://registry.npmjs.org/lucide-react/-/lucide-react-0.544.0.tgz#4719953c10fd53a64dd8343bb0ed16ec79f3eeef"
-  integrity sha512-t5tS44bqd825zAW45UQxpG2CvcC4urOwn2TrwSH8u+MjeE+1NnWl6QqeQ/6NdjMqdOygyiT9p3Ev0p1NJykxjw==
+lucide-react@^0.540.0:
+  version "0.540.0"
+  resolved "https://registry.npmjs.org/lucide-react/-/lucide-react-0.540.0.tgz#c681f67c245c619de67c26dbe83a88412b5e7ff8"
+  integrity sha512-armkCAqQvO62EIX4Hq7hqX/q11WSZu0Jd23cnnqx0/49yIxGXyL/zyZfBxNN9YDx0ensPTb4L+DjTh3yQXUxtQ==
 
 lunr@^2.3.9:
   version "2.3.9"
