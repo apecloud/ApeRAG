@@ -64,7 +64,6 @@ export const BotSharing = ({ children }: { children?: React.ReactNode }) => {
     const res = await apiClient.defaultApi.botsBotIdSharingGet({
       botId: bot.id,
     });
-    // @ts-expect-error api define error
     setSelectedDepartents(res.data.group_ids || []);
   }, [bot?.id]);
 
