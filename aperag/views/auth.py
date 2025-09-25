@@ -907,33 +907,26 @@ async def get_departments_view(
 
     # If no tenant_id provided, try to get from user context or use a default approach
     if not tenant_id:
-        # For now, get all departments if user is admin, or departments from user's tenant
-        if user.role == Role.ADMIN:
-            # Admin can see all departments
-            result = await session.execute(
-                select(Department).where(Department.status == DepartmentStatus.ACTIVE).order_by(Department.name)
+        # Get departments from user's tenant (both admin and regular users follow tenant restrictions)
+        if hasattr(user, 'department_id') and user.department_id:
+            # Get user's department to find tenant_id
+            dept_result = await session.execute(
+                select(Department).where(Department.id == user.department_id)
             )
-        else:
-            # Regular users can only see departments from their tenant (if they have department_id)
-            if hasattr(user, 'department_id') and user.department_id:
-                # Get user's department to find tenant_id
-                dept_result = await session.execute(
-                    select(Department).where(Department.id == user.department_id)
+            user_dept = dept_result.scalars().first()
+            if user_dept:
+                result = await session.execute(
+                    select(Department).where(
+                        Department.tenant_id == user_dept.tenant_id,
+                        Department.status == DepartmentStatus.ACTIVE
+                    ).order_by(Department.name)
                 )
-                user_dept = dept_result.scalars().first()
-                if user_dept:
-                    result = await session.execute(
-                        select(Department).where(
-                            Department.tenant_id == user_dept.tenant_id,
-                            Department.status == DepartmentStatus.ACTIVE
-                        ).order_by(Department.name)
-                    )
-                else:
-                    # User has no valid department, return empty list
-                    return view_models.DepartmentList(items=[])
             else:
-                # User has no department, return empty list
+                # User has no valid department, return empty list
                 return view_models.DepartmentList(items=[])
+        else:
+            # User has no department, return empty list
+            return view_models.DepartmentList(items=[])
     else:
         # Get departments for specific tenant
         result = await session.execute(
