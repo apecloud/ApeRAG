@@ -118,6 +118,8 @@ export const BotProvider = ({
         }
         if (workspace) {
           url = '/workspace' + url;
+        } else {
+          url = '/marketplace' + url;
         }
         router.push(url);
       }
@@ -166,6 +168,8 @@ export const BotProvider = ({
       let url = `/bots/${bot.id}/chats/${res.data.id}`;
       if (workspace) {
         url = '/workspace' + url;
+      } else {
+        url = '/marketplace' + url;
       }
       router.push(url);
       chatsReload();

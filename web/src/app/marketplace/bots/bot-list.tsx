@@ -2,7 +2,6 @@
 
 import { Bot } from '@/api';
 import { FormatDate } from '@/components/format-date';
-import { Button } from '@/components/ui/button';
 import {
   Card,
   CardDescription,
@@ -13,7 +12,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { apiClient } from '@/lib/api/client';
 import { useInterval } from 'ahooks';
-import { Calendar, Plus } from 'lucide-react';
+import { Calendar } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useCallback, useState } from 'react';
@@ -21,7 +20,7 @@ import { useCallback, useState } from 'react';
 const BotCard = ({ bot }: { bot: Bot }) => {
   const page_bot = useTranslations('page_bot');
   return (
-    <Link key={bot.id} href={`/workspace/bots/${bot.id}/chats`}>
+    <Link key={bot.id} href={`/marketplace/bots/${bot.id}/chats`}>
       <Card className="hover:bg-accent/30 cursor-pointer gap-2 rounded-md">
         <CardHeader className="px-4">
           <CardTitle className="h-5 truncate">{bot.title}</CardTitle>
@@ -80,7 +79,7 @@ export const BotList = ({ bots: initBots }: { bots: Bot[] }) => {
   const [bots, setBots] = useState<Bot[]>(initBots);
 
   const getBots = useCallback(async () => {
-    const res = await apiClient.defaultApi.botsGet();
+    const res = await apiClient.defaultApi.marketplaceBotsGet();
     setBots(res.data.items || []);
   }, []);
 
@@ -98,13 +97,7 @@ export const BotList = ({ bots: initBots }: { bots: Bot[] }) => {
             onChange={(e) => setSearchValue(e.currentTarget.value)}
           />
         </div>
-        <div className="ml-auto flex items-center gap-2">
-          <Button asChild>
-            <Link href="/bots/new">
-              <Plus /> {page_bot('new_bot')}
-            </Link>
-          </Button>
-        </div>
+        <div className="ml-auto flex items-center gap-2"></div>
       </div>
       <BotsCardList bots={bots} searchValue={searchValue} />
     </>

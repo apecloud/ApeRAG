@@ -106,7 +106,7 @@
   },
   "page_bot": {
     "metadata": {
-      "title": "应用",
+      "title": "我的应用",
       "description": "ApeRAG 是一种基于本地数据集并利用多种大型语言模型的新型聊天机器人。"
     },
     "search": "搜索应用",

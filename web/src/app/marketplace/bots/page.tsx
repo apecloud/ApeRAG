@@ -19,7 +19,9 @@ export default async function Page() {
 
   let bots: Bot[] = [];
   try {
-    const [botsRes] = await Promise.all([serverApi.defaultApi.botsGet()]);
+    const [botsRes] = await Promise.all([
+      serverApi.defaultApi.marketplaceBotsGet(),
+    ]);
     bots = botsRes.data.items || [];
   } catch (err) {
     console.log(err);
@@ -29,9 +31,9 @@ export default async function Page() {
     <PageContainer>
       <PageContent>
         <div className="flex flex-row items-center justify-between">
-          <PageTitle>{page_bot('metadata.title')}</PageTitle>
+          <PageTitle>{page_bot('shared_bots')}</PageTitle>
           <Button variant="secondary" asChild>
-            <Link href="/marketplace/bots">{page_bot('shared_bots')}</Link>
+            <Link href="/workspace/bots">{page_bot('metadata.title')}</Link>
           </Button>
         </div>
 

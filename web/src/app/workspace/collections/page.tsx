@@ -51,7 +51,7 @@ export default async function Page() {
         <div className="flex flex-row items-center justify-between">
           <PageTitle>{page_collections('metadata.title')}</PageTitle>
           <Button variant="secondary" asChild>
-            <Link href="/marketplace">
+            <Link href="/marketplace/collections">
               {page_marketplace('metadata.title')}
             </Link>
           </Button>

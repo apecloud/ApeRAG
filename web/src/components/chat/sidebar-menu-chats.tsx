@@ -54,6 +54,8 @@ export const SideBarMenuChats = () => {
             let url = `/bots/${bot?.id}/chats/${chat.id}`;
             if (workspace) {
               url = '/workspace' + url;
+            } else {
+              url = '/marketplace' + url;
             }
             return (
               <SidebarMenuItem key={chat.id} className="group/item">
