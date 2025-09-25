@@ -784,10 +784,19 @@ async def delete_user_view(
     return {"message": "User deleted successfully"}
 
 
-async def sync_anybase_departments(session, deps_list: list):
+async def sync_anybase_departments(session, tenants_list: list, deps_list: list):
     """Sync department data from Anybase to ApeRAG database for all tenants"""
     if not deps_list:
         return
+
+    tenants = {}
+    for tenant in tenants_list:
+        tenant_id = tenant.get("id")
+        tenant_name = tenant.get("name")
+        if not tenant_id or not tenant_name:
+            logger.warning(f"Incomplete tenant data: {tenant}")
+            continue
+        tenants[tenant_id] = tenant_name
 
     # Group departments by tenant_id
     departments_by_tenant = {}
@@ -812,6 +821,7 @@ async def sync_anybase_departments(session, deps_list: list):
             "status": DepartmentStatus.ACTIVE,
             "group_path": group_path,
             "tenant_id": tenant_id,
+            "tenant_name": tenants[tenant_id],
             "created_at": utc_now(),
             "updated_at": utc_now(),
         }
@@ -947,6 +957,7 @@ async def get_departments_view(
                     status=dept.status,
                     group_path=dept.group_path,
                     tenant_id=dept.tenant_id,
+                    tenant_name=dept.tenant_name,
                     created_at=dept.created_at.isoformat(),
                     updated_at=dept.updated_at.isoformat(),
                 )
@@ -966,6 +977,7 @@ async def get_departments_view(
             status=dept.status,
             group_path=dept.group_path,
             tenant_id=dept.tenant_id,
+            tenant_name=dept.tenant_name,
             created_at=dept.created_at.isoformat(),
             updated_at=dept.updated_at.isoformat(),
             children=[]

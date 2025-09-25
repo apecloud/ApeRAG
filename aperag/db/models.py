@@ -667,6 +667,7 @@ class Department(Base):
     status = Column(Integer, nullable=False, default=DepartmentStatus.ACTIVE)  # Department status
     group_path = Column(String(1024), nullable=False)  # Department hierarchy path
     tenant_id = Column(String(64), nullable=False)  # Tenant id from anybase
+    tenant_name = Column(String(256), nullable=True)  # Tenant name from anybase
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 

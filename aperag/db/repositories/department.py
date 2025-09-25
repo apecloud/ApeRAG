@@ -46,6 +46,7 @@ class AsyncDepartmentRepositoryMixin(AsyncRepositoryProtocol):
                         'status': stmt.excluded.status,
                         'group_path': stmt.excluded.group_path,
                         'tenant_id': stmt.excluded.tenant_id,
+                        'tenant_name': stmt.excluded.tenant_name,
                         'updated_at': utc_now(),
                     }
                 )
