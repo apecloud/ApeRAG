@@ -51,10 +51,6 @@ class MarketplaceService:
         # Verify user ownership
         await self._verify_collection_ownership(user_id, collection_id)
 
-        # Validate group_ids
-        if not group_ids or not isinstance(group_ids, list):
-            raise ValueError("group_ids must be a non-empty list")
-        
         # Publish collection to specific departments
         await self.db_ops.publish_collection_to_departments(
             collection_id=collection_id, group_ids=group_ids
