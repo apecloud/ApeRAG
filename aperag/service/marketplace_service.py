@@ -104,7 +104,7 @@ class MarketplaceService:
             )
 
         # Extract group_ids and check if global
-        group_ids = [record.group_id for record in published_records]
+        group_ids = [str(record.group_id) for record in published_records]
         is_global = "*" in group_ids
 
         return view_models.CollectionSharingStatusResponse(
