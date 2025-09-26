@@ -1873,7 +1873,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SharingStatusResponse'
+                $ref: '#/components/schemas/CollectionSharingStatusResponse'
         '401':
           description: Unauthorized
           content:
@@ -1900,7 +1900,7 @@ paths:
                 $ref: '#/components/schemas/failResponse'
     post:
       summary: Publish collection to marketplace
-      description: Publish a collection to the public marketplace (owner only)
+      description: Publish a collection to the marketplace with department scope (owner only)
       security:
         - BearerAuth: []
       parameters:
@@ -1910,6 +1910,12 @@ paths:
           schema:
             type: string
           description: Collection ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/collectionPublishRequest'
       responses:
         '204':
           description: Collection published successfully
@@ -6429,20 +6435,37 @@ components:
         - message
         - suggestion_id
         - action
-    SharingStatusResponse:
+    CollectionSharingStatusResponse:
       type: object
-      description: Simple sharing status response
+      description: Collection sharing status response
       properties:
         is_published:
           type: boolean
           description: Whether published to marketplace
-        published_at:
-          type: string
-          format: date-time
-          nullable: true
-          description: Publication time, null when not published
+        group_ids:
+          type: array
+          items:
+            type: string
+          description: List of department IDs where the collection is published
+        is_global:
+          type: boolean
+          description: Whether the collection is published globally
       required:
         - is_published
+    collectionPublishRequest:
+      type: object
+      properties:
+        group_ids:
+          type: array
+          items:
+            type: string
+          description: List of department IDs to publish to, or ["*"] for global publishing
+          example:
+            - '*'
+            - dp_1
+            - dp_2
+      required:
+        - group_ids
     SharedCollectionConfig:
       type: object
       description: Configuration settings for shared collection features

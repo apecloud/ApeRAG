@@ -13,30 +13,23 @@ export default async function ChatLayout({
   const serverApi = await getServerApi();
 
   let collection;
-  let share;
 
   try {
-    const [collectionRes, shareRes] = await Promise.all([
+    const [collectionRes] = await Promise.all([
       serverApi.defaultApi.collectionsCollectionIdGet({
-        collectionId,
-      }),
-      serverApi.defaultApi.collectionsCollectionIdSharingGet({
         collectionId,
       }),
     ]);
     collection = collectionRes.data;
-    share = shareRes.data;
   } catch (err) {
     console.log(err);
   }
 
-  if (!collection || !share) {
+  if (!collection) {
     notFound();
   }
 
   return (
-    <CollectionProvider collection={collection} share={share}>
-      {children}
-    </CollectionProvider>
+    <CollectionProvider collection={collection}>{children}</CollectionProvider>
   );
 }

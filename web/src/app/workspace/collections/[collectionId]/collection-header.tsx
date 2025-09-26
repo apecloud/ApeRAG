@@ -14,16 +14,13 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import _ from 'lodash';
 
 import { useCollectionContext } from '@/components/providers/collection-provider';
-import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { apiClient } from '@/lib/api/client';
 import {
   ArrowLeft,
   Calendar,
@@ -33,15 +30,16 @@ import {
   History,
   MailQuestionMark,
   Settings,
+  Star,
   Trash,
   VectorSquare,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useCallback, useMemo } from 'react';
-import { toast } from 'sonner';
+import { useMemo } from 'react';
 import { CollectionDelete } from './collection-delete';
+import { CollectionSharing } from './collection-sharing';
 
 export const CollectionHeader = ({ className }: { className?: string }) => {
   const badgeColor: {
@@ -51,13 +49,13 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
     INACTIVE: 'bg-red-500',
     DELETED: 'bg-gray-500',
   };
-  const { collection, share, loadShare } = useCollectionContext();
+  const { collection } = useCollectionContext();
   const pathname = usePathname();
   const page_collections = useTranslations('page_collections');
   const page_documents = useTranslations('page_documents');
   const page_graph = useTranslations('page_graph');
   const page_evaluation = useTranslations('page_evaluation');
-
+  const page_bots = useTranslations('page_bot');
   const urls = useMemo(() => {
     return {
       documents: `/workspace/collections/${collection.id}/documents`,
@@ -66,27 +64,6 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
       settings: `/workspace/collections/${collection.id}/settings`,
     };
   }, [collection.id]);
-
-  const shareCollection = useCallback(
-    async (checked: boolean) => {
-      if (!collection?.id) {
-        return;
-      }
-      if (checked) {
-        await apiClient.defaultApi.collectionsCollectionIdSharingPost({
-          collectionId: collection?.id,
-        });
-        toast.success(page_collections('published_success'));
-      } else {
-        await apiClient.defaultApi.collectionsCollectionIdSharingDelete({
-          collectionId: collection?.id,
-        });
-        toast.success(page_collections('unpublished_success'));
-      }
-      await loadShare();
-    },
-    [collection?.id, loadShare, page_collections],
-  );
 
   return (
     <PageContent className={cn('flex flex-col gap-4 pb-0', className)}>
@@ -124,48 +101,20 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
             </div>
           </CardDescription>
           <CardAction className="flex flex-row items-center gap-4">
-            {share && (
-              <Badge variant={share.is_published ? 'default' : 'secondary'}>
-                {share.is_published
-                  ? page_collections('public')
-                  : page_collections('private')}
-              </Badge>
-            )}
-
+            <CollectionSharing>
+              <Button variant="ghost" className="cursor-pointer">
+                <Star />
+                {page_bots('share_settings')}
+                {/* <StarOff /> */}
+              </Button>
+            </CollectionSharing>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button size="icon" variant="ghost">
                   <EllipsisVertical />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-60">
-                {share && (
-                  <>
-                    {share.is_published ? (
-                      <DropdownMenuItem
-                        className="flex-col items-start gap-1"
-                        onClick={() => shareCollection(false)}
-                      >
-                        <div>{page_collections('unpublish_collection')}</div>
-                        <div className="text-muted-foreground text-xs">
-                          {page_collections('unpublish_collection_description')}
-                        </div>
-                      </DropdownMenuItem>
-                    ) : (
-                      <DropdownMenuItem
-                        className="flex-col items-start gap-1"
-                        onClick={() => shareCollection(true)}
-                      >
-                        <div>{page_collections('publish_collection')}</div>
-                        <div className="text-muted-foreground text-xs">
-                          {page_collections('publish_collection_description')}
-                        </div>
-                      </DropdownMenuItem>
-                    )}
-                    <DropdownMenuSeparator />
-                  </>
-                )}
-
+              <DropdownMenuContent align="end" className="w-40">
                 <CollectionDelete>
                   <DropdownMenuItem variant="destructive">
                     <Trash /> {page_collections('delete_collection')}
