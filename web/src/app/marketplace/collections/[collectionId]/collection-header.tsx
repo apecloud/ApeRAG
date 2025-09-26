@@ -86,7 +86,7 @@ export const CollectionHeader = ({
             <BreadcrumbItem>
               <BreadcrumbLink asChild>
                 <Link
-                  href="/marketplace"
+                  href="/marketplace/collections"
                   className="text-foreground flex flex-row items-center gap-1"
                 >
                   {page_marketplace('metadata.title')}
