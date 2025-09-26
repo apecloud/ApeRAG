@@ -47,12 +47,20 @@ export const CollectionSharing = ({
 
   const handleSharing = useCallback(async () => {
     if (!collection?.id) return;
-    await apiClient.defaultApi.collectionsCollectionIdSharingPost({
-      collectionId: collection.id,
-      collectionPublishRequest: {
-        group_ids: selectedDepartents,
-      },
-    });
+
+    if (selectedDepartents.length === 0) {
+      await apiClient.defaultApi.collectionsCollectionIdSharingDelete({
+        collectionId: collection.id,
+      });
+    } else {
+      await apiClient.defaultApi.collectionsCollectionIdSharingPost({
+        collectionId: collection.id,
+        collectionPublishRequest: {
+          group_ids: selectedDepartents,
+        },
+      });
+    }
+
     setSharingVisible(false);
     toast.success(common_tips('update_success'));
   }, [collection?.id, common_tips, selectedDepartents]);
