@@ -170,18 +170,22 @@ export const BotForm = ({
   });
 
   const loadData = useCallback(async () => {
-    const [modeRes, collectionsRes] = await Promise.all([
-      apiClient.defaultApi.availableModelsPost({
-        tagFilterRequest: {
-          tag_filters: [{ operation: 'AND', tags: ['enable_for_agent'] }],
-        },
-      }),
-      apiClient.defaultApi.collectionsGet({
-        pageSize: 100,
-        page: 1,
-        includeSubscribed: true,
-      }),
-    ]);
+    const [modeRes, collectionsRes, marketplaceCollectionsRes] =
+      await Promise.all([
+        apiClient.defaultApi.availableModelsPost({
+          tagFilterRequest: {
+            tag_filters: [{ operation: 'AND', tags: ['enable_for_agent'] }],
+          },
+        }),
+        apiClient.defaultApi.collectionsGet({
+          pageSize: 100,
+          page: 1,
+        }),
+        apiClient.defaultApi.marketplaceCollectionsGet({
+          pageSize: 100,
+          page: 1,
+        }),
+      ]);
 
     const completion = modeRes.data.items?.map((m) => {
       return {
@@ -191,7 +195,14 @@ export const BotForm = ({
       };
     });
 
-    setCollections(collectionsRes.data.items || []);
+    const collections = collectionsRes.data.items || [];
+    const marketplaceCollections = marketplaceCollectionsRes.data.items || [];
+    const uniqCollections = _.uniqBy(
+      collections.concat(marketplaceCollections),
+      (item) => item.id,
+    );
+
+    setCollections(uniqCollections);
     setCompletionModels(completion || []);
   }, []);
 
