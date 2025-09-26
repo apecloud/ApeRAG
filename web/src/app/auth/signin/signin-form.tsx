@@ -67,12 +67,12 @@ export function SignInForm({
   );
 
   useEffect(() => {
-    if (top) {
+    if (top && process.env.NODE_ENV === 'production') {
       top.window.location.href = `/login?redirect_url=${redirectTo}`;
     }
   }, [redirectTo]);
 
-  if (top) {
+  if (process.env.NODE_ENV === 'production') {
     return;
   }
 

@@ -1,18 +1,13 @@
 'use client';
 
 import { SharedCollection } from '@/api';
-import { useAppContext } from '@/components/providers/app-provider';
-import { Badge } from '@/components/ui/badge';
 import {
   Card,
-  CardAction,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { User } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useState } from 'react';
@@ -22,10 +17,8 @@ export const CollectionList = ({
 }: {
   collections: SharedCollection[];
 }) => {
-  const { user } = useAppContext();
   const [searchValue, setSearchValue] = useState<string>('');
   const page_marketplace = useTranslations('page_marketplace');
-  const page_collections = useTranslations('page_collections');
   if (collections.length === 0) {
     return (
       <div className="text-muted-foreground my-40 text-center">
@@ -54,7 +47,6 @@ export const CollectionList = ({
             );
           })
           .map((collection) => {
-            const isOwner = collection.owner_user_id === user?.id;
             return (
               <Link
                 key={collection.id}
@@ -65,38 +57,11 @@ export const CollectionList = ({
                     <CardTitle className="h-5 truncate">
                       {collection.title}
                     </CardTitle>
-
-                    <CardAction className="flex flex-row gap-2">
-                      {/* {isOwner && (
-                        <Button
-                          className="size-8 cursor-pointer"
-                          variant="secondary"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            router.push(
-                              `/workspace/collections/${collection.id}/documents`,
-                            );
-                          }}
-                        >
-                          <Settings />
-                        </Button>
-                      )} */}
-                    </CardAction>
                   </CardHeader>
                   <CardDescription className="mb-4 truncate px-4">
                     {collection.description ||
                       page_marketplace('no_description_available')}
                   </CardDescription>
-                  <CardFooter className="text-muted-foreground justify-between px-4 text-sm">
-                    {isOwner ? (
-                      <Badge>{page_collections('mine')}</Badge>
-                    ) : (
-                      <div className="flex flex-row items-center gap-1">
-                        <User className="size-4" />
-                        <div>{collection.owner_username || '--'}</div>
-                      </div>
-                    )}
-                  </CardFooter>
                 </Card>
               </Link>
             );

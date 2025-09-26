@@ -2,11 +2,9 @@
 
 import { CollectionView } from '@/api';
 import { FormatDate } from '@/components/format-date';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Card,
-  CardAction,
   CardDescription,
   CardFooter,
   CardHeader,
@@ -76,21 +74,6 @@ export const CollectionList = ({
                       <CardTitle className="h-5 truncate">
                         {collection.title}
                       </CardTitle>
-                      <CardAction className="flex flex-row items-center gap-4">
-                        {collection.subscription_id ? (
-                          <Badge>{page_collections('subscribed')}</Badge>
-                        ) : (
-                          <Badge
-                            variant={
-                              collection.is_published ? 'default' : 'secondary'
-                            }
-                          >
-                            {collection.is_published
-                              ? page_collections('public')
-                              : page_collections('private')}
-                          </Badge>
-                        )}
-                      </CardAction>
                     </CardHeader>
                     <CardDescription className="mb-4 truncate px-4">
                       {collection.description ||

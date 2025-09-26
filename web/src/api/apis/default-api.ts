@@ -62,6 +62,10 @@ import type { Collection } from '../models';
 // @ts-ignore
 import type { CollectionCreate } from '../models';
 // @ts-ignore
+import type { CollectionPublishRequest } from '../models';
+// @ts-ignore
+import type { CollectionSharingStatusResponse } from '../models';
+// @ts-ignore
 import type { CollectionUpdate } from '../models';
 // @ts-ignore
 import type { CollectionViewList } from '../models';
@@ -155,8 +159,6 @@ import type { SharedBotList } from '../models';
 import type { SharedCollection } from '../models';
 // @ts-ignore
 import type { SharedCollectionList } from '../models';
-// @ts-ignore
-import type { SharingStatusResponse } from '../models';
 // @ts-ignore
 import type { TagFilterRequest } from '../models';
 // @ts-ignore
@@ -1934,15 +1936,18 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             };
         },
         /**
-         * Publish a collection to the public marketplace (owner only)
+         * Publish a collection to the marketplace with department scope (owner only)
          * @summary Publish collection to marketplace
          * @param {string} collectionId Collection ID
+         * @param {CollectionPublishRequest} collectionPublishRequest 
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        collectionsCollectionIdSharingPost: async (collectionId: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+        collectionsCollectionIdSharingPost: async (collectionId: string, collectionPublishRequest: CollectionPublishRequest, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
             // verify required parameter 'collectionId' is not null or undefined
             assertParamExists('collectionsCollectionIdSharingPost', 'collectionId', collectionId)
+            // verify required parameter 'collectionPublishRequest' is not null or undefined
+            assertParamExists('collectionsCollectionIdSharingPost', 'collectionPublishRequest', collectionPublishRequest)
             const localVarPath = `/collections/{collection_id}/sharing`
                 .replace(`{${"collection_id"}}`, encodeURIComponent(String(collectionId)));
             // use dummy base URL string because the URL constructor only accepts absolute URLs.
@@ -1962,9 +1967,12 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
 
 
     
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
             setSearchParams(localVarUrlObj, localVarQueryParameter);
             let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
             localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(collectionPublishRequest, localVarRequestOptions, configuration)
 
             return {
                 url: toPathString(localVarUrlObj),
@@ -4176,21 +4184,22 @@ export const DefaultApiFp = function(configuration?: Configuration) {
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async collectionsCollectionIdSharingGet(collectionId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<SharingStatusResponse>> {
+        async collectionsCollectionIdSharingGet(collectionId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<CollectionSharingStatusResponse>> {
             const localVarAxiosArgs = await localVarAxiosParamCreator.collectionsCollectionIdSharingGet(collectionId, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['DefaultApi.collectionsCollectionIdSharingGet']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * Publish a collection to the public marketplace (owner only)
+         * Publish a collection to the marketplace with department scope (owner only)
          * @summary Publish collection to marketplace
          * @param {string} collectionId Collection ID
+         * @param {CollectionPublishRequest} collectionPublishRequest 
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async collectionsCollectionIdSharingPost(collectionId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<void>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.collectionsCollectionIdSharingPost(collectionId, options);
+        async collectionsCollectionIdSharingPost(collectionId: string, collectionPublishRequest: CollectionPublishRequest, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<void>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.collectionsCollectionIdSharingPost(collectionId, collectionPublishRequest, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['DefaultApi.collectionsCollectionIdSharingPost']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
@@ -5199,18 +5208,18 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        collectionsCollectionIdSharingGet(requestParameters: DefaultApiCollectionsCollectionIdSharingGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<SharingStatusResponse> {
+        collectionsCollectionIdSharingGet(requestParameters: DefaultApiCollectionsCollectionIdSharingGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<CollectionSharingStatusResponse> {
             return localVarFp.collectionsCollectionIdSharingGet(requestParameters.collectionId, options).then((request) => request(axios, basePath));
         },
         /**
-         * Publish a collection to the public marketplace (owner only)
+         * Publish a collection to the marketplace with department scope (owner only)
          * @summary Publish collection to marketplace
          * @param {DefaultApiCollectionsCollectionIdSharingPostRequest} requestParameters Request parameters.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
         collectionsCollectionIdSharingPost(requestParameters: DefaultApiCollectionsCollectionIdSharingPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<void> {
-            return localVarFp.collectionsCollectionIdSharingPost(requestParameters.collectionId, options).then((request) => request(axios, basePath));
+            return localVarFp.collectionsCollectionIdSharingPost(requestParameters.collectionId, requestParameters.collectionPublishRequest, options).then((request) => request(axios, basePath));
         },
         /**
          * Trigger collection summary generation as background task
@@ -6059,10 +6068,10 @@ export interface DefaultApiInterface {
      * @throws {RequiredError}
      * @memberof DefaultApiInterface
      */
-    collectionsCollectionIdSharingGet(requestParameters: DefaultApiCollectionsCollectionIdSharingGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<SharingStatusResponse>;
+    collectionsCollectionIdSharingGet(requestParameters: DefaultApiCollectionsCollectionIdSharingGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<CollectionSharingStatusResponse>;
 
     /**
-     * Publish a collection to the public marketplace (owner only)
+     * Publish a collection to the marketplace with department scope (owner only)
      * @summary Publish collection to marketplace
      * @param {DefaultApiCollectionsCollectionIdSharingPostRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -7325,6 +7334,13 @@ export interface DefaultApiCollectionsCollectionIdSharingPostRequest {
      * @memberof DefaultApiCollectionsCollectionIdSharingPost
      */
     readonly collectionId: string
+
+    /**
+     * 
+     * @type {CollectionPublishRequest}
+     * @memberof DefaultApiCollectionsCollectionIdSharingPost
+     */
+    readonly collectionPublishRequest: CollectionPublishRequest
 }
 
 /**
@@ -8510,7 +8526,7 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
     }
 
     /**
-     * Publish a collection to the public marketplace (owner only)
+     * Publish a collection to the marketplace with department scope (owner only)
      * @summary Publish collection to marketplace
      * @param {DefaultApiCollectionsCollectionIdSharingPostRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -8518,7 +8534,7 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
      * @memberof DefaultApi
      */
     public collectionsCollectionIdSharingPost(requestParameters: DefaultApiCollectionsCollectionIdSharingPostRequest, options?: RawAxiosRequestConfig) {
-        return DefaultApiFp(this.configuration).collectionsCollectionIdSharingPost(requestParameters.collectionId, options).then((request) => request(this.axios, this.basePath));
+        return DefaultApiFp(this.configuration).collectionsCollectionIdSharingPost(requestParameters.collectionId, requestParameters.collectionPublishRequest, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
