@@ -295,7 +295,7 @@ class CollectionMarketplace(Base):
     collection_id = Column(String(24), nullable=False)
 
     # Publishing scope: department id or "*" for global
-    group_id = Column(String(64), nullable=False, default="*")  # "*" means global, otherwise department id
+    group_id = Column(String(64), nullable=True, default="*")  # "*" means global, otherwise department id
 
     # Sharing status: use VARCHAR storage, not database enum type, validated at application layer
     status = Column(String(20), nullable=False, default=CollectionMarketplaceStatusEnum.DRAFT.value)
