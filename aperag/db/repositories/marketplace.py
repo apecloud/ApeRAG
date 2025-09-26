@@ -76,6 +76,50 @@ class AsyncMarketplaceRepositoryMixin(AsyncRepositoryProtocol):
 
         return await self.execute_with_transaction(_operation)
 
+    async def publish_collection_to_departments(
+        self, collection_id: str, group_ids: List[str], status: str = CollectionMarketplaceStatusEnum.PUBLISHED.value
+    ) -> List[CollectionMarketplace]:
+        """Publish collection to specific departments or globally"""
+        
+        if not group_ids or not isinstance(group_ids, list):
+            raise ValueError("group_ids must be a non-empty list")
+
+        async def _operation(session):
+            # First, soft delete existing marketplace entries for this collection
+            existing_stmt = select(CollectionMarketplace).where(
+                CollectionMarketplace.collection_id == collection_id, CollectionMarketplace.gmt_deleted.is_(None)
+            )
+            result = await session.execute(existing_stmt)
+            existing_entries = result.scalars().all()
+
+            current_time = utc_now()
+            
+            # Soft delete existing entries
+            for entry in existing_entries:
+                entry.gmt_deleted = current_time
+                entry.gmt_updated = current_time
+                session.add(entry)
+            
+            # Create new marketplace entries for each group
+            new_entries = []
+            for group_id in group_ids:
+                marketplace_entry = CollectionMarketplace(
+                    collection_id=collection_id,
+                    group_id=group_id,
+                    status=status,
+                    gmt_created=current_time,
+                    gmt_updated=current_time,
+                )
+                session.add(marketplace_entry)
+                new_entries.append(marketplace_entry)
+            
+            await session.flush()
+            for entry in new_entries:
+                await session.refresh(entry)
+            return new_entries
+        
+        return await self.execute_with_transaction(_operation)
+
     async def get_collection_marketplace_by_collection_id(
         self, collection_id: str, ignore_deleted: bool = True
     ) -> Optional[CollectionMarketplace]:

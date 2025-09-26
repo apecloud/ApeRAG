@@ -54,18 +54,11 @@ class MarketplaceService:
         # Validate group_ids
         if not group_ids or not isinstance(group_ids, list):
             raise ValueError("group_ids must be a non-empty list")
-
-        # Create marketplace records for each department
-        for group_id in group_ids:
-            if group_id != "*":
-                # TODO: Validate that the department exists (if needed)
-                pass
-
-            await self.db_ops.create_or_update_collection_marketplace(
-                collection_id=collection_id,
-                group_id=group_id,
-                status=db_models.CollectionMarketplaceStatusEnum.PUBLISHED.value
-            )
+        
+        # Publish collection to specific departments
+        await self.db_ops.publish_collection_to_departments(
+            collection_id=collection_id, group_ids=group_ids
+        )
 
     async def unpublish_collection(self, user_id: str, collection_id: str) -> None:
         """Remove Collection from marketplace"""
