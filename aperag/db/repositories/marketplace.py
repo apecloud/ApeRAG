@@ -665,3 +665,67 @@ class AsyncMarketplaceRepositoryMixin(AsyncRepositoryProtocol):
 
         return await self._execute_query(_query)
 
+    async def check_user_access_to_bot(self, user_id: str, bot_id: str) -> Tuple[bool, Optional[Bot]]:
+        """
+        Check if user has access to a specific bot (either owns it or it's published to user's department)
+        Returns (has_access: bool, bot: Optional[Bot])
+        """
+        async def _query(session):
+            # First get the bot to ensure it exists and is active
+            bot_stmt = select(Bot).where(
+                Bot.id == bot_id,
+                Bot.status == BotStatus.ACTIVE.value,
+                Bot.gmt_deleted.is_(None)
+            )
+            bot_result = await session.execute(bot_stmt)
+            bot = bot_result.scalars().first()
+
+            if not bot:
+                return False, None
+
+            # If user owns the bot, they have access
+            if bot.user == user_id:
+                return True, bot
+
+            # Check if bot is published to user's accessible departments
+            user = await session.execute(select(User).where(User.id == user_id))
+            user_obj = user.scalars().first()
+
+            if not user_obj:
+                return False, None
+
+            user_department_id = user_obj.department_id
+
+            # Get user's department hierarchy (all parent departments)
+            accessible_group_ids = ["*"]  # Global bots are always accessible
+
+            if user_department_id:
+                # Get user's department
+                dept_result = await session.execute(
+                    select(Department).where(Department.id == user_department_id)
+                )
+                user_dept = dept_result.scalars().first()
+
+                if user_dept and user_dept.group_path:
+                    # Extract all parent department IDs from group_path
+                    # e.g., "/dp_1/dp_2" -> ["dp_1", "dp_2"]
+                    path_parts = user_dept.group_path.strip("/").split("/")
+                    accessible_group_ids.extend([part for part in path_parts if part])
+
+                # Also include the user's direct department
+                accessible_group_ids.append(user_department_id)
+
+            # Check if bot is published to any of user's accessible departments
+            marketplace_stmt = select(BotMarketplace).where(
+                BotMarketplace.bot_id == bot_id,
+                BotMarketplace.status == BotMarketplaceStatusEnum.PUBLISHED.value,
+                BotMarketplace.group_id.in_(accessible_group_ids),
+                BotMarketplace.gmt_deleted.is_(None)
+            )
+            marketplace_result = await session.execute(marketplace_stmt)
+            marketplace_entry = marketplace_result.scalars().first()
+
+            return marketplace_entry is not None, bot
+
+        return await self._execute_query(_query)
+
