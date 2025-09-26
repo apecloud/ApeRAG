@@ -466,7 +466,7 @@ export const BotForm = ({
         <div className="flex">
           <div className="ml-auto flex flex-row gap-4">
             <Button variant="secondary" className="px-6" type="button" asChild>
-              <Link href={bot ? `/bots/${bot.id}/chats` : '/bots'}>
+              <Link href={bot ? `/workspace/bots/${bot.id}/chats` : '/bots'}>
                 {common_action('cancel')}
               </Link>
             </Button>
