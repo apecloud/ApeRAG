@@ -278,19 +278,24 @@ class CollectionSummary(Base):
 
 
 class CollectionMarketplace(Base):
-    """Collection sharing status table"""
+    """Collection sharing status table with department-based publishing scope"""
 
     __tablename__ = "collection_marketplace"
     __table_args__ = (
-        UniqueConstraint("collection_id", name="uq_collection_marketplace_collection"),
+        # Remove unique constraint on collection_id since one collection can be published to multiple departments
         Index("idx_collection_marketplace_status", "status"),
         Index("idx_collection_marketplace_gmt_deleted", "gmt_deleted"),
         Index("idx_collection_marketplace_collection_id", "collection_id"),
+        Index("idx_collection_marketplace_group_id", "group_id"),
         Index("idx_collection_marketplace_list", "status", "gmt_created"),
+        Index("idx_collection_marketplace_collection_group", "collection_id", "group_id"),
     )
 
     id = Column(String(24), primary_key=True, default=lambda: "market_" + random_id()[:16])
     collection_id = Column(String(24), nullable=False)
+
+    # Publishing scope: department id or "*" for global
+    group_id = Column(String(64), nullable=False, default="*")  # "*" means global, otherwise department id
 
     # Sharing status: use VARCHAR storage, not database enum type, validated at application layer
     status = Column(String(20), nullable=False, default=CollectionMarketplaceStatusEnum.DRAFT.value)

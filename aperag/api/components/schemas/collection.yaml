@@ -484,3 +484,15 @@ searchResultList:
       type: array
       items:
         $ref: '#/searchResult'
+
+collectionPublishRequest:
+  type: object
+  properties:
+    group_ids:
+      type: array
+      items:
+        type: string
+      description: List of department IDs to publish to, or ["*"] for global publishing
+      example: ["*", "dp_1", "dp_2"]
+  required:
+    - group_ids

@@ -128,13 +128,12 @@ async def test_mineru_token_view(
 async def get_collection_sharing_status(
     collection_id: str,
     user: User = Depends(required_user),
-) -> view_models.SharingStatusResponse:
+) -> view_models.CollectionSharingStatusResponse:
     """Get collection sharing status (owner only)"""
     from aperag.exceptions import CollectionNotFoundException, PermissionDeniedError
 
     try:
-        is_published, published_at = await marketplace_service.get_sharing_status(user.id, collection_id)
-        return view_models.SharingStatusResponse(is_published=is_published, published_at=published_at)
+        return await marketplace_service.get_sharing_status(user.id, collection_id)
     except CollectionNotFoundException:
         raise HTTPException(status_code=404, detail="Collection not found")
     except PermissionDeniedError:
@@ -147,13 +146,14 @@ async def get_collection_sharing_status(
 @router.post("/collections/{collection_id}/sharing", tags=["collections"])
 async def publish_collection_to_marketplace(
     collection_id: str,
+    request: view_models.CollectionPublishRequest,
     user: User = Depends(required_user),
 ):
     """Publish collection to marketplace (owner only)"""
     from aperag.exceptions import CollectionNotFoundException, PermissionDeniedError
 
     try:
-        await marketplace_service.publish_collection(user.id, collection_id)
+        await marketplace_service.publish_collection(user.id, collection_id, request.group_ids)
         return Response(status_code=204)
     except CollectionNotFoundException:
         raise HTTPException(status_code=404, detail="Collection not found")

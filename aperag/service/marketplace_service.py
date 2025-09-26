@@ -46,71 +46,121 @@ class MarketplaceService:
         else:
             self.db_ops = AsyncDatabaseOps(session)  # Create custom instance for transaction control
 
-    async def publish_collection(self, user_id: str, collection_id: str) -> None:
-        """Publish Collection to marketplace"""
+    async def publish_collection(self, user_id: str, collection_id: str, group_ids: list[str]) -> None:
+        """Publish Collection to marketplace with department scope"""
         # Verify user ownership
         await self._verify_collection_ownership(user_id, collection_id)
 
-        # Create or update collection_marketplace record
-        await self.db_ops.create_or_update_collection_marketplace(
-            collection_id=collection_id, status=db_models.CollectionMarketplaceStatusEnum.PUBLISHED.value
-        )
+        # Validate group_ids
+        if not group_ids or not isinstance(group_ids, list):
+            raise ValueError("group_ids must be a non-empty list")
+
+        # Create marketplace records for each department
+        for group_id in group_ids:
+            if group_id != "*":
+                # TODO: Validate that the department exists (if needed)
+                pass
+
+            await self.db_ops.create_or_update_collection_marketplace(
+                collection_id=collection_id,
+                group_id=group_id,
+                status=db_models.CollectionMarketplaceStatusEnum.PUBLISHED.value
+            )
 
     async def unpublish_collection(self, user_id: str, collection_id: str) -> None:
         """Remove Collection from marketplace"""
         # Verify user ownership
         await self._verify_collection_ownership(user_id, collection_id)
 
-        # Update collection_marketplace record status to 'DRAFT' and invalidate related subscriptions
-        # Note: This uses transaction to ensure data consistency
         marketplace = await self.db_ops.unpublish_collection(collection_id)
         if marketplace is None:
             raise CollectionNotPublishedError(collection_id)
 
-    async def get_sharing_status(self, user_id: str, collection_id: str) -> Tuple[bool, Optional[datetime]]:
+    async def get_sharing_status(self, user_id: str, collection_id: str) -> view_models.CollectionSharingStatusResponse:
         """Get Collection sharing status"""
         # Verify user ownership first
         await self._verify_collection_ownership(user_id, collection_id)
 
-        marketplace = await self.db_ops.get_collection_marketplace_by_collection_id(collection_id)
-        if marketplace is None:
-            return False, None
+        # Get all marketplace records for this collection
+        marketplace_records = await self.db_ops.get_collection_marketplace_records(collection_id)
+        if not marketplace_records:
+            return view_models.CollectionSharingStatusResponse(
+                is_published=False,
+                group_ids=[],
+                is_global=False
+            )
 
-        is_published = marketplace.status == db_models.CollectionMarketplaceStatusEnum.PUBLISHED.value
-        published_at = marketplace.gmt_created if is_published else None
+        # Filter published records
+        published_records = [
+            record for record in marketplace_records
+            if record.status == db_models.CollectionMarketplaceStatusEnum.PUBLISHED.value
+        ]
 
-        return is_published, published_at
+        if not published_records:
+            return view_models.CollectionSharingStatusResponse(
+                is_published=False,
+                group_ids=[],
+                is_global=False
+            )
+
+        # Extract group_ids and check if global
+        group_ids = [record.group_id for record in published_records]
+        is_global = "*" in group_ids
+
+        return view_models.CollectionSharingStatusResponse(
+            is_published=True,
+            group_ids=group_ids,
+            is_global=is_global
+        )
 
     async def get_raw_sharing_status(self, collection_id: str) -> Optional[db_models.CollectionMarketplace]:
         """Get raw sharing status (for permission checks)"""
         return await self.db_ops.get_collection_marketplace_by_collection_id(collection_id)
 
-    async def validate_marketplace_collection(self, collection_id: str):
+    async def validate_marketplace_collection(self, collection_id: str, user_group_id: str = None):
         """
-        Validate if collection is published in marketplace
+        Validate if collection is published in marketplace and accessible to user
 
         Args:
             collection_id: Collection ID to validate
+            user_group_id: User's department ID (optional)
 
         Returns:
-            bool: True if collection is published in marketplace
+            bool: True if collection is accessible
 
         Raises:
-            HTTPException: If collection is not published in marketplace
+            HTTPException: If collection is not accessible
         """
         from fastapi import HTTPException
 
-        marketplace_record = await self.get_raw_sharing_status(collection_id)
-        if (
-            not marketplace_record
-            or marketplace_record.status != db_models.CollectionMarketplaceStatusEnum.PUBLISHED.value
-        ):
+        # Get all marketplace records for this collection
+        marketplace_records = await self.db_ops.get_collection_marketplace_records(collection_id)
+
+        if not marketplace_records:
             raise HTTPException(status_code=401, detail="Authentication required")
+
+        # Filter published records
+        published_records = [
+            record for record in marketplace_records
+            if record.status == db_models.CollectionMarketplaceStatusEnum.PUBLISHED.value
+        ]
+
+        if not published_records:
+            raise HTTPException(status_code=401, detail="Authentication required")
+
+        # Check if collection is published globally or to user's department
+        group_ids = [record.group_id for record in published_records]
+        is_accessible = "*" in group_ids or (user_group_id and user_group_id in group_ids)
+
+        if not is_accessible:
+            raise HTTPException(status_code=401, detail="Authentication required")
+
+        return True
 
     async def list_published_collections(
         self, user_id: str, page: int = 1, page_size: int = 12
     ) -> view_models.SharedCollectionList:
-        """List all published Collections in marketplace"""
+        """List all published Collections in marketplace that are accessible to user"""
         collections_data, total = await self.db_ops.list_published_collections_with_subscription_status(
             user_id=user_id, page=page, page_size=page_size
         )

@@ -38,14 +38,16 @@ class AsyncMarketplaceRepositoryMixin(AsyncRepositoryProtocol):
 
     # Marketplace sharing operations
     async def create_or_update_collection_marketplace(
-        self, collection_id: str, status: str = CollectionMarketplaceStatusEnum.PUBLISHED.value
+        self, collection_id: str, group_id: str = "*", status: str = CollectionMarketplaceStatusEnum.PUBLISHED.value
     ) -> CollectionMarketplace:
-        """Create or update collection marketplace record"""
+        """Create or update collection marketplace record with department scope"""
 
         async def _operation(session):
-            # Check if marketplace record already exists
+            # Check if marketplace record already exists for this collection and group
             stmt = select(CollectionMarketplace).where(
-                CollectionMarketplace.collection_id == collection_id, CollectionMarketplace.gmt_deleted.is_(None)
+                CollectionMarketplace.collection_id == collection_id,
+                CollectionMarketplace.group_id == group_id,
+                CollectionMarketplace.gmt_deleted.is_(None)
             )
             result = await session.execute(stmt)
             marketplace = result.scalars().first()
@@ -60,7 +62,11 @@ class AsyncMarketplaceRepositoryMixin(AsyncRepositoryProtocol):
             else:
                 # Create new record
                 marketplace = CollectionMarketplace(
-                    collection_id=collection_id, status=status, gmt_created=current_time, gmt_updated=current_time
+                    collection_id=collection_id,
+                    group_id=group_id,
+                    status=status,
+                    gmt_created=current_time,
+                    gmt_updated=current_time
                 )
                 session.add(marketplace)
 
@@ -95,6 +101,21 @@ class AsyncMarketplaceRepositoryMixin(AsyncRepositoryProtocol):
                 stmt = stmt.where(CollectionMarketplace.gmt_deleted.is_(None))
             result = await session.execute(stmt)
             return result.scalars().first()
+
+        return await self._execute_query(_query)
+
+    async def get_collection_marketplace_records(
+        self, collection_id: str, ignore_deleted: bool = True
+    ) -> List[CollectionMarketplace]:
+        """Get all marketplace records for a collection"""
+
+        async def _query(session):
+            stmt = select(CollectionMarketplace).where(CollectionMarketplace.collection_id == collection_id)
+            if ignore_deleted:
+                stmt = stmt.where(CollectionMarketplace.gmt_deleted.is_(None))
+            stmt = stmt.order_by(CollectionMarketplace.gmt_created.desc())
+            result = await session.execute(stmt)
+            return result.scalars().all()
 
         return await self._execute_query(_query)
 
@@ -172,12 +193,30 @@ class AsyncMarketplaceRepositoryMixin(AsyncRepositoryProtocol):
 
     # Marketplace listing operations
     async def list_published_collections_with_subscription_status(
-        self, user_id: str, page: int = 1, page_size: int = 12
+        self, user_id: str, page: int = 1, page_size: int = 12, user_group_id: Optional[str] = None
     ) -> Tuple[List[dict], int]:
-        """List all published collections with current user's subscription status"""
+        """List all published collections accessible to user with subscription status"""
 
         async def _query(session):
-            # Base query for published collections
+            # Get user's accessible department IDs
+            accessible_group_ids = ["*"]  # Global collections are always accessible
+
+            if user_group_id:
+                # Get user's department hierarchy
+                dept_result = await session.execute(
+                    select(Department).where(Department.id == user_group_id)
+                )
+                user_dept = dept_result.scalars().first()
+
+                if user_dept and user_dept.group_path:
+                    # Extract all parent department IDs from group_path
+                    path_parts = user_dept.group_path.strip("/").split("/")
+                    accessible_group_ids.extend([part for part in path_parts if part])
+
+                # Also include the user's direct department
+                accessible_group_ids.append(user_group_id)
+
+            # Base query for published collections accessible to user
             base_stmt = (
                 select(
                     CollectionMarketplace.id.label("marketplace_id"),
@@ -207,6 +246,7 @@ class AsyncMarketplaceRepositoryMixin(AsyncRepositoryProtocol):
                     CollectionMarketplace.gmt_deleted.is_(None),
                     Collection.status != CollectionStatus.DELETED,
                     Collection.gmt_deleted.is_(None),
+                    CollectionMarketplace.group_id.in_(accessible_group_ids),
                 )
                 .order_by(desc(CollectionMarketplace.gmt_created))
             )
@@ -221,6 +261,7 @@ class AsyncMarketplaceRepositoryMixin(AsyncRepositoryProtocol):
                     CollectionMarketplace.gmt_deleted.is_(None),
                     Collection.status != CollectionStatus.DELETED,
                     Collection.gmt_deleted.is_(None),
+                    CollectionMarketplace.group_id.in_(accessible_group_ids),
                 )
             )
 

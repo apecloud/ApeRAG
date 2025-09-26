@@ -1224,7 +1224,7 @@ sharing:
         content:
           application/json:
             schema:
-              $ref: '../components/schemas/marketplace.yaml#/SharingStatusResponse'
+              $ref: '../components/schemas/marketplace.yaml#/CollectionSharingStatusResponse'
       '401':
         description: Unauthorized
         content:
@@ -1252,7 +1252,7 @@ sharing:
 
   post:
     summary: Publish collection to marketplace
-    description: Publish a collection to the public marketplace (owner only)
+    description: Publish a collection to the marketplace with department scope (owner only)
     security:
       - BearerAuth: []
     parameters:
@@ -1262,6 +1262,12 @@ sharing:
         schema:
           type: string
         description: Collection ID
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/collection.yaml#/collectionPublishRequest'
     responses:
       '204':
         description: Collection published successfully
