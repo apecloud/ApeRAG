@@ -18,7 +18,9 @@ export default async function Layout({
   } catch (err) {}
 
   if (!user) {
-    redirect(`/auth/signin?callbackUrl=${encodeURIComponent('/workspace')}`);
+    redirect(
+      `/auth/signin?callbackUrl=${encodeURIComponent(`${process.env.NEXT_PUBLIC_BASE_PATH}/workspace/bots`)}`,
+    );
   }
 
   return (

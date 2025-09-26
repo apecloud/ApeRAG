@@ -19,7 +19,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { FaGithub, FaGoogle } from 'react-icons/fa6';
 import * as z from 'zod';
@@ -65,6 +65,16 @@ export function SignInForm({
     },
     [redirectTo, signIn],
   );
+
+  useEffect(() => {
+    if (top) {
+      top.window.location.href = `/login?redirect_url=${redirectTo}`;
+    }
+  }, [redirectTo]);
+
+  if (top) {
+    return;
+  }
 
   return (
     <div className={cn('flex flex-col gap-6', className)} {...props}>
