@@ -201,7 +201,7 @@ class AsyncCollectionRepositoryMixin(AsyncRepositoryProtocol):
             return result.scalars().first()
 
         return await self._execute_query(_query)
-
+    
     async def query_collections_by_ids(self, user: str, collection_ids: List[str]):
         """Query multiple collections by their IDs in a single database call"""
 

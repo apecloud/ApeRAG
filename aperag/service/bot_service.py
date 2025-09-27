@@ -24,6 +24,7 @@ from aperag.exceptions import (
 )
 from aperag.schema import view_models
 from aperag.schema.view_models import Bot, BotList
+from aperag.service import collection_service, marketplace_service
 from aperag.service.quota_service import quota_service
 
 
@@ -49,18 +50,20 @@ class BotService:
             id=bot.id,
             title=bot.title,
             description=bot.description,
-            type=bot.type,
+        type=bot.type,
             config=bot_config,
             created=bot.gmt_created.isoformat(),
             updated=bot.gmt_updated.isoformat(),
         )
 
     async def validate_collections(self, user: str, bot_config: view_models.BotConfig):
+        user_collections = await self.db_ops.list_all_accessible_collections_for_user(user)
+        user_collections_ids = [collection.id for collection in user_collections]
         if bot_config and bot_config.agent and bot_config.agent.collections:
-            collection_ids = [collection.id for collection in bot_config.agent.collections]
-            collections = await self.db_ops.query_collections_by_ids(user, collection_ids)
-            if not collections or len(collections) != len(collection_ids):
-                raise ResourceNotFoundException("Collection", collection_ids)
+            agent_collection_ids = [collection.id for collection in bot_config.agent.collections]
+            for collection_id in agent_collection_ids:
+                if collection_id not in user_collections_ids:
+                    raise ResourceNotFoundException("Collection", collection_id)
 
     async def create_bot(
         self, user: str, bot_in: view_models.BotCreate, skip_quota_check: bool = False

@@ -53,7 +53,9 @@ from aperag.agent.exceptions import (
 from aperag.agent.response_types import AgentErrorResponse, AgentToolCallResultResponse
 from aperag.chat.history.message import StoredChatMessage, create_assistant_message
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
+from aperag.exceptions import ResourceNotFoundException
 from aperag.schema import view_models
+from aperag.schema.utils import parseCollectionConfig
 from aperag.service.prompt_template_service import build_agent_query_prompt, get_agent_system_prompt
 from aperag.trace import trace_async_function
 
@@ -99,25 +101,6 @@ class AgentChatService:
         # Initialize memory and history managers
         self.memory_manager = AgentMemoryManager()
         self.history_manager = AgentHistoryManager()
-
-    async def _convert_db_collections_to_pydantic(self, db_collections) -> List[view_models.Collection]:
-        """Convert SQLAlchemy Collection models to Pydantic Collection models"""
-        from aperag.schema.utils import parseCollectionConfig
-
-        pydantic_collections = []
-        for db_collection in db_collections:
-            pydantic_collection = view_models.Collection(
-                id=db_collection.id,
-                title=db_collection.title,
-                description=db_collection.description,
-                type=db_collection.type,
-                status=getattr(db_collection, "status", None),
-                config=parseCollectionConfig(db_collection.config),
-                created=db_collection.gmt_created.isoformat(),
-                updated=db_collection.gmt_updated.isoformat(),
-            )
-            pydantic_collections.append(pydantic_collection)
-        return pydantic_collections
 
     def _parse_websocket_message(
         self, raw_data: str
@@ -191,10 +174,23 @@ class AgentChatService:
 
             # Get default collections once for performance
             if bot_config.agent.collections:
-                collection_ids = [collection.id for collection in bot_config.agent.collections]
-                db_collections = await self.db_ops.query_collections_by_ids(user, collection_ids)
-                # Convert SQLAlchemy models to Pydantic models
-                default_collections = await self._convert_db_collections_to_pydantic(db_collections)
+                user_collections = await self.db_ops.list_all_accessible_collections_for_user(user)
+                user_collections_ids = [collection.id for collection in user_collections]
+                agent_collection_ids = [collection.id for collection in bot_config.agent.collections]
+                for collection_id in agent_collection_ids:
+                    if collection_id not in user_collections_ids:
+                        raise ResourceNotFoundException("Collection", collection_id)
+                    agent_collection = user_collections[collection_id]
+                    default_collections.append(view_models.Collection(
+                        id=agent_collection.id,
+                        title=agent_collection.title,
+                        description=agent_collection.description,
+                        type=agent_collection.type,
+                        status=agent_collection.status,
+                        config=parseCollectionConfig(agent_collection.config),
+                        created=agent_collection.gmt_created.isoformat(),
+                        updated=agent_collection.gmt_updated.isoformat(),
+                    ))
 
         while True:
             # Receive message from WebSocket
