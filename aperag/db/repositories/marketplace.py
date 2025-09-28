@@ -442,30 +442,8 @@ class AsyncMarketplaceRepositoryMixin(AsyncRepositoryProtocol):
             combined_stmt = owned_collections_stmt.union_all(published_collections_stmt)
 
             # Execute the combined query
-            result = await session.execute(combined_stmt)
+            return session.execute(combined_stmt)
 
-            collections = []
-            for row in result:
-                collections.append(
-                    {
-                        "id": row.id,
-                        "title": row.title,
-                        "description": row.description,
-                        "config": row.config,
-                        "type": row.type,
-                        "status": row.status,
-                        "gmt_created": row.gmt_created,
-                        "gmt_updated": row.gmt_updated,
-                        "owner_user_id": row.owner_user_id,
-                        "owner_username": row.owner_username,
-                        "marketplace_id": row.marketplace_id,
-                        "marketplace_status": row.marketplace_status,
-                        "published_at": row.published_at,
-                        "group_id": row.group_id,
-                    }
-                )
-
-            return collections
 
         return await self._execute_query(_query)
 
