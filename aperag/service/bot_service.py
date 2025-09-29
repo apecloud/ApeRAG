@@ -58,7 +58,7 @@ class BotService:
 
     async def validate_collections(self, user: str, bot_config: view_models.BotConfig):
         user_collections = await self.db_ops.list_all_accessible_collections_for_user(user)
-        user_collections_ids = [collection.id for collection in user_collections]
+        user_collections_ids = [collection['id'] for collection in user_collections]
         if bot_config and bot_config.agent and bot_config.agent.collections:
             agent_collection_ids = [collection.id for collection in bot_config.agent.collections]
             for collection_id in agent_collection_ids:
