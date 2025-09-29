@@ -115,6 +115,9 @@ class BlockType:
     TableBody = "table_body"
     TableCaption = "table_caption"
     TableFootnote = "table_footnote"
+    Code = "code"
+    CodeBody = "code_body"
+    CodeCaption = "code_caption"
 
 
 class ContentType:
@@ -145,13 +148,28 @@ def convert_para(
         }
     )
 
-    if para_type in [BlockType.Text, BlockType.List, BlockType.Index]:
+    if para_type in [BlockType.Text, BlockType.Index]:
         return [
             TextPart(
                 content=merge_para_with_text(para_block),
                 metadata=metadata,
             )
         ]
+    elif para_type == BlockType.List:
+        # The output of VLM backend for the List type is different than the pipeline backend.
+        # See https://opendatalab.github.io/MinerU/reference/output_files/#intermediate-processing-results-middlejson_1
+        if para_block.get("sub_type") is None:
+            # The `sub_type` field is exclusive to the VLM backend.
+            # Its absence indicates the pipeline backend is in use.
+            return [
+                TextPart(
+                    content=merge_para_with_text(para_block),
+                    metadata=metadata,
+                )
+            ]
+        else:
+            # In VLM backend, the List block is a second-level block.
+            return _convert_list_para(image_dir, para_block, metadata)
     elif para_type == BlockType.Title:
         title_level = para_block.get("level", 1)
         return [
@@ -172,6 +190,9 @@ def convert_para(
         return _convert_image_para(image_dir, para_block, metadata)
     elif para_type == BlockType.Table:
         return _convert_table_para(image_dir, para_block, metadata)
+    elif para_type == BlockType.Code:
+        # Code blocks are exclusive to the VLM backend.
+        return _convert_code_para(image_dir, para_block, metadata)
 
     return []
 
@@ -291,3 +312,53 @@ def _convert_table_para(image_dir: Path, para_block: dict[str, Any], metadata: d
         url=asset_url,
     )
     return [asset_bin_part, img_part]
+
+
+def _convert_list_para(image_dir: Path, para_block: dict[str, Any], metadata: dict[str, Any]) -> list[Part]:
+    items: list[str] = []
+    for block in para_block["blocks"]:
+        if block["type"] == BlockType.Text:
+            items.append(merge_para_with_text(block))
+
+    if len(items) == 0:
+        return []
+
+    result: list[Part] = []
+    for item in items:
+        result.append(TextPart(content=item, metadata=metadata))
+    return result
+
+
+def _convert_code_para(image_dir: Path, para_block: dict[str, Any], metadata: dict[str, Any]) -> list[Part]:
+    code_body = ""
+    code_caption = ""
+    for block in para_block["blocks"]:
+        block_type = block["type"]
+        if block_type == BlockType.CodeBody:
+            for line in block["lines"]:
+                for span in line["spans"]:
+                    if span["type"] == ContentType.Text:
+                        code_body += span["content"] + "\n"
+        elif block_type == BlockType.CodeCaption:
+            for line in block["lines"]:
+                for span in line["spans"]:
+                    if span["type"] == ContentType.Text:
+                        code_caption += span["content"] + "\n"
+
+    result = []
+    if code_caption:
+        code_caption_part = TextPart(
+            content=code_caption,
+            metadata=metadata,
+        )
+        result.append(code_caption_part)
+
+    if code_body:
+        # TODO: add a CodePart
+        code_body_part = TextPart(
+            content=code_body,
+            metadata=metadata,
+        )
+        result.append(code_body_part)
+
+    return result
