@@ -453,8 +453,8 @@ class AsyncMarketplaceRepositoryMixin(AsyncRepositoryProtocol):
             combined_stmt = owned_collections_stmt.union_all(published_collections_stmt)
 
             # Execute the combined query
-            return session.execute(combined_stmt)
-
+            result = await session.execute(combined_stmt)
+            return result.scalars().all()
 
         return await self._execute_query(_query)
 
