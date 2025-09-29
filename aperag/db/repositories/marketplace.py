@@ -237,12 +237,23 @@ class AsyncMarketplaceRepositoryMixin(AsyncRepositoryProtocol):
 
     # Marketplace listing operations
     async def list_published_collections_with_subscription_status(
-        self, user_id: str, page: int = 1, page_size: int = 12, user_group_id: Optional[str] = None
+        self, user_id: str, page: int = 1, page_size: int = 12
     ) -> Tuple[List[dict], int]:
         """List all published collections accessible to user with subscription status"""
 
         async def _query(session):
+            # Get user's department information
+            user_result = await session.execute(
+                select(User).where(User.id == user_id)
+            )
+            user_obj = user_result.scalars().first()
+
+            if not user_obj:
+                return []
+
+            user_group_id = user_obj.department_id
             # Get user's accessible department IDs
+
             accessible_group_ids = ["*"]  # Global collections are always accessible
 
             if user_group_id:
