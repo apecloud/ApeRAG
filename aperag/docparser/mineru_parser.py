@@ -127,6 +127,9 @@ class MinerUParser(BaseParser):
                     return self._download_and_process_zip(zip_url, metadata, is_pdf_input)
                 elif state == "failed":
                     error_message = task_status.get("err_msg", "Unknown error")
+                    # "number of pages exceeds limit" or "file size exceeds limit"
+                    if "exceeds limit" in error_message:
+                        raise FallbackError(error_message)
                     raise RuntimeError(f"Mineru parsing failed for batch {batch_id}: {error_message}")
 
             except requests.exceptions.RequestException as e:
