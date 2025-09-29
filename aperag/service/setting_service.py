@@ -51,6 +51,18 @@ class SettingService:
     async def update_use_mineru(self, use_mineru: bool):
         await self.update_setting("use_mineru", use_mineru)
 
+    async def get_use_doc_ray(self) -> bool:
+        return await self.get_setting("use_doc_ray") or False
+
+    async def update_use_doc_ray(self, use_doc_ray: bool):
+        await self.update_setting("use_doc_ray", use_doc_ray)
+
+    async def get_use_markitdown(self) -> bool:
+        return await self.get_setting("use_markitdown") or True
+
+    async def update_use_markitdown(self, use_markitdown: bool):
+        await self.update_setting("use_markitdown", use_markitdown)
+
     async def get_all_settings(self) -> dict:
         settings = await self.db_ops.query_all_settings()
         return {s.key: json.loads(s.value) for s in settings}

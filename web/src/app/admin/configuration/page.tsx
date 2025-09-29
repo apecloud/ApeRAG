@@ -8,7 +8,7 @@ import {
 import { getServerApi } from '@/lib/api/server';
 import { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
-import { MinerUSettings } from './mineru-settings';
+import { ParserSettings } from './parser-settings';
 import { QuotaSettings } from './quota-settings';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -40,7 +40,7 @@ export default async function Page() {
         </PageDescription>
 
         <div className="flex flex-col gap-6">
-          <MinerUSettings data={settings} />
+          <ParserSettings data={settings} />
           <QuotaSettings data={resSystemDefaultQuotas.data.quotas} />
         </div>
       </PageContent>

@@ -27,6 +27,12 @@ export interface DefaultModelConfig {
      */
     'scenario': DefaultModelConfigScenarioEnum;
     /**
+     * 
+     * @type {string}
+     * @memberof DefaultModelConfig
+     */
+    'custom_llm_provider'?: string;
+    /**
      * The name of the model provider
      * @type {string}
      * @memberof DefaultModelConfig

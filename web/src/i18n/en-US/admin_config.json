@@ -11,6 +11,11 @@
   "mineru_api_token_required": "MinerU API Token is required.",
   "mineru_api_token_invalid": "Invalid token",
 
+  "use_doc_ray": "Use doc-ray",
+  "use_doc_ray_description": "When enabled, the system will use doc-ray for document parsing.",
+  "use_markitdown": "Use markitdown",
+  "use_markitdown_description": "When enabled, the system will use markitdown for document parsing.",
+
   "system_default_quota": "User default quotas",
   "system_default_quota_description": "These default quotas help maintain system stability, prevent resource abuse, and ensure fair allocation across users or applications."
 }

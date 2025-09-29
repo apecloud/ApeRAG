@@ -93,6 +93,12 @@ class DocParser(BaseParser):
                     cfg.settings["api_token"] = token
                 else:
                     cfg.enabled = False
+            elif cfg.name == DocRayParser.name:
+                use_doc_ray = parser_config.get("use_doc_ray", False)
+                cfg.enabled = use_doc_ray
+            elif cfg.name == MarkItDownParser.name:
+                use_markitdown = parser_config.get("use_markitdown", True)
+                cfg.enabled = use_markitdown
 
         for cfg in self.config:
             if not cfg.enabled:

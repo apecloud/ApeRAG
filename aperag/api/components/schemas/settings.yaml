@@ -7,3 +7,9 @@ Settings:
     mineru_api_token:
       type: string
       description: API token for MinerU
+    use_doc_ray:
+      type: boolean
+      description: Whether to use DocRay
+    use_markitdown:
+      type: boolean
+      description: Whether to use MarkItDown

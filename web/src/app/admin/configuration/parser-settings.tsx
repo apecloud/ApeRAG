@@ -22,9 +22,11 @@ import { toast } from 'sonner';
 const defaultValue = {
   use_mineru: false,
   mineru_api_token: '',
+  use_doc_ray: false,
+  use_markitdown: true,
 };
 
-export const MinerUSettings = ({
+export const ParserSettings = ({
   data: initData = defaultValue,
 }: {
   data: Settings;
@@ -46,9 +48,9 @@ export const MinerUSettings = ({
     toast.success('Saved successfully');
   }, [data]);
 
-  const handleUseMineruChange = useCallback(
-    async (checked: boolean) => {
-      const settings = { ...data, use_mineru: checked };
+  const handleSwitchChange = useCallback(
+    async (key: keyof Settings, checked: boolean) => {
+      const settings = { ...data, [key]: checked };
       setData(settings);
       await apiClient.defaultApi.settingsPut({
         settings,
@@ -98,7 +100,9 @@ export const MinerUSettings = ({
             </div>
             <Switch
               checked={data.use_mineru}
-              onCheckedChange={handleUseMineruChange}
+              onCheckedChange={(checked) =>
+                handleSwitchChange('use_mineru', checked)
+              }
             />
           </div>
         </CardHeader>
@@ -137,6 +141,42 @@ export const MinerUSettings = ({
             {common_action('save')}
           </Button>
         </CardFooter>
+      </Card>
+      <Card>
+        <CardHeader>
+          <div className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>{admin_config('use_doc_ray')}</CardTitle>
+              <CardDescription>
+                {admin_config('use_doc_ray_description')}
+              </CardDescription>
+            </div>
+            <Switch
+              checked={data.use_doc_ray}
+              onCheckedChange={(checked) =>
+                handleSwitchChange('use_doc_ray', checked)
+              }
+            />
+          </div>
+        </CardHeader>
+      </Card>
+      <Card>
+        <CardHeader>
+          <div className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>{admin_config('use_markitdown')}</CardTitle>
+              <CardDescription>
+                {admin_config('use_markitdown_description')}
+              </CardDescription>
+            </div>
+            <Switch
+              checked={data.use_markitdown}
+              onCheckedChange={(checked) =>
+                handleSwitchChange('use_markitdown', checked)
+              }
+            />
+          </div>
+        </CardHeader>
       </Card>
     </>
   );

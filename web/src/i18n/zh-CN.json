@@ -11,6 +11,10 @@
     "check": "验证",
     "mineru_api_token_required": "请输入MinerU API Token",
     "mineru_api_token_invalid": "无效的token",
+    "use_doc_ray": "启用 doc-ray",
+    "use_doc_ray_description": "启用后，系统将使用 doc-ray 进行文档解析。",
+    "use_markitdown": "启用 markitdown",
+    "use_markitdown_description": "启用后，系统将使用 markitdown 进行文档解析。",
     "system_default_quota": "用户默认配额",
     "system_default_quota_description": "默认配额有助于维护系统稳定性，防止资源滥用，并确保用户或应用间的公平分配"
   },
