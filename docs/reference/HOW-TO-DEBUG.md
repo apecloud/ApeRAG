@@ -41,7 +41,7 @@ Name: backend
 Python interpreter: [Same uv virtual environment as Celery]
 Script path: [uvicorn executable path]
   # Get via: `which uvicorn`
-Parameters: config.asgi:application --host 0.0.0.0 --port 8000 --reload --reload-include '*.html'
+Parameters: aperag.app:app --host 0.0.0.0 --log-config scripts/uvicorn-log-config.yaml
 Environment variables:
   PYTHONUNBUFFERED=1;
   DJANGO_SETTINGS_MODULE=config.settings;

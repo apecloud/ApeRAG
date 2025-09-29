@@ -41,7 +41,7 @@ Python解释器: [通过 uv 虚拟环境获取]
 Python解释器: [与Celery相同的uv虚拟环境]
 脚本路径: [uvicorn可执行文件路径]
   # 获取方法：which uvicorn
-参数: config.asgi:application --host 0.0.0.0 --port 8000 --reload --reload-include '*.html'
+参数: aperag.app:app --host 0.0.0.0 --log-config scripts/uvicorn-log-config.yaml
 环境变量:
   PYTHONUNBUFFERED=1;
   DJANGO_SETTINGS_MODULE=config.settings;
