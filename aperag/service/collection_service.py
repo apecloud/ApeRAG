@@ -525,6 +525,44 @@ class CollectionService:
             except Exception:
                 # If marketplace access also fails, raise original not found error
                 raise CollectionNotFoundException(collection_id)
+        
+        if not collection:
+            # Try to get collection associated with bot that is accessible to user
+            try:
+                # Get user information to determine department access
+                user_obj = await self.db_ops.query_user_by_id(user)
+                if user_obj:
+                    user_department_id = user_obj.department_id
+
+                    # Get accessible bots for user (get more bots to ensure we don't miss any)
+                accessible_bots, _ = await self.db_ops.get_accessible_bots_for_user(
+                    user_department_id=user_department_id, page=1, page_size=1000000
+                )
+
+                for bot_data in accessible_bots:
+                    # Parse bot config to find the collection and its owner
+                    from aperag.schema.utils import parseBotConfig
+                    bot_config = parseBotConfig(bot_data["config"])
+
+                    if not bot_config or not bot_config.agent or not bot_config.agent.collections:
+                        continue
+
+                    for bot_collection in bot_config.agent.collections:
+                        if bot_collection.id != collection_id:
+                            continue
+
+                        # Found the collection in bot config, use bot owner's user_id for search
+                        collection = await self.db_ops.query_collection_by_id(collection_id)
+                        if collection:
+                            search_user_id = collection.user
+                            break
+                    if collection:
+                        break
+            except Exception as e:
+                logger.warning(f"Failed to get collection from accessible bot for user {user}: {e}")
+
+        if not collection:
+            raise CollectionNotFoundException(collection_id)
 
         # Execute search flow using helper method
         items, _ = await self.execute_search_flow(
