@@ -35,7 +35,7 @@ export default async function Page() {
     const res = await serverApi.defaultApi.collectionsGet({
       page: 1,
       pageSize: 100,
-      includeSubscribed: true,
+      includeSubscribed: false,
     });
     collections = res.data.items || [];
   } catch (err) {

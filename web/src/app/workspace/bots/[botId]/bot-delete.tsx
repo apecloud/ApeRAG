@@ -32,7 +32,7 @@ export const BotDelete = ({ children }: { children?: React.ReactNode }) => {
         botId: bot.id,
       });
       setDeleteVisible(false);
-      router.push('/bots');
+      router.push('/workspace/bots');
     }
   }, [bot?.id, router]);
 
