@@ -616,49 +616,6 @@ class CollectionService:
 
         return await self.db_ops.delete_search(user, collection_id, search_id)
 
-    async def validate_collections_batch(
-        self, user: str, collections: list[view_models.Collection]
-    ) -> tuple[bool, str]:
-        """
-        Validate multiple collections in a single database call.
-
-        Args:
-            user: User identifier
-            collections: List of collection objects to validate
-
-        Returns:
-            Tuple of (is_valid, error_message). If valid, error_message is empty.
-        """
-        if not collections:
-            return True, ""
-
-        # Extract collection IDs and validate they exist
-        collection_ids = []
-        for collection in collections:
-            if not collection.id:
-                return False, "Collection object missing 'id' field"
-            collection_ids.append(collection.id)
-
-        # Remove duplicates while preserving order
-        unique_collection_ids = list(dict.fromkeys(collection_ids))
-
-        try:
-            # Single database call to get all collections
-            db_collections = await self.db_ops.query_collections_by_ids(user, unique_collection_ids)
-
-            # Create a set of found collection IDs for fast lookup
-            found_collection_ids = {str(col.id) for col in db_collections}
-
-            # Check if all requested collections were found
-            for collection_id in unique_collection_ids:
-                if collection_id not in found_collection_ids:
-                    return False, f"Collection {collection_id} not found"
-
-            return True, ""
-
-        except Exception as e:
-            return False, f"Failed to validate collections: {str(e)}"
-
     async def test_mineru_token(self, token: str) -> dict:
         """Test the MinerU API token."""
         async with httpx.AsyncClient() as client:

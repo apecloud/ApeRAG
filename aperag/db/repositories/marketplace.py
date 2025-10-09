@@ -237,12 +237,23 @@ class AsyncMarketplaceRepositoryMixin(AsyncRepositoryProtocol):
 
     # Marketplace listing operations
     async def list_published_collections_with_subscription_status(
-        self, user_id: str, page: int = 1, page_size: int = 12, user_group_id: Optional[str] = None
+        self, user_id: str, page: int = 1, page_size: int = 12
     ) -> Tuple[List[dict], int]:
         """List all published collections accessible to user with subscription status"""
 
         async def _query(session):
+            # Get user's department information
+            user_result = await session.execute(
+                select(User).where(User.id == user_id)
+            )
+            user_obj = user_result.scalars().first()
+
+            if not user_obj:
+                return []
+
+            user_group_id = user_obj.department_id
             # Get user's accessible department IDs
+
             accessible_group_ids = ["*"]  # Global collections are always accessible
 
             if user_group_id:
@@ -335,6 +346,137 @@ class AsyncMarketplaceRepositoryMixin(AsyncRepositoryProtocol):
                 )
 
             return collections, total
+
+        return await self._execute_query(_query)
+
+    async def list_all_accessible_collections_for_user(
+        self, user_id: str
+    ) -> List[dict]:
+        """List all collections accessible to user (owned + published accessible collections)"""
+
+        async def _query(session):
+            # Get user's department information
+            user_result = await session.execute(
+                select(User).where(User.id == user_id)
+            )
+            user_obj = user_result.scalars().first()
+
+            if not user_obj:
+                return []
+
+            user_group_id = user_obj.department_id
+
+            # Get user's accessible department IDs
+            accessible_group_ids = ["*"]  # Global collections are always accessible
+
+            if user_group_id:
+                # Get user's department hierarchy
+                dept_result = await session.execute(
+                    select(Department).where(Department.id == user_group_id)
+                )
+                user_dept = dept_result.scalars().first()
+
+                if user_dept and user_dept.group_path:
+                    # Extract all parent department IDs from group_path
+                    path_parts = user_dept.group_path.strip("/").split("/")
+                    accessible_group_ids.extend([part for part in path_parts if part])
+
+                # Also include the user's direct department
+                accessible_group_ids.append(user_group_id)
+
+            # Query for user's own collections
+            owned_collections_stmt = (
+                select(
+                    Collection.id.label("id"),
+                    Collection.title,
+                    Collection.description,
+                    Collection.config,
+                    Collection.type,
+                    Collection.status,
+                    Collection.gmt_created,
+                    Collection.gmt_updated,
+                    Collection.user.label("owner_user_id"),
+                    User.username.label("owner_username"),
+                    CollectionMarketplace.id.label("marketplace_id"),
+                    CollectionMarketplace.status.label("marketplace_status"),
+                    CollectionMarketplace.gmt_created.label("published_at"),
+                    CollectionMarketplace.group_id,
+                )
+                .select_from(Collection)
+                .join(User, Collection.user == User.id)
+                .outerjoin(
+                    CollectionMarketplace,
+                    and_(
+                        CollectionMarketplace.collection_id == Collection.id,
+                        CollectionMarketplace.gmt_deleted.is_(None)
+                    )
+                )
+                .where(
+                    Collection.user == user_id,
+                    Collection.status != CollectionStatus.DELETED,
+                    Collection.gmt_deleted.is_(None),
+                )
+            )
+
+            # Query for published collections accessible to user (not owned by user)
+            published_collections_stmt = (
+                select(
+                    Collection.id.label("id"),
+                    Collection.title,
+                    Collection.description,
+                    Collection.config,
+                    Collection.type,
+                    Collection.status,
+                    Collection.gmt_created,
+                    Collection.gmt_updated,
+                    Collection.user.label("owner_user_id"),
+                    User.username.label("owner_username"),
+                    CollectionMarketplace.id.label("marketplace_id"),
+                    CollectionMarketplace.status.label("marketplace_status"),
+                    CollectionMarketplace.gmt_created.label("published_at"),
+                    CollectionMarketplace.group_id,
+                )
+                .select_from(CollectionMarketplace)
+                .join(Collection, CollectionMarketplace.collection_id == Collection.id)
+                .join(User, Collection.user == User.id)
+                .where(
+                    CollectionMarketplace.status == CollectionMarketplaceStatusEnum.PUBLISHED.value,
+                    CollectionMarketplace.gmt_deleted.is_(None),
+                    Collection.status != CollectionStatus.DELETED,
+                    Collection.gmt_deleted.is_(None),
+                    CollectionMarketplace.group_id.in_(accessible_group_ids),
+                    Collection.user != user_id,  # Exclude user's own collections to avoid duplicates
+                )
+            )
+
+            # Combine both queries using UNION ALL
+            combined_stmt = owned_collections_stmt.union_all(published_collections_stmt)
+
+            # Execute the combined query
+            result = await session.execute(combined_stmt)
+            rows = result.all()
+            
+            # Convert rows to dictionaries for easier access
+            collections = []
+            for row in rows:
+                collections.append({
+                    'id': row.id,
+                    'title': row.title,
+                    'description': row.description,
+                    'config': row.config,
+                    'type': row.type,
+                    'status': row.status,
+                    'gmt_created': row.gmt_created,
+                    'gmt_updated': row.gmt_updated,
+                    'owner_user_id': row.owner_user_id,
+                    'owner_username': row.owner_username,
+                    'marketplace_id': row.marketplace_id,
+                    'marketplace_status': row.marketplace_status,
+                    'published_at': row.published_at,
+                    'group_id': row.group_id,
+                })
+            
+            return collections
 
         return await self._execute_query(_query)
 
