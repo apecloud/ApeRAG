@@ -520,8 +520,6 @@ class CollectionService:
                 # Use owner's user_id for search operations in marketplace collections
                 search_user_id = marketplace_info["owner_user_id"]
                 collection = await self.db_ops.query_collection(search_user_id, collection_id)
-                if not collection:
-                    raise CollectionNotFoundException(collection_id)
             except Exception:
                 # If marketplace access also fails, raise original not found error
                 raise CollectionNotFoundException(collection_id)
