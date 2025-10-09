@@ -14,6 +14,7 @@
 
 import json
 import logging
+import traceback
 from typing import Any, List
 
 from sqlalchemy import and_, select
@@ -174,6 +175,7 @@ class VectorIndexer(BaseIndexer):
             )
 
         except Exception as e:
+            traceback.print_exc()
             logger.error(f"Vector index update failed for document {document_id}: {str(e)}")
             return IndexResult(success=False, index_type=self.index_type, error=f"Vector index update failed: {str(e)}")
 
