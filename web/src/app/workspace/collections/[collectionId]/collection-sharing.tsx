@@ -129,26 +129,27 @@ export const CollectionSharing = ({
           />
         </Label>
 
-        <div>
-          <div className="mb-2 flex h-4 flex-row items-center justify-between gap-2 text-sm">
-            <div>
-              {page_bot('shared_department')} (
-              {selectedDepartents.filter((d) => d !== '*').length})
-            </div>
-          </div>
-
-          <div className="relative h-60">
-            <TreeMultipleSelect
-              options={departments as TreeSelectItem[]}
-              values={selectedDepartents.filter((d) => d !== '*')}
-              onValuesChange={(v) => setSelectedDepartents(v)}
-              className={cn('relative h-60 overflow-auto rounded-md border')}
-            />
-            {isSharedGlobal && (
-              <div className="bg-accent/50 absolute top-0 left-0 h-full w-full" />
-            )}
+        <div className="mb-2 flex h-4 flex-row items-center justify-between gap-2 text-sm">
+          <div>
+            {page_bot('shared_department')} (
+            {selectedDepartents.filter((d) => d !== '*').length})
           </div>
         </div>
+
+        <div className="relative h-60">
+          <TreeMultipleSelect
+            options={departments as TreeSelectItem[]}
+            values={selectedDepartents.filter((d) => d !== '*')}
+            onValuesChange={(v) => setSelectedDepartents(v)}
+            className={cn(
+              'relative h-60 max-w-115 overflow-auto rounded-md border',
+            )}
+          />
+          {isSharedGlobal && (
+            <div className="bg-accent/50 absolute top-0 left-0 h-full w-full" />
+          )}
+        </div>
+
         <DialogFooter>
           <Button variant="outline" onClick={() => setSharingVisible(false)}>
             {common_action('cancel')}

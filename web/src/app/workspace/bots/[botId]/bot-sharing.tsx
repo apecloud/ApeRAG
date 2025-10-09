@@ -130,7 +130,9 @@ export const BotSharing = ({ children }: { children?: React.ReactNode }) => {
               options={departments as TreeSelectItem[]}
               values={selectedDepartents.filter((d) => d !== '*')}
               onValuesChange={(v) => setSelectedDepartents(v)}
-              className={cn('relative h-60 overflow-auto rounded-md border')}
+              className={cn(
+                'relative h-60 max-w-115 overflow-auto rounded-md border',
+              )}
             />
             {isSharedGlobal && (
               <div className="bg-accent/50 absolute top-0 left-0 h-full w-full" />
