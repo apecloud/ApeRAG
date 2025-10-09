@@ -175,7 +175,7 @@ class AgentChatService:
             # Get default collections once for performance
             if bot_config.agent.collections:
                 agent_collection_ids = [collection.id for collection in bot_config.agent.collections]
-                agent_collections = await self.db_ops.query_collections_by_ids(user, agent_collection_ids)
+                agent_collections = await self.db_ops.query_collections_by_ids(agent_collection_ids)
                 for agent_collection in agent_collections:
                     default_collections.append(view_models.Collection(
                         id=agent_collection.id,
