@@ -174,25 +174,18 @@ class AgentChatService:
 
             # Get default collections once for performance
             if bot_config.agent.collections:
-                user_collections = await self.db_ops.list_all_accessible_collections_for_user(user)
-                user_collections_ids = [collection['id'] for collection in user_collections]
-                # Create a dictionary for easy lookup
-                user_collections_dict = {collection['id']: collection for collection in user_collections}
-                
                 agent_collection_ids = [collection.id for collection in bot_config.agent.collections]
-                for collection_id in agent_collection_ids:
-                    if collection_id not in user_collections_ids:
-                        raise ResourceNotFoundException("Collection", collection_id)
-                    agent_collection = user_collections_dict[collection_id]
+                agent_collections = await self.db_ops.query_collections_by_ids(user, agent_collection_ids)
+                for agent_collection in agent_collections:
                     default_collections.append(view_models.Collection(
-                        id=agent_collection['id'],
-                        title=agent_collection['title'],
-                        description=agent_collection['description'],
-                        type=agent_collection['type'],
-                        status=agent_collection['status'],
-                        config=parseCollectionConfig(agent_collection['config']),
-                        created=agent_collection['gmt_created'].isoformat(),
-                        updated=agent_collection['gmt_updated'].isoformat(),
+                        id=agent_collection.id,
+                        title=agent_collection.title,
+                        description=agent_collection.description,
+                        type=agent_collection.type,
+                        status=agent_collection.status,
+                        config=parseCollectionConfig(agent_collection.config),
+                        created=agent_collection.gmt_created.isoformat(),
+                        updated=agent_collection.gmt_updated.isoformat(),
                     ))
 
         while True:
