@@ -522,7 +522,7 @@ class CollectionService:
                 collection = await self.db_ops.query_collection(search_user_id, collection_id)
             except Exception:
                 # If marketplace access also fails, raise original not found error
-                raise CollectionNotFoundException(collection_id)
+                logger.info(f"Collection {collection_id} is not found in marketplace for user {user}")
         
         if not collection:
             # Try to get collection associated with bot that is accessible to user
