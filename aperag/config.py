@@ -30,7 +30,7 @@ from aperag.vectorstore.connector import VectorStoreConnectorAdaptor
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-load_dotenv(os.path.join(BASE_DIR, ".env"))
+load_dotenv(os.path.join(BASE_DIR, ".env"), verbose=True)
 
 
 class S3Config(BaseSettings):
