@@ -1,12 +1,12 @@
 ---
-title: Build Guide
+title: Container Container Images
 description:
 keywords:
 ---
 
 # Build Guide
 
-This section covers how to build ApeRAG container images. It's primarily for users who need to create their own builds or deploy to environments other than the ones covered in "Getting Started".
+This section covers how to build ApeRAG container images.
 
 ## Building Container Images
 
