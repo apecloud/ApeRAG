@@ -1,5 +1,5 @@
 ---
-title: ApeRAG Graph Index 创建流程技术文档
+title: 知识图谱
 description:
 keywords:
 ---

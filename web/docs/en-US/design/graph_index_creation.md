@@ -1,5 +1,5 @@
 ---
-title: Graph Index Creation Process Technical Documentation
+title: Knowledge Graph
 description:
 keywords:
 ---
