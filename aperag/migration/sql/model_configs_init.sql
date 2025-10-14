@@ -1,5 +1,5 @@
 -- Model configuration initialization SQL script
--- Generated directly from configuration data on 2025-08-08 10:40:53
+-- Generated directly from configuration data on 2025-10-14 14:05:20
 -- This script populates llm_provider and llm_provider_models tables
 
 BEGIN;
@@ -940,7 +940,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openai', 'completion', 'gpt-5', 'openai', 400000, 400000, 128000, '["vision", "__autogen__"]'::jsonb,
+    'openai', 'completion', 'gpt-5', 'openai', 272000, 272000, 128000, '["vision", "__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -955,7 +955,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openai', 'completion', 'gpt-5-2025-08-07', 'openai', 400000, 400000, 128000, '["vision", "__autogen__"]'::jsonb,
+    'openai', 'completion', 'gpt-5-2025-08-07', 'openai', 272000, 272000, 128000, '["vision", "__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -970,7 +970,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openai', 'completion', 'gpt-5-chat', 'openai', 1047576, 1047576, 32768, '["vision", "__autogen__"]'::jsonb,
+    'openai', 'completion', 'gpt-5-chat', 'openai', 272000, 272000, 128000, '["vision", "__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -985,7 +985,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openai', 'completion', 'gpt-5-chat-latest', 'openai', 400000, 400000, 128000, '["vision", "__autogen__"]'::jsonb,
+    'openai', 'completion', 'gpt-5-chat-latest', 'openai', 128000, 128000, 16384, '["vision", "__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -1000,7 +1000,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openai', 'completion', 'gpt-5-mini', 'openai', 400000, 400000, 128000, '["vision", "__autogen__"]'::jsonb,
+    'openai', 'completion', 'gpt-5-mini', 'openai', 272000, 272000, 128000, '["vision", "__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -1015,7 +1015,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openai', 'completion', 'gpt-5-mini-2025-08-07', 'openai', 400000, 400000, 128000, '["vision", "__autogen__"]'::jsonb,
+    'openai', 'completion', 'gpt-5-mini-2025-08-07', 'openai', 272000, 272000, 128000, '["vision", "__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -1030,7 +1030,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openai', 'completion', 'gpt-5-nano', 'openai', 400000, 400000, 128000, '["vision", "__autogen__"]'::jsonb,
+    'openai', 'completion', 'gpt-5-nano', 'openai', 272000, 272000, 128000, '["vision", "__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -1045,7 +1045,52 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openai', 'completion', 'gpt-5-nano-2025-08-07', 'openai', 400000, 400000, 128000, '["vision", "__autogen__"]'::jsonb,
+    'openai', 'completion', 'gpt-5-nano-2025-08-07', 'openai', 272000, 272000, 128000, '["vision", "__autogen__"]'::jsonb,
+    NOW(), NOW()
+)
+ON CONFLICT (provider_name, api, model) DO UPDATE SET
+    custom_llm_provider = EXCLUDED.custom_llm_provider,
+    context_window = EXCLUDED.context_window,
+    max_input_tokens = EXCLUDED.max_input_tokens,
+    max_output_tokens = EXCLUDED.max_output_tokens,
+    tags = EXCLUDED.tags,
+    gmt_updated = NOW();
+
+INSERT INTO llm_provider_models (
+    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
+    gmt_created, gmt_updated
+) VALUES (
+    'openai', 'completion', 'gpt-realtime', 'openai', 32000, 32000, 4096, '["__autogen__"]'::jsonb,
+    NOW(), NOW()
+)
+ON CONFLICT (provider_name, api, model) DO UPDATE SET
+    custom_llm_provider = EXCLUDED.custom_llm_provider,
+    context_window = EXCLUDED.context_window,
+    max_input_tokens = EXCLUDED.max_input_tokens,
+    max_output_tokens = EXCLUDED.max_output_tokens,
+    tags = EXCLUDED.tags,
+    gmt_updated = NOW();
+
+INSERT INTO llm_provider_models (
+    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
+    gmt_created, gmt_updated
+) VALUES (
+    'openai', 'completion', 'gpt-realtime-2025-08-28', 'openai', 32000, 32000, 4096, '["__autogen__"]'::jsonb,
+    NOW(), NOW()
+)
+ON CONFLICT (provider_name, api, model) DO UPDATE SET
+    custom_llm_provider = EXCLUDED.custom_llm_provider,
+    context_window = EXCLUDED.context_window,
+    max_input_tokens = EXCLUDED.max_input_tokens,
+    max_output_tokens = EXCLUDED.max_output_tokens,
+    tags = EXCLUDED.tags,
+    gmt_updated = NOW();
+
+INSERT INTO llm_provider_models (
+    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
+    gmt_created, gmt_updated
+) VALUES (
+    'openai', 'completion', 'gpt-realtime-mini', 'openai', 128000, 128000, 4096, '["__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -1406,7 +1451,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'anthropic', 'completion', 'claude-4-sonnet-20250514', 'anthropic', 200000, 200000, 64000, '["vision", "__autogen__"]'::jsonb,
+    'anthropic', 'completion', 'claude-4-sonnet-20250514', 'anthropic', 1000000, 1000000, 64000, '["vision", "__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -1466,7 +1511,37 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'anthropic', 'completion', 'claude-sonnet-4-20250514', 'anthropic', 200000, 200000, 64000, '["vision", "enable_for_collection", "enable_for_agent", "__autogen__"]'::jsonb,
+    'anthropic', 'completion', 'claude-sonnet-4-20250514', 'anthropic', 1000000, 1000000, 64000, '["vision", "enable_for_collection", "enable_for_agent", "__autogen__"]'::jsonb,
+    NOW(), NOW()
+)
+ON CONFLICT (provider_name, api, model) DO UPDATE SET
+    custom_llm_provider = EXCLUDED.custom_llm_provider,
+    context_window = EXCLUDED.context_window,
+    max_input_tokens = EXCLUDED.max_input_tokens,
+    max_output_tokens = EXCLUDED.max_output_tokens,
+    tags = EXCLUDED.tags,
+    gmt_updated = NOW();
+
+INSERT INTO llm_provider_models (
+    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
+    gmt_created, gmt_updated
+) VALUES (
+    'anthropic', 'completion', 'claude-sonnet-4-5', 'anthropic', 200000, 200000, 64000, '["vision", "__autogen__"]'::jsonb,
+    NOW(), NOW()
+)
+ON CONFLICT (provider_name, api, model) DO UPDATE SET
+    custom_llm_provider = EXCLUDED.custom_llm_provider,
+    context_window = EXCLUDED.context_window,
+    max_input_tokens = EXCLUDED.max_input_tokens,
+    max_output_tokens = EXCLUDED.max_output_tokens,
+    tags = EXCLUDED.tags,
+    gmt_updated = NOW();
+
+INSERT INTO llm_provider_models (
+    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
+    gmt_created, gmt_updated
+) VALUES (
+    'anthropic', 'completion', 'claude-sonnet-4-5-20250929', 'anthropic', 200000, 200000, 64000, '["vision", "__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -1872,6 +1947,21 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
+    'gemini', 'completion', 'gemini/gemini-2.5-flash-lite-preview-09-2025', 'gemini', 1048576, 1048576, 65535, '["vision", "__autogen__"]'::jsonb,
+    NOW(), NOW()
+)
+ON CONFLICT (provider_name, api, model) DO UPDATE SET
+    custom_llm_provider = EXCLUDED.custom_llm_provider,
+    context_window = EXCLUDED.context_window,
+    max_input_tokens = EXCLUDED.max_input_tokens,
+    max_output_tokens = EXCLUDED.max_output_tokens,
+    tags = EXCLUDED.tags,
+    gmt_updated = NOW();
+
+INSERT INTO llm_provider_models (
+    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
+    gmt_created, gmt_updated
+) VALUES (
     'gemini', 'completion', 'gemini/gemini-2.5-flash-preview-04-17', 'gemini', 1048576, 1048576, 65535, '["vision", "__autogen__"]'::jsonb,
     NOW(), NOW()
 )
@@ -1888,6 +1978,21 @@ INSERT INTO llm_provider_models (
     gmt_created, gmt_updated
 ) VALUES (
     'gemini', 'completion', 'gemini/gemini-2.5-flash-preview-05-20', 'gemini', 1048576, 1048576, 65535, '["vision", "__autogen__"]'::jsonb,
+    NOW(), NOW()
+)
+ON CONFLICT (provider_name, api, model) DO UPDATE SET
+    custom_llm_provider = EXCLUDED.custom_llm_provider,
+    context_window = EXCLUDED.context_window,
+    max_input_tokens = EXCLUDED.max_input_tokens,
+    max_output_tokens = EXCLUDED.max_output_tokens,
+    tags = EXCLUDED.tags,
+    gmt_updated = NOW();
+
+INSERT INTO llm_provider_models (
+    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
+    gmt_created, gmt_updated
+) VALUES (
+    'gemini', 'completion', 'gemini/gemini-2.5-flash-preview-09-2025', 'gemini', 1048576, 1048576, 65535, '["vision", "__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -2023,6 +2128,36 @@ INSERT INTO llm_provider_models (
     gmt_created, gmt_updated
 ) VALUES (
     'gemini', 'completion', 'gemini/gemini-exp-1206', 'gemini', 2097152, 2097152, 8192, '["vision", "__autogen__"]'::jsonb,
+    NOW(), NOW()
+)
+ON CONFLICT (provider_name, api, model) DO UPDATE SET
+    custom_llm_provider = EXCLUDED.custom_llm_provider,
+    context_window = EXCLUDED.context_window,
+    max_input_tokens = EXCLUDED.max_input_tokens,
+    max_output_tokens = EXCLUDED.max_output_tokens,
+    tags = EXCLUDED.tags,
+    gmt_updated = NOW();
+
+INSERT INTO llm_provider_models (
+    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
+    gmt_created, gmt_updated
+) VALUES (
+    'gemini', 'completion', 'gemini/gemini-flash-latest', 'gemini', 1048576, 1048576, 65535, '["vision", "__autogen__"]'::jsonb,
+    NOW(), NOW()
+)
+ON CONFLICT (provider_name, api, model) DO UPDATE SET
+    custom_llm_provider = EXCLUDED.custom_llm_provider,
+    context_window = EXCLUDED.context_window,
+    max_input_tokens = EXCLUDED.max_input_tokens,
+    max_output_tokens = EXCLUDED.max_output_tokens,
+    tags = EXCLUDED.tags,
+    gmt_updated = NOW();
+
+INSERT INTO llm_provider_models (
+    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
+    gmt_created, gmt_updated
+) VALUES (
+    'gemini', 'completion', 'gemini/gemini-flash-lite-latest', 'gemini', 1048576, 1048576, 65535, '["vision", "__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -2383,6 +2518,36 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
+    'xai', 'completion', 'xai/grok-4-fast-non-reasoning', 'xai', 2000000.0, 2000000.0, 2000000.0, '["__autogen__"]'::jsonb,
+    NOW(), NOW()
+)
+ON CONFLICT (provider_name, api, model) DO UPDATE SET
+    custom_llm_provider = EXCLUDED.custom_llm_provider,
+    context_window = EXCLUDED.context_window,
+    max_input_tokens = EXCLUDED.max_input_tokens,
+    max_output_tokens = EXCLUDED.max_output_tokens,
+    tags = EXCLUDED.tags,
+    gmt_updated = NOW();
+
+INSERT INTO llm_provider_models (
+    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
+    gmt_created, gmt_updated
+) VALUES (
+    'xai', 'completion', 'xai/grok-4-fast-reasoning', 'xai', 2000000.0, 2000000.0, 2000000.0, '["__autogen__"]'::jsonb,
+    NOW(), NOW()
+)
+ON CONFLICT (provider_name, api, model) DO UPDATE SET
+    custom_llm_provider = EXCLUDED.custom_llm_provider,
+    context_window = EXCLUDED.context_window,
+    max_input_tokens = EXCLUDED.max_input_tokens,
+    max_output_tokens = EXCLUDED.max_output_tokens,
+    tags = EXCLUDED.tags,
+    gmt_updated = NOW();
+
+INSERT INTO llm_provider_models (
+    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
+    gmt_created, gmt_updated
+) VALUES (
     'xai', 'completion', 'xai/grok-4-latest', 'xai', 256000, 256000, 256000, '["__autogen__"]'::jsonb,
     NOW(), NOW()
 )
@@ -2399,6 +2564,51 @@ INSERT INTO llm_provider_models (
     gmt_created, gmt_updated
 ) VALUES (
     'xai', 'completion', 'xai/grok-beta', 'xai', 131072, 131072, 131072, '["vision", "__autogen__"]'::jsonb,
+    NOW(), NOW()
+)
+ON CONFLICT (provider_name, api, model) DO UPDATE SET
+    custom_llm_provider = EXCLUDED.custom_llm_provider,
+    context_window = EXCLUDED.context_window,
+    max_input_tokens = EXCLUDED.max_input_tokens,
+    max_output_tokens = EXCLUDED.max_output_tokens,
+    tags = EXCLUDED.tags,
+    gmt_updated = NOW();
+
+INSERT INTO llm_provider_models (
+    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
+    gmt_created, gmt_updated
+) VALUES (
+    'xai', 'completion', 'xai/grok-code-fast', 'xai', 256000, 256000, 256000, '["__autogen__"]'::jsonb,
+    NOW(), NOW()
+)
+ON CONFLICT (provider_name, api, model) DO UPDATE SET
+    custom_llm_provider = EXCLUDED.custom_llm_provider,
+    context_window = EXCLUDED.context_window,
+    max_input_tokens = EXCLUDED.max_input_tokens,
+    max_output_tokens = EXCLUDED.max_output_tokens,
+    tags = EXCLUDED.tags,
+    gmt_updated = NOW();
+
+INSERT INTO llm_provider_models (
+    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
+    gmt_created, gmt_updated
+) VALUES (
+    'xai', 'completion', 'xai/grok-code-fast-1', 'xai', 256000, 256000, 256000, '["__autogen__"]'::jsonb,
+    NOW(), NOW()
+)
+ON CONFLICT (provider_name, api, model) DO UPDATE SET
+    custom_llm_provider = EXCLUDED.custom_llm_provider,
+    context_window = EXCLUDED.context_window,
+    max_input_tokens = EXCLUDED.max_input_tokens,
+    max_output_tokens = EXCLUDED.max_output_tokens,
+    tags = EXCLUDED.tags,
+    gmt_updated = NOW();
+
+INSERT INTO llm_provider_models (
+    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
+    gmt_created, gmt_updated
+) VALUES (
+    'xai', 'completion', 'xai/grok-code-fast-1-0825', 'xai', 256000, 256000, 256000, '["__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -8946,6 +9156,6 @@ ON CONFLICT (provider_name, api, model) DO UPDATE SET
 
 COMMIT;
 
--- Script completed. Generated on 2025-08-08 10:40:53
+-- Script completed. Generated on 2025-10-14 14:05:20
 -- Total providers: 9
--- Total models: 584
+-- Total models: 598
