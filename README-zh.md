@@ -51,7 +51,7 @@ ApeRAG 支持 [MCP（模型上下文协议）](https://modelcontextprotocol.io/)
 {
   "mcpServers": {
     "aperag-mcp": {
-      "url": "https://rag.apecloud.com/mcp",
+      "url": "https://rag.apecloud.com/mcp/",
       "headers": {
         "Authorization": "Bearer your-api-key-here"
       }
