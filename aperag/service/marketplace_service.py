@@ -130,6 +130,7 @@ class MarketplaceService:
                 owner_username=data["owner_username"],
                 subscription_id=data["subscription_id"],
                 gmt_subscribed=data["gmt_subscribed"],
+                subscription_count=data.get("subscription_count", 0),
                 config=shared_config,
             )
             collections.append(shared_collection)
@@ -165,6 +166,9 @@ class MarketplaceService:
         owner = await self.db_ops.query_user_by_username(collection.user)
         owner_username = owner.username if owner else collection.user
 
+        # Get subscription count for this collection
+        subscription_count = await self.db_ops.get_collection_subscription_count(marketplace.id)
+
         # Parse collection config and convert to SharedCollectionConfig
         collection_config = parseCollectionConfig(collection.config)
         shared_config = convertToSharedCollectionConfig(collection_config)
@@ -177,6 +181,7 @@ class MarketplaceService:
             owner_username=owner_username,
             subscription_id=subscription.id,
             gmt_subscribed=subscription.gmt_subscribed,
+            subscription_count=subscription_count,
             config=shared_config,
         )
 
@@ -231,6 +236,7 @@ class MarketplaceService:
                 owner_username=data["owner_username"],
                 subscription_id=data["subscription_id"],
                 gmt_subscribed=data["gmt_subscribed"],
+                subscription_count=data.get("subscription_count", 0),
                 config=shared_config,
             )
             collections.append(shared_collection)

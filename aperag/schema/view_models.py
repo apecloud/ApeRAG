@@ -1363,6 +1363,7 @@ class SharedCollection(BaseModel):
     gmt_subscribed: Optional[datetime] = Field(
         None, description='Subscription time (only has value when subscribed)'
     )
+    subscription_count: int = Field(0, description='Total number of subscriptions')
     config: SharedCollectionConfig = Field(
         ..., description='Collection configuration settings'
     )

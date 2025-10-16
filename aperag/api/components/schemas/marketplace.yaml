@@ -68,6 +68,10 @@ SharedCollection:
       format: date-time
       nullable: true
       description: Subscription time (only has value when subscribed)
+    subscription_count:
+      type: integer
+      default: 0
+      description: Total number of subscriptions
     config:
       $ref: '#/SharedCollectionConfig'
       description: Collection configuration settings
@@ -75,6 +79,7 @@ SharedCollection:
     - id
     - title
     - owner_user_id
+    - subscription_count
     - config
 
 SharedCollectionList:

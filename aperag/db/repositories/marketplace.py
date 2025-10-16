@@ -172,6 +172,17 @@ class AsyncMarketplaceRepositoryMixin(AsyncRepositoryProtocol):
         """List all published collections with current user's subscription status"""
 
         async def _query(session):
+            # Subquery to count total subscriptions for each marketplace
+            subscription_count_subquery = (
+                select(
+                    UserCollectionSubscription.collection_marketplace_id,
+                    func.count(UserCollectionSubscription.id).label("subscription_count"),
+                )
+                .where(UserCollectionSubscription.gmt_deleted.is_(None))
+                .group_by(UserCollectionSubscription.collection_marketplace_id)
+                .subquery()
+            )
+
             # Base query for published collections
             base_stmt = (
                 select(
@@ -185,10 +196,15 @@ class AsyncMarketplaceRepositoryMixin(AsyncRepositoryProtocol):
                     CollectionMarketplace.gmt_created.label("published_at"),
                     UserCollectionSubscription.id.label("subscription_id"),
                     UserCollectionSubscription.gmt_subscribed,
+                    func.coalesce(subscription_count_subquery.c.subscription_count, 0).label("subscription_count"),
                 )
                 .select_from(CollectionMarketplace)
                 .join(Collection, CollectionMarketplace.collection_id == Collection.id)
                 .join(User, Collection.user == User.id)
+                .outerjoin(
+                    subscription_count_subquery,
+                    subscription_count_subquery.c.collection_marketplace_id == CollectionMarketplace.id,
+                )
                 .outerjoin(
                     UserCollectionSubscription,
                     and_(
@@ -203,7 +219,7 @@ class AsyncMarketplaceRepositoryMixin(AsyncRepositoryProtocol):
                     Collection.status != CollectionStatus.DELETED,
                     Collection.gmt_deleted.is_(None),
                 )
-                .order_by(desc(CollectionMarketplace.gmt_created))
+                .order_by(desc("subscription_count"), desc(CollectionMarketplace.gmt_created))
             )
 
             # Count total
@@ -241,10 +257,24 @@ class AsyncMarketplaceRepositoryMixin(AsyncRepositoryProtocol):
                         "published_at": row.published_at,
                         "subscription_id": row.subscription_id,
                         "gmt_subscribed": row.gmt_subscribed,
+                        "subscription_count": row.subscription_count,
                     }
                 )
 
             return collections, total
+
+        return await self._execute_query(_query)
+
+    async def get_collection_subscription_count(self, collection_marketplace_id: str) -> int:
+        """Get total subscription count for a collection"""
+
+        async def _query(session):
+            stmt = select(func.count(UserCollectionSubscription.id)).where(
+                UserCollectionSubscription.collection_marketplace_id == collection_marketplace_id,
+                UserCollectionSubscription.gmt_deleted.is_(None),
+            )
+            result = await session.execute(stmt)
+            return result.scalar() or 0
 
         return await self._execute_query(_query)
 
@@ -340,6 +370,17 @@ class AsyncMarketplaceRepositoryMixin(AsyncRepositoryProtocol):
         """List all collections subscribed by user"""
 
         async def _query(session):
+            # Subquery to count total subscriptions for each marketplace
+            subscription_count_subquery = (
+                select(
+                    UserCollectionSubscription.collection_marketplace_id,
+                    func.count(UserCollectionSubscription.id).label("subscription_count"),
+                )
+                .where(UserCollectionSubscription.gmt_deleted.is_(None))
+                .group_by(UserCollectionSubscription.collection_marketplace_id)
+                .subquery()
+            )
+
             # Base query for user subscriptions
             base_stmt = (
                 select(
@@ -357,6 +398,7 @@ class AsyncMarketplaceRepositoryMixin(AsyncRepositoryProtocol):
                     Collection.user.label("owner_user_id"),
                     User.username.label("owner_username"),
                     UserCollectionSubscription.gmt_subscribed,
+                    func.coalesce(subscription_count_subquery.c.subscription_count, 0).label("subscription_count"),
                 )
                 .select_from(UserCollectionSubscription)
                 .join(
@@ -365,6 +407,10 @@ class AsyncMarketplaceRepositoryMixin(AsyncRepositoryProtocol):
                 )
                 .join(Collection, CollectionMarketplace.collection_id == Collection.id)
                 .join(User, Collection.user == User.id)
+                .outerjoin(
+                    subscription_count_subquery,
+                    subscription_count_subquery.c.collection_marketplace_id == CollectionMarketplace.id,
+                )
                 .where(
                     UserCollectionSubscription.user_id == user_id,
                     UserCollectionSubscription.gmt_deleted.is_(None),
@@ -419,6 +465,7 @@ class AsyncMarketplaceRepositoryMixin(AsyncRepositoryProtocol):
                         "owner_user_id": row.owner_user_id,
                         "owner_username": row.owner_username,
                         "gmt_subscribed": row.gmt_subscribed,
+                        "subscription_count": row.subscription_count,
                     }
                 )
 
