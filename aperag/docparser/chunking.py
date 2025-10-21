@@ -110,7 +110,7 @@ class Rechunker:
             if not part.content:
                 continue
 
-            nesting = part.metadata.get("nesting", 0)
+            nesting = part.metadata.get("md_nesting", 0)
             title_level = 0
             title = ""
             if hasattr(part, "level"):  # TitlePart
