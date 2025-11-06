@@ -18,8 +18,6 @@ import time
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 
-from langchain.schema import AIMessage, BaseMessage, ChatMessage, FunctionMessage, HumanMessage, SystemMessage
-
 from aperag.chat.history import (
     StoredChatMessage,
     create_assistant_message,
@@ -100,22 +98,6 @@ class BaseChatMessageHistory(ABC):
             A list of BaseMessage objects.
         """
         raise NotImplementedError()
-
-
-async def message_from_dict(message: dict) -> BaseMessage:
-    _type = message["type"]
-    if _type == "human":
-        return HumanMessage(**message["data"])
-    elif _type == "ai":
-        return AIMessage(**message["data"])
-    elif _type == "system":
-        return SystemMessage(**message["data"])
-    elif _type == "chat":
-        return ChatMessage(**message["data"])
-    elif _type == "function":
-        return FunctionMessage(**message["data"])
-    else:
-        raise ValueError(f"Got unexpected message type: {_type}")
 
 
 class RedisChatMessageHistory:
