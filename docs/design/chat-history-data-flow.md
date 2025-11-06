@@ -173,9 +173,9 @@ async def query_chat_messages(user: str, chat_id: str):
     feedback_map = {feedback.message_id: feedback for feedback in feedbacks}
     
     # 3. 转换为前端格式并附加反馈信息
-    conversation_turns = []
+    result = []
     for stored_message in stored_messages:
-        # 转换为前端格式（返回二维数组）
+        # 转换为前端格式
         chat_message_list = stored_message.to_frontend_format()
         
         # 为AI消息添加反馈数据
@@ -188,9 +188,9 @@ async def query_chat_messages(user: str, chat_id: str):
                     message=feedback.message
                 )
         
-        conversation_turns.append(chat_message_list)
+        result.append(chat_message_list)
     
-    return conversation_turns  # [[turn1_parts], [turn2_parts], ...]
+    return result  # [[message1_parts], [message2_parts], [message3_parts], ...]
 ```
 
 #### 3.3 PostgreSQL - 用户反馈信息
@@ -222,11 +222,11 @@ class MessageFeedback(Base):
 
 消息在Redis中以JSON格式存储，采用**Part-Based设计**：
 
-#### StoredChatMessage - 一个对话轮次
+#### StoredChatMessage - 一条完整消息
 
 ```python
 class StoredChatMessage(BaseModel):
-    """完整的对话轮次（一问一答为一个轮次）"""
+    """一条完整消息（用户的一条消息 或 AI的一条消息）"""
     parts: List[StoredChatMessagePart]  # 消息的多个部分
     files: List[Dict[str, Any]]         # 关联的上传文件
 ```
@@ -239,7 +239,7 @@ class StoredChatMessagePart(BaseModel):
     
     # 标识信息
     chat_id: str              # 所属会话
-    message_id: str           # 所属消息轮次（同一轮对话共享）
+    message_id: str           # 所属消息（同一条消息的多个part共享）
     part_id: str              # 部分的唯一ID
     timestamp: float          # 生成时间戳
     
@@ -263,7 +263,7 @@ class StoredChatMessagePart(BaseModel):
 | `thinking` | AI思考过程 | ❌ 否（仅展示） |
 | `references` | 文档引用和链接 | ❌ 否（仅展示） |
 
-**设计原因**: AI回复过程包含多个阶段（工具调用、思考、回答、引用），这些内容按时序产生且互相穿插，需要灵活的结构来表达。
+**设计原因**: AI的一条回复包含多个阶段（工具调用、思考、回答、引用），这些内容按时序产生且互相穿插，单一字段无法表达。用户的消息通常只有1个part（type="message"），但也支持多个part以保持结构一致性。
 
 #### Redis存储示例
 
@@ -347,10 +347,10 @@ chatDetails:
     updated: string               # ISO 8601
     history:                      # 二维数组
       type: array
-      description: 对话历史，每个元素是一个对话轮次
+      description: 对话历史，每个元素是一条消息
       items:
         type: array
-        description: 一个轮次包含多个message parts
+        description: 一条消息包含多个parts（工具调用、思考、回答、引用等）
         items:
           $ref: '#/chatMessage'
 ```
@@ -452,7 +452,12 @@ chatMessage:
 }
 ```
 
-**注意**: `history`是二维数组，第一维是对话轮次，第二维是该轮次的多个part。
+**注意**: `history`是二维数组，第一维是消息序列（按时间顺序），第二维是该条消息的多个part。例如：
+- `history[0]` = 用户的第1条消息的parts（通常只有1个part）
+- `history[1]` = AI的第1条回复的parts（可能有多个part：工具调用、思考、回答、引用）
+- `history[2]` = 用户的第2条消息的parts
+- `history[3]` = AI的第2条回复的parts
+- ...
 
 ## 消息写入流程
 
@@ -531,17 +536,17 @@ await history.add_ai_message(
 - ✅ 完整记录时序关系（通过timestamp）
 - ✅ 灵活扩展（新增type无需改表结构）
 
-**为什么需要多个part**:
+**为什么一条消息需要多个part**:
 
-AI的回复过程是时序产生、互相穿插的，例如：
-1. 🔍 工具调用："正在查询数据库..."
-2. 💭 思考："找到了327条记录..."
-3. 🔍 工具调用："正在计算增长率..."
-4. 💭 思考："环比增长15%..."
-5. 💬 回答："根据数据分析，Q4表现优秀..."
-6. 📚 引用：[文档1, 文档2]
+AI的一条回复过程是时序产生、互相穿插的，例如：
+1. 🔍 Part1 (tool_call_result): "正在查询数据库..."
+2. 💭 Part2 (thinking): "找到了327条记录..."
+3. 🔍 Part3 (tool_call_result): "正在计算增长率..."
+4. 💭 Part4 (thinking): "环比增长15%..."
+5. 💬 Part5 (message): "根据数据分析，Q4表现优秀..."
+6. 📚 Part6 (references): [文档1, 文档2]
 
-单一message字段无法表达这种复杂的时序关系。
+这6个part属于AI的**一条消息**（共享同一个message_id），单一字段无法表达这种复杂的时序关系。
 
 ### 3. 格式转换解耦
 
@@ -571,13 +576,13 @@ class StoredChatMessage:
 
 ```python
 chat_id = "chat_abc123"           # 会话级别
-message_id = "uuid-conversation"  # 对话轮次级别（同一轮的多个part共享）
-part_id = "uuid-part"             # 部分级别（每个part独立）
+message_id = "uuid-msg-1"         # 消息级别（同一条消息的多个part共享）
+part_id = "uuid-part-1"           # 部分级别（每个part独立）
 ```
 
 **作用**:
 - `chat_id`: 标识一个聊天会话
-- `message_id`: 将同一轮对话的多个part分组（用于前端展示和反馈关联）
+- `message_id`: 将同一条消息的多个part分组（用于前端展示和反馈关联）
 - `part_id`: 每个part独立标识（用于单独操作，如复制、引用）
 
 ## 性能考虑
