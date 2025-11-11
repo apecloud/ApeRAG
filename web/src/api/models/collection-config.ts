@@ -15,6 +15,9 @@
 
 // May contain unused imports in some cases
 // @ts-ignore
+import type { KnowledgeGraphConfig } from './knowledge-graph-config';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { ModelSpec } from './model-spec';
 
 /**
@@ -59,6 +62,12 @@ export interface CollectionConfig {
      * @memberof CollectionConfig
      */
     'enable_vision'?: boolean;
+    /**
+     * 
+     * @type {KnowledgeGraphConfig}
+     * @memberof CollectionConfig
+     */
+    'knowledge_graph_config'?: KnowledgeGraphConfig;
     /**
      * 
      * @type {ModelSpec}

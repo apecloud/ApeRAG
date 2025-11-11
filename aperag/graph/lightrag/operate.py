@@ -501,7 +501,7 @@ async def merge_nodes_and_edges(
     tokenizer,
     llm_model_max_token_size,
     summary_to_max_tokens,
-    addon_params,
+    language: str,
     force_llm_summary_on_merge,
     lightrag_logger: LightRAGLogger,
 ) -> dict[str, int]:
@@ -516,7 +516,7 @@ async def merge_nodes_and_edges(
         tokenizer,
         llm_model_max_token_size,
         summary_to_max_tokens,
-        addon_params,
+        language,
         force_llm_summary_on_merge,
         lightrag_logger,
     )
@@ -532,14 +532,11 @@ async def _merge_nodes_and_edges_impl(
     tokenizer,
     llm_model_max_token_size,
     summary_to_max_tokens,
-    addon_params,
+    language: str,
     force_llm_summary_on_merge,
     lightrag_logger: LightRAGLogger,
 ) -> dict[str, int]:
     """Internal implementation of merge_nodes_and_edges with fine-grained locking"""
-
-    # Extract language from addon_params
-    language = addon_params.get("language", "English")
 
     # Collect all nodes and edges from all chunks
     all_nodes = defaultdict(list)
@@ -572,7 +569,7 @@ async def _merge_nodes_and_edges_impl(
                 tokenizer,
                 llm_model_max_token_size,
                 summary_to_max_tokens,
-                language,  # Pass language instead of addon_params
+                language,
                 force_llm_summary_on_merge,
                 lightrag_logger,
                 workspace,
@@ -613,7 +610,7 @@ async def _merge_nodes_and_edges_impl(
                 tokenizer,
                 llm_model_max_token_size,
                 summary_to_max_tokens,
-                language,  # Pass language instead of addon_params
+                language,
                 force_llm_summary_on_merge,
                 lightrag_logger,
                 workspace,
@@ -644,15 +641,13 @@ async def extract_entities(
     chunks: dict[str, TextChunkSchema],
     use_llm_func: callable,
     entity_extract_max_gleaning: int,
-    addon_params: dict,
+    language: str,
+    entity_types: list[str],
+    example_number: int | None,
     llm_model_max_async: int,
     lightrag_logger: LightRAGLogger,
 ) -> list:
     ordered_chunks = list(chunks.items())
-    # add language and example number params to prompt
-    language = addon_params.get("language", PROMPTS["DEFAULT_LANGUAGE"])
-    entity_types = addon_params.get("entity_types", PROMPTS["DEFAULT_ENTITY_TYPES"])
-    example_number = addon_params.get("example_number", None)
     if example_number and example_number < len(PROMPTS["entity_extraction_examples"]):
         examples = "\n".join(PROMPTS["entity_extraction_examples"][: int(example_number)])
     else:
@@ -824,7 +819,8 @@ async def build_query_context(
     query_param: QueryParam,
     tokenizer: Tokenizer,
     llm_model_func: callable,
-    addon_params: dict,
+    language: str,
+    example_number: int | None,
     chunks_vdb: BaseVectorStorage = None,
 ):
     if query_param.model_func:
@@ -833,7 +829,7 @@ async def build_query_context(
         use_model_func = llm_model_func
 
     hl_keywords, ll_keywords = await get_keywords_from_query(
-        query, query_param, tokenizer, use_model_func, addon_params
+        query, query_param, tokenizer, use_model_func, language, example_number
     )
 
     logger.debug(f"High-level keywords: {hl_keywords}")
@@ -882,7 +878,8 @@ async def kg_query(
     query_param: QueryParam,
     tokenizer: Tokenizer,
     llm_model_func: callable,
-    addon_params: dict,
+    language: str,
+    example_number: int | None,
     system_prompt: str | None = None,
     chunks_vdb: BaseVectorStorage = None,
 ) -> str | AsyncIterator[str]:
@@ -901,7 +898,8 @@ async def kg_query(
         query_param,
         tokenizer,
         llm_model_func,
-        addon_params,
+        language,
+        example_number,
         chunks_vdb,
     )
 
@@ -980,7 +978,8 @@ async def get_keywords_from_query(
     query_param: QueryParam,
     tokenizer: Tokenizer,
     llm_model_func: callable,
-    addon_params: dict,
+    language: str,
+    example_number: int | None,
 ) -> tuple[list[str], list[str]]:
     """
     Retrieves high-level and low-level keywords for RAG operations.
@@ -996,7 +995,9 @@ async def get_keywords_from_query(
         return query_param.hl_keywords, query_param.ll_keywords
 
     # Extract keywords using extract_keywords_only function which already supports conversation history
-    hl_keywords, ll_keywords = await extract_keywords_only(query, query_param, tokenizer, llm_model_func, addon_params)
+    hl_keywords, ll_keywords = await extract_keywords_only(
+        query, query_param, tokenizer, llm_model_func, language, example_number
+    )
     return hl_keywords, ll_keywords
 
 
@@ -1005,7 +1006,8 @@ async def extract_keywords_only(
     param: QueryParam,
     tokenizer: Tokenizer,
     llm_model_func: callable,
-    addon_params: dict,
+    language: str,
+    example_number: int | None,
 ) -> tuple[list[str], list[str]]:
     """
     Extract high-level and low-level keywords from the given 'text' using the LLM.
@@ -1013,12 +1015,10 @@ async def extract_keywords_only(
     It ONLY extracts keywords (hl_keywords, ll_keywords).
     """
     # 2. Build the examples
-    example_number = addon_params.get("example_number", None)
     if example_number and example_number < len(PROMPTS["keywords_extraction_examples"]):
         examples = "\n".join(PROMPTS["keywords_extraction_examples"][: int(example_number)])
     else:
         examples = "\n".join(PROMPTS["keywords_extraction_examples"])
-    language = addon_params.get("language", PROMPTS["DEFAULT_LANGUAGE"])
 
     # 3. Process conversation history
     history_context = ""

@@ -22,6 +22,7 @@ import numpy
 from aperag.db.models import Collection
 from aperag.db.ops import db_ops
 from aperag.graph.lightrag import LightRAG
+from aperag.graph.lightrag.prompt import PROMPTS
 from aperag.graph.lightrag.utils import EmbeddingFunc
 from aperag.llm.embed.base_embedding import get_collection_embedding_service_sync
 from aperag.llm.llm_error_types import (
@@ -46,7 +47,6 @@ class LightRAGConfig:
     SUMMARY_TO_MAX_TOKENS = 2000
     FORCE_LLM_SUMMARY_ON_MERGE = 10
     EMBEDDING_MAX_TOKEN_SIZE = 8192
-    # DEFAULT_LANGUAGE = "Simplified Chinese"
     DEFAULT_LANGUAGE = "The same language like input text"
 
 
@@ -76,6 +76,19 @@ async def create_lightrag_instance(collection: Collection) -> LightRAG:
         # Configure storage backends
         await _configure_storage_backends(kv_storage, vector_storage, graph_storage)
 
+        # Parse knowledge graph config from collection config
+        from aperag.schema.utils import parseCollectionConfig
+
+        config = parseCollectionConfig(collection.config)
+        kg_config = config.knowledge_graph_config
+        language = LightRAGConfig.DEFAULT_LANGUAGE
+        entity_types = PROMPTS["DEFAULT_ENTITY_TYPES"]
+        if kg_config:
+            if kg_config.language:
+                language = kg_config.language
+            if kg_config.entity_types:
+                entity_types = kg_config.entity_types
+
         # Create LightRAG instance
         rag = LightRAG(
             workspace=collection_id,
@@ -93,7 +106,8 @@ async def create_lightrag_instance(collection: Collection) -> LightRAG:
             entity_extract_max_gleaning=LightRAGConfig.ENTITY_EXTRACT_MAX_GLEANING,
             summary_to_max_tokens=LightRAGConfig.SUMMARY_TO_MAX_TOKENS,
             force_llm_summary_on_merge=LightRAGConfig.FORCE_LLM_SUMMARY_ON_MERGE,
-            addon_params={"language": LightRAGConfig.DEFAULT_LANGUAGE},
+            language=language,
+            entity_types=entity_types,
             kv_storage=kv_storage,
             vector_storage=vector_storage,
             graph_storage=graph_storage,

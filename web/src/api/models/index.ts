@@ -87,6 +87,7 @@ export * from './invitation';
 export * from './invitation-create';
 export * from './invitation-list';
 export * from './knowledge-graph';
+export * from './knowledge-graph-config';
 export * from './llmconfig';
 export * from './llm-configuration-response';
 export * from './llm-provider';

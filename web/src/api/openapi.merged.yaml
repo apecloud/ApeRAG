@@ -4447,6 +4447,34 @@ components:
             - free
             - recommend
           default: []
+    knowledgeGraphConfig:
+      type: object
+      description: Configuration for knowledge graph generation
+      properties:
+        language:
+          type: string
+          description: Language for entity extraction and query responses
+          default: English
+          example: English
+        entity_types:
+          type: array
+          items:
+            type: string
+          description: List of entity types to extract during graph indexing
+          default:
+            - organization
+            - person
+            - geo
+            - event
+            - product
+            - technology
+            - date
+            - category
+          example:
+            - organization
+            - person
+            - geo
+            - event
     collectionConfig:
       type: object
       properties:
@@ -4474,6 +4502,8 @@ components:
           type: boolean
           description: Whether to enable vision index
           default: false
+        knowledge_graph_config:
+          $ref: '#/components/schemas/knowledgeGraphConfig'
         embedding:
           $ref: '#/components/schemas/modelSpec'
         completion:

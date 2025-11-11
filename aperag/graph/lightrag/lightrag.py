@@ -229,9 +229,14 @@ class LightRAG:
     # Extensions
     # ---
 
-    addon_params: dict[str, Any] = field(
-        default_factory=lambda: {"language": get_env_value("SUMMARY_LANGUAGE", "English", str)}
-    )
+    language: str = field(default="English")
+    """Language for entity extraction and query responses."""
+
+    entity_types: list[str] = field(default_factory=lambda: PROMPTS["DEFAULT_ENTITY_TYPES"])
+    """List of entity types to extract during graph indexing."""
+
+    example_number: int | None = field(default=None)
+    """Number of examples to use in prompts. If None, uses all available examples."""
 
     # Storages Management
     # ---
@@ -544,7 +549,7 @@ class LightRAG:
                     tokenizer=self.tokenizer,
                     llm_model_max_token_size=self.llm_model_max_token_size,
                     summary_to_max_tokens=self.summary_to_max_tokens,
-                    addon_params=self.addon_params or PROMPTS["DEFAULT_LANGUAGE"],
+                    language=self.language,
                     force_llm_summary_on_merge=self.force_llm_summary_on_merge,
                     lightrag_logger=self.lightrag_logger,
                 )
@@ -759,7 +764,9 @@ class LightRAG:
                 chunks,
                 use_llm_func=self.llm_model_func,
                 entity_extract_max_gleaning=self.entity_extract_max_gleaning,
-                addon_params=self.addon_params,
+                language=self.language,
+                entity_types=self.entity_types,
+                example_number=self.example_number,
                 llm_model_max_async=self.llm_model_max_async,
                 lightrag_logger=self.lightrag_logger,
             )
@@ -809,7 +816,8 @@ class LightRAG:
             param,
             self.tokenizer,
             self.llm_model_func,
-            self.addon_params,
+            language=self.language,
+            example_number=self.example_number,
             chunks_vdb=self.chunks_vdb,
         )
 
@@ -898,7 +906,8 @@ class LightRAG:
                 param,
                 self.tokenizer,
                 self.llm_model_func,
-                self.addon_params,
+                language=self.language,
+                example_number=self.example_number,
                 system_prompt=system_prompt,
                 chunks_vdb=self.chunks_vdb,
             )
