@@ -4503,7 +4503,19 @@ components:
           description: Whether to enable vision index
           default: false
         knowledge_graph_config:
-          $ref: '#/components/schemas/knowledgeGraphConfig'
+          allOf:
+            - $ref: '#/components/schemas/knowledgeGraphConfig'
+          default:
+            language: English
+            entity_types:
+              - organization
+              - person
+              - geo
+              - event
+              - product
+              - technology
+              - date
+              - category
         embedding:
           $ref: '#/components/schemas/modelSpec'
         completion:

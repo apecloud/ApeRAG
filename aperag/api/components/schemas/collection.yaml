@@ -154,7 +154,11 @@ collectionConfig:
       description: Whether to enable vision index
       default: false
     knowledge_graph_config:
-      $ref: '#/knowledgeGraphConfig'
+      allOf:
+        - $ref: '#/knowledgeGraphConfig'
+      default:
+        language: "English"
+        entity_types: ["organization", "person", "geo", "event", "product", "technology", "date", "category"]
     embedding:
       $ref: './model.yaml#/modelSpec'
     completion:
