@@ -122,8 +122,6 @@ import type { MarketplaceCollectionsCollectionIdSubscribeDelete200Response } fro
 // @ts-ignore
 import type { ModelConfigList } from '../models';
 // @ts-ignore
-import type { PromptTemplateList } from '../models';
-// @ts-ignore
 import type { RebuildIndexesRequest } from '../models';
 // @ts-ignore
 import type { Register } from '../models';
@@ -3038,36 +3036,6 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             };
         },
         /**
-         * Get prompt templates
-         * @summary Get prompt templates
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        promptTemplatesGet: async (options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
-            const localVarPath = `/prompt-templates`;
-            // use dummy base URL string because the URL constructor only accepts absolute URLs.
-            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
-            let baseOptions;
-            if (configuration) {
-                baseOptions = configuration.baseOptions;
-            }
-
-            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
-            const localVarHeaderParameter = {} as any;
-            const localVarQueryParameter = {} as any;
-
-
-    
-            setSearchParams(localVarUrlObj, localVarQueryParameter);
-            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
-            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
-
-            return {
-                url: toPathString(localVarUrlObj),
-                options: localVarRequestOptions,
-            };
-        },
-        /**
          * Register a new user with an invitation token
          * @summary Register a new user
          * @param {Register} register 
@@ -4296,18 +4264,6 @@ export const DefaultApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * Get prompt templates
-         * @summary Get prompt templates
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        async promptTemplatesGet(options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<PromptTemplateList>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.promptTemplatesGet(options);
-            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
-            const localVarOperationServerBasePath = operationServerMap['DefaultApi.promptTemplatesGet']?.[localVarOperationServerIndex]?.url;
-            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
-        },
-        /**
          * Register a new user with an invitation token
          * @summary Register a new user
          * @param {Register} register 
@@ -5110,15 +5066,6 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
             return localVarFp.marketplaceCollectionsSubscriptionsGet(requestParameters.page, requestParameters.pageSize, options).then((request) => request(axios, basePath));
         },
         /**
-         * Get prompt templates
-         * @summary Get prompt templates
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        promptTemplatesGet(options?: RawAxiosRequestConfig): AxiosPromise<PromptTemplateList> {
-            return localVarFp.promptTemplatesGet(options).then((request) => request(axios, basePath));
-        },
-        /**
          * Register a new user with an invitation token
          * @summary Register a new user
          * @param {DefaultApiRegisterPostRequest} requestParameters Request parameters.
@@ -5897,15 +5844,6 @@ export interface DefaultApiInterface {
      * @memberof DefaultApiInterface
      */
     marketplaceCollectionsSubscriptionsGet(requestParameters?: DefaultApiMarketplaceCollectionsSubscriptionsGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<SharedCollectionList>;
-
-    /**
-     * Get prompt templates
-     * @summary Get prompt templates
-     * @param {*} [options] Override http request option.
-     * @throws {RequiredError}
-     * @memberof DefaultApiInterface
-     */
-    promptTemplatesGet(options?: RawAxiosRequestConfig): AxiosPromise<PromptTemplateList>;
 
     /**
      * Register a new user with an invitation token
@@ -8206,17 +8144,6 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
      */
     public marketplaceCollectionsSubscriptionsGet(requestParameters: DefaultApiMarketplaceCollectionsSubscriptionsGetRequest = {}, options?: RawAxiosRequestConfig) {
         return DefaultApiFp(this.configuration).marketplaceCollectionsSubscriptionsGet(requestParameters.page, requestParameters.pageSize, options).then((request) => request(this.axios, this.basePath));
-    }
-
-    /**
-     * Get prompt templates
-     * @summary Get prompt templates
-     * @param {*} [options] Override http request option.
-     * @throws {RequiredError}
-     * @memberof DefaultApi
-     */
-    public promptTemplatesGet(options?: RawAxiosRequestConfig) {
-        return DefaultApiFp(this.configuration).promptTemplatesGet(options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

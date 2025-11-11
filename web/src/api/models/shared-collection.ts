@@ -66,6 +66,12 @@ export interface SharedCollection {
      */
     'gmt_subscribed'?: string;
     /**
+     * Total number of subscriptions
+     * @type {number}
+     * @memberof SharedCollection
+     */
+    'subscription_count': number;
+    /**
      * Collection configuration settings
      * @type {SharedCollectionConfig}
      * @memberof SharedCollection

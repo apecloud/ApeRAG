@@ -151,8 +151,6 @@ paths:
   # config
   /config:
     $ref: './paths/config.yaml#/config'
-  /prompt-templates:
-    $ref: './paths/prompt_templates.yaml#/promptTemplates'
 
   # audit
   /audit-logs:

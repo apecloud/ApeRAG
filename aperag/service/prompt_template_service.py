@@ -15,8 +15,6 @@
 
 from jinja2 import Template
 
-from aperag.exceptions import invalid_param
-from aperag.llm.prompts import MULTI_ROLE_EN_PROMPT_TEMPLATES, MULTI_ROLE_ZH_PROMPT_TEMPLATES
 from aperag.schema import view_models
 
 # ApeRAG Agent System Prompt - English Version
@@ -339,26 +337,6 @@ def get_default_agent_query_prompt_template(language: str = "en-US") -> str:
         return DEFAULT_AGENT_QUERY_PROMPT_EN
     else:
         return DEFAULT_AGENT_QUERY_PROMPT_EN
-
-
-def list_prompt_templates(language: str) -> view_models.PromptTemplateList:
-    if language == "zh-CN":
-        templates = MULTI_ROLE_ZH_PROMPT_TEMPLATES
-    elif language == "en-US":
-        templates = MULTI_ROLE_EN_PROMPT_TEMPLATES
-    else:
-        raise invalid_param("language", "unsupported language of prompt templates")
-
-    response = []
-    for template in templates:
-        response.append(
-            view_models.PromptTemplate(
-                name=template["name"],
-                prompt=template["prompt"],
-                description=template["description"],
-            )
-        )
-    return view_models.PromptTemplateList(items=response)
 
 
 def build_agent_query_prompt(

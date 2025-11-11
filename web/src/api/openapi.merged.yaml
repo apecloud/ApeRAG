@@ -3223,23 +3223,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/failResponse'
-  /prompt-templates:
-    get:
-      summary: Get prompt templates
-      description: Get prompt templates
-      responses:
-        '200':
-          description: A list of prompt templates
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/promptTemplateList'
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/failResponse'
   /audit-logs:
     get:
       tags:
@@ -6332,6 +6315,10 @@ components:
           format: date-time
           nullable: true
           description: Subscription time (only has value when subscribed)
+        subscription_count:
+          type: integer
+          default: 0
+          description: Total number of subscriptions
         config:
           $ref: '#/components/schemas/SharedCollectionConfig'
           description: Collection configuration settings
@@ -6339,6 +6326,7 @@ components:
         - id
         - title
         - owner_user_id
+        - subscription_count
         - config
     SharedCollectionList:
       type: object
@@ -7097,25 +7085,6 @@ components:
             - local
             - google
             - github
-    promptTemplate:
-      type: object
-      properties:
-        name:
-          type: string
-        prompt:
-          type: string
-        description:
-          type: string
-    promptTemplateList:
-      type: object
-      description: A list of prompt templates
-      properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/promptTemplate'
-        pageResult:
-          $ref: '#/components/schemas/pageResult'
     auditLog:
       type: object
       description: Audit log entry

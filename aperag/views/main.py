@@ -32,7 +32,6 @@ from aperag.service.llm_provider_service import (
     update_llm_provider,
     update_llm_provider_model,
 )
-from aperag.service.prompt_template_service import list_prompt_templates
 from aperag.utils.audit_decorator import audit
 
 # Import authentication dependencies
@@ -47,14 +46,6 @@ router = APIRouter()
 
 # Include quota routes
 router.include_router(quota_router, tags=["quotas"])
-
-
-@router.get("/prompt-templates", tags=["templates"])
-async def list_prompt_templates_view(
-    request: Request, user: User = Depends(required_user)
-) -> view_models.PromptTemplateList:
-    language = request.headers.get("Lang", "zh-CN")
-    return list_prompt_templates(language)
 
 
 @router.post("/available_models", tags=["llm_models"])
