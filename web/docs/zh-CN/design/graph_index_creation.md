@@ -20,7 +20,7 @@ ApeRAG 的 Graph Index 创建流程是整个知识图谱构建系统的核心链
 - **引入 workspace 数据隔离机制**：每个集合拥有独立的数据空间，彻底解决数据冲突和污染问题
 - **自研 Concurrent Control 模型**：实现细粒度锁管理，支持高并发处理
 - **优化锁粒度**：从粗粒度全局锁优化为实体级和关系级精确锁定
-- **重构存储层**：支持 Neo4j、NebulaGraph、PostgreSQL 等多种图数据库后端，实现可靠的多存储一致性保证
+- **重构存储层**：支持 Neo4j、PostgreSQL 等多种图数据库后端，实现可靠的多存储一致性保证
 - **连通分量并发优化**：基于图拓扑分析的智能并发策略
 
 Graph Index 创建流程主要包含以下核心阶段：
@@ -71,7 +71,7 @@ flowchart TD
     CONCURRENT_MERGE["⚡ 并发智能合并<br/>• merge_nodes_and_edges<br/>• 细粒度锁控制"]
 
     %% 存储层（并行写入）
-    STORAGE_GRAPH["🗄️ 图数据库<br/>Neo4j/NebulaGraph/PG"]
+    STORAGE_GRAPH["🗄️ 图数据库<br/>Neo4j/PG"]
     STORAGE_VECTOR["🎯 向量数据库<br/>Qdrant/Elasticsearch"]
     STORAGE_TEXT["📝 文本存储<br/>原始分块数据"]
 
@@ -121,7 +121,7 @@ flowchart TD
 
 原版 LightRAG 采用全局状态管理，导致严重的并发冲突，多个任务共享同一实例造成数据污染，**更严重的是所有集合的图数据都存储在同一个全局命名空间中，不同项目的实体和关系会相互混淆**，无法支持真正的多租户隔离。
 
-我们完全重写了 LightRAG 的实例管理代码，实现了无状态设计：每个 Celery 任务创建独立的 LightRAG 实例，通过 `workspace` 参数实现集合级别的数据隔离。**每个集合的图数据都存储在独立的命名空间中**，支持 Neo4j、NebulaGraph、PostgreSQL 等多种图数据库后端，并建立了严格的实例生命周期管理机制确保资源不泄露。
+我们完全重写了 LightRAG 的实例管理代码，实现了无状态设计：每个 Celery 任务创建独立的 LightRAG 实例，通过 `workspace` 参数实现集合级别的数据隔离。**每个集合的图数据都存储在独立的命名空间中**，支持 Neo4j、PostgreSQL 等多种图数据库后端，并建立了严格的实例生命周期管理机制确保资源不泄露。
 
 ### 2. 分阶段流水线处理
 
@@ -249,7 +249,7 @@ flowchart TD
 
     %% 多存储写入阶段
     subgraph StorageStage ["💾 多存储系统写入"]
-        Z1["🗄️ 图数据库<br/><small>Neo4j/NebulaGraph/PG</small>"]
+        Z1["🗄️ 图数据库<br/><small>Neo4j/PG</small>"]
         Z2["🎯 实体向量库<br/><small>语义搜索存储</small>"]
         Z3["🔗 关系向量库<br/><small>关系语义存储</small>"]
         Z4["📚 分块向量库<br/><small>原始分块索引</small>"]
@@ -420,7 +420,6 @@ aperag/
 │       ├── prompt.py            # 提示词模板
 │       └── kg/                  # 知识图谱存储实现
 │           ├── neo4j_sync_impl.py    # Neo4j 同步实现
-│           ├── nebula_sync_impl.py   # NebulaGraph 同步实现
 │           └── postgres_sync_impl.py # PostgreSQL 同步实现
 ├── concurrent_control/           # 并发控制模块
 │   ├── manager.py               # 锁管理器
@@ -507,14 +506,6 @@ NEO4J_HOST=127.0.0.1
 NEO4J_PORT=7687
 NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=password
-
-# NebulaGraph 配置示例
-NEBULA_HOST=127.0.0.1
-NEBULA_PORT=9669
-NEBULA_USER=root
-NEBULA_PASSWORD=nebula
-NEBULA_MAX_CONNECTION_POOL_SIZE=10
-NEBULA_TIMEOUT=60000
 ```
 
 ## 总结

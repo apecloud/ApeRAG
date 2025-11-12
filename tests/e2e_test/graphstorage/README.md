@@ -25,7 +25,6 @@ tests/e2e_test/graphindex/
 ├── networkx_baseline_storage.py    # NetworkX baseline implementation
 ├── test_graph_storage.py           # Generic test suite
 ├── test_neo4j_storage.py           # Neo4j storage tests
-├── test_nebula_storage.py          # Nebula storage tests
 └── graph_storage_test_data.json    # Test data
 ```
 
@@ -75,15 +74,6 @@ NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=password
 ```
 
-#### Nebula Configuration
-
-```bash
-NEBULA_HOST=127.0.0.1
-NEBULA_PORT=9669
-NEBULA_USER=root
-NEBULA_PASSWORD=nebula
-```
-
 ### How to Configure Environment Variables
 
 1.  **Using a .env file** (Recommended)
@@ -119,20 +109,12 @@ uv run pytest tests/e2e_test/graphindex/ -v
 uv run pytest tests/e2e_test/graphindex/test_neo4j_storage.py::TestNeo4jStorage -v
 ```
 
-#### Nebula Storage Tests
-
-```bash
-uv run pytest tests/e2e_test/graphindex/test_nebula_storage.py::TestNebulaStorage -v
-```
 
 ### Run Specific Test Cases
 
 ```bash
 # Test Neo4j node operations
 uv run pytest tests/e2e_test/graphindex/test_neo4j_storage.py::TestNeo4jStorage::test_has_node -v
-
-# Test Nebula batch operations
-uv run pytest tests/e2e_test/graphindex/test_nebula_storage.py::TestNebulaStorage::test_large_batch_operations -v
 ```
 
 ## 📊 Test Data
@@ -171,7 +153,6 @@ uv run pytest tests/e2e_test/graphindex/test_nebula_storage.py::TestNebulaStorag
     ```bash
     # Check database service status
     docker ps | grep neo4j
-    docker ps | grep nebula
     ```
 
 2.  **Environment Variables Not Set**
@@ -179,7 +160,6 @@ uv run pytest tests/e2e_test/graphindex/test_nebula_storage.py::TestNebulaStorag
     ```bash
     # Verify environment variables
     echo $NEO4J_HOST
-    echo $NEBULA_HOST
     ```
 
 3.  **Missing Test Data File**

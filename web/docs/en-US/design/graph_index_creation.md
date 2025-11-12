@@ -20,7 +20,7 @@ We have conducted large-scale refactoring to address these issues:
 - **Introduced workspace data isolation mechanism**: Each collection has independent data space, completely solving data conflicts and pollution
 - **Self-developed Concurrent Control model**: Implementing fine-grained lock management for high concurrency processing
 - **Optimized lock granularity**: From coarse-grained global locks to entity-level and relationship-level precise locking
-- **Refactored storage layer**: Support for Neo4j, NebulaGraph, PostgreSQL and other graph database backends, implementing reliable multi-storage consistency guarantees
+- **Refactored storage layer**: Support for Neo4j, PostgreSQL and other graph database backends, implementing reliable multi-storage consistency guarantees
 - **Connected component concurrency optimization**: Intelligent concurrency strategy based on graph topology analysis
 
 The Graph Index creation process includes the following core stages:
@@ -71,7 +71,7 @@ flowchart TD
     CONCURRENT_MERGE["⚡ Concurrent Intelligent Merging<br/>• merge_nodes_and_edges<br/>• Fine-grained lock control"]
 
     %% Storage layer (parallel writing)
-    STORAGE_GRAPH["🗄️ Graph Database<br/>Neo4j/NebulaGraph/PG"]
+    STORAGE_GRAPH["🗄️ Graph Database<br/>Neo4j/PG"]
     STORAGE_VECTOR["🎯 Vector Database<br/>Qdrant/Elasticsearch"]
     STORAGE_TEXT["📝 Text Storage<br/>Raw chunk data"]
 
@@ -121,7 +121,7 @@ flowchart TD
 
 The original LightRAG uses global state management, leading to severe concurrency conflicts, with multiple tasks sharing the same instance causing data pollution. **More seriously, all collection graph data is stored in the same global namespace, where entities and relationships from different projects interfere with each other**, making true multi-tenant isolation impossible.
 
-We completely rewrote LightRAG's instance management code, implementing a stateless design: each Celery task creates an independent LightRAG instance, achieving collection-level data isolation through the `workspace` parameter. **Each collection's graph data is stored in independent namespaces** (e.g., `entity:{entity_name}:{workspace}`), supporting Neo4j, NebulaGraph, PostgreSQL and other graph database backends, with strict instance lifecycle management to ensure no resource leaks.
+We completely rewrote LightRAG's instance management code, implementing a stateless design: each Celery task creates an independent LightRAG instance, achieving collection-level data isolation through the `workspace` parameter. **Each collection's graph data is stored in independent namespaces** (e.g., `entity:{entity_name}:{workspace}`), supporting Neo4j, PostgreSQL and other graph database backends, with strict instance lifecycle management to ensure no resource leaks.
 
 ### 2. Staged Pipeline Processing
 
@@ -249,7 +249,7 @@ flowchart TD
 
     %% Multi-storage writing stage
     subgraph StorageStage ["💾 Multi-Storage System Writing"]
-        Z1["🗄️ Graph Database<br/><small>Neo4j/NebulaGraph/PG</small>"]
+        Z1["🗄️ Graph Database<br/><small>Neo4j/PG</small>"]
         Z2["🎯 Entity Vector DB<br/><small>Semantic search storage</small>"]
         Z3["🔗 Relationship Vector DB<br/><small>Relationship semantic storage</small>"]
         Z4["📚 Chunk Vector DB<br/><small>Raw chunk indexing</small>"]
@@ -420,7 +420,6 @@ aperag/
 │       ├── prompt.py            # Prompt templates
 │       └── kg/                  # Knowledge graph storage implementations
 │           ├── neo4j_sync_impl.py    # Neo4j sync implementation
-│           ├── nebula_sync_impl.py   # NebulaGraph sync implementation
 │           └── postgres_sync_impl.py # PostgreSQL sync implementation
 ├── concurrent_control/           # Concurrency control module
 │   ├── manager.py               # Lock manager
@@ -507,14 +506,6 @@ NEO4J_HOST=127.0.0.1
 NEO4J_PORT=7687
 NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=password
-
-# NebulaGraph configuration example
-NEBULA_HOST=127.0.0.1
-NEBULA_PORT=9669
-NEBULA_USER=root
-NEBULA_PASSWORD=nebula
-NEBULA_MAX_CONNECTION_POOL_SIZE=10
-NEBULA_TIMEOUT=60000
 ```
 
 ## Summary

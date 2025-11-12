@@ -32,7 +32,6 @@ Modifications by ApeRAG Team:
 """
 
 # Direct import of storage implementations
-from .nebula_sync_impl import NebulaSyncStorage
 from .neo4j_sync_impl import Neo4JSyncStorage
 from .pg_ops_sync_graph_storage import PGOpsSyncGraphStorage
 from .pg_ops_sync_kv_storage import PGOpsSyncKVStorage
@@ -41,7 +40,6 @@ from .pg_ops_sync_vector_storage import PGOpsSyncVectorStorage
 # Storage implementation class registry
 STORAGES = {
     "Neo4JSyncStorage": Neo4JSyncStorage,
-    "NebulaSyncStorage": NebulaSyncStorage,
     "PGOpsSyncGraphStorage": PGOpsSyncGraphStorage,
     "PGOpsSyncKVStorage": PGOpsSyncKVStorage,
     "PGOpsSyncVectorStorage": PGOpsSyncVectorStorage,

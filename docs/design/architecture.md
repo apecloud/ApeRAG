@@ -395,7 +395,7 @@ ApeRAG adopts a multi-storage architecture, selecting optimal storage solutions 
 
 **Compatibility**: S3 protocol compatible, supports replacement with AWS S3, Alibaba Cloud OSS, etc.
 
-#### 3.5.6 Neo4j / NebulaGraph (Graph Database, Optional)
+#### 3.5.6 Neo4j (Graph Database, Optional)
 
 **Usage**:
 - Graph storage backend for Graph Index (optional)
@@ -403,7 +403,7 @@ ApeRAG adopts a multi-storage architecture, selecting optimal storage solutions 
 
 **Selection Guidelines**:
 - Small scale (< 100K entities): PostgreSQL sufficient
-- Large scale (> 1M entities): Neo4j or NebulaGraph recommended
+- Large scale (> 1M entities): Neo4j
 
 ## 4. Core Data Flows
 

@@ -25,7 +25,6 @@ tests/e2e_test/graphindex/
 ├── networkx_baseline_storage.py    # NetworkX 基线实现
 ├── test_graph_storage.py           # 通用测试套件
 ├── test_neo4j_storage.py           # Neo4j 存储测试
-├── test_nebula_storage.py          # Nebula 存储测试
 └── graph_storage_test_data.json    # 测试数据
 ```
 
@@ -71,14 +70,6 @@ NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=password
 ```
 
-#### Nebula 配置
-```bash
-NEBULA_HOST=127.0.0.1
-NEBULA_PORT=9669
-NEBULA_USER=root
-NEBULA_PASSWORD=nebula
-```
-
 ### 环境变量配置方法
 
 1. **使用 .env 文件** (推荐)
@@ -110,18 +101,10 @@ uv run pytest tests/e2e_test/graphindex/ -v
 uv run pytest tests/e2e_test/graphindex/test_neo4j_storage.py::TestNeo4jStorage -v
 ```
 
-#### Nebula 存储测试
-```bash
-uv run pytest tests/e2e_test/graphindex/test_nebula_storage.py::TestNebulaStorage -v
-```
-
 ### 运行特定测试用例
 ```bash
 # 测试 Neo4j 节点操作
 uv run pytest tests/e2e_test/graphindex/test_neo4j_storage.py::TestNeo4jStorage::test_has_node -v
-
-# 测试 Nebula 批量操作
-uv run pytest tests/e2e_test/graphindex/test_nebula_storage.py::TestNebulaStorage::test_large_batch_operations -v
 ```
 
 ## 📊 测试数据
@@ -156,14 +139,12 @@ uv run pytest tests/e2e_test/graphindex/test_nebula_storage.py::TestNebulaStorag
    ```bash
    # 检查数据库服务状态
    docker ps | grep neo4j
-   docker ps | grep nebula
    ```
 
 2. **环境变量未设置**
    ```bash
    # 验证环境变量
    echo $NEO4J_HOST
-   echo $NEBULA_HOST
    ```
 
 3. **测试数据文件缺失**
