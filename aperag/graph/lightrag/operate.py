@@ -39,7 +39,7 @@ import os
 import re
 import time
 from collections import Counter, defaultdict
-from typing import Any, AsyncIterator
+from typing import Any
 
 from aperag.concurrent_control import get_or_create_lock
 
@@ -869,110 +869,6 @@ async def build_query_context(
     )
 
 
-async def kg_query(
-    query: str,
-    knowledge_graph_inst: BaseGraphStorage,
-    entities_vdb: BaseVectorStorage,
-    relationships_vdb: BaseVectorStorage,
-    text_chunks_db: BaseKVStorage,
-    query_param: QueryParam,
-    tokenizer: Tokenizer,
-    llm_model_func: callable,
-    language: str,
-    example_number: int | None,
-    system_prompt: str | None = None,
-    chunks_vdb: BaseVectorStorage = None,
-) -> str | AsyncIterator[str]:
-    if query_param.model_func:
-        use_model_func = query_param.model_func
-    else:
-        use_model_func = llm_model_func
-
-    # Build context
-    entities_context, relations_context, text_units_context = await build_query_context(
-        query,
-        knowledge_graph_inst,
-        entities_vdb,
-        relationships_vdb,
-        text_chunks_db,
-        query_param,
-        tokenizer,
-        llm_model_func,
-        language,
-        example_number,
-        chunks_vdb,
-    )
-
-    # 转换为 JSON 字符串
-    entities_str = json.dumps(entities_context, ensure_ascii=False)
-    relations_str = json.dumps(relations_context, ensure_ascii=False)
-    text_units_str = json.dumps(text_units_context, ensure_ascii=False)
-
-    context = f"""-----Entities(KG)-----
-
-    ```json
-    {entities_str}
-    ```
-
-    -----Relationships(KG)-----
-
-    ```json
-    {relations_str}
-    ```
-
-    -----Document Chunks(DC)-----
-
-    ```json
-    {text_units_str}
-    ```
-
-    """
-
-    if query_param.only_need_context:
-        return context
-    if context is None:
-        return PROMPTS["fail_response"]
-
-    # Process conversation history
-    history_context = ""
-    if query_param.conversation_history:
-        history_context = get_conversation_turns(query_param.conversation_history, query_param.history_turns)
-
-    # Build system prompt
-    user_prompt = query_param.user_prompt if query_param.user_prompt else PROMPTS["DEFAULT_USER_PROMPT"]
-    sys_prompt_temp = system_prompt if system_prompt else PROMPTS["rag_response"]
-    sys_prompt = sys_prompt_temp.format(
-        context_data=context,
-        response_type=query_param.response_type,
-        history=history_context,
-        user_prompt=user_prompt,
-    )
-
-    if query_param.only_need_prompt:
-        return sys_prompt
-
-    len_of_prompts = len(tokenizer.encode(query + sys_prompt))
-    logger.debug(f"[kg_query]Prompt Tokens: {len_of_prompts}")
-
-    response = await use_model_func(
-        query,
-        system_prompt=sys_prompt,
-        stream=query_param.stream,
-    )
-    if isinstance(response, str) and len(response) > len(sys_prompt):
-        response = (
-            response.replace(sys_prompt, "")
-            .replace("user", "")
-            .replace("model", "")
-            .replace(query, "")
-            .replace("<system>", "")
-            .replace("</system>", "")
-            .strip()
-        )
-
-    return response
-
-
 async def get_keywords_from_query(
     query: str,
     query_param: QueryParam,
@@ -1765,76 +1661,6 @@ async def _find_related_text_unit_from_relationships(
     all_text_units: list[TextChunkSchema] = [t["data"] for t in truncated_text_units]
 
     return all_text_units
-
-
-async def naive_query(
-    query: str,
-    chunks_vdb: BaseVectorStorage,
-    query_param: QueryParam,
-    llm_model_func,
-    tokenizer,
-    system_prompt: str | None = None,
-) -> str | AsyncIterator[str]:
-    if query_param.model_func:
-        use_model_func = query_param.model_func
-    else:
-        use_model_func = llm_model_func
-
-    _, _, text_units_context = await _get_vector_context(query, chunks_vdb, query_param, tokenizer)
-
-    if text_units_context is None or len(text_units_context) == 0:
-        return PROMPTS["fail_response"]
-
-    text_units_str = json.dumps(text_units_context, ensure_ascii=False)
-    if query_param.only_need_context:
-        return f"""
----Document Chunks---
-
-```json
-{text_units_str}
-```
-
-"""
-    # Process conversation history
-    history_context = ""
-    if query_param.conversation_history:
-        history_context = get_conversation_turns(query_param.conversation_history, query_param.history_turns)
-
-    # Build system prompt
-    user_prompt = query_param.user_prompt if query_param.user_prompt else PROMPTS["DEFAULT_USER_PROMPT"]
-    sys_prompt_temp = system_prompt if system_prompt else PROMPTS["naive_rag_response"]
-    sys_prompt = sys_prompt_temp.format(
-        content_data=text_units_str,
-        response_type=query_param.response_type,
-        history=history_context,
-        user_prompt=user_prompt,
-    )
-
-    if query_param.only_need_prompt:
-        return sys_prompt
-
-    len_of_prompts = len(tokenizer.encode(query + sys_prompt))
-    logger.debug(f"[naive_query]Prompt Tokens: {len_of_prompts}")
-
-    response = await use_model_func(
-        query,
-        system_prompt=sys_prompt,
-        stream=query_param.stream,
-    )
-
-    if isinstance(response, str) and len(response) > len(sys_prompt):
-        response = (
-            response[len(sys_prompt) :]
-            .replace(sys_prompt, "")
-            .replace("user", "")
-            .replace("model", "")
-            .replace(query, "")
-            .replace("<system>", "")
-            .replace("</system>", "")
-            .strip()
-        )
-
-    return response
 
 
 # ============= Merge Suggestions Functions =============

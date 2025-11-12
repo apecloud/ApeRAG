@@ -38,12 +38,10 @@ from dataclasses import dataclass, field
 from functools import partial
 from typing import (
     Any,
-    AsyncIterator,
     Callable,
     Dict,
     List,
     Optional,
-    Tuple,
     final,
 )
 
@@ -69,9 +67,7 @@ from .operate import (
     build_query_context,
     chunking_by_token_size,
     extract_entities,
-    kg_query,
     merge_nodes_and_edges,
-    naive_query,
 )
 from .prompt import GRAPH_FIELD_SEP, PROMPTS
 from .types import KnowledgeGraph
@@ -873,66 +869,6 @@ class LightRAG:
 
 """
         return context
-
-    async def aquery(
-        self,
-        query: str,
-        param: QueryParam = QueryParam(),
-        system_prompt: str | None = None,
-    ) -> str | AsyncIterator[str] | Tuple[dict, dict, dict]:
-        """
-        Perform a async query.
-
-        Args:
-            query (str): The query to be executed.
-            param (QueryParam): Configuration parameters for query execution.
-                If param.model_func is provided, it will be used instead of the global model.
-            prompt (Optional[str]): Custom prompts for fine-tuned control over the system's behavior. Defaults to None, which uses PROMPTS["rag_response"].
-
-        Returns:
-            str: The result of the query execution.
-        """
-        # If a custom model is provided in param, temporarily update global config
-        # Save original query for vector search
-        param.original_query = query
-
-        if param.mode in ["local", "global", "hybrid", "mix"]:
-            response = await kg_query(
-                query.strip(),
-                self.chunk_entity_relation_graph,
-                self.entities_vdb,
-                self.relationships_vdb,
-                self.text_chunks,
-                param,
-                self.tokenizer,
-                self.llm_model_func,
-                language=self.language,
-                example_number=self.example_number,
-                system_prompt=system_prompt,
-                chunks_vdb=self.chunks_vdb,
-            )
-        elif param.mode == "naive":
-            response = await naive_query(
-                query.strip(),
-                self.chunks_vdb,
-                param,
-                self.llm_model_func,
-                self.tokenizer,
-                system_prompt=system_prompt,
-            )
-        elif param.mode == "bypass":
-            # Bypass mode: directly use LLM without knowledge retrieval
-
-            param.stream = True if param.stream is None else param.stream
-            response = await self.llm_model_func(
-                query.strip(),
-                system_prompt=system_prompt,
-                history_messages=param.conversation_history,
-                stream=param.stream,
-            )
-        else:
-            raise ValueError(f"Unknown mode {param.mode}")
-        return response
 
     # Deleting documents can cause hallucinations in RAG.
     async def adelete_by_doc_id(self, doc_id: str) -> None:
