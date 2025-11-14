@@ -130,7 +130,7 @@ services:
   # Infrastructure Services (always available)
   # ==============================================
   postgres:
-    image: pgvector/pgvector:pg16
+    image: ${REGISTRY:-docker.io}/apecloud/pgvector:pg16
     container_name: aperag-postgres
     volumes:
       - aperag-postgres-data:/var/lib/postgresql/data
@@ -148,7 +148,7 @@ services:
       start_period: 10s
 
   redis:
-    image: redis:6
+    image: ${REGISTRY:-docker.io}/apecloud/redis:6
     container_name: aperag-redis
     volumes:
       - aperag-redis-data:/data
@@ -162,7 +162,7 @@ services:
       start_period: 5s
 
   qdrant:
-    image: qdrant/qdrant:v1.13.4
+    image: ${REGISTRY:-docker.io}/apecloud/qdrant:v1.13.4
     container_name: aperag-qdrant
     volumes:
       - aperag-qdrant-data:/qdrant/storage
@@ -176,7 +176,7 @@ services:
       start_period: 10s
 
   es:
-    image: elasticsearch:8.8.2
+    image: ${REGISTRY:-docker.io}/apecloud/elasticsearch:8.8.2
     container_name: aperag-es
     ports:
       - "9200:9200"
