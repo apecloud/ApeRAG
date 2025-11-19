@@ -21,7 +21,7 @@ from typing import List
 
 from fastapi import HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aperag.config import settings
@@ -117,16 +117,31 @@ class DocumentService:
         return file_suffix
 
     async def _check_duplicate_document(
-        self, user: str, collection_id: str, filename: str, file_hash: str
+        self, session: AsyncSession, user: str, collection_id: str, filename: str, file_hash: str
     ) -> db_models.Document | None:
         """
-        Check if a document with the same name exists in the collection.
+        Check if a document with the same name exists in the collection within the same transaction.
         Returns the existing document if found, None otherwise.
 
         Raises DocumentNameConflictException if same name but different file hash.
+
+        Args:
+            session: Database session for transaction isolation
+            user: User ID
+            collection_id: Collection ID
+            filename: Document filename
+            file_hash: File content hash for duplicate detection
         """
-        # Use repository to query for existing document
-        existing_doc = await self.db_ops.query_document_by_name_and_collection(user, collection_id, filename)
+        # Query within the same transaction for proper isolation
+        stmt = select(db_models.Document).where(
+            db_models.Document.user == user,
+            db_models.Document.collection_id == collection_id,
+            db_models.Document.name == filename,
+            db_models.Document.status != db_models.DocumentStatus.DELETED,
+            db_models.Document.gmt_deleted.is_(None),  # Not soft deleted
+        )
+        result = await session.execute(stmt)
+        existing_doc = result.scalars().first()
 
         if existing_doc:
             # If existing document has no hash (legacy document), skip hash check
@@ -414,9 +429,9 @@ class DocumentService:
             index_types = self._get_index_types_for_collection(collection_config)
 
             for file_info in file_data:
-                # Check for duplicate document (same name and hash)
+                # Check for duplicate document (same name and hash) within transaction
                 existing_doc = await self._check_duplicate_document(
-                    user, collection.id, file_info["filename"], file_info["file_hash"]
+                    session, user, collection.id, file_info["filename"], file_info["file_hash"]
                 )
 
                 if existing_doc and not ignore_duplicate:
@@ -1086,33 +1101,60 @@ class DocumentService:
         file_hash = calculate_file_hash(file_content)
 
         async def _upload_document_atomically(session):
-            # Check for duplicate document (same name and hash)
-            existing_doc = await self._check_duplicate_document(user_id, collection.id, file.filename, file_hash)
+            from sqlalchemy.dialects.postgresql import insert
 
-            if existing_doc:
-                # Return existing document info (idempotent behavior)
-                logger.info(
-                    f"Document '{file.filename}' already exists with same content, returning existing document {existing_doc.id}"
-                )
-                return view_models.UploadDocumentResponse(
-                    document_id=existing_doc.id,
-                    filename=existing_doc.name,
-                    size=existing_doc.size,
-                    status=existing_doc.status,
-                )
+            # Try atomic insert first using INSERT ... ON CONFLICT
+            # This prevents race condition at database level
+            from aperag.db.models import random_id
 
-            # Create new document with UPLOADED status (temporary)
-            document_instance = await self._create_document_record(
-                session=session,
+            temp_doc_id = "doc" + random_id()
+
+            stmt = insert(db_models.Document).values(
+                id=temp_doc_id,
+                name=file.filename,
                 user=user_id,
                 collection_id=collection.id,
-                filename=file.filename,
+                status=db_models.DocumentStatus.UPLOADED,
                 size=file.size,
-                status=db_models.DocumentStatus.UPLOADED,  # Temporary status
-                file_suffix=file_suffix,
-                file_content=file_content,
                 content_hash=file_hash,
+                gmt_created=utc_now(),
+                gmt_updated=utc_now(),
             )
+            stmt = stmt.on_conflict_do_nothing(
+                index_elements=["collection_id", "name"], index_where=text("gmt_deleted IS NULL")
+            )
+
+            result = await session.execute(stmt)
+            await session.flush()
+
+            if result.rowcount == 0:
+                # Document already exists, query and return it
+                existing_doc = await self._check_duplicate_document(
+                    session, user_id, collection.id, file.filename, file_hash
+                )
+                if existing_doc:
+                    logger.info(
+                        f"Document '{file.filename}' already exists with same content, returning existing document {existing_doc.id}"
+                    )
+                    return view_models.UploadDocumentResponse(
+                        document_id=existing_doc.id,
+                        filename=existing_doc.name,
+                        size=existing_doc.size,
+                        status=existing_doc.status,
+                    )
+
+            # Document created, now upload file to object store
+            async_obj_store = get_async_object_store()
+            document_instance = await session.get(db_models.Document, temp_doc_id)
+            upload_path = f"{document_instance.object_store_base_path()}/original{file_suffix}"
+            await async_obj_store.put(upload_path, file_content)
+
+            # Update document with object path
+            metadata = {"object_path": upload_path}
+            document_instance.doc_metadata = json.dumps(metadata)
+            session.add(document_instance)
+            await session.flush()
+            await session.refresh(document_instance)
 
             return view_models.UploadDocumentResponse(
                 document_id=document_instance.id, filename=file.filename, size=file.size, status="UPLOADED"

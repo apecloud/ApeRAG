@@ -33,6 +33,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     select,
+    text,
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -324,7 +325,17 @@ class UserCollectionSubscription(Base):
 class Document(Base):
     __tablename__ = "document"
     __table_args__ = (
-        UniqueConstraint("collection_id", "name", "gmt_deleted", name="uq_document_collection_name_deleted"),
+        # Partial unique index: only enforce uniqueness for active (non-deleted) documents
+        # This prevents duplicate documents while allowing same name for deleted documents
+        # Using partial index with WHERE clause instead of including gmt_deleted in constraint
+        # because in PostgreSQL, NULL != NULL, so constraint with gmt_deleted doesn't work for active docs
+        Index(
+            "uq_document_collection_name_active",
+            "collection_id",
+            "name",
+            unique=True,
+            postgresql_where=text("gmt_deleted IS NULL"),
+        ),
     )
 
     id = Column(String(24), primary_key=True, default=lambda: "doc" + random_id())
