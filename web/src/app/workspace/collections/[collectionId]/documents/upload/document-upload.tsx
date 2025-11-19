@@ -47,7 +47,7 @@ import {
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { defaultStyles, FileIcon } from 'react-file-icon';
 import { toast } from 'sonner';
 
@@ -78,6 +78,7 @@ export const DocumentUpload = () => {
     pageIndex: 0,
     pageSize: 20,
   });
+  const uploadingFilesRef = useRef<Set<string>>(new Set());
 
   const handleSaveToCollection = useCallback(async () => {
     if (!collection.id) return;
@@ -108,7 +109,23 @@ export const DocumentUpload = () => {
 
   const startUpload = useCallback(
     (docs: DocumentsWithFile[]) => {
-      const tasks: AsyncTask[] = docs.map((_doc) => async (callback) => {
+      const filesToUpload = docs.filter((doc) => {
+        const fileKey = `${doc.file.name}-${doc.file.size}-${doc.file.lastModified}`;
+        return (
+          doc.progress_status === 'pending' &&
+          !doc.document_id &&
+          !uploadingFilesRef.current.has(fileKey)
+        );
+      });
+
+      if (filesToUpload.length === 0) return;
+
+      filesToUpload.forEach((doc) => {
+        const fileKey = `${doc.file.name}-${doc.file.size}-${doc.file.lastModified}`;
+        uploadingFilesRef.current.add(fileKey);
+      });
+
+      const tasks: AsyncTask[] = filesToUpload.map((_doc) => async (callback) => {
         const file = _doc.file;
         if (!collection?.id) {
           callback();
@@ -173,6 +190,9 @@ export const DocumentUpload = () => {
             }
             return [...docs];
           });
+        } finally {
+          const fileKey = `${file.name}-${file.size}-${file.lastModified}`;
+          uploadingFilesRef.current.delete(fileKey);
         }
         callback(null);
       });
@@ -383,25 +403,32 @@ export const DocumentUpload = () => {
         accept=".pdf,.doc,.docx,.txt,.md,.ppt,.pptx,.xls,.xlsx"
         value={documents.map((f) => f.file)}
         onValueChange={(files) => {
-          setDocuments((docs) => {
-            const data: DocumentsWithFile[] = [];
-            const uploadFiles: DocumentsWithFile[] = [];
-            files.forEach((file) => {
-              const doc = docs.find((doc) => _.isEqual(doc.file, file));
-              const item: DocumentsWithFile = {
+          const newDocs: DocumentsWithFile[] = [];
+          const newFilesToUpload: DocumentsWithFile[] = [];
+
+          files.forEach((file) => {
+            const existingDoc = documents.find((doc) =>
+              _.isEqual(doc.file, file),
+            );
+
+            if (existingDoc) {
+              newDocs.push(existingDoc);
+            } else {
+              const newDoc: DocumentsWithFile = {
                 file,
                 progress_status: 'pending',
                 progress: 0,
-                ...doc,
               };
-              data.push(item);
-              if (item.progress_status === 'pending') {
-                uploadFiles.push(item);
-              }
-            });
-            startUpload(uploadFiles);
-            return data;
+              newDocs.push(newDoc);
+              newFilesToUpload.push(newDoc);
+            }
           });
+
+          setDocuments(newDocs);
+
+          if (newFilesToUpload.length > 0) {
+            startUpload(newFilesToUpload);
+          }
         }}
         onFileReject={onFileReject}
         onFileValidate={onFileValidate}
