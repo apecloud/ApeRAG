@@ -76,6 +76,9 @@ class MarketplaceCollectionService:
         # Check subscription status (optional - might be None)
         subscription = await self.db_ops.get_user_subscription_by_collection_id(user_id, collection_id)
 
+        # Get subscription count for this collection
+        subscription_count = await self.db_ops.get_collection_subscription_count(marketplace.id)
+
         return {
             "collection_id": collection.id,
             "collection_title": collection.title,
@@ -85,6 +88,7 @@ class MarketplaceCollectionService:
             "owner_username": owner.username,
             "subscription_id": subscription.id if subscription else None,
             "gmt_subscribed": subscription.gmt_subscribed if subscription else None,
+            "subscription_count": subscription_count,
             "is_subscribed": subscription is not None,
             "is_owner": collection.user == user_id,
         }
@@ -107,6 +111,7 @@ class MarketplaceCollectionService:
             owner_username=marketplace_info["owner_username"],
             subscription_id=marketplace_info["subscription_id"],
             gmt_subscribed=marketplace_info["gmt_subscribed"],
+            subscription_count=marketplace_info["subscription_count"],
             config=shared_config,
         )
 
