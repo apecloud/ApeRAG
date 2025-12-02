@@ -18,6 +18,7 @@ import logging
 
 from mcp_agent.workflows.llm.augmented_llm import SimpleMemory
 
+from aperag.chat.history import messages_to_openai_format
 from aperag.utils.history import RedisChatMessageHistory
 
 from .exceptions import handle_agent_error
@@ -57,8 +58,6 @@ class AgentMemoryManager:
         Returns:
             SimpleMemory: Memory populated with recent conversation context
         """
-        from langchain_core.messages.utils import convert_to_openai_messages
-
         logger.debug(f"Creating memory from history with context_limit: {context_limit}")
 
         # Create fresh memory instance
@@ -78,8 +77,8 @@ class AgentMemoryManager:
 
             logger.debug(f"Retrieved {len(recent_messages)} recent messages from history")
 
-            # Use LangChain's official utility to convert messages to OpenAI format
-            openai_messages = convert_to_openai_messages(recent_messages)
+            # Convert StoredChatMessage objects to OpenAI format
+            openai_messages = messages_to_openai_format(recent_messages)
 
             # Add converted messages to memory
             for openai_msg in openai_messages:
@@ -126,8 +125,11 @@ class AgentMemoryManager:
 
             context_lines = []
             for message in recent_messages:
-                role = "User" if message.type == "human" else "Assistant"
-                content = message.content[:200] + "..." if len(message.content) > 200 else message.content
+                # Get role from first part (StoredChatMessage uses parts structure)
+                message_role = message.role if message.role else "ai"
+                role = "User" if message_role == "human" else "Assistant"
+                # Get main content from message
+                content = message.get_main_content()
                 context_lines.append(f"{role}: {content}")
 
             context_summary = "\n".join(context_lines)
