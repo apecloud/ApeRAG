@@ -79,7 +79,6 @@ SharedCollection:
     - id
     - title
     - owner_user_id
-    - subscription_count
     - config
 
 SharedCollectionList:

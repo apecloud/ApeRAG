@@ -70,7 +70,7 @@ export interface SharedCollection {
      * @type {number}
      * @memberof SharedCollection
      */
-    'subscription_count': number;
+    'subscription_count'?: number;
     /**
      * Collection configuration settings
      * @type {SharedCollectionConfig}

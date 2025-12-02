@@ -6368,7 +6368,6 @@ components:
         - id
         - title
         - owner_user_id
-        - subscription_count
         - config
     SharedCollectionList:
       type: object
