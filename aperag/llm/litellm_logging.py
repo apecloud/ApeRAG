@@ -24,6 +24,7 @@ def setup_litellm_logging():
     import litellm
 
     litellm.suppress_debug_info = True
+    litellm.disable_streaming_logging = True
     logging.info("LiteLLM debug info suppression is enabled.")
 
     # Filter Pydantic serialization warnings globally

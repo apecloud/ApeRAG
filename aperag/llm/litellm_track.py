@@ -77,12 +77,3 @@ class MyCustomHandler(CustomLogger):
 
 def register_custom_llm_track():
     litellm.callbacks = [MyCustomHandler()]
-
-
-def register_opik_llm_track():
-    from litellm.integrations.opik.opik import OpikLogger
-
-    from aperag.config import settings
-
-    if settings.opik_api_key and settings.opik_workspace:
-        litellm.callbacks = [OpikLogger()]
