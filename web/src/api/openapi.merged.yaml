@@ -2650,6 +2650,48 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/failResponse'
+  /llm_providers/{provider_name}/publish:
+    post:
+      summary: Publish a private provider to public
+      description: Publish a private provider to public. This action is admin only and irreversible.
+      parameters:
+        - name: provider_name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Provider name
+      responses:
+        '200':
+          description: Provider published successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/llmProvider'
+        '400':
+          description: Bad request (provider is already public)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '403':
+          description: Permission denied (admin only)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: Provider not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
   /llm_providers/{provider_name}/models:
     get:
       summary: Get models for a specific provider

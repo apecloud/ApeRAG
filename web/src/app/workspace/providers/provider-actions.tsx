@@ -63,12 +63,13 @@ export const ProviderActions = ({
   children,
 }: {
   provider?: LlmProvider;
-  action: 'add' | 'edit' | 'delete';
+  action: 'add' | 'edit' | 'delete' | 'publish';
   children?: React.ReactNode;
 }) => {
   const [createOrUpdateVisible, setCreateOrUpdateVisible] =
     useState<boolean>(false);
   const [deleteVisible, setDeleteVisible] = useState<boolean>(false);
+  const [publishVisible, setPublishVisible] = useState<boolean>(false);
   const router = useRouter();
 
   const page_models = useTranslations('page_models');
@@ -91,6 +92,20 @@ export const ProviderActions = ({
       }
     }
   }, [action, provider?.name, router]);
+
+  const handlePublish = useCallback(async () => {
+    if (action === 'publish' && provider?.name) {
+      const res =
+        await apiClient.defaultApi.llmProvidersProviderNamePublishPost({
+          providerName: provider.name,
+        });
+      if (res?.status === 200) {
+        setPublishVisible(false);
+        toast.success(page_models('provider.publish_success'));
+        setTimeout(router.refresh, 300);
+      }
+    }
+  }, [action, provider?.name, router, page_models]);
 
   const handleCreateOrUpdate = useCallback(
     async (values: z.infer<typeof providerSchema>) => {
@@ -149,6 +164,40 @@ export const ProviderActions = ({
               {common_action('cancel')}
             </AlertDialogCancel>
             <AlertDialogAction onClick={() => handleDelete()}>
+              {common_action('continue')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    );
+  } else if (action === 'publish') {
+    return (
+      <AlertDialog
+        open={publishVisible}
+        onOpenChange={() => setPublishVisible(false)}
+      >
+        <AlertDialogTrigger asChild>
+          <Slot
+            onClick={(e) => {
+              setPublishVisible(true);
+              e.preventDefault();
+            }}
+          >
+            {children}
+          </Slot>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{common_tips('confirm')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {page_models('provider.publish_confirm')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPublishVisible(false)}>
+              {common_action('cancel')}
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={() => handlePublish()}>
               {common_action('continue')}
             </AlertDialogAction>
           </AlertDialogFooter>

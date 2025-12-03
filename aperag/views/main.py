@@ -29,6 +29,7 @@ from aperag.service.llm_provider_service import (
     get_llm_configuration,
     get_llm_provider,
     list_llm_provider_models,
+    publish_llm_provider,
     update_llm_provider,
     update_llm_provider_model,
 )
@@ -134,6 +135,18 @@ async def delete_llm_provider_view(request: Request, provider_name: str, user: U
 
     is_admin = user.role == Role.ADMIN
     return await delete_llm_provider(provider_name, str(user.id), is_admin)
+
+
+@router.post("/llm_providers/{provider_name}/publish", tags=["llm_providers"])
+@audit(resource_type="llm_provider", api_name="PublishLLMProvider")
+async def publish_llm_provider_view(request: Request, provider_name: str, user: User = Depends(required_user)):
+    """Publish a private provider to public (admin only, irreversible)"""
+    from aperag.db.models import Role
+    from aperag.exceptions import PermissionDeniedError
+
+    if user.role != Role.ADMIN:
+        raise PermissionDeniedError("Only admin can publish provider to public")
+    return await publish_llm_provider(provider_name, str(user.id))
 
 
 @router.get("/llm_provider_models", tags=["llm_models"])

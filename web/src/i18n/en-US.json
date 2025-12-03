@@ -399,7 +399,10 @@
       "api_key_description": "To access the AI model's capabilities, you need to provide a valid API Key from your chosen model provider. This key serves as a secure authentication method, allowing the system to process your requests while maintaining privacy and usage control.",
       "edit_provider": "Edit Provider",
       "delete": "Delete",
-      "delete_confirm": "This action cannot be undone. This will permanently delete provider and remove your data from our servers."
+      "delete_confirm": "This action cannot be undone. This will permanently delete provider and remove your data from our servers.",
+      "publish": "Publish to Public",
+      "publish_confirm": "Confirm publishing this provider to public? This action is irreversible and the provider will be visible to all users.",
+      "publish_success": "Provider published successfully"
     },
     "model": {
       "search_placeholder": "Search Models",

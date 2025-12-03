@@ -348,6 +348,49 @@ async def delete_llm_provider(provider_name: str, user_id: str, is_admin: bool =
     return True
 
 
+async def publish_llm_provider(provider_name: str, user_id: str):
+    """Publish a private provider to public (admin only, irreversible)
+
+    Args:
+        provider_name: Name of the provider to publish
+        user_id: User ID making the publish request (must be admin, validated in view layer)
+
+    Returns:
+        Provider data dict
+
+    Raises:
+        ResourceNotFoundException: If provider not found
+        InvalidParamError: If provider is already public
+    """
+    provider = await async_db_ops.query_llm_provider_by_name(provider_name)
+
+    if not provider:
+        raise ResourceNotFoundException("Provider", provider_name)
+
+    if provider.user_id == PUBLIC_USER_ID:
+        raise invalid_param("provider_name", "Provider is already public")
+
+    # Update user_id to public
+    updated_provider = await async_db_ops.update_llm_provider(
+        name=provider_name,
+        user_id=PUBLIC_USER_ID,
+    )
+
+    return {
+        "name": updated_provider.name,
+        "user_id": updated_provider.user_id,
+        "label": updated_provider.label,
+        "completion_dialect": updated_provider.completion_dialect,
+        "embedding_dialect": updated_provider.embedding_dialect,
+        "rerank_dialect": updated_provider.rerank_dialect,
+        "allow_custom_base_url": updated_provider.allow_custom_base_url,
+        "base_url": updated_provider.base_url,
+        "extra": updated_provider.extra,
+        "created": updated_provider.gmt_created,
+        "updated": updated_provider.gmt_updated,
+    }
+
+
 async def list_llm_provider_models(provider_name: Optional[str] = None, user_id: str = None, is_admin: bool = False):
     """List LLM provider models, optionally filtered by provider
 

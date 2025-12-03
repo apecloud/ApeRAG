@@ -40,6 +40,7 @@ import {
   Columns3,
   EllipsisVertical,
   FolderCog,
+  Globe,
   Plus,
   SquarePen,
   Trash,
@@ -201,6 +202,13 @@ export const ProviderTable = ({
                   <SquarePen /> {page_models('provider.edit')}
                 </DropdownMenuItem>
               </ProviderActions>
+              {row.original.user_id !== 'public' && user?.role === 'admin' && (
+                <ProviderActions action="publish" provider={row.original}>
+                  <DropdownMenuItem>
+                    <Globe /> {page_models('provider.publish')}
+                  </DropdownMenuItem>
+                </ProviderActions>
+              )}
               <ProviderActions action="delete" provider={row.original}>
                 <DropdownMenuItem variant="destructive">
                   <Trash /> {page_models('provider.delete')}

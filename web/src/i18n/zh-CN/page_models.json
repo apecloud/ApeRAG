@@ -28,7 +28,10 @@
     "api_key_description": "要使用AI模型功能，需提供来自所选模型供应商的有效API密钥。该密钥作为安全认证凭证，允许系统在处理请求时保障隐私和使用控制。",
     "edit_provider": "编辑供应商",
     "delete": "删除",
-    "delete_confirm": "此操作不可逆。将永久删除供应商配置及相关数据。"
+    "delete_confirm": "此操作不可逆。将永久删除供应商配置及相关数据。",
+    "publish": "发布为公开",
+    "publish_confirm": "确定将此供应商发布为公开？此操作不可逆，发布后将对所有用户可见。",
+    "publish_success": "供应商已发布为公开"
   },
   "model": {
     "search_placeholder": "搜索模型",
