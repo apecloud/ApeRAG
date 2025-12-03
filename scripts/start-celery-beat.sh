@@ -5,4 +5,4 @@ set -o nounset
 
 
 rm -f './celerybeat.pid'
-exec watchfiles celery.__main__.main --args '-A config.celery beat -l INFO'
+exec celery -A config.celery beat -l INFO
