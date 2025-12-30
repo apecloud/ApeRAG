@@ -1,18 +1,14 @@
-# ApeRAG 文档上传模块数据流程
+# ApeRAG 文档上传架构设计
 
 ## 概述
 
-本文档详细说明ApeRAG项目中文档上传模块的完整数据流程，从前端文件上传到后端存储、索引构建的全链路实现。
+本文档详细说明 ApeRAG 项目中文档上传模块的完整架构设计，涵盖从文件上传、临时存储、文档解析、格式转换到最终索引构建的全链路流程。
 
-**核心理念**: 采用**两阶段提交**设计，先上传到临时状态（UPLOADED），用户确认后再正式添加到知识库（PENDING → 索引构建）。
+**核心设计理念**：采用**两阶段提交**模式，将文件上传（临时存储）和文档确认（正式添加）分离，提供更好的用户体验和资源管理能力。
 
-## 核心接口
+## 系统架构
 
-1. **上传文件**: `POST /api/v1/collections/{collection_id}/documents/upload`
-2. **确认文档**: `POST /api/v1/collections/{collection_id}/documents/confirm`
-3. **一步上传**（旧接口）: `POST /api/v1/collections/{collection_id}/documents`
-
-## 数据流图
+### 整体架构图
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -25,1140 +21,1057 @@
          ▼                                   ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  View Layer: aperag/views/collections.py                    │
-│  - upload_document_view()                                   │
-│  - confirm_documents_view()                                 │
-│  - JWT身份验证、参数验证                                      │
+│  - HTTP请求处理                                              │
+│  - JWT身份验证                                               │
+│  - 参数验证                                                  │
 └────────┬───────────────────────────────────┬────────────────┘
          │                                   │
          │ document_service.upload_document() │ document_service.confirm_documents()
          ▼                                   ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  Service Layer: aperag/service/document_service.py          │
+│  - 业务逻辑编排                                              │
 │  - 文件验证（类型、大小）                                     │
-│  - 重复检测（SHA-256 hash）                                  │
-│  - Quota检查                                                │
+│  - SHA-256 哈希去重                                          │
+│  - Quota 检查                                               │
 │  - 事务管理                                                  │
 └────────┬───────────────────────────────────┬────────────────┘
          │                                   │
          │ Step 1                            │ Step 2
          ▼                                   ▼
 ┌────────────────────────┐     ┌────────────────────────────┐
-│  1. 创建Document记录    │     │  1. 更新Document状态       │
+│  1. 创建 Document 记录  │     │  1. 更新 Document 状态     │
 │     status=UPLOADED    │     │     UPLOADED → PENDING     │
-│  2. 保存到ObjectStore  │     │  2. 创建DocumentIndex记录  │
-│  3. 计算content_hash   │     │  3. 触发索引构建任务        │
+│  2. 保存到 ObjectStore │     │  2. 创建 DocumentIndex 记录│
+│  3. 计算 content_hash  │     │  3. 触发索引构建任务        │
 └────────┬───────────────┘     └────────┬───────────────────┘
          │                              │
          ▼                              ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                    Data Storage Layer                       │
+│                    Storage Layer                            │
 │                                                             │
 │  ┌───────────────┐  ┌──────────────────┐  ┌─────────────┐ │
-│  │  PostgreSQL   │  │   Object Store   │  │  Vector DB  │ │
+│  │  PostgreSQL   │  │  Object Store    │  │  Vector DB  │ │
 │  │               │  │                  │  │             │ │
 │  │ - document    │  │ - Local/S3       │  │ - Qdrant    │ │
 │  │ - document_   │  │ - 原始文件        │  │ - 向量索引  │ │
 │  │   index       │  │ - 转换后的文件    │  │             │ │
-│  │               │  │                  │  │             │ │
 │  └───────────────┘  └──────────────────┘  └─────────────┘ │
 │                                                             │
 │  ┌───────────────┐  ┌──────────────────┐                  │
 │  │ Elasticsearch │  │   Neo4j/PG       │                  │
 │  │               │  │                  │                  │
 │  │ - 全文索引     │  │ - 知识图谱       │                  │
-│  │               │  │                  │                  │
 │  └───────────────┘  └──────────────────┘                  │
 └─────────────────────────────────────────────────────────────┘
                          │
                          ▼
                ┌───────────────────┐
                │  Celery Workers   │
+               │                   │
                │  - 文档解析        │
-               │  - 分块处理        │
+               │  - 格式转换        │
+               │  - 内容提取        │
+               │  - 文档分块        │
                │  - 索引构建        │
                └───────────────────┘
 ```
 
-## 完整流程详解
+### 分层架构
 
-### 阶段1: 文件上传（临时存储）
-
-#### 1.1 View层 - HTTP请求处理
-
-**文件**: `aperag/views/collections.py`
-
-```python
-@router.post("/collections/{collection_id}/documents/upload", tags=["documents"])
-@audit(resource_type="document", api_name="UploadDocument")
-async def upload_document_view(
-    request: Request,
-    collection_id: str,
-    file: UploadFile = File(...),
-    user: User = Depends(required_user),
-) -> view_models.UploadDocumentResponse:
-    """Upload a single document file to temporary storage"""
-    return await document_service.upload_document(str(user.id), collection_id, file)
+```
+┌─────────────────────────────────────────────┐
+│  View Layer (views/collections.py)         │  HTTP 处理、认证、参数验证
+└─────────────────┬───────────────────────────┘
+                  │ 调用
+┌─────────────────▼───────────────────────────┐
+│  Service Layer (service/document_service.py)│  业务逻辑、事务编排、权限控制
+└─────────────────┬───────────────────────────┘
+                  │ 调用
+┌─────────────────▼───────────────────────────┐
+│  Repository Layer (db/ops.py, objectstore/) │  数据访问抽象、对象存储接口
+└─────────────────┬───────────────────────────┘
+                  │ 访问
+┌─────────────────▼───────────────────────────┐
+│  Storage Layer (PG, S3, Qdrant, ES, Neo4j) │  数据持久化
+└─────────────────────────────────────────────┘
 ```
 
-**职责**:
-- 接收 multipart/form-data 文件上传
-- JWT Token身份验证
-- 提取路径参数 (collection_id)
-- 调用Service层
-- 返回`UploadDocumentResponse`（包含document_id、filename、size、status）
+## 核心流程详解
 
-#### 1.2 Service层 - 业务逻辑编排
+### 阶段 0: API 接口定义
 
-**文件**: `aperag/service/document_service.py`
+系统提供三个主要接口：
 
-```python
-async def upload_document(
-    self, user_id: str, collection_id: str, file: UploadFile
-) -> view_models.UploadDocumentResponse:
-    """Upload a single document file to temporary storage with duplicate detection"""
-    # 1. 验证集合存在且激活
-    collection = await self._validate_collection(user_id, collection_id)
-    
-    # 2. 验证文件类型和大小
-    file_suffix = self._validate_file(file.filename, file.size)
-    
-    # 3. 读取文件内容
-    file_content = await file.read()
-    
-    # 4. 计算文件哈希（SHA-256）
-    file_hash = calculate_file_hash(file_content)
-    
-    # 5. 事务处理
-    async def _upload_document_atomically(session):
-        # 5.1 重复检测
-        existing_doc = await self._check_duplicate_document(
-            user_id, collection.id, file.filename, file_hash
-        )
-        
-        if existing_doc:
-            # 幂等操作：返回已存在文档
-            return view_models.UploadDocumentResponse(
-                document_id=existing_doc.id,
-                filename=existing_doc.name,
-                size=existing_doc.size,
-                status=existing_doc.status,
-            )
-        
-        # 5.2 创建新文档（UPLOADED状态）
-        document_instance = await self._create_document_record(
-            session=session,
-            user=user_id,
-            collection_id=collection.id,
-            filename=file.filename,
-            size=file.size,
-            status=db_models.DocumentStatus.UPLOADED,  # 临时状态
-            file_suffix=file_suffix,
-            file_content=file_content,
-            content_hash=file_hash,
-        )
-        
-        return view_models.UploadDocumentResponse(
-            document_id=document_instance.id,
-            filename=document_instance.name,
-            size=document_instance.size,
-            status=document_instance.status,
-        )
-    
-    return await self.db_ops.execute_with_transaction(_upload_document_atomically)
+1. **上传文件**（两阶段模式 - 第一步）
+   - 接口：`POST /api/v1/collections/{collection_id}/documents/upload`
+   - 功能：上传文件到临时存储，状态为 `UPLOADED`
+   - 返回：`document_id`、`filename`、`size`、`status`
+
+2. **确认文档**（两阶段模式 - 第二步）
+   - 接口：`POST /api/v1/collections/{collection_id}/documents/confirm`
+   - 功能：确认已上传的文档，触发索引构建
+   - 参数：`document_ids` 数组
+   - 返回：`confirmed_count`、`failed_count`、`failed_documents`
+
+3. **一步上传**（传统模式，兼容旧版）
+   - 接口：`POST /api/v1/collections/{collection_id}/documents`
+   - 功能：上传并直接添加到知识库，状态直接为 `PENDING`
+   - 支持批量上传
+
+### 阶段 1: 文件上传与临时存储
+
+#### 1.1 上传流程
+
+```
+用户选择文件
+    │
+    ▼
+前端调用 upload API
+    │
+    ▼
+View 层验证身份和参数
+    │
+    ▼
+Service 层处理业务逻辑：
+    │
+    ├─► 验证集合存在且激活
+    │
+    ├─► 验证文件类型和大小
+    │
+    ├─► 读取文件内容
+    │
+    ├─► 计算 SHA-256 哈希
+    │
+    └─► 事务处理：
+        │
+        ├─► 重复检测（按文件名+哈希）
+        │   ├─ 完全相同：返回已存在文档（幂等）
+        │   ├─ 同名不同内容：抛出冲突异常
+        │   └─ 新文档：继续创建
+        │
+        ├─► 创建 Document 记录（status=UPLOADED）
+        │
+        ├─► 上传到对象存储
+        │   └─ 路径：user-{user_id}/{collection_id}/{document_id}/original{suffix}
+        │
+        └─► 更新文档元数据（object_path）
 ```
 
-**核心验证逻辑**:
+#### 1.2 文件验证
 
-1. **集合验证** (`_validate_collection`)
-   - 集合是否存在
-   - 集合是否处于ACTIVE状态
+**支持的文件类型**：
+- 文档：`.pdf`, `.doc`, `.docx`, `.ppt`, `.pptx`, `.xls`, `.xlsx`
+- 文本：`.txt`, `.md`, `.html`, `.json`, `.xml`, `.yaml`, `.yml`, `.csv`
+- 图片：`.png`, `.jpg`, `.jpeg`, `.gif`, `.bmp`, `.tiff`, `.tif`
+- 音频：`.mp3`, `.wav`, `.m4a`
+- 压缩包：`.zip`, `.tar`, `.gz`, `.tgz`
 
-2. **文件验证** (`_validate_file`)
-   - 文件扩展名是否支持
-   - 文件大小是否超过限制（默认100MB）
+**大小限制**：
+- 默认：100 MB（可通过 `MAX_DOCUMENT_SIZE` 环境变量配置）
+- 解压后总大小：5 GB（`MAX_EXTRACTED_SIZE`）
 
-3. **重复检测** (`_check_duplicate_document`)
-   - 按文件名和SHA-256哈希查询
-   - 如果文件名相同但哈希不同：抛出`DocumentNameConflictException`
-   - 如果文件名和哈希都相同：返回已存在文档（幂等）
+#### 1.3 重复检测机制
 
-#### 1.3 文档创建逻辑
+采用**文件名 + SHA-256 哈希**双重检测：
 
-**方法**: `_create_document_record`
+| 场景 | 文件名 | 哈希值 | 系统行为 |
+|------|--------|--------|----------|
+| 完全相同 | 相同 | 相同 | 返回已存在文档（幂等操作） |
+| 文件名冲突 | 相同 | 不同 | 抛出 `DocumentNameConflictException` |
+| 新文档 | 不同 | - | 创建新文档记录 |
 
-```python
-async def _create_document_record(
-    self,
-    session: AsyncSession,
-    user: str,
-    collection_id: str,
-    filename: str,
-    size: int,
-    status: db_models.DocumentStatus,
-    file_suffix: str,
-    file_content: bytes,
-    custom_metadata: dict = None,
-    content_hash: str = None,
-) -> db_models.Document:
-    # 1. 创建数据库记录
-    document_instance = db_models.Document(
-        user=user,
-        name=filename,
-        status=status,
-        size=size,
-        collection_id=collection_id,
-        content_hash=content_hash,
-    )
-    session.add(document_instance)
-    await session.flush()
-    await session.refresh(document_instance)
-    
-    # 2. 上传到对象存储
-    async_obj_store = get_async_object_store()
-    upload_path = f"{document_instance.object_store_base_path()}/original{file_suffix}"
-    await async_obj_store.put(upload_path, file_content)
-    
-    # 3. 更新元数据
-    metadata = {"object_path": upload_path}
-    if custom_metadata:
-        metadata.update(custom_metadata)
-    document_instance.doc_metadata = json.dumps(metadata)
-    session.add(document_instance)
-    await session.flush()
-    
-    return document_instance
-```
+**优势**：
+- ✅ 支持幂等上传：网络重传不会创建重复文档
+- ✅ 避免内容冲突：同名不同内容会提示用户
+- ✅ 节省存储空间：相同内容只存储一次
 
-**对象存储路径生成**:
+### 阶段 2: 临时存储配置
 
-```python
-# 模型方法：aperag/db/models.py
-def object_store_base_path(self) -> str:
-    """Generate the base path for object store"""
-    user = self.user.replace("|", "-")
-    return f"user-{user}/{self.collection_id}/{self.id}"
+#### 2.1 对象存储类型
 
-# 实际存储路径示例：
-# user-google-oauth2|123456/col_abc123/doc_xyz789/original.pdf
-```
+系统支持两种对象存储后端，可通过环境变量切换：
 
-### 阶段2: 确认文档（正式添加）
+**1. Local 存储（本地文件系统）**
 
-#### 2.1 View层
+适用场景：
+- 开发测试环境
+- 小规模部署
+- 单机部署
 
-**文件**: `aperag/views/collections.py`
-
-```python
-@router.post("/collections/{collection_id}/documents/confirm", tags=["documents"])
-@audit(resource_type="document", api_name="ConfirmDocuments")
-async def confirm_documents_view(
-    request: Request,
-    collection_id: str,
-    data: view_models.ConfirmDocumentsRequest,
-    user: User = Depends(required_user),
-) -> view_models.ConfirmDocumentsResponse:
-    """Confirm uploaded documents and add them to collection"""
-    return await document_service.confirm_documents(
-        str(user.id), collection_id, data.document_ids
-    )
-```
-
-#### 2.2 Service层 - 确认逻辑
-
-**方法**: `confirm_documents`
-
-```python
-async def confirm_documents(
-    self, user_id: str, collection_id: str, document_ids: list[str]
-) -> view_models.ConfirmDocumentsResponse:
-    """Confirm uploaded documents and trigger indexing"""
-    # 1. 验证集合
-    collection = await self._validate_collection(user_id, collection_id)
-    
-    # 2. 获取集合配置
-    collection_config = json.loads(collection.config)
-    index_types = self._get_index_types_for_collection(collection_config)
-    
-    confirmed_count = 0
-    failed_count = 0
-    failed_documents = []
-    
-    # 3. 事务处理
-    async def _confirm_documents_atomically(session):
-        # 3.1 检查Quota（确认阶段才扣除配额）
-        await self._check_document_quotas(session, user_id, collection_id, len(document_ids))
-        
-        for document_id in document_ids:
-            try:
-                # 3.2 验证文档状态
-                stmt = select(db_models.Document).where(
-                    db_models.Document.id == document_id,
-                    db_models.Document.user == user_id,
-                    db_models.Document.collection_id == collection_id,
-                    db_models.Document.status == db_models.DocumentStatus.UPLOADED
-                )
-                result = await session.execute(stmt)
-                document = result.scalar_one_or_none()
-                
-                if not document:
-                    # 文档不存在或状态不对
-                    failed_documents.append(...)
-                    failed_count += 1
-                    continue
-                
-                # 3.3 更新文档状态：UPLOADED → PENDING
-                document.status = db_models.DocumentStatus.PENDING
-                document.gmt_updated = utc_now()
-                session.add(document)
-                
-                # 3.4 创建索引记录
-                await document_index_manager.create_or_update_document_indexes(
-                    document_id=document.id,
-                    index_types=index_types,
-                    session=session
-                )
-                
-                confirmed_count += 1
-                
-            except Exception as e:
-                logger.error(f"Failed to confirm document {document_id}: {e}")
-                failed_documents.append(...)
-                failed_count += 1
-        
-        return confirmed_count, failed_count, failed_documents
-    
-    # 4. 执行事务
-    await self.db_ops.execute_with_transaction(_confirm_documents_atomically)
-    
-    # 5. 触发索引协调任务
-    _trigger_index_reconciliation()
-    
-    return view_models.ConfirmDocumentsResponse(
-        confirmed_count=confirmed_count,
-        failed_count=failed_count,
-        failed_documents=failed_documents
-    )
-```
-
-**索引类型配置**:
-
-```python
-def _get_index_types_for_collection(self, collection_config: dict) -> list:
-    """Get the list of index types to create based on collection configuration"""
-    index_types = [
-        db_models.DocumentIndexType.VECTOR,     # 向量索引（必选）
-        db_models.DocumentIndexType.FULLTEXT,   # 全文索引（必选）
-    ]
-    
-    if collection_config.get("enable_knowledge_graph", False):
-        index_types.append(db_models.DocumentIndexType.GRAPH)
-    if collection_config.get("enable_summary", False):
-        index_types.append(db_models.DocumentIndexType.SUMMARY)
-    if collection_config.get("enable_vision", False):
-        index_types.append(db_models.DocumentIndexType.VISION)
-    
-    return index_types
-```
-
-### 一步上传接口（兼容旧版）
-
-**接口**: `POST /api/v1/collections/{collection_id}/documents`
-
-```python
-@router.post("/collections/{collection_id}/documents", tags=["documents"])
-async def create_documents_view(
-    request: Request,
-    collection_id: str,
-    files: List[UploadFile] = File(...),
-    user: User = Depends(required_user),
-) -> view_models.DocumentList:
-    return await document_service.create_documents(str(user.id), collection_id, files)
-```
-
-**核心逻辑**:
-
-- 一次性完成：文件上传 + 确认添加
-- 直接创建状态为 PENDING 的文档
-- 立即创建索引记录
-- 支持批量上传多个文件
-
-## 数据存储层
-
-### 1. PostgreSQL - 文档元数据
-
-#### 1.1 Document表
-
-**文件**: `aperag/db/models.py`
-
-```python
-class Document(Base):
-    __tablename__ = "document"
-    __table_args__ = (
-        UniqueConstraint("collection_id", "name", "gmt_deleted", 
-                        name="uq_document_collection_name_deleted"),
-    )
-    
-    id = Column(String(24), primary_key=True, default=lambda: "doc" + random_id())
-    name = Column(String(1024), nullable=False)
-    user = Column(String(256), nullable=False, index=True)
-    collection_id = Column(String(24), nullable=True, index=True)
-    status = Column(EnumColumn(DocumentStatus), nullable=False, index=True)
-    size = Column(BigInteger, nullable=False)
-    content_hash = Column(String(64), nullable=True, index=True)  # SHA-256
-    object_path = Column(Text, nullable=True)
-    doc_metadata = Column(Text, nullable=True)  # JSON字符串
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)
-```
-
-**状态枚举** (`DocumentStatus`):
-
-| 状态 | 说明 | 何时设置 |
-|------|------|----------|
-| `UPLOADED` | 已上传到临时存储 | upload_document 接口 |
-| `PENDING` | 等待索引构建 | confirm_documents 接口 |
-| `RUNNING` | 索引构建中 | Celery任务开始处理 |
-| `COMPLETE` | 所有索引完成 | 所有索引状态变为ACTIVE |
-| `FAILED` | 索引构建失败 | 任一索引失败 |
-| `DELETED` | 已删除 | delete_document 接口 |
-| `EXPIRED` | 临时文档过期 | 定时清理任务（未实现） |
-
-#### 1.2 DocumentIndex表
-
-```python
-class DocumentIndex(Base):
-    __tablename__ = "document_index"
-    __table_args__ = (
-        UniqueConstraint("document_id", "index_type", name="uq_document_index"),
-    )
-    
-    id = Column(Integer, primary_key=True, index=True)
-    document_id = Column(String(24), nullable=False, index=True)
-    index_type = Column(EnumColumn(DocumentIndexType), nullable=False, index=True)
-    status = Column(EnumColumn(DocumentIndexStatus), nullable=False, 
-                   default=DocumentIndexStatus.PENDING, index=True)
-    version = Column(Integer, nullable=False, default=1)
-    observed_version = Column(Integer, nullable=False, default=0)
-    index_data = Column(Text, nullable=True)  # JSON数据
-    error_message = Column(Text, nullable=True)
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_last_reconciled = Column(DateTime(timezone=True), nullable=True)
-```
-
-**索引类型** (`DocumentIndexType`):
-
-- `VECTOR`: 向量索引（Qdrant等）
-- `FULLTEXT`: 全文索引（Elasticsearch）
-- `GRAPH`: 知识图谱索引（Neo4j/PostgreSQL）
-- `SUMMARY`: 文档摘要
-- `VISION`: 视觉索引（图片内容）
-
-**索引状态** (`DocumentIndexStatus`):
-
-| 状态 | 说明 |
-|------|------|
-| `PENDING` | 等待处理 |
-| `CREATING` | 创建中 |
-| `ACTIVE` | 就绪可用 |
-| `DELETING` | 标记删除 |
-| `DELETION_IN_PROGRESS` | 删除中 |
-| `FAILED` | 失败 |
-
-### 2. Object Store - 文件存储
-
-#### 2.1 存储后端配置
-
-**文件**: `aperag/config.py`
-
-```python
-class Config(BaseSettings):
-    # Object store type: "local" or "s3"
-    object_store_type: str = Field("local", alias="OBJECT_STORE_TYPE")
-    
-    # Local storage config
-    object_store_local_config: Optional[LocalObjectStoreConfig] = None
-    
-    # S3 storage config
-    object_store_s3_config: Optional[S3Config] = None
-```
-
-**环境变量配置**:
-
+配置方式：
 ```bash
-# Local存储（默认）
+# 开发环境
 OBJECT_STORE_TYPE=local
 OBJECT_STORE_LOCAL_ROOT_DIR=.objects
 
-# S3存储（MinIO/AWS S3）
-OBJECT_STORE_TYPE=s3
-OBJECT_STORE_S3_ENDPOINT=http://127.0.0.1:9000
-OBJECT_STORE_S3_ACCESS_KEY=minioadmin
-OBJECT_STORE_S3_SECRET_KEY=minioadmin
-OBJECT_STORE_S3_BUCKET=aperag
-OBJECT_STORE_S3_REGION=us-east-1
-OBJECT_STORE_S3_PREFIX_PATH=
-OBJECT_STORE_S3_USE_PATH_STYLE=true
+# Docker 环境
+OBJECT_STORE_TYPE=local
+OBJECT_STORE_LOCAL_ROOT_DIR=/shared/objects
 ```
 
-#### 2.2 对象存储接口
-
-**文件**: `aperag/objectstore/base.py`
-
-```python
-class AsyncObjectStore(ABC):
-    @abstractmethod
-    async def put(self, path: str, data: bytes | IO[bytes]):
-        """Upload object to storage"""
-        ...
-    
-    @abstractmethod
-    async def get(self, path: str) -> IO[bytes] | None:
-        """Download object from storage"""
-        ...
-    
-    @abstractmethod
-    async def delete_objects_by_prefix(self, path_prefix: str):
-        """Delete all objects with given prefix"""
-        ...
-```
-
-**工厂方法**:
-
-```python
-def get_async_object_store() -> AsyncObjectStore:
-    """Factory function to get an asynchronous AsyncObjectStore instance"""
-    match settings.object_store_type:
-        case "local":
-            from aperag.objectstore.local import AsyncLocal, LocalConfig
-            return AsyncLocal(LocalConfig(**config_dict))
-        case "s3":
-            from aperag.objectstore.s3 import AsyncS3, S3Config
-            return AsyncS3(S3Config(**config_dict))
-```
-
-#### 2.3 Local存储实现
-
-**文件**: `aperag/objectstore/local.py`
-
-```python
-class AsyncLocal(AsyncObjectStore):
-    def __init__(self, cfg: LocalConfig):
-        self._base_storage_path = Path(cfg.root_dir).resolve()
-        self._base_storage_path.mkdir(parents=True, exist_ok=True)
-    
-    def _resolve_object_path(self, path: str) -> Path:
-        """Resolve and validate object path (security check)"""
-        path_components = Path(path.lstrip("/")).parts
-        if ".." in path_components:
-            raise ValueError("Invalid path: '..' not allowed")
-        
-        prospective_path = self._base_storage_path.joinpath(*path_components)
-        normalized_path = Path(os.path.abspath(prospective_path))
-        
-        if self._base_storage_path not in normalized_path.parents:
-            raise ValueError("Path traversal attempt detected")
-        
-        return prospective_path
-    
-    async def put(self, path: str, data: bytes | IO[bytes]):
-        """Write file to local filesystem"""
-        full_path = self._resolve_object_path(path)
-        full_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        async with aiofiles.open(full_path, "wb") as f:
-            if isinstance(data, bytes):
-                await f.write(data)
-            else:
-                await f.write(data.read())
-```
-
-**存储路径示例**:
-
+存储路径示例：
 ```
 .objects/
 └── user-google-oauth2-123456/
     └── col_abc123/
         └── doc_xyz789/
-            ├── original.pdf         # 原始文件
-            ├── converted.pdf        # 转换后的PDF
-            ├── chunks/              # 分块数据
+            ├── original.pdf              # 原始文件
+            ├── converted.pdf             # 转换后的 PDF
+            ├── processed_content.md      # 解析后的 Markdown
+            ├── chunks/                   # 分块数据
             │   ├── chunk_0.json
             │   └── chunk_1.json
-            └── images/              # 提取的图片
-                ├── image_0.png
-                └── image_1.png
+            └── images/                   # 提取的图片
+                ├── page_0.png
+                └── page_1.png
 ```
 
-#### 2.4 S3存储实现
+**2. S3 存储（兼容 AWS S3/MinIO/OSS 等）**
 
-**文件**: `aperag/objectstore/s3.py`
+适用场景：
+- 生产环境
+- 大规模部署
+- 分布式部署
+- 需要高可用和容灾
 
-```python
-class AsyncS3(AsyncObjectStore):
-    def __init__(self, cfg: S3Config):
-        self.cfg = cfg
-        self._s3_client = None
-    
-    async def put(self, path: str, data: bytes | IO[bytes]):
-        """Upload file to S3"""
-        client = await self._get_client()
-        path = self._final_path(path)
-        
-        if isinstance(data, bytes):
-            data = BytesIO(data)
-        
-        await client.upload_fileobj(data, self.cfg.bucket, path)
-    
-    def _final_path(self, path: str) -> str:
-        """Add prefix path if configured"""
-        if self.cfg.prefix_path:
-            return f"{self.cfg.prefix_path.rstrip('/')}/{path.lstrip('/')}"
-        return path.lstrip('/')
-```
-
-### 3. 向量数据库 - 向量索引
-
-**支持的向量数据库**:
-
-- Qdrant（默认）
-- Elasticsearch
-- 其他兼容接口的向量数据库
-
-**配置示例**:
-
+配置方式：
 ```bash
-VECTOR_DB_TYPE=qdrant
-VECTOR_DB_CONTEXT='{"url":"http://localhost","port":6333,"distance":"Cosine"}'
+OBJECT_STORE_TYPE=s3
+OBJECT_STORE_S3_ENDPOINT=http://127.0.0.1:9000  # MinIO/S3 地址
+OBJECT_STORE_S3_REGION=us-east-1                # AWS Region
+OBJECT_STORE_S3_ACCESS_KEY=minioadmin           # Access Key
+OBJECT_STORE_S3_SECRET_KEY=minioadmin           # Secret Key
+OBJECT_STORE_S3_BUCKET=aperag                   # Bucket 名称
+OBJECT_STORE_S3_PREFIX_PATH=dev/                # 可选的路径前缀
+OBJECT_STORE_S3_USE_PATH_STYLE=true             # MinIO 需要设置为 true
 ```
 
-### 4. Elasticsearch - 全文索引
+#### 2.2 对象存储路径规则
 
-**环境变量**:
-
-```bash
-ES_HOST_NAME=127.0.0.1
-ES_PORT=9200
-ES_USER=
-ES_PASSWORD=
-ES_PROTOCOL=http
+**路径格式**：
+```
+{prefix}/user-{user_id}/{collection_id}/{document_id}/{filename}
 ```
 
-### 5. 知识图谱存储
+**组成部分**：
+- `prefix`：可选的全局前缀（仅 S3）
+- `user_id`：用户 ID（`|` 替换为 `-`）
+- `collection_id`：集合 ID
+- `document_id`：文档 ID
+- `filename`：文件名（如 `original.pdf`、`page_0.png`）
 
-**支持的后端**:
+**多租户隔离**：
+- 每个用户有独立的命名空间
+- 每个集合有独立的存储目录
+- 每个文档有独立的文件夹
 
-- Neo4j（推荐）
-- PostgreSQL（自模拟图数据库）
-- NebulaGraph
+### 阶段 3: 文档确认与索引构建
 
-## 文档重复检测机制
+#### 3.1 确认流程
 
-### 检测逻辑
-
-**方法**: `_check_duplicate_document`
-
-```python
-async def _check_duplicate_document(
-    self, user: str, collection_id: str, filename: str, file_hash: str
-) -> db_models.Document | None:
-    """
-    Check if a document with the same name exists in the collection.
-    Returns the existing document if found, None otherwise.
-    Raises DocumentNameConflictException if same name but different file hash.
-    """
-    # 1. 查询同名文档
-    existing_doc = await self.db_ops.query_document_by_name_and_collection(
-        user, collection_id, filename
-    )
-    
-    if existing_doc:
-        # 2. 如果没有哈希（旧版文档），跳过哈希检查
-        if existing_doc.content_hash is None:
-            logger.warning(f"Existing document {existing_doc.id} has no file hash")
-            return existing_doc
-        
-        # 3. 哈希相同：真正的重复（幂等）
-        if existing_doc.content_hash == file_hash:
-            return existing_doc
-        
-        # 4. 哈希不同：文件名冲突
-        raise DocumentNameConflictException(filename, collection_id)
-    
-    return None
+```
+用户点击"保存到集合"
+    │
+    ▼
+前端调用 confirm API
+    │
+    ▼
+Service 层处理：
+    │
+    ├─► 验证集合配置
+    │
+    ├─► 检查 Quota（确认阶段才扣除配额）
+    │
+    └─► 对每个 document_id：
+        │
+        ├─► 验证文档状态为 UPLOADED
+        │
+        ├─► 更新文档状态：UPLOADED → PENDING
+        │
+        ├─► 根据集合配置创建索引记录：
+        │   ├─ VECTOR（向量索引，必选）
+        │   ├─ FULLTEXT（全文索引，必选）
+        │   ├─ GRAPH（知识图谱，可选）
+        │   ├─ SUMMARY（文档摘要，可选）
+        │   └─ VISION（视觉索引，可选）
+        │
+        └─► 返回确认结果
+    │
+    ▼
+触发 Celery 任务：reconcile_document_indexes
+    │
+    ▼
+后台异步处理索引构建
 ```
 
-### 哈希算法
+#### 3.2 Quota（配额）管理
 
-**SHA-256文件哈希计算**:
+**检查时机**：
+- ❌ 不在上传阶段检查（临时存储不占用配额）
+- ✅ 在确认阶段检查（正式添加才消耗配额）
 
-```python
-def calculate_file_hash(file_content: bytes) -> str:
-    """Calculate SHA-256 hash of file content"""
-    import hashlib
-    return hashlib.sha256(file_content).hexdigest()
+**配额类型**：
+
+1. **用户全局配额**
+   - `max_document_count`：用户总文档数量限制
+   - 默认：1000（可通过 `MAX_DOCUMENT_COUNT` 配置）
+
+2. **单集合配额**
+   - `max_document_count_per_collection`：单个集合文档数量限制
+   - 不计入 `UPLOADED` 和 `DELETED` 状态的文档
+
+**配额超限处理**：
+- 抛出 `QuotaExceededException`
+- 返回 HTTP 400 错误
+- 包含当前用量和配额上限信息
+
+### 阶段 4: 文档解析与格式转换
+
+#### 4.1 Parser 架构
+
+系统采用**多 Parser 链式调用**架构，每个 Parser 负责特定类型的文件解析：
+
+```
+DocParser（主控制器）
+    │
+    ├─► MinerUParser
+    │   └─ 功能：高精度 PDF 解析（商业 API）
+    │   └─ 支持：.pdf
+    │
+    ├─► DocRayParser
+    │   └─ 功能：文档布局分析和内容提取
+    │   └─ 支持：.pdf, .docx, .pptx, .xlsx
+    │
+    ├─► ImageParser
+    │   └─ 功能：图片内容识别（OCR + 视觉理解）
+    │   └─ 支持：.jpg, .png, .gif, .bmp, .tiff
+    │
+    ├─► AudioParser
+    │   └─ 功能：音频转录（Speech-to-Text）
+    │   └─ 支持：.mp3, .wav, .m4a
+    │
+    └─► MarkItDownParser（兜底）
+        └─ 功能：通用文档转 Markdown
+        └─ 支持：几乎所有常见格式
 ```
 
-### 重复策略
+#### 4.2 Parser 配置
 
-| 场景 | 文件名 | 哈希 | 行为 |
-|------|-------|------|------|
-| 完全相同 | 相同 | 相同 | 返回已存在文档（幂等） |
-| 文件名冲突 | 相同 | 不同 | 抛出`DocumentNameConflictException` |
-| 新文档 | 不同 | - | 创建新文档 |
-
-## Quota（配额）管理
-
-### 检查时机
-
-**在确认阶段检查配额**（不在上传阶段），因为：
-
-1. 上传阶段只是临时存储，不占用正式配额
-2. 确认阶段才真正消耗资源（索引构建）
-3. 允许用户先上传后选择性确认
-
-### 配额类型
-
-```python
-async def _check_document_quotas(
-    self, session: AsyncSession, user: str, collection_id: str, count: int
-):
-    """Check and consume document quotas"""
-    # 1. 检查并消耗用户全局配额
-    await quota_service.check_and_consume_quota(
-        user, "max_document_count", count, session
-    )
-    
-    # 2. 检查单个集合配额
-    stmt = select(func.count()).select_from(db_models.Document).where(
-        db_models.Document.collection_id == collection_id,
-        db_models.Document.status != db_models.DocumentStatus.DELETED,
-        db_models.Document.status != db_models.DocumentStatus.UPLOADED,  # 不计入临时文档
-    )
-    existing_doc_count = await session.scalar(stmt)
-    
-    # 3. 获取配额限制
-    stmt = select(UserQuota).where(
-        UserQuota.user == user,
-        UserQuota.key == "max_document_count_per_collection"
-    )
-    per_collection_quota = (await session.execute(stmt)).scalars().first()
-    
-    # 4. 验证是否超出
-    if per_collection_quota and (existing_doc_count + count) > per_collection_quota.quota_limit:
-        raise QuotaExceededException(
-            "max_document_count_per_collection",
-            per_collection_quota.quota_limit,
-            existing_doc_count
-        )
-```
-
-### 默认配额
-
-**文件**: `aperag/config.py`
-
-```python
-class Config(BaseSettings):
-    max_document_count: int = Field(1000, alias="MAX_DOCUMENT_COUNT")
-    max_document_size: int = Field(100 * 1024 * 1024, alias="MAX_DOCUMENT_SIZE")  # 100MB
-```
-
-## 异步任务处理（Celery）
-
-### 索引协调机制
-
-**文件**: `aperag/service/document_service.py`
-
-```python
-def _trigger_index_reconciliation():
-    """Trigger index reconciliation task in background"""
-    try:
-        from config.celery_tasks import reconcile_document_indexes
-        reconcile_document_indexes.apply_async()
-    except Exception as e:
-        logger.warning(f"Failed to trigger index reconciliation task: {e}")
-```
-
-**Celery任务**: `config/celery_tasks.py`
-
-```python
-@celery_app.task(name="reconcile_document_indexes")
-def reconcile_document_indexes():
-    """Reconcile document indexes based on their status"""
-    from aperag.index.manager import document_index_manager
-    
-    # 处理PENDING状态的索引
-    document_index_manager.reconcile_pending_indexes()
-    
-    # 处理DELETING状态的索引
-    document_index_manager.reconcile_deleting_indexes()
-```
-
-### 索引构建流程
-
-1. **文档解析**: DocParser解析文档内容
-2. **文档分块**: Chunking策略切分文档
-3. **向量化**: Embedding模型生成向量
-4. **向量索引**: 写入向量数据库
-5. **全文索引**: 写入Elasticsearch
-6. **知识图谱**: LightRAG提取实体关系
-7. **文档摘要**: LLM生成摘要（可选）
-8. **视觉索引**: 提取和分析图片（可选）
-
-## 文件验证
-
-### 支持的文件类型
-
-**文件**: `aperag/docparser/doc_parser.py`
-
-```python
-class DocParser:
-    def supported_extensions(self) -> list:
-        return [
-            ".txt", ".md", ".html", ".pdf",
-            ".docx", ".doc", ".pptx", ".ppt",
-            ".xlsx", ".xls", ".csv",
-            ".json", ".xml", ".yaml", ".yml",
-            ".png", ".jpg", ".jpeg", ".gif", ".bmp",
-            ".mp3", ".wav", ".m4a",
-            # ... 更多格式
-        ]
-```
-
-**压缩文件支持**:
-
-```python
-SUPPORTED_COMPRESSED_EXTENSIONS = [".zip", ".tar", ".gz", ".tgz"]
-```
-
-### 大小限制
-
-```python
-def _validate_file(self, filename: str, size: int) -> str:
-    """Validate file extension and size"""
-    supported_extensions = DocParser().supported_extensions()
-    supported_extensions += SUPPORTED_COMPRESSED_EXTENSIONS
-    
-    file_suffix = os.path.splitext(filename)[1].lower()
-    
-    if file_suffix not in supported_extensions:
-        raise invalid_param("file_type", f"unsupported file type {file_suffix}")
-    
-    if size > settings.max_document_size:
-        raise invalid_param("file_size", "file size is too large")
-    
-    return file_suffix
-```
-
-## API响应格式
-
-### UploadDocumentResponse
-
-**Schema**: `aperag/api/components/schemas/document.yaml`
-
-```yaml
-uploadDocumentResponse:
-  type: object
-  properties:
-    document_id:
-      type: string
-      description: ID of the uploaded document
-    filename:
-      type: string
-      description: Name of the uploaded file
-    size:
-      type: integer
-      description: Size of the uploaded file in bytes
-    status:
-      type: string
-      enum:
-        - UPLOADED
-        - PENDING
-        - RUNNING  
-        - COMPLETE
-        - FAILED
-        - DELETED
-        - EXPIRED
-      description: Status of the document
-  required:
-    - document_id
-    - filename
-    - size
-    - status
-```
-
-**示例**:
+**配置方式**：通过集合配置（Collection Config）动态控制
 
 ```json
 {
-  "document_id": "doc_xyz789abc",
-  "filename": "user_manual.pdf",
-  "size": 2048576,
-  "status": "UPLOADED"
+  "parser_config": {
+    "use_mineru": false,           // 是否启用 MinerU（需要 API Token）
+    "use_doc_ray": false,          // 是否启用 DocRay
+    "use_markitdown": true,        // 是否启用 MarkItDown（默认）
+    "mineru_api_token": "xxx"      // MinerU API Token（可选）
+  }
 }
 ```
 
-### ConfirmDocumentsResponse
-
-```yaml
-confirmDocumentsResponse:
-  type: object
-  properties:
-    confirmed_count:
-      type: integer
-      description: Number of documents successfully confirmed
-    failed_count:
-      type: integer
-      description: Number of documents that failed to confirm
-    failed_documents:
-      type: array
-      items:
-        type: object
-        properties:
-          document_id:
-            type: string
-          name:
-            type: string
-          error:
-            type: string
-  required:
-    - confirmed_count
-    - failed_count
+**环境变量配置**：
+```bash
+USE_MINERU_API=false              # 全局启用 MinerU
+MINERU_API_TOKEN=your_token       # MinerU API Token
 ```
 
-**示例**:
+#### 4.3 解析流程
 
+```
+Celery Worker 收到索引任务
+    │
+    ▼
+1. 从对象存储下载原始文件
+    │
+    ▼
+2. 根据文件扩展名选择 Parser
+    │
+    ├─► 尝试第一个匹配的 Parser
+    │   ├─ 成功：返回解析结果
+    │   └─ 失败：FallbackError → 尝试下一个 Parser
+    │
+    └─► 最终兜底：MarkItDownParser
+    │
+    ▼
+3. 解析结果（Parts）：
+    │
+    ├─► MarkdownPart：文本内容
+    │   └─ 包含：标题、段落、列表、表格等
+    │
+    ├─► PdfPart：PDF 文件
+    │   └─ 用于：线性化、页面渲染
+    │
+    └─► AssetBinPart：二进制资源
+        └─ 包含：图片、嵌入的文件等
+    │
+    ▼
+4. 后处理（Post-processing）：
+    │
+    ├─► PDF 页面转图片（Vision 索引需要）
+    │   └─ 每页渲染为 PNG 图片
+    │   └─ 保存到 {document_path}/images/page_N.png
+    │
+    ├─► PDF 线性化（加速浏览器加载）
+    │   └─ 使用 pikepdf 优化 PDF 结构
+    │   └─ 保存到 {document_path}/converted.pdf
+    │
+    └─► 提取文本内容（纯文本）
+        └─ 合并所有 MarkdownPart 内容
+        └─ 保存到 {document_path}/processed_content.md
+    │
+    ▼
+5. 保存到对象存储
+```
+
+#### 4.4 格式转换示例
+
+**示例 1：PDF 文档**
+```
+输入：user_manual.pdf (5 MB)
+    │
+    ▼
+解析器选择：DocRayParser / MarkItDownParser
+    │
+    ▼
+输出 Parts：
+    ├─ MarkdownPart: "# User Manual\n\n## Chapter 1\n..."
+    └─ PdfPart: <原始 PDF 数据>
+    │
+    ▼
+后处理：
+    ├─ 渲染 50 页为图片 → images/page_0.png ~ page_49.png
+    ├─ 线性化 PDF → converted.pdf
+    └─ 提取文本 → processed_content.md
+```
+
+**示例 2：图片文件**
+```
+输入：screenshot.png (2 MB)
+    │
+    ▼
+解析器选择：ImageParser
+    │
+    ▼
+输出 Parts：
+    ├─ MarkdownPart: "[OCR 提取的文字内容]"
+    └─ AssetBinPart: <原始图片数据> (vision_index=true)
+    │
+    ▼
+后处理：
+    └─ 保存原图副本 → images/file.png
+```
+
+**示例 3：音频文件**
+```
+输入：meeting_record.mp3 (50 MB)
+    │
+    ▼
+解析器选择：AudioParser
+    │
+    ▼
+输出 Parts：
+    └─ MarkdownPart: "[转录的会议内容文本]"
+    │
+    ▼
+后处理：
+    └─ 保存转录文本 → processed_content.md
+```
+
+### 阶段 5: 索引构建
+
+#### 5.1 索引类型与功能
+
+| 索引类型 | 是否必选 | 功能描述 | 存储位置 |
+|---------|---------|----------|----------|
+| **VECTOR** | ✅ 必选 | 向量化检索，支持语义搜索 | Qdrant / Elasticsearch |
+| **FULLTEXT** | ✅ 必选 | 全文检索，支持关键词搜索 | Elasticsearch |
+| **GRAPH** | ❌ 可选 | 知识图谱，提取实体和关系 | Neo4j / PostgreSQL |
+| **SUMMARY** | ❌ 可选 | 文档摘要，LLM 生成 | PostgreSQL (index_data) |
+| **VISION** | ❌ 可选 | 视觉理解，图片内容分析 | Qdrant (向量) + PG (metadata) |
+
+#### 5.2 索引构建流程
+
+```
+Celery Worker: reconcile_document_indexes 任务
+    │
+    ▼
+1. 扫描 DocumentIndex 表，找到需要处理的索引
+    │
+    ├─► PENDING 状态 + observed_version < version
+    │   └─ 需要创建或更新索引
+    │
+    └─► DELETING 状态
+        └─ 需要删除索引
+    │
+    ▼
+2. 按文档分组，逐个处理
+    │
+    ▼
+3. 对每个文档：
+    │
+    ├─► parse_document（解析文档）
+    │   ├─ 从对象存储下载原始文件
+    │   ├─ 调用 DocParser 解析
+    │   └─ 返回 ParsedDocumentData
+    │
+    └─► 对每个索引类型：
+        │
+        ├─► create_index (创建/更新索引)
+        │   │
+        │   ├─ VECTOR 索引：
+        │   │   ├─ 文档分块（Chunking）
+        │   │   ├─ Embedding 模型生成向量
+        │   │   └─ 写入 Qdrant
+        │   │
+        │   ├─ FULLTEXT 索引：
+        │   │   ├─ 提取纯文本内容
+        │   │   ├─ 按段落/章节分块
+        │   │   └─ 写入 Elasticsearch
+        │   │
+        │   ├─ GRAPH 索引：
+        │   │   ├─ 使用 LightRAG 提取实体
+        │   │   ├─ 提取实体间关系
+        │   │   └─ 写入 Neo4j/PostgreSQL
+        │   │
+        │   ├─ SUMMARY 索引：
+        │   │   ├─ 调用 LLM 生成摘要
+        │   │   └─ 保存到 DocumentIndex.index_data
+        │   │
+        │   └─ VISION 索引：
+        │       ├─ 提取图片 Assets
+        │       ├─ Vision LLM 理解图片内容
+        │       ├─ 生成图片描述向量
+        │       └─ 写入 Qdrant
+        │
+        └─► 更新索引状态
+            ├─ 成功：CREATING → ACTIVE
+            └─ 失败：CREATING → FAILED
+    │
+    ▼
+4. 更新文档总体状态
+    │
+    ├─ 所有索引都 ACTIVE → Document.status = COMPLETE
+    ├─ 任一索引 FAILED → Document.status = FAILED
+    └─ 部分索引仍在处理 → Document.status = RUNNING
+```
+
+#### 5.3 文档分块（Chunking）
+
+**分块策略**：
+- 递归字符分割（RecursiveCharacterTextSplitter）
+- 按自然段落、章节优先切分
+- 保留上下文重叠（Overlap）
+
+**分块参数**：
 ```json
 {
-  "confirmed_count": 3,
-  "failed_count": 1,
-  "failed_documents": [
-    {
-      "document_id": "doc_fail123",
-      "name": "corrupted.pdf",
-      "error": "CONFIRMATION_FAILED"
-    }
-  ]
+  "chunk_size": 1000,           // 每块最大字符数
+  "chunk_overlap": 200,         // 重叠字符数
+  "separators": ["\n\n", "\n", " ", ""]  // 分隔符优先级
 }
 ```
 
-## 设计特点
+**分块结果存储**：
+```
+{document_path}/chunks/
+    ├─ chunk_0.json: {"text": "...", "metadata": {...}}
+    ├─ chunk_1.json: {"text": "...", "metadata": {...}}
+    └─ ...
+```
+
+## 数据库设计
+
+### 表 1: document（文档元数据）
+
+**表结构**：
+
+| 字段名 | 类型 | 说明 | 索引 |
+|--------|------|------|------|
+| `id` | String(24) | 文档 ID，主键，格式：`doc{random_id}` | PK |
+| `name` | String(1024) | 文件名 | - |
+| `user` | String(256) | 用户 ID（支持多种 IDP） | ✅ Index |
+| `collection_id` | String(24) | 所属集合 ID | ✅ Index |
+| `status` | Enum | 文档状态（见下表） | ✅ Index |
+| `size` | BigInteger | 文件大小（字节） | - |
+| `content_hash` | String(64) | SHA-256 哈希（用于去重） | ✅ Index |
+| `object_path` | Text | 对象存储路径（已废弃，用 doc_metadata） | - |
+| `doc_metadata` | Text | 文档元数据（JSON 字符串） | - |
+| `gmt_created` | DateTime(tz) | 创建时间（UTC） | - |
+| `gmt_updated` | DateTime(tz) | 更新时间（UTC） | - |
+| `gmt_deleted` | DateTime(tz) | 删除时间（软删除） | ✅ Index |
+
+**唯一约束**：
+```sql
+UNIQUE INDEX uq_document_collection_name_active
+  ON document (collection_id, name)
+  WHERE gmt_deleted IS NULL;
+```
+- 同一集合内，活跃文档的名称不能重复
+- 已删除的文档不参与唯一性检查
+
+**文档状态枚举**（`DocumentStatus`）：
+
+| 状态 | 说明 | 何时设置 | 可见性 |
+|------|------|----------|--------|
+| `UPLOADED` | 已上传到临时存储 | `upload_document` 接口 | 前端文件选择界面 |
+| `PENDING` | 等待索引构建 | `confirm_documents` 接口 | 文档列表（处理中） |
+| `RUNNING` | 索引构建中 | Celery 任务开始处理 | 文档列表（处理中） |
+| `COMPLETE` | 所有索引完成 | 所有索引变为 ACTIVE | 文档列表（可用） |
+| `FAILED` | 索引构建失败 | 任一索引失败 | 文档列表（失败） |
+| `DELETED` | 已删除 | `delete_document` 接口 | 不可见（软删除） |
+| `EXPIRED` | 临时文档过期 | 定时清理任务 | 不可见 |
+
+**文档元数据示例**（`doc_metadata` JSON 字段）：
+```json
+{
+  "object_path": "user-xxx/col_xxx/doc_xxx/original.pdf",
+  "converted_path": "user-xxx/col_xxx/doc_xxx/converted.pdf",
+  "processed_content_path": "user-xxx/col_xxx/doc_xxx/processed_content.md",
+  "images": [
+    "user-xxx/col_xxx/doc_xxx/images/page_0.png",
+    "user-xxx/col_xxx/doc_xxx/images/page_1.png"
+  ],
+  "parser_used": "DocRayParser",
+  "parse_duration_ms": 5420,
+  "page_count": 50,
+  "custom_field": "value"
+}
+```
+
+### 表 2: document_index（索引状态管理）
+
+**表结构**：
+
+| 字段名 | 类型 | 说明 | 索引 |
+|--------|------|------|------|
+| `id` | Integer | 自增 ID，主键 | PK |
+| `document_id` | String(24) | 关联的文档 ID | ✅ Index |
+| `index_type` | Enum | 索引类型（见下表） | ✅ Index |
+| `status` | Enum | 索引状态（见下表） | ✅ Index |
+| `version` | Integer | 索引版本号 | - |
+| `observed_version` | Integer | 已处理的版本号 | - |
+| `index_data` | Text | 索引数据（JSON），如摘要内容 | - |
+| `error_message` | Text | 错误信息（失败时） | - |
+| `gmt_created` | DateTime(tz) | 创建时间 | - |
+| `gmt_updated` | DateTime(tz) | 更新时间 | - |
+| `gmt_last_reconciled` | DateTime(tz) | 最后协调时间 | - |
+
+**唯一约束**：
+```sql
+UNIQUE CONSTRAINT uq_document_index
+  ON document_index (document_id, index_type);
+```
+- 每个文档的每种索引类型只有一条记录
+
+**索引类型枚举**（`DocumentIndexType`）：
+
+| 类型 | 值 | 说明 | 外部存储 |
+|------|-----|------|----------|
+| `VECTOR` | "VECTOR" | 向量索引 | Qdrant / Elasticsearch |
+| `FULLTEXT` | "FULLTEXT" | 全文索引 | Elasticsearch |
+| `GRAPH` | "GRAPH" | 知识图谱 | Neo4j / PostgreSQL |
+| `SUMMARY` | "SUMMARY" | 文档摘要 | PostgreSQL (index_data) |
+| `VISION` | "VISION" | 视觉索引 | Qdrant + PostgreSQL |
+
+**索引状态枚举**（`DocumentIndexStatus`）：
+
+| 状态 | 说明 | 何时设置 |
+|------|------|----------|
+| `PENDING` | 等待处理 | `confirm_documents` 创建索引记录 |
+| `CREATING` | 创建中 | Celery Worker 开始处理 |
+| `ACTIVE` | 就绪可用 | 索引构建成功 |
+| `DELETING` | 标记删除 | `delete_document` 接口 |
+| `DELETION_IN_PROGRESS` | 删除中 | Celery Worker 正在删除 |
+| `FAILED` | 失败 | 索引构建失败 |
+
+**版本控制机制**：
+- `version`：期望的索引版本（每次文档更新时 +1）
+- `observed_version`：已处理的版本号
+- `version > observed_version` 时，触发索引更新
+
+**协调器（Reconciler）**：
+```python
+# 查询需要处理的索引
+SELECT * FROM document_index
+WHERE status = 'PENDING'
+  AND observed_version < version;
+
+# 处理后更新
+UPDATE document_index
+SET status = 'ACTIVE',
+    observed_version = version,
+    gmt_last_reconciled = NOW()
+WHERE id = ?;
+```
+
+### 表关系图
+
+```
+┌─────────────────────────────────┐
+│         collection              │
+│  ─────────────────────────────  │
+│  id (PK)                        │
+│  name                           │
+│  config (JSON)                  │
+│  status                         │
+│  ...                            │
+└────────────┬────────────────────┘
+             │ 1:N
+             ▼
+┌─────────────────────────────────┐
+│          document               │
+│  ─────────────────────────────  │
+│  id (PK)                        │
+│  collection_id (FK)             │◄──── 唯一约束: (collection_id, name)
+│  name                           │
+│  user                           │
+│  status (Enum)                  │
+│  size                           │
+│  content_hash (SHA-256)         │
+│  doc_metadata (JSON)            │
+│  gmt_created                    │
+│  gmt_deleted                    │
+│  ...                            │
+└────────────┬────────────────────┘
+             │ 1:N
+             ▼
+┌─────────────────────────────────┐
+│       document_index            │
+│  ─────────────────────────────  │
+│  id (PK)                        │
+│  document_id (FK)               │◄──── 唯一约束: (document_id, index_type)
+│  index_type (Enum)              │
+│  status (Enum)                  │
+│  version                        │
+│  observed_version               │
+│  index_data (JSON)              │
+│  error_message                  │
+│  gmt_last_reconciled            │
+│  ...                            │
+└─────────────────────────────────┘
+```
+
+## 状态机与生命周期
+
+### 文档状态转换
+
+```
+         ┌─────────────────────────────────────────────┐
+         │                                             │
+         │                                             ▼
+    [上传文件] ──► UPLOADED ──► [确认] ──► PENDING ──► RUNNING ──► COMPLETE
+                     │                                   │
+                     │                                   ▼
+                     │                                FAILED
+                     │                                   │
+                     │                                   ▼
+                     └──────► [删除] ──────────────► DELETED
+                                                         │
+                     ┌───────────────────────────────────┘
+                     │
+                     ▼
+                  EXPIRED (定时清理未确认的文档)
+```
+
+**关键转换**：
+1. **UPLOADED → PENDING**：用户点击"保存到集合"
+2. **PENDING → RUNNING**：Celery Worker 开始处理
+3. **RUNNING → COMPLETE**：所有索引都成功
+4. **RUNNING → FAILED**：任一索引失败
+5. **任何状态 → DELETED**：用户删除文档
+
+### 索引状态转换
+
+```
+  [创建索引记录] ──► PENDING ──► CREATING ──► ACTIVE
+                                   │
+                                   ▼
+                                FAILED
+                                   │
+                                   ▼
+                     ┌──────────► PENDING (重试)
+                     │
+    [删除请求] ──────┼──────────► DELETING ──► DELETION_IN_PROGRESS ──► (记录删除)
+                     │
+                     └──────────► (直接删除记录，如果 PENDING/FAILED)
+```
+
+## 异步任务调度（Celery）
+
+### 任务定义
+
+**主任务**：`reconcile_document_indexes`
+- 触发时机：
+  - `confirm_documents` 接口调用后
+  - 定时任务（每 30 秒）
+  - 手动触发（管理界面）
+- 功能：扫描 `document_index` 表，处理需要协调的索引
+
+**子任务**：
+- `parse_document_task`：解析文档内容
+- `create_vector_index_task`：创建向量索引
+- `create_fulltext_index_task`：创建全文索引
+- `create_graph_index_task`：创建知识图谱索引
+- `create_summary_index_task`：创建摘要索引
+- `create_vision_index_task`：创建视觉索引
+
+### 任务调度策略
+
+**并发控制**：
+- 每个 Worker 最多同时处理 N 个文档（默认 4）
+- 每个文档的多个索引可以并行构建
+- 使用 Celery 的 `task_acks_late=True` 确保任务不丢失
+
+**失败重试**：
+- 最多重试 3 次
+- 指数退避（1分钟 → 5分钟 → 15分钟）
+- 3 次失败后标记为 `FAILED`
+
+**幂等性**：
+- 所有任务支持重复执行
+- 使用 `observed_version` 机制避免重复处理
+- 相同输入产生相同输出
+
+## 设计特点与优势
 
 ### 1. 两阶段提交设计
 
-**优势**:
+**优势**：
+- ✅ **用户体验更好**：快速上传响应，不阻塞用户操作
+- ✅ **选择性添加**：批量上传后可选择性确认部分文件
+- ✅ **资源控制合理**：未确认的文档不构建索引，不消耗配额
+- ✅ **故障恢复友好**：临时文档可以定期清理，不影响业务
 
-- ✅ 用户可以先上传后选择：批量上传后选择性添加
-- ✅ 减少不必要的资源消耗：未确认的文档不构建索引
-- ✅ 更好的用户体验：快速上传响应，后台异步处理
-- ✅ 配额控制更合理：只有确认后才消耗配额
-
-**状态转换**:
-
+**状态隔离**：
 ```
-上传 → UPLOADED → (用户确认) → PENDING → (Celery处理) → RUNNING → COMPLETE
-                                                              ↓
-                                                           FAILED
+临时状态（UPLOADED）：
+  - 不计入配额
+  - 不触发索引
+  - 可以被自动清理
+
+正式状态（PENDING/RUNNING/COMPLETE）：
+  - 计入配额
+  - 触发索引构建
+  - 不会被自动清理
 ```
 
 ### 2. 幂等性设计
 
-**重复上传处理**:
-
-- 同名同内容（哈希相同）：返回已存在文档
-- 同名不同内容（哈希不同）：抛出冲突异常
-- 完全新文档：创建新记录
-
-**好处**:
-
-- 网络重传不会创建重复文档
-- 客户端可以安全重试
+**文件级别幂等**：
+- SHA-256 哈希去重
+- 相同文件多次上传返回同一 `document_id`
 - 避免存储空间浪费
+
+**接口级别幂等**：
+- `upload_document`：重复上传返回已存在文档
+- `confirm_documents`：重复确认不会创建重复索引
+- `delete_document`：重复删除返回成功（软删除）
 
 ### 3. 多租户隔离
 
-**存储路径隔离**:
-
+**存储隔离**：
 ```
-user-{user_id}/{collection_id}/{document_id}/...
+user-{user_A}/...  # 用户 A 的文件
+user-{user_B}/...  # 用户 B 的文件
 ```
 
-**数据库隔离**:
-
-- 所有查询都带 user 字段过滤
-- 集合级别的权限控制
-- 软删除支持（gmt_deleted）
+**数据库隔离**：
+- 所有查询都带 `user` 字段过滤
+- 集合级别的权限控制（`collection.user`）
+- 软删除支持（`gmt_deleted`）
 
 ### 4. 灵活的存储后端
 
-**支持Local和S3**:
+**统一接口**：
+```python
+AsyncObjectStore:
+  - put(path, data)
+  - get(path)
+  - delete_objects_by_prefix(prefix)
+```
 
-- Local: 适合开发测试、小规模部署
-- S3: 适合生产环境、大规模部署
-- 统一的`AsyncObjectStore`接口
-- 运行时配置切换
+**运行时切换**：
+- 通过环境变量切换 Local/S3
+- 无需修改业务代码
+- 支持自定义存储后端（实现接口即可）
 
 ### 5. 事务一致性
 
-**核心操作都在事务内**:
-
+**数据库 + 对象存储的两阶段提交**：
 ```python
-async def _upload_document_atomically(session):
+async with transaction:
     # 1. 创建数据库记录
-    # 2. 上传文件到对象存储
+    document = create_document_record()
+    
+    # 2. 上传到对象存储
+    await object_store.put(path, data)
+    
     # 3. 更新元数据
+    document.doc_metadata = json.dumps(metadata)
+    
     # 所有操作成功才提交，任一失败则回滚
 ```
 
-**好处**:
+**失败处理**：
+- 数据库记录创建失败：不上传文件
+- 文件上传失败：回滚数据库记录
+- 元数据更新失败：回滚前面的操作
 
-- 避免部分成功的脏数据
-- 数据库记录和对象存储保持一致
-- 失败自动清理
+### 6. 可观测性
 
-### 6. 分层架构清晰
+**审计日志**：
+- `@audit` 装饰器记录所有文档操作
+- 包含：用户、时间、操作类型、资源 ID
 
-```
-View Layer (views/collections.py)
-    ↓ 调用
-Service Layer (service/document_service.py)
-    ↓ 调用
-Repository Layer (db/ops.py, objectstore/)
-    ↓ 访问
-Storage Layer (PostgreSQL, S3, Qdrant, ES, Neo4j)
-```
+**任务追踪**：
+- `gmt_last_reconciled`：最后处理时间
+- `error_message`：失败原因
+- Celery 任务 ID：关联日志追踪
 
-**职责分离**:
-
-- View: HTTP处理、参数验证、认证
-- Service: 业务逻辑、事务编排
-- Repository: 数据访问
-- Storage: 数据持久化
+**监控指标**：
+- 文档上传速率
+- 索引构建耗时
+- 失败率统计
 
 ## 性能优化
 
-### 1. 分块上传（未实现，规划中）
+### 1. 异步处理
 
-```python
-# 大文件分块上传支持
-async def upload_document_chunk(
-    document_id: str,
-    chunk_index: int,
-    chunk_data: bytes,
-    total_chunks: int
-):
-    # 上传单个分块
-    # 所有分块完成后合并
-    pass
-```
+**上传不阻塞**：
+- 文件上传到对象存储后立即返回
+- 索引构建在 Celery 中异步执行
+- 前端通过轮询或 WebSocket 获取进度
 
 ### 2. 批量操作
 
-- `confirm_documents`支持批量确认
-- `delete_documents`支持批量删除
-- 批量查询索引状态
+**批量确认**：
+```python
+confirm_documents(document_ids=[id1, id2, ..., idN])
+```
+- 一次事务处理多个文档
+- 批量创建索引记录
+- 减少数据库往返
 
-### 3. 异步处理
+### 3. 缓存策略
 
-- 文件上传后立即返回
-- 索引构建在Celery中异步执行
-- 前端轮询或WebSocket获取进度
+**解析结果缓存**：
+- 解析后的内容保存到 `processed_content.md`
+- 后续索引重建可直接读取，无需重新解析
 
-### 4. 对象存储优化
+**分块结果缓存**：
+- 分块结果保存到 `chunks/` 目录
+- 向量索引重建可复用分块结果
 
-- S3使用分段上传（multipart upload）
-- Local使用aiofiles异步写入
-- 支持Range请求（部分下载）
+### 4. 并行索引构建
+
+**多索引并行**：
+```python
+# VECTOR、FULLTEXT、GRAPH 可以并行构建
+await asyncio.gather(
+    create_vector_index(),
+    create_fulltext_index(),
+    create_graph_index()
+)
+```
 
 ## 错误处理
 
 ### 常见异常
 
-```python
-# 1. 集合不存在或不可用
-raise ResourceNotFoundException("Collection", collection_id)
-raise CollectionInactiveException(collection_id)
+| 异常类型 | HTTP 状态码 | 触发场景 | 处理建议 |
+|---------|------------|----------|----------|
+| `ResourceNotFoundException` | 404 | 集合/文档不存在 | 检查 ID 是否正确 |
+| `CollectionInactiveException` | 400 | 集合未激活 | 等待集合初始化完成 |
+| `DocumentNameConflictException` | 409 | 同名不同内容 | 重命名文件或删除旧文档 |
+| `QuotaExceededException` | 429 | 配额超限 | 升级套餐或删除旧文档 |
+| `InvalidFileTypeException` | 400 | 不支持的文件类型 | 查看支持的文件类型列表 |
+| `FileSizeTooLargeException` | 413 | 文件过大 | 分割文件或压缩 |
 
-# 2. 文件验证失败
-raise invalid_param("file_type", f"unsupported file type {file_suffix}")
-raise invalid_param("file_size", "file size is too large")
+### 异常传播
 
-# 3. 重复冲突
-raise DocumentNameConflictException(filename, collection_id)
-
-# 4. 配额超限
-raise QuotaExceededException("max_document_count", limit, current)
-
-# 5. 文档不存在
-raise DocumentNotFoundException(f"Document not found: {document_id}")
+```
+Service Layer 抛出异常
+    │
+    ▼
+View Layer 捕获并转换
+    │
+    ▼
+Exception Handler 统一处理
+    │
+    ▼
+返回标准 JSON 响应：
+{
+  "error_code": "QUOTA_EXCEEDED",
+  "message": "Document count limit exceeded",
+  "details": {
+    "limit": 1000,
+    "current": 1000
+  }
+}
 ```
 
-### 异常处理层级
-
-**View层统一异常处理**:
-
-```python
-# aperag/exception_handlers.py
-@app.exception_handler(BusinessException)
-async def business_exception_handler(request: Request, exc: BusinessException):
-    return JSONResponse(
-        status_code=400,
-        content={
-            "error_code": exc.error_code.name,
-            "message": str(exc)
-        }
-    )
-```
-
-## 相关文件
+## 相关文件索引
 
 ### 核心实现
 
-- `aperag/views/collections.py` - View层接口
-- `aperag/service/document_service.py` - Service层业务逻辑
-- `aperag/source/upload.py` - UploadSource实现
-- `aperag/db/models.py` - 数据库模型
-- `aperag/db/ops.py` - 数据库操作
-- `aperag/api/components/schemas/document.yaml` - OpenAPI Schema
+- **View 层**：`aperag/views/collections.py` - HTTP 接口定义
+- **Service 层**：`aperag/service/document_service.py` - 业务逻辑
+- **数据库模型**：`aperag/db/models.py` - Document, DocumentIndex 表定义
+- **数据库操作**：`aperag/db/ops.py` - CRUD 操作封装
 
 ### 对象存储
 
-- `aperag/objectstore/base.py` - 存储接口定义
-- `aperag/objectstore/local.py` - Local存储实现
-- `aperag/objectstore/s3.py` - S3存储实现
+- **接口定义**：`aperag/objectstore/base.py` - AsyncObjectStore 抽象类
+- **Local 实现**：`aperag/objectstore/local.py` - 本地文件系统存储
+- **S3 实现**：`aperag/objectstore/s3.py` - S3 兼容存储
 
-### 文档处理
+### 文档解析
 
-- `aperag/docparser/doc_parser.py` - 文档解析器
-- `aperag/docparser/chunking.py` - 文档分块
-- `aperag/index/manager.py` - 索引管理器
-- `aperag/index/vector_index.py` - 向量索引
-- `aperag/index/fulltext_index.py` - 全文索引
-- `aperag/index/graph_index.py` - 图索引
+- **主控制器**：`aperag/docparser/doc_parser.py` - DocParser
+- **Parser 实现**：
+  - `aperag/docparser/mineru_parser.py` - MinerU PDF 解析
+  - `aperag/docparser/docray_parser.py` - DocRay 文档解析
+  - `aperag/docparser/markitdown_parser.py` - MarkItDown 通用解析
+  - `aperag/docparser/image_parser.py` - 图片 OCR
+  - `aperag/docparser/audio_parser.py` - 音频转录
+- **文档处理**：`aperag/index/document_parser.py` - 解析流程编排
 
-### 任务队列
+### 索引构建
 
-- `config/celery_tasks.py` - Celery任务定义
-- `aperag/tasks/` - 任务实现
+- **索引管理**：`aperag/index/manager.py` - DocumentIndexManager
+- **向量索引**：`aperag/index/vector_index.py` - VectorIndexer
+- **全文索引**：`aperag/index/fulltext_index.py` - FulltextIndexer
+- **知识图谱**：`aperag/index/graph_index.py` - GraphIndexer
+- **文档摘要**：`aperag/index/summary_index.py` - SummaryIndexer
+- **视觉索引**：`aperag/index/vision_index.py` - VisionIndexer
+
+### 任务调度
+
+- **任务定义**：`config/celery_tasks.py` - Celery 任务注册
+- **协调器**：`aperag/tasks/reconciler.py` - DocumentIndexReconciler
+- **文档任务**：`aperag/tasks/document.py` - DocumentIndexTask
 
 ### 前端实现
 
-- `web/src/app/workspace/collections/[collectionId]/documents/page.tsx` - 文档列表页面
-- `web/src/components/documents/upload-documents.tsx` - 上传组件
+- **文档列表**：`web/src/app/workspace/collections/[collectionId]/documents/page.tsx`
+- **文档上传**：`web/src/app/workspace/collections/[collectionId]/documents/upload/document-upload.tsx`
 
 ## 总结
 
-ApeRAG的文档上传模块采用**两阶段提交 + 幂等设计 + 灵活存储**架构：
+ApeRAG 的文档上传模块采用**两阶段提交 + 多 Parser 链式调用 + 多索引并行构建**的架构设计：
 
-1. **两阶段提交**：上传（UPLOADED）→ 确认（PENDING）→ 索引构建
-2. **SHA-256哈希去重**：避免重复文档，支持幂等上传
-3. **灵活存储后端**：Local/S3可配置切换
-4. **配额管理**：确认阶段才扣除配额，合理控制资源
-5. **多索引协调**：向量、全文、图谱、摘要、视觉多种索引类型
-6. **清晰的分层架构**：View → Service → Repository → Storage
-7. **Celery异步处理**：索引构建不阻塞上传响应
-8. **事务一致性**：数据库和对象存储操作原子化
+**核心特性**：
+1. ✅ **两阶段提交**：上传（临时存储）→ 确认（正式添加），提供更好的用户体验
+2. ✅ **SHA-256 去重**：避免重复文档，支持幂等上传
+3. ✅ **灵活存储后端**：Local/S3 可配置切换，统一接口抽象
+4. ✅ **多 Parser 架构**：支持 MinerU、DocRay、MarkItDown 等多种解析器
+5. ✅ **格式自动转换**：PDF→图片、音频→文本、图片→OCR 文本
+6. ✅ **多索引协调**：向量、全文、图谱、摘要、视觉五种索引类型
+7. ✅ **配额管理**：确认阶段才扣除配额，合理控制资源
+8. ✅ **异步处理**：Celery 任务队列，不阻塞用户操作
+9. ✅ **事务一致性**：数据库 + 对象存储的两阶段提交
+10. ✅ **可观测性**：审计日志、任务追踪、错误信息完整记录
 
-这种设计既保证了性能，又支持复杂的文档处理场景，同时具有良好的可扩展性和容错能力。
-
+这种设计既保证了高性能和可扩展性，又支持复杂的文档处理场景（多格式、多语言、多模态），同时具有良好的容错能力和用户体验。
