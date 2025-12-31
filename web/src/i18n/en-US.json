@@ -299,7 +299,7 @@
     "browse_files": "Browse Files",
     "save_to_collection": "Save to colelction",
     "drag_drop_files_here": "Drag & drop files here",
-    "or_click_to_browse_files": "Or click to browse (max 10MB for each file)",
+    "or_click_to_browse_files": "Or click to browse (max 100MB for each file)",
     "last_updated": "Last Updated",
     "file": "File",
     "filename": "Filename",

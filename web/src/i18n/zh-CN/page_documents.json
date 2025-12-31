@@ -17,7 +17,7 @@
   "browse_files": "选择文件",
   "save_to_collection": "添加到知识库",
   "drag_drop_files_here": "拖拽文件至此处",
-  "or_click_to_browse_files": "或点击浏览（单个文件最大10MB）",
+  "or_click_to_browse_files": "或点击浏览（单个文件最大100MB）",
   "last_updated": "最近更新",
   "file": "文件",
   "filename": "文件名",

@@ -398,7 +398,7 @@ export const DocumentUpload = () => {
     <>
       <FileUpload
         maxFiles={1000}
-        maxSize={10 * 1024 * 1024}
+        maxSize={100 * 1024 * 1024}
         className="w-full gap-4"
         accept=".pdf,.doc,.docx,.txt,.md,.ppt,.pptx,.xls,.xlsx"
         value={documents.map((f) => f.file)}

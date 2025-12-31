@@ -483,7 +483,7 @@ export const ChatInput = ({
               <div className="flex gap-2">
                 <FileUpload
                   maxFiles={10}
-                  maxSize={10 * 1024 * 1024}
+                  maxSize={100 * 1024 * 1024}
                   accept=".pdf,.doc,.docx,.txt,.md,.ppt,.pptx,.xls,.xlsx"
                   value={attachments.map((f) => f.file)}
                   onFileReject={onFileReject}
