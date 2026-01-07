@@ -12,7 +12,7 @@ export default async function Page({
   const { collectionId, documentId } = await params;
   const serverApi = await getServerApi();
 
-  const [colelctionRes, documentPreviewRes] = await Promise.all([
+  const [collectionRes, documentPreviewRes] = await Promise.all([
     serverApi.defaultApi.marketplaceCollectionsCollectionIdGet({
       collectionId,
     }),
@@ -25,7 +25,7 @@ export default async function Page({
   ]);
 
   const documentPreview = toJson(documentPreviewRes.data);
-  const collection = toJson(colelctionRes.data);
+  const collection = toJson(collectionRes.data);
 
   return (
     <PageContainer>

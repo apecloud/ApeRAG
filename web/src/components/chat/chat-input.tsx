@@ -320,7 +320,7 @@ export const ChatInput = ({
     }
   }, [modelName, providerModels, setModelName]);
 
-  const enabledColelctions = useMemo(() => {
+  const enabledCollections = useMemo(() => {
     return collections.filter((c) => !selectedCollections.includes(c.id || ''));
   }, [collections, selectedCollections]);
 
@@ -456,8 +456,8 @@ export const ChatInput = ({
                 />
               </MentionInput>
               <MentionContent className="w-60">
-                {enabledColelctions.length ? (
-                  enabledColelctions.map((collection) => (
+                {enabledCollections.length ? (
+                  enabledCollections.map((collection) => (
                     <MentionItem
                       key={collection.id}
                       value={collection.id || ''}
