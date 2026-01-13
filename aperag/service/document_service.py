@@ -1004,6 +1004,80 @@ class DocumentService:
         # Execute query with proper session management
         return await self.db_ops._execute_query(_get_document_preview)
 
+    async def download_document(self, user_id: str, collection_id: str, document_id: str):
+        """
+        Download the original document file.
+        Returns a StreamingResponse with the file content.
+        """
+
+        async def _download_document(session):
+            # 1. Verify user has access to the document
+            stmt = select(db_models.Document).filter(
+                db_models.Document.id == document_id,
+                db_models.Document.collection_id == collection_id,
+                db_models.Document.user == user_id,
+                db_models.Document.gmt_deleted.is_(None),  # Only allow downloading non-deleted documents
+            )
+            result = await session.execute(stmt)
+            document = result.scalars().first()
+            if not document:
+                raise DocumentNotFoundException(document_id)
+
+            # 2. Check document status - only disallow downloading expired/deleted documents
+            # UPLOADED documents can be downloaded (before confirmation, within 24 hours)
+            # Once expired or deleted, files may no longer exist in storage
+            if document.status in [db_models.DocumentStatus.EXPIRED, db_models.DocumentStatus.DELETED]:
+                raise HTTPException(
+                    status_code=400, detail=f"Document status is {document.status.value}, cannot download"
+                )
+
+            # 3. Get object path from doc_metadata
+            try:
+                metadata = json.loads(document.doc_metadata) if document.doc_metadata else {}
+                object_path = metadata.get("object_path")
+                if not object_path:
+                    raise HTTPException(status_code=404, detail="Document file not found in storage")
+            except json.JSONDecodeError:
+                logger.error(f"Invalid JSON in doc_metadata for document {document_id}")
+                raise HTTPException(status_code=500, detail="Document metadata is corrupted")
+
+            # 4. Stream file from object store
+            try:
+                async_obj_store = get_async_object_store()
+
+                # Get file stream and size
+                get_result = await async_obj_store.get(object_path)
+                if not get_result:
+                    raise HTTPException(status_code=404, detail="Document file not found in object store")
+
+                data_stream, file_size = get_result
+
+                # Determine content type from filename
+                content_type, _ = mimetypes.guess_type(document.name)
+                if content_type is None:
+                    content_type = "application/octet-stream"
+
+                # Set headers for file download
+                headers = {
+                    "Content-Type": content_type,
+                    "Content-Disposition": f'attachment; filename="{document.name}"',
+                    "Content-Length": str(file_size),
+                }
+
+                logger.info(
+                    f"User {user_id} downloading document {document_id} ({document.name}) "
+                    f"from collection {collection_id}, size: {file_size} bytes"
+                )
+
+                return StreamingResponse(data_stream, headers=headers)
+
+            except Exception as e:
+                logger.error(f"Failed to download document {document_id} from path {object_path}: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail="Failed to download document from storage")
+
+        # Execute query with proper session management
+        return await self.db_ops._execute_query(_download_document)
+
     async def get_document_object(
         self, user_id: str, collection_id: str, document_id: str, path: str, range_header: str = None
     ):

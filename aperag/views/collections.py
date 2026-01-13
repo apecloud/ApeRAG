@@ -269,6 +269,21 @@ async def get_document_view(
     return await document_service.get_document(str(user.id), collection_id, document_id)
 
 
+@router.get("/collections/{collection_id}/documents/{document_id}/download", tags=["documents"])
+@audit(resource_type="document", api_name="DownloadDocument")
+async def download_document_view(
+    request: Request,
+    collection_id: str,
+    document_id: str,
+    user: User = Depends(required_user),
+):
+    """
+    Download the original document file.
+    Returns the file as a streaming response with appropriate headers.
+    """
+    return await document_service.download_document(str(user.id), collection_id, document_id)
+
+
 @router.delete("/collections/{collection_id}/documents/{document_id}", tags=["documents"])
 @audit(resource_type="document", api_name="DeleteDocument")
 async def delete_document_view(

@@ -25,8 +25,8 @@
 │  └──────────────────┘         └──────────────────┘        │
 └─────────┬──────────────────────────┬────────────────────────┘
           │                          │
-          │ GET /documents/{id}/download        (同步，流式返回)
-          │ POST /collections/{id}/export       (异步，生成下载链接)
+          │ GET /collections/{id}/documents/{id}/download  (同步，流式返回)
+          │ POST /collections/{id}/export                  (异步，生成下载链接)
           ▼                          ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                      View Layer                             │
@@ -111,7 +111,7 @@
 
 | 场景 | API | 模式 | 说明 |
 |------|-----|------|------|
-| **单个文档下载** | `GET /documents/{id}/download` | 同步流式 | 直接返回文件流 |
+| **单个文档下载** | `GET /collections/{collection_id}/documents/{id}/download` | 同步流式 | 直接返回文件流 |
 | **知识库导出** | `POST /collections/{id}/export` | 异步 | 生成后端下载 URL |
 
 ## 核心流程详解
@@ -124,26 +124,32 @@
 用户点击"下载"按钮
     │
     ▼
-GET /api/v1/documents/{document_id}/download
+GET /api/v1/collections/{collection_id}/documents/{document_id}/download
     │
     ▼
 后端处理：
     │
     ├─► 验证用户身份（JWT）
     │
-    ├─► 验证文档访问权限
+    ├─► 验证文档访问权限（user、collection_id 匹配）
     │
-    ├─► 查询 Document 记录
+    ├─► 查询 Document 记录（过滤软删除文档）
     │
-    ├─► 从 doc_metadata 获取 object_path
+    ├─► 检查文档状态（只禁止 EXPIRED/DELETED 状态）
+    │   ├─ UPLOADED: ✅ 允许下载（上传后 24 小时内）
+    │   ├─ PENDING/RUNNING/COMPLETE/FAILED: ✅ 允许下载（永久）
+    │   ├─ EXPIRED: ❌ 禁止（文件已被清理）
+    │   └─ DELETED: ❌ 禁止（用户已删除）
+    │
+    ├─► 从 doc_metadata JSON 获取 object_path
     │
     ├─► 从对象存储读取文件（流式）
-    │   └─ 路径：user-{user_id}/{collection_id}/{doc_id}/original.pdf
+    │   └─ 路径：user-{user_id}/{collection_id}/{doc_id}/original.xxx
     │
     └─► 返回 StreamingResponse
-        ├─ Content-Type: application/octet-stream
-        ├─ Content-Disposition: attachment; filename="xxx.pdf"
-        └─ Transfer-Encoding: chunked (流式传输)
+        ├─ Content-Type: 根据文件扩展名判断（默认 application/octet-stream）
+        ├─ Content-Disposition: attachment; filename="原始文件名"
+        └─ Content-Length: 文件大小（从对象存储获取）
     │
     ▼
 文件通过后端流式传输给客户端
@@ -156,7 +162,7 @@ GET /api/v1/documents/{document_id}/download
 
 **请求**：
 ```http
-GET /api/v1/documents/{document_id}/download
+GET /api/v1/collections/{collection_id}/documents/{document_id}/download
 Authorization: Bearer {token}
 ```
 
@@ -166,10 +172,13 @@ HTTP/1.1 200 OK
 Content-Type: application/octet-stream
 Content-Disposition: attachment; filename="user_manual.pdf"
 Content-Length: 5242880
-Transfer-Encoding: chunked
 
 [文件二进制流]
 ```
+
+**说明**：
+- 实际实现中不使用 `Transfer-Encoding: chunked` 响应头，而是通过 FastAPI 的 `StreamingResponse` 自动处理流式传输
+- `Content-Length` 会从对象存储获取文件大小后设置
 
 #### 1.3 关键特性
 
@@ -179,6 +188,58 @@ Transfer-Encoding: chunked
 - **超时控制**：设置合理的读取超时（如 30 分钟）
 - **权限控制**：每次下载都验证用户权限
 - **审计日志**：记录下载操作（用户、时间、文档）
+- **状态检查**：只禁止下载 EXPIRED/DELETED 状态的文档
+
+#### 1.4 文档生命周期与下载可用性
+
+**文档状态说明**：
+
+| 状态 | 说明 | 可下载 | 自动清理 | 触发条件 |
+|------|------|--------|----------|----------|
+| `UPLOADED` | 已上传，未确认 | ✅ | 是（24小时后） | 用户上传文件 |
+| `PENDING` | 已确认，等待处理 | ✅ | 否 | 用户确认文档 |
+| `RUNNING` | 正在处理索引 | ✅ | 否 | 后台任务开始处理 |
+| `COMPLETE` | 处理完成 | ✅ | 否 | 索引创建成功 |
+| `FAILED` | 处理失败 | ✅ | 否 | 索引创建失败 |
+| `EXPIRED` | 已过期 | ❌ | - | 自动清理任务 |
+| `DELETED` | 已删除 | ❌ | - | 用户删除操作 |
+
+**自动清理机制**：
+
+```
+定时任务：每 10 分钟运行一次
+清理目标：UPLOADED 状态 且 创建时间 > 24 小时 的文档
+清理操作：
+  1. 删除对象存储中的文件（包括所有相关文件）
+  2. 将文档状态更新为 EXPIRED
+  3. 记录清理日志
+  
+配置位置：config/celery.py
+任务名称：cleanup_expired_documents_task
+执行频率：600 秒（10 分钟）
+```
+
+**设计理念**：
+- ✅ **用户友好**：上传后即可下载预览，无需等待确认
+- ✅ **资源优化**：未确认的临时文件自动清理，节省存储空间
+- ✅ **数据安全**：确认后的文档永久保留，不会被自动删除
+- ✅ **清晰提示**：EXPIRED 状态的文档返回明确错误信息
+
+**典型使用流程**：
+
+```
+1. 用户上传文档
+   └─► 状态：UPLOADED（可下载，24小时有效期）
+
+2. 场景 A：用户及时确认（< 24 小时）
+   └─► 状态：PENDING → RUNNING → COMPLETE
+       └─► 可永久下载，不会被清理 ✅
+
+3. 场景 B：用户未及时确认（> 24 小时）
+   └─► 自动清理任务执行
+       └─► 状态：EXPIRED（无法下载） ❌
+           └─► 用户需要重新上传
+```
 
 ### 场景 2: 知识库导出（异步打包）
 
@@ -617,7 +678,7 @@ Celery 任务超时：
 
 | 方法 | 路径 | 说明 | 模式 |
 |------|------|------|------|
-| GET | `/documents/{id}/download` | 下载单个文档 | 同步流式 |
+| GET | `/collections/{collection_id}/documents/{id}/download` | 下载单个文档 | 同步流式 |
 | POST | `/collections/{id}/export` | 知识库导出 | 异步 |
 | GET | `/export-tasks/{id}` | 查询导出任务状态 | - |
 | GET | `/export-tasks/{id}/download` | 下载导出结果 | 同步流式 |

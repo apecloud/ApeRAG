@@ -67,6 +67,8 @@ paths:
     $ref: './paths/collections.yaml#/document_preview'
   /collections/{collection_id}/documents/{document_id}/object:
     $ref: './paths/collections.yaml#/document_object'
+  /collections/{collection_id}/documents/{document_id}/download:
+    $ref: './paths/collections.yaml#/document_download'
   /collections/{collection_id}/documents/upload:
     $ref: './paths/collections.yaml#/upload_document'
   /collections/{collection_id}/documents/confirm:

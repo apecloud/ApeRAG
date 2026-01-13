@@ -1005,6 +1005,93 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/failResponse'
+  /collections/{collection_id}/documents/{document_id}/download:
+    get:
+      summary: Download document file
+      description: |
+        Download the original document file.
+        Returns the file as a streaming response with appropriate Content-Type and Content-Disposition headers.
+        The file is streamed through the backend to support internal network deployments and maintain access control.
+
+        **Document Lifecycle and Download Availability:**
+        - UPLOADED: Downloadable (temporary status, auto-deleted after 24 hours if not confirmed)
+        - PENDING/RUNNING/COMPLETE/FAILED: Downloadable (permanent, not auto-deleted)
+        - EXPIRED: Not downloadable (file deleted by cleanup task)
+        - DELETED: Not downloadable (soft-deleted by user)
+
+        **Auto-Cleanup Mechanism:**
+        A scheduled task runs every 10 minutes to clean up documents in UPLOADED status that are older than 24 hours.
+        Once confirmed, documents will never be auto-deleted.
+      operationId: download_document
+      tags:
+        - documents
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: collection_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Collection ID
+        - name: document_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Document ID
+      responses:
+        '200':
+          description: Document file stream
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Content-Type:
+              description: MIME type of the document (e.g., application/pdf, text/plain)
+              schema:
+                type: string
+            Content-Disposition:
+              description: Attachment header with original filename
+              schema:
+                type: string
+                example: attachment; filename="document.pdf"
+            Content-Length:
+              description: Size of the file in bytes
+              schema:
+                type: integer
+        '400':
+          description: Bad request - document status does not allow download (EXPIRED or DELETED)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '403':
+          description: Forbidden - user does not have access to this document
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: Document not found or file not found in storage
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '500':
+          description: Internal server error - failed to download from storage
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
   /collections/{collection_id}/documents/upload:
     post:
       summary: Upload a single document
