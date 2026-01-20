@@ -80,7 +80,7 @@ async def search_collection(
 ) -> Dict[str, Any]:
     """Search for knowledge in a persistent collection/knowledge base using vector, full-text, graph, and/or summary search.
 
-    🎯 Primary Use Case: This is the main tool for searching permanent knowledge repositories.
+    PRIMARY USE CASE: This is the main tool for searching permanent knowledge repositories.
     Use this for general Q&A, knowledge retrieval, and accessing organized knowledge collections.
 
     For temporary files uploaded in a chat session, use search_chat_files instead.
@@ -222,12 +222,12 @@ async def search_chat_files(
 ) -> Dict[str, Any]:
     """Search ONLY within files temporarily uploaded by the user in THIS specific chat session.
 
-    ⚠️ IMPORTANT - When to Use This Tool:
+    IMPORTANT - When to Use This Tool:
     - ONLY when searching files that the user explicitly uploaded in THIS chat conversation
     - For temporary, session-specific document analysis (e.g., "analyze this PDF I just uploaded")
     - When the user references documents they shared in the current chat
 
-    ⚠️ DO NOT Use This Tool For:
+    DO NOT Use This Tool For:
     - Searching general knowledge bases or collections (use search_collection instead)
     - Accessing persistent/permanent knowledge repositories
     - General Q&A that doesn't involve chat-uploaded files
@@ -247,7 +247,7 @@ async def search_chat_files(
     Note:
         Uses SearchResult view model for type-safe response parsing and validation.
 
-        🔍 Scope: This tool ONLY searches temporary files uploaded in the current chat.
+        SCOPE: This tool ONLY searches temporary files uploaded in the current chat.
         It does NOT search permanent knowledge collections.
 
         Return format follows the same structure as search_collection:
