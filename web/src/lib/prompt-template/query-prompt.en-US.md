@@ -1,4 +1,4 @@
-{% set collection_list = [] %} {% if collections %} {% for c in collections %} {% set title = c.title or "Collection " + c.id %} {% set _ = collection_list.append("- " + title + " (ID: " + c.id + ")") %} {% endfor %} {% set collection_context = collection_list | join("\n") %} {% set collection_instruction = "PRIORITY: Search these user-specified collections first" %} {% else %} {% set collection_context = "None specified by user" %} {% set collection_instruction = "discover and select relevant collections automatically" %} {% endif %} {% set web_status = "enabled" if web_search_enabled else "disabled" %} {% set web_instruction = "Use web search strategically for current information, verification, or gap-filling" if web_search_enabled else "Rely entirely on knowledge collections; inform user if web search would be helpful" %} {% set chat_context = "Chat ID: " + chat_id if chat_id else "No chat files" %} {% set chat_instruction = "Use search_chat_files tool to search files uploaded in this chat" if chat_id else "" %}
+{% set collection_list = [] %} {% if collections %} {% for c in collections %} {% set title = c.title or "Collection " + c.id %} {% set _ = collection_list.append("- " + title + " (ID: " + c.id + ")") %} {% endfor %} {% set collection_context = collection_list | join("\n") %} {% set collection_instruction = "PRIORITY: Search these user-specified collections first" %} {% else %} {% set collection_context = "None specified by user" %} {% set collection_instruction = "discover and select relevant collections automatically" %} {% endif %} {% set web_status = "enabled" if web_search_enabled else "disabled" %} {% set web_instruction = "Use web search strategically for current information, verification, or gap-filling" if web_search_enabled else "Rely entirely on knowledge collections; inform user if web search would be helpful" %} {% set chat_context = "Chat ID: " + chat_id if chat_id else "No chat files" %} {% set chat_instruction = "ONLY use search_chat_files tool when searching files that user explicitly uploaded in THIS chat. Do NOT use it for general knowledge base queries." if chat_id else "" %}
 
 **User Query**: {{ query }}
 
@@ -12,7 +12,7 @@
 
 1. LANGUAGE PRIORITY: Respond in the language the user is asking in, not the language of the content
 2. If user specified collections (@mentions), search those first (REQUIRED)
-3. If chat files are available, search files uploaded in this chat when relevant
+3. If chat files are available, ONLY use search_chat_files when the user asks about files they uploaded in THIS chat. Use search_collection for general knowledge queries.
 4. Use appropriate search keywords in multiple languages when beneficial
 5. Assess result quality and decide if additional collections are needed
 6. Use web search strategically if enabled and relevant

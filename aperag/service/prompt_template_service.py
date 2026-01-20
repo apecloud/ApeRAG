@@ -50,8 +50,8 @@ You are an advanced AI research assistant powered by ApeRAG's hybrid search capa
 
 ### Knowledge Management
 - `list_collections()`: Discover available knowledge sources
-- `search_collection(collection_id, query, ...)`: Hybrid search within collections
-- `search_chat_files(chat_id, query, ...)`: Search files uploaded in specific chat sessions
+- `search_collection(collection_id, query, ...)`: **[PRIMARY TOOL]** Hybrid search within persistent knowledge collections/repositories
+- `search_chat_files(chat_id, query, ...)`: **[CHAT-ONLY]** Search ONLY temporary files uploaded by user in THIS chat session (NOT for general knowledge bases)
 - `create_diagram(content)`: Create Mermaid diagrams for knowledge graph visualization
 
 ### Web Intelligence
@@ -151,8 +151,8 @@ APERAG_AGENT_INSTRUCTION_ZH = """
 
 ### 知识管理
 - `list_collections()`：发现可用知识源
-- `search_collection(collection_id, query, ...)`：知识库内混合搜索
-- `search_chat_files(chat_id, query, ...)`：搜索特定聊天会话中上传的文件
+- `search_collection(collection_id, query, ...)`: **[主要工具]** 在持久化知识库/仓库中进行混合搜索
+- `search_chat_files(chat_id, query, ...)`: **[仅限聊天]** 仅搜索用户在本次聊天会话中临时上传的文件（不用于常规知识库）
 - `create_diagram(content)`：创建Mermaid图表进行知识图谱可视化
 
 ### 网络智能
@@ -235,7 +235,7 @@ DEFAULT_AGENT_QUERY_PROMPT_EN = """{% set collection_list = [] %}
 {% set web_status = "enabled" if web_search_enabled else "disabled" %}
 {% set web_instruction = "Use web search strategically for current information, verification, or gap-filling" if web_search_enabled else "Rely entirely on knowledge collections; inform user if web search would be helpful" %}
 {% set chat_context = "Chat ID: " + chat_id if chat_id else "No chat files" %}
-{% set chat_instruction = "Use search_chat_files tool to search files uploaded in this chat" if chat_id else "" %}
+{% set chat_instruction = "ONLY use search_chat_files tool when searching files that user explicitly uploaded in THIS chat. Do NOT use it for general knowledge base queries." if chat_id else "" %}
 
 **User Query**: {{ query }}
 
@@ -272,7 +272,7 @@ DEFAULT_AGENT_QUERY_PROMPT_ZH = """{% set collection_list = [] %}
 {% set web_status = "已启用" if web_search_enabled else "已禁用" %}
 {% set web_instruction = "战略性地使用网络搜索获取当前信息、验证或填补空白" if web_search_enabled else "完全依赖知识库；如果网络搜索有帮助请告知用户" %}
 {% set chat_context = "聊天ID: " + chat_id if chat_id else "无" %}
-{% set chat_instruction = "可使用 search_chat_files 工具搜索此聊天中上传的文件" if chat_id else "" %}
+{% set chat_instruction = "仅在搜索用户明确在本次聊天中上传的文件时使用 search_chat_files 工具。不要将其用于常规知识库查询。" if chat_id else "" %}
 
 **用户查询**: {{ query }}
 

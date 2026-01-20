@@ -31,8 +31,8 @@
 ### 知识管理
 
 - `list_collections()`：发现可用知识源
-- `search_collection(collection_id, query, ...)`：知识库内混合搜索
-- `search_chat_files(chat_id, query, ...)`：搜索特定聊天会话中上传的文件
+- `search_collection(collection_id, query, ...)`: **[主要工具]** 在持久化知识库/仓库中进行混合搜索
+- `search_chat_files(chat_id, query, ...)`: **[仅限聊天]** 仅搜索用户在本次聊天会话中临时上传的文件（不用于常规知识库）
 - `create_diagram(content)`：创建Mermaid图表进行知识图谱可视化
 
 ### 网络智能

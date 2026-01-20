@@ -78,7 +78,12 @@ async def search_collection(
     topk: int = 5,
     query_keywords: list[str] = None,
 ) -> Dict[str, Any]:
-    """Search for knowledge in a specific collection using vector, full-text, graph, and/or summary search.
+    """Search for knowledge in a persistent collection/knowledge base using vector, full-text, graph, and/or summary search.
+
+    🎯 Primary Use Case: This is the main tool for searching permanent knowledge repositories.
+    Use this for general Q&A, knowledge retrieval, and accessing organized knowledge collections.
+
+    For temporary files uploaded in a chat session, use search_chat_files instead.
 
     Args:
         collection_id: The ID of the collection to search in
@@ -215,7 +220,18 @@ async def search_chat_files(
     rerank: bool = True,
     topk: int = 5,
 ) -> Dict[str, Any]:
-    """Search for knowledge in chat files using vector, full-text, graph, and/or summary search.
+    """Search ONLY within files temporarily uploaded by the user in THIS specific chat session.
+
+    ⚠️ IMPORTANT - When to Use This Tool:
+    - ONLY when searching files that the user explicitly uploaded in THIS chat conversation
+    - For temporary, session-specific document analysis (e.g., "analyze this PDF I just uploaded")
+    - When the user references documents they shared in the current chat
+
+    ⚠️ DO NOT Use This Tool For:
+    - Searching general knowledge bases or collections (use search_collection instead)
+    - Accessing persistent/permanent knowledge repositories
+    - General Q&A that doesn't involve chat-uploaded files
+    - When no files have been uploaded in the current chat
 
     Args:
         chat_id: The ID of the chat to search files in
@@ -230,10 +246,9 @@ async def search_chat_files(
 
     Note:
         Uses SearchResult view model for type-safe response parsing and validation.
-        This tool searches within files uploaded to the specified chat.
 
-        The search behavior is similar to search_collection, but limited to documents
-        uploaded in the specified chat context.
+        🔍 Scope: This tool ONLY searches temporary files uploaded in the current chat.
+        It does NOT search permanent knowledge collections.
 
         Return format follows the same structure as search_collection:
         - rank: Result rank
