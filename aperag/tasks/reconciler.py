@@ -409,11 +409,12 @@ class CollectionSummaryReconciler:
     def _get_summaries_needing_reconciliation(self, session: Session) -> List[CollectionSummary]:
         """
         Get all collection summaries that need reconciliation
+        Only select summaries with PENDING status and version mismatch
         """
         stmt = select(CollectionSummary).where(
-            or_(
+            and_(
                 CollectionSummary.version != CollectionSummary.observed_version,
-                CollectionSummary.status != CollectionSummaryStatus.GENERATING,
+                CollectionSummary.status == CollectionSummaryStatus.PENDING,
             )
         )
         result = session.execute(stmt)
