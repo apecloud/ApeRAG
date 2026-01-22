@@ -12,39 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
-
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import StreamingResponse
 
 from aperag.db.models import User
-from aperag.service.chat_completion_service import OpenAIFormatter, chat_completion_service
+from aperag.service.chat_completion_service import OpenAIFormatter
 from aperag.views.auth import required_user
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["openai"])
 
 
 @router.post("/chat/completions")
 async def openai_chat_completions_view(request: Request, user: User = Depends(required_user)):
-    try:
-        body_data = await request.json()
-        query_params = dict(request.query_params)
-        result, error = await chat_completion_service.openai_chat_completions(str(user.id), body_data, query_params)
-        if error:
-            return error
-        api_request, formatter, async_generator = result
-        if api_request.stream:
-            return StreamingResponse(
-                chat_completion_service.stream_openai_sse_response(async_generator(), formatter, api_request.msg_id),
-                media_type="text/event-stream",
-            )
-        else:
-            full_content = ""
-            async for chunk in async_generator():
-                full_content += chunk
-            return formatter.format_complete_response(api_request.msg_id, full_content)
-    except Exception as e:
-        logger.exception(e)
-        return OpenAIFormatter.format_error(str(e))
+    """OpenAI-compatible chat completions endpoint - Not implemented for agent-type bots"""
+    return OpenAIFormatter.format_error(
+        "The /v1/chat/completions endpoint is not implemented. Please use WebSocket API for agent-type bots."
+    )

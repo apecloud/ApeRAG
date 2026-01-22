@@ -16,15 +16,12 @@ import asyncio
 import json
 import logging
 import time
-import uuid
 from dataclasses import dataclass
 from typing import Any, AsyncGenerator, Dict, List
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
-from aperag.flow.engine import FlowEngine
-from aperag.flow.parser import FlowParser
 
 logger = logging.getLogger(__name__)
 
@@ -117,57 +114,10 @@ class ChatCompletionService:
         yield f"data: {json.dumps(formatter.format_stream_end(msg_id))}\n\n"
 
     async def openai_chat_completions(self, user, body_data, query_params):
-        """Handle OpenAI-compatible chat completions"""
-        bot_id = query_params.get("bot_id") or query_params.get("app_id")
-        if not bot_id:
-            return None, OpenAIFormatter.format_error("bot_id is required")
-
-        api_request = APIRequest(
-            user=user,
-            bot_id=bot_id,
-            msg_id=str(uuid.uuid4()),
-            stream=body_data.get("stream", False),
-            messages=body_data.get("messages", []),
+        """Handle OpenAI-compatible chat completions - Not implemented"""
+        return None, OpenAIFormatter.format_error(
+            "The /v1/chat/completions endpoint is not implemented. Please use WebSocket API for agent-type bots."
         )
-
-        bot = await self.db_ops.query_bot(api_request.user, api_request.bot_id)
-        if not bot:
-            return None, OpenAIFormatter.format_error("Bot not found")
-
-        formatter = OpenAIFormatter()
-
-        # Get bot's flow configuration
-        bot_config = json.loads(bot.config or "{}")
-        flow_config = bot_config.get("flow")
-        if not flow_config:
-            return None, OpenAIFormatter.format_error("Bot flow config not found")
-
-        flow = FlowParser.parse(flow_config)
-        engine = FlowEngine()
-        initial_data = {
-            "query": api_request.messages[-1]["content"],
-            "user": api_request.user,
-            "message_id": api_request.msg_id,
-        }
-
-        try:
-            _, system_outputs = await engine.execute_flow(flow, initial_data)
-            logger.info("Flow executed successfully!")
-        except Exception as e:
-            logger.exception(e)
-            return None, OpenAIFormatter.format_error(str(e))
-
-        async_generator = None
-        nodes = engine.find_end_nodes(flow)
-        for node in nodes:
-            async_generator = system_outputs[node].get("async_generator")
-            if async_generator:
-                break
-
-        if not async_generator:
-            return None, OpenAIFormatter.format_error("No output node found")
-
-        return (api_request, formatter, async_generator), None
 
 
 # Create a global service instance for easy access
