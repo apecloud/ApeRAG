@@ -10,9 +10,9 @@ keywords: Graph RAG, vector search, full-text search
 
 **🚀 [Try ApeRAG Live Demo](https://rag.apecloud.com/)** - Experience the full platform capabilities with our hosted demo
 
-![HarryPotterKG2.png](/docs%2Fimages%2FHarryPotterKG2.png)
+![HarryPotterKG2.png](/docs%2Fen-US%2Fimages%2FHarryPotterKG2.png)
 
-![chat2.png](/docs%2Fimages%2Fchat2.png)
+![chat2.png](/docs%2Fen-US%2Fimages%2Fchat2.png)
 
 ApeRAG is a production-ready RAG (Retrieval-Augmented Generation) platform that combines Graph RAG, vector search, and full-text search with advanced AI agents. Build sophisticated AI applications with hybrid retrieval, multimodal document processing, intelligent agents, and enterprise-grade management features.
 
@@ -23,8 +23,8 @@ ApeRAG is the best choice for building your own Knowledge Graph, Context Enginee
 - [Quick Start](#quick-start)
 - [Key Features](#key-features)
 - [Kubernetes Deployment (Recommended for Production)](#kubernetes-deployment-recommended-for-production)
-- [Development](./docs/development-guide.md)
-- [Build Docker Image](./docs/build-docker-image.md)
+- [Development](../../../docs/en-US/development-guide.md)
+- [Build Docker Image](../../../docs/en-US/build-docker-image.md)
 - [Acknowledgments](#acknowledgments)
 - [License](#license)
 
@@ -104,7 +104,7 @@ make compose-up WITH_DOCRAY=1 WITH_GPU=1
 
 #### Development & Contributing
 
-For developers interested in source code development, advanced configurations, or contributing to ApeRAG, please refer to our [Development Guide](./docs/development-guide.md) for detailed setup instructions.
+For developers interested in source code development, advanced configurations, or contributing to ApeRAG, please refer to our [Development Guide](../../../docs/en-US/development-guide.md) for detailed setup instructions.
 
 ## Key Features
 

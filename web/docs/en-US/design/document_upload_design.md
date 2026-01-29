@@ -118,7 +118,7 @@ For the complete documentation including:
 - Performance optimization
 - Error handling
 
-Please refer to the main design document at `/docs/design/document_upload_design.md`.
+Please refer to the main design document at `/docs/en-US/design/document_upload_design.md`.
 
 ## Quick Reference
 
@@ -224,4 +224,4 @@ ApeRAG's document upload module adopts a **two-phase commit + multi-parser chain
 9. ✅ **Transaction Consistency**: Database + object store 2PC
 10. ✅ **Observability**: Audit logs, task tracking, error recording
 
-For complete details, please refer to `/docs/design/document_upload_design.md`.
+For complete details, please refer to `/docs/en-US/design/document_upload_design.md`.

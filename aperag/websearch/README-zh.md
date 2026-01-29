@@ -928,7 +928,7 @@ pip install ruff>=0.1.0               # 代码格式检查（已通过）
 ---
 
 **更多信息请参考：**
-- [Agent后端设计文档](../../docs/design/agent-backend-zh.md)
+- [Agent后端设计文档](../../docs/zh-CN/design/agent-backend.md)
 - [并行搜索测试用例](../../tests/unit_test/websearch/test_parallel_search.py)
 - [JINA API文档](https://jina.ai/reader)
 - [DuckDuckGo Search文档](https://pypi.org/project/duckduckgo-search/)

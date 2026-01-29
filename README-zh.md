@@ -1,8 +1,8 @@
 # ApeRAG
 
-![HarryPotterKG2.png](docs%2Fimages%2FHarryPotterKG2.png)
+![HarryPotterKG2.png](docs%2Fzh-CN%2Fimages%2FHarryPotterKG2.png)
 
-![chat2.png](docs%2Fimages%2Fchat2.png)
+![chat2.png](docs%2Fzh-CN%2Fimages%2Fchat2.png)
 
 ApeRAG 是一个生产级 RAG（检索增强生成）平台，结合了图 RAG、向量搜索、全文搜索和先进的 AI 智能体。构建具有混合检索、多模态文档处理、智能代理和企业级管理功能的复杂 AI 应用程序。
 
@@ -15,8 +15,8 @@ ApeRAG 是你构建自己的知识图谱、进行上下文工程以及部署能�
 - [快速开始](#快速开始)
 - [核心特性](#核心特性)
 - [Kubernetes 部署（推荐生产环境）](#kubernetes-部署推荐生产环境)
-- [开发指南](./docs/development-guide-zh.md)
-- [构建 Docker 镜像](./docs/build-docker-image-zh.md)
+- [开发指南](./docs/zh-CN/development-guide.md)
+- [构建 Docker 镜像](./docs/zh-CN/build-docker-image.md)
 - [致谢](#致谢)
 - [许可证](#许可证)
 
@@ -95,7 +95,7 @@ make compose-up WITH_DOCRAY=1 WITH_GPU=1
 
 #### 开发与贡献
 
-对于有兴趣进行源代码开发、高级配置或为 ApeRAG 做贡献的开发人员，请参考我们的[开发指南](./docs/development-guide-zh.md)获取详细的设置说明。
+对于有兴趣进行源代码开发、高级配置或为 ApeRAG 做贡献的开发人员，请参考我们的[开发指南](./docs/zh-CN/development-guide.md)获取详细的设置说明。
 
 ## 核心特性
 
@@ -238,13 +238,13 @@ ApeRAG 中基于图的知识检索能力由深度修改的 [LightRAG](https://gi
 ## 社区
 
 * [Discord](https://discord.gg/FsKpXukFuB)
-* [Feishu](docs%2Fimages%2Ffeishu-qr-code.png)
+* [Feishu](docs%2Fzh-CN%2Fimages%2Ffeishu-qr-code.png)
 
-<img src="docs/images/feishu-qr-code.png" alt="Feishu" width="150"/>
+<img src="docs/zh-CN/images/feishu-qr-code.png" alt="Feishu" width="150"/>
 
 ## Star History
 
-![star-history-2025922.png](docs%2Fimages%2Fstar-history-2025922.png)
+![star-history-2025922.png](docs%2Fzh-CN%2Fimages%2Fstar-history-2025922.png)
 
 ## 许可证
 
