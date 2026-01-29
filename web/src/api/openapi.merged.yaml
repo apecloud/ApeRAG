@@ -4583,8 +4583,8 @@ components:
         language:
           type: string
           description: Language for entity extraction and query responses
-          default: English
-          example: English
+          default: simplified chinese
+          example: simplified chinese
         entity_types:
           type: array
           items:
@@ -4635,7 +4635,7 @@ components:
           allOf:
             - $ref: '#/components/schemas/knowledgeGraphConfig'
           default:
-            language: English
+            language: simplified chinese
             entity_types:
               - organization
               - person
