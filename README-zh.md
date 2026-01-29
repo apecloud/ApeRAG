@@ -60,7 +60,11 @@ ApeRAG 支持 [MCP（模型上下文协议）](https://modelcontextprotocol.io/)
 }
 ```
 
-**重要提示**：将 `http://localhost:8000` 替换为您实际的 ApeRAG API 地址，将 `your-api-key-here` 替换为 ApeRAG 设置中的有效 API 密钥。
+**认证方式**（按优先级）：
+1. **HTTP Authorization 头**（推荐）：`Authorization: Bearer your-api-key`
+2. **环境变量**（备用）：`APERAG_API_KEY=your-api-key`
+
+**重要提示**：将 `https://rag.apecloud.com` 替换为您实际的 ApeRAG API 地址，将 `your-api-key-here` 替换为 ApeRAG 设置中的有效 API 密钥。
 
 MCP 服务器提供：
 - **集合浏览**：列出和探索您的知识集合

@@ -105,6 +105,11 @@ export async function getDocsSideBar(dir?: string): Promise<DocsSideBar[]> {
   const dirs = fs.readdirSync(baseDir);
   const result = await Promise.all(
     dirs.map(async (parent) => {
+      // Skip images directory from sidebar
+      if (parent === 'images') {
+        return;
+      }
+
       const pathname = path.join(baseDir, parent);
       const stat = fs.statSync(pathname);
       if (stat.isDirectory()) {

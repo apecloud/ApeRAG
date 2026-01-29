@@ -83,6 +83,7 @@ SYNC_WHITELIST = [
     
     # English docs - Development
     "en-US/development/dify.md",
+    "en-US/development/mcp-api.md",
     
     # Chinese docs - Design
     "zh-CN/design/architecture.md",
@@ -92,6 +93,7 @@ SYNC_WHITELIST = [
     
     # Chinese docs - Development
     "zh-CN/development/dify.md",
+    "zh-CN/development/mcp-api.md",
 ]
 
 
@@ -144,8 +146,8 @@ def sync_images(doc_path: Path, image_refs: List[str]) -> None:
     doc_dir = doc_path.parent
     
     for img_ref in image_refs:
-        # Skip external URLs
-        if img_ref.startswith(('http://', 'https://', '//')):
+        # Skip external URLs and absolute paths
+        if img_ref.startswith(('http://', 'https://', '//', '/')):
             continue
         
         # Resolve image path relative to document

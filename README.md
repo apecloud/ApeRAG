@@ -61,7 +61,11 @@ ApeRAG supports [MCP (Model Context Protocol)](https://modelcontextprotocol.io/)
 }
 ```
 
-**Important**: Replace `http://localhost:8000` with your actual ApeRAG API URL and `your-api-key-here` with a valid API key from your ApeRAG settings.
+**Authentication** (by priority):
+1. **HTTP Authorization Header** (Recommended): `Authorization: Bearer your-api-key`
+2. **Environment Variable** (Fallback): `APERAG_API_KEY=your-api-key`
+
+**Important**: Replace `https://rag.apecloud.com` with your actual ApeRAG API URL and `your-api-key-here` with a valid API key from your ApeRAG settings.
 
 The MCP server provides:
 - **Collection browsing**: List and explore your knowledge collections
