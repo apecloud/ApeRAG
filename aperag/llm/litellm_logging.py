@@ -25,7 +25,12 @@ def setup_litellm_logging():
 
     litellm.suppress_debug_info = True
     litellm.disable_streaming_logging = True
-    logging.info("LiteLLM debug info suppression is enabled.")
+
+    # Disable callbacks to prevent LoggingWorker event loop issues in Celery tasks
+    # See: https://github.com/BerriAI/litellm/issues/14521
+    litellm.callbacks = []
+
+    logging.info("LiteLLM debug info suppression is enabled and callbacks are disabled.")
 
     # Filter Pydantic serialization warnings globally
     import warnings

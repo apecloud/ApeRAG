@@ -15,7 +15,6 @@
 import logging
 from datetime import datetime
 
-import litellm
 from litellm.integrations.custom_logger import CustomLogger
 
 logger = logging.getLogger(__name__)
@@ -76,4 +75,7 @@ class MyCustomHandler(CustomLogger):
 
 
 def register_custom_llm_track():
-    litellm.callbacks = [MyCustomHandler()]
+    # Disabled to prevent LoggingWorker event loop issues in Celery tasks
+    # See: https://github.com/BerriAI/litellm/issues/14521
+    # litellm.callbacks = [MyCustomHandler()]
+    pass
