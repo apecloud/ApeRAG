@@ -84,6 +84,12 @@ SYNC_WHITELIST = [
     # English docs - Development
     "en-US/development/dify.md",
     "en-US/development/mcp-api.md",
+    "en-US/development/build-docker-image.md",
+    "en-US/development/development-guide.md",
+    
+    # English docs - Reference
+    # "en-US/reference/how-to-configure-ollama.md",
+    # "en-US/reference/HOW-TO-DEBUG.md",
     
     # Chinese docs - Design
     "zh-CN/design/architecture.md",
@@ -94,6 +100,12 @@ SYNC_WHITELIST = [
     # Chinese docs - Development
     "zh-CN/development/dify.md",
     "zh-CN/development/mcp-api.md",
+    "zh-CN/development/build-docker-image.md",
+    "zh-CN/development/development-guide.md",
+    
+    # Chinese docs - Reference
+    # "zh-CN/reference/how-to-configure-ollama.md",
+    # "zh-CN/reference/HOW-TO-DEBUG.md",
 ]
 
 

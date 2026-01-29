@@ -16,15 +16,16 @@ ApeRAG 是一款具备多模态索引、AI 智能体、MCP 支持及可扩展 K8
 ## 视频演示
 
 <div align="center">
-  <iframe src="//player.bilibili.com/player.html?bvid=BV1TRzABDEs3&page=1" 
-          scrolling="no" 
-          border="0" 
-          frameborder="no" 
-          framespacing="0" 
-          allowfullscreen="true"
-          width="800"
-          height="600"
-          style="max-width: 100%;">
+  <iframe 
+    src="//player.bilibili.com/player.html?bvid=BV1TRzABDEs3&page=1" 
+    scrolling="no" 
+    border="0" 
+    frameborder="no" 
+    framespacing="0" 
+    allowfullscreen
+    width="800"
+    height="600"
+    style="max-width: 100%;">
   </iframe>
 </div>
 

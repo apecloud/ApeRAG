@@ -1,7 +1,6 @@
 ---
 title: 开发指南
-description:
-keywords:
+description: ApeRAG 开发环境设置和工作流程
 ---
 
 # 🛠️ 开发指南
@@ -28,8 +27,8 @@ cp envs/env.template .env
 
 在开始之前，请确保您的系统具备：
 
-- **Node.js**：推荐版本 20 或更高版本用于前端开发。[下载 Node.js](https://nodejs.org/)
-- **Docker & Docker Compose**：本地运行数据库服务所需。[下载 Docker](https://docs.docker.com/get-docker/)
+*   **Node.js**：推荐版本 20 或更高版本用于前端开发。[下载 Node.js](https://nodejs.org/)
+*   **Docker & Docker Compose**：本地运行数据库服务所需。[下载 Docker](https://docs.docker.com/get-docker/)
 
 **注意**：需要 Python 3.11，但将在下一步中通过 `uv` 自动管理。
 
@@ -74,15 +73,13 @@ make dev
 ```
 
 此命令将：
-
-- 如果尚未可用，则安装 `uv`
-- 创建 Python 3.11 虚拟环境（位于 `.venv/` 中）
-- 安装开发工具（redocly、openapi-generator-cli 等）
-- 为代码质量安装 pre-commit hooks
-- 安装 addlicense 工具进行许可证管理
+*   如果尚未可用，则安装 `uv`
+*   创建 Python 3.11 虚拟环境（位于 `.venv/` 中）
+*   安装开发工具（redocly、openapi-generator-cli 等）
+*   为代码质量安装 pre-commit hooks
+*   安装 addlicense 工具进行许可证管理
 
 **激活虚拟环境：**
-
 ```bash
 source .venv/bin/activate
 ```
@@ -98,9 +95,8 @@ make install
 ```
 
 此命令将：
-
-- 将 `pyproject.toml` 中的所有 Python 后端依赖项安装到虚拟环境中
-- 使用 `yarn` 安装前端 Node.js 依赖项
+*   将 `pyproject.toml` 中的所有 Python 后端依赖项安装到虚拟环境中
+*   使用 `yarn` 安装前端 Node.js 依赖项
 
 ### 6. 🔄 应用数据库迁移
 
@@ -115,43 +111,35 @@ make migrate
 现在您可以启动开发服务。为每个服务打开单独的终端窗口/选项卡：
 
 **终端 1 - 后端 API 服务器：**
-
 ```bash
 make run-backend
 ```
-
 这将在 `http://localhost:8000` 启动 FastAPI 开发服务器，代码更改时自动重新加载。
 
 **终端 2 - Celery Worker：**
-
 ```bash
 make run-celery
 ```
-
 这将启动 Celery worker 以处理异步后台任务。
 
 **终端 3 - 前端（可选）：**
-
 ```bash
 make run-frontend
 ```
-
 这将在 `http://localhost:3000` 启动前端开发服务器，支持热重载。
 
 ### 8. 🌐 访问 ApeRAG
 
 服务运行后，您可以访问：
-
-- **前端 UI**：http://localhost:3000（如果已启动）
-- **后端 API**：http://localhost:8000
-- **API 文档**：http://localhost:8000/docs
+*   **前端 UI**：http://localhost:3000 (如果已启动)
+*   **后端 API**：http://localhost:8000
+*   **API 文档**：http://localhost:8000/docs
 
 ### 9. ⏹️ 停止服务
 
 要停止开发环境：
 
 **停止数据库服务：**
-
 ```bash
 # 停止数据库服务（保留数据）
 make compose-down
@@ -161,19 +149,16 @@ make compose-down REMOVE_VOLUMES=1
 ```
 
 **停止开发服务：**
-
 - 后端 API 服务器：在运行 `make run-backend` 的终端中按 `Ctrl+C`
 - Celery Worker：在运行 `make run-celery` 的终端中按 `Ctrl+C`
 - 前端服务器：在运行 `make run-frontend` 的终端中按 `Ctrl+C`
 
 **数据管理：**
-
 - `make compose-down` - 停止服务但保留所有数据（PostgreSQL、Redis、Qdrant 等）
 - `make compose-down REMOVE_VOLUMES=1` - 停止服务并**⚠️ 永久删除所有数据**
 - 即使已经运行过 `make compose-down`，您也可以运行 `make compose-down REMOVE_VOLUMES=1`
 
 **验证数据移除：**
-
 ```bash
 # 检查卷是否仍然存在
 docker volume ls | grep aperag
@@ -188,7 +173,6 @@ docker volume ls | grep aperag
 ### Q: 🔧 如何添加或修改 REST API 端点？
 
 **完整工作流程：**
-
 1. 编辑 OpenAPI 规范：`aperag/api/paths/[endpoint-name].yaml`
 2. 重新生成后端模型：
    ```bash
@@ -208,7 +192,6 @@ docker volume ls | grep aperag
 ### Q: 🗃️ 如何修改数据库模型/架构？
 
 **数据库迁移工作流程：**
-
 1. 编辑 `aperag/db/models.py` 中的 SQLModel 类
 2. 生成迁移文件：
    ```bash
@@ -227,7 +210,6 @@ docker volume ls | grep aperag
 ### Q: ⚡ 如何添加具有后台处理的新功能？
 
 **功能实现工作流程：**
-
 1. 实现功能组件：
    - 后端逻辑：`aperag/[module]/`
    - 异步任务：`aperag/tasks/`
@@ -247,7 +229,6 @@ docker volume ls | grep aperag
 ### Q: 🧪 如何运行单元测试和 e2e 测试？
 
 **单元测试（快速，无外部依赖）：**
-
 ```bash
 # 运行所有单元测试
 make unit-test
@@ -263,7 +244,6 @@ uv run pytest tests/unit_test/ --cov=aperag --cov-report=html
 ```
 
 **E2E 测试（需要运行服务）：**
-
 ```bash
 # 设置：首先启动所需服务
 make compose-infra      # 🗄️ 启动数据库
@@ -284,7 +264,6 @@ make e2e-performance-test
 ```
 
 **完整测试套件：**
-
 ```bash
 # 运行所有内容（单元 + e2e）
 make test
@@ -297,17 +276,14 @@ make test
 ### Q: 🐛 如何调试失败的测试？
 
 **调试工作流程：**
-
 1. 单独运行失败的测试：
-
    ```bash
    # 带完整输出的单个测试
    uv run pytest tests/unit_test/test_failing.py::test_specific_function -v -s
-
+   
    # 在第一次失败时停止
    uv run pytest tests/unit_test/ -x --tb=short
    ```
-
 2. 对于 e2e 测试失败，确保服务正在运行：
    ```bash
    make compose-infra       # 数据库服务
@@ -315,15 +291,13 @@ make test
    make run-celery         # 后台 workers（如果测试异步任务）
    ```
 3. 使用调试工具：
-
    ```bash
    # 使用 pdb 调试器运行
    uv run pytest tests/unit_test/test_failing.py --pdb
-
+   
    # 在测试期间捕获日志
    uv run pytest tests/e2e_test/test_failing.py --log-cli-level=DEBUG
    ```
-
 4. 修复并重新测试：
    ```bash
    make format              # 自动修复样式问题
@@ -334,7 +308,6 @@ make test
 ### Q: 📊 如何运行 RAG 评估和分析？
 
 **评估工作流程：**
-
 ```bash
 # 确保环境准备就绪
 make compose-infra WITH_NEO4J=1  # 使用 Neo4j 获得更好的图性能
@@ -350,7 +323,6 @@ make evaluate               # 📊 运行 aperag.evaluation.run 模块
 ### Q: 📦 如何安全地更新依赖项？
 
 **Python 依赖项：**
-
 1. 编辑 `pyproject.toml`（添加/更新包）
 2. 更新虚拟环境：
    ```bash
@@ -359,7 +331,6 @@ make evaluate               # 📊 运行 aperag.evaluation.run 模块
    ```
 
 **前端依赖项：**
-
 1. 编辑 `frontend/package.json`
 2. 更新并测试：
    ```bash
@@ -371,7 +342,6 @@ make evaluate               # 📊 运行 aperag.evaluation.run 模块
 ### Q: 🚀 如何准备代码进行生产部署？
 
 **部署前检查清单：**
-
 1. 代码质量验证：
    ```bash
    make format            # 自动修复所有样式问题
@@ -402,7 +372,6 @@ make evaluate               # 📊 运行 aperag.evaluation.run 模块
 ### Q: 🔄 如何完全重置我的开发环境？
 
 **核选项重置（销毁所有数据）：**
-
 ```bash
 make compose-down REMOVE_VOLUMES=1  # ⚠️ 停止服务 + 删除所有数据
 make clean                         # 🧹 清理临时文件
@@ -415,7 +384,6 @@ make run-celery                   # ⚡ 启动后台 workers
 ```
 
 **软重置（保留数据）：**
-
 ```bash
 make compose-down                 # ⏹️ 停止服务，保留数据
 make compose-infra               # 🗄️ 重启数据库
@@ -423,9 +391,8 @@ make migrate                    # 🔄 应用任何新迁移
 ```
 
 **仅重置 Python 环境：**
-
 ```bash
 rm -rf .venv/                   # 🗑️ 移除虚拟环境
 make dev                       # ⚙️ 重新创建所有内容
 source .venv/bin/activate      # ✅ 重新激活
-```
+``` 

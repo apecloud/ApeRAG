@@ -1,6 +1,9 @@
-# 构建指南
+---
+title: 构建 Docker 镜像
+description: 如何构建 ApeRAG 容器镜像
+---
 
-[Read English Documentation](build-docker-image.md)
+# 构建指南
 
 本节介绍如何构建 ApeRAG 容器镜像。这主要适用于需要创建自己的构建或部署到"快速开始"中未涵盖的环境的用户。
 

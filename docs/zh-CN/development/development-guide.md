@@ -1,6 +1,9 @@
-# 🛠️ 开发指南
+---
+title: 开发指南
+description: ApeRAG 开发环境设置和工作流程
+---
 
-[Read English Documentation](development-guide.md)
+# 🛠️ 开发指南
 
 本指南重点介绍如何为 ApeRAG 设置开发环境和开发工作流程。这是为希望为 ApeRAG 做贡献或在本地运行它进行开发的开发人员设计的。
 
@@ -128,7 +131,7 @@ make run-frontend
 ### 8. 🌐 访问 ApeRAG
 
 服务运行后，您可以访问：
-*   **前端 UI**：http://localhost:3000（如果已启动）
+*   **前端 UI**：http://localhost:3000 (如果已启动)
 *   **后端 API**：http://localhost:8000
 *   **API 文档**：http://localhost:8000/docs
 
