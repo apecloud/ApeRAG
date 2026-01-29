@@ -318,6 +318,12 @@ load-images-to-kind:
 # Utilities & Tools
 ##################################################
 
+# Documentation sync
+.PHONY: docs
+docs:
+	@echo "Syncing documentation from docs/ to web/docs/"
+	@/usr/bin/python3 scripts/sync-docs.py
+
 # System information
 .PHONY: info
 info:
