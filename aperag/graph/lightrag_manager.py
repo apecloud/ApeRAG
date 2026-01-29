@@ -47,7 +47,7 @@ class LightRAGConfig:
     SUMMARY_TO_MAX_TOKENS = 2000
     FORCE_LLM_SUMMARY_ON_MERGE = 10
     EMBEDDING_MAX_TOKEN_SIZE = 8192
-    DEFAULT_LANGUAGE = "The same language like input text"
+    DEFAULT_LANGUAGE = "simplified chinese"
 
 
 class LightRAGError(Exception):

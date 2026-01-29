@@ -172,6 +172,43 @@ Output:
 ("relationship"{tuple_delimiter}"World Athletics Federation"{tuple_delimiter}"100m Sprint Record"{tuple_delimiter}"The World Athletics Federation is responsible for validating and recognizing new sprint records."{tuple_delimiter}"sports regulation, record certification"{tuple_delimiter}9){record_delimiter}
 ("content_keywords"{tuple_delimiter}"athletics, sprinting, record-breaking, sports technology, competition"){completion_delimiter}
 #############################""",
+    """Example 4:
+
+Entity_types: [organization, person, product, technology, location, event]
+Text:
+```
+在杭州召开的2024年度人工智能发展论坛上,云智科技公司CEO李明发表了题为"智能计算新纪元"的主题演讲。他宣布云智科技将推出全新的星云X1 AI芯片,该芯片采用先进的5纳米工艺,算力相比上一代提升了60%。
+
+李明在演讲中指出,边缘计算与大模型的结合将是未来技术发展的重要方向。云智科技研发团队已经在苏州研发中心完成了基于星云芯片的多模态模型训练测试,结果显示新芯片在图像识别和自然语言理解任务中表现出色。
+
+论坛期间,云智科技与江南理工大学签署了产学研合作协议,双方将在AI芯片架构设计和算法优化领域开展联合研究。江南理工大学计算机学院院长王芳教授表示,这次合作将为培养AI领域高端人才提供重要平台。
+```
+
+Output:
+("entity"{tuple_delimiter}"2024年度人工智能发展论坛"{tuple_delimiter}"event"{tuple_delimiter}"2024年度人工智能发展论坛是在杭州召开的AI行业重要会议,聚焦人工智能技术发展和应用。"){record_delimiter}
+("entity"{tuple_delimiter}"杭州"{tuple_delimiter}"location"{tuple_delimiter}"杭州是2024年度人工智能发展论坛的举办城市。"){record_delimiter}
+("entity"{tuple_delimiter}"云智科技"{tuple_delimiter}"organization"{tuple_delimiter}"云智科技是一家专注于AI芯片和智能计算技术研发的科技公司。"){record_delimiter}
+("entity"{tuple_delimiter}"李明"{tuple_delimiter}"person"{tuple_delimiter}"李明是云智科技公司的CEO,在人工智能发展论坛上发表了关于智能计算的主题演讲。"){record_delimiter}
+("entity"{tuple_delimiter}"星云X1"{tuple_delimiter}"product"{tuple_delimiter}"星云X1是云智科技推出的新一代AI芯片,采用5纳米工艺,算力提升60%。"){record_delimiter}
+("entity"{tuple_delimiter}"5纳米工艺"{tuple_delimiter}"technology"{tuple_delimiter}"5纳米工艺是星云X1芯片采用的先进半导体制造技术。"){record_delimiter}
+("entity"{tuple_delimiter}"边缘计算"{tuple_delimiter}"technology"{tuple_delimiter}"边缘计算是一种分布式计算架构,与大模型结合被认为是未来技术发展方向。"){record_delimiter}
+("entity"{tuple_delimiter}"苏州研发中心"{tuple_delimiter}"location"{tuple_delimiter}"苏州研发中心是云智科技的研发基地,多模态模型训练测试在此完成。"){record_delimiter}
+("entity"{tuple_delimiter}"多模态模型"{tuple_delimiter}"technology"{tuple_delimiter}"多模态模型是基于星云芯片训练的AI技术,用于图像识别和自然语言理解。"){record_delimiter}
+("entity"{tuple_delimiter}"江南理工大学"{tuple_delimiter}"organization"{tuple_delimiter}"江南理工大学是与云智科技签署产学研合作协议的高校,在AI领域开展联合研究。"){record_delimiter}
+("entity"{tuple_delimiter}"江南理工大学计算机学院"{tuple_delimiter}"organization"{tuple_delimiter}"江南理工大学计算机学院是江南理工大学的二级学院,参与AI芯片研究合作。"){record_delimiter}
+("entity"{tuple_delimiter}"王芳"{tuple_delimiter}"person"{tuple_delimiter}"王芳是江南理工大学计算机学院院长,负责与云智科技的产学研合作项目。"){record_delimiter}
+("relationship"{tuple_delimiter}"李明"{tuple_delimiter}"云智科技"{tuple_delimiter}"李明是云智科技的CEO,负责公司战略决策和对外发言。"{tuple_delimiter}"企业领导, 战略管理"{tuple_delimiter}10){record_delimiter}
+("relationship"{tuple_delimiter}"云智科技"{tuple_delimiter}"星云X1"{tuple_delimiter}"云智科技研发并推出了星云X1 AI芯片产品。"{tuple_delimiter}"产品研发, 技术创新"{tuple_delimiter}10){record_delimiter}
+("relationship"{tuple_delimiter}"星云X1"{tuple_delimiter}"5纳米工艺"{tuple_delimiter}"星云X1芯片采用5纳米工艺制造技术。"{tuple_delimiter}"技术应用, 制造工艺"{tuple_delimiter}9){record_delimiter}
+("relationship"{tuple_delimiter}"李明"{tuple_delimiter}"2024年度人工智能发展论坛"{tuple_delimiter}"李明在2024年度人工智能发展论坛上发表主题演讲。"{tuple_delimiter}"会议演讲, 行业交流"{tuple_delimiter}8){record_delimiter}
+("relationship"{tuple_delimiter}"2024年度人工智能发展论坛"{tuple_delimiter}"杭州"{tuple_delimiter}"2024年度人工智能发展论坛在杭州举办。"{tuple_delimiter}"会议地点, 地理位置"{tuple_delimiter}8){record_delimiter}
+("relationship"{tuple_delimiter}"云智科技"{tuple_delimiter}"苏州研发中心"{tuple_delimiter}"云智科技在苏州研发中心进行AI芯片研发和模型训练测试。"{tuple_delimiter}"研发基地, 技术测试"{tuple_delimiter}9){record_delimiter}
+("relationship"{tuple_delimiter}"星云X1"{tuple_delimiter}"多模态模型"{tuple_delimiter}"星云X1芯片被用于多模态模型的训练,在图像和语言任务中表现出色。"{tuple_delimiter}"技术应用, 性能验证"{tuple_delimiter}9){record_delimiter}
+("relationship"{tuple_delimiter}"云智科技"{tuple_delimiter}"江南理工大学"{tuple_delimiter}"云智科技与江南理工大学签署产学研合作协议,在AI领域开展联合研究。"{tuple_delimiter}"产学研合作, 战略协议"{tuple_delimiter}10){record_delimiter}
+("relationship"{tuple_delimiter}"王芳"{tuple_delimiter}"江南理工大学计算机学院"{tuple_delimiter}"王芳担任江南理工大学计算机学院院长。"{tuple_delimiter}"学术领导, 学院管理"{tuple_delimiter}10){record_delimiter}
+("relationship"{tuple_delimiter}"江南理工大学计算机学院"{tuple_delimiter}"江南理工大学"{tuple_delimiter}"江南理工大学计算机学院是江南理工大学的下属学院。"{tuple_delimiter}"组织从属, 学术机构"{tuple_delimiter}10){record_delimiter}
+("content_keywords"{tuple_delimiter}"人工智能, 芯片研发, 产学研合作, 边缘计算, 多模态技术"){completion_delimiter}
+#############################""",
 ]
 
 PROMPTS[
