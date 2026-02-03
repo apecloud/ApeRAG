@@ -1,3 +1,7 @@
+---
+title: Document Upload Design
+---
+
 # ApeRAG Document Upload Architecture Design
 
 ## Overview

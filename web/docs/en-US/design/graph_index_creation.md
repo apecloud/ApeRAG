@@ -2,6 +2,7 @@
 title: Graph Index Creation Process
 description: Complete process and core technologies for ApeRAG knowledge graph index construction
 keywords: Knowledge Graph, Graph Index, Entity Extraction, Relationship Extraction, Concurrency Optimization
+position: 2
 ---
 
 # Graph Index Creation Process

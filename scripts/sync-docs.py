@@ -82,10 +82,14 @@ SYNC_WHITELIST = [
     # "en-US/design/chat_history_design.md",
     
     # English docs - Development
-    "en-US/development/dify.md",
-    "en-US/development/mcp-api.md",
-    "en-US/development/build-docker-image.md",
     "en-US/development/development-guide.md",
+    
+    # English docs - Deployment
+    "en-US/deployment/build-docker-image.md",
+    
+    # English docs - Integration
+    "en-US/integration/dify.md",
+    "en-US/integration/mcp-api.md",
     
     # English docs - Reference
     # "en-US/reference/how-to-configure-ollama.md",
@@ -98,10 +102,14 @@ SYNC_WHITELIST = [
     # "zh-CN/design/chat_history_design.md",
     
     # Chinese docs - Development
-    "zh-CN/development/dify.md",
-    "zh-CN/development/mcp-api.md",
-    "zh-CN/development/build-docker-image.md",
     "zh-CN/development/development-guide.md",
+    
+    # Chinese docs - Deployment
+    "zh-CN/deployment/build-docker-image.md",
+    
+    # Chinese docs - Integration
+    "zh-CN/integration/dify.md",
+    "zh-CN/integration/mcp-api.md",
     
     # Chinese docs - Reference
     # "zh-CN/reference/how-to-configure-ollama.md",
@@ -220,10 +228,27 @@ def main():
             print(f"❌ Error syncing {doc_path}: {e}")
             error_count += 1
     
+    # Sync _category.yaml files
+    print("\n🔄 Syncing _category.yaml files...\n")
+    category_count = 0
+    for locale in ["en-US", "zh-CN"]:
+        locale_dir = DOCS_ROOT / locale
+        if locale_dir.exists():
+            for category_dir in locale_dir.iterdir():
+                if category_dir.is_dir():
+                    category_file = category_dir / "_category.yaml"
+                    if category_file.exists():
+                        dest_file = WEB_DOCS_ROOT / locale / category_dir.name / "_category.yaml"
+                        dest_file.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(category_file, dest_file)
+                        print(f"✅ Synced: {category_file} -> {dest_file}")
+                        category_count += 1
+    
     # Summary
     print(f"\n{'='*60}")
     print(f"📊 Summary:")
     print(f"   ✅ Synced: {synced_count} documents")
+    print(f"   ✅ Synced: {category_count} category files")
     if error_count > 0:
         print(f"   ❌ Errors: {error_count}")
     print(f"{'='*60}\n")
