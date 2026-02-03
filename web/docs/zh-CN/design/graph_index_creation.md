@@ -2,6 +2,7 @@
 title: 图索引构建流程
 description: ApeRAG 知识图谱索引构建的完整流程与核心技术
 keywords: 知识图谱, Graph Index, 实体提取, 关系抽取, 并发优化
+position: 2
 ---
 
 # 图索引构建流程

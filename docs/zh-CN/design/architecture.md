@@ -2,6 +2,7 @@
 title: 系统架构
 description: ApeRAG 架构设计与核心组件详解
 keywords: ApeRAG, 架构, RAG, 知识图谱, LightRAG
+position: 1
 ---
 
 # ApeRAG 系统架构

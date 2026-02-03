@@ -2,6 +2,7 @@
 title: System Architecture
 description: ApeRAG Architecture Design and Core Components
 keywords: ApeRAG, Architecture, RAG, Knowledge Graph, LightRAG
+position: 1
 ---
 
 # ApeRAG System Architecture

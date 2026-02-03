@@ -38,12 +38,14 @@ export type DocsSideBar = {
   href?: string;
   children?: DocsSideBar[];
   collapsed?: boolean;
+  position?: number;
 };
 
 type FileMetadata = {
   title?: string;
   description?: string;
   keywords?: string;
+  position?: number;
 };
 const readFile = async (filepath: string, folder: string) => {
   const isExists = fs.existsSync(filepath);
@@ -61,6 +63,7 @@ const readFile = async (filepath: string, folder: string) => {
     description: metadata.description,
     type: 'file',
     href: getHref(filepath),
+    position: metadata.position ?? 999,
   };
   return item;
 };
@@ -94,6 +97,7 @@ const readFolder = async (folderDir: string, parent: string) => {
     title: metadata.title || getTitleByFilename(parent),
     type: parentIsDocsRoot || childrenIsParent ? 'group' : 'folder',
     children,
+    position: metadata.position ?? 999,
   };
 
   return item;
@@ -125,7 +129,9 @@ export async function getDocsSideBar(dir?: string): Promise<DocsSideBar[]> {
     }),
   );
 
-  return result.filter((item) => item !== undefined);
+  return result
+    .filter((item) => item !== undefined)
+    .sort((a, b) => (a.position ?? 999) - (b.position ?? 999));
 }
 
 export async function getIndexPageUrl(
