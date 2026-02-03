@@ -1,517 +1,1069 @@
-# ApeRAG Graph Index Creation Process Technical Documentation
+---
+title: Graph Index Creation Process
+description: Complete process and core technologies for ApeRAG knowledge graph index construction
+keywords: Knowledge Graph, Graph Index, Entity Extraction, Relationship Extraction, Concurrency Optimization
+---
 
-## Overview
+# Graph Index Creation Process
 
-The ApeRAG Graph Index creation process is the core pipeline of the entire knowledge graph construction system, responsible for transforming raw documents into structured knowledge graphs. This process is based on the LightRAG framework with extensive refactoring and optimization.
+## 1. What is Graph Index
 
-### Technical Improvements Overview
+Graph Index is a core feature of ApeRAG that automatically extracts structured knowledge graphs from unstructured text.
 
-The original LightRAG has numerous limitations: non-stateless design leading to global state management concurrency conflicts, lack of effective concurrency control mechanisms, storage layer stability and consistency issues, and coarse-grained locking affecting performance. **Most critically, the original LightRAG does not support data isolation - all collection nodes and edges are stored in the same global space, causing data conflicts and pollution between different users and projects, making true multi-tenant support impossible**.
+### 1.1 A Simple Example
 
-We have conducted large-scale refactoring to address these issues:
-- **Complete rewrite to stateless architecture**: Each task uses independent instances, completely resolving concurrency conflicts
-- **Introduced workspace data isolation mechanism**: Each collection has independent data space, completely solving data conflicts and pollution
-- **Self-developed Concurrent Control model**: Implementing fine-grained lock management for high concurrency processing
-- **Optimized lock granularity**: From coarse-grained global locks to entity-level and relationship-level precise locking
-- **Refactored storage layer**: Support for Neo4j, PostgreSQL and other graph database backends, implementing reliable multi-storage consistency guarantees
-- **Connected component concurrency optimization**: Intelligent concurrency strategy based on graph topology analysis
+Imagine you have a document about company organization:
 
-The Graph Index creation process includes the following core stages:
-1. **Task reception and instance creation**: Celery task scheduling, LightRAG instance initialization
-2. **Document chunking processing**: Intelligent chunking algorithms maintaining semantic coherence
-3. **Entity relationship extraction**: LLM-based entity and relationship identification
-4. **Connected component analysis**: Topological analysis of entity relationship networks
-5. **Grouped concurrent processing**: Processing by connected components to improve performance
-6. **Node edge merging**: Entity deduplication, relationship aggregation, description summarization
-7. **Multi-storage writing**: Consistent writing to vector databases and graph databases
+> "John is the head of the database team and specializes in PostgreSQL and MySQL. Mike works in the frontend team and often collaborates with John's team to develop backend management systems."
 
-## Architecture Overview
+**Transformation from Document to Knowledge Graph**:
+
+```mermaid
+flowchart LR
+    subgraph Input[📄 Input Document]
+        Doc["John is the head of the database team,<br/>specializes in PostgreSQL and MySQL.<br/>Mike works in the frontend team..."]
+    end
+    
+    subgraph Process[🔄 Graph Index Processing]
+        Extract[Extract entities and relationships]
+    end
+    
+    subgraph Output[🕸️ Knowledge Graph]
+        direction TB
+        A[John<br/>Person] -->|heads| B[Database Team<br/>Organization]
+        A -->|specializes in| C[PostgreSQL<br/>Technology]
+        A -->|specializes in| D[MySQL<br/>Technology]
+        E[Mike<br/>Person] -->|belongs to| F[Frontend Team<br/>Organization]
+        E -->|collaborates| A
+    end
+    
+    Input --> Process
+    Process --> Output
+    
+    style Input fill:#e3f2fd
+    style Process fill:#fff59d
+    style Output fill:#c8e6c9
+```
+
+Traditional vector search can only find "semantically similar" paragraphs but cannot answer these questions:
+- What does John lead?
+- What is the relationship between John and Mike?
+- What technologies does the database team use?
+
+**Graph Index can do**: Accurately answer these relationship-focused questions by making implicit knowledge relationships explicit.
+
+### 1.2 Core Value
+
+Compared to traditional retrieval methods, Graph Index provides unique capabilities:
+
+| Capability | Vector Search | Full-text Search | Graph Index |
+|------------|---------------|------------------|-------------|
+| Semantic Similarity | ✅ Strong | ❌ Weak | ✅ Strong |
+| Exact Keyword Match | ❌ Weak | ✅ Strong | ✅ Medium |
+| Relationship Query | ❌ Not Supported | ❌ Not Supported | ✅ Strong |
+| Multi-hop Reasoning | ❌ Not Supported | ❌ Not Supported | ✅ Supported |
+| Suitable Questions | "How to optimize performance" | "PostgreSQL config" | "John and Mike's relationship" |
+
+**Core Advantage**: Graph Index allows AI to "understand" the connections between knowledge, not just text similarity.
+
+## 2. What Problems Can Graph Index Solve
+
+Graph Index excels at handling scenarios that require "understanding relationships". Let's look at practical applications.
+
+### 2.1 Enterprise Knowledge Management
+
+**Scenario**: Companies have extensive documentation including organizational structure, project materials, and technical docs.
+
+**Graph Index Value**:
+
+- 📊 **Organizational Relationships**: "Who is on John's team?" → Quickly find team members
+- 🔗 **Collaboration Networks**: "Who has worked with John?" → Discover work networks
+- 🛠️ **Skill Mapping**: "Who is skilled in PostgreSQL?" → Locate technical experts
+- 📁 **Project History**: "Which projects has John participated in?" → Track project experience
+
+**Real Effect**:
+
+```
+Question: "Who leads the database team?"
+Traditional Search: Returns dozens of paragraphs containing "database team" and "lead"
+Graph Index: Directly returns "John" + relevant background information
+```
+
+### 2.2 Research and Learning
+
+**Scenario**: Analyzing academic papers and technical documentation to understand knowledge lineage.
+
+**Graph Index Value**:
+
+- 👥 **Author Networks**: "Who has this author collaborated with?" → Discover research teams
+- 📖 **Citation Relationships**: "What papers does this cite?" → Trace research lineage
+- 🔬 **Technology Evolution**: "How has this technology evolved?" → Understand tech history
+- 💡 **Concept Connections**: "What's the relationship between tech A and B?" → Connect knowledge points
+
+### 2.3 Products and Services
+
+**Scenario**: Product documentation, user manuals, API documentation.
+
+**Graph Index Value**:
+
+- ⚙️ **Feature Dependencies**: "What needs to be configured before enabling feature A?" → Understand dependencies
+- 🔧 **Configuration Relationships**: "Which features does this config affect?" → Avoid misconfigurations
+- 🐛 **Problem Diagnosis**: "What might cause error X?" → Quick troubleshooting
+- 📚 **API Relationships**: "Which APIs are typically used together?" → Learn best practices
+
+### 2.4 Comparison: When to Use Graph Index
+
+Different questions suit different retrieval methods:
+
+| Question Type | Example | Best Solution |
+|--------------|---------|---------------|
+| **Concept Understanding** | "What is RAG?" | Vector Search |
+| **Exact Lookup** | "PostgreSQL config file path" | Full-text Search |
+| **Relationship Query** | "What's John and Mike's relationship?" | Graph Index ✨ |
+| **Multi-hop Reasoning** | "What tech stack does John's team use?" | Graph Index ✨ |
+| **Knowledge Tracing** | "What modules does this feature depend on?" | Graph Index ✨ |
+
+**Best Practice**: ApeRAG supports vector search, full-text search, and graph index simultaneously, intelligently selecting or combining based on question type.
+
+## 3. Construction Process Overview
+
+When you upload a document and enable graph indexing, ApeRAG automatically completes the following steps. Here's a simple overview; details are in later chapters.
+
+### 3.1 Five Key Steps
+
+```mermaid
+flowchart TB
+    subgraph Step1["1️⃣ Document Chunking"]
+        A1[Original Document] --> A2[Smart Chunking]
+        A2 --> A3[Generate Chunks]
+    end
+    
+    subgraph Step2["2️⃣ Entity Relationship Extraction"]
+        B1[Chunks] --> B2[Call LLM]
+        B2 --> B3[Identify Entities]
+        B2 --> B4[Identify Relationships]
+    end
+    
+    subgraph Step3["3️⃣ Connected Component Analysis"]
+        C1[Entity Relationship Network] --> C2[BFS Algorithm]
+        C2 --> C3[Grouping]
+    end
+    
+    subgraph Step4["4️⃣ Concurrent Merging"]
+        D1[Group 1] --> D2[Entity Deduplication]
+        D3[Group 2] --> D4[Entity Deduplication]
+        D5[Group N] --> D6[Entity Deduplication]
+        D2 --> D7[Relationship Aggregation]
+        D4 --> D7
+        D6 --> D7
+    end
+    
+    subgraph Step5["5️⃣ Multi-storage Writing"]
+        E1[Graph Database] 
+        E2[Vector Database]
+        E3[Text Storage]
+    end
+    
+    A3 --> B1
+    B3 --> C1
+    B4 --> C1
+    C3 --> D1
+    C3 --> D3
+    C3 --> D5
+    D7 --> E1
+    D7 --> E2
+    A3 --> E3
+    
+    style Step1 fill:#e3f2fd
+    style Step2 fill:#fff3e0
+    style Step3 fill:#f3e5f5
+    style Step4 fill:#e8f5e9
+    style Step5 fill:#fce4ec
+```
+
+**Simply put**: Chunk document → Extract entities/relationships → Smart grouping → Concurrent merging → Write to storage.
+
+The entire process is fully automated - you just upload documents, and the system handles everything.
+
+### 3.2 Processing Time Reference
+
+Processing time varies by document size:
+
+| Document Size | Entity Count | Processing Time | Example |
+|--------------|--------------|-----------------|---------|
+| Small (< 5 pages) | ~50 | 10-30 seconds | Company notices, meeting notes |
+| Medium (10-50 pages) | ~200 | 1-3 minutes | Technical docs, product manuals |
+| Large (100+ pages) | ~1000 | 5-15 minutes | Research reports, books |
+
+**Factors**:
+- LLM response speed (main bottleneck)
+- Document complexity (tables, images slow processing)
+- Concurrency settings (configurable for speed)
+
+> 💡 **Tip**: Processing is asynchronous - upload multiple documents and the system processes them in parallel.
+
+### 3.3 Real-time Progress Tracking
+
+You can check document processing progress anytime:
+
+```
+Document Status: Processing
+- ✅ Document Parsing: Complete
+- ✅ Document Chunking: Complete (25 chunks generated)
+- 🔄 Entity Extraction: In Progress (15/25)
+- ⏳ Relationship Extraction: Waiting
+- ⏳ Graph Construction: Waiting
+```
+
+Once processing completes, document status changes to "Active" and graph queries become available.
+
+## 4. Detailed Construction Process
+
+The previous sections covered what graph index does and the overall process. This chapter details the technical implementation of each step.
+
+> 💡 **Reading Tip**: If you only want to understand basic concepts and usage, skip to Chapter 9 for practical applications.
+
+### 4.1 Document Chunking
+
+First step: Split long documents into appropriately sized chunks.
+
+**Why Chunk?**
+- LLMs have input length limits (typically thousands to tens of thousands of tokens)
+- Too large: Extraction quality decreases, LLM may "miss" information
+- Too small: Loses context, can't understand complete semantics
+
+**Smart Chunking Strategy**:
+
+```mermaid
+flowchart LR
+    Doc[Long Document] --> Check{Check Size}
+    Check -->|< 1200 tokens| Keep[Keep Intact]
+    Check -->|> 1200 tokens| Split[Smart Split]
+    
+    Split --> By1[By Paragraph]
+    By1 --> Check2{Still Too Big?}
+    Check2 -->|Yes| By2[By Sentence]
+    Check2 -->|No| Done[Complete]
+    By2 --> Check3{Still Too Big?}
+    Check3 -->|Yes| By3[By Character]
+    Check3 -->|No| Done
+    By3 --> Done
+    
+    style Doc fill:#e1f5ff
+    style Split fill:#ffccbc
+    style Done fill:#c5e1a5
+```
+
+**Chunking Parameters**:
+- Default size: 1200 tokens (approximately 800-1000 English words)
+- Overlap size: 100 tokens (ensures context continuity)
+- Priority: Paragraph > Sentence > Character
+
+### 4.2 Entity Relationship Extraction
+
+Use LLM to identify entities and relationships from each chunk.
+
+**Extraction Process**:
+
+```mermaid
+sequenceDiagram
+    participant C as Chunk
+    participant L as LLM
+    participant R as Results
+    
+    C->>L: "John heads the database team..."
+    L->>R: Entities: [John(Person), Database Team(Org)]
+    L->>R: Relationships: [John-heads->Database Team]
+    
+    C->>L: "John specializes in PostgreSQL..."
+    L->>R: Entities: [John(Person), PostgreSQL(Tech)]
+    L->>R: Relationships: [John-specializes in->PostgreSQL]
+```
+
+**Concurrency Optimization**: Multiple chunks can call LLM simultaneously, default 20 concurrent requests.
+
+### 4.3 Connected Component Analysis
+
+Divide entity relationship network into independent subgraphs for parallel processing.
+
+**Why This Step?**
+
+Tech team entities and finance department entities aren't connected - they can be processed completely in parallel!
+
+```mermaid
+graph LR
+    subgraph Component1[Connected Component 1 - Tech Team]
+        A1[John] -->|heads| A2[Database Team]
+        A1 -->|specializes in| A3[PostgreSQL]
+        A4[Mike] -->|collaborates| A1
+    end
+    
+    subgraph Component2[Connected Component 2 - Finance]
+        B1[Alice] -->|belongs to| B2[Finance Dept]
+        B3[Bob] -->|collaborates| B1
+    end
+    
+    style Component1 fill:#bbdefb
+    style Component2 fill:#c5e1a5
+```
+
+**Performance Boost**: 3 independent components = 3x speedup!
+
+### 4.4 Concurrent Merging
+
+Same-name entities need deduplication, same relationships need aggregation.
 
 ```mermaid
 flowchart TD
-    %% Define style classes
-    classDef entry fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#000,font-weight:bold
-    classDef manager fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px,color:#000
-    classDef processing fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px,color:#000
-    classDef intelligence fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#000
-    classDef optimization fill:#fce4ec,stroke:#c2185b,stroke-width:2px,color:#000
-    classDef storage fill:#e8eaf6,stroke:#3f51b5,stroke-width:2px,color:#000
-    classDef complete fill:#c8e6c9,stroke:#388e3c,stroke-width:3px,color:#000,font-weight:bold
+    subgraph Before["Before Merging"]
+        A1["John<br/>Database head"]
+        A2["John<br/>Specializes in PostgreSQL"]
+        A3["John<br/>Leads team"]
+    end
     
-    %% Entry layer
-    START["🚀 Graph Index Task Start"]
+    Merge[Smart Merge]
     
-    %% Management layer
-    MANAGER["🎯 LightRAG Instance Management<br/>• create_lightrag_instance<br/>• workspace isolation"]
+    subgraph After["After Merging"]
+        B1["John<br/>Database team head,<br/>specializes in PostgreSQL,<br/>leads multiple projects"]
+    end
     
-    %% Document processing branch
-    DOC_PROCESS["📄 Document Chunking Processing<br/>• ainsert_and_chunk_document<br/>• chunking_by_token_size"]
-    DOC_STORE["💾 Chunk Data Storage<br/>• chunks_vdb.upsert<br/>• text_chunks.upsert"]
+    A1 --> Merge
+    A2 --> Merge
+    A3 --> Merge
+    Merge --> B1
     
-    %% Graph indexing processing branch
-    GRAPH_START["🏛️ Graph Index Construction Start<br/>• aprocess_graph_indexing"]
-    
-    %% Intelligent extraction layer
-    AI_EXTRACT["🔬 AI Intelligent Extraction<br/>• extract_entities<br/>• LLM concurrent calls"]
-    ENTITY_REL["🎭 Entity Relationship Recognition<br/>• Entity Recognition<br/>• Relationship Extraction"]
-    
-    %% Topology optimization layer
-    TOPO_ANALYSIS["🧠 Topology Analysis<br/>• _find_connected_components<br/>• BFS algorithm"]
-    COMPONENT_GROUP["🌐 Connected Component Grouping<br/>• Component Grouping<br/>• Concurrent task allocation"]
-    
-    %% Concurrent merging layer
-    CONCURRENT_MERGE["⚡ Concurrent Intelligent Merging<br/>• merge_nodes_and_edges<br/>• Fine-grained lock control"]
-    
-    %% Storage layer (parallel writing)
-    STORAGE_GRAPH["🗄️ Graph Database<br/>Neo4j/PG"]
-    STORAGE_VECTOR["🎯 Vector Database<br/>Qdrant/Elasticsearch"]
-    STORAGE_TEXT["📝 Text Storage<br/>Raw chunk data"]
-    
-    %% Completion
-    COMPLETE["✅ Knowledge Graph Construction Complete<br/>🎉 Multi-dimensional retrieval ready"]
-    
-    %% Main process connections
-    START --> MANAGER
-    MANAGER --> DOC_PROCESS
-    MANAGER --> GRAPH_START
-    
-    DOC_PROCESS --> DOC_STORE
-    DOC_STORE -.->|"Data preparation complete"| GRAPH_START
-    
-    GRAPH_START --> AI_EXTRACT
-    AI_EXTRACT --> ENTITY_REL
-    AI_EXTRACT --> TOPO_ANALYSIS
-    
-    ENTITY_REL --> COMPONENT_GROUP
-    TOPO_ANALYSIS --> COMPONENT_GROUP
-    
-    COMPONENT_GROUP --> CONCURRENT_MERGE
-    
-    %% Parallel storage
-    CONCURRENT_MERGE --> STORAGE_GRAPH
-    CONCURRENT_MERGE --> STORAGE_VECTOR
-    DOC_STORE --> STORAGE_TEXT
-    
-    %% Converge to completion
-    STORAGE_GRAPH --> COMPLETE
-    STORAGE_VECTOR --> COMPLETE
-    STORAGE_TEXT --> COMPLETE
-    
-    %% Apply styles
-    class START entry
-    class MANAGER manager
-    class DOC_PROCESS,DOC_STORE processing
-    class GRAPH_START,AI_EXTRACT,ENTITY_REL intelligence
-    class TOPO_ANALYSIS,COMPONENT_GROUP,CONCURRENT_MERGE optimization
-    class STORAGE_GRAPH,STORAGE_VECTOR,STORAGE_TEXT storage
-    class COMPLETE complete
+    style Before fill:#ffccbc
+    style After fill:#c5e1a5
 ```
 
-## Core Design Principles
+**Fine-grained Locks**: Only lock entities being merged, others can process concurrently.
 
-### 1. Stateless Architecture Refactoring
+### 4.5 Multi-storage Writing
 
-The original LightRAG uses global state management, leading to severe concurrency conflicts, with multiple tasks sharing the same instance causing data pollution. **More seriously, all collection graph data is stored in the same global namespace, where entities and relationships from different projects interfere with each other**, making true multi-tenant isolation impossible.
-
-We completely rewrote LightRAG's instance management code, implementing a stateless design: each Celery task creates an independent LightRAG instance, achieving collection-level data isolation through the `workspace` parameter. **Each collection's graph data is stored in independent namespaces** (e.g., `entity:{entity_name}:{workspace}`), supporting Neo4j, PostgreSQL and other graph database backends, with strict instance lifecycle management to ensure no resource leaks.
-
-### 2. Staged Pipeline Processing
-
-**Document processing and graph indexing separation**:
-- **ainsert_and_chunk_document**: Responsible for document chunking and storage
-- **aprocess_graph_indexing**: Responsible for graph index construction
-- **Advantages**: Modular design, easy to test and maintain
-
-### 3. Connected Component Concurrency Optimization
-
-The original LightRAG lacks effective concurrency strategies, with simple global locks causing performance bottlenecks and inability to fully utilize multi-core CPU resources.
-
-We designed a connected component discovery algorithm based on graph theory, decomposing entity relationship networks into independent processing components. Through topology analysis-driven intelligent grouped concurrency, different connected components can be processed completely in parallel, achieving zero lock conflict design.
-
-The core algorithm approach is: construct adjacency graphs of entity relationships, use BFS traversal to discover all connected components, group entities belonging to different connected components into independent processing tasks, thus achieving true parallel processing.
-
-### 4. Fine-grained Concurrency Control Mechanism
-
-The original LightRAG lacks effective concurrency control mechanisms, with storage operation consistency unable to be guaranteed, frequently experiencing data races and deadlock issues.
-
-We implemented a Concurrent Control model from scratch, establishing a fine-grained lock manager that supports precise locking at entity and relationship levels. Lock naming uses workspace isolation design: `entity:{entity_name}:{workspace}` and `relationship:{src}:{tgt}:{workspace}`. We designed intelligent lock strategies, only locking during merge writes, completely lock-free during entity extraction stages, and preventing deadlocks through sorted lock acquisition mechanisms to avoid circular waiting.
-
-## Specific Execution Pipeline Example
-
-### Complete Graph Index Creation Process
-
-Taking a single document's graph index creation as an example, the entire processing pipeline includes the following key stages:
-
-1. **Task Reception Layer**: Celery tasks receive Graph index creation requests, calling LightRAG Manager
-
-2. **LightRAG Manager Layer**: Create independent LightRAG instances for each task, ensuring stateless processing
-
-3. **Document Chunking Stage**:
-   - Content cleaning and preprocessing
-   - Intelligent chunking based on token count (supporting overlap)
-   - Generate unique chunk IDs and metadata
-   - Serial writing to vector storage and text storage
-
-4. **Graph Index Construction Stage**:
-   - Call LLM for concurrent entity relationship extraction
-   - Connected component analysis and grouping processing
-   - Statistical extraction results
-
-5. **Entity Relationship Extraction Stage**:
-   - Build LLM prompt templates
-   - Use semaphores to control concurrency
-   - Support optional gleaning extraction
-   - Parse extraction results into structured data
-
-6. **Connected Component Grouping Processing**:
-   - Discover connected components and create processing tasks
-   - Filter entities and relationships belonging to each component
-   - Use semaphores to control component concurrent processing
-
-7. **Node Edge Merging Stage**:
-   - Collect same-named entities and same-direction relationships
-   - Use fine-grained locks for concurrent merging
-   - Synchronously update graph database and vector database
-
-## Core Data Flow Diagram
-
-The Graph Index creation process is essentially a complex data transformation pipeline. The following data flow diagram shows the complete data transformation process from raw documents to structured knowledge graphs:
+Knowledge graph written to three storage systems:
 
 ```mermaid
-flowchart TD
-    %% Define style classes
-    classDef inputStage fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#000
-    classDef chunkStage fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px,color:#000
-    classDef extractStage fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#000
-    classDef topoStage fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#000
-    classDef mergeStage fill:#fce4ec,stroke:#c2185b,stroke-width:2px,color:#000
-    classDef summaryStage fill:#e0f2f1,stroke:#00695c,stroke-width:2px,color:#000
-    classDef storageStage fill:#e8eaf6,stroke:#3f51b5,stroke-width:2px,color:#000
-    classDef resultStage fill:#c8e6c9,stroke:#388e3c,stroke-width:3px,color:#000
+flowchart LR
+    KG[Knowledge Graph] --> G[Graph Database<br/>Graph Queries]
+    KG --> V[Vector Database<br/>Semantic Search]
+    KG --> T[Text Storage<br/>Full-text Search]
     
-    %% Data input stage
-    subgraph InputStage ["📥 Raw Data Input"]
-        A["📄 Raw Documents<br/><small>PDF/Word/Markdown etc.</small>"]
-        B["🧹 Document Cleaning<br/><small>Format removal/noise filtering</small>"]
-        C["✂️ Smart Chunking<br/><small>Based on semantics and token limits</small>"]
-    end
-    
-    %% Chunk data stage
-    subgraph ChunkStage ["📦 Structured Chunk Data"]
-        D["🔢 Chunk Collection<br/><small>With ID/content/metadata</small>"]
-    end
-    
-    %% Concurrent extraction stage
-    subgraph ExtractStage ["🔬 AI Intelligent Extraction"]
-        E["🤖 LLM Concurrent Calls<br/><small>Large model concurrent recognition</small>"]
-        F["👤 Entity Recognition<br/><small>People/organizations/concepts etc.</small>"]
-        G["🔗 Relationship Recognition<br/><small>Semantic relationships between entities</small>"]
-        H["📋 Raw Entity List<br/><small>Undeduped entity data</small>"]
-        I["📋 Raw Relationship List<br/><small>Unaggregated relationship data</small>"]
-    end
-    
-    %% Topology analysis stage
-    subgraph TopoStage ["🧠 Graph Topology Analysis"]
-        J["🕸️ Build Adjacency Graph<br/><small>Entity relationship modeling</small>"]
-        K["🔍 Connected Component Discovery<br/><small>BFS algorithm identifies groups</small>"]
-        L["📦 Component Grouping<br/><small>Divide by connectivity</small>"]
-    end
-    
-    %% Concurrent merging stage
-    subgraph MergeStage ["⚡ Intelligent Data Merging"]
-        M["🔄 Component Concurrent Processing<br/><small>Group parallel processing</small>"]
-        N["👥 Entity Deduplication<br/><small>Same-named entity aggregation</small>"]
-        O["🔗 Relationship Aggregation<br/><small>Weight accumulation processing</small>"]
-        P["✨ Merged Entity Data<br/><small>Deduped entities</small>"]
-        Q["✨ Merged Relationship Data<br/><small>Aggregated relationships</small>"]
-    end
-    
-    %% Intelligent summarization stage
-    subgraph SummaryStage ["📝 Intelligent Content Summarization"]
-        R{"📏 Content Length Check"}
-        S["🤖 LLM Smart Summary<br/><small>Long text compression</small>"]
-        T["✅ Keep Original Content<br/><small>Short text direct retention</small>"]
-        U["📄 Final Entity Content<br/><small>Optimized descriptions</small>"]
-        V{"📏 Relationship Length Check"}
-        W["🤖 LLM Relationship Summary<br/><small>Relationship description compression</small>"]
-        X["✅ Keep Original Relationship<br/><small>Short relationships direct retention</small>"]
-        Y["📄 Final Relationship Content<br/><small>Optimized descriptions</small>"]
-    end
-    
-    %% Multi-storage writing stage
-    subgraph StorageStage ["💾 Multi-Storage System Writing"]
-        Z1["🗄️ Graph Database<br/><small>Neo4j/PG</small>"]
-        Z2["🎯 Entity Vector DB<br/><small>Semantic search storage</small>"]
-        Z3["🔗 Relationship Vector DB<br/><small>Relationship semantic storage</small>"]
-        Z4["📚 Chunk Vector DB<br/><small>Raw chunk indexing</small>"]
-        Z5["📝 Text Storage<br/><small>Chunk text storage</small>"]
-    end
-    
-    %% Completion stage
-    AA["🎉 Knowledge Graph Construction Complete<br/><small>Multi-dimensional retrieval ready</small>"]
-    
-    %% Main data flow connections
-    A --> B
-    B --> C
-    C --> D
-    
-    D --> E
-    E --> F
-    E --> G
-    F --> H
-    G --> I
-    
-    H --> J
-    I --> J
-    J --> K
-    K --> L
-    
-    L --> M
-    M --> N
-    M --> O
-    N --> P
-    O --> Q
-    
-    %% Intelligent summarization flow
-    P --> R
-    R -->|"Content too long"| S
-    R -->|"Content appropriate"| T
-    S --> U
-    T --> U
-    
-    Q --> V
-    V -->|"Description too long"| W
-    V -->|"Description appropriate"| X
-    W --> Y
-    X --> Y
-    
-    %% Storage writing flow
-    U --> Z1
-    U --> Z2
-    Y --> Z1
-    Y --> Z3
-    D --> Z4
-    D --> Z5
-    
-    %% Converge to completion
-    Z1 --> AA
-    Z2 --> AA
-    Z3 --> AA
-    Z4 --> AA
-    Z5 --> AA
-    
-    %% Apply styles
-    class A,B,C inputStage
-    class D chunkStage
-    class E,F,G,H,I extractStage
-    class J,K,L topoStage
-    class M,N,O,P,Q mergeStage
-    class R,S,T,U,V,W,X,Y summaryStage
-    class Z1,Z2,Z3,Z4,Z5 storageStage
-    class AA resultStage
+    style KG fill:#e1f5ff
+    style G fill:#bbdefb
+    style V fill:#c5e1a5
+    style T fill:#ffccbc
 ```
 
-### Data Flow Transformation Process Analysis
+Different storages support different query types, complementing each other.
 
-#### 🚀 **Document Input → Structured Chunking**
-Raw documents undergo format cleaning and noise filtering, using intelligent chunking algorithms to segment according to semantic boundaries and token limits, generating chunk collections with unique identifiers and metadata. This step ensures data quality and traceability for subsequent processing.
+## 5. Core Technical Design
 
-#### 🔬 **Chunk Data → AI Extraction Results** 
-Chunk data undergoes intelligent analysis through LLM concurrent calls, simultaneously identifying entities (people, organizations, concepts, etc.) and semantic relationships between entities in the text. This stage produces raw, undeduped entity and relationship lists, providing raw materials for subsequent graph construction.
+This chapter introduces core technical designs including data isolation and concurrency control.
 
-#### 🧠 **Extraction Results → Topology Grouping**
-Based on extracted entity relationships, adjacency graph networks are constructed, using BFS algorithms to discover connected components and identify groups of mutually related entities. For example: technology team-related entities form one group, finance department-related entities form another group. This topology analysis lays the foundation for parallel processing.
+> 💡 **Reading Tip**: These are system architecture and implementation details, mainly for developers and technical decision-makers.
 
-#### ⚡ **Topology Grouping → Intelligent Merging**
-Different connected components can be processed completely in parallel, with same-named entities undergoing intelligent deduplication and information aggregation, and same-direction relationships undergoing weight accumulation and description merging. This process integrates fragmented information into complete knowledge units.
+### 5.1 Workspace Data Isolation
 
-#### 📝 **Merged Data → Content Optimization**
-Length checks are performed on merged entity and relationship descriptions, with overly long content undergoing intelligent summary compression through LLM, ensuring a balance between information density and storage efficiency. Short content is retained directly, while long content is intelligently summarized.
+Each Collection has an independent namespace for complete data isolation.
 
-#### 💾 **Optimized Content → Multi-dimensional Storage**
-Final knowledge content is written simultaneously to multiple storage systems:
-- **Graph Database**: Stores entity nodes and relationship edges, supporting graph queries
-- **Vector Database**: Stores semantic vectors, supporting similarity search
-- **Text Storage**: Retains original chunks, supporting full-text search
+**Naming Convention**:
 
-This multi-dimensional storage architecture ensures optimal performance of knowledge graphs in different query scenarios.
+```python
+# Entity naming
+entity:{entity_name}:{workspace}
+# Example
+entity:John:collection_abc123
 
-### Data Flow Optimization Features
-
-#### 1. Fine-grained Concurrency Control
-We implemented precise locking mechanisms at entity and relationship levels: `entity:{entity_name}:{workspace}` and `relationship:{src}:{tgt}:{workspace}`, minimizing lock scope to only during merge writes, with completely parallel entity extraction stages. Through sorted lock acquisition order, we effectively prevent circular waiting and deadlocks.
-
-#### 2. Connected Component-driven Concurrency Optimization
-We designed topology analysis based on BFS algorithms, discovering independent entity relationship networks and grouping them for parallel processing. Different connected components are processed completely independently, achieving zero lock competition, while processing in batches by component effectively controls memory peaks.
-
-#### 3. Intelligent Data Merging Strategy
-We implemented intelligent entity deduplication based on entity_name, supporting intelligent concatenation and summarization of multiple description fragments, quantitative accumulation of relationship strength, and established complete data lineage recording mechanisms.
-
-## Performance Optimization Strategies
-
-### 1. Connected Component Optimization
-
-**Topology-driven Concurrency Strategy**:
-- **Independent Processing**: Different connected components processed completely in parallel
-- **Lock Competition Minimization**: Entities within components don't conflict across components
-- **Memory Efficiency**: Batch processing by component, controlling memory usage
-
-The system automatically collects connected component distribution statistics, including total components, maximum component size, average component size, single-entity component count, and large component count, for performance tuning and resource allocation.
-
-### 2. LLM Call Optimization
-
-**Batch Processing and Caching Strategy**:
-- **Concurrency Control**: Use semaphores to limit concurrent LLM calls
-- **Batch Optimization**: Batch processing of similar content
-- **Caching Mechanism**: Reuse of entity description summary caching
-
-The system intelligently checks description length, automatically calling LLM to generate summaries when exceeding token thresholds, supporting summary result caching reuse for improved efficiency.
-
-### 3. Storage Write Optimization
-
-**Batch Writing and Connection Reuse**:
-- **Batch Operations**: Reduce database round trips
-- **Connection Pooling**: Reuse database connections
-- **Async Writing**: Parallel writing to different storage systems
-
-### 4. Memory Management Optimization
-
-**Streaming Processing and Memory Control**:
-- **Chunk Processing**: Streaming chunking of large documents
-- **Timely Release**: Immediate memory release after processing completion
-- **Monitoring Alerts**: Memory usage monitoring
-
-## Code Organization Structure
-
-### Directory Structure
-
-```
-aperag/
-├── graph/                        # Graph indexing core module
-│   ├── lightrag_manager.py      # LightRAG manager (Celery entry)
-│   └── lightrag/                 # LightRAG core implementation
-│       ├── lightrag.py          # Main LightRAG class
-│       ├── operate.py           # Core operation functions
-│       ├── base.py              # Base interface definitions
-│       ├── utils.py             # Utility functions
-│       ├── prompt.py            # Prompt templates
-│       └── kg/                  # Knowledge graph storage implementations
-│           ├── neo4j_sync_impl.py    # Neo4j sync implementation
-│           └── postgres_sync_impl.py # PostgreSQL sync implementation
-├── concurrent_control/           # Concurrency control module
-│   ├── manager.py               # Lock manager
-│   └── protocols.py             # Lock interface definitions
-└── tasks/                       # Task module
-    └── document.py              # Document processing business logic
-
-config/
-└── celery_tasks.py              # Celery task definitions
+# Relationship naming
+relationship:{source}:{target}:{workspace}
+# Example
+relationship:John:Database Team:collection_abc123
 ```
 
-### Core Interface Design
+**Isolation Effect**:
 
-#### LightRAG Management Interface
-Responsible for instance creation, document processing and deletion entry management, as well as dynamic generation of embedding and LLM functions.
+```mermaid
+graph TB
+    subgraph Collection_A[Collection A - Company Docs]
+        A1[entity:John:A] --> A2[entity:Database Team:A]
+    end
+    
+    subgraph Collection_B[Collection B - School Docs]
+        B1[entity:John:B] --> B2[entity:CS Department:B]
+    end
+    
+    style Collection_A fill:#bbdefb
+    style Collection_B fill:#c5e1a5
+```
 
-#### LightRAG Core Interface  
-Implements document chunk storage, graph index construction, document deletion, connected component discovery and grouping processing and other core functions.
+"John" in two Collections is completely independent, no interference!
 
-#### Operation Function Interface
-Provides entity extraction, node edge merging, chunk processing and other low-level operation functions, supporting asynchronous concurrent execution.
+### 5.2 Stateless Instance Management
 
-### Data Structure Design
+Each processing task creates an independent graph index instance, destroyed after completion.
 
-#### Core Data Models
+**Lifecycle Management**:
 
-The system uses unified data structure design:
+```mermaid
+sequenceDiagram
+    participant C as Celery Task
+    participant M as Manager
+    participant R as Graph Index Instance
+    participant S as Storage
+    
+    C->>M: process_document()
+    M->>R: create_instance()
+    R->>S: Initialize storage connections
+    R->>R: Process document
+    R->>S: Write data
+    R-->>M: Return results
+    M-->>C: Task complete
+    Note over R: Instance destroyed, resources released
+```
 
-- **Chunk Data**: Contains token count, content, sequence index, document ID and file path
-- **Entity Data**: Contains entity name, type, description, source ID and creation timestamp
-- **Relationship Data**: Contains source entity, target entity, description, keywords, weight and source information
-- **Connected Component Data**: Contains component index, entity list, filtered results and total component count
+**Advantages**:
+- ✅ Zero state pollution: Each task independent, no interference
+- ✅ Easy scaling: Can run multiple workers simultaneously
+- ✅ Resource management: Automatic cleanup, no memory leaks
 
-All data structures support multi-source aggregation, using delimiters (such as `|`) to merge multiple source information.
+### 5.3 Connected Component Concurrency Optimization
 
-## Performance Monitoring and Debugging
+Intelligent concurrent processing through graph topology analysis.
 
-### 1. Performance Metrics
+**Algorithm Principle**:
 
-**Key Performance Indicators (KPIs)**:
-- **Document Processing Throughput**: Documents processed per minute
-- **Entity Extraction Accuracy**: Quality assessment of extracted entities
-- **Connected Component Distribution**: Complexity analysis of topological structure
-- **LLM Call Efficiency**: Average response time and concurrency
-- **Storage Write Performance**: Database operation latency statistics
+```mermaid
+graph TB
+    subgraph Input[Input: Entity Relationship Network]
+        I1[Entity 1] --> I2[Entity 2]
+        I2 --> I3[Entity 3]
+        
+        I4[Entity 4] --> I5[Entity 5]
+        
+        I6[Entity 6]
+    end
+    
+    Algorithm[BFS Algorithm]
+    
+    subgraph Output[Output: 3 Connected Components]
+        O1[Component 1<br/>3 entities]
+        O2[Component 2<br/>2 entities]
+        O3[Component 3<br/>1 entity]
+    end
+    
+    Input --> Algorithm
+    Algorithm --> Output
+    
+    style Input fill:#ffccbc
+    style Algorithm fill:#fff59d
+    style Output fill:#c5e1a5
+```
 
-### 2. Debugging Tools
+**Performance Boost**: 3 components concurrent processing = 3x speedup!
 
-**Structured Logging**:
-The system provides complete structured logging functionality, including entity extraction progress tracking, entity merge detail recording, relationship merge status monitoring, etc. Logs record processing progress percentages, entity relationship quantity statistics, summary generation types and other key information.
+### 5.4 Fine-grained Concurrency Control
 
-### 3. Performance Analysis
+Precise entity-level locking:
 
-**Execution Time Statistics**:
-Through performance decorators, key functions undergo execution time statistics, including entity extraction, node edge merging and other core operation duration analysis, facilitating performance optimization and bottleneck identification.
+**Lock Hierarchy**:
 
-## Configuration and Environment
+```mermaid
+graph TD
+    A[Global Lock - Traditional] -->|Too Coarse| B[All Entities Serial]
+    
+    C[Entity Lock - ApeRAG] -->|Just Right| D[Lock Only Merging Entities]
+    
+    style A fill:#ffccbc
+    style B fill:#ffccbc
+    style C fill:#c5e1a5
+    style D fill:#c5e1a5
+```
 
-### 1. Core Configuration Parameters
+**Lock Strategy**:
+1. Extraction phase: No locks, fully parallel
+2. Merging phase: Lock only needed entities
+3. Sorted lock acquisition: Prevents deadlock
 
-**LightRAG Configuration**:
-The system supports rich configuration parameter tuning, including chunk size, overlap size, LLM concurrency count, similarity thresholds, batch size, summary parameters, embedding token limits, etc. Default configurations are optimized for Chinese environments, supporting flexible adjustment according to actual needs.
+### 5.5 Smart Summarization
 
-### 2. Storage Configuration
+Automatically compress overly long descriptions:
 
-**Multi-storage Backend Support**:
+```python
+if len(description) > 2000 tokens:
+    summary = await llm_summarize(description)
+else:
+    summary = description
+```
+
+**Effect**: Compress 2500 tokens to 200 tokens, retaining core information.
+
+### 5.6 Multi-storage Backend Support
+
+ApeRAG supports two graph databases: Neo4j and PostgreSQL.
+
+**How to Choose?**
+
+| Scenario | Recommended | Reason |
+|----------|-------------|--------|
+| **Small Scale** (< 100K entities) | PostgreSQL | Simple ops, low cost |
+| **Medium Scale** (100K-1M) | PostgreSQL or Neo4j | Based on query complexity |
+| **Large Scale** (> 1M) | Neo4j | Better graph query performance |
+| **Limited Budget** | PostgreSQL | No extra deployment |
+| **Complex Graph Algorithms** | Neo4j | Built-in graph algorithms |
+
+**Switching**:
+
 ```bash
-# Environment variable configuration
-GRAPH_INDEX_KV_STORAGE=PGOpsSyncKVStorage          # KV storage
-GRAPH_INDEX_VECTOR_STORAGE=PGOpsSyncVectorStorage  # Vector storage  
-GRAPH_INDEX_GRAPH_STORAGE=Neo4JSyncStorage         # Graph storage
+# Use PostgreSQL (default)
+export GRAPH_INDEX_GRAPH_STORAGE=PGOpsSyncGraphStorage
 
-# PostgreSQL configuration
-POSTGRES_HOST=127.0.0.1
-POSTGRES_PORT=5432
-POSTGRES_DB=postgres
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
-
-# Neo4J configuration example
-NEO4J_HOST=127.0.0.1
-NEO4J_PORT=7687
-NEO4J_USERNAME=neo4j
-NEO4J_PASSWORD=password
+# Use Neo4j
+export GRAPH_INDEX_GRAPH_STORAGE=Neo4JSyncStorage
 ```
 
-## Summary
+## 6. Complete Data Flow
 
-We conducted large-scale refactoring and optimization of the original LightRAG, achieving a high-concurrency knowledge graph construction system truly suitable for production environments:
+The entire graph index construction is a data transformation pipeline, from unstructured text to structured knowledge graph:
 
-> 🔬 **Algorithm Deep Dive**: For specific algorithm implementation details of entity extraction and merging, continue reading [LightRAG Entity Extraction and Merging Mechanism](./lightrag_entity_extraction_and_merging.md)
+```mermaid
+flowchart TD
+    A[Original Document] --> B[Clean & Preprocess]
+    B --> C[Smart Chunking]
+    C --> D[Chunks]
+    
+    D --> E[LLM Concurrent Extraction]
+    E --> F[Original Entity List]
+    E --> G[Original Relationship List]
+    
+    F --> H[Build Adjacency Graph]
+    G --> H
+    H --> I[BFS Find Connected Components]
+    I --> J[Grouped Concurrent Processing]
+    
+    J --> K[Entity Deduplication]
+    J --> L[Relationship Aggregation]
+    
+    K --> M{Description Length Check}
+    M -->|Too Long| N[LLM Summary]
+    M -->|Appropriate| O[Keep Original]
+    N --> P[Final Entities]
+    O --> P
+    
+    L --> Q{Description Length Check}
+    Q -->|Too Long| R[LLM Summary]
+    Q -->|Appropriate| S[Keep Original]
+    R --> T[Final Relationships]
+    S --> T
+    
+    P --> U[Graph Database]
+    P --> V[Vector Database]
+    T --> U
+    T --> V
+    D --> W[Text Storage]
+    
+    U --> X[Knowledge Graph Complete]
+    V --> X
+    W --> X
+    
+    style A fill:#e1f5ff
+    style E fill:#fff59d
+    style I fill:#f3e5f5
+    style J fill:#c5e1a5
+    style X fill:#c8e6c9
+```
 
-### Core Technical Contributions
+### Data Transformation Example
 
-1. **Complete rewrite to stateless architecture**: We completely rewrote LightRAG's core architecture, solving the original version's inability to execute concurrently, with each task using independent instances supporting true multi-tenant isolation
-2. **Self-developed Concurrent Control model**: We designed a fine-grained lock management system, implementing precise concurrency control at entity and relationship levels
-3. **Connected component concurrency optimization**: We designed intelligent concurrency strategies based on graph topology analysis, maximizing parallel processing efficiency
-4. **Refactored storage layer architecture**: We completely rewrote the storage abstraction layer, solving the original version's unreliable storage implementation and inconsistent multi-storage backend implementations
-5. **End-to-end data flow design**: We designed a complete data transformation pipeline, with full-chain optimization from document chunking to multi-storage writing
+A concrete example showing step-by-step data transformation:
 
-### Performance Improvements
+**Input Document**:
 
-Through these technical improvements, we achieved:
-- **5-10x performance improvement** in concurrent processing capability
-- **95%+ reduction** in lock competition
-- **True multi-tenant concurrent processing** support
-- **Solving production environment stability issues** that the original version couldn't handle
-- **Complete workspace-level data isolation**, eliminating data conflicts and pollution between different collections
+```text
+John heads the database team and specializes in PostgreSQL and MySQL.
+Mike works in the frontend team and often collaborates with John's team to develop backend systems.
+Alice is an accountant in the finance department, responsible for financial reports.
+```
 
-The refactored system transforms the original research prototype into a production-ready, high-performance knowledge graph construction platform that truly meets enterprise-level requirements.
+**Step 1: Chunking**
+
+```json
+[
+  {
+    "chunk_id": "chunk-001",
+    "content": "John heads the database team and specializes in PostgreSQL and MySQL.",
+    "tokens": 15
+  },
+  {
+    "chunk_id": "chunk-002",
+    "content": "Mike works in the frontend team and often collaborates with John's team...",
+    "tokens": 18
+  },
+  {
+    "chunk_id": "chunk-003",
+    "content": "Alice is an accountant in the finance department, responsible for financial reports.",
+    "tokens": 14
+  }
+]
+```
+
+**Step 2: Entity Relationship Extraction**
+
+```json
+{
+  "entities": [
+    {"name": "John", "type": "Person", "source": "chunk-001"},
+    {"name": "Database Team", "type": "Organization", "source": "chunk-001"},
+    {"name": "PostgreSQL", "type": "Technology", "source": "chunk-001"},
+    {"name": "MySQL", "type": "Technology", "source": "chunk-001"},
+    {"name": "Mike", "type": "Person", "source": "chunk-002"},
+    {"name": "Frontend Team", "type": "Organization", "source": "chunk-002"},
+    {"name": "Alice", "type": "Person", "source": "chunk-003"},
+    {"name": "Finance Department", "type": "Organization", "source": "chunk-003"}
+  ],
+  "relationships": [
+    {"source": "John", "target": "Database Team", "relation": "heads"},
+    {"source": "John", "target": "PostgreSQL", "relation": "specializes in"},
+    {"source": "John", "target": "MySQL", "relation": "specializes in"},
+    {"source": "Mike", "target": "Frontend Team", "relation": "belongs to"},
+    {"source": "Mike", "target": "John", "relation": "collaborates"},
+    {"source": "Alice", "target": "Finance Department", "relation": "belongs to"}
+  ]
+}
+```
+
+**Step 3: Connected Component Analysis**
+
+```
+Connected Component 1 (Technical Department):
+- Entities: John, Mike, Database Team, Frontend Team, PostgreSQL, MySQL
+- Relationships: 6
+
+Connected Component 2 (Finance Department):
+- Entities: Alice, Finance Department
+- Relationships: 1
+```
+
+**Step 4: Concurrent Merging**
+
+Two components can process in parallel!
+
+**Step 5: Final Knowledge Graph**
+
+```mermaid
+graph LR
+    subgraph Technical
+        John -->|heads| DatabaseTeam[Database Team]
+        John -->|specializes in| PostgreSQL
+        John -->|specializes in| MySQL
+        Mike -->|belongs to| FrontendTeam[Frontend Team]
+        Mike -->|collaborates| John
+    end
+    
+    subgraph Finance
+        Alice -->|belongs to| FinanceDept[Finance Department]
+    end
+    
+    style Technical fill:#bbdefb
+    style Finance fill:#c5e1a5
+```
+
+### Performance Optimization Features
+
+1. **Fine-grained Concurrency Control**
+   - Entity-level locks: `entity:John:collection_abc`
+   - Lock only during merging, fully parallel during extraction
+
+2. **Connected Component Concurrency**
+   - Technical and Finance departments can process in parallel
+   - Zero lock contention, full multi-core CPU utilization
+
+3. **Smart Summarization**
+   - Description < 2000 tokens: Keep original
+   - Description > 2000 tokens: LLM summary compression
+
+## 7. Performance Optimization Strategies
+
+### 7.1 Concurrency Control
+
+Graph index construction involves extensive LLM calls and database operations requiring proper concurrency control.
+
+**Concurrency Hierarchy**:
+
+```mermaid
+graph TB
+    A[Document-level Concurrency] --> B[Chunk-level Concurrency]
+    B --> C[Component-level Concurrency]
+    C --> D[Entity-level Concurrency]
+    
+    A1[Celery Workers<br/>Multiple docs simultaneously] --> A
+    B1[LLM Concurrent Calls<br/>Multiple chunks simultaneously] --> B
+    C1[Parallel Component Merging<br/>Multiple components simultaneously] --> C
+    D1[Concurrent Entity Merging<br/>Different entities simultaneously] --> D
+    
+    style A fill:#e3f2fd
+    style B fill:#fff3e0
+    style C fill:#f3e5f5
+    style D fill:#e8f5e9
+```
+
+**Concurrency Parameters**:
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `llm_model_max_async` | 20 | LLM concurrent calls |
+| `embedding_func_max_async` | 16 | Embedding concurrent calls |
+| `max_batch_size` | 32 | Batch processing size |
+
+**Tuning Recommendations**:
+
+```python
+# Scenario 1: Strict LLM API rate limits
+llm_model_max_async = 5  # Reduce concurrency to avoid rate limiting
+
+# Scenario 2: Sufficient performance, want speedup
+llm_model_max_async = 50  # Increase concurrency to speed up processing
+
+# Scenario 3: Limited memory
+max_batch_size = 16  # Reduce batch size to lower memory usage
+```
+
+### 7.2 LLM Call Optimization
+
+LLM calls are the most time-consuming part, main optimization strategies:
+
+1. **Concurrent Calls**: Multiple chunks extract simultaneously (default 20 concurrent)
+2. **Batch Processing**: Reduce LLM call count
+3. **Cache Reuse**: Reuse summary results for similar descriptions
+
+**Performance Boost**: Concurrent calling is 4x faster than serial.
+
+### 7.3 Storage Optimization
+
+Batch writing significantly improves performance:
+
+| Method | 100 Entity Write Time |
+|--------|---------------------|
+| Individual Write | ~10 seconds |
+| Batch Write (32/batch) | ~1 second |
+
+**Optimization Effect**: 10x speedup!
+
+### 7.4 Memory Optimization
+
+Memory management strategies for large documents:
+
+- Stream chunking: Don't load entire document at once
+- Immediate release: Free memory immediately after processing
+- Batch processing: Control memory peaks
+
+### 7.5 Performance Monitoring
+
+System outputs detailed performance statistics:
+
+```
+Graph Index Construction Complete:
+✓ Document Chunking: 10 chunks, 0.5 seconds
+✓ Entity Extraction: 120 entities, 25 seconds
+✓ Relationship Extraction: 85 relationships, 25 seconds
+✓ Concurrent Merging: 15 seconds
+✓ Storage Writing: 2 seconds
+━━━━━━━━━━━━━━━━━━━━━━━━━
+Total: 42.7 seconds
+```
+
+**Bottleneck Analysis**: Entity/relationship extraction takes 60% of time, can optimize by increasing LLM concurrency.
+
+## 8. Configuration Parameters
+
+### 8.1 Core Configuration
+
+Graph index construction can be tuned with the following parameters:
+
+**Chunking Parameters**:
+
+```python
+# Chunk size (tokens)
+CHUNK_TOKEN_SIZE = 1200
+
+# Overlap size (tokens)
+CHUNK_OVERLAP_TOKEN_SIZE = 100
+```
+
+**Tuning Recommendations**:
+- Small docs (< 5000 tokens): `CHUNK_TOKEN_SIZE = 800`
+- Large docs (> 50000 tokens): `CHUNK_TOKEN_SIZE = 1500`
+- Need more context: Increase `CHUNK_OVERLAP_TOKEN_SIZE`
+
+**Concurrency Parameters**:
+
+```python
+# LLM concurrent calls
+LLM_MODEL_MAX_ASYNC = 20
+
+# Embedding concurrent calls
+EMBEDDING_FUNC_MAX_ASYNC = 16
+
+# Batch processing size
+MAX_BATCH_SIZE = 32
+```
+
+**Tuning Recommendations**:
+- Strict LLM API limits: Lower `LLM_MODEL_MAX_ASYNC` to 5-10
+- Sufficient performance for speedup: Increase to 50-100
+- Limited memory: Lower `MAX_BATCH_SIZE` to 16
+
+**Entity Extraction Parameters**:
+
+```python
+# Entity extraction retry count (0 = extract once only)
+ENTITY_EXTRACT_MAX_GLEANING = 0
+
+# Summary max tokens
+SUMMARY_TO_MAX_TOKENS = 2000
+
+# Force summary description fragment count
+FORCE_LLM_SUMMARY_ON_MERGE = 10
+```
+
+**Tuning Recommendations**:
+- Extraction quality important: `ENTITY_EXTRACT_MAX_GLEANING = 1` (extract twice)
+- Speed priority: `ENTITY_EXTRACT_MAX_GLEANING = 0`
+- Descriptions often long: Lower `SUMMARY_TO_MAX_TOKENS` to 1000
+
+### 8.2 Knowledge Graph Configuration
+
+Configure in Collection settings:
+
+```json
+{
+  "knowledge_graph_config": {
+    "language": "English",
+    "entity_types": [
+      "organization",
+      "person",
+      "geo",
+      "event",
+      "product",
+      "technology",
+      "date",
+      "category"
+    ]
+  }
+}
+```
+
+**Parameter Description**:
+
+- **language**: Extraction language, affects LLM prompts
+  - `English`: English
+  - `simplified chinese`: Simplified Chinese
+  - `traditional chinese`: Traditional Chinese
+
+- **entity_types**: Entity types to extract
+  - Default: 8 types (organization, person, location, event, product, technology, date, category)
+  - Customizable: e.g., extract only people and organizations
+
+### 8.3 Storage Configuration
+
+Configure storage backends via environment variables:
+
+```bash
+# KV storage (key-value)
+export GRAPH_INDEX_KV_STORAGE=PGOpsSyncKVStorage
+
+# Vector storage
+export GRAPH_INDEX_VECTOR_STORAGE=PGOpsSyncVectorStorage
+
+# Graph storage
+export GRAPH_INDEX_GRAPH_STORAGE=Neo4JSyncStorage
+# Or use PostgreSQL
+export GRAPH_INDEX_GRAPH_STORAGE=PGOpsSyncGraphStorage
+```
+
+**Storage Selection Recommendations**:
+
+| Scenario | KV Storage | Vector Storage | Graph Storage |
+|----------|-----------|----------------|---------------|
+| **Default** | PostgreSQL | PostgreSQL | PostgreSQL |
+| **High-performance Vector Search** | PostgreSQL | Qdrant | Neo4j |
+| **Large-scale Graph** | PostgreSQL | Qdrant | Neo4j |
+| **Simple Deployment** | PostgreSQL | PostgreSQL | PostgreSQL |
+
+### 8.4 Complete Configuration Example
+
+```bash
+# Chunking configuration
+export CHUNK_TOKEN_SIZE=1200
+export CHUNK_OVERLAP_TOKEN_SIZE=100
+
+# Concurrency configuration
+export LLM_MODEL_MAX_ASYNC=20
+export MAX_BATCH_SIZE=32
+
+# Extraction configuration
+export ENTITY_EXTRACT_MAX_GLEANING=0
+export SUMMARY_TO_MAX_TOKENS=2000
+
+# Storage configuration
+export GRAPH_INDEX_KV_STORAGE=PGOpsSyncKVStorage
+export GRAPH_INDEX_VECTOR_STORAGE=PGOpsSyncVectorStorage
+export GRAPH_INDEX_GRAPH_STORAGE=PGOpsSyncGraphStorage
+
+# Database connection (PostgreSQL)
+export POSTGRES_HOST=127.0.0.1
+export POSTGRES_PORT=5432
+export POSTGRES_DB=aperag
+export POSTGRES_USER=postgres
+export POSTGRES_PASSWORD=your_password
+
+# Database connection (Neo4j, optional)
+export NEO4J_HOST=127.0.0.1
+export NEO4J_PORT=7687
+export NEO4J_USERNAME=neo4j
+export NEO4J_PASSWORD=your_password
+```
+
+## 9. Practical Application Scenarios
+
+Graph index is particularly suitable for these scenarios:
+
+### 9.1 Enterprise Knowledge Base
+
+**Scenario**: Companies have extensive documentation including organizational structure, project materials, technical docs.
+
+**Graph Index Value**:
+
+- 📊 **Organizational Relationships**: "Who is on John's team?" → Quickly find team members
+- 🔗 **Collaboration Networks**: "Who has worked with John?" → Discover work networks
+- 🛠️ **Skill Mapping**: "Who is skilled in PostgreSQL?" → Locate technical experts
+- 📁 **Project History**: "Which projects has John participated in?" → Track project experience
+
+**Real Effect**:
+
+```
+Question: "Who leads the database team?"
+Traditional Search: Returns dozens of paragraphs containing "database team" and "lead"
+Graph Index: Directly returns "John" + relevant background info
+```
+
+### 9.2 Research and Learning
+
+**Scenario**: Analyzing academic papers and technical documentation to understand knowledge lineage.
+
+**Graph Index Value**:
+
+- 👥 **Author Networks**: "Who has this author collaborated with?" → Discover research teams
+- 📖 **Citation Relationships**: "What papers does this cite?" → Trace research lineage
+- 🔬 **Technology Evolution**: "How has this technology evolved?" → Understand tech history
+- 💡 **Concept Connections**: "What's the relationship between tech A and B?" → Connect knowledge points
+
+**Query Examples**:
+
+```
+User: "What research is related to Graph RAG?"
+Graph Index: Query papers --research--> Graph RAG relationships
+Result: Paper A, Paper B, Paper C
+
+User: "Who has an author collaborated with?"
+Graph Index: Query author --collaborates--> other authors relationships
+Result: Collaborator list and collaboration projects
+```
+
+### 9.3 Products and Services
+
+**Scenario**: Product documentation, user manuals, API documentation.
+
+**Graph Index Value**:
+
+- ⚙️ **Feature Dependencies**: "What needs configuration before enabling feature A?" → Understand dependencies
+- 🔧 **Configuration Relationships**: "Which features does this config affect?" → Avoid misconfigurations
+- 🐛 **Problem Diagnosis**: "What might cause error X?" → Quick troubleshooting
+- 📚 **API Relationships**: "Which APIs are typically used together?" → Learn best practices
+
+**Query Examples**:
+
+```
+User: "How to configure graph index?"
+Graph Index: Query config items --affects--> graph index relationships
+Result: GRAPH_INDEX_GRAPH_STORAGE, knowledge_graph_config
+
+User: "What's the difference between Neo4j and PostgreSQL?"
+Graph Index: Query Neo4j, PostgreSQL properties and relationships
+Result: Performance comparison, applicable scenarios, configuration methods
+```
+
+### 9.4 Conversation Scenario Comparison
+
+Let's see how different retrieval methods perform in actual conversations:
+
+**Question: "What's the relationship between John and Mike?"**
+
+| Retrieval Method | Can Answer | Answer Quality |
+|-----------------|-----------|----------------|
+| **Pure Vector Search** | ⚠️ Partial | Finds paragraphs mentioning both, but unclear relationship |
+| **Pure Full-text Search** | ⚠️ Partial | Finds paragraphs containing "John" and "Mike" |
+| **Graph Index** | ✅ Yes | Directly returns: John and Mike have a collaboration relationship |
+
+**Question: "Where is the PostgreSQL config file?"**
+
+| Retrieval Method | Can Answer | Answer Quality |
+|-----------------|-----------|----------------|
+| **Pure Vector Search** | ✅ Yes | Finds relevant config paragraphs |
+| **Pure Full-text Search** | ✅ Yes | Exact match "PostgreSQL" and "config" |
+| **Graph Index** | ✅ Yes | Finds PostgreSQL --config--> file relationships |
+
+**Question: "How to improve system performance?"**
+
+| Retrieval Method | Can Answer | Answer Quality |
+|-----------------|-----------|----------------|
+| **Pure Vector Search** | ✅ Strong | Finds all performance optimization content |
+| **Pure Full-text Search** | ⚠️ Medium | Needs exact keywords "performance", "optimize" |
+| **Graph Index** | ✅ Strong | Finds optimization methods --improves--> performance relationships |
+
+**Best Practice**: Combine multiple retrieval methods!
+
+## 10. Summary
+
+ApeRAG's graph index provides production-grade knowledge graph construction capabilities with high performance, reliability, and scalability.
+
+### Key Features
+
+1. **Workspace data isolation**: Each Collection completely independent, supporting true multi-tenancy
+2. **Stateless architecture**: Each task independent instance, zero state pollution
+3. **Connected component concurrency**: Intelligent concurrency strategy, 2-3x performance boost
+4. **Fine-grained lock management**: Entity-level locks, maximizing concurrency
+5. **Smart summarization**: Automatically compress overly long descriptions, saving storage and improving retrieval efficiency
+6. **Multi-storage support**: Flexible choice between Neo4j or PostgreSQL
+
+### Suitable Scenarios
+
+- ✅ **Enterprise Knowledge Base**: Understanding organizational structure, personnel relationships, project history
+- ✅ **Research Paper Analysis**: Author collaboration networks, citation relationships, research lineage
+- ✅ **Product Documentation**: Feature dependencies, configuration relationships, problem diagnosis
+- ✅ **Any scenario requiring "relationship" understanding**
+
+### Performance
+
+- Process 10,000 entities: approximately 2-5 minutes (depending on LLM speed)
+- Connected component concurrency: 2-3x performance boost
+- Memory usage: approximately 400 MB (10,000 entities)
+- Storage space: approximately 100 MB (10,000 entities)
+
+### Next Steps
+
+After graph index construction completes, you can perform graph queries. ApeRAG supports three graph query modes:
+
+- **Local Mode**: Query local information about an entity
+- **Global Mode**: Query overall relationships and patterns
+- **Hybrid Mode**: Comprehensive queries
+
+For detailed retrieval process, see [System Architecture Documentation](./architecture.md#42-knowledge-graph-query).
 
 ---
 
-## Related Documents
+## Related Documentation
 
-- 📋 [Indexing Architecture Design](./indexing_architecture.md) - Overall indexing architecture
-- 📖 [LightRAG Entity Extraction and Merging Mechanism](./lightrag_entity_extraction_and_merging.md) - Core algorithm details
-- 🏗️ [Graph Index 创建流程技术文档](./graph_index_creation_zh.md) - Chinese Version 
+- 📋 [System Architecture](./architecture.md) - ApeRAG overall architecture design
+- 📖 [Entity Extraction and Merging Mechanism](./lightrag_entity_extraction_and_merging.md) - Core algorithm details
+- 🔗 [Connected Component Optimization](./connected_components_optimization.md) - Concurrency optimization principles
+- 🌐 [Index Pipeline Architecture](./indexing_architecture.md) - Complete indexing process

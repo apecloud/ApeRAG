@@ -78,7 +78,7 @@ SYNC_WHITELIST = [
     # English docs - Design
     "en-US/design/architecture.md",
     # "en-US/design/document_upload_design.md",
-    # "en-US/design/graph_index_creation.md",
+    "en-US/design/graph_index_creation.md",
     # "en-US/design/chat_history_design.md",
     
     # English docs - Development
@@ -94,7 +94,7 @@ SYNC_WHITELIST = [
     # Chinese docs - Design
     "zh-CN/design/architecture.md",
     # "zh-CN/design/document_upload_design.md",
-    # "zh-CN/design/graph_index_creation.md",
+    "zh-CN/design/graph_index_creation.md",
     # "zh-CN/design/chat_history_design.md",
     
     # Chinese docs - Development
