@@ -83,9 +83,12 @@ async def create_lightrag_instance(collection: Collection) -> LightRAG:
         kg_config = config.knowledge_graph_config
         language = LightRAGConfig.DEFAULT_LANGUAGE
         entity_types = PROMPTS["DEFAULT_ENTITY_TYPES"]
+
+        # Use collection-level language if available
+        if config.language:
+            language = config.language
+
         if kg_config:
-            if kg_config.language:
-                language = kg_config.language
             if kg_config.entity_types:
                 entity_types = kg_config.entity_types
 

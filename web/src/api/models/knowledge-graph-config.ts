@@ -21,12 +21,6 @@
  */
 export interface KnowledgeGraphConfig {
     /**
-     * Language for entity extraction and query responses
-     * @type {string}
-     * @memberof KnowledgeGraphConfig
-     */
-    'language'?: string;
-    /**
      * List of entity types to extract during graph indexing
      * @type {Array<string>}
      * @memberof KnowledgeGraphConfig

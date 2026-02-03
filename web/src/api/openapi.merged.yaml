@@ -4580,11 +4580,6 @@ components:
       type: object
       description: Configuration for knowledge graph generation
       properties:
-        language:
-          type: string
-          description: Language for entity extraction and query responses
-          default: simplified chinese
-          example: simplified chinese
         entity_types:
           type: array
           items:
@@ -4635,7 +4630,6 @@ components:
           allOf:
             - $ref: '#/components/schemas/knowledgeGraphConfig'
           default:
-            language: simplified chinese
             entity_types:
               - organization
               - person
@@ -4645,6 +4639,16 @@ components:
               - technology
               - date
               - category
+        language:
+          type: string
+          description: Language for the collection content and processing
+          default: zh-CN
+          enum:
+            - zh-CN
+            - en-US
+            - ja-JP
+            - ko-KR
+          example: zh-CN
         embedding:
           $ref: '#/components/schemas/modelSpec'
         completion:

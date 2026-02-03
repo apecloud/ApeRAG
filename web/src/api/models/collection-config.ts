@@ -69,6 +69,12 @@ export interface CollectionConfig {
      */
     'knowledge_graph_config'?: KnowledgeGraphConfig;
     /**
+     * Language for the collection content and processing
+     * @type {string}
+     * @memberof CollectionConfig
+     */
+    'language'?: CollectionConfigLanguageEnum;
+    /**
      * 
      * @type {ModelSpec}
      * @memberof CollectionConfig
@@ -200,4 +206,14 @@ export interface CollectionConfig {
      */
     'space_id'?: string;
 }
+
+export const CollectionConfigLanguageEnum = {
+    zh_CN: 'zh-CN',
+    en_US: 'en-US',
+    ja_JP: 'ja-JP',
+    ko_KR: 'ko-KR'
+} as const;
+
+export type CollectionConfigLanguageEnum = typeof CollectionConfigLanguageEnum[keyof typeof CollectionConfigLanguageEnum];
+
 
