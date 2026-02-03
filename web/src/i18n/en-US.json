@@ -243,6 +243,9 @@
     "unpublish_collection_description": "Remove the collection from the marketplace, making it private.",
     "name": "Name",
     "name_placeholder": "Collection display name.",
+    "language": "Language",
+    "language_zh_CN": "Simplified chinese",
+    "language_en_US": "English",
     "description": "Description",
     "description_placeholder": "Please describe the general meaning of a collection.",
     "index_types": "Index Types",
@@ -401,7 +404,7 @@
       "delete": "Delete",
       "delete_confirm": "This action cannot be undone. This will permanently delete provider and remove your data from our servers.",
       "publish": "Publish to Public",
-      "publish_confirm": "Confirm publishing this provider to public? This action is irreversible and the provider will be visible to all users.",
+      "publish_confirm": "Confirm publishing this provider to public? This action is irreversible and the provider will be visible to all admins.",
       "publish_success": "Provider published successfully"
     },
     "model": {

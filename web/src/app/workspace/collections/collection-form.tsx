@@ -1,6 +1,6 @@
 'use client';
 
-import { ModelSpec } from '@/api';
+import { ModelSpec, TitleGenerateRequestLanguageEnum } from '@/api';
 import { useCollectionContext } from '@/components/providers/collection-provider';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,8 @@ import {
   FormLabel,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   Select,
   SelectContent,
@@ -36,7 +38,7 @@ import { apiClient } from '@/lib/api/client';
 import { cn, objectKeys } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
 import _ from 'lodash';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
@@ -66,6 +68,7 @@ const collectionSchema = z
       enable_vision: z.boolean(),
       completion: collectionModelSchema,
       embedding: collectionModelSchema,
+      language: z.enum(Object.values(TitleGenerateRequestLanguageEnum)),
     }),
   })
   .refine(
@@ -97,30 +100,6 @@ const collectionSchema = z
 
 type FormValueType = z.infer<typeof collectionSchema>;
 
-const defaultValues: FormValueType = {
-  title: '',
-  description: '',
-  type: 'document',
-  config: {
-    source: 'system',
-    enable_fulltext: true,
-    enable_knowledge_graph: true,
-    enable_vector: true,
-    enable_summary: false,
-    enable_vision: false,
-    completion: {
-      custom_llm_provider: '',
-      model: '',
-      model_service_provider: '',
-    },
-    embedding: {
-      custom_llm_provider: '',
-      model: '',
-      model_service_provider: '',
-    },
-  },
-};
-
 export type ProviderModel = {
   label?: string;
   name?: string;
@@ -136,6 +115,32 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
   const common_tips = useTranslations('common.tips');
   const common_action = useTranslations('common.action');
   const page_collections = useTranslations('page_collections');
+  const locale = useLocale();
+
+  const defaultValues: FormValueType = {
+    title: '',
+    description: '',
+    type: 'document',
+    config: {
+      source: 'system',
+      enable_fulltext: true,
+      enable_knowledge_graph: true,
+      enable_vector: true,
+      enable_summary: false,
+      enable_vision: false,
+      completion: {
+        custom_llm_provider: '',
+        model: '',
+        model_service_provider: '',
+      },
+      embedding: {
+        custom_llm_provider: '',
+        model: '',
+        model_service_provider: '',
+      },
+      language: locale,
+    },
+  };
 
   const CollectionConfigIndexTypes = {
     'config.enable_vector': {
@@ -368,6 +373,32 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
                         {...field}
                         value={field.value || ''}
                       />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="config.language"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{page_collections('language')}</FormLabel>
+                    <FormControl>
+                      <RadioGroup
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        className="mt-2 flex flex-row gap-4 items-center"
+                      >
+                        <Label>
+                          <RadioGroupItem value="zh-CN" />
+                          {page_collections('language_zh_CN')}
+                        </Label>
+                        <Label>
+                          <RadioGroupItem value="en-US" />
+                          {page_collections('language_en_US')}
+                        </Label>
+                      </RadioGroup>
                     </FormControl>
                   </FormItem>
                 )}
