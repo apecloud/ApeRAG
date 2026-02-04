@@ -37,6 +37,7 @@ from aperag.db.repositories.llm_provider import (
 from aperag.db.repositories.marketplace import AsyncMarketplaceRepositoryMixin
 from aperag.db.repositories.marketplace_collection import AsyncMarketplaceCollectionRepositoryMixin
 from aperag.db.repositories.merge_suggestion import MergeSuggestionRepository
+from aperag.db.repositories.prompt_template import AsyncPromptTemplateRepositoryMixin
 from aperag.db.repositories.question_set import AsyncQuestionSetRepositoryMixin
 from aperag.db.repositories.search import AsyncSearchRepositoryMixin
 from aperag.db.repositories.setting import (
@@ -77,6 +78,7 @@ class AsyncDatabaseOps(
     MergeSuggestionRepository,
     AsyncDocumentIndexRepositoryMixin,
     AsyncSettingRepositoryMixin,
+    AsyncPromptTemplateRepositoryMixin,
     AsyncEvaluationRepositoryMixin,
     AsyncQuestionSetRepositoryMixin,
 ):

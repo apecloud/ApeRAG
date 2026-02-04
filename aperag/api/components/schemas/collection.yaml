@@ -109,6 +109,20 @@ collectionSource:
           type: string
 
 
+indexPrompts:
+  type: object
+  description: Custom prompts for various index types
+  properties:
+    graph:
+      type: string
+      description: Custom prompt for graph/entity extraction
+    summary:
+      type: string
+      description: Custom prompt for document summarization
+    vision:
+      type: string
+      description: Custom prompt for image analysis
+
 knowledgeGraphConfig:
   type: object
   description: Configuration for knowledge graph generation
@@ -153,6 +167,8 @@ collectionConfig:
         - $ref: '#/knowledgeGraphConfig'
       default:
         entity_types: ["organization", "person", "geo", "event", "product", "technology", "date", "category"]
+    index_prompts:
+      $ref: '#/indexPrompts'
     language:
       type: string
       description: Language for the collection content and processing

@@ -1130,3 +1130,18 @@ class Setting(Base):
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_deleted = Column(DateTime(timezone=True), nullable=True)
+
+
+class PromptTemplate(Base):
+    __tablename__ = "prompt_template"
+
+    id = Column(String(24), primary_key=True, default=lambda: "pt" + random_id())
+    prompt_type = Column(String(50), nullable=False, index=True)
+    scope = Column(String(20), nullable=False, index=True)
+    user_id = Column(String(256), nullable=True, index=True)
+    language = Column(String(10), nullable=False, default="en-US")
+    content = Column(Text, nullable=False)
+    description = Column(Text, nullable=True)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)

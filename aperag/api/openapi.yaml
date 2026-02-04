@@ -84,6 +84,20 @@ paths:
   /settings/test_mineru_token:
     $ref: './paths/misc.yaml#/test_mineru_token'
 
+  # prompts
+  /prompts/user:
+    $ref: './paths/prompts.yaml#/promptsUser'
+  /prompts/user/{prompt_type}:
+    $ref: './paths/prompts.yaml#/promptsUserType'
+  /prompts/user/reset:
+    $ref: './paths/prompts.yaml#/promptsUserReset'
+  /prompts/system:
+    $ref: './paths/prompts.yaml#/promptsSystem'
+  /prompts/preview:
+    $ref: './paths/prompts.yaml#/promptsPreview'
+  /prompts/validate:
+    $ref: './paths/prompts.yaml#/promptsValidate'
+
   # graphs
   /collections/{collection_id}/graphs/labels:
     $ref: './paths/collections.yaml#/graph_labels'

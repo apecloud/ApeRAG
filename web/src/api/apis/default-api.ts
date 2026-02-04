@@ -80,6 +80,8 @@ import type { DefaultModelsResponse } from '../models';
 // @ts-ignore
 import type { DefaultModelsUpdateRequest } from '../models';
 // @ts-ignore
+import type { DeleteUserPromptResponse } from '../models';
+// @ts-ignore
 import type { Document } from '../models';
 // @ts-ignore
 import type { DocumentCreate } from '../models';
@@ -122,9 +124,19 @@ import type { MarketplaceCollectionsCollectionIdSubscribeDelete200Response } fro
 // @ts-ignore
 import type { ModelConfigList } from '../models';
 // @ts-ignore
+import type { PreviewRequest } from '../models';
+// @ts-ignore
+import type { PreviewResponse } from '../models';
+// @ts-ignore
+import type { PromptsSystemGet200Response } from '../models';
+// @ts-ignore
 import type { RebuildIndexesRequest } from '../models';
 // @ts-ignore
 import type { Register } from '../models';
+// @ts-ignore
+import type { ResetPromptsRequest } from '../models';
+// @ts-ignore
+import type { ResetPromptsResponse } from '../models';
 // @ts-ignore
 import type { SearchRequest } from '../models';
 // @ts-ignore
@@ -150,11 +162,21 @@ import type { TitleGenerateRequest } from '../models';
 // @ts-ignore
 import type { TitleGenerateResponse } from '../models';
 // @ts-ignore
+import type { UpdateUserPromptsRequest } from '../models';
+// @ts-ignore
+import type { UpdateUserPromptsResponse } from '../models';
+// @ts-ignore
 import type { UploadDocumentResponse } from '../models';
 // @ts-ignore
 import type { User } from '../models';
 // @ts-ignore
 import type { UserList } from '../models';
+// @ts-ignore
+import type { UserPromptsResponse } from '../models';
+// @ts-ignore
+import type { ValidateRequest } from '../models';
+// @ts-ignore
+import type { ValidateResponse } from '../models';
 // @ts-ignore
 import type { WorkflowDefinition } from '../models';
 /**
@@ -3070,6 +3092,264 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             };
         },
         /**
+         * Preview how a prompt template will be rendered with given variables
+         * @summary Preview prompt rendering
+         * @param {PreviewRequest} previewRequest 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        promptsPreviewPost: async (previewRequest: PreviewRequest, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'previewRequest' is not null or undefined
+            assertParamExists('promptsPreviewPost', 'previewRequest', previewRequest)
+            const localVarPath = `/prompts/preview`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(previewRequest, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Get system default prompt configurations for reference
+         * @summary Get system default prompts
+         * @param {PromptsSystemGetLanguageEnum} [language] 
+         * @param {PromptsSystemGetTypeEnum} [type] 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        promptsSystemGet: async (language?: PromptsSystemGetLanguageEnum, type?: PromptsSystemGetTypeEnum, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            const localVarPath = `/prompts/system`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            if (language !== undefined) {
+                localVarQueryParameter['language'] = language;
+            }
+
+            if (type !== undefined) {
+                localVarQueryParameter['type'] = type;
+            }
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Get user\'s prompt configuration with priority resolution and source information
+         * @summary Get user prompts
+         * @param {PromptsUserGetLanguageEnum} [language] 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        promptsUserGet: async (language?: PromptsUserGetLanguageEnum, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            const localVarPath = `/prompts/user`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            if (language !== undefined) {
+                localVarQueryParameter['language'] = language;
+            }
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Delete user\'s specific prompt configuration (reset to system default)
+         * @summary Delete user prompt
+         * @param {PromptsUserPromptTypeDeletePromptTypeEnum} promptType 
+         * @param {PromptsUserPromptTypeDeleteLanguageEnum} [language] 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        promptsUserPromptTypeDelete: async (promptType: PromptsUserPromptTypeDeletePromptTypeEnum, language?: PromptsUserPromptTypeDeleteLanguageEnum, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'promptType' is not null or undefined
+            assertParamExists('promptsUserPromptTypeDelete', 'promptType', promptType)
+            const localVarPath = `/prompts/user/{prompt_type}`
+                .replace(`{${"prompt_type"}}`, encodeURIComponent(String(promptType)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'DELETE', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            if (language !== undefined) {
+                localVarQueryParameter['language'] = language;
+            }
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Batch update user\'s prompt configurations
+         * @summary Update user prompts
+         * @param {UpdateUserPromptsRequest} updateUserPromptsRequest 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        promptsUserPut: async (updateUserPromptsRequest: UpdateUserPromptsRequest, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'updateUserPromptsRequest' is not null or undefined
+            assertParamExists('promptsUserPut', 'updateUserPromptsRequest', updateUserPromptsRequest)
+            const localVarPath = `/prompts/user`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'PUT', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(updateUserPromptsRequest, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Batch reset user\'s prompt configurations
+         * @summary Reset user prompts
+         * @param {ResetPromptsRequest} resetPromptsRequest 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        promptsUserResetPost: async (resetPromptsRequest: ResetPromptsRequest, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'resetPromptsRequest' is not null or undefined
+            assertParamExists('promptsUserResetPost', 'resetPromptsRequest', resetPromptsRequest)
+            const localVarPath = `/prompts/user/reset`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(resetPromptsRequest, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Validate prompt template syntax (Jinja2)
+         * @summary Validate prompt template
+         * @param {ValidateRequest} validateRequest 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        promptsValidatePost: async (validateRequest: ValidateRequest, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'validateRequest' is not null or undefined
+            assertParamExists('promptsValidatePost', 'validateRequest', validateRequest)
+            const localVarPath = `/prompts/validate`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(validateRequest, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          * Register a new user with an invitation token
          * @summary Register a new user
          * @param {Register} register 
@@ -4311,6 +4591,99 @@ export const DefaultApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Preview how a prompt template will be rendered with given variables
+         * @summary Preview prompt rendering
+         * @param {PreviewRequest} previewRequest 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async promptsPreviewPost(previewRequest: PreviewRequest, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<PreviewResponse>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.promptsPreviewPost(previewRequest, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.promptsPreviewPost']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Get system default prompt configurations for reference
+         * @summary Get system default prompts
+         * @param {PromptsSystemGetLanguageEnum} [language] 
+         * @param {PromptsSystemGetTypeEnum} [type] 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async promptsSystemGet(language?: PromptsSystemGetLanguageEnum, type?: PromptsSystemGetTypeEnum, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<PromptsSystemGet200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.promptsSystemGet(language, type, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.promptsSystemGet']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Get user\'s prompt configuration with priority resolution and source information
+         * @summary Get user prompts
+         * @param {PromptsUserGetLanguageEnum} [language] 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async promptsUserGet(language?: PromptsUserGetLanguageEnum, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<UserPromptsResponse>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.promptsUserGet(language, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.promptsUserGet']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Delete user\'s specific prompt configuration (reset to system default)
+         * @summary Delete user prompt
+         * @param {PromptsUserPromptTypeDeletePromptTypeEnum} promptType 
+         * @param {PromptsUserPromptTypeDeleteLanguageEnum} [language] 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async promptsUserPromptTypeDelete(promptType: PromptsUserPromptTypeDeletePromptTypeEnum, language?: PromptsUserPromptTypeDeleteLanguageEnum, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<DeleteUserPromptResponse>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.promptsUserPromptTypeDelete(promptType, language, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.promptsUserPromptTypeDelete']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Batch update user\'s prompt configurations
+         * @summary Update user prompts
+         * @param {UpdateUserPromptsRequest} updateUserPromptsRequest 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async promptsUserPut(updateUserPromptsRequest: UpdateUserPromptsRequest, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<UpdateUserPromptsResponse>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.promptsUserPut(updateUserPromptsRequest, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.promptsUserPut']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Batch reset user\'s prompt configurations
+         * @summary Reset user prompts
+         * @param {ResetPromptsRequest} resetPromptsRequest 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async promptsUserResetPost(resetPromptsRequest: ResetPromptsRequest, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ResetPromptsResponse>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.promptsUserResetPost(resetPromptsRequest, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.promptsUserResetPost']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Validate prompt template syntax (Jinja2)
+         * @summary Validate prompt template
+         * @param {ValidateRequest} validateRequest 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async promptsValidatePost(validateRequest: ValidateRequest, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ValidateResponse>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.promptsValidatePost(validateRequest, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.promptsValidatePost']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Register a new user with an invitation token
          * @summary Register a new user
          * @param {Register} register 
@@ -5123,6 +5496,76 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
             return localVarFp.marketplaceCollectionsSubscriptionsGet(requestParameters.page, requestParameters.pageSize, options).then((request) => request(axios, basePath));
         },
         /**
+         * Preview how a prompt template will be rendered with given variables
+         * @summary Preview prompt rendering
+         * @param {DefaultApiPromptsPreviewPostRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        promptsPreviewPost(requestParameters: DefaultApiPromptsPreviewPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<PreviewResponse> {
+            return localVarFp.promptsPreviewPost(requestParameters.previewRequest, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Get system default prompt configurations for reference
+         * @summary Get system default prompts
+         * @param {DefaultApiPromptsSystemGetRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        promptsSystemGet(requestParameters: DefaultApiPromptsSystemGetRequest = {}, options?: RawAxiosRequestConfig): AxiosPromise<PromptsSystemGet200Response> {
+            return localVarFp.promptsSystemGet(requestParameters.language, requestParameters.type, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Get user\'s prompt configuration with priority resolution and source information
+         * @summary Get user prompts
+         * @param {DefaultApiPromptsUserGetRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        promptsUserGet(requestParameters: DefaultApiPromptsUserGetRequest = {}, options?: RawAxiosRequestConfig): AxiosPromise<UserPromptsResponse> {
+            return localVarFp.promptsUserGet(requestParameters.language, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Delete user\'s specific prompt configuration (reset to system default)
+         * @summary Delete user prompt
+         * @param {DefaultApiPromptsUserPromptTypeDeleteRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        promptsUserPromptTypeDelete(requestParameters: DefaultApiPromptsUserPromptTypeDeleteRequest, options?: RawAxiosRequestConfig): AxiosPromise<DeleteUserPromptResponse> {
+            return localVarFp.promptsUserPromptTypeDelete(requestParameters.promptType, requestParameters.language, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Batch update user\'s prompt configurations
+         * @summary Update user prompts
+         * @param {DefaultApiPromptsUserPutRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        promptsUserPut(requestParameters: DefaultApiPromptsUserPutRequest, options?: RawAxiosRequestConfig): AxiosPromise<UpdateUserPromptsResponse> {
+            return localVarFp.promptsUserPut(requestParameters.updateUserPromptsRequest, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Batch reset user\'s prompt configurations
+         * @summary Reset user prompts
+         * @param {DefaultApiPromptsUserResetPostRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        promptsUserResetPost(requestParameters: DefaultApiPromptsUserResetPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<ResetPromptsResponse> {
+            return localVarFp.promptsUserResetPost(requestParameters.resetPromptsRequest, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Validate prompt template syntax (Jinja2)
+         * @summary Validate prompt template
+         * @param {DefaultApiPromptsValidatePostRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        promptsValidatePost(requestParameters: DefaultApiPromptsValidatePostRequest, options?: RawAxiosRequestConfig): AxiosPromise<ValidateResponse> {
+            return localVarFp.promptsValidatePost(requestParameters.validateRequest, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Register a new user with an invitation token
          * @summary Register a new user
          * @param {DefaultApiRegisterPostRequest} requestParameters Request parameters.
@@ -5911,6 +6354,76 @@ export interface DefaultApiInterface {
      * @memberof DefaultApiInterface
      */
     marketplaceCollectionsSubscriptionsGet(requestParameters?: DefaultApiMarketplaceCollectionsSubscriptionsGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<SharedCollectionList>;
+
+    /**
+     * Preview how a prompt template will be rendered with given variables
+     * @summary Preview prompt rendering
+     * @param {DefaultApiPromptsPreviewPostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    promptsPreviewPost(requestParameters: DefaultApiPromptsPreviewPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<PreviewResponse>;
+
+    /**
+     * Get system default prompt configurations for reference
+     * @summary Get system default prompts
+     * @param {DefaultApiPromptsSystemGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    promptsSystemGet(requestParameters?: DefaultApiPromptsSystemGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<PromptsSystemGet200Response>;
+
+    /**
+     * Get user\'s prompt configuration with priority resolution and source information
+     * @summary Get user prompts
+     * @param {DefaultApiPromptsUserGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    promptsUserGet(requestParameters?: DefaultApiPromptsUserGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<UserPromptsResponse>;
+
+    /**
+     * Delete user\'s specific prompt configuration (reset to system default)
+     * @summary Delete user prompt
+     * @param {DefaultApiPromptsUserPromptTypeDeleteRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    promptsUserPromptTypeDelete(requestParameters: DefaultApiPromptsUserPromptTypeDeleteRequest, options?: RawAxiosRequestConfig): AxiosPromise<DeleteUserPromptResponse>;
+
+    /**
+     * Batch update user\'s prompt configurations
+     * @summary Update user prompts
+     * @param {DefaultApiPromptsUserPutRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    promptsUserPut(requestParameters: DefaultApiPromptsUserPutRequest, options?: RawAxiosRequestConfig): AxiosPromise<UpdateUserPromptsResponse>;
+
+    /**
+     * Batch reset user\'s prompt configurations
+     * @summary Reset user prompts
+     * @param {DefaultApiPromptsUserResetPostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    promptsUserResetPost(requestParameters: DefaultApiPromptsUserResetPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<ResetPromptsResponse>;
+
+    /**
+     * Validate prompt template syntax (Jinja2)
+     * @summary Validate prompt template
+     * @param {DefaultApiPromptsValidatePostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    promptsValidatePost(requestParameters: DefaultApiPromptsValidatePostRequest, options?: RawAxiosRequestConfig): AxiosPromise<ValidateResponse>;
 
     /**
      * Register a new user with an invitation token
@@ -7319,6 +7832,118 @@ export interface DefaultApiMarketplaceCollectionsSubscriptionsGetRequest {
 }
 
 /**
+ * Request parameters for promptsPreviewPost operation in DefaultApi.
+ * @export
+ * @interface DefaultApiPromptsPreviewPostRequest
+ */
+export interface DefaultApiPromptsPreviewPostRequest {
+    /**
+     * 
+     * @type {PreviewRequest}
+     * @memberof DefaultApiPromptsPreviewPost
+     */
+    readonly previewRequest: PreviewRequest
+}
+
+/**
+ * Request parameters for promptsSystemGet operation in DefaultApi.
+ * @export
+ * @interface DefaultApiPromptsSystemGetRequest
+ */
+export interface DefaultApiPromptsSystemGetRequest {
+    /**
+     * 
+     * @type {'zh-CN' | 'en-US'}
+     * @memberof DefaultApiPromptsSystemGet
+     */
+    readonly language?: PromptsSystemGetLanguageEnum
+
+    /**
+     * 
+     * @type {'agent_system' | 'agent_query' | 'index_graph' | 'index_summary' | 'index_vision'}
+     * @memberof DefaultApiPromptsSystemGet
+     */
+    readonly type?: PromptsSystemGetTypeEnum
+}
+
+/**
+ * Request parameters for promptsUserGet operation in DefaultApi.
+ * @export
+ * @interface DefaultApiPromptsUserGetRequest
+ */
+export interface DefaultApiPromptsUserGetRequest {
+    /**
+     * 
+     * @type {'zh-CN' | 'en-US'}
+     * @memberof DefaultApiPromptsUserGet
+     */
+    readonly language?: PromptsUserGetLanguageEnum
+}
+
+/**
+ * Request parameters for promptsUserPromptTypeDelete operation in DefaultApi.
+ * @export
+ * @interface DefaultApiPromptsUserPromptTypeDeleteRequest
+ */
+export interface DefaultApiPromptsUserPromptTypeDeleteRequest {
+    /**
+     * 
+     * @type {'agent_system' | 'agent_query' | 'index_graph' | 'index_summary' | 'index_vision'}
+     * @memberof DefaultApiPromptsUserPromptTypeDelete
+     */
+    readonly promptType: PromptsUserPromptTypeDeletePromptTypeEnum
+
+    /**
+     * 
+     * @type {'zh-CN' | 'en-US'}
+     * @memberof DefaultApiPromptsUserPromptTypeDelete
+     */
+    readonly language?: PromptsUserPromptTypeDeleteLanguageEnum
+}
+
+/**
+ * Request parameters for promptsUserPut operation in DefaultApi.
+ * @export
+ * @interface DefaultApiPromptsUserPutRequest
+ */
+export interface DefaultApiPromptsUserPutRequest {
+    /**
+     * 
+     * @type {UpdateUserPromptsRequest}
+     * @memberof DefaultApiPromptsUserPut
+     */
+    readonly updateUserPromptsRequest: UpdateUserPromptsRequest
+}
+
+/**
+ * Request parameters for promptsUserResetPost operation in DefaultApi.
+ * @export
+ * @interface DefaultApiPromptsUserResetPostRequest
+ */
+export interface DefaultApiPromptsUserResetPostRequest {
+    /**
+     * 
+     * @type {ResetPromptsRequest}
+     * @memberof DefaultApiPromptsUserResetPost
+     */
+    readonly resetPromptsRequest: ResetPromptsRequest
+}
+
+/**
+ * Request parameters for promptsValidatePost operation in DefaultApi.
+ * @export
+ * @interface DefaultApiPromptsValidatePostRequest
+ */
+export interface DefaultApiPromptsValidatePostRequest {
+    /**
+     * 
+     * @type {ValidateRequest}
+     * @memberof DefaultApiPromptsValidatePost
+     */
+    readonly validateRequest: ValidateRequest
+}
+
+/**
  * Request parameters for registerPost operation in DefaultApi.
  * @export
  * @interface DefaultApiRegisterPostRequest
@@ -8240,6 +8865,90 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
     }
 
     /**
+     * Preview how a prompt template will be rendered with given variables
+     * @summary Preview prompt rendering
+     * @param {DefaultApiPromptsPreviewPostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public promptsPreviewPost(requestParameters: DefaultApiPromptsPreviewPostRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).promptsPreviewPost(requestParameters.previewRequest, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Get system default prompt configurations for reference
+     * @summary Get system default prompts
+     * @param {DefaultApiPromptsSystemGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public promptsSystemGet(requestParameters: DefaultApiPromptsSystemGetRequest = {}, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).promptsSystemGet(requestParameters.language, requestParameters.type, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Get user\'s prompt configuration with priority resolution and source information
+     * @summary Get user prompts
+     * @param {DefaultApiPromptsUserGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public promptsUserGet(requestParameters: DefaultApiPromptsUserGetRequest = {}, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).promptsUserGet(requestParameters.language, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Delete user\'s specific prompt configuration (reset to system default)
+     * @summary Delete user prompt
+     * @param {DefaultApiPromptsUserPromptTypeDeleteRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public promptsUserPromptTypeDelete(requestParameters: DefaultApiPromptsUserPromptTypeDeleteRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).promptsUserPromptTypeDelete(requestParameters.promptType, requestParameters.language, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Batch update user\'s prompt configurations
+     * @summary Update user prompts
+     * @param {DefaultApiPromptsUserPutRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public promptsUserPut(requestParameters: DefaultApiPromptsUserPutRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).promptsUserPut(requestParameters.updateUserPromptsRequest, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Batch reset user\'s prompt configurations
+     * @summary Reset user prompts
+     * @param {DefaultApiPromptsUserResetPostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public promptsUserResetPost(requestParameters: DefaultApiPromptsUserResetPostRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).promptsUserResetPost(requestParameters.resetPromptsRequest, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Validate prompt template syntax (Jinja2)
+     * @summary Validate prompt template
+     * @param {DefaultApiPromptsValidatePostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public promptsValidatePost(requestParameters: DefaultApiPromptsValidatePostRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).promptsValidatePost(requestParameters.validateRequest, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
      * Register a new user with an invitation token
      * @summary Register a new user
      * @param {DefaultApiRegisterPostRequest} requestParameters Request parameters.
@@ -8377,3 +9086,49 @@ export const MarketplaceCollectionsCollectionIdDocumentsGetSortOrderEnum = {
     desc: 'desc'
 } as const;
 export type MarketplaceCollectionsCollectionIdDocumentsGetSortOrderEnum = typeof MarketplaceCollectionsCollectionIdDocumentsGetSortOrderEnum[keyof typeof MarketplaceCollectionsCollectionIdDocumentsGetSortOrderEnum];
+/**
+ * @export
+ */
+export const PromptsSystemGetLanguageEnum = {
+    zh_CN: 'zh-CN',
+    en_US: 'en-US'
+} as const;
+export type PromptsSystemGetLanguageEnum = typeof PromptsSystemGetLanguageEnum[keyof typeof PromptsSystemGetLanguageEnum];
+/**
+ * @export
+ */
+export const PromptsSystemGetTypeEnum = {
+    agent_system: 'agent_system',
+    agent_query: 'agent_query',
+    index_graph: 'index_graph',
+    index_summary: 'index_summary',
+    index_vision: 'index_vision'
+} as const;
+export type PromptsSystemGetTypeEnum = typeof PromptsSystemGetTypeEnum[keyof typeof PromptsSystemGetTypeEnum];
+/**
+ * @export
+ */
+export const PromptsUserGetLanguageEnum = {
+    zh_CN: 'zh-CN',
+    en_US: 'en-US'
+} as const;
+export type PromptsUserGetLanguageEnum = typeof PromptsUserGetLanguageEnum[keyof typeof PromptsUserGetLanguageEnum];
+/**
+ * @export
+ */
+export const PromptsUserPromptTypeDeletePromptTypeEnum = {
+    agent_system: 'agent_system',
+    agent_query: 'agent_query',
+    index_graph: 'index_graph',
+    index_summary: 'index_summary',
+    index_vision: 'index_vision'
+} as const;
+export type PromptsUserPromptTypeDeletePromptTypeEnum = typeof PromptsUserPromptTypeDeletePromptTypeEnum[keyof typeof PromptsUserPromptTypeDeletePromptTypeEnum];
+/**
+ * @export
+ */
+export const PromptsUserPromptTypeDeleteLanguageEnum = {
+    zh_CN: 'zh-CN',
+    en_US: 'en-US'
+} as const;
+export type PromptsUserPromptTypeDeleteLanguageEnum = typeof PromptsUserPromptTypeDeleteLanguageEnum[keyof typeof PromptsUserPromptTypeDeleteLanguageEnum];

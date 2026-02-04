@@ -1,0 +1,171 @@
+promptDetail:
+  type: object
+  description: Detailed prompt information with source and customization status
+  properties:
+    content:
+      type: string
+      description: Actual prompt content (resolved with priority)
+    source:
+      type: string
+      enum: [user, system, hardcoded]
+      description: Source of the prompt
+    customized:
+      type: boolean
+      description: Whether user has customized this prompt
+    description:
+      type: string
+      description: Optional description
+    language:
+      type: string
+      enum: [zh-CN, en-US]
+      description: Language of the prompt
+
+userPromptsResponse:
+  type: object
+  description: User's prompt configuration with all types
+  properties:
+    agent_system:
+      $ref: '#/promptDetail'
+    agent_query:
+      $ref: '#/promptDetail'
+    index_graph:
+      $ref: '#/promptDetail'
+    index_summary:
+      $ref: '#/promptDetail'
+    index_vision:
+      $ref: '#/promptDetail'
+
+updateUserPromptsRequest:
+  type: object
+  required:
+    - language
+    - prompts
+  properties:
+    language:
+      type: string
+      enum: [zh-CN, en-US]
+      default: zh-CN
+    prompts:
+      type: object
+      description: Prompts to update
+      additionalProperties:
+        type: string
+      example:
+        agent_system: "You are a professional technical support assistant..."
+        index_graph: "Extract entities from medical text..."
+
+updateUserPromptsResponse:
+  type: object
+  properties:
+    message:
+      type: string
+    updated:
+      type: array
+      items:
+        type: string
+
+resetPromptsRequest:
+  type: object
+  required:
+    - language
+  properties:
+    language:
+      type: string
+      enum: [zh-CN, en-US]
+      default: zh-CN
+    types:
+      type: array
+      items:
+        type: string
+      description: Prompt types to reset, omit to reset all
+
+resetPromptsResponse:
+  type: object
+  properties:
+    message:
+      type: string
+    reset:
+      type: array
+      items:
+        type: string
+
+deleteUserPromptResponse:
+  type: object
+  properties:
+    message:
+      type: string
+    type:
+      type: string
+    new_content:
+      type: string
+    source:
+      type: string
+      enum: [system, hardcoded]
+
+systemPromptDetail:
+  type: object
+  properties:
+    type:
+      type: string
+    content:
+      type: string
+    language:
+      type: string
+    description:
+      type: string
+
+systemPromptsResponse:
+  type: object
+  description: System default prompts
+  additionalProperties:
+    type: object
+    properties:
+      content:
+        type: string
+      description:
+        type: string
+      language:
+        type: string
+
+previewRequest:
+  type: object
+  required:
+    - template
+  properties:
+    template:
+      type: string
+    variables:
+      type: object
+      additionalProperties: true
+
+previewResponse:
+  type: object
+  properties:
+    rendered:
+      type: string
+
+validateRequest:
+  type: object
+  required:
+    - type
+    - template
+  properties:
+    type:
+      type: string
+      enum: [agent_system, agent_query, index_graph, index_summary, index_vision]
+    template:
+      type: string
+
+validateResponse:
+  type: object
+  properties:
+    valid:
+      type: boolean
+    errors:
+      type: array
+      items:
+        type: string
+    warnings:
+      type: array
+      items:
+        type: string

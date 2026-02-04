@@ -1338,6 +1338,164 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/failResponse'
+  /prompts/user:
+    get:
+      summary: Get user prompts
+      description: Get user's prompt configuration with priority resolution and source information
+      parameters:
+        - name: language
+          in: query
+          schema:
+            type: string
+            enum:
+              - zh-CN
+              - en-US
+            default: zh-CN
+      responses:
+        '200':
+          description: User prompts with resolution details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/userPromptsResponse'
+    put:
+      summary: Update user prompts
+      description: Batch update user's prompt configurations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/updateUserPromptsRequest'
+      responses:
+        '200':
+          description: Prompts updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/updateUserPromptsResponse'
+        '400':
+          description: Invalid request
+  /prompts/user/{prompt_type}:
+    delete:
+      summary: Delete user prompt
+      description: Delete user's specific prompt configuration (reset to system default)
+      parameters:
+        - name: prompt_type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum:
+              - agent_system
+              - agent_query
+              - index_graph
+              - index_summary
+              - index_vision
+        - name: language
+          in: query
+          schema:
+            type: string
+            enum:
+              - zh-CN
+              - en-US
+            default: zh-CN
+      responses:
+        '200':
+          description: Prompt reset successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/deleteUserPromptResponse'
+        '404':
+          description: Prompt not customized by user
+  /prompts/user/reset:
+    post:
+      summary: Reset user prompts
+      description: Batch reset user's prompt configurations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/resetPromptsRequest'
+      responses:
+        '200':
+          description: Prompts reset successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/resetPromptsResponse'
+        '400':
+          description: Invalid request
+  /prompts/system:
+    get:
+      summary: Get system default prompts
+      description: Get system default prompt configurations for reference
+      parameters:
+        - name: language
+          in: query
+          schema:
+            type: string
+            enum:
+              - zh-CN
+              - en-US
+            default: zh-CN
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum:
+              - agent_system
+              - agent_query
+              - index_graph
+              - index_summary
+              - index_vision
+      responses:
+        '200':
+          description: System default prompts
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/systemPromptDetail'
+                  - $ref: '#/components/schemas/systemPromptsResponse'
+  /prompts/preview:
+    post:
+      summary: Preview prompt rendering
+      description: Preview how a prompt template will be rendered with given variables
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/previewRequest'
+      responses:
+        '200':
+          description: Rendered prompt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/previewResponse'
+        '400':
+          description: Invalid template or variables
+  /prompts/validate:
+    post:
+      summary: Validate prompt template
+      description: Validate prompt template syntax (Jinja2)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/validateRequest'
+      responses:
+        '200':
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/validateResponse'
   /collections/{collection_id}/graphs/labels:
     get:
       summary: Get knowledge graph labels
@@ -4599,6 +4757,19 @@ components:
             - person
             - geo
             - event
+    indexPrompts:
+      type: object
+      description: Custom prompts for various index types
+      properties:
+        graph:
+          type: string
+          description: Custom prompt for graph/entity extraction
+        summary:
+          type: string
+          description: Custom prompt for document summarization
+        vision:
+          type: string
+          description: Custom prompt for image analysis
     collectionConfig:
       type: object
       properties:
@@ -4639,6 +4810,8 @@ components:
               - technology
               - date
               - category
+        index_prompts:
+          $ref: '#/components/schemas/indexPrompts'
         language:
           type: string
           description: Language for the collection content and processing
@@ -5921,6 +6094,181 @@ components:
         use_markitdown:
           type: boolean
           description: Whether to use MarkItDown
+    promptDetail:
+      type: object
+      description: Detailed prompt information with source and customization status
+      properties:
+        content:
+          type: string
+          description: Actual prompt content (resolved with priority)
+        source:
+          type: string
+          enum:
+            - user
+            - system
+            - hardcoded
+          description: Source of the prompt
+        customized:
+          type: boolean
+          description: Whether user has customized this prompt
+        description:
+          type: string
+          description: Optional description
+        language:
+          type: string
+          enum:
+            - zh-CN
+            - en-US
+          description: Language of the prompt
+    userPromptsResponse:
+      type: object
+      description: User's prompt configuration with all types
+      properties:
+        agent_system:
+          $ref: '#/components/schemas/promptDetail'
+        agent_query:
+          $ref: '#/components/schemas/promptDetail'
+        index_graph:
+          $ref: '#/components/schemas/promptDetail'
+        index_summary:
+          $ref: '#/components/schemas/promptDetail'
+        index_vision:
+          $ref: '#/components/schemas/promptDetail'
+    updateUserPromptsRequest:
+      type: object
+      required:
+        - language
+        - prompts
+      properties:
+        language:
+          type: string
+          enum:
+            - zh-CN
+            - en-US
+          default: zh-CN
+        prompts:
+          type: object
+          description: Prompts to update
+          additionalProperties:
+            type: string
+          example:
+            agent_system: You are a professional technical support assistant...
+            index_graph: Extract entities from medical text...
+    updateUserPromptsResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        updated:
+          type: array
+          items:
+            type: string
+    deleteUserPromptResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        type:
+          type: string
+        new_content:
+          type: string
+        source:
+          type: string
+          enum:
+            - system
+            - hardcoded
+    resetPromptsRequest:
+      type: object
+      required:
+        - language
+      properties:
+        language:
+          type: string
+          enum:
+            - zh-CN
+            - en-US
+          default: zh-CN
+        types:
+          type: array
+          items:
+            type: string
+          description: Prompt types to reset, omit to reset all
+    resetPromptsResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        reset:
+          type: array
+          items:
+            type: string
+    systemPromptDetail:
+      type: object
+      properties:
+        type:
+          type: string
+        content:
+          type: string
+        language:
+          type: string
+        description:
+          type: string
+    systemPromptsResponse:
+      type: object
+      description: System default prompts
+      additionalProperties:
+        type: object
+        properties:
+          content:
+            type: string
+          description:
+            type: string
+          language:
+            type: string
+    previewRequest:
+      type: object
+      required:
+        - template
+      properties:
+        template:
+          type: string
+        variables:
+          type: object
+          additionalProperties: true
+    previewResponse:
+      type: object
+      properties:
+        rendered:
+          type: string
+    validateRequest:
+      type: object
+      required:
+        - type
+        - template
+      properties:
+        type:
+          type: string
+          enum:
+            - agent_system
+            - agent_query
+            - index_graph
+            - index_summary
+            - index_vision
+        template:
+          type: string
+    validateResponse:
+      type: object
+      properties:
+        valid:
+          type: boolean
+        errors:
+          type: array
+          items:
+            type: string
+        warnings:
+          type: array
+          items:
+            type: string
     graphLabelsResponse:
       type: object
       description: Response containing available graph labels

@@ -1,0 +1,147 @@
+promptsUser:
+  get:
+    summary: Get user prompts
+    description: Get user's prompt configuration with priority resolution and source information
+    parameters:
+      - name: language
+        in: query
+        schema:
+          type: string
+          enum: [zh-CN, en-US]
+          default: zh-CN
+    responses:
+      '200':
+        description: User prompts with resolution details
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/prompt.yaml#/userPromptsResponse'
+  put:
+    summary: Update user prompts
+    description: Batch update user's prompt configurations
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/prompt.yaml#/updateUserPromptsRequest'
+    responses:
+      '200':
+        description: Prompts updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/prompt.yaml#/updateUserPromptsResponse'
+      '400':
+        description: Invalid request
+
+promptsUserType:
+  delete:
+    summary: Delete user prompt
+    description: Delete user's specific prompt configuration (reset to system default)
+    parameters:
+      - name: prompt_type
+        in: path
+        required: true
+        schema:
+          type: string
+          enum: [agent_system, agent_query, index_graph, index_summary, index_vision]
+      - name: language
+        in: query
+        schema:
+          type: string
+          enum: [zh-CN, en-US]
+          default: zh-CN
+    responses:
+      '200':
+        description: Prompt reset successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/prompt.yaml#/deleteUserPromptResponse'
+      '404':
+        description: Prompt not customized by user
+
+promptsUserReset:
+  post:
+    summary: Reset user prompts
+    description: Batch reset user's prompt configurations
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/prompt.yaml#/resetPromptsRequest'
+    responses:
+      '200':
+        description: Prompts reset successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/prompt.yaml#/resetPromptsResponse'
+      '400':
+        description: Invalid request
+
+promptsSystem:
+  get:
+    summary: Get system default prompts
+    description: Get system default prompt configurations for reference
+    parameters:
+      - name: language
+        in: query
+        schema:
+          type: string
+          enum: [zh-CN, en-US]
+          default: zh-CN
+      - name: type
+        in: query
+        schema:
+          type: string
+          enum: [agent_system, agent_query, index_graph, index_summary, index_vision]
+    responses:
+      '200':
+        description: System default prompts
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '../components/schemas/prompt.yaml#/systemPromptDetail'
+                - $ref: '../components/schemas/prompt.yaml#/systemPromptsResponse'
+
+promptsPreview:
+  post:
+    summary: Preview prompt rendering
+    description: Preview how a prompt template will be rendered with given variables
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/prompt.yaml#/previewRequest'
+    responses:
+      '200':
+        description: Rendered prompt
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/prompt.yaml#/previewResponse'
+      '400':
+        description: Invalid template or variables
+
+promptsValidate:
+  post:
+    summary: Validate prompt template
+    description: Validate prompt template syntax (Jinja2)
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/prompt.yaml#/validateRequest'
+    responses:
+      '200':
+        description: Validation result
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/prompt.yaml#/validateResponse'

@@ -13,9 +13,16 @@
 # limitations under the License.
 
 
-from jinja2 import Template
+import json
+import logging
+import re
+from typing import Any, Dict, List, Optional
+
+from jinja2 import Template, TemplateSyntaxError
 
 from aperag.schema import view_models
+
+logger = logging.getLogger(__name__)
 
 # ApeRAG Agent System Prompt - English Version
 APERAG_AGENT_INSTRUCTION_EN = """
@@ -382,3 +389,676 @@ def build_agent_query_prompt(
 
     # Render template
     return template.render(**template_vars)
+
+
+# Prompt resolution service with 3-tier priority system
+async def resolve_agent_system_prompt(bot, user_id: str, language: str) -> str:
+    """
+    Resolve agent system prompt with 3-tier priority:
+    1. Bot.config.agent.system_prompt_template
+    2. prompt_template table (scope='user', prompt_type='agent_system')
+    3. prompt_template table (scope='system', prompt_type='agent_system')
+    4. Hardcoded default (APERAG_AGENT_INSTRUCTION_EN/ZH)
+
+    Args:
+        bot: Bot object (from database)
+        user_id: User ID
+        language: Language code (en-US, zh-CN)
+
+    Returns:
+        Resolved system prompt content
+    """
+    from aperag.db.ops import async_db_ops
+
+    # Tier 1: Bot-level configuration
+    if bot and bot.config:
+        try:
+            config_dict = json.loads(bot.config) if isinstance(bot.config, str) else bot.config
+            agent_config = config_dict.get("agent", {})
+            if agent_config.get("system_prompt_template"):
+                logger.debug(f"Using bot-level system prompt for bot {bot.id}")
+                return agent_config["system_prompt_template"]
+        except Exception as e:
+            logger.warning(f"Failed to parse bot config: {e}")
+
+    # Tier 2: User default
+    user_default = await async_db_ops.query_prompt_template(
+        prompt_type="agent_system", scope="user", user_id=user_id, language=language
+    )
+    if user_default:
+        logger.debug(f"Using user-level default system prompt for user {user_id}")
+        return user_default.content
+
+    # Tier 3: System default
+    system_default = await async_db_ops.query_prompt_template(
+        prompt_type="agent_system", scope="system", user_id=None, language=language
+    )
+    if system_default:
+        logger.debug(f"Using system default system prompt (language: {language})")
+        return system_default.content
+
+    # Tier 4: Hardcoded default
+    logger.debug(f"Using hardcoded default system prompt (language: {language})")
+    if language == "zh-CN":
+        return APERAG_AGENT_INSTRUCTION_ZH
+    else:
+        return APERAG_AGENT_INSTRUCTION_EN
+
+
+async def resolve_agent_query_prompt(bot, user_id: str, language: str) -> str:
+    """
+    Resolve agent query prompt template with 3-tier priority:
+    1. Bot.config.agent.query_prompt_template
+    2. prompt_template table (scope='user', prompt_type='agent_query')
+    3. prompt_template table (scope='system', prompt_type='agent_query')
+    4. Hardcoded default (DEFAULT_AGENT_QUERY_PROMPT_EN/ZH)
+
+    Args:
+        bot: Bot object (from database)
+        user_id: User ID
+        language: Language code (en-US, zh-CN)
+
+    Returns:
+        Resolved query prompt template content
+    """
+    from aperag.db.ops import async_db_ops
+
+    # Tier 1: Bot-level configuration
+    if bot and bot.config:
+        try:
+            config_dict = json.loads(bot.config) if isinstance(bot.config, str) else bot.config
+            agent_config = config_dict.get("agent", {})
+            if agent_config.get("query_prompt_template"):
+                logger.debug(f"Using bot-level query prompt for bot {bot.id}")
+                return agent_config["query_prompt_template"]
+        except Exception as e:
+            logger.warning(f"Failed to parse bot config: {e}")
+
+    # Tier 2: User default
+    user_default = await async_db_ops.query_prompt_template(
+        prompt_type="agent_query", scope="user", user_id=user_id, language=language
+    )
+    if user_default:
+        logger.debug(f"Using user-level default query prompt for user {user_id}")
+        return user_default.content
+
+    # Tier 3: System default
+    system_default = await async_db_ops.query_prompt_template(
+        prompt_type="agent_query", scope="system", user_id=None, language=language
+    )
+    if system_default:
+        logger.debug(f"Using system default query prompt (language: {language})")
+        return system_default.content
+
+    # Tier 4: Hardcoded default
+    logger.debug(f"Using hardcoded default query prompt (language: {language})")
+    if language == "zh-CN":
+        return DEFAULT_AGENT_QUERY_PROMPT_ZH
+    else:
+        return DEFAULT_AGENT_QUERY_PROMPT_EN
+
+
+async def resolve_index_prompt(collection, prompt_type: str, user_id: str) -> Optional[str]:
+    """
+    Resolve index prompt with 3-tier priority:
+    1. Collection.config.index_prompts.{type}
+    2. prompt_template table (scope='user', prompt_type='index_{type}')
+    3. prompt_template table (scope='system', prompt_type='index_{type}')
+    4. Hardcoded default
+
+    Args:
+        collection: Collection object (from database)
+        prompt_type: Prompt type (graph, summary, vision)
+        user_id: User ID
+
+    Returns:
+        Resolved index prompt content, or None if not found and no hardcoded default
+    """
+    from aperag.db.ops import async_db_ops
+
+    # Tier 1: Collection-level configuration
+    if collection and collection.config:
+        try:
+            config_dict = json.loads(collection.config) if isinstance(collection.config, str) else collection.config
+            index_prompts = config_dict.get("index_prompts", {})
+            if index_prompts.get(prompt_type):
+                logger.info(f"Using collection-level {prompt_type} prompt for collection {collection.id}")
+                return index_prompts[prompt_type]
+        except Exception as e:
+            logger.warning(f"Failed to parse collection config: {e}")
+
+    # Determine language from collection config
+    collection_language = "zh-CN"  # default
+    try:
+        config_dict = json.loads(collection.config) if isinstance(collection.config, str) else collection.config
+        collection_language = config_dict.get("language", "zh-CN")
+    except Exception:
+        pass
+
+    # Tier 2: User default
+    db_prompt_type = f"index_{prompt_type}"  # "index_graph", "index_summary", "index_vision"
+    user_default = await async_db_ops.query_prompt_template(
+        prompt_type=db_prompt_type, scope="user", user_id=user_id, language=collection_language
+    )
+    if user_default:
+        logger.info(f"Using user-level default {prompt_type} prompt for user {user_id}")
+        return user_default.content
+
+    # Tier 3: System default
+    system_default = await async_db_ops.query_prompt_template(
+        prompt_type=db_prompt_type, scope="system", user_id=None, language=collection_language
+    )
+    if system_default:
+        logger.info(f"Using system default {prompt_type} prompt")
+        return system_default.content
+
+    # Tier 4: Hardcoded default (optional, return None if not available)
+    logger.info(f"No custom {prompt_type} prompt found, using hardcoded default")
+    return get_hardcoded_index_prompt(prompt_type)
+
+
+def get_hardcoded_index_prompt(prompt_type: str) -> Optional[str]:
+    """
+    Get hardcoded index prompt as final fallback.
+
+    Args:
+        prompt_type: Prompt type (graph, summary, vision)
+
+    Returns:
+        Hardcoded prompt content, or None if not available
+    """
+    if prompt_type == "graph":
+        # Return LightRAG's entity extraction prompt
+        from aperag.graph.lightrag.prompt import PROMPTS
+
+        return PROMPTS.get("entity_extraction")
+    elif prompt_type == "summary":
+        # Return default summary prompt
+        return """Provide a comprehensive summary of the following document, focusing on key concepts, main ideas, and important details. The summary should be clear, concise, and capture the essence of the document."""
+    elif prompt_type == "vision":
+        # Return default vision prompt
+        return """Analyze the provided image and extract its content with high fidelity. Follow these instructions precisely and use Markdown for formatting your entire response. Do not include any introductory or conversational text.
+
+1. **Overall Summary:**
+   * Provide a brief, one-paragraph overview of the image's main subject, setting, and any depicted activities.
+
+2. **Detailed Text Extraction:**
+   * Extract all text from the image, preserving the original language. Do not translate.
+   * **Crucially, maintain the visual reading order.** For multi-column layouts, process the text column by column (e.g., left column top-to-bottom, then right column top-to-bottom).
+   * **Exclude headers and footers:** Do not extract repetitive content from the top (headers) or bottom (footers) of the page, such as page numbers, book titles, or chapter names.
+   * Replicate the original formatting using Markdown as much as possible (e.g., headings, lists, bold/italic text).
+   * For mathematical formulas or equations, represent them using LaTeX syntax (e.g., `$$...$$` for block equations, `$...$` for inline equations).
+   * For tables, reproduce them accurately using GitHub Flavored Markdown (GFM) table syntax.
+
+3. **Chart/Graph Analysis:**
+   * If the image contains charts, graphs, or complex tables, identify their type (e.g., bar chart, line graph, pie chart).
+   * Explain the data presented, including axes, labels, and legends.
+   * Summarize the key insights, trends, or comparisons revealed by the data.
+
+4. **Object and Scene Recognition:**
+   * List all significant objects, entities, and scene elements visible in the image."""
+    else:
+        return None
+
+
+# ============================================================================
+# PromptTemplateService - Unified business logic for prompt management
+# ============================================================================
+
+
+class PromptTemplateService:
+    """
+    Unified service for prompt template management.
+
+    This service provides:
+    1. User configuration management (for View layer)
+    2. Prompt resolution with 3-tier priority (for Agent/LightRAG)
+    3. Helper utilities (preview, validate)
+    """
+
+    PROMPT_TYPES = ["agent_system", "agent_query", "index_graph", "index_summary", "index_vision"]
+
+    def __init__(self, db_ops=None):
+        from aperag.db.ops import async_db_ops
+
+        self.db_ops = db_ops or async_db_ops
+
+    # === User configuration management (for View layer) ===
+
+    async def get_user_prompts(self, user_id: str, language: str) -> Dict[str, Dict[str, Any]]:
+        """
+        Get user's prompt configuration with priority resolution.
+
+        For each prompt_type:
+        1. Query user config (scope='user')
+        2. If not found, query system default (scope='system')
+        3. If not found, use hardcoded default
+        4. Return: content + source + customized + description
+
+        Args:
+            user_id: User ID
+            language: Language code (en-US, zh-CN)
+
+        Returns:
+            {
+              "agent_system": {
+                "content": "actual prompt content",
+                "source": "user"|"system"|"hardcoded",
+                "customized": true|false,
+                "description": "..."
+              },
+              ...
+            }
+        """
+        result = {}
+
+        for prompt_type in self.PROMPT_TYPES:
+            # Tier 1: User configuration
+            user_config = await self.db_ops.query_prompt_template(prompt_type, "user", user_id, language)
+
+            if user_config:
+                result[prompt_type] = {
+                    "content": user_config.content,
+                    "source": "user",
+                    "customized": True,
+                    "description": user_config.description,
+                    "language": language,
+                }
+                continue
+
+            # Tier 2: System default
+            system_default = await self.db_ops.query_prompt_template(prompt_type, "system", None, language)
+
+            if system_default:
+                result[prompt_type] = {
+                    "content": system_default.content,
+                    "source": "system",
+                    "customized": False,
+                    "description": system_default.description,
+                    "language": language,
+                }
+                continue
+
+            # Tier 3: Hardcoded default
+            hardcoded = self._get_hardcoded_prompt(prompt_type, language)
+            result[prompt_type] = {
+                "content": hardcoded,
+                "source": "hardcoded",
+                "customized": False,
+                "description": None,
+                "language": language,
+            }
+
+        return result
+
+    async def update_user_prompts(self, user_id: str, language: str, prompts: Dict[str, str]) -> List[str]:
+        """
+        Batch update user's prompt configurations.
+
+        Args:
+            user_id: User ID
+            language: Language code
+            prompts: Dict of {prompt_type: content}, e.g., {"agent_system": "content"}
+
+        Returns:
+            List of updated prompt types
+        """
+        updated = []
+
+        for prompt_type, content in prompts.items():
+            if prompt_type not in self.PROMPT_TYPES:
+                logger.warning(f"Skipping invalid prompt_type: {prompt_type}")
+                continue
+
+            await self.db_ops.create_or_update_prompt_template(
+                prompt_type=prompt_type,
+                scope="user",
+                user_id=user_id,
+                language=language,
+                content=content,
+                description=f"User default {prompt_type} ({language})",
+            )
+            updated.append(prompt_type)
+            logger.info(f"Updated user prompt: {prompt_type} for user {user_id}")
+
+        return updated
+
+    async def delete_user_prompt(self, user_id: str, prompt_type: str, language: str) -> Dict[str, Any]:
+        """
+        Delete user's specific prompt configuration and return new effective content.
+
+        Args:
+            user_id: User ID
+            prompt_type: Prompt type
+            language: Language code
+
+        Returns:
+            {
+              "deleted": true|false,
+              "new_content": "content after reset",
+              "source": "system"|"hardcoded"
+            }
+        """
+        # Delete user configuration
+        deleted = await self.db_ops.delete_prompt_template(prompt_type, "user", user_id, language)
+
+        if not deleted:
+            # User has not customized this prompt
+            return {"deleted": False, "new_content": None, "source": None}
+
+        # Get new effective content after deletion
+        # Check system default
+        system_default = await self.db_ops.query_prompt_template(prompt_type, "system", None, language)
+
+        if system_default:
+            return {"deleted": True, "new_content": system_default.content, "source": "system"}
+
+        # Fallback to hardcoded
+        hardcoded = self._get_hardcoded_prompt(prompt_type, language)
+        return {"deleted": True, "new_content": hardcoded, "source": "hardcoded"}
+
+    async def reset_user_prompts(self, user_id: str, language: str, types: Optional[List[str]] = None) -> List[str]:
+        """
+        Batch reset user's prompt configurations.
+
+        Args:
+            user_id: User ID
+            language: Language code
+            types: List of prompt types to reset, None means all
+
+        Returns:
+            List of reset prompt types
+        """
+        types_to_reset = types if types else self.PROMPT_TYPES
+        reset = []
+
+        for prompt_type in types_to_reset:
+            if prompt_type not in self.PROMPT_TYPES:
+                continue
+
+            deleted = await self.db_ops.delete_prompt_template(prompt_type, "user", user_id, language)
+            if deleted:
+                reset.append(prompt_type)
+                logger.info(f"Reset user prompt: {prompt_type} for user {user_id}")
+
+        return reset
+
+    async def get_system_prompts(self, language: str, prompt_type: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Get system default prompts (for reference).
+
+        Args:
+            language: Language code
+            prompt_type: Specific prompt type (optional)
+
+        Returns:
+            Single prompt or dict of all prompts
+        """
+        if prompt_type:
+            # Get specific system default
+            system_default = await self.db_ops.query_prompt_template(prompt_type, "system", None, language)
+
+            if system_default:
+                return {
+                    "type": prompt_type,
+                    "content": system_default.content,
+                    "language": language,
+                    "description": system_default.description,
+                }
+
+            # Fallback to hardcoded
+            hardcoded = self._get_hardcoded_prompt(prompt_type, language)
+            return {"type": prompt_type, "content": hardcoded, "language": language, "description": None}
+        else:
+            # Get all system defaults
+            result = {}
+            for pt in self.PROMPT_TYPES:
+                system_default = await self.db_ops.query_prompt_template(pt, "system", None, language)
+
+                if system_default:
+                    result[pt] = {
+                        "content": system_default.content,
+                        "description": system_default.description,
+                        "language": language,
+                    }
+                else:
+                    hardcoded = self._get_hardcoded_prompt(pt, language)
+                    result[pt] = {"content": hardcoded, "description": None, "language": language}
+
+            return result
+
+    # === Prompt resolution (for Agent/LightRAG) ===
+
+    async def resolve_agent_system_prompt(self, bot, user_id: str, language: str) -> str:
+        """
+        Resolve agent system prompt with 3-tier priority.
+        Priority: Bot config > User default > System default > Hardcoded
+
+        This method is used by agent_chat_service.py
+        """
+        from aperag.db.ops import async_db_ops
+
+        # Tier 1: Bot-level configuration
+        if bot and bot.config:
+            try:
+                config_dict = json.loads(bot.config) if isinstance(bot.config, str) else bot.config
+                agent_config = config_dict.get("agent", {})
+                if agent_config.get("system_prompt_template"):
+                    logger.debug(f"Using bot-level system prompt for bot {bot.id}")
+                    return agent_config["system_prompt_template"]
+            except Exception as e:
+                logger.warning(f"Failed to parse bot config: {e}")
+
+        # Tier 2: User default
+        user_default = await async_db_ops.query_prompt_template(
+            prompt_type="agent_system", scope="user", user_id=user_id, language=language
+        )
+        if user_default:
+            logger.debug(f"Using user-level default system prompt for user {user_id}")
+            return user_default.content
+
+        # Tier 3: System default
+        system_default = await async_db_ops.query_prompt_template(
+            prompt_type="agent_system", scope="system", user_id=None, language=language
+        )
+        if system_default:
+            logger.debug(f"Using system default system prompt (language: {language})")
+            return system_default.content
+
+        # Tier 4: Hardcoded default
+        logger.debug(f"Using hardcoded default system prompt (language: {language})")
+        if language == "zh-CN":
+            return APERAG_AGENT_INSTRUCTION_ZH
+        else:
+            return APERAG_AGENT_INSTRUCTION_EN
+
+    async def resolve_agent_query_prompt(self, bot, user_id: str, language: str) -> str:
+        """
+        Resolve agent query prompt template with 3-tier priority.
+        Priority: Bot config > User default > System default > Hardcoded
+
+        This method is used by agent_chat_service.py
+        """
+        from aperag.db.ops import async_db_ops
+
+        # Tier 1: Bot-level configuration
+        if bot and bot.config:
+            try:
+                config_dict = json.loads(bot.config) if isinstance(bot.config, str) else bot.config
+                agent_config = config_dict.get("agent", {})
+                if agent_config.get("query_prompt_template"):
+                    logger.debug(f"Using bot-level query prompt for bot {bot.id}")
+                    return agent_config["query_prompt_template"]
+            except Exception as e:
+                logger.warning(f"Failed to parse bot config: {e}")
+
+        # Tier 2: User default
+        user_default = await async_db_ops.query_prompt_template(
+            prompt_type="agent_query", scope="user", user_id=user_id, language=language
+        )
+        if user_default:
+            logger.debug(f"Using user-level default query prompt for user {user_id}")
+            return user_default.content
+
+        # Tier 3: System default
+        system_default = await async_db_ops.query_prompt_template(
+            prompt_type="agent_query", scope="system", user_id=None, language=language
+        )
+        if system_default:
+            logger.debug(f"Using system default query prompt (language: {language})")
+            return system_default.content
+
+        # Tier 4: Hardcoded default
+        logger.debug(f"Using hardcoded default query prompt (language: {language})")
+        if language == "zh-CN":
+            return DEFAULT_AGENT_QUERY_PROMPT_ZH
+        else:
+            return DEFAULT_AGENT_QUERY_PROMPT_EN
+
+    async def resolve_index_prompt(self, collection, prompt_type: str, user_id: str) -> Optional[str]:
+        """
+        Resolve index prompt with 3-tier priority.
+        Priority: Collection config > User default > System default > Hardcoded
+
+        This method is used by indexers (graph, summary, vision).
+
+        Args:
+            collection: Collection object
+            prompt_type: Prompt type (graph, summary, vision)
+            user_id: User ID
+
+        Returns:
+            Resolved prompt content
+        """
+        from aperag.db.ops import async_db_ops
+
+        # Tier 1: Collection-level configuration
+        if collection and collection.config:
+            try:
+                config_dict = json.loads(collection.config) if isinstance(collection.config, str) else collection.config
+                index_prompts = config_dict.get("index_prompts", {})
+                if index_prompts.get(prompt_type):
+                    logger.info(f"Using collection-level {prompt_type} prompt for collection {collection.id}")
+                    return index_prompts[prompt_type]
+            except Exception as e:
+                logger.warning(f"Failed to parse collection config: {e}")
+
+        # Determine language from collection config
+        collection_language = "zh-CN"  # default
+        try:
+            config_dict = json.loads(collection.config) if isinstance(collection.config, str) else collection.config
+            collection_language = config_dict.get("language", "zh-CN")
+        except Exception:
+            pass
+
+        # Tier 2: User default
+        db_prompt_type = f"index_{prompt_type}"  # "index_graph", "index_summary", "index_vision"
+        user_default = await async_db_ops.query_prompt_template(
+            prompt_type=db_prompt_type, scope="user", user_id=user_id, language=collection_language
+        )
+        if user_default:
+            logger.info(f"Using user-level default {prompt_type} prompt for user {user_id}")
+            return user_default.content
+
+        # Tier 3: System default
+        system_default = await async_db_ops.query_prompt_template(
+            prompt_type=db_prompt_type, scope="system", user_id=None, language=collection_language
+        )
+        if system_default:
+            logger.info(f"Using system default {prompt_type} prompt")
+            return system_default.content
+
+        # Tier 4: Hardcoded default
+        logger.info(f"No custom {prompt_type} prompt found, using hardcoded default")
+        return get_hardcoded_index_prompt(prompt_type)
+
+    # === Helper utilities ===
+
+    def preview_prompt(self, template: str, variables: Dict[str, Any]) -> str:
+        """
+        Preview how a prompt template will be rendered with given variables.
+
+        Args:
+            template: Jinja2 template string
+            variables: Variables for rendering
+
+        Returns:
+            Rendered prompt string
+
+        Raises:
+            TemplateSyntaxError: If template has syntax errors
+        """
+        jinja_template = Template(template)
+        return jinja_template.render(**variables)
+
+    def validate_prompt(self, prompt_type: str, template: str) -> Dict[str, Any]:
+        """
+        Validate prompt template syntax.
+
+        Args:
+            prompt_type: Type of prompt
+            template: Jinja2 template string
+
+        Returns:
+            {
+              "valid": true|false,
+              "errors": [...],
+              "warnings": [...]
+            }
+        """
+        errors = []
+        warnings = []
+
+        # Check Jinja2 syntax
+        try:
+            Template(template)
+        except TemplateSyntaxError as e:
+            errors.append(f"Jinja2 syntax error: {str(e)}")
+            return {"valid": False, "errors": errors, "warnings": warnings}
+
+        # Check for required variables
+        required_vars = {
+            "agent_query": ["query", "collections", "web_search_enabled", "chat_id", "language"],
+            "index_graph": ["entity_types", "language", "input_text"],
+            "index_summary": ["content", "language"],
+        }
+
+        if prompt_type in required_vars:
+            # Extract variables from template
+            template_vars = set(re.findall(r"\{\{\s*(\w+)", template))
+            missing_vars = set(required_vars[prompt_type]) - template_vars
+
+            if missing_vars:
+                warnings.append(f"Template may be missing required variables: {', '.join(missing_vars)}")
+
+        return {"valid": True, "errors": errors, "warnings": warnings}
+
+    # === Internal helpers ===
+
+    def _get_hardcoded_prompt(self, prompt_type: str, language: str) -> str:
+        """
+        Get hardcoded default prompt.
+
+        Args:
+            prompt_type: Prompt type
+            language: Language code
+
+        Returns:
+            Hardcoded prompt content
+        """
+        if prompt_type == "agent_system":
+            return APERAG_AGENT_INSTRUCTION_ZH if language == "zh-CN" else APERAG_AGENT_INSTRUCTION_EN
+        elif prompt_type == "agent_query":
+            return DEFAULT_AGENT_QUERY_PROMPT_ZH if language == "zh-CN" else DEFAULT_AGENT_QUERY_PROMPT_EN
+        elif prompt_type == "index_graph":
+            return get_hardcoded_index_prompt("graph")
+        elif prompt_type == "index_summary":
+            return get_hardcoded_index_prompt("summary")
+        elif prompt_type == "index_vision":
+            return get_hardcoded_index_prompt("vision")
+        else:
+            return ""
+
+
+# Global service instance
+prompt_template_service = PromptTemplateService()
