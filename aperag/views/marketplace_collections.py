@@ -56,7 +56,7 @@ async def list_marketplace_collection_documents(
     page: int = Query(1, ge=1, description="Page number (1-based)"),
     page_size: int = Query(10, ge=1, le=100, description="Number of items per page"),
     sort_by: str = Query("created", description="Field to sort by"),
-    sort_order: str = Query("desc", regex="^(asc|desc)$", description="Sort order"),
+    sort_order: str = Query("desc", pattern="^(asc|desc)$", description="Sort order"),
     search: str = Query(None, description="Search documents by name"),
     user: User = Depends(optional_user),
 ):

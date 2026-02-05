@@ -55,7 +55,7 @@ class ValidateRequest(BaseModel):
 @router.get("/prompts/user", tags=["prompts"])
 async def get_user_prompts(
     request: Request,
-    language: str = Query(default="zh-CN", regex="^(en-US|zh-CN)$"),
+    language: str = Query(default="zh-CN", pattern="^(en-US|zh-CN)$"),
     user: User = Depends(required_user),
 ) -> Dict[str, Any]:
     """
@@ -109,7 +109,7 @@ async def update_user_prompts(
 async def delete_user_prompt(
     request: Request,
     prompt_type: str,
-    language: str = Query(default="zh-CN", regex="^(en-US|zh-CN)$"),
+    language: str = Query(default="zh-CN", pattern="^(en-US|zh-CN)$"),
     user: User = Depends(required_user),
 ) -> Dict[str, Any]:
     """
@@ -172,9 +172,9 @@ async def reset_user_prompts(
 @router.get("/prompts/system", tags=["prompts"])
 async def get_system_prompts(
     request: Request,
-    language: str = Query(default="zh-CN", regex="^(en-US|zh-CN)$"),
+    language: str = Query(default="zh-CN", pattern="^(en-US|zh-CN)$"),
     type: Optional[str] = Query(
-        default=None, regex="^(agent_system|agent_query|index_graph|index_summary|index_vision)$"
+        default=None, pattern="^(agent_system|agent_query|index_graph|index_summary|index_vision)$"
     ),
     user: User = Depends(required_user),
 ):
