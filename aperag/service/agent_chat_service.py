@@ -54,7 +54,7 @@ from aperag.agent.response_types import AgentErrorResponse, AgentToolCallResultR
 from aperag.chat.history.message import StoredChatMessage, create_assistant_message
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.schema import view_models
-from aperag.service.prompt_template_service import build_agent_query_prompt, get_agent_system_prompt
+from aperag.service.prompt_template_service import build_agent_query_prompt, prompt_template_service
 from aperag.trace import trace_async_function
 
 logger = logging.getLogger(__name__)
@@ -174,8 +174,7 @@ class AgentChatService:
         # Parse bot configuration and get default collections once
         bot_config = None
         default_collections = []
-        custom_system_prompt = None
-        custom_query_prompt = None
+        default_language = "zh-CN"  # Default language
 
         if bot.config:
             try:
@@ -186,16 +185,21 @@ class AgentChatService:
                 bot_config = None
 
         if bot_config and bot_config.agent:
-            # Get custom prompts from bot config
-            custom_system_prompt = bot_config.agent.system_prompt_template
-            custom_query_prompt = bot_config.agent.query_prompt_template
-
             # Get default collections once for performance
             if bot_config.agent.collections:
                 collection_ids = [collection.id for collection in bot_config.agent.collections]
                 db_collections = await self.db_ops.query_collections_by_ids(user, collection_ids)
                 # Convert SQLAlchemy models to Pydantic models
                 default_collections = await self._convert_db_collections_to_pydantic(db_collections)
+
+        # Resolve prompts once at the beginning using prompt_template_service
+        # Priority: Bot config > User default > System default > Hardcoded
+        resolved_system_prompt = await prompt_template_service.resolve_agent_system_prompt(
+            bot=bot, user_id=user, language=default_language
+        )
+        resolved_query_prompt = await prompt_template_service.resolve_agent_query_prompt(
+            bot=bot, user_id=user, language=default_language
+        )
 
         while True:
             # Receive message from WebSocket
@@ -212,12 +216,11 @@ class AgentChatService:
                 websocket,
                 agent_message,
                 user,
-                bot,
                 chat_id,
                 bot_config=bot_config,
                 default_collections=default_collections,
-                custom_system_prompt=custom_system_prompt,
-                custom_query_prompt=custom_query_prompt,
+                resolved_system_prompt=resolved_system_prompt,
+                resolved_query_prompt=resolved_query_prompt,
             )
 
     @trace_async_function("name=handle_single_websocket_message", new_trace=True)
@@ -226,12 +229,11 @@ class AgentChatService:
         websocket: WebSocket,
         agent_message: view_models.AgentMessage,
         user: str,
-        bot: any,
         chat_id: str,
         bot_config=None,
         default_collections=None,
-        custom_system_prompt=None,
-        custom_query_prompt=None,
+        resolved_system_prompt: str = None,
+        resolved_query_prompt: str = None,
     ):
         """Handle a single WebSocket message with its own trace"""
         trace_id = None
@@ -252,14 +254,13 @@ class AgentChatService:
                 self.process_agent_message(
                     agent_message,
                     user,
-                    bot,
                     chat_id,
                     message_id,
                     message_queue,
                     bot_config=bot_config,
                     default_collections=default_collections,
-                    custom_system_prompt=custom_system_prompt,
-                    custom_query_prompt=custom_query_prompt,
+                    resolved_system_prompt=resolved_system_prompt,
+                    resolved_query_prompt=resolved_query_prompt,
                 )
             )
             # Message Consumer
@@ -400,7 +401,7 @@ class AgentChatService:
             raise
 
     async def _get_agent_session(
-        self, agent_message: view_models.AgentMessage, user: str, chat_id: str, custom_system_prompt: str = None
+        self, agent_message: view_models.AgentMessage, user: str, chat_id: str, resolved_system_prompt: str
     ):
         """Get or create chat session using AgentConfig."""
         # Query provider details and API key from database
@@ -433,10 +434,8 @@ class AgentChatService:
                 logger.error(error_msg)
                 raise AgentConfigurationError(error_msg)
 
-        # Determine system prompt: use custom if provided, otherwise use default
-        system_prompt = (
-            custom_system_prompt if custom_system_prompt else get_agent_system_prompt(language=agent_message.language)
-        )
+        # Use resolved system prompt (already processed through prompt_template_service)
+        system_prompt = resolved_system_prompt
 
         # Create AgentConfig with all needed parameters including chat_id
         config = AgentConfig(
@@ -464,14 +463,13 @@ class AgentChatService:
         self,
         agent_message: view_models.AgentMessage,
         user: str,
-        bot: any,
         chat_id: str,
         message_id: str,
         message_queue: AgentMessageQueue,
         bot_config=None,
         default_collections=None,
-        custom_system_prompt=None,
-        custom_query_prompt=None,
+        resolved_system_prompt: str = None,
+        resolved_query_prompt: str = None,
     ) -> Dict[str, Any]:
         # Use pre-parsed configuration for performance
         # Priority: agent_message > bot_config > defaults
@@ -509,15 +507,15 @@ class AgentChatService:
             history = await self.history_manager.get_chat_history(chat_id)
             memory = await self.memory_manager.create_memory_from_history(history, context_limit=4)
 
-            # Get chat session using merged agent message and custom system prompt
-            session = await self._get_agent_session(merged_agent_message, user, chat_id, custom_system_prompt)
+            # Get chat session using merged agent message and resolved system prompt
+            session = await self._get_agent_session(merged_agent_message, user, chat_id, resolved_system_prompt)
             llm = await session.get_llm(final_completion.model)
 
             llm.history = memory
 
-            # Build query prompt using custom template if provided
+            # Build query prompt using resolved query prompt template
             comprehensive_prompt = build_agent_query_prompt(
-                chat_id, agent_message=merged_agent_message, user=user, custom_template=custom_query_prompt
+                chat_id, agent_message=merged_agent_message, user=user, template=resolved_query_prompt
             )
 
             request_params = RequestParams(
@@ -630,7 +628,6 @@ class AgentChatService:
                 self.process_agent_message(
                     agent_message,
                     user_id,
-                    None,  # The 'bot' parameter is unused in the target function, so we pass None for now.
                     chat_id,
                     message_id,
                     message_queue,

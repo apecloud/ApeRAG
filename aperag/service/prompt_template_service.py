@@ -301,54 +301,14 @@ DEFAULT_AGENT_QUERY_PROMPT_ZH = """{% set collection_list = [] %}
 请提供一个彻底、经过充分研究的答案，基于以上上下文充分利用所有适当的搜索工具。"""
 
 
-def get_agent_system_prompt(language: str = "en-US") -> str:
-    """
-    Get the ApeRAG agent system prompt in the specified language.
-
-    Args:
-        language: Language code ("en-US" for English, "zh-CN" for Chinese)
-
-    Returns:
-        The system prompt string in the specified language
-
-    Raises:
-        invalid_param: If the language is not supported
-    """
-    if language == "zh-CN":
-        return APERAG_AGENT_INSTRUCTION_ZH
-    elif language == "en-US":
-        return APERAG_AGENT_INSTRUCTION_EN
-    else:
-        return APERAG_AGENT_INSTRUCTION_EN
-
-
-def get_default_agent_query_prompt_template(language: str = "en-US") -> str:
-    """
-    Get the default ApeRAG agent query prompt template in the specified language.
-
-    Args:
-        language: Language code ("en-US" for English, "zh-CN" for Chinese)
-
-    Returns:
-        The default query prompt template string in the specified language
-    """
-    if language == "zh-CN":
-        return DEFAULT_AGENT_QUERY_PROMPT_ZH
-    elif language == "en-US":
-        return DEFAULT_AGENT_QUERY_PROMPT_EN
-    else:
-        return DEFAULT_AGENT_QUERY_PROMPT_EN
-
-
 def build_agent_query_prompt(
     chat_id: str,
     agent_message: view_models.AgentMessage,
     user: str,
-    custom_template: str = None,
+    template: str,
 ) -> str:
     """
     Build a comprehensive prompt for LLM using Jinja2 template rendering.
-    Supports both default templates and custom user-defined templates.
 
     The template internally builds context variables (collection_context, web_status, etc.)
     from the basic input variables, maintaining the original prompt construction logic.
@@ -357,7 +317,7 @@ def build_agent_query_prompt(
         chat_id: The chat ID for context
         agent_message: The agent message containing query and configuration
         user: The user identifier
-        custom_template: Optional custom Jinja2 template string. If None, uses default template.
+        template: Jinja2 template string (resolved from prompt_template_service)
 
     Returns:
         The formatted prompt string using Jinja2 template rendering
@@ -369,14 +329,8 @@ def build_agent_query_prompt(
         - chat_id: Chat ID string (may be None)
         - language: Language code
     """
-    # Use custom template if provided, otherwise use default template
-    if custom_template:
-        template_str = custom_template
-    else:
-        template_str = get_default_agent_query_prompt_template(agent_message.language)
-
     # Create Jinja2 template
-    template = Template(template_str)
+    jinja_template = Template(template)
 
     # Prepare template variables
     template_vars = {
@@ -388,11 +342,11 @@ def build_agent_query_prompt(
     }
 
     # Render template
-    return template.render(**template_vars)
+    return jinja_template.render(**template_vars)
 
 
 # Prompt resolution service with 3-tier priority system
-async def resolve_agent_system_prompt(bot_id: Optional[str], user_id: str, language: str) -> str:
+async def resolve_agent_system_prompt(bot, user_id: str, language: str) -> str:
     """
     Resolve agent system prompt with 3-tier priority:
     1. Bot.config.agent.system_prompt_template
@@ -401,7 +355,7 @@ async def resolve_agent_system_prompt(bot_id: Optional[str], user_id: str, langu
     4. Hardcoded default (APERAG_AGENT_INSTRUCTION_EN/ZH)
 
     Args:
-        bot_id: Bot ID (optional, if None, skip bot-level config)
+        bot: Bot object (from database, can be None to skip bot-level config)
         user_id: User ID
         language: Language code (en-US, zh-CN)
 
@@ -411,20 +365,16 @@ async def resolve_agent_system_prompt(bot_id: Optional[str], user_id: str, langu
     from aperag.db.ops import async_db_ops
 
     # Tier 1: Bot-level configuration
-    if bot_id:
+    if bot and bot.config:
         try:
-            bot = await async_db_ops.query_bot(user_id, bot_id)
-            if bot and bot.config:
-                config_dict = json.loads(bot.config) if isinstance(bot.config, str) else bot.config
-                if config_dict:
-                    bot_config = view_models.BotConfig(**config_dict)
-                    if bot_config.agent and bot_config.agent.system_prompt_template:
-                        logger.debug(f"Using bot-level system prompt for bot {bot_id}")
-                        return bot_config.agent.system_prompt_template
+            config_dict = json.loads(bot.config) if isinstance(bot.config, str) else bot.config
+            if config_dict:
+                bot_config = view_models.BotConfig(**config_dict)
+                if bot_config.agent and bot_config.agent.system_prompt_template:
+                    logger.debug(f"Using bot-level system prompt for bot {bot.id}")
+                    return bot_config.agent.system_prompt_template
         except (json.JSONDecodeError, ValueError) as e:
-            logger.warning(f"Failed to parse bot config for bot {bot_id}: {e}")
-        except Exception as e:
-            logger.warning(f"Failed to query bot for bot {bot_id}: {e}")
+            logger.warning(f"Failed to parse bot config for bot {bot.id}: {e}")
 
     # Tier 2: User default
     user_default = await async_db_ops.query_prompt_template(
@@ -450,7 +400,7 @@ async def resolve_agent_system_prompt(bot_id: Optional[str], user_id: str, langu
         return APERAG_AGENT_INSTRUCTION_EN
 
 
-async def resolve_agent_query_prompt(bot_id: Optional[str], user_id: str, language: str) -> str:
+async def resolve_agent_query_prompt(bot, user_id: str, language: str) -> str:
     """
     Resolve agent query prompt template with 3-tier priority:
     1. Bot.config.agent.query_prompt_template
@@ -459,7 +409,7 @@ async def resolve_agent_query_prompt(bot_id: Optional[str], user_id: str, langua
     4. Hardcoded default (DEFAULT_AGENT_QUERY_PROMPT_EN/ZH)
 
     Args:
-        bot_id: Bot ID (optional, if None, skip bot-level config)
+        bot: Bot object (from database, can be None to skip bot-level config)
         user_id: User ID
         language: Language code (en-US, zh-CN)
 
@@ -469,20 +419,16 @@ async def resolve_agent_query_prompt(bot_id: Optional[str], user_id: str, langua
     from aperag.db.ops import async_db_ops
 
     # Tier 1: Bot-level configuration
-    if bot_id:
+    if bot and bot.config:
         try:
-            bot = await async_db_ops.query_bot(user_id, bot_id)
-            if bot and bot.config:
-                config_dict = json.loads(bot.config) if isinstance(bot.config, str) else bot.config
-                if config_dict:
-                    bot_config = view_models.BotConfig(**config_dict)
-                    if bot_config.agent and bot_config.agent.query_prompt_template:
-                        logger.debug(f"Using bot-level query prompt for bot {bot_id}")
-                        return bot_config.agent.query_prompt_template
+            config_dict = json.loads(bot.config) if isinstance(bot.config, str) else bot.config
+            if config_dict:
+                bot_config = view_models.BotConfig(**config_dict)
+                if bot_config.agent and bot_config.agent.query_prompt_template:
+                    logger.debug(f"Using bot-level query prompt for bot {bot.id}")
+                    return bot_config.agent.query_prompt_template
         except (json.JSONDecodeError, ValueError) as e:
-            logger.warning(f"Failed to parse bot config for bot {bot_id}: {e}")
-        except Exception as e:
-            logger.warning(f"Failed to query bot for bot {bot_id}: {e}")
+            logger.warning(f"Failed to parse bot config for bot {bot.id}: {e}")
 
     # Tier 2: User default
     user_default = await async_db_ops.query_prompt_template(
@@ -839,7 +785,7 @@ class PromptTemplateService:
 
     # === Prompt resolution (for Agent/LightRAG) ===
 
-    async def resolve_agent_system_prompt(self, bot_id: Optional[str], user_id: str, language: str) -> str:
+    async def resolve_agent_system_prompt(self, bot, user_id: str, language: str) -> str:
         """
         Resolve agent system prompt with 3-tier priority.
         Priority: Bot config > User default > System default > Hardcoded
@@ -847,7 +793,7 @@ class PromptTemplateService:
         This method is used by agent_chat_service.py
 
         Args:
-            bot_id: Bot ID (optional, if None, skip bot-level config)
+            bot: Bot object (from database, can be None to skip bot-level config)
             user_id: User ID
             language: Language code (en-US, zh-CN)
 
@@ -855,20 +801,16 @@ class PromptTemplateService:
             Resolved system prompt content
         """
         # Tier 1: Bot-level configuration
-        if bot_id:
+        if bot and bot.config:
             try:
-                bot = await self.db_ops.query_bot(user_id, bot_id)
-                if bot and bot.config:
-                    config_dict = json.loads(bot.config) if isinstance(bot.config, str) else bot.config
-                    if config_dict:
-                        bot_config = view_models.BotConfig(**config_dict)
-                        if bot_config.agent and bot_config.agent.system_prompt_template:
-                            logger.debug(f"Using bot-level system prompt for bot {bot_id}")
-                            return bot_config.agent.system_prompt_template
+                config_dict = json.loads(bot.config) if isinstance(bot.config, str) else bot.config
+                if config_dict:
+                    bot_config = view_models.BotConfig(**config_dict)
+                    if bot_config.agent and bot_config.agent.system_prompt_template:
+                        logger.debug(f"Using bot-level system prompt for bot {bot.id}")
+                        return bot_config.agent.system_prompt_template
             except (json.JSONDecodeError, ValueError) as e:
-                logger.warning(f"Failed to parse bot config for bot {bot_id}: {e}")
-            except Exception as e:
-                logger.warning(f"Failed to query bot for bot {bot_id}: {e}")
+                logger.warning(f"Failed to parse bot config for bot {bot.id}: {e}")
 
         # Tier 2: User default
         user_default = await self.db_ops.query_prompt_template(
@@ -893,7 +835,7 @@ class PromptTemplateService:
         else:
             return APERAG_AGENT_INSTRUCTION_EN
 
-    async def resolve_agent_query_prompt(self, bot_id: Optional[str], user_id: str, language: str) -> str:
+    async def resolve_agent_query_prompt(self, bot, user_id: str, language: str) -> str:
         """
         Resolve agent query prompt template with 3-tier priority.
         Priority: Bot config > User default > System default > Hardcoded
@@ -901,7 +843,7 @@ class PromptTemplateService:
         This method is used by agent_chat_service.py
 
         Args:
-            bot_id: Bot ID (optional, if None, skip bot-level config)
+            bot: Bot object (from database, can be None to skip bot-level config)
             user_id: User ID
             language: Language code (en-US, zh-CN)
 
@@ -909,20 +851,16 @@ class PromptTemplateService:
             Resolved query prompt template content
         """
         # Tier 1: Bot-level configuration
-        if bot_id:
+        if bot and bot.config:
             try:
-                bot = await self.db_ops.query_bot(user_id, bot_id)
-                if bot and bot.config:
-                    config_dict = json.loads(bot.config) if isinstance(bot.config, str) else bot.config
-                    if config_dict:
-                        bot_config = view_models.BotConfig(**config_dict)
-                        if bot_config.agent and bot_config.agent.query_prompt_template:
-                            logger.debug(f"Using bot-level query prompt for bot {bot_id}")
-                            return bot_config.agent.query_prompt_template
+                config_dict = json.loads(bot.config) if isinstance(bot.config, str) else bot.config
+                if config_dict:
+                    bot_config = view_models.BotConfig(**config_dict)
+                    if bot_config.agent and bot_config.agent.query_prompt_template:
+                        logger.debug(f"Using bot-level query prompt for bot {bot.id}")
+                        return bot_config.agent.query_prompt_template
             except (json.JSONDecodeError, ValueError) as e:
-                logger.warning(f"Failed to parse bot config for bot {bot_id}: {e}")
-            except Exception as e:
-                logger.warning(f"Failed to query bot for bot {bot_id}: {e}")
+                logger.warning(f"Failed to parse bot config for bot {bot.id}: {e}")
 
         # Tier 2: User default
         user_default = await self.db_ops.query_prompt_template(
