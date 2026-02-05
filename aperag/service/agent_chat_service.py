@@ -264,9 +264,7 @@ class AgentChatService:
                 )
             )
             # Message Consumer
-            consumer_task = asyncio.create_task(
-                self._consume_messages_from_queue(chat_id, message_id, trace_id, message_queue, websocket)
-            )
+            consumer_task = asyncio.create_task(self._consume_messages_from_queue(message_queue, websocket))
             process_result, consumer_result = await asyncio.gather(process_task, consumer_task, return_exceptions=True)
 
             # Handle process_task exceptions with unified error formatting
@@ -360,7 +358,7 @@ class AgentChatService:
                 await asyncio.sleep(delay)
 
     async def _consume_messages_from_queue(
-        self, chat_id: str, message_id: str, trace_id: str, message_queue: AgentMessageQueue, websocket: WebSocket
+        self, message_queue: AgentMessageQueue, websocket: WebSocket
     ) -> List[AgentToolCallResultResponse]:
         """
         Consume messages from queue, send to WebSocket, and collect AgentToolCallResultResponse messages.
