@@ -47,7 +47,7 @@ def get_current_trace_info() -> Tuple[Optional[str], Optional[str]]:
 
     try:
         current_span = trace.get_current_span()
-        if not current_span or not current_span.is_recording():
+        if not current_span:
             return None, None
 
         span_context = current_span.get_span_context()
