@@ -15,7 +15,13 @@
 import logging
 
 from mcp_agent.app import MCPApp
-from mcp_agent.config import LoggerSettings, MCPServerSettings, MCPSettings, OpenAISettings, Settings
+from mcp_agent.config import (
+    LoggerSettings,
+    MCPServerSettings,
+    MCPSettings,
+    OpenAISettings,
+    Settings,
+)
 
 from .agent_config import AgentConfig
 from .exceptions import agent_config_invalid, mcp_init_failed
@@ -56,7 +62,11 @@ class MCPAppFactory:
         try:
             settings = Settings(
                 execution_engine="asyncio",
-                logger=LoggerSettings(type="console", level="info"),
+                logger=LoggerSettings(
+                    transports=["console"],
+                    level="info",
+                    progress_display=True,
+                ),
                 mcp=MCPSettings(
                     servers={
                         "aperag": MCPServerSettings(
@@ -79,6 +89,10 @@ class MCPAppFactory:
                     temperature=temperature,
                     max_tokens=max_tokens,
                 ),
+                # otel=OpenTelemetrySettings(
+                #     enabled=True,
+                #     exporters=["console"],
+                # ),
             )
 
             mcp_app = MCPApp(name="aperag_agent", settings=settings)
