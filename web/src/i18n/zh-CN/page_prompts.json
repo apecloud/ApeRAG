@@ -1,0 +1,28 @@
+{
+  "metadata": {
+    "title": "提示词管理",
+    "description": "自定义系统默认提示词，调整 AI 助手的行为和对话风格。修改后将覆盖系统默认配置，可随时重置恢复默认。"
+  },
+  "agent_system": {
+    "title": "系统提示词",
+    "description": "定义 AI 助手的人格、角色和行为准则，影响所有对话的基础行为。"
+  },
+  "agent_query": {
+    "title": "查询提示词",
+    "description": "每次对话的查询模板，控制如何将用户问题与知识库上下文组合后发送给 AI。"
+  },
+  "status": {
+    "customized": "已自定义",
+    "default": "使用默认"
+  },
+  "action": {
+    "save": "保存",
+    "reset": "重置为默认",
+    "reset_confirm": "确认将此提示词重置为系统默认？",
+    "reset_confirm_description": "重置后，当前自定义内容将被删除，恢复为系统内置默认提示词。"
+  },
+  "toast": {
+    "save_success": "提示词已保存",
+    "reset_success": "已重置为默认提示词"
+  }
+}

@@ -23,6 +23,7 @@ import {
   ChevronRight,
   Key,
   Logs,
+  MessageSquareText,
   Package,
   Settings,
 } from 'lucide-react';
@@ -77,6 +78,12 @@ export const MenuFooter = () => {
                   <DropdownMenuItem asChild>
                     <Link href="/workspace/quotas">
                       <BatteryMedium /> {sidebar_workspace('quotas')}
+                    </Link>
+                  </DropdownMenuItem>
+
+                  <DropdownMenuItem asChild>
+                    <Link href="/workspace/prompts">
+                      <MessageSquareText /> {sidebar_workspace('prompts')}
                     </Link>
                   </DropdownMenuItem>
                 </DropdownMenuGroup>

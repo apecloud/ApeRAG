@@ -1,0 +1,28 @@
+{
+  "metadata": {
+    "title": "Prompt Management",
+    "description": "Customize system prompts to adjust the AI assistant's behavior and conversation style. Changes override system defaults and can be reset at any time."
+  },
+  "agent_system": {
+    "title": "System Prompt",
+    "description": "Defines the AI assistant's persona, role, and behavioral guidelines. Affects the base behavior across all conversations."
+  },
+  "agent_query": {
+    "title": "Query Prompt",
+    "description": "The query template for each conversation. Controls how user questions and knowledge base context are combined before being sent to the AI."
+  },
+  "status": {
+    "customized": "Customized",
+    "default": "Using Default"
+  },
+  "action": {
+    "save": "Save",
+    "reset": "Reset to Default",
+    "reset_confirm": "Reset this prompt to system default?",
+    "reset_confirm_description": "This will delete your customization and restore the built-in system default prompt."
+  },
+  "toast": {
+    "save_success": "Prompt saved successfully",
+    "reset_success": "Prompt reset to default"
+  }
+}
