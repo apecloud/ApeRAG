@@ -36,13 +36,9 @@ from __future__ import annotations
 from typing import Any
 
 GRAPH_FIELD_SEP = "<SEP>"
-
 DEFAULT_TUPLE_DELIMITER = "<|>"
 DEFAULT_RECORD_DELIMITER = "##"
 DEFAULT_COMPLETION_DELIMITER = "<|COMPLETE|>"
-
-PROMPTS: dict[str, Any] = {}
-
 DEFAULT_ENTITY_TYPES = [
     "organization",
     "person",
@@ -54,13 +50,16 @@ DEFAULT_ENTITY_TYPES = [
     "category",
 ]
 
+PROMPTS: dict[str, Any] = {}
+
+# Keys: language, entity_types, tuple_delimiter, record_delimiter, completion_delimiter, examples, input_text
 PROMPTS["entity_extraction"] = """---Goal---
 Given a text document that is potentially relevant to this activity and a list of entity types, identify all entities of those types from the text and all relationships among the identified entities.
 Use {language} as output language.
 
 ---Steps---
 1. Identify all entities. For each identified entity, extract the following information:
-- entity_name: Full Name of the entity, must use **same language** as input text, it's important. If English, capitalized the name.
+- entity_name: Full Name of the entity, must use **same language** as Real Data Text, it's important. If English, capitalized the name.
 - entity_type: One of the following types: [{entity_types}]
 - entity_description: Comprehensive description of the entity's attributes and activities
 Format each entity as ("entity"{tuple_delimiter}<entity_name>{tuple_delimiter}<entity_type>{tuple_delimiter}<entity_description>)
@@ -95,6 +94,7 @@ Text:
 ######################
 Output:"""
 
+# Keys: tuple_delimiter, record_delimiter, completion_delimiter  (rendered into entity_extraction via {examples})
 PROMPTS["entity_extraction_examples"] = [
     """Example 1:
 
@@ -211,6 +211,7 @@ Output:
 #############################""",
 ]
 
+# Keys: language, entity_name, description_list
 PROMPTS[
     "summarize_entity_descriptions"
 ] = """You are a helpful assistant responsible for generating a comprehensive summary of the data provided below.
@@ -228,13 +229,14 @@ Description List: {description_list}
 Output:
 """
 
+# Keys: language, entity_types, tuple_delimiter, record_delimiter, completion_delimiter
 PROMPTS["entity_continue_extraction"] = """
 MANY entities and relationships were missed in the last extraction.
 
 ---Remember Steps---
 
 1. Identify all entities. For each identified entity, extract the following information:
-- entity_name: Name of the entity, use same language as input text. If English, capitalized the name.
+- entity_name: Name of the entity, use same language as Real Data Text. If English, capitalized the name.
 - entity_type: One of the following types: [{entity_types}]
 - entity_description: Comprehensive description of the entity's attributes and activities
 Format each entity as ("entity"{tuple_delimiter}<entity_name>{tuple_delimiter}<entity_type>{tuple_delimiter}<entity_description>)
@@ -260,6 +262,7 @@ Format the content-level key words as ("content_keywords"{tuple_delimiter}<high_
 Add them below using the same format:\n
 """.strip()
 
+# Keys: (none)
 PROMPTS["entity_if_loop_extraction"] = """
 ---Goal---'
 
@@ -270,8 +273,10 @@ It appears some entities may have still been missed.
 Answer ONLY by `YES` OR `NO` if there are still entities that need to be added.
 """.strip()
 
+# Keys: (none)
 PROMPTS["fail_response"] = "Sorry, I'm not able to provide an answer to that question.[no-context]"
 
+# Keys: examples, history, query
 PROMPTS["keywords_extraction"] = """---Role---
 
 You are a helpful assistant tasked with identifying both high-level and low-level keywords in the user's query and conversation history.
@@ -301,11 +306,12 @@ Conversation History:
 
 Current Query: {query}
 ######################
-The `Output` should be human text, not unicode characters. Keep the same language as `Query`.
+The `Output` should be human text, not unicode characters. Keep the same language as `Current Query`.
 Output:
 
 """
 
+# Keys: (none, static examples rendered into keywords_extraction via {examples})
 PROMPTS["keywords_extraction_examples"] = [
     """Example 1:
 
@@ -339,6 +345,7 @@ Output:
 #############################""",
 ]
 
+# Keys: tuple_delimiter, record_delimiter, completion_delimiter, graph_field_sep, entities_list
 PROMPTS["batch_merge_analysis"] = """---Goal---
 Given a list of entities from a knowledge graph, identify groups of entities that should be merged because they refer to the EXACT SAME real-world object/individual/specific instance.
 
