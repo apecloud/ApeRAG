@@ -15,10 +15,6 @@ promptDetail:
     description:
       type: string
       description: Optional description
-    language:
-      type: string
-      enum: [zh-CN, en-US]
-      description: Language of the prompt
 
 userPromptsResponse:
   type: object
@@ -38,13 +34,8 @@ userPromptsResponse:
 updateUserPromptsRequest:
   type: object
   required:
-    - language
     - prompts
   properties:
-    language:
-      type: string
-      enum: [zh-CN, en-US]
-      default: zh-CN
     prompts:
       type: object
       description: Prompts to update (all fields are optional, only provided fields will be updated)
@@ -80,13 +71,7 @@ updateUserPromptsResponse:
 
 resetPromptsRequest:
   type: object
-  required:
-    - language
   properties:
-    language:
-      type: string
-      enum: [zh-CN, en-US]
-      default: zh-CN
     types:
       type: array
       items:
@@ -123,8 +108,6 @@ systemPromptDetail:
       type: string
     content:
       type: string
-    language:
-      type: string
     description:
       type: string
 
@@ -137,8 +120,6 @@ systemPromptsResponse:
       content:
         type: string
       description:
-        type: string
-      language:
         type: string
 
 previewRequest:

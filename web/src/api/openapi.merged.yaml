@@ -6114,12 +6114,6 @@ components:
         description:
           type: string
           description: Optional description
-        language:
-          type: string
-          enum:
-            - zh-CN
-            - en-US
-          description: Language of the prompt
     userPromptsResponse:
       type: object
       description: User's prompt configuration with all types
@@ -6137,15 +6131,8 @@ components:
     updateUserPromptsRequest:
       type: object
       required:
-        - language
         - prompts
       properties:
-        language:
-          type: string
-          enum:
-            - zh-CN
-            - en-US
-          default: zh-CN
         prompts:
           type: object
           description: Prompts to update (all fields are optional, only provided fields will be updated)
@@ -6193,15 +6180,7 @@ components:
             - hardcoded
     resetPromptsRequest:
       type: object
-      required:
-        - language
       properties:
-        language:
-          type: string
-          enum:
-            - zh-CN
-            - en-US
-          default: zh-CN
         types:
           type: array
           items:
@@ -6223,8 +6202,6 @@ components:
           type: string
         content:
           type: string
-        language:
-          type: string
         description:
           type: string
     systemPromptsResponse:
@@ -6236,8 +6213,6 @@ components:
           content:
             type: string
           description:
-            type: string
-          language:
             type: string
     previewRequest:
       type: object

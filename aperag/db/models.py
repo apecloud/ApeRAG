@@ -1139,7 +1139,6 @@ class PromptTemplate(Base):
     prompt_type = Column(String(50), nullable=False, index=True)
     scope = Column(String(20), nullable=False, index=True)
     user_id = Column(String(256), nullable=True, index=True)
-    language = Column(String(10), nullable=False, default="en-US")
     content = Column(Text, nullable=False)
     description = Column(Text, nullable=True)
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)

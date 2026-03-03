@@ -21,24 +21,10 @@
  */
 export interface ResetPromptsRequest {
     /**
-     * 
-     * @type {string}
-     * @memberof ResetPromptsRequest
-     */
-    'language': ResetPromptsRequestLanguageEnum;
-    /**
      * Prompt types to reset, omit to reset all
      * @type {Array<string>}
      * @memberof ResetPromptsRequest
      */
     'types'?: Array<string>;
 }
-
-export const ResetPromptsRequestLanguageEnum = {
-    zh_CN: 'zh-CN',
-    en_US: 'en-US'
-} as const;
-
-export type ResetPromptsRequestLanguageEnum = typeof ResetPromptsRequestLanguageEnum[keyof typeof ResetPromptsRequestLanguageEnum];
-
 

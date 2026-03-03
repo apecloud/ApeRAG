@@ -15,7 +15,7 @@
 import logging
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from jinja2 import TemplateSyntaxError
 from pydantic import BaseModel, Field
 
@@ -38,13 +38,11 @@ class PromptsPayload(BaseModel):
 
 
 class UpdateUserPromptsRequest(BaseModel):
-    language: str = Field(default="zh-CN", pattern="^(en-US|zh-CN)$")
     prompts: PromptsPayload = Field(..., description="Prompts to update (only provided fields will be updated)")
 
 
 class ResetPromptsRequest(BaseModel):
-    language: str = Field(default="zh-CN", pattern="^(en-US|zh-CN)$")
-    types: Optional[List[str]] = Field(None, description="Prompt types to reset, None means all")
+    types: Optional[List[str]] = Field(None, description="Prompt types to reset, omit to reset all")
 
 
 class PreviewRequest(BaseModel):
@@ -63,7 +61,6 @@ class ValidateRequest(BaseModel):
 @router.get("/prompts/user", tags=["prompts"])
 async def get_user_prompts(
     request: Request,
-    language: str = Query(default="zh-CN", pattern="^(en-US|zh-CN)$"),
     user: User = Depends(required_user),
 ) -> Dict[str, Any]:
     """
@@ -75,7 +72,7 @@ async def get_user_prompts(
     - customized: Whether user has customized this prompt
     - description: Optional description
     """
-    return await prompt_template_service.get_user_prompts(user_id=str(user.id), language=language)
+    return await prompt_template_service.get_user_prompts(user_id=str(user.id))
 
 
 @router.put("/prompts/user", tags=["prompts"])
@@ -101,10 +98,7 @@ async def update_user_prompts(
     except TemplateSyntaxError as e:
         raise HTTPException(status_code=400, detail=f"Template syntax error: {str(e)}")
 
-    # Update via service
-    updated = await prompt_template_service.update_user_prompts(
-        user_id=str(user.id), language=body.language, prompts=prompts_dict
-    )
+    updated = await prompt_template_service.update_user_prompts(user_id=str(user.id), prompts=prompts_dict)
 
     return {"message": "Prompts updated successfully", "updated": updated}
 
@@ -113,7 +107,6 @@ async def update_user_prompts(
 async def delete_user_prompt(
     request: Request,
     prompt_type: str,
-    language: str = Query(default="zh-CN", pattern="^(en-US|zh-CN)$"),
     user: User = Depends(required_user),
 ) -> Dict[str, Any]:
     """
@@ -121,17 +114,13 @@ async def delete_user_prompt(
 
     Returns the new effective content after deletion.
     """
-    # Validate prompt type
     if prompt_type not in PromptTemplateService.PROMPT_TYPES:
         raise HTTPException(
             status_code=400,
             detail=f"Invalid prompt type: {prompt_type}. Valid types: {PromptTemplateService.PROMPT_TYPES}",
         )
 
-    # Delete via service
-    result = await prompt_template_service.delete_user_prompt(
-        user_id=str(user.id), prompt_type=prompt_type, language=language
-    )
+    result = await prompt_template_service.delete_user_prompt(user_id=str(user.id), prompt_type=prompt_type)
 
     if not result["deleted"]:
         raise HTTPException(status_code=404, detail=f"User has not customized {prompt_type} prompt")
@@ -153,7 +142,6 @@ async def reset_user_prompts(
 
     If 'types' is not provided, resets all prompts.
     """
-    # Validate types if provided
     if body.types:
         invalid_types = [t for t in body.types if t not in PromptTemplateService.PROMPT_TYPES]
         if invalid_types:
@@ -162,10 +150,7 @@ async def reset_user_prompts(
                 detail=f"Invalid prompt types: {invalid_types}. Valid types: {PromptTemplateService.PROMPT_TYPES}",
             )
 
-    # Reset via service
-    reset = await prompt_template_service.reset_user_prompts(
-        user_id=str(user.id), language=body.language, types=body.types
-    )
+    reset = await prompt_template_service.reset_user_prompts(user_id=str(user.id), types=body.types)
 
     return {"message": "Prompts reset successfully", "reset": reset}
 
@@ -176,10 +161,7 @@ async def reset_user_prompts(
 @router.get("/prompts/system", tags=["prompts"])
 async def get_system_prompts(
     request: Request,
-    language: str = Query(default="zh-CN", pattern="^(en-US|zh-CN)$"),
-    type: Optional[str] = Query(
-        default=None, pattern="^(agent_system|agent_query|index_graph|index_summary|index_vision)$"
-    ),
+    type: Optional[str] = None,
     user: User = Depends(required_user),
 ):
     """
@@ -187,7 +169,12 @@ async def get_system_prompts(
 
     Can query a specific type or all types.
     """
-    return await prompt_template_service.get_system_prompts(language=language, prompt_type=type)
+    if type and type not in PromptTemplateService.PROMPT_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid prompt type: {type}. Valid types: {PromptTemplateService.PROMPT_TYPES}",
+        )
+    return await prompt_template_service.get_system_prompts(prompt_type=type)
 
 
 # === Helper utilities ===

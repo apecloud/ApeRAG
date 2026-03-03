@@ -44,12 +44,6 @@ export interface PromptDetail {
      * @memberof PromptDetail
      */
     'description'?: string;
-    /**
-     * Language of the prompt
-     * @type {string}
-     * @memberof PromptDetail
-     */
-    'language'?: PromptDetailLanguageEnum;
 }
 
 export const PromptDetailSourceEnum = {
@@ -59,11 +53,5 @@ export const PromptDetailSourceEnum = {
 } as const;
 
 export type PromptDetailSourceEnum = typeof PromptDetailSourceEnum[keyof typeof PromptDetailSourceEnum];
-export const PromptDetailLanguageEnum = {
-    zh_CN: 'zh-CN',
-    en_US: 'en-US'
-} as const;
-
-export type PromptDetailLanguageEnum = typeof PromptDetailLanguageEnum[keyof typeof PromptDetailLanguageEnum];
 
 

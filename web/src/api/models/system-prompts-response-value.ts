@@ -32,11 +32,5 @@ export interface SystemPromptsResponseValue {
      * @memberof SystemPromptsResponseValue
      */
     'description'?: string;
-    /**
-     * 
-     * @type {string}
-     * @memberof SystemPromptsResponseValue
-     */
-    'language'?: string;
 }
 

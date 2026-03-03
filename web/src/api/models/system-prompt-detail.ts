@@ -37,12 +37,6 @@ export interface SystemPromptDetail {
      * @type {string}
      * @memberof SystemPromptDetail
      */
-    'language'?: string;
-    /**
-     * 
-     * @type {string}
-     * @memberof SystemPromptDetail
-     */
     'description'?: string;
 }
 

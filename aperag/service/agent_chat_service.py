@@ -174,8 +174,6 @@ class AgentChatService:
         # Parse bot configuration and get default collections once
         bot_config = None
         default_collections = []
-        default_language = "zh-CN"  # Default language
-
         if bot.config:
             try:
                 config_dict = json.loads(bot.config)
@@ -194,12 +192,8 @@ class AgentChatService:
 
         # Resolve prompts once at the beginning using prompt_template_service
         # Priority: Bot config > User default > System default > Hardcoded
-        resolved_system_prompt = await prompt_template_service.resolve_agent_system_prompt(
-            bot=bot, user_id=user, language=default_language
-        )
-        resolved_query_prompt = await prompt_template_service.resolve_agent_query_prompt(
-            bot=bot, user_id=user, language=default_language
-        )
+        resolved_system_prompt = await prompt_template_service.resolve_agent_system_prompt(bot=bot, user_id=user)
+        resolved_query_prompt = await prompt_template_service.resolve_agent_query_prompt(bot=bot, user_id=user)
 
         while True:
             # Receive message from WebSocket

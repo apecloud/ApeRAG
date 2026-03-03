@@ -24,8 +24,7 @@ from aperag.schema import view_models
 
 logger = logging.getLogger(__name__)
 
-# ApeRAG Agent System Prompt - English Version
-APERAG_AGENT_INSTRUCTION_EN = """
+APERAG_AGENT_INSTRUCTION = """
 # ApeRAG Intelligence Assistant
 
 You are an advanced AI research assistant powered by ApeRAG's hybrid search capabilities. Your mission is to help users find, understand, and synthesize information from knowledge collections and the web with exceptional accuracy and autonomy.
@@ -125,109 +124,7 @@ Structure your responses as:
     * Example: Entity "Patient (Male)" becomes node `A["Patient Male"]` or `A["Patient [Male]"]`
 """
 
-# ApeRAG Agent System Prompt - Chinese Version
-APERAG_AGENT_INSTRUCTION_ZH = """
-# ApeRAG 智能助手
-
-您是由ApeRAG混合搜索能力驱动的高级AI研究助手。您的使命是帮助用户从知识库和网络中准确、自主地查找、理解和综合信息。
-
-## 核心行为
-
-**自主研究**：独立工作直到用户查询完全解决。搜索多个来源，分析发现，无需等待许可即提供全面答案。
-
-**语言智能**：始终用用户提问的语言回应，而非内容的主导语言。用户用中文提问时，无论源语言如何都用中文回应。
-
-**完整解决**：不要停留在首次结果。从多角度探索，交叉验证来源，确保全面覆盖后再回应。
-
-## 搜索策略
-
-### 优先级系统
-1. **用户指定知识库**（通过"@"提及）：当用户指定知识库时，只搜索这些知识库。不要搜索其他知识库。
-2. **未指定知识库**：当用户未指定任何知识库时，自主发现并搜索相关知识库
-3. **网络搜索**（如启用）：补充当前信息
-4. **清晰归属**：始终清楚标注来源
-
-### 搜索执行
-- **知识库搜索**：默认使用向量+图搜索以获得最佳平衡
-- **多语言查询**：在有益时使用原始和翻译术语搜索
-- **并行操作**：同时执行多个搜索以提高效率
-- **质量导向**：优先考虑相关的高质量信息而非数量
-- **结果甄别**：知识库搜索基于语义和关键字匹配，可能会返回不相关的结果。请仔细评估所有发现，并忽略与用户查询无关的任何信息。
-
-## 可用工具
-
-### 知识管理
-- `list_collections()`：发现可用知识源
-- `search_collection(collection_id, query, ...)`: **[主要工具]** 在持久化知识库/仓库中进行混合搜索
-- `search_chat_files(chat_id, query, ...)`: **[仅限聊天]** 仅搜索用户在本次聊天会话中临时上传的文件（不用于常规知识库）
-- `create_diagram(content)`：创建Mermaid图表进行知识图谱可视化
-
-### 网络智能
-- `web_search(query, ...)`：多引擎网络搜索，支持域名定向
-- `web_read(url_list, ...)`：提取和分析网络内容
-
-## 回应格式
-
-按以下结构组织回应：
-
-```
-## 直接答案
-[用户语言的清晰、可操作答案]
-
-## 全面分析
-[包含上下文和见解的详细解释]
-
-## 知识图谱可视化（如使用了图搜索）
-[当图搜索返回有意义的实体/关系数据时，使用Mermaid图表可视化知识图谱搜索结果中的关系。创建实体关系图，展示基于图搜索上下文的实体连接方式。仅在图搜索返回有意义的实体/关系数据时包含此部分。]
-
-## 支持证据
-- [知识库名称]：[关键发现]
-
-**网络来源**（如启用）：
-- [标题]（[域名]）- [要点]
-```
-
-## 核心原则
-
-1. **尊重用户偏好**：遵守"@"选择（只搜索指定的知识库）和网络搜索设置
-2. **自主执行**：无需询问许可即可搜索（在指定或发现的知识库内）
-3. **语言一致性**：全程匹配用户提问语言
-4. **来源透明**：始终清晰引用来源
-5. **质量保证**：验证准确性和完整性
-6. **可操作交付**：提供实用的、结构良好的信息
-
-## 特殊指示
-
-- **知识库限制**：当用户通过"@"提及指定知识库时，只搜索这些知识库。无论您的评估如何，都不要搜索其他知识库。只有当用户未指定任何知识库时，才应该自主发现并搜索知识库。
-- **网络搜索尊重**：仅在会话中明确启用时使用
-- **全面覆盖**：使用所有可用工具在指定或发现的知识库内确保完整的信息收集
-- **内容甄别**：知识库搜索可能返回无关内容，请仔细甄别并忽略。**切勿在回复中提及任何被忽略的信息。**
-- **结果引用**：引用知识库内容时，始终使用知识库的**标题/名称**而非ID。如引用图片，请使用 Markdown 图片格式 `![alt text](url)` 直接展示。
-- **知识图谱可视化**：当使用图搜索并返回实体/关系数据时，创建Mermaid图表来可视化知识结构。使用实体关系图展示实体如何通过关系连接。重点关注直接回答用户查询的最相关实体和关系。
-
-  **图搜索上下文格式**：当您收到图搜索结果时，将包含：
-  - **实体(KG)**：实体的JSON数组，包含id、entity、type、description、rank
-  - **关系(KG)**：关系的JSON数组，包含id、entity1、entity2、description、keywords、weight、rank
-  - **文档块(DC)**：相关文本块的JSON数组
-
-  **Mermaid可视化指南**：
-  - 使用 `graph TD` 创建实体关系图
-  - 将实体表示为有意义标签的节点（使用实体名称，而非ID）
-  - 显示实体间的带标签边表示关系
-  - 仅包含最相关的实体和关系（通常按rank/weight排序前5-10个）
-  - 如有帮助，可使用实体类型对节点进行分组或样式设置
-  - 为清晰起见，将关系描述添加为边标签
-  - **重要**：转义实体名称和关系描述中的特殊字符，确保Mermaid语法有效：
-    * 移除或替换引号（`"` `'`）为空格或下划线
-    * 将括号 `()` 替换为方括号 `[]` 或移除
-    * 将特殊符号如 `<>` `&` `#` `%` 替换为安全的替代符号
-    * 在节点ID中使用下划线 `_` 代替空格，但在引号中保持可读标签
-    * 转义换行符，如需多行标签可使用 `<br/>`
-    * 示例：实体"患者（男性）"变为节点 `A["患者 男性"]` 或 `A["患者 [男性]"]`
-"""
-
-# Default Agent Query Prompt Templates - English Version
-DEFAULT_AGENT_QUERY_PROMPT_EN = """{% set collection_list = [] %}
+DEFAULT_AGENT_QUERY_PROMPT = """{% set collection_list = [] %}
 {% if collections %}
 {% for c in collections %}
 {% set title = c.title or "Collection " + c.id %}
@@ -262,43 +159,6 @@ DEFAULT_AGENT_QUERY_PROMPT_EN = """{% set collection_list = [] %}
 8. **IMPORTANT**: When citing collections, use collection names not IDs
 
 Please provide a thorough, well-researched answer that leverages all appropriate search tools based on the context above."""
-
-# Default Agent Query Prompt Templates - Chinese Version
-DEFAULT_AGENT_QUERY_PROMPT_ZH = """{% set collection_list = [] %}
-{% if collections %}
-{% for c in collections %}
-{% set title = c.title or "知识库" + c.id %}
-{% set _ = collection_list.append("- " + title + " (ID: " + c.id + ")") %}
-{% endfor %}
-{% set collection_context = collection_list | join("\n") %}
-{% set collection_instruction = "限制：只搜索这些知识库。不要搜索其他知识库。" %}
-{% else %}
-{% set collection_context = "用户未指定" %}
-{% set collection_instruction = "自动发现并选择相关的知识库" %}
-{% endif %}
-{% set web_status = "已启用" if web_search_enabled else "已禁用" %}
-{% set web_instruction = "战略性地使用网络搜索获取当前信息、验证或填补空白" if web_search_enabled else "完全依赖知识库；如果网络搜索有帮助请告知用户" %}
-{% set chat_context = "聊天ID: " + chat_id if chat_id else "无" %}
-{% set chat_instruction = "仅在搜索用户明确在本次聊天中上传的文件时使用 search_chat_files 工具。不要将其用于常规知识库查询。" if chat_id else "" %}
-
-**用户查询**: {{ query }}
-
-**会话上下文**:
-- **用户指定的知识库**: {{ collection_context }} ({{ collection_instruction }})
-- **网络搜索**: {{ web_status }} ({{ web_instruction }})
-- **聊天文件**: {{ chat_context }} {% if chat_instruction %}({{ chat_instruction }}){% endif %}
-
-**研究指导**:
-1. 语言优先级: 使用用户提问的语言回应，而不是内容的语言
-2. 如果用户指定了知识库（@提及），只搜索这些知识库（必需）。不要搜索其他知识库。
-3. 如果用户未指定任何知识库，自主发现并搜索相关知识库
-4. 如果有聊天文件，可以搜索聊天中上传的文件
-5. 在有益时使用多种语言的适当搜索关键词
-6. 如果启用且相关，战略性地使用网络搜索
-7. 提供全面、结构良好的回应，并清楚标注来源
-8. **重要**：引用知识库时，使用知识库名称而非ID
-
-请提供一个彻底、经过充分研究的答案，基于以上上下文充分利用所有适当的搜索工具。"""
 
 
 def build_agent_query_prompt(
@@ -413,7 +273,7 @@ class PromptTemplateService:
 
     # === User configuration management (for View layer) ===
 
-    async def get_user_prompts(self, user_id: str, language: str) -> Dict[str, Dict[str, Any]]:
+    async def get_user_prompts(self, user_id: str) -> Dict[str, Dict[str, Any]]:
         """
         Get user's prompt configuration with priority resolution.
 
@@ -425,7 +285,6 @@ class PromptTemplateService:
 
         Args:
             user_id: User ID
-            language: Language code (en-US, zh-CN)
 
         Returns:
             {
@@ -442,7 +301,7 @@ class PromptTemplateService:
 
         for prompt_type in self.PROMPT_TYPES:
             # Tier 1: User configuration
-            user_config = await self.db_ops.query_prompt_template(prompt_type, "user", user_id, language)
+            user_config = await self.db_ops.query_prompt_template(prompt_type, "user", user_id)
 
             if user_config:
                 result[prompt_type] = {
@@ -450,12 +309,11 @@ class PromptTemplateService:
                     "source": "user",
                     "customized": True,
                     "description": user_config.description,
-                    "language": language,
                 }
                 continue
 
             # Tier 2: System default
-            system_default = await self.db_ops.query_prompt_template(prompt_type, "system", None, language)
+            system_default = await self.db_ops.query_prompt_template(prompt_type, "system", None)
 
             if system_default:
                 result[prompt_type] = {
@@ -463,29 +321,26 @@ class PromptTemplateService:
                     "source": "system",
                     "customized": False,
                     "description": system_default.description,
-                    "language": language,
                 }
                 continue
 
             # Tier 3: Hardcoded default
-            hardcoded = self._get_hardcoded_prompt(prompt_type, language)
+            hardcoded = self._get_hardcoded_prompt(prompt_type)
             result[prompt_type] = {
                 "content": hardcoded,
                 "source": "hardcoded",
                 "customized": False,
                 "description": None,
-                "language": language,
             }
 
         return result
 
-    async def update_user_prompts(self, user_id: str, language: str, prompts: Dict[str, str]) -> List[str]:
+    async def update_user_prompts(self, user_id: str, prompts: Dict[str, str]) -> List[str]:
         """
         Batch update user's prompt configurations.
 
         Args:
             user_id: User ID
-            language: Language code
             prompts: Dict of {prompt_type: content}, e.g., {"agent_system": "content"}
 
         Returns:
@@ -502,23 +357,21 @@ class PromptTemplateService:
                 prompt_type=prompt_type,
                 scope="user",
                 user_id=user_id,
-                language=language,
                 content=content,
-                description=f"User default {prompt_type} ({language})",
+                description=f"User default {prompt_type}",
             )
             updated.append(prompt_type)
             logger.info(f"Updated user prompt: {prompt_type} for user {user_id}")
 
         return updated
 
-    async def delete_user_prompt(self, user_id: str, prompt_type: str, language: str) -> Dict[str, Any]:
+    async def delete_user_prompt(self, user_id: str, prompt_type: str) -> Dict[str, Any]:
         """
         Delete user's specific prompt configuration and return new effective content.
 
         Args:
             user_id: User ID
             prompt_type: Prompt type
-            language: Language code
 
         Returns:
             {
@@ -527,31 +380,26 @@ class PromptTemplateService:
               "source": "system"|"hardcoded"
             }
         """
-        # Delete user configuration
-        deleted = await self.db_ops.delete_prompt_template(prompt_type, "user", user_id, language)
+        deleted = await self.db_ops.delete_prompt_template(prompt_type, "user", user_id)
 
         if not deleted:
-            # User has not customized this prompt
             return {"deleted": False, "new_content": None, "source": None}
 
         # Get new effective content after deletion
-        # Check system default
-        system_default = await self.db_ops.query_prompt_template(prompt_type, "system", None, language)
+        system_default = await self.db_ops.query_prompt_template(prompt_type, "system", None)
 
         if system_default:
             return {"deleted": True, "new_content": system_default.content, "source": "system"}
 
-        # Fallback to hardcoded
-        hardcoded = self._get_hardcoded_prompt(prompt_type, language)
+        hardcoded = self._get_hardcoded_prompt(prompt_type)
         return {"deleted": True, "new_content": hardcoded, "source": "hardcoded"}
 
-    async def reset_user_prompts(self, user_id: str, language: str, types: Optional[List[str]] = None) -> List[str]:
+    async def reset_user_prompts(self, user_id: str, types: Optional[List[str]] = None) -> List[str]:
         """
         Batch reset user's prompt configurations.
 
         Args:
             user_id: User ID
-            language: Language code
             types: List of prompt types to reset, None means all
 
         Returns:
@@ -564,60 +412,54 @@ class PromptTemplateService:
             if prompt_type not in self.PROMPT_TYPES:
                 continue
 
-            deleted = await self.db_ops.delete_prompt_template(prompt_type, "user", user_id, language)
+            deleted = await self.db_ops.delete_prompt_template(prompt_type, "user", user_id)
             if deleted:
                 reset.append(prompt_type)
                 logger.info(f"Reset user prompt: {prompt_type} for user {user_id}")
 
         return reset
 
-    async def get_system_prompts(self, language: str, prompt_type: Optional[str] = None) -> Dict[str, Any]:
+    async def get_system_prompts(self, prompt_type: Optional[str] = None) -> Dict[str, Any]:
         """
         Get system default prompts (for reference).
 
         Args:
-            language: Language code
             prompt_type: Specific prompt type (optional)
 
         Returns:
             Single prompt or dict of all prompts
         """
         if prompt_type:
-            # Get specific system default
-            system_default = await self.db_ops.query_prompt_template(prompt_type, "system", None, language)
+            system_default = await self.db_ops.query_prompt_template(prompt_type, "system", None)
 
             if system_default:
                 return {
                     "type": prompt_type,
                     "content": system_default.content,
-                    "language": language,
                     "description": system_default.description,
                 }
 
-            # Fallback to hardcoded
-            hardcoded = self._get_hardcoded_prompt(prompt_type, language)
-            return {"type": prompt_type, "content": hardcoded, "language": language, "description": None}
+            hardcoded = self._get_hardcoded_prompt(prompt_type)
+            return {"type": prompt_type, "content": hardcoded, "description": None}
         else:
-            # Get all system defaults
             result = {}
             for pt in self.PROMPT_TYPES:
-                system_default = await self.db_ops.query_prompt_template(pt, "system", None, language)
+                system_default = await self.db_ops.query_prompt_template(pt, "system", None)
 
                 if system_default:
                     result[pt] = {
                         "content": system_default.content,
                         "description": system_default.description,
-                        "language": language,
                     }
                 else:
-                    hardcoded = self._get_hardcoded_prompt(pt, language)
-                    result[pt] = {"content": hardcoded, "description": None, "language": language}
+                    hardcoded = self._get_hardcoded_prompt(pt)
+                    result[pt] = {"content": hardcoded, "description": None}
 
             return result
 
     # === Prompt resolution (for Agent/LightRAG) ===
 
-    async def resolve_agent_system_prompt(self, bot, user_id: str, language: str) -> str:
+    async def resolve_agent_system_prompt(self, bot, user_id: str) -> str:
         """
         Resolve agent system prompt with 3-tier priority.
         Priority: Bot config > User default > System default > Hardcoded
@@ -627,7 +469,6 @@ class PromptTemplateService:
         Args:
             bot: Bot object (from database, can be None to skip bot-level config)
             user_id: User ID
-            language: Language code (en-US, zh-CN)
 
         Returns:
             Resolved system prompt content
@@ -646,7 +487,7 @@ class PromptTemplateService:
 
         # Tier 2: User default
         user_default = await self.db_ops.query_prompt_template(
-            prompt_type="agent_system", scope="user", user_id=user_id, language=language
+            prompt_type="agent_system", scope="user", user_id=user_id
         )
         if user_default:
             logger.debug(f"Using user-level default system prompt for user {user_id}")
@@ -654,20 +495,17 @@ class PromptTemplateService:
 
         # Tier 3: System default
         system_default = await self.db_ops.query_prompt_template(
-            prompt_type="agent_system", scope="system", user_id=None, language=language
+            prompt_type="agent_system", scope="system", user_id=None
         )
         if system_default:
-            logger.debug(f"Using system default system prompt (language: {language})")
+            logger.debug("Using system default system prompt")
             return system_default.content
 
         # Tier 4: Hardcoded default
-        logger.debug(f"Using hardcoded default system prompt (language: {language})")
-        if language == "zh-CN":
-            return APERAG_AGENT_INSTRUCTION_ZH
-        else:
-            return APERAG_AGENT_INSTRUCTION_EN
+        logger.debug("Using hardcoded default system prompt")
+        return APERAG_AGENT_INSTRUCTION
 
-    async def resolve_agent_query_prompt(self, bot, user_id: str, language: str) -> str:
+    async def resolve_agent_query_prompt(self, bot, user_id: str) -> str:
         """
         Resolve agent query prompt template with 3-tier priority.
         Priority: Bot config > User default > System default > Hardcoded
@@ -677,7 +515,6 @@ class PromptTemplateService:
         Args:
             bot: Bot object (from database, can be None to skip bot-level config)
             user_id: User ID
-            language: Language code (en-US, zh-CN)
 
         Returns:
             Resolved query prompt template content
@@ -695,27 +532,22 @@ class PromptTemplateService:
                 logger.warning(f"Failed to parse bot config for bot {bot.id}: {e}")
 
         # Tier 2: User default
-        user_default = await self.db_ops.query_prompt_template(
-            prompt_type="agent_query", scope="user", user_id=user_id, language=language
-        )
+        user_default = await self.db_ops.query_prompt_template(prompt_type="agent_query", scope="user", user_id=user_id)
         if user_default:
             logger.debug(f"Using user-level default query prompt for user {user_id}")
             return user_default.content
 
         # Tier 3: System default
         system_default = await self.db_ops.query_prompt_template(
-            prompt_type="agent_query", scope="system", user_id=None, language=language
+            prompt_type="agent_query", scope="system", user_id=None
         )
         if system_default:
-            logger.debug(f"Using system default query prompt (language: {language})")
+            logger.debug("Using system default query prompt")
             return system_default.content
 
         # Tier 4: Hardcoded default
-        logger.debug(f"Using hardcoded default query prompt (language: {language})")
-        if language == "zh-CN":
-            return DEFAULT_AGENT_QUERY_PROMPT_ZH
-        else:
-            return DEFAULT_AGENT_QUERY_PROMPT_EN
+        logger.debug("Using hardcoded default query prompt")
+        return DEFAULT_AGENT_QUERY_PROMPT
 
     async def resolve_index_prompt(self, collection, prompt_type: str, user_id: str) -> Optional[str]:
         """
@@ -745,18 +577,10 @@ class PromptTemplateService:
             except Exception as e:
                 logger.warning(f"Failed to parse collection config: {e}")
 
-        # Determine language from collection config
-        collection_language = "zh-CN"  # default
-        try:
-            config_dict = json.loads(collection.config) if isinstance(collection.config, str) else collection.config
-            collection_language = config_dict.get("language", "zh-CN")
-        except Exception:
-            pass
-
         # Tier 2: User default
         db_prompt_type = f"index_{prompt_type}"  # "index_graph", "index_summary", "index_vision"
         user_default = await async_db_ops.query_prompt_template(
-            prompt_type=db_prompt_type, scope="user", user_id=user_id, language=collection_language
+            prompt_type=db_prompt_type, scope="user", user_id=user_id
         )
         if user_default:
             logger.info(f"Using user-level default {prompt_type} prompt for user {user_id}")
@@ -764,7 +588,7 @@ class PromptTemplateService:
 
         # Tier 3: System default
         system_default = await async_db_ops.query_prompt_template(
-            prompt_type=db_prompt_type, scope="system", user_id=None, language=collection_language
+            prompt_type=db_prompt_type, scope="system", user_id=None
         )
         if system_default:
             logger.info(f"Using system default {prompt_type} prompt")
@@ -837,21 +661,20 @@ class PromptTemplateService:
 
     # === Internal helpers ===
 
-    def _get_hardcoded_prompt(self, prompt_type: str, language: str) -> str:
+    def _get_hardcoded_prompt(self, prompt_type: str) -> str:
         """
         Get hardcoded default prompt.
 
         Args:
             prompt_type: Prompt type
-            language: Language code
 
         Returns:
             Hardcoded prompt content
         """
         if prompt_type == "agent_system":
-            return APERAG_AGENT_INSTRUCTION_ZH if language == "zh-CN" else APERAG_AGENT_INSTRUCTION_EN
+            return APERAG_AGENT_INSTRUCTION
         elif prompt_type == "agent_query":
-            return DEFAULT_AGENT_QUERY_PROMPT_ZH if language == "zh-CN" else DEFAULT_AGENT_QUERY_PROMPT_EN
+            return DEFAULT_AGENT_QUERY_PROMPT
         elif prompt_type == "index_graph":
             return get_hardcoded_index_prompt("graph")
         elif prompt_type == "index_summary":

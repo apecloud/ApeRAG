@@ -25,23 +25,9 @@ import type { UpdateUserPromptsRequestPrompts } from './update-user-prompts-requ
 export interface UpdateUserPromptsRequest {
     /**
      * 
-     * @type {string}
-     * @memberof UpdateUserPromptsRequest
-     */
-    'language': UpdateUserPromptsRequestLanguageEnum;
-    /**
-     * 
      * @type {UpdateUserPromptsRequestPrompts}
      * @memberof UpdateUserPromptsRequest
      */
     'prompts': UpdateUserPromptsRequestPrompts;
 }
-
-export const UpdateUserPromptsRequestLanguageEnum = {
-    zh_CN: 'zh-CN',
-    en_US: 'en-US'
-} as const;
-
-export type UpdateUserPromptsRequestLanguageEnum = typeof UpdateUserPromptsRequestLanguageEnum[keyof typeof UpdateUserPromptsRequestLanguageEnum];
-
 
