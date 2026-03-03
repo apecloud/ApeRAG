@@ -93,7 +93,7 @@ const PromptCard = ({ promptType, detail, onSaved }: PromptCardProps) => {
 
       <CardContent>
         <Textarea
-          className="min-h-[260px] font-mono text-sm resize-y"
+          className="min-h-[160px] max-h-[260px] font-mono text-sm resize-y"
           value={content}
           onChange={(e) => setContent(e.target.value)}
           placeholder={detail?.content ?? ''}
