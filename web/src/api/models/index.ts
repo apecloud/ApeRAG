@@ -181,6 +181,7 @@ export * from './target-entity-data-response';
 export * from './title-generate-request';
 export * from './title-generate-response';
 export * from './update-user-prompts-request';
+export * from './update-user-prompts-request-prompts';
 export * from './update-user-prompts-response';
 export * from './upload-document-response';
 export * from './user';

@@ -29,9 +29,17 @@ router = APIRouter(tags=["prompts"])
 
 
 # Request models
+class PromptsPayload(BaseModel):
+    agent_system: Optional[str] = Field(None, description="Agent system prompt (persona definition)")
+    agent_query: Optional[str] = Field(None, description="Agent query prompt template")
+    index_graph: Optional[str] = Field(None, description="Graph index prompt for entity/relation extraction")
+    index_summary: Optional[str] = Field(None, description="Summary index prompt for document summarization")
+    index_vision: Optional[str] = Field(None, description="Vision index prompt for image content extraction")
+
+
 class UpdateUserPromptsRequest(BaseModel):
     language: str = Field(default="zh-CN", pattern="^(en-US|zh-CN)$")
-    prompts: Dict[str, str] = Field(..., description="Prompts to update, e.g., {'agent_system': 'content'}")
+    prompts: PromptsPayload = Field(..., description="Prompts to update (only provided fields will be updated)")
 
 
 class ResetPromptsRequest(BaseModel):
@@ -80,26 +88,22 @@ async def update_user_prompts(
     Only updates the prompts provided in the request body.
     Prompts not included will remain unchanged.
     """
-    # Validate prompt types
-    invalid_types = [t for t in body.prompts.keys() if t not in PromptTemplateService.PROMPT_TYPES]
-    if invalid_types:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid prompt types: {invalid_types}. Valid types: {PromptTemplateService.PROMPT_TYPES}",
-        )
+    prompts_dict = body.prompts.model_dump(exclude_none=True)
+    if not prompts_dict:
+        raise HTTPException(status_code=400, detail="No prompts provided to update")
 
-    # Validate templates (optional, can be skipped for better performance)
+    # Validate Jinja2 template syntax
     try:
-        for content in body.prompts.values():
+        for content in prompts_dict.values():
             from jinja2 import Template
 
-            Template(content)  # Quick syntax check
+            Template(content)
     except TemplateSyntaxError as e:
         raise HTTPException(status_code=400, detail=f"Template syntax error: {str(e)}")
 
     # Update via service
     updated = await prompt_template_service.update_user_prompts(
-        user_id=str(user.id), language=body.language, prompts=body.prompts
+        user_id=str(user.id), language=body.language, prompts=prompts_dict
     )
 
     return {"message": "Prompts updated successfully", "updated": updated}

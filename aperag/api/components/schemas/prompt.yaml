@@ -47,9 +47,23 @@ updateUserPromptsRequest:
       default: zh-CN
     prompts:
       type: object
-      description: Prompts to update
-      additionalProperties:
-        type: string
+      description: Prompts to update (all fields are optional, only provided fields will be updated)
+      properties:
+        agent_system:
+          type: string
+          description: Agent system prompt (persona definition)
+        agent_query:
+          type: string
+          description: Agent query prompt template
+        index_graph:
+          type: string
+          description: Graph index prompt for entity/relation extraction
+        index_summary:
+          type: string
+          description: Summary index prompt for document summarization
+        index_vision:
+          type: string
+          description: Vision index prompt for image content extraction
       example:
         agent_system: "You are a professional technical support assistant..."
         index_graph: "Extract entities from medical text..."

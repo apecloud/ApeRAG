@@ -13,6 +13,9 @@
  */
 
 
+// May contain unused imports in some cases
+// @ts-ignore
+import type { UpdateUserPromptsRequestPrompts } from './update-user-prompts-request-prompts';
 
 /**
  * 
@@ -27,11 +30,11 @@ export interface UpdateUserPromptsRequest {
      */
     'language': UpdateUserPromptsRequestLanguageEnum;
     /**
-     * Prompts to update
-     * @type {{ [key: string]: string; }}
+     * 
+     * @type {UpdateUserPromptsRequestPrompts}
      * @memberof UpdateUserPromptsRequest
      */
-    'prompts': { [key: string]: string; };
+    'prompts': UpdateUserPromptsRequestPrompts;
 }
 
 export const UpdateUserPromptsRequestLanguageEnum = {
