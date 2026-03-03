@@ -27,6 +27,7 @@ Output:
 # limitations under the License.
 
 import json
+import logging
 import os
 from datetime import datetime
 from typing import Dict, List, Any, Optional
@@ -34,6 +35,10 @@ from typing import Dict, List, Any, Optional
 import litellm
 import requests
 from litellm import model_cost
+
+# Suppress litellm's verbose warnings and debug output
+litellm.suppress_debug_info = True
+logging.getLogger("LiteLLM").setLevel(logging.ERROR)
 
 # --- Manual Override for Context Windows ---
 # For models where litellm's data might be ambiguous or incorrect,
@@ -289,10 +294,19 @@ def generate_model_specs(models, provider, mode, blocklist=None, tag_rules=None)
 def create_openai_config():
     provider = "openai"
 
-    # Define blocklists
-    completion_blocklist = []
-    embedding_blocklist = []
-    rerank_blocklist = []
+    # Define blocklists - deprecated/instruct models not in litellm's model_prices_and_context_window.json
+    completion_blocklist = [
+        "babbage-002", "davinci-002", "ft:babbage-002", "ft:davinci-002",
+        "gpt-3.5-turbo-instruct", "gpt-3.5-turbo-instruct-0914",
+    ]
+    embedding_blocklist = [
+        "babbage-002", "davinci-002", "ft:babbage-002", "ft:davinci-002",
+        "gpt-3.5-turbo-instruct", "gpt-3.5-turbo-instruct-0914",
+    ]
+    rerank_blocklist = [
+        "babbage-002", "davinci-002", "ft:babbage-002", "ft:davinci-002",
+        "gpt-3.5-turbo-instruct", "gpt-3.5-turbo-instruct-0914",
+    ]
 
     # Define tag rules
     completion_tag_rules = {
@@ -903,7 +917,13 @@ def create_openrouter_config():
     if data is None:
         try:
             if os.path.exists(openrouter_file):
+                file_mtime = os.path.getmtime(openrouter_file)
+                file_age_days = (datetime.now().timestamp() - file_mtime) / 86400
+                file_date = datetime.fromtimestamp(file_mtime).strftime('%Y-%m-%d')
                 print(f"📁 Reading OpenRouter models from local file: {openrouter_file}")
+                print(f"   (cached on {file_date}, {file_age_days:.0f} days ago)")
+                if file_age_days > 30:
+                    print(f"⚠️  Warning: local cache is {file_age_days:.0f} days old — consider refreshing via VPN or proxy")
                 with open(openrouter_file, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                 print("✅ Successfully loaded OpenRouter models from local file")
@@ -990,13 +1010,6 @@ def create_provider_config():
     Each provider function now defines its own block lists and tag rules internally.
     No need to pass parameters - block lists and tag rules are defined in each provider function.
     """
-
-    print("\n📋 Block List Usage:")
-    print("- Block lists and tag rules are now defined internally in each provider function")
-    print("- To modify block lists or tag rules, edit the provider functions directly")
-    print("- Each provider supports completion_blocklist, embedding_blocklist, and rerank_blocklist")
-    print("- Tag rules map tag names to model name patterns")
-    print()
 
     # Generate provider configurations
     result = [
@@ -1164,33 +1177,28 @@ def main():
     """Main function to generate model configuration and SQL script"""
     try:
         print("Generating model configuration data...")
-        print("\n📋 Block List Usage:")
-        print("- Block lists and tag rules are now defined internally in each provider function")
-        print("- To modify block lists or tag rules, edit the provider functions directly")
-        print("- Each provider supports completion_blocklist, embedding_blocklist, and rerank_blocklist")
-        print("- Tag rules map tag names to model name patterns")
+        print("  (Block lists and tag rules are defined internally in each provider function)")
         print()
 
         providers_data = create_provider_config()
 
-        print("Generating SQL script...")
+        print("\n📊 Summary:")
+        total_models = 0
+        for p in providers_data:
+            completion = len(p.get('completion', []))
+            embedding = len(p.get('embedding', []))
+            rerank = len(p.get('rerank', []))
+            subtotal = completion + embedding + rerank
+            total_models += subtotal
+            print(f"  {p['label']:<20} completion={completion:>4}  embedding={embedding:>3}  rerank={rerank:>3}")
+        print(f"  {'TOTAL':<20} {total_models} models across {len(providers_data)} providers")
+
+        print("\nGenerating SQL script...")
         sql_script = generate_sql_script(providers_data)
 
         save_sql_to_file(sql_script)
 
         print("✅ Model configuration SQL script generated successfully!")
-        print("\nTo execute the script:")
-        print("  psql -h <host> -U <user> -d <database> -f aperag/sql/model_configs_init.sql")
-        print("\nOr copy the contents and run in your PostgreSQL client.")
-
-        print("\n🔧 Usage Examples:")
-        print("1. To customize block lists or tag rules:")
-        print("   Edit the block list and tag rule variables in each provider function")
-        print("2. To add/remove models from block lists:")
-        print("   Modify the completion_blocklist, embedding_blocklist, or rerank_blocklist in provider functions")
-        print("3. To add/modify model tags:")
-        print("   Update the tag_rules dictionaries in provider functions")
-        print("   Example: completion_tag_rules = {'enable_for_collection': ['model1', 'model2'], 'free': ['model3']}")
 
     except Exception as e:
         print(f"❌ Error generating SQL script: {e}")
