@@ -23,7 +23,9 @@ fi
 # Check and install IK Analyzer if needed
 if ! ik_plugin_installed; then
     echo "Installing IK Analyzer..."
-    /usr/share/elasticsearch/bin/elasticsearch-plugin install -b https://get.infini.cloud/elasticsearch/analysis-ik/8.8.2
+    # Try primary URL first, fallback to GitHub release
+    /usr/share/elasticsearch/bin/elasticsearch-plugin install -b https://get.infini.cloud/elasticsearch/analysis-ik/8.8.2 \
+    || /usr/share/elasticsearch/bin/elasticsearch-plugin install -b https://github.com/infinilabs/analysis-ik/releases/download/v8.8.2/elasticsearch-analysis-ik-8.8.2.zip
     if [ "$?" -ne 0 ]; then
         echo "Failed to install IK Analyzer"
         exit 1

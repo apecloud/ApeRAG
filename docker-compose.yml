@@ -178,6 +178,9 @@ services:
   es:
     image: ${REGISTRY:-docker.io}/apecloud/elasticsearch:8.8.2
     container_name: aperag-es
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     ports:
       - "9200:9200"
     environment:
