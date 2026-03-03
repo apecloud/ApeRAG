@@ -50,7 +50,13 @@ from .base import (
     QueryParam,
     TextChunkSchema,
 )
-from .prompt import GRAPH_FIELD_SEP, PROMPTS
+from .prompt import (
+    DEFAULT_COMPLETION_DELIMITER,
+    DEFAULT_RECORD_DELIMITER,
+    DEFAULT_TUPLE_DELIMITER,
+    GRAPH_FIELD_SEP,
+    PROMPTS,
+)
 from .types import GraphNodeData, GraphNodeDataDict, MergeSuggestion
 from .utils import (
     LightRAGLogger,
@@ -654,9 +660,9 @@ async def extract_entities(
         examples = "\n".join(PROMPTS["entity_extraction_examples"])
 
     example_context_base = dict(
-        tuple_delimiter=PROMPTS["DEFAULT_TUPLE_DELIMITER"],
-        record_delimiter=PROMPTS["DEFAULT_RECORD_DELIMITER"],
-        completion_delimiter=PROMPTS["DEFAULT_COMPLETION_DELIMITER"],
+        tuple_delimiter=DEFAULT_TUPLE_DELIMITER,
+        record_delimiter=DEFAULT_RECORD_DELIMITER,
+        completion_delimiter=DEFAULT_COMPLETION_DELIMITER,
         entity_types=", ".join(entity_types),
         language=language,
     )
@@ -665,9 +671,9 @@ async def extract_entities(
 
     entity_extract_prompt = PROMPTS["entity_extraction"]
     context_base = dict(
-        tuple_delimiter=PROMPTS["DEFAULT_TUPLE_DELIMITER"],
-        record_delimiter=PROMPTS["DEFAULT_RECORD_DELIMITER"],
-        completion_delimiter=PROMPTS["DEFAULT_COMPLETION_DELIMITER"],
+        tuple_delimiter=DEFAULT_TUPLE_DELIMITER,
+        record_delimiter=DEFAULT_RECORD_DELIMITER,
+        completion_delimiter=DEFAULT_COMPLETION_DELIMITER,
         entity_types=",".join(entity_types),
         examples=examples,
         language=language,
@@ -2072,13 +2078,11 @@ async def _batch_analyze_entities_with_llm(
             entities_text += f"- Degree: {entity.degree or 0}\n\n"
 
         # Use prompt from prompts.py
-        from .prompt import PROMPTS
-
         prompt = PROMPTS["batch_merge_analysis"].format(
             entities_list=entities_text,
-            tuple_delimiter=PROMPTS["DEFAULT_TUPLE_DELIMITER"],
-            record_delimiter=PROMPTS["DEFAULT_RECORD_DELIMITER"],
-            completion_delimiter=PROMPTS["DEFAULT_COMPLETION_DELIMITER"],
+            tuple_delimiter=DEFAULT_TUPLE_DELIMITER,
+            record_delimiter=DEFAULT_RECORD_DELIMITER,
+            completion_delimiter=DEFAULT_COMPLETION_DELIMITER,
             graph_field_sep=GRAPH_FIELD_SEP,
         )
 
@@ -2132,9 +2136,7 @@ def parse_llm_merge_response(
         entity_lookup = {(entity.entity_name or entity.entity_id): entity for entity in entities_list}
 
         # Split by record delimiter
-        from .prompt import PROMPTS
-
-        records = llm_response.split(PROMPTS["DEFAULT_RECORD_DELIMITER"])
+        records = llm_response.split(DEFAULT_RECORD_DELIMITER)
 
         if lightrag_logger:
             lightrag_logger.debug(f"Parsing LLM response: found {len(records)} potential records")
@@ -2144,7 +2146,7 @@ def parse_llm_merge_response(
 
         for i, record in enumerate(records):
             record = record.strip()
-            if not record or PROMPTS["DEFAULT_COMPLETION_DELIMITER"] in record:
+            if not record or DEFAULT_COMPLETION_DELIMITER in record:
                 continue
 
             suggestion = parse_single_merge_record(record, entity_lookup, confidence_threshold, lightrag_logger)
@@ -2185,8 +2187,6 @@ def parse_single_merge_record(
         MergeSuggestion if successfully parsed and meets threshold, None otherwise
     """
     try:
-        # Import required constants and types
-        from .prompt import GRAPH_FIELD_SEP, PROMPTS
         from .types import GraphNodeData
 
         # Extract content between quotes and parentheses
@@ -2195,7 +2195,7 @@ def parse_single_merge_record(
             content = content[:-1]
 
         # Parse the content using tuple delimiter
-        parts = content.split(PROMPTS["DEFAULT_TUPLE_DELIMITER"])
+        parts = content.split(DEFAULT_TUPLE_DELIMITER)
 
         # Filter out empty parts (especially the first one if content starts with delimiter)
         parts = [part.strip() for part in parts if part.strip()]

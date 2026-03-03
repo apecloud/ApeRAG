@@ -12,7 +12,13 @@ from aperag.graph.lightrag.operate import (
     parse_llm_merge_response,
     parse_single_merge_record,
 )
-from aperag.graph.lightrag.prompt import GRAPH_FIELD_SEP, PROMPTS
+from aperag.graph.lightrag.prompt import (
+    DEFAULT_COMPLETION_DELIMITER,
+    DEFAULT_RECORD_DELIMITER,
+    DEFAULT_TUPLE_DELIMITER,
+    GRAPH_FIELD_SEP,
+    PROMPTS,
+)
 from aperag.graph.lightrag.types import GraphNodeData, MergeSuggestion
 
 
@@ -77,7 +83,7 @@ class TestParseSingleMergeRecord:
 
     def test_successful_parsing_chinese_journals(self):
         """Test successful parsing of the Chinese journal example."""
-        record = f'("merge_group"{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}中国生态农业学报{GRAPH_FIELD_SEP}Chinese Journal of Eco-Agriculture{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}0.95{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}These entities are the Chinese and English names for the same academic journal{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}中国生态农业学报{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}ORGANIZATION)'
+        record = f'("merge_group"{DEFAULT_TUPLE_DELIMITER}中国生态农业学报{GRAPH_FIELD_SEP}Chinese Journal of Eco-Agriculture{DEFAULT_TUPLE_DELIMITER}0.95{DEFAULT_TUPLE_DELIMITER}These entities are the Chinese and English names for the same academic journal{DEFAULT_TUPLE_DELIMITER}中国生态农业学报{DEFAULT_TUPLE_DELIMITER}ORGANIZATION)'
 
         result = parse_single_merge_record(
             record, self.entity_lookup, confidence_threshold=0.6, lightrag_logger=self.mock_logger
@@ -96,10 +102,8 @@ class TestParseSingleMergeRecord:
 
     def test_duplicate_entity_names_handling(self):
         """Test that duplicate entity names in LLM response are properly handled."""
-        from aperag.graph.lightrag.prompt import GRAPH_FIELD_SEP, PROMPTS
-
         # Create a record with duplicate entity names (this is the bug scenario)
-        duplicate_entity_record = f'("merge_group"{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Automotive Sales{GRAPH_FIELD_SEP}Automotive Sales{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}1.0{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}These are identical entities and should be merged to remove redundancy.{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Automotive Sales{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}category)'
+        duplicate_entity_record = f'("merge_group"{DEFAULT_TUPLE_DELIMITER}Automotive Sales{GRAPH_FIELD_SEP}Automotive Sales{DEFAULT_TUPLE_DELIMITER}1.0{DEFAULT_TUPLE_DELIMITER}These are identical entities and should be merged to remove redundancy.{DEFAULT_TUPLE_DELIMITER}Automotive Sales{DEFAULT_TUPLE_DELIMITER}category)'
 
         result = parse_single_merge_record(
             duplicate_entity_record, self.entity_lookup, confidence_threshold=0.6, lightrag_logger=self.mock_logger
@@ -114,7 +118,7 @@ class TestParseSingleMergeRecord:
 
     def test_successful_parsing_with_quotes(self):
         """Test parsing when description has quotes."""
-        record = f'("merge_group"{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Apple Inc{GRAPH_FIELD_SEP}Apple{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}0.92{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Both entities refer to the same technology company{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Apple Inc{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}ORGANIZATION)'
+        record = f'("merge_group"{DEFAULT_TUPLE_DELIMITER}Apple Inc{GRAPH_FIELD_SEP}Apple{DEFAULT_TUPLE_DELIMITER}0.92{DEFAULT_TUPLE_DELIMITER}Both entities refer to the same technology company{DEFAULT_TUPLE_DELIMITER}Apple Inc{DEFAULT_TUPLE_DELIMITER}ORGANIZATION)'
 
         result = parse_single_merge_record(
             record, self.entity_lookup, confidence_threshold=0.6, lightrag_logger=self.mock_logger
@@ -129,7 +133,7 @@ class TestParseSingleMergeRecord:
 
     def test_confidence_below_threshold(self):
         """Test rejection of suggestions below confidence threshold."""
-        record = f'("merge_group"{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Apple Inc{GRAPH_FIELD_SEP}Apple{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}0.4{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Low confidence suggestion{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Apple Inc{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}ORGANIZATION)'
+        record = f'("merge_group"{DEFAULT_TUPLE_DELIMITER}Apple Inc{GRAPH_FIELD_SEP}Apple{DEFAULT_TUPLE_DELIMITER}0.4{DEFAULT_TUPLE_DELIMITER}Low confidence suggestion{DEFAULT_TUPLE_DELIMITER}Apple Inc{DEFAULT_TUPLE_DELIMITER}ORGANIZATION)'
 
         result = parse_single_merge_record(
             record, self.entity_lookup, confidence_threshold=0.6, lightrag_logger=self.mock_logger
@@ -140,7 +144,7 @@ class TestParseSingleMergeRecord:
 
     def test_invalid_confidence_score(self):
         """Test handling of invalid confidence score."""
-        record = f'("merge_group"{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Apple Inc{GRAPH_FIELD_SEP}Apple{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}invalid_score{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Reason{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Apple Inc{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}ORGANIZATION)'
+        record = f'("merge_group"{DEFAULT_TUPLE_DELIMITER}Apple Inc{GRAPH_FIELD_SEP}Apple{DEFAULT_TUPLE_DELIMITER}invalid_score{DEFAULT_TUPLE_DELIMITER}Reason{DEFAULT_TUPLE_DELIMITER}Apple Inc{DEFAULT_TUPLE_DELIMITER}ORGANIZATION)'
 
         result = parse_single_merge_record(
             record, self.entity_lookup, confidence_threshold=0.6, lightrag_logger=self.mock_logger
@@ -151,7 +155,7 @@ class TestParseSingleMergeRecord:
 
     def test_insufficient_parts(self):
         """Test handling of records with insufficient parts."""
-        record = f'("merge_group"{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Apple Inc{GRAPH_FIELD_SEP}Apple{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}0.9{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Reason{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Apple Inc)'  # Missing parts
+        record = f'("merge_group"{DEFAULT_TUPLE_DELIMITER}Apple Inc{GRAPH_FIELD_SEP}Apple{DEFAULT_TUPLE_DELIMITER}0.9{DEFAULT_TUPLE_DELIMITER}Reason{DEFAULT_TUPLE_DELIMITER}Apple Inc)'  # Missing parts
 
         result = parse_single_merge_record(
             record, self.entity_lookup, confidence_threshold=0.6, lightrag_logger=self.mock_logger
@@ -162,7 +166,7 @@ class TestParseSingleMergeRecord:
 
     def test_entity_not_in_lookup(self):
         """Test handling when entity names are not found in lookup."""
-        record = f'("merge_group"{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Unknown Entity{GRAPH_FIELD_SEP}Apple{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}0.9{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Reason{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Apple{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}ORGANIZATION)'
+        record = f'("merge_group"{DEFAULT_TUPLE_DELIMITER}Unknown Entity{GRAPH_FIELD_SEP}Apple{DEFAULT_TUPLE_DELIMITER}0.9{DEFAULT_TUPLE_DELIMITER}Reason{DEFAULT_TUPLE_DELIMITER}Apple{DEFAULT_TUPLE_DELIMITER}ORGANIZATION)'
 
         result = parse_single_merge_record(
             record, self.entity_lookup, confidence_threshold=0.6, lightrag_logger=self.mock_logger
@@ -173,7 +177,7 @@ class TestParseSingleMergeRecord:
 
     def test_insufficient_valid_entities(self):
         """Test handling when fewer than 2 valid entities are found."""
-        record = f'("merge_group"{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Apple{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}0.9{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Reason{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Apple{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}ORGANIZATION)'  # Only one entity
+        record = f'("merge_group"{DEFAULT_TUPLE_DELIMITER}Apple{DEFAULT_TUPLE_DELIMITER}0.9{DEFAULT_TUPLE_DELIMITER}Reason{DEFAULT_TUPLE_DELIMITER}Apple{DEFAULT_TUPLE_DELIMITER}ORGANIZATION)'  # Only one entity
 
         result = parse_single_merge_record(
             record, self.entity_lookup, confidence_threshold=0.6, lightrag_logger=self.mock_logger
@@ -205,7 +209,7 @@ class TestParseSingleMergeRecord:
 
         lookup_with_comma = {**self.entity_lookup, "Company, Inc.": entity_with_comma}
 
-        record = f'("merge_group"{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Company, Inc.{GRAPH_FIELD_SEP}Apple{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}0.8{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Reason{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Company, Inc.{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}ORGANIZATION)'
+        record = f'("merge_group"{DEFAULT_TUPLE_DELIMITER}Company, Inc.{GRAPH_FIELD_SEP}Apple{DEFAULT_TUPLE_DELIMITER}0.8{DEFAULT_TUPLE_DELIMITER}Reason{DEFAULT_TUPLE_DELIMITER}Company, Inc.{DEFAULT_TUPLE_DELIMITER}ORGANIZATION)'
 
         result = parse_single_merge_record(
             record, lookup_with_comma, confidence_threshold=0.6, lightrag_logger=self.mock_logger
@@ -228,7 +232,7 @@ class TestParseSingleMergeRecord:
 
         lookup_three = {**self.entity_lookup, "Apple Corporation": entity5}
 
-        record = f'("merge_group"{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Apple Inc{GRAPH_FIELD_SEP}Apple{GRAPH_FIELD_SEP}Apple Corporation{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}0.88{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}All refer to same company{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Apple Inc{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}ORGANIZATION)'
+        record = f'("merge_group"{DEFAULT_TUPLE_DELIMITER}Apple Inc{GRAPH_FIELD_SEP}Apple{GRAPH_FIELD_SEP}Apple Corporation{DEFAULT_TUPLE_DELIMITER}0.88{DEFAULT_TUPLE_DELIMITER}All refer to same company{DEFAULT_TUPLE_DELIMITER}Apple Inc{DEFAULT_TUPLE_DELIMITER}ORGANIZATION)'
 
         result = parse_single_merge_record(
             record, lookup_three, confidence_threshold=0.6, lightrag_logger=self.mock_logger
@@ -240,7 +244,7 @@ class TestParseSingleMergeRecord:
     def test_empty_parts_filtering(self):
         """Test that empty parts are properly filtered out."""
         # This simulates the original issue where content starts with delimiter
-        record = f'("merge_group"{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Apple Inc{GRAPH_FIELD_SEP}Apple{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}0.92{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Reason{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Apple Inc{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}ORGANIZATION)'
+        record = f'("merge_group"{DEFAULT_TUPLE_DELIMITER}Apple Inc{GRAPH_FIELD_SEP}Apple{DEFAULT_TUPLE_DELIMITER}0.92{DEFAULT_TUPLE_DELIMITER}Reason{DEFAULT_TUPLE_DELIMITER}Apple Inc{DEFAULT_TUPLE_DELIMITER}ORGANIZATION)'
 
         result = parse_single_merge_record(
             record, self.entity_lookup, confidence_threshold=0.6, lightrag_logger=self.mock_logger
@@ -432,8 +436,8 @@ class TestParseLlmMergeResponse:
         """Test successful parsing of multiple merge records."""
         llm_response = f"""Here are the merge suggestions:
 
-("merge_group"{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Apple Inc{GRAPH_FIELD_SEP}Apple{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}0.92{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Both refer to same company{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Apple Inc{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}ORGANIZATION){PROMPTS["DEFAULT_RECORD_DELIMITER"]}
-("merge_group"{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Microsoft{GRAPH_FIELD_SEP}Apple{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}0.15{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Different companies{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Microsoft{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}ORGANIZATION){PROMPTS["DEFAULT_COMPLETION_DELIMITER"]}"""
+("merge_group"{DEFAULT_TUPLE_DELIMITER}Apple Inc{GRAPH_FIELD_SEP}Apple{DEFAULT_TUPLE_DELIMITER}0.92{DEFAULT_TUPLE_DELIMITER}Both refer to same company{DEFAULT_TUPLE_DELIMITER}Apple Inc{DEFAULT_TUPLE_DELIMITER}ORGANIZATION){DEFAULT_RECORD_DELIMITER}
+("merge_group"{DEFAULT_TUPLE_DELIMITER}Microsoft{GRAPH_FIELD_SEP}Apple{DEFAULT_TUPLE_DELIMITER}0.15{DEFAULT_TUPLE_DELIMITER}Different companies{DEFAULT_TUPLE_DELIMITER}Microsoft{DEFAULT_TUPLE_DELIMITER}ORGANIZATION){DEFAULT_COMPLETION_DELIMITER}"""
 
         result = parse_llm_merge_response(
             llm_response, self.entities_list, confidence_threshold=0.6, lightrag_logger=self.mock_logger
@@ -468,9 +472,9 @@ class TestParseLlmMergeResponse:
         """Test that malformed records are filtered out."""
         llm_response = f"""Here are the suggestions:
 
-("merge_group"{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Apple Inc{GRAPH_FIELD_SEP}Apple{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}0.92{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Good record{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Apple Inc{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}ORGANIZATION){PROMPTS["DEFAULT_RECORD_DELIMITER"]}
-malformed_record_without_proper_format{PROMPTS["DEFAULT_RECORD_DELIMITER"]}
-("merge_group"{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Microsoft{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}incomplete_record){PROMPTS["DEFAULT_COMPLETION_DELIMITER"]}"""
+("merge_group"{DEFAULT_TUPLE_DELIMITER}Apple Inc{GRAPH_FIELD_SEP}Apple{DEFAULT_TUPLE_DELIMITER}0.92{DEFAULT_TUPLE_DELIMITER}Good record{DEFAULT_TUPLE_DELIMITER}Apple Inc{DEFAULT_TUPLE_DELIMITER}ORGANIZATION){DEFAULT_RECORD_DELIMITER}
+malformed_record_without_proper_format{DEFAULT_RECORD_DELIMITER}
+("merge_group"{DEFAULT_TUPLE_DELIMITER}Microsoft{DEFAULT_TUPLE_DELIMITER}incomplete_record){DEFAULT_COMPLETION_DELIMITER}"""
 
         result = parse_llm_merge_response(
             llm_response, self.entities_list, confidence_threshold=0.6, lightrag_logger=self.mock_logger
@@ -484,8 +488,8 @@ malformed_record_without_proper_format{PROMPTS["DEFAULT_RECORD_DELIMITER"]}
         """Test that suggestions below confidence threshold are filtered out."""
         llm_response = f"""Suggestions:
 
-("merge_group"{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Apple Inc{GRAPH_FIELD_SEP}Apple{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}0.75{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}High confidence{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Apple Inc{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}ORGANIZATION){PROMPTS["DEFAULT_RECORD_DELIMITER"]}
-("merge_group"{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Microsoft{GRAPH_FIELD_SEP}Apple{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}0.45{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Low confidence{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Microsoft{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}ORGANIZATION){PROMPTS["DEFAULT_COMPLETION_DELIMITER"]}"""
+("merge_group"{DEFAULT_TUPLE_DELIMITER}Apple Inc{GRAPH_FIELD_SEP}Apple{DEFAULT_TUPLE_DELIMITER}0.75{DEFAULT_TUPLE_DELIMITER}High confidence{DEFAULT_TUPLE_DELIMITER}Apple Inc{DEFAULT_TUPLE_DELIMITER}ORGANIZATION){DEFAULT_RECORD_DELIMITER}
+("merge_group"{DEFAULT_TUPLE_DELIMITER}Microsoft{GRAPH_FIELD_SEP}Apple{DEFAULT_TUPLE_DELIMITER}0.45{DEFAULT_TUPLE_DELIMITER}Low confidence{DEFAULT_TUPLE_DELIMITER}Microsoft{DEFAULT_TUPLE_DELIMITER}ORGANIZATION){DEFAULT_COMPLETION_DELIMITER}"""
 
         result = parse_llm_merge_response(
             llm_response, self.entities_list, confidence_threshold=0.6, lightrag_logger=self.mock_logger
@@ -499,8 +503,8 @@ malformed_record_without_proper_format{PROMPTS["DEFAULT_RECORD_DELIMITER"]}
         """Test that entity lookup is correctly created from entities_list."""
         llm_response = f"""Here is the merge suggestion:
 
-("merge_group"{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Apple Inc{GRAPH_FIELD_SEP}Apple{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}0.85{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Same company{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}Apple Inc{PROMPTS["DEFAULT_TUPLE_DELIMITER"]}ORGANIZATION){PROMPTS["DEFAULT_RECORD_DELIMITER"]}
-{PROMPTS["DEFAULT_COMPLETION_DELIMITER"]}"""
+("merge_group"{DEFAULT_TUPLE_DELIMITER}Apple Inc{GRAPH_FIELD_SEP}Apple{DEFAULT_TUPLE_DELIMITER}0.85{DEFAULT_TUPLE_DELIMITER}Same company{DEFAULT_TUPLE_DELIMITER}Apple Inc{DEFAULT_TUPLE_DELIMITER}ORGANIZATION){DEFAULT_RECORD_DELIMITER}
+{DEFAULT_COMPLETION_DELIMITER}"""
 
         result = parse_llm_merge_response(
             llm_response, self.entities_list, confidence_threshold=0.6, lightrag_logger=self.mock_logger

@@ -22,7 +22,7 @@ import numpy
 from aperag.db.models import Collection
 from aperag.db.ops import db_ops
 from aperag.graph.lightrag import LightRAG
-from aperag.graph.lightrag.prompt import PROMPTS
+from aperag.graph.lightrag.prompt import DEFAULT_ENTITY_TYPES
 from aperag.graph.lightrag.utils import EmbeddingFunc
 from aperag.llm.embed.base_embedding import get_collection_embedding_service_sync
 from aperag.llm.llm_error_types import (
@@ -82,7 +82,7 @@ async def create_lightrag_instance(collection: Collection) -> LightRAG:
         config = parseCollectionConfig(collection.config)
         kg_config = config.knowledge_graph_config
         language = LightRAGConfig.DEFAULT_LANGUAGE
-        entity_types = PROMPTS["DEFAULT_ENTITY_TYPES"]
+        entity_types = DEFAULT_ENTITY_TYPES
 
         # Use collection-level language if available
         if config.language:

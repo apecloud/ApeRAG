@@ -69,7 +69,7 @@ from .operate import (
     extract_entities,
     merge_nodes_and_edges,
 )
-from .prompt import GRAPH_FIELD_SEP, PROMPTS
+from .prompt import DEFAULT_ENTITY_TYPES, GRAPH_FIELD_SEP
 from .types import KnowledgeGraph
 from .utils import (
     EmbeddingFunc,
@@ -228,7 +228,7 @@ class LightRAG:
     language: str = field(default="English")
     """Language for entity extraction and query responses."""
 
-    entity_types: list[str] = field(default_factory=lambda: PROMPTS["DEFAULT_ENTITY_TYPES"])
+    entity_types: list[str] = field(default_factory=lambda: DEFAULT_ENTITY_TYPES)
     """List of entity types to extract during graph indexing."""
 
     example_number: int | None = field(default=None)
