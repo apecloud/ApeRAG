@@ -1132,6 +1132,39 @@ class Setting(Base):
     gmt_deleted = Column(DateTime(timezone=True), nullable=True)
 
 
+class ExportTaskStatus(str, Enum):
+    PENDING = "PENDING"
+    PROCESSING = "PROCESSING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    EXPIRED = "EXPIRED"
+
+
+class ExportTask(Base):
+    __tablename__ = "export_task"
+    __table_args__ = (
+        Index("idx_export_task_user_status", "user", "status"),
+        Index("idx_export_task_expires", "status", "gmt_expires"),
+    )
+
+    id = Column(String(24), primary_key=True, default=lambda: "export" + random_id()[:16])
+    user = Column(String(256), nullable=False, index=True)
+    collection_id = Column(String(24), nullable=False, index=True)
+
+    status = Column(EnumColumn(ExportTaskStatus), nullable=False, default=ExportTaskStatus.PENDING)
+    progress = Column(Integer, default=0)
+    message = Column(Text, nullable=True)
+    error_message = Column(Text, nullable=True)
+
+    object_store_path = Column(Text, nullable=True)
+    file_size = Column(BigInteger, nullable=True)
+
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_completed = Column(DateTime(timezone=True), nullable=True)
+    gmt_expires = Column(DateTime(timezone=True), nullable=True)
+
+
 class PromptTemplate(Base):
     __tablename__ = "prompt_template"
 

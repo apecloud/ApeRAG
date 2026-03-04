@@ -343,6 +343,23 @@ class Local(ObjectStore):
             logger.error(f"Error during deletion of objects with prefix '{path_prefix}': {e}")
             raise IOError(f"Error during deletion of objects with prefix '{path_prefix}'") from e
 
+    def list_objects_by_prefix(self, path_prefix: str) -> list[str]:
+        normalized_prefix = path_prefix.lstrip("/").replace("\\", "/")
+        result = []
+        try:
+            for item_path in self._base_storage_path.rglob("*"):
+                if item_path.is_file():
+                    try:
+                        relative = str(item_path.relative_to(self._base_storage_path)).replace("\\", "/")
+                        if relative.startswith(normalized_prefix):
+                            result.append(relative)
+                    except ValueError:
+                        logger.debug(f"Item {item_path} not relative to {self._base_storage_path}, skipping.")
+        except Exception as e:
+            logger.error(f"Error listing objects with prefix '{path_prefix}': {e}")
+            raise IOError(f"Error listing objects with prefix '{path_prefix}'") from e
+        return result
+
 
 class AsyncLocal(AsyncObjectStore):
     """Asynchronous wrapper for the Local object store."""
@@ -412,3 +429,6 @@ class AsyncLocal(AsyncObjectStore):
 
     async def delete_objects_by_prefix(self, path_prefix: str):
         return await sync_to_async(self._sync_store.delete_objects_by_prefix)(path_prefix=path_prefix)
+
+    async def list_objects_by_prefix(self, path_prefix: str) -> list[str]:
+        return await sync_to_async(self._sync_store.list_objects_by_prefix)(path_prefix=path_prefix)

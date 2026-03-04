@@ -276,7 +276,21 @@
     "embedding_model": "嵌入模型（Embedding Model）",
     "embedding_model_description": "嵌入模型能够将数据转换为数值向量，这些向量能够捕捉数据的语义信息及其相互关系。",
     "completion_model": "补全模型（Completion Model）",
-    "completion_model_description": "补全模型能根据给定输入预测最可能的下文内容，从而生成新的文本。"
+    "completion_model_description": "补全模型能根据给定输入预测最可能的下文内容，从而生成新的文本。",
+    "export_knowledge_base": "导出知识库",
+    "export_knowledge_base_confirm_title": "导出知识库",
+    "export_knowledge_base_confirm_content": "将打包该知识库在对象存储中的全部内容，包括原始文件、解析产物、分块数据和图片。",
+    "export_knowledge_base_start": "开始导出",
+    "export_knowledge_base_processing_title": "正在导出知识库...",
+    "export_knowledge_base_progress_message": "正在下载文件：{current} / {total}",
+    "export_knowledge_base_completed_title": "导出完成！",
+    "export_knowledge_base_completed_description": "文件大小：{size}。文件将在 7 天后自动删除。",
+    "export_knowledge_base_download": "下载 ZIP",
+    "export_knowledge_base_failed_title": "导出失败",
+    "export_knowledge_base_failed_description": "导出过程中发生错误，请稍后重试。",
+    "export_knowledge_base_retry": "重试",
+    "export_knowledge_base_too_many_tasks": "已有导出任务进行中，请等待完成后重试。",
+    "export_knowledge_base_link_expired": "导出链接已过期，请重新导出。"
   },
   "page_docs": {
     "metadata": {
@@ -432,6 +446,34 @@
       "help": "清除选择将删除此场景的默认模型配置"
     }
   },
+  "page_prompts": {
+    "metadata": {
+      "title": "提示词管理",
+      "description": "自定义系统默认提示词，调整 AI 助手的行为和对话风格。修改后将覆盖系统默认配置，可随时重置恢复默认。"
+    },
+    "agent_system": {
+      "title": "系统提示词",
+      "description": "定义 AI 助手的人格、角色和行为准则，影响所有对话的基础行为。"
+    },
+    "agent_query": {
+      "title": "查询提示词",
+      "description": "每次对话的查询模板，控制如何将用户问题与知识库上下文组合后发送给 AI。"
+    },
+    "status": {
+      "customized": "已自定义",
+      "default": "使用默认"
+    },
+    "action": {
+      "save": "保存",
+      "reset": "重置为默认",
+      "reset_confirm": "确认将此提示词重置为系统默认？",
+      "reset_confirm_description": "重置后，当前自定义内容将被删除，恢复为系统内置默认提示词。"
+    },
+    "toast": {
+      "save_success": "提示词已保存",
+      "reset_success": "已重置为默认提示词"
+    }
+  },
   "page_question_set": {
     "metadata": {
       "title": "问题集管理",
@@ -467,34 +509,6 @@
     "prompt_template_tips": "以下变量将被系统替换：",
     "prompt_template_document_content": "从知识库中提取的文档内容",
     "prompt_template_number_of_question": "需要生成的问题数量"
-  },
-  "page_prompts": {
-    "metadata": {
-      "title": "提示词管理",
-      "description": "自定义系统默认提示词，调整 AI 助手的行为和对话风格。修改后将覆盖系统默认配置，可随时重置恢复默认。"
-    },
-    "agent_system": {
-      "title": "系统提示词",
-      "description": "定义 AI 助手的人格、角色和行为准则，影响所有对话的基础行为。"
-    },
-    "agent_query": {
-      "title": "查询提示词",
-      "description": "每次对话的查询模板，控制如何将用户问题与知识库上下文组合后发送给 AI。"
-    },
-    "status": {
-      "customized": "已自定义",
-      "default": "使用默认"
-    },
-    "action": {
-      "save": "保存",
-      "reset": "重置为默认",
-      "reset_confirm": "确认将此提示词重置为系统默认？",
-      "reset_confirm_description": "重置后，当前自定义内容将被删除，恢复为系统内置默认提示词。"
-    },
-    "toast": {
-      "save_success": "提示词已保存",
-      "reset_success": "已重置为默认提示词"
-    }
   },
   "page_quota": {
     "metadata": {
@@ -551,10 +565,9 @@
     "display_empty_title": "新会话",
     "more": "更多",
     "settings": "设置",
-  "models": "模型",
-  "api_keys": "API密钥",
-  "audit_logs": "审计日志",
-  "quotas": "配额",
-  "prompts": "提示词管理"
+    "models": "模型",
+    "api_keys": "API密钥",
+    "audit_logs": "审计日志",
+    "quotas": "配额"
   }
 }

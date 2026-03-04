@@ -207,6 +207,34 @@ class S3(ObjectStore):
             delete_batch = all_objects_to_delete[i : i + 1000]
             self.conn.delete_objects(Bucket=self.cfg.bucket, Delete={"Objects": delete_batch, "Quiet": True})
 
+    def list_objects_by_prefix(self, path_prefix: str) -> list[str]:
+        self._ensure_conn()
+        full_prefix = self._final_path(path_prefix)
+        prefix_strip_len = len(self._final_path("")) if self.cfg.prefix_path else 0
+        result = []
+        continuation_token = None
+
+        while True:
+            list_kwargs = {"Bucket": self.cfg.bucket, "Prefix": full_prefix}
+            if continuation_token:
+                list_kwargs["ContinuationToken"] = continuation_token
+
+            response = self.conn.list_objects_v2(**list_kwargs)
+            if "Contents" in response:
+                for obj in response["Contents"]:
+                    key = obj["Key"]
+                    if prefix_strip_len:
+                        key = key[prefix_strip_len:]
+                    result.append(key)
+
+            if not response.get("IsTruncated"):
+                break
+            continuation_token = response.get("NextContinuationToken")
+            if not continuation_token:
+                break
+
+        return result
+
 
 class AsyncS3(AsyncObjectStore):
     def __init__(self, cfg: S3Config, session: aioboto3.Session | None = None):
@@ -389,3 +417,21 @@ class AsyncS3(AsyncObjectStore):
             for i in range(0, len(all_objects_to_delete), 1000):
                 delete_batch = all_objects_to_delete[i : i + 1000]
                 await client.delete_objects(Bucket=self.cfg.bucket, Delete={"Objects": delete_batch, "Quiet": True})
+
+    async def list_objects_by_prefix(self, path_prefix: str) -> list[str]:
+        await self._ensure_conn()
+        full_prefix = self._final_path(path_prefix)
+        prefix_strip_len = len(self._final_path("")) if self.cfg.prefix_path else 0
+        result = []
+
+        async with self.session.client("s3", **self._get_client_kwargs()) as client:
+            paginator = client.get_paginator("list_objects_v2")
+            async for page in paginator.paginate(Bucket=self.cfg.bucket, Prefix=full_prefix):
+                if "Contents" in page:
+                    for obj in page["Contents"]:
+                        key = obj["Key"]
+                        if prefix_strip_len:
+                            key = key[prefix_strip_len:]
+                        result.append(key)
+
+        return result

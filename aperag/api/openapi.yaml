@@ -238,3 +238,11 @@ paths:
 
   /agent/message:
     $ref: './paths/agent.yaml'
+
+  # export
+  /collections/{collection_id}/export:
+    $ref: './paths/export.yaml#/createExportTask'
+  /export-tasks/{task_id}:
+    $ref: './paths/export.yaml#/getExportTask'
+  /export-tasks/{task_id}/download:
+    $ref: './paths/export.yaml#/downloadExport'

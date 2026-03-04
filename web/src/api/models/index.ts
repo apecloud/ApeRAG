@@ -75,6 +75,7 @@ export * from './execution-config';
 export * from './execution-config-error-handling';
 export * from './execution-config-error-handling-notification';
 export * from './execution-config-retry';
+export * from './export-task-response';
 export * from './fail-response';
 export * from './feedback';
 export * from './fulltext-search-params';

@@ -1,0 +1,52 @@
+exportTaskResponse:
+  type: object
+  required:
+    - export_task_id
+    - status
+  properties:
+    export_task_id:
+      type: string
+      description: Unique ID of the export task
+    status:
+      type: string
+      enum:
+        - PENDING
+        - PROCESSING
+        - COMPLETED
+        - FAILED
+        - EXPIRED
+      description: Current status of the export task
+    progress:
+      type: integer
+      minimum: 0
+      maximum: 100
+      description: Progress percentage (0-100)
+    message:
+      type: string
+      nullable: true
+      description: Human-readable status message
+    error_message:
+      type: string
+      nullable: true
+      description: Error detail when status is FAILED
+    download_url:
+      type: string
+      nullable: true
+      description: URL to download the ZIP file (only set when status is COMPLETED)
+    file_size:
+      type: integer
+      nullable: true
+      description: Size of the ZIP file in bytes
+    gmt_created:
+      type: string
+      format: date-time
+      nullable: true
+    gmt_completed:
+      type: string
+      format: date-time
+      nullable: true
+    gmt_expires:
+      type: string
+      format: date-time
+      nullable: true
+      description: Time when the export file will be automatically deleted (7 days after creation)

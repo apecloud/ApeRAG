@@ -90,6 +90,8 @@ import type { DocumentList } from '../models';
 // @ts-ignore
 import type { DocumentPreview } from '../models';
 // @ts-ignore
+import type { ExportTaskResponse } from '../models';
+// @ts-ignore
 import type { FailResponse } from '../models';
 // @ts-ignore
 import type { Feedback } from '../models';
@@ -2023,6 +2025,44 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             };
         },
         /**
+         * Asynchronously package all object-store files under the collection into a ZIP file. Only the collection owner can initiate an export. 
+         * @summary Create a knowledge base export task
+         * @param {string} collectionId Collection ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        createExportTask: async (collectionId: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'collectionId' is not null or undefined
+            assertParamExists('createExportTask', 'collectionId', collectionId)
+            const localVarPath = `/collections/{collection_id}/export`
+                .replace(`{${"collection_id"}}`, encodeURIComponent(String(collectionId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          * Get current default model settings for different scenarios
          * @summary Get default model configurations
          * @param {*} [options] Override http request option.
@@ -2082,6 +2122,44 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
             localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
             localVarRequestOptions.data = serializeDataIfNeeded(defaultModelsUpdateRequest, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Stream the completed export ZIP file to the client.
+         * @summary Download export ZIP
+         * @param {string} taskId Export task ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        downloadExport: async (taskId: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'taskId' is not null or undefined
+            assertParamExists('downloadExport', 'taskId', taskId)
+            const localVarPath = `/export-tasks/{task_id}/download`
+                .replace(`{${"task_id"}}`, encodeURIComponent(String(taskId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
 
             return {
                 url: toPathString(localVarUrlObj),
@@ -2153,6 +2231,44 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             const localVarPath = `/collections/{collection_id}/documents/{document_id}/preview`
                 .replace(`{${"collection_id"}}`, encodeURIComponent(String(collectionId)))
                 .replace(`{${"document_id"}}`, encodeURIComponent(String(documentId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Query the status and progress of an export task.
+         * @summary Get export task status
+         * @param {string} taskId Export task ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getExportTask: async (taskId: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'taskId' is not null or undefined
+            assertParamExists('getExportTask', 'taskId', taskId)
+            const localVarPath = `/export-tasks/{task_id}`
+                .replace(`{${"task_id"}}`, encodeURIComponent(String(taskId)));
             // use dummy base URL string because the URL constructor only accepts absolute URLs.
             const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
             let baseOptions;
@@ -4208,6 +4324,19 @@ export const DefaultApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Asynchronously package all object-store files under the collection into a ZIP file. Only the collection owner can initiate an export. 
+         * @summary Create a knowledge base export task
+         * @param {string} collectionId Collection ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async createExportTask(collectionId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ExportTaskResponse>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.createExportTask(collectionId, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.createExportTask']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Get current default model settings for different scenarios
          * @summary Get default model configurations
          * @param {*} [options] Override http request option.
@@ -4230,6 +4359,19 @@ export const DefaultApiFp = function(configuration?: Configuration) {
             const localVarAxiosArgs = await localVarAxiosParamCreator.defaultModelsPut(defaultModelsUpdateRequest, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['DefaultApi.defaultModelsPut']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Stream the completed export ZIP file to the client.
+         * @summary Download export ZIP
+         * @param {string} taskId Export task ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async downloadExport(taskId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<File>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.downloadExport(taskId, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.downloadExport']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
@@ -4259,6 +4401,19 @@ export const DefaultApiFp = function(configuration?: Configuration) {
             const localVarAxiosArgs = await localVarAxiosParamCreator.getDocumentPreview(collectionId, documentId, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['DefaultApi.getDocumentPreview']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Query the status and progress of an export task.
+         * @summary Get export task status
+         * @param {string} taskId Export task ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async getExportTask(taskId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ExportTaskResponse>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.getExportTask(taskId, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.getExportTask']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
@@ -5220,6 +5375,16 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
             return localVarFp.configGet(options).then((request) => request(axios, basePath));
         },
         /**
+         * Asynchronously package all object-store files under the collection into a ZIP file. Only the collection owner can initiate an export. 
+         * @summary Create a knowledge base export task
+         * @param {DefaultApiCreateExportTaskRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        createExportTask(requestParameters: DefaultApiCreateExportTaskRequest, options?: RawAxiosRequestConfig): AxiosPromise<ExportTaskResponse> {
+            return localVarFp.createExportTask(requestParameters.collectionId, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Get current default model settings for different scenarios
          * @summary Get default model configurations
          * @param {*} [options] Override http request option.
@@ -5237,6 +5402,16 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
          */
         defaultModelsPut(requestParameters: DefaultApiDefaultModelsPutRequest, options?: RawAxiosRequestConfig): AxiosPromise<DefaultModelsResponse> {
             return localVarFp.defaultModelsPut(requestParameters.defaultModelsUpdateRequest, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Stream the completed export ZIP file to the client.
+         * @summary Download export ZIP
+         * @param {DefaultApiDownloadExportRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        downloadExport(requestParameters: DefaultApiDownloadExportRequest, options?: RawAxiosRequestConfig): AxiosPromise<File> {
+            return localVarFp.downloadExport(requestParameters.taskId, options).then((request) => request(axios, basePath));
         },
         /**
          * Get an object from a specific document
@@ -5257,6 +5432,16 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
          */
         getDocumentPreview(requestParameters: DefaultApiGetDocumentPreviewRequest, options?: RawAxiosRequestConfig): AxiosPromise<DocumentPreview> {
             return localVarFp.getDocumentPreview(requestParameters.collectionId, requestParameters.documentId, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Query the status and progress of an export task.
+         * @summary Get export task status
+         * @param {DefaultApiGetExportTaskRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getExportTask(requestParameters: DefaultApiGetExportTaskRequest, options?: RawAxiosRequestConfig): AxiosPromise<ExportTaskResponse> {
+            return localVarFp.getExportTask(requestParameters.taskId, options).then((request) => request(axios, basePath));
         },
         /**
          * Get an object from a specific document in a subscribed Collection (read-only mode)
@@ -6080,6 +6265,16 @@ export interface DefaultApiInterface {
     configGet(options?: RawAxiosRequestConfig): AxiosPromise<Config>;
 
     /**
+     * Asynchronously package all object-store files under the collection into a ZIP file. Only the collection owner can initiate an export. 
+     * @summary Create a knowledge base export task
+     * @param {DefaultApiCreateExportTaskRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    createExportTask(requestParameters: DefaultApiCreateExportTaskRequest, options?: RawAxiosRequestConfig): AxiosPromise<ExportTaskResponse>;
+
+    /**
      * Get current default model settings for different scenarios
      * @summary Get default model configurations
      * @param {*} [options] Override http request option.
@@ -6097,6 +6292,16 @@ export interface DefaultApiInterface {
      * @memberof DefaultApiInterface
      */
     defaultModelsPut(requestParameters: DefaultApiDefaultModelsPutRequest, options?: RawAxiosRequestConfig): AxiosPromise<DefaultModelsResponse>;
+
+    /**
+     * Stream the completed export ZIP file to the client.
+     * @summary Download export ZIP
+     * @param {DefaultApiDownloadExportRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    downloadExport(requestParameters: DefaultApiDownloadExportRequest, options?: RawAxiosRequestConfig): AxiosPromise<File>;
 
     /**
      * Get an object from a specific document
@@ -6117,6 +6322,16 @@ export interface DefaultApiInterface {
      * @memberof DefaultApiInterface
      */
     getDocumentPreview(requestParameters: DefaultApiGetDocumentPreviewRequest, options?: RawAxiosRequestConfig): AxiosPromise<DocumentPreview>;
+
+    /**
+     * Query the status and progress of an export task.
+     * @summary Get export task status
+     * @param {DefaultApiGetExportTaskRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    getExportTask(requestParameters: DefaultApiGetExportTaskRequest, options?: RawAxiosRequestConfig): AxiosPromise<ExportTaskResponse>;
 
     /**
      * Get an object from a specific document in a subscribed Collection (read-only mode)
@@ -7335,6 +7550,20 @@ export interface DefaultApiCollectionsPostRequest {
 }
 
 /**
+ * Request parameters for createExportTask operation in DefaultApi.
+ * @export
+ * @interface DefaultApiCreateExportTaskRequest
+ */
+export interface DefaultApiCreateExportTaskRequest {
+    /**
+     * Collection ID
+     * @type {string}
+     * @memberof DefaultApiCreateExportTask
+     */
+    readonly collectionId: string
+}
+
+/**
  * Request parameters for defaultModelsPut operation in DefaultApi.
  * @export
  * @interface DefaultApiDefaultModelsPutRequest
@@ -7346,6 +7575,20 @@ export interface DefaultApiDefaultModelsPutRequest {
      * @memberof DefaultApiDefaultModelsPut
      */
     readonly defaultModelsUpdateRequest: DefaultModelsUpdateRequest
+}
+
+/**
+ * Request parameters for downloadExport operation in DefaultApi.
+ * @export
+ * @interface DefaultApiDownloadExportRequest
+ */
+export interface DefaultApiDownloadExportRequest {
+    /**
+     * Export task ID
+     * @type {string}
+     * @memberof DefaultApiDownloadExport
+     */
+    readonly taskId: string
 }
 
 /**
@@ -7395,6 +7638,20 @@ export interface DefaultApiGetDocumentPreviewRequest {
      * @memberof DefaultApiGetDocumentPreview
      */
     readonly documentId: string
+}
+
+/**
+ * Request parameters for getExportTask operation in DefaultApi.
+ * @export
+ * @interface DefaultApiGetExportTaskRequest
+ */
+export interface DefaultApiGetExportTaskRequest {
+    /**
+     * Export task ID
+     * @type {string}
+     * @memberof DefaultApiGetExportTask
+     */
+    readonly taskId: string
 }
 
 /**
@@ -8533,6 +8790,18 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
     }
 
     /**
+     * Asynchronously package all object-store files under the collection into a ZIP file. Only the collection owner can initiate an export. 
+     * @summary Create a knowledge base export task
+     * @param {DefaultApiCreateExportTaskRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public createExportTask(requestParameters: DefaultApiCreateExportTaskRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).createExportTask(requestParameters.collectionId, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
      * Get current default model settings for different scenarios
      * @summary Get default model configurations
      * @param {*} [options] Override http request option.
@@ -8553,6 +8822,18 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
      */
     public defaultModelsPut(requestParameters: DefaultApiDefaultModelsPutRequest, options?: RawAxiosRequestConfig) {
         return DefaultApiFp(this.configuration).defaultModelsPut(requestParameters.defaultModelsUpdateRequest, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Stream the completed export ZIP file to the client.
+     * @summary Download export ZIP
+     * @param {DefaultApiDownloadExportRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public downloadExport(requestParameters: DefaultApiDownloadExportRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).downloadExport(requestParameters.taskId, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
@@ -8577,6 +8858,18 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
      */
     public getDocumentPreview(requestParameters: DefaultApiGetDocumentPreviewRequest, options?: RawAxiosRequestConfig) {
         return DefaultApiFp(this.configuration).getDocumentPreview(requestParameters.collectionId, requestParameters.documentId, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Query the status and progress of an export task.
+     * @summary Get export task status
+     * @param {DefaultApiGetExportTaskRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public getExportTask(requestParameters: DefaultApiGetExportTaskRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).getExportTask(requestParameters.taskId, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

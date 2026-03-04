@@ -73,5 +73,20 @@
   "embedding_model_description": "An embedding model translates data into numerical vectors that capture their semantic meaning and relationships.",
 
   "completion_model": "Completion Model",
-  "completion_model_description": "A completion model is an AI that generates new content by predicting the most likely subsequent text based on a given input."
+  "completion_model_description": "A completion model is an AI that generates new content by predicting the most likely subsequent text based on a given input.",
+
+  "export_knowledge_base": "Export Knowledge Base",
+  "export_knowledge_base_confirm_title": "Export Knowledge Base",
+  "export_knowledge_base_confirm_content": "This will package all contents of this knowledge base from object storage, including original files, parsed artifacts, chunk data, and images.",
+  "export_knowledge_base_start": "Start Export",
+  "export_knowledge_base_processing_title": "Exporting Knowledge Base...",
+  "export_knowledge_base_progress_message": "Downloading files: {current} / {total}",
+  "export_knowledge_base_completed_title": "Export Complete!",
+  "export_knowledge_base_completed_description": "File size: {size}. The file will be automatically deleted after 7 days.",
+  "export_knowledge_base_download": "Download ZIP",
+  "export_knowledge_base_failed_title": "Export Failed",
+  "export_knowledge_base_failed_description": "An error occurred during export. Please try again.",
+  "export_knowledge_base_retry": "Retry",
+  "export_knowledge_base_too_many_tasks": "An export task is already in progress. Please wait for it to complete.",
+  "export_knowledge_base_link_expired": "The export link has expired. Please export again."
 }

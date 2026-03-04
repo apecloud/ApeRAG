@@ -24,8 +24,10 @@ import { useCollectionContext } from '@/components/providers/collection-provider
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { apiClient } from '@/lib/api/client';
+import { CollectionExport } from '@/components/collections/export-dialog';
 import {
   Calendar,
+  Download,
   EllipsisVertical,
   Files,
   FlaskConical,
@@ -154,6 +156,17 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
                         </div>
                       </DropdownMenuItem>
                     )}
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+
+                {share && (
+                  <>
+                    <CollectionExport collectionId={collection.id ?? ''}>
+                      <DropdownMenuItem>
+                        <Download /> {page_collections('export_knowledge_base')}
+                      </DropdownMenuItem>
+                    </CollectionExport>
                     <DropdownMenuSeparator />
                   </>
                 )}

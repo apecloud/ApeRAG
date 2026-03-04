@@ -73,5 +73,20 @@
   "embedding_model_description": "嵌入模型能够将数据转换为数值向量，这些向量能够捕捉数据的语义信息及其相互关系。",
 
   "completion_model": "补全模型（Completion Model）",
-  "completion_model_description": "补全模型能根据给定输入预测最可能的下文内容，从而生成新的文本。"
+  "completion_model_description": "补全模型能根据给定输入预测最可能的下文内容，从而生成新的文本。",
+
+  "export_knowledge_base": "导出知识库",
+  "export_knowledge_base_confirm_title": "导出知识库",
+  "export_knowledge_base_confirm_content": "将打包该知识库在对象存储中的全部内容，包括原始文件、解析产物、分块数据和图片。",
+  "export_knowledge_base_start": "开始导出",
+  "export_knowledge_base_processing_title": "正在导出知识库...",
+  "export_knowledge_base_progress_message": "正在下载文件：{current} / {total}",
+  "export_knowledge_base_completed_title": "导出完成！",
+  "export_knowledge_base_completed_description": "文件大小：{size}。文件将在 7 天后自动删除。",
+  "export_knowledge_base_download": "下载 ZIP",
+  "export_knowledge_base_failed_title": "导出失败",
+  "export_knowledge_base_failed_description": "导出过程中发生错误，请稍后重试。",
+  "export_knowledge_base_retry": "重试",
+  "export_knowledge_base_too_many_tasks": "已有导出任务进行中，请等待完成后重试。",
+  "export_knowledge_base_link_expired": "导出链接已过期，请重新导出。"
 }

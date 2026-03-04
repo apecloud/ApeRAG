@@ -1,0 +1,110 @@
+createExportTask:
+  post:
+    summary: Create a knowledge base export task
+    description: |
+      Asynchronously package all object-store files under the collection into a ZIP file.
+      Only the collection owner can initiate an export.
+    operationId: createExportTask
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: collection_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Collection ID
+    responses:
+      '202':
+        description: Export task created and queued
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/export.yaml#/exportTaskResponse'
+      '403':
+        description: Permission denied (not collection owner)
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Collection not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '429':
+        description: Too many concurrent export tasks
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+
+getExportTask:
+  get:
+    summary: Get export task status
+    description: Query the status and progress of an export task.
+    operationId: getExportTask
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: task_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Export task ID
+    responses:
+      '200':
+        description: Export task details
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/export.yaml#/exportTaskResponse'
+      '404':
+        description: Export task not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+
+downloadExport:
+  get:
+    summary: Download export ZIP
+    description: Stream the completed export ZIP file to the client.
+    operationId: downloadExport
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: task_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Export task ID
+    responses:
+      '200':
+        description: ZIP file stream
+        content:
+          application/zip:
+            schema:
+              type: string
+              format: binary
+      '400':
+        description: Export task is not ready for download
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Export task not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '410':
+        description: Export file has expired
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'

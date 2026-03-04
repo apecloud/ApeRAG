@@ -111,6 +111,19 @@ class ObjectStore(ABC):
         """
         ...
 
+    @abstractmethod
+    def list_objects_by_prefix(self, path_prefix: str) -> list[str]:
+        """
+        Lists all object paths that start with the given prefix.
+
+        Args:
+            path_prefix: The prefix to match.
+
+        Returns:
+            A list of object paths (relative to the store root) that match the prefix.
+        """
+        ...
+
 
 class AsyncObjectStore(ABC):
     """Abstract base class for asynchronous object storage operations."""
@@ -205,6 +218,19 @@ class AsyncObjectStore(ABC):
 
         Args:
             path_prefix: The prefix to match for deletion.
+        """
+        ...
+
+    @abstractmethod
+    async def list_objects_by_prefix(self, path_prefix: str) -> list[str]:
+        """
+        Asynchronously lists all object paths that start with the given prefix.
+
+        Args:
+            path_prefix: The prefix to match.
+
+        Returns:
+            A list of object paths (relative to the store root) that match the prefix.
         """
         ...
 

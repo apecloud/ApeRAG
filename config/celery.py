@@ -35,7 +35,7 @@ app.conf.update(
     task_send_sent_event=settings.celery_task_send_sent_event,
     task_track_started=settings.celery_task_track_started,
     # Auto-discover tasks in the aperag.tasks package
-    include=['config.celery_tasks'],
+    include=['config.celery_tasks', 'config.export_tasks'],
     # Enable detailed logging for celery workers - let our custom config handle formatting
     worker_log_format='[%(asctime)s: %(levelname)s/%(processName)s] %(name)s - %(message)s',
     worker_task_log_format='[%(asctime)s: %(levelname)s/%(processName)s] %(name)s - %(message)s',

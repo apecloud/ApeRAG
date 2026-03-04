@@ -276,7 +276,21 @@
     "embedding_model": "Embedding Model",
     "embedding_model_description": "An embedding model translates data into numerical vectors that capture their semantic meaning and relationships.",
     "completion_model": "Completion Model",
-    "completion_model_description": "A completion model is an AI that generates new content by predicting the most likely subsequent text based on a given input."
+    "completion_model_description": "A completion model is an AI that generates new content by predicting the most likely subsequent text based on a given input.",
+    "export_knowledge_base": "Export Knowledge Base",
+    "export_knowledge_base_confirm_title": "Export Knowledge Base",
+    "export_knowledge_base_confirm_content": "This will package all contents of this knowledge base from object storage, including original files, parsed artifacts, chunk data, and images.",
+    "export_knowledge_base_start": "Start Export",
+    "export_knowledge_base_processing_title": "Exporting Knowledge Base...",
+    "export_knowledge_base_progress_message": "Downloading files: {current} / {total}",
+    "export_knowledge_base_completed_title": "Export Complete!",
+    "export_knowledge_base_completed_description": "File size: {size}. The file will be automatically deleted after 7 days.",
+    "export_knowledge_base_download": "Download ZIP",
+    "export_knowledge_base_failed_title": "Export Failed",
+    "export_knowledge_base_failed_description": "An error occurred during export. Please try again.",
+    "export_knowledge_base_retry": "Retry",
+    "export_knowledge_base_too_many_tasks": "An export task is already in progress. Please wait for it to complete.",
+    "export_knowledge_base_link_expired": "The export link has expired. Please export again."
   },
   "page_docs": {
     "metadata": {
@@ -429,6 +443,34 @@
       "help": "Clearing selection will delete the default model configuration for this scenario"
     }
   },
+  "page_prompts": {
+    "metadata": {
+      "title": "Prompt Management",
+      "description": "Customize system prompts to adjust the AI assistant's behavior and conversation style. Changes override system defaults and can be reset at any time."
+    },
+    "agent_system": {
+      "title": "System Prompt",
+      "description": "Defines the AI assistant's persona, role, and behavioral guidelines. Affects the base behavior across all conversations."
+    },
+    "agent_query": {
+      "title": "Query Prompt",
+      "description": "The query template for each conversation. Controls how user questions and knowledge base context are combined before being sent to the AI."
+    },
+    "status": {
+      "customized": "Customized",
+      "default": "Using Default"
+    },
+    "action": {
+      "save": "Save",
+      "reset": "Reset to Default",
+      "reset_confirm": "Reset this prompt to system default?",
+      "reset_confirm_description": "This will delete your customization and restore the built-in system default prompt."
+    },
+    "toast": {
+      "save_success": "Prompt saved successfully",
+      "reset_success": "Prompt reset to default"
+    }
+  },
   "page_question_set": {
     "metadata": {
       "title": "Question Sets"
@@ -463,34 +505,6 @@
     "prompt_template_tips": "The following variables will be replaced by the system:",
     "prompt_template_document_content": "The content of the document from the collection.",
     "prompt_template_number_of_question": "The number of questions to be generated."
-  },
-  "page_prompts": {
-    "metadata": {
-      "title": "Prompt Management",
-      "description": "Customize system prompts to adjust the AI assistant's behavior and conversation style. Changes override system defaults and can be reset at any time."
-    },
-    "agent_system": {
-      "title": "System Prompt",
-      "description": "Defines the AI assistant's persona, role, and behavioral guidelines. Affects the base behavior across all conversations."
-    },
-    "agent_query": {
-      "title": "Query Prompt",
-      "description": "The query template for each conversation. Controls how user questions and knowledge base context are combined before being sent to the AI."
-    },
-    "status": {
-      "customized": "Customized",
-      "default": "Using Default"
-    },
-    "action": {
-      "save": "Save",
-      "reset": "Reset to Default",
-      "reset_confirm": "Reset this prompt to system default?",
-      "reset_confirm_description": "This will delete your customization and restore the built-in system default prompt."
-    },
-    "toast": {
-      "save_success": "Prompt saved successfully",
-      "reset_success": "Prompt reset to default"
-    }
   },
   "page_quota": {
     "metadata": {
@@ -550,7 +564,6 @@
     "models": "Models",
     "api_keys": "API Keys",
     "audit_logs": "Audit Logs",
-    "quotas": "Quotas",
-    "prompts": "Prompt Management"
+    "quotas": "Quotas"
   }
 }
