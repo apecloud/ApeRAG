@@ -13,5 +13,6 @@
   "models": "模型",
   "api_keys": "API密钥",
   "audit_logs": "审计日志",
-  "quotas": "配额"
+  "quotas": "配额",
+  "prompts": "提示词"
 }

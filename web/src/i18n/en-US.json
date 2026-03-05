@@ -564,6 +564,7 @@
     "models": "Models",
     "api_keys": "API Keys",
     "audit_logs": "Audit Logs",
-    "quotas": "Quotas"
+    "quotas": "Quotas",
+    "prompts": "Prompts"
   }
 }
