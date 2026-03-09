@@ -102,10 +102,13 @@ export const UrlImport = ({ onSuccess }: Props) => {
     setResults(null);
 
     try {
-      const res = await apiClient.defaultApi.collectionsCollectionIdDocumentsFetchUrlPost({
-        collectionId: collection.id,
-        fetchUrlRequest: { urls },
-      });
+      const res = await apiClient.defaultApi.collectionsCollectionIdDocumentsFetchUrlPost(
+        {
+          collectionId: collection.id,
+          fetchUrlRequest: { urls },
+        },
+        { timeout: 1000 * 60 },
+      );
 
       const fetchResults: UrlImportResult[] = (res.data.results as FetchUrlResultItem[]).map(
         (item) => ({
