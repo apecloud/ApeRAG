@@ -654,7 +654,10 @@ export const DocumentUpload = () => {
           <UrlImport
             onSuccess={(results) => {
               handleUrlImportSuccess(results);
-              setUrlDialogOpen(false);
+              // Only auto-close when every URL succeeded; keep open on partial failure
+              // so the user can read the error details before dismissing.
+              const hasFailures = results.some((r) => r.fetch_status === 'error');
+              if (!hasFailures) setUrlDialogOpen(false);
             }}
           />
         </DialogContent>
