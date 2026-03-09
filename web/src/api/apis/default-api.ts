@@ -96,6 +96,10 @@ import type { FailResponse } from '../models';
 // @ts-ignore
 import type { Feedback } from '../models';
 // @ts-ignore
+import type { FetchUrlRequest } from '../models';
+// @ts-ignore
+import type { FetchUrlResponse } from '../models';
+// @ts-ignore
 import type { Invitation } from '../models';
 // @ts-ignore
 import type { InvitationCreate } from '../models';
@@ -157,6 +161,8 @@ import type { SharedCollection } from '../models';
 import type { SharedCollectionList } from '../models';
 // @ts-ignore
 import type { SharingStatusResponse } from '../models';
+// @ts-ignore
+import type { StagedDocumentsResponse } from '../models';
 // @ts-ignore
 import type { TagFilterRequest } from '../models';
 // @ts-ignore
@@ -1302,6 +1308,50 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             };
         },
         /**
+         * Fetch web page content from one or more URLs and create UPLOADED documents. Each URL is fetched using the web read service (JINA with Trafilatura fallback). Successfully fetched URLs produce UPLOADED documents in the staging area, identical to file uploads. Use the confirm endpoint to move them to PENDING and start indexing. 
+         * @summary Fetch documents from URLs
+         * @param {string} collectionId 
+         * @param {FetchUrlRequest} fetchUrlRequest 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        collectionsCollectionIdDocumentsFetchUrlPost: async (collectionId: string, fetchUrlRequest: FetchUrlRequest, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'collectionId' is not null or undefined
+            assertParamExists('collectionsCollectionIdDocumentsFetchUrlPost', 'collectionId', collectionId)
+            // verify required parameter 'fetchUrlRequest' is not null or undefined
+            assertParamExists('collectionsCollectionIdDocumentsFetchUrlPost', 'fetchUrlRequest', fetchUrlRequest)
+            const localVarPath = `/collections/{collection_id}/documents/fetch-url`
+                .replace(`{${"collection_id"}}`, encodeURIComponent(String(collectionId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+    
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(fetchUrlRequest, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          * Get a paginated list of documents with sorting and search capabilities
          * @summary List documents
          * @param {string} collectionId 
@@ -1402,6 +1452,44 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
             localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
             localVarRequestOptions.data = serializeDataIfNeeded(documentCreate, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Returns all UPLOADED (staged) documents for the collection that are awaiting confirmation.
+         * @summary List staged documents
+         * @param {string} collectionId 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        collectionsCollectionIdDocumentsStagedGet: async (collectionId: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'collectionId' is not null or undefined
+            assertParamExists('collectionsCollectionIdDocumentsStagedGet', 'collectionId', collectionId)
+            const localVarPath = `/collections/{collection_id}/documents/staged`
+                .replace(`{${"collection_id"}}`, encodeURIComponent(String(collectionId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
 
             return {
                 url: toPathString(localVarUrlObj),
@@ -4090,6 +4178,20 @@ export const DefaultApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Fetch web page content from one or more URLs and create UPLOADED documents. Each URL is fetched using the web read service (JINA with Trafilatura fallback). Successfully fetched URLs produce UPLOADED documents in the staging area, identical to file uploads. Use the confirm endpoint to move them to PENDING and start indexing. 
+         * @summary Fetch documents from URLs
+         * @param {string} collectionId 
+         * @param {FetchUrlRequest} fetchUrlRequest 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async collectionsCollectionIdDocumentsFetchUrlPost(collectionId: string, fetchUrlRequest: FetchUrlRequest, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<FetchUrlResponse>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.collectionsCollectionIdDocumentsFetchUrlPost(collectionId, fetchUrlRequest, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.collectionsCollectionIdDocumentsFetchUrlPost']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Get a paginated list of documents with sorting and search capabilities
          * @summary List documents
          * @param {string} collectionId 
@@ -4119,6 +4221,19 @@ export const DefaultApiFp = function(configuration?: Configuration) {
             const localVarAxiosArgs = await localVarAxiosParamCreator.collectionsCollectionIdDocumentsPost(collectionId, documentCreate, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['DefaultApi.collectionsCollectionIdDocumentsPost']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Returns all UPLOADED (staged) documents for the collection that are awaiting confirmation.
+         * @summary List staged documents
+         * @param {string} collectionId 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async collectionsCollectionIdDocumentsStagedGet(collectionId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<StagedDocumentsResponse>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.collectionsCollectionIdDocumentsStagedGet(collectionId, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.collectionsCollectionIdDocumentsStagedGet']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
@@ -5206,6 +5321,16 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
             return localVarFp.collectionsCollectionIdDocumentsDocumentIdRebuildIndexesPost(requestParameters.collectionId, requestParameters.documentId, requestParameters.rebuildIndexesRequest, options).then((request) => request(axios, basePath));
         },
         /**
+         * Fetch web page content from one or more URLs and create UPLOADED documents. Each URL is fetched using the web read service (JINA with Trafilatura fallback). Successfully fetched URLs produce UPLOADED documents in the staging area, identical to file uploads. Use the confirm endpoint to move them to PENDING and start indexing. 
+         * @summary Fetch documents from URLs
+         * @param {DefaultApiCollectionsCollectionIdDocumentsFetchUrlPostRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        collectionsCollectionIdDocumentsFetchUrlPost(requestParameters: DefaultApiCollectionsCollectionIdDocumentsFetchUrlPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<FetchUrlResponse> {
+            return localVarFp.collectionsCollectionIdDocumentsFetchUrlPost(requestParameters.collectionId, requestParameters.fetchUrlRequest, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Get a paginated list of documents with sorting and search capabilities
          * @summary List documents
          * @param {DefaultApiCollectionsCollectionIdDocumentsGetRequest} requestParameters Request parameters.
@@ -5224,6 +5349,16 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
          */
         collectionsCollectionIdDocumentsPost(requestParameters: DefaultApiCollectionsCollectionIdDocumentsPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<DocumentList> {
             return localVarFp.collectionsCollectionIdDocumentsPost(requestParameters.collectionId, requestParameters.documentCreate, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Returns all UPLOADED (staged) documents for the collection that are awaiting confirmation.
+         * @summary List staged documents
+         * @param {DefaultApiCollectionsCollectionIdDocumentsStagedGetRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        collectionsCollectionIdDocumentsStagedGet(requestParameters: DefaultApiCollectionsCollectionIdDocumentsStagedGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<StagedDocumentsResponse> {
+            return localVarFp.collectionsCollectionIdDocumentsStagedGet(requestParameters.collectionId, options).then((request) => request(axios, basePath));
         },
         /**
          * Upload a single document file to temporary storage (UPLOADED status)
@@ -6096,6 +6231,16 @@ export interface DefaultApiInterface {
     collectionsCollectionIdDocumentsDocumentIdRebuildIndexesPost(requestParameters: DefaultApiCollectionsCollectionIdDocumentsDocumentIdRebuildIndexesPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<void>;
 
     /**
+     * Fetch web page content from one or more URLs and create UPLOADED documents. Each URL is fetched using the web read service (JINA with Trafilatura fallback). Successfully fetched URLs produce UPLOADED documents in the staging area, identical to file uploads. Use the confirm endpoint to move them to PENDING and start indexing. 
+     * @summary Fetch documents from URLs
+     * @param {DefaultApiCollectionsCollectionIdDocumentsFetchUrlPostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    collectionsCollectionIdDocumentsFetchUrlPost(requestParameters: DefaultApiCollectionsCollectionIdDocumentsFetchUrlPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<FetchUrlResponse>;
+
+    /**
      * Get a paginated list of documents with sorting and search capabilities
      * @summary List documents
      * @param {DefaultApiCollectionsCollectionIdDocumentsGetRequest} requestParameters Request parameters.
@@ -6114,6 +6259,16 @@ export interface DefaultApiInterface {
      * @memberof DefaultApiInterface
      */
     collectionsCollectionIdDocumentsPost(requestParameters: DefaultApiCollectionsCollectionIdDocumentsPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<DocumentList>;
+
+    /**
+     * Returns all UPLOADED (staged) documents for the collection that are awaiting confirmation.
+     * @summary List staged documents
+     * @param {DefaultApiCollectionsCollectionIdDocumentsStagedGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    collectionsCollectionIdDocumentsStagedGet(requestParameters: DefaultApiCollectionsCollectionIdDocumentsStagedGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<StagedDocumentsResponse>;
 
     /**
      * Upload a single document file to temporary storage (UPLOADED status)
@@ -7228,6 +7383,27 @@ export interface DefaultApiCollectionsCollectionIdDocumentsDocumentIdRebuildInde
 }
 
 /**
+ * Request parameters for collectionsCollectionIdDocumentsFetchUrlPost operation in DefaultApi.
+ * @export
+ * @interface DefaultApiCollectionsCollectionIdDocumentsFetchUrlPostRequest
+ */
+export interface DefaultApiCollectionsCollectionIdDocumentsFetchUrlPostRequest {
+    /**
+     * 
+     * @type {string}
+     * @memberof DefaultApiCollectionsCollectionIdDocumentsFetchUrlPost
+     */
+    readonly collectionId: string
+
+    /**
+     * 
+     * @type {FetchUrlRequest}
+     * @memberof DefaultApiCollectionsCollectionIdDocumentsFetchUrlPost
+     */
+    readonly fetchUrlRequest: FetchUrlRequest
+}
+
+/**
  * Request parameters for collectionsCollectionIdDocumentsGet operation in DefaultApi.
  * @export
  * @interface DefaultApiCollectionsCollectionIdDocumentsGetRequest
@@ -7295,6 +7471,20 @@ export interface DefaultApiCollectionsCollectionIdDocumentsPostRequest {
      * @memberof DefaultApiCollectionsCollectionIdDocumentsPost
      */
     readonly documentCreate: DocumentCreate
+}
+
+/**
+ * Request parameters for collectionsCollectionIdDocumentsStagedGet operation in DefaultApi.
+ * @export
+ * @interface DefaultApiCollectionsCollectionIdDocumentsStagedGetRequest
+ */
+export interface DefaultApiCollectionsCollectionIdDocumentsStagedGetRequest {
+    /**
+     * 
+     * @type {string}
+     * @memberof DefaultApiCollectionsCollectionIdDocumentsStagedGet
+     */
+    readonly collectionId: string
 }
 
 /**
@@ -8587,6 +8777,18 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
     }
 
     /**
+     * Fetch web page content from one or more URLs and create UPLOADED documents. Each URL is fetched using the web read service (JINA with Trafilatura fallback). Successfully fetched URLs produce UPLOADED documents in the staging area, identical to file uploads. Use the confirm endpoint to move them to PENDING and start indexing. 
+     * @summary Fetch documents from URLs
+     * @param {DefaultApiCollectionsCollectionIdDocumentsFetchUrlPostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public collectionsCollectionIdDocumentsFetchUrlPost(requestParameters: DefaultApiCollectionsCollectionIdDocumentsFetchUrlPostRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).collectionsCollectionIdDocumentsFetchUrlPost(requestParameters.collectionId, requestParameters.fetchUrlRequest, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
      * Get a paginated list of documents with sorting and search capabilities
      * @summary List documents
      * @param {DefaultApiCollectionsCollectionIdDocumentsGetRequest} requestParameters Request parameters.
@@ -8608,6 +8810,18 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
      */
     public collectionsCollectionIdDocumentsPost(requestParameters: DefaultApiCollectionsCollectionIdDocumentsPostRequest, options?: RawAxiosRequestConfig) {
         return DefaultApiFp(this.configuration).collectionsCollectionIdDocumentsPost(requestParameters.collectionId, requestParameters.documentCreate, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Returns all UPLOADED (staged) documents for the collection that are awaiting confirmation.
+     * @summary List staged documents
+     * @param {DefaultApiCollectionsCollectionIdDocumentsStagedGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public collectionsCollectionIdDocumentsStagedGet(requestParameters: DefaultApiCollectionsCollectionIdDocumentsStagedGetRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).collectionsCollectionIdDocumentsStagedGet(requestParameters.collectionId, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

@@ -1326,6 +1326,155 @@ class DocumentService:
             confirmed_count=confirmed_count, failed_count=failed_count, failed_documents=failed_documents
         )
 
+    async def get_staged_documents(self, user_id: str, collection_id: str) -> view_models.StagedDocumentsResponse:
+        """Return all UPLOADED (staged) documents for the collection, ordered newest-first."""
+        collection = await self._validate_collection(user_id, collection_id)
+
+        async def _query(session: AsyncSession):
+            stmt = (
+                select(db_models.Document)
+                .where(
+                    db_models.Document.user == user_id,
+                    db_models.Document.collection_id == collection.id,
+                    db_models.Document.status == db_models.DocumentStatus.UPLOADED,
+                    db_models.Document.gmt_deleted.is_(None),
+                )
+                .order_by(db_models.Document.gmt_created.asc())
+            )
+            result = await session.execute(stmt)
+            return result.scalars().all()
+
+        docs = await self.db_ops.execute_with_transaction(_query)
+        return view_models.StagedDocumentsResponse(
+            documents=[
+                view_models.UploadDocumentResponse(
+                    document_id=doc.id,
+                    filename=doc.name,
+                    size=doc.size or 0,
+                    status=doc.status,
+                )
+                for doc in docs
+            ],
+            total=len(docs),
+        )
+
+    async def fetch_url_documents(self, user_id: str, collection_id: str, urls: list) -> view_models.FetchUrlResponse:
+        """
+        Fetch web page content from URLs and create UPLOADED documents.
+
+        For each URL, uses the web read service (JINA with Trafilatura fallback) to
+        retrieve the page content as Markdown. The result is wrapped as a virtual
+        UploadFile and passed to upload_document(), so the resulting documents are
+        identical to file uploads and go through the same two-phase commit flow.
+        """
+        import io
+        import re
+        from urllib.parse import urlparse
+
+        from fastapi import UploadFile
+        from starlette.datastructures import Headers
+
+        from aperag.db.ops import async_db_ops as _db_ops
+        from aperag.schema.view_models import WebReadRequest
+        from aperag.websearch.reader.reader_service import ReaderService
+
+        # Validate URL count
+        if len(urls) > 10:
+            raise HTTPException(status_code=400, detail="Too many URLs: maximum 10 URLs per request")
+
+        url_strings = [str(u) for u in urls]
+
+        # Determine which reader to use based on user's JINA API key
+        jina_api_key = await _db_ops.query_provider_api_key("jina", user_id=user_id, need_public=True)
+
+        web_read_request = WebReadRequest(url_list=url_strings, timeout=30)
+
+        try:
+            if jina_api_key:
+                async with ReaderService(provider_name="jina", provider_config={"api_key": jina_api_key}) as svc:
+                    web_response = await svc.read(web_read_request)
+                # Check if JINA returned any successes; fallback if not
+                if not any(r.status == "success" for r in web_response.results):
+                    async with ReaderService(provider_name="trafilatura") as svc:
+                        web_response = await svc.read(web_read_request)
+            else:
+                async with ReaderService(provider_name="trafilatura") as svc:
+                    web_response = await svc.read(web_read_request)
+        except Exception as e:
+            logger.error(f"Web read service failed: {e}")
+            # Return all URLs as failed
+            results = [
+                view_models.FetchUrlResultItem(
+                    url=u,
+                    fetch_status="error",
+                    error=f"Web read service error: {str(e)}",
+                )
+                for u in url_strings
+            ]
+            return view_models.FetchUrlResponse(results=results, total=len(results), succeeded=0, failed=len(results))
+
+        results = []
+        for item in web_response.results:
+            if item.status != "success" or not item.content:
+                results.append(
+                    view_models.FetchUrlResultItem(
+                        url=item.url,
+                        fetch_status="error",
+                        error=item.error or "Failed to fetch or empty content",
+                    )
+                )
+                continue
+
+            # Build a safe filename from the page title or URL path
+            raw_name = item.title or urlparse(item.url).path.strip("/").replace("/", "_") or "page"
+            safe_name = re.sub(r"[^\w\s\-.]", "", raw_name).strip()[:200] or "page"
+            filename = f"{safe_name}.md"
+
+            content_bytes = item.content.encode("utf-8")
+            content_size = len(content_bytes)
+
+            # Wrap Markdown content as a virtual UploadFile (same interface as real file upload)
+            virtual_file = UploadFile(
+                filename=filename,
+                size=content_size,
+                headers=Headers({"content-type": "text/markdown"}),
+                file=io.BytesIO(content_bytes),
+            )
+
+            try:
+                upload_response = await self.upload_document(user_id, collection_id, virtual_file)
+                results.append(
+                    view_models.FetchUrlResultItem(
+                        url=item.url,
+                        fetch_status="success",
+                        document_id=upload_response.document_id,
+                        filename=upload_response.filename,
+                        size=upload_response.size,
+                        status=str(
+                            upload_response.status.value
+                            if hasattr(upload_response.status, "value")
+                            else upload_response.status
+                        ),
+                    )
+                )
+            except Exception as e:
+                logger.warning(f"Failed to upload fetched content for {item.url}: {e}")
+                results.append(
+                    view_models.FetchUrlResultItem(
+                        url=item.url,
+                        fetch_status="error",
+                        error=str(e),
+                    )
+                )
+
+        succeeded = sum(1 for r in results if r.fetch_status == "success")
+        return view_models.FetchUrlResponse(
+            results=results,
+            total=len(results),
+            succeeded=succeeded,
+            failed=len(results) - succeeded,
+        )
+
 
 # Create a global service instance for easy access
 # This uses the global db_ops instance and doesn't require session management in views

@@ -73,6 +73,10 @@ paths:
     $ref: './paths/collections.yaml#/upload_document'
   /collections/{collection_id}/documents/confirm:
     $ref: './paths/collections.yaml#/confirm_documents'
+  /collections/{collection_id}/documents/fetch-url:
+    $ref: './paths/collections.yaml#/fetch_url_document'
+  /collections/{collection_id}/documents/staged:
+    $ref: './paths/collections.yaml#/list_staged_documents'
   /collections/{collection_id}/searches:
     $ref: './paths/collections.yaml#/searches'
   /collections/{collection_id}/searches/{search_id}:

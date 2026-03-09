@@ -251,3 +251,89 @@ confirmDocumentsResponse:
   required:
     - confirmed_count
     - failed_count
+
+fetchUrlRequest:
+  type: object
+  properties:
+    urls:
+      type: array
+      items:
+        type: string
+        format: uri
+      minItems: 1
+      maxItems: 10
+      description: List of URLs to fetch and import (max 10)
+      example:
+        - "https://example.com/article1"
+        - "https://example.com/article2"
+  required:
+    - urls
+
+fetchUrlResultItem:
+  type: object
+  properties:
+    url:
+      type: string
+      description: The source URL
+    fetch_status:
+      type: string
+      enum:
+        - success
+        - error
+      description: Whether the URL was fetched successfully
+    document_id:
+      type: string
+      description: ID of the created document (only present on success)
+    filename:
+      type: string
+      description: Filename of the created document (only present on success)
+    size:
+      type: integer
+      description: Size of the created document in bytes (only present on success)
+    status:
+      type: string
+      description: Document status (only present on success)
+    error:
+      type: string
+      description: Error message (only present on failure)
+  required:
+    - url
+    - fetch_status
+
+fetchUrlResponse:
+  type: object
+  properties:
+    results:
+      type: array
+      items:
+        $ref: '#/fetchUrlResultItem'
+      description: Results for each URL
+    total:
+      type: integer
+      description: Total number of URLs processed
+    succeeded:
+      type: integer
+      description: Number of URLs successfully fetched
+    failed:
+      type: integer
+      description: Number of URLs that failed
+  required:
+    - results
+    - total
+    - succeeded
+    - failed
+
+stagedDocumentsResponse:
+  type: object
+  properties:
+    documents:
+      type: array
+      items:
+        $ref: '#/uploadDocumentResponse'
+      description: List of staged (UPLOADED) documents awaiting confirmation
+    total:
+      type: integer
+      description: Total number of staged documents
+  required:
+    - documents
+    - total

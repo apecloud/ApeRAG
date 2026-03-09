@@ -216,7 +216,7 @@ evaluate:
 # OpenAPI and model generation
 .PHONY: merge-openapi generate-models generate-frontend-sdk
 merge-openapi:
-	@cd aperag && redocly bundle ./api/openapi.yaml > ./api/openapi.merged.yaml
+	@cd aperag && npx --yes @redocly/cli bundle ./api/openapi.yaml > ./api/openapi.merged.yaml
 
 generate-models: merge-openapi
 	@datamodel-codegen \
