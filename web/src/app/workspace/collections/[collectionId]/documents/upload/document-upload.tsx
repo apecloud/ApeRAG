@@ -3,8 +3,16 @@
 import { UploadDocumentResponseStatusEnum } from '@/api';
 import { useCollectionContext } from '@/components/providers/collection-provider';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import async from 'async';
-import { Bs1CircleFill, Bs2CircleFill, Bs3CircleFill } from 'react-icons/bs';
+import { Bs1CircleFill, Bs2CircleFill } from 'react-icons/bs';
+import { TextImport } from './import/text-import';
+import { UrlImport } from './import/url-import';
 
 import { DataGrid, DataGridPagination } from '@/components/data-grid';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -37,9 +45,9 @@ import _ from 'lodash';
 import {
   BrushCleaning,
   ChevronRight,
-  CloudUpload,
   EllipsisVertical,
-  FolderSearch,
+  FileText,
+  Globe,
   LoaderCircle,
   Save,
   Trash,
@@ -51,14 +59,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { defaultStyles, FileIcon } from 'react-file-icon';
 import { toast } from 'sonner';
 
+/**
+ * A staging-area entry. Two sources:
+ *   1. Loaded from DB (GET /staged) — `file` is undefined, document_id always set.
+ *   2. An in-progress file upload  — `file` holds the real File object, document_id
+ *      is set once the upload completes.
+ */
 type DocumentsWithFile = {
-  file: File;
+  /** Present only for in-progress file uploads. */
+  file?: File;
+  filename: string;
+  size: number;
   progress: number;
   progress_status: 'pending' | 'uploading' | 'success' | 'failed';
-
   document_id?: string;
-  filename?: string;
-  size?: number;
   status?: UploadDocumentResponseStatusEnum;
 };
 
@@ -72,13 +86,95 @@ export const DocumentUpload = () => {
   const router = useRouter();
   const [documents, setDocuments] = useState<DocumentsWithFile[]>([]);
   const [step, setStep] = useState<number>(1);
+  const [urlDialogOpen, setUrlDialogOpen] = useState(false);
+  const [textDialogOpen, setTextDialogOpen] = useState(false);
   const [rowSelection, setRowSelection] = useState({});
   const [isUploading, setIsUploading] = useState(false);
-  const [pagination, setPagination] = useState({
-    pageIndex: 0,
-    pageSize: 20,
-  });
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 20 });
   const uploadingFilesRef = useRef<Set<string>>(new Set());
+
+  // ── Staged document helpers ──────────────────────────────────────────────
+
+  /**
+   * Load UPLOADED documents from the DB and merge them with any currently
+   * in-progress local uploads. DB records are the source of truth for
+   * completed items; in-progress uploads (no document_id yet) are kept as-is.
+   */
+  const refreshStaged = useCallback(async () => {
+    if (!collection.id) return;
+    try {
+      const res =
+        await apiClient.defaultApi.collectionsCollectionIdDocumentsStagedGet({
+          collectionId: collection.id,
+        });
+      const staged: DocumentsWithFile[] = res.data.documents.map((doc) => ({
+        filename: doc.filename,
+        size: doc.size,
+        document_id: doc.document_id,
+        status: doc.status as UploadDocumentResponseStatusEnum,
+        progress: 100,
+        progress_status: 'success' as const,
+      }));
+      setDocuments((prev) => {
+        // Keep uploads that are still in progress (no document_id assigned yet)
+        const inProgress = prev.filter((d) => d.file && !d.document_id);
+        return [...staged, ...inProgress];
+      });
+    } catch (err) {
+      console.error('Failed to load staged documents', err);
+    }
+  }, [collection.id]);
+
+  // Load staged documents when the page opens
+  useEffect(() => {
+    refreshStaged();
+  }, [refreshStaged]);
+
+  // ── Import success callbacks ─────────────────────────────────────────────
+
+  const handleUrlImportSuccess = useCallback(
+    (
+      results: {
+        url: string;
+        fetch_status: 'success' | 'error';
+        document_id?: string;
+        filename?: string;
+        size?: number;
+        status?: string;
+        error?: string;
+      }[],
+    ) => {
+      const succeeded = results.filter(
+        (r) => r.fetch_status === 'success' && r.document_id,
+      );
+      const failed = results.filter((r) => r.fetch_status === 'error');
+
+      if (succeeded.length > 0) {
+        toast.success(
+          page_documents('import_url_success', {
+            count: String(succeeded.length),
+          }),
+        );
+        refreshStaged();
+      }
+      if (failed.length > 0) {
+        toast.error(
+          page_documents('import_url_partial', {
+            succeeded: String(succeeded.length),
+            failed: String(failed.length),
+          }),
+        );
+      }
+    },
+    [page_documents, refreshStaged],
+  );
+
+  const handleTextImportSuccess = useCallback(() => {
+    toast.success(page_documents('import_text_success'));
+    refreshStaged();
+  }, [page_documents, refreshStaged]);
+
+  // ── Confirm (save to collection) ─────────────────────────────────────────
 
   const handleSaveToCollection = useCallback(async () => {
     if (!collection.id) return;
@@ -97,19 +193,19 @@ export const DocumentUpload = () => {
     }
   }, [collection.id, documents, router]);
 
+  // ── Upload machinery ─────────────────────────────────────────────────────
+
   const stopUpload = useCallback(() => {
     setIsUploading(false);
     uploadController?.abort();
   }, []);
 
-  /**
-   * stop upload after page unmount
-   */
   useEffect(() => stopUpload, [stopUpload]);
 
   const startUpload = useCallback(
     (docs: DocumentsWithFile[]) => {
       const filesToUpload = docs.filter((doc) => {
+        if (!doc.file) return false;
         const fileKey = `${doc.file.name}-${doc.file.size}-${doc.file.lastModified}`;
         return (
           doc.progress_status === 'pending' &&
@@ -121,12 +217,12 @@ export const DocumentUpload = () => {
       if (filesToUpload.length === 0) return;
 
       filesToUpload.forEach((doc) => {
-        const fileKey = `${doc.file.name}-${doc.file.size}-${doc.file.lastModified}`;
+        const fileKey = `${doc.file!.name}-${doc.file!.size}-${doc.file!.lastModified}`;
         uploadingFilesRef.current.add(fileKey);
       });
 
       const tasks: AsyncTask[] = filesToUpload.map((_doc) => async (callback) => {
-        const file = _doc.file;
+        const file = _doc.file!;
         if (!collection?.id) {
           callback();
           return;
@@ -139,11 +235,10 @@ export const DocumentUpload = () => {
             await new Promise((resolve) =>
               setTimeout(resolve, Math.random() * 5 + 5),
             );
-            // Update progress for this specific file
             uploadedChunks++;
             const progress = (uploadedChunks / totalChunks) * 99;
             setDocuments((docs) => {
-              const doc = docs.find((doc) => _.isEqual(doc.file, file));
+              const doc = docs.find((d) => d.file && _.isEqual(d.file, file));
               if (doc) {
                 doc.progress = Number(progress.toFixed(0));
                 doc.progress_status = 'uploading';
@@ -156,19 +251,14 @@ export const DocumentUpload = () => {
         try {
           const [res] = await Promise.all([
             apiClient.defaultApi.collectionsCollectionIdDocumentsUploadPost(
-              {
-                collectionId: collection.id,
-                file: _doc.file,
-              },
-              {
-                timeout: 1000 * 30,
-              },
+              { collectionId: collection.id, file },
+              { timeout: 1000 * 30 },
             ),
             networkSimulation(),
           ]);
 
           setDocuments((docs) => {
-            const doc = docs.find((doc) => _.isEqual(doc.file, file));
+            const doc = docs.find((d) => d.file && _.isEqual(d.file, file));
             if (doc && res.data.document_id) {
               Object.assign(doc, {
                 ...res.data,
@@ -181,12 +271,9 @@ export const DocumentUpload = () => {
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
         } catch (err) {
           setDocuments((docs) => {
-            const doc = docs.find((doc) => _.isEqual(doc.file, file));
+            const doc = docs.find((d) => d.file && _.isEqual(d.file, file));
             if (doc) {
-              Object.assign(doc, {
-                progress: 0,
-                progress_status: 'failed',
-              });
+              Object.assign(doc, { progress: 0, progress_status: 'failed' });
             }
             return [...docs];
           });
@@ -211,11 +298,8 @@ export const DocumentUpload = () => {
           }
         },
         (err) => {
-          if (err) {
-            console.error('Error:', err);
-          } else {
-            console.log('upload complated');
-          }
+          if (err) console.error('Upload error:', err);
+          else console.log('Upload completed');
           setIsUploading(false);
         },
       );
@@ -223,11 +307,20 @@ export const DocumentUpload = () => {
     [collection.id],
   );
 
-  const handleRemoveFile = useCallback((item: DocumentsWithFile) => {
-    setDocuments((docs) =>
-      docs.filter((doc) => !_.isEqual(doc.file, item.file)),
-    );
-  }, []);
+  const handleRemoveFile = useCallback(
+    (item: DocumentsWithFile) => {
+      setDocuments((docs) =>
+        docs.filter((doc) =>
+          item.file
+            ? !_.isEqual(doc.file, item.file)
+            : doc.document_id !== item.document_id,
+        ),
+      );
+    },
+    [],
+  );
+
+  // ── DataGrid columns ─────────────────────────────────────────────────────
 
   const columns: ColumnDef<DocumentsWithFile>[] = useMemo(
     () => [
@@ -261,8 +354,9 @@ export const DocumentUpload = () => {
         accessorKey: 'filename',
         header: page_documents('filename'),
         cell: ({ row }) => {
-          const file = row.original.file;
-          const extension = _.last(file.type.split('/')) || '';
+          const { filename, file, size } = row.original;
+          const mimeType = file?.type ?? '';
+          const extension = _.last(mimeType.split('/')) || _.last(filename.split('.')) || '';
           return (
             <div className="flex w-full flex-row items-center gap-2">
               <div className="size-6">
@@ -273,9 +367,9 @@ export const DocumentUpload = () => {
                 />
               </div>
               <div>
-                <div className="max-w-md truncate">{file.name}</div>
+                <div className="max-w-md truncate">{filename}</div>
                 <div className="text-muted-foreground text-sm">
-                  {(row.original.file.size / 1000).toFixed(0) + ' KB'}
+                  {(size / 1000).toFixed(0) + ' KB'}
                 </div>
               </div>
             </div>
@@ -285,30 +379,29 @@ export const DocumentUpload = () => {
       {
         header: page_documents('file_type'),
         cell: ({ row }) => {
-          return row.original.file.type;
+          const { file, filename } = row.original;
+          return file?.type ?? _.last(filename.split('.')) ?? '—';
         },
       },
       {
         header: page_documents('upload_progress'),
-        cell: ({ row }) => {
-          return (
-            <div className="flex w-50 flex-col">
-              <Progress
-                value={row.original.progress}
-                className="h-1.5 transition-all"
-              />
-              <div className="text-muted-foreground flex flex-row justify-between text-xs">
-                <div>{row.original.progress}%</div>
-                <div
-                  data-status={row.original.progress_status}
-                  className="data-[status=failed]:text-red-600 data-[status=success]:text-emerald-600 data-[status=uploading]:text-amber-500"
-                >
-                  {row.original.progress_status}
-                </div>
+        cell: ({ row }) => (
+          <div className="flex w-50 flex-col">
+            <Progress
+              value={row.original.progress}
+              className="h-1.5 transition-all"
+            />
+            <div className="text-muted-foreground flex flex-row justify-between text-xs">
+              <div>{row.original.progress}%</div>
+              <div
+                data-status={row.original.progress_status}
+                className="data-[status=failed]:text-red-600 data-[status=success]:text-emerald-600 data-[status=uploading]:text-amber-500"
+              >
+                {row.original.progress_status}
               </div>
             </div>
-          );
-        },
+          </div>
+        ),
       },
       {
         id: 'actions',
@@ -342,11 +435,9 @@ export const DocumentUpload = () => {
   const table = useReactTable({
     data: documents,
     columns,
-    state: {
-      rowSelection,
-      pagination,
-    },
-    getRowId: (row) => String(row.document_id || row.file.name),
+    state: { rowSelection, pagination },
+    getRowId: (row) =>
+      String(row.document_id ?? (row.file ? `${row.file.name}-${row.file.lastModified}` : row.filename)),
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
     onPaginationChange: setPagination,
@@ -366,33 +457,41 @@ export const DocumentUpload = () => {
 
   const onFileValidate = useCallback(
     (file: File): string | null => {
-      const doc = documents.some(
+      const exists = documents.some(
         (doc) =>
-          doc.file.name === file.name &&
-          doc.file.size === file.size &&
-          doc.file.lastModified === file.lastModified &&
-          doc.file.type === file.type,
+          doc.filename === file.name &&
+          (doc.file
+            ? doc.file.size === file.size &&
+              doc.file.lastModified === file.lastModified
+            : true),
       );
-      if (doc) {
-        return 'File already exists.';
-      }
+      if (exists) return 'File already exists.';
       return null;
     },
     [documents],
   );
 
   useEffect(() => {
-    if (documents.length === 0) {
-      setStep(1);
-    } else if (
-      documents.filter((doc) => doc.progress_status === 'success').length !==
-      documents.length
+    if (
+      documents.length === 0 ||
+      documents.some((d) => !d.document_id || d.progress_status !== 'success')
     ) {
-      setStep(2);
+      setStep(1);
     } else {
-      setStep(3);
+      setStep(2);
     }
   }, [documents]);
+
+  const tabBtnClass = cn(
+    'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors',
+    'text-muted-foreground hover:text-foreground hover:bg-accent cursor-pointer',
+  );
+
+  // Only real File objects are passed to FileUpload (for its internal dedup)
+  const realFiles = useMemo(
+    () => documents.filter((d) => d.file).map((d) => d.file!),
+    [documents],
+  );
 
   return (
     <>
@@ -401,21 +500,22 @@ export const DocumentUpload = () => {
         maxSize={100 * 1024 * 1024}
         className="w-full gap-4"
         accept=".pdf,.doc,.docx,.txt,.md,.ppt,.pptx,.xls,.xlsx"
-        value={documents.map((f) => f.file)}
+        value={realFiles}
         onValueChange={(files) => {
           const newDocs: DocumentsWithFile[] = [];
           const newFilesToUpload: DocumentsWithFile[] = [];
 
           files.forEach((file) => {
-            const existingDoc = documents.find((doc) =>
-              _.isEqual(doc.file, file),
+            const existingDoc = documents.find(
+              (doc) => doc.file && _.isEqual(doc.file, file),
             );
-
             if (existingDoc) {
               newDocs.push(existingDoc);
             } else {
               const newDoc: DocumentsWithFile = {
                 file,
+                filename: file.name,
+                size: file.size,
                 progress_status: 'pending',
                 progress: 0,
               };
@@ -424,7 +524,9 @@ export const DocumentUpload = () => {
             }
           });
 
-          setDocuments(newDocs);
+          // Preserve DB-loaded staged docs; replace in-progress list
+          const dbDocs = documents.filter((d) => !d.file);
+          setDocuments([...dbDocs, ...newDocs]);
 
           if (newFilesToUpload.length > 0) {
             startUpload(newFilesToUpload);
@@ -435,6 +537,7 @@ export const DocumentUpload = () => {
         multiple
         disabled={isUploading}
       >
+        {/* Toolbar */}
         <div className="flex flex-row items-center justify-between text-sm">
           <div className="text-muted-foreground flex h-9 flex-row items-center gap-2">
             <div
@@ -454,78 +557,45 @@ export const DocumentUpload = () => {
               )}
             >
               <Bs2CircleFill className="size-5" />
-              <div>{page_documents('upload')}</div>
-            </div>
-            <ChevronRight className="size-4" />
-            <div
-              className={cn(
-                'flex flex-row items-center gap-1',
-                step === 3 ? 'text-primary' : '',
-              )}
-            >
-              <Bs3CircleFill className="size-5" />
-              <div>{page_documents('save_to_collection')}</div>
+              <div>{page_documents('add_documents')}</div>
             </div>
           </div>
-          <div className="flex flex-row gap-2">
-            <FileUploadClear asChild disabled={isUploading}>
-              <Button variant="outline" className="cursor-pointer">
-                <BrushCleaning />
-                <span className="hidden lg:inline">
-                  {page_documents('clear_files')}
-                </span>
-              </Button>
-            </FileUploadClear>
 
+          <div className="flex flex-row gap-2">
             {documents.length > 0 && (
-              <FileUploadTrigger asChild disabled={isUploading}>
+              <FileUploadClear asChild disabled={isUploading}>
                 <Button variant="outline" className="cursor-pointer">
-                  <FolderSearch />
+                  <BrushCleaning />
                   <span className="hidden lg:inline">
-                    {page_documents('browse_files')}
+                    {page_documents('clear_files')}
                   </span>
                 </Button>
-              </FileUploadTrigger>
+              </FileUploadClear>
             )}
 
-            {step === 2 &&
-              (isUploading ? (
-                <Button
-                  className="w-28 cursor-pointer"
-                  onClick={() => stopUpload()}
-                >
-                  <LoaderCircle className="animate-spin" />
-                  <span className="hidden lg:inline">Stop</span>
-                </Button>
-              ) : (
-                <Button
-                  className="w-28 cursor-pointer"
-                  onClick={() =>
-                    startUpload(documents.filter((doc) => !doc.document_id))
-                  }
-                >
-                  <CloudUpload />
-                  <span className="hidden lg:inline">
-                    {page_documents('upload')}
-                  </span>
-                </Button>
-              ))}
-            {step === 3 && (
+            {isUploading ? (
+              <Button className="cursor-pointer" onClick={stopUpload}>
+                <LoaderCircle className="animate-spin" />
+                <span className="hidden lg:inline">Stop</span>
+              </Button>
+            ) : (
               <Button
                 className="cursor-pointer"
                 onClick={handleSaveToCollection}
+                disabled={step !== 2}
               >
                 <Save />
                 <span className="hidden lg:inline">
-                  {page_documents('save_to_collection')}
+                  {page_documents('add_documents')}
                 </span>
               </Button>
             )}
           </div>
         </div>
 
+        {/* Main content: drop zone or file list */}
         {documents.length === 0 ? (
-          <FileUploadDropzone className="cursor-pointer p-26">
+          <FileUploadDropzone className="cursor-pointer rounded-lg border p-16">
             <div className="flex flex-col items-center gap-4 text-center">
               <div className="flex items-center justify-center rounded-full border p-2.5">
                 <Upload className="text-muted-foreground size-6" />
@@ -544,7 +614,66 @@ export const DocumentUpload = () => {
             <DataGridPagination table={table} />
           </>
         )}
+
+        {/* Source picker — always anchored at the bottom */}
+        <div className="flex items-center gap-1 rounded-lg border bg-muted/30 px-4 py-2">
+          {documents.length > 0 && (
+            <span className="text-muted-foreground mr-2 text-xs">
+              {page_documents('add_more_sources')}
+            </span>
+          )}
+          <FileUploadTrigger asChild>
+            <button className={tabBtnClass}>
+              <Upload className="size-3.5" />
+              {page_documents('import_source_file')}
+            </button>
+          </FileUploadTrigger>
+          <button
+            className={tabBtnClass}
+            onClick={() => setUrlDialogOpen(true)}
+          >
+            <Globe className="size-3.5" />
+            {page_documents('import_source_url')}
+          </button>
+          <button
+            className={tabBtnClass}
+            onClick={() => setTextDialogOpen(true)}
+          >
+            <FileText className="size-3.5" />
+            {page_documents('import_source_text')}
+          </button>
+        </div>
       </FileUpload>
+
+      {/* URL import dialog */}
+      <Dialog open={urlDialogOpen} onOpenChange={setUrlDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{page_documents('import_url_title')}</DialogTitle>
+          </DialogHeader>
+          <UrlImport
+            onSuccess={(results) => {
+              handleUrlImportSuccess(results);
+              setUrlDialogOpen(false);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Text import dialog */}
+      <Dialog open={textDialogOpen} onOpenChange={setTextDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{page_documents('import_text_title')}</DialogTitle>
+          </DialogHeader>
+          <TextImport
+            onSuccess={() => {
+              handleTextImportSuccess();
+              setTextDialogOpen(false);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
     </>
   );
 };
