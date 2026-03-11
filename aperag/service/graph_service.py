@@ -118,24 +118,36 @@ class GraphService:
             await rag.finalize_storages()
 
     def _convert_graph_to_dict(self, nodes, edges, is_truncated=False) -> Dict[str, Any]:
-        """Convert LightRAG graph objects to dictionary format"""
+        """
+        Convert KnowledgeGraph to API dict. Semantics (see KnowledgeGraphNode):
+        - id: node identity and display key (storage must use entity_id).
+        - labels: pass-through from storage (e.g. [entity_type]); fallback to entity_id for display if empty.
+        - properties: entity_id, entity_type, description, source_id, file_path, entity_name.
+        """
 
         def extract_properties(obj, default_fields):
             if hasattr(obj, "properties") and obj.properties:
                 return obj.properties
             return {field: getattr(obj, field, None) for field in default_fields if hasattr(obj, field)}
 
+        default_node_fields = ["entity_id", "entity_name", "entity_type", "description", "source_id", "file_path"]
+
+        def node_to_item(node):
+            props = extract_properties(node, default_node_fields)
+            # Use storage labels when present; else fallback so display is never numeric id
+            if getattr(node, "labels", None) and node.labels:
+                labels = node.labels
+            else:
+                display = props.get("entity_id") or props.get("entity_name")
+                labels = [display] if display is not None else ([node.id] if hasattr(node, "id") else [])
+            return {
+                "id": node.id,
+                "labels": labels,
+                "properties": props,
+            }
+
         return {
-            "nodes": [
-                {
-                    "id": node.id,
-                    "labels": [node.id] if hasattr(node, "id") else [],
-                    "properties": extract_properties(
-                        node, ["entity_id", "entity_type", "description", "source_id", "file_path"]
-                    ),
-                }
-                for node in nodes
-            ],
+            "nodes": [node_to_item(node) for node in nodes],
             "edges": [
                 {
                     "id": edge.id,

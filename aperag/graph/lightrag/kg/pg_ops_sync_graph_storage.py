@@ -316,7 +316,7 @@ class PGOpsSyncGraphStorage(BaseGraphStorage):
                 nodes_data = db_ops.get_graph_nodes_batch(self.workspace, matching_labels)
 
                 for entity_id, node_data in nodes_data.items():
-                    # Assemble properties from individual fields
+                    # Unified semantics: id=entity_id, labels=[entity_type] or [entity_id], edges by entity_id
                     properties = {
                         "entity_id": node_data["entity_id"],
                         "entity_type": node_data.get("entity_type"),
@@ -331,10 +331,11 @@ class PGOpsSyncGraphStorage(BaseGraphStorage):
                     # Remove None values for cleaner output
                     properties = {k: v for k, v in properties.items() if v is not None}
 
+                    entity_type = node_data.get("entity_type")
                     result.nodes.append(
                         KnowledgeGraphNode(
                             id=entity_id,
-                            labels=[node_data.get("entity_type", entity_id)],
+                            labels=[entity_type] if entity_type else [entity_id],
                             properties=properties,
                         )
                     )
