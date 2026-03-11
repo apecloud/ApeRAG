@@ -460,6 +460,8 @@ class Neo4JSyncStorage(BaseGraphStorage):
             result = KnowledgeGraph()
             seen_nodes = set()
             seen_edges = set()
+            # Map Neo4j internal id -> entity_id for edges (unified semantics: source/target = entity_id)
+            internal_id_to_entity_id: dict[int, str] = {}
 
             with Neo4jSyncConnectionManager.get_session(database=self._DATABASE) as session:
                 if node_label == "*":
@@ -476,18 +478,22 @@ class Neo4JSyncStorage(BaseGraphStorage):
 
                     for record in node_results:
                         node = record["n"]
-                        node_id = node.id
-                        if node_id not in seen_nodes:
+                        internal_id = node.id
+                        if internal_id not in seen_nodes:
+                            entity_id = node.get("entity_id")
+                            node_id = str(entity_id) if entity_id is not None else f"{internal_id}"
+                            internal_id_to_entity_id[internal_id] = node_id
+                            entity_type = node.get("entity_type")
                             result.nodes.append(
                                 KnowledgeGraphNode(
-                                    id=f"{node_id}",
-                                    labels=[node.get("entity_id")],
+                                    id=node_id,
+                                    labels=[entity_type] if entity_type else [node_id],
                                     properties=dict(node),
                                 )
                             )
-                            seen_nodes.add(node_id)
+                            seen_nodes.add(internal_id)
 
-                    # Get edges between these nodes
+                    # Get edges between these nodes; source/target must be entity_id
                     edge_query = """
                     MATCH (a)-[r]-(b)
                     WHERE id(a) IN $node_ids AND id(b) IN $node_ids
@@ -499,15 +505,18 @@ class Neo4JSyncStorage(BaseGraphStorage):
                         rel = record["r"]
                         edge_id = rel.id
                         if edge_id not in seen_edges:
-                            result.edges.append(
-                                KnowledgeGraphEdge(
-                                    id=f"{edge_id}",
-                                    type=rel.type,
-                                    source=f"{record['a'].id}",
-                                    target=f"{record['b'].id}",
-                                    properties=dict(rel),
+                            src_entity = internal_id_to_entity_id.get(record["a"].id)
+                            tgt_entity = internal_id_to_entity_id.get(record["b"].id)
+                            if src_entity is not None and tgt_entity is not None:
+                                result.edges.append(
+                                    KnowledgeGraphEdge(
+                                        id=f"{edge_id}",
+                                        type=rel.type,
+                                        source=src_entity,
+                                        target=tgt_entity,
+                                        properties=dict(rel),
+                                    )
                                 )
-                            )
                             seen_edges.add(edge_id)
                 else:
                     # BFS from specific node
@@ -527,30 +536,37 @@ class Neo4JSyncStorage(BaseGraphStorage):
                     for record in results:
                         if record["nodes"]:
                             for node in record["nodes"]:
-                                node_id = node.id
-                                if node_id not in seen_nodes:
+                                internal_id = node.id
+                                if internal_id not in seen_nodes:
+                                    entity_id = node.get("entity_id")
+                                    node_id = str(entity_id) if entity_id is not None else f"{internal_id}"
+                                    internal_id_to_entity_id[internal_id] = node_id
+                                    entity_type = node.get("entity_type")
                                     result.nodes.append(
                                         KnowledgeGraphNode(
-                                            id=f"{node_id}",
-                                            labels=[node.get("entity_id")],
+                                            id=node_id,
+                                            labels=[entity_type] if entity_type else [node_id],
                                             properties=dict(node),
                                         )
                                     )
-                                    seen_nodes.add(node_id)
+                                    seen_nodes.add(internal_id)
 
                         if record["rels"]:
                             for rel in record["rels"]:
                                 edge_id = rel.id
                                 if edge_id not in seen_edges:
-                                    result.edges.append(
-                                        KnowledgeGraphEdge(
-                                            id=f"{edge_id}",
-                                            type=rel.type,
-                                            source=f"{rel.start_node.id}",
-                                            target=f"{rel.end_node.id}",
-                                            properties=dict(rel),
+                                    src_entity = internal_id_to_entity_id.get(rel.start_node.id)
+                                    tgt_entity = internal_id_to_entity_id.get(rel.end_node.id)
+                                    if src_entity is not None and tgt_entity is not None:
+                                        result.edges.append(
+                                            KnowledgeGraphEdge(
+                                                id=f"{edge_id}",
+                                                type=rel.type,
+                                                source=src_entity,
+                                                target=tgt_entity,
+                                                properties=dict(rel),
+                                            )
                                         )
-                                    )
                                     seen_edges.add(edge_id)
 
             logger.info(f"Retrieved subgraph with {len(result.nodes)} nodes and {len(result.edges)} edges")

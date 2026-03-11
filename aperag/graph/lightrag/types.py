@@ -44,16 +44,28 @@ class GPTKeywordExtractionFormat(BaseModel):
 
 
 class KnowledgeGraphNode(BaseModel):
+    """
+    Unified semantics for graph storage and API:
+    - id: entity_id (business identifier). Used for display, node identity, and edge source/target.
+      Must be stable and unique per entity; frontend uses it as node label and for merge/APIs.
+    - labels: optional list of semantic labels, e.g. [entity_type] for categorization/filtering.
+    - properties: entity_id, entity_type, description, source_id, file_path, entity_name, etc.
+    """
+
     id: str
     labels: list[str]
     properties: dict[str, Any]  # anything else goes here
 
 
 class KnowledgeGraphEdge(BaseModel):
+    """
+    source/target must be the same as KnowledgeGraphNode.id (i.e. entity_id) for correct linking.
+    """
+
     id: str
     type: Optional[str]
-    source: str  # id of source node
-    target: str  # id of target node
+    source: str  # entity_id of source node
+    target: str  # entity_id of target node
     properties: dict[str, Any]  # anything else goes here
 
 
