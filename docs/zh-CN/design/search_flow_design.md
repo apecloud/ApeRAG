@@ -14,7 +14,7 @@ ApeRAG 的检索流程采用 **Flow 执行引擎**驱动的多路并行检索架
 ```mermaid
 graph LR
     A[AI Agent / 用户] -->|MCP 工具调用| B[MCP Server]
-    B -->|HTTP POST /api/v1/collections/{id}/searches| C[FastAPI 路由]
+    B -->|"POST /api/v1/collections/<collection_id>/searches"| C[FastAPI 路由]
     C --> D[CollectionService.create_search]
     D --> E[execute_search_flow\n动态构建 DAG]
     E --> F[FlowEngine.execute_flow\nDAG 拓扑排序 + 并行执行]
@@ -34,6 +34,8 @@ graph LR
     H --> I[rerank\n结果重排]
     I --> J[SearchResult 返回给调用方]
 ```
+
+图中 REST 路径里的 `<collection_id>` 表示路径参数，与 OpenAPI 写法 `/collections/{collection_id}/searches` 含义相同（Mermaid 中花括号 `{}` 为语法保留字符，故图中用尖括号表示占位符）。
 
 ---
 
