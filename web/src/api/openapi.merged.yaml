@@ -1185,6 +1185,96 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/failResponse'
+  /collections/{collection_id}/documents/fetch-url:
+    post:
+      summary: Fetch documents from URLs
+      description: |
+        Fetch web page content from one or more URLs and create UPLOADED documents.
+        Each URL is fetched using the web read service (JINA with Trafilatura fallback).
+        Successfully fetched URLs produce UPLOADED documents in the staging area,
+        identical to file uploads. Use the confirm endpoint to move them to PENDING and start indexing.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: collection_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/fetchUrlRequest'
+            examples:
+              single_url:
+                summary: Single URL
+                value:
+                  urls:
+                    - https://example.com/article
+              multiple_urls:
+                summary: Multiple URLs
+                value:
+                  urls:
+                    - https://example.com/article1
+                    - https://example.com/article2
+      responses:
+        '200':
+          description: URL fetch completed (partial success is also 200)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/fetchUrlResponse'
+        '400':
+          description: Bad request - invalid URLs or too many URLs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: Collection not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+  /collections/{collection_id}/documents/staged:
+    get:
+      summary: List staged documents
+      description: Returns all UPLOADED (staged) documents for the collection that are awaiting confirmation.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: collection_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Staged documents retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/stagedDocumentsResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: Collection not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
   /collections/{collection_id}/searches:
     get:
       summary: Get search history
@@ -6050,6 +6140,88 @@ components:
       required:
         - confirmed_count
         - failed_count
+    fetchUrlRequest:
+      type: object
+      properties:
+        urls:
+          type: array
+          items:
+            type: string
+            format: uri
+          minItems: 1
+          maxItems: 10
+          description: List of URLs to fetch and import (max 10)
+          example:
+            - https://example.com/article1
+            - https://example.com/article2
+      required:
+        - urls
+    fetchUrlResultItem:
+      type: object
+      properties:
+        url:
+          type: string
+          description: The source URL
+        fetch_status:
+          type: string
+          enum:
+            - success
+            - error
+          description: Whether the URL was fetched successfully
+        document_id:
+          type: string
+          description: ID of the created document (only present on success)
+        filename:
+          type: string
+          description: Filename of the created document (only present on success)
+        size:
+          type: integer
+          description: Size of the created document in bytes (only present on success)
+        status:
+          type: string
+          description: Document status (only present on success)
+        error:
+          type: string
+          description: Error message (only present on failure)
+      required:
+        - url
+        - fetch_status
+    fetchUrlResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/fetchUrlResultItem'
+          description: Results for each URL
+        total:
+          type: integer
+          description: Total number of URLs processed
+        succeeded:
+          type: integer
+          description: Number of URLs successfully fetched
+        failed:
+          type: integer
+          description: Number of URLs that failed
+      required:
+        - results
+        - total
+        - succeeded
+        - failed
+    stagedDocumentsResponse:
+      type: object
+      properties:
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/uploadDocumentResponse'
+          description: List of staged (UPLOADED) documents awaiting confirmation
+        total:
+          type: integer
+          description: Total number of staged documents
+      required:
+        - documents
+        - total
     vectorSearchParams:
       type: object
       properties:

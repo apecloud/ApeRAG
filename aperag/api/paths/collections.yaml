@@ -664,6 +664,98 @@ confirm_documents:
             schema:
               $ref: '../components/schemas/common.yaml#/failResponse'
 
+fetch_url_document:
+  post:
+    summary: Fetch documents from URLs
+    description: |
+      Fetch web page content from one or more URLs and create UPLOADED documents.
+      Each URL is fetched using the web read service (JINA with Trafilatura fallback).
+      Successfully fetched URLs produce UPLOADED documents in the staging area,
+      identical to file uploads. Use the confirm endpoint to move them to PENDING and start indexing.
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: collection_id
+        in: path
+        required: true
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/document.yaml#/fetchUrlRequest'
+          examples:
+            single_url:
+              summary: Single URL
+              value:
+                urls:
+                  - "https://example.com/article"
+            multiple_urls:
+              summary: Multiple URLs
+              value:
+                urls:
+                  - "https://example.com/article1"
+                  - "https://example.com/article2"
+    responses:
+      '200':
+        description: URL fetch completed (partial success is also 200)
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/document.yaml#/fetchUrlResponse'
+      '400':
+        description: Bad request - invalid URLs or too many URLs
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Collection not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+
+list_staged_documents:
+  get:
+    summary: List staged documents
+    description: Returns all UPLOADED (staged) documents for the collection that are awaiting confirmation.
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: collection_id
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Staged documents retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/document.yaml#/stagedDocumentsResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Collection not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+
 searches:
   get:
     summary: Get search history

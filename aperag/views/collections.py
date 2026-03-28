@@ -259,6 +259,16 @@ async def list_documents_view(
     }
 
 
+@router.get("/collections/{collection_id}/documents/staged", tags=["documents"])
+async def list_staged_documents_view(
+    request: Request,
+    collection_id: str,
+    user: User = Depends(required_user),
+) -> view_models.StagedDocumentsResponse:
+    """Return all UPLOADED (staged) documents awaiting confirmation."""
+    return await document_service.get_staged_documents(str(user.id), collection_id)
+
+
 @router.get("/collections/{collection_id}/documents/{document_id}", tags=["documents"])
 async def get_document_view(
     request: Request,
@@ -403,6 +413,25 @@ async def confirm_documents_view(
 ) -> view_models.ConfirmDocumentsResponse:
     """Confirm uploaded documents and add them to the collection"""
     return await document_service.confirm_documents(str(user.id), collection_id, confirm_request.document_ids)
+
+
+@router.post("/collections/{collection_id}/documents/fetch-url", tags=["documents"])
+@audit(resource_type="document", api_name="FetchUrlDocument")
+async def fetch_url_document_view(
+    request: Request,
+    collection_id: str,
+    fetch_request: view_models.FetchUrlRequest,
+    user: User = Depends(required_user),
+) -> view_models.FetchUrlResponse:
+    """
+    Fetch web page content from URLs and create UPLOADED documents.
+
+    Each URL is fetched via the web read service (JINA with Trafilatura fallback).
+    Successful results are wrapped as virtual UploadFile objects and passed to
+    upload_document(), producing UPLOADED documents identical to file uploads.
+    Use POST /documents/confirm to move them to PENDING and start indexing.
+    """
+    return await document_service.fetch_url_documents(str(user.id), collection_id, fetch_request.urls)
 
 
 @router.get("/collections/{collection_id}/graphs", tags=["graph"])
