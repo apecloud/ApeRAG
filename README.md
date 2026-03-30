@@ -102,6 +102,10 @@ make compose-up WITH_DOCRAY=1 WITH_GPU=1
 
 For developers interested in source code development, advanced configurations, or contributing to ApeRAG, please refer to our [Development Guide](./docs/en-US/development-guide.md) for detailed setup instructions.
 
+## Hosted deployment
+
+A hosted deployment is available on [Fronteir AI](https://fronteir.ai/mcp/apecloud-aperag).
+
 ## Key Features
 
 **1. Advanced Index Types**:
