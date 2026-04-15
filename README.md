@@ -1,9 +1,6 @@
 # ApeRAG
 [![Trust Score](https://archestra.ai/mcp-catalog/api/badge/quality/apecloud/ApeRAG)](https://archestra.ai/mcp-catalog/apecloud__aperag)
 
-**🚀 [Try ApeRAG Live Demo](https://rag.apecloud.com/)** - Experience the full platform capabilities with our hosted demo
-
-
 ![HarryPotterKG2.png](docs%2Fen-US%2Fimages%2FHarryPotterKG2.png)
 
 ![chat2.png](docs%2Fen-US%2Fimages%2Fchat2.png)
