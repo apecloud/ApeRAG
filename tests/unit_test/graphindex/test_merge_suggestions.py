@@ -460,7 +460,7 @@ class TestParseLlmMergeResponse:
 
     def test_no_merge_records(self):
         """Test handling of response with no merge records."""
-        llm_response = f"No merge suggestions found.{PROMPTS['DEFAULT_COMPLETION_DELIMITER']}"
+        llm_response = f"No merge suggestions found.{DEFAULT_COMPLETION_DELIMITER}"
 
         result = parse_llm_merge_response(
             llm_response, self.entities_list, confidence_threshold=0.6, lightrag_logger=self.mock_logger
