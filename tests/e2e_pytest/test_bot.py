@@ -4,7 +4,7 @@ from pathlib import Path
 
 import yaml
 
-from tests.e2e_test.config import COMPLETION_MODEL_NAME, COMPLETION_MODEL_PROVIDER
+from tests.e2e_pytest.config import COMPLETION_MODEL_NAME, COMPLETION_MODEL_PROVIDER
 
 
 def test_list_bots(benchmark, client, bot):

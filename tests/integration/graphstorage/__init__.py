@@ -1,0 +1,1 @@
+"""Graph storage contract tests."""

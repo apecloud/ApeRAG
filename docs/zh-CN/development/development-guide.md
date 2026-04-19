@@ -249,15 +249,23 @@ uv run pytest tests/unit_test/ --cov=aperag --cov-report=html
 make compose-infra      # 🗄️ 启动数据库
 make run-backend       # 🚀 启动 API 服务器（单独终端）
 
-# 运行所有 e2e 测试
+# 运行剩余的 pytest 版产品级 e2e
 make e2e-test
 
-# 运行特定 e2e 测试模块
-uv run pytest tests/e2e_test/test_chat/ -v
-uv run pytest tests/e2e_test/graphstorage/ -v
+# 对运行中的服务执行 HTTP 黑盒 smoke
+make e2e-http-smoke
+
+# 运行后端集成测试
+make integration-test
+
+# 运行特定 pytest e2e 模块
+uv run pytest tests/e2e_pytest/test_chat.py -v
+
+# 运行特定集成测试模块
+uv run pytest tests/integration/graphstorage/ -v
 
 # 运行带详细输出且不捕获的测试
-uv run pytest tests/e2e_test/test_specific.py -v -s
+uv run pytest tests/e2e_pytest/test_chat.py -v -s
 
 # 性能基准测试（带计时）
 make e2e-performance-test
@@ -296,7 +304,7 @@ make test
    uv run pytest tests/unit_test/test_failing.py --pdb
    
    # 在测试期间捕获日志
-   uv run pytest tests/e2e_test/test_failing.py --log-cli-level=DEBUG
+   uv run pytest tests/e2e_pytest/test_chat.py --log-cli-level=DEBUG
    ```
 4. 修复并重新测试：
    ```bash

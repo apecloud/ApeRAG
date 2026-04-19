@@ -20,7 +20,7 @@ It's designed to be run after system deployment to verify which models are actua
 functional, considering factors like API key configuration, provider availability, etc.
 
 Usage:
-    python tests/model_test/test_rerank_model.py
+    python scripts/model_test/rerank_model_audit.py
 
 The script will:
 1. Fetch all available rerank models from /api/v1/available_models

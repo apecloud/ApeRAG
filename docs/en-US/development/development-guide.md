@@ -240,19 +240,27 @@ uv run pytest tests/unit_test/ --cov=aperag --cov-report=html
 
 **E2E Tests (Require Running Services):**
 ```bash
-# Setup: Start required services first 
+# Setup: Start required services first
 make compose-infra      # 🗄️ Start databases
 make run-backend       # 🚀 Start API server (separate terminal)
 
-# Run all e2e tests
+# Run the remaining pytest-based product e2e tests
 make e2e-test
 
-# Run specific e2e test modules
-uv run pytest tests/e2e_test/test_chat/ -v
-uv run pytest tests/e2e_test/graphstorage/ -v
+# Run HTTP black-box smoke against a running service
+make e2e-http-smoke
+
+# Run backend integration tests
+make integration-test
+
+# Run specific pytest e2e modules
+uv run pytest tests/e2e_pytest/test_chat.py -v
+
+# Run specific integration modules
+uv run pytest tests/integration/graphstorage/ -v
 
 # Run with detailed output and no capture
-uv run pytest tests/e2e_test/test_specific.py -v -s
+uv run pytest tests/e2e_pytest/test_chat.py -v -s
 
 # Performance benchmarks (with timing)
 make e2e-performance-test
@@ -291,7 +299,7 @@ make test
    uv run pytest tests/unit_test/test_failing.py --pdb
    
    # Capture logs during test
-   uv run pytest tests/e2e_test/test_failing.py --log-cli-level=DEBUG
+   uv run pytest tests/e2e_pytest/test_chat.py --log-cli-level=DEBUG
    ```
 4. Fix and retest:
    ```bash

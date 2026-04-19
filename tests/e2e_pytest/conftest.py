@@ -5,7 +5,7 @@ from http import HTTPStatus
 import httpx
 import pytest
 
-from tests.e2e_test.config import (
+from tests.e2e_pytest.config import (
     API_BASE_URL,
     COMPLETION_MODEL_NAME,
     COMPLETION_MODEL_PROVIDER,
@@ -17,7 +17,7 @@ from tests.e2e_test.config import (
     RERANK_MODEL_PROVIDER,
     RERANK_MODEL_PROVIDER_API_KEY,
 )
-from tests.e2e_test.utils import assert_dict_subset
+from tests.e2e_pytest.utils import assert_dict_subset
 
 
 @pytest.fixture(scope="module")

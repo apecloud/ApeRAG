@@ -37,7 +37,7 @@ from litellm.types.caching import LiteLLMCacheType
 
 from aperag.llm import litellm_cache
 from aperag.llm.completion import CompletionService
-from tests.e2e_test.config import (
+from tests.e2e_pytest.config import (
     COMPLETION_MODEL_CUSTOM_PROVIDER,
     COMPLETION_MODEL_NAME,
     COMPLETION_MODEL_PROVIDER,

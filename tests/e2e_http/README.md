@@ -28,7 +28,7 @@ Current v1 scope:
   - call `/api/v1/embeddings` and `/api/v1/rerank` through real external providers
 
 Non-goals for v1:
-- Replacing existing `tests/e2e_test`
+- Replacing every existing pytest-based E2E immediately
 - Covering WebSocket or streaming chat flows
 - Depending on external model providers in the smoke path
 
