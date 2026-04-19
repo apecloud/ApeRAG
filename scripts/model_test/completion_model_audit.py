@@ -19,7 +19,7 @@ This script tests completion models by creating a common bot and using the exist
 It allows manual configuration of provider, model, and test prompts to verify model functionality.
 
 Usage:
-    python tests/model_test/test_completion_model.py
+    python scripts/model_test/completion_model_audit.py
 
 Configuration:
     Edit the TEST_CONFIGS section below to specify the models and prompts you want to test.

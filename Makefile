@@ -191,15 +191,18 @@ static-check:
 	uvx mypy ./aperag
 
 # Testing suite
-.PHONY: test unit-test e2e-test e2e-performance-test e2e-http-bootstrap e2e-http-smoke e2e-http-full e2e-http-compose-up e2e-http-compose-down e2e-http-compose-smoke e2e-http-compose-full
+.PHONY: test unit-test integration-test e2e-test e2e-performance-test e2e-http-bootstrap e2e-http-smoke e2e-http-full e2e-http-compose-up e2e-http-compose-down e2e-http-compose-smoke e2e-http-compose-full
 test:
 	uv run pytest tests/ -v
 
 unit-test:
 	uv run pytest tests/unit_test/ -v
 
+integration-test:
+	uv run pytest tests/integration/ -v
+
 e2e-test:
-	uv run pytest --benchmark-disable tests/e2e_test/ -v
+	uv run pytest --benchmark-disable tests/e2e_pytest/ -v
 
 e2e-performance-test:
 	@echo "Running E2E performance test..."
@@ -210,7 +213,7 @@ e2e-performance-test:
 		--benchmark-save-data \
 		--benchmark-storage=tests/report \
 		--benchmark-save=benchmark-result-$$(date +%Y%m%d%H%M%S) \
-		tests/e2e_test/
+		tests/e2e_pytest/
 
 e2e-http-bootstrap:
 	@./tests/e2e_http/bootstrap/bootstrap.sh

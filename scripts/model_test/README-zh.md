@@ -1,29 +1,29 @@
-# Model Test Scripts
+# 模型审计脚本
 
 测试已部署ApeRAG系统中模型的可用性和功能。
 
 ## 测试脚本
 
-### test_embedding_model.py
+### embedding_model_audit.py
 测试所有可用的embedding模型，验证哪些模型实际可用。
 
-### test_rerank_model.py  
+### rerank_model_audit.py
 测试所有可用的rerank模型，验证重排序功能。
 
-### test_completion_model.py
+### completion_model_audit.py
 测试指定的completion模型，验证文本生成功能。可手动配置provider、model和prompts。
 
 ## 使用方法
 
 ```bash
 # 测试embedding模型
-python tests/model_test/test_embedding_model.py
+python scripts/model_test/embedding_model_audit.py
 
 # 测试rerank模型
-python tests/model_test/test_rerank_model.py
+python scripts/model_test/rerank_model_audit.py
 
 # 测试completion模型（需手动编辑脚本配置）
-python tests/model_test/test_completion_model.py
+python scripts/model_test/completion_model_audit.py
 ```
 
 ## 环境变量

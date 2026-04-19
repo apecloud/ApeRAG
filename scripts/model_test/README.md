@@ -1,29 +1,29 @@
-# Model Test Scripts
+# Model Audit Scripts
 
 Tests the availability and functionality of models in the deployed ApeRAG system.
 
 ## Test Scripts
 
-### test_embedding_model.py
+### embedding_model_audit.py
 Tests all available embedding models to verify which ones are actually usable.
 
-### test_rerank_model.py
+### rerank_model_audit.py
 Tests all available rerank models to verify the reranking functionality.
 
-### test_completion_model.py
+### completion_model_audit.py
 Tests the specified completion model to verify text generation functionality. Provider, model, and prompts can be manually configured.
 
 ## Usage
 
 ```bash
 # Test embedding models
-python tests/model_test/test_embedding_model.py
+python scripts/model_test/embedding_model_audit.py
 
 # Test rerank models
-python tests/model_test/test_rerank_model.py
+python scripts/model_test/rerank_model_audit.py
 
 # Test completion models (requires manual script configuration)
-python tests/model_test/test_completion_model.py
+python scripts/model_test/completion_model_audit.py
 ```
 
 ## Environment Variables

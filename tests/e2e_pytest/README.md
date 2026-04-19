@@ -1,11 +1,11 @@
-# ApeRAG E2E Testing Guide
+# ApeRAG Pytest E2E Testing Guide
 
-This directory contains end-to-end (E2E) tests for the ApeRAG project, used to validate overall system functionality and API interfaces.
+This directory contains the remaining pytest-based product E2E tests for ApeRAG. New black-box HTTP coverage should prefer `tests/e2e_http/`, while this directory serves as the migration bucket for scenarios that still depend on pytest fixtures and helpers.
 
 ## 📁 Directory Structure
 
 ```
-tests/e2e_test/
+tests/e2e_pytest/
 ├── .env                    # Environment configuration file (needs to be created)
 ├── .env.template          # Environment configuration template (optional)
 ├── conftest.py            # pytest fixtures definition
@@ -34,10 +34,10 @@ make run-celery
 
 ### 2. Create Environment Configuration File
 
-Create `.env` file in `tests/e2e_test/` directory:
+Create `.env` file in `tests/e2e_pytest/` directory:
 
 ```bash
-cd tests/e2e_test
+cd tests/e2e_pytest
 cp .env.template .env  # If template file exists
 # Or create directly
 touch .env
@@ -80,19 +80,19 @@ RERANK_MODEL_NAME=BAAI/bge-large-zh-1.5
 make e2e-test
 
 # Run specific test file
-pytest tests/e2e_test/test_chat.py
+pytest tests/e2e_pytest/test_chat.py
 
 # Run specific test class or method
-pytest tests/e2e_test/test_chat.py::test_chat_message_openai_api_non_streaming
+pytest tests/e2e_pytest/test_chat.py::test_chat_message_openai_api_non_streaming
 
 # Show detailed output
-pytest tests/e2e_test/ -v
+pytest tests/e2e_pytest/ -v
 
 # Show real-time output
-pytest tests/e2e_test/ -s
+pytest tests/e2e_pytest/ -s
 
 # Stop at first failure
-pytest tests/e2e_test/ -x
+pytest tests/e2e_pytest/ -x
 ```
 
 ## ⚙️ Configuration Guide
@@ -295,7 +295,7 @@ def test_chat_message(api_helper, bot_type, message, request):
 ### Using Utility Functions
 
 ```python
-from tests.e2e_test.utils import assert_dict_subset
+from tests.e2e_pytest.utils import assert_dict_subset
 
 def test_collection_update(client, collection):
     update_data = {"title": "Updated Title"}

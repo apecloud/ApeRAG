@@ -1,6 +1,6 @@
-# GraphIndex E2E Test Suite
+# Graph Storage Integration Test Suite
 
-This directory contains the end-to-end test suite for the ApeRAG GraphIndex module, used to verify the correctness and consistency of various graph storage implementations.
+This directory contains backend integration tests for ApeRAG graph storage implementations. These tests validate storage behavior directly and are not product-level HTTP E2E tests.
 
 ## 🌟 Highlights
 
@@ -19,7 +19,7 @@ This approach ensures that every graph storage implementation undergoes **rigoro
 ## 📁 File Structure
 
 ```
-tests/e2e_test/graphindex/
+tests/integration/graphstorage/
 ├── conftest.py                     # pytest configuration
 ├── graph_storage_oracle.py         # Test Oracle implementation ⚖️
 ├── networkx_baseline_storage.py    # NetworkX baseline implementation
@@ -94,11 +94,11 @@ NEO4J_PASSWORD=password
 
 ## 🚀 Running Tests
 
-### Run All GraphIndex Tests
+### Run All Graph Storage Integration Tests
 
 ```bash
 # Execute from the project root
-uv run pytest tests/e2e_test/graphindex/ -v
+uv run pytest tests/integration/graphstorage/ -v
 ```
 
 ### Run Specific Database Tests
@@ -106,7 +106,7 @@ uv run pytest tests/e2e_test/graphindex/ -v
 #### Neo4j Storage Tests
 
 ```bash
-uv run pytest tests/e2e_test/graphindex/test_neo4j_storage.py::TestNeo4jStorage -v
+uv run pytest tests/integration/graphstorage/test_neo4j_storage.py::TestNeo4jStorage -v
 ```
 
 
@@ -114,7 +114,7 @@ uv run pytest tests/e2e_test/graphindex/test_neo4j_storage.py::TestNeo4jStorage 
 
 ```bash
 # Test Neo4j node operations
-uv run pytest tests/e2e_test/graphindex/test_neo4j_storage.py::TestNeo4jStorage::test_has_node -v
+uv run pytest tests/integration/graphstorage/test_neo4j_storage.py::TestNeo4jStorage::test_has_node -v
 ```
 
 ## 📊 Test Data
@@ -166,14 +166,14 @@ uv run pytest tests/e2e_test/graphindex/test_neo4j_storage.py::TestNeo4jStorage:
 
     ```bash
     # Check for test data file
-    ls -la tests/e2e_test/graphindex/graph_storage_test_data.json
+    ls -la tests/integration/graphstorage/graph_storage_test_data.json
     ```
 
 ### Debug Mode
 
 ```bash
 # Enable verbose logging
-uv run pytest tests/e2e_test/graphindex/ -v -s --log-cli-level=DEBUG
+uv run pytest tests/integration/graphstorage/ -v -s --log-cli-level=DEBUG
 ```
 
 ## 🎉 Extending with New Storage Implementations

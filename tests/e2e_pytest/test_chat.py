@@ -8,7 +8,7 @@ import pytest
 import yaml
 from openai import OpenAI
 
-from tests.e2e_test.config import API_BASE_URL, WS_BASE_URL
+from tests.e2e_pytest.config import API_BASE_URL, WS_BASE_URL
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -209,7 +209,7 @@ def create_and_configure_bot(
     client, bot_type: str, collection_ids: List[str] = None, flow_file: str = None
 ) -> Dict[str, Any]:
     """Create and configure a bot with the given parameters"""
-    from tests.e2e_test.config import (
+    from tests.e2e_pytest.config import (
         COMPLETION_MODEL_CUSTOM_PROVIDER,
         COMPLETION_MODEL_NAME,
         COMPLETION_MODEL_PROVIDER,
