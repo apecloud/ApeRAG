@@ -6,6 +6,11 @@ Content-Type: application/json
 }
 HTTP 200
 
+GET {{base_url}}/api/v1/llm_configuration
+HTTP 200
+[Asserts]
+header "content-type" contains "application/json"
+
 PUT {{base_url}}/api/v1/llm_providers/alibabacloud
 Content-Type: application/json
 {
@@ -23,6 +28,61 @@ Content-Type: application/json
 HTTP 200
 [Asserts]
 jsonpath "$.name" == "openrouter"
+
+POST {{base_url}}/api/v1/available_models
+Content-Type: application/json
+{}
+HTTP 200
+[Asserts]
+header "content-type" contains "application/json"
+
+POST {{base_url}}/api/v1/available_models
+Content-Type: application/json
+{
+  "tag_filters": [
+    {
+      "operation": "OR",
+      "tags": ["recommend"]
+    }
+  ]
+}
+HTTP 200
+[Asserts]
+header "content-type" contains "application/json"
+
+GET {{base_url}}/api/v1/llm_providers/openrouter/models
+HTTP 200
+[Asserts]
+header "content-type" contains "application/json"
+
+POST {{base_url}}/api/v1/llm_providers/openrouter/models
+Content-Type: application/json
+{
+  "provider_name": "openrouter",
+  "api": "completion",
+  "model": "test-org/test-model-{{run_id}}",
+  "custom_llm_provider": "openrouter",
+  "context_window": 4096,
+  "tags": ["e2e", "full"]
+}
+HTTP 200
+[Asserts]
+jsonpath "$.provider_name" == "openrouter"
+jsonpath "$.model" == "test-org/test-model-{{run_id}}"
+
+PUT {{base_url}}/api/v1/llm_providers/openrouter/models/completion/test-org%2Ftest-model-{{run_id}}
+Content-Type: application/json
+{
+  "context_window": 8192,
+  "tags": ["e2e", "full", "updated"]
+}
+HTTP 200
+[Asserts]
+jsonpath "$.model" == "test-org/test-model-{{run_id}}"
+jsonpath "$.context_window" == 8192
+
+DELETE {{base_url}}/api/v1/llm_providers/openrouter/models/completion/test-org%2Ftest-model-{{run_id}}
+HTTP 200
 
 PUT {{base_url}}/api/v1/default_models
 Content-Type: application/json

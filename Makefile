@@ -191,7 +191,7 @@ static-check:
 	uvx mypy ./aperag
 
 # Testing suite
-.PHONY: test unit-test integration-test e2e-test e2e-performance-test e2e-http-bootstrap e2e-http-smoke e2e-http-full e2e-http-compose-up e2e-http-compose-down e2e-http-compose-smoke e2e-http-compose-full
+.PHONY: test unit-test integration-test e2e-test e2e-performance-test e2e-http-bootstrap e2e-http-smoke e2e-http-full e2e-http-compose-up e2e-http-compose-down e2e-http-compose-smoke e2e-http-compose-full e2e-http-k8s-up e2e-http-k8s-down e2e-http-k8s-smoke e2e-http-k8s-full
 test:
 	uv run pytest tests/ -v
 
@@ -235,6 +235,18 @@ e2e-http-compose-smoke:
 
 e2e-http-compose-full:
 	@./tests/e2e_http/scripts/run_compose_full.sh
+
+e2e-http-k8s-up:
+	@./tests/e2e_http/runners/k8s/up.sh
+
+e2e-http-k8s-down:
+	@./tests/e2e_http/runners/k8s/down.sh
+
+e2e-http-k8s-smoke:
+	@./tests/e2e_http/scripts/run_k8s_smoke.sh
+
+e2e-http-k8s-full:
+	@./tests/e2e_http/scripts/run_k8s_full.sh
 
 # RAG evaluation
 .PHONY: evaluate

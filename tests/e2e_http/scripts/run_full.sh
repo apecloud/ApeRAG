@@ -37,6 +37,7 @@ for file in "${FULL_DIR}"/*.hurl; do
     --variable username="${E2E_USERNAME}" \
     --variable password="${E2E_PASSWORD}" \
     --variable run_id="${E2E_RUN_ID}" \
+    --variable testdata_dir="${E2E_TESTDATA_DIR}" \
     --secret alibabacloud_api_key="${E2E_ALIBABACLOUD_API_KEY}" \
     --secret openrouter_api_key="${E2E_OPENROUTER_API_KEY}" \
     "${file}"
