@@ -1,6 +1,6 @@
 # ApeRAG Pytest E2E Testing Guide
 
-This directory contains the remaining pytest-based product E2E tests for ApeRAG. New black-box HTTP coverage should prefer `tests/e2e_http/`, while this directory serves as the migration bucket for scenarios that still depend on pytest fixtures and helpers.
+This directory contains only the remaining pytest-based product E2E tests that Hurl should not own yet. New black-box HTTP coverage should prefer `tests/e2e_http/`, while this directory is now the narrow residue for scenarios that still depend on pytest fixtures and helpers.
 
 ## 📁 Directory Structure
 
@@ -18,6 +18,19 @@ tests/e2e_pytest/
 │   └── rag-flow.yaml      # RAG flow configuration
 └── evaluation/            # Evaluation related
 ```
+
+## Current Scope
+
+- `test_chat.py`
+  keeps streaming, websocket, and provider-backed chat-generation behaviors that are awkward or low-signal in Hurl
+- `test_document_download.py`
+  keeps a few extra negative-path download checks while the main download path now lives in Hurl
+
+Migrated in this phase:
+- available-model coverage moved to `tests/e2e_http/hurl/full/10_provider_llm.hurl`
+- provider model CRUD moved to `tests/e2e_http/hurl/full/10_provider_llm.hurl`
+- bot CRUD and flow coverage moved to `tests/e2e_http/hurl/full/12_bot.hurl`
+- deterministic chat create/list/get/update moved to `tests/e2e_http/hurl/full/13_chat_http.hurl`
 
 ## 🚀 Quick Start
 

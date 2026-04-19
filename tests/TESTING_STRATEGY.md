@@ -9,7 +9,7 @@ The test tree is now organized by intent instead of by historical implementation
 - `tests/e2e_http/`
   Black-box HTTP validation for a freshly started ApeRAG deployment.
 - `tests/e2e_pytest/`
-  Remaining pytest-based product E2E coverage that has not yet been migrated to `tests/e2e_http/`.
+  Only the residue that Hurl should not own yet, primarily streaming or websocket behavior.
 - `tests/integration/`
   Backend contract and service-integration coverage that is not product-level HTTP E2E.
 
@@ -32,5 +32,9 @@ The test tree is now organized by intent instead of by historical implementation
 
 ## Next Cleanup Targets
 
-- Continue migrating remaining pytest product E2E from `tests/e2e_pytest/` into `tests/e2e_http/` when the Hurl suite has equivalent coverage.
-- Keep `tests/e2e_pytest/` as a compatibility bucket until each module has a clear replacement.
+- Keep converging duplicated product HTTP cases into `tests/e2e_http/hurl/full/`.
+- Trim `tests/e2e_pytest/` down to the smallest useful supplement for:
+  - websocket chat
+  - streaming chat
+  - other product flows that are awkward or low-signal in Hurl
+- Use `tests/COVERAGE_MATRIX.md` as the source of truth before deleting additional pytest modules.

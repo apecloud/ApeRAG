@@ -1,6 +1,6 @@
 # ApeRAG Pytest E2E 测试指南
 
-本目录存放 ApeRAG 里尚未迁移完成的 pytest 版本产品级 E2E 测试。新的黑盒 HTTP 覆盖优先放到 `tests/e2e_http/`，这里作为仍然依赖 pytest fixtures 和辅助函数的迁移过渡区。
+本目录现在只保留 Hurl 暂时不适合接管的 pytest 版本产品级 E2E。新的黑盒 HTTP 覆盖优先放到 `tests/e2e_http/`，这里已经收缩成仍然依赖 pytest fixtures 和辅助函数的小型补充区。
 
 ## 📁 目录结构
 
@@ -18,6 +18,19 @@ tests/e2e_pytest/
 │   └── rag-flow.yaml      # RAG 流程配置
 └── evaluation/            # 评估相关
 ```
+
+## 当前范围
+
+- `test_chat.py`
+  保留 streaming、websocket 以及依赖真实 provider 的聊天生成行为
+- `test_document_download.py`
+  保留少量下载负路径校验；主下载链路已经迁到 Hurl
+
+本阶段已迁走：
+- available-model 覆盖迁到 `tests/e2e_http/hurl/full/10_provider_llm.hurl`
+- provider model CRUD 迁到 `tests/e2e_http/hurl/full/10_provider_llm.hurl`
+- bot CRUD 与 flow 覆盖迁到 `tests/e2e_http/hurl/full/12_bot.hurl`
+- 确定性的 chat create/list/get/update 覆盖迁到 `tests/e2e_http/hurl/full/13_chat_http.hurl`
 
 ## 🚀 快速开始
 
