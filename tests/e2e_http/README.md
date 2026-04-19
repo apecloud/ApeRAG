@@ -22,6 +22,10 @@ Current v1 scope:
 - Collection smoke: create, get, list, update, delete
 - Document smoke: upload, get detail, delete
 - API key smoke: create, use, update, delete
+- Provider-aware full coverage:
+  - configure public providers with user API keys
+  - set default embedding/completion/rerank models
+  - call `/api/v1/embeddings` and `/api/v1/rerank` through real external providers
 
 Non-goals for v1:
 - Replacing existing `tests/e2e_test`
@@ -32,6 +36,7 @@ Important behavior notes from the current implementation:
 - Smoke tests create and clean up their own business resources.
 - `document` smoke intentionally validates upload and basic lifecycle only; it does not require provider-backed indexing to complete.
 - API key smoke explicitly logs out before bearer-only checks so cookie auth does not mask key behavior.
+- Full Hurl tests are intentionally separated from smoke so provider/API-key failures do not dilute the minimal deployment contract.
 
 Typical local flow against an existing ApeRAG instance:
 
@@ -45,4 +50,12 @@ Typical local flow with the first Compose runner:
 
 ```bash
 ./tests/e2e_http/scripts/run_compose_smoke.sh
+```
+
+Provider-aware local flow:
+
+```bash
+export E2E_ALIBABACLOUD_API_KEY=...
+export E2E_OPENROUTER_API_KEY=...
+./tests/e2e_http/scripts/run_compose_full.sh
 ```

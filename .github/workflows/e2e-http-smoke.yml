@@ -1,4 +1,4 @@
-name: E2E HTTP Smoke
+name: E2E HTTP
 
 on:
   workflow_dispatch:
@@ -57,6 +57,71 @@ jobs:
 
       - name: Dump Compose diagnostics on failure
         if: failure()
+        run: |
+          docker compose -f docker-compose.yml ps || true
+          docker compose -f docker-compose.yml logs --no-color api celeryworker celerybeat postgres redis qdrant es || true
+
+  e2e-http-provider:
+    needs: e2e-http-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      E2E_ALIBABACLOUD_API_KEY: ${{ secrets.E2E_ALIBABACLOUD_API_KEY }}
+      E2E_OPENROUTER_API_KEY: ${{ secrets.E2E_OPENROUTER_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check provider secrets
+        id: provider-secrets
+        shell: bash
+        run: |
+          if [[ -n "${E2E_ALIBABACLOUD_API_KEY}" && -n "${E2E_OPENROUTER_API_KEY}" ]]; then
+            echo "available=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "available=false" >> "${GITHUB_OUTPUT}"
+            echo "Skipping provider-aware suite because required secrets are missing."
+          fi
+
+      - name: Free disk space for Docker build
+        if: steps.provider-secrets.outputs.available == 'true'
+        run: |
+          df -h
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo apt-get clean
+          docker system prune -af --volumes || true
+          df -h
+
+      - name: Install Hurl
+        if: steps.provider-secrets.outputs.available == 'true'
+        run: |
+          HURL_VERSION="7.1.0"
+          curl -fsSL -o /tmp/hurl.tar.gz "https://github.com/Orange-OpenSource/hurl/releases/download/${HURL_VERSION}/hurl-${HURL_VERSION}-x86_64-unknown-linux-gnu.tar.gz"
+          tar -xzf /tmp/hurl.tar.gz -C /tmp
+          sudo mv /tmp/hurl-${HURL_VERSION}-x86_64-unknown-linux-gnu/bin/hurl /usr/local/bin/hurl
+          hurl --version
+
+      - name: Run HTTP provider-aware suite
+        if: steps.provider-secrets.outputs.available == 'true'
+        env:
+          E2E_REMOVE_VOLUMES: "1"
+        run: |
+          ./tests/e2e_http/scripts/run_compose_full.sh
+
+      - name: Upload bootstrap artifacts on failure
+        if: failure() && steps.provider-secrets.outputs.available == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-http-provider-bootstrap-artifacts
+          path: tests/e2e_http/bootstrap/.generated
+          if-no-files-found: ignore
+
+      - name: Dump Compose diagnostics on failure
+        if: failure() && steps.provider-secrets.outputs.available == 'true'
         run: |
           docker compose -f docker-compose.yml ps || true
           docker compose -f docker-compose.yml logs --no-color api celeryworker celerybeat postgres redis qdrant es || true
