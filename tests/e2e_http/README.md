@@ -1,0 +1,48 @@
+# ApeRAG HTTP E2E
+
+This suite is the new black-box HTTP E2E entrypoint for ApeRAG.
+
+Design constraints:
+- Targets a freshly started, empty ApeRAG service.
+- Exercises user-visible behavior only through HTTP APIs.
+- Keeps test content independent from the environment launcher.
+- Treats `hurl/` as the current execution implementation, not the suite identity.
+
+Top-level layout:
+- `hurl/smoke/`: minimal provider-independent smoke coverage
+- `hurl/full/`: broader HTTP coverage that may depend on providers or longer flows
+- `bootstrap/`: prepares the minimum testable state on an empty service
+- `runners/`: environment launchers such as Compose or K8s
+- `scripts/`: wrappers that connect runner, bootstrap, and Hurl execution
+- `testdata/`: stable input files used by HTTP tests
+
+Current v1 scope:
+- Readiness endpoint: `GET /health`
+- Auth smoke: login, current user, logout
+- Collection smoke: create, get, list, update, delete
+- Document smoke: upload, get detail, delete
+- API key smoke: create, use, update, delete
+
+Non-goals for v1:
+- Replacing existing `tests/e2e_test`
+- Covering WebSocket or streaming chat flows
+- Depending on external model providers in the smoke path
+
+Important behavior notes from the current implementation:
+- Smoke tests create and clean up their own business resources.
+- `document` smoke intentionally validates upload and basic lifecycle only; it does not require provider-backed indexing to complete.
+- API key smoke explicitly logs out before bearer-only checks so cookie auth does not mask key behavior.
+
+Typical local flow against an existing ApeRAG instance:
+
+```bash
+export E2E_BASE_URL=http://127.0.0.1:8000
+./tests/e2e_http/bootstrap/bootstrap.sh
+./tests/e2e_http/scripts/run_smoke.sh
+```
+
+Typical local flow with the first Compose runner:
+
+```bash
+./tests/e2e_http/scripts/run_compose_smoke.sh
+```

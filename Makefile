@@ -191,7 +191,7 @@ static-check:
 	uvx mypy ./aperag
 
 # Testing suite
-.PHONY: test unit-test e2e-test e2e-performance-test
+.PHONY: test unit-test e2e-test e2e-performance-test e2e-http-bootstrap e2e-http-smoke e2e-http-compose-up e2e-http-compose-down e2e-http-compose-smoke
 test:
 	uv run pytest tests/ -v
 
@@ -211,6 +211,21 @@ e2e-performance-test:
 		--benchmark-storage=tests/report \
 		--benchmark-save=benchmark-result-$$(date +%Y%m%d%H%M%S) \
 		tests/e2e_test/
+
+e2e-http-bootstrap:
+	@./tests/e2e_http/bootstrap/bootstrap.sh
+
+e2e-http-smoke:
+	@./tests/e2e_http/scripts/run_smoke.sh
+
+e2e-http-compose-up:
+	@./tests/e2e_http/runners/compose/up.sh
+
+e2e-http-compose-down:
+	@./tests/e2e_http/runners/compose/down.sh
+
+e2e-http-compose-smoke:
+	@./tests/e2e_http/scripts/run_compose_smoke.sh
 
 # RAG evaluation
 .PHONY: evaluate
