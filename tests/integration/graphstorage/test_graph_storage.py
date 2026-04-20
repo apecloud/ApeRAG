@@ -814,20 +814,22 @@ class GraphStorageTestSuite:
 
     @staticmethod
     async def test_get_node_ids(oracle, graph_data: Dict[str, Any]):
-        """Test lightweight node-id retrieval semantics via oracle."""
+        """Test deterministic lightweight node-id retrieval semantics via oracle."""
         print("🔍 Testing get_node_ids via oracle")
 
+        expected_all_node_ids = sorted(graph_data["nodes"].keys())
         all_node_ids = await oracle.get_node_ids()
         assert isinstance(all_node_ids, list)
         assert len(all_node_ids) == len(graph_data["nodes"])
-        assert set(all_node_ids) == set(graph_data["nodes"].keys())
+        assert all_node_ids == expected_all_node_ids
 
         limit = min(10, len(graph_data["nodes"]))
+        expected_limited_node_ids = expected_all_node_ids[:limit]
         limited_node_ids = await oracle.get_node_ids(limit=limit)
         assert isinstance(limited_node_ids, list)
         assert len(limited_node_ids) == limit
         assert len(limited_node_ids) == len(set(limited_node_ids)), "Node IDs should be unique"
-        assert set(limited_node_ids).issubset(graph_data["nodes"].keys())
+        assert limited_node_ids == expected_limited_node_ids
 
         print(f"✓ Verified full and limited node-id retrieval (limit={limit})")
 

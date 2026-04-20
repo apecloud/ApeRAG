@@ -674,7 +674,7 @@ class GraphStorageOracle(BaseGraphStorage):
             raise
 
     async def get_node_ids(self, limit: int | None = None) -> list[str] | None:
-        """Get node IDs while allowing backend-specific ordering differences."""
+        """Get node IDs with deterministic ordering comparison."""
         self._operation_count += 1
         operation_id = f"get_node_ids#{self._operation_count}"
 
@@ -692,14 +692,14 @@ class GraphStorageOracle(BaseGraphStorage):
                     f"  Baseline: {baseline_result}"
                 )
 
-            baseline_all_labels = set(await self.baseline.get_all_labels())
-            storage_all_labels = set(await self.storage.get_all_labels())
+            baseline_all_labels = sorted(await self.baseline.get_all_labels())
+            storage_all_labels = sorted(await self.storage.get_all_labels())
 
             if baseline_all_labels != storage_all_labels:
                 raise AssertionError(
                     f"Oracle mismatch (label universe) in '{operation_id}':\n"
-                    f"  Storage labels:  {sorted(storage_all_labels)}\n"
-                    f"  Baseline labels: {sorted(baseline_all_labels)}"
+                    f"  Storage labels:  {storage_all_labels}\n"
+                    f"  Baseline labels: {baseline_all_labels}"
                 )
 
             if len(storage_result) != len(set(storage_result)):
@@ -708,16 +708,21 @@ class GraphStorageOracle(BaseGraphStorage):
             if len(baseline_result) != len(set(baseline_result)):
                 raise AssertionError(f"Oracle mismatch in '{operation_id}': baseline returned duplicate node IDs")
 
-            if not set(storage_result).issubset(storage_all_labels):
+            if not set(storage_result).issubset(set(storage_all_labels)):
                 raise AssertionError(f"Oracle mismatch in '{operation_id}': storage returned unknown node IDs")
 
-            if not set(baseline_result).issubset(baseline_all_labels):
+            if not set(baseline_result).issubset(set(baseline_all_labels)):
                 raise AssertionError(f"Oracle mismatch in '{operation_id}': baseline returned unknown node IDs")
 
+            expected_result = baseline_all_labels[:limit] if limit is not None else baseline_all_labels
+
             if limit is None:
-                if set(storage_result) != baseline_all_labels or set(baseline_result) != baseline_all_labels:
+                if baseline_result != expected_result or storage_result != expected_result:
                     raise AssertionError(
-                        f"Oracle mismatch in '{operation_id}': full node-id results do not cover the graph"
+                        f"Oracle mismatch in '{operation_id}': full node-id results are not deterministically ordered\n"
+                        f"  Storage:  {storage_result}\n"
+                        f"  Baseline: {baseline_result}\n"
+                        f"  Expected: {expected_result}"
                     )
             else:
                 expected_len = min(limit, len(storage_all_labels))
@@ -725,6 +730,13 @@ class GraphStorageOracle(BaseGraphStorage):
                     raise AssertionError(
                         f"Oracle mismatch in '{operation_id}': expected {expected_len} node IDs when limit={limit}, "
                         f"got storage={len(storage_result)} baseline={len(baseline_result)}"
+                    )
+                if baseline_result != expected_result or storage_result != expected_result:
+                    raise AssertionError(
+                        f"Oracle mismatch in '{operation_id}': node-id prefix is not deterministic for limit={limit}\n"
+                        f"  Storage:  {storage_result}\n"
+                        f"  Baseline: {baseline_result}\n"
+                        f"  Expected: {expected_result}"
                     )
 
             print(f"✅ Oracle match for '{operation_id}' ({len(storage_result)} node ids)")

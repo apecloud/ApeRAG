@@ -494,7 +494,12 @@ class BaseGraphStorage(StorageNameSpace, ABC):
         return None
 
     async def get_node_ids(self, limit: int | None = None) -> list[str] | None:
-        """Return node IDs without fetching full node payloads when backend supports it."""
+        """Return node IDs in stable ascending ID order without fetching full payloads.
+
+        Backends that implement this hook should return the same deterministic prefix
+        for a given workspace and limit so higher-level exports do not become
+        backend-dependent.
+        """
         return None
 
     @abstractmethod
