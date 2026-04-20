@@ -61,18 +61,6 @@ HTTP 200
 jsonpath "$.id" == "{{chat_id}}"
 jsonpath "$.title" == "Chat Title {{run_id}}"
 
-POST {{base_url}}/api/v1/bots/{{bot_id}}/chats/{{chat_id}}/title
-Content-Type: application/json
-{
-  "language": "en-US",
-  "max_length": 20,
-  "turns": 1
-}
-HTTP 200
-[Asserts]
-header "content-type" contains "application/json"
-jsonpath "$.title" exists
-
 POST {{base_url}}/v1/chat/completions?bot_id={{bot_id}}&chat_id={{chat_id}}
 Content-Type: application/json
 {

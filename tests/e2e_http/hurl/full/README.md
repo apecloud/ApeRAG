@@ -10,7 +10,7 @@ Current files:
 - `12_bot.hurl`
   bot CRUD plus agent config get/update
 - `13_chat_http.hurl`
-  chat create/list/get/update/delete plus title-generation and unsupported `/v1/chat/completions` contracts
+  chat create/list/get/update/delete plus unsupported `/v1/chat/completions` contract
 - `14_graph_http.hurl`
   graph labels and graph overview endpoints
 

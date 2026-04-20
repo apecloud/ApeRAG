@@ -32,7 +32,7 @@ Current v1 scope:
   - cover document staged/confirm/download/rebuild paths
   - cover document status visibility, list search by name, and collection search/history HTTP contracts
   - cover bot CRUD + agent config get/update
-  - cover chat create/list/get/update/delete plus chat title-generation HTTP contract
+  - cover chat create/list/get/update/delete
   - assert the stable unsupported `/v1/chat/completions` error contract
   - cover graph labels + graph overview + parameter validation endpoints
 
