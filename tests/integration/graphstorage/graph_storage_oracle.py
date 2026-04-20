@@ -351,6 +351,23 @@ class GraphStorageOracle(BaseGraphStorage):
         """Normalize a list of edges to a set of normalized edge tuples"""
         return {self._normalize_edge(edge) for edge in edges}
 
+    def _normalize_incident_edge_payloads(
+        self,
+        edges: list[tuple[str, str, dict]],
+        operation_id: str,
+        node_id: str,
+    ) -> dict[tuple[str, str], dict]:
+        """Normalize incident-edge payloads for order- and direction-insensitive comparison."""
+        normalized = {}
+        for src_id, tgt_id, edge_data in edges:
+            edge_key = self._normalize_edge((src_id, tgt_id))
+            if edge_key in normalized:
+                raise AssertionError(
+                    f"Oracle mismatch (duplicate incident edge) in '{operation_id}' for node {node_id}: {edge_key}"
+                )
+            normalized[edge_key] = edge_data
+        return normalized
+
     async def get_node_edges(self, source_node_id: str) -> list[tuple[str, str]] | None:
         """Get node edges with unordered comparison and edge direction normalization"""
         self._operation_count += 1
@@ -589,6 +606,140 @@ class GraphStorageOracle(BaseGraphStorage):
                     )
 
             print(f"✅ Oracle match for '{operation_id}' (unordered node edges batch with direction normalization)")
+            return storage_result
+
+        except Exception as e:
+            print(f"❌ Oracle operation '{operation_id}' failed: {e}")
+            raise
+
+    async def get_incident_edges_with_data_batch(
+        self,
+        node_ids: list[str],
+    ) -> dict[str, list[tuple[str, str, dict]]]:
+        """Get incident edges with payloads using unordered comparison and direction normalization."""
+        self._operation_count += 1
+        operation_id = f"get_incident_edges_with_data_batch#{self._operation_count}"
+
+        try:
+            baseline_result = await self.baseline.get_incident_edges_with_data_batch(node_ids)
+            storage_result = await self.storage.get_incident_edges_with_data_batch(node_ids)
+
+            if set(baseline_result.keys()) != set(storage_result.keys()):
+                raise AssertionError(
+                    f"Oracle mismatch (incident-edge batch keys) in '{operation_id}':\n"
+                    f"  Storage keys:  {sorted(storage_result.keys())}\n"
+                    f"  Baseline keys: {sorted(baseline_result.keys())}"
+                )
+
+            for node_id in baseline_result.keys():
+                baseline_edges = baseline_result[node_id]
+                storage_edges = storage_result[node_id]
+
+                if len(baseline_edges) != len(storage_edges):
+                    raise AssertionError(
+                        f"Oracle mismatch (incident-edge count for {node_id}) in '{operation_id}':\n"
+                        f"  Storage:  {len(storage_edges)} edges\n"
+                        f"  Baseline: {len(baseline_edges)} edges"
+                    )
+
+                baseline_normalized = self._normalize_incident_edge_payloads(baseline_edges, operation_id, node_id)
+                storage_normalized = self._normalize_incident_edge_payloads(storage_edges, operation_id, node_id)
+
+                if set(baseline_normalized.keys()) != set(storage_normalized.keys()):
+                    raise AssertionError(
+                        f"Oracle mismatch (incident-edge keys for {node_id}) in '{operation_id}':\n"
+                        f"  Storage:  {sorted(storage_normalized.keys())}\n"
+                        f"  Baseline: {sorted(baseline_normalized.keys())}"
+                    )
+
+                for edge_key in baseline_normalized.keys():
+                    baseline_edge = baseline_normalized[edge_key]
+                    storage_edge = storage_normalized[edge_key]
+                    if not self._flexible_dict_compare(
+                        baseline_edge,
+                        storage_edge,
+                        f"{operation_id}_edge_{node_id}_{edge_key}",
+                    ):
+                        raise AssertionError(
+                            f"Oracle mismatch (incident-edge payload for {node_id} {edge_key}) in '{operation_id}':\n"
+                            f"  Storage:  {storage_edge}\n"
+                            f"  Baseline: {baseline_edge}"
+                        )
+
+            print(f"✅ Oracle match for '{operation_id}' (incident-edge payload batch)")
+            return storage_result
+
+        except Exception as e:
+            print(f"❌ Oracle operation '{operation_id}' failed: {e}")
+            raise
+
+    async def get_node_ids(self, limit: int | None = None) -> list[str] | None:
+        """Get node IDs with deterministic ordering comparison."""
+        self._operation_count += 1
+        operation_id = f"get_node_ids#{self._operation_count}"
+
+        try:
+            baseline_result = await self.baseline.get_node_ids(limit)
+            storage_result = await self.storage.get_node_ids(limit)
+
+            if baseline_result is None and storage_result is None:
+                print(f"✅ Oracle match for '{operation_id}' (both unsupported)")
+                return storage_result
+            if baseline_result is None or storage_result is None:
+                raise AssertionError(
+                    f"Oracle mismatch in '{operation_id}' (None vs non-None):\n"
+                    f"  Storage:  {storage_result}\n"
+                    f"  Baseline: {baseline_result}"
+                )
+
+            baseline_all_labels = sorted(await self.baseline.get_all_labels())
+            storage_all_labels = sorted(await self.storage.get_all_labels())
+
+            if baseline_all_labels != storage_all_labels:
+                raise AssertionError(
+                    f"Oracle mismatch (label universe) in '{operation_id}':\n"
+                    f"  Storage labels:  {storage_all_labels}\n"
+                    f"  Baseline labels: {baseline_all_labels}"
+                )
+
+            if len(storage_result) != len(set(storage_result)):
+                raise AssertionError(f"Oracle mismatch in '{operation_id}': storage returned duplicate node IDs")
+
+            if len(baseline_result) != len(set(baseline_result)):
+                raise AssertionError(f"Oracle mismatch in '{operation_id}': baseline returned duplicate node IDs")
+
+            if not set(storage_result).issubset(set(storage_all_labels)):
+                raise AssertionError(f"Oracle mismatch in '{operation_id}': storage returned unknown node IDs")
+
+            if not set(baseline_result).issubset(set(baseline_all_labels)):
+                raise AssertionError(f"Oracle mismatch in '{operation_id}': baseline returned unknown node IDs")
+
+            expected_result = baseline_all_labels[:limit] if limit is not None else baseline_all_labels
+
+            if limit is None:
+                if baseline_result != expected_result or storage_result != expected_result:
+                    raise AssertionError(
+                        f"Oracle mismatch in '{operation_id}': full node-id results are not deterministically ordered\n"
+                        f"  Storage:  {storage_result}\n"
+                        f"  Baseline: {baseline_result}\n"
+                        f"  Expected: {expected_result}"
+                    )
+            else:
+                expected_len = min(limit, len(storage_all_labels))
+                if len(storage_result) != expected_len or len(baseline_result) != expected_len:
+                    raise AssertionError(
+                        f"Oracle mismatch in '{operation_id}': expected {expected_len} node IDs when limit={limit}, "
+                        f"got storage={len(storage_result)} baseline={len(baseline_result)}"
+                    )
+                if baseline_result != expected_result or storage_result != expected_result:
+                    raise AssertionError(
+                        f"Oracle mismatch in '{operation_id}': node-id prefix is not deterministic for limit={limit}\n"
+                        f"  Storage:  {storage_result}\n"
+                        f"  Baseline: {baseline_result}\n"
+                        f"  Expected: {expected_result}"
+                    )
+
+            print(f"✅ Oracle match for '{operation_id}' ({len(storage_result)} node ids)")
             return storage_result
 
         except Exception as e:

@@ -226,6 +226,11 @@ class NetworkXBaselineStorage(BaseGraphStorage):
         """Get all node labels (node IDs in this case)."""
         return list(self.graph.nodes())
 
+    async def get_node_ids(self, limit: int | None = None) -> list[str] | None:
+        """Return node IDs in stable ascending order."""
+        node_ids = sorted(self.graph.nodes())
+        return node_ids[:limit] if limit is not None else node_ids
+
     async def get_knowledge_graph(
         self,
         node_label: str,

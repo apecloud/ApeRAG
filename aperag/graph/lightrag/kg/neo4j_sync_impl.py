@@ -376,6 +376,55 @@ class Neo4JSyncStorage(BaseGraphStorage):
 
         return await asyncio.to_thread(_sync_get_nodes_edges_batch)
 
+    async def get_incident_edges_with_data_batch(self, node_ids: list[str]) -> dict[str, list[tuple[str, str, dict]]]:
+        """Batch retrieve incident edges together with edge payloads."""
+
+        def _sync_get_incident_edges_with_data_batch():
+            with Neo4jSyncConnectionManager.get_session(database=self._DATABASE) as session:
+                query = """
+                    UNWIND $node_ids AS id
+                    MATCH (n:base {entity_id: id})
+                    OPTIONAL MATCH (n)-[r]-(connected:base)
+                    RETURN id AS queried_id,
+                           startNode(r).entity_id AS source_entity_id,
+                           endNode(r).entity_id AS target_entity_id,
+                           properties(r) AS edge_properties
+                """
+                result = session.run(query, node_ids=node_ids)
+
+                edges_dict = {node_id: [] for node_id in node_ids}
+                seen_pairs = {node_id: set() for node_id in node_ids}
+
+                for record in result:
+                    queried_id = record["queried_id"]
+                    source_entity_id = record["source_entity_id"]
+                    target_entity_id = record["target_entity_id"]
+                    edge_properties = record["edge_properties"]
+
+                    if not source_entity_id or not target_entity_id or edge_properties is None:
+                        continue
+
+                    edge_pair = (source_entity_id, target_entity_id)
+                    if edge_pair in seen_pairs[queried_id]:
+                        continue
+                    seen_pairs[queried_id].add(edge_pair)
+
+                    edge_data = dict(edge_properties)
+                    for key, default_value in {
+                        "weight": 0.0,
+                        "source_id": None,
+                        "description": None,
+                        "keywords": None,
+                    }.items():
+                        if key not in edge_data:
+                            edge_data[key] = default_value
+
+                    edges_dict[queried_id].append((source_entity_id, target_entity_id, edge_data))
+
+                return edges_dict
+
+        return await asyncio.to_thread(_sync_get_incident_edges_with_data_batch)
+
     async def get_nodes_by_source_ids(self, chunk_ids: list[str]) -> dict[str, dict]:
         """Retrieve nodes whose source_id references any of the provided chunk IDs."""
 
@@ -685,6 +734,26 @@ class Neo4JSyncStorage(BaseGraphStorage):
                 return nodes, total_nodes
 
         return await asyncio.to_thread(_sync_get_top_degree_nodes)
+
+    async def get_node_ids(self, limit: int | None = None) -> list[str] | None:
+        """Get node IDs directly from Neo4j without fetching full node payloads."""
+
+        def _sync_get_node_ids():
+            with Neo4jSyncConnectionManager.get_session(database=self._DATABASE) as session:
+                query = """
+                MATCH (n:base)
+                WHERE n.entity_id IS NOT NULL
+                RETURN DISTINCT n.entity_id AS entity_id
+                ORDER BY entity_id
+                """
+                if limit is not None:
+                    query += "\nLIMIT $limit"
+                    result = session.run(query, limit=limit)
+                else:
+                    result = session.run(query)
+                return [record["entity_id"] for record in result]
+
+        return await asyncio.to_thread(_sync_get_node_ids)
 
     @retry(
         stop=stop_after_attempt(3),

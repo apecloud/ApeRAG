@@ -576,6 +576,23 @@ class GraphRepositoryMixin:
 
         return self._execute_query(_get_top_degree_graph_nodes)
 
+    def get_graph_node_ids(self, workspace: str, limit: Optional[int] = None) -> List[str]:
+        """Get graph node IDs directly, optionally with a limit."""
+
+        def _get_graph_node_ids(session):
+            stmt = (
+                select(LightRAGGraphNode.entity_id)
+                .where(LightRAGGraphNode.workspace == workspace)
+                .order_by(LightRAGGraphNode.entity_id)
+            )
+            if limit is not None:
+                stmt = stmt.limit(limit)
+
+            result = session.execute(stmt)
+            return [row[0] for row in result]
+
+        return self._execute_query(_get_graph_node_ids)
+
     def get_graph_edges_batch(
         self, workspace: str, edge_pairs: List[Tuple[str, str]]
     ) -> Dict[Tuple[str, str], Dict[str, Any]]:
@@ -670,6 +687,75 @@ class GraphRepositoryMixin:
             return edges_dict
 
         return self._execute_query(_get_nodes_edges_batch)
+
+    def get_graph_incident_edges_with_data_batch(
+        self, workspace: str, node_ids: List[str]
+    ) -> Dict[str, List[Tuple[str, str, Dict[str, Any]]]]:
+        """Get incident edges with edge payloads for multiple nodes in one query."""
+        if not node_ids:
+            return {}
+
+        def _get_incident_edges_with_data_batch(session):
+            query = text("""
+                WITH outgoing_edges AS (
+                    SELECT
+                        e.source_entity_id AS node_id,
+                        e.source_entity_id,
+                        e.target_entity_id,
+                        e.weight,
+                        e.keywords,
+                        e.description,
+                        e.source_id,
+                        e.file_path
+                    FROM lightrag_graph_edges e
+                    WHERE e.workspace = :workspace
+                      AND e.source_entity_id = ANY(:node_ids)
+                ),
+                incoming_edges AS (
+                    SELECT
+                        e.target_entity_id AS node_id,
+                        e.source_entity_id,
+                        e.target_entity_id,
+                        e.weight,
+                        e.keywords,
+                        e.description,
+                        e.source_id,
+                        e.file_path
+                    FROM lightrag_graph_edges e
+                    WHERE e.workspace = :workspace
+                      AND e.target_entity_id = ANY(:node_ids)
+                )
+                SELECT *
+                FROM outgoing_edges
+                UNION ALL
+                SELECT *
+                FROM incoming_edges
+                ORDER BY node_id, source_entity_id, target_entity_id
+            """)
+
+            result = session.execute(query, {"workspace": workspace, "node_ids": node_ids})
+            edges_dict = {node_id: [] for node_id in node_ids}
+
+            for row in result:
+                node_id = row.node_id
+                edge_data = {
+                    "weight": float(row.weight) if row.weight is not None else 0.0,
+                    "keywords": row.keywords,
+                    "description": row.description,
+                    "source_id": row.source_id,
+                    "file_path": row.file_path,
+                }
+                required_fields = {"weight", "keywords", "description", "source_id"}
+                filtered_edge_data = {}
+                for key, value in edge_data.items():
+                    if key in required_fields or value is not None:
+                        filtered_edge_data[key] = value
+
+                edges_dict[node_id].append((row.source_entity_id, row.target_entity_id, filtered_edge_data))
+
+            return edges_dict
+
+        return self._execute_query(_get_incident_edges_with_data_batch)
 
     def delete_graph_nodes_batch(self, workspace: str, node_ids: List[str]) -> None:
         """Delete multiple nodes and their edges in batch using efficient SQL"""

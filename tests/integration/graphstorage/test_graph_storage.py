@@ -499,6 +499,31 @@ class GraphStorageTestSuite:
         print(f"✓ Verified batch node edges for {len(batch_result)} nodes")
 
     @staticmethod
+    async def test_get_incident_edges_with_data_batch(oracle, graph_data: Dict[str, Any]):
+        """Test get_incident_edges_with_data_batch function via oracle."""
+        print("🔍 Testing get_incident_edges_with_data_batch via oracle")
+
+        node_ids = get_high_degree_nodes(graph_data, max_count=8)
+        if not node_ids:
+            node_ids = get_random_sample(graph_data["nodes"], max_size=8, min_size=3)
+
+        batch_result = await oracle.get_incident_edges_with_data_batch(node_ids)
+
+        assert isinstance(batch_result, dict)
+        assert len(batch_result) == len(node_ids), f"Expected {len(node_ids)} nodes, got {len(batch_result)}"
+
+        for node_id, edges in batch_result.items():
+            assert isinstance(edges, list)
+            assert node_id in node_ids, "Returned node should be in requested list"
+            for src, tgt, edge_data in edges:
+                assert node_id in {src, tgt}, f"Incident edge ({src}, {tgt}) should include node {node_id}"
+                assert isinstance(src, str)
+                assert isinstance(tgt, str)
+                assert isinstance(edge_data, dict)
+
+        print(f"✓ Verified incident-edge payloads for {len(batch_result)} nodes")
+
+    @staticmethod
     async def test_edge_degree(oracle, graph_data: Dict[str, Any]):
         """Test edge_degree function via oracle"""
         print("🔍 Testing edge_degree via oracle")
@@ -787,6 +812,27 @@ class GraphStorageTestSuite:
         assert len(all_labels) > 0
         print(f"✓ Total labels found: {len(all_labels)}")
 
+    @staticmethod
+    async def test_get_node_ids(oracle, graph_data: Dict[str, Any]):
+        """Test deterministic lightweight node-id retrieval semantics via oracle."""
+        print("🔍 Testing get_node_ids via oracle")
+
+        expected_all_node_ids = sorted(graph_data["nodes"].keys())
+        all_node_ids = await oracle.get_node_ids()
+        assert isinstance(all_node_ids, list)
+        assert len(all_node_ids) == len(graph_data["nodes"])
+        assert all_node_ids == expected_all_node_ids
+
+        limit = min(10, len(graph_data["nodes"]))
+        expected_limited_node_ids = expected_all_node_ids[:limit]
+        limited_node_ids = await oracle.get_node_ids(limit=limit)
+        assert isinstance(limited_node_ids, list)
+        assert len(limited_node_ids) == limit
+        assert len(limited_node_ids) == len(set(limited_node_ids)), "Node IDs should be unique"
+        assert limited_node_ids == expected_limited_node_ids
+
+        print(f"✓ Verified full and limited node-id retrieval (limit={limit})")
+
     # ===== Summary Test =====
 
     @staticmethod
@@ -806,6 +852,9 @@ class GraphStorageTestSuite:
             "edge_degrees_batch",
             "get_edges_batch",
             "get_nodes_edges_batch",
+            "get_nodes_edges_with_data_batch",
+            "get_incident_edges_with_data_batch",
+            "get_node_ids",
             "upsert_node",
             "upsert_edge",
             "delete_node",

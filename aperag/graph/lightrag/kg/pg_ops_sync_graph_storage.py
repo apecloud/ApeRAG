@@ -235,6 +235,16 @@ class PGOpsSyncGraphStorage(BaseGraphStorage):
 
         return await asyncio.to_thread(_sync_get_nodes_edges_batch)
 
+    async def get_incident_edges_with_data_batch(self, node_ids: list[str]) -> dict[str, list[tuple[str, str, dict]]]:
+        """Batch retrieve incident edges and edge payloads using optimized SQL."""
+
+        def _sync_get_incident_edges_with_data_batch():
+            from aperag.db.ops import db_ops
+
+            return db_ops.get_graph_incident_edges_with_data_batch(self.workspace, node_ids)
+
+        return await asyncio.to_thread(_sync_get_incident_edges_with_data_batch)
+
     async def delete_node(self, node_id: str) -> None:
         """Delete a node and all its related edges in a single transaction."""
 
@@ -311,6 +321,16 @@ class PGOpsSyncGraphStorage(BaseGraphStorage):
             return db_ops.get_top_degree_graph_nodes(self.workspace, limit)
 
         return await asyncio.to_thread(_sync_get_top_degree_nodes)
+
+    async def get_node_ids(self, limit: int | None = None) -> list[str] | None:
+        """Get node IDs directly from PostgreSQL without fetching full node payloads."""
+
+        def _sync_get_node_ids():
+            from aperag.db.ops import db_ops
+
+            return db_ops.get_graph_node_ids(self.workspace, limit)
+
+        return await asyncio.to_thread(_sync_get_node_ids)
 
     async def get_knowledge_graph(self, node_label: str, max_depth: int = 3, max_nodes: int = 1000) -> KnowledgeGraph:
         """

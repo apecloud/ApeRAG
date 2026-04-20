@@ -1692,12 +1692,17 @@ class LightRAG:
         try:
             self.lightrag_logger.info(f"Starting KG-Eval export for workspace {self.workspace}")
 
-            # Get all node labels (entity names) - single call
-            all_labels = await self.chunk_entity_relation_graph.get_all_labels()
-            self.lightrag_logger.debug(f"Found {len(all_labels)} entities in workspace {self.workspace}")
+            sampled_labels = await self.chunk_entity_relation_graph.get_node_ids(limit=sample_size)
+            if sampled_labels is None:
+                # Fallback for backends that have not implemented the lighter-weight primitive yet.
+                all_labels = await self.chunk_entity_relation_graph.get_all_labels()
+                self.lightrag_logger.debug(f"Found {len(all_labels)} entities in workspace {self.workspace}")
+                sampled_labels = all_labels[:sample_size] if len(all_labels) > sample_size else all_labels
+            else:
+                self.lightrag_logger.debug(
+                    f"Fetched {len(sampled_labels)} entity ids directly from storage for workspace {self.workspace}"
+                )
 
-            # Sample nodes for export (take first N)
-            sampled_labels = all_labels[:sample_size] if len(all_labels) > sample_size else all_labels
             self.lightrag_logger.debug(f"Sampling {len(sampled_labels)} entities for export")
 
             # Early return if no entities
@@ -1706,10 +1711,10 @@ class LightRAG:
 
             # Batch get all node data and edges in parallel
             nodes_data_task = self.chunk_entity_relation_graph.get_nodes_batch(sampled_labels)
-            nodes_edges_task = self.chunk_entity_relation_graph.get_nodes_edges_batch(sampled_labels)
+            incident_edges_task = self.chunk_entity_relation_graph.get_incident_edges_with_data_batch(sampled_labels)
 
             # Execute both tasks concurrently
-            nodes_data, nodes_edges = await asyncio.gather(nodes_data_task, nodes_edges_task)
+            nodes_data, incident_edges = await asyncio.gather(nodes_data_task, incident_edges_task)
 
             # Prepare entities list in KG-Eval format (direct iteration, no redundant operations)
             entities = [
@@ -1723,23 +1728,18 @@ class LightRAG:
 
             # Collect edge pairs that connect our sampled nodes (optimized filtering)
             sampled_labels_set = set(sampled_labels)  # O(1) lookup
-            edge_pairs_to_query = {
-                (source_entity_id, target_entity_id)
-                for edges in nodes_edges.values()
-                for source_entity_id, target_entity_id in edges
-                if source_entity_id in sampled_labels_set and target_entity_id in sampled_labels_set
-            }
+            deduped_edges = {}
+            for edge_list in incident_edges.values():
+                for source_entity_id, target_entity_id, edge_data in edge_list:
+                    if source_entity_id in sampled_labels_set and target_entity_id in sampled_labels_set:
+                        deduped_edges.setdefault((source_entity_id, target_entity_id), edge_data)
 
-            self.lightrag_logger.debug(f"Found {len(edge_pairs_to_query)} edges between sampled entities")
+            self.lightrag_logger.debug(f"Found {len(deduped_edges)} edges between sampled entities")
 
-            # Batch get edge details (single call)
+            # Process relationships from already-fetched incident edge payloads
             relationships = []
-            edges_data = {}
-            if edge_pairs_to_query:
-                edge_pairs_list = [{"src": src, "tgt": tgt} for src, tgt in edge_pairs_to_query]
-                edges_data = await self.chunk_entity_relation_graph.get_edges_batch(edge_pairs_list)
-
-                # Process relationships efficiently
+            edges_data = deduped_edges
+            if deduped_edges:
                 relationships = [
                     {
                         "source_entity_name": nodes_data.get(source_entity_id, {}).get("entity_name", source_entity_id),
@@ -1748,7 +1748,7 @@ class LightRAG:
                         "keywords": [kw.strip() for kw in edge_data.get("keywords", "").split(",") if kw.strip()],
                         "weight": float(edge_data.get("weight", 0.0)),
                     }
-                    for (source_entity_id, target_entity_id), edge_data in edges_data.items()
+                    for (source_entity_id, target_entity_id), edge_data in deduped_edges.items()
                 ]
 
             # Initialize result

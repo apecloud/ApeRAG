@@ -182,6 +182,10 @@ class TestPostgresGraphStorage:
         oracle, graph_data = postgres_graph_oracle_storage
         await GraphStorageTestSuite.test_get_nodes_edges_batch(oracle, graph_data)
 
+    async def test_get_incident_edges_with_data_batch(self, postgres_graph_oracle_storage):
+        oracle, graph_data = postgres_graph_oracle_storage
+        await GraphStorageTestSuite.test_get_incident_edges_with_data_batch(oracle, graph_data)
+
     async def test_edge_degree(self, postgres_graph_oracle_storage):
         oracle, graph_data = postgres_graph_oracle_storage
         await GraphStorageTestSuite.test_edge_degree(oracle, graph_data)
@@ -214,6 +218,10 @@ class TestPostgresGraphStorage:
     async def test_get_all_labels(self, postgres_graph_oracle_storage):
         oracle, graph_data = postgres_graph_oracle_storage
         await GraphStorageTestSuite.test_get_all_labels(oracle, graph_data)
+
+    async def test_get_node_ids(self, postgres_graph_oracle_storage):
+        oracle, graph_data = postgres_graph_oracle_storage
+        await GraphStorageTestSuite.test_get_node_ids(oracle, graph_data)
 
     async def test_interface_coverage_summary(self, postgres_graph_oracle_storage):
         oracle, graph_data = postgres_graph_oracle_storage
