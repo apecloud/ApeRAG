@@ -77,7 +77,10 @@ POST {{base_url}}/api/v2/agent/chats/{{chat_id}}/turns/{{turn_id}}/cancel
 HTTP 200
 [Asserts]
 jsonpath "$.turn_id" == "{{turn_id}}"
-jsonpath "$.status" == "cancelled"
+jsonpath "$.status" == "CANCELLED"
+
+GET {{base_url}}/api/v2/agent/artifacts/not-found-{{run_id}}
+HTTP 404
 
 DELETE {{base_url}}/api/v1/bots/{{bot_id}}/chats/{{chat_id}}
 HTTP 204

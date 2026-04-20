@@ -16,6 +16,8 @@ import json
 import uuid
 from typing import Any, Optional
 
+from sqlalchemy.exc import IntegrityError
+
 from aperag.agent.agent_history_manager import AgentHistoryManager
 from aperag.agent_runtime.schemas import (
     AgentArtifactEnvelope,
@@ -68,15 +70,22 @@ class TurnService:
         if existing:
             return chat, bot, existing, False
 
-        turn = await self.db_ops.create_agent_turn(
-            chat_id=chat_id,
-            user=user,
-            bot_id=bot.id,
-            request_id=uuid.uuid4().hex,
-            client_idempotency_key=idempotency_key,
-            input_text=request.query,
-            model_profile=self._build_model_profile(request),
-        )
+        try:
+            turn = await self.db_ops.create_agent_turn(
+                chat_id=chat_id,
+                user=user,
+                bot_id=bot.id,
+                request_id=uuid.uuid4().hex,
+                client_idempotency_key=idempotency_key,
+                input_text=request.query,
+                model_profile=self._build_model_profile(request),
+            )
+        except IntegrityError:
+            existing = await self.db_ops.query_agent_turn_by_idempotency(user, chat_id, idempotency_key)
+            if not existing:
+                raise
+            return chat, bot, existing, False
+
         await self.redis_store.update_runtime_state(
             turn.id,
             {"status": turn.status, "timeline_cursor": turn.timeline_cursor, "chat_id": chat_id, "user": user},
@@ -354,10 +363,24 @@ class HistoryWriter:
 
     async def build_history_context(self, user: str, chat_id: str, limit: int = 8) -> str:
         turns = await self.db_ops.query_recent_agent_turns(user, chat_id, limit=limit)
-        lines: list[str] = []
+        legacy_history = await query_chat_messages(user, chat_id)
+        legacy_lines: list[str] = []
+        legacy_turn_ids: set[str] = set()
+        for turn_parts in legacy_history[-limit:]:
+            turn_ids = {str(part.id) for part in turn_parts if getattr(part, "id", None)}
+            legacy_turn_ids.update(turn_ids)
+            human_texts = [
+                part.data for part in turn_parts if part.role == "human" and part.type == "message" and part.data
+            ]
+            ai_texts = [part.data for part in turn_parts if part.role == "ai" and part.type == "message" and part.data]
+            if human_texts:
+                legacy_lines.append(f"User: {' '.join(human_texts)}")
+            if ai_texts:
+                legacy_lines.append(f"Assistant: {' '.join(ai_texts)}")
 
+        v3_lines: list[str] = []
         for turn in turns:
-            if turn.status != AgentTurnStatus.COMPLETED:
+            if turn.status != AgentTurnStatus.COMPLETED or turn.id in legacy_turn_ids:
                 continue
             artifacts = await self.db_ops.query_agent_artifacts_by_turn(turn.id)
             answer = next(
@@ -373,25 +396,11 @@ class HistoryWriter:
                 answer_text = answer.payload.get("text") or answer.payload.get("content") or ""
             if not answer_text:
                 continue
-            lines.append(f"User: {turn.input_text}")
-            lines.append(f"Assistant: {answer_text}")
+            v3_lines.append(f"User: {turn.input_text}")
+            v3_lines.append(f"Assistant: {answer_text}")
 
-        if lines:
-            return "Conversation so far:\n" + "\n".join(lines)
-
-        legacy_history = await query_chat_messages(user, chat_id)
-        legacy_lines: list[str] = []
-        for turn_parts in legacy_history[-limit:]:
-            human_texts = [
-                part.data for part in turn_parts if part.role == "human" and part.type == "message" and part.data
-            ]
-            ai_texts = [part.data for part in turn_parts if part.role == "ai" and part.type == "message" and part.data]
-            if human_texts:
-                legacy_lines.append(f"User: {' '.join(human_texts)}")
-            if ai_texts:
-                legacy_lines.append(f"Assistant: {' '.join(ai_texts)}")
-
-        return "Conversation so far:\n" + "\n".join(legacy_lines) if legacy_lines else ""
+        lines = legacy_lines + v3_lines
+        return "Conversation so far:\n" + "\n".join(lines) if lines else ""
 
     async def commit_completed_turn(
         self,
