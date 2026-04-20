@@ -1,11 +1,9 @@
 import json
 import logging
 from http import HTTPStatus
-from pathlib import Path
 from typing import Any, Dict, List
 
 import pytest
-import yaml
 
 from tests.e2e_pytest.config import WS_BASE_URL
 
@@ -18,6 +16,7 @@ class APITestHelper:
 
     def __init__(self, client):
         self.client = client
+
     def test_frontend_api_streaming(
         self, bot_id: str, chat_id: str, message: str, test_name: str, is_knowledge_bot: bool = False
     ) -> None:
@@ -80,97 +79,53 @@ class APITestHelper:
 
 
 def create_bot_config(
-    model_name: str = "deepseek/deepseek-v3-base:free", bot_type: str = "common", **kwargs
+    model_name: str = "google/gemini-2.5-flash",
+    bot_type: str = "common",
+    collection_ids: List[str] | None = None,
+    **kwargs,
 ) -> Dict[str, Any]:
     """Create bot configuration with sensible defaults"""
-    base_config = {
-        "model_name": model_name,
+    completion_config = {
+        "model": model_name,
         "model_service_provider": "openrouter",
-        "llm": {"context_window": 3500, "temperature": 0.1 if bot_type == "knowledge" else 0.7},
+        "custom_llm_provider": "openrouter",
+        "temperature": 0.1 if bot_type == "knowledge" else 0.7,
     }
+    completion_config.update(kwargs)
 
-    if bot_type == "knowledge":
-        base_config["llm"].update(
-            {
-                "similarity_score_threshold": 0.5,
-                "similarity_topk": 3,
-            }
-        )
+    agent_config: Dict[str, Any] = {"completion": completion_config}
+    if collection_ids:
+        agent_config["collections"] = [{"id": collection_id} for collection_id in collection_ids]
 
-    base_config["llm"].update(kwargs)
-    return base_config
+    return {"agent": agent_config}
 
 
-def create_and_configure_bot(
-    client, bot_type: str, collection_ids: List[str] = None, flow_file: str = None
-) -> Dict[str, Any]:
-    """Create and configure a bot with the given parameters"""
-    from tests.e2e_pytest.config import (
-        COMPLETION_MODEL_CUSTOM_PROVIDER,
-        COMPLETION_MODEL_NAME,
-        COMPLETION_MODEL_PROVIDER,
-        RERANK_MODEL_NAME,
-        RERANK_MODEL_PROVIDER,
+def create_and_configure_bot(client, bot_type: str, collection_ids: List[str] = None) -> Dict[str, Any]:
+    """Create a bot that matches the current agent-config API contract."""
+    from tests.e2e_pytest.config import COMPLETION_MODEL_NAME
+
+    config = create_bot_config(
+        model_name=COMPLETION_MODEL_NAME,
+        bot_type=bot_type,
+        collection_ids=collection_ids,
     )
-
-    config = create_bot_config(bot_type=bot_type)
 
     create_data = {
         "title": f"E2E {bot_type.title()} Test Bot",
         "description": f"E2E {bot_type.title()} Bot Description",
         "type": "agent",
-        "config": json.dumps(config),
-        "collection_ids": collection_ids or [],
+        "config": config,
     }
 
     resp = client.post("/api/v1/bots", json=create_data)
     assert resp.status_code == HTTPStatus.OK, resp.text
-    bot = resp.json()
-
-    # Configure flow if specified
-    if flow_file:
-        flow_path = Path(__file__).parent / "testdata" / flow_file
-        with open(flow_path, "r", encoding="utf-8") as f:
-            flow = yaml.safe_load(f)
-
-        # Update collection_ids in flow nodes if needed
-        if collection_ids:
-            for node in flow.get("nodes", []):
-                if node.get("type") in ["vector_search", "fulltext_search", "graph_search"]:
-                    if "data" in node and "input" in node["data"] and "values" in node["data"]["input"]:
-                        node["data"]["input"]["values"]["collection_ids"] = collection_ids
-
-        # Update model configurations from environment variables
-        for node in flow.get("nodes", []):
-            if node.get("type") == "llm":
-                # Update LLM model configuration
-                if "data" in node and "input" in node["data"] and "values" in node["data"]["input"]:
-                    values = node["data"]["input"]["values"]
-                    values["model_service_provider"] = COMPLETION_MODEL_PROVIDER
-                    values["model_name"] = COMPLETION_MODEL_NAME
-                    values["custom_llm_provider"] = COMPLETION_MODEL_CUSTOM_PROVIDER
-            elif node.get("type") == "rerank":
-                # Update rerank model configuration
-                if "data" in node and "input" in node["data"] and "values" in node["data"]["input"]:
-                    values = node["data"]["input"]["values"]
-                    values["model_service_provider"] = RERANK_MODEL_PROVIDER
-                    values["model"] = RERANK_MODEL_NAME
-
-        flow_json = json.dumps(flow)
-        resp = client.put(
-            f"/api/v1/bots/{bot['id']}/flow", content=flow_json, headers={"Content-Type": "application/json"}
-        )
-        assert resp.status_code == HTTPStatus.OK, resp.text
-
-    return bot
+    return resp.json()
 
 
 @pytest.fixture
 def knowledge_bot(client, collection):
     """Create a knowledge bot for RAG testing"""
-    bot = create_and_configure_bot(
-        client, bot_type="knowledge", collection_ids=[collection["id"]], flow_file="rag-flow.yaml"
-    )
+    bot = create_and_configure_bot(client, bot_type="knowledge", collection_ids=[collection["id"]])
     yield bot
     resp = client.delete(f"/api/v1/bots/{bot['id']}")
     assert resp.status_code in (200, 204), f"Failed to delete bot: {resp.status_code}, {resp.text}"
@@ -179,7 +134,7 @@ def knowledge_bot(client, collection):
 @pytest.fixture
 def basic_bot(client):
     """Create a basic bot for simple chat testing"""
-    bot = create_and_configure_bot(client, bot_type="common", flow_file="basic-flow.yaml")
+    bot = create_and_configure_bot(client, bot_type="common")
     yield bot
     resp = client.delete(f"/api/v1/bots/{bot['id']}")
     assert resp.status_code in (200, 204), f"Failed to delete bot: {resp.status_code}, {resp.text}"

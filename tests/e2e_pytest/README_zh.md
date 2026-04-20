@@ -29,7 +29,7 @@ tests/e2e_pytest/
 本阶段已迁走：
 - available-model 覆盖迁到 `tests/e2e_http/hurl/full/10_provider_llm.hurl`
 - provider model CRUD 迁到 `tests/e2e_http/hurl/full/10_provider_llm.hurl`
-- bot CRUD 与 flow 覆盖迁到 `tests/e2e_http/hurl/full/12_bot.hurl`
+- bot CRUD 与 agent config 覆盖迁到 `tests/e2e_http/hurl/full/12_bot.hurl`
 - 确定性的 chat create/list/get/update/delete 覆盖迁到 `tests/e2e_http/hurl/full/13_chat_http.hurl`
 - 前端 non-streaming chat 的 HTTP envelope 契约迁到 `tests/e2e_http/hurl/full/13_chat_http.hurl`
 - 未实现的 `/v1/chat/completions` 错误契约迁到 `tests/e2e_http/hurl/full/13_chat_http.hurl`

@@ -15,12 +15,13 @@ Content-Type: application/json
   "config": {
     "agent": {
       "completion": {
-        "model": "google/gemini-2.5-flash",
         "model_service_provider": "openrouter",
+        "model": "google/gemini-2.5-flash",
         "custom_llm_provider": "openrouter",
         "temperature": 0.2
       },
-      "system_prompt_template": "You are a concise assistant."
+      "system_prompt_template": "You are Chat Bot {{run_id}}.",
+      "query_prompt_template": "{query}"
     }
   }
 }
@@ -29,7 +30,6 @@ HTTP 200
 bot_id: jsonpath "$.id"
 [Asserts]
 jsonpath "$.id" == "{{bot_id}}"
-jsonpath "$.type" == "agent"
 jsonpath "$.config.agent.completion.model" == "google/gemini-2.5-flash"
 
 POST {{base_url}}/api/v1/bots/{{bot_id}}/chats

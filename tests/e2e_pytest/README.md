@@ -29,7 +29,7 @@ tests/e2e_pytest/
 Migrated in this phase:
 - available-model coverage moved to `tests/e2e_http/hurl/full/10_provider_llm.hurl`
 - provider model CRUD moved to `tests/e2e_http/hurl/full/10_provider_llm.hurl`
-- bot CRUD and flow coverage moved to `tests/e2e_http/hurl/full/12_bot.hurl`
+- bot CRUD and agent-config coverage moved to `tests/e2e_http/hurl/full/12_bot.hurl`
 - deterministic chat create/list/get/update/delete moved to `tests/e2e_http/hurl/full/13_chat_http.hurl`
 - frontend non-streaming chat envelope contract moved to `tests/e2e_http/hurl/full/13_chat_http.hurl`
 - unsupported `/v1/chat/completions` error contract moved to `tests/e2e_http/hurl/full/13_chat_http.hurl`

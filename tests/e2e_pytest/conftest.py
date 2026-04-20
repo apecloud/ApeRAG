@@ -7,6 +7,7 @@ import pytest
 
 from tests.e2e_pytest.config import (
     API_BASE_URL,
+    COMPLETION_MODEL_CUSTOM_PROVIDER,
     COMPLETION_MODEL_NAME,
     COMPLETION_MODEL_PROVIDER,
     COMPLETION_MODEL_PROVIDER_API_KEY,
@@ -144,17 +145,21 @@ def document(client, collection):
 
 @pytest.fixture
 def bot(client, document, collection):
-    config = {
-        "model_name": f"{COMPLETION_MODEL_NAME}",
-        "model_service_provider": COMPLETION_MODEL_PROVIDER,
-        "llm": {"context_window": 3500, "similarity_score_threshold": 0.5, "similarity_topk": 3, "temperature": 0.1},
-    }
     create_data = {
         "title": "E2E Test Bot",
         "description": "E2E Bot Description",
         "type": "agent",
-        "config": json.dumps(config),
-        "collection_ids": [collection["id"]],
+        "config": {
+            "agent": {
+                "completion": {
+                    "model": f"{COMPLETION_MODEL_NAME}",
+                    "model_service_provider": COMPLETION_MODEL_PROVIDER,
+                    "custom_llm_provider": COMPLETION_MODEL_CUSTOM_PROVIDER,
+                    "temperature": 0.1,
+                },
+                "collections": [{"id": collection["id"]}],
+            }
+        },
     }
     resp = client.post("/api/v1/bots", json=create_data)
     assert resp.status_code == HTTPStatus.OK, resp.text

@@ -22,7 +22,7 @@ This matrix is the working contract for converging the test tree toward:
 | available models | no | no | yes | no | no | fully owned by Hurl |
 | llm provider config and model CRUD | no | no | yes | no | no | fully owned by Hurl |
 | bot CRUD | no | no | yes | no | no | fully owned by Hurl |
-| bot flow get/update | no | no | yes | no | no | fully owned by Hurl |
+| bot agent config get/update | no | no | yes | no | no | fully owned by Hurl |
 | chat create/list/get/update/delete | no | no | yes | no | no | fully owned by Hurl |
 | chat frontend non-streaming completion envelope | no | no | yes | no | no | move the frontend HTTP contract to Hurl; keep stronger success-path guarantees separate until the path is stable |
 | unsupported `/v1/chat/completions` error contract | no | no | yes | no | no | Hurl asserts the stable not-implemented response; no pytest happy-path remains |
