@@ -71,29 +71,7 @@ The MCP server provides:
 
 #### Enhanced Document Parsing
 
-For enhanced document parsing capabilities, ApeRAG supports an **advanced document parsing service** powered by MinerU, which provides superior parsing for complex documents, tables, and formulas. 
-
-<details>
-<summary><strong>Enhanced Document Parsing Commands</strong></summary>
-
-```bash
-# Enable advanced document parsing service
-DOCRAY_HOST=http://aperag-docray:8639 docker compose --profile docray up -d
-
-# Enable advanced parsing with GPU acceleration 
-DOCRAY_HOST=http://aperag-docray-gpu:8639 docker compose --profile docray-gpu up -d
-```
-
-Or use the Makefile shortcuts (requires [GNU Make](https://www.gnu.org/software/make/)):
-```bash
-# Enable advanced document parsing service
-make compose-up WITH_DOCRAY=1
-
-# Enable advanced parsing with GPU acceleration (recommended)
-make compose-up WITH_DOCRAY=1 WITH_GPU=1
-```
-
-</details>
+For enhanced document parsing capabilities, ApeRAG supports MinerU-based parsing for complex documents, tables, formulas, and OCR-heavy inputs.
 
 #### Development & Contributing
 
@@ -194,8 +172,6 @@ kubectl get pods -n default -l app.kubernetes.io/instance=aperag
 ```
 
 ### Configuration Options
-
-**Resource Requirements**: By default, includes [`doc-ray`](https://github.com/apecloud/doc-ray) service (requires 4+ CPU cores, 8GB+ RAM). To disable: set `docray.enabled: false` in `values.yaml`.
 
 **Advanced Settings**: Review `values.yaml` for additional configuration options including images, resources, and Ingress settings.
 

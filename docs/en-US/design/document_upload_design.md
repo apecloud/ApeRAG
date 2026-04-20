@@ -344,10 +344,6 @@ DocParser (Main Controller)
     │   └─ Function: High-precision PDF parsing (commercial API)
     │   └─ Supports: .pdf
     │
-    ├─► DocRayParser
-    │   └─ Function: Document layout analysis and content extraction
-    │   └─ Supports: .pdf, .docx, .pptx, .xlsx
-    │
     ├─► ImageParser
     │   └─ Function: Image content recognition (OCR + vision understanding)
     │   └─ Supports: .jpg, .png, .gif, .bmp, .tiff
@@ -369,7 +365,6 @@ DocParser (Main Controller)
 {
   "parser_config": {
     "use_mineru": false,           // Enable MinerU (requires API Token)
-    "use_doc_ray": false,          // Enable DocRay
     "use_markitdown": true,        // Enable MarkItDown (default)
     "mineru_api_token": "xxx"      // MinerU API Token (optional)
   }
@@ -437,7 +432,7 @@ Celery Worker receives indexing task
 Input: user_manual.pdf (5 MB)
     │
     ▼
-Parser selection: DocRayParser / MarkItDownParser
+Parser selection: MinerUParser / MarkItDownParser
     │
     ▼
 Output Parts:
@@ -638,7 +633,7 @@ UNIQUE INDEX uq_document_collection_name_active
     "user-xxx/col_xxx/doc_xxx/images/page_0.png",
     "user-xxx/col_xxx/doc_xxx/images/page_1.png"
   ],
-  "parser_used": "DocRayParser",
+  "parser_used": "MinerUParser",
   "parse_duration_ms": 5420,
   "page_count": 50,
   "custom_field": "value"
@@ -1037,7 +1032,7 @@ Return standard JSON response:
 - **Main Controller**: `aperag/docparser/doc_parser.py` - DocParser
 - **Parser Implementations**:
   - `aperag/docparser/mineru_parser.py` - MinerU PDF parsing
-  - `aperag/docparser/docray_parser.py` - DocRay document parsing
+  - `aperag/docparser/mineru_parser.py` - MinerU document parsing
   - `aperag/docparser/markitdown_parser.py` - MarkItDown universal parsing
   - `aperag/docparser/image_parser.py` - Image OCR
   - `aperag/docparser/audio_parser.py` - Audio transcription
@@ -1071,7 +1066,7 @@ ApeRAG's document upload module adopts a **two-phase commit + multi-parser chain
 1. ✅ **Two-Phase Commit**: Upload (temporary storage) → Confirm (formal addition), providing better user experience
 2. ✅ **SHA-256 Deduplication**: Prevents duplicate documents, supports idempotent upload
 3. ✅ **Flexible Storage Backend**: Local/S3 configurable switching, unified interface abstraction
-4. ✅ **Multi-Parser Architecture**: Supports MinerU, DocRay, MarkItDown and other parsers
+4. ✅ **Multi-Parser Architecture**: Supports MinerU, MarkItDown and other parsers
 5. ✅ **Automatic Format Conversion**: PDF→images, audio→text, images→OCR text
 6. ✅ **Multi-Index Coordination**: Five index types: vector, full-text, graph, summary, vision
 7. ✅ **Quota Management**: Quota deducted at confirmation stage, reasonable resource control

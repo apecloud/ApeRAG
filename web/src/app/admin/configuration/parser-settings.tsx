@@ -22,7 +22,6 @@ import { toast } from 'sonner';
 const defaultValue = {
   use_mineru: false,
   mineru_api_token: '',
-  use_doc_ray: false,
   use_markitdown: true,
 };
 
@@ -141,24 +140,6 @@ export const ParserSettings = ({
             {common_action('save')}
           </Button>
         </CardFooter>
-      </Card>
-      <Card>
-        <CardHeader>
-          <div className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle>{admin_config('use_doc_ray')}</CardTitle>
-              <CardDescription>
-                {admin_config('use_doc_ray_description')}
-              </CardDescription>
-            </div>
-            <Switch
-              checked={data.use_doc_ray}
-              onCheckedChange={(checked) =>
-                handleSwitchChange('use_doc_ray', checked)
-              }
-            />
-          </div>
-        </CardHeader>
       </Card>
       <Card>
         <CardHeader>

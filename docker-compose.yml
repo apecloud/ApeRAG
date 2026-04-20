@@ -34,8 +34,6 @@ services:
     env_file:
       - .env
       - envs/docker.env.overrides
-    environment:
-      - DOCRAY_HOST=${DOCRAY_HOST}
     ports:
       - "8000:8000"
     command: ["/app/scripts/entrypoint.sh", "/app/scripts/start-api.sh"]
@@ -87,7 +85,6 @@ services:
       - envs/docker.env.overrides
     environment:
       - NODE_IP=aperag-celeryworker
-      - DOCRAY_HOST=${DOCRAY_HOST}
       - APERAG_API_BASE_URL=http://aperag-api:8000
     command: ["/app/scripts/entrypoint.sh", "/app/scripts/start-celery-worker.sh"]
 
@@ -356,37 +353,3 @@ services:
       nebula-graphd:
         condition: service_healthy
     profiles: ["nebula"]
-
-  # ==============================================
-  # DocRay Services (existing profiles)
-  # ==============================================
-  docray:
-    image: ${REGISTRY:-docker.io}/apecloud/doc-ray:${DOCRAY_VERSION:-v0.2.0}
-    container_name: aperag-docray
-    ports:
-      - "8265:8265"
-      - "8639:8639"
-    profiles: ["docray"]
-    environment:
-      - STANDALONE_MODE=true
-    deploy:
-      resources:
-        reservations:
-          memory: "8G"
-
-  docray-gpu:
-    image: ${REGISTRY:-docker.io}/apecloud/doc-ray:${DOCRAY_VERSION:-v0.2.0}
-    container_name: aperag-docray-gpu
-    ports:
-      - "8265:8265"
-      - "8639:8639"
-    profiles: ["docray-gpu"]
-    environment:
-      - STANDALONE_MODE=true
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]

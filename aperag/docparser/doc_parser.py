@@ -21,7 +21,6 @@ from pydantic import BaseModel, Field
 
 from aperag.docparser.audio_parser import AudioParser
 from aperag.docparser.base import BaseParser, FallbackError, Part
-from aperag.docparser.docray_parser import DocRayParser
 from aperag.docparser.image_parser import ImageParser
 from aperag.docparser.markitdown_parser import MarkItDownParser
 from aperag.docparser.mineru_parser import MinerUParser
@@ -32,7 +31,6 @@ ALL_PARSERS = [
     AudioParser,
     ImageParser,
     MarkItDownParser,
-    DocRayParser,
     MinerUParser,
 ]
 
@@ -42,7 +40,6 @@ PARSER_MAP = {cls.name: cls for cls in ALL_PARSERS}
 def get_default_config() -> list["ParserConfig"]:
     return [
         ParserConfig(name=MinerUParser.name, enabled=False),
-        ParserConfig(name=DocRayParser.name, enabled=True),
         ParserConfig(name=ImageParser.name, enabled=True),
         ParserConfig(name=AudioParser.name, enabled=True),
         ParserConfig(name=MarkItDownParser.name, enabled=True),
@@ -93,9 +90,6 @@ class DocParser(BaseParser):
                     cfg.settings["api_token"] = token
                 else:
                     cfg.enabled = False
-            elif cfg.name == DocRayParser.name:
-                use_doc_ray = parser_config.get("use_doc_ray", False)
-                cfg.enabled = use_doc_ray
             elif cfg.name == MarkItDownParser.name:
                 use_markitdown = parser_config.get("use_markitdown", True)
                 cfg.enabled = use_markitdown

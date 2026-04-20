@@ -88,10 +88,7 @@ migrate:
 #   make compose-up                              # Full application
 #   make compose-up WITH_NEO4J=1                 # Full application + Neo4j
 #   make compose-up WITH_NEBULA=1                # Full application + Nebula Graph
-#   make compose-up WITH_DOCRAY=1                # Full application + DocRay
 #   make compose-up WITH_JAEGER=1                # Full application + Jaeger
-#   make compose-up WITH_NEO4J=1 WITH_DOCRAY=1   # Full application + Neo4j + DocRay
-#   make compose-up WITH_NEO4J=1 WITH_DOCRAY=1 WITH_GPU=1  # All features
 #   make compose-up WITH_JAEGER=1 WITH_NEO4J=1   # Full application + Jaeger + Neo4j
 #   make compose-infra                           # Infrastructure only (databases)
 #   make compose-infra WITH_NEO4J=1              # Infrastructure + Neo4j
@@ -113,16 +110,6 @@ endif
 
 ifeq ($(WITH_JAEGER),1)
     _PROFILES_TO_ACTIVATE += --profile jaeger
-endif
-
-ifeq ($(WITH_DOCRAY),1)
-    ifeq ($(WITH_GPU),1)
-        _PROFILES_TO_ACTIVATE += --profile docray-gpu
-		_EXTRA_ENVS += DOCRAY_HOST=http://aperag-docray-gpu:8639
-    else
-        _PROFILES_TO_ACTIVATE += --profile docray
-		_EXTRA_ENVS += DOCRAY_HOST=http://aperag-docray:8639
-    endif
 endif
 
 # Determine flags for 'compose-down'
@@ -147,7 +134,7 @@ compose-infra:
 		$(if $(filter 1,$(WITH_NEBULA)),nebula-metad nebula-storaged nebula-graphd nebula-storage-activator,)
 
 compose-down:
-	docker-compose --profile docray --profile docray-gpu --profile neo4j --profile nebula --profile jaeger -f docker-compose.yml down $(_COMPOSE_DOWN_FLAGS)
+	docker-compose --profile neo4j --profile nebula --profile jaeger -f docker-compose.yml down $(_COMPOSE_DOWN_FLAGS)
 
 compose-logs:
 	docker-compose -f docker-compose.yml logs -f
