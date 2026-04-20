@@ -44,18 +44,7 @@ This will start all required database services in the background. The default co
 ```bash
 # Use Neo4j instead of PostgreSQL for graph storage
 make compose-infra WITH_NEO4J=1
-
-# Add advanced document parsing service (DocRay)
-make compose-infra WITH_DOCRAY=1
-
-# Combine multiple options
-make compose-infra WITH_NEO4J=1 WITH_DOCRAY=1
-
-# GPU-accelerated document parsing (requires ~6GB VRAM)
-make compose-infra WITH_DOCRAY=1 WITH_GPU=1
 ```
-
-**Note**: DocRay provides enhanced document parsing for complex PDFs, tables, and formulas. CPU mode requires 4+ cores and 8GB+ RAM.
 
 </details>
 
@@ -145,7 +134,7 @@ make compose-down REMOVE_VOLUMES=1
 
 **Stop Development Services:**
 - Backend API Server: Press `Ctrl+C` in the terminal running `make run-backend`
-- Celery Worker: Press `Ctrl+C` in the terminal running `make run-celery`  
+- Celery Worker: Press `Ctrl+C` in the terminal running `make run-celery`
 - Frontend Server: Press `Ctrl+C` in the terminal running `make run-frontend`
 
 **Data Management:**
@@ -169,7 +158,7 @@ Now you have ApeRAG running locally from source code, ready for development! �
 
 **Complete workflow:**
 1. Edit OpenAPI specification: `aperag/api/paths/[endpoint-name].yaml`
-2. Regenerate backend models: 
+2. Regenerate backend models:
    ```bash
    make generate-models  # This runs merge-openapi internally
    ```
@@ -240,7 +229,7 @@ uv run pytest tests/unit_test/ --cov=aperag --cov-report=html
 
 **E2E Tests (Require Running Services):**
 ```bash
-# Setup: Start required services first 
+# Setup: Start required services first
 make compose-infra      # 🗄️ Start databases
 make run-backend       # 🚀 Start API server (separate terminal)
 
@@ -275,7 +264,7 @@ make test
    ```bash
    # Single test with full output
    uv run pytest tests/unit_test/test_failing.py::test_specific_function -v -s
-   
+
    # Stop on first failure
    uv run pytest tests/unit_test/ -x --tb=short
    ```
@@ -289,7 +278,7 @@ make test
    ```bash
    # Run with pdb debugger
    uv run pytest tests/unit_test/test_failing.py --pdb
-   
+
    # Capture logs during test
    uv run pytest tests/e2e_test/test_failing.py --log-cli-level=DEBUG
    ```
@@ -390,4 +379,4 @@ make migrate                    # 🔄 Apply any new migrations
 rm -rf .venv/                   # 🗑️ Remove virtual environment
 make dev                       # ⚙️ Recreate everything
 source .venv/bin/activate      # ✅ Reactivate
-``` 
+```

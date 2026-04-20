@@ -33,16 +33,9 @@ export interface Settings {
      */
     'mineru_api_token'?: string;
     /**
-     * Whether to use DocRay
-     * @type {boolean}
-     * @memberof Settings
-     */
-    'use_doc_ray'?: boolean;
-    /**
      * Whether to use MarkItDown
      * @type {boolean}
      * @memberof Settings
      */
     'use_markitdown'?: boolean;
 }
-

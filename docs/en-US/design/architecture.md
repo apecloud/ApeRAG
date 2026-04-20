@@ -95,7 +95,7 @@ graph TB
     
     subgraph Layer4[Task Layer]
         Celery[Celery Worker<br/>Async Tasks]
-        DocRay[DocRay<br/>Document Parser]
+        MinerU[MinerU<br/>Document Parser]
     end
     
     subgraph Layer5[Storage Layer]
@@ -125,7 +125,7 @@ graph TB
     DocSvc --> Celery
     GraphSvc --> Celery
     
-    Celery --> DocRay
+    Celery --> MinerU
     Celery --> PG
     Celery --> Qdrant
     Celery --> ES
@@ -164,12 +164,12 @@ When you upload a document, ApeRAG automatically identifies the format and selec
 flowchart TD
     Upload[User Upload Document] --> Detect[Format Detection]
     
-    Detect --> |PDF| DocRay[DocRay Parser]
+    Detect --> |PDF| MinerU[MinerU Parser]
     Detect --> |Word/Excel| MarkItDown[MarkItDown Parser]
     Detect --> |Markdown| DirectParse[Direct Parse]
     Detect --> |Image| OCR[OCR Recognition]
     
-    DocRay --> Extract[Content Extraction]
+    MinerU --> Extract[Content Extraction]
     MarkItDown --> Extract
     DirectParse --> Extract
     OCR --> Extract
@@ -181,7 +181,7 @@ flowchart TD
     style Parts fill:#fff59d
 ```
 
-**DocRay/MinerU's Power**:
+**MinerU's Power**:
 
 - Accurately recognizes complex PDF table structures, preserving table content integrity
 - Extracts LaTeX mathematical formulas, maintaining formula readability

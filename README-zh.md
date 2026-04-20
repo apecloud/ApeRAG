@@ -71,29 +71,7 @@ MCP 服务器提供：
 
 #### 增强文档解析
 
-为了获得增强的文档解析能力，ApeRAG 支持由 MinerU 驱动的**高级文档解析服务**，可为复杂文档、表格和公式提供优异的解析能力。
-
-<details>
-<summary><strong>增强文档解析命令</strong></summary>
-
-```bash
-# 启用高级文档解析服务
-DOCRAY_HOST=http://aperag-docray:8639 docker compose --profile docray up -d
-
-# 启用带 GPU 加速的高级解析
-DOCRAY_HOST=http://aperag-docray-gpu:8639 docker compose --profile docray-gpu up -d
-```
-
-或使用 Makefile 快捷方式（需要 [GNU Make](https://www.gnu.org/software/make/)）：
-```bash
-# 启用高级文档解析服务
-make compose-up WITH_DOCRAY=1
-
-# 启用带 GPU 加速的高级解析（推荐）
-make compose-up WITH_DOCRAY=1 WITH_GPU=1
-```
-
-</details>
+为了获得增强的文档解析能力，ApeRAG 支持基于 MinerU 的高级解析能力，适用于复杂文档、表格、公式和 OCR 场景。
 
 #### 开发与贡献
 
@@ -195,8 +173,6 @@ kubectl get pods -n default -l app.kubernetes.io/instance=aperag
 
 ### 配置选项
 
-**资源要求**：默认包含 [`doc-ray`](https://github.com/apecloud/doc-ray) 服务（需要 4+ CPU 核心，8GB+ RAM）。要禁用：在 `values.yaml` 中设置 `docray.enabled: false`。
-
 **高级设置**：查看 `values.yaml` 了解额外的配置选项，包括镜像、资源和 Ingress 设置。
 
 ### 访问您的部署
@@ -250,4 +226,4 @@ ApeRAG 中基于图的知识检索能力由深度修改的 [LightRAG](https://gi
 
 ## 许可证
 
-ApeRAG 采用 Apache License 2.0 许可。详情请参见 [LICENSE](./LICENSE) 文件。 
+ApeRAG 采用 Apache License 2.0 许可。详情请参见 [LICENSE](./LICENSE) 文件。

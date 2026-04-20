@@ -95,7 +95,7 @@ graph TB
     
     subgraph Layer4[任务层]
         Celery[Celery Worker<br/>异步任务]
-        DocRay[DocRay<br/>文档解析]
+        MinerU[MinerU<br/>文档解析]
     end
     
     subgraph Layer5[存储层]
@@ -125,7 +125,7 @@ graph TB
     DocSvc --> Celery
     GraphSvc --> Celery
     
-    Celery --> DocRay
+    Celery --> MinerU
     Celery --> PG
     Celery --> Qdrant
     Celery --> ES
@@ -164,12 +164,12 @@ graph TB
 flowchart TD
     Upload[用户上传文档] --> Detect[格式检测]
     
-    Detect --> |PDF| DocRay[DocRay 解析器]
+    Detect --> |PDF| MinerU[MinerU 解析器]
     Detect --> |Word/Excel| MarkItDown[MarkItDown 解析器]
     Detect --> |Markdown| DirectParse[直接解析]
     Detect --> |图片| OCR[OCR 识别]
     
-    DocRay --> Extract[内容提取]
+    MinerU --> Extract[内容提取]
     MarkItDown --> Extract
     DirectParse --> Extract
     OCR --> Extract
@@ -181,7 +181,7 @@ flowchart TD
     style Parts fill:#fff59d
 ```
 
-**DocRay/MinerU 的强大之处**：
+**MinerU 的强大之处**：
 
 - 能准确识别复杂 PDF 的表格结构，保留表格内容的完整性
 - 提取 LaTeX 数学公式，保持公式的可读性

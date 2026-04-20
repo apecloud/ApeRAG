@@ -153,7 +153,6 @@ class Config(BaseSettings):
     # OCR/ASR
     whisper_host: str = Field("", alias="WHISPER_HOST")
     paddleocr_host: str = Field("", alias="PADDLEOCR_HOST")
-    docray_host: str = Field("", alias="DOCRAY_HOST")
 
     # Register mode
     register_mode: str = Field("unlimited", alias="REGISTER_MODE")

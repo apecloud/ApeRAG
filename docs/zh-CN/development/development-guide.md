@@ -49,18 +49,7 @@ make compose-infra
 ```bash
 # 使用 Neo4j 而不是 PostgreSQL 进行图存储
 make compose-infra WITH_NEO4J=1
-
-# 添加高级文档解析服务（DocRay）
-make compose-infra WITH_DOCRAY=1
-
-# 组合多个选项
-make compose-infra WITH_NEO4J=1 WITH_DOCRAY=1
-
-# GPU 加速文档解析（需要约 6GB VRAM）
-make compose-infra WITH_DOCRAY=1 WITH_GPU=1
 ```
-
-**注意**：DocRay 为复杂的 PDF、表格和公式提供增强的文档解析。CPU 模式需要 4+ 核心和 8GB+ RAM。
 
 </details>
 

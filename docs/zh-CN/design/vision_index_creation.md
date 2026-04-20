@@ -72,7 +72,7 @@ class DocumentIndexType(str, Enum):
 具体处理逻辑如下：
 - **PDF 文档**: 将每一页渲染成一张图片。
 - **DOCX 文档**: 解析文档内容，提取所有嵌入的图片。
-- **doc-ray 集成**: 如果系统配置了 `doc-ray`，可用于将 `doc/docx/ppt/pptx` 等文档统一转换为 PDF，然后按页提取图片。
+- **MinerU 集成**: 如果系统配置了 MinerU，可用于为复杂文档和 OCR 场景生成更稳定的结构化解析结果。
 - **原生图片**: 对于 `JPEG, PNG` 等原始图片文件，直接返回其二进制内容。
 - **输出格式**: `parse_document_task` 的输出 `ParsedDocumentData` 中需要包含一个图像列表字段，例如 `images: List[bytes]`。
 

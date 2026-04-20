@@ -51,12 +51,6 @@ class SettingService:
     async def update_use_mineru(self, use_mineru: bool):
         await self.update_setting("use_mineru", use_mineru)
 
-    async def get_use_doc_ray(self) -> bool:
-        return await self.get_setting("use_doc_ray") or False
-
-    async def update_use_doc_ray(self, use_doc_ray: bool):
-        await self.update_setting("use_doc_ray", use_doc_ray)
-
     async def get_use_markitdown(self) -> bool:
         return await self.get_setting("use_markitdown") or True
 

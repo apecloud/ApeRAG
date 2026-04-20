@@ -44,18 +44,7 @@ This will start all required database services in the background. The default co
 ```bash
 # Use Neo4j instead of PostgreSQL for graph storage
 make compose-infra WITH_NEO4J=1
-
-# Add advanced document parsing service (DocRay)
-make compose-infra WITH_DOCRAY=1
-
-# Combine multiple options
-make compose-infra WITH_NEO4J=1 WITH_DOCRAY=1
-
-# GPU-accelerated document parsing (requires ~6GB VRAM)
-make compose-infra WITH_DOCRAY=1 WITH_GPU=1
 ```
-
-**Note**: DocRay provides enhanced document parsing for complex PDFs, tables, and formulas. CPU mode requires 4+ cores and 8GB+ RAM.
 
 </details>
 

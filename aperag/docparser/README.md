@@ -32,11 +32,10 @@ The `docparser` module takes a file path as input and returns a list of structur
         *   Uses the `markitdown` library for the primary conversion to Markdown.
         *   For older Office formats (`.doc`, `.ppt`), it can use `soffice` (LibreOffice/OpenOffice) to convert them to modern XML formats first.
         *   The resulting Markdown is then processed by `parse_md.py`.
-    *   **`DocRayParser` (`docray_parser.py`)**:
-        *   Designed for complex, layout-intensive documents like `.pdf`, `.docx`, `.doc`, `.pptx`, `.ppt`.
-        *   Relies on an external "DocRay" microservice (configured via `settings.DOCRAY_HOST`).
-        *   Submits documents to DocRay, polls for completion, and retrieves a structured JSON output ("middle_json") along with extracted images.
-        *   This `middle_json` provides detailed layout information (pages, blocks, bounding boxes) which is then converted into `Part` objects, including `AssetBinPart` for images.
+    *   **`MinerUParser` (`mineru_parser.py`)**:
+        *   Designed for complex, layout-intensive documents and OCR-heavy inputs such as `.pdf`, `.docx`, `.doc`, `.pptx`, `.ppt`, and common image formats.
+        *   Relies on the MinerU API and a configured API token.
+        *   Retrieves structured layout output and extracted images, then converts that data into `Part` objects, including `AssetBinPart` for images.
         *   Also generates a consolidated Markdown representation from these parts.
     *   **`AudioParser` (`audio_parser.py`)**:
         *   Transcribes audio files (e.g., `.mp3`, `.wav`, `.ogg`) to text.
@@ -48,7 +47,7 @@ The `docparser` module takes a file path as input and returns a list of structur
         *   Outputs a `TextPart` with the extracted text.
 
 4.  **Markdown Processing (`parse_md.py`)**:
-    *   Takes a Markdown string (often the output of `MarkItDownParser` or `DocRayParser`) and converts it into a detailed list of `Part` objects.
+    *   Takes a Markdown string (often the output of `MarkItDownParser` or `MinerUParser`) and converts it into a detailed list of `Part` objects.
     *   Uses `markdown-it-py` for tokenizing the Markdown.
     *   The `PartConverter` class iterates through these tokens, creating corresponding `Part` objects (e.g., `TitlePart`, `TextPart`, `CodePart`, `ImagePart`).
     *   Handles extraction of embedded base64 data URIs: converts them to `AssetBinPart` objects and replaces the URI with an `asset://` link in the Markdown.
@@ -74,12 +73,12 @@ The `docparser` module takes a file path as input and returns a list of structur
 ## Workflow
 
 1.  A file path is provided to `DocParser`.
-2.  `DocParser` selects an appropriate parser (e.g., `MarkItDownParser`, `DocRayParser`).
+2.  `DocParser` selects an appropriate parser (e.g., `MarkItDownParser`, `MinerUParser`).
 3.  The selected parser processes the file:
     *   It might convert the file to Markdown (e.g., `MarkItDownParser`).
-    *   It might call external services for complex parsing or OCR/ASR (`DocRayParser`, `ImageParser`, `AudioParser`).
+    *   It might call external services for complex parsing or OCR/ASR (`MinerUParser`, `ImageParser`, `AudioParser`).
 4.  The (potentially intermediate Markdown) content is parsed into a list of `Part` objects using `parse_md.py` if applicable. This step structures the document into semantic units like paragraphs, titles, code blocks, and handles embedded images.
 5.  The resulting list of `Part` objects is then passed to the `rechunk` function in `chunking.py`.
 6.  `rechunk` intelligently combines and splits these parts into final text chunks of a desired token size, ready for embedding. Metadata, including title hierarchy and source location, is associated with each chunk.
 
-This module forms the foundation of the ingestion pipeline in ApeRAG, ensuring that diverse document types can be effectively processed and structured for retrieval and generation tasks. 
+This module forms the foundation of the ingestion pipeline in ApeRAG, ensuring that diverse document types can be effectively processed and structured for retrieval and generation tasks.

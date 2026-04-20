@@ -344,10 +344,6 @@ DocParser（主控制器）
     │   └─ 功能：高精度 PDF 解析（商业 API）
     │   └─ 支持：.pdf
     │
-    ├─► DocRayParser
-    │   └─ 功能：文档布局分析和内容提取
-    │   └─ 支持：.pdf, .docx, .pptx, .xlsx
-    │
     ├─► ImageParser
     │   └─ 功能：图片内容识别（OCR + 视觉理解）
     │   └─ 支持：.jpg, .png, .gif, .bmp, .tiff
@@ -369,7 +365,6 @@ DocParser（主控制器）
 {
   "parser_config": {
     "use_mineru": false,           // 是否启用 MinerU（需要 API Token）
-    "use_doc_ray": false,          // 是否启用 DocRay
     "use_markitdown": true,        // 是否启用 MarkItDown（默认）
     "mineru_api_token": "xxx"      // MinerU API Token（可选）
   }
@@ -437,7 +432,7 @@ Celery Worker 收到索引任务
 输入：user_manual.pdf (5 MB)
     │
     ▼
-解析器选择：DocRayParser / MarkItDownParser
+解析器选择：MinerUParser / MarkItDownParser
     │
     ▼
 输出 Parts：
@@ -638,7 +633,7 @@ UNIQUE INDEX uq_document_collection_name_active
     "user-xxx/col_xxx/doc_xxx/images/page_0.png",
     "user-xxx/col_xxx/doc_xxx/images/page_1.png"
   ],
-  "parser_used": "DocRayParser",
+  "parser_used": "MinerUParser",
   "parse_duration_ms": 5420,
   "page_count": 50,
   "custom_field": "value"
@@ -1037,7 +1032,7 @@ Exception Handler 统一处理
 - **主控制器**：`aperag/docparser/doc_parser.py` - DocParser
 - **Parser 实现**：
   - `aperag/docparser/mineru_parser.py` - MinerU PDF 解析
-  - `aperag/docparser/docray_parser.py` - DocRay 文档解析
+  - `aperag/docparser/mineru_parser.py` - MinerU 文档解析
   - `aperag/docparser/markitdown_parser.py` - MarkItDown 通用解析
   - `aperag/docparser/image_parser.py` - 图片 OCR
   - `aperag/docparser/audio_parser.py` - 音频转录
@@ -1071,7 +1066,7 @@ ApeRAG 的文档上传模块采用**两阶段提交 + 多 Parser 链式调用 + 
 1. ✅ **两阶段提交**：上传（临时存储）→ 确认（正式添加），提供更好的用户体验
 2. ✅ **SHA-256 去重**：避免重复文档，支持幂等上传
 3. ✅ **灵活存储后端**：Local/S3 可配置切换，统一接口抽象
-4. ✅ **多 Parser 架构**：支持 MinerU、DocRay、MarkItDown 等多种解析器
+4. ✅ **多 Parser 架构**：支持 MinerU、MarkItDown 等多种解析器
 5. ✅ **格式自动转换**：PDF→图片、音频→文本、图片→OCR 文本
 6. ✅ **多索引协调**：向量、全文、图谱、摘要、视觉五种索引类型
 7. ✅ **配额管理**：确认阶段才扣除配额，合理控制资源

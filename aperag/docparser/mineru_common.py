@@ -65,7 +65,7 @@ def middle_json_to_parts(image_dir: Path, middle_json: str, metadata: dict[str, 
 
 
 def merge_para_with_text(block: dict[str, Any]) -> str:
-    # Data from doc-ray has this field
+    # Some structured parser outputs provide this field
     merged = block.get("merged_text", None)
     if merged is not None:
         return merged

@@ -49,18 +49,7 @@ make compose-infra
 ```bash
 # 使用 Neo4j 而不是 PostgreSQL 进行图存储
 make compose-infra WITH_NEO4J=1
-
-# 添加高级文档解析服务（DocRay）
-make compose-infra WITH_DOCRAY=1
-
-# 组合多个选项
-make compose-infra WITH_NEO4J=1 WITH_DOCRAY=1
-
-# GPU 加速文档解析（需要约 6GB VRAM）
-make compose-infra WITH_DOCRAY=1 WITH_GPU=1
 ```
-
-**注意**：DocRay 为复杂的 PDF、表格和公式提供增强的文档解析。CPU 模式需要 4+ 核心和 8GB+ RAM。
 
 </details>
 
@@ -280,7 +269,7 @@ make test
    ```bash
    # 带完整输出的单个测试
    uv run pytest tests/unit_test/test_failing.py::test_specific_function -v -s
-   
+
    # 在第一次失败时停止
    uv run pytest tests/unit_test/ -x --tb=short
    ```
@@ -294,7 +283,7 @@ make test
    ```bash
    # 使用 pdb 调试器运行
    uv run pytest tests/unit_test/test_failing.py --pdb
-   
+
    # 在测试期间捕获日志
    uv run pytest tests/e2e_test/test_failing.py --log-cli-level=DEBUG
    ```
@@ -395,4 +384,4 @@ make migrate                    # 🔄 应用任何新迁移
 rm -rf .venv/                   # 🗑️ 移除虚拟环境
 make dev                       # ⚙️ 重新创建所有内容
 source .venv/bin/activate      # ✅ 重新激活
-``` 
+```
