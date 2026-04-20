@@ -34,11 +34,6 @@ on:
         type: string
         required: false
         default: ""
-      frontend_image_repo:
-        description: "Frontend image repository when deploy-mode=code"
-        type: string
-        required: false
-        default: ""
 
 permissions:
   id-token: write
@@ -106,6 +101,7 @@ jobs:
 
           helm upgrade --install aperag helm-charts/aperag \
             --version "${{ inputs.release_version }}" \
+            --set frontend.replicaCount=0 \
             --wait --timeout=20m
 
       - name: Deploy ApeRAG from current ref images
@@ -115,9 +111,7 @@ jobs:
             --set image.repository="${{ inputs.backend_image_repo }}" \
             --set image.tag="${{ inputs.image_tag }}" \
             --set image.pullPolicy=Always \
-            --set frontend.image.repository="${{ inputs.frontend_image_repo }}" \
-            --set frontend.image.tag="${{ inputs.image_tag }}" \
-            --set frontend.image.pullPolicy=Always \
+            --set frontend.replicaCount=0 \
             --wait --timeout=20m
 
       - name: Wait for ApeRAG pods
@@ -126,16 +120,23 @@ jobs:
           kubectl get pods -n default -o wide
           kubectl get svc -n default
 
-      - name: Check provider secrets for full suite
-        if: ${{ inputs.test_scope == 'full' }}
+      - name: Check provider secrets
+        id: provider-secrets
+        if: ${{ inputs.test_scope != 'smoke' }}
+        shell: bash
         run: |
-          if [[ -z "${E2E_ALIBABACLOUD_API_KEY}" || -z "${E2E_OPENROUTER_API_KEY}" ]]; then
+          if [[ -n "${E2E_ALIBABACLOUD_API_KEY}" && -n "${E2E_OPENROUTER_API_KEY}" ]]; then
+            echo "available=true" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ inputs.test_scope }}" == "full" ]]; then
             echo "Missing E2E_ALIBABACLOUD_API_KEY or E2E_OPENROUTER_API_KEY" >&2
             exit 1
+          else
+            echo "available=false" >> "${GITHUB_OUTPUT}"
+            echo "Skipping provider-aware suite because required secrets are missing."
           fi
 
       - name: Run K8s smoke HTTP suite
-        if: ${{ inputs.test_scope == 'smoke' }}
+        if: ${{ inputs.test_scope == 'smoke' || inputs.test_scope == 'all' }}
         env:
           E2E_K8S_NAMESPACE: default
           E2E_K8S_SERVICE: aperag
@@ -143,7 +144,7 @@ jobs:
           make test-http-smoke-k8s
 
       - name: Run K8s provider-aware HTTP suite
-        if: ${{ inputs.test_scope == 'full' }}
+        if: ${{ inputs.test_scope == 'full' || (inputs.test_scope == 'all' && steps.provider-secrets.outputs.available == 'true') }}
         env:
           E2E_K8S_NAMESPACE: default
           E2E_K8S_SERVICE: aperag

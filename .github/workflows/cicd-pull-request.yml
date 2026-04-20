@@ -4,8 +4,19 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
 jobs:
   e2e-http:
     if: ${{ !github.event.pull_request.draft }}
-    uses: ./.github/workflows/e2e-http-smoke.yml
+    uses: ./.github/workflows/e2e-aperag.yml
+    with:
+      test_scope: "all"
+      region: "us-west-2"
+      cluster_version: "1.32"
+      node_type: "t3a.xlarge"
+      node_size: "3"
     secrets: inherit

@@ -14,6 +14,7 @@ on:
         default: "smoke"
         type: choice
         options:
+          - all
           - smoke
           - full
       region:
@@ -38,6 +39,38 @@ on:
       node_size:
         description: "Number of worker nodes"
         required: true
+        default: "3"
+        type: string
+  workflow_call:
+    inputs:
+      release_version:
+        description: "Optional released ApeRAG chart/image version. Leave empty to build backend image from the current ref."
+        required: false
+        default: ""
+        type: string
+      test_scope:
+        description: "Which K8s-backed HTTP suite to run"
+        required: false
+        default: "all"
+        type: string
+      region:
+        description: "AWS region for the temporary EKS cluster"
+        required: false
+        default: "us-west-2"
+        type: string
+      cluster_version:
+        description: "Kubernetes version for the temporary EKS cluster"
+        required: false
+        default: "1.32"
+        type: string
+      node_type:
+        description: "EKS worker node type"
+        required: false
+        default: "t3a.xlarge"
+        type: string
+      node_size:
+        description: "Number of worker nodes"
+        required: false
         default: "3"
         type: string
 
@@ -69,7 +102,6 @@ jobs:
     outputs:
       image_tag: ${{ steps.image-vars.outputs.image_tag }}
       backend_image_repo: ${{ steps.image-vars.outputs.backend_image_repo }}
-      frontend_image_repo: ${{ steps.image-vars.outputs.frontend_image_repo }}
     steps:
       - uses: actions/checkout@v4
 
@@ -98,7 +130,6 @@ jobs:
           image_tag="eks-e2e-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           echo "image_tag=${image_tag}" >> "${GITHUB_OUTPUT}"
           echo "backend_image_repo=ghcr.io/${repo_lower}/aperag" >> "${GITHUB_OUTPUT}"
-          echo "frontend_image_repo=ghcr.io/${repo_lower}/aperag-frontend" >> "${GITHUB_OUTPUT}"
 
       - name: Build and push backend image
         uses: docker/build-push-action@v5
@@ -108,18 +139,6 @@ jobs:
           push: true
           provenance: false
           tags: ${{ steps.image-vars.outputs.backend_image_repo }}:${{ steps.image-vars.outputs.image_tag }}
-
-      - name: Build frontend assets
-        run: make build-aperag-frontend-assets
-
-      - name: Build and push frontend image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./web
-          file: ./web/Dockerfile
-          push: true
-          provenance: false
-          tags: ${{ steps.image-vars.outputs.frontend_image_repo }}:${{ steps.image-vars.outputs.image_tag }}
 
   resolve-target:
     if: ${{ always() }}
@@ -132,7 +151,6 @@ jobs:
       release_version: ${{ steps.resolve.outputs.release_version }}
       image_tag: ${{ steps.resolve.outputs.image_tag }}
       backend_image_repo: ${{ steps.resolve.outputs.backend_image_repo }}
-      frontend_image_repo: ${{ steps.resolve.outputs.frontend_image_repo }}
     steps:
       - name: Resolve deployment target
         id: resolve
@@ -155,7 +173,6 @@ jobs:
           echo "deploy_mode=code" >> "${GITHUB_OUTPUT}"
           echo "image_tag=${{ needs.build-images.outputs.image_tag }}" >> "${GITHUB_OUTPUT}"
           echo "backend_image_repo=${{ needs.build-images.outputs.backend_image_repo }}" >> "${GITHUB_OUTPUT}"
-          echo "frontend_image_repo=${{ needs.build-images.outputs.frontend_image_repo }}" >> "${GITHUB_OUTPUT}"
 
   terraform-init-eks:
     if: ${{ always() && needs.resolve-target.result == 'success' }}
@@ -185,7 +202,6 @@ jobs:
       release_version: "${{ needs.resolve-target.outputs.release_version }}"
       image_tag: "${{ needs.resolve-target.outputs.image_tag }}"
       backend_image_repo: "${{ needs.resolve-target.outputs.backend_image_repo }}"
-      frontend_image_repo: "${{ needs.resolve-target.outputs.frontend_image_repo }}"
     secrets: inherit
 
   terraform-destroy-eks:
