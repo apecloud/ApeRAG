@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import tempfile
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -74,6 +75,7 @@ class MarkItDownParser(BaseParser):
 
     def _parse_file(self, path: Path, metadata: dict[str, Any] = {}, **kwargs) -> list[Part]:
         try:
+            self._validate_binary_container(path)
             mid = MarkItDown()
             result = mid.convert_local(path, keep_data_uris=True)
             return parse_md(result.markdown, metadata)
@@ -86,3 +88,47 @@ class MarkItDownParser(BaseParser):
                 code="parse_failed",
                 detail=str(e),
             ) from e
+
+    def _validate_binary_container(self, path: Path) -> None:
+        extension = path.suffix.lower()
+        if extension == ".pdf":
+            self._validate_pdf_header(path)
+            return
+
+        required_members = {
+            ".docx": ("[Content_Types].xml", "word/document.xml"),
+            ".xlsx": ("[Content_Types].xml", "xl/workbook.xml"),
+            ".pptx": ("[Content_Types].xml", "ppt/presentation.xml"),
+        }.get(extension)
+        if required_members is None:
+            return
+
+        try:
+            with zipfile.ZipFile(path) as archive:
+                members = set(archive.namelist())
+        except zipfile.BadZipFile as exc:
+            raise ParserError(
+                f"Corrupted {extension} document",
+                parser_name=self.name,
+                code="corrupted_document",
+                detail=f"{extension} is not a valid OOXML package: {exc}",
+            ) from exc
+
+        missing_members = [member for member in required_members if member not in members]
+        if missing_members:
+            raise ParserError(
+                f"Corrupted {extension} document",
+                parser_name=self.name,
+                code="corrupted_document",
+                detail=f"{extension} is missing required OOXML entries: {', '.join(missing_members)}",
+            )
+
+    def _validate_pdf_header(self, path: Path) -> None:
+        header = path.read_bytes()[:5]
+        if header != b"%PDF-":
+            raise ParserError(
+                "Corrupted .pdf document",
+                parser_name=self.name,
+                code="corrupted_document",
+                detail="Missing %PDF file header.",
+            )
