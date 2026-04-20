@@ -6,6 +6,7 @@ The current design intentionally keeps web search thin:
 - JINA preferred when configured
 - DuckDuckGo fallback
 - provider failures soft-fail to empty results
+- unexpected internal errors still propagate
 """
 
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -96,9 +97,11 @@ class TestWebSearchEndpoint:
         assert "At least one search input is required" in str(exc_info.value)
 
     @pytest.mark.asyncio
-    async def test_search_failure_soft_fails_to_empty_results(self):
+    async def test_provider_soft_failure_returns_empty_results(self):
+        provider_failure_response = WebSearchResponse(query="test query", results=[], total_results=0, search_time=0.1)
+
         with patch("aperag.views.web._search_with_jina_fallback", new_callable=AsyncMock) as mock_search:
-            mock_search.side_effect = Exception("Network error")
+            mock_search.return_value = provider_failure_response
 
             request = WebSearchRequest(query="test query", max_results=5)
             response = await web_search_endpoint(request, self.mock_user)
@@ -106,3 +109,13 @@ class TestWebSearchEndpoint:
             assert response.query == "test query"
             assert response.results == []
             assert response.total_results == 0
+
+    @pytest.mark.asyncio
+    async def test_unexpected_internal_error_is_not_soft_failed(self):
+        with patch("aperag.views.web._search_with_jina_fallback", new_callable=AsyncMock) as mock_search:
+            mock_search.side_effect = RuntimeError("unexpected bug")
+
+            request = WebSearchRequest(query="test query", max_results=5)
+
+            with pytest.raises(RuntimeError, match="unexpected bug"):
+                await web_search_endpoint(request, self.mock_user)

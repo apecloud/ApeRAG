@@ -31,12 +31,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-class WebSearchError(Exception):
-    """Custom exception for web search failures."""
-
-    pass
-
-
 class WebReadError(Exception):
     """Custom exception for web read failures."""
 
@@ -57,53 +51,40 @@ async def web_search_endpoint(request: WebSearchRequest, user: User = Depends(re
     # Record start time for tracking search duration
     search_start_time = time.time()
 
-    try:
-        has_query = bool(request.query and request.query.strip())
-        has_source = bool(request.source and request.source.strip())
+    has_query = bool(request.query and request.query.strip())
+    has_source = bool(request.source and request.source.strip())
 
-        if not has_query and not has_source:
-            raise HTTPException(
-                status_code=400,
-                detail="At least one search input is required: provide 'query' for web search or 'source' for site browsing.",
-            )
-
-        logger.info(
-            "Starting web search query=%s source=%s",
-            request.query.strip() if request.query else "",
-            request.source.strip() if request.source else "",
-        )
-        regular_result = await _search_with_jina_fallback(request, user)
-        merged_results = _merge_and_rank_results(regular_result.results, request.max_results)
-
-        # Calculate total search time
-        total_search_time = time.time() - search_start_time
-
-        logger.info(
-            "Web search completed query=%s source=%s results=%s time=%.2fs",
-            request.query.strip() if request.query else "",
-            request.source.strip() if request.source else "",
-            len(merged_results),
-            total_search_time,
+    if not has_query and not has_source:
+        raise HTTPException(
+            status_code=400,
+            detail="At least one search input is required: provide 'query' for web search or 'source' for site browsing.",
         )
 
-        return WebSearchResponse(
-            query=_build_search_response_query(request),
-            results=merged_results,
-            total_results=len(merged_results),
-            search_time=total_search_time,
-        )
+    logger.info(
+        "Starting web search query=%s source=%s",
+        request.query.strip() if request.query else "",
+        request.source.strip() if request.source else "",
+    )
+    regular_result = await _search_with_jina_fallback(request, user)
+    merged_results = _merge_and_rank_results(regular_result.results, request.max_results)
 
-    except HTTPException:
-        # Re-raise HTTP exceptions as-is
-        raise
-    except Exception as e:
-        logger.warning("Web search soft-failed query=%s source=%s error=%s", request.query, request.source, e)
-        return WebSearchResponse(
-            query=_build_search_response_query(request),
-            results=[],
-            total_results=0,
-            search_time=time.time() - search_start_time,
-        )
+    # Calculate total search time
+    total_search_time = time.time() - search_start_time
+
+    logger.info(
+        "Web search completed query=%s source=%s results=%s time=%.2fs",
+        request.query.strip() if request.query else "",
+        request.source.strip() if request.source else "",
+        len(merged_results),
+        total_search_time,
+    )
+
+    return WebSearchResponse(
+        query=_build_search_response_query(request),
+        results=merged_results,
+        total_results=len(merged_results),
+        search_time=total_search_time,
+    )
 
 
 def _merge_and_rank_results(all_results: List, max_results: int) -> List:
@@ -304,37 +285,27 @@ async def _search_with_jina_fallback(request: WebSearchRequest, user: User) -> W
 
     Returns:
         Search results from JINA if successful, otherwise from DuckDuckGo
-
-    Raises:
-        WebSearchError: If both JINA and DuckDuckGo fail
     """
     # Try to get JINA API key for current user
     jina_api_key = await _get_user_jina_api_key(user)
 
     # Try JINA first if API key is available
     if jina_api_key:
-        try:
-            logger.info("Web search using JINA first query=%s source=%s", request.query, request.source)
-            async with SearchService(provider_name="jina", provider_config={"api_key": jina_api_key}) as jina_service:
-                jina_result = await jina_service.search(request)
+        logger.info("Web search using JINA first query=%s source=%s", request.query, request.source)
+        async with SearchService(provider_name="jina", provider_config={"api_key": jina_api_key}) as jina_service:
+            jina_result = await jina_service.search(request)
 
-                # Check if JINA was successful
-                if jina_result and hasattr(jina_result, "results") and jina_result.results:
-                    logger.info(f"JINA search succeeded: {len(jina_result.results)} results")
-                    return jina_result
-                else:
-                    logger.info("JINA search completed but no results returned; falling back to DuckDuckGo")
+            # Check if JINA was successful
+            if jina_result and hasattr(jina_result, "results") and jina_result.results:
+                logger.info(f"JINA search succeeded: {len(jina_result.results)} results")
+                return jina_result
 
-        except Exception as e:
-            logger.info(f"JINA search failed: {e}")
+            logger.info("JINA search completed but no results returned; falling back to DuckDuckGo")
 
     # Fallback to DuckDuckGo
     logger.info("Web search using DuckDuckGo fallback query=%s source=%s", request.query, request.source)
-    try:
-        async with SearchService(provider_name="duckduckgo") as duckduckgo_service:
-            return await duckduckgo_service.search(request)
-    except Exception as e:
-        raise WebSearchError(f"Both JINA and DuckDuckGo search failed. Last error: {str(e)}") from e
+    async with SearchService(provider_name="duckduckgo") as duckduckgo_service:
+        return await duckduckgo_service.search(request)
 
 
 def _build_search_response_query(request: WebSearchRequest) -> str:

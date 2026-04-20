@@ -156,9 +156,7 @@ class DuckDuckGoProvider(BaseSearchProvider):
                         )
                     )
 
-                logger.info(
-                    "DuckDuckGo search backend=%s completed results=%s", backend, len(search_results)
-                )
+                logger.info("DuckDuckGo search backend=%s completed results=%s", backend, len(search_results))
 
                 # Respect an empty response as a valid search result instead of issuing more external requests.
                 break
