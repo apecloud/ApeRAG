@@ -7,6 +7,8 @@ DATABASE_SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pw
 # Load configuration file
 source "$DATABASE_SCRIPT_DIR/00-config.sh"
 
+KB_RELEASE_TAG="v${KB_VERSION#v}"
+
 # Check dependencies
 print "Checking dependencies..."
 command -v kubectl >/dev/null 2>&1 || { print "Error: kubectl command not found"; exit 1; }
@@ -41,7 +43,7 @@ uninstall_kubeblocks() {
         | kubectl delete -f - --ignore-not-found=true
 
     # Delete KubeBlocks CRDs
-    kubectl delete -f https://github.com/apecloud/kubeblocks/releases/download/${KB_VERSION}/kubeblocks_crds.yaml --ignore-not-found=true
+    kubectl delete -f https://github.com/apecloud/kubeblocks/releases/download/${KB_RELEASE_TAG}/kubeblocks_crds.yaml --ignore-not-found=true
 
     # Delete CSI Snapshotter CRDs
     kubectl delete -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/v8.2.0/client/config/crd/snapshot.storage.k8s.io_volumesnapshotclasses.yaml --ignore-not-found=true
