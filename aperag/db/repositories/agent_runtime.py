@@ -32,7 +32,9 @@ class AsyncAgentRuntimeRepositoryMixin(AsyncRepositoryProtocol):
 
     async def query_agent_turn(self, user: str, chat_id: str, turn_id: str) -> Optional[AgentTurn]:
         async def _query(session):
-            stmt = select(AgentTurn).where(AgentTurn.id == turn_id, AgentTurn.chat_id == chat_id, AgentTurn.user == user)
+            stmt = select(AgentTurn).where(
+                AgentTurn.id == turn_id, AgentTurn.chat_id == chat_id, AgentTurn.user == user
+            )
             result = await session.execute(stmt)
             return result.scalars().first()
 
@@ -199,7 +201,9 @@ class AsyncAgentRuntimeRepositoryMixin(AsyncRepositoryProtocol):
 
     async def query_agent_artifacts_by_turn(self, turn_id: str) -> list[AgentArtifact]:
         async def _query(session):
-            stmt = select(AgentArtifact).where(AgentArtifact.turn_id == turn_id).order_by(AgentArtifact.gmt_created.asc())
+            stmt = (
+                select(AgentArtifact).where(AgentArtifact.turn_id == turn_id).order_by(AgentArtifact.gmt_created.asc())
+            )
             result = await session.execute(stmt)
             return result.scalars().all()
 

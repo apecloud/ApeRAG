@@ -13,5 +13,7 @@ Current files:
   chat create/list/get/update/delete plus title-generation and unsupported `/v1/chat/completions` contracts
 - `14_graph_http.hurl`
   graph labels and graph overview endpoints
+- `15_agent_runtime_v3.hurl`
+  v2 agent runtime HTTP contract: create turn, idempotency, snapshot, cancel
 
 WebSocket and streaming-specific coverage should remain in a thin supplemental layer rather than being forced into Hurl.

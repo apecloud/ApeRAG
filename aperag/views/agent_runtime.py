@@ -49,7 +49,9 @@ async def create_turn_view(
     request: Request, chat_id: str, body: CreateTurnRequest, user: User = Depends(required_user)
 ) -> CreateTurnResponse:
     chat, bot, turn, created = await runtime_manager.turn_service.create_or_get_turn(str(user.id), chat_id, body)
-    if created or (turn.status in {AgentTurnStatus.QUEUED, AgentTurnStatus.RUNNING} and turn.id not in runtime_manager.tasks):
+    if created or (
+        turn.status in {AgentTurnStatus.QUEUED, AgentTurnStatus.RUNNING} and turn.id not in runtime_manager.tasks
+    ):
         runtime_manager.launch_turn(turn=turn, chat=chat, bot=bot, user=str(user.id), request=body)
 
     return CreateTurnResponse(
@@ -111,11 +113,16 @@ async def stream_turn_events_view(
                 last_heartbeat = asyncio.get_event_loop().time()
             else:
                 turn = await runtime_manager.turn_service.db_ops.query_agent_turn(str(user.id), chat_id, turn_id)
-                if turn and turn.status in {
-                    AgentTurnStatus.COMPLETED,
-                    AgentTurnStatus.FAILED,
-                    AgentTurnStatus.CANCELLED,
-                } and current_after_sequence >= (turn.timeline_cursor or 0):
+                if (
+                    turn
+                    and turn.status
+                    in {
+                        AgentTurnStatus.COMPLETED,
+                        AgentTurnStatus.FAILED,
+                        AgentTurnStatus.CANCELLED,
+                    }
+                    and current_after_sequence >= (turn.timeline_cursor or 0)
+                ):
                     break
 
                 now = asyncio.get_event_loop().time()

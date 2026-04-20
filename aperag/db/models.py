@@ -542,9 +542,7 @@ class AgentTimelineEvent(Base):
 
 class AgentArtifact(Base):
     __tablename__ = "agent_artifact"
-    __table_args__ = (
-        Index("idx_agent_artifact_turn_type", "turn_id", "artifact_type"),
-    )
+    __table_args__ = (Index("idx_agent_artifact_turn_type", "turn_id", "artifact_type"),)
 
     id = Column(String(24), primary_key=True, default=lambda: "art" + random_id())
     turn_id = Column(String(24), nullable=False, index=True)

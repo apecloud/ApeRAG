@@ -308,7 +308,10 @@ class PydanticAIRuntime(AgentRuntime):
                     actor=AgentEventActor.SYSTEM,
                     label="reference_bundle",
                     status="ready",
-                    data={"artifact_id": reference_artifact.artifact_id, "artifact_type": reference_artifact.artifact_type},
+                    data={
+                        "artifact_id": reference_artifact.artifact_id,
+                        "artifact_type": reference_artifact.artifact_type,
+                    },
                 )
 
             await emit(
@@ -400,9 +403,13 @@ class PydanticAIRuntime(AgentRuntime):
                 tool_summaries=tool_summaries,
             )
 
-    async def _resolve_request(self, *, user: str, chat_id: str, bot, request: CreateTurnRequest) -> ResolvedAgentRequest:
+    async def _resolve_request(
+        self, *, user: str, chat_id: str, bot, request: CreateTurnRequest
+    ) -> ResolvedAgentRequest:
         bot_config = _parse_bot_config(bot)
-        final_completion = request.completion or (bot_config.agent.completion if bot_config and bot_config.agent else None)
+        final_completion = request.completion or (
+            bot_config.agent.completion if bot_config and bot_config.agent else None
+        )
         if not final_completion or not final_completion.model or not final_completion.model_service_provider:
             raise ValidationException("Model specification is required for agent runtime v3")
 
@@ -426,7 +433,9 @@ class PydanticAIRuntime(AgentRuntime):
         provider = await async_db_ops.query_llm_provider_by_name(final_completion.model_service_provider)
         if not provider:
             raise ResourceNotFoundException("Provider", final_completion.model_service_provider)
-        api_key = await async_db_ops.query_provider_api_key(final_completion.model_service_provider, user_id=user, need_public=True)
+        api_key = await async_db_ops.query_provider_api_key(
+            final_completion.model_service_provider, user_id=user, need_public=True
+        )
         if not api_key:
             raise ValidationException(f"No API key available for provider '{final_completion.model_service_provider}'")
 
@@ -461,7 +470,11 @@ class PydanticAIRuntime(AgentRuntime):
 
     @staticmethod
     def _tool_label(tool_name: str) -> str:
-        return VisibleAgentState.SEARCHING.value if PydanticAIRuntime._is_external_action(tool_name) else VisibleAgentState.CALLING_TOOL.value
+        return (
+            VisibleAgentState.SEARCHING.value
+            if PydanticAIRuntime._is_external_action(tool_name)
+            else VisibleAgentState.CALLING_TOOL.value
+        )
 
     @staticmethod
     def _is_external_action(tool_name: str) -> bool:

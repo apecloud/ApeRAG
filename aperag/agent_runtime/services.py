@@ -92,7 +92,12 @@ class TurnService:
             )
 
     async def mark_completed(
-        self, turn_id: str, *, answer_artifact_id: Optional[str], reference_bundle_artifact_id: Optional[str], sequence: int
+        self,
+        turn_id: str,
+        *,
+        answer_artifact_id: Optional[str],
+        reference_bundle_artifact_id: Optional[str],
+        sequence: int,
     ) -> None:
         turn = await self.db_ops.update_agent_turn(
             turn_id,
@@ -154,7 +159,9 @@ class TurnService:
             raise ResourceNotFoundException("Turn", turn_id)
 
         persisted_events = await self.db_ops.query_agent_timeline_events(turn_id, after_sequence=0, limit=2000)
-        cached_events = [AgentTimelineEventEnvelope.model_validate(item) for item in await self.redis_store.get_all_events(turn_id)]
+        cached_events = [
+            AgentTimelineEventEnvelope.model_validate(item) for item in await self.redis_store.get_all_events(turn_id)
+        ]
         merged_events: dict[int, AgentTimelineEventEnvelope] = {
             event.sequence: EventService.to_event_envelope(event) for event in persisted_events
         }
@@ -254,7 +261,9 @@ class EventService:
         await self.redis_store.merge_runtime_state(turn_id, {"timeline_cursor": sequence})
         return envelope
 
-    async def get_events_after(self, turn_id: str, after_sequence: int = 0, limit: int = 500) -> list[AgentTimelineEventEnvelope]:
+    async def get_events_after(
+        self, turn_id: str, after_sequence: int = 0, limit: int = 500
+    ) -> list[AgentTimelineEventEnvelope]:
         cached = await self.redis_store.get_events_after(turn_id, after_sequence=after_sequence, limit=limit)
         if cached:
             return [AgentTimelineEventEnvelope.model_validate(item) for item in cached]
@@ -323,7 +332,9 @@ class ArtifactService:
 
     @staticmethod
     def to_artifact_envelope(artifact) -> AgentArtifactEnvelope:
-        artifact_type = artifact.artifact_type.value if hasattr(artifact.artifact_type, "value") else artifact.artifact_type
+        artifact_type = (
+            artifact.artifact_type.value if hasattr(artifact.artifact_type, "value") else artifact.artifact_type
+        )
         return AgentArtifactEnvelope(
             artifact_id=artifact.id,
             turn_id=artifact.turn_id,
@@ -371,7 +382,9 @@ class HistoryWriter:
         legacy_history = await query_chat_messages(user, chat_id)
         legacy_lines: list[str] = []
         for turn_parts in legacy_history[-limit:]:
-            human_texts = [part.data for part in turn_parts if part.role == "human" and part.type == "message" and part.data]
+            human_texts = [
+                part.data for part in turn_parts if part.role == "human" and part.type == "message" and part.data
+            ]
             ai_texts = [part.data for part in turn_parts if part.role == "ai" and part.type == "message" and part.data]
             if human_texts:
                 legacy_lines.append(f"User: {' '.join(human_texts)}")
