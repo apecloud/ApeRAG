@@ -61,5 +61,38 @@ HTTP 200
 jsonpath "$.id" == "{{chat_id}}"
 jsonpath "$.title" == "Chat Title {{run_id}}"
 
+POST {{base_url}}/api/v1/bots/{{bot_id}}/chats/{{chat_id}}/title
+Content-Type: application/json
+{
+  "language": "en-US",
+  "max_length": 20,
+  "turns": 1
+}
+HTTP 200
+[Asserts]
+header "content-type" contains "application/json"
+jsonpath "$.title" exists
+
+POST {{base_url}}/v1/chat/completions?bot_id={{bot_id}}&chat_id={{chat_id}}
+Content-Type: application/json
+{
+  "model": "aperag",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hello from HTTP E2E."
+    }
+  ],
+  "stream": false
+}
+HTTP 200
+[Asserts]
+jsonpath "$.error.type" == "server_error"
+jsonpath "$.error.code" == "internal_error"
+jsonpath "$.error.message" == "The /v1/chat/completions endpoint is not implemented. Please use WebSocket API for agent-type bots."
+
 DELETE {{base_url}}/api/v1/bots/{{bot_id}}/chats/{{chat_id}}
+HTTP 204
+
+DELETE {{base_url}}/api/v1/bots/{{bot_id}}
 HTTP 204

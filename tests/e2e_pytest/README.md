@@ -22,7 +22,7 @@ tests/e2e_pytest/
 ## Current Scope
 
 - `test_chat.py`
-  keeps streaming, websocket, and openai-compatible chat-generation behaviors that are awkward or low-signal in Hurl
+  keeps streaming, websocket, and a few low-signal frontend error checks that Hurl should not own
 - `test_document_download.py`
   keeps a few extra negative-path download checks while the main download path now lives in Hurl
 
@@ -30,8 +30,9 @@ Migrated in this phase:
 - available-model coverage moved to `tests/e2e_http/hurl/full/10_provider_llm.hurl`
 - provider model CRUD moved to `tests/e2e_http/hurl/full/10_provider_llm.hurl`
 - bot CRUD and flow coverage moved to `tests/e2e_http/hurl/full/12_bot.hurl`
-- deterministic chat create/list/get/update moved to `tests/e2e_http/hurl/full/13_chat_http.hurl`
+- deterministic chat create/list/get/update/delete moved to `tests/e2e_http/hurl/full/13_chat_http.hurl`
 - frontend non-streaming chat envelope contract moved to `tests/e2e_http/hurl/full/13_chat_http.hurl`
+- unsupported `/v1/chat/completions` error contract moved to `tests/e2e_http/hurl/full/13_chat_http.hurl`
 
 ## 🚀 Quick Start
 
@@ -96,8 +97,8 @@ make test-e2e
 # Run specific test file
 pytest tests/e2e_pytest/test_chat.py
 
-# Run specific test class or method
-pytest tests/e2e_pytest/test_chat.py::test_chat_message_openai_api_non_streaming
+# Run a specific retained chat test
+pytest tests/e2e_pytest/test_chat.py::test_chat_message_frontend_api_streaming
 
 # Show detailed output
 pytest tests/e2e_pytest/ -v

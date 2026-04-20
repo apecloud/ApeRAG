@@ -22,7 +22,7 @@ tests/e2e_pytest/
 ## 当前范围
 
 - `test_chat.py`
-  保留 streaming、websocket 以及依赖真实 provider 的聊天生成行为
+  保留 streaming、websocket，以及少量不值得交给 Hurl 的前端错误路径
 - `test_document_download.py`
   保留少量下载负路径校验；主下载链路已经迁到 Hurl
 
@@ -30,8 +30,9 @@ tests/e2e_pytest/
 - available-model 覆盖迁到 `tests/e2e_http/hurl/full/10_provider_llm.hurl`
 - provider model CRUD 迁到 `tests/e2e_http/hurl/full/10_provider_llm.hurl`
 - bot CRUD 与 flow 覆盖迁到 `tests/e2e_http/hurl/full/12_bot.hurl`
-- 确定性的 chat create/list/get/update 覆盖迁到 `tests/e2e_http/hurl/full/13_chat_http.hurl`
+- 确定性的 chat create/list/get/update/delete 覆盖迁到 `tests/e2e_http/hurl/full/13_chat_http.hurl`
 - 前端 non-streaming chat 的 HTTP envelope 契约迁到 `tests/e2e_http/hurl/full/13_chat_http.hurl`
+- 未实现的 `/v1/chat/completions` 错误契约迁到 `tests/e2e_http/hurl/full/13_chat_http.hurl`
 
 ## 🚀 快速开始
 
@@ -96,8 +97,8 @@ make test-e2e
 # 运行特定测试文件
 pytest tests/e2e_pytest/test_chat.py
 
-# 运行特定测试类或方法
-pytest tests/e2e_pytest/test_chat.py::test_chat_message_openai_api_non_streaming
+# 运行某个保留的 chat 测试
+pytest tests/e2e_pytest/test_chat.py::test_chat_message_frontend_api_streaming
 
 # 显示详细输出
 pytest tests/e2e_pytest/ -v
