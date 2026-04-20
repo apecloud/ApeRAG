@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
+import base64
+import io
+import wave
 from importlib.metadata import PackageNotFoundError, version
 from typing import Any, Literal
 
@@ -73,13 +77,49 @@ def _service_url(base_url: str, suffix: str = "") -> str:
     return base_url.rstrip("/") + suffix
 
 
-async def _probe_url(url: str, method: str = "GET") -> tuple[bool, str]:
+def _sample_png_base64() -> str:
+    png_bytes = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wn7P9sAAAAASUVORK5CYII="
+    )
+    return base64.b64encode(png_bytes).decode("utf-8")
+
+
+def _sample_wav_file() -> tuple[str, bytes, str]:
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wav_file:
+        wav_file.setnchannels(1)
+        wav_file.setsampwidth(2)
+        wav_file.setframerate(16000)
+        wav_file.writeframes(b"\x00\x00" * 1600)
+    return ("health-check.wav", buffer.getvalue(), "audio/wav")
+
+
+async def _probe_http_endpoint(
+    url: str,
+    *,
+    method: str = "GET",
+    ok_statuses: set[int] | None = None,
+    json_body: dict[str, Any] | None = None,
+    files: dict[str, Any] | None = None,
+    params: dict[str, Any] | None = None,
+) -> tuple[str, str]:
+    ok_statuses = ok_statuses or {200}
     try:
         async with httpx.AsyncClient(timeout=5.0, follow_redirects=True) as client:
-            response = await client.request(method, url)
-        return True, f"Reachable (HTTP {response.status_code})"
+            response = await client.request(
+                method,
+                url,
+                json=json_body,
+                files=files,
+                params=params,
+            )
+        if response.status_code in ok_statuses:
+            return "ok", f"Reachable (HTTP {response.status_code})"
+        if 400 <= response.status_code < 500:
+            return "error", f"Endpoint responded with HTTP {response.status_code}"
+        return "warning", f"Endpoint responded with HTTP {response.status_code}"
     except Exception as e:
-        return False, str(e)
+        return "warning", str(e)
 
 
 async def _probe_mineru(token: str | None) -> tuple[str, str]:
@@ -94,9 +134,38 @@ async def _probe_mineru(token: str | None) -> tuple[str, str]:
             )
         if response.status_code == 401:
             return "error", "Configured token is invalid."
-        return "ok", f"Reachable (HTTP {response.status_code})"
+        if 200 <= response.status_code < 300:
+            return "ok", f"Reachable (HTTP {response.status_code})"
+        if 400 <= response.status_code < 500:
+            return "error", f"MinerU responded with HTTP {response.status_code}"
+        return "warning", f"MinerU responded with HTTP {response.status_code}"
     except Exception as e:
         return "warning", f"Token configured but MinerU is unreachable: {e}"
+
+
+async def _probe_paddleocr(base_url: str) -> tuple[str, str]:
+    return await _probe_http_endpoint(
+        _service_url(base_url, "/predict/ocr_system"),
+        method="POST",
+        ok_statuses={200},
+        json_body={"images": [_sample_png_base64()]},
+    )
+
+
+async def _probe_whisper(base_url: str) -> tuple[str, str]:
+    return await _probe_http_endpoint(
+        _service_url(base_url, "/asr"),
+        method="POST",
+        ok_statuses={200},
+        params={
+            "encode": "true",
+            "task": "transcribe",
+            "vad_filter": "true",
+            "word_timestamps": "true",
+            "output": "txt",
+        },
+        files={"audio_file": _sample_wav_file()},
+    )
 
 
 def _package_status(package_name: str) -> tuple[str, str]:
@@ -133,59 +202,42 @@ async def get_parser_health_report(parser_settings: dict[str, Any] | None = None
         ),
     ]
 
-    mineru_status, mineru_detail = (
-        await _probe_mineru(mineru_token) if mineru_enabled else ("disabled", "MinerU is disabled.")
+    paddle_host = settings.paddleocr_host
+    whisper_host = settings.whisper_host
+    mineru_result, paddle_result, whisper_result = await asyncio.gather(
+        _probe_mineru(mineru_token) if mineru_enabled else asyncio.sleep(0, result=("disabled", "MinerU is disabled.")),
+        _probe_paddleocr(paddle_host)
+        if paddle_host
+        else asyncio.sleep(0, result=("disabled", "Not configured. Image OCR is disabled.")),
+        _probe_whisper(whisper_host)
+        if whisper_host
+        else asyncio.sleep(0, result=("disabled", "Not configured. Audio transcription is disabled.")),
     )
+
+    mineru_status, mineru_detail = mineru_result
+    paddle_status, paddle_detail = paddle_result
+    whisper_status, whisper_detail = whisper_result
+
     services = [
         ParserHealthItem(
             key="mineru",
             label="MinerU enhancement service",
             status=mineru_status,
             detail=mineru_detail,
-        )
+        ),
+        ParserHealthItem(
+            key="paddleocr",
+            label="PaddleOCR service",
+            status=paddle_status,
+            detail=paddle_detail,
+        ),
+        ParserHealthItem(
+            key="whisper",
+            label="Whisper ASR service",
+            status=whisper_status,
+            detail=whisper_detail,
+        ),
     ]
-
-    paddle_host = settings.paddleocr_host
-    if paddle_host:
-        paddle_ok, paddle_detail = await _probe_url(_service_url(paddle_host))
-        services.append(
-            ParserHealthItem(
-                key="paddleocr",
-                label="PaddleOCR service",
-                status="ok" if paddle_ok else "warning",
-                detail=paddle_detail if paddle_ok else f"Configured but unreachable: {paddle_detail}",
-            )
-        )
-    else:
-        services.append(
-            ParserHealthItem(
-                key="paddleocr",
-                label="PaddleOCR service",
-                status="disabled",
-                detail="Not configured. Image OCR is disabled.",
-            )
-        )
-
-    whisper_host = settings.whisper_host
-    if whisper_host:
-        whisper_ok, whisper_detail = await _probe_url(_service_url(whisper_host))
-        services.append(
-            ParserHealthItem(
-                key="whisper",
-                label="Whisper ASR service",
-                status="ok" if whisper_ok else "warning",
-                detail=whisper_detail if whisper_ok else f"Configured but unreachable: {whisper_detail}",
-            )
-        )
-    else:
-        services.append(
-            ParserHealthItem(
-                key="whisper",
-                label="Whisper ASR service",
-                status="disabled",
-                detail="Not configured. Audio transcription is disabled.",
-            )
-        )
 
     support_tiers = [
         ParserSupportTier(
@@ -226,13 +278,7 @@ async def get_parser_health_report(parser_settings: dict[str, Any] | None = None
             category="optional",
             parser="image",
             formats=IMAGE_EXTENSIONS,
-            status=(
-                "available"
-                if paddle_host and any(item.key == "paddleocr" and item.status == "ok" for item in services)
-                else "disabled"
-                if not paddle_host
-                else "limited"
-            ),
+            status="available" if paddle_status == "ok" else "disabled" if not paddle_host else "limited",
             detail="Optional OCR path for standalone images.",
             requirements=["PADDLEOCR_HOST"],
         ),
@@ -242,13 +288,7 @@ async def get_parser_health_report(parser_settings: dict[str, Any] | None = None
             category="optional",
             parser="audio",
             formats=AUDIO_EXTENSIONS,
-            status=(
-                "available"
-                if whisper_host and any(item.key == "whisper" and item.status == "ok" for item in services)
-                else "disabled"
-                if not whisper_host
-                else "limited"
-            ),
+            status="available" if whisper_status == "ok" else "disabled" if not whisper_host else "limited",
             detail="Optional speech-to-text path for uploaded audio files.",
             requirements=["WHISPER_HOST"],
         ),
@@ -273,10 +313,10 @@ async def get_parser_health_report(parser_settings: dict[str, Any] | None = None
             warnings.append(f"MinerU enhancement is enabled but not healthy: {mineru_detail}")
         recommendations.append("Keep MinerU as an explicit enhancement path, not the default delivery path.")
 
-    if paddle_host and not any(item.key == "paddleocr" and item.status == "ok" for item in services):
-        warnings.append("PaddleOCR is configured but currently unreachable.")
-    if whisper_host and not any(item.key == "whisper" and item.status == "ok" for item in services):
-        warnings.append("Whisper ASR is configured but currently unreachable.")
+    if paddle_host and paddle_status != "ok":
+        warnings.append("PaddleOCR is configured but currently unreachable or unhealthy.")
+    if whisper_host and whisper_status != "ok":
+        warnings.append("Whisper ASR is configured but currently unreachable or unhealthy.")
 
     recommendations.append("Use the support tiers below as the customer-facing parser support matrix.")
     recommendations.append("Prefer deployment-time parser preflight over upload-time trial and error.")
