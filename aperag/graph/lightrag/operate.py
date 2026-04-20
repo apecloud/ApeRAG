@@ -1292,9 +1292,22 @@ async def _find_most_related_text_unit_from_entities(
     ]
 
     node_names = [dp["entity_name"] for dp in node_datas]
-    batch_edges_dict = await knowledge_graph_inst.get_nodes_edges_batch(node_names)
+    incident_edges_dict = await knowledge_graph_inst.get_incident_edges_with_data_batch(node_names)
+
+    def _normalize_incident_edges(node_name: str, incident_edges: list[tuple[str, str, dict]]) -> list[tuple[str, str]]:
+        normalized_edges = []
+        seen = set()
+        for src_id, tgt_id, _edge_data in incident_edges or []:
+            other_node = tgt_id if src_id == node_name else src_id
+            normalized_edge = (node_name, other_node)
+            if normalized_edge in seen:
+                continue
+            seen.add(normalized_edge)
+            normalized_edges.append(normalized_edge)
+        return normalized_edges
+
     # Build the edges list in the same order as node_datas.
-    edges = [batch_edges_dict.get(name, []) for name in node_names]
+    edges = [_normalize_incident_edges(name, incident_edges_dict.get(name, [])) for name in node_names]
 
     all_one_hop_nodes = set()
     for this_edges in edges:
@@ -1379,35 +1392,29 @@ async def _find_most_related_edges_from_entities(
     tokenizer: Tokenizer,
 ):
     node_names = [dp["entity_name"] for dp in node_datas]
-    batch_edges_dict = await knowledge_graph_inst.get_nodes_edges_batch(node_names)
+    incident_edges_dict = await knowledge_graph_inst.get_incident_edges_with_data_batch(node_names)
 
     all_edges = []
     seen = set()
+    deduped_edge_data = {}
 
     for node_name in node_names:
-        this_edges = batch_edges_dict.get(node_name, [])
-        for e in this_edges:
-            sorted_edge = tuple(sorted(e))
+        for src_id, tgt_id, edge_data in incident_edges_dict.get(node_name, []):
+            sorted_edge = tuple(sorted((src_id, tgt_id)))
             if sorted_edge not in seen:
                 seen.add(sorted_edge)
                 all_edges.append(sorted_edge)
+                deduped_edge_data[sorted_edge] = edge_data
 
-    # Prepare edge pairs in two forms:
-    # For the batch edge properties function, use dicts.
-    edge_pairs_dicts = [{"src": e[0], "tgt": e[1]} for e in all_edges]
     # For edge degrees, use tuples.
     edge_pairs_tuples = list(all_edges)  # all_edges is already a list of tuples
 
-    # Call the batched functions concurrently.
-    edge_data_dict, edge_degrees_dict = await asyncio.gather(
-        knowledge_graph_inst.get_edges_batch(edge_pairs_dicts),
-        knowledge_graph_inst.edge_degrees_batch(edge_pairs_tuples),
-    )
+    edge_degrees_dict = await knowledge_graph_inst.edge_degrees_batch(edge_pairs_tuples)
 
     # Reconstruct edge_datas list in the same order as the deduplicated results.
     all_edges_data = []
     for pair in all_edges:
-        edge_props = edge_data_dict.get(pair)
+        edge_props = deduped_edge_data.get(pair)
         if edge_props is not None:
             if "weight" not in edge_props:
                 logger.warning(f"Edge {pair} missing 'weight' attribute, using default value 0.0")

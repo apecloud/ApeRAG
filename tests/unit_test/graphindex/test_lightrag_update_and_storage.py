@@ -3,8 +3,9 @@ from types import SimpleNamespace
 import pytest
 
 from aperag.graph.lightrag import utils_graph
+from aperag.graph.lightrag.base import QueryParam
 from aperag.graph.lightrag.lightrag import LightRAG
-from aperag.graph.lightrag.operate import get_high_degree_nodes
+from aperag.graph.lightrag.operate import _find_most_related_edges_from_entities, get_high_degree_nodes
 from aperag.graph.lightrag.kg.pg_ops_sync_vector_storage import PGOpsSyncVectorStorage
 from aperag.graph.lightrag.namespace import NameSpace
 from aperag.graph.lightrag_manager import _process_document_async
@@ -391,6 +392,11 @@ class _FakeLogger:
         return None
 
 
+class _FakeTokenizer:
+    def encode(self, text):
+        return list(text or "")
+
+
 @pytest.mark.asyncio
 async def test_export_for_kg_eval_prefers_node_ids_and_incident_edges_primitive():
     rag = LightRAG.__new__(LightRAG)
@@ -404,3 +410,43 @@ async def test_export_for_kg_eval_prefers_node_ids_and_incident_edges_primitive(
     assert result["relationships"][0]["source_entity_name"] == "Alpha"
     assert ("get_node_ids", 2) in rag.chunk_entity_relation_graph.calls
     assert ("get_incident_edges_with_data_batch", ("entity-1", "entity-2")) in rag.chunk_entity_relation_graph.calls
+
+
+class _FakeOperateGraphStorage:
+    def __init__(self):
+        self.calls = []
+
+    async def get_incident_edges_with_data_batch(self, node_ids):
+        self.calls.append(("get_incident_edges_with_data_batch", tuple(node_ids)))
+        return {
+            "entity-1": [
+                ("entity-1", "entity-2", {"description": "edge desc", "keywords": "kw", "weight": 2.0, "source_id": "chunk-1"})
+            ]
+        }
+
+    async def edge_degrees_batch(self, edge_pairs):
+        self.calls.append(("edge_degrees_batch", tuple(edge_pairs)))
+        return {("entity-1", "entity-2"): 9}
+
+    async def get_nodes_edges_batch(self, _node_ids):
+        raise AssertionError("legacy get_nodes_edges_batch() should not be used")
+
+    async def get_edges_batch(self, _pairs):
+        raise AssertionError("legacy get_edges_batch() should not be used")
+
+
+@pytest.mark.asyncio
+async def test_find_most_related_edges_from_entities_prefers_incident_edge_primitive():
+    graph_storage = _FakeOperateGraphStorage()
+    node_datas = [{"entity_name": "entity-1"}]
+
+    result = await _find_most_related_edges_from_entities(
+        node_datas,
+        QueryParam(max_token_for_global_context=1000),
+        graph_storage,
+        _FakeTokenizer(),
+    )
+
+    assert result[0]["src_tgt"] == ("entity-1", "entity-2")
+    assert result[0]["rank"] == 9
+    assert ("get_incident_edges_with_data_batch", ("entity-1",)) in graph_storage.calls
