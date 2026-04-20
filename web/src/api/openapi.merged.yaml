@@ -4054,7 +4054,7 @@ paths:
   /web/search:
     post:
       summary: Web search
-      description: Perform web search using various search engines
+      description: Perform best-effort web search with optional domain targeting
       tags:
         - web
       security:
@@ -4117,11 +4117,11 @@ paths:
                     code: '400'
                     message: Search query cannot be empty
                 invalid_engine:
-                  summary: Invalid search engine
-                  description: Unsupported search engine
+                  summary: Missing search input
+                  description: Neither query nor source was provided
                   value:
                     code: '400'
-                    message: 'Unsupported search engine: invalid_engine'
+                    message: At least one search input is required
         '401':
           description: Unauthorized
           content:
@@ -7993,7 +7993,7 @@ components:
       properties:
         query:
           type: string
-          description: Search query for regular web search. Optional if only using LLM.txt discovery.
+          description: Search query for web search. Optional when using source-only site browsing.
           example: ApeRAG 2025年最新发展
         max_results:
           type: integer
@@ -8014,10 +8014,6 @@ components:
           type: string
           description: Domain or URL for site-specific filtering. When provided with query, limits search results to this domain (e.g., 'site:vercel.com query').
           example: vercel.com
-        search_llms_txt:
-          type: string
-          description: Domain for LLM.txt discovery search. When provided, performs additional LLM-optimized content discovery from the specified domain, independent of the main search. Results are merged with regular search results.
-          example: anthropic.com
       required: []
     webSearchResultItem:
       type: object

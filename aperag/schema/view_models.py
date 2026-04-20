@@ -2231,7 +2231,7 @@ class WebSearchRequest(BaseModel):
 
     query: Optional[str] = Field(
         None,
-        description='Search query for regular web search. Optional if only using LLM.txt discovery.',
+        description='Search query for web search. Optional when using source-only site browsing.',
         examples=['ApeRAG 2025年最新发展'],
     )
     max_results: Optional[int] = Field(
@@ -2247,11 +2247,6 @@ class WebSearchRequest(BaseModel):
         None,
         description="Domain or URL for site-specific filtering. When provided with query, limits search results to this domain (e.g., 'site:vercel.com query').",
         examples=['vercel.com'],
-    )
-    search_llms_txt: Optional[str] = Field(
-        None,
-        description='Domain for LLM.txt discovery search. When provided, performs additional LLM-optimized content discovery from the specified domain, independent of the main search. Results are merged with regular search results.',
-        examples=['anthropic.com'],
     )
 
 

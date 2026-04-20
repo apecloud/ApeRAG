@@ -11,7 +11,6 @@ from aperag.schema.view_models import WebSearchRequest, WebSearchResponse, WebSe
 from aperag.websearch.search.base_search import BaseSearchProvider
 from aperag.websearch.search.providers.duckduckgo_search_provider import DuckDuckGoProvider
 from aperag.websearch.search.providers.jina_search_provider import JinaSearchProvider
-from aperag.websearch.search.providers.llm_txt_search_provider import LLMTxtSearchProvider
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +54,6 @@ class SearchService:
             "ddg": DuckDuckGoProvider,
             "jina": JinaSearchProvider,
             "jina_search": JinaSearchProvider,
-            "llm_txt": LLMTxtSearchProvider,
         }
 
         provider_class = provider_registry.get(self.provider_name.lower())

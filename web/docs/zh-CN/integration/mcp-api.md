@@ -162,7 +162,6 @@ results = search_collection(
 | `query` | string | "" | 搜索关键词 |
 | `max_results` | int | 5 | 返回结果数 |
 | `source` | string | "" | 指定域名（如 `vercel.com`） |
-| `search_llms_txt` | string | "" | 搜索域名的 LLM.txt 文件 |
 | `timeout` | int | 30 | 超时时间（秒） |
 | `locale` | string | "en-US" | 语言地区 |
 
@@ -175,8 +174,6 @@ web_search(query="ApeRAG 2025")
 # 指定网站搜索
 web_search(query="部署文档", source="vercel.com")
 
-# LLM.txt 发现
-web_search(search_llms_txt="anthropic.com")
 ```
 
 ### 5. web_read

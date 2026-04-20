@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 try:
     from duckduckgo_search import DDGS
+    from duckduckgo_search.exceptions import DuckDuckGoSearchException, RatelimitException, TimeoutException
 except ImportError:
     logger.error("duckduckgo_search package is required. Install with: pip install duckduckgo-search")
     raise
@@ -38,6 +39,9 @@ class DuckDuckGoProvider(BaseSearchProvider):
         """
         super().__init__(config)
         self.supported_engines = ["duckduckgo", "ddg"]
+        self.backend_fallback_order = self._normalize_backend_order(
+            (config or {}).get("backend_fallback_order", ["auto", "html", "lite"])
+        )
 
     async def search(
         self,
@@ -134,17 +138,48 @@ class DuckDuckGoProvider(BaseSearchProvider):
         # Configure DuckDuckGo search
         region = "cn-zh" if locale.startswith("zh") else "wt-wt"
 
-        # Perform search
-        with DDGS() as ddgs:
-            search_results = list(
-                ddgs.text(
-                    query,
-                    region=region,
-                    safesearch="moderate",
-                    timelimit=None,
-                    max_results=max_results,
+        search_results = []
+        last_error: Exception | None = None
+
+        for backend in self.backend_fallback_order:
+            logger.info("DuckDuckGo search attempt backend=%s query=%s", backend, query)
+            try:
+                with DDGS() as ddgs:
+                    search_results = list(
+                        ddgs.text(
+                            query,
+                            region=region,
+                            safesearch="moderate",
+                            timelimit=None,
+                            backend=backend,
+                            max_results=max_results,
+                        )
+                    )
+
+                logger.info(
+                    "DuckDuckGo search backend=%s completed results=%s", backend, len(search_results)
                 )
+
+                # Respect an empty response as a valid search result instead of issuing more external requests.
+                break
+            except (RatelimitException, TimeoutException, DuckDuckGoSearchException) as exc:
+                last_error = exc
+                logger.warning(
+                    "DuckDuckGo search backend=%s failed query=%s error=%s",
+                    backend,
+                    query,
+                    exc,
+                )
+                continue
+
+        if search_results == [] and last_error is not None:
+            logger.warning(
+                "DuckDuckGo search exhausted all backends query=%s backends=%s last_error=%s",
+                query,
+                self.backend_fallback_order,
+                last_error,
             )
+            return []
 
         # Convert results to our format
         results = []
@@ -175,3 +210,16 @@ class DuckDuckGoProvider(BaseSearchProvider):
             List of supported search engine names
         """
         return self.supported_engines.copy()
+
+    @staticmethod
+    def _normalize_backend_order(backends: List[str]) -> List[str]:
+        """Normalize DuckDuckGo backend fallback order while preserving the first occurrence."""
+        valid_backends = {"auto", "html", "lite"}
+        normalized = []
+
+        for backend in backends or []:
+            backend_name = str(backend).strip().lower()
+            if backend_name in valid_backends and backend_name not in normalized:
+                normalized.append(backend_name)
+
+        return normalized or ["auto", "html", "lite"]
