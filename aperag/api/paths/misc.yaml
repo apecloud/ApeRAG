@@ -1,3 +1,23 @@
+parser_health:
+  get:
+    summary: Get parser health report
+    description: Returns parser preflight status, dependency readiness, external service reachability, and support tiers.
+    security:
+      - BearerAuth: []
+    responses:
+      '200':
+        description: Parser health report
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/settings.yaml#/ParserHealthReport'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+
 test_mineru_token:
   post:
     summary: Test MinerU API Token

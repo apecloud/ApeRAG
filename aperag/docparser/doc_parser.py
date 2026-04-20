@@ -20,7 +20,7 @@ from typing import Any, List, Optional
 from pydantic import BaseModel, Field
 
 from aperag.docparser.audio_parser import AudioParser
-from aperag.docparser.base import BaseParser, FallbackError, Part
+from aperag.docparser.base import BaseParser, FallbackError, ParserAttempt, ParserChainError, ParserError, Part
 from aperag.docparser.image_parser import ImageParser
 from aperag.docparser.markitdown_parser import MarkItDownParser
 from aperag.docparser.mineru_parser import MinerUParser
@@ -132,6 +132,7 @@ class DocParser(BaseParser):
     def parse_file(self, path: Path, metadata: dict[str, Any] = {}, **kwargs) -> list[Part]:
         extension = path.suffix
         last_err = None
+        attempts: list[ParserAttempt] = []
         for parser_name in self.parsing_order:
             parser = self.parsers[parser_name]
             if not self._parser_accept(parser_name, extension):
@@ -140,4 +141,37 @@ class DocParser(BaseParser):
                 return parser.parse_file(path, metadata, **kwargs)
             except FallbackError as e:
                 last_err = e
-        raise ValueError(f'No parser can handle file with extension "{extension}"') from last_err
+                attempts.append(
+                    ParserAttempt(
+                        parser_name=parser_name,
+                        status="fallback",
+                        message=e.message,
+                        code=e.code,
+                        detail=e.detail,
+                    )
+                )
+            except ParserError as e:
+                attempts.append(
+                    ParserAttempt(
+                        parser_name=parser_name,
+                        status="failed",
+                        message=e.message,
+                        code=e.code,
+                        detail=e.detail,
+                    )
+                )
+                raise ParserChainError(extension, attempts, detail=e.detail) from e
+            except Exception as e:
+                attempts.append(
+                    ParserAttempt(
+                        parser_name=parser_name,
+                        status="failed",
+                        message=f"Unexpected parser error: {type(e).__name__}",
+                        code="unexpected_error",
+                        detail=str(e),
+                    )
+                )
+                raise ParserChainError(extension, attempts, detail=str(e)) from e
+        if attempts:
+            raise ParserChainError(extension, attempts, detail=getattr(last_err, "detail", None)) from last_err
+        raise ValueError(f'No parser can handle file with extension "{extension}"')

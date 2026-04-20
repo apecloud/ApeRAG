@@ -22,7 +22,7 @@ import requests
 from PIL import Image
 
 from aperag.config import settings
-from aperag.docparser.base import BaseParser, FallbackError, Part, TextPart
+from aperag.docparser.base import BaseParser, FallbackError, ParserError, Part, TextPart
 
 SUPPORTED_EXTENSIONS = [
     ".jpg",
@@ -33,6 +33,8 @@ SUPPORTED_EXTENSIONS = [
     ".tif",
 ]
 
+REQUEST_TIMEOUT = 15
+
 
 class ImageParser(BaseParser):
     name = "image"
@@ -42,7 +44,12 @@ class ImageParser(BaseParser):
 
     def parse_file(self, path: Path, metadata: dict[str, Any] = {}, **kwargs) -> list[Part]:
         if not settings.paddleocr_host:
-            raise FallbackError("PADDLEOCR_HOST is not set")
+            raise FallbackError(
+                "Image OCR is not configured",
+                parser_name=self.name,
+                code="service_not_configured",
+                detail="Set PADDLEOCR_HOST to enable image OCR.",
+            )
 
         content = self.read_image_text(path)
         metadata = metadata.copy()
@@ -63,8 +70,24 @@ class ImageParser(BaseParser):
         data = {"images": [image_to_base64(str(path))]}
         headers = {"Content-type": "application/json"}
         url = settings.paddleocr_host + "/predict/ocr_system"
-        r = requests.post(url=url, headers=headers, data=json.dumps(data))
-        data = json.loads(r.text)
+        try:
+            r = requests.post(url=url, headers=headers, data=json.dumps(data), timeout=REQUEST_TIMEOUT)
+            r.raise_for_status()
+            data = json.loads(r.text)
+        except requests.exceptions.RequestException as e:
+            raise ParserError(
+                "Image OCR request failed",
+                parser_name=self.name,
+                code="service_unreachable",
+                detail=str(e),
+            ) from e
+        except json.JSONDecodeError as e:
+            raise ParserError(
+                "Image OCR returned invalid JSON",
+                parser_name=self.name,
+                code="invalid_response",
+                detail=str(e),
+            ) from e
 
         # TODO: extract image metadata by using exiftool
 

@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Optional
 import pikepdf
 import pypdfium2 as pdfium
 
-from aperag.docparser.base import AssetBinPart, MarkdownPart, PdfPart
+from aperag.docparser.base import AssetBinPart, MarkdownPart, ParserError, PdfPart
 from aperag.docparser.doc_parser import DocParser
 from aperag.objectstore.base import get_object_store
 
@@ -263,8 +263,10 @@ class DocumentParser:
 
             return DocumentParsingResult(doc_parts=doc_parts, content=content, metadata={"parts_count": len(doc_parts)})
 
+        except ParserError as e:
+            raise Exception(f"Document parsing failed for {filepath}: {e.diagnostic_message()}") from e
         except Exception as e:
-            raise Exception(f"Document parsing failed for {filepath}: {str(e)}")
+            raise Exception(f"Document parsing failed for {filepath}: {str(e)}") from e
 
 
 # Global parser instance

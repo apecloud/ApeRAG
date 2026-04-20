@@ -18,7 +18,7 @@ from typing import Any
 
 from markitdown import MarkItDown
 
-from aperag.docparser.base import BaseParser, FallbackError, Part
+from aperag.docparser.base import BaseParser, FallbackError, ParserError, Part
 from aperag.docparser.parse_md import parse_md
 from aperag.docparser.utils import convert_office_doc, get_soffice_cmd
 
@@ -56,13 +56,28 @@ class MarkItDownParser(BaseParser):
             target_format = ".pptx"
         if target_format:
             if get_soffice_cmd() is None:
-                raise FallbackError("soffice command not found")
+                raise FallbackError(
+                    "Legacy Office conversion requires soffice",
+                    parser_name=self.name,
+                    code="missing_dependency",
+                    detail="Install LibreOffice/OpenOffice or upload .docx/.pptx instead.",
+                )
             with tempfile.TemporaryDirectory() as temp_dir:
                 converted = convert_office_doc(path, Path(temp_dir), target_format)
                 return self._parse_file(converted, metadata, **kwargs)
         return self._parse_file(path, metadata, **kwargs)
 
     def _parse_file(self, path: Path, metadata: dict[str, Any] = {}, **kwargs) -> list[Part]:
-        mid = MarkItDown()
-        result = mid.convert_local(path, keep_data_uris=True)
-        return parse_md(result.markdown, metadata)
+        try:
+            mid = MarkItDown()
+            result = mid.convert_local(path, keep_data_uris=True)
+            return parse_md(result.markdown, metadata)
+        except ParserError:
+            raise
+        except Exception as e:
+            raise ParserError(
+                f"MarkItDown failed to parse {path.suffix.lower() or 'unknown'} file",
+                parser_name=self.name,
+                code="parse_failed",
+                detail=str(e),
+            ) from e

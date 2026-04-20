@@ -22,7 +22,7 @@ from typing import Any
 
 import requests
 
-from aperag.docparser.base import BaseParser, FallbackError, Part, PdfPart
+from aperag.docparser.base import BaseParser, FallbackError, ParserError, Part, PdfPart
 from aperag.docparser.mineru_common import middle_json_to_parts, to_md_part
 
 logger = logging.getLogger(__name__)
@@ -39,6 +39,8 @@ SUPPORTED_EXTENSIONS = [
 ]
 
 API_HOST = "https://mineru.net"
+REQUEST_TIMEOUT = 30
+MAX_POLL_SECONDS = 300
 
 
 class MinerUParser(BaseParser):
@@ -53,7 +55,12 @@ class MinerUParser(BaseParser):
 
     def parse_file(self, path: Path, metadata: dict[str, Any], **kwargs) -> list[Part]:
         if not self.api_token:
-            raise RuntimeError("MinerU API token is not set")
+            raise FallbackError(
+                "MinerU is enabled but no API token is configured",
+                parser_name=self.name,
+                code="missing_configuration",
+                detail="Set mineru_api_token to enable MinerU enhancement.",
+            )
 
         headers = {
             "Authorization": f"Bearer {self.api_token}",
@@ -71,11 +78,17 @@ class MinerUParser(BaseParser):
                 f"{API_HOST}/api/v4/file-urls/batch",
                 headers=headers,
                 json=upload_url_payload,
+                timeout=REQUEST_TIMEOUT,
             )
             resp.raise_for_status()
             upload_data = resp.json()
             if upload_data.get("code") != 0:
-                raise RuntimeError(f"Failed to get upload URL: {upload_data.get('msg')}")
+                raise FallbackError(
+                    "MinerU could not allocate an upload slot",
+                    parser_name=self.name,
+                    code="service_rejected_request",
+                    detail=upload_data.get("msg"),
+                )
 
             batch_id = upload_data["data"]["batch_id"]
             file_url = upload_data["data"]["file_urls"][0]
@@ -83,25 +96,44 @@ class MinerUParser(BaseParser):
 
         except requests.exceptions.RequestException as e:
             logger.exception("Failed to get Mineru upload URL")
-            raise RuntimeError("Failed to get Mineru upload URL") from e
+            raise FallbackError(
+                "MinerU upload initialization failed",
+                parser_name=self.name,
+                code="service_unreachable",
+                detail=str(e),
+            ) from e
 
         # 2. Upload file
         try:
             with open(path, "rb") as f:
-                upload_resp = requests.put(file_url, data=f)
+                upload_resp = requests.put(file_url, data=f, timeout=REQUEST_TIMEOUT)
                 upload_resp.raise_for_status()
             logger.info(f"Successfully uploaded {path.name} to Mineru.")
         except requests.exceptions.RequestException as e:
             logger.exception(f"Failed to upload file to Mineru: {path.name}")
-            raise RuntimeError("Failed to upload file to Mineru") from e
+            raise FallbackError(
+                "MinerU file upload failed",
+                parser_name=self.name,
+                code="service_unreachable",
+                detail=str(e),
+            ) from e
 
         # 3. Poll for result
+        start_time = time.monotonic()
         while True:
+            if time.monotonic() - start_time > MAX_POLL_SECONDS:
+                raise FallbackError(
+                    "MinerU parsing timed out",
+                    parser_name=self.name,
+                    code="timeout",
+                    detail=f"Timed out after {MAX_POLL_SECONDS} seconds. Falling back to local parser.",
+                )
             try:
                 time.sleep(5)  # Poll every 5 seconds
                 status_resp = requests.get(
                     f"{API_HOST}/api/v4/extract-results/batch/{batch_id}",
                     headers={"Authorization": f"Bearer {self.api_token}"},
+                    timeout=REQUEST_TIMEOUT,
                 )
                 status_resp.raise_for_status()
                 status_data = status_resp.json()
@@ -129,17 +161,32 @@ class MinerUParser(BaseParser):
                     error_message = task_status.get("err_msg", "Unknown error")
                     # "number of pages exceeds limit" or "file size exceeds limit"
                     if "exceeds limit" in error_message:
-                        raise FallbackError(error_message)
-                    raise RuntimeError(f"Mineru parsing failed for batch {batch_id}: {error_message}")
+                        raise FallbackError(
+                            "MinerU rejected the file because it exceeds service limits",
+                            parser_name=self.name,
+                            code="service_limit_exceeded",
+                            detail=error_message,
+                        )
+                    raise FallbackError(
+                        "MinerU parsing failed and the system will fall back to the local parser",
+                        parser_name=self.name,
+                        code="service_failed",
+                        detail=error_message,
+                    )
 
             except requests.exceptions.RequestException as e:
                 logger.warning(f"Polling request failed for batch {batch_id}: {e}")
-                # Continue polling even if one request fails
+                raise FallbackError(
+                    "MinerU status polling failed",
+                    parser_name=self.name,
+                    code="service_unreachable",
+                    detail=str(e),
+                ) from e
 
     def _download_and_process_zip(self, zip_url: str, metadata: dict[str, Any], is_pdf_input: bool) -> list[Part]:
         temp_dir_obj = None
         try:
-            response = requests.get(zip_url)
+            response = requests.get(zip_url, timeout=REQUEST_TIMEOUT)
             response.raise_for_status()
 
             temp_dir_obj = tempfile.TemporaryDirectory()
@@ -161,7 +208,12 @@ class MinerUParser(BaseParser):
                         pdf_part = PdfPart(data=pdf_data, metadata=metadata.copy())
 
             if not middle_json_content:
-                raise RuntimeError("layout.json not found in the result zip.")
+                raise FallbackError(
+                    "MinerU response did not contain layout.json",
+                    parser_name=self.name,
+                    code="invalid_response",
+                    detail="Falling back to the local parser.",
+                )
 
             parts = middle_json_to_parts(image_dir, middle_json_content, metadata.copy())
             if not parts:
@@ -175,7 +227,21 @@ class MinerUParser(BaseParser):
 
         except requests.exceptions.RequestException as e:
             logger.exception(f"Failed to download result zip from {zip_url}")
-            raise RuntimeError(f"Failed to download result zip from {zip_url}") from e
+            raise FallbackError(
+                "MinerU result download failed",
+                parser_name=self.name,
+                code="service_unreachable",
+                detail=str(e),
+            ) from e
+        except FallbackError:
+            raise
+        except Exception as e:
+            raise ParserError(
+                "MinerU returned an invalid parsing result",
+                parser_name=self.name,
+                code="invalid_response",
+                detail=str(e),
+            ) from e
         finally:
             if temp_dir_obj:
                 temp_dir_obj.cleanup()

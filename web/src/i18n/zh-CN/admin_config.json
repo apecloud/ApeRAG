@@ -13,6 +13,20 @@
 
   "use_markitdown": "启用 markitdown",
   "use_markitdown_description": "启用后，系统将使用 markitdown 进行文档解析。",
+  "parser_health_title": "解析服务健康状态",
+  "parser_health_description": "展示当前默认解析路径、依赖是否齐全、外部服务是否可达，以及客户可见的支持矩阵。",
+  "parser_health_refresh": "刷新",
+  "parser_health_loading": "正在加载解析服务状态...",
+  "parser_health_load_failed": "加载解析服务状态失败。",
+  "parser_health_default_parser": "默认解析器",
+  "parser_health_parser_order": "当前启用的解析顺序",
+  "parser_health_dependencies": "依赖检查",
+  "parser_health_services": "外部服务",
+  "parser_health_support_matrix": "支持矩阵",
+  "parser_health_requirements": "前置条件",
+  "parser_health_warnings": "风险提示",
+  "parser_health_recommendations": "建议",
+  "parser_health_none": "无",
 
   "system_default_quota": "用户默认配额",
   "system_default_quota_description": "默认配额有助于维护系统稳定性，防止资源滥用，并确保用户或应用间的公平分配"

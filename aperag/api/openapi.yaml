@@ -85,6 +85,8 @@ paths:
   # settings
   /settings:
     $ref: './paths/settings.yaml#/settings'
+  /settings/parser_health:
+    $ref: './paths/misc.yaml#/parser_health'
   /settings/test_mineru_token:
     $ref: './paths/misc.yaml#/test_mineru_token'
 
