@@ -1,22 +1,18 @@
-from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from aperag.db.models import (
     CollectionSummary,
-    CollectionSummaryStatus,
     DocumentIndex,
-    DocumentIndexStatus,
     DocumentIndexType,
 )
 from aperag.tasks import reconciler as reconciler_module
 from aperag.tasks.reconciler import CollectionSummaryReconciler, DocumentIndexReconciler
 from aperag.utils.constant import IndexAction
-from aperag.utils.utils import utc_now
 from config.celery_tasks import collection_summary_task
 
 
@@ -134,57 +130,11 @@ class TestDocumentIndexReconciler:
         assert fake_session.commit_count == 1
         assert rollback_calls == [("doc1", claimed_indexes, "broker unavailable")]
 
-    def test_reclaim_stale_indexes_returns_retryable_states(self, sqlite_session):
-        stale_time = utc_now() - timedelta(minutes=10)
-        fresh_time = utc_now()
-
-        stale_create = DocumentIndex(
-            document_id="doc-create",
-            index_type=DocumentIndexType.VECTOR,
-            status=DocumentIndexStatus.CREATING,
-            version=1,
-            observed_version=0,
-            gmt_last_reconciled=stale_time,
-        )
-        stale_delete = DocumentIndex(
-            document_id="doc-delete",
-            index_type=DocumentIndexType.FULLTEXT,
-            status=DocumentIndexStatus.DELETION_IN_PROGRESS,
-            version=1,
-            observed_version=1,
-            gmt_last_reconciled=stale_time,
-        )
-        fresh_create = DocumentIndex(
-            document_id="doc-fresh",
-            index_type=DocumentIndexType.GRAPH,
-            status=DocumentIndexStatus.CREATING,
-            version=2,
-            observed_version=1,
-            gmt_last_reconciled=fresh_time,
-        )
-        sqlite_session.add_all([stale_create, stale_delete, fresh_create])
-        sqlite_session.commit()
-
-        reconciler = DocumentIndexReconciler(task_scheduler=MagicMock(), stale_reclaim_timeout_seconds=60)
-
-        reclaimed_count = reconciler._reclaim_stale_indexes(sqlite_session)
-        sqlite_session.commit()
-
-        refreshed_rows = (
-            sqlite_session.execute(select(DocumentIndex).order_by(DocumentIndex.document_id)).scalars().all()
-        )
-        status_by_document = {row.document_id: row.status for row in refreshed_rows}
-
-        assert reclaimed_count == 2
-        assert status_by_document["doc-create"] == DocumentIndexStatus.PENDING
-        assert status_by_document["doc-delete"] == DocumentIndexStatus.DELETING
-        assert status_by_document["doc-fresh"] == DocumentIndexStatus.CREATING
-
 
 class TestCollectionSummaryReconciler:
     def test_summary_claim_is_committed_before_dispatch_and_rolls_back_on_failure(self, monkeypatch):
         fake_session = FakeSession()
-        reconciler = CollectionSummaryReconciler(stale_reclaim_timeout_seconds=60)
+        reconciler = CollectionSummaryReconciler()
         summary = SimpleNamespace(id="sum1", collection_id="col1", version=7)
 
         monkeypatch.setattr(reconciler, "_claim_summary_for_processing", lambda session, summary_id, version: True)
@@ -208,43 +158,6 @@ class TestCollectionSummaryReconciler:
         assert fake_session.commit_count == 1
         assert dispatch_state["committed_before_dispatch"] is True
         assert rollback_calls == [("sum1", 7, "dispatch failed")]
-
-    def test_reclaim_stale_summaries_returns_pending(self, sqlite_session):
-        stale_time = utc_now() - timedelta(minutes=10)
-        fresh_time = utc_now()
-
-        stale_summary = CollectionSummary(
-            id="sum-stale",
-            collection_id="col-stale",
-            status=CollectionSummaryStatus.GENERATING,
-            version=2,
-            observed_version=1,
-            gmt_last_reconciled=stale_time,
-        )
-        fresh_summary = CollectionSummary(
-            id="sum-fresh",
-            collection_id="col-fresh",
-            status=CollectionSummaryStatus.GENERATING,
-            version=2,
-            observed_version=1,
-            gmt_last_reconciled=fresh_time,
-        )
-        sqlite_session.add_all([stale_summary, fresh_summary])
-        sqlite_session.commit()
-
-        reconciler = CollectionSummaryReconciler(stale_reclaim_timeout_seconds=60)
-
-        reclaimed_count = reconciler._reclaim_stale_summaries(sqlite_session)
-        sqlite_session.commit()
-
-        refreshed_rows = (
-            sqlite_session.execute(select(CollectionSummary).order_by(CollectionSummary.id)).scalars().all()
-        )
-        status_by_summary = {row.id: row.status for row in refreshed_rows}
-
-        assert reclaimed_count == 1
-        assert status_by_summary["sum-stale"] == CollectionSummaryStatus.PENDING
-        assert status_by_summary["sum-fresh"] == CollectionSummaryStatus.GENERATING
 
 
 class TestCollectionSummaryTask:

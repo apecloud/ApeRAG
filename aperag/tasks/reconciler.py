@@ -13,8 +13,6 @@
 # limitations under the License.
 
 import logging
-import os
-from datetime import timedelta
 from typing import List, Optional
 
 from sqlalchemy import and_, or_, select, update
@@ -39,13 +37,6 @@ from aperag.utils.utils import utc_now
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_INDEX_IN_PROGRESS_RECLAIM_TIMEOUT_SECONDS = int(
-    os.getenv("APERAG_INDEX_IN_PROGRESS_RECLAIM_TIMEOUT_SECONDS", "7200")
-)
-DEFAULT_SUMMARY_IN_PROGRESS_RECLAIM_TIMEOUT_SECONDS = int(
-    os.getenv("APERAG_SUMMARY_IN_PROGRESS_RECLAIM_TIMEOUT_SECONDS", "3600")
-)
-
 
 class DocumentIndexReconciler:
     """Reconciler for document indexes using single status model"""
@@ -54,10 +45,8 @@ class DocumentIndexReconciler:
         self,
         task_scheduler: Optional[TaskScheduler] = None,
         scheduler_type: str = "celery",
-        stale_reclaim_timeout_seconds: int = DEFAULT_INDEX_IN_PROGRESS_RECLAIM_TIMEOUT_SECONDS,
     ):
         self.task_scheduler = task_scheduler or create_task_scheduler(scheduler_type)
-        self.stale_reclaim_timeout_seconds = stale_reclaim_timeout_seconds
 
     def reconcile_all(self):
         """
@@ -66,10 +55,6 @@ class DocumentIndexReconciler:
         """
         # Get all indexes that need reconciliation
         for session in get_sync_session():
-            reclaimed_count = self._reclaim_stale_indexes(session)
-            if reclaimed_count > 0:
-                session.commit()
-                logger.warning(f"Reclaimed {reclaimed_count} stale document-index tasks back to retryable states")
             operations = self._get_indexes_needing_reconciliation(session)
 
         logger.info(f"Found {len(operations)} documents need to be reconciled")
@@ -153,50 +138,6 @@ class DocumentIndexReconciler:
 
             if not processed_any_action:
                 logger.debug(f"Skipping document {document_id} - indexes already being processed")
-
-    def _reclaim_stale_indexes(self, session: Session) -> int:
-        """Return stale in-progress indexes back to retryable states before the next claim pass."""
-        if self.stale_reclaim_timeout_seconds <= 0:
-            return 0
-
-        stale_before = utc_now() - timedelta(seconds=self.stale_reclaim_timeout_seconds)
-        current_time = utc_now()
-
-        create_update_stmt = (
-            update(DocumentIndex)
-            .where(
-                and_(
-                    DocumentIndex.status == DocumentIndexStatus.CREATING,
-                    DocumentIndex.gmt_last_reconciled.is_not(None),
-                    DocumentIndex.gmt_last_reconciled < stale_before,
-                )
-            )
-            .values(
-                status=DocumentIndexStatus.PENDING,
-                gmt_updated=current_time,
-                gmt_last_reconciled=current_time,
-            )
-        )
-        create_update_result = session.execute(create_update_stmt)
-
-        delete_stmt = (
-            update(DocumentIndex)
-            .where(
-                and_(
-                    DocumentIndex.status == DocumentIndexStatus.DELETION_IN_PROGRESS,
-                    DocumentIndex.gmt_last_reconciled.is_not(None),
-                    DocumentIndex.gmt_last_reconciled < stale_before,
-                )
-            )
-            .values(
-                status=DocumentIndexStatus.DELETING,
-                gmt_updated=current_time,
-                gmt_last_reconciled=current_time,
-            )
-        )
-        delete_result = session.execute(delete_stmt)
-
-        return create_update_result.rowcount + delete_result.rowcount
 
     def _claim_document_indexes(self, session: Session, document_id: str, indexes_to_claim: List[tuple]) -> List[dict]:
         """
@@ -490,24 +431,14 @@ class IndexTaskCallbacks:
 class CollectionSummaryReconciler:
     """Reconciler for collection summaries using reconcile pattern"""
 
-    def __init__(
-        self,
-        scheduler_type: str = "celery",
-        stale_reclaim_timeout_seconds: int = DEFAULT_SUMMARY_IN_PROGRESS_RECLAIM_TIMEOUT_SECONDS,
-    ):
+    def __init__(self, scheduler_type: str = "celery"):
         self.scheduler_type = scheduler_type
-        self.stale_reclaim_timeout_seconds = stale_reclaim_timeout_seconds
 
     def reconcile_all(self):
         """
         Main reconciliation loop - scan collections and reconcile summary differences
         """
         for session in get_sync_session():
-            reclaimed_count = self._reclaim_stale_summaries(session)
-            if reclaimed_count > 0:
-                session.commit()
-                logger.warning(f"Reclaimed {reclaimed_count} stale collection-summary tasks back to PENDING")
-
             summaries_to_reconcile = self._get_summaries_needing_reconciliation(session)
             logger.info(f"Found {len(summaries_to_reconcile)} collection summaries need reconciliation")
 
@@ -557,31 +488,6 @@ class CollectionSummaryReconciler:
             logger.debug(
                 f"Skipping summary {summary.id} - could not be claimed (likely already processing or version mismatch)"
             )
-
-    def _reclaim_stale_summaries(self, session: Session) -> int:
-        """Return stale summary generations back to PENDING before the next claim pass."""
-        if self.stale_reclaim_timeout_seconds <= 0:
-            return 0
-
-        stale_before = utc_now() - timedelta(seconds=self.stale_reclaim_timeout_seconds)
-        current_time = utc_now()
-        reclaim_stmt = (
-            update(CollectionSummary)
-            .where(
-                and_(
-                    CollectionSummary.status == CollectionSummaryStatus.GENERATING,
-                    CollectionSummary.gmt_last_reconciled.is_not(None),
-                    CollectionSummary.gmt_last_reconciled < stale_before,
-                )
-            )
-            .values(
-                status=CollectionSummaryStatus.PENDING,
-                gmt_updated=current_time,
-                gmt_last_reconciled=current_time,
-            )
-        )
-        result = session.execute(reclaim_stmt)
-        return result.rowcount
 
     def _claim_summary_for_processing(self, session: Session, summary_id: str, version: int) -> bool:
         """Atomically claim a summary for processing by updating its state and observed_version"""
