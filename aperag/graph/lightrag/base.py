@@ -493,6 +493,10 @@ class BaseGraphStorage(StorageNameSpace, ABC):
         """Return top-degree nodes plus total node count when backend supports it."""
         return None
 
+    async def get_node_ids(self, limit: int | None = None) -> list[str] | None:
+        """Return node IDs without fetching full node payloads when backend supports it."""
+        return None
+
     @abstractmethod
     async def upsert_node(self, node_id: str, node_data: dict[str, str]) -> None:
         """Insert a new node or update an existing node in the graph.

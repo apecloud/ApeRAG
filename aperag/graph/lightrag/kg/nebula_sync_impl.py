@@ -465,6 +465,55 @@ class NebulaSyncStorage(BaseGraphStorage):
 
         return await asyncio.to_thread(_sync_get_nodes_edges_batch)
 
+    async def get_incident_edges_with_data_batch(self, node_ids: list[str]) -> dict[str, list[tuple[str, str, dict]]]:
+        """Retrieve incident edges with edge payloads for multiple nodes in batches."""
+
+        def _sync_get_incident_edges_with_data_batch():
+            with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
+                if not node_ids:
+                    return {}
+
+                edges_dict = {node_id: [] for node_id in node_ids}
+                batch_size = 100
+
+                for i in range(0, len(node_ids), batch_size):
+                    batch_ids = node_ids[i : i + batch_size]
+                    query = """
+                    UNWIND $node_ids AS node_id
+                    MATCH (v)-[r:DIRECTED]-(connected)
+                    WHERE id(v) == node_id
+                    RETURN node_id, id(v) as src, id(connected) as dst, properties(r) as props
+                    """
+                    result = session.execute_parameter(query, _prepare_nebula_params({"node_ids": batch_ids}))
+                    node_edges_sets = {node_id: set() for node_id in batch_ids}
+
+                    if result.is_succeeded():
+                        for row in result:
+                            source_node_id = row.values()[0].as_string()
+                            src = row.values()[1].as_string()
+                            dst = row.values()[2].as_string()
+                            props = row.values()[3].as_map()
+                            edge_pair = (src, dst)
+                            if edge_pair in node_edges_sets[source_node_id]:
+                                continue
+                            node_edges_sets[source_node_id].add(edge_pair)
+
+                            edge_data = self._convert_nebula_value_map(props)
+                            for key, default_value in {
+                                "weight": 0.0,
+                                "source_id": None,
+                                "description": None,
+                                "keywords": None,
+                            }.items():
+                                if key not in edge_data:
+                                    edge_data[key] = default_value
+
+                            edges_dict[source_node_id].append((src, dst, edge_data))
+
+                return edges_dict
+
+        return await asyncio.to_thread(_sync_get_incident_edges_with_data_batch)
+
     async def upsert_node(self, node_id: str, node_data: dict[str, str]) -> None:
         """Upsert a node in the database."""
 
@@ -549,6 +598,28 @@ class NebulaSyncStorage(BaseGraphStorage):
                 return list(set(labels))
 
         return await asyncio.to_thread(_sync_get_all_labels)
+
+    async def get_node_ids(self, limit: int | None = None) -> list[str] | None:
+        """Get node IDs directly without fetching full node payloads."""
+
+        def _sync_get_node_ids():
+            with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
+                query = "MATCH (v:base) RETURN id(v) as vid ORDER BY vid"
+                if limit is not None:
+                    query += " LIMIT $limit"
+                    result = session.execute_parameter(query, _prepare_nebula_params({"limit": limit}))
+                else:
+                    result = session.execute(query)
+
+                node_ids = []
+                if result.is_succeeded():
+                    for row in result:
+                        node_id = row.values()[0].as_string()
+                        if node_id:
+                            node_ids.append(node_id)
+                return node_ids
+
+        return await asyncio.to_thread(_sync_get_node_ids)
 
     async def delete_node(self, node_id: str) -> None:
         """Delete a node and its incident edges."""

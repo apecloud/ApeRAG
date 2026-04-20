@@ -3,6 +3,7 @@ from types import SimpleNamespace
 import pytest
 
 from aperag.graph.lightrag import utils_graph
+from aperag.graph.lightrag.lightrag import LightRAG
 from aperag.graph.lightrag.operate import get_high_degree_nodes
 from aperag.graph.lightrag.kg.pg_ops_sync_vector_storage import PGOpsSyncVectorStorage
 from aperag.graph.lightrag.namespace import NameSpace
@@ -178,6 +179,10 @@ class _FakeGraphStorage:
     async def get_top_degree_nodes(self, _limit):
         return None
 
+    async def get_node_ids(self, limit=None):
+        self.calls.append(("get_node_ids", limit))
+        return list(self.nodes.keys())[:limit] if limit is not None else list(self.nodes.keys())
+
 
 class _FakeEntityVectorStorage:
     def __init__(self):
@@ -331,3 +336,71 @@ async def test_get_high_degree_nodes_prefers_storage_top_degree_primitive():
     assert total_nodes == 42
     assert set(selected_nodes.nodes_by_id.keys()) == {"entity-1", "entity-2"}
     assert selected_nodes.nodes_by_id["entity-1"].degree == 7
+
+
+class _FakeExportGraphStorage:
+    def __init__(self):
+        self.calls = []
+
+    async def get_node_ids(self, limit=None):
+        self.calls.append(("get_node_ids", limit))
+        return ["entity-1", "entity-2"][:limit] if limit is not None else ["entity-1", "entity-2"]
+
+    async def get_all_labels(self):
+        raise AssertionError("get_all_labels() should not be used when get_node_ids() is available")
+
+    async def get_nodes_batch(self, node_ids):
+        self.calls.append(("get_nodes_batch", tuple(node_ids)))
+        return {
+            "entity-1": {
+                "entity_id": "entity-1",
+                "entity_name": "Alpha",
+                "entity_type": "ORG",
+                "description": "alpha desc",
+                "source_id": "chunk-1",
+            },
+            "entity-2": {
+                "entity_id": "entity-2",
+                "entity_name": "Beta",
+                "entity_type": "PERSON",
+                "description": "beta desc",
+                "source_id": "chunk-2",
+            },
+        }
+
+    async def get_incident_edges_with_data_batch(self, node_ids):
+        self.calls.append(("get_incident_edges_with_data_batch", tuple(node_ids)))
+        return {
+            "entity-1": [
+                ("entity-1", "entity-2", {"description": "rel", "keywords": "kw", "weight": 3.0, "source_id": "chunk-1"})
+            ],
+            "entity-2": [
+                ("entity-1", "entity-2", {"description": "rel", "keywords": "kw", "weight": 3.0, "source_id": "chunk-1"})
+            ],
+        }
+
+
+class _FakeLogger:
+    def info(self, *_args, **_kwargs):
+        return None
+
+    def debug(self, *_args, **_kwargs):
+        return None
+
+    def error(self, *_args, **_kwargs):
+        return None
+
+
+@pytest.mark.asyncio
+async def test_export_for_kg_eval_prefers_node_ids_and_incident_edges_primitive():
+    rag = LightRAG.__new__(LightRAG)
+    rag.workspace = "workspace-1"
+    rag.lightrag_logger = _FakeLogger()
+    rag.chunk_entity_relation_graph = _FakeExportGraphStorage()
+
+    result = await LightRAG.export_for_kg_eval(rag, sample_size=2, include_source_texts=False)
+
+    assert result["entities"][0]["entity_name"] == "Alpha"
+    assert result["relationships"][0]["source_entity_name"] == "Alpha"
+    assert ("get_node_ids", 2) in rag.chunk_entity_relation_graph.calls
+    assert ("get_incident_edges_with_data_batch", ("entity-1", "entity-2")) in rag.chunk_entity_relation_graph.calls
