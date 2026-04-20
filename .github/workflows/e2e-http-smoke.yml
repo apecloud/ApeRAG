@@ -1,17 +1,7 @@
 name: E2E HTTP
 
 on:
-  workflow_dispatch:
-  pull_request:
-    paths:
-      - ".github/workflows/e2e-http-smoke.yml"
-      - "tests/e2e_http/**"
-      - "docker-compose.yml"
-      - "Makefile"
-      - "Dockerfile"
-      - "scripts/**"
-      - "aperag/**"
-      - "envs/**"
+  workflow_call:
 
 jobs:
   e2e-http-smoke:

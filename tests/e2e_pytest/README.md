@@ -22,7 +22,7 @@ tests/e2e_pytest/
 ## Current Scope
 
 - `test_chat.py`
-  keeps streaming, websocket, and provider-backed chat-generation behaviors that are awkward or low-signal in Hurl
+  keeps streaming, websocket, and openai-compatible chat-generation behaviors that are awkward or low-signal in Hurl
 - `test_document_download.py`
   keeps a few extra negative-path download checks while the main download path now lives in Hurl
 
@@ -31,6 +31,7 @@ Migrated in this phase:
 - provider model CRUD moved to `tests/e2e_http/hurl/full/10_provider_llm.hurl`
 - bot CRUD and flow coverage moved to `tests/e2e_http/hurl/full/12_bot.hurl`
 - deterministic chat create/list/get/update moved to `tests/e2e_http/hurl/full/13_chat_http.hurl`
+- frontend non-streaming chat envelope contract moved to `tests/e2e_http/hurl/full/13_chat_http.hurl`
 
 ## 🚀 Quick Start
 

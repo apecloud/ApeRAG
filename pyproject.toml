@@ -124,6 +124,7 @@ test = [
     "pytest",
     "pytest-asyncio",
     "pytest-benchmark>=5.1.0",
+    "pytest-cov>=6.2.1",
     "moto",
     "pytest-aioboto3>=0.6.0",
 ]

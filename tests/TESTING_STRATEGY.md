@@ -22,7 +22,7 @@ The test tree is now organized by intent instead of by historical implementation
   - `test_api_key.py`
 - Moved remaining pytest product E2E from `tests/e2e_test/` to `tests/e2e_pytest/`.
 - Moved cache and graph storage checks into `tests/integration/`.
-- Moved manual model audit scripts from `tests/model_test/` to `scripts/model_test/` so they are no longer collected by pytest.
+- Removed the old `tests/model_test/` audit scripts instead of keeping a parallel manual test bucket.
 
 ## Migration Rule
 
@@ -36,5 +36,5 @@ The test tree is now organized by intent instead of by historical implementation
 - Trim `tests/e2e_pytest/` down to the smallest useful supplement for:
   - websocket chat
   - streaming chat
-  - other product flows that are awkward or low-signal in Hurl
+  - openai-compatible chat flows that are still lower-signal in Hurl
 - Use `tests/COVERAGE_MATRIX.md` as the source of truth before deleting additional pytest modules.

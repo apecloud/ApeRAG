@@ -21,13 +21,13 @@ This matrix is the working contract for converging the test tree toward:
 | llm provider config and model CRUD | no | no | yes | `test_llm_provider.py` | no | migrate to Hurl and delete pytest duplicate |
 | bot CRUD | no | no | yes | `test_bot.py` | no | migrate to Hurl and delete pytest duplicate |
 | bot flow get/update | no | no | yes | `test_bot.py` | no | migrate to Hurl and delete pytest duplicate |
-| chat create/list/get/update | no | no | yes | `test_chat.py` | no | move deterministic lifecycle checks to Hurl |
-| chat non-streaming provider-backed completion | no | no | no | `test_chat.py` | no | keep pytest supplement until provider-stable Hurl path exists |
+| chat create/list/get/update | no | no | yes | no | no | fully owned by Hurl |
+| chat frontend non-streaming completion envelope | no | no | yes | no | no | move the frontend HTTP contract to Hurl; keep stronger success-path guarantees separate until the path is stable |
+| chat openai-compatible completion | no | no | no | `test_chat.py` | no | keep pytest supplement until a stable black-box replacement is worth the churn |
 | chat streaming / websocket | no | no | no | `test_chat.py` | no | keep thin pytest supplement |
 | graph labels / graph overview | no | no | yes | no | `tests/integration/graphstorage/` | Hurl owns HTTP surface; integration keeps backend oracle |
 | cache behavior | some | no | no | no | `tests/integration/cache/` | keep integration |
 | graph storage backend correctness | no | no | no | no | `tests/integration/graphstorage/` | keep integration |
-| manual provider/model audit | no | no | no | no | `scripts/model_test/` | keep outside pytest collection |
 
 ## File-Level Decisions
 
@@ -36,7 +36,7 @@ This matrix is the working contract for converging the test tree toward:
 | `tests/e2e_pytest/test_available_models.py` | delete after this phase | replaced by `tests/e2e_http/hurl/full/10_provider_llm.hurl` |
 | `tests/e2e_pytest/test_llm_provider.py` | delete after this phase | replaced by `tests/e2e_http/hurl/full/10_provider_llm.hurl` |
 | `tests/e2e_pytest/test_bot.py` | delete after this phase | replaced by `tests/e2e_http/hurl/full/12_bot.hurl` |
-| `tests/e2e_pytest/test_chat.py` | trim later | keep only streaming / websocket / special frontend cases once Hurl parity is validated |
+| `tests/e2e_pytest/test_chat.py` | trim later | keep only streaming / websocket / openai-compatible supplements once Hurl parity is validated |
 | `tests/e2e_pytest/test_document_download.py` | keep for now | Hurl now covers the main download path, while pytest still carries extra negative cases |
 | `tests/integration/cache/*` | keep | not product-level E2E |
 | `tests/integration/graphstorage/*` | keep | backend oracle and contract verification, not product HTTP behavior |

@@ -229,7 +229,7 @@ uv run pytest tests/unit_test/test_model_service.py -v
 uv run pytest tests/unit_test/test_model_service.py::TestModelService::test_get_models -v
 
 # 运行带覆盖率的测试
-uv run pytest tests/unit_test/ --cov=aperag --cov-report=html
+make unit-test
 ```
 
 **E2E 测试（需要运行服务）：**

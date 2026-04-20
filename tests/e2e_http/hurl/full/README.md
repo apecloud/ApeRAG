@@ -10,7 +10,7 @@ Current files:
 - `12_bot.hurl`
   bot CRUD plus flow get/update
 - `13_chat_http.hurl`
-  chat create/list/get/update
+  chat create/list/get/update plus a non-streaming frontend completion envelope call
 - `14_graph_http.hurl`
   graph labels and graph overview endpoints
 

@@ -183,7 +183,12 @@ test:
 	uv run pytest tests/ -v
 
 unit-test:
-	uv run pytest tests/unit_test/ -v
+	@mkdir -p tests/report
+	uv run pytest tests/unit_test/ -v \
+		--cov=aperag \
+		--cov-report=term-missing:skip-covered \
+		--cov-report=xml:tests/report/unit-coverage.xml \
+		--cov-report=json:tests/report/unit-coverage.json
 
 integration-test:
 	uv run pytest tests/integration/ -v

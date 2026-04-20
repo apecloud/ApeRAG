@@ -224,7 +224,7 @@ uv run pytest tests/unit_test/test_model_service.py -v
 uv run pytest tests/unit_test/test_model_service.py::TestModelService::test_get_models -v
 
 # Run tests with coverage
-uv run pytest tests/unit_test/ --cov=aperag --cov-report=html
+make unit-test
 ```
 
 **E2E Tests (Require Running Services):**

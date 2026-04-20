@@ -97,9 +97,9 @@ Content-Type: application/json
             ]
           },
           "values": {
-            "model_service_provider": "siliconflow",
-            "model_name": "Qwen/Qwen3-8B",
-            "custom_llm_provider": "openai",
+            "model_service_provider": "openrouter",
+            "model_name": "google/gemini-2.5-flash",
+            "custom_llm_provider": "openrouter",
             "prompt_template": "{query}",
             "temperature": 0.2,
             "query": "hello"
@@ -155,3 +155,14 @@ HTTP 200
 [Asserts]
 jsonpath "$.id" == "{{chat_id}}"
 jsonpath "$.title" == "Chat Title {{run_id}}"
+
+POST {{base_url}}/api/v1/chat/completions/frontend?stream=false&bot_id={{bot_id}}&chat_id={{chat_id}}
+Content-Type: text/plain
+msg_id: chat_http_{{run_id}}
+`Summarize ApeRAG in one sentence.`
+HTTP 200
+[Asserts]
+jsonpath "$.type" exists
+jsonpath "$.id" exists
+jsonpath "$.data" exists
+jsonpath "$.timestamp" exists
