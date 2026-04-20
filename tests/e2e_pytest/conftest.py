@@ -152,7 +152,7 @@ def bot(client, document, collection):
     create_data = {
         "title": "E2E Test Bot",
         "description": "E2E Bot Description",
-        "type": "knowledge",
+        "type": "agent",
         "config": json.dumps(config),
         "collection_ids": [collection["id"]],
     }

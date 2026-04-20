@@ -118,7 +118,7 @@ def create_and_configure_bot(
     create_data = {
         "title": f"E2E {bot_type.title()} Test Bot",
         "description": f"E2E {bot_type.title()} Bot Description",
-        "type": bot_type,
+        "type": "agent",
         "config": json.dumps(config),
         "collection_ids": collection_ids or [],
     }
