@@ -31,6 +31,7 @@ from aperag.db.models import (
     DocumentStatus,
 )
 from aperag.schema.utils import parseCollectionConfig
+from aperag.tasks.processing_lease import build_lease_expires_at, generate_processing_token
 from aperag.tasks.scheduler import TaskScheduler, create_task_scheduler
 from aperag.utils.constant import IndexAction
 from aperag.utils.utils import utc_now
@@ -55,6 +56,10 @@ class DocumentIndexReconciler:
         """
         # Get all indexes that need reconciliation
         for session in get_sync_session():
+            reclaimed_count = self._reclaim_stale_indexes(session)
+            if reclaimed_count > 0:
+                session.commit()
+                logger.warning("Reclaimed %s stale document-index tasks back to retryable states", reclaimed_count)
             operations = self._get_indexes_needing_reconciliation(session)
 
         logger.info(f"Found {len(operations)} documents need to be reconciled")
@@ -184,11 +189,19 @@ class DocumentIndexReconciler:
                         DocumentIndex.status == DocumentIndexStatus.DELETING,
                     ]
 
+                processing_token = generate_processing_token()
+
                 # Try to claim this specific index
                 update_stmt = (
                     update(DocumentIndex)
                     .where(and_(*claiming_conditions))
-                    .values(status=target_state, gmt_updated=utc_now(), gmt_last_reconciled=utc_now())
+                    .values(
+                        status=target_state,
+                        processing_token=processing_token,
+                        lease_expires_at=build_lease_expires_at(),
+                        gmt_updated=utc_now(),
+                        gmt_last_reconciled=utc_now(),
+                    )
                 )
 
                 result = session.execute(update_stmt)
@@ -203,6 +216,7 @@ class DocumentIndexReconciler:
                             "target_version": current_index.version
                             if action in [IndexAction.CREATE, IndexAction.UPDATE]
                             else None,
+                            "processing_token": processing_token,
                         }
                     )
                     logger.debug(f"Claimed index {index_id} for document {document_id} ({action})")
@@ -215,6 +229,53 @@ class DocumentIndexReconciler:
             logger.error(f"Failed to claim indexes for document {document_id}: {e}")
             return []
 
+    def _reclaim_stale_indexes(self, session: Session) -> int:
+        current_time = utc_now()
+
+        create_update_stmt = (
+            update(DocumentIndex)
+            .where(
+                and_(
+                    DocumentIndex.status == DocumentIndexStatus.CREATING,
+                    DocumentIndex.processing_token.is_not(None),
+                    DocumentIndex.lease_expires_at.is_not(None),
+                    DocumentIndex.lease_expires_at < current_time,
+                )
+            )
+            .values(
+                status=DocumentIndexStatus.PENDING,
+                error_message="stale lease reclaimed",
+                processing_token=None,
+                lease_expires_at=None,
+                gmt_updated=current_time,
+                gmt_last_reconciled=current_time,
+            )
+        )
+        create_update_result = session.execute(create_update_stmt)
+
+        delete_stmt = (
+            update(DocumentIndex)
+            .where(
+                and_(
+                    DocumentIndex.status == DocumentIndexStatus.DELETION_IN_PROGRESS,
+                    DocumentIndex.processing_token.is_not(None),
+                    DocumentIndex.lease_expires_at.is_not(None),
+                    DocumentIndex.lease_expires_at < current_time,
+                )
+            )
+            .values(
+                status=DocumentIndexStatus.DELETING,
+                error_message="stale lease reclaimed",
+                processing_token=None,
+                lease_expires_at=None,
+                gmt_updated=current_time,
+                gmt_last_reconciled=current_time,
+            )
+        )
+        delete_result = session.execute(delete_stmt)
+
+        return create_update_result.rowcount + delete_result.rowcount
+
     def _dispatch_claimed_indexes(self, document_id: str, action: str, claimed_indexes: List[dict]):
         """Dispatch a single claimed action group after its claim has already been committed."""
         index_types = [claimed_index["index_type"] for claimed_index in claimed_indexes]
@@ -225,6 +286,8 @@ class DocumentIndexReconciler:
                 target_version = claimed_index.get("target_version")
                 if target_version is not None:
                     context[f"{claimed_index['index_type']}_version"] = target_version
+                context[f"{claimed_index['index_type']}_processing_token"] = claimed_index["processing_token"]
+                context[f"{claimed_index['index_type']}_index_id"] = claimed_index["index_id"]
 
             self.task_scheduler.schedule_create_index(document_id=document_id, index_types=index_types, context=context)
             logger.info(f"Scheduled create task for document {document_id}, types: {index_types}")
@@ -236,13 +299,20 @@ class DocumentIndexReconciler:
                 target_version = claimed_index.get("target_version")
                 if target_version is not None:
                     context[f"{claimed_index['index_type']}_version"] = target_version
+                context[f"{claimed_index['index_type']}_processing_token"] = claimed_index["processing_token"]
+                context[f"{claimed_index['index_type']}_index_id"] = claimed_index["index_id"]
 
             self.task_scheduler.schedule_update_index(document_id=document_id, index_types=index_types, context=context)
             logger.info(f"Scheduled update task for document {document_id}, types: {index_types}")
             return
 
         if action == IndexAction.DELETE:
-            self.task_scheduler.schedule_delete_index(document_id=document_id, index_types=index_types)
+            context = {}
+            for claimed_index in claimed_indexes:
+                context[f"{claimed_index['index_type']}_processing_token"] = claimed_index["processing_token"]
+                context[f"{claimed_index['index_type']}_index_id"] = claimed_index["index_id"]
+
+            self.task_scheduler.schedule_delete_index(document_id=document_id, index_types=index_types, context=context)
             logger.info(f"Scheduled delete task for document {document_id}, types: {index_types}")
             return
 
@@ -268,11 +338,14 @@ class DocumentIndexReconciler:
                                 DocumentIndex.id == claimed_index["index_id"],
                                 DocumentIndex.status == DocumentIndexStatus.CREATING,
                                 DocumentIndex.version == target_version,
+                                DocumentIndex.processing_token == claimed_index["processing_token"],
                             )
                         )
                         .values(
                             status=DocumentIndexStatus.PENDING,
                             error_message=rollback_error_message,
+                            processing_token=None,
+                            lease_expires_at=None,
                             gmt_updated=current_time,
                             gmt_last_reconciled=current_time,
                         )
@@ -284,11 +357,14 @@ class DocumentIndexReconciler:
                             and_(
                                 DocumentIndex.id == claimed_index["index_id"],
                                 DocumentIndex.status == DocumentIndexStatus.DELETION_IN_PROGRESS,
+                                DocumentIndex.processing_token == claimed_index["processing_token"],
                             )
                         )
                         .values(
                             status=DocumentIndexStatus.DELETING,
                             error_message=rollback_error_message,
+                            processing_token=None,
+                            lease_expires_at=None,
                             gmt_updated=current_time,
                             gmt_last_reconciled=current_time,
                         )
@@ -330,7 +406,41 @@ class IndexTaskCallbacks:
         session.add(document)
 
     @staticmethod
-    def on_index_created(document_id: str, index_type: str, target_version: int, index_data: str = None):
+    def _describe_index_callback_mismatch(
+        document_id: str,
+        index_type: str,
+        processing_token: str,
+        expected_status: DocumentIndexStatus,
+        target_version: Optional[int] = None,
+    ) -> str:
+        for session in get_sync_session():
+            stmt = select(DocumentIndex).where(
+                and_(
+                    DocumentIndex.document_id == document_id,
+                    DocumentIndex.index_type == DocumentIndexType(index_type),
+                )
+            )
+            result = session.execute(stmt)
+            record = result.scalar_one_or_none()
+            if not record:
+                return "index_record_not_found"
+            if record.processing_token != processing_token:
+                return "token_mismatch"
+            if record.status != expected_status:
+                return f"status_changed_to_{record.status}"
+            if target_version is not None and record.version != target_version:
+                return f"version_mismatch_expected_{target_version}_current_{record.version}"
+            return "unknown_mismatch"
+        return "unknown_mismatch"
+
+    @staticmethod
+    def on_index_created(
+        document_id: str,
+        index_type: str,
+        target_version: int,
+        processing_token: str,
+        index_data: str = None,
+    ):
         """Called when index creation/update succeeds"""
         for session in get_sync_session():
             # Use atomic update with version validation
@@ -342,6 +452,7 @@ class IndexTaskCallbacks:
                         DocumentIndex.index_type == DocumentIndexType(index_type),
                         DocumentIndex.status == DocumentIndexStatus.CREATING,
                         DocumentIndex.version == target_version,  # Critical: validate version
+                        DocumentIndex.processing_token == processing_token,
                     )
                 )
                 .values(
@@ -349,6 +460,8 @@ class IndexTaskCallbacks:
                     observed_version=target_version,  # Mark this version as processed
                     index_data=index_data,
                     error_message=None,
+                    processing_token=None,
+                    lease_expires_at=None,
                     gmt_updated=utc_now(),
                     gmt_last_reconciled=utc_now(),
                 )
@@ -360,31 +473,52 @@ class IndexTaskCallbacks:
                 logger.info(f"{index_type} index creation completed for document {document_id} (v{target_version})")
                 session.commit()
             else:
+                reason = IndexTaskCallbacks._describe_index_callback_mismatch(
+                    document_id,
+                    index_type,
+                    processing_token,
+                    DocumentIndexStatus.CREATING,
+                    target_version,
+                )
                 logger.warning(
-                    f"Index creation callback ignored for document {document_id} type {index_type} v{target_version} - not in expected state"
+                    "Index creation callback ignored for document %s type %s v%s - %s",
+                    document_id,
+                    index_type,
+                    target_version,
+                    reason,
                 )
                 session.rollback()
 
     @staticmethod
-    def on_index_failed(document_id: str, index_type: str, error_message: str):
+    def on_index_failed(
+        document_id: str,
+        index_type: str,
+        error_message: str,
+        processing_token: str,
+        target_version: Optional[int] = None,
+        expected_status: Optional[DocumentIndexStatus] = None,
+    ):
         """Called when index operation fails"""
+        expected_status = expected_status or DocumentIndexStatus.CREATING
         for session in get_sync_session():
             # Use atomic update with state validation
+            conditions = [
+                DocumentIndex.document_id == document_id,
+                DocumentIndex.index_type == DocumentIndexType(index_type),
+                DocumentIndex.status == expected_status,
+                DocumentIndex.processing_token == processing_token,
+            ]
+            if target_version is not None:
+                conditions.append(DocumentIndex.version == target_version)
+
             update_stmt = (
                 update(DocumentIndex)
-                .where(
-                    and_(
-                        DocumentIndex.document_id == document_id,
-                        DocumentIndex.index_type == DocumentIndexType(index_type),
-                        # Allow transition from any in-progress state
-                        DocumentIndex.status.in_(
-                            [DocumentIndexStatus.CREATING, DocumentIndexStatus.DELETION_IN_PROGRESS]
-                        ),
-                    )
-                )
+                .where(and_(*conditions))
                 .values(
                     status=DocumentIndexStatus.FAILED,
                     error_message=error_message,
+                    processing_token=None,
+                    lease_expires_at=None,
                     gmt_updated=utc_now(),
                     gmt_last_reconciled=utc_now(),
                 )
@@ -396,13 +530,23 @@ class IndexTaskCallbacks:
                 logger.error(f"{index_type} index operation failed for document {document_id}: {error_message}")
                 session.commit()
             else:
+                reason = IndexTaskCallbacks._describe_index_callback_mismatch(
+                    document_id,
+                    index_type,
+                    processing_token,
+                    expected_status,
+                    target_version,
+                )
                 logger.warning(
-                    f"Index failure callback ignored for document {document_id} type {index_type} - not in expected state"
+                    "Index failure callback ignored for document %s type %s - %s",
+                    document_id,
+                    index_type,
+                    reason,
                 )
                 session.rollback()
 
     @staticmethod
-    def on_index_deleted(document_id: str, index_type: str):
+    def on_index_deleted(document_id: str, index_type: str, processing_token: str):
         """Called when index deletion succeeds - hard delete the record"""
         for session in get_sync_session():
             # Delete the record entirely
@@ -413,6 +557,7 @@ class IndexTaskCallbacks:
                     DocumentIndex.document_id == document_id,
                     DocumentIndex.index_type == DocumentIndexType(index_type),
                     DocumentIndex.status == DocumentIndexStatus.DELETION_IN_PROGRESS,
+                    DocumentIndex.processing_token == processing_token,
                 )
             )
 
@@ -422,8 +567,17 @@ class IndexTaskCallbacks:
                 logger.info(f"{index_type} index deleted for document {document_id}")
                 session.commit()
             else:
+                reason = IndexTaskCallbacks._describe_index_callback_mismatch(
+                    document_id,
+                    index_type,
+                    processing_token,
+                    DocumentIndexStatus.DELETION_IN_PROGRESS,
+                )
                 logger.warning(
-                    f"Index deletion callback ignored for document {document_id} type {index_type} - not in expected state"
+                    "Index deletion callback ignored for document %s type %s - %s",
+                    document_id,
+                    index_type,
+                    reason,
                 )
                 session.rollback()
 
@@ -439,6 +593,13 @@ class CollectionSummaryReconciler:
         Main reconciliation loop - scan collections and reconcile summary differences
         """
         for session in get_sync_session():
+            reclaimed_count = self._reclaim_stale_summaries(session)
+            if reclaimed_count > 0:
+                session.commit()
+                logger.warning(
+                    "Reclaimed %s stale collection-summary tasks back to retryable states",
+                    reclaimed_count,
+                )
             summaries_to_reconcile = self._get_summaries_needing_reconciliation(session)
             logger.info(f"Found {len(summaries_to_reconcile)} collection summaries need reconciliation")
 
@@ -475,23 +636,48 @@ class CollectionSummaryReconciler:
         """
         Reconcile summary generation for a single collection summary
         """
-        claimed = self._claim_summary_for_processing(session, summary.id, summary.version)
+        processing_token = self._claim_summary_for_processing(session, summary.id, summary.version)
 
-        if claimed:
+        if processing_token:
             session.commit()
             try:
-                self._schedule_summary_generation(summary.id, summary.collection_id, summary.version)
+                self._schedule_summary_generation(summary.id, summary.collection_id, summary.version, processing_token)
             except Exception as e:
-                self._rollback_summary_claim(summary.id, summary.version, str(e))
+                self._rollback_summary_claim(summary.id, summary.version, processing_token, str(e))
                 raise
         else:
             logger.debug(
                 f"Skipping summary {summary.id} - could not be claimed (likely already processing or version mismatch)"
             )
 
-    def _claim_summary_for_processing(self, session: Session, summary_id: str, version: int) -> bool:
+    def _reclaim_stale_summaries(self, session: Session) -> int:
+        current_time = utc_now()
+        reclaim_stmt = (
+            update(CollectionSummary)
+            .where(
+                and_(
+                    CollectionSummary.status == CollectionSummaryStatus.GENERATING,
+                    CollectionSummary.processing_token.is_not(None),
+                    CollectionSummary.lease_expires_at.is_not(None),
+                    CollectionSummary.lease_expires_at < current_time,
+                )
+            )
+            .values(
+                status=CollectionSummaryStatus.PENDING,
+                error_message="stale lease reclaimed",
+                processing_token=None,
+                lease_expires_at=None,
+                gmt_updated=current_time,
+                gmt_last_reconciled=current_time,
+            )
+        )
+        result = session.execute(reclaim_stmt)
+        return result.rowcount
+
+    def _claim_summary_for_processing(self, session: Session, summary_id: str, version: int) -> Optional[str]:
         """Atomically claim a summary for processing by updating its state and observed_version"""
         try:
+            processing_token = generate_processing_token()
             update_stmt = (
                 update(CollectionSummary)
                 .where(
@@ -503,6 +689,8 @@ class CollectionSummaryReconciler:
                 )
                 .values(
                     status=CollectionSummaryStatus.GENERATING,
+                    processing_token=processing_token,
+                    lease_expires_at=build_lease_expires_at(),
                     gmt_last_reconciled=utc_now(),
                     gmt_updated=utc_now(),
                 )
@@ -511,14 +699,14 @@ class CollectionSummaryReconciler:
             if result.rowcount > 0:
                 logger.debug(f"Claimed summary {summary_id} (v{version}) for processing")
                 session.flush()
-                return True
-            return False
+                return processing_token
+            return None
         except Exception as e:
             logger.error(f"Failed to claim summary {summary_id}: {e}")
             session.rollback()
-            return False
+            return None
 
-    def _rollback_summary_claim(self, summary_id: str, target_version: int, error_message: str):
+    def _rollback_summary_claim(self, summary_id: str, target_version: int, processing_token: str, error_message: str):
         """Return a summary claim to PENDING when Celery dispatch fails before work starts."""
         rollback_error_message = f"Task dispatch failed: {error_message}"
 
@@ -530,11 +718,14 @@ class CollectionSummaryReconciler:
                         CollectionSummary.id == summary_id,
                         CollectionSummary.status == CollectionSummaryStatus.GENERATING,
                         CollectionSummary.version == target_version,
+                        CollectionSummary.processing_token == processing_token,
                     )
                 )
                 .values(
                     status=CollectionSummaryStatus.PENDING,
                     error_message=rollback_error_message,
+                    processing_token=None,
+                    lease_expires_at=None,
                     gmt_updated=utc_now(),
                     gmt_last_reconciled=utc_now(),
                 )
@@ -552,14 +743,20 @@ class CollectionSummaryReconciler:
                 )
             return
 
-    def _schedule_summary_generation(self, summary_id: str, collection_id: str, target_version: int):
+    def _schedule_summary_generation(
+        self,
+        summary_id: str,
+        collection_id: str,
+        target_version: int,
+        processing_token: str,
+    ):
         """
         Schedule summary generation task
         """
         try:
             from config.celery_tasks import collection_summary_task
 
-            task_result = collection_summary_task.delay(summary_id, collection_id, target_version)
+            task_result = collection_summary_task.delay(summary_id, collection_id, target_version, processing_token)
             logger.info(
                 f"Collection summary generation task scheduled for summary {summary_id} "
                 f"(collection: {collection_id}, version: {target_version}), task ID: {task_result.id}"
@@ -573,7 +770,32 @@ class CollectionSummaryCallbacks:
     """Callbacks for collection summary task completion"""
 
     @staticmethod
-    def on_summary_generated(summary_id: str, summary_content: str, target_version: int):
+    def _describe_summary_callback_mismatch(
+        summary_id: str,
+        processing_token: str,
+        expected_status: CollectionSummaryStatus,
+        target_version: int,
+    ) -> str:
+        try:
+            for session in get_sync_session():
+                summary_query = select(CollectionSummary).where(CollectionSummary.id == summary_id)
+                summary_result = session.execute(summary_query)
+                summary_record = summary_result.scalar_one_or_none()
+                if not summary_record:
+                    return "summary_record_not_found"
+                if summary_record.processing_token != processing_token:
+                    return "token_mismatch"
+                if summary_record.status != expected_status:
+                    return f"status_changed_to_{summary_record.status}"
+                if summary_record.version != target_version:
+                    return f"version_mismatch_expected_{target_version}_current_{summary_record.version}"
+                return "unknown_mismatch"
+        except Exception:
+            logger.exception("Failed to inspect collection summary callback mismatch for %s", summary_id)
+        return "unknown_mismatch"
+
+    @staticmethod
+    def on_summary_generated(summary_id: str, summary_content: str, target_version: int, processing_token: str):
         """Called when summary generation succeeds"""
         try:
             for session in get_sync_session():
@@ -583,14 +805,24 @@ class CollectionSummaryCallbacks:
                         CollectionSummary.id == summary_id,
                         CollectionSummary.status == CollectionSummaryStatus.GENERATING,
                         CollectionSummary.version == target_version,
+                        CollectionSummary.processing_token == processing_token,
                     )
                 )
                 summary_result = session.execute(summary_query)
                 summary_record = summary_result.scalar_one_or_none()
 
                 if not summary_record:
+                    reason = CollectionSummaryCallbacks._describe_summary_callback_mismatch(
+                        summary_id,
+                        processing_token,
+                        CollectionSummaryStatus.GENERATING,
+                        target_version,
+                    )
                     logger.warning(
-                        f"Summary completion callback ignored for {summary_id} (v{target_version}) - not in expected state"
+                        "Summary completion callback ignored for %s (v%s) - %s",
+                        summary_id,
+                        target_version,
+                        reason,
                     )
                     return
 
@@ -626,6 +858,7 @@ class CollectionSummaryCallbacks:
                             CollectionSummary.id == summary_id,
                             CollectionSummary.status == CollectionSummaryStatus.GENERATING,
                             CollectionSummary.version == target_version,
+                            CollectionSummary.processing_token == processing_token,
                         )
                     )
                     .values(
@@ -633,6 +866,8 @@ class CollectionSummaryCallbacks:
                         summary=summary_content,
                         error_message=None,
                         observed_version=target_version,
+                        processing_token=None,
+                        lease_expires_at=None,
                         gmt_updated=current_time,
                     )
                 )
@@ -640,8 +875,17 @@ class CollectionSummaryCallbacks:
 
                 if summary_update_result.rowcount == 0:
                     session.rollback()
+                    reason = CollectionSummaryCallbacks._describe_summary_callback_mismatch(
+                        summary_id,
+                        processing_token,
+                        CollectionSummaryStatus.GENERATING,
+                        target_version,
+                    )
                     logger.warning(
-                        f"Summary completion callback ignored for {summary_id} (v{target_version}) - summary not in expected state"
+                        "Summary completion callback ignored for %s (v%s) - %s",
+                        summary_id,
+                        target_version,
+                        reason,
                     )
                     return
 
@@ -681,7 +925,7 @@ class CollectionSummaryCallbacks:
                 pass
 
     @staticmethod
-    def on_summary_failed(summary_id: str, error_message: str, target_version: int):
+    def on_summary_failed(summary_id: str, error_message: str, target_version: int, processing_token: str):
         """Called when summary generation fails"""
         try:
             for session in get_sync_session():
@@ -692,11 +936,14 @@ class CollectionSummaryCallbacks:
                             CollectionSummary.id == summary_id,
                             CollectionSummary.status == CollectionSummaryStatus.GENERATING,
                             CollectionSummary.version == target_version,
+                            CollectionSummary.processing_token == processing_token,
                         )
                     )
                     .values(
                         status=CollectionSummaryStatus.FAILED,
                         error_message=error_message,
+                        processing_token=None,
+                        lease_expires_at=None,
                         gmt_updated=utc_now(),
                     )
                 )
@@ -708,8 +955,17 @@ class CollectionSummaryCallbacks:
                     )
                 else:
                     session.rollback()
+                    reason = CollectionSummaryCallbacks._describe_summary_callback_mismatch(
+                        summary_id,
+                        processing_token,
+                        CollectionSummaryStatus.GENERATING,
+                        target_version,
+                    )
                     logger.warning(
-                        f"Summary failure callback ignored for {summary_id} (v{target_version}) - not in expected state"
+                        "Summary failure callback ignored for %s (v%s) - %s",
+                        summary_id,
+                        target_version,
+                        reason,
                     )
         except Exception as e:
             logger.error(f"Failed to update collection summary failure for {summary_id}: {e}")

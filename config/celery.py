@@ -46,7 +46,7 @@ app.conf.update(
 app.conf.beat_schedule = {
     'reconcile-indexes': {
         'task': 'config.celery_tasks.reconcile_indexes_task',
-        'schedule': 3600.0, # Run every 1 hour
+        'schedule': 300.0,  # Run every 5 minutes
     },
     'reconcile-collection-summaries': {
         'task': 'config.celery_tasks.reconcile_collection_summaries_task',
