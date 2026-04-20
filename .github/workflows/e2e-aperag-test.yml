@@ -1,0 +1,175 @@
+name: E2E ApeRAG Test on EKS
+
+on:
+  workflow_call:
+    inputs:
+      region:
+        description: "AWS region for the target EKS cluster"
+        type: string
+        required: true
+      eks_cluster_name:
+        description: "Existing EKS cluster name"
+        type: string
+        required: true
+      test_scope:
+        description: "HTTP suite to run on the deployed cluster"
+        type: string
+        required: true
+      deploy_mode:
+        description: "release or code"
+        type: string
+        required: true
+      release_version:
+        description: "Release version when deploy-mode=release"
+        type: string
+        required: false
+        default: ""
+      image_tag:
+        description: "Image tag when deploy-mode=code"
+        type: string
+        required: false
+        default: ""
+      backend_image_repo:
+        description: "Backend image repository when deploy-mode=code"
+        type: string
+        required: false
+        default: ""
+      frontend_image_repo:
+        description: "Frontend image repository when deploy-mode=code"
+        type: string
+        required: false
+        default: ""
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  HELM_VERSION: "v3.12.0"
+  HURL_VERSION: "7.1.0"
+
+jobs:
+  e2e-test:
+    runs-on: ubuntu-latest
+    env:
+      E2E_ALIBABACLOUD_API_KEY: ${{ secrets.E2E_ALIBABACLOUD_API_KEY }}
+      E2E_OPENROUTER_API_KEY: ${{ secrets.E2E_OPENROUTER_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ inputs.region }}
+
+      - name: Show AWS CLI version
+        run: aws --version
+
+      - name: Install Hurl
+        run: |
+          curl -fsSL -o /tmp/hurl.tar.gz "https://github.com/Orange-OpenSource/hurl/releases/download/${HURL_VERSION}/hurl-${HURL_VERSION}-x86_64-unknown-linux-gnu.tar.gz"
+          tar -xzf /tmp/hurl.tar.gz -C /tmp
+          sudo mv /tmp/hurl-${HURL_VERSION}-x86_64-unknown-linux-gnu/bin/hurl /usr/local/bin/hurl
+          hurl --version
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --region "${{ inputs.region }}" --name "${{ inputs.eks_cluster_name }}"
+          kubectl cluster-info
+
+      - name: Install KubeBlocks prerequisites and addons
+        run: |
+          chmod +x ./deploy/databases/01-prepare.sh
+          ./deploy/databases/01-prepare.sh
+
+      - name: Install databases
+        run: |
+          chmod +x ./deploy/databases/02-install-database.sh
+          ./deploy/databases/02-install-database.sh
+          kubectl get pods -n default -o wide
+
+      - name: Deploy ApeRAG from release
+        if: ${{ inputs.deploy_mode == 'release' }}
+        run: |
+          helm repo add helm-charts https://apecloud.github.io/helm-charts
+          helm repo update
+
+          helm upgrade --install aperag helm-charts/aperag \
+            --version "${{ inputs.release_version }}" \
+            --wait --timeout=20m
+
+      - name: Deploy ApeRAG from current ref images
+        if: ${{ inputs.deploy_mode == 'code' }}
+        run: |
+          helm upgrade --install aperag ./deploy/aperag \
+            --set image.repository="${{ inputs.backend_image_repo }}" \
+            --set image.tag="${{ inputs.image_tag }}" \
+            --set image.pullPolicy=Always \
+            --set frontend.image.repository="${{ inputs.frontend_image_repo }}" \
+            --set frontend.image.tag="${{ inputs.image_tag }}" \
+            --set frontend.image.pullPolicy=Always \
+            --wait --timeout=20m
+
+      - name: Wait for ApeRAG pods
+        run: |
+          kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance=aperag -n default --timeout=900s
+          kubectl get pods -n default -o wide
+          kubectl get svc -n default
+
+      - name: Check provider secrets for full suite
+        if: ${{ inputs.test_scope == 'full' }}
+        run: |
+          if [[ -z "${E2E_ALIBABACLOUD_API_KEY}" || -z "${E2E_OPENROUTER_API_KEY}" ]]; then
+            echo "Missing E2E_ALIBABACLOUD_API_KEY or E2E_OPENROUTER_API_KEY" >&2
+            exit 1
+          fi
+
+      - name: Run K8s smoke HTTP suite
+        if: ${{ inputs.test_scope == 'smoke' }}
+        env:
+          E2E_K8S_NAMESPACE: default
+          E2E_K8S_SERVICE: aperag
+        run: |
+          make test-http-smoke-k8s
+
+      - name: Run K8s provider-aware HTTP suite
+        if: ${{ inputs.test_scope == 'full' }}
+        env:
+          E2E_K8S_NAMESPACE: default
+          E2E_K8S_SERVICE: aperag
+        run: |
+          make test-http-full-k8s
+
+      - name: Dump cluster diagnostics on failure
+        if: failure()
+        run: |
+          echo "=== Pods ==="
+          kubectl get pods --all-namespaces -o wide || true
+          echo "=== Services ==="
+          kubectl get svc --all-namespaces || true
+          echo "=== Events ==="
+          kubectl get events --all-namespaces --sort-by=.metadata.creationTimestamp || true
+          echo "=== Helm releases ==="
+          helm list -A || true
+          echo "=== ApeRAG pod logs ==="
+          for pod in $(kubectl get pods -n default -l app.kubernetes.io/instance=aperag -o jsonpath='{.items[*].metadata.name}'); do
+            echo "--- Logs for ${pod} ---"
+            kubectl logs -n default "${pod}" --all-containers --tail=200 || true
+          done
+
+      - name: Setup SSH access for debugging
+        if: failure()
+        uses: mxschmitt/action-tmate@v3
+        with:
+          limit-access-to-actor: true
+        timeout-minutes: 30

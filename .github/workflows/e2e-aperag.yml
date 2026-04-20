@@ -1,0 +1,196 @@
+name: E2E ApeRAG on EKS
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: "Optional released ApeRAG chart/image version. Leave empty to build images from the current ref."
+        required: false
+        default: ""
+        type: string
+      test_scope:
+        description: "Which K8s-backed HTTP suite to run"
+        required: true
+        default: "smoke"
+        type: choice
+        options:
+          - smoke
+          - full
+      region:
+        description: "AWS region for the temporary EKS cluster"
+        required: true
+        default: "us-west-2"
+        type: string
+      cluster_version:
+        description: "Kubernetes version for the temporary EKS cluster"
+        required: true
+        default: "1.32"
+        type: choice
+        options:
+          - "1.32"
+          - "1.31"
+          - "1.30"
+      node_type:
+        description: "EKS worker node type"
+        required: true
+        default: "t3a.xlarge"
+        type: string
+      node_size:
+        description: "Number of worker nodes"
+        required: true
+        default: "3"
+        type: string
+
+run-name: >
+  EKS E2E:${{ inputs.test_scope }}
+  version=${{ inputs.release_version != '' && inputs.release_version || github.sha }}
+  region=${{ inputs.region }}
+  k8s=${{ inputs.cluster_version }}
+
+permissions:
+  contents: read
+
+jobs:
+  check-release-version:
+    if: ${{ inputs.release_version != '' }}
+    uses: apecloud/apecloud-cd/.github/workflows/check-release-version.yml@v0.1.41
+    with:
+      VERSION: "${{ inputs.release_version }}"
+      APECD_REF: "v0.1.41"
+    secrets: inherit
+
+  build-images:
+    if: ${{ inputs.release_version == '' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_tag: ${{ steps.image-vars.outputs.image_tag }}
+      backend_image_repo: ${{ steps.image-vars.outputs.backend_image_repo }}
+      frontend_image_repo: ${{ steps.image-vars.outputs.frontend_image_repo }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space for Docker build
+        run: |
+          df -h
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo apt-get clean
+          docker system prune -af --volumes || true
+          df -h
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image coordinates
+        id: image-vars
+        run: |
+          repo_lower="$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')"
+          image_tag="eks-e2e-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          echo "image_tag=${image_tag}" >> "${GITHUB_OUTPUT}"
+          echo "backend_image_repo=ghcr.io/${repo_lower}/aperag" >> "${GITHUB_OUTPUT}"
+          echo "frontend_image_repo=ghcr.io/${repo_lower}/aperag-frontend" >> "${GITHUB_OUTPUT}"
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          provenance: false
+          tags: ${{ steps.image-vars.outputs.backend_image_repo }}:${{ steps.image-vars.outputs.image_tag }}
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./web/Dockerfile
+          push: true
+          provenance: false
+          tags: ${{ steps.image-vars.outputs.frontend_image_repo }}:${{ steps.image-vars.outputs.image_tag }}
+
+  resolve-target:
+    if: ${{ always() }}
+    needs:
+      - check-release-version
+      - build-images
+    runs-on: ubuntu-latest
+    outputs:
+      deploy_mode: ${{ steps.resolve.outputs.deploy_mode }}
+      release_version: ${{ steps.resolve.outputs.release_version }}
+      image_tag: ${{ steps.resolve.outputs.image_tag }}
+      backend_image_repo: ${{ steps.resolve.outputs.backend_image_repo }}
+      frontend_image_repo: ${{ steps.resolve.outputs.frontend_image_repo }}
+    steps:
+      - name: Resolve deployment target
+        id: resolve
+        run: |
+          if [[ -n "${{ inputs.release_version }}" ]]; then
+            if [[ "${{ needs.check-release-version.result }}" != "success" ]]; then
+              echo "Release version check failed for ${{ inputs.release_version }}" >&2
+              exit 1
+            fi
+            echo "deploy_mode=release" >> "${GITHUB_OUTPUT}"
+            echo "release_version=${{ needs.check-release-version.outputs.release-version }}" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          if [[ "${{ needs.build-images.result }}" != "success" ]]; then
+            echo "Image build failed for current ref." >&2
+            exit 1
+          fi
+
+          echo "deploy_mode=code" >> "${GITHUB_OUTPUT}"
+          echo "image_tag=${{ needs.build-images.outputs.image_tag }}" >> "${GITHUB_OUTPUT}"
+          echo "backend_image_repo=${{ needs.build-images.outputs.backend_image_repo }}" >> "${GITHUB_OUTPUT}"
+          echo "frontend_image_repo=${{ needs.build-images.outputs.frontend_image_repo }}" >> "${GITHUB_OUTPUT}"
+
+  terraform-init-eks:
+    if: ${{ always() && needs.resolve-target.result == 'success' }}
+    needs:
+      - resolve-target
+    uses: apecloud/apecloud-cd/.github/workflows/terraform-init.yml@v0.1.93
+    with:
+      artifact-name: "aperag-eks-${{ github.run_id }}-${{ github.run_attempt }}"
+      cloud-provider: "eks"
+      cluster-version: "${{ inputs.cluster_version }}"
+      region: "${{ inputs.region }}"
+      node-type: "${{ inputs.node_type }}"
+      node-size: "${{ inputs.node_size }}"
+    secrets: inherit
+
+  e2e-test:
+    if: ${{ always() && needs.terraform-init-eks.result == 'success' }}
+    needs:
+      - resolve-target
+      - terraform-init-eks
+    uses: ./.github/workflows/e2e-aperag-test.yml
+    with:
+      region: "${{ inputs.region }}"
+      eks_cluster_name: "${{ needs['terraform-init-eks'].outputs['k8s-cluster-name'] }}"
+      test_scope: "${{ inputs.test_scope }}"
+      deploy_mode: "${{ needs.resolve-target.outputs.deploy_mode }}"
+      release_version: "${{ needs.resolve-target.outputs.release_version }}"
+      image_tag: "${{ needs.resolve-target.outputs.image_tag }}"
+      backend_image_repo: "${{ needs.resolve-target.outputs.backend_image_repo }}"
+      frontend_image_repo: "${{ needs.resolve-target.outputs.frontend_image_repo }}"
+    secrets: inherit
+
+  terraform-destroy-eks:
+    if: ${{ always() }}
+    needs:
+      - terraform-init-eks
+      - e2e-test
+    uses: apecloud/apecloud-cd/.github/workflows/terraform-destroy.yml@v0.1.93
+    with:
+      artifact-name: "aperag-eks-${{ github.run_id }}-${{ github.run_attempt }}"
+      region: "${{ inputs.region }}"
+    secrets: inherit
