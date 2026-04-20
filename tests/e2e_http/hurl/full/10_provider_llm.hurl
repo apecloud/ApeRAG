@@ -105,6 +105,12 @@ Content-Type: application/json
       "provider_name": "alibabacloud",
       "model": "gte-rerank-v2",
       "custom_llm_provider": "alibabacloud"
+    },
+    {
+      "scenario": "default_for_background_task",
+      "provider_name": "openrouter",
+      "model": "google/gemini-2.5-flash",
+      "custom_llm_provider": "openrouter"
     }
   ]
 }
@@ -116,6 +122,8 @@ jsonpath "$.items[2].scenario" == "default_for_embedding"
 jsonpath "$.items[2].provider_name" == "alibabacloud"
 jsonpath "$.items[3].scenario" == "default_for_rerank"
 jsonpath "$.items[3].provider_name" == "alibabacloud"
+jsonpath "$.items[4].scenario" == "default_for_background_task"
+jsonpath "$.items[4].provider_name" == "openrouter"
 
 POST {{base_url}}/api/v1/embeddings
 Content-Type: application/json
