@@ -109,10 +109,13 @@ jobs:
           provenance: false
           tags: ${{ steps.image-vars.outputs.backend_image_repo }}:${{ steps.image-vars.outputs.image_tag }}
 
+      - name: Build frontend assets
+        run: make build-aperag-frontend-assets
+
       - name: Build and push frontend image
         uses: docker/build-push-action@v5
         with:
-          context: .
+          context: ./web
           file: ./web/Dockerfile
           push: true
           provenance: false
