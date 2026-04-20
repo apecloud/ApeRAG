@@ -616,7 +616,9 @@ async def amerge_entities(
             target_entity_data = {} if target_entity_data is None else target_entity_data
 
             # 1. Check if all source entities exist
-            existing_nodes = await _get_nodes_by_id_batch(chunk_entity_relation_graph, source_entities + [target_entity])
+            existing_nodes = await _get_nodes_by_id_batch(
+                chunk_entity_relation_graph, source_entities + [target_entity]
+            )
 
             source_entities_data = {}
             for entity_name in source_entities:

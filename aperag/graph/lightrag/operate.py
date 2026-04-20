@@ -594,7 +594,9 @@ async def _merge_nodes_and_edges_impl(
 
                 return entity_data is not None
 
-    entity_results = await asyncio.gather(*[_process_entity(entity_name, entities) for entity_name, entities in all_nodes.items()])
+    entity_results = await asyncio.gather(
+        *[_process_entity(entity_name, entities) for entity_name, entities in all_nodes.items()]
+    )
     entity_count = sum(1 for result in entity_results if result)
 
     relationship_semaphore = asyncio.Semaphore(merge_concurrency)
@@ -624,7 +626,9 @@ async def _merge_nodes_and_edges_impl(
 
                 if relationships_vdb is not None and edge_data is not None:
                     vdb_data = {
-                        compute_mdhash_id(edge_data["src_id"] + edge_data["tgt_id"], prefix="rel-", workspace=workspace): {
+                        compute_mdhash_id(
+                            edge_data["src_id"] + edge_data["tgt_id"], prefix="rel-", workspace=workspace
+                        ): {
                             "src_id": edge_data["src_id"],
                             "tgt_id": edge_data["tgt_id"],
                             "keywords": edge_data["keywords"],

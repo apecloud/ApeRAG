@@ -1015,7 +1015,9 @@ class LightRAG:
                                 continue
                             sources = {
                                 source_id
-                                for source_id in split_string_by_multi_markers(edge_data["source_id"], [GRAPH_FIELD_SEP])
+                                for source_id in split_string_by_multi_markers(
+                                    edge_data["source_id"], [GRAPH_FIELD_SEP]
+                                )
                                 if source_id
                             }
                             if sources.intersection(chunk_ids):

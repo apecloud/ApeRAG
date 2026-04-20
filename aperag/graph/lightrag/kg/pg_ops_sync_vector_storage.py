@@ -205,7 +205,8 @@ class PGOpsSyncVectorStorage(BaseVectorStorage):
 
         if pending_contents:
             batches = [
-                pending_contents[i : i + self._max_batch_size] for i in range(0, len(pending_contents), self._max_batch_size)
+                pending_contents[i : i + self._max_batch_size]
+                for i in range(0, len(pending_contents), self._max_batch_size)
             ]
             embedding_tasks = [self.embedding_func(batch) for batch in batches]
             embeddings_list = await asyncio.gather(*embedding_tasks)
