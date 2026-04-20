@@ -878,7 +878,7 @@ def collection_summary_task(self, summary_id: str, collection_id: str, target_ve
         # Mark as failed using callback if we've exhausted retries
         if self.request.retries >= self.max_retries:
             from aperag.tasks.reconciler import collection_summary_callbacks
-            collection_summary_callbacks.on_summary_failed(collection_id, str(e))
+            collection_summary_callbacks.on_summary_failed(summary_id, str(e), target_version)
 
         raise self.retry(
             exc=e,
