@@ -80,7 +80,7 @@ export const WebApiAxiosParamCreator = function (configuration?: Configuration) 
             };
         },
         /**
-         * Perform web search using various search engines
+         * Perform best-effort web search with optional domain targeting
          * @summary Web search
          * @param {WebSearchRequest} webSearchRequest 
          * @param {*} [options] Override http request option.
@@ -145,7 +145,7 @@ export const WebApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * Perform web search using various search engines
+         * Perform best-effort web search with optional domain targeting
          * @summary Web search
          * @param {WebSearchRequest} webSearchRequest 
          * @param {*} [options] Override http request option.
@@ -178,7 +178,7 @@ export const WebApiFactory = function (configuration?: Configuration, basePath?:
             return localVarFp.webReadPost(requestParameters.webReadRequest, options).then((request) => request(axios, basePath));
         },
         /**
-         * Perform web search using various search engines
+         * Perform best-effort web search with optional domain targeting
          * @summary Web search
          * @param {WebApiWebSearchPostRequest} requestParameters Request parameters.
          * @param {*} [options] Override http request option.
@@ -207,7 +207,7 @@ export interface WebApiInterface {
     webReadPost(requestParameters: WebApiWebReadPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<WebReadResponse>;
 
     /**
-     * Perform web search using various search engines
+     * Perform best-effort web search with optional domain targeting
      * @summary Web search
      * @param {WebApiWebSearchPostRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -266,7 +266,7 @@ export class WebApi extends BaseAPI implements WebApiInterface {
     }
 
     /**
-     * Perform web search using various search engines
+     * Perform best-effort web search with optional domain targeting
      * @summary Web search
      * @param {WebApiWebSearchPostRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.

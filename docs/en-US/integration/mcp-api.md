@@ -162,7 +162,6 @@ Search the internet.
 | `query` | string | "" | Search keywords |
 | `max_results` | int | 5 | Results count |
 | `source` | string | "" | Specific domain (e.g., `vercel.com`) |
-| `search_llms_txt` | string | "" | Search domain's LLM.txt file |
 | `timeout` | int | 30 | Timeout (seconds) |
 | `locale` | string | "en-US" | Language locale |
 
@@ -175,8 +174,6 @@ web_search(query="ApeRAG 2025")
 # Site-specific search
 web_search(query="deployment docs", source="vercel.com")
 
-# LLM.txt discovery
-web_search(search_llms_txt="anthropic.com")
 ```
 
 ### 5. web_read

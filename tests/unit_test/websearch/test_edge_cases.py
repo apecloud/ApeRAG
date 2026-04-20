@@ -15,9 +15,9 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from aperag.schema.view_models import WebSearchRequest, WebSearchResultItem
+from duckduckgo_search.exceptions import DuckDuckGoSearchException
 from aperag.websearch.search.providers.duckduckgo_search_provider import DuckDuckGoProvider
 from aperag.websearch.search.providers.jina_search_provider import JinaSearchProvider
-from aperag.websearch.search.providers.llm_txt_search_provider import LLMTxtSearchProvider
 from aperag.websearch.search.search_service import SearchService
 from aperag.websearch.utils.url_validator import URLValidator
 
@@ -47,22 +47,16 @@ class TestParameterValidation:
     @pytest.mark.asyncio
     async def test_provider_parameter_validation(self):
         """Test provider-level parameter validation."""
-        providers = [DuckDuckGoProvider(), JinaSearchProvider({"api_key": "test"}), LLMTxtSearchProvider()]
+        providers = [DuckDuckGoProvider(), JinaSearchProvider({"api_key": "test"})]
 
         for provider in providers:
             # Test negative max_results
             with pytest.raises(ValueError, match="max_results must be positive"):
-                if isinstance(provider, LLMTxtSearchProvider):
-                    await provider.search("test", max_results=-1, source="example.com")
-                else:
-                    await provider.search("test", max_results=-1)
+                await provider.search("test", max_results=-1)
 
             # Test zero timeout
             with pytest.raises(ValueError, match="timeout must be positive"):
-                if isinstance(provider, LLMTxtSearchProvider):
-                    await provider.search("test", timeout=0, source="example.com")
-                else:
-                    await provider.search("test", timeout=0)
+                await provider.search("test", timeout=0)
 
     def test_url_validator_edge_cases(self):
         """Test URL validator with edge cases."""
@@ -155,16 +149,10 @@ class TestResourceLimits:
             results = await provider.search("test", max_results=10)
             assert len(results) <= 10
 
-    def test_long_string_handling(self):
-        """Test handling of extremely long strings."""
-        provider = LLMTxtSearchProvider()
-
-        # Test very long line content
-        very_long_content = "[Very Long Title](https://example.com): " + "x" * 10000
-        snippet = provider._clean_line_content_for_snippet(very_long_content)
-
-        assert len(snippet) <= 203  # 200 + "..."
-        assert snippet.endswith("...")
+    def test_backend_fallback_order_normalization(self):
+        """Test backend fallback normalization for DuckDuckGo provider."""
+        provider = DuckDuckGoProvider({"backend_fallback_order": ["lite", "html", "lite", "invalid"]})
+        assert provider.backend_fallback_order == ["lite", "html"]
 
     @pytest.mark.asyncio
     async def test_concurrent_request_limits(self):
@@ -218,32 +206,22 @@ class TestMaliciousInputs:
                 assert "cannot be empty" in str(e) or "must be positive" in str(e)
 
     @pytest.mark.asyncio
-    async def test_xss_patterns(self):
-        """Test that XSS patterns don't crash snippet creation."""
-        provider = LLMTxtSearchProvider()
+    async def test_duckduckgo_backend_fallback_on_rate_limit(self):
+        """Test that DuckDuckGo provider falls back to the next backend on rate-limit-like errors."""
+        provider = DuckDuckGoProvider({"backend_fallback_order": ["auto", "html"]})
 
-        xss_content = """- [Script Link](https://example.com): <script>alert('xss')</script> test content"""
+        with patch("aperag.websearch.search.providers.duckduckgo_search_provider.DDGS") as mock_ddgs:
+            ddgs_instance = mock_ddgs.return_value.__enter__.return_value
+            ddgs_instance.text.side_effect = [
+                DuckDuckGoSearchException("rate limited"),
+                [{"title": "Valid", "href": "https://valid.com", "body": "Good"}],
+            ]
 
-        # Should not crash when creating snippet
-        snippet = provider._clean_line_content_for_snippet(xss_content)
+            results = provider._search_sync("test", max_results=5, timeout=30, locale="en-US")
 
-        # Basic check that snippet is created without errors
-        assert isinstance(snippet, str)
-        assert len(snippet) > 0
-
-    def test_unicode_and_encoding_edge_cases(self):
-        """Test handling of unicode and encoding edge cases."""
-        provider = LLMTxtSearchProvider()
-
-        # Test various unicode patterns
-        unicode_content = "- [测试](https://example.com): 测试内容 🚀 émojis café naïve résumé"
-        snippet = provider._clean_line_content_for_snippet(unicode_content)
-        assert "测试: 测试内容 🚀 émojis café naïve résumé" in snippet  # Should handle unicode correctly
-
-        # Test null bytes and control characters
-        control_content = "- [Control](https://example.com): test\x00null\x01control\x02chars"
-        snippet = provider._clean_line_content_for_snippet(control_content)
-        assert isinstance(snippet, str)  # Should not crash
+            assert len(results) == 1
+            assert ddgs_instance.text.call_args_list[0].kwargs["backend"] == "auto"
+            assert ddgs_instance.text.call_args_list[1].kwargs["backend"] == "html"
 
 
 class TestSpecialCases:

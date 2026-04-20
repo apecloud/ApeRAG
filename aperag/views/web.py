@@ -31,12 +31,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-class WebSearchError(Exception):
-    """Custom exception for web search failures."""
-
-    pass
-
-
 class WebReadError(Exception):
     """Custom exception for web read failures."""
 
@@ -46,146 +40,51 @@ class WebReadError(Exception):
 @router.post("/web/search", response_model=WebSearchResponse, tags=["websearch"])
 async def web_search_endpoint(request: WebSearchRequest, user: User = Depends(required_user)) -> WebSearchResponse:
     """
-    Perform web search using various search engines with advanced domain targeting.
-
-    Supports serial execution of:
-    - Regular web search with JINA priority and DuckDuckGo fallback (query + source)
-    - LLM.txt discovery search (search_llms_txt)
+    Perform best-effort web search with domain targeting.
 
     Logic:
-    - query + source = site-specific regular search with JINA priority (AND relationship)
-    - search_llms_txt = independent LLM.txt discovery (OR relationship)
-    - Results are merged and ranked
-
-    Results are merged and ranked automatically.
+    - If a JINA API key is configured for the current user (or public provider), use JINA first
+    - Otherwise use DuckDuckGo directly
+    - DuckDuckGo internally retries a small backend fallback chain for better zero-config reliability
+    - External provider failures are soft-failed: the endpoint returns an empty result set instead of 500
     """
     # Record start time for tracking search duration
     search_start_time = time.time()
 
-    try:
-        # Validate that at least one search type is requested
-        has_regular_search = bool(request.query and request.query.strip())
-        has_llm_txt_search = bool(request.search_llms_txt and request.search_llms_txt.strip())
+    has_query = bool(request.query and request.query.strip())
+    has_source = bool(request.source and request.source.strip())
 
-        if not has_regular_search and not has_llm_txt_search:
-            raise HTTPException(
-                status_code=400,
-                detail="At least one search type is required: provide 'query' for regular search or 'search_llms_txt' for LLM.txt discovery.",
-            )
-
-        # Collect search results
-        all_results = []
-        successful_searches = []
-        failed_searches = []
-
-        # Execute regular search if requested
-        if has_regular_search:
-            try:
-                logger.info(
-                    f"Starting regular search: '{request.query}'" + (f" on {request.source}" if request.source else "")
-                )
-                regular_result = await _search_with_jina_fallback(request, user)
-
-                if regular_result and hasattr(regular_result, "results") and regular_result.results:
-                    all_results.extend(regular_result.results)
-                    search_desc = f"Regular search: '{request.query}'" + (
-                        f" on {request.source}" if request.source else ""
-                    )
-                    successful_searches.append(search_desc)
-                    logger.info(f"Regular search succeeded: {len(regular_result.results)} results")
-                else:
-                    failed_searches.append("Regular search: No results returned")
-
-            except Exception as e:
-                error_msg = f"Regular search failed: {str(e)}"
-                logger.error(error_msg, exc_info=True)
-                failed_searches.append(error_msg)
-
-        # Execute LLM.txt discovery search if requested
-        if has_llm_txt_search:
-            try:
-                logger.info(f"Starting LLM.txt discovery search: {request.search_llms_txt}")
-                llm_txt_result = await _search_llm_txt_discovery(request)
-
-                if llm_txt_result and hasattr(llm_txt_result, "results") and llm_txt_result.results:
-                    all_results.extend(llm_txt_result.results)
-                    successful_searches.append(f"LLM.txt discovery: {request.search_llms_txt}")
-                    logger.info(f"LLM.txt discovery succeeded: {len(llm_txt_result.results)} results")
-                else:
-                    failed_searches.append("LLM.txt discovery: No results returned")
-
-            except Exception as e:
-                error_msg = f"LLM.txt discovery failed: {str(e)}"
-                logger.error(error_msg, exc_info=True)
-                failed_searches.append(error_msg)
-
-        # If all searches failed, return error
-        if not all_results and failed_searches:
-            raise HTTPException(status_code=500, detail=f"All searches failed: {'; '.join(failed_searches)}")
-
-        # Merge and rank results
-        merged_results = _merge_and_rank_results(all_results, request.max_results)
-
-        # Calculate total search time
-        total_search_time = time.time() - search_start_time
-
-        logger.info(
-            f"Search completed: {len(merged_results)} final results from {len(successful_searches)} successful sources "
-            f"in {total_search_time:.2f}s"
+    if not has_query and not has_source:
+        raise HTTPException(
+            status_code=400,
+            detail="At least one search input is required: provide 'query' for web search or 'source' for site browsing.",
         )
 
-        # Determine the query description for response
-        query_parts = []
-        if has_regular_search:
-            query_parts.append(request.query.strip())
-        if has_llm_txt_search:
-            query_parts.append(f"LLM.txt:{request.search_llms_txt.strip()}")
+    logger.info(
+        "Starting web search query=%s source=%s",
+        request.query.strip() if request.query else "",
+        request.source.strip() if request.source else "",
+    )
+    regular_result = await _search_with_jina_fallback(request, user)
+    merged_results = _merge_and_rank_results(regular_result.results, request.max_results)
 
-        response_query = " + ".join(query_parts)
+    # Calculate total search time
+    total_search_time = time.time() - search_start_time
 
-        return WebSearchResponse(
-            query=response_query,
-            results=merged_results,
-            total_results=len(merged_results),
-            search_time=total_search_time,
-        )
+    logger.info(
+        "Web search completed query=%s source=%s results=%s time=%.2fs",
+        request.query.strip() if request.query else "",
+        request.source.strip() if request.source else "",
+        len(merged_results),
+        total_search_time,
+    )
 
-    except HTTPException:
-        # Re-raise HTTP exceptions as-is
-        raise
-    except Exception as e:
-        logger.error(f"Web search endpoint failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Web search failed: {str(e)}")
-
-
-async def _search_llm_txt_discovery(request: WebSearchRequest) -> WebSearchResponse:
-    """
-    Perform LLM.txt discovery search using dedicated service.
-
-    Args:
-        request: Original search request with search_llms_txt parameter
-
-    Returns:
-        Search response from LLM.txt discovery
-
-    Raises:
-        WebSearchError: If LLM.txt search fails
-    """
-    try:
-        async with SearchService(provider_name="llm_txt") as llm_txt_service:
-            llm_txt_request = WebSearchRequest(
-                query="",  # LLM.txt discovery doesn't use query
-                max_results=request.max_results,
-                timeout=request.timeout,
-                locale=request.locale,
-                source=request.search_llms_txt.strip(),  # LLM.txt domain
-                search_llms_txt=None,  # Not used in this provider
-            )
-
-            return await llm_txt_service.search(llm_txt_request)
-
-    except Exception as e:
-        raise WebSearchError(f"LLM.txt discovery search failed: {str(e)}") from e
+    return WebSearchResponse(
+        query=_build_search_response_query(request),
+        results=merged_results,
+        total_results=len(merged_results),
+        search_time=total_search_time,
+    )
 
 
 def _merge_and_rank_results(all_results: List, max_results: int) -> List:
@@ -386,34 +285,33 @@ async def _search_with_jina_fallback(request: WebSearchRequest, user: User) -> W
 
     Returns:
         Search results from JINA if successful, otherwise from DuckDuckGo
-
-    Raises:
-        WebSearchError: If both JINA and DuckDuckGo fail
     """
     # Try to get JINA API key for current user
     jina_api_key = await _get_user_jina_api_key(user)
 
     # Try JINA first if API key is available
     if jina_api_key:
-        try:
-            logger.info("Attempting to search with JINA")
-            async with SearchService(provider_name="jina", provider_config={"api_key": jina_api_key}) as jina_service:
-                jina_result = await jina_service.search(request)
+        logger.info("Web search using JINA first query=%s source=%s", request.query, request.source)
+        async with SearchService(provider_name="jina", provider_config={"api_key": jina_api_key}) as jina_service:
+            jina_result = await jina_service.search(request)
 
-                # Check if JINA was successful
-                if jina_result and hasattr(jina_result, "results") and jina_result.results:
-                    logger.info(f"JINA search succeeded: {len(jina_result.results)} results")
-                    return jina_result
-                else:
-                    logger.info("JINA search completed but no results returned")
+            # Check if JINA was successful
+            if jina_result and hasattr(jina_result, "results") and jina_result.results:
+                logger.info(f"JINA search succeeded: {len(jina_result.results)} results")
+                return jina_result
 
-        except Exception as e:
-            logger.info(f"JINA search failed: {e}")
+            logger.info("JINA search completed but no results returned; falling back to DuckDuckGo")
 
     # Fallback to DuckDuckGo
-    logger.info("Using DuckDuckGo search")
-    try:
-        async with SearchService(provider_name="duckduckgo") as duckduckgo_service:
-            return await duckduckgo_service.search(request)
-    except Exception as e:
-        raise WebSearchError(f"Both JINA and DuckDuckGo search failed. Last error: {str(e)}") from e
+    logger.info("Web search using DuckDuckGo fallback query=%s source=%s", request.query, request.source)
+    async with SearchService(provider_name="duckduckgo") as duckduckgo_service:
+        return await duckduckgo_service.search(request)
+
+
+def _build_search_response_query(request: WebSearchRequest) -> str:
+    """Build a stable response query string for regular and source-only searches."""
+    if request.query and request.query.strip():
+        return request.query.strip()
+    if request.source and request.source.strip():
+        return f"site:{request.source.strip()}"
+    return ""
