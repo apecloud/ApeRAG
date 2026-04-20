@@ -674,23 +674,38 @@ class Neo4JSyncStorage(BaseGraphStorage):
 
     async def remove_nodes(self, nodes: list[str]):
         """Delete multiple nodes."""
-        for node in nodes:
-            await self.delete_node(node)
+
+        def _sync_remove_nodes():
+            with Neo4jSyncConnectionManager.get_session(database=self._DATABASE) as session:
+                query = """
+                UNWIND $entity_ids AS entity_id
+                MATCH (n:base {entity_id: entity_id})
+                DETACH DELETE n
+                """
+                session.run(query, entity_ids=nodes)
+                logger.debug(f"Deleted {len(nodes)} nodes in batch")
+
+        if nodes:
+            await asyncio.to_thread(_sync_remove_nodes)
 
     async def remove_edges(self, edges: list[tuple[str, str]]):
         """Delete multiple edges."""
 
-        def _sync_remove_edge(source: str, target: str):
+        def _sync_remove_edges():
             with Neo4jSyncConnectionManager.get_session(database=self._DATABASE) as session:
                 query = """
-                MATCH (source:base {entity_id: $source_entity_id})-[r]-(target:base {entity_id: $target_entity_id})
+                UNWIND $edges AS edge
+                MATCH (source:base {entity_id: edge.src})-[r]-(target:base {entity_id: edge.tgt})
                 DELETE r
                 """
-                session.run(query, source_entity_id=source, target_entity_id=target)
-                logger.debug(f"Deleted edge from '{source}' to '{target}'")
+                session.run(
+                    query,
+                    edges=[{"src": source, "tgt": target} for source, target in edges],
+                )
+                logger.debug(f"Deleted {len(edges)} edges in batch")
 
-        for source, target in edges:
-            await asyncio.to_thread(_sync_remove_edge, source, target)
+        if edges:
+            await asyncio.to_thread(_sync_remove_edges)
 
     async def drop(self) -> dict[str, str]:
         """Drop all data from storage."""
