@@ -30,6 +30,7 @@ Current v1 scope:
   - query `/api/v1/available_models`
   - call `/api/v1/embeddings` and `/api/v1/rerank` through real external providers
   - cover document staged/confirm/download/rebuild paths
+  - cover document status visibility, list search by name, and collection search/history HTTP contracts
   - cover bot CRUD + flow get/update
   - cover chat create/list/get/update plus a non-streaming frontend completion envelope path
   - cover graph labels + graph overview endpoints
@@ -42,6 +43,7 @@ Non-goals for v1:
 Important behavior notes from the current implementation:
 - Smoke tests create and clean up their own business resources.
 - `document` smoke intentionally validates upload and basic lifecycle only; it does not require provider-backed indexing to complete.
+- `document` full validates stable document/search HTTP contracts without hard-coding async index completion or search relevance guarantees.
 - API key smoke explicitly logs out before bearer-only checks so cookie auth does not mask key behavior.
 - Full Hurl tests are intentionally separated from smoke so provider/API-key failures do not dilute the minimal deployment contract.
 

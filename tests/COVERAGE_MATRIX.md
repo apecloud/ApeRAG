@@ -16,6 +16,8 @@ This matrix is the working contract for converging the test tree toward:
 | collection CRUD | partial | yes | no | no | no | fully owned by Hurl |
 | document upload/detail/delete | partial | yes | no | no | no | fully owned by Hurl |
 | document staged/confirm/download/rebuild | no | no | yes | `test_document_download.py` | no | move the primary path to Hurl; keep pytest edge cases until stable |
+| document status visibility and list search by name | no | no | yes | no | no | Hurl owns the stable HTTP contract for status fields and document-name search |
+| collection search API and search history contract | no | no | yes | no | no | Hurl owns stable search/history HTTP behavior; result quality stays provider-sensitive |
 | api key | no | yes | no | no | no | fully owned by Hurl |
 | available models | no | no | yes | `test_available_models.py` | no | migrate to Hurl and delete pytest duplicate |
 | llm provider config and model CRUD | no | no | yes | `test_llm_provider.py` | no | migrate to Hurl and delete pytest duplicate |
@@ -38,6 +40,7 @@ This matrix is the working contract for converging the test tree toward:
 | `tests/e2e_pytest/test_bot.py` | delete after this phase | replaced by `tests/e2e_http/hurl/full/12_bot.hurl` |
 | `tests/e2e_pytest/test_chat.py` | trim later | keep only streaming / websocket / openai-compatible supplements once Hurl parity is validated |
 | `tests/e2e_pytest/test_document_download.py` | keep for now | Hurl now covers the main download path, while pytest still carries extra negative cases |
+| document status/search residual pytest | no extra pytest to delete in this phase | current delta is Hurl contract expansion rather than duplicate pytest removal |
 | `tests/integration/cache/*` | keep | not product-level E2E |
 | `tests/integration/graphstorage/*` | keep | backend oracle and contract verification, not product HTTP behavior |
 | `tests/e2e_http/hurl/smoke/*` | keep | PR gate for provider-independent deployment contract |
