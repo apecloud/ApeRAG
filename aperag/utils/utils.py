@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 
 from Crypto.Cipher import AES
 
-AVAILABLE_SOURCE = ["system", "local", "s3", "oss", "ftp", "email", "feishu", "url", "git"]
+AVAILABLE_SOURCE = ["system"]
 
 
 def extract_bot_and_chat_id(path: str):

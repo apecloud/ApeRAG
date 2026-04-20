@@ -27,7 +27,7 @@ def validate_source_connect_config(config: CollectionConfig) -> Tuple[bool, str]
     if config.source is None:
         return False, ""
     if config.source not in AVAILABLE_SOURCE:
-        return False, ""
+        return False, f"unsupported collection source: {config.source}"
     try:
         get_source(config)
     except CustomSourceInitializationError as e:

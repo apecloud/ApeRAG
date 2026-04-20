@@ -111,7 +111,9 @@ class IndexPrompts(BaseModel):
 
 class CollectionConfig(BaseModel):
     source: Optional[str] = Field(
-        None, description='Source system identifier', examples=['system']
+        'system',
+        description='Source system identifier. Only `system` is supported.',
+        examples=['system'],
     )
     enable_vector: Optional[bool] = Field(
         True, description='Whether to enable vector index'
@@ -152,100 +154,6 @@ class CollectionConfig(BaseModel):
     )
     embedding: Optional[ModelSpec] = None
     completion: Optional[ModelSpec] = None
-    path: Optional[str] = Field(None, description='Path for local and ftp sources')
-    host: Optional[str] = Field(None, description='FTP host')
-    username: Optional[str] = Field(None, description='FTP username')
-    password: Optional[str] = Field(None, description='FTP password')
-    region: Optional[str] = Field(None, description='Region for S3/OSS')
-    access_key_id: Optional[str] = Field(None, description='Access key ID for S3/OSS')
-    secret_access_key: Optional[str] = Field(
-        None, description='Secret access key for S3/OSS'
-    )
-    bucket: Optional[str] = Field(None, description='Bucket name for S3/OSS')
-    dir: Optional[str] = Field(None, description='Directory path in bucket for S3/OSS')
-    email_source: Optional[dict[str, Any]] = Field(
-        None, description='Email source configuration'
-    )
-    pop_server: Optional[str] = Field(None, description='POP3 server address')
-    port: Optional[str] = Field(None, description='Email server port')
-    email_address: Optional[str] = Field(None, description='Email address')
-    email_password: Optional[str] = Field(None, description='Email password')
-    app_id: Optional[str] = Field(None, description='Feishu app ID')
-    app_secret: Optional[str] = Field(None, description='Feishu app secret')
-    space_id: Optional[str] = Field(None, description='Feishu space ID')
-
-
-class Local(BaseModel):
-    path: Optional[str] = None
-
-
-class Bucket(BaseModel):
-    bucket: Optional[str] = None
-    dir: Optional[str] = None
-
-
-class Oss(BaseModel):
-    access_key_id: Optional[str] = None
-    access_key_secret: Optional[str] = None
-    buckets: Optional[list[Bucket]] = None
-    bucket: Optional[str] = None
-    endpoint: Optional[str] = None
-    region: Optional[str] = None
-    dir: Optional[str] = None
-
-
-class S3(BaseModel):
-    access_key_id: Optional[str] = None
-    access_key_secret: Optional[str] = None
-    buckets: Optional[list[dict[str, Any]]] = None
-    bucket: Optional[str] = None
-    region: Optional[str] = None
-    dir: Optional[str] = None
-
-
-class Ftp(BaseModel):
-    path: Optional[str] = None
-    host: Optional[str] = None
-    port: Optional[float] = None
-    username: Optional[str] = None
-
-
-class Email(BaseModel):
-    pop_server: Optional[str] = None
-    port: Optional[float] = None
-    email_address: Optional[str] = None
-    email_password: Optional[str] = None
-    detect_spam: Optional[bool] = None
-
-
-class Url(BaseModel):
-    url: Optional[str] = None
-    name: Optional[str] = None
-
-
-class Feishu(BaseModel):
-    app_id: Optional[str] = None
-    app_secret: Optional[str] = None
-    space_id: Optional[str] = None
-    node_id: Optional[str] = None
-    method: Optional[str] = None
-    target_format: Optional[str] = None
-
-
-class CollectionSource(BaseModel):
-    category: Optional[
-        Literal[
-            'upload', 'tencent', 'oss', 'local', 's3', 'ftp', 'email', 'url', 'github'
-        ]
-    ] = None
-    upload: Optional[dict[str, Any]] = None
-    local: Optional[Local] = None
-    oss: Optional[Oss] = None
-    s3: Optional[S3] = None
-    ftp: Optional[Ftp] = None
-    email: Optional[Email] = None
-    url: Optional[Url] = None
-    feishu: Optional[Feishu] = None
 
 
 class Collection(BaseModel):
@@ -258,7 +166,6 @@ class Collection(BaseModel):
     type: Optional[str] = None
     description: Optional[str] = None
     config: Optional[CollectionConfig] = None
-    source: Optional[CollectionSource] = None
     status: Optional[Literal['ACTIVE', 'INACTIVE', 'DELETED']] = None
     created: Optional[datetime] = None
     updated: Optional[datetime] = None
@@ -592,14 +499,12 @@ class CollectionCreate(BaseModel):
     config: Optional[CollectionConfig] = None
     type: Optional[str] = None
     description: Optional[str] = None
-    source: Optional[CollectionSource] = None
 
 
 class CollectionUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     config: Optional[CollectionConfig] = None
-    source: Optional[CollectionSource] = None
 
 
 class DocumentList(PaginatedResponse):
@@ -608,13 +513,6 @@ class DocumentList(PaginatedResponse):
     """
 
     items: Optional[list[Document]] = None
-
-
-class DocumentCreate(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
-    source: Optional[str] = None
-    collection_id: Optional[str] = None
 
 
 class RebuildIndexesRequest(BaseModel):
