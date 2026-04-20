@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import logging
+import os
+from datetime import timedelta
 from typing import List, Optional
 
 from sqlalchemy import and_, or_, select, update
@@ -37,12 +39,25 @@ from aperag.utils.utils import utc_now
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_INDEX_IN_PROGRESS_RECLAIM_TIMEOUT_SECONDS = int(
+    os.getenv("APERAG_INDEX_IN_PROGRESS_RECLAIM_TIMEOUT_SECONDS", "7200")
+)
+DEFAULT_SUMMARY_IN_PROGRESS_RECLAIM_TIMEOUT_SECONDS = int(
+    os.getenv("APERAG_SUMMARY_IN_PROGRESS_RECLAIM_TIMEOUT_SECONDS", "3600")
+)
+
 
 class DocumentIndexReconciler:
     """Reconciler for document indexes using single status model"""
 
-    def __init__(self, task_scheduler: Optional[TaskScheduler] = None, scheduler_type: str = "celery"):
+    def __init__(
+        self,
+        task_scheduler: Optional[TaskScheduler] = None,
+        scheduler_type: str = "celery",
+        stale_reclaim_timeout_seconds: int = DEFAULT_INDEX_IN_PROGRESS_RECLAIM_TIMEOUT_SECONDS,
+    ):
         self.task_scheduler = task_scheduler or create_task_scheduler(scheduler_type)
+        self.stale_reclaim_timeout_seconds = stale_reclaim_timeout_seconds
 
     def reconcile_all(self):
         """
@@ -51,6 +66,10 @@ class DocumentIndexReconciler:
         """
         # Get all indexes that need reconciliation
         for session in get_sync_session():
+            reclaimed_count = self._reclaim_stale_indexes(session)
+            if reclaimed_count > 0:
+                session.commit()
+                logger.warning(f"Reclaimed {reclaimed_count} stale document-index tasks back to retryable states")
             operations = self._get_indexes_needing_reconciliation(session)
 
         logger.info(f"Found {len(operations)} documents need to be reconciled")
@@ -108,23 +127,76 @@ class DocumentIndexReconciler:
         Reconcile operations for a single document within its own transaction
         """
         for session in get_sync_session():
-            # Collect indexes for this document that need claiming
-            indexes_to_claim = []
+            processed_any_action = False
 
-            for action, doc_indexes in operations.items():
-                for doc_index in doc_indexes:
-                    indexes_to_claim.append((doc_index.id, doc_index.index_type, action))
+            for action in [IndexAction.CREATE, IndexAction.UPDATE, IndexAction.DELETE]:
+                doc_indexes = operations.get(action, [])
+                if not doc_indexes:
+                    continue
 
-            # Atomically claim the indexes for this document
-            claimed_indexes = self._claim_document_indexes(session, document_id, indexes_to_claim)
+                indexes_to_claim = [(doc_index.id, doc_index.index_type, action) for doc_index in doc_indexes]
+                claimed_indexes = self._claim_document_indexes(session, document_id, indexes_to_claim)
 
-            if claimed_indexes:
-                # Schedule tasks for successfully claimed indexes
-                self._reconcile_document_operations(document_id, claimed_indexes)
+                if not claimed_indexes:
+                    continue
+
+                # Commit the claim before dispatching tasks so workers never observe stale pre-claim state.
                 session.commit()
-            else:
-                # Some indexes couldn't be claimed (likely already being processed), skip this document
+
+                try:
+                    self._dispatch_claimed_indexes(document_id, action, claimed_indexes)
+                except Exception as e:
+                    self._rollback_claimed_indexes(document_id, claimed_indexes, str(e))
+                    raise
+
+                processed_any_action = True
+
+            if not processed_any_action:
                 logger.debug(f"Skipping document {document_id} - indexes already being processed")
+
+    def _reclaim_stale_indexes(self, session: Session) -> int:
+        """Return stale in-progress indexes back to retryable states before the next claim pass."""
+        if self.stale_reclaim_timeout_seconds <= 0:
+            return 0
+
+        stale_before = utc_now() - timedelta(seconds=self.stale_reclaim_timeout_seconds)
+        current_time = utc_now()
+
+        create_update_stmt = (
+            update(DocumentIndex)
+            .where(
+                and_(
+                    DocumentIndex.status == DocumentIndexStatus.CREATING,
+                    DocumentIndex.gmt_last_reconciled.is_not(None),
+                    DocumentIndex.gmt_last_reconciled < stale_before,
+                )
+            )
+            .values(
+                status=DocumentIndexStatus.PENDING,
+                gmt_updated=current_time,
+                gmt_last_reconciled=current_time,
+            )
+        )
+        create_update_result = session.execute(create_update_stmt)
+
+        delete_stmt = (
+            update(DocumentIndex)
+            .where(
+                and_(
+                    DocumentIndex.status == DocumentIndexStatus.DELETION_IN_PROGRESS,
+                    DocumentIndex.gmt_last_reconciled.is_not(None),
+                    DocumentIndex.gmt_last_reconciled < stale_before,
+                )
+            )
+            .values(
+                status=DocumentIndexStatus.DELETING,
+                gmt_updated=current_time,
+                gmt_last_reconciled=current_time,
+            )
+        )
+        delete_result = session.execute(delete_stmt)
+
+        return create_update_result.rowcount + delete_result.rowcount
 
     def _claim_document_indexes(self, session: Session, document_id: str, indexes_to_claim: List[tuple]) -> List[dict]:
         """
@@ -202,63 +274,101 @@ class DocumentIndexReconciler:
             logger.error(f"Failed to claim indexes for document {document_id}: {e}")
             return []
 
-    def _reconcile_document_operations(self, document_id: str, claimed_indexes: List[dict]):
-        """
-        Reconcile operations for a single document, batching same operation types together
-        """
-        from collections import defaultdict
+    def _dispatch_claimed_indexes(self, document_id: str, action: str, claimed_indexes: List[dict]):
+        """Dispatch a single claimed action group after its claim has already been committed."""
+        index_types = [claimed_index["index_type"] for claimed_index in claimed_indexes]
 
-        # Group by operation type to batch operations
-        operations_by_type = defaultdict(list)
-        for claimed_index in claimed_indexes:
-            action = claimed_index["action"]
-            operations_by_type[action].append(claimed_index)
-
-        # Process create operations as a batch
-        if IndexAction.CREATE in operations_by_type:
-            create_indexes = operations_by_type[IndexAction.CREATE]
-            create_types = [claimed_index["index_type"] for claimed_index in create_indexes]
+        if action == IndexAction.CREATE:
             context = {}
+            for claimed_index in claimed_indexes:
+                target_version = claimed_index.get("target_version")
+                if target_version is not None:
+                    context[f"{claimed_index['index_type']}_version"] = target_version
 
-            for claimed_index in create_indexes:
-                index_type = claimed_index["index_type"]
+            self.task_scheduler.schedule_create_index(document_id=document_id, index_types=index_types, context=context)
+            logger.info(f"Scheduled create task for document {document_id}, types: {index_types}")
+            return
+
+        if action == IndexAction.UPDATE:
+            context = {}
+            for claimed_index in claimed_indexes:
+                target_version = claimed_index.get("target_version")
+                if target_version is not None:
+                    context[f"{claimed_index['index_type']}_version"] = target_version
+
+            self.task_scheduler.schedule_update_index(document_id=document_id, index_types=index_types, context=context)
+            logger.info(f"Scheduled update task for document {document_id}, types: {index_types}")
+            return
+
+        if action == IndexAction.DELETE:
+            self.task_scheduler.schedule_delete_index(document_id=document_id, index_types=index_types)
+            logger.info(f"Scheduled delete task for document {document_id}, types: {index_types}")
+            return
+
+        raise ValueError(f"Unsupported index action: {action}")
+
+    def _rollback_claimed_indexes(self, document_id: str, claimed_indexes: List[dict], error_message: str):
+        """Return claimed indexes to retryable states when dispatch itself fails."""
+        rollback_error_message = f"Task dispatch failed: {error_message}"
+
+        for session in get_sync_session():
+            current_time = utc_now()
+            reverted_count = 0
+
+            for claimed_index in claimed_indexes:
+                action = claimed_index["action"]
                 target_version = claimed_index.get("target_version")
 
-                # Store version info in context
-                if target_version is not None:
-                    context[f"{index_type}_version"] = target_version
+                if action in [IndexAction.CREATE, IndexAction.UPDATE]:
+                    update_stmt = (
+                        update(DocumentIndex)
+                        .where(
+                            and_(
+                                DocumentIndex.id == claimed_index["index_id"],
+                                DocumentIndex.status == DocumentIndexStatus.CREATING,
+                                DocumentIndex.version == target_version,
+                            )
+                        )
+                        .values(
+                            status=DocumentIndexStatus.PENDING,
+                            error_message=rollback_error_message,
+                            gmt_updated=current_time,
+                            gmt_last_reconciled=current_time,
+                        )
+                    )
+                elif action == IndexAction.DELETE:
+                    update_stmt = (
+                        update(DocumentIndex)
+                        .where(
+                            and_(
+                                DocumentIndex.id == claimed_index["index_id"],
+                                DocumentIndex.status == DocumentIndexStatus.DELETION_IN_PROGRESS,
+                            )
+                        )
+                        .values(
+                            status=DocumentIndexStatus.DELETING,
+                            error_message=rollback_error_message,
+                            gmt_updated=current_time,
+                            gmt_last_reconciled=current_time,
+                        )
+                    )
+                else:
+                    continue
 
-            self.task_scheduler.schedule_create_index(
-                document_id=document_id, index_types=create_types, context=context
-            )
-            logger.info(f"Scheduled create task for document {document_id}, types: {create_types}")
+                result = session.execute(update_stmt)
+                reverted_count += result.rowcount
 
-        # Process update operations as a batch
-        if IndexAction.UPDATE in operations_by_type:
-            update_indexes = operations_by_type[IndexAction.UPDATE]
-            update_types = [claimed_index["index_type"] for claimed_index in update_indexes]
-            context = {}
-
-            for claimed_index in update_indexes:
-                index_type = claimed_index["index_type"]
-                target_version = claimed_index.get("target_version")
-
-                # Store version info in context
-                if target_version is not None:
-                    context[f"{index_type}_version"] = target_version
-
-            self.task_scheduler.schedule_update_index(
-                document_id=document_id, index_types=update_types, context=context
-            )
-            logger.info(f"Scheduled update task for document {document_id}, types: {update_types}")
-
-        # Process delete operations as a batch
-        if IndexAction.DELETE in operations_by_type:
-            delete_indexes = operations_by_type[IndexAction.DELETE]
-            delete_types = [claimed_index["index_type"] for claimed_index in delete_indexes]
-
-            self.task_scheduler.schedule_delete_index(document_id=document_id, index_types=delete_types)
-            logger.info(f"Scheduled delete task for document {document_id}, types: {delete_types}")
+            if reverted_count > 0:
+                session.commit()
+                logger.warning(
+                    f"Rolled back {reverted_count} claimed indexes for document {document_id} after dispatch failure: {error_message}"
+                )
+            else:
+                session.rollback()
+                logger.warning(
+                    f"No claimed indexes could be rolled back for document {document_id} after dispatch failure: {error_message}"
+                )
+            return
 
 
 # Index task completion callbacks
@@ -380,14 +490,24 @@ class IndexTaskCallbacks:
 class CollectionSummaryReconciler:
     """Reconciler for collection summaries using reconcile pattern"""
 
-    def __init__(self, scheduler_type: str = "celery"):
+    def __init__(
+        self,
+        scheduler_type: str = "celery",
+        stale_reclaim_timeout_seconds: int = DEFAULT_SUMMARY_IN_PROGRESS_RECLAIM_TIMEOUT_SECONDS,
+    ):
         self.scheduler_type = scheduler_type
+        self.stale_reclaim_timeout_seconds = stale_reclaim_timeout_seconds
 
     def reconcile_all(self):
         """
         Main reconciliation loop - scan collections and reconcile summary differences
         """
         for session in get_sync_session():
+            reclaimed_count = self._reclaim_stale_summaries(session)
+            if reclaimed_count > 0:
+                session.commit()
+                logger.warning(f"Reclaimed {reclaimed_count} stale collection-summary tasks back to PENDING")
+
             summaries_to_reconcile = self._get_summaries_needing_reconciliation(session)
             logger.info(f"Found {len(summaries_to_reconcile)} collection summaries need reconciliation")
 
@@ -427,12 +547,41 @@ class CollectionSummaryReconciler:
         claimed = self._claim_summary_for_processing(session, summary.id, summary.version)
 
         if claimed:
-            self._schedule_summary_generation(summary.id, summary.collection_id, summary.version)
             session.commit()
+            try:
+                self._schedule_summary_generation(summary.id, summary.collection_id, summary.version)
+            except Exception as e:
+                self._rollback_summary_claim(summary.id, summary.version, str(e))
+                raise
         else:
             logger.debug(
                 f"Skipping summary {summary.id} - could not be claimed (likely already processing or version mismatch)"
             )
+
+    def _reclaim_stale_summaries(self, session: Session) -> int:
+        """Return stale summary generations back to PENDING before the next claim pass."""
+        if self.stale_reclaim_timeout_seconds <= 0:
+            return 0
+
+        stale_before = utc_now() - timedelta(seconds=self.stale_reclaim_timeout_seconds)
+        current_time = utc_now()
+        reclaim_stmt = (
+            update(CollectionSummary)
+            .where(
+                and_(
+                    CollectionSummary.status == CollectionSummaryStatus.GENERATING,
+                    CollectionSummary.gmt_last_reconciled.is_not(None),
+                    CollectionSummary.gmt_last_reconciled < stale_before,
+                )
+            )
+            .values(
+                status=CollectionSummaryStatus.PENDING,
+                gmt_updated=current_time,
+                gmt_last_reconciled=current_time,
+            )
+        )
+        result = session.execute(reclaim_stmt)
+        return result.rowcount
 
     def _claim_summary_for_processing(self, session: Session, summary_id: str, version: int) -> bool:
         """Atomically claim a summary for processing by updating its state and observed_version"""
@@ -442,7 +591,7 @@ class CollectionSummaryReconciler:
                 .where(
                     and_(
                         CollectionSummary.id == summary_id,
-                        CollectionSummary.status != CollectionSummaryStatus.GENERATING,
+                        CollectionSummary.status == CollectionSummaryStatus.PENDING,
                         CollectionSummary.version == version,
                     )
                 )
@@ -462,6 +611,40 @@ class CollectionSummaryReconciler:
             logger.error(f"Failed to claim summary {summary_id}: {e}")
             session.rollback()
             return False
+
+    def _rollback_summary_claim(self, summary_id: str, target_version: int, error_message: str):
+        """Return a summary claim to PENDING when Celery dispatch fails before work starts."""
+        rollback_error_message = f"Task dispatch failed: {error_message}"
+
+        for session in get_sync_session():
+            update_stmt = (
+                update(CollectionSummary)
+                .where(
+                    and_(
+                        CollectionSummary.id == summary_id,
+                        CollectionSummary.status == CollectionSummaryStatus.GENERATING,
+                        CollectionSummary.version == target_version,
+                    )
+                )
+                .values(
+                    status=CollectionSummaryStatus.PENDING,
+                    error_message=rollback_error_message,
+                    gmt_updated=utc_now(),
+                    gmt_last_reconciled=utc_now(),
+                )
+            )
+            result = session.execute(update_stmt)
+            if result.rowcount > 0:
+                session.commit()
+                logger.warning(
+                    f"Rolled back claimed collection summary {summary_id} (v{target_version}) after dispatch failure: {error_message}"
+                )
+            else:
+                session.rollback()
+                logger.warning(
+                    f"No claimed collection summary could be rolled back for {summary_id} (v{target_version}) after dispatch failure: {error_message}"
+                )
+            return
 
     def _schedule_summary_generation(self, summary_id: str, collection_id: str, target_version: int):
         """
