@@ -222,7 +222,7 @@ documents:
 
   post:
     summary: Create a new document
-    description: Create a new document
+    description: Upload one or more documents to a collection
     security:
       - BearerAuth: []
     parameters:
@@ -234,9 +234,18 @@ documents:
     requestBody:
       required: true
       content:
-        application/json:
+        multipart/form-data:
           schema:
-            $ref: '../components/schemas/document.yaml#/documentCreate'
+            type: object
+            properties:
+              files:
+                type: array
+                items:
+                  type: string
+                  format: binary
+                description: Document files to upload
+            required:
+              - files
     responses:
       '200':
         description: Document created successfully

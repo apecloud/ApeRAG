@@ -16,9 +16,6 @@
 // May contain unused imports in some cases
 // @ts-ignore
 import type { CollectionConfig } from './collection-config';
-// May contain unused imports in some cases
-// @ts-ignore
-import type { CollectionSource } from './collection-source';
 
 /**
  * Collection is a collection of documents
@@ -56,12 +53,6 @@ export interface Collection {
      * @memberof Collection
      */
     'config'?: CollectionConfig;
-    /**
-     * 
-     * @type {CollectionSource}
-     * @memberof Collection
-     */
-    'source'?: CollectionSource;
     /**
      * 
      * @type {string}

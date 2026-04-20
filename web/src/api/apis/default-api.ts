@@ -81,9 +81,6 @@ import type { DefaultModelsUpdateRequest } from '../models';
 import type { DeleteUserPromptResponse } from '../models';
 // @ts-ignore
 import type { Document } from '../models';
-// @ts-ignore
-import type { DocumentCreate } from '../models';
-// @ts-ignore
 import type { DocumentList } from '../models';
 // @ts-ignore
 import type { DocumentPreview } from '../models';
@@ -1293,18 +1290,18 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             };
         },
         /**
-         * Create a new document
+         * Upload one or more documents to a collection
          * @summary Create a new document
          * @param {string} collectionId 
-         * @param {DocumentCreate} documentCreate 
+         * @param {Array<File>} files Document files to upload
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        collectionsCollectionIdDocumentsPost: async (collectionId: string, documentCreate: DocumentCreate, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+        collectionsCollectionIdDocumentsPost: async (collectionId: string, files: Array<File>, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
             // verify required parameter 'collectionId' is not null or undefined
             assertParamExists('collectionsCollectionIdDocumentsPost', 'collectionId', collectionId)
-            // verify required parameter 'documentCreate' is not null or undefined
-            assertParamExists('collectionsCollectionIdDocumentsPost', 'documentCreate', documentCreate)
+            // verify required parameter 'files' is not null or undefined
+            assertParamExists('collectionsCollectionIdDocumentsPost', 'files', files)
             const localVarPath = `/collections/{collection_id}/documents`
                 .replace(`{${"collection_id"}}`, encodeURIComponent(String(collectionId)));
             // use dummy base URL string because the URL constructor only accepts absolute URLs.
@@ -1317,19 +1314,24 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
             const localVarHeaderParameter = {} as any;
             const localVarQueryParameter = {} as any;
+            const localVarFormParams = new ((configuration && configuration.formDataCtor) || FormData)();
 
             // authentication BearerAuth required
             // http bearer authentication required
             await setBearerAuthToObject(localVarHeaderParameter, configuration)
 
 
-    
-            localVarHeaderParameter['Content-Type'] = 'application/json';
+            if (files) {
+                files.forEach((element) => {
+                    localVarFormParams.append('files', element as any);
+                })
+            }
 
             setSearchParams(localVarUrlObj, localVarQueryParameter);
             let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarHeaderParameter['Content-Type'] = 'multipart/form-data';
             localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
-            localVarRequestOptions.data = serializeDataIfNeeded(documentCreate, localVarRequestOptions, configuration)
+            localVarRequestOptions.data = localVarFormParams
 
             return {
                 url: toPathString(localVarUrlObj),
@@ -4047,15 +4049,15 @@ export const DefaultApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * Create a new document
+         * Upload one or more documents to a collection
          * @summary Create a new document
          * @param {string} collectionId 
-         * @param {DocumentCreate} documentCreate 
+         * @param {Array<File>} files Document files to upload
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async collectionsCollectionIdDocumentsPost(collectionId: string, documentCreate: DocumentCreate, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<DocumentList>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.collectionsCollectionIdDocumentsPost(collectionId, documentCreate, options);
+        async collectionsCollectionIdDocumentsPost(collectionId: string, files: Array<File>, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<DocumentList>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.collectionsCollectionIdDocumentsPost(collectionId, files, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['DefaultApi.collectionsCollectionIdDocumentsPost']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
@@ -5148,14 +5150,14 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
             return localVarFp.collectionsCollectionIdDocumentsGet(requestParameters.collectionId, requestParameters.page, requestParameters.pageSize, requestParameters.sortBy, requestParameters.sortOrder, requestParameters.search, options).then((request) => request(axios, basePath));
         },
         /**
-         * Create a new document
+         * Upload one or more documents to a collection
          * @summary Create a new document
          * @param {DefaultApiCollectionsCollectionIdDocumentsPostRequest} requestParameters Request parameters.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
         collectionsCollectionIdDocumentsPost(requestParameters: DefaultApiCollectionsCollectionIdDocumentsPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<DocumentList> {
-            return localVarFp.collectionsCollectionIdDocumentsPost(requestParameters.collectionId, requestParameters.documentCreate, options).then((request) => request(axios, basePath));
+            return localVarFp.collectionsCollectionIdDocumentsPost(requestParameters.collectionId, requestParameters.files, options).then((request) => request(axios, basePath));
         },
         /**
          * Returns all UPLOADED (staged) documents for the collection that are awaiting confirmation.
@@ -6028,7 +6030,7 @@ export interface DefaultApiInterface {
     collectionsCollectionIdDocumentsGet(requestParameters: DefaultApiCollectionsCollectionIdDocumentsGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<DocumentList>;
 
     /**
-     * Create a new document
+     * Upload one or more documents to a collection
      * @summary Create a new document
      * @param {DefaultApiCollectionsCollectionIdDocumentsPostRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -7187,11 +7189,11 @@ export interface DefaultApiCollectionsCollectionIdDocumentsPostRequest {
     readonly collectionId: string
 
     /**
-     * 
-     * @type {DocumentCreate}
+     * Document files to upload
+     * @type {Array<File>}
      * @memberof DefaultApiCollectionsCollectionIdDocumentsPost
      */
-    readonly documentCreate: DocumentCreate
+    readonly files: Array<File>
 }
 
 /**
@@ -8486,7 +8488,7 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
     }
 
     /**
-     * Create a new document
+     * Upload one or more documents to a collection
      * @summary Create a new document
      * @param {DefaultApiCollectionsCollectionIdDocumentsPostRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -8494,7 +8496,7 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
      * @memberof DefaultApi
      */
     public collectionsCollectionIdDocumentsPost(requestParameters: DefaultApiCollectionsCollectionIdDocumentsPostRequest, options?: RawAxiosRequestConfig) {
-        return DefaultApiFp(this.configuration).collectionsCollectionIdDocumentsPost(requestParameters.collectionId, requestParameters.documentCreate, options).then((request) => request(this.axios, this.basePath));
+        return DefaultApiFp(this.configuration).collectionsCollectionIdDocumentsPost(requestParameters.collectionId, requestParameters.files, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
