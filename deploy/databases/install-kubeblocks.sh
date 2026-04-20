@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -euo pipefail
+
 # Get the directory where this script is located
 DATABASE_SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 # Load configuration file
@@ -42,6 +44,25 @@ install_kubeblocks() {
     print_success "KubeBlocks installation complete!"
 }
 
+wait_for_kubeblocks_crds() {
+    local crds=(
+        "clusters.apps.kubeblocks.io"
+        "clusterdefinitions.apps.kubeblocks.io"
+        "componentdefinitions.apps.kubeblocks.io"
+        "componentversions.apps.kubeblocks.io"
+        "actionsets.dataprotection.kubeblocks.io"
+        "backuppolicytemplates.dataprotection.kubeblocks.io"
+        "paramconfigrenderers.parameters.kubeblocks.io"
+        "parametersdefinitions.parameters.kubeblocks.io"
+    )
+
+    print "Waiting for KubeBlocks CRDs to become established..."
+    for crd in "${crds[@]}"; do
+        kubectl wait --for=condition=Established "crd/${crd}" --timeout=180s
+    done
+    print_success "KubeBlocks CRDs are established."
+}
+
 # Check if KubeBlocks is already installed
 print "Checking if KubeBlocks is already installed in kb-system namespace..."
 if kubectl get namespace kb-system &>/dev/null && kubectl get deployment kubeblocks -n kb-system &>/dev/null; then
@@ -50,3 +71,5 @@ else
     # Call the function to install KubeBlocks
     install_kubeblocks
 fi
+
+wait_for_kubeblocks_crds
