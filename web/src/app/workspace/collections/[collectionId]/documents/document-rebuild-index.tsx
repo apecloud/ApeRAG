@@ -25,6 +25,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
+import { isVisibleDocumentIndexType } from '../../feature-visibility';
 import { DocumentIndexStatus } from './document-index-status';
 
 const documentReBuildSchema = z.object({
@@ -46,26 +47,23 @@ export const DocumentReBuildIndex = ({
   const common_action = useTranslations('common.action');
   const [visible, setVisible] = useState<boolean>(false);
   const router = useRouter();
+  const visibleIndexTypes = objectKeys(
+    RebuildIndexesRequestIndexTypesEnum,
+  ).filter(isVisibleDocumentIndexType);
   const form = useForm<DocumentReBuildSchemaType>({
     resolver: zodResolver(documentReBuildSchema),
     defaultValues: {
-      index_types: objectKeys(RebuildIndexesRequestIndexTypesEnum).filter(
-        (key) => {
-          const config = collection.config;
-          switch (key) {
-            case 'FULLTEXT':
-              return config?.enable_fulltext;
-            case 'GRAPH':
-              return config?.enable_knowledge_graph;
-            case 'SUMMARY':
-              return config?.enable_summary;
-            case 'VECTOR':
-              return config?.enable_vector;
-            case 'VISION':
-              return config?.enable_vision;
-          }
-        },
-      ),
+      index_types: visibleIndexTypes.filter((key) => {
+        const config = collection.config;
+        switch (key) {
+          case 'FULLTEXT':
+            return config?.enable_fulltext;
+          case 'GRAPH':
+            return config?.enable_knowledge_graph;
+          case 'VECTOR':
+            return config?.enable_vector;
+        }
+      }),
     },
   });
 
@@ -122,7 +120,7 @@ export const DocumentReBuildIndex = ({
               <DialogDescription>{file.name}</DialogDescription>
             </DialogHeader>
             <div className="my-6 flex flex-col gap-2">
-              {objectKeys(RebuildIndexesRequestIndexTypesEnum)?.map((key) => {
+              {visibleIndexTypes.map((key) => {
                 const config = collection.config;
                 let enabled: boolean | undefined;
                 switch (key) {
@@ -132,14 +130,8 @@ export const DocumentReBuildIndex = ({
                   case 'GRAPH':
                     enabled = config?.enable_knowledge_graph;
                     break;
-                  case 'SUMMARY':
-                    enabled = config?.enable_summary;
-                    break;
                   case 'VECTOR':
                     enabled = config?.enable_vector;
-                    break;
-                  case 'VISION':
-                    enabled = config?.enable_vision;
                     break;
                   default:
                     enabled = false;

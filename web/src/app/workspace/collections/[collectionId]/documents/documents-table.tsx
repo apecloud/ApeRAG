@@ -47,6 +47,7 @@ import { useCollectionContext } from '@/components/providers/collection-provider
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { isVisibleDocumentIndexType } from '../../feature-visibility';
 import { DocumentDelete } from './document-delete';
 import { DocumentIndexStatus } from './document-index-status';
 import { DocumentReBuildFailedIndex } from './document-rebuild-failed-index';
@@ -105,43 +106,39 @@ export function DocumentsTable({
 
   const columns: ColumnDef<Document>[] = React.useMemo(() => {
     const indexCols: ColumnDef<Document>[] = [];
-    objectKeys(RebuildIndexesRequestIndexTypesEnum).map((key) => {
-      const accessorKey = key.toLowerCase() + '_index_status';
+    objectKeys(RebuildIndexesRequestIndexTypesEnum)
+      .filter(isVisibleDocumentIndexType)
+      .map((key) => {
+        const accessorKey = key.toLowerCase() + '_index_status';
 
-      const config = collection.config;
-      let enabled: boolean | undefined;
-      switch (key) {
-        case 'FULLTEXT':
-          enabled = config?.enable_fulltext;
-          break;
-        case 'GRAPH':
-          enabled = config?.enable_knowledge_graph;
-          break;
-        case 'SUMMARY':
-          enabled = config?.enable_summary;
-          break;
-        case 'VECTOR':
-          enabled = config?.enable_vector;
-          break;
-        case 'VISION':
-          enabled = config?.enable_vision;
-          break;
-        default:
-          enabled = false;
-      }
-      if (enabled) {
-        indexCols.push({
-          accessorKey,
-          header: page_collections(`index_type_${key}.title`),
-          cell: ({ row }) => (
-            <DocumentIndexStatus
-              document={row.original}
-              accessorKey={accessorKey}
-            />
-          ),
-        });
-      }
-    });
+        const config = collection.config;
+        let enabled: boolean | undefined;
+        switch (key) {
+          case 'FULLTEXT':
+            enabled = config?.enable_fulltext;
+            break;
+          case 'GRAPH':
+            enabled = config?.enable_knowledge_graph;
+            break;
+          case 'VECTOR':
+            enabled = config?.enable_vector;
+            break;
+          default:
+            enabled = false;
+        }
+        if (enabled) {
+          indexCols.push({
+            accessorKey,
+            header: page_collections(`index_type_${key}.title`),
+            cell: ({ row }) => (
+              <DocumentIndexStatus
+                document={row.original}
+                accessorKey={accessorKey}
+              />
+            ),
+          });
+        }
+      });
 
     const cols: ColumnDef<Document>[] = [
       {

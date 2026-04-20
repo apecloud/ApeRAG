@@ -50,15 +50,9 @@ const searchParams = z.object({
       topk: z.number(),
     })
     .optional(),
-  summary_search: z
-    .object({
-      topk: z.number(),
-      similarity: z.number(),
-    })
-    .optional(),
 });
 
-type IndexType = 'vector' | 'fulltext' | 'graph' | 'summary';
+type IndexType = 'vector' | 'fulltext' | 'graph';
 
 export const SearchTest = ({ children }: { children: ReactNode }) => {
   const [visible, setVisible] = useState<boolean>(false);
@@ -84,10 +78,6 @@ export const SearchTest = ({ children }: { children: ReactNode }) => {
       available: Boolean(collection.config?.enable_knowledge_graph),
       checked: false,
     },
-    summary: {
-      available: Boolean(collection.config?.enable_summary),
-      checked: false,
-    },
   });
 
   const form = useForm<z.infer<typeof searchParams>>({
@@ -103,10 +93,6 @@ export const SearchTest = ({ children }: { children: ReactNode }) => {
       },
       graph_search: {
         topk: 5,
-      },
-      summary_search: {
-        topk: 5,
-        similarity: 0.7,
       },
     },
   });
@@ -132,9 +118,6 @@ export const SearchTest = ({ children }: { children: ReactNode }) => {
       if (indexTypes.graph.checked) {
         data.graph_search = values.graph_search;
       }
-      if (indexTypes.summary.checked) {
-        data.summary_search = values.summary_search;
-      }
 
       await apiClient.defaultApi.collectionsCollectionIdSearchesPost({
         collectionId: collection.id,
@@ -149,7 +132,6 @@ export const SearchTest = ({ children }: { children: ReactNode }) => {
       collection.id,
       indexTypes.fulltext.checked,
       indexTypes.graph.checked,
-      indexTypes.summary.checked,
       indexTypes.vector.checked,
       router,
     ],
@@ -333,69 +315,6 @@ export const SearchTest = ({ children }: { children: ReactNode }) => {
                           </FormControl>
                           <div className="text-muted-foreground flex flex-row justify-between text-xs">
                             <div>topK</div>
-                            <div>{field.value}</div>
-                          </div>
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {indexTypes.summary.available && (
-                <div className="bg-accent/40 hover:bg-accent/50 flex flex-row gap-4 rounded-md border p-4">
-                  <Label className="h-8 flex-1">
-                    <Checkbox
-                      checked={indexTypes.summary.checked}
-                      onCheckedChange={(checked) => {
-                        setIndexTypes((data) => {
-                          data.summary.checked = Boolean(checked);
-                          return { ...data };
-                        });
-                      }}
-                    />
-                    {page_search('summary_search')}
-                  </Label>
-                  <div className="flex w-[65%] flex-col gap-2">
-                    <FormField
-                      control={form.control}
-                      name="summary_search.topk"
-                      render={({ field }) => (
-                        <FormItem className="gap-1">
-                          <FormControl>
-                            <Slider
-                              value={[field.value]}
-                              onValueChange={(v) => field.onChange(v[0])}
-                              min={0}
-                              max={20}
-                              step={1}
-                              disabled={!indexTypes.summary.checked}
-                            />
-                          </FormControl>
-                          <div className="text-muted-foreground flex flex-row justify-between text-xs">
-                            <div>topK</div>
-                            <div>{field.value}</div>
-                          </div>
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="summary_search.similarity"
-                      render={({ field }) => (
-                        <FormItem className="gap-1">
-                          <FormControl>
-                            <Slider
-                              value={[field.value]}
-                              onValueChange={(v) => field.onChange(v[0])}
-                              min={0}
-                              max={1}
-                              step={0.1}
-                              disabled={!indexTypes.summary.checked}
-                            />
-                          </FormControl>
-                          <div className="text-muted-foreground flex flex-row justify-between text-xs">
-                            <div>Similarity</div>
                             <div>{field.value}</div>
                           </div>
                         </FormItem>

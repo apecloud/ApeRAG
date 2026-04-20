@@ -41,6 +41,7 @@ import {
   Trash,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { filterVisibleSearchItems } from '../../feature-visibility';
 import { SearchDelete } from './search-delete';
 import { SearchResultDrawer } from './search-result-drawer';
 import { SearchTest } from './search-test';
@@ -113,23 +114,6 @@ export const SearchTable = ({ data }: { data: SearchResult[] }) => {
       });
     }
 
-    if (collection.config?.enable_summary) {
-      indexCols.push({
-        accessorKey: 'summary_search',
-        header: page_search('summary_search'),
-        cell: ({ row }) => {
-          return (
-            <div>
-              <div>topk: {row.original.summary_search?.topk || '--'}</div>
-              <div>
-                similarity: {row.original.summary_search?.similarity || '--'}
-              </div>
-            </div>
-          );
-        },
-      });
-    }
-
     const cols: ColumnDef<SearchResult>[] = [
       {
         id: 'select',
@@ -161,18 +145,19 @@ export const SearchTable = ({ data }: { data: SearchResult[] }) => {
         accessorKey: 'query',
         header: page_search('questions'),
         cell: ({ row }) => {
+          const visibleItems = filterVisibleSearchItems(row.original.items);
           return (
             <div>
               <SearchResultDrawer result={row.original}>
                 <div
-                  data-result={!_.isEmpty(row.original.items)}
+                  data-result={!_.isEmpty(visibleItems)}
                   className="data-[result=true]:hover:text-primary max-w-md truncate data-[result=true]:cursor-pointer"
                 >
                   {row.original.query}
                 </div>
               </SearchResultDrawer>
               <div className="text-muted-foreground flex flex-row items-center gap-4">
-                {_.size(row.original.items)} results
+                {visibleItems.length} results
               </div>
             </div>
           );
@@ -218,7 +203,6 @@ export const SearchTable = ({ data }: { data: SearchResult[] }) => {
   }, [
     collection.config?.enable_fulltext,
     collection.config?.enable_knowledge_graph,
-    collection.config?.enable_summary,
     collection.config?.enable_vector,
     page_search,
   ]);
