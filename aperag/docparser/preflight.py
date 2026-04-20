@@ -46,7 +46,9 @@ async def _cached_probe(key: tuple[str, str], probe):
     return result
 
 
-def _preflight_error(message: str, *, code: str, detail: str | None = None, parser_name: str | None = None) -> ParserError:
+def _preflight_error(
+    message: str, *, code: str, detail: str | None = None, parser_name: str | None = None
+) -> ParserError:
     return ParserError(message, code=code, detail=detail, parser_name=parser_name, source="preflight")
 
 
@@ -179,4 +181,6 @@ async def run_document_parse_preflight(
         return
 
     if attempts:
-        raise ParserChainError(extension, attempts, detail="All relevant parsers were blocked during preflight.", source="preflight")
+        raise ParserChainError(
+            extension, attempts, detail="All relevant parsers were blocked during preflight.", source="preflight"
+        )
