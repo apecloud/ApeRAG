@@ -30,13 +30,15 @@
 
 3.  **独立解析器**：
     * **`MarkItDownParser` (`markitdown_parser.py`)**：
-        * 处理各种格式，包括 `.txt`、`.md`、`.html`、`.ipynb`、`.pdf`、`.epub` 以及 Microsoft Office 文档（`.docx`、`.doc`、`.xlsx`、`.xls`、`.pptx`、`.ppt`）。
+        * 处理各种格式，包括 `.txt`、`.md`、`.html`、`.ipynb`、`.pdf`、`.epub`、`.csv`、`.tsv`、`.xml`、`.rst`、`.eml` 以及 Microsoft Office 文档（`.docx`、`.doc`、`.xlsx`、`.xls`、`.pptx`、`.ppt`）。
         * 使用 `markitdown` 库进行主要的 Markdown 转换。
         * 对于旧版 Office 格式（`.doc`、`.ppt`），它可以首先使用 `soffice` (LibreOffice/OpenOffice) 将其转换为现代 XML 格式。
+        * 这是私有化交付下的默认解析主路径，应保持为主要交付路径。
         * 生成的 Markdown 随后由 `parse_md.py` 处理。
     * **`MinerUParser` (`mineru_parser.py`)**：
         * 专为复杂、布局密集型文档和 OCR 场景设计，如 `.pdf`、`.docx`、`.doc`、`.pptx`、`.ppt` 以及常见图片格式。
         * 依赖 MinerU API 和配置好的 API token。
+        * 它是可选增强兜底路径，不是默认解析主路径。
         * 获取结构化布局输出和提取的图像，并将其转换为 `Part` 对象，包括用于图像的 `AssetBinPart`。
         * 同时会基于这些部分生成合并后的 Markdown 表示。
     * **`AudioParser` (`audio_parser.py`)**：

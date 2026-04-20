@@ -39,10 +39,10 @@ PARSER_MAP = {cls.name: cls for cls in ALL_PARSERS}
 
 def get_default_config() -> list["ParserConfig"]:
     return [
-        ParserConfig(name=MinerUParser.name, enabled=False),
         ParserConfig(name=ImageParser.name, enabled=True),
         ParserConfig(name=AudioParser.name, enabled=True),
         ParserConfig(name=MarkItDownParser.name, enabled=True),
+        ParserConfig(name=MinerUParser.name, enabled=False),
     ]
 
 
@@ -160,7 +160,7 @@ class DocParser(BaseParser):
                         detail=e.detail,
                     )
                 )
-                raise ParserChainError(extension, attempts, detail=e.detail) from e
+                raise ParserChainError(extension, attempts, detail=e.detail, source="runtime") from e
             except Exception as e:
                 attempts.append(
                     ParserAttempt(
@@ -171,7 +171,17 @@ class DocParser(BaseParser):
                         detail=str(e),
                     )
                 )
-                raise ParserChainError(extension, attempts, detail=str(e)) from e
+                raise ParserChainError(extension, attempts, detail=str(e), source="runtime") from e
         if attempts:
-            raise ParserChainError(extension, attempts, detail=getattr(last_err, "detail", None)) from last_err
-        raise ValueError(f'No parser can handle file with extension "{extension}"')
+            raise ParserChainError(
+                extension,
+                attempts,
+                detail=getattr(last_err, "detail", None),
+                source="runtime",
+            ) from last_err
+        raise ParserError(
+            f'No parser can handle file with extension "{extension}"',
+            code="unsupported_format",
+            detail="The current parser configuration does not provide a handler for this extension.",
+            source="runtime",
+        )

@@ -30,6 +30,7 @@ from aperag.docparser.markitdown_parser import SUPPORTED_EXTENSIONS as MARKITDOW
 from aperag.docparser.mineru_parser import API_HOST as MINERU_API_HOST
 from aperag.docparser.mineru_parser import SUPPORTED_EXTENSIONS as MINERU_EXTENSIONS
 from aperag.docparser.utils import get_soffice_cmd
+from aperag.objectstore.base import get_object_store
 
 OFFICIAL_FORMATS = [ext for ext in MARKITDOWN_EXTENSIONS if ext not in [".doc", ".ppt"]]
 LEGACY_OFFICE_FORMATS = [".doc", ".ppt"]
@@ -187,6 +188,14 @@ async def get_parser_health_report(parser_settings: dict[str, Any] | None = None
     soffice_cmd = get_soffice_cmd()
 
     markitdown_status, markitdown_detail = _package_status("markitdown")
+    try:
+        get_object_store()
+        object_store_status = "ok"
+        object_store_detail = f"Initialized for OBJECT_STORE_TYPE={settings.object_store_type}"
+    except Exception as e:
+        object_store_status = "error"
+        object_store_detail = str(e)
+
     dependencies = [
         ParserHealthItem(
             key="markitdown",
@@ -199,6 +208,12 @@ async def get_parser_health_report(parser_settings: dict[str, Any] | None = None
             label="LibreOffice soffice",
             status="ok" if soffice_cmd else "warning",
             detail=soffice_cmd or "Not found. Legacy .doc/.ppt parsing will be unavailable.",
+        ),
+        ParserHealthItem(
+            key="object_store",
+            label="Object store client",
+            status=object_store_status,
+            detail=object_store_detail,
         ),
     ]
 
@@ -269,7 +284,7 @@ async def get_parser_health_report(parser_settings: dict[str, Any] | None = None
             status=(
                 "available" if mineru_enabled and mineru_status == "ok" else "limited" if mineru_enabled else "disabled"
             ),
-            detail="Optional enhancement path for complex PDFs and layout-heavy documents. Disabled by default.",
+            detail="Optional enhancement fallback for complex PDFs and layout-heavy documents. Disabled by default and not the primary parser path.",
             requirements=["use_mineru=true", "mineru_api_token"],
         ),
         ParserSupportTier(
@@ -305,13 +320,17 @@ async def get_parser_health_report(parser_settings: dict[str, Any] | None = None
         warnings.append("Legacy Office files (.doc/.ppt) are not available because soffice is missing.")
         recommendations.append("Install LibreOffice/OpenOffice if customers need legacy Office support.")
 
+    if object_store_status != "ok":
+        warnings.append(f"Parsed-output object store is not healthy: {object_store_detail}")
+        recommendations.append("Fix object store initialization before relying on parsed Markdown/assets persistence.")
+
     if mineru_enabled:
         warnings.append(
-            "MinerU is enabled. Parsing results may differ from the default local parser for supported files."
+            "MinerU is enabled as an enhancement path. The default delivery path should remain the local parser."
         )
         if mineru_status != "ok":
             warnings.append(f"MinerU enhancement is enabled but not healthy: {mineru_detail}")
-        recommendations.append("Keep MinerU as an explicit enhancement path, not the default delivery path.")
+        recommendations.append("Keep MinerU as an explicit enhancement fallback, not the default delivery path.")
 
     if paddle_host and paddle_status != "ok":
         warnings.append("PaddleOCR is configured but currently unreachable or unhealthy.")
