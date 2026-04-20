@@ -22,6 +22,7 @@ from nebula3.common import ttypes
 from aperag.db.nebula_sync_manager import NebulaSyncConnectionManager
 
 from ..base import BaseGraphStorage
+from ..prompt import GRAPH_FIELD_SEP
 from ..types import KnowledgeGraph
 from ..utils import logger
 
@@ -121,6 +122,13 @@ def _safe_error_msg(result) -> str:
             return f"Nebula operation failed (error code: {result.error_code()})"
         except Exception:
             return "Nebula operation failed (unknown error)"
+
+
+def _source_ids_overlap(source_id: Any, chunk_ids: set[str]) -> bool:
+    """Apply exact GRAPH_FIELD_SEP token matching after candidate narrowing in Nebula."""
+    if not isinstance(source_id, str) or not source_id or not chunk_ids:
+        return False
+    return bool(set(source_id.split(GRAPH_FIELD_SEP)).intersection(chunk_ids))
 
 
 @final
@@ -514,6 +522,92 @@ class NebulaSyncStorage(BaseGraphStorage):
 
         return await asyncio.to_thread(_sync_get_incident_edges_with_data_batch)
 
+    async def get_nodes_by_source_ids(self, chunk_ids: list[str]) -> dict[str, dict] | None:
+        """Retrieve nodes whose source_id references any of the provided chunk IDs."""
+
+        def _sync_get_nodes_by_source_ids():
+            with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
+                if not chunk_ids:
+                    return {}
+
+                query_conditions = []
+                params = {}
+                unique_chunk_ids = sorted(set(chunk_ids))
+                for index, chunk_id in enumerate(unique_chunk_ids):
+                    param_name = f"chunk_{index}"
+                    query_conditions.append(f"properties(vertex).source_id CONTAINS ${param_name}")
+                    params[param_name] = chunk_id
+
+                query = f"""
+                LOOKUP ON base
+                WHERE properties(vertex).source_id IS NOT NULL
+                  AND ({" OR ".join(query_conditions)})
+                YIELD id(vertex) AS vid, properties(vertex) AS props
+                """
+                result = session.execute_parameter(query, _prepare_nebula_params(params))
+
+                chunk_id_set = set(unique_chunk_ids)
+                nodes = {}
+                if result.is_succeeded():
+                    for row in result:
+                        entity_id = row.values()[0].as_string()
+                        props = row.values()[1].as_map()
+                        node_dict = self._convert_nebula_value_map(props)
+                        if not _source_ids_overlap(node_dict.get("source_id"), chunk_id_set):
+                            continue
+                        node_dict["entity_id"] = entity_id
+                        nodes[entity_id] = node_dict
+                return nodes
+
+        return await asyncio.to_thread(_sync_get_nodes_by_source_ids)
+
+    async def get_edges_by_source_ids(self, chunk_ids: list[str]) -> dict[tuple[str, str], dict] | None:
+        """Retrieve edges whose source_id references any of the provided chunk IDs."""
+
+        def _sync_get_edges_by_source_ids():
+            with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
+                if not chunk_ids:
+                    return {}
+
+                query_conditions = []
+                params = {}
+                unique_chunk_ids = sorted(set(chunk_ids))
+                for index, chunk_id in enumerate(unique_chunk_ids):
+                    param_name = f"chunk_{index}"
+                    query_conditions.append(f"properties(edge).source_id CONTAINS ${param_name}")
+                    params[param_name] = chunk_id
+
+                query = f"""
+                MATCH (src:base)-[e:DIRECTED]-(dst:base)
+                WHERE e.source_id IS NOT NULL
+                  AND ({" OR ".join(query_conditions)})
+                RETURN id(src) AS src_id, id(dst) AS dst_id, properties(e) AS props
+                """
+                result = session.execute_parameter(query, _prepare_nebula_params(params))
+
+                chunk_id_set = set(unique_chunk_ids)
+                edges = {}
+                if result.is_succeeded():
+                    for row in result:
+                        src = row.values()[0].as_string()
+                        dst = row.values()[1].as_string()
+                        props = row.values()[2].as_map()
+                        edge_dict = self._convert_nebula_value_map(props)
+                        if not _source_ids_overlap(edge_dict.get("source_id"), chunk_id_set):
+                            continue
+                        for key, default_value in {
+                            "weight": 0.0,
+                            "source_id": None,
+                            "description": None,
+                            "keywords": None,
+                        }.items():
+                            if key not in edge_dict:
+                                edge_dict[key] = default_value
+                        edges[(src, dst)] = edge_dict
+                return edges
+
+        return await asyncio.to_thread(_sync_get_edges_by_source_ids)
+
     async def upsert_node(self, node_id: str, node_data: dict[str, str]) -> None:
         """Upsert a node in the database."""
 
@@ -620,6 +714,33 @@ class NebulaSyncStorage(BaseGraphStorage):
                 return node_ids
 
         return await asyncio.to_thread(_sync_get_node_ids)
+
+    async def search_node_ids_by_label(self, node_label: str, limit: int) -> list[str] | None:
+        """Search node IDs directly in Nebula without materializing all labels."""
+
+        def _sync_search_node_ids_by_label():
+            with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
+                query = """
+                LOOKUP ON base
+                WHERE properties(vertex).entity_id CONTAINS $node_label
+                YIELD properties(vertex).entity_id AS label
+                | ORDER BY $-.label
+                | LIMIT $limit
+                """
+                result = session.execute_parameter(
+                    query,
+                    _prepare_nebula_params({"node_label": node_label, "limit": limit}),
+                )
+
+                labels = []
+                if result.is_succeeded():
+                    for row in result:
+                        label = row.values()[0].as_string()
+                        if label:
+                            labels.append(label)
+                return labels
+
+        return await asyncio.to_thread(_sync_search_node_ids_by_label)
 
     async def delete_node(self, node_id: str) -> None:
         """Delete a node and its incident edges."""

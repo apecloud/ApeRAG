@@ -593,6 +593,29 @@ class GraphRepositoryMixin:
 
         return self._execute_query(_get_graph_node_ids)
 
+    def search_graph_node_ids_by_label(self, workspace: str, node_label: str, limit: int) -> List[str]:
+        """Search graph node IDs by label pattern in stable ascending order."""
+        if limit <= 0:
+            return []
+
+        def _search_graph_node_ids_by_label(session):
+            stmt = (
+                select(LightRAGGraphNode.entity_id)
+                .where(
+                    and_(
+                        LightRAGGraphNode.workspace == workspace,
+                        LightRAGGraphNode.entity_id.ilike(f"%{node_label}%"),
+                    )
+                )
+                .order_by(LightRAGGraphNode.entity_id)
+                .limit(limit)
+            )
+
+            result = session.execute(stmt)
+            return [row[0] for row in result]
+
+        return self._execute_query(_search_graph_node_ids_by_label)
+
     def get_graph_edges_batch(
         self, workspace: str, edge_pairs: List[Tuple[str, str]]
     ) -> Dict[Tuple[str, str], Dict[str, Any]]:

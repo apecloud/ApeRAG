@@ -755,6 +755,23 @@ class Neo4JSyncStorage(BaseGraphStorage):
 
         return await asyncio.to_thread(_sync_get_node_ids)
 
+    async def search_node_ids_by_label(self, node_label: str, limit: int) -> list[str] | None:
+        """Search node IDs directly from Neo4j without materializing all labels."""
+
+        def _sync_search_node_ids_by_label():
+            with Neo4jSyncConnectionManager.get_session(database=self._DATABASE) as session:
+                query = """
+                MATCH (n:base)
+                WHERE n.entity_id IS NOT NULL AND n.entity_id CONTAINS $node_label
+                RETURN DISTINCT n.entity_id AS entity_id
+                ORDER BY entity_id
+                LIMIT $limit
+                """
+                result = session.run(query, node_label=node_label, limit=limit)
+                return [record["entity_id"] for record in result]
+
+        return await asyncio.to_thread(_sync_search_node_ids_by_label)
+
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=4, max=10),
