@@ -31,7 +31,7 @@ Migrated in this phase:
 - provider model CRUD moved to `tests/e2e_http/hurl/full/10_provider_llm.hurl`
 - bot CRUD and flow coverage moved to `tests/e2e_http/hurl/full/12_bot.hurl`
 - deterministic chat create/list/get/update moved to `tests/e2e_http/hurl/full/13_chat_http.hurl`
-- deterministic frontend non-streaming chat moved to `tests/e2e_http/hurl/full/13_chat_http.hurl`
+- frontend non-streaming chat envelope contract moved to `tests/e2e_http/hurl/full/13_chat_http.hurl`
 
 ## 🚀 Quick Start
 

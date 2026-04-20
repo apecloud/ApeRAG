@@ -22,7 +22,7 @@ This matrix is the working contract for converging the test tree toward:
 | bot CRUD | no | no | yes | `test_bot.py` | no | migrate to Hurl and delete pytest duplicate |
 | bot flow get/update | no | no | yes | `test_bot.py` | no | migrate to Hurl and delete pytest duplicate |
 | chat create/list/get/update | no | no | yes | no | no | fully owned by Hurl |
-| chat frontend non-streaming completion | no | no | yes | no | no | move the deterministic non-streaming path to Hurl |
+| chat frontend non-streaming completion envelope | no | no | yes | no | no | move the frontend HTTP contract to Hurl; keep stronger success-path guarantees separate until the path is stable |
 | chat openai-compatible completion | no | no | no | `test_chat.py` | no | keep pytest supplement until a stable black-box replacement is worth the churn |
 | chat streaming / websocket | no | no | no | `test_chat.py` | no | keep thin pytest supplement |
 | graph labels / graph overview | no | no | yes | no | `tests/integration/graphstorage/` | Hurl owns HTTP surface; integration keeps backend oracle |

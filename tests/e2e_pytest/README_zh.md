@@ -31,6 +31,7 @@ tests/e2e_pytest/
 - provider model CRUD 迁到 `tests/e2e_http/hurl/full/10_provider_llm.hurl`
 - bot CRUD 与 flow 覆盖迁到 `tests/e2e_http/hurl/full/12_bot.hurl`
 - 确定性的 chat create/list/get/update 覆盖迁到 `tests/e2e_http/hurl/full/13_chat_http.hurl`
+- 前端 non-streaming chat 的 HTTP envelope 契约迁到 `tests/e2e_http/hurl/full/13_chat_http.hurl`
 
 ## 🚀 快速开始
 

@@ -31,7 +31,7 @@ Current v1 scope:
   - call `/api/v1/embeddings` and `/api/v1/rerank` through real external providers
   - cover document staged/confirm/download/rebuild paths
   - cover bot CRUD + flow get/update
-  - cover chat create/list/get/update plus a non-streaming frontend completion path
+  - cover chat create/list/get/update plus a non-streaming frontend completion envelope path
   - cover graph labels + graph overview endpoints
 
 Non-goals for v1:

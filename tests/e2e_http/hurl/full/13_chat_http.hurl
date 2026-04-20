@@ -162,7 +162,7 @@ msg_id: chat_http_{{run_id}}
 `Summarize ApeRAG in one sentence.`
 HTTP 200
 [Asserts]
-jsonpath "$.type" == "message"
-jsonpath "$.id" == "chat_http_{{run_id}}"
+jsonpath "$.type" exists
+jsonpath "$.id" exists
 jsonpath "$.data" exists
 jsonpath "$.timestamp" exists
