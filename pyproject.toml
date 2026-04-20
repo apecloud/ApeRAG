@@ -45,7 +45,7 @@ dependencies = [
     "litellm>=v1.80.0",
     "requests",
     "asyncpg>=0.30.0",
-    "markitdown[all]>=0.1.1",
+    "markitdown[all]>=0.1.5",
     "markdown-it-py[linkify]>=3.0.0",
     "nano-vectordb>=0.0.4.3",
     "jinja2>=3.0.0,<4.0.0",
