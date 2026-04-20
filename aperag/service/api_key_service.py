@@ -34,10 +34,18 @@ class ApiKeyService:
             self.db_ops = AsyncDatabaseOps(session)  # Create custom instance for transaction control
 
     # Convert database ApiKey model to API response model
-    def to_api_key_model(self, apikey: ApiKey) -> ApiKeyModel:
+    def mask_api_key(self, key: str) -> str:
+        if not key:
+            return key
+        if len(key) <= 8:
+            return "*" * len(key)
+        return f"{key[:4]}{'*' * (len(key) - 8)}{key[-4:]}"
+
+    def to_api_key_model(self, apikey: ApiKey, mask_key: bool = True) -> ApiKeyModel:
+        key = self.mask_api_key(apikey.key) if mask_key else apikey.key
         return ApiKeyModel(
             id=str(apikey.id),
-            key=apikey.key,
+            key=key,
             description=apikey.description,
             created_at=apikey.gmt_created,
             updated_at=apikey.gmt_updated,
@@ -56,7 +64,7 @@ class ApiKeyService:
         """Create a new API key"""
         # For single operations, use DatabaseOps directly
         token = await self.db_ops.create_api_key(user, api_key_create.description, is_system=False)
-        return self.to_api_key_model(token)
+        return self.to_api_key_model(token, mask_key=False)
 
     async def delete_api_key(self, user: str, apikey_id: str) -> Optional[bool]:
         """Delete an API key (idempotent operation)
