@@ -140,6 +140,19 @@ api:
     # Vector DB
     VECTOR_DB_TYPE: qdrant
     VECTOR_DB_CONTEXT: '{"url":"http://qdrant-cluster-qdrant-qdrant", "port":6333, "distance":"Cosine", "timeout": 1000}'
+    # Qdrant multitenancy + memory-optimization defaults.
+    # Switch QDRANT_MULTITENANT to "False" to fall back to the legacy
+    # one-collection-per-ApeRAG-collection layout (for rollback only).
+    QDRANT_MULTITENANT: "True"
+    QDRANT_QUANTIZATION_ENABLED: "True"
+    QDRANT_QUANTIZATION_TYPE: "int8"
+    QDRANT_QUANTIZATION_QUANTILE: "0.99"
+    QDRANT_QUANTIZATION_ALWAYS_RAM: "True"
+    QDRANT_HNSW_ON_DISK: "True"
+    QDRANT_DEFAULT_SEGMENT_NUMBER: "2"
+    QDRANT_MMAP_THRESHOLD_KB: "20480"
+    QDRANT_VECTORS_ON_DISK: "True"
+    QDRANT_ON_DISK_PAYLOAD: "True"
     # Object Store
     OBJECT_STORE_TYPE: local
     OBJECT_STORE_LOCAL_ROOT_DIR: /data/objects

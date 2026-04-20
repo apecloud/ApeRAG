@@ -119,13 +119,21 @@ class CollectionTask:
             return TaskResult(success=False, error=f"Collection deletion failed: {str(e)}")
 
     def _initialize_vector_databases(self, collection_id: str, collection) -> None:
-        """Initialize vector database collections"""
+        """Ensure vector-store provisioning for this tenant.
+
+        In multitenant mode this is essentially a no-op per tenant: the global
+        Qdrant collection is created lazily on first use (idempotent inside
+        the connector). We still call through so new deployments get their
+        global collection primed at cluster-creation time rather than on the
+        first user upload.
+        """
         # Get embedding service
         _, vector_size = get_collection_embedding_service_sync(collection)
 
-        # Create main vector database collection
+        # Create main vector database collection (idempotent in multitenant mode)
         vector_db_conn = get_vector_db_connector(
-            collection=generate_vector_db_collection_name(collection_id=collection_id)
+            collection=generate_vector_db_collection_name(collection_id=collection_id),
+            vector_size=vector_size,
         )
         vector_db_conn.connector.create_collection(vector_size=vector_size)
 
@@ -187,14 +195,38 @@ class CollectionTask:
         return deletion_stats
 
     def _delete_vector_databases(self, collection_id: str) -> None:
-        """Delete vector database collections"""
-        # Delete main vector database collection
+        """Purge this tenant's vector data.
+
+        * Multitenant mode (default): deletes only the points whose
+          ``collection_id`` payload matches; the shared global Qdrant
+          collection is left in place for other tenants.
+        * Legacy mode: drops the whole per-tenant Qdrant collection.
+
+        We best-effort resolve ``vector_size`` so the connector routes to the
+        right global collection. If resolution fails (e.g. embedding provider
+        has been removed), we fall back to the default; the deletion becomes a
+        no-op on the wrong collection, which is safe.
+        """
+        collection = db_ops.query_collection_by_id(collection_id, ignore_deleted=False)
+        vector_size = None
+        if collection is not None:
+            try:
+                _, vector_size = get_collection_embedding_service_sync(collection)
+            except Exception as e:
+                logger.warning(
+                    "Could not resolve vector_size for collection %s during delete; "
+                    "falling back to default routing: %s",
+                    collection_id,
+                    e,
+                )
+
         vector_db_conn = get_vector_db_connector(
-            collection=generate_vector_db_collection_name(collection_id=collection_id)
+            collection=generate_vector_db_collection_name(collection_id=collection_id),
+            vector_size=vector_size,
         )
         vector_db_conn.connector.delete_collection()
 
-        logger.debug(f"Deleted vector database collections for collection {collection_id}")
+        logger.debug(f"Deleted vector database data for collection {collection_id}")
 
     def _delete_fulltext_index(self, collection_id: str) -> None:
         """Delete fulltext search index"""

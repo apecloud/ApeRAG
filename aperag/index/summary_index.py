@@ -87,7 +87,8 @@ class SummaryIndexer(BaseIndexer):
                 # Get embedding model and vector store
                 embedding_model, vector_size = get_collection_embedding_service_sync(collection)
                 vector_store_adaptor = get_vector_db_connector(
-                    collection=generate_vector_db_collection_name(collection_id=collection.id)
+                    collection=generate_vector_db_collection_name(collection_id=collection.id),
+                    vector_size=vector_size,
                 )
 
                 # Create a TextPart for the summary
@@ -184,8 +185,10 @@ class SummaryIndexer(BaseIndexer):
             # Delete old summary vectors from vector database if they exist
             if old_summary_ctx_ids:
                 try:
+                    _, vector_size = get_collection_embedding_service_sync(collection)
                     vector_store_adaptor = get_vector_db_connector(
-                        collection=generate_vector_db_collection_name(collection_id=collection.id)
+                        collection=generate_vector_db_collection_name(collection_id=collection.id),
+                        vector_size=vector_size,
                     )
                     vector_store_adaptor.connector.delete(ids=old_summary_ctx_ids)
                     logger.info(f"Deleted {len(old_summary_ctx_ids)} old summary vectors for document {document_id}")
@@ -243,8 +246,10 @@ class SummaryIndexer(BaseIndexer):
             # Delete summary vectors from vector database if they exist
             if summary_ctx_ids:
                 try:
+                    _, vector_size = get_collection_embedding_service_sync(collection)
                     vector_store_adaptor = get_vector_db_connector(
-                        collection=generate_vector_db_collection_name(collection_id=collection.id)
+                        collection=generate_vector_db_collection_name(collection_id=collection.id),
+                        vector_size=vector_size,
                     )
                     vector_store_adaptor.connector.delete(ids=summary_ctx_ids)
                     logger.info(f"Deleted {len(summary_ctx_ids)} summary vectors for document {document_id}")
