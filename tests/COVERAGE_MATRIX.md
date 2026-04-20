@@ -12,7 +12,9 @@ This matrix is the working contract for converging the test tree toward:
 | Capability | Unit | HTTP E2E Smoke | HTTP E2E Full | Remaining Pytest E2E | Integration / Contract | Current Decision |
 | --- | --- | --- | --- | --- | --- | --- |
 | docparser file-format smoke (`txt/md/html/ipynb/docx/xlsx/pptx/pdf/csv/tsv/xml/rst/eml` plus longer markdown/html and richer office fixtures) | yes | no | no | no | no | keep as unit smoke/regression coverage for the default local parser path |
+| docparser bad-document diagnostics (`corrupted docx/xlsx/pptx/pdf`, encrypted pdf, empty text) | yes | no | no | no | no | keep as unit coverage for stable parser diagnostics and non-crashing empty-file behavior |
 | docparser preflight / fail-fast contract | yes | no | no | no | no | keep as unit coverage for entry-time parser diagnostics |
+| fetch-url import staging / fallback contract | yes | no | no | no | no | keep as unit coverage for reader fallback, staging upload contract, and per-url failure reporting |
 | parser health / support matrix | yes | yes | no | no | no | unit tests guard support classification; HTTP smoke keeps the endpoint visible |
 | auth | no | yes | no | no | no | fully owned by Hurl |
 | collection CRUD | partial | yes | no | no | no | fully owned by Hurl |
