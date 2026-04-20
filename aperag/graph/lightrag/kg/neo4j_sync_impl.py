@@ -45,6 +45,7 @@ from tenacity import (
 )
 
 from ..base import BaseGraphStorage
+from ..prompt import GRAPH_FIELD_SEP
 from ..types import KnowledgeGraph, KnowledgeGraphEdge, KnowledgeGraphNode
 from ..utils import logger
 
@@ -374,6 +375,60 @@ class Neo4JSyncStorage(BaseGraphStorage):
                 return edges_dict
 
         return await asyncio.to_thread(_sync_get_nodes_edges_batch)
+
+    async def get_nodes_by_source_ids(self, chunk_ids: list[str]) -> dict[str, dict]:
+        """Retrieve nodes whose source_id references any of the provided chunk IDs."""
+
+        def _sync_get_nodes_by_source_ids():
+            with Neo4jSyncConnectionManager.get_session(database=self._DATABASE) as session:
+                query = """
+                MATCH (n:base)
+                WHERE n.source_id IS NOT NULL
+                  AND any(source IN split(n.source_id, $sep) WHERE source IN $chunk_ids)
+                RETURN n.entity_id AS entity_id, n
+                """
+                result = session.run(query, chunk_ids=chunk_ids, sep=GRAPH_FIELD_SEP)
+                nodes = {}
+                for record in result:
+                    entity_id = record["entity_id"]
+                    node = record["n"]
+                    node_dict = dict(node)
+                    if "labels" in node_dict:
+                        node_dict["labels"] = [label for label in node_dict["labels"] if label != "base"]
+                    nodes[entity_id] = node_dict
+                return nodes
+
+        return await asyncio.to_thread(_sync_get_nodes_by_source_ids)
+
+    async def get_edges_by_source_ids(self, chunk_ids: list[str]) -> dict[tuple[str, str], dict]:
+        """Retrieve edges whose source_id references any of the provided chunk IDs."""
+
+        def _sync_get_edges_by_source_ids():
+            with Neo4jSyncConnectionManager.get_session(database=self._DATABASE) as session:
+                query = """
+                MATCH (start:base)-[r:DIRECTED]-(end:base)
+                WHERE r.source_id IS NOT NULL
+                  AND any(source IN split(r.source_id, $sep) WHERE source IN $chunk_ids)
+                RETURN start.entity_id AS src_id, end.entity_id AS tgt_id, properties(r) AS edge_properties
+                """
+                result = session.run(query, chunk_ids=chunk_ids, sep=GRAPH_FIELD_SEP)
+                edges = {}
+                for record in result:
+                    src = record["src_id"]
+                    tgt = record["tgt_id"]
+                    edge_props = dict(record["edge_properties"])
+                    for key, default in {
+                        "weight": 0.0,
+                        "source_id": None,
+                        "description": None,
+                        "keywords": None,
+                    }.items():
+                        if key not in edge_props:
+                            edge_props[key] = default
+                    edges[(src, tgt)] = edge_props
+                return edges
+
+        return await asyncio.to_thread(_sync_get_edges_by_source_ids)
 
     @retry(
         stop=stop_after_attempt(3),
