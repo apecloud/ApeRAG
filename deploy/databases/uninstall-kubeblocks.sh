@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -euo pipefail
+
 # Get the directory where this script is located
 DATABASE_SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 # Load configuration file
@@ -27,10 +29,16 @@ uninstall_kubeblocks() {
     print "Uninstalling KubeBlocks..."
 
     # Uninstall KubeBlocks Helm chart
-    helm uninstall kubeblocks -n kb-system
+    helm uninstall kubeblocks -n kb-system --ignore-not-found
 
     # Uninstall snapshot controller
-    helm uninstall snapshot-controller -n kb-system
+    helm uninstall snapshot-controller -n kb-system --ignore-not-found
+    curl -fsSL https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/v8.2.0/deploy/kubernetes/snapshot-controller/setup-snapshot-controller.yaml \
+        | sed 's/namespace: kube-system/namespace: kb-system/g' \
+        | kubectl delete -f - --ignore-not-found=true
+    curl -fsSL https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/v8.2.0/deploy/kubernetes/snapshot-controller/rbac-snapshot-controller.yaml \
+        | sed 's/namespace: kube-system/namespace: kb-system/g' \
+        | kubectl delete -f - --ignore-not-found=true
 
     # Delete KubeBlocks CRDs
     kubectl delete -f https://github.com/apecloud/kubeblocks/releases/download/${KB_VERSION}/kubeblocks_crds.yaml --ignore-not-found=true

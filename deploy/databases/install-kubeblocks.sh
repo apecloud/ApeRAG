@@ -19,13 +19,17 @@ install_kubeblocks() {
     kubectl create -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/v8.2.0/client/config/crd/snapshot.storage.k8s.io_volumesnapshots.yaml
     kubectl create -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/v8.2.0/client/config/crd/snapshot.storage.k8s.io_volumesnapshotcontents.yaml
 
-    # Add and update Piraeus repository
-    helm repo add piraeus-charts https://piraeus.io/helm-charts/
-    helm repo update
+    kubectl create namespace kb-system --dry-run=client -o yaml | kubectl apply -f -
 
-    # Install snapshot controller
-    helm install snapshot-controller piraeus-charts/snapshot-controller -n kb-system --create-namespace
-    kubectl wait --for=condition=ready pods -l app.kubernetes.io/name=snapshot-controller -n kb-system --timeout=60s
+    # Install snapshot controller from the upstream manifests to avoid Helm chart
+    # template failures in CI.
+    curl -fsSL https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/v8.2.0/deploy/kubernetes/snapshot-controller/rbac-snapshot-controller.yaml \
+        | sed 's/namespace: kube-system/namespace: kb-system/g' \
+        | kubectl apply -f -
+    curl -fsSL https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/v8.2.0/deploy/kubernetes/snapshot-controller/setup-snapshot-controller.yaml \
+        | sed 's/namespace: kube-system/namespace: kb-system/g' \
+        | kubectl apply -f -
+    kubectl wait --for=condition=ready pods -l app.kubernetes.io/name=snapshot-controller -n kb-system --timeout=120s
     print_success "snapshot-controller installation complete!"
 
     # Install KubeBlocks CRDs
