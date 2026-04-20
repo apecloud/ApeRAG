@@ -1352,12 +1352,10 @@ class LightRAG:
         }
 
         # Get all entities and check they exist
-        entities_data = {}
+        entities_data = await self.chunk_entity_relation_graph.get_nodes_batch(entity_ids)
         for entity_id in entity_ids:
-            node_data = await self.chunk_entity_relation_graph.get_node(entity_id)
-            if not node_data:
+            if entity_id not in entities_data:
                 raise ValueError(f"Entity '{entity_id}' does not exist")
-            entities_data[entity_id] = node_data
 
         # Determine target entity
         if target_entity_name is None:
@@ -1370,11 +1368,10 @@ class LightRAG:
         else:
             # Ensure target entity is in the list or exists
             if target_entity_name not in entity_ids:
-                target_exists = await self.chunk_entity_relation_graph.has_node(target_entity_name)
-                if target_exists:
+                target_nodes = await self.chunk_entity_relation_graph.get_nodes_batch([target_entity_name])
+                if target_entity_name in target_nodes:
                     # Target entity exists but not in merge list, add its data
-                    target_data = await self.chunk_entity_relation_graph.get_node(target_entity_name)
-                    entities_data[target_entity_name] = target_data
+                    entities_data[target_entity_name] = target_nodes[target_entity_name]
                     self.lightrag_logger.info(f"Target entity '{target_entity_name}' exists, merging into it")
                 else:
                     self.lightrag_logger.info(f"Target entity '{target_entity_name}' will be created as new")
@@ -1426,18 +1423,22 @@ class LightRAG:
         # Process relationships
         all_relations = []
         relations_to_delete_vdb = []
+        source_entity_ids = [entity_id for entity_id in entity_ids if entity_id != target_entity_name]
+        if source_entity_ids:
+            source_edges_batch = await self.chunk_entity_relation_graph.get_nodes_edges_batch(source_entity_ids)
+            edge_pairs = []
+            seen_edge_pairs = set()
+            for edge_list in source_edges_batch.values():
+                for pair in edge_list:
+                    if pair not in seen_edge_pairs:
+                        edge_pairs.append({"src": pair[0], "tgt": pair[1]})
+                        seen_edge_pairs.add(pair)
 
-        for entity_id in entity_ids:
-            if entity_id == target_entity_name:
-                continue  # Skip target entity to avoid self-processing
-
-            source_edges = await self.chunk_entity_relation_graph.get_node_edges(entity_id)
-            if source_edges:
-                for src, tgt in source_edges:
-                    edge_data = await self.chunk_entity_relation_graph.get_edge(src, tgt)
+            if edge_pairs:
+                edge_data_batch = await self.chunk_entity_relation_graph.get_edges_batch(edge_pairs)
+                for (src, tgt), edge_data in edge_data_batch.items():
                     if edge_data:
                         all_relations.append((src, tgt, edge_data))
-                        # Mark old relations for deletion from vector db
                         relations_to_delete_vdb.extend(
                             [
                                 compute_mdhash_id(src + tgt, prefix="rel-", workspace=self.workspace),
@@ -1546,9 +1547,10 @@ class LightRAG:
                 self.lightrag_logger.debug(f"Updated {len(new_rel_data)} relationship records in vector storage")
 
         # Delete source entities from graph storage
-        for entity_id in source_entities:
-            await self.chunk_entity_relation_graph.delete_node(entity_id)
-            self.lightrag_logger.debug(f"Deleted source entity {entity_id} from graph storage")
+        if source_entities:
+            await self.chunk_entity_relation_graph.remove_nodes(source_entities)
+            for entity_id in source_entities:
+                self.lightrag_logger.debug(f"Deleted source entity {entity_id} from graph storage")
 
         self.lightrag_logger.info(
             f"Multi-node merge completed: {source_entities} -> {target_entity_name}, redirected {redirected_edges} edges"
