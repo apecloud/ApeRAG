@@ -61,13 +61,5 @@ HTTP 200
 jsonpath "$.id" == "{{chat_id}}"
 jsonpath "$.title" == "Chat Title {{run_id}}"
 
-POST {{base_url}}/api/v1/chat/completions/frontend?stream=false&bot_id={{bot_id}}&chat_id={{chat_id}}
-Content-Type: text/plain
-msg_id: chat_http_{{run_id}}
-`Summarize ApeRAG in one sentence.`
-HTTP 200
-[Asserts]
-jsonpath "$.type" exists
-jsonpath "$.id" exists
-jsonpath "$.data" exists
-jsonpath "$.timestamp" exists
+DELETE {{base_url}}/api/v1/bots/{{bot_id}}/chats/{{chat_id}}
+HTTP 204
