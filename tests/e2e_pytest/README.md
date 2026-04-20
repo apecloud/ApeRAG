@@ -22,7 +22,7 @@ tests/e2e_pytest/
 ## Current Scope
 
 - `test_chat.py`
-  keeps streaming, websocket, and a few low-signal frontend error checks that Hurl should not own
+  keeps streaming and websocket coverage that Hurl should not own
 - `test_document_download.py`
   keeps a few extra negative-path download checks while the main download path now lives in Hurl
 
@@ -31,7 +31,7 @@ Migrated in this phase:
 - provider model CRUD moved to `tests/e2e_http/hurl/full/10_provider_llm.hurl`
 - bot CRUD and agent-config coverage moved to `tests/e2e_http/hurl/full/12_bot.hurl`
 - deterministic chat create/list/get/update/delete moved to `tests/e2e_http/hurl/full/13_chat_http.hurl`
-- frontend non-streaming chat envelope contract moved to `tests/e2e_http/hurl/full/13_chat_http.hurl`
+- chat title-generation HTTP contract moved to `tests/e2e_http/hurl/full/13_chat_http.hurl`
 - unsupported `/v1/chat/completions` error contract moved to `tests/e2e_http/hurl/full/13_chat_http.hurl`
 
 ## 🚀 Quick Start
@@ -98,7 +98,7 @@ make test-e2e
 pytest tests/e2e_pytest/test_chat.py
 
 # Run a specific retained chat test
-pytest tests/e2e_pytest/test_chat.py::test_chat_message_frontend_api_streaming
+pytest tests/e2e_pytest/test_chat.py::test_chat_message_websocket_api
 
 # Show detailed output
 pytest tests/e2e_pytest/ -v
@@ -236,30 +236,6 @@ def test_something(client, bot):
 - `knowledge_chat`: Create chat for knowledge-type bot
 - `basic_chat`: Create chat for basic-type bot
 
-### Utility Fixtures
-
-#### `api_helper`
-Provide helper methods for API testing
-```python
-def test_something(api_helper, bot, chat):
-    # Test OpenAI API non-streaming
-    api_helper.test_openai_api_non_streaming(
-        bot_id=bot["id"], 
-        chat_id=chat["id"], 
-        message="Hello", 
-        test_name="My Test"
-    )
-    
-    # Test OpenAI API streaming
-    api_helper.test_openai_api_streaming(...)
-    
-    # Test frontend API non-streaming
-    api_helper.test_frontend_api_non_streaming(...)
-    
-    # Test frontend API streaming
-    api_helper.test_frontend_api_streaming(...)
-```
-
 ## 📝 Writing Tests
 
 ### Test File Structure
@@ -294,17 +270,13 @@ def test_my_feature(client, collection):
     ("knowledge", "What is ApeRAG?"),
     ("basic", "Hello, how are you today?"),
 ])
-def test_chat_message(api_helper, bot_type, message, request):
+def test_chat_message(bot_type, message, request):
     """Test chat messages for different bot types"""
     bot = request.getfixturevalue(f"{bot_type}_bot")
     chat = request.getfixturevalue(f"{bot_type}_chat")
-    
-    api_helper.test_openai_api_non_streaming(
-        bot_id=bot["id"],
-        chat_id=chat["id"],
-        message=message,
-        test_name=f"Chat {bot_type}"
-    )
+
+    assert bot["id"]
+    assert chat["id"]
 ```
 
 ### Using Utility Functions

@@ -36,5 +36,4 @@ The test tree is now organized by intent instead of by historical implementation
 - Trim `tests/e2e_pytest/` down to the smallest useful supplement for:
   - websocket chat
   - streaming chat
-  - a few low-signal negative or realtime cases that Hurl should not own
 - Use `tests/COVERAGE_MATRIX.md` as the source of truth before deleting additional pytest modules.
