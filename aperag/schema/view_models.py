@@ -25,7 +25,6 @@ from pydantic import (
     AnyUrl,
     BaseModel,
     ConfigDict,
-    EmailStr,
     Field,
     RootModel,
     confloat,
@@ -271,196 +270,6 @@ class Collection(BaseModel):
     )
 
 
-class Retry(BaseModel):
-    max_attempts: Optional[int] = Field(
-        None, description='Maximum number of retry attempts', examples=[3]
-    )
-    delay: Optional[int] = Field(
-        None, description='Delay between retries in seconds', examples=[5]
-    )
-
-
-class Notification(BaseModel):
-    email: Optional[list[EmailStr]] = Field(None, examples=[['admin@example.com']])
-
-
-class ErrorHandling(BaseModel):
-    strategy: Optional[Literal['stop_on_error', 'continue_on_error']] = Field(
-        None, description='Error handling strategy', examples=['stop_on_error']
-    )
-    notification: Optional[Notification] = None
-
-
-class ExecutionConfig(BaseModel):
-    """
-    Configuration for workflow execution
-    """
-
-    timeout: Optional[int] = Field(
-        None, description='Overall timeout in seconds', examples=[300]
-    )
-    retry: Optional[Retry] = None
-    error_handling: Optional[ErrorHandling] = None
-
-
-class SchemaDefinition(BaseModel):
-    """
-    JSON Schema definition
-    """
-
-    model_config = ConfigDict(
-        extra='allow',
-    )
-    type: Optional[
-        Literal['object', 'array', 'string', 'number', 'integer', 'boolean']
-    ] = None
-    properties: Optional[dict[str, Any]] = None
-    required: Optional[list[str]] = None
-    additionalProperties: Optional[bool] = None
-
-
-class Input(BaseModel):
-    schema_: SchemaDefinition = Field(..., alias='schema')
-    values: Optional[dict[str, Any]] = Field(
-        None, description='Default values and template references'
-    )
-
-
-class Output(BaseModel):
-    schema_: SchemaDefinition = Field(..., alias='schema')
-
-
-class Data(BaseModel):
-    input: Input
-    output: Output
-    collapsed: Optional[bool] = Field(
-        None,
-        description='Whether the node is collapsed, only useful for frontend to collapse the node',
-        examples=[False],
-    )
-
-
-class Position(BaseModel):
-    """
-    Position of the node in the frontend
-    """
-
-    x: Optional[float] = None
-    y: Optional[float] = None
-
-
-class Measured(BaseModel):
-    """
-    Measured position of the node, only useful for frontend to measure the node
-    """
-
-    width: Optional[float] = None
-    height: Optional[float] = None
-
-
-class Node(BaseModel):
-    id: str = Field(
-        ...,
-        description='Unique identifier for the node',
-        examples=['vector_search_3f8e2c1a'],
-    )
-    ariaLabel: Optional[str] = Field(None, description='label for the node')
-    type: Literal[
-        'start',
-        'vector_search',
-        'fulltext_search',
-        'graph_search',
-        'merge',
-        'rerank',
-        'llm',
-    ] = Field(..., description='Type of node', examples=['vector_search'])
-    title: Optional[str] = Field(
-        None, description='Human-readable title of the node', examples=['Vector Search']
-    )
-    data: Data
-    position: Optional[Position] = Field(
-        None, description='Position of the node in the frontend'
-    )
-    dragHandle: Optional[str] = Field(
-        None,
-        description='Drag handle of the node, only useful for frontend to drag the node',
-    )
-    measured: Optional[Measured] = Field(
-        None,
-        description='Measured position of the node, only useful for frontend to measure the node',
-    )
-    selected: Optional[bool] = Field(
-        None,
-        description='Whether the node is selected, only useful for frontend to select the node',
-    )
-    deletable: Optional[bool] = Field(
-        None,
-        description='Whether the node is deletable, only useful for frontend to delete the node',
-        examples=[True],
-    )
-
-
-class Edge(BaseModel):
-    id: Optional[str] = Field(
-        None,
-        description='Unique identifier for the edge, only useful for frontend to identify the edge',
-        examples=['edge_1'],
-    )
-    deletable: Optional[bool] = Field(
-        None,
-        description='Whether the edge is deletable, only useful for frontend to delete the edge',
-        examples=[True],
-    )
-    type: Optional[str] = Field(None, description='Type of the edge', examples=['edge'])
-    source: str = Field(..., description='ID of the source node', examples=['start'])
-    target: str = Field(
-        ..., description='ID of the target node', examples=['vector_search_3f8e2c1a']
-    )
-
-
-class WorkflowStyle(BaseModel):
-    """
-    Workflow style
-    """
-
-    edgeType: Optional[
-        Literal['straight', 'step', 'smoothstep', 'default', 'simplebezier']
-    ] = None
-    layoutDirection: Optional[Literal['TB', 'LR']] = None
-
-
-class WorkflowDefinition(BaseModel):
-    name: str = Field(
-        ...,
-        description='Machine-readable identifier for the workflow',
-        examples=['rag_flow'],
-    )
-    title: str = Field(
-        ...,
-        description='Human-readable title of the workflow',
-        examples=['RAG Knowledge Base Flow'],
-    )
-    description: Optional[str] = Field(
-        None,
-        description='Detailed description of the workflow',
-        examples=['A typical RAG flow with parallel retrieval and reranking'],
-    )
-    version: str = Field(
-        ..., description='Version number of the workflow definition', examples=['1.0.0']
-    )
-    execution: Optional[ExecutionConfig] = None
-    schema_: Optional[dict[str, SchemaDefinition]] = Field(
-        None,
-        alias='schema',
-        description='Custom schema definitions used across the workflow',
-    )
-    nodes: list[Node] = Field(..., description='List of nodes in the workflow')
-    edges: list[Edge] = Field(
-        ..., description='List of edges connecting nodes in the workflow'
-    )
-    style: Optional[WorkflowStyle] = None
-
-
 class Agent(BaseModel):
     completion: Optional[ModelSpec] = None
     system_prompt_template: Optional[str] = None
@@ -470,7 +279,6 @@ class Agent(BaseModel):
 
 class BotConfig(BaseModel):
     agent: Optional[Agent] = None
-    flow: Optional[WorkflowDefinition] = None
 
 
 class Bot(BaseModel):
@@ -514,8 +322,8 @@ class FailResponse(BaseModel):
 class BotCreate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
-    type: Optional[Literal['knowledge', 'common', 'agent']] = Field(
-        None, description='The type of bot', examples=['knowledge']
+    type: Optional[Literal['agent']] = Field(
+        'agent', description='The supported bot type', examples=['agent']
     )
     config: Optional[BotConfig] = None
 
@@ -525,10 +333,6 @@ class BotUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     config: Optional[BotConfig] = None
-
-
-class DebugFlowRequest(BaseModel):
-    query: str
 
 
 class Chat(BaseModel):

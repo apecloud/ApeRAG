@@ -36,7 +36,7 @@ export interface BotCreate {
      */
     'description'?: string;
     /**
-     * The type of bot
+     * The supported bot type
      * @type {string}
      * @memberof BotCreate
      */
@@ -50,8 +50,6 @@ export interface BotCreate {
 }
 
 export const BotCreateTypeEnum = {
-    knowledge: 'knowledge',
-    common: 'common',
     agent: 'agent'
 } as const;
 

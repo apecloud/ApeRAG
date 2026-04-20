@@ -21,6 +21,7 @@ from aperag.db import models as db_models
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.exceptions import (
     ResourceNotFoundException,
+    ValidationException,
 )
 from aperag.schema import view_models
 from aperag.schema.view_models import Bot, BotList
@@ -65,6 +66,10 @@ class BotService:
     async def create_bot(
         self, user: str, bot_in: view_models.BotCreate, skip_quota_check: bool = False
     ) -> view_models.Bot:
+        bot_type = bot_in.type or db_models.BotType.AGENT
+        if bot_type != db_models.BotType.AGENT:
+            raise ValidationException("Only agent bots are supported")
+
         # Create bot atomically in a single transaction
         async def _create_bot_atomically(session):
             from aperag.db.models import Bot, BotStatus
@@ -84,7 +89,7 @@ class BotService:
             bot = Bot(
                 user=user,
                 title=bot_in.title,
-                type=bot_in.type,
+                type=bot_type,
                 status=BotStatus.ACTIVE,
                 description=bot_in.description,
                 config=config_str,

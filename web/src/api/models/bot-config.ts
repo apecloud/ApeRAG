@@ -16,9 +16,6 @@
 // May contain unused imports in some cases
 // @ts-ignore
 import type { BotConfigAgent } from './bot-config-agent';
-// May contain unused imports in some cases
-// @ts-ignore
-import type { WorkflowDefinition } from './workflow-definition';
 
 /**
  * 
@@ -32,11 +29,5 @@ export interface BotConfig {
      * @memberof BotConfig
      */
     'agent'?: BotConfigAgent;
-    /**
-     * 
-     * @type {WorkflowDefinition}
-     * @memberof BotConfig
-     */
-    'flow'?: WorkflowDefinition;
 }
 
