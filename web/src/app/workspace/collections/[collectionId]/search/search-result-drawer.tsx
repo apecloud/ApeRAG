@@ -18,6 +18,7 @@ import _ from 'lodash';
 import { ChevronRight } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { ReactNode, useState } from 'react';
+import { filterVisibleSearchItems } from '../../feature-visibility';
 
 export const SearchResultDrawer = ({
   children,
@@ -28,8 +29,9 @@ export const SearchResultDrawer = ({
 }) => {
   const [visible, setVisible] = useState<boolean>(false);
   const page_search = useTranslations('page_search');
+  const visibleItems = filterVisibleSearchItems(result.items);
 
-  if (_.isEmpty(result.items)) {
+  if (_.isEmpty(visibleItems)) {
     return children;
   }
 
@@ -57,7 +59,7 @@ export const SearchResultDrawer = ({
           </DrawerTitle>
         </DrawerHeader>
         <div className="overflow-auto px-4 pb-4 select-text">
-          {result.items?.map((item, index) => {
+          {visibleItems.map((item, index) => {
             return (
               <Collapsible
                 key={index}
