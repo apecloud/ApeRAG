@@ -25,6 +25,7 @@ Current v1 scope:
 - Provider-aware full coverage:
   - configure public providers with user API keys
   - set default embedding/completion/rerank models
+  - query `/api/v1/available_models`
   - call `/api/v1/embeddings` and `/api/v1/rerank` through real external providers
 
 Non-goals for v1:

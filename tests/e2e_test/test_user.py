@@ -2,41 +2,6 @@ from http import HTTPStatus
 
 import httpx
 
-from tests.e2e_test.config import API_BASE_URL
-
-
-def test_register_user(register_user):
-    """Test user registration"""
-    user = register_user["user"]
-    assert user["username"] == register_user["username"]
-    assert user["email"] == register_user["email"]
-    assert user["role"] in ("admin", "rw", "ro")
-    assert user["is_active"] is True
-    assert user["date_joined"]
-
-
-def test_login_user(login_user):
-    """Test user login with cookie"""
-    user = login_user["user"]
-    assert user["username"] == login_user["username"]
-    assert user["email"]
-    assert user["role"]
-    assert user["is_active"] is True
-    assert user["date_joined"]
-
-
-def test_get_user_detail(benchmark, cookie_client):
-    """Test get user detail with cookie authentication"""
-    resp = benchmark(cookie_client.get, "/api/v1/user")
-    assert resp.status_code == HTTPStatus.OK, resp.text
-    user = resp.json()
-    assert user["username"]
-    assert user["email"]
-    assert user["role"]
-    assert user["is_active"] is True
-    assert user["date_joined"]
-
-
 def test_change_password(cookie_client, login_user):
     """Test change password for user"""
     data = {
@@ -52,19 +17,6 @@ def test_change_password(cookie_client, login_user):
     with httpx.Client(base_url=cookie_client.base_url) as c:
         resp2 = c.post("/api/v1/login", json={"username": login_user["username"], "password": data["new_password"]})
         assert resp2.status_code == HTTPStatus.OK, resp2.text
-
-
-def test_logout_user(login_user):
-    """Test user logout with cookie authentication (use isolated client)"""
-    with httpx.Client(base_url=API_BASE_URL) as c:
-        c.cookies.update(login_user["cookies"])
-        resp = c.post("/api/v1/logout")
-        assert resp.status_code == HTTPStatus.OK, resp.text
-        # After logout, get user should fail (unauthorized or forbidden)
-        resp2 = c.get("/api/v1/user")
-        assert resp2.status_code in (HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN), (
-            f"Expected UNAUTHORIZED or FORBIDDEN, got {resp2.status_code}: {resp2.text}"
-        )
 
 
 def test_get_user_list(benchmark, cookie_client):

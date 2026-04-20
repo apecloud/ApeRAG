@@ -1,4 +1,4 @@
-name: CICD-PULL-REQUEST
+name: E2E-Test
 
 on:
   pull_request_review:
@@ -104,7 +104,13 @@ jobs:
       APECD_REF: "v0.1.48"
     secrets: inherit
 
-  e2e-test:
+  e2e-http:
+    if: contains(needs.trigger-mode.outputs.trigger-mode, '[test]')
+    needs: trigger-mode
+    uses: ./.github/workflows/e2e-http-smoke.yml
+    secrets: inherit
+
+  e2e-cluster:
     if: contains(needs.trigger-mode.outputs.trigger-mode, '[test]')
     needs: trigger-mode
     uses: ./.github/workflows/e2e-aperag.yml
@@ -112,13 +118,13 @@ jobs:
 
   pr-check:
     name: PR Check
-    needs: [ trigger-mode, make-test, check-image, check-frontend-image, check-helm, e2e-test ]
+    needs: [ trigger-mode, unit-test, check-image, check-frontend-image, check-helm, e2e-http, e2e-cluster ]
     if: ${{ github.event.review.state == 'approved' && always() }}
     runs-on: ubuntu-latest
     steps:
       - name: make test check
         run: |
-          if [[ "${{ needs.make-test.result }}" == "failure" || "${{ needs.make-test.result }}" == "cancelled" ]]; then
+          if [[ "${{ needs.unit-test.result }}" == "failure" || "${{ needs.unit-test.result }}" == "cancelled" ]]; then
               echo "make test fail"
               exit 1
           fi
@@ -144,9 +150,16 @@ jobs:
               exit 1
           fi
 
-      - name: e2e test check
+      - name: hurl e2e check
         run: |
-          if [[ "${{ needs.e2e-test.result }}" == "failure" || "${{ needs.e2e-test.result }}" == "cancelled" ]]; then
-              echo "release helm fail"
+          if [[ "${{ needs.e2e-http.result }}" == "failure" || "${{ needs.e2e-http.result }}" == "cancelled" ]]; then
+              echo "hurl e2e fail"
+              exit 1
+          fi
+
+      - name: cluster e2e check
+        run: |
+          if [[ "${{ needs.e2e-cluster.result }}" == "failure" || "${{ needs.e2e-cluster.result }}" == "cancelled" ]]; then
+              echo "cluster e2e fail"
               exit 1
           fi

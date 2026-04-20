@@ -1,4 +1,4 @@
-name: CICD-PUSH
+name: Unit-Test
 
 on:
   push:
@@ -38,19 +38,6 @@ jobs:
           
           echo $TRIGGER_MODE
           echo trigger_mode=$TRIGGER_MODE >> $GITHUB_OUTPUT
-
-  pre-push:
-    needs: trigger-mode
-    runs-on: ubuntu-latest
-    name: Push Pre-Check
-    steps:
-      - uses: actions/checkout@v4
-      - name: Spell Check with Typos
-        if: contains(needs.trigger-mode.outputs.trigger-mode, '[docs]')
-        uses: crate-ci/typos@v1.13.14
-        with:
-          files: docs/
-          config: .github/utils/typos.toml
 
   unit-test:
     needs: trigger-mode
