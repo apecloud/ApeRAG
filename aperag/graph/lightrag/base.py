@@ -446,6 +446,53 @@ class BaseGraphStorage(StorageNameSpace, ABC):
             result[node_id] = edges if edges is not None else []
         return result
 
+    async def get_nodes_edges_with_data_batch(
+        self,
+        node_ids: list[str],
+    ) -> dict[str, list[tuple[str, str, dict]]]:
+        """Get node incident edges together with edge properties in batch.
+
+        Default implementation composes existing batch primitives so callers can
+        avoid `get_node_edges()` + per-edge `get_edge()` N+1 patterns even before
+        a backend adds a specialized override.
+        """
+        result = {node_id: [] for node_id in node_ids}
+        node_edges = await self.get_nodes_edges_batch(node_ids)
+
+        edge_pairs: list[dict[str, str]] = []
+        seen_edge_pairs: set[tuple[str, str]] = set()
+        for node_id in node_ids:
+            for source, target in node_edges.get(node_id, []) or []:
+                edge_pair = (source, target)
+                if edge_pair in seen_edge_pairs:
+                    continue
+                seen_edge_pairs.add(edge_pair)
+                edge_pairs.append({"src": source, "tgt": target})
+
+        if not edge_pairs:
+            return result
+
+        edges_with_data = await self.get_edges_batch(edge_pairs)
+        for node_id in node_ids:
+            result[node_id] = [
+                (source, target, edge_data)
+                for source, target in node_edges.get(node_id, []) or []
+                if (edge_data := edges_with_data.get((source, target))) is not None
+            ]
+
+        return result
+
+    async def get_incident_edges_with_data_batch(
+        self,
+        node_ids: list[str],
+    ) -> dict[str, list[tuple[str, str, dict]]]:
+        """Intent-focused alias for batch incident-edge fetches with properties."""
+        return await self.get_nodes_edges_with_data_batch(node_ids)
+
+    async def get_top_degree_nodes(self, limit: int) -> tuple[dict[str, dict], int] | None:
+        """Return top-degree nodes plus total node count when backend supports it."""
+        return None
+
     @abstractmethod
     async def upsert_node(self, node_id: str, node_data: dict[str, str]) -> None:
         """Insert a new node or update an existing node in the graph.

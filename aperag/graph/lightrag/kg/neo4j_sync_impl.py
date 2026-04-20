@@ -45,6 +45,7 @@ from tenacity import (
 )
 
 from ..base import BaseGraphStorage
+from ..prompt import GRAPH_FIELD_SEP
 from ..types import KnowledgeGraph, KnowledgeGraphEdge, KnowledgeGraphNode
 from ..utils import logger
 
@@ -375,6 +376,60 @@ class Neo4JSyncStorage(BaseGraphStorage):
 
         return await asyncio.to_thread(_sync_get_nodes_edges_batch)
 
+    async def get_nodes_by_source_ids(self, chunk_ids: list[str]) -> dict[str, dict]:
+        """Retrieve nodes whose source_id references any of the provided chunk IDs."""
+
+        def _sync_get_nodes_by_source_ids():
+            with Neo4jSyncConnectionManager.get_session(database=self._DATABASE) as session:
+                query = """
+                MATCH (n:base)
+                WHERE n.source_id IS NOT NULL
+                  AND any(source IN split(n.source_id, $sep) WHERE source IN $chunk_ids)
+                RETURN n.entity_id AS entity_id, n
+                """
+                result = session.run(query, chunk_ids=chunk_ids, sep=GRAPH_FIELD_SEP)
+                nodes = {}
+                for record in result:
+                    entity_id = record["entity_id"]
+                    node = record["n"]
+                    node_dict = dict(node)
+                    if "labels" in node_dict:
+                        node_dict["labels"] = [label for label in node_dict["labels"] if label != "base"]
+                    nodes[entity_id] = node_dict
+                return nodes
+
+        return await asyncio.to_thread(_sync_get_nodes_by_source_ids)
+
+    async def get_edges_by_source_ids(self, chunk_ids: list[str]) -> dict[tuple[str, str], dict]:
+        """Retrieve edges whose source_id references any of the provided chunk IDs."""
+
+        def _sync_get_edges_by_source_ids():
+            with Neo4jSyncConnectionManager.get_session(database=self._DATABASE) as session:
+                query = """
+                MATCH (start:base)-[r:DIRECTED]-(end:base)
+                WHERE r.source_id IS NOT NULL
+                  AND any(source IN split(r.source_id, $sep) WHERE source IN $chunk_ids)
+                RETURN start.entity_id AS src_id, end.entity_id AS tgt_id, properties(r) AS edge_properties
+                """
+                result = session.run(query, chunk_ids=chunk_ids, sep=GRAPH_FIELD_SEP)
+                edges = {}
+                for record in result:
+                    src = record["src_id"]
+                    tgt = record["tgt_id"]
+                    edge_props = dict(record["edge_properties"])
+                    for key, default in {
+                        "weight": 0.0,
+                        "source_id": None,
+                        "description": None,
+                        "keywords": None,
+                    }.items():
+                        if key not in edge_props:
+                            edge_props[key] = default
+                    edges[(src, tgt)] = edge_props
+                return edges
+
+        return await asyncio.to_thread(_sync_get_edges_by_source_ids)
+
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=4, max=10),
@@ -591,6 +646,46 @@ class Neo4JSyncStorage(BaseGraphStorage):
 
         return await asyncio.to_thread(_sync_get_all_labels)
 
+    async def get_top_degree_nodes(self, limit: int) -> tuple[dict[str, dict], int] | None:
+        """Get top-degree nodes directly from Neo4j without loading all labels first."""
+
+        def _sync_get_top_degree_nodes():
+            with Neo4jSyncConnectionManager.get_session(database=self._DATABASE) as session:
+                total_query = """
+                MATCH (n:base)
+                WHERE n.entity_id IS NOT NULL
+                RETURN count(n) AS total
+                """
+                total_result = session.run(total_query)
+                total_record = total_result.single()
+                total_nodes = int(total_record["total"]) if total_record and total_record["total"] is not None else 0
+                if total_nodes == 0 or limit <= 0:
+                    return {}, total_nodes
+
+                query = """
+                MATCH (n:base)
+                WHERE n.entity_id IS NOT NULL
+                OPTIONAL MATCH (n)-[r]-()
+                WITH n, count(r) AS degree
+                WHERE degree > 0
+                RETURN n.entity_id AS entity_id, properties(n) AS node_properties, degree
+                ORDER BY degree DESC, entity_id
+                LIMIT $limit
+                """
+                result = session.run(query, limit=limit)
+
+                nodes = {}
+                for record in result:
+                    entity_id = record["entity_id"]
+                    raw_data = dict(record["node_properties"])
+                    raw_data.setdefault("entity_id", entity_id)
+                    raw_data["degree"] = int(record["degree"] or 0)
+                    nodes[entity_id] = raw_data
+
+                return nodes, total_nodes
+
+        return await asyncio.to_thread(_sync_get_top_degree_nodes)
+
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=4, max=10),
@@ -619,23 +714,38 @@ class Neo4JSyncStorage(BaseGraphStorage):
 
     async def remove_nodes(self, nodes: list[str]):
         """Delete multiple nodes."""
-        for node in nodes:
-            await self.delete_node(node)
+
+        def _sync_remove_nodes():
+            with Neo4jSyncConnectionManager.get_session(database=self._DATABASE) as session:
+                query = """
+                UNWIND $entity_ids AS entity_id
+                MATCH (n:base {entity_id: entity_id})
+                DETACH DELETE n
+                """
+                session.run(query, entity_ids=nodes)
+                logger.debug(f"Deleted {len(nodes)} nodes in batch")
+
+        if nodes:
+            await asyncio.to_thread(_sync_remove_nodes)
 
     async def remove_edges(self, edges: list[tuple[str, str]]):
         """Delete multiple edges."""
 
-        def _sync_remove_edge(source: str, target: str):
+        def _sync_remove_edges():
             with Neo4jSyncConnectionManager.get_session(database=self._DATABASE) as session:
                 query = """
-                MATCH (source:base {entity_id: $source_entity_id})-[r]-(target:base {entity_id: $target_entity_id})
+                UNWIND $edges AS edge
+                MATCH (source:base {entity_id: edge.src})-[r]-(target:base {entity_id: edge.tgt})
                 DELETE r
                 """
-                session.run(query, source_entity_id=source, target_entity_id=target)
-                logger.debug(f"Deleted edge from '{source}' to '{target}'")
+                session.run(
+                    query,
+                    edges=[{"src": source, "tgt": target} for source, target in edges],
+                )
+                logger.debug(f"Deleted {len(edges)} edges in batch")
 
-        for source, target in edges:
-            await asyncio.to_thread(_sync_remove_edge, source, target)
+        if edges:
+            await asyncio.to_thread(_sync_remove_edges)
 
     async def drop(self) -> dict[str, str]:
         """Drop all data from storage."""

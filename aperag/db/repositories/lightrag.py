@@ -25,6 +25,18 @@ from aperag.utils.utils import utc_now
 
 class LightragRepositoryMixin(SyncRepositoryProtocol):
     # LightRAG Doc Chunks Operations
+    def query_lightrag_doc_chunks_by_doc_id(self, workspace: str, doc_id: str):
+        """Query LightRAG document chunks by full document ID"""
+
+        def _query(session):
+            stmt = select(LightRAGDocChunksModel).where(
+                LightRAGDocChunksModel.workspace == workspace, LightRAGDocChunksModel.full_doc_id == doc_id
+            )
+            result = session.execute(stmt)
+            return {chunk.id: chunk for chunk in result.scalars().all()}
+
+        return self._execute_query(_query)
+
     def query_lightrag_doc_chunks_by_id(self, workspace: str, chunk_id: str):
         """Query LightRAG document chunks by ID"""
 
@@ -156,6 +168,20 @@ class LightragRepositoryMixin(SyncRepositoryProtocol):
 
         return self._execute_query(_query)
 
+    def query_lightrag_vdb_entity_by_chunk_ids(self, workspace: str, chunk_ids: list[str]):
+        """Query LightRAG VDB entities whose chunk_ids overlap with the given chunk IDs"""
+
+        def _query(session):
+            if not chunk_ids:
+                return {}
+            stmt = select(LightRAGVDBEntityModel).where(
+                LightRAGVDBEntityModel.workspace == workspace, LightRAGVDBEntityModel.chunk_ids.overlap(chunk_ids)
+            )
+            result = session.execute(stmt)
+            return {entity.id: entity for entity in result.scalars().all()}
+
+        return self._execute_query(_query)
+
     def upsert_lightrag_vdb_entity(self, workspace: str, entity_data: dict):
         """Upsert LightRAG VDB Entity records using PostgreSQL UPSERT"""
 
@@ -232,6 +258,20 @@ class LightragRepositoryMixin(SyncRepositoryProtocol):
             )
             result = session.execute(stmt)
             return result.scalars().first()
+
+        return self._execute_query(_query)
+
+    def query_lightrag_vdb_relation_by_chunk_ids(self, workspace: str, chunk_ids: list[str]):
+        """Query LightRAG VDB relations whose chunk_ids overlap with the given chunk IDs"""
+
+        def _query(session):
+            if not chunk_ids:
+                return {}
+            stmt = select(LightRAGVDBRelationModel).where(
+                LightRAGVDBRelationModel.workspace == workspace, LightRAGVDBRelationModel.chunk_ids.overlap(chunk_ids)
+            )
+            result = session.execute(stmt)
+            return {relation.id: relation for relation in result.scalars().all()}
 
         return self._execute_query(_query)
 

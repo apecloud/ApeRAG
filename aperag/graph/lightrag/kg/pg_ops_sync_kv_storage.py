@@ -83,6 +83,32 @@ class PGOpsSyncKVStorage(BaseKVStorage):
 
         return await asyncio.to_thread(_sync_get_all)
 
+    async def get_by_doc_id(self, doc_id: str) -> dict[str, Any]:
+        """Get all chunk records for a single document ID"""
+
+        def _sync_get_by_doc_id():
+            from aperag.db.ops import db_ops
+            from aperag.graph.lightrag.namespace import NameSpace, is_namespace
+
+            if is_namespace(self.namespace, NameSpace.KV_STORE_TEXT_CHUNKS):
+                models = db_ops.query_lightrag_doc_chunks_by_doc_id(self.workspace, doc_id)
+                return {
+                    chunk_id: {
+                        "id": chunk_id,
+                        "tokens": model.tokens,
+                        "content": model.content or "",
+                        "chunk_order_index": model.chunk_order_index,
+                        "full_doc_id": model.full_doc_id,
+                        "content_vector": model.content_vector,
+                        "file_path": model.file_path,
+                    }
+                    for chunk_id, model in models.items()
+                }
+            logger.error(f"Unknown namespace for get_by_doc_id: {self.namespace}")
+            return {}
+
+        return await asyncio.to_thread(_sync_get_by_doc_id)
+
     async def get_by_id(self, id: str) -> dict[str, Any] | None:
         """Get data by id"""
 

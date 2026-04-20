@@ -386,28 +386,27 @@ async def _merge_edges_then_upsert(
     already_keywords = []
     already_file_paths = []
 
-    if await knowledge_graph_inst.has_edge(src_id, tgt_id):
-        already_edge = await knowledge_graph_inst.get_edge(src_id, tgt_id)
-        # Handle the case where get_edge returns None or missing fields
-        if already_edge:
-            # Get weight with default 0.0 if missing
-            already_weights.append(already_edge.get("weight", 0.0))
+    already_edge = await knowledge_graph_inst.get_edge(src_id, tgt_id)
+    # Handle the case where get_edge returns None or missing fields
+    if already_edge:
+        # Get weight with default 0.0 if missing
+        already_weights.append(already_edge.get("weight", 0.0))
 
-            # Get source_id with empty string default if missing or None
-            if already_edge.get("source_id") is not None:
-                already_source_ids.extend(split_string_by_multi_markers(already_edge["source_id"], [GRAPH_FIELD_SEP]))
+        # Get source_id with empty string default if missing or None
+        if already_edge.get("source_id") is not None:
+            already_source_ids.extend(split_string_by_multi_markers(already_edge["source_id"], [GRAPH_FIELD_SEP]))
 
-            # Get file_path with empty string default if missing or None
-            if already_edge.get("file_path") is not None:
-                already_file_paths.extend(split_string_by_multi_markers(already_edge["file_path"], [GRAPH_FIELD_SEP]))
+        # Get file_path with empty string default if missing or None
+        if already_edge.get("file_path") is not None:
+            already_file_paths.extend(split_string_by_multi_markers(already_edge["file_path"], [GRAPH_FIELD_SEP]))
 
-            # Get description with empty string default if missing or None
-            if already_edge.get("description") is not None:
-                already_description.append(already_edge["description"])
+        # Get description with empty string default if missing or None
+        if already_edge.get("description") is not None:
+            already_description.append(already_edge["description"])
 
-            # Get keywords with empty string default if missing or None
-            if already_edge.get("keywords") is not None:
-                already_keywords.extend(split_string_by_multi_markers(already_edge["keywords"], [GRAPH_FIELD_SEP]))
+        # Get keywords with empty string default if missing or None
+        if already_edge.get("keywords") is not None:
+            already_keywords.extend(split_string_by_multi_markers(already_edge["keywords"], [GRAPH_FIELD_SEP]))
 
     # Process edges_data with None checks
     weight = sum([dp["weight"] for dp in edges_data] + already_weights)
@@ -435,8 +434,9 @@ async def _merge_edges_then_upsert(
         set([dp["file_path"] for dp in edges_data if dp.get("file_path")] + already_file_paths)
     )
 
+    existing_nodes = await knowledge_graph_inst.get_nodes_batch([src_id, tgt_id])
     for need_insert_id in [src_id, tgt_id]:
-        if not (await knowledge_graph_inst.has_node(need_insert_id)):
+        if need_insert_id not in existing_nodes:
             await knowledge_graph_inst.upsert_node(
                 need_insert_id,
                 node_data={
@@ -543,6 +543,7 @@ async def _merge_nodes_and_edges_impl(
     lightrag_logger: LightRAGLogger,
 ) -> dict[str, int]:
     """Internal implementation of merge_nodes_and_edges with fine-grained locking"""
+    merge_concurrency = 8
 
     # Collect all nodes and edges from all chunks
     all_nodes = defaultdict(list)
@@ -558,86 +559,92 @@ async def _merge_nodes_and_edges_impl(
             sorted_edge_key = tuple(sorted(edge_key))
             all_edges[sorted_edge_key].extend(edges)
 
-    # Process entities with fine-grained locking
-    entity_count = 0
+    entity_semaphore = asyncio.Semaphore(merge_concurrency)
 
-    for entity_name, entities in all_nodes.items():
-        # Create lock for this specific entity
-        entity_lock = get_or_create_lock(f"entity:{entity_name}:{workspace}")
+    async def _process_entity(entity_name: str, entities: list[dict]) -> bool:
+        async with entity_semaphore:
+            entity_lock = get_or_create_lock(f"entity:{entity_name}:{workspace}")
 
-        async with entity_lock:
-            # Process and update entity in graph db
-            entity_data = await _merge_nodes_then_upsert(
-                entity_name,
-                entities,
-                knowledge_graph_inst,
-                llm_model_func,
-                tokenizer,
-                llm_model_max_token_size,
-                summary_to_max_tokens,
-                language,
-                force_llm_summary_on_merge,
-                lightrag_logger,
-                workspace,
+            async with entity_lock:
+                entity_data = await _merge_nodes_then_upsert(
+                    entity_name,
+                    entities,
+                    knowledge_graph_inst,
+                    llm_model_func,
+                    tokenizer,
+                    llm_model_max_token_size,
+                    summary_to_max_tokens,
+                    language,
+                    force_llm_summary_on_merge,
+                    lightrag_logger,
+                    workspace,
+                )
+
+                if entity_vdb is not None and entity_data:
+                    vdb_data = {
+                        compute_mdhash_id(entity_data["entity_name"], prefix="ent-", workspace=workspace): {
+                            "entity_name": entity_data["entity_name"],
+                            "entity_type": entity_data["entity_type"],
+                            "content": f"{entity_data['entity_name']}\n{entity_data['description']}",
+                            "source_id": entity_data["source_id"],
+                            "file_path": entity_data.get("file_path", "unknown_source"),
+                        }
+                    }
+                    await entity_vdb.upsert(vdb_data)
+
+                return entity_data is not None
+
+    entity_results = await asyncio.gather(
+        *[_process_entity(entity_name, entities) for entity_name, entities in all_nodes.items()]
+    )
+    entity_count = sum(1 for result in entity_results if result)
+
+    relationship_semaphore = asyncio.Semaphore(merge_concurrency)
+
+    async def _process_relationship(edge_key: tuple[str, str], edges: list[dict]) -> bool:
+        async with relationship_semaphore:
+            sorted_edge_key = tuple(sorted(edge_key))
+            relationship_lock = get_or_create_lock(
+                f"relationship:{sorted_edge_key[0]}:{sorted_edge_key[1]}:{workspace}"
             )
 
-            # Update entity in vector db immediately under the same lock
-            if entity_vdb is not None and entity_data:
-                vdb_data = {
-                    compute_mdhash_id(entity_data["entity_name"], prefix="ent-", workspace=workspace): {
-                        "entity_name": entity_data["entity_name"],
-                        "entity_type": entity_data["entity_type"],
-                        "content": f"{entity_data['entity_name']}\n{entity_data['description']}",
-                        "source_id": entity_data["source_id"],
-                        "file_path": entity_data.get("file_path", "unknown_source"),
+            async with relationship_lock:
+                edge_data = await _merge_edges_then_upsert(
+                    edge_key[0],
+                    edge_key[1],
+                    edges,
+                    knowledge_graph_inst,
+                    llm_model_func,
+                    tokenizer,
+                    llm_model_max_token_size,
+                    summary_to_max_tokens,
+                    language,
+                    force_llm_summary_on_merge,
+                    lightrag_logger,
+                    workspace,
+                )
+
+                if relationships_vdb is not None and edge_data is not None:
+                    vdb_data = {
+                        compute_mdhash_id(
+                            edge_data["src_id"] + edge_data["tgt_id"], prefix="rel-", workspace=workspace
+                        ): {
+                            "src_id": edge_data["src_id"],
+                            "tgt_id": edge_data["tgt_id"],
+                            "keywords": edge_data["keywords"],
+                            "content": f"{edge_data['src_id']}\t{edge_data['tgt_id']}\n{edge_data['keywords']}\n{edge_data['description']}",
+                            "source_id": edge_data["source_id"],
+                            "file_path": edge_data.get("file_path", "unknown_source"),
+                        }
                     }
-                }
-                await entity_vdb.upsert(vdb_data)
+                    await relationships_vdb.upsert(vdb_data)
 
-            entity_count += 1
+                return edge_data is not None
 
-    # Process relationships with fine-grained locking
-    relation_count = 0
-
-    for edge_key, edges in all_edges.items():
-        # Create lock for this specific relationship
-        # Sort edge key to ensure consistent lock naming
-        sorted_edge_key = tuple(sorted(edge_key))
-        relationship_lock = get_or_create_lock(f"relationship:{sorted_edge_key[0]}:{sorted_edge_key[1]}:{workspace}")
-
-        async with relationship_lock:
-            # Process and update relationship in graph db
-            edge_data = await _merge_edges_then_upsert(
-                edge_key[0],
-                edge_key[1],
-                edges,
-                knowledge_graph_inst,
-                llm_model_func,
-                tokenizer,
-                llm_model_max_token_size,
-                summary_to_max_tokens,
-                language,
-                force_llm_summary_on_merge,
-                lightrag_logger,
-                workspace,
-            )
-
-            # Update relationship in vector db immediately under the same lock
-            if relationships_vdb is not None and edge_data is not None:
-                vdb_data = {
-                    compute_mdhash_id(edge_data["src_id"] + edge_data["tgt_id"], prefix="rel-", workspace=workspace): {
-                        "src_id": edge_data["src_id"],
-                        "tgt_id": edge_data["tgt_id"],
-                        "keywords": edge_data["keywords"],
-                        "content": f"{edge_data['src_id']}\t{edge_data['tgt_id']}\n{edge_data['keywords']}\n{edge_data['description']}",
-                        "source_id": edge_data["source_id"],
-                        "file_path": edge_data.get("file_path", "unknown_source"),
-                    }
-                }
-                await relationships_vdb.upsert(vdb_data)
-
-            if edge_data is not None:
-                relation_count += 1
+    relationship_results = await asyncio.gather(
+        *[_process_relationship(edge_key, edges) for edge_key, edges in all_edges.items()]
+    )
+    relation_count = sum(1 for result in relationship_results if result)
 
     return {"entity_count": entity_count, "relation_count": relation_count}
 
@@ -1694,6 +1701,23 @@ async def get_high_degree_nodes(
         Input: Graph with 1000 nodes, max_analyze_nodes=300
         Output: (GraphNodeDataDict with 300 nodes, 1000)
     """
+    top_degree_nodes_result = await graph_storage.get_top_degree_nodes(max_analyze_nodes)
+    if top_degree_nodes_result is not None:
+        nodes_data_raw, total_nodes = top_degree_nodes_result
+        nodes_by_id = {}
+        for label, raw_data in nodes_data_raw.items():
+            raw_data = dict(raw_data)
+            raw_data.setdefault("entity_id", label)
+            raw_data["degree"] = raw_data.get("degree", 0)
+            nodes_by_id[label] = GraphNodeData(**raw_data)
+
+        if lightrag_logger:
+            lightrag_logger.debug(
+                f"Selected {len(nodes_by_id)} high-degree nodes directly from storage (total nodes: {total_nodes})"
+            )
+
+        return GraphNodeDataDict(nodes_by_id=nodes_by_id), total_nodes
+
     # Get all node labels
     all_labels = await graph_storage.get_all_labels()
     if not all_labels:

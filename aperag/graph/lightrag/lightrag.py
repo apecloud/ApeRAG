@@ -79,6 +79,7 @@ from .utils import (
     compute_mdhash_id,
     create_lightrag_logger,
     logger,
+    split_string_by_multi_markers,
 )
 
 
@@ -881,139 +882,195 @@ class LightRAG:
             self.lightrag_logger.info(f"Starting deletion for document {doc_id}")
 
             # ========== STEP 1: Get all chunks related to this document ==========
-            all_chunks = await self.text_chunks.get_all()
-            related_chunks = {
-                chunk_id: chunk_data
-                for chunk_id, chunk_data in all_chunks.items()
-                if isinstance(chunk_data, dict) and chunk_data.get("full_doc_id") == doc_id
-            }
+            if hasattr(self.text_chunks, "get_by_doc_id"):
+                related_chunks = await self.text_chunks.get_by_doc_id(doc_id)
+            else:
+                all_chunks = await self.text_chunks.get_all()
+                related_chunks = {
+                    chunk_id: chunk_data
+                    for chunk_id, chunk_data in all_chunks.items()
+                    if isinstance(chunk_data, dict) and chunk_data.get("full_doc_id") == doc_id
+                }
 
             if not related_chunks:
                 logger.warning(f"No chunks found for document {doc_id}")
                 return
 
             chunk_ids = set(related_chunks.keys())
+            chunk_id_list = list(chunk_ids)
             self.lightrag_logger.info(f"Found {len(chunk_ids)} chunks to delete for document {doc_id}")
 
             # ========== STEP 2: Handle Vector Storage References (chunk_ids arrays) ==========
-            # Process entities in vector storage
             entities_to_delete_from_vdb = []
             entities_to_update_in_vdb = {}
-
-            if hasattr(self.entities_vdb, "get_all"):
-                all_entities = await self.entities_vdb.get_all()
-                for entity_id, entity_data in all_entities.items():
-                    if not isinstance(entity_data, dict) or "chunk_ids" not in entity_data:
-                        continue
-
-                    # Remove deleted chunks from entity's chunk_ids array
-                    old_chunk_ids = set(entity_data.get("chunk_ids", []))
-                    new_chunk_ids = old_chunk_ids - chunk_ids
-
-                    if not new_chunk_ids:
-                        # Entity has no remaining chunks, mark for deletion
-                        entity_name = entity_data.get("entity_name")
-                        if entity_name:
-                            entities_to_delete_from_vdb.append(entity_name)
-                            self.lightrag_logger.debug(
-                                f"Entity {entity_name} marked for deletion from VDB - no remaining chunks"
-                            )
-                    elif len(new_chunk_ids) != len(old_chunk_ids):
-                        # Entity has some remaining chunks, update chunk_ids array
-                        entity_data["chunk_ids"] = list(new_chunk_ids)
-                        entity_data["source_id"] = GRAPH_FIELD_SEP.join(new_chunk_ids)
-                        entities_to_update_in_vdb[entity_id] = entity_data
-                        self.lightrag_logger.debug(
-                            f"Entity {entity_data.get('entity_name')} chunk_ids updated: {len(old_chunk_ids)} -> {len(new_chunk_ids)}"
-                        )
-
-            # Process relationships in vector storage
             relationships_to_delete_from_vdb = []
             relationships_to_update_in_vdb = {}
 
-            if hasattr(self.relationships_vdb, "get_all"):
-                all_relationships = await self.relationships_vdb.get_all()
-                for rel_id, rel_data in all_relationships.items():
-                    if not isinstance(rel_data, dict) or "chunk_ids" not in rel_data:
-                        continue
+            if hasattr(self.entities_vdb, "get_by_chunk_ids"):
+                candidate_entities = await self.entities_vdb.get_by_chunk_ids(chunk_id_list)
+            elif hasattr(self.entities_vdb, "get_all"):
+                candidate_entities = await self.entities_vdb.get_all()
+            else:
+                candidate_entities = {}
 
-                    # Remove deleted chunks from relationship's chunk_ids array
-                    old_chunk_ids = set(rel_data.get("chunk_ids", []))
-                    new_chunk_ids = old_chunk_ids - chunk_ids
+            for entity_id, entity_data in candidate_entities.items():
+                if not isinstance(entity_data, dict) or "chunk_ids" not in entity_data:
+                    continue
 
-                    if not new_chunk_ids:
-                        # Relationship has no remaining chunks, mark for deletion by calculating IDs
-                        src_id = rel_data.get("src_id") or rel_data.get("source_id")
-                        tgt_id = rel_data.get("tgt_id") or rel_data.get("target_id")
-                        if src_id and tgt_id:
-                            relationships_to_delete_from_vdb.append((src_id, tgt_id))
-                            self.lightrag_logger.debug(
-                                f"Relationship {src_id}-{tgt_id} marked for deletion from VDB - no remaining chunks"
-                            )
-                    elif len(new_chunk_ids) != len(old_chunk_ids):
-                        # Relationship has some remaining chunks, update chunk_ids array
-                        rel_data["chunk_ids"] = list(new_chunk_ids)
-                        rel_data["source_id"] = GRAPH_FIELD_SEP.join(new_chunk_ids)
-                        relationships_to_update_in_vdb[rel_id] = rel_data
+                old_chunk_ids = {chunk_id for chunk_id in entity_data.get("chunk_ids", []) if chunk_id}
+                new_chunk_ids = old_chunk_ids - chunk_ids
+
+                if not new_chunk_ids:
+                    entity_name = entity_data.get("entity_name")
+                    if entity_name:
+                        entities_to_delete_from_vdb.append(entity_name)
                         self.lightrag_logger.debug(
-                            f"Relationship {rel_data.get('src_id')}-{rel_data.get('tgt_id')} chunk_ids updated: {len(old_chunk_ids)} -> {len(new_chunk_ids)}"
+                            f"Entity {entity_name} marked for deletion from VDB - no remaining chunks"
                         )
+                elif len(new_chunk_ids) != len(old_chunk_ids):
+                    updated_entity = dict(entity_data)
+                    updated_entity["chunk_ids"] = sorted(new_chunk_ids)
+                    entities_to_update_in_vdb[entity_id] = updated_entity
+                    self.lightrag_logger.debug(
+                        f"Entity {entity_data.get('entity_name')} chunk_ids updated: {len(old_chunk_ids)} -> {len(new_chunk_ids)}"
+                    )
+
+            if hasattr(self.relationships_vdb, "get_by_chunk_ids"):
+                candidate_relationships = await self.relationships_vdb.get_by_chunk_ids(chunk_id_list)
+            elif hasattr(self.relationships_vdb, "get_all"):
+                candidate_relationships = await self.relationships_vdb.get_all()
+            else:
+                candidate_relationships = {}
+
+            for rel_id, rel_data in candidate_relationships.items():
+                if not isinstance(rel_data, dict) or "chunk_ids" not in rel_data:
+                    continue
+
+                old_chunk_ids = {chunk_id for chunk_id in rel_data.get("chunk_ids", []) if chunk_id}
+                new_chunk_ids = old_chunk_ids - chunk_ids
+
+                if not new_chunk_ids:
+                    src_id = rel_data.get("src_id") or rel_data.get("source_id")
+                    tgt_id = rel_data.get("tgt_id") or rel_data.get("target_id")
+                    if src_id and tgt_id:
+                        relationships_to_delete_from_vdb.append((src_id, tgt_id))
+                        self.lightrag_logger.debug(
+                            f"Relationship {src_id}-{tgt_id} marked for deletion from VDB - no remaining chunks"
+                        )
+                elif len(new_chunk_ids) != len(old_chunk_ids):
+                    updated_relationship = dict(rel_data)
+                    updated_relationship["chunk_ids"] = sorted(new_chunk_ids)
+                    relationships_to_update_in_vdb[rel_id] = updated_relationship
+                    self.lightrag_logger.debug(
+                        f"Relationship {rel_data.get('src_id')}-{rel_data.get('tgt_id')} chunk_ids updated: {len(old_chunk_ids)} -> {len(new_chunk_ids)}"
+                    )
 
             # ========== STEP 3: Handle Graph Storage References (source_id strings) ==========
-            # Process entities in graph storage
             entities_to_delete_from_graph = set()
             entities_to_update_in_graph = {}
-
-            # Process relationships in graph storage
             relationships_to_delete_from_graph = set()
             relationships_to_update_in_graph = {}
+            graph_fallback_batch_size = 200
 
-            # Get all labels from graph storage
-            all_labels = await self.chunk_entity_relation_graph.get_all_labels()
+            graph_nodes = {}
+            graph_edges = {}
 
-            # Process each entity node
-            for node_label in all_labels:
-                node_data = await self.chunk_entity_relation_graph.get_node(node_label)
-                if node_data and "source_id" in node_data:
-                    # Parse source_id string (format: chunk1|chunk2|chunk3)
-                    sources = set(node_data["source_id"].split(GRAPH_FIELD_SEP))
-                    sources.difference_update(chunk_ids)
+            if hasattr(self.chunk_entity_relation_graph, "get_nodes_by_source_ids"):
+                graph_nodes = await self.chunk_entity_relation_graph.get_nodes_by_source_ids(chunk_id_list)
+            if hasattr(self.chunk_entity_relation_graph, "get_edges_by_source_ids"):
+                graph_edges = await self.chunk_entity_relation_graph.get_edges_by_source_ids(chunk_id_list)
 
-                    if not sources:
-                        # Entity has no remaining source chunks
-                        entities_to_delete_from_graph.add(node_label)
-                        self.lightrag_logger.debug(
-                            f"Entity {node_label} marked for deletion from graph - no remaining sources"
-                        )
-                    else:
-                        # Entity has some remaining source chunks
-                        new_source_id = GRAPH_FIELD_SEP.join(sources)
-                        entities_to_update_in_graph[node_label] = new_source_id
-                        self.lightrag_logger.debug(f"Entity {node_label} source_id will be updated in graph")
+            if not graph_nodes:
+                all_labels = await self.chunk_entity_relation_graph.get_all_labels()
+                for start in range(0, len(all_labels), graph_fallback_batch_size):
+                    batch_labels = all_labels[start : start + graph_fallback_batch_size]
+                    batch_nodes = await self.chunk_entity_relation_graph.get_nodes_batch(batch_labels)
+                    for node_label, node_data in batch_nodes.items():
+                        if not node_data or "source_id" not in node_data:
+                            continue
+                        sources = {
+                            source_id
+                            for source_id in split_string_by_multi_markers(node_data["source_id"], [GRAPH_FIELD_SEP])
+                            if source_id
+                        }
+                        if sources.intersection(chunk_ids):
+                            graph_nodes[node_label] = node_data
 
-                # Process relationships for this entity
-                node_edges = await self.chunk_entity_relation_graph.get_node_edges(node_label)
-                if node_edges:
-                    for src, tgt in node_edges:
-                        edge_data = await self.chunk_entity_relation_graph.get_edge(src, tgt)
-                        if edge_data and "source_id" in edge_data:
-                            # Parse source_id string (format: chunk1|chunk2|chunk3)
-                            sources = set(edge_data["source_id"].split(GRAPH_FIELD_SEP))
-                            sources.difference_update(chunk_ids)
-
-                            if not sources:
-                                # Relationship has no remaining source chunks
-                                relationships_to_delete_from_graph.add((src, tgt))
-                                self.lightrag_logger.debug(
-                                    f"Relationship {src}-{tgt} marked for deletion from graph - no remaining sources"
+            if not graph_edges and graph_nodes:
+                seen_edge_pairs = set()
+                graph_node_ids = list(graph_nodes.keys())
+                for start in range(0, len(graph_node_ids), graph_fallback_batch_size):
+                    batch_node_ids = graph_node_ids[start : start + graph_fallback_batch_size]
+                    node_edges_batch = await self.chunk_entity_relation_graph.get_nodes_edges_batch(batch_node_ids)
+                    edge_pairs = []
+                    for edge_list in node_edges_batch.values():
+                        for pair in edge_list:
+                            if pair not in seen_edge_pairs:
+                                edge_pairs.append({"src": pair[0], "tgt": pair[1]})
+                                seen_edge_pairs.add(pair)
+                    if edge_pairs:
+                        batch_edges = await self.chunk_entity_relation_graph.get_edges_batch(edge_pairs)
+                        for edge_pair, edge_data in batch_edges.items():
+                            if not edge_data or "source_id" not in edge_data:
+                                continue
+                            sources = {
+                                source_id
+                                for source_id in split_string_by_multi_markers(
+                                    edge_data["source_id"], [GRAPH_FIELD_SEP]
                                 )
-                            else:
-                                # Relationship has some remaining source chunks
-                                new_source_id = GRAPH_FIELD_SEP.join(sources)
-                                relationships_to_update_in_graph[(src, tgt)] = new_source_id
-                                self.lightrag_logger.debug(
-                                    f"Relationship {src}-{tgt} source_id will be updated in graph"
-                                )
+                                if source_id
+                            }
+                            if sources.intersection(chunk_ids):
+                                graph_edges[edge_pair] = edge_data
+
+            for node_label, node_data in graph_nodes.items():
+                if not node_data or "source_id" not in node_data:
+                    continue
+
+                sources = {
+                    source_id
+                    for source_id in split_string_by_multi_markers(node_data["source_id"], [GRAPH_FIELD_SEP])
+                    if source_id
+                }
+                if not sources.intersection(chunk_ids):
+                    continue
+
+                sources.difference_update(chunk_ids)
+                if not sources:
+                    entities_to_delete_from_graph.add(node_label)
+                    self.lightrag_logger.debug(
+                        f"Entity {node_label} marked for deletion from graph - no remaining sources"
+                    )
+                else:
+                    updated_node = dict(node_data)
+                    updated_node["source_id"] = GRAPH_FIELD_SEP.join(sorted(sources))
+                    entities_to_update_in_graph[node_label] = updated_node
+                    self.lightrag_logger.debug(f"Entity {node_label} source_id will be updated in graph")
+
+            for edge_pair, edge_data in graph_edges.items():
+                if not edge_data or "source_id" not in edge_data:
+                    continue
+
+                sources = {
+                    source_id
+                    for source_id in split_string_by_multi_markers(edge_data["source_id"], [GRAPH_FIELD_SEP])
+                    if source_id
+                }
+                if not sources.intersection(chunk_ids):
+                    continue
+
+                sources.difference_update(chunk_ids)
+                src, tgt = edge_pair
+                if not sources:
+                    relationships_to_delete_from_graph.add((src, tgt))
+                    self.lightrag_logger.debug(
+                        f"Relationship {src}-{tgt} marked for deletion from graph - no remaining sources"
+                    )
+                else:
+                    updated_edge = dict(edge_data)
+                    updated_edge["source_id"] = GRAPH_FIELD_SEP.join(sorted(sources))
+                    relationships_to_update_in_graph[(src, tgt)] = updated_edge
+                    self.lightrag_logger.debug(f"Relationship {src}-{tgt} source_id will be updated in graph")
 
             # ========== STEP 4: Execute all deletions and updates ==========
 
@@ -1050,11 +1107,8 @@ class LightRAG:
                 await self.chunk_entity_relation_graph.remove_nodes(list(entities_to_delete_from_graph))
                 self.lightrag_logger.info(f"Deleted {len(entities_to_delete_from_graph)} entities from graph storage")
 
-            for entity_name, new_source_id in entities_to_update_in_graph.items():
-                node_data = await self.chunk_entity_relation_graph.get_node(entity_name)
-                if node_data:
-                    node_data["source_id"] = new_source_id
-                    await self.chunk_entity_relation_graph.upsert_node(entity_name, node_data)
+            for entity_name, node_data in entities_to_update_in_graph.items():
+                await self.chunk_entity_relation_graph.upsert_node(entity_name, node_data)
             if entities_to_update_in_graph:
                 self.lightrag_logger.info(f"Updated {len(entities_to_update_in_graph)} entities in graph storage")
 
@@ -1065,11 +1119,8 @@ class LightRAG:
                     f"Deleted {len(relationships_to_delete_from_graph)} relationships from graph storage"
                 )
 
-            for (src, tgt), new_source_id in relationships_to_update_in_graph.items():
-                edge_data = await self.chunk_entity_relation_graph.get_edge(src, tgt)
-                if edge_data:
-                    edge_data["source_id"] = new_source_id
-                    await self.chunk_entity_relation_graph.upsert_edge(src, tgt, edge_data)
+            for (src, tgt), edge_data in relationships_to_update_in_graph.items():
+                await self.chunk_entity_relation_graph.upsert_edge(src, tgt, edge_data)
             if relationships_to_update_in_graph:
                 self.lightrag_logger.info(
                     f"Updated {len(relationships_to_update_in_graph)} relationships in graph storage"
@@ -1082,12 +1133,15 @@ class LightRAG:
 
             # ========== STEP 5: Simple verification ==========
             # Verify chunks were actually deleted
-            remaining_chunks = await self.text_chunks.get_all()
-            remaining_related_chunks = {
-                chunk_id: chunk_data
-                for chunk_id, chunk_data in remaining_chunks.items()
-                if isinstance(chunk_data, dict) and chunk_data.get("full_doc_id") == doc_id
-            }
+            if hasattr(self.text_chunks, "get_by_doc_id"):
+                remaining_related_chunks = await self.text_chunks.get_by_doc_id(doc_id)
+            else:
+                remaining_chunks = await self.text_chunks.get_all()
+                remaining_related_chunks = {
+                    chunk_id: chunk_data
+                    for chunk_id, chunk_data in remaining_chunks.items()
+                    if isinstance(chunk_data, dict) and chunk_data.get("full_doc_id") == doc_id
+                }
 
             if remaining_related_chunks:
                 self.lightrag_logger.warning(
@@ -1301,12 +1355,10 @@ class LightRAG:
         }
 
         # Get all entities and check they exist
-        entities_data = {}
+        entities_data = await self.chunk_entity_relation_graph.get_nodes_batch(entity_ids)
         for entity_id in entity_ids:
-            node_data = await self.chunk_entity_relation_graph.get_node(entity_id)
-            if not node_data:
+            if entity_id not in entities_data:
                 raise ValueError(f"Entity '{entity_id}' does not exist")
-            entities_data[entity_id] = node_data
 
         # Determine target entity
         if target_entity_name is None:
@@ -1319,11 +1371,10 @@ class LightRAG:
         else:
             # Ensure target entity is in the list or exists
             if target_entity_name not in entity_ids:
-                target_exists = await self.chunk_entity_relation_graph.has_node(target_entity_name)
-                if target_exists:
+                target_nodes = await self.chunk_entity_relation_graph.get_nodes_batch([target_entity_name])
+                if target_entity_name in target_nodes:
                     # Target entity exists but not in merge list, add its data
-                    target_data = await self.chunk_entity_relation_graph.get_node(target_entity_name)
-                    entities_data[target_entity_name] = target_data
+                    entities_data[target_entity_name] = target_nodes[target_entity_name]
                     self.lightrag_logger.info(f"Target entity '{target_entity_name}' exists, merging into it")
                 else:
                     self.lightrag_logger.info(f"Target entity '{target_entity_name}' will be created as new")
@@ -1375,18 +1426,22 @@ class LightRAG:
         # Process relationships
         all_relations = []
         relations_to_delete_vdb = []
+        source_entity_ids = [entity_id for entity_id in entity_ids if entity_id != target_entity_name]
+        if source_entity_ids:
+            source_edges_batch = await self.chunk_entity_relation_graph.get_nodes_edges_batch(source_entity_ids)
+            edge_pairs = []
+            seen_edge_pairs = set()
+            for edge_list in source_edges_batch.values():
+                for pair in edge_list:
+                    if pair not in seen_edge_pairs:
+                        edge_pairs.append({"src": pair[0], "tgt": pair[1]})
+                        seen_edge_pairs.add(pair)
 
-        for entity_id in entity_ids:
-            if entity_id == target_entity_name:
-                continue  # Skip target entity to avoid self-processing
-
-            source_edges = await self.chunk_entity_relation_graph.get_node_edges(entity_id)
-            if source_edges:
-                for src, tgt in source_edges:
-                    edge_data = await self.chunk_entity_relation_graph.get_edge(src, tgt)
+            if edge_pairs:
+                edge_data_batch = await self.chunk_entity_relation_graph.get_edges_batch(edge_pairs)
+                for (src, tgt), edge_data in edge_data_batch.items():
                     if edge_data:
                         all_relations.append((src, tgt, edge_data))
-                        # Mark old relations for deletion from vector db
                         relations_to_delete_vdb.extend(
                             [
                                 compute_mdhash_id(src + tgt, prefix="rel-", workspace=self.workspace),
@@ -1495,9 +1550,10 @@ class LightRAG:
                 self.lightrag_logger.debug(f"Updated {len(new_rel_data)} relationship records in vector storage")
 
         # Delete source entities from graph storage
-        for entity_id in source_entities:
-            await self.chunk_entity_relation_graph.delete_node(entity_id)
-            self.lightrag_logger.debug(f"Deleted source entity {entity_id} from graph storage")
+        if source_entities:
+            await self.chunk_entity_relation_graph.remove_nodes(source_entities)
+            for entity_id in source_entities:
+                self.lightrag_logger.debug(f"Deleted source entity {entity_id} from graph storage")
 
         self.lightrag_logger.info(
             f"Multi-node merge completed: {source_entities} -> {target_entity_name}, redirected {redirected_edges} edges"
