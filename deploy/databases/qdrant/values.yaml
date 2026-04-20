@@ -29,3 +29,22 @@ storage: 20
 ## customized default values to override kblib chart's values
 extra:
   terminationPolicy: Delete
+
+## NOTE: Qdrant server-side configuration (memmap threshold / HNSW on_disk /
+## segment number / WAL capacity) is NOT configurable through this chart — the
+## kubeblocks qdrant-cluster chart does not expose a pod-env passthrough. The
+## ApeRAG connector (aperag/vectorstore/qdrant_connector.py::_ensure_collection)
+## already applies full per-collection config at create time so app-managed
+## collections are correctly optimized without server-side defaults.
+##
+## If you want the same defaults to apply to collections created OUTSIDE
+## ApeRAG (raw Qdrant API) or to legacy pre-migration collections, patch the
+## Qdrant StatefulSet manually after helm install:
+##
+##     kubectl -n <ns> set env statefulset/qdrant-cluster-qdrant \
+##       QDRANT__STORAGE__OPTIMIZERS__DEFAULT_SEGMENT_NUMBER=2 \
+##       QDRANT__STORAGE__OPTIMIZERS__MEMMAP_THRESHOLD_KB=20480 \
+##       QDRANT__STORAGE__HNSW_INDEX__ON_DISK=true \
+##       QDRANT__STORAGE__WAL__WAL_CAPACITY_MB=8
+##
+## See docs/zh-CN/design/qdrant_memory_optimization.md for the full rationale.

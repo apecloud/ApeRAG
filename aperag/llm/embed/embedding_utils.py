@@ -63,6 +63,16 @@ def create_embeddings_and_store(
     chunk_overlap = chunk_overlap or settings.chunk_overlap_size
     tokenizer = tokenizer or get_default_tokenizer()
 
+    # Tenant id — every node must carry it so the Qdrant multitenancy filter
+    # (payload: collection_id) works. We pull it from the connector rather than
+    # asking callers to pass it in, so existing call sites only need to set
+    # ``collection_id`` themselves if they want to override it.
+    tenant_id = None
+    try:
+        tenant_id = getattr(vector_store_adaptor.connector, "tenant_id", None)
+    except Exception:
+        tenant_id = None
+
     nodes: List[BaseNode] = []
 
     # 1. Rechunk the document parts (resulting in text parts)
@@ -103,6 +113,10 @@ def create_embeddings_and_store(
         # 2.3 Prepare metadata for the node
         metadata = part.metadata.copy()
         metadata["source"] = metadata.get("name", "")
+        # 2.3.1 Ensure the tenant key is present. Callers may already set it
+        # (vision/summary indexers do); if not, we fall back to the connector.
+        if tenant_id and not metadata.get("collection_id"):
+            metadata["collection_id"] = tenant_id
         # 2.4 Create TextNode
         nodes.append(TextNode(text=text, metadata=metadata))
 

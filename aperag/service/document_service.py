@@ -51,7 +51,6 @@ from aperag.utils.pagination import (
 )
 from aperag.utils.uncompress import SUPPORTED_COMPRESSED_EXTENSIONS
 from aperag.utils.utils import calculate_file_hash, generate_vector_db_collection_name, utc_now
-from aperag.vectorstore.connector import VectorStoreConnectorAdaptor
 
 logger = logging.getLogger(__name__)
 
@@ -802,19 +801,28 @@ class DocumentService:
             if not ctx_ids:
                 return []
 
-            # 2. Retrieve chunks from Qdrant
+            # 2. Retrieve chunks via the vector-store connector. We go through
+            # the connector (not the raw qdrant client) because in multitenant
+            # mode it (a) routes to the correct global Qdrant collection based
+            # on vector_size and (b) enforces the tenant-id guard.
             try:
-                collection_name = generate_vector_db_collection_name(collection_id=collection_id)
-                ctx = json.loads(settings.vector_db_context)
-                ctx["collection"] = collection_name
-                vector_store_adaptor = VectorStoreConnectorAdaptor(settings.vector_db_type, ctx=ctx)
-                qdrant_client = vector_store_adaptor.connector.client
+                collection_obj = await self.db_ops.query_collection(user_id, collection_id)
+                vector_size = None
+                if collection_obj is not None:
+                    try:
+                        from aperag.llm.embed.base_embedding import get_collection_embedding_service_sync
 
-                points = qdrant_client.retrieve(
-                    collection_name=collection_name,
-                    ids=ctx_ids,
-                    with_payload=True,
+                        _, vector_size = get_collection_embedding_service_sync(collection_obj)
+                    except Exception:
+                        vector_size = None
+
+                from aperag.config import get_vector_db_connector as _get_vdb
+
+                vector_store_adaptor = _get_vdb(
+                    collection=generate_vector_db_collection_name(collection_id=collection_id),
+                    vector_size=vector_size,
                 )
+                points = vector_store_adaptor.connector.retrieve(ids=ctx_ids, with_payload=True)
 
                 # 3. Format the response
                 chunks = []
@@ -880,19 +888,26 @@ class DocumentService:
             if not ctx_ids:
                 return []
 
-            # 2. Retrieve chunks from Qdrant
+            # 2. Retrieve chunks via the connector for the same reasons as
+            # get_document_chunks above (tenant-aware routing).
             try:
-                collection_name = generate_vector_db_collection_name(collection_id=collection_id)
-                ctx = json.loads(settings.vector_db_context)
-                ctx["collection"] = collection_name
-                vector_store_adaptor = VectorStoreConnectorAdaptor(settings.vector_db_type, ctx=ctx)
-                qdrant_client = vector_store_adaptor.connector.client
+                collection_obj = await self.db_ops.query_collection(user_id, collection_id)
+                vector_size = None
+                if collection_obj is not None:
+                    try:
+                        from aperag.llm.embed.base_embedding import get_collection_embedding_service_sync
 
-                points = qdrant_client.retrieve(
-                    collection_name=collection_name,
-                    ids=ctx_ids,
-                    with_payload=True,
+                        _, vector_size = get_collection_embedding_service_sync(collection_obj)
+                    except Exception:
+                        vector_size = None
+
+                from aperag.config import get_vector_db_connector as _get_vdb
+
+                vector_store_adaptor = _get_vdb(
+                    collection=generate_vector_db_collection_name(collection_id=collection_id),
+                    vector_size=vector_size,
                 )
+                points = vector_store_adaptor.connector.retrieve(ids=ctx_ids, with_payload=True)
 
                 # 3. Format the response
                 vision_chunks = []

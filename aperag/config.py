@@ -121,6 +121,20 @@ class Config(BaseSettings):
         '{"url":"http://localhost", "port":6333, "distance":"Cosine"}', alias="VECTOR_DB_CONTEXT"
     )
 
+    # Qdrant multitenancy & memory-optimization toggles. These are merged into
+    # the vector_db_context dict that the connector receives, so downstream
+    # code keeps using a single ctx-shaped object.
+    qdrant_multitenant: bool = Field(True, alias="QDRANT_MULTITENANT")
+    qdrant_quantization_enabled: bool = Field(True, alias="QDRANT_QUANTIZATION_ENABLED")
+    qdrant_quantization_type: str = Field("int8", alias="QDRANT_QUANTIZATION_TYPE")
+    qdrant_quantization_quantile: float = Field(0.99, alias="QDRANT_QUANTIZATION_QUANTILE")
+    qdrant_quantization_always_ram: bool = Field(True, alias="QDRANT_QUANTIZATION_ALWAYS_RAM")
+    qdrant_hnsw_on_disk: bool = Field(True, alias="QDRANT_HNSW_ON_DISK")
+    qdrant_default_segment_number: int = Field(2, alias="QDRANT_DEFAULT_SEGMENT_NUMBER")
+    qdrant_mmap_threshold_kb: int = Field(20480, alias="QDRANT_MMAP_THRESHOLD_KB")
+    qdrant_vectors_on_disk: bool = Field(True, alias="QDRANT_VECTORS_ON_DISK")
+    qdrant_on_disk_payload: bool = Field(True, alias="QDRANT_ON_DISK_PAYLOAD")
+
     # Object store
     object_store_type: str = Field("local", alias="OBJECT_STORE_TYPE")
     object_store_local_config: Optional[LocalObjectStoreConfig] = None
@@ -322,9 +336,43 @@ AsyncSessionDep = Annotated[AsyncSession, Depends(get_async_session)]
 SyncSessionDep = Annotated[Session, Depends(get_sync_session)]
 
 
-def get_vector_db_connector(collection: str) -> VectorStoreConnectorAdaptor:
-    # todo: specify the collection for different user
-    # one person one collection
+def build_vector_db_context(collection: str, vector_size: Optional[int] = None) -> Dict[str, Any]:
+    """Build the ctx dict that QdrantVectorStoreConnector expects.
+
+    Centralised so both the app and the migration script produce identical
+    contexts. The ``vector_size`` argument is required when multitenancy is
+    enabled — different embedding models map to different physical Qdrant
+    collections (``aperag_vectors_{size}_{distance}``), so we must know the
+    size before we route.
+    """
     ctx = json.loads(settings.vector_db_context)
     ctx["collection"] = collection
+
+    if vector_size is not None:
+        ctx["vector_size"] = int(vector_size)
+
+    # Merge the operator-level knobs into the ctx. Individual callers can still
+    # override by pre-setting the field in VECTOR_DB_CONTEXT JSON.
+    ctx.setdefault("multitenant", settings.qdrant_multitenant)
+    ctx.setdefault("quantization_enabled", settings.qdrant_quantization_enabled)
+    ctx.setdefault("quantization_type", settings.qdrant_quantization_type)
+    ctx.setdefault("quantization_quantile", settings.qdrant_quantization_quantile)
+    ctx.setdefault("quantization_always_ram", settings.qdrant_quantization_always_ram)
+    ctx.setdefault("hnsw_on_disk", settings.qdrant_hnsw_on_disk)
+    ctx.setdefault("default_segment_number", settings.qdrant_default_segment_number)
+    ctx.setdefault("mmap_threshold_kb", settings.qdrant_mmap_threshold_kb)
+    ctx.setdefault("vectors_on_disk", settings.qdrant_vectors_on_disk)
+    ctx.setdefault("on_disk_payload", settings.qdrant_on_disk_payload)
+    return ctx
+
+
+def get_vector_db_connector(collection: str, vector_size: Optional[int] = None) -> VectorStoreConnectorAdaptor:
+    """Return a VectorStoreConnectorAdaptor bound to the given ApeRAG collection.
+
+    ``collection`` is treated as the tenant id. ``vector_size`` should be passed
+    whenever it is known by the caller (index/search paths that already have an
+    embedding model in hand); the connector falls back to ctx-level defaults
+    when omitted, which is acceptable for delete-only paths.
+    """
+    ctx = build_vector_db_context(collection, vector_size=vector_size)
     return VectorStoreConnectorAdaptor(settings.vector_db_type, ctx=ctx)

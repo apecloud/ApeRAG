@@ -92,7 +92,8 @@ class VisionIndexer(BaseIndexer):
             )
 
         vector_store_adaptor = get_vector_db_connector(
-            collection=generate_vector_db_collection_name(collection_id=collection.id)
+            collection=generate_vector_db_collection_name(collection_id=collection.id),
+            vector_size=vector_size,
         )
         all_ctx_ids = []
 
@@ -282,9 +283,15 @@ class VisionIndexer(BaseIndexer):
                     success=True, index_type=self.index_type, metadata={"message": "No context IDs to delete"}
                 )
 
-            # Delete vectors from vector database
+            # Delete vectors from vector database. Vision index shares the
+            # same global collection as text chunks (keyed by vector_size).
+            try:
+                _, vector_size = get_collection_embedding_service_sync(collection)
+            except Exception:
+                vector_size = None
             vector_db = get_vector_db_connector(
-                collection=generate_vector_db_collection_name(collection_id=collection.id)
+                collection=generate_vector_db_collection_name(collection_id=collection.id),
+                vector_size=vector_size,
             )
             vector_db.connector.delete(ids=ctx_ids)
 

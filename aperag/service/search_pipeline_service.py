@@ -13,12 +13,11 @@
 # limitations under the License.
 
 import asyncio
-import json
 import logging
 from functools import partial
 from typing import List, Optional, Tuple
 
-from aperag.config import settings
+from aperag.config import build_vector_db_context, settings
 from aperag.context.context import ContextManager
 from aperag.db.models import Collection
 from aperag.db.ops import async_db_ops
@@ -191,9 +190,8 @@ class SearchPipelineService:
     ) -> List[DocumentWithScore]:
         try:
             collection_name = generate_vector_db_collection_name(collection.id)
-            embedding_model, _ = get_collection_embedding_service_sync(collection)
-            vectordb_ctx = json.loads(settings.vector_db_context)
-            vectordb_ctx["collection"] = collection_name
+            embedding_model, vector_size = get_collection_embedding_service_sync(collection)
+            vectordb_ctx = build_vector_db_context(collection_name, vector_size=vector_size)
             context_manager = ContextManager(collection_name, embedding_model, settings.vector_db_type, vectordb_ctx)
 
             vector = await asyncio.to_thread(embedding_model.embed_query, query)
@@ -283,9 +281,8 @@ class SearchPipelineService:
     ) -> List[DocumentWithScore]:
         try:
             collection_name = generate_vector_db_collection_name(collection.id)
-            embedding_model, _ = get_collection_embedding_service_sync(collection)
-            vectordb_ctx = json.loads(settings.vector_db_context)
-            vectordb_ctx["collection"] = collection_name
+            embedding_model, vector_size = get_collection_embedding_service_sync(collection)
+            vectordb_ctx = build_vector_db_context(collection_name, vector_size=vector_size)
             context_manager = ContextManager(collection_name, embedding_model, settings.vector_db_type, vectordb_ctx)
 
             vector = await asyncio.to_thread(embedding_model.embed_query, query)
@@ -322,9 +319,8 @@ class SearchPipelineService:
     ) -> List[DocumentWithScore]:
         try:
             collection_name = generate_vector_db_collection_name(collection.id)
-            embedding_model, _ = get_collection_embedding_service_sync(collection)
-            vectordb_ctx = json.loads(settings.vector_db_context)
-            vectordb_ctx["collection"] = collection_name
+            embedding_model, vector_size = get_collection_embedding_service_sync(collection)
+            vectordb_ctx = build_vector_db_context(collection_name, vector_size=vector_size)
             context_manager = ContextManager(collection_name, embedding_model, settings.vector_db_type, vectordb_ctx)
 
             vector = await asyncio.to_thread(embedding_model.embed_query, query)
