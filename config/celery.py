@@ -62,13 +62,6 @@ app.conf.beat_schedule = {
     },
 }
 
-# Set up task routes if local queue is specified
-if settings.local_queue_name:
-    app.conf.task_routes = {
-        "aperag.tasks.index.add_index_for_local_document": {"queue": f"{settings.local_queue_name}"},
-    }
-
-
 # Simple logging configuration for Celery workers
 CELERY_LOGGING_CONFIG = {
     'version': 1,
@@ -126,6 +119,12 @@ def setup_worker(**kwargs):
     """Setup logging and other worker initialization"""
     # Configure logging for this worker process
     dictConfig(CELERY_LOGGING_CONFIG)
+    # Celery tasks create isolated event loops (`asyncio.run()` / manual loop wrappers).
+    # LiteLLM's async callback worker keeps a process-global asyncio.Queue, which can become
+    # bound to the wrong loop and crash the worker process.
+    from aperag.llm.litellm_logging import disable_litellm_async_logging_callbacks
+
+    disable_litellm_async_logging_callbacks()
 
 @worker_process_shutdown.connect
 def shutdown_worker(**kwargs):

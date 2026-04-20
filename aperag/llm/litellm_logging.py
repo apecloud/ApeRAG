@@ -13,6 +13,24 @@
 # limitations under the License.
 
 
+def disable_litellm_async_logging_callbacks():
+    """
+    Disable LiteLLM's async callback path in process types that spin up many short-lived
+    event loops, such as Celery tasks using ``asyncio.run()`` or custom loop wrappers.
+    """
+    import logging
+
+    import litellm
+
+    litellm.turn_off_message_logging = True
+    litellm.callbacks = []
+    litellm._async_success_callback = []
+    litellm._async_failure_callback = []
+    litellm._async_input_callback = []
+
+    logging.info("LiteLLM async logging callbacks are disabled for this process.")
+
+
 def setup_litellm_logging():
     import logging
 

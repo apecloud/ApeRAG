@@ -106,6 +106,33 @@ def create_task_scheduler(scheduler_type: str):
 class CeleryTaskScheduler(TaskScheduler):
     """Celery implementation of TaskScheduler - Direct workflow execution"""
 
+    @staticmethod
+    def _build_status_result(task_id: str, async_result, nested_workflow_id: str = None) -> TaskResult:
+        """Normalize Celery AsyncResult states, optionally following a dispatched child workflow."""
+        if async_result.state == "PENDING":
+            return TaskResult(task_id, success=False, error="Workflow is pending")
+        elif async_result.state in {"STARTED", "RETRY"}:
+            return TaskResult(task_id, success=False, error="Workflow is running")
+        elif async_result.state == "FAILURE":
+            return TaskResult(task_id, success=False, error=str(async_result.info))
+        elif async_result.state != "SUCCESS":
+            return TaskResult(task_id, success=False, error=f"Unknown state: {async_result.state}")
+
+        result_data = async_result.result
+        if isinstance(result_data, dict):
+            child_workflow_id = result_data.get("workflow_id")
+            if child_workflow_id and child_workflow_id != nested_workflow_id:
+                from celery.result import AsyncResult
+
+                from config.celery import app
+
+                nested_result = AsyncResult(child_workflow_id, app=app)
+                return CeleryTaskScheduler._build_status_result(
+                    task_id, nested_result, nested_workflow_id=child_workflow_id
+                )
+
+        return TaskResult(task_id, success=True, data=result_data)
+
     def schedule_create_index(self, document_id: str, index_types: List[str], context: dict = None, **kwargs) -> str:
         """Schedule index creation workflow"""
         from config.celery_tasks import create_document_indexes_workflow
@@ -164,17 +191,7 @@ class CeleryTaskScheduler(TaskScheduler):
             # Get AsyncResult without calling .get()
             workflow_result = AsyncResult(task_id, app=app)
 
-            # Check status without blocking
-            if workflow_result.state == "PENDING":
-                return TaskResult(task_id, success=False, error="Workflow is pending")
-            elif workflow_result.state == "STARTED":
-                return TaskResult(task_id, success=False, error="Workflow is running")
-            elif workflow_result.state == "SUCCESS":
-                return TaskResult(task_id, success=True, data=workflow_result.result)
-            elif workflow_result.state == "FAILURE":
-                return TaskResult(task_id, success=False, error=str(workflow_result.info))
-            else:
-                return TaskResult(task_id, success=False, error=f"Unknown state: {workflow_result.state}")
+            return self._build_status_result(task_id, workflow_result)
 
         except Exception as e:
             logger.error(f"Failed to get workflow status for {task_id}: {str(e)}")
