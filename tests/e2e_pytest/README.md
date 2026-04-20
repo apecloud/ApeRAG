@@ -42,8 +42,8 @@ Ensure ApeRAG services are running:
 ```bash
 # Start ApeRAG services
 cd /path/to/ApeRAG
-make run-backend
-make run-celery
+make serve-api
+make serve-worker
 ```
 
 ### 2. Create Environment Configuration File
@@ -91,7 +91,7 @@ RERANK_MODEL_NAME=BAAI/bge-large-zh-1.5
 
 ```bash
 # Run all e2e tests
-make e2e-test
+make test-e2e
 
 # Run specific test file
 pytest tests/e2e_pytest/test_chat.py

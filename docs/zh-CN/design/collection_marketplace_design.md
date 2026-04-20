@@ -381,7 +381,7 @@ ORDER BY ucs.gmt_subscribed DESC;
 
 **4.1.2 新增视图模型 (aperag/schema/view_models.py):**
 > 在aperag/api/components/schemas/marketplace.yaml中定义
-> 注意需要用make generate-models和make generate-frontend-sdk生成前后端代码
+> 注意需要用make api-generate-models和make api-generate-sdk生成前后端代码
 
 - **`SharedCollection`**: 共享的 Collection 信息（视图模型）
     - `id: str`: Collection ID
@@ -1110,9 +1110,9 @@ const CollectionDetail: React.FC = () => {
         - 包含所有必要字段、约束和索引（特别注意 `gmt_deleted` 的索引优化）
         - 注意：`status` 字段使用 `Column(String(20))` 而非 `EnumColumn`，确保数据库层使用VARCHAR
         - 重点：UserCollectionSubscription表关联collection_marketplace_id而不是collection_id
-    - [x] 运行 `make makemigration` 生成新的数据库迁移脚本
+    - [x] 运行 `make db-revision` 生成新的数据库迁移脚本
     - [x] 检查生成的迁移脚本（位于 `aperag/migration/versions/`）确保 SQL 语法正确性和索引创建
-    - [x] 运行 `make migrate` 将数据库 schema 变更应用到开发环境
+    - [x] 运行 `make db-migrate` 将数据库 schema 变更应用到开发环境
     - [x] 验证新表创建成功，检查约束和索引是否正确建立
 
 - [x] **1.2. OpenAPI Schema 定义**
@@ -1132,7 +1132,7 @@ const CollectionDetail: React.FC = () => {
         - `DELETE /api/v1/collections/{collection_id}/sharing`
 
     - [x] 修改 `aperag/api/components/schemas/collection.yaml`，在 Collection schema 中添加 `is_published` 和 `published_at` 字段
-    - [x] 运行 `make generate-models` 生成更新后的 `aperag/schema/view_models.py`
+    - [x] 运行 `make api-generate-models` 生成更新后的 `aperag/schema/view_models.py`
     - [x] 验证生成的 Pydantic 模型类型注解正确
 
 - [x] **1.3. 服务层 - Marketplace Service**
@@ -1221,7 +1221,7 @@ const CollectionDetail: React.FC = () => {
         - 为每个端点添加订阅权限验证和异常错误处理
 
 - [x] **2.2. 前端 - 生成 SDK 与状态管理**
-    - [x] 运行 `make generate-frontend-sdk` 更新前端 API client
+    - [x] 运行 `make api-generate-sdk` 更新前端 API client
     - [x] 验证 `frontend/src/api/` 目录中的新增内容：
         - 检查 `apis/` 目录下是否生成了 marketplace 相关的 API 函数
         - 检查 `models/` 目录下是否生成了新的 TypeScript 接口

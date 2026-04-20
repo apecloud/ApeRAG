@@ -26,7 +26,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          make install
+          make env-install
 
       - name: Run lint
         run: |
@@ -34,7 +34,7 @@ jobs:
 
       - name: Run unit tests with coverage
         run: |
-          make unit-test
+          make test-unit
 
       - name: Upload unit coverage artifacts
         if: always()
