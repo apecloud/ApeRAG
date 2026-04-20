@@ -237,7 +237,10 @@ class Collection(Base):
 
 class CollectionSummary(Base):
     __tablename__ = "collection_summary"
-    __table_args__ = (UniqueConstraint("collection_id", name="uq_collection_summary"),)
+    __table_args__ = (
+        UniqueConstraint("collection_id", name="uq_collection_summary"),
+        Index("idx_collection_summary_status_lease", "status", "lease_expires_at"),
+    )
 
     id = Column(String(24), primary_key=True, default=lambda: "cs" + random_id())
     collection_id = Column(String(24), nullable=False, index=True)
@@ -252,6 +255,8 @@ class CollectionSummary(Base):
     # Summary content and metadata
     summary = Column(Text, nullable=True)
     error_message = Column(Text, nullable=True)
+    processing_token = Column(String(64), nullable=True)
+    lease_expires_at = Column(DateTime(timezone=True), nullable=True)
 
     # Timestamps
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
@@ -767,7 +772,10 @@ class DocumentIndex(Base):
     """Document index - single status model"""
 
     __tablename__ = "document_index"
-    __table_args__ = (UniqueConstraint("document_id", "index_type", name="uq_document_index"),)
+    __table_args__ = (
+        UniqueConstraint("document_id", "index_type", name="uq_document_index"),
+        Index("idx_document_index_status_lease", "status", "lease_expires_at"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     document_id = Column(String(24), nullable=False, index=True)
@@ -780,6 +788,8 @@ class DocumentIndex(Base):
     # Index data and task tracking
     index_data = Column(Text, nullable=True)  # JSON string for index-specific data
     error_message = Column(Text, nullable=True)
+    processing_token = Column(String(64), nullable=True)
+    lease_expires_at = Column(DateTime(timezone=True), nullable=True)
 
     # Timestamps
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)

@@ -165,13 +165,13 @@ class CeleryTaskScheduler(TaskScheduler):
             logger.error(f"Failed to schedule update indexes workflow for document {document_id}: {str(e)}")
             raise
 
-    def schedule_delete_index(self, document_id: str, index_types: List[str], **kwargs) -> str:
+    def schedule_delete_index(self, document_id: str, index_types: List[str], context: dict = None, **kwargs) -> str:
         """Schedule index deletion workflow"""
         from config.celery_tasks import delete_document_indexes_workflow
 
         try:
             # Execute workflow and return AsyncResult ID
-            workflow_result = delete_document_indexes_workflow(document_id, index_types)
+            workflow_result = delete_document_indexes_workflow(document_id, index_types, context)
             workflow_id = workflow_result.id
             logger.debug(
                 f"Scheduled delete indexes workflow {workflow_id} for document {document_id} with types {index_types}"

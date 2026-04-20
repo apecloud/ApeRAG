@@ -14,7 +14,7 @@
 
 import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -93,8 +93,27 @@ class CollectionSummaryService:
         )
         return result.scalar_one_or_none()
 
-    def generate_collection_summary_task(self, summary_id: str, collection_id: str, target_version: int):
+    def generate_collection_summary_task(
+        self,
+        summary_id: str,
+        collection_id: str,
+        target_version: int,
+        processing_token: str,
+        callback_allowed: Optional[Callable[[], bool]] = None,
+    ):
         """Background task to generate collection summary using map-reduce strategy"""
+        callback_allowed = callback_allowed or (lambda: True)
+
+        def can_emit_callback(callback_type: str) -> bool:
+            if callback_allowed():
+                return True
+            logger.warning(
+                "Skipping collection summary %s callback for %s because ownership was lost",
+                callback_type,
+                summary_id,
+            )
+            return False
+
         try:
             logger.info(
                 f"Starting collection summary generation for summary {summary_id} (collection: {collection_id}, v{target_version})"
@@ -112,46 +131,79 @@ class CollectionSummaryService:
 
             if not collection:
                 logger.error(f"Collection {collection_id} not found during summary generation")
-                CollectionSummaryCallbacks.on_summary_failed(summary_id, "Collection not found", target_version)
+                if can_emit_callback("failure"):
+                    CollectionSummaryCallbacks.on_summary_failed(
+                        summary_id,
+                        "Collection not found",
+                        target_version,
+                        processing_token,
+                    )
                 return
 
             if not summary:
                 logger.error(f"CollectionSummary {summary_id} not found during summary generation")
                 return
 
-            if summary.status != CollectionSummaryStatus.GENERATING or summary.version != target_version:
+            if (
+                summary.status != CollectionSummaryStatus.GENERATING
+                or summary.version != target_version
+                or summary.processing_token != processing_token
+            ):
                 raise Exception(
-                    f"CollectionSummary {summary_id} status/version mismatch, Status: {summary.status}, Version: {summary.version}, Target: {target_version}, retry... "
+                    "CollectionSummary "
+                    f"{summary_id} state mismatch, Status: {summary.status}, "
+                    f"Version: {summary.version}, Token: {summary.processing_token}, "
+                    f"Target: {target_version}, retry... "
                 )
 
             completion_service = get_collection_completion_service_sync(collection)
 
             if not completion_service:
                 logger.warning(f"No completion service available for collection {collection_id}")
-                CollectionSummaryCallbacks.on_summary_failed(
-                    summary_id, "No completion service available", target_version
-                )
+                if can_emit_callback("failure"):
+                    CollectionSummaryCallbacks.on_summary_failed(
+                        summary_id,
+                        "No completion service available",
+                        target_version,
+                        processing_token,
+                    )
                 return
 
             document_summaries = self._get_all_document_summaries(collection_id)
 
             if not document_summaries:
                 logger.info(f"No document summaries found for collection {collection_id}")
-                CollectionSummaryCallbacks.on_summary_generated(
-                    summary_id, "", target_version
-                )  # TODO: should we return empty string?
+                if can_emit_callback("success"):
+                    CollectionSummaryCallbacks.on_summary_generated(
+                        summary_id,
+                        "",
+                        target_version,
+                        processing_token,
+                    )  # TODO: should we return empty string?
                 return
 
             collection_summary_text = self._reduce_document_summaries(
                 completion_service, document_summaries, collection.title
             )
 
-            CollectionSummaryCallbacks.on_summary_generated(summary_id, collection_summary_text, target_version)
+            if can_emit_callback("success"):
+                CollectionSummaryCallbacks.on_summary_generated(
+                    summary_id,
+                    collection_summary_text,
+                    target_version,
+                    processing_token,
+                )
             logger.info(f"Collection summary generated successfully for summary {summary_id} (v{target_version})")
 
         except Exception as e:
             logger.error(f"Error generating collection summary for {summary_id}: {e}", exc_info=True)
-            CollectionSummaryCallbacks.on_summary_failed(summary_id, str(e), target_version)
+            if can_emit_callback("failure"):
+                CollectionSummaryCallbacks.on_summary_failed(
+                    summary_id,
+                    str(e),
+                    target_version,
+                    processing_token,
+                )
 
     def _get_all_document_summaries(self, collection_id: str) -> List[Dict[str, Any]]:
         """Get all document summaries for the collection (Map phase)"""
