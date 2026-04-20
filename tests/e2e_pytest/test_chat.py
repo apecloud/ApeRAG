@@ -1,280 +1,64 @@
 import json
 import logging
 from http import HTTPStatus
-from pathlib import Path
 from typing import Any, Dict, List
 
 import pytest
-import yaml
-from openai import OpenAI
 
-from tests.e2e_pytest.config import API_BASE_URL, WS_BASE_URL
+from tests.e2e_pytest.config import WS_BASE_URL
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
 
-class APITestHelper:
-    """Helper class for API testing to reduce code duplication"""
-
-    def __init__(self, client, base_url: str, api_key: str):
-        self.client = client
-        self.base_url = base_url
-        self.api_key = api_key
-        # Set longer timeout for non-streaming requests
-        self.openai_client = OpenAI(base_url=f"{base_url}/v1", api_key=api_key, timeout=120.0)
-
-    def test_openai_api_non_streaming(self, bot_id: str, chat_id: str, message: str, test_name: str) -> None:
-        """Test OpenAI-compatible API for non-streaming mode"""
-        try:
-            response = self.openai_client.chat.completions.create(
-                model="aperag",
-                messages=[{"role": "user", "content": message}],
-                stream=False,
-                extra_query={"bot_id": bot_id, "chat_id": chat_id},
-            )
-
-            # Validate OpenAI response inline
-            if hasattr(response, "error") and response.error:
-                assert hasattr(response, "error")
-                assert response.error.get("type") == "server_error"
-                pytest.fail(f"{test_name} non-streaming test: API responded with expected error structure")
-            else:
-                # Non-streaming response validation
-                assert response.id is not None
-                assert response.object == "chat.completion"
-                assert response.created is not None
-                assert response.model == "aperag"
-                assert len(response.choices) == 1
-                assert response.choices[0].message.role == "assistant"
-                assert response.choices[0].message.content is not None
-                assert len(response.choices[0].message.content) > 0
-                assert response.choices[0].finish_reason == "stop"
-
-        except Exception as e:
-            pytest.fail(f"{test_name} non-streaming request failed: {e}")
-
-    def test_openai_api_streaming(self, bot_id: str, chat_id: str, message: str, test_name: str) -> None:
-        """Test OpenAI-compatible API for streaming mode"""
-        try:
-            stream = self.openai_client.chat.completions.create(
-                model="aperag",
-                messages=[{"role": "user", "content": f"{message} (streaming)"}],
-                stream=True,
-                extra_query={"bot_id": bot_id, "chat_id": chat_id},
-            )
-
-            collected_content = ""
-            chunk_count = 0
-
-            for chunk in stream:
-                chunk_count += 1
-
-                if hasattr(chunk, "error") and chunk.error:
-                    pytest.fail(f"{test_name} streaming API returned error: {chunk.error}")
-
-                assert chunk.id is not None
-                assert chunk.object == "chat.completion.chunk"
-                assert chunk.created is not None
-                assert chunk.model == "aperag"
-                assert len(chunk.choices) == 1
-
-                if chunk.choices[0].delta.content is not None:
-                    collected_content += chunk.choices[0].delta.content
-
-            assert chunk_count > 1, "Should receive multiple chunks in streaming mode"
-            assert len(collected_content) > 0, "Should receive content in streaming response"
-
-        except Exception as e:
-            pytest.fail(f"{test_name} streaming request failed: {e}")
-
-    def test_frontend_api_non_streaming(
-        self, bot_id: str, chat_id: str, message: str, test_name: str, is_knowledge_bot: bool = False
-    ) -> None:
-        """Test frontend-specific API for non-streaming mode"""
-        try:
-            msg_id = f"{test_name.lower().replace(' ', '_')}_msg_001"
-            response = self.client.post(
-                "/api/v1/chat/completions/frontend",
-                content=message,
-                params={"stream": "false", "bot_id": bot_id, "chat_id": chat_id},
-                headers={"msg_id": msg_id, "Content-Type": "text/plain"},
-                timeout=120.0,  # Set longer timeout for non-streaming requests
-            )
-
-            assert response.status_code == HTTPStatus.OK, response.text
-            response_data = response.json()
-
-            # Validate frontend response inline
-            if response_data.get("type") == "error":
-                logger.warning(f"Frontend API returned error: {response_data.get('data')}")
-                assert response_data.get("type") == "error"
-                assert "data" in response_data
-                pytest.fail(f"{test_name} frontend non-streaming test: API responded with expected error structure")
-            else:
-                assert response_data.get("type") == "message"
-                assert response_data.get("id") == msg_id
-                assert "data" in response_data
-                assert response_data.get("data") is not None
-                assert len(response_data.get("data", "")) > 0
-                assert "timestamp" in response_data
-
-        except Exception as e:
-            pytest.fail(f"{test_name} frontend non-streaming request failed: {e}")
-
-    def test_frontend_api_streaming(
-        self, bot_id: str, chat_id: str, message: str, test_name: str, is_knowledge_bot: bool = False
-    ) -> None:
-        """Test frontend-specific API for streaming mode"""
-        try:
-            msg_id = f"{test_name.lower().replace(' ', '_')}_msg_002"
-            response = self.client.post(
-                "/api/v1/chat/completions/frontend",
-                content=f"{message} (streaming)",
-                params={"stream": "true", "bot_id": bot_id, "chat_id": chat_id},
-                headers={"msg_id": msg_id, "Content-Type": "text/plain"},
-                timeout=120.0,  # Set longer timeout for streaming requests as well
-            )
-
-            assert response.status_code == HTTPStatus.OK, response.text
-            assert response.headers.get("content-type").startswith("text/event-stream")
-
-            # Parse SSE response
-            events = []
-            for line in response.text.split("\n"):
-                if line.startswith("data: "):
-                    try:
-                        event_data = json.loads(line[6:])
-                        events.append(event_data)
-                    except json.JSONDecodeError:
-                        continue
-
-            # Validate SSE events inline
-            if not events:
-                pytest.fail(f"{test_name} frontend streaming test: No events received in SSE response")
-            else:
-                start_events = [e for e in events if e.get("type") == "start"]
-                message_events = [e for e in events if e.get("type") == "message"]
-                stop_events = [e for e in events if e.get("type") == "stop"]
-                error_events = [e for e in events if e.get("type") == "error"]
-
-                if error_events:
-                    assert error_events[0].get("type") == "error"
-                    pytest.fail(f"{test_name} frontend streaming test: API responded with expected error structure")
-                else:
-                    # Verify event structure
-                    assert len(start_events) >= 1, "Should have at least one start event"
-                    assert start_events[0].get("id") == msg_id
-                    assert "timestamp" in start_events[0]
-
-                    if message_events:
-                        for event in message_events:
-                            assert event.get("id") == msg_id
-                            assert "data" in event
-                            assert "timestamp" in event
-
-                    if stop_events:
-                        assert stop_events[0].get("id") == msg_id
-                        assert "timestamp" in stop_events[0]
-                        # Knowledge bots might have references/urls in stop event
-                        if is_knowledge_bot and "data" in stop_events[0]:
-                            assert isinstance(stop_events[0]["data"], list)
-        except Exception as e:
-            pytest.fail(f"{test_name} frontend streaming request failed: {e}")
-
-
 def create_bot_config(
-    model_name: str = "deepseek/deepseek-v3-base:free", bot_type: str = "common", **kwargs
+    model_name: str = "google/gemini-2.5-flash",
+    bot_type: str = "common",
+    collection_ids: List[str] | None = None,
+    **kwargs,
 ) -> Dict[str, Any]:
     """Create bot configuration with sensible defaults"""
-    base_config = {
-        "model_name": model_name,
+    completion_config = {
+        "model": model_name,
         "model_service_provider": "openrouter",
-        "llm": {"context_window": 3500, "temperature": 0.1 if bot_type == "knowledge" else 0.7},
+        "custom_llm_provider": "openrouter",
+        "temperature": 0.1 if bot_type == "knowledge" else 0.7,
     }
+    completion_config.update(kwargs)
 
-    if bot_type == "knowledge":
-        base_config["llm"].update(
-            {
-                "similarity_score_threshold": 0.5,
-                "similarity_topk": 3,
-            }
-        )
+    agent_config: Dict[str, Any] = {"completion": completion_config}
+    if collection_ids:
+        agent_config["collections"] = [{"id": collection_id} for collection_id in collection_ids]
 
-    base_config["llm"].update(kwargs)
-    return base_config
+    return {"agent": agent_config}
 
 
-def create_and_configure_bot(
-    client, bot_type: str, collection_ids: List[str] = None, flow_file: str = None
-) -> Dict[str, Any]:
-    """Create and configure a bot with the given parameters"""
-    from tests.e2e_pytest.config import (
-        COMPLETION_MODEL_CUSTOM_PROVIDER,
-        COMPLETION_MODEL_NAME,
-        COMPLETION_MODEL_PROVIDER,
-        RERANK_MODEL_NAME,
-        RERANK_MODEL_PROVIDER,
+def create_and_configure_bot(client, bot_type: str, collection_ids: List[str] = None) -> Dict[str, Any]:
+    """Create a bot that matches the current agent-config API contract."""
+    from tests.e2e_pytest.config import COMPLETION_MODEL_NAME
+
+    config = create_bot_config(
+        model_name=COMPLETION_MODEL_NAME,
+        bot_type=bot_type,
+        collection_ids=collection_ids,
     )
-
-    config = create_bot_config(bot_type=bot_type)
 
     create_data = {
         "title": f"E2E {bot_type.title()} Test Bot",
         "description": f"E2E {bot_type.title()} Bot Description",
-        "type": bot_type,
-        "config": json.dumps(config),
-        "collection_ids": collection_ids or [],
+        "type": "agent",
+        "config": config,
     }
 
     resp = client.post("/api/v1/bots", json=create_data)
     assert resp.status_code == HTTPStatus.OK, resp.text
-    bot = resp.json()
-
-    # Configure flow if specified
-    if flow_file:
-        flow_path = Path(__file__).parent / "testdata" / flow_file
-        with open(flow_path, "r", encoding="utf-8") as f:
-            flow = yaml.safe_load(f)
-
-        # Update collection_ids in flow nodes if needed
-        if collection_ids:
-            for node in flow.get("nodes", []):
-                if node.get("type") in ["vector_search", "fulltext_search", "graph_search"]:
-                    if "data" in node and "input" in node["data"] and "values" in node["data"]["input"]:
-                        node["data"]["input"]["values"]["collection_ids"] = collection_ids
-
-        # Update model configurations from environment variables
-        for node in flow.get("nodes", []):
-            if node.get("type") == "llm":
-                # Update LLM model configuration
-                if "data" in node and "input" in node["data"] and "values" in node["data"]["input"]:
-                    values = node["data"]["input"]["values"]
-                    values["model_service_provider"] = COMPLETION_MODEL_PROVIDER
-                    values["model_name"] = COMPLETION_MODEL_NAME
-                    values["custom_llm_provider"] = COMPLETION_MODEL_CUSTOM_PROVIDER
-            elif node.get("type") == "rerank":
-                # Update rerank model configuration
-                if "data" in node and "input" in node["data"] and "values" in node["data"]["input"]:
-                    values = node["data"]["input"]["values"]
-                    values["model_service_provider"] = RERANK_MODEL_PROVIDER
-                    values["model"] = RERANK_MODEL_NAME
-
-        flow_json = json.dumps(flow)
-        resp = client.put(
-            f"/api/v1/bots/{bot['id']}/flow", content=flow_json, headers={"Content-Type": "application/json"}
-        )
-        assert resp.status_code == HTTPStatus.OK, resp.text
-
-    return bot
+    return resp.json()
 
 
 @pytest.fixture
 def knowledge_bot(client, collection):
     """Create a knowledge bot for RAG testing"""
-    bot = create_and_configure_bot(
-        client, bot_type="knowledge", collection_ids=[collection["id"]], flow_file="rag-flow.yaml"
-    )
+    bot = create_and_configure_bot(client, bot_type="knowledge", collection_ids=[collection["id"]])
     yield bot
     resp = client.delete(f"/api/v1/bots/{bot['id']}")
     assert resp.status_code in (200, 204), f"Failed to delete bot: {resp.status_code}, {resp.text}"
@@ -283,7 +67,7 @@ def knowledge_bot(client, collection):
 @pytest.fixture
 def basic_bot(client):
     """Create a basic bot for simple chat testing"""
-    bot = create_and_configure_bot(client, bot_type="common", flow_file="basic-flow.yaml")
+    bot = create_and_configure_bot(client, bot_type="common")
     yield bot
     resp = client.delete(f"/api/v1/bots/{bot['id']}")
     assert resp.status_code in (200, 204), f"Failed to delete bot: {resp.status_code}, {resp.text}"
@@ -317,155 +101,6 @@ def basic_chat(client, basic_bot):
     assert delete_resp.status_code in (200, 204, 404), (
         f"Failed to delete chat: {delete_resp.status_code}, {delete_resp.text}"
     )
-
-
-@pytest.fixture
-def api_helper(client, api_key):
-    """Create API test helper instance"""
-    return APITestHelper(client, base_url=API_BASE_URL, api_key=api_key)
-
-
-# Parameterized tests to reduce duplication
-@pytest.mark.parametrize(
-    "bot_type,message",
-    [
-        ("knowledge", "What is ApeRAG?"),
-        ("basic", "Hello, how are you today?"),
-    ],
-)
-def test_chat_message_openai_api_non_streaming(api_helper, bot_type, message, request):
-    """Test OpenAI-compatible chat completions API - Non-streaming mode"""
-    bot = request.getfixturevalue(f"{bot_type}_bot")
-    chat = request.getfixturevalue(f"{bot_type}_chat")
-
-    api_helper.test_openai_api_non_streaming(bot["id"], chat["id"], message, f"{bot_type} bot")
-
-
-@pytest.mark.parametrize(
-    "bot_type,message",
-    [
-        ("knowledge", "What is ApeRAG?"),
-        ("basic", "Hello, how are you today?"),
-    ],
-)
-def test_chat_message_openai_api_streaming(api_helper, bot_type, message, request):
-    """Test OpenAI-compatible chat completions API - Streaming mode"""
-    bot = request.getfixturevalue(f"{bot_type}_bot")
-    chat = request.getfixturevalue(f"{bot_type}_chat")
-
-    api_helper.test_openai_api_streaming(bot["id"], chat["id"], message, f"{bot_type} bot")
-
-
-@pytest.mark.parametrize(
-    "bot_type,message",
-    [
-        ("knowledge", "What is ApeRAG? Please tell me about this knowledge base system."),
-        ("basic", "Hello, this is a test message for frontend API"),
-    ],
-)
-def test_chat_message_frontend_api_streaming(api_helper, bot_type, message, request):
-    """Test frontend-specific chat completions API - Streaming mode"""
-    bot = request.getfixturevalue(f"{bot_type}_bot")
-    chat = request.getfixturevalue(f"{bot_type}_chat")
-
-    is_knowledge_bot = bot_type == "knowledge"
-    api_helper.test_frontend_api_streaming(bot["id"], chat["id"], message, f"{bot_type} bot", is_knowledge_bot)
-
-
-def test_openai_api_error_handling(api_helper, basic_chat):
-    """Test error handling for OpenAI API"""
-    logger.info("Testing error handling scenarios")
-
-    # Test invalid bot_id
-    try:
-        response = api_helper.openai_client.chat.completions.create(
-            model="aperag",
-            messages=[{"role": "user", "content": "Hello"}],
-            stream=False,
-            extra_query={"bot_id": "invalid_bot_id"},
-        )
-
-        if hasattr(response, "error") and response.error:
-            error_message = response.error.get("message", "")
-            assert "Bot not found" in error_message or "not found" in error_message.lower()
-            logger.info("Got expected 'Bot not found' error")
-        else:
-            assert False, "Should have received an error for invalid bot_id"
-
-    except Exception as e:
-        error_message = str(e)
-        assert "Bot not found" in error_message or "not found" in error_message.lower()
-        logger.info("Got expected exception for invalid bot_id")
-
-    # Test without bot_id
-    try:
-        response = api_helper.openai_client.chat.completions.create(
-            model="aperag", messages=[{"role": "user", "content": "Hello"}], stream=False
-        )
-
-        if hasattr(response, "error") and response.error:
-            error_message = response.error.get("message", "")
-            assert "bot_id is required" in error_message or "required" in error_message.lower()
-            logger.info("Got expected 'bot_id is required' error")
-        else:
-            assert False, "Should have received an error when bot_id is missing"
-
-    except Exception as e:
-        error_message = str(e)
-        assert "bot_id is required" in error_message or "required" in error_message.lower()
-        logger.info("Got expected exception for missing bot_id")
-
-
-def test_frontend_api_error_handling(client, basic_chat):
-    """Test error handling for frontend API"""
-    # Test invalid bot_id
-    try:
-        message = "Test message"
-        response = client.post(
-            "/api/v1/chat/completions/frontend",
-            content=message,
-            params={"stream": "false", "bot_id": "invalid_bot_id", "chat_id": basic_chat["id"]},
-            headers={"msg_id": "test_msg_003", "Content-Type": "text/plain"},
-            timeout=120.0,
-        )
-
-        assert response.status_code == HTTPStatus.OK, response.text
-        response_data = response.json()
-        assert response_data.get("type") == "error"
-        error_message = response_data.get("data", "")
-        assert "Bot not found" in error_message or "not found" in error_message.lower()
-        logger.info("Got expected 'Bot not found' error")
-
-    except Exception as e:
-        logger.warning(f"Frontend error handling request failed: {e}")
-        assert "bot_id" not in str(e), "API should accept bot_id as query parameter"
-
-    # Test without bot_id
-    try:
-        message = "Test message"
-        response = client.post(
-            "/api/v1/chat/completions/frontend",
-            content=message,
-            params={"stream": "false", "chat_id": basic_chat["id"]},
-            headers={"msg_id": "test_msg_004", "Content-Type": "text/plain"},
-            timeout=120.0,
-        )
-
-        if response.status_code == HTTPStatus.OK:
-            response_data = response.json()
-            assert response_data.get("type") == "error"
-            error_message = response_data.get("data", "")
-            assert "bot_id" in error_message.lower() or "required" in error_message.lower()
-            logger.info("Got expected 'bot_id required' error")
-        else:
-            assert response.status_code in [400, 422], "Should return 400 or 422 for missing bot_id"
-            logger.info("Got expected HTTP error for missing bot_id")
-
-    except Exception as e:
-        logger.warning(f"Frontend missing bot_id test failed: {e}")
-        error_message = str(e)
-        assert "bot_id" in error_message.lower() or "required" in error_message.lower()
-        logger.info("Got expected exception for missing bot_id")
 
 
 async def websocket_test_impl(

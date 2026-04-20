@@ -22,16 +22,17 @@ tests/e2e_pytest/
 ## 当前范围
 
 - `test_chat.py`
-  保留 streaming、websocket 以及依赖真实 provider 的聊天生成行为
+  保留 streaming 和 websocket 这类暂时不适合交给 Hurl 的覆盖
 - `test_document_download.py`
   保留少量下载负路径校验；主下载链路已经迁到 Hurl
 
 本阶段已迁走：
 - available-model 覆盖迁到 `tests/e2e_http/hurl/full/10_provider_llm.hurl`
 - provider model CRUD 迁到 `tests/e2e_http/hurl/full/10_provider_llm.hurl`
-- bot CRUD 与 flow 覆盖迁到 `tests/e2e_http/hurl/full/12_bot.hurl`
-- 确定性的 chat create/list/get/update 覆盖迁到 `tests/e2e_http/hurl/full/13_chat_http.hurl`
-- 前端 non-streaming chat 的 HTTP envelope 契约迁到 `tests/e2e_http/hurl/full/13_chat_http.hurl`
+- bot CRUD 与 agent config 覆盖迁到 `tests/e2e_http/hurl/full/12_bot.hurl`
+- 确定性的 chat create/list/get/update/delete 覆盖迁到 `tests/e2e_http/hurl/full/13_chat_http.hurl`
+- chat title-generation 的 HTTP 契约迁到 `tests/e2e_http/hurl/full/13_chat_http.hurl`
+- 未实现的 `/v1/chat/completions` 错误契约迁到 `tests/e2e_http/hurl/full/13_chat_http.hurl`
 
 ## 🚀 快速开始
 
@@ -96,8 +97,8 @@ make test-e2e
 # 运行特定测试文件
 pytest tests/e2e_pytest/test_chat.py
 
-# 运行特定测试类或方法
-pytest tests/e2e_pytest/test_chat.py::test_chat_message_openai_api_non_streaming
+# 运行某个保留的 chat 测试
+pytest tests/e2e_pytest/test_chat.py::test_chat_message_websocket_api
 
 # 显示详细输出
 pytest tests/e2e_pytest/ -v
@@ -235,30 +236,6 @@ def test_something(client, bot):
 - `knowledge_chat`: 为知识型机器人创建对话
 - `basic_chat`: 为基础型机器人创建对话
 
-### 工具类 Fixtures
-
-#### `api_helper`
-提供 API 测试的辅助方法
-```python
-def test_something(api_helper, bot, chat):
-    # 测试 OpenAI API 非流式
-    api_helper.test_openai_api_non_streaming(
-        bot_id=bot["id"], 
-        chat_id=chat["id"], 
-        message="Hello", 
-        test_name="My Test"
-    )
-    
-    # 测试 OpenAI API 流式
-    api_helper.test_openai_api_streaming(...)
-    
-    # 测试前端 API 非流式
-    api_helper.test_frontend_api_non_streaming(...)
-    
-    # 测试前端 API 流式
-    api_helper.test_frontend_api_streaming(...)
-```
-
 ## 📝 编写测试
 
 ### 测试文件结构
@@ -293,17 +270,13 @@ def test_my_feature(client, collection):
     ("knowledge", "What is ApeRAG?"),
     ("basic", "Hello, how are you today?"),
 ])
-def test_chat_message(api_helper, bot_type, message, request):
+def test_chat_message(bot_type, message, request):
     """Test chat messages for different bot types"""
     bot = request.getfixturevalue(f"{bot_type}_bot")
     chat = request.getfixturevalue(f"{bot_type}_chat")
-    
-    api_helper.test_openai_api_non_streaming(
-        bot_id=bot["id"],
-        chat_id=chat["id"],
-        message=message,
-        test_name=f"Chat {bot_type}"
-    )
+
+    assert bot["id"]
+    assert chat["id"]
 ```
 
 ### 工具函数使用

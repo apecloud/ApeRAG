@@ -31,9 +31,10 @@ Current v1 scope:
   - call `/api/v1/embeddings` and `/api/v1/rerank` through real external providers
   - cover document staged/confirm/download/rebuild paths
   - cover document status visibility, list search by name, and collection search/history HTTP contracts
-  - cover bot CRUD + flow get/update
-  - cover chat create/list/get/update plus a non-streaming frontend completion envelope path
-  - cover graph labels + graph overview endpoints
+  - cover bot CRUD + agent config get/update
+  - cover chat create/list/get/update/delete plus chat title-generation HTTP contract
+  - assert the stable unsupported `/v1/chat/completions` error contract
+  - cover graph labels + graph overview + parameter validation endpoints
 
 Non-goals for v1:
 - Replacing every existing pytest-based E2E immediately

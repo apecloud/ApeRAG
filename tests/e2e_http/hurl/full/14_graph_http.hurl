@@ -42,12 +42,21 @@ GET {{base_url}}/api/v1/collections/{{collection_id}}/graphs/labels
 HTTP 200
 [Asserts]
 header "content-type" contains "application/json"
+jsonpath "$.labels" exists
 
 GET {{base_url}}/api/v1/collections/{{collection_id}}/graphs?label=*&max_nodes=50&max_depth=2
 HTTP 200
 [Asserts]
 header "content-type" contains "application/json"
+jsonpath "$.nodes" exists
+jsonpath "$.edges" exists
 jsonpath "$.is_truncated" == false
+
+GET {{base_url}}/api/v1/collections/{{collection_id}}/graphs?label=*&max_nodes=0&max_depth=2
+HTTP 400
+[Asserts]
+header "content-type" contains "application/json"
+body contains "max_nodes must be between 1 and 10000"
 
 DELETE {{base_url}}/api/v1/collections/{{collection_id}}
 HTTP 200
