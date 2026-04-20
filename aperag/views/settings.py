@@ -17,6 +17,7 @@ from typing import Optional
 from fastapi import APIRouter, Body, Depends, Response
 from fastapi.responses import JSONResponse
 
+from aperag.docparser.health import ParserHealthReport, get_parser_health_report
 from aperag.schema.view_models import Settings
 from aperag.service.setting_service import setting_service
 from aperag.views.auth import required_user
@@ -37,6 +38,12 @@ async def update_settings(
 ):
     await setting_service.update_settings(settings.model_dump())
     return Response(status_code=204)
+
+
+@router.get("/settings/parser_health", tags=["Settings"], response_model=ParserHealthReport)
+async def get_parser_health(user: dict = Depends(required_user)):
+    current_settings = await setting_service.get_all_settings()
+    return await get_parser_health_report(current_settings)
 
 
 @router.post("/settings/test_mineru_token", tags=["Settings"])
