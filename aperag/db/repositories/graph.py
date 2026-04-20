@@ -15,7 +15,7 @@
 import logging
 from typing import Any, Dict, List, Optional, Tuple
 
-from sqlalchemy import and_, delete, func, or_, select, text
+from sqlalchemy import and_, delete, func, or_, select, text, union_all
 from sqlalchemy.dialects.postgresql import insert
 
 from aperag.db.models import LightRAGGraphEdge, LightRAGGraphNode
@@ -505,6 +505,76 @@ class GraphRepositoryMixin:
             return degrees
 
         return self._execute_query(_get_degrees_batch)
+
+    def get_top_degree_graph_nodes(self, workspace: str, limit: int) -> Tuple[Dict[str, Dict[str, Any]], int]:
+        """Get top-degree graph nodes with node payloads in a single repository call."""
+
+        def _get_top_degree_graph_nodes(session):
+            total_stmt = select(func.count(LightRAGGraphNode.id)).where(LightRAGGraphNode.workspace == workspace)
+            total_nodes = session.execute(total_stmt).scalar() or 0
+            if total_nodes == 0 or limit <= 0:
+                return {}, total_nodes
+
+            outgoing = (
+                select(
+                    LightRAGGraphEdge.source_entity_id.label("entity_id"),
+                    func.count().label("degree_part"),
+                )
+                .where(LightRAGGraphEdge.workspace == workspace)
+                .group_by(LightRAGGraphEdge.source_entity_id)
+            )
+            incoming = (
+                select(
+                    LightRAGGraphEdge.target_entity_id.label("entity_id"),
+                    func.count().label("degree_part"),
+                )
+                .where(LightRAGGraphEdge.workspace == workspace)
+                .group_by(LightRAGGraphEdge.target_entity_id)
+            )
+
+            degree_parts = union_all(outgoing, incoming).subquery()
+            degree_totals = (
+                select(
+                    degree_parts.c.entity_id,
+                    func.sum(degree_parts.c.degree_part).label("degree"),
+                )
+                .group_by(degree_parts.c.entity_id)
+                .subquery()
+            )
+
+            stmt = (
+                select(LightRAGGraphNode, degree_totals.c.degree)
+                .join(
+                    degree_totals,
+                    and_(
+                        LightRAGGraphNode.workspace == workspace,
+                        LightRAGGraphNode.entity_id == degree_totals.c.entity_id,
+                    ),
+                )
+                .where(LightRAGGraphNode.workspace == workspace, degree_totals.c.degree > 0)
+                .order_by(degree_totals.c.degree.desc(), LightRAGGraphNode.entity_id)
+                .limit(limit)
+            )
+
+            result = session.execute(stmt)
+            nodes = {}
+            for node, degree in result:
+                node_dict = {
+                    "entity_id": node.entity_id,
+                    "entity_type": node.entity_type,
+                    "description": node.description,
+                    "source_id": node.source_id,
+                    "file_path": node.file_path,
+                    "created_at": int(node.createtime.timestamp()) if node.createtime else None,
+                    "degree": int(degree or 0),
+                }
+                if node.entity_name and node.entity_name != node.entity_id:
+                    node_dict["entity_name"] = node.entity_name
+                nodes[node.entity_id] = {k: v for k, v in node_dict.items() if v is not None}
+
+            return nodes, total_nodes
+
+        return self._execute_query(_get_top_degree_graph_nodes)
 
     def get_graph_edges_batch(
         self, workspace: str, edge_pairs: List[Tuple[str, str]]

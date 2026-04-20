@@ -489,6 +489,10 @@ class BaseGraphStorage(StorageNameSpace, ABC):
         """Intent-focused alias for batch incident-edge fetches with properties."""
         return await self.get_nodes_edges_with_data_batch(node_ids)
 
+    async def get_top_degree_nodes(self, limit: int) -> tuple[dict[str, dict], int] | None:
+        """Return top-degree nodes plus total node count when backend supports it."""
+        return None
+
     @abstractmethod
     async def upsert_node(self, node_id: str, node_data: dict[str, str]) -> None:
         """Insert a new node or update an existing node in the graph.

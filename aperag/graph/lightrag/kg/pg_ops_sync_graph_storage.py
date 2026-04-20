@@ -302,6 +302,16 @@ class PGOpsSyncGraphStorage(BaseGraphStorage):
 
         return await asyncio.to_thread(_sync_get_edges_by_source_ids)
 
+    async def get_top_degree_nodes(self, limit: int) -> tuple[dict[str, dict], int] | None:
+        """Get top-degree nodes directly from PostgreSQL without a full label scan."""
+
+        def _sync_get_top_degree_nodes():
+            from aperag.db.ops import db_ops
+
+            return db_ops.get_top_degree_graph_nodes(self.workspace, limit)
+
+        return await asyncio.to_thread(_sync_get_top_degree_nodes)
+
     async def get_knowledge_graph(self, node_label: str, max_depth: int = 3, max_nodes: int = 1000) -> KnowledgeGraph:
         """
         Get a connected subgraph of nodes matching the specified label.

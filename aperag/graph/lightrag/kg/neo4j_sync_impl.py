@@ -646,6 +646,46 @@ class Neo4JSyncStorage(BaseGraphStorage):
 
         return await asyncio.to_thread(_sync_get_all_labels)
 
+    async def get_top_degree_nodes(self, limit: int) -> tuple[dict[str, dict], int] | None:
+        """Get top-degree nodes directly from Neo4j without loading all labels first."""
+
+        def _sync_get_top_degree_nodes():
+            with Neo4jSyncConnectionManager.get_session(database=self._DATABASE) as session:
+                total_query = """
+                MATCH (n:base)
+                WHERE n.entity_id IS NOT NULL
+                RETURN count(n) AS total
+                """
+                total_result = session.run(total_query)
+                total_record = total_result.single()
+                total_nodes = int(total_record["total"]) if total_record and total_record["total"] is not None else 0
+                if total_nodes == 0 or limit <= 0:
+                    return {}, total_nodes
+
+                query = """
+                MATCH (n:base)
+                WHERE n.entity_id IS NOT NULL
+                OPTIONAL MATCH (n)-[r]-()
+                WITH n, count(r) AS degree
+                WHERE degree > 0
+                RETURN n.entity_id AS entity_id, properties(n) AS node_properties, degree
+                ORDER BY degree DESC, entity_id
+                LIMIT $limit
+                """
+                result = session.run(query, limit=limit)
+
+                nodes = {}
+                for record in result:
+                    entity_id = record["entity_id"]
+                    raw_data = dict(record["node_properties"])
+                    raw_data.setdefault("entity_id", entity_id)
+                    raw_data["degree"] = int(record["degree"] or 0)
+                    nodes[entity_id] = raw_data
+
+                return nodes, total_nodes
+
+        return await asyncio.to_thread(_sync_get_top_degree_nodes)
+
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=4, max=10),

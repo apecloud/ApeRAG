@@ -3,6 +3,7 @@ from types import SimpleNamespace
 import pytest
 
 from aperag.graph.lightrag import utils_graph
+from aperag.graph.lightrag.operate import get_high_degree_nodes
 from aperag.graph.lightrag.kg.pg_ops_sync_vector_storage import PGOpsSyncVectorStorage
 from aperag.graph.lightrag.namespace import NameSpace
 from aperag.graph.lightrag_manager import _process_document_async
@@ -174,6 +175,9 @@ class _FakeGraphStorage:
     async def get_node_edges(self, _node_id):
         raise AssertionError("legacy get_node_edges() should not be used")
 
+    async def get_top_degree_nodes(self, _limit):
+        return None
+
 
 class _FakeEntityVectorStorage:
     def __init__(self):
@@ -291,3 +295,39 @@ async def test_amerge_entities_uses_batch_graph_primitives_and_batch_delete():
     assert len(relationships_vdb.deleted) == 1
     assert any(node_id == "merged" for node_id, _ in graph_storage.upserted_nodes)
     assert result["entity_name"] == "merged"
+
+
+class _FakeHighDegreeGraphStorage:
+    async def get_top_degree_nodes(self, limit):
+        assert limit == 2
+        return (
+            {
+                "entity-1": {
+                    "entity_id": "entity-1",
+                    "entity_type": "ORG",
+                    "description": "node one",
+                    "source_id": "chunk-1",
+                    "degree": 7,
+                },
+                "entity-2": {
+                    "entity_id": "entity-2",
+                    "entity_type": "PERSON",
+                    "description": "node two",
+                    "source_id": "chunk-2",
+                    "degree": 5,
+                },
+            },
+            42,
+        )
+
+    async def get_all_labels(self):
+        raise AssertionError("get_all_labels() should not be used when top-degree primitive is available")
+
+
+@pytest.mark.asyncio
+async def test_get_high_degree_nodes_prefers_storage_top_degree_primitive():
+    selected_nodes, total_nodes = await get_high_degree_nodes(_FakeHighDegreeGraphStorage(), max_analyze_nodes=2)
+
+    assert total_nodes == 42
+    assert set(selected_nodes.nodes_by_id.keys()) == {"entity-1", "entity-2"}
+    assert selected_nodes.nodes_by_id["entity-1"].degree == 7

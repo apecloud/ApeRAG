@@ -1697,6 +1697,23 @@ async def get_high_degree_nodes(
         Input: Graph with 1000 nodes, max_analyze_nodes=300
         Output: (GraphNodeDataDict with 300 nodes, 1000)
     """
+    top_degree_nodes_result = await graph_storage.get_top_degree_nodes(max_analyze_nodes)
+    if top_degree_nodes_result is not None:
+        nodes_data_raw, total_nodes = top_degree_nodes_result
+        nodes_by_id = {}
+        for label, raw_data in nodes_data_raw.items():
+            raw_data = dict(raw_data)
+            raw_data.setdefault("entity_id", label)
+            raw_data["degree"] = raw_data.get("degree", 0)
+            nodes_by_id[label] = GraphNodeData(**raw_data)
+
+        if lightrag_logger:
+            lightrag_logger.debug(
+                f"Selected {len(nodes_by_id)} high-degree nodes directly from storage (total nodes: {total_nodes})"
+            )
+
+        return GraphNodeDataDict(nodes_by_id=nodes_by_id), total_nodes
+
     # Get all node labels
     all_labels = await graph_storage.get_all_labels()
     if not all_labels:
