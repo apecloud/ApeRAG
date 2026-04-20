@@ -192,8 +192,8 @@ API 定义的源文件：
 
 修改 API 后需运行：
 ```bash
-make generate-models          # 重新生成 aperag/schema/view_models.py
-make generate-frontend-sdk    # 重新生成 web/src/api/**
+make api-generate-models          # 重新生成 aperag/schema/view_models.py
+make api-generate-sdk    # 重新生成 web/src/api/**
 ```
 
 ### 接口列表

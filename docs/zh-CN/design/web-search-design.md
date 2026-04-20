@@ -557,7 +557,7 @@ lxml>=5.0.0                   # 解析器（可选）
 
 ```bash
 # 通过项目Makefile安装
-make install
+make env-install
 
 # 或直接pip安装
 pip install duckduckgo-search trafilatura markdownify aiohttp

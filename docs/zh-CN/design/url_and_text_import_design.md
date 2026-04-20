@@ -543,14 +543,14 @@ URL 导入的文档在 `doc_metadata` 中记录来源信息，便于追溯和未
 
 1. 在 `document.yaml` schema 中新增 `fetchUrlRequest/Response`
 2. 在 `collections.yaml` paths 中注册 `/fetch-url` 路由
-3. 运行 `make generate-models`
+3. 运行 `make api-generate-models`
 4. 将 `web.py` 中的 `_read_with_jina_fallback` / `_read_with_trafilatura_only` 提取为 `ReaderService` 的公共方法
 5. 在 `views/collections.py` 中实现 `fetch_url_document_view` 路由函数
 6. 编写单元测试
 
 ### Phase 2：前端（约 2 天）
 
-1. 运行 `make generate-frontend-sdk`
+1. 运行 `make api-generate-sdk`
 2. 实现 `import-dialog.tsx`（来源选择入口）
 3. 实现 `url-import.tsx`（URL 输入 + 调用 `/fetch-url`）
 4. 实现 `text-import.tsx`（文本粘贴 + 创建 File 对象 + 调用现有上传接口）

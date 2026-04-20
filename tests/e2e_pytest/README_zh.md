@@ -42,8 +42,8 @@ tests/e2e_pytest/
 ```bash
 # 启动 ApeRAG 服务
 cd /path/to/ApeRAG
-make run-backend
-make run-celery
+make serve-api
+make serve-worker
 ```
 
 ### 2. 创建环境配置文件
@@ -91,7 +91,7 @@ RERANK_MODEL_NAME=BAAI/bge-large-zh-1.5
 
 ```bash
 # 运行所有 e2e 测试
-make e2e-test
+make test-e2e
 
 # 运行特定测试文件
 pytest tests/e2e_pytest/test_chat.py

@@ -10,10 +10,10 @@ To start ApeRAG with Jaeger enabled:
 
 ```bash
 # Start infrastructure with Jaeger
-make compose-infra WITH_JAEGER=1
+make infra-up WITH_JAEGER=1
 
 # Or start the full application stack with Jaeger
-make compose-up WITH_JAEGER=1
+make stack-up WITH_JAEGER=1
 ```
 
 Alternatively, you can use docker-compose directly:
@@ -136,7 +136,7 @@ export JAEGER_ENABLED=True
 export JAEGER_ENDPOINT=http://localhost:14268/api/traces
 
 # Start your application
-make run-backend
+make serve-api
 ```
 
 ### Custom Tracing
