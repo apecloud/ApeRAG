@@ -35,7 +35,7 @@ from litellm.types.caching import LiteLLMCacheType
 
 from aperag.llm import litellm_cache
 from aperag.llm.embed.embedding_service import EmbeddingService
-from tests.e2e_test.config import (
+from tests.e2e_pytest.config import (
     EMBEDDING_MODEL_CUSTOM_PROVIDER,
     EMBEDDING_MODEL_NAME,
     EMBEDDING_MODEL_PROVIDER,

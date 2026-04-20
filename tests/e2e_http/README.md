@@ -23,13 +23,19 @@ Current v1 scope:
 - Document smoke: upload, get detail, delete
 - API key smoke: create, use, update, delete
 - Provider-aware full coverage:
+  - inspect available models and provider configuration surfaces
   - configure public providers with user API keys
+  - manage provider models, including slash-containing model names
   - set default embedding/completion/rerank models
   - query `/api/v1/available_models`
   - call `/api/v1/embeddings` and `/api/v1/rerank` through real external providers
+  - cover document staged/confirm/download/rebuild paths
+  - cover bot CRUD + flow get/update
+  - cover chat create/list/get/update plus a non-streaming frontend completion path
+  - cover graph labels + graph overview endpoints
 
 Non-goals for v1:
-- Replacing existing `tests/e2e_test`
+- Replacing every existing pytest-based E2E immediately
 - Covering WebSocket or streaming chat flows
 - Depending on external model providers in the smoke path
 
@@ -59,4 +65,12 @@ Provider-aware local flow:
 export E2E_ALIBABACLOUD_API_KEY=...
 export E2E_OPENROUTER_API_KEY=...
 ./tests/e2e_http/scripts/run_compose_full.sh
+```
+
+Typical local flow against a Kubernetes-backed environment:
+
+```bash
+export E2E_K8S_NAMESPACE=default
+export E2E_K8S_SERVICE=aperag-api
+./tests/e2e_http/scripts/run_k8s_smoke.sh
 ```

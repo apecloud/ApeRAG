@@ -1,11 +1,11 @@
-# ApeRAG E2E 测试指南
+# ApeRAG Pytest E2E 测试指南
 
-本目录包含 ApeRAG 项目的端到端（E2E）测试，用于验证系统的整体功能和 API 接口。
+本目录现在只保留 Hurl 暂时不适合接管的 pytest 版本产品级 E2E。新的黑盒 HTTP 覆盖优先放到 `tests/e2e_http/`，这里已经收缩成仍然依赖 pytest fixtures 和辅助函数的小型补充区。
 
 ## 📁 目录结构
 
 ```
-tests/e2e_test/
+tests/e2e_pytest/
 ├── .env                    # 环境配置文件（需要创建）
 ├── .env.template          # 环境配置模板（可选）
 ├── conftest.py            # pytest fixtures 定义
@@ -18,6 +18,19 @@ tests/e2e_test/
 │   └── rag-flow.yaml      # RAG 流程配置
 └── evaluation/            # 评估相关
 ```
+
+## 当前范围
+
+- `test_chat.py`
+  保留 streaming、websocket 以及依赖真实 provider 的聊天生成行为
+- `test_document_download.py`
+  保留少量下载负路径校验；主下载链路已经迁到 Hurl
+
+本阶段已迁走：
+- available-model 覆盖迁到 `tests/e2e_http/hurl/full/10_provider_llm.hurl`
+- provider model CRUD 迁到 `tests/e2e_http/hurl/full/10_provider_llm.hurl`
+- bot CRUD 与 flow 覆盖迁到 `tests/e2e_http/hurl/full/12_bot.hurl`
+- 确定性的 chat create/list/get/update 覆盖迁到 `tests/e2e_http/hurl/full/13_chat_http.hurl`
 
 ## 🚀 快速开始
 
@@ -34,10 +47,10 @@ make run-celery
 
 ### 2. 创建环境配置文件
 
-在 `tests/e2e_test/` 目录下创建 `.env` 文件：
+在 `tests/e2e_pytest/` 目录下创建 `.env` 文件：
 
 ```bash
-cd tests/e2e_test
+cd tests/e2e_pytest
 cp .env.template .env  # 如果有模板文件
 # 或者直接创建
 touch .env
@@ -80,19 +93,19 @@ RERANK_MODEL_NAME=BAAI/bge-large-zh-1.5
 make e2e-test
 
 # 运行特定测试文件
-pytest tests/e2e_test/test_chat.py
+pytest tests/e2e_pytest/test_chat.py
 
 # 运行特定测试类或方法
-pytest tests/e2e_test/test_chat.py::test_chat_message_openai_api_non_streaming
+pytest tests/e2e_pytest/test_chat.py::test_chat_message_openai_api_non_streaming
 
 # 显示详细输出
-pytest tests/e2e_test/ -v
+pytest tests/e2e_pytest/ -v
 
 # 显示实时输出
-pytest tests/e2e_test/ -s
+pytest tests/e2e_pytest/ -s
 
 # 停在第一个失败的测试
-pytest tests/e2e_test/ -x
+pytest tests/e2e_pytest/ -x
 ```
 
 ## ⚙️ 配置说明
@@ -295,7 +308,7 @@ def test_chat_message(api_helper, bot_type, message, request):
 ### 工具函数使用
 
 ```python
-from tests.e2e_test.utils import assert_dict_subset
+from tests.e2e_pytest.utils import assert_dict_subset
 
 def test_collection_update(client, collection):
     update_data = {"title": "Updated Title"}

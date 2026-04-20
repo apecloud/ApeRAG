@@ -8,7 +8,7 @@ import pytest
 import yaml
 from openai import OpenAI
 
-from tests.e2e_test.config import API_BASE_URL, WS_BASE_URL
+from tests.e2e_pytest.config import API_BASE_URL, WS_BASE_URL
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -209,7 +209,7 @@ def create_and_configure_bot(
     client, bot_type: str, collection_ids: List[str] = None, flow_file: str = None
 ) -> Dict[str, Any]:
     """Create and configure a bot with the given parameters"""
-    from tests.e2e_test.config import (
+    from tests.e2e_pytest.config import (
         COMPLETION_MODEL_CUSTOM_PROVIDER,
         COMPLETION_MODEL_NAME,
         COMPLETION_MODEL_PROVIDER,
@@ -326,33 +326,6 @@ def api_helper(client, api_key):
 
 
 # Parameterized tests to reduce duplication
-@pytest.mark.parametrize("bot_type", ["knowledge", "basic"])
-def test_get_chat_detail(client, bot_type, request):
-    """Test getting chat details for different bot types"""
-    bot = request.getfixturevalue(f"{bot_type}_bot")
-    chat = request.getfixturevalue(f"{bot_type}_chat")
-
-    resp = client.get(f"/api/v1/bots/{bot['id']}/chats/{chat['id']}")
-    assert resp.status_code == HTTPStatus.OK, resp.text
-    detail = resp.json()
-    assert detail["id"] == chat["id"]
-    assert detail["title"] == chat["title"]
-
-
-@pytest.mark.parametrize("bot_type", ["knowledge", "basic"])
-def test_update_chat(client, bot_type, request):
-    """Test updating chat title for different bot types"""
-    bot = request.getfixturevalue(f"{bot_type}_bot")
-    chat = request.getfixturevalue(f"{bot_type}_chat")
-
-    new_title = f"E2E {bot_type.title()} Test Chat Updated"
-    update_data = {"title": new_title}
-    resp = client.put(f"/api/v1/bots/{bot['id']}/chats/{chat['id']}", json=update_data)
-    assert resp.status_code == HTTPStatus.OK, resp.text
-    updated = resp.json()
-    assert updated["title"] == new_title
-
-
 @pytest.mark.parametrize(
     "bot_type,message",
     [
@@ -381,22 +354,6 @@ def test_chat_message_openai_api_streaming(api_helper, bot_type, message, reques
     chat = request.getfixturevalue(f"{bot_type}_chat")
 
     api_helper.test_openai_api_streaming(bot["id"], chat["id"], message, f"{bot_type} bot")
-
-
-@pytest.mark.parametrize(
-    "bot_type,message",
-    [
-        ("knowledge", "What is ApeRAG? Please tell me about this knowledge base system."),
-        ("basic", "Hello, this is a test message for frontend API"),
-    ],
-)
-def test_chat_message_frontend_api_non_streaming(api_helper, bot_type, message, request):
-    """Test frontend-specific chat completions API - Non-streaming mode"""
-    bot = request.getfixturevalue(f"{bot_type}_bot")
-    chat = request.getfixturevalue(f"{bot_type}_chat")
-
-    is_knowledge_bot = bot_type == "knowledge"
-    api_helper.test_frontend_api_non_streaming(bot["id"], chat["id"], message, f"{bot_type} bot", is_knowledge_bot)
 
 
 @pytest.mark.parametrize(

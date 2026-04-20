@@ -1,6 +1,6 @@
-# GraphIndex E2E 测试套件
+# 图存储集成测试套件
 
-本目录包含 ApeRAG 图索引模块的端到端测试套件，用于验证各种图存储实现的正确性和一致性。
+本目录包含 ApeRAG 图存储实现的后端集成测试。这些测试直接验证存储行为，不属于产品层面的 HTTP E2E。
 
 ## 🌟 特色亮点
 
@@ -19,7 +19,7 @@
 ## 📁 文件结构
 
 ```
-tests/e2e_test/graphindex/
+tests/integration/graphstorage/
 ├── conftest.py                     # pytest 配置
 ├── graph_storage_oracle.py         # Test Oracle 实现 ⚖️
 ├── networkx_baseline_storage.py    # NetworkX 基线实现
@@ -88,23 +88,23 @@ NEO4J_PASSWORD=password
 
 ## 🚀 运行测试
 
-### 运行所有 GraphIndex 测试
+### 运行所有图存储集成测试
 ```bash
 # 在项目根目录执行
-uv run pytest tests/e2e_test/graphindex/ -v
+uv run pytest tests/integration/graphstorage/ -v
 ```
 
 ### 运行特定数据库测试
 
 #### Neo4j 存储测试
 ```bash
-uv run pytest tests/e2e_test/graphindex/test_neo4j_storage.py::TestNeo4jStorage -v
+uv run pytest tests/integration/graphstorage/test_neo4j_storage.py::TestNeo4jStorage -v
 ```
 
 ### 运行特定测试用例
 ```bash
 # 测试 Neo4j 节点操作
-uv run pytest tests/e2e_test/graphindex/test_neo4j_storage.py::TestNeo4jStorage::test_has_node -v
+uv run pytest tests/integration/graphstorage/test_neo4j_storage.py::TestNeo4jStorage::test_has_node -v
 ```
 
 ## 📊 测试数据
@@ -150,13 +150,13 @@ uv run pytest tests/e2e_test/graphindex/test_neo4j_storage.py::TestNeo4jStorage:
 3. **测试数据文件缺失**
    ```bash
    # 检查测试数据文件
-   ls -la tests/e2e_test/graphindex/graph_storage_test_data.json
+   ls -la tests/integration/graphstorage/graph_storage_test_data.json
    ```
 
 ### 调试模式
 ```bash
 # 启用详细日志
-uv run pytest tests/e2e_test/graphindex/ -v -s --log-cli-level=DEBUG
+uv run pytest tests/integration/graphstorage/ -v -s --log-cli-level=DEBUG
 ```
 
 ## 🎉 扩展新的存储实现

@@ -2,7 +2,6 @@ name: E2E HTTP
 
 on:
   workflow_call:
-  workflow_dispatch:
 
 jobs:
   e2e-http-smoke:
