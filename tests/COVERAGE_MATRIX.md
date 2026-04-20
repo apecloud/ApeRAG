@@ -11,6 +11,7 @@ This matrix is the working contract for converging the test tree toward:
 
 | Capability | Unit | HTTP E2E Smoke | HTTP E2E Full | Remaining Pytest E2E | Integration / Contract | Current Decision |
 | --- | --- | --- | --- | --- | --- | --- |
+| docparser file-format smoke (`txt/md/html/ipynb/docx/xlsx/pptx/pdf`) | yes | no | no | no | no | keep as unit smoke for the default local parser path |
 | health | no | yes | no | no | no | keep in smoke |
 | auth | no | yes | no | no | no | fully owned by Hurl |
 | collection CRUD | partial | yes | no | no | no | fully owned by Hurl |
