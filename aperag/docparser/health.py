@@ -27,9 +27,7 @@ from aperag.docparser.mineru_parser import API_HOST as MINERU_API_HOST
 from aperag.docparser.mineru_parser import SUPPORTED_EXTENSIONS as MINERU_EXTENSIONS
 from aperag.docparser.utils import get_soffice_cmd
 
-OFFICIAL_FORMATS = [
-    ext for ext in MARKITDOWN_EXTENSIONS if ext not in [".doc", ".ppt"]
-]
+OFFICIAL_FORMATS = [ext for ext in MARKITDOWN_EXTENSIONS if ext not in [".doc", ".ppt"]]
 LEGACY_OFFICE_FORMATS = [".doc", ".ppt"]
 
 
@@ -135,7 +133,9 @@ async def get_parser_health_report(parser_settings: dict[str, Any] | None = None
         ),
     ]
 
-    mineru_status, mineru_detail = await _probe_mineru(mineru_token) if mineru_enabled else ("disabled", "MinerU is disabled.")
+    mineru_status, mineru_detail = (
+        await _probe_mineru(mineru_token) if mineru_enabled else ("disabled", "MinerU is disabled.")
+    )
     services = [
         ParserHealthItem(
             key="mineru",
@@ -215,11 +215,7 @@ async def get_parser_health_report(parser_settings: dict[str, Any] | None = None
             parser="mineru",
             formats=MINERU_EXTENSIONS,
             status=(
-                "available"
-                if mineru_enabled and mineru_status == "ok"
-                else "limited"
-                if mineru_enabled
-                else "disabled"
+                "available" if mineru_enabled and mineru_status == "ok" else "limited" if mineru_enabled else "disabled"
             ),
             detail="Optional enhancement path for complex PDFs and layout-heavy documents. Disabled by default.",
             requirements=["use_mineru=true", "mineru_api_token"],
@@ -270,7 +266,9 @@ async def get_parser_health_report(parser_settings: dict[str, Any] | None = None
         recommendations.append("Install LibreOffice/OpenOffice if customers need legacy Office support.")
 
     if mineru_enabled:
-        warnings.append("MinerU is enabled. Parsing results may differ from the default local parser for supported files.")
+        warnings.append(
+            "MinerU is enabled. Parsing results may differ from the default local parser for supported files."
+        )
         if mineru_status != "ok":
             warnings.append(f"MinerU enhancement is enabled but not healthy: {mineru_detail}")
         recommendations.append("Keep MinerU as an explicit enhancement path, not the default delivery path.")
