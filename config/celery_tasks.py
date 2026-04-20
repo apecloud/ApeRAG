@@ -142,15 +142,30 @@ def _validate_task_relevance(document_id: str, index_type: str, target_version: 
 
         if not db_index:
             logger.info(f"Index record not found for {document_id}:{index_type}, skipping task.")
-            return {"status": "skipped", "reason": "index_record_not_found"}
+            return {
+                "status": "skipped",
+                "reason": "index_record_not_found",
+                "document_id": document_id,
+                "index_type": index_type,
+            }
 
         if db_index.status != expected_status:
             logger.info(f"Index status for {document_id}:{index_type} changed to {db_index.status} (expected {expected_status}), skipping task.")
-            return {"status": "skipped", "reason": f"status_changed_to_{db_index.status}"}
+            return {
+                "status": "skipped",
+                "reason": f"status_changed_to_{db_index.status}",
+                "document_id": document_id,
+                "index_type": index_type,
+            }
 
         if target_version and db_index.version != target_version:
             logger.info(f"Version mismatch for {document_id}:{index_type}, expected: {target_version}, current: {db_index.version}, skipping task.")
-            return {"status": "skipped", "reason": f"version_mismatch_expected_{target_version}_current_{db_index.version}"}
+            return {
+                "status": "skipped",
+                "reason": f"version_mismatch_expected_{target_version}_current_{db_index.version}",
+                "document_id": document_id,
+                "index_type": index_type,
+            }
 
         # Check document status - if document is UPLOADED or EXPIRED, task should be skipped
         doc_stmt = select(Document).where(Document.id == document_id)
@@ -159,13 +174,31 @@ def _validate_task_relevance(document_id: str, index_type: str, target_version: 
 
         if not document:
             logger.info(f"Document {document_id} not found, skipping task.")
-            return {"status": "skipped", "reason": "document_not_found"}
+            return {
+                "status": "skipped",
+                "reason": "document_not_found",
+                "document_id": document_id,
+                "index_type": index_type,
+            }
 
         if document.status in [DocumentStatus.UPLOADED, DocumentStatus.EXPIRED]:
             logger.info(f"Document {document_id} status is {document.status}, skipping task.")
-            return {"status": "skipped", "reason": f"document_status_{document.status}"}
+            return {
+                "status": "skipped",
+                "reason": f"document_status_{document.status}",
+                "document_id": document_id,
+                "index_type": index_type,
+            }
 
         return None  # Task is still relevant
+
+
+def _build_dispatched_workflow_result(async_result) -> dict:
+    """Return a small, JSON-serializable handoff payload for downstream workflow tracking."""
+    return {
+        "status": "dispatched",
+        "workflow_id": async_result.id,
+    }
 
 class BaseIndexTask(Task):
     """
@@ -322,11 +355,21 @@ def delete_index_task(self, document_id: str, index_type: str) -> dict:
             # Validate task is still relevant
             if not db_index:
                 logger.info(f"Index record not found for {document_id}:{index_type}, already deleted")
-                return {"status": "skipped", "reason": "index_record_not_found"}
+                return {
+                    "status": "skipped",
+                    "reason": "index_record_not_found",
+                    "document_id": document_id,
+                    "index_type": index_type,
+                }
 
             if db_index.status != DocumentIndexStatus.DELETION_IN_PROGRESS:
                 logger.info(f"Index status changed for {document_id}:{index_type}, current: {db_index.status}, skipping task")
-                return {"status": "skipped", "reason": f"status_changed_to_{db_index.status}"}
+                return {
+                    "status": "skipped",
+                    "reason": f"status_changed_to_{db_index.status}",
+                    "document_id": document_id,
+                    "index_type": index_type,
+                }
 
             break
 
@@ -449,9 +492,9 @@ def trigger_create_indexes_workflow(self, parsed_data_dict: dict, document_id: s
         )
 
         # Execute the chord
-        workflow_chord.apply_async()
+        chord_async_result = workflow_chord.apply_async()
 
-        return workflow_chord
+        return _build_dispatched_workflow_result(chord_async_result)
 
     except Exception as e:
         error_msg = f"Failed to trigger create indexes workflow: {str(e)}"
@@ -487,9 +530,9 @@ def trigger_delete_indexes_workflow(self, document_id: str, index_types: List[st
         )
 
         # Execute the chord
-        workflow_chord.apply_async()
+        chord_async_result = workflow_chord.apply_async()
 
-        return workflow_chord
+        return _build_dispatched_workflow_result(chord_async_result)
 
     except Exception as e:
         error_msg = f"Failed to trigger delete indexes workflow: {str(e)}"
@@ -527,7 +570,7 @@ def trigger_update_indexes_workflow(self, parsed_data_dict: dict, document_id: s
 
         chord_async_result = workflow_chord.apply_async()
 
-        return chord_async_result
+        return _build_dispatched_workflow_result(chord_async_result)
 
     except Exception as e:
         error_msg = f"Failed to trigger update indexes workflow: {str(e)}"
@@ -559,10 +602,16 @@ def notify_workflow_complete(self, index_results: List[dict], document_id: str, 
         # Analyze results
         successful_tasks = []
         failed_tasks = []
+        skipped_tasks = []
+        normalized_results = []
 
         for result_dict in index_results:
+            if isinstance(result_dict, dict) and result_dict.get("status") == "skipped":
+                skipped_tasks.append(result_dict.get("index_type", "unknown"))
+                continue
             try:
                 result = IndexTaskResult.from_dict(result_dict)
+                normalized_results.append(result)
                 if result.success:
                     successful_tasks.append(result.index_type)
                 else:
@@ -573,11 +622,22 @@ def notify_workflow_complete(self, index_results: List[dict], document_id: str, 
         # Determine overall status
         if not failed_tasks:
             status = TaskStatus.SUCCESS
-            status_message = f"Document {document_id} {operation} COMPLETED SUCCESSFULLY! All indexes processed: {', '.join(successful_tasks)}"
+            processed_indexes = successful_tasks if successful_tasks else skipped_tasks
+            status_message = (
+                f"Document {document_id} {operation} COMPLETED SUCCESSFULLY! "
+                f"Processed indexes: {', '.join(processed_indexes)}"
+            )
+            if skipped_tasks:
+                status_message += f". Skipped: {', '.join(skipped_tasks)}"
             logger.info(status_message)
         elif successful_tasks:
             status = TaskStatus.PARTIAL_SUCCESS
-            status_message = f"Document {document_id} {operation} COMPLETED with WARNINGS. Success: {', '.join(successful_tasks)}. Failures: {'; '.join(failed_tasks)}"
+            status_message = (
+                f"Document {document_id} {operation} COMPLETED with WARNINGS. "
+                f"Success: {', '.join(successful_tasks)}. Failures: {'; '.join(failed_tasks)}"
+            )
+            if skipped_tasks:
+                status_message += f". Skipped: {', '.join(skipped_tasks)}"
             logger.warning(status_message)
         else:
             status = TaskStatus.FAILED
@@ -594,7 +654,7 @@ def notify_workflow_complete(self, index_results: List[dict], document_id: str, 
             successful_indexes=successful_tasks,
             failed_indexes=[f.split(':')[0] for f in failed_tasks],
             total_indexes=len(index_types),
-            index_results=[IndexTaskResult.from_dict(r) for r in index_results]
+            index_results=normalized_results,
         )
 
         return workflow_result.to_dict()

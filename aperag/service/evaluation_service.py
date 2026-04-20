@@ -364,6 +364,7 @@ class EvaluationExecutor:
         """Calls the internal agent chat API via HTTP."""
 
         db_ops = AsyncDatabaseOps(session)
+        aperag_api_key = None
         aperag_api_keys = await db_ops.query_api_keys(user_id, is_system=True)
         for item in aperag_api_keys:
             aperag_api_key = item.key
