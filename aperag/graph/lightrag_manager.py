@@ -166,6 +166,9 @@ async def _process_document_async(
                 "relations_extracted": 0,
             }
 
+        # Rebuild graph state from scratch for this document to avoid stale chunk/entity/edge references.
+        await rag.adelete_by_doc_id(str(doc_id))
+
         # Insert and chunk document
         chunk_result = await rag.ainsert_and_chunk_document(
             documents=[content], doc_ids=[doc_id], file_paths=[file_path]

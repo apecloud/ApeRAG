@@ -19,12 +19,30 @@ from sqlalchemy import and_, delete, func, or_, select, text
 from sqlalchemy.dialects.postgresql import insert
 
 from aperag.db.models import LightRAGGraphEdge, LightRAGGraphNode
+from aperag.graph.lightrag.prompt import GRAPH_FIELD_SEP
 
 logger = logging.getLogger(__name__)
 
 
 class GraphRepositoryMixin:
     """Graph Repository Mixin for LightRAG Graph operations using SQLAlchemy"""
+
+    @staticmethod
+    def _build_source_id_overlap_clause(column, chunk_ids: List[str]):
+        if not chunk_ids:
+            return None
+
+        conditions = []
+        for chunk_id in set(chunk_ids):
+            conditions.extend(
+                [
+                    column == chunk_id,
+                    column.like(f"{chunk_id}{GRAPH_FIELD_SEP}%"),
+                    column.like(f"%{GRAPH_FIELD_SEP}{chunk_id}{GRAPH_FIELD_SEP}%"),
+                    column.like(f"%{GRAPH_FIELD_SEP}{chunk_id}"),
+                ]
+            )
+        return or_(*conditions) if conditions else None
 
     # Node operations
     def upsert_graph_node(self, workspace: str, node_id: str, node_data: Dict[str, Any]) -> None:
@@ -313,6 +331,75 @@ class GraphRepositoryMixin:
             return [row[0] for row in result]
 
         return self._execute_query(_get_labels)
+
+    def get_graph_nodes_by_source_ids(self, workspace: str, chunk_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+        """Get graph nodes whose source_id references any of the given chunk IDs"""
+        if not chunk_ids:
+            return {}
+
+        def _get_nodes(session):
+            overlap_clause = self._build_source_id_overlap_clause(LightRAGGraphNode.source_id, chunk_ids)
+            stmt = select(LightRAGGraphNode).where(
+                and_(
+                    LightRAGGraphNode.workspace == workspace,
+                    LightRAGGraphNode.source_id.is_not(None),
+                    overlap_clause,
+                )
+            )
+            result = session.execute(stmt)
+            nodes = {}
+            for node in result.unique().scalars():
+                node_dict = {
+                    "entity_id": node.entity_id,
+                    "entity_type": node.entity_type,
+                    "description": node.description,
+                    "source_id": node.source_id,
+                    "file_path": node.file_path,
+                    "created_at": int(node.createtime.timestamp()) if node.createtime else None,
+                }
+                if node.entity_name and node.entity_name != node.entity_id:
+                    node_dict["entity_name"] = node.entity_name
+                nodes[node.entity_id] = {k: v for k, v in node_dict.items() if v is not None}
+            return nodes
+
+        return self._execute_query(_get_nodes)
+
+    def get_graph_edges_by_source_ids(
+        self, workspace: str, chunk_ids: List[str]
+    ) -> Dict[Tuple[str, str], Dict[str, Any]]:
+        """Get graph edges whose source_id references any of the given chunk IDs"""
+        if not chunk_ids:
+            return {}
+
+        def _get_edges(session):
+            overlap_clause = self._build_source_id_overlap_clause(LightRAGGraphEdge.source_id, chunk_ids)
+            stmt = select(LightRAGGraphEdge).where(
+                and_(
+                    LightRAGGraphEdge.workspace == workspace,
+                    LightRAGGraphEdge.source_id.is_not(None),
+                    overlap_clause,
+                )
+            )
+            result = session.execute(stmt)
+            edges = {}
+            for edge in result.unique().scalars():
+                pair = (edge.source_entity_id, edge.target_entity_id)
+                edge_dict = {
+                    "weight": float(edge.weight) if edge.weight is not None else 0.0,
+                    "keywords": edge.keywords,
+                    "description": edge.description,
+                    "source_id": edge.source_id,
+                    "file_path": edge.file_path,
+                }
+                required_fields = {"weight", "keywords", "description", "source_id"}
+                filtered_result = {}
+                for key, value in edge_dict.items():
+                    if key in required_fields or value is not None:
+                        filtered_result[key] = value
+                edges[pair] = filtered_result
+            return edges
+
+        return self._execute_query(_get_edges)
 
     def drop_graph_workspace(self, workspace: str) -> Dict[str, str]:
         """Drop all graph data for a workspace"""

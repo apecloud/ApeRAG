@@ -282,6 +282,26 @@ class PGOpsSyncGraphStorage(BaseGraphStorage):
 
         return await asyncio.to_thread(_sync_get_all_labels)
 
+    async def get_nodes_by_source_ids(self, chunk_ids: list[str]) -> dict[str, dict]:
+        """Get graph nodes whose source_id references any of the given chunk IDs."""
+
+        def _sync_get_nodes_by_source_ids():
+            from aperag.db.ops import db_ops
+
+            return db_ops.get_graph_nodes_by_source_ids(self.workspace, chunk_ids)
+
+        return await asyncio.to_thread(_sync_get_nodes_by_source_ids)
+
+    async def get_edges_by_source_ids(self, chunk_ids: list[str]) -> dict[tuple[str, str], dict]:
+        """Get graph edges whose source_id references any of the given chunk IDs."""
+
+        def _sync_get_edges_by_source_ids():
+            from aperag.db.ops import db_ops
+
+            return db_ops.get_graph_edges_by_source_ids(self.workspace, chunk_ids)
+
+        return await asyncio.to_thread(_sync_get_edges_by_source_ids)
+
     async def get_knowledge_graph(self, node_label: str, max_depth: int = 3, max_nodes: int = 1000) -> KnowledgeGraph:
         """
         Get a connected subgraph of nodes matching the specified label.

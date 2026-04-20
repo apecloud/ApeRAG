@@ -42,6 +42,7 @@ import numpy as np
 from ..base import (
     BaseVectorStorage,
 )
+from ..prompt import GRAPH_FIELD_SEP
 from ..utils import logger
 
 
@@ -125,38 +126,51 @@ class PGOpsSyncVectorStorage(BaseVectorStorage):
         from aperag.graph.lightrag.namespace import NameSpace, is_namespace
 
         if is_namespace(self.namespace, NameSpace.VECTOR_STORE_CHUNKS):
+            vector = item.get("__vector__", item.get("content_vector"))
+            if hasattr(vector, "tolist"):
+                vector = vector.tolist()
             return {
                 "tokens": item["tokens"],
                 "chunk_order_index": item["chunk_order_index"],
                 "full_doc_id": item["full_doc_id"],
                 "content": item["content"],
-                "content_vector": item["__vector__"].tolist()
-                if hasattr(item["__vector__"], "tolist")
-                else item["__vector__"],
+                "content_vector": vector,
                 "file_path": item.get("file_path"),
             }
         elif is_namespace(self.namespace, NameSpace.VECTOR_STORE_ENTITIES):
-            source_id = item["source_id"]
-            chunk_ids = source_id.split("<SEP>") if isinstance(source_id, str) and "<SEP>" in source_id else [source_id]
+            vector = item.get("__vector__", item.get("content_vector"))
+            if hasattr(vector, "tolist"):
+                vector = vector.tolist()
+            chunk_ids = item.get("chunk_ids")
+            if chunk_ids is None:
+                source_id = item.get("source_id")
+                if isinstance(source_id, str) and source_id:
+                    chunk_ids = source_id.split(GRAPH_FIELD_SEP) if GRAPH_FIELD_SEP in source_id else [source_id]
+                else:
+                    chunk_ids = []
             return {
                 "entity_name": item["entity_name"],
                 "content": item["content"],
-                "content_vector": item["__vector__"].tolist()
-                if hasattr(item["__vector__"], "tolist")
-                else item["__vector__"],
+                "content_vector": vector,
                 "chunk_ids": chunk_ids,
                 "file_path": item.get("file_path"),
             }
         elif is_namespace(self.namespace, NameSpace.VECTOR_STORE_RELATIONSHIPS):
-            source_id = item["source_id"]
-            chunk_ids = source_id.split("<SEP>") if isinstance(source_id, str) and "<SEP>" in source_id else [source_id]
+            vector = item.get("__vector__", item.get("content_vector"))
+            if hasattr(vector, "tolist"):
+                vector = vector.tolist()
+            chunk_ids = item.get("chunk_ids")
+            if chunk_ids is None:
+                source_id = item.get("source_id")
+                if isinstance(source_id, str) and source_id:
+                    chunk_ids = source_id.split(GRAPH_FIELD_SEP) if GRAPH_FIELD_SEP in source_id else [source_id]
+                else:
+                    chunk_ids = []
             return {
                 "source_id": item["src_id"],
                 "target_id": item["tgt_id"],
                 "content": item["content"],
-                "content_vector": item["__vector__"].tolist()
-                if hasattr(item["__vector__"], "tolist")
-                else item["__vector__"],
+                "content_vector": vector,
                 "chunk_ids": chunk_ids,
                 "file_path": item.get("file_path"),
             }
@@ -179,16 +193,26 @@ class PGOpsSyncVectorStorage(BaseVectorStorage):
             for k, v in data.items()
         ]
 
-        # Compute embeddings first (async)
-        contents = [v["content"] for v in data.values()]
-        batches = [contents[i : i + self._max_batch_size] for i in range(0, len(contents), self._max_batch_size)]
+        pending_embedding_items = []
+        pending_contents = []
+        for item in list_data:
+            existing_vector = item.get("content_vector")
+            if existing_vector is not None:
+                item["__vector__"] = existing_vector
+                continue
+            pending_embedding_items.append(item)
+            pending_contents.append(item["content"])
 
-        embedding_tasks = [self.embedding_func(batch) for batch in batches]
-        embeddings_list = await asyncio.gather(*embedding_tasks)
-        embeddings = np.concatenate(embeddings_list)
+        if pending_contents:
+            batches = [
+                pending_contents[i : i + self._max_batch_size] for i in range(0, len(pending_contents), self._max_batch_size)
+            ]
+            embedding_tasks = [self.embedding_func(batch) for batch in batches]
+            embeddings_list = await asyncio.gather(*embedding_tasks)
+            embeddings = np.concatenate(embeddings_list)
 
-        for i, d in enumerate(list_data):
-            d["__vector__"] = embeddings[i]
+            for item, embedding in zip(pending_embedding_items, embeddings):
+                item["__vector__"] = embedding
 
         def _sync_upsert_with_vectors():
             # Import here to avoid circular imports
@@ -213,6 +237,49 @@ class PGOpsSyncVectorStorage(BaseVectorStorage):
                 raise ValueError(f"{self.namespace} is not supported")
 
         await asyncio.to_thread(_sync_upsert_with_vectors)
+
+    async def get_by_chunk_ids(self, chunk_ids: list[str]) -> dict[str, Any]:
+        """Get vector records whose chunk_ids overlap with the provided chunk IDs."""
+
+        def _sync_get_by_chunk_ids():
+            from aperag.db.ops import db_ops
+            from aperag.graph.lightrag.namespace import NameSpace, is_namespace
+
+            if is_namespace(self.namespace, NameSpace.VECTOR_STORE_ENTITIES):
+                models = db_ops.query_lightrag_vdb_entity_by_chunk_ids(self.workspace, chunk_ids)
+                return {
+                    entity_id: {
+                        "id": entity_id,
+                        "entity_name": model.entity_name,
+                        "content": model.content or "",
+                        "content_vector": model.content_vector,
+                        "chunk_ids": model.chunk_ids or [],
+                        "file_path": model.file_path,
+                        "created_at": int(model.create_time.timestamp()) if model.create_time else None,
+                    }
+                    for entity_id, model in models.items()
+                }
+            if is_namespace(self.namespace, NameSpace.VECTOR_STORE_RELATIONSHIPS):
+                models = db_ops.query_lightrag_vdb_relation_by_chunk_ids(self.workspace, chunk_ids)
+                return {
+                    relation_id: {
+                        "id": relation_id,
+                        "source_id": model.source_id,
+                        "target_id": model.target_id,
+                        "content": model.content or "",
+                        "content_vector": model.content_vector,
+                        "chunk_ids": model.chunk_ids or [],
+                        "file_path": model.file_path,
+                        "created_at": int(model.create_time.timestamp()) if model.create_time else None,
+                        "src_id": model.source_id,
+                        "tgt_id": model.target_id,
+                    }
+                    for relation_id, model in models.items()
+                }
+            logger.error(f"Unknown namespace for get_by_chunk_ids: {self.namespace}")
+            return {}
+
+        return await asyncio.to_thread(_sync_get_by_chunk_ids)
 
     async def query(self, query: str, top_k: int, ids: list[str] | None = None) -> list[dict[str, Any]]:
         """Query vectors by similarity"""
