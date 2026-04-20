@@ -94,7 +94,15 @@
     "add_api_keys": "创建API密钥",
     "edit_api_keys": "编辑",
     "delete_api_key": "删除API密钥",
-    "delete_api_key_confirm": "确认删除此API密钥？"
+    "delete_api_key_confirm": "确认删除此API密钥？",
+    "masked_badge": "已脱敏",
+    "masked_notice": "列表中的 API 密钥默认只显示脱敏值。完整密钥只会在创建成功后展示一次。",
+    "created_api_key_title": "请立即保存你的 API 密钥",
+    "created_api_key_description": "这是完整 API 密钥唯一一次明文展示。",
+    "created_api_key_label": "完整 API 密钥",
+    "created_api_key_hint": "请现在复制，并在关闭前保存到密码管理器、密钥管理系统或环境变量中。",
+    "copy_created_api_key": "复制 API 密钥",
+    "saved_api_key": "我已保存"
   },
   "page_audit_logs": {
     "metadata": {

@@ -94,7 +94,15 @@
     "add_api_keys": "Create Api Key",
     "edit_api_keys": "Edit",
     "delete_api_key": "Delete Api Key",
-    "delete_api_key_confirm": "Confirm deletion of the API key?"
+    "delete_api_key_confirm": "Confirm deletion of the API key?",
+    "masked_badge": "Masked",
+    "masked_notice": "Existing API keys are masked in the list. The full key is shown only once, right after creation.",
+    "created_api_key_title": "Save your API key now",
+    "created_api_key_description": "This is the only time the full API key will be shown.",
+    "created_api_key_label": "Full API key",
+    "created_api_key_hint": "Copy it now and store it in a password manager, secret manager, or environment variable before closing this dialog.",
+    "copy_created_api_key": "Copy API key",
+    "saved_api_key": "I've saved this key"
   },
   "page_audit_logs": {
     "metadata": {
