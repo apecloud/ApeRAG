@@ -25,7 +25,7 @@ This matrix is the working contract for converging the test tree toward:
 | bot CRUD | no | no | yes | no | no | fully owned by Hurl |
 | bot agent config get/update | no | no | yes | no | no | fully owned by Hurl |
 | chat create/list/get/update/delete | no | no | yes | no | no | fully owned by Hurl |
-| chat title generation contract | no | no | no | no | no | defer until the implementation is stable enough for a deterministic black-box oracle; current provider suite still reaches server-side 5xx |
+| chat title generation contract | partial | no | yes | no | no | Hurl owns the provider-aware HTTP contract; unit coverage now guards the empty-history fallback path |
 | unsupported `/v1/chat/completions` error contract | no | no | yes | no | no | Hurl asserts the stable not-implemented response; no pytest happy-path remains |
 | chat streaming / websocket | no | no | no | `test_chat.py` | no | keep thin pytest supplement |
 | graph labels / graph overview / parameter validation | no | no | yes | no | `tests/integration/graphstorage/` | Hurl owns stable HTTP surface; integration keeps backend oracle |

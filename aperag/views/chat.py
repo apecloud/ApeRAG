@@ -25,7 +25,7 @@ from aperag.service.chat_service import chat_service_global
 from aperag.service.chat_title_service import chat_title_service
 from aperag.service.collection_service import collection_service
 from aperag.utils.audit_decorator import audit
-from aperag.views.auth import UserManager, authenticate_websocket_user, get_user_manager, optional_user, required_user
+from aperag.views.auth import UserManager, authenticate_websocket_user, get_user_manager, required_user
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +104,7 @@ async def generate_chat_title_view(
     bot_id: str,
     chat_id: str,
     request_body: view_models.TitleGenerateRequest = view_models.TitleGenerateRequest(),
-    user: User = Depends(optional_user),
+    user: User = Depends(required_user),
 ) -> view_models.TitleGenerateResponse:
     try:
         title = await chat_title_service.generate_title(
