@@ -27,15 +27,18 @@ class ParserError(Exception):
         parser_name: str | None = None,
         code: str = "parser_error",
         detail: str | None = None,
+        source: str = "runtime",
     ):
         super().__init__(message)
         self.message = message
         self.parser_name = parser_name
         self.code = code
         self.detail = detail
+        self.source = source
 
     def diagnostic_message(self) -> str:
         parts = []
+        parts.append(f"source={self.source}")
         if self.parser_name:
             parts.append(f"parser={self.parser_name}")
         parts.append(f"code={self.code}")
@@ -53,8 +56,9 @@ class FallbackError(ParserError):
         parser_name: str | None = None,
         code: str = "fallback",
         detail: str | None = None,
+        source: str = "runtime",
     ):
-        super().__init__(message, parser_name=parser_name, code=code, detail=detail)
+        super().__init__(message, parser_name=parser_name, code=code, detail=detail, source=source)
 
 
 class ParserAttempt(BaseModel):
@@ -66,7 +70,14 @@ class ParserAttempt(BaseModel):
 
 
 class ParserChainError(ParserError):
-    def __init__(self, extension: str, attempts: list[ParserAttempt], detail: str | None = None):
+    def __init__(
+        self,
+        extension: str,
+        attempts: list[ParserAttempt],
+        detail: str | None = None,
+        *,
+        source: str = "runtime",
+    ):
         self.extension = extension
         self.attempts = attempts
         formatted_attempts = "; ".join(
@@ -75,7 +86,7 @@ class ParserChainError(ParserError):
         message = f'No parser produced a usable result for extension "{extension}"'
         if formatted_attempts:
             message += f": {formatted_attempts}"
-        super().__init__(message, parser_name=None, code="parser_chain_failed", detail=detail)
+        super().__init__(message, parser_name=None, code="parser_chain_failed", detail=detail, source=source)
 
 
 class Part(BaseModel):

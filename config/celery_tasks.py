@@ -104,6 +104,7 @@ from typing import Any, List
 
 from celery import Task, chain, chord, current_app, group
 
+from aperag.docparser.base import ParserError
 from aperag.tasks.collection import collection_task
 from aperag.tasks.document import document_index_task
 from aperag.tasks.models import (
@@ -118,16 +119,18 @@ from config.celery import app
 
 logger = logging.getLogger()
 
-def _validate_task_relevance(document_id: str, index_type: str, target_version: int, expected_status: "DocumentIndexStatus"):
+
+def _validate_task_relevance(document_id: str, index_type: str, target_version: int, expected_status):
     """
     Double-check the database to ensure the task is still valid.
 
     Returns a dictionary with a 'skipped' status if the task is no longer relevant,
     otherwise returns None.
     """
-    from aperag.db.models import DocumentIndex, DocumentIndexType, Document, DocumentStatus
+    from sqlalchemy import and_, select
+
     from aperag.config import get_sync_session
-    from sqlalchemy import select, and_
+    from aperag.db.models import Document, DocumentIndex, DocumentIndexType, DocumentStatus
 
     for session in get_sync_session():
         # Check document index status
@@ -252,8 +255,17 @@ def parse_document_task(self, document_id: str, index_types: List[str]) -> dict:
         parsed_data = document_index_task.parse_document(document_id)
         logger.info(f"Successfully parsed document {document_id}")
         return parsed_data.to_dict()
+    except ParserError as e:
+        error_msg = f"Failed to parse document {document_id}: {e.diagnostic_message()}"
+        logger.error(error_msg, exc_info=True)
+
+        # Only mark as failed if all retries are exhausted
+        if self.request.retries >= self.max_retries:
+            self._handle_index_failure(document_id, index_types, error_msg)
+
+        raise
     except Exception as e:
-        error_msg = f"Failed to parse document {document_id}: {str(e)}"
+        error_msg = f"Failed to parse document {document_id}: source=runtime, code=parse_failed, detail={str(e)}"
         logger.error(error_msg, exc_info=True)
 
         # Only mark as failed if all retries are exhausted
@@ -277,9 +289,8 @@ def create_index_task(self, document_id: str, index_type: str, parsed_data_dict:
     Returns:
         Serialized IndexTaskResult
     """
-    from aperag.db.models import DocumentIndex, DocumentIndexType, DocumentIndexStatus
-    from aperag.config import get_sync_session
-    from sqlalchemy import select, and_
+
+    from aperag.db.models import DocumentIndexStatus
 
     # Extract target version from context
     context = context or {}
@@ -334,9 +345,10 @@ def delete_index_task(self, document_id: str, index_type: str) -> dict:
     Returns:
         Serialized IndexTaskResult
     """
-    from aperag.db.models import DocumentIndex, DocumentIndexType, DocumentIndexStatus
+    from sqlalchemy import and_, select
+
     from aperag.config import get_sync_session
-    from sqlalchemy import select, and_
+    from aperag.db.models import DocumentIndex, DocumentIndexStatus, DocumentIndexType
 
     try:
         logger.info(f"Starting to delete {index_type} index for document {document_id}")
@@ -413,9 +425,8 @@ def update_index_task(self, document_id: str, index_type: str, parsed_data_dict:
     Returns:
         Serialized IndexTaskResult
     """
-    from aperag.db.models import DocumentIndex, DocumentIndexType, DocumentIndexStatus
-    from aperag.config import get_sync_session
-    from sqlalchemy import select, and_
+
+    from aperag.db.models import DocumentIndexStatus
 
     # Extract target version from context
     context = context or {}

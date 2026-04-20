@@ -28,13 +28,15 @@ The `docparser` module takes a file path as input and returns a list of structur
 
 3.  **Individual Parsers**:
     *   **`MarkItDownParser` (`markitdown_parser.py`)**:
-        *   Handles a wide array of formats including `.txt`, `.md`, `.html`, `.ipynb`, `.pdf`, `.epub`, and Microsoft Office documents (`.docx`, `.doc`, `.xlsx`, `.xls`, `.pptx`, `.ppt`).
+        *   Handles a wide array of formats including `.txt`, `.md`, `.html`, `.ipynb`, `.pdf`, `.epub`, `.csv`, `.tsv`, `.xml`, `.rst`, `.eml`, and Microsoft Office documents (`.docx`, `.doc`, `.xlsx`, `.xls`, `.pptx`, `.ppt`).
         *   Uses the `markitdown` library for the primary conversion to Markdown.
         *   For older Office formats (`.doc`, `.ppt`), it can use `soffice` (LibreOffice/OpenOffice) to convert them to modern XML formats first.
+        *   This is the default private-deployment parser path and should remain the primary delivery path.
         *   The resulting Markdown is then processed by `parse_md.py`.
     *   **`MinerUParser` (`mineru_parser.py`)**:
         *   Designed for complex, layout-intensive documents and OCR-heavy inputs such as `.pdf`, `.docx`, `.doc`, `.pptx`, `.ppt`, and common image formats.
         *   Relies on the MinerU API and a configured API token.
+        *   It is an optional enhancement fallback, not the primary parser path.
         *   Retrieves structured layout output and extracted images, then converts that data into `Part` objects, including `AssetBinPart` for images.
         *   Also generates a consolidated Markdown representation from these parts.
     *   **`AudioParser` (`audio_parser.py`)**:
