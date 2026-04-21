@@ -37,7 +37,6 @@ import time
 from typing import Any
 
 from ...concurrent_control import LockProtocol
-from .prompt import GRAPH_FIELD_SEP
 from .utils import compute_mdhash_id, logger
 
 
@@ -67,6 +66,31 @@ async def _get_edges_for_nodes(
             seen_edge_pairs.add(edge_pair)
             deduplicated_edges.append((source, target, edge_data))
     return deduplicated_edges
+
+
+def _build_canonical_merge_rag(
+    chunk_entity_relation_graph,
+    entities_vdb,
+    relationships_vdb,
+):
+    """Build a minimal LightRAG facade for legacy merge callers."""
+    from .lightrag import LightRAG
+
+    workspace = (
+        getattr(entities_vdb, "workspace", None)
+        or getattr(relationships_vdb, "workspace", None)
+        or getattr(chunk_entity_relation_graph, "workspace", None)
+    )
+    if workspace is None:
+        raise ValueError("Canonical merge shim requires storages with a workspace")
+
+    rag = LightRAG.__new__(LightRAG)
+    rag.workspace = workspace
+    rag.chunk_entity_relation_graph = chunk_entity_relation_graph
+    rag.entities_vdb = entities_vdb
+    rag.relationships_vdb = relationships_vdb
+    rag.lightrag_logger = logger
+    return rag
 
 
 async def adelete_by_entity(
@@ -577,311 +601,27 @@ async def amerge_entities(
     target_entity_data: dict[str, Any] = None,
     graph_db_lock: LockProtocol = None,
 ) -> dict[str, Any]:
-    """Asynchronously merge multiple entities into one entity.
+    """Legacy shim that routes all merges through LightRAG.amerge_nodes()."""
 
-    Merges multiple source entities into a target entity, handling all relationships,
-    and updating both the knowledge graph and vector database.
+    if merge_strategy not in (None, {}):
+        raise ValueError("Custom merge_strategy is no longer supported. Use LightRAG.amerge_nodes() instead")
 
-    Args:
-        chunk_entity_relation_graph: Graph storage instance
-        entities_vdb: Vector database storage for entities
-        relationships_vdb: Vector database storage for relationships
-        source_entities: List of source entity names to merge
-        target_entity: Name of the target entity after merging
-        merge_strategy: Merge strategy configuration, e.g. {"description": "concatenate", "entity_type": "keep_first"}
-            Supported strategies:
-            - "concatenate": Concatenate all values (for text fields)
-            - "keep_first": Keep the first non-empty value
-            - "keep_last": Keep the last non-empty value
-            - "join_unique": Join all unique values (for fields separated by delimiter)
-        target_entity_data: Dictionary of specific values to set for the target entity,
-            overriding any merged values, e.g. {"description": "custom description", "entity_type": "PERSON"}
-        graph_db_lock: Optional lock for ensuring atomic graph and vector db operations
+    target_payload = {"entity_name": target_entity}
+    if target_entity_data:
+        target_payload.update(target_entity_data)
 
-    Returns:
-        Dictionary containing the merged entity information
-    """
+    logger.info("utils_graph.amerge_entities() is deprecated; routing merge through LightRAG.amerge_nodes()")
 
-    # Use graph database lock to ensure atomic graph and vector db operations
     async with graph_db_lock:
-        try:
-            # Default merge strategy
-            default_strategy = {
-                "description": "concatenate",
-                "entity_type": "keep_first",
-                "source_id": "join_unique",
-            }
-
-            merge_strategy = default_strategy if merge_strategy is None else {**default_strategy, **merge_strategy}
-            target_entity_data = {} if target_entity_data is None else target_entity_data
-
-            # 1. Check if all source entities exist
-            existing_nodes = await _get_nodes_by_id_batch(
-                chunk_entity_relation_graph, source_entities + [target_entity]
-            )
-
-            source_entities_data = {}
-            for entity_name in source_entities:
-                node_data = existing_nodes.get(entity_name)
-                if node_data is None:
-                    raise ValueError(f"Source entity '{entity_name}' does not exist")
-                source_entities_data[entity_name] = node_data
-
-            # 2. Check if target entity exists and get its data if it does
-            target_exists = target_entity in existing_nodes
-            existing_target_entity_data = {}
-            if target_exists:
-                existing_target_entity_data = existing_nodes[target_entity]
-                logger.info(f"Target entity '{target_entity}' already exists, will merge data")
-
-            # 3. Merge entity data
-            merged_entity_data = _merge_entity_attributes(
-                list(source_entities_data.values()) + ([existing_target_entity_data] if target_exists else []),
-                merge_strategy,
-            )
-
-            # Apply any explicitly provided target entity data (overrides merged data)
-            for key, value in target_entity_data.items():
-                merged_entity_data[key] = value
-
-            # 4. Get all relationships of the source entities
-            all_relations = await _get_edges_for_nodes(chunk_entity_relation_graph, source_entities)
-
-            # 5. Create or update the target entity
-            merged_entity_data["entity_id"] = target_entity
-            if not target_exists:
-                await chunk_entity_relation_graph.upsert_node(target_entity, merged_entity_data)
-                logger.info(f"Created new target entity '{target_entity}'")
-            else:
-                await chunk_entity_relation_graph.upsert_node(target_entity, merged_entity_data)
-                logger.info(f"Updated existing target entity '{target_entity}'")
-
-            # 6. Recreate all relationships, pointing to the target entity
-            relation_updates = {}  # Track relationships that need to be merged
-            relations_to_delete = []
-
-            for src, tgt, edge_data in all_relations:
-                relations_to_delete.append(
-                    compute_mdhash_id(src + tgt, prefix="rel-", workspace=relationships_vdb.workspace)
-                )
-                relations_to_delete.append(
-                    compute_mdhash_id(tgt + src, prefix="rel-", workspace=relationships_vdb.workspace)
-                )
-                new_src = target_entity if src in source_entities else src
-                new_tgt = target_entity if tgt in source_entities else tgt
-
-                # Skip relationships between source entities to avoid self-loops
-                if new_src == new_tgt:
-                    logger.info(f"Skipping relationship between source entities: {src} -> {tgt} to avoid self-loop")
-                    continue
-
-                # Check if the same relationship already exists
-                relation_key = f"{new_src}|{new_tgt}"
-                if relation_key in relation_updates:
-                    # Merge relationship data
-                    existing_data = relation_updates[relation_key]["data"]
-                    merged_relation = _merge_relation_attributes(
-                        [existing_data, edge_data],
-                        {
-                            "description": "concatenate",
-                            "keywords": "join_unique",
-                            "source_id": "join_unique",
-                            "weight": "max",
-                        },
-                    )
-                    relation_updates[relation_key]["data"] = merged_relation
-                    logger.info(f"Merged duplicate relationship: {new_src} -> {new_tgt}")
-                else:
-                    relation_updates[relation_key] = {
-                        "src": new_src,
-                        "tgt": new_tgt,
-                        "data": edge_data.copy(),
-                    }
-
-            # Apply relationship updates
-            for rel_data in relation_updates.values():
-                await chunk_entity_relation_graph.upsert_edge(rel_data["src"], rel_data["tgt"], rel_data["data"])
-                logger.info(f"Created or updated relationship: {rel_data['src']} -> {rel_data['tgt']}")
-
-            if relations_to_delete:
-                await relationships_vdb.delete(relations_to_delete)
-                logger.info(f"Deleted {len(relations_to_delete)} relation records for entity from vector database")
-
-            # 7. Update entity vector representation
-            description = merged_entity_data.get("description", "")
-            source_id = merged_entity_data.get("source_id", "")
-            entity_type = merged_entity_data.get("entity_type", "")
-            content = target_entity + "\n" + description
-
-            entity_id = compute_mdhash_id(target_entity, prefix="ent-", workspace=entities_vdb.workspace)
-            entity_data_for_vdb = {
-                entity_id: {
-                    "content": content,
-                    "entity_name": target_entity,
-                    "source_id": source_id,
-                    "description": description,
-                    "entity_type": entity_type,
-                }
-            }
-
-            await entities_vdb.upsert(entity_data_for_vdb)
-
-            # 8. Update relationship vector representations
-            for rel_data in relation_updates.values():
-                src = rel_data["src"]
-                tgt = rel_data["tgt"]
-                edge_data = rel_data["data"]
-
-                description = edge_data.get("description", "")
-                keywords = edge_data.get("keywords", "")
-                source_id = edge_data.get("source_id", "")
-                weight = float(edge_data.get("weight", 1.0))
-
-                content = f"{keywords}\t{src}\n{tgt}\n{description}"
-                relation_id = compute_mdhash_id(src + tgt, prefix="rel-", workspace=relationships_vdb.workspace)
-
-                relation_data_for_vdb = {
-                    relation_id: {
-                        "content": content,
-                        "src_id": src,
-                        "tgt_id": tgt,
-                        "source_id": source_id,
-                        "description": description,
-                        "keywords": keywords,
-                        "weight": weight,
-                    }
-                }
-
-                await relationships_vdb.upsert(relation_data_for_vdb)
-
-            # 9. Delete source entities
-            source_entities_to_delete = [entity_name for entity_name in source_entities if entity_name != target_entity]
-            if source_entities_to_delete:
-                await chunk_entity_relation_graph.remove_nodes(source_entities_to_delete)
-                entity_ids_to_delete = [
-                    compute_mdhash_id(entity_name, prefix="ent-", workspace=entities_vdb.workspace)
-                    for entity_name in source_entities_to_delete
-                ]
-                await entities_vdb.delete(entity_ids_to_delete)
-                logger.info(
-                    f"Deleted {len(source_entities_to_delete)} source entities and their vector embeddings from database"
-                )
-
-            logger.info(f"Successfully merged {len(source_entities)} entities into '{target_entity}'")
-            return await get_entity_info(
-                chunk_entity_relation_graph,
-                entities_vdb,
-                target_entity,
-                include_vector_data=True,
-            )
-
-        except Exception as e:
-            logger.error(f"Error merging entities: {e}")
-            raise
-
-
-def _merge_entity_attributes(entity_data_list: list[dict[str, Any]], merge_strategy: dict[str, str]) -> dict[str, Any]:
-    """Merge attributes from multiple entities.
-
-    Args:
-        entity_data_list: List of dictionaries containing entity data
-        merge_strategy: Merge strategy for each field
-
-    Returns:
-        Dictionary containing merged entity data
-    """
-    merged_data = {}
-
-    # Collect all possible keys
-    all_keys = set()
-    for data in entity_data_list:
-        all_keys.update(data.keys())
-
-    # Merge values for each key
-    for key in all_keys:
-        # Get all values for this key
-        values = [data.get(key) for data in entity_data_list if data.get(key)]
-
-        if not values:
-            continue
-
-        # Merge values according to strategy
-        strategy = merge_strategy.get(key, "keep_first")
-
-        if strategy == "concatenate":
-            merged_data[key] = "\n\n".join(values)
-        elif strategy == "keep_first":
-            merged_data[key] = values[0]
-        elif strategy == "keep_last":
-            merged_data[key] = values[-1]
-        elif strategy == "join_unique":
-            # Handle fields separated by GRAPH_FIELD_SEP
-            unique_items = set()
-            for value in values:
-                items = value.split(GRAPH_FIELD_SEP)
-                unique_items.update(items)
-            merged_data[key] = GRAPH_FIELD_SEP.join(unique_items)
-        else:
-            # Default strategy
-            merged_data[key] = values[0]
-
-    return merged_data
-
-
-def _merge_relation_attributes(
-    relation_data_list: list[dict[str, Any]], merge_strategy: dict[str, str]
-) -> dict[str, Any]:
-    """Merge attributes from multiple relationships.
-
-    Args:
-        relation_data_list: List of dictionaries containing relationship data
-        merge_strategy: Merge strategy for each field
-
-    Returns:
-        Dictionary containing merged relationship data
-    """
-    merged_data = {}
-
-    # Collect all possible keys
-    all_keys = set()
-    for data in relation_data_list:
-        all_keys.update(data.keys())
-
-    # Merge values for each key
-    for key in all_keys:
-        # Get all values for this key
-        values = [data.get(key) for data in relation_data_list if data.get(key) is not None]
-
-        if not values:
-            continue
-
-        # Merge values according to strategy
-        strategy = merge_strategy.get(key, "keep_first")
-
-        if strategy == "concatenate":
-            merged_data[key] = "\n\n".join(str(v) for v in values)
-        elif strategy == "keep_first":
-            merged_data[key] = values[0]
-        elif strategy == "keep_last":
-            merged_data[key] = values[-1]
-        elif strategy == "join_unique":
-            # Handle fields separated by GRAPH_FIELD_SEP
-            unique_items = set()
-            for value in values:
-                items = str(value).split(GRAPH_FIELD_SEP)
-                unique_items.update(items)
-            merged_data[key] = GRAPH_FIELD_SEP.join(unique_items)
-        elif strategy == "max":
-            # For numeric fields like weight
-            try:
-                merged_data[key] = max(float(v) for v in values)
-            except (ValueError, TypeError):
-                merged_data[key] = values[0]
-        else:
-            # Default strategy
-            merged_data[key] = values[0]
-
-    return merged_data
+        rag = _build_canonical_merge_rag(
+            chunk_entity_relation_graph,
+            entities_vdb,
+            relationships_vdb,
+        )
+        return await rag.amerge_nodes(
+            entity_ids=source_entities,
+            target_entity_data=target_payload,
+        )
 
 
 async def get_entity_info(
