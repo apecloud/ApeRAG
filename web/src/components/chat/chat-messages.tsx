@@ -6,7 +6,6 @@ import { apiClient } from '@/lib/api/client';
 import _ from 'lodash';
 import { useParams } from 'next/navigation';
 import {
-  startTransition,
   useCallback,
   useEffect,
   useMemo,
@@ -489,9 +488,7 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
             const payload = JSON.parse(
               messageEvent.data,
             ) as AgentTimelineEventEnvelope;
-            startTransition(() => {
-              void onStreamEvent(turnId, payload);
-            });
+            void onStreamEvent(turnId, payload);
           } catch (error) {
             console.error('Failed to parse turn event', eventType, error);
           }

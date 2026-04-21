@@ -5,7 +5,15 @@ import { CopyToClipboard } from '@/components/copy-to-clipboard';
 import { Markdown } from '@/components/markdown';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import {
+  Card,
+  CardContent,
+} from '@/components/ui/card';
 import {
   Sheet,
   SheetContent,
@@ -14,7 +22,13 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
-import { Bot, LoaderCircle } from 'lucide-react';
+import {
+  Bot,
+  BrainCircuit,
+  ChevronRight,
+  LoaderCircle,
+  TerminalSquare,
+} from 'lucide-react';
 import { useFormatter, useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 import { MessageCollapseContent } from './message-collapse-content';
@@ -86,8 +100,17 @@ export type ReferenceBundleItem = {
 type TimelineEntry = {
   key: string;
   title: string;
-  detail?: string;
+  subtitle?: string;
   timestamp?: string | null;
+};
+
+type OrderedTimelineItem = TimelineEntry & {
+  kind: 'activity' | 'command';
+  status: string;
+  commandLabel?: string;
+  argsPreview?: string;
+  resultPreview?: string;
+  occurrences?: number;
 };
 
 const terminalStatuses = new Set(['COMPLETED', 'FAILED', 'CANCELLED']);
@@ -147,74 +170,358 @@ function extractReferences(
   );
 }
 
-function buildTimelineEntries(
-  timeline: AgentTimelineEventEnvelope[],
-): TimelineEntry[] {
-  const entries: TimelineEntry[] = [];
-  for (const event of timeline) {
-    let title: string | undefined;
-    let detail: string | undefined;
+function compactPreview(value: unknown, maxLength = 220) {
+  if (value == null) return undefined;
 
-    switch (event.type) {
-      case 'agent.state.changed':
-        title = event.label || event.status || 'Thinking';
-        if (typeof event.data.tool_name === 'string') {
-          detail = event.data.tool_name;
-        }
-        break;
-      case 'external_action.started':
-        title = 'Searching';
-        detail =
-          typeof event.data.tool_name === 'string'
-            ? event.data.tool_name
-            : event.label || undefined;
-        break;
-      case 'tool.started':
-        title = 'Calling Tool';
-        detail =
-          typeof event.data.tool_name === 'string'
-            ? event.data.tool_name
-            : event.label || undefined;
-        break;
-      case 'tool.finished':
-        title = 'Reading Result';
-        detail =
-          typeof event.data.tool_name === 'string'
-            ? event.data.tool_name
-            : event.label || undefined;
-        break;
-      case 'turn.completed':
-        title = 'Completed';
-        break;
-      case 'turn.failed':
-        title = 'Failed';
-        detail =
-          typeof event.data.error === 'string' ? event.data.error : undefined;
-        break;
-      case 'turn.cancelled':
-        title = 'Failed';
-        detail = 'Cancelled';
-        break;
-      default:
-        break;
+  const raw =
+    typeof value === 'string'
+      ? value
+      : (() => {
+          try {
+            return JSON.stringify(value, null, 2);
+          } catch {
+            return String(value);
+          }
+        })();
+
+  const normalized = raw.trim();
+  if (!normalized) return undefined;
+  if (normalized.length <= maxLength) return normalized;
+  return `${normalized.slice(0, maxLength).trimEnd()}...`;
+}
+
+function humanizeToolName(toolName: string) {
+  return toolName.replace(/[_-]+/g, ' ').trim();
+}
+
+function describeActivityStep(event: AgentTimelineEventEnvelope) {
+  const status = String(event.status || '').toLowerCase();
+  const toolName =
+    typeof event.data.tool_name === 'string'
+      ? humanizeToolName(event.data.tool_name)
+      : undefined;
+
+  switch (status) {
+    case 'thinking':
+      return {
+        title: 'Planning the next step',
+        subtitle: 'Reviewing the request and deciding what to do next.',
+      };
+    case 'searching':
+      return {
+        title: 'Looking for supporting context',
+        subtitle: 'Searching for information that can support the reply.',
+      };
+    case 'calling_tool':
+      return null;
+    case 'reading_result':
+      return {
+        title: toolName
+          ? `Reviewing results from ${toolName}`
+          : 'Reviewing the latest results',
+        subtitle: 'Using the returned context to decide the next move.',
+      };
+    case 'composing':
+      return {
+        title: 'Writing the answer',
+        subtitle: 'Turning the gathered context into a response.',
+      };
+    default:
+      return null;
+  }
+}
+
+function summarizeCollectionResult(result: unknown) {
+  if (!result || typeof result !== 'object') return undefined;
+
+  const items = (result as { items?: unknown }).items;
+  if (!Array.isArray(items)) return undefined;
+
+  if (items.length === 0) {
+    return 'No knowledge bases were available for this step.';
+  }
+
+  return `Found ${items.length} knowledge base${items.length === 1 ? '' : 's'}.`;
+}
+
+function summarizeToolResult(label: string, result: unknown, status: string) {
+  if (status === 'failed') {
+    if (typeof result === 'string' && result.trim()) {
+      return result.trim();
     }
+    return 'This step ended before returning a usable result.';
+  }
 
-    if (!title) continue;
+  switch (label) {
+    case 'list_collections':
+      return summarizeCollectionResult(result);
+    default: {
+      const preview = compactPreview(result, 180);
+      return preview
+        ? preview.replace(/\s+/g, ' ').trim()
+        : 'Step completed and returned context for the answer.';
+    }
+  }
+}
 
-    const previous = entries[entries.length - 1];
-    if (previous && previous.title === title && previous.detail === detail) {
-      previous.timestamp = event.timestamp;
+function describeCommandStep(label: string, status: string, result: unknown) {
+  switch (label) {
+    case 'list_collections':
+      return status === 'running'
+        ? {
+            title: 'Checking available knowledge bases',
+            subtitle: 'Finding which knowledge bases can be used in this reply.',
+          }
+        : {
+            title:
+              status === 'failed'
+                ? 'Could not check available knowledge bases'
+                : 'Checked available knowledge bases',
+            subtitle: summarizeToolResult(label, result, status),
+          };
+    case 'search_web':
+    case 'web_search':
+      return status === 'running'
+        ? {
+            title: 'Searching the web for supporting context',
+            subtitle: 'Looking for external information that can support the reply.',
+          }
+        : {
+            title:
+              status === 'failed'
+                ? 'Could not search the web'
+                : 'Searched the web for supporting context',
+            subtitle: summarizeToolResult(label, result, status),
+          };
+    case 'external_action':
+      return status === 'running'
+        ? {
+            title: 'Calling an external action',
+            subtitle: 'Waiting for the external action to return more context.',
+          }
+        : {
+            title:
+              status === 'failed'
+                ? 'External action did not complete'
+                : 'Completed an external action',
+            subtitle: summarizeToolResult(label, result, status),
+          };
+    default: {
+      const readableLabel = humanizeToolName(label);
+      return status === 'running'
+        ? {
+            title: `Using ${readableLabel}`,
+            subtitle: 'Gathering context that can support the reply.',
+          }
+        : {
+            title:
+              status === 'failed'
+                ? `${readableLabel} did not complete`
+                : `Used ${readableLabel}`,
+            subtitle: summarizeToolResult(label, result, status),
+          };
+    }
+  }
+}
+
+function findOpenCommandIndex(
+  entries: OrderedTimelineItem[],
+  commandLabel: string,
+) {
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const item = entries[index];
+    if (
+      item.kind === 'command' &&
+      item.commandLabel === commandLabel &&
+      item.status === 'running'
+    ) {
+      return index;
+    }
+  }
+  return -1;
+}
+
+function buildOrderedTimelineItems(
+  timeline: AgentTimelineEventEnvelope[],
+): OrderedTimelineItem[] {
+  const orderedEvents = [...timeline].sort((left, right) => {
+    if (left.sequence !== right.sequence) {
+      return left.sequence - right.sequence;
+    }
+    return new Date(left.timestamp).getTime() - new Date(right.timestamp).getTime();
+  });
+  const entries: OrderedTimelineItem[] = [];
+
+  for (const event of orderedEvents) {
+    if (event.type === 'agent.state.changed') {
+      const status = String(event.status || '').toLowerCase();
+      const description = describeActivityStep(event);
+      if (!description) continue;
+      const previous = entries[entries.length - 1];
+      if (
+        previous &&
+        previous.kind === 'activity' &&
+        previous.status === status &&
+        previous.title === description.title &&
+        previous.subtitle === description.subtitle
+      ) {
+        previous.timestamp = event.timestamp;
+        previous.occurrences = (previous.occurrences || 1) + 1;
+        continue;
+      }
+
+      entries.push({
+        key: `${event.sequence}-${event.type}`,
+        kind: 'activity',
+        title: description.title,
+        subtitle: description.subtitle,
+        timestamp: event.timestamp,
+        status,
+        occurrences: 1,
+      });
       continue;
     }
 
-    entries.push({
-      key: `${event.sequence}-${event.type}`,
-      title,
-      detail,
-      timestamp: event.timestamp,
-    });
+    if (
+      event.type === 'tool.started' ||
+      event.type === 'tool.finished' ||
+      event.type === 'external_action.started' ||
+      event.type === 'external_action.finished'
+    ) {
+      const fallbackLabel =
+        event.type.startsWith('external_action') ? 'external_action' : 'tool';
+      const rawLabel =
+        typeof event.data.tool_name === 'string'
+          ? event.data.tool_name
+          : event.label || fallbackLabel;
+      const normalizedStatus =
+        event.type.endsWith('.started')
+          ? 'running'
+          : String(event.status || 'finished').toLowerCase();
+      const description = describeCommandStep(
+        rawLabel,
+        normalizedStatus,
+        event.data.result,
+      );
+      const nextArgsPreview = compactPreview(event.data.args, 180);
+      const nextResultPreview = compactPreview(event.data.result, 280);
+
+      if (event.type.endsWith('.started')) {
+        entries.push({
+          key: `${event.sequence}-${event.type}`,
+          kind: 'command',
+          title: description.title,
+          subtitle: description.subtitle,
+          timestamp: event.timestamp,
+          status: normalizedStatus,
+          commandLabel: rawLabel,
+          argsPreview: nextArgsPreview,
+          resultPreview: nextResultPreview,
+        });
+        continue;
+      }
+
+      const openCommandIndex = findOpenCommandIndex(entries, rawLabel);
+      if (openCommandIndex >= 0) {
+        const previous = entries[openCommandIndex];
+        entries[openCommandIndex] = {
+          ...previous,
+          title: description.title,
+          subtitle: description.subtitle,
+          timestamp: event.timestamp,
+          status: normalizedStatus,
+          argsPreview: previous.argsPreview || nextArgsPreview,
+          resultPreview: nextResultPreview || previous.resultPreview,
+        };
+        continue;
+      }
+
+      entries.push({
+        key: `${event.sequence}-${event.type}`,
+        kind: 'command',
+        title: description.title,
+        subtitle: description.subtitle,
+        timestamp: event.timestamp,
+        status: normalizedStatus,
+        commandLabel: rawLabel,
+        argsPreview: nextArgsPreview,
+        resultPreview: nextResultPreview,
+      });
+      continue;
+    }
+
+    if (event.type === 'turn.failed' || event.type === 'turn.cancelled') {
+      entries.push({
+        key: `${event.sequence}-${event.type}`,
+        kind: 'activity',
+        title: event.type === 'turn.failed' ? 'Run failed' : 'Run cancelled',
+        subtitle:
+          typeof event.data.error === 'string' ? event.data.error : undefined,
+        timestamp: event.timestamp,
+        status: event.type === 'turn.failed' ? 'failed' : 'cancelled',
+      });
+    }
   }
+
   return entries;
+}
+
+function getAnswerSectionTitle(status: string, hasAnswerText: boolean) {
+  if (status === 'FAILED') return hasAnswerText ? 'Failure details' : 'Run failed';
+  if (status === 'CANCELLED') return hasAnswerText ? 'Cancelled output' : 'Run cancelled';
+  if (status === 'COMPLETED') return 'Final answer';
+  return hasAnswerText ? 'Draft answer' : 'Answer';
+}
+
+function describeEmptyAnswerState(status: string) {
+  if (status === 'FAILED') {
+    return 'This run ended before a final answer was produced.';
+  }
+  if (status === 'CANCELLED') {
+    return 'This run was cancelled before a final answer was produced.';
+  }
+  return 'The answer will appear here once the activity stream finishes.';
+}
+
+function getTimelineItemBadgeLabel(item: OrderedTimelineItem) {
+  if (item.kind === 'activity') return 'step';
+  if (item.status === 'running') return 'running';
+  if (item.status === 'success') return 'done';
+  if (item.status === 'failed') return 'failed';
+  return 'command';
+}
+
+function getTimelineItemIcon(item: OrderedTimelineItem) {
+  return item.kind === 'activity' ? BrainCircuit : TerminalSquare;
+}
+
+function getTimelineItemStyles(item: OrderedTimelineItem) {
+  if (item.kind === 'activity') {
+    return {
+      iconWrapper: 'border-primary/25 bg-primary/10 text-primary',
+      card: 'border-border/60 bg-muted/25',
+    };
+  }
+
+  if (item.status === 'failed') {
+    return {
+      iconWrapper: 'border-destructive/25 bg-destructive/10 text-destructive',
+      card: 'border-destructive/20 bg-destructive/5',
+    };
+  }
+
+  if (item.status === 'running') {
+    return {
+      iconWrapper:
+        'border-emerald-500/25 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+      card: 'border-emerald-500/15 bg-emerald-500/5',
+    };
+  }
+
+  return {
+    iconWrapper: 'border-border/70 bg-background text-foreground',
+    card: 'border-border/60 bg-background/70',
+  };
 }
 
 export const AgentTurnCard = ({
@@ -233,14 +540,28 @@ export const AgentTurnCard = ({
   const pageChat = useTranslations('page_chat');
   const format = useFormatter();
 
-  const timelineEntries = useMemo(
-    () => buildTimelineEntries(snapshot.timeline),
-    [snapshot.timeline],
-  );
   const answerText = useMemo(
     () => extractAnswerText(snapshot, streamingAnswer, fallbackParts),
     [fallbackParts, snapshot, streamingAnswer],
   );
+  const timelineItems = useMemo(() => {
+    const items = buildOrderedTimelineItems(snapshot.timeline);
+    if (!answerText) return items;
+
+    return items.map((item) => {
+      if (
+        item.kind === 'activity' &&
+        item.status === 'failed' &&
+        item.subtitle?.trim() === answerText.trim()
+      ) {
+        return {
+          ...item,
+          subtitle: undefined,
+        };
+      }
+      return item;
+    });
+  }, [answerText, snapshot.timeline]);
   const references = useMemo(
     () => extractReferences(snapshot, fallbackParts),
     [fallbackParts, snapshot],
@@ -267,21 +588,23 @@ export const AgentTurnCard = ({
     : pending
       ? 'RUNNING'
       : snapshot.turn.status;
+  const showAnswerSection = Boolean(answerText) || terminalStatuses.has(displayStatus);
 
   return (
-    <div className="flex w-max flex-row gap-4">
+    <div className="flex w-full flex-row gap-3">
       <div>
-        <div className="bg-muted text-muted-foreground relative flex size-12 flex-col justify-center rounded-full">
+        <div className="bg-muted text-muted-foreground relative flex size-10 flex-col justify-center rounded-full">
           {pending && (
-            <LoaderCircle className="absolute -left-1 size-14 animate-spin opacity-20" />
+            <LoaderCircle className="absolute -left-1 size-12 animate-spin opacity-20" />
           )}
-          <Bot className="size-6 self-center" />
+          <Bot className="size-5 self-center" />
         </div>
       </div>
-      <div className="flex max-w-sm flex-col gap-2 sm:max-w-lg md:max-w-2xl lg:max-w-3xl xl:max-w-4xl">
+      <div className="flex min-w-0 max-w-sm flex-1 flex-col gap-2.5 sm:max-w-lg md:max-w-2xl lg:max-w-3xl xl:max-w-4xl">
         <div className="flex flex-row items-center gap-2">
           <Badge
             variant={displayStatus === 'COMPLETED' ? 'default' : 'secondary'}
+            className="h-5 px-2 text-[10px]"
           >
             {displayStatus}
           </Badge>
@@ -292,55 +615,233 @@ export const AgentTurnCard = ({
           )}
         </div>
 
-        <Card className="dark:border-card/0 block gap-0 px-4 py-4 text-sm">
-          <MessageCollapseContent
-            title="Timeline"
-            defaultOpen={pending || timelineEntries.length <= 4}
-            animate={pending}
+        <div className="flex flex-col gap-3">
+          <Collapsible
+            defaultOpen={pending}
+            className="group/activity-stream"
           >
-            <div className="flex flex-col gap-3">
-              {timelineEntries.length === 0 ? (
-                <div className="text-muted-foreground text-sm">
-                  Waiting for events...
-                </div>
-              ) : (
-                timelineEntries.map((entry, index) => (
-                  <div key={entry.key} className="flex gap-3">
-                    <div className="flex flex-col items-center">
-                      <div className="bg-primary mt-1 size-2 rounded-full" />
-                      {index + 1 < timelineEntries.length && (
-                        <div className="bg-border mt-1 h-full w-px flex-1" />
-                      )}
+            <div className="pl-3">
+              <CollapsibleTrigger asChild>
+                <button
+                  type="button"
+                  className="text-muted-foreground hover:text-foreground mb-2 flex w-full items-center gap-2 text-left transition-colors"
+                >
+                  <ChevronRight className="size-3.5 transition-transform group-data-[state=open]/activity-stream:rotate-90" />
+                  <span className="text-[11px] font-medium tracking-[0.12em] uppercase">
+                    Activity stream
+                  </span>
+                  <span className="text-[11px]">
+                    {timelineItems.length}
+                  </span>
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="flex flex-col gap-0">
+                  {timelineItems.length === 0 ? (
+                    <div className="text-muted-foreground rounded-lg border border-dashed px-3 py-2 text-sm">
+                      Waiting for activity events...
                     </div>
-                    <div className="min-w-0 flex-1 pb-2">
-                      <div className="font-medium">{entry.title}</div>
-                      {entry.detail && (
-                        <div className="text-muted-foreground mt-1 text-xs break-all">
-                          {entry.detail}
+                  ) : (
+                    timelineItems.map((item, index) => {
+                      const Icon = getTimelineItemIcon(item);
+                      const styles = getTimelineItemStyles(item);
+                      const hasExpandableContent =
+                        !!item.argsPreview || !!item.resultPreview;
+
+                      return (
+                        <div key={item.key} className="flex gap-2.5">
+                          <div className="flex flex-col items-center">
+                            <div
+                              className={cn(
+                                'mt-0.5 flex size-6 items-center justify-center rounded-full border',
+                                styles.iconWrapper,
+                              )}
+                            >
+                              <Icon className="size-3.5" />
+                            </div>
+                            {index + 1 < timelineItems.length && (
+                              <div className="bg-border mt-1.5 min-h-6 w-px flex-1" />
+                            )}
+                          </div>
+
+                          <div className="min-w-0 flex-1 pb-3">
+                            {hasExpandableContent ? (
+                              <Collapsible
+                                defaultOpen={pending && item.status === 'running'}
+                                className="group/timeline-item"
+                              >
+                                <div
+                                  className={cn(
+                                    'rounded-xl border px-3 py-2.5',
+                                    styles.card,
+                                  )}
+                                >
+                                  <CollapsibleTrigger asChild>
+                                    <button
+                                      type="button"
+                                      className="flex w-full items-start gap-2 text-left"
+                                    >
+                                      <ChevronRight className="text-muted-foreground mt-0.5 size-3.5 shrink-0 transition-transform group-data-[state=open]/timeline-item:rotate-90" />
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex flex-wrap items-center gap-1.5">
+                                          <div className="text-sm font-medium">
+                                            {item.title}
+                                          </div>
+                                          <Badge
+                                            variant="outline"
+                                            className="h-5 rounded-full px-1.5 text-[9px] uppercase"
+                                          >
+                                            {getTimelineItemBadgeLabel(item)}
+                                          </Badge>
+                                          {item.timestamp && (
+                                            <div className="text-muted-foreground text-[10px]">
+                                              {format.dateTime(
+                                                new Date(item.timestamp),
+                                                'short',
+                                              )}
+                                            </div>
+                                          )}
+                                        </div>
+                                        {item.subtitle && (
+                                          <div className="text-muted-foreground mt-1 text-xs">
+                                            {item.subtitle}
+                                          </div>
+                                        )}
+                                        {item.kind === 'activity' &&
+                                          (item.occurrences || 1) > 1 && (
+                                            <div className="text-muted-foreground mt-1.5 text-[11px]">
+                                              Repeated {item.occurrences} times
+                                              while this step stayed active.
+                                            </div>
+                                          )}
+                                      </div>
+                                    </button>
+                                  </CollapsibleTrigger>
+                                  <CollapsibleContent className="mt-2 border-t pt-2">
+                                    <div className="grid gap-2 text-xs">
+                                      {item.argsPreview && (
+                                        <div className="grid gap-1">
+                                          <div className="text-muted-foreground">
+                                            Command input
+                                          </div>
+                                          <pre className="bg-background overflow-x-auto rounded-md border p-2 whitespace-pre-wrap break-all">
+                                            {item.argsPreview}
+                                          </pre>
+                                        </div>
+                                      )}
+                                      {item.resultPreview && (
+                                        <div className="grid gap-1">
+                                          <div className="text-muted-foreground">
+                                            Result summary
+                                          </div>
+                                          <pre className="bg-background overflow-x-auto rounded-md border p-2 whitespace-pre-wrap break-all">
+                                            {item.resultPreview}
+                                          </pre>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </CollapsibleContent>
+                                </div>
+                              </Collapsible>
+                            ) : (
+                              <div
+                                className={cn(
+                                  'rounded-xl border px-3 py-2.5',
+                                  styles.card,
+                                )}
+                              >
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <div className="text-sm font-medium">
+                                    {item.title}
+                                  </div>
+                                  <Badge
+                                    variant="outline"
+                                    className="h-5 rounded-full px-1.5 text-[9px] uppercase"
+                                  >
+                                    {getTimelineItemBadgeLabel(item)}
+                                  </Badge>
+                                  {item.timestamp && (
+                                    <div className="text-muted-foreground text-[10px]">
+                                      {format.dateTime(
+                                        new Date(item.timestamp),
+                                        'short',
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                                {item.subtitle && (
+                                  <div className="text-muted-foreground mt-1 text-xs">
+                                    {item.subtitle}
+                                  </div>
+                                )}
+                                {item.kind === 'activity' &&
+                                  (item.occurrences || 1) > 1 && (
+                                    <div className="text-muted-foreground mt-1.5 text-[11px]">
+                                      Repeated {item.occurrences} times while
+                                      this step stayed active.
+                                    </div>
+                                  )}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      )}
+                      );
+                    })
+                  )}
+                </div>
+              </CollapsibleContent>
+            </div>
+          </Collapsible>
+
+          {showAnswerSection && (
+            <Card
+              className={cn(
+                'gap-0 overflow-hidden py-0',
+                displayStatus === 'COMPLETED'
+                  ? 'border-primary/20 bg-background shadow-sm'
+                  : displayStatus === 'FAILED'
+                    ? 'border-border/50 bg-muted/20 shadow-none'
+                    : 'border-border/60 bg-background/80',
+              )}
+            >
+              <CardContent className="px-4 py-4 text-sm">
+                <div className="text-muted-foreground mb-2 text-[11px] font-medium tracking-[0.12em] uppercase">
+                  {getAnswerSectionTitle(displayStatus, Boolean(answerText))}
+                </div>
+                {answerText ? (
+                  <Markdown>{answerText}</Markdown>
+                ) : pending ? (
+                  <div className="space-y-2">
+                    <div className="text-muted-foreground text-sm">
+                      {describeEmptyAnswerState(displayStatus)}
+                    </div>
+                    <div className="flex flex-row gap-2 py-1">
+                      <div className="bg-muted-foreground animate-caret-blink size-2 rounded-full delay-0" />
+                      <div className="bg-muted-foreground animate-caret-blink size-2 rounded-full delay-200" />
+                      <div className="bg-muted-foreground animate-caret-blink size-2 rounded-full delay-400" />
                     </div>
                   </div>
-                ))
-              )}
-            </div>
-          </MessageCollapseContent>
+                ) : (
+                  <div className="text-muted-foreground text-sm">
+                    {describeEmptyAnswerState(displayStatus)}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
-          <div className="mt-4">
-            {answerText ? (
-              <Markdown>{answerText}</Markdown>
-            ) : (
-              <div className="flex flex-row gap-2 py-2">
-                <div className="bg-muted-foreground animate-caret-blink size-2 rounded-full delay-0" />
-                <div className="bg-muted-foreground animate-caret-blink size-2 rounded-full delay-200" />
-                <div className="bg-muted-foreground animate-caret-blink size-2 rounded-full delay-400" />
-              </div>
-            )}
-          </div>
-
-          <div className="mt-4">
-            <MessageCollapseContent title="Diagnostics">
-              <div className="grid gap-3 text-xs">
+          <Collapsible className="group/details pl-4">
+            <CollapsibleTrigger asChild>
+              <button
+                type="button"
+                className="text-muted-foreground hover:text-foreground flex items-center gap-2 text-left text-xs transition-colors"
+              >
+                <ChevronRight className="size-3 transition-transform group-data-[state=open]/details:rotate-90" />
+                <span>Details</span>
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-2">
+              <div className="bg-muted/20 grid gap-3 rounded-xl border border-dashed px-4 py-3 text-xs">
                 <div className="grid gap-1">
                   <div className="text-muted-foreground">Turn ID</div>
                   <div className="font-mono break-all">
@@ -372,9 +873,9 @@ export const AgentTurnCard = ({
                   </div>
                 )}
               </div>
-            </MessageCollapseContent>
-          </div>
-        </Card>
+            </CollapsibleContent>
+          </Collapsible>
+        </div>
 
         <div className="flex flex-row items-center gap-2">
           {references.length > 0 && (
