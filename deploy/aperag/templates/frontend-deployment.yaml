@@ -44,7 +44,7 @@ spec:
               protocol: TCP
           env:
             - name: API_SERVER_ENDPOINT
-              value: http://aperag.default.svc.cluster.local:8000
+              value: http://{{ include "aperag.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:8000
             - name: API_SERVER_BASE_PATH
               value: /api/v1
           {{- with .Values.frontend.resources }}

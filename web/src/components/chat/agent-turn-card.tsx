@@ -1,6 +1,6 @@
 'use client';
 
-import { ChatMessage, Feedback, Reference } from '@/api';
+import { Feedback, Reference } from '@/api';
 import { CopyToClipboard } from '@/components/copy-to-clipboard';
 import { Markdown } from '@/components/markdown';
 import { Badge } from '@/components/ui/badge';
@@ -806,14 +806,14 @@ export const AgentTurnCard = ({
   snapshot,
   pending,
   streamingAnswer,
-  fallbackParts,
+  feedback,
   onFeedback,
 }: {
   snapshot: AgentTurnSnapshot;
   pending: boolean;
   streamingAnswer: string;
-  fallbackParts: ChatMessage[];
-  onFeedback: (part: ChatMessage, feedback: Feedback) => void;
+  feedback?: Feedback;
+  onFeedback: (turnId: string, feedback: Feedback) => void;
 }) => {
   const t = useTranslations();
   const pageChat = useTranslations('page_chat');
@@ -905,21 +905,6 @@ export const AgentTurnCard = ({
     () => extractReferences(snapshot),
     [snapshot],
   );
-
-  const feedbackParts = useMemo<ChatMessage[]>(() => {
-    const feedbackPart = fallbackParts.findLast((part) => part.references);
-    if (feedbackPart) return fallbackParts;
-    if (references.length === 0) return fallbackParts;
-    return [
-      {
-        id: snapshot.turn.turn_id,
-        type: 'references',
-        role: 'ai',
-        data: '',
-        references,
-      },
-    ];
-  }, [fallbackParts, references, snapshot.turn.turn_id]);
 
   const timestamp = snapshot.turn.finished_at || snapshot.turn.started_at;
   const displayStatus = terminalStatuses.has(snapshot.turn.status)
@@ -1295,15 +1280,18 @@ export const AgentTurnCard = ({
           )}
 
           <MessageFeedback
-            parts={feedbackParts}
-            hanldeMessageFeedback={onFeedback}
+            turnId={snapshot.turn.turn_id}
+            feedback={feedback}
+            onFeedback={onFeedback}
           />
 
-          <CopyToClipboard
-            variant="ghost"
-            className={cn('text-muted-foreground', !answerText && 'opacity-50')}
-            text={answerText}
-          />
+          {answerText && (
+            <CopyToClipboard
+              variant="ghost"
+              className="text-muted-foreground"
+              text={answerText}
+            />
+          )}
         </div>
       </div>
     </div>

@@ -462,21 +462,29 @@ async def test_aedit_entity_rename_uses_batch_graph_primitives():
 
 
 @pytest.mark.asyncio
-async def test_amerge_entities_uses_batch_graph_primitives_and_batch_delete():
+async def test_amerge_entities_routes_through_canonical_lightrag_merge(monkeypatch):
     graph_storage = _FakeGraphStorage(
         nodes={
             "A": {"entity_id": "A", "entity_type": "PERSON", "description": "desc A", "source_id": "chunk-a"},
             "B": {"entity_id": "B", "entity_type": "PERSON", "description": "desc B", "source_id": "chunk-b"},
-            "X": {"entity_id": "X", "entity_type": "ORG", "description": "desc X", "source_id": "chunk-x"},
-            "Y": {"entity_id": "Y", "entity_type": "ORG", "description": "desc Y", "source_id": "chunk-y"},
-        },
-        edges_with_data_by_node={
-            "A": [("A", "X", {"description": "edge ax", "keywords": "k1", "source_id": "chunk-a", "weight": 1})],
-            "B": [("B", "Y", {"description": "edge by", "keywords": "k2", "source_id": "chunk-b", "weight": 2})],
         },
     )
     entities_vdb = _FakeEntityVectorStorage()
     relationships_vdb = _FakeRelationVectorStorage()
+    captured = {}
+
+    async def _fake_amerge_nodes(self, entity_ids, target_entity_data=None):
+        captured["self"] = self
+        captured["entity_ids"] = entity_ids
+        captured["target_entity_data"] = target_entity_data
+        return {
+            "status": "success",
+            "message": "canonical merge invoked",
+            "target_entity_data": target_entity_data,
+            "source_entities": entity_ids,
+        }
+
+    monkeypatch.setattr(LightRAG, "amerge_nodes", _fake_amerge_nodes)
 
     result = await utils_graph.amerge_entities(
         graph_storage,
@@ -487,16 +495,23 @@ async def test_amerge_entities_uses_batch_graph_primitives_and_batch_delete():
         graph_db_lock=_FakeAsyncLock(),
     )
 
-    assert ("get_nodes_batch", ("A", "B", "merged")) in graph_storage.calls
-    assert ("get_incident_edges_with_data_batch", ("A", "B")) in graph_storage.calls
-    assert graph_storage.removed_nodes_batches == [["A", "B"]]
-    assert len(relationships_vdb.deleted) == 1
-    assert any(node_id == "merged" for node_id, _ in graph_storage.upserted_nodes)
-    assert result["entity_name"] == "merged"
+    assert result["status"] == "success"
+    assert captured["entity_ids"] == ["A", "B"]
+    assert captured["target_entity_data"] == {"entity_name": "merged"}
+    assert captured["self"].workspace == "workspace-1"
+    assert captured["self"].chunk_entity_relation_graph is graph_storage
+    assert captured["self"].entities_vdb is entities_vdb
+    assert captured["self"].relationships_vdb is relationships_vdb
+    assert graph_storage.calls == []
+    assert entities_vdb.deleted == []
+    assert entities_vdb.deleted_entities == []
+    assert entities_vdb.upserts == []
+    assert relationships_vdb.deleted == []
+    assert relationships_vdb.upserts == []
 
 
 @pytest.mark.asyncio
-async def test_amerge_entities_aborts_before_mutation_when_batch_edge_fetch_fails():
+async def test_amerge_entities_rejects_custom_merge_strategy():
     graph_storage = _FakeGraphStorage(
         nodes={
             "A": {"entity_id": "A", "entity_type": "PERSON", "description": "desc A", "source_id": "chunk-a"},
@@ -506,13 +521,42 @@ async def test_amerge_entities_aborts_before_mutation_when_batch_edge_fetch_fail
     entities_vdb = _FakeEntityVectorStorage()
     relationships_vdb = _FakeRelationVectorStorage()
 
-    async def _failing_get_incident_edges_with_data_batch(node_ids):
-        graph_storage.calls.append(("get_incident_edges_with_data_batch", tuple(node_ids)))
-        raise RuntimeError("incident edge batch failed")
+    with pytest.raises(ValueError, match="Custom merge_strategy is no longer supported"):
+        await utils_graph.amerge_entities(
+            graph_storage,
+            entities_vdb,
+            relationships_vdb,
+            ["A", "B"],
+            "merged",
+            merge_strategy={"description": "keep_last"},
+            graph_db_lock=_FakeAsyncLock(),
+        )
 
-    graph_storage.get_incident_edges_with_data_batch = _failing_get_incident_edges_with_data_batch
+    assert graph_storage.calls == []
+    assert entities_vdb.deleted == []
+    assert entities_vdb.deleted_entities == []
+    assert entities_vdb.upserts == []
+    assert relationships_vdb.deleted == []
+    assert relationships_vdb.upserts == []
 
-    with pytest.raises(RuntimeError, match="incident edge batch failed"):
+
+@pytest.mark.asyncio
+async def test_amerge_entities_propagates_canonical_merge_failures(monkeypatch):
+    graph_storage = _FakeGraphStorage(
+        nodes={
+            "A": {"entity_id": "A", "entity_type": "PERSON", "description": "desc A", "source_id": "chunk-a"},
+            "B": {"entity_id": "B", "entity_type": "PERSON", "description": "desc B", "source_id": "chunk-b"},
+        }
+    )
+    entities_vdb = _FakeEntityVectorStorage()
+    relationships_vdb = _FakeRelationVectorStorage()
+
+    async def _failing_amerge_nodes(self, entity_ids, target_entity_data=None):
+        raise RuntimeError("canonical merge failed")
+
+    monkeypatch.setattr(LightRAG, "amerge_nodes", _failing_amerge_nodes)
+
+    with pytest.raises(RuntimeError, match="canonical merge failed"):
         await utils_graph.amerge_entities(
             graph_storage,
             entities_vdb,
@@ -522,11 +566,7 @@ async def test_amerge_entities_aborts_before_mutation_when_batch_edge_fetch_fail
             graph_db_lock=_FakeAsyncLock(),
         )
 
-    assert ("get_nodes_batch", ("A", "B", "merged")) in graph_storage.calls
-    assert ("get_incident_edges_with_data_batch", ("A", "B")) in graph_storage.calls
-    assert graph_storage.upserted_nodes == []
-    assert graph_storage.upserted_edges == []
-    assert graph_storage.removed_nodes_batches == []
+    assert graph_storage.calls == []
     assert entities_vdb.deleted == []
     assert entities_vdb.deleted_entities == []
     assert entities_vdb.upserts == []

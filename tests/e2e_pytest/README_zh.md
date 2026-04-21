@@ -1,30 +1,30 @@
 # ApeRAG Pytest E2E 测试指南
 
-本目录现在只保留 Hurl 暂时不适合接管的 pytest 版本产品级 E2E。新的黑盒 HTTP 覆盖优先放到 `tests/e2e_http/`，这里已经收缩成仍然依赖 pytest fixtures 和辅助函数的小型补充区。
+本目录现在只保留 Hurl 暂时不适合接管的 pytest 版本产品级 E2E。
+新的黑盒 HTTP 覆盖优先放到 `tests/e2e_http/`，这里已经收缩成仍然依赖
+pytest fixtures 和辅助函数的小型补充区。
 
 ## 📁 目录结构
 
 ```
 tests/e2e_pytest/
 ├── .env                    # 环境配置文件（需要创建）
-├── .env.template          # 环境配置模板（可选）
 ├── conftest.py            # pytest fixtures 定义
 ├── config.py              # 配置管理
 ├── utils.py               # 工具函数
 ├── README.md              # 本文档
 ├── test_*.py              # 测试文件
-├── testdata/              # 测试数据
-│   ├── basic-flow.yaml    # 基础流程配置
-│   └── rag-flow.yaml      # RAG 流程配置
-└── evaluation/            # 评估相关
 ```
 
 ## 当前范围
 
-- `test_chat.py`
-  保留 streaming 和 websocket 这类暂时不适合交给 Hurl 的覆盖
 - `test_document_download.py`
-  保留少量下载负路径校验；主下载链路已经迁到 Hurl
+  保留一个很小的下载补充层；主下载链路已经迁到 Hurl。当前残余里既有少量负路径校验，
+  也保留了很窄的 happy-path 断言，用来守下载文件名 / 响应头 / content-type 行为。
+
+本阶段退休：
+- legacy websocket chat 的 pytest 覆盖
+- 没有明确 owner 的 streaming / websocket pytest 残余
 
 本阶段已迁走：
 - available-model 覆盖迁到 `tests/e2e_http/hurl/full/10_provider_llm.hurl`
@@ -52,8 +52,6 @@ make serve-worker
 
 ```bash
 cd tests/e2e_pytest
-cp .env.template .env  # 如果有模板文件
-# 或者直接创建
 touch .env
 ```
 
@@ -90,7 +88,7 @@ RERANK_MODEL_NAME=BAAI/bge-large-zh-1.5
 ### 4. 运行测试
 
 ```bash
-# 运行所有 e2e 测试
+# 只运行 pytest 残余 E2E 补充层
 make test-e2e
 
 # 运行特定测试文件
@@ -150,6 +148,11 @@ EMBEDDING_MODEL_NAME=BAAI/bge-m3
 RERANK_MODEL_PROVIDER=siliconflow
 RERANK_MODEL_NAME=BAAI/bge-large-zh-1.5
 ```
+
+## 生成产物
+
+- 运行时生成的 coverage / benchmark 产物放在 `tests/report/`。
+- 这些文件属于测试输出，不属于测试源码，不应提交进 git。
 
 ## 🧪 可用的 Fixtures
 
@@ -310,7 +313,7 @@ make e2e-performance-test
 - 使用合适的断言方法
 
 ### 3. 测试数据管理
-- 使用 `testdata/` 目录存放测试配置文件
+- 只有在多个测试真正共享时才抽出独立测试数据，其他残余 pytest 输入优先就地内联
 - 测试数据应该小而精确
 - 避免依赖外部数据源
 

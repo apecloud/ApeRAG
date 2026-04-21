@@ -1,30 +1,32 @@
 # ApeRAG Pytest E2E Testing Guide
 
-This directory contains only the remaining pytest-based product E2E tests that Hurl should not own yet. New black-box HTTP coverage should prefer `tests/e2e_http/`, while this directory is now the narrow residue for scenarios that still depend on pytest fixtures and helpers.
+This directory contains only the remaining pytest-based product E2E tests that
+Hurl should not own yet. New black-box HTTP coverage should prefer
+`tests/e2e_http/`, while this directory is now the narrow residue for scenarios
+that still depend on pytest fixtures and helpers.
 
 ## 📁 Directory Structure
 
 ```
 tests/e2e_pytest/
 ├── .env                    # Environment configuration file (needs to be created)
-├── .env.template          # Environment configuration template (optional)
 ├── conftest.py            # pytest fixtures definition
 ├── config.py              # Configuration management
 ├── utils.py               # Utility functions
 ├── README.md              # This document
 ├── test_*.py              # Test files
-├── testdata/              # Test data
-│   ├── basic-flow.yaml    # Basic flow configuration
-│   └── rag-flow.yaml      # RAG flow configuration
-└── evaluation/            # Evaluation related
 ```
 
 ## Current Scope
 
-- `test_chat.py`
-  keeps streaming and websocket coverage that Hurl should not own
 - `test_document_download.py`
-  keeps a few extra negative-path download checks while the main download path now lives in Hurl
+  keeps a small download supplement while the main download path now lives in
+  Hurl. The residue still includes a few negative-path checks plus narrow
+  happy-path assertions for filename/header/content-type behavior.
+
+Retired in this phase:
+- legacy websocket chat pytest coverage
+- speculative streaming/websocket pytest residue without an active owner
 
 Migrated in this phase:
 - available-model coverage moved to `tests/e2e_http/hurl/full/10_provider_llm.hurl`
@@ -52,8 +54,6 @@ Create `.env` file in `tests/e2e_pytest/` directory:
 
 ```bash
 cd tests/e2e_pytest
-cp .env.template .env  # If template file exists
-# Or create directly
 touch .env
 ```
 
@@ -90,7 +90,7 @@ RERANK_MODEL_NAME=BAAI/bge-large-zh-1.5
 ### 4. Run Tests
 
 ```bash
-# Run all e2e tests
+# Run the residual pytest E2E supplement only
 make test-e2e
 
 # Run specific test file
@@ -150,6 +150,11 @@ EMBEDDING_MODEL_NAME=BAAI/bge-m3
 RERANK_MODEL_PROVIDER=siliconflow
 RERANK_MODEL_NAME=BAAI/bge-large-zh-1.5
 ```
+
+## Generated Artifacts
+
+- Runtime coverage and benchmark artifacts belong under `tests/report/`.
+- Those files are generated output, not source files, and should stay out of git.
 
 ## 🧪 Available Fixtures
 
@@ -310,7 +315,7 @@ make e2e-performance-test
 - Use appropriate assertion methods
 
 ### 3. Test Data Management
-- Use `testdata/` directory to store test configuration files
+- Keep residual pytest test inputs inline unless multiple tests truly share them
 - Test data should be small and precise
 - Avoid dependencies on external data sources
 

@@ -68,8 +68,6 @@ chatMessage:
       type: array
       items:
         type: string
-    feedback:
-      $ref: './feedback.yaml#/feedback'
     files:
       type: array
       items:

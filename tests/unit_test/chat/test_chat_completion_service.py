@@ -102,9 +102,14 @@ class _FakeRuntimeManager:
         self.tasks = {}
         self.launch_calls = []
         self.cancel_calls = []
+        self.claim_calls = []
 
     def launch_turn(self, **kwargs):
         self.launch_calls.append(kwargs)
+
+    async def claim_turn(self, turn_id):
+        self.claim_calls.append(turn_id)
+        return "lease-owner-1"
 
     async def cancel_turn(self, turn_id):
         self.cancel_calls.append(turn_id)
@@ -154,12 +159,14 @@ async def test_openai_chat_completions_returns_openai_response_and_maps_override
     assert "final answer" in response["choices"][0]["message"]["content"]
     assert DOC_QA_REFERENCES in response["choices"][0]["message"]["content"]
     assert fake_runtime_manager.launch_calls
+    assert fake_runtime_manager.claim_calls == ["turn-1"]
     created_request = fake_turn_service.created_requests[0]
     assert created_request.query == "hello world"
     assert created_request.client_idempotency_key == "idem-1"
     assert created_request.completion.model == "gpt-4o-mini"
     assert created_request.completion.model_service_provider == "openai"
     assert created_request.completion.temperature == 0.4
+    assert fake_runtime_manager.launch_calls[0]["lease_owner"] == "lease-owner-1"
 
 
 @pytest.mark.asyncio

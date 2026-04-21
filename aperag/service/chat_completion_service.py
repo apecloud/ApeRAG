@@ -185,7 +185,16 @@ class ChatCompletionService:
             if created or (
                 self._status_value(turn.status) in {"QUEUED", "RUNNING"} and turn.id not in runtime_manager.tasks
             ):
-                runtime_manager.launch_turn(turn=turn, chat=chat, bot=bot, user=user, request=turn_request)
+                lease_owner = await runtime_manager.claim_turn(turn.id)
+                if lease_owner:
+                    runtime_manager.launch_turn(
+                        turn=turn,
+                        chat=chat,
+                        bot=bot,
+                        user=user,
+                        request=turn_request,
+                        lease_owner=lease_owner,
+                    )
 
             if payload.stream:
                 return self._stream_openai_turn(

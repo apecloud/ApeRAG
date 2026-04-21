@@ -15,9 +15,6 @@
 
 // May contain unused imports in some cases
 // @ts-ignore
-import type { Feedback } from './feedback';
-// May contain unused imports in some cases
-// @ts-ignore
 import type { Reference } from './reference';
 
 /**
@@ -74,12 +71,6 @@ export interface ChatMessage {
      * @memberof ChatMessage
      */
     'urls'?: Array<string>;
-    /**
-     * 
-     * @type {Feedback}
-     * @memberof ChatMessage
-     */
-    'feedback'?: Feedback;
     /**
      * 
      * @type {Array<any>}

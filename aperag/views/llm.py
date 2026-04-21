@@ -48,6 +48,25 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _build_rerank_response_items(reranked_documents, return_documents: bool) -> list[RerankDocument]:
+    response_items = []
+    for ranked_doc in reranked_documents:
+        response_item = RerankDocument(
+            index=ranked_doc.original_index,
+            relevance_score=ranked_doc.relevance_score,
+        )
+
+        if return_documents:
+            doc_content = {"text": ranked_doc.document.text}
+            if ranked_doc.document.metadata:
+                doc_content["metadata"] = ranked_doc.document.metadata
+            response_item.document = doc_content
+
+        response_items.append(response_item)
+
+    return response_items
+
+
 @router.post("/embeddings", response_model=EmbeddingResponse, tags=["llm"])
 @audit(resource_type="llm", api_name="CreateEmbeddings")
 async def create_embeddings(http_request: Request, request: EmbeddingRequest, user: User = Depends(required_user)):
@@ -212,9 +231,10 @@ async def create_rerank(http_request: Request, request: RerankRequest, user: Use
             rerank_service_url=provider_info["base_url"],
             rerank_service_api_key=provider_info["api_key"],
         )
+        rerank_service.validate_configuration()
 
         # Perform reranking
-        reranked_documents = await rerank_service.async_rerank(request.query, input_documents)
+        reranked_documents = await rerank_service.async_rerank_with_details(request.query, input_documents)
 
         # Apply top_k limit
         reranked_documents = reranked_documents[:top_k]
@@ -224,29 +244,10 @@ async def create_rerank(http_request: Request, request: RerankRequest, user: Use
         doc_tokens = sum(len(doc.text.split()) for doc in input_documents)
         total_tokens = query_tokens + doc_tokens
 
-        # Format response
-        rerank_data = []
-        for ranked_doc in reranked_documents:
-            # Find original index
-            original_index = -1
-            for i, orig_doc in enumerate(input_documents):
-                if orig_doc.text == ranked_doc.text:
-                    original_index = i
-                    break
-
-            # Create response item
-            response_item = RerankDocument(
-                index=original_index, relevance_score=ranked_doc.score if hasattr(ranked_doc, "score") else 0.0
-            )
-
-            # Add document content if requested
-            if request.return_documents:
-                doc_content = {"text": ranked_doc.text}
-                if hasattr(ranked_doc, "metadata") and ranked_doc.metadata:
-                    doc_content["metadata"] = ranked_doc.metadata
-                response_item.document = doc_content
-
-            rerank_data.append(response_item)
+        rerank_data = _build_rerank_response_items(
+            reranked_documents,
+            return_documents=bool(request.return_documents),
+        )
 
         return RerankResponse(
             object="list",

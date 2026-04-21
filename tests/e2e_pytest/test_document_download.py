@@ -19,29 +19,33 @@ End-to-end tests for document download functionality
 import time
 from http import HTTPStatus
 
+READY_STATUSES = {"COMPLETE", "FAILED", "RUNNING"}
 
-def test_download_document(client, collection):
-    """Test downloading a document file"""
-    # Upload a test document
-    test_content = b"This is a test document for download testing. Hello ApeRAG!"
-    files = {"files": ("test_download.txt", test_content, "text/plain")}
-    upload_resp = client.post(f"/api/v1/collections/{collection['id']}/documents", files=files)
+
+def _upload_document(client, collection_id, filename, content, content_type):
+    files = {"files": (filename, content, content_type)}
+    upload_resp = client.post(f"/api/v1/collections/{collection_id}/documents", files=files)
     assert upload_resp.status_code == HTTPStatus.OK, upload_resp.text
     resp_data = upload_resp.json()
     assert len(resp_data["items"]) == 1
-    doc_id = resp_data["items"][0]["id"]
+    return resp_data["items"][0]["id"]
 
-    # Wait for document to be processed
-    max_wait = 30
-    interval = 2
+
+def _wait_until_document_visible(client, collection_id, document_id, *, max_wait=30, interval=2):
     for _ in range(max_wait // interval):
-        get_resp = client.get(f"/api/v1/collections/{collection['id']}/documents/{doc_id}")
+        get_resp = client.get(f"/api/v1/collections/{collection_id}/documents/{document_id}")
         assert get_resp.status_code == HTTPStatus.OK, get_resp.text
-        data = get_resp.json()
-        status = data.get("status")
-        if status in ["COMPLETE", "FAILED", "RUNNING"]:
-            break
+        status = get_resp.json().get("status")
+        if status in READY_STATUSES:
+            return
         time.sleep(interval)
+
+
+def test_download_document(client, collection):
+    """Test downloading a document file"""
+    test_content = b"This is a test document for download testing. Hello ApeRAG!"
+    doc_id = _upload_document(client, collection["id"], "test_download.txt", test_content, "text/plain")
+    _wait_until_document_visible(client, collection["id"], doc_id)
 
     # Download the document
     download_resp = client.get(f"/api/v1/collections/{collection['id']}/documents/{doc_id}/download")
@@ -71,26 +75,9 @@ def test_download_nonexistent_document(client, collection):
 
 def test_download_deleted_document(client, collection):
     """Test downloading a deleted document"""
-    # Upload a test document
     test_content = b"This document will be deleted before download."
-    files = {"files": ("test_deleted.txt", test_content, "text/plain")}
-    upload_resp = client.post(f"/api/v1/collections/{collection['id']}/documents", files=files)
-    assert upload_resp.status_code == HTTPStatus.OK, upload_resp.text
-    resp_data = upload_resp.json()
-    assert len(resp_data["items"]) == 1
-    doc_id = resp_data["items"][0]["id"]
-
-    # Wait for document to be processed
-    max_wait = 30
-    interval = 2
-    for _ in range(max_wait // interval):
-        get_resp = client.get(f"/api/v1/collections/{collection['id']}/documents/{doc_id}")
-        assert get_resp.status_code == HTTPStatus.OK, get_resp.text
-        data = get_resp.json()
-        status = data.get("status")
-        if status in ["COMPLETE", "FAILED", "RUNNING"]:
-            break
-        time.sleep(interval)
+    doc_id = _upload_document(client, collection["id"], "test_deleted.txt", test_content, "text/plain")
+    _wait_until_document_visible(client, collection["id"], doc_id)
 
     # Delete the document
     delete_resp = client.delete(f"/api/v1/collections/{collection['id']}/documents/{doc_id}")
@@ -103,27 +90,9 @@ def test_download_deleted_document(client, collection):
 
 def test_download_pdf_document(client, collection):
     """Test downloading a PDF document with correct content type"""
-    # Create a minimal PDF content (just for testing headers, not a real PDF)
-    # In real scenario, you would upload an actual PDF file
     test_pdf_content = b"%PDF-1.4\n%Test PDF content\n%%EOF"
-    files = {"files": ("test_document.pdf", test_pdf_content, "application/pdf")}
-    upload_resp = client.post(f"/api/v1/collections/{collection['id']}/documents", files=files)
-    assert upload_resp.status_code == HTTPStatus.OK, upload_resp.text
-    resp_data = upload_resp.json()
-    assert len(resp_data["items"]) == 1
-    doc_id = resp_data["items"][0]["id"]
-
-    # Wait for document to be processed
-    max_wait = 30
-    interval = 2
-    for _ in range(max_wait // interval):
-        get_resp = client.get(f"/api/v1/collections/{collection['id']}/documents/{doc_id}")
-        assert get_resp.status_code == HTTPStatus.OK, get_resp.text
-        data = get_resp.json()
-        status = data.get("status")
-        if status in ["COMPLETE", "FAILED", "RUNNING"]:
-            break
-        time.sleep(interval)
+    doc_id = _upload_document(client, collection["id"], "test_document.pdf", test_pdf_content, "application/pdf")
+    _wait_until_document_visible(client, collection["id"], doc_id)
 
     # Download the document
     download_resp = client.get(f"/api/v1/collections/{collection['id']}/documents/{doc_id}/download")

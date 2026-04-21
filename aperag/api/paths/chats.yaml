@@ -295,3 +295,109 @@ messages:
           application/json:
             schema:
               $ref: '../components/schemas/common.yaml#/failResponse'
+
+chat_feedbacks:
+  get:
+    summary: List turn feedback for a chat
+    description: Get all persisted feedback states for turns in a chat
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: chat_id
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Turn feedback list
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/feedback.yaml#/turnFeedbackList'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Chat not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+
+turn_feedback:
+  post:
+    summary: Create or update turn feedback
+    description: Persist the feedback state for a turn
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: chat_id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: turn_id
+        in: path
+        required: true
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/feedback.yaml#/turnFeedbackWrite'
+    responses:
+      '200':
+        description: Updated turn feedback
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/feedback.yaml#/turnFeedback'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Turn not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+  delete:
+    summary: Delete turn feedback
+    description: Remove persisted feedback state for a turn
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: chat_id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: turn_id
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '204':
+        description: Turn feedback deleted
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Turn not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
