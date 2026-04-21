@@ -7,7 +7,12 @@ Main service class for web search functionality with provider abstraction.
 import logging
 from typing import Dict, List
 
-from aperag.schema.view_models import WebSearchRequest, WebSearchResponse, WebSearchResultItem
+from aperag.schema.view_models import (
+    WebSearchMeta,
+    WebSearchRequest,
+    WebSearchResponse,
+    WebSearchResultItem,
+)
 from aperag.websearch.search.base_search import BaseSearchProvider
 from aperag.websearch.search.providers.duckduckgo_search_provider import DuckDuckGoProvider
 from aperag.websearch.search.providers.jina_search_provider import JinaSearchProvider
@@ -104,6 +109,7 @@ class SearchService:
         )
 
         search_time = self._get_current_time() - start_time
+        provider_meta = getattr(self.provider, "last_search_meta", {}) or {}
 
         # Create response
         return WebSearchResponse(
@@ -111,6 +117,13 @@ class SearchService:
             results=results,
             total_results=len(results),
             search_time=search_time,
+            meta=WebSearchMeta(
+                search_status=provider_meta.get("search_status") or ("ok" if results else "empty"),
+                provider_used=list(provider_meta.get("provider_used") or [self.provider_name.lower()]),
+                backend_used=list(provider_meta.get("backend_used") or [self.provider_name.lower()]),
+                fallback_used=bool(provider_meta.get("fallback_used", False)),
+                error_code=provider_meta.get("error_code"),
+            ),
         )
 
     async def search_simple(

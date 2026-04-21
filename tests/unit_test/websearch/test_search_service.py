@@ -58,6 +58,9 @@ class TestSearchService:
             assert response.results[0].title == "Test Result"
             assert response.total_results == 1
             assert response.search_time >= 0
+            assert response.meta is not None
+            assert response.meta.search_status == "ok"
+            assert response.meta.provider_used == ["duckduckgo"]
 
     @pytest.mark.asyncio
     async def test_search_simple_interface(self):
@@ -95,6 +98,22 @@ class TestSearchService:
             request = WebSearchRequest(query="test")
             with pytest.raises(ValueError, match="Network error"):
                 await service.search(request)
+
+    @pytest.mark.asyncio
+    async def test_search_empty_response_exposes_meta(self):
+        """Test empty provider results are surfaced as empty, not unavailable."""
+        service = SearchService.create_default()
+
+        with patch.object(service.provider, "search", new_callable=AsyncMock) as mock_search:
+            mock_search.return_value = []
+
+            request = WebSearchRequest(query="no matches")
+            response = await service.search(request)
+
+            assert response.results == []
+            assert response.meta is not None
+            assert response.meta.search_status == "empty"
+            assert response.meta.error_code is None
 
     @pytest.mark.asyncio
     async def test_provider_call_parameters(self):

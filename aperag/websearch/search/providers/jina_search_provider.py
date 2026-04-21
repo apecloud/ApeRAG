@@ -72,6 +72,14 @@ class JinaSearchProvider(BaseSearchProvider):
         Returns:
             List of search result items
         """
+        self.last_search_meta = {
+            "search_status": "empty",
+            "provider_used": ["jina"],
+            "backend_used": ["jina"],
+            "fallback_used": False,
+            "error_code": None,
+        }
+
         # Validate parameters
         has_query = query and query.strip()
         has_source = source and source.strip()
@@ -136,6 +144,8 @@ class JinaSearchProvider(BaseSearchProvider):
                     if response.status != 200:
                         response_text = await response.text()
                         logger.error(f"Jina Search API returned status {response.status}: {response_text}")
+                        self.last_search_meta["search_status"] = "unavailable"
+                        self.last_search_meta["error_code"] = f"jina_http_{response.status}"
                         return []
 
                     logger.debug(f"Jina search response type: {response.content_type}")
@@ -143,16 +153,24 @@ class JinaSearchProvider(BaseSearchProvider):
                     # Parse response as JSON (Jina API should return JSON format)
                     try:
                         response_data = await response.json()
-                        return self._parse_jina_json_response(response_data, target_domain, max_results)
+                        results = self._parse_jina_json_response(response_data, target_domain, max_results)
+                        self.last_search_meta["search_status"] = "ok" if results else "empty"
+                        return results
                     except Exception as e:
                         logger.error(f"Failed to parse Jina JSON response: {e}")
+                        self.last_search_meta["search_status"] = "unavailable"
+                        self.last_search_meta["error_code"] = "jina_parse_error"
                         return []
 
         except asyncio.TimeoutError:
             logger.error(f"Jina search timed out after {timeout} seconds")
+            self.last_search_meta["search_status"] = "unavailable"
+            self.last_search_meta["error_code"] = "jina_timeout"
             return []
         except Exception as e:
             logger.error(f"Error in Jina search: {e}")
+            self.last_search_meta["search_status"] = "unavailable"
+            self.last_search_meta["error_code"] = "jina_error"
             return []
 
     def _parse_jina_json_response(

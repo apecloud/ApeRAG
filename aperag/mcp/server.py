@@ -333,7 +333,8 @@ async def web_search(
 
     Note:
         Uses JINA first when configured, otherwise falls back to DuckDuckGo.
-        Search failures are soft-failed into empty result sets so downstream workflows stay stable.
+        Search failures are soft-failed into empty result sets with lightweight `meta` diagnostics so
+        downstream workflows stay stable while still distinguishing empty vs unavailable responses.
     """
     try:
         api_key = get_api_key()

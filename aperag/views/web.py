@@ -21,7 +21,13 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from aperag.db.models import User
 from aperag.db.ops import async_db_ops
-from aperag.schema.view_models import WebReadRequest, WebReadResponse, WebSearchRequest, WebSearchResponse
+from aperag.schema.view_models import (
+    WebReadRequest,
+    WebReadResponse,
+    WebSearchMeta,
+    WebSearchRequest,
+    WebSearchResponse,
+)
 from aperag.views.auth import required_user
 from aperag.websearch.reader.reader_service import ReaderService
 from aperag.websearch.search.search_service import SearchService
@@ -37,6 +43,28 @@ class WebReadError(Exception):
     pass
 
 
+def _dedupe_preserve_order(values: List[str]) -> List[str]:
+    """Deduplicate strings while preserving their original order."""
+    seen = set()
+    ordered = []
+    for value in values:
+        if value and value not in seen:
+            seen.add(value)
+            ordered.append(value)
+    return ordered
+
+
+def _merge_search_meta(base: WebSearchMeta, current: WebSearchMeta, *, fallback_used: bool) -> WebSearchMeta:
+    """Merge provider diagnostics while preserving attempt order."""
+    return WebSearchMeta(
+        search_status=current.search_status,
+        provider_used=_dedupe_preserve_order(base.provider_used + current.provider_used),
+        backend_used=_dedupe_preserve_order(base.backend_used + current.backend_used),
+        fallback_used=fallback_used or base.fallback_used or current.fallback_used,
+        error_code=current.error_code,
+    )
+
+
 @router.post("/web/search", response_model=WebSearchResponse, tags=["websearch"])
 async def web_search_endpoint(request: WebSearchRequest, user: User = Depends(required_user)) -> WebSearchResponse:
     """
@@ -46,7 +74,8 @@ async def web_search_endpoint(request: WebSearchRequest, user: User = Depends(re
     - If a JINA API key is configured for the current user (or public provider), use JINA first
     - Otherwise use DuckDuckGo directly
     - DuckDuckGo internally retries a small backend fallback chain for better zero-config reliability
-    - External provider failures are soft-failed: the endpoint returns an empty result set instead of 500
+    - External provider failures are soft-failed: the endpoint returns an empty result set plus lightweight
+      diagnostics instead of 500 so callers can distinguish empty, unavailable, and fallback states
     """
     # Record start time for tracking search duration
     search_start_time = time.time()
@@ -71,11 +100,24 @@ async def web_search_endpoint(request: WebSearchRequest, user: User = Depends(re
     # Calculate total search time
     total_search_time = time.time() - search_start_time
 
+    overall_meta = regular_result.meta or WebSearchMeta(
+        search_status="ok" if merged_results else "empty",
+        provider_used=[],
+        backend_used=[],
+        fallback_used=False,
+        error_code=None,
+    )
+    if merged_results and overall_meta.search_status != "ok":
+        overall_meta = overall_meta.model_copy(update={"search_status": "ok", "error_code": None})
+
     logger.info(
-        "Web search completed query=%s source=%s results=%s time=%.2fs",
+        "Web search completed query=%s source=%s status=%s results=%s fallback=%s providers=%s time=%.2fs",
         request.query.strip() if request.query else "",
         request.source.strip() if request.source else "",
+        overall_meta.search_status,
         len(merged_results),
+        overall_meta.fallback_used,
+        overall_meta.provider_used,
         total_search_time,
     )
 
@@ -84,6 +126,7 @@ async def web_search_endpoint(request: WebSearchRequest, user: User = Depends(re
         results=merged_results,
         total_results=len(merged_results),
         search_time=total_search_time,
+        meta=overall_meta,
     )
 
 
@@ -288,6 +331,7 @@ async def _search_with_jina_fallback(request: WebSearchRequest, user: User) -> W
     """
     # Try to get JINA API key for current user
     jina_api_key = await _get_user_jina_api_key(user)
+    jina_attempt_meta = None
 
     # Try JINA first if API key is available
     if jina_api_key:
@@ -301,11 +345,21 @@ async def _search_with_jina_fallback(request: WebSearchRequest, user: User) -> W
                 return jina_result
 
             logger.info("JINA search completed but no results returned; falling back to DuckDuckGo")
+            jina_attempt_meta = jina_result.meta.model_copy(deep=True) if jina_result.meta else None
+            if jina_attempt_meta and jina_attempt_meta.search_status == "empty":
+                jina_attempt_meta.error_code = None
 
     # Fallback to DuckDuckGo
     logger.info("Web search using DuckDuckGo fallback query=%s source=%s", request.query, request.source)
     async with SearchService(provider_name="duckduckgo") as duckduckgo_service:
-        return await duckduckgo_service.search(request)
+        duckduckgo_result = await duckduckgo_service.search(request)
+        if jina_attempt_meta and duckduckgo_result.meta:
+            duckduckgo_result.meta = _merge_search_meta(
+                jina_attempt_meta,
+                duckduckgo_result.meta,
+                fallback_used=True,
+            )
+        return duckduckgo_result
 
 
 def _build_search_response_query(request: WebSearchRequest) -> str:

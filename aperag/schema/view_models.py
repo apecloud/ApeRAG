@@ -2171,6 +2171,38 @@ class WebSearchResultItem(BaseModel):
     )
 
 
+class WebSearchMeta(BaseModel):
+    """
+    Lightweight execution diagnostics for web search.
+    """
+
+    search_status: Literal['ok', 'empty', 'unavailable', 'disabled'] = Field(
+        ...,
+        description='Overall search outcome: successful, empty, unavailable, or disabled.',
+        examples=['ok'],
+    )
+    provider_used: list[str] = Field(
+        default_factory=list,
+        description='Search providers attempted during this request.',
+        examples=[['jina', 'duckduckgo']],
+    )
+    backend_used: list[str] = Field(
+        default_factory=list,
+        description='Concrete backend path used for this request when known.',
+        examples=[['duckduckgo:auto']],
+    )
+    fallback_used: bool = Field(
+        False,
+        description='Whether the request had to fall back from its preferred path.',
+        examples=[True],
+    )
+    error_code: Optional[str] = Field(
+        None,
+        description='Machine-readable error code when the search path is unavailable.',
+        examples=['search_provider_unavailable'],
+    )
+
+
 class WebSearchResponse(BaseModel):
     """
     Web search response
@@ -2184,6 +2216,10 @@ class WebSearchResponse(BaseModel):
         None, description='Total number of results found'
     )
     search_time: Optional[float] = Field(None, description='Search time in seconds')
+    meta: Optional[WebSearchMeta] = Field(
+        None,
+        description='Lightweight execution diagnostics for status, provider selection, and fallback behavior.',
+    )
 
 
 class WebReadRequest(BaseModel):
