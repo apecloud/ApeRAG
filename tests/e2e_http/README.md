@@ -33,7 +33,7 @@ Current v1 scope:
   - cover document status visibility, list search by name, and collection search/history HTTP contracts
   - cover bot CRUD + agent config get/update
   - cover chat create/list/get/update/delete
-  - assert the stable unsupported `/v1/chat/completions` error contract
+  - cover the OpenAI-shaped `/v1/chat/completions` contract backed by agent runtime
   - cover graph labels + graph overview + parameter validation endpoints
 
 Non-goals for v1:

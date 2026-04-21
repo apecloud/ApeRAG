@@ -75,6 +75,13 @@ Content-Type: application/json
 }
 HTTP 200
 [Asserts]
-jsonpath "$.error.type" == "server_error"
-jsonpath "$.error.code" == "internal_error"
-jsonpath "$.error.message" == "The /v1/chat/completions endpoint is not implemented. Please use the Agent Runtime V3 turns API at /api/v2/agent/chats/{chat_id}/turns."
+jsonpath "$.object" == "chat.completion"
+jsonpath "$.model" == "aperag"
+jsonpath "$.choices[0].message.role" == "assistant"
+jsonpath "$.choices[0].message.content" exists
+
+DELETE {{base_url}}/api/v1/bots/{{bot_id}}/chats/{{chat_id}}
+HTTP 204
+
+DELETE {{base_url}}/api/v1/bots/{{bot_id}}
+HTTP 204

@@ -21,18 +21,17 @@ tests/e2e_pytest/
 
 ## 当前范围
 
+- `test_chat.py`
+  保留 streaming 和 websocket 这类暂时不适合交给 Hurl 的覆盖
 - `test_document_download.py`
   保留少量下载负路径校验；主下载链路已经迁到 Hurl
-
-本阶段退休：
-- legacy websocket chat 的 pytest 覆盖
 
 本阶段已迁走：
 - available-model 覆盖迁到 `tests/e2e_http/hurl/full/10_provider_llm.hurl`
 - provider model CRUD 迁到 `tests/e2e_http/hurl/full/10_provider_llm.hurl`
 - bot CRUD 与 agent config 覆盖迁到 `tests/e2e_http/hurl/full/12_bot.hurl`
 - 确定性的 chat create/list/get/update/delete 覆盖迁到 `tests/e2e_http/hurl/full/13_chat_http.hurl`
-- 未实现的 `/v1/chat/completions` 错误契约迁到 `tests/e2e_http/hurl/full/13_chat_http.hurl`，并更新为指向 Agent Runtime V3 turns
+- OpenAI 风格的 `/v1/chat/completions` 契约迁到 `tests/e2e_http/hurl/full/13_chat_http.hurl`
 
 ## 🚀 快速开始
 
@@ -65,6 +64,7 @@ touch .env
 ```bash
 # API 服务配置
 API_BASE_URL=http://localhost:8000
+WS_BASE_URL=ws://localhost:8000/api/v1
 
 # Embedding 模型服务配置
 EMBEDDING_MODEL_PROVIDER=siliconflow
@@ -94,7 +94,10 @@ RERANK_MODEL_NAME=BAAI/bge-large-zh-1.5
 make test-e2e
 
 # 运行特定测试文件
-pytest tests/e2e_pytest/test_document_download.py
+pytest tests/e2e_pytest/test_chat.py
+
+# 运行某个保留的 chat 测试
+pytest tests/e2e_pytest/test_chat.py::test_chat_message_websocket_api
 
 # 显示详细输出
 pytest tests/e2e_pytest/ -v
@@ -112,6 +115,7 @@ pytest tests/e2e_pytest/ -x
 
 #### API 服务配置
 - `API_BASE_URL`: ApeRAG API 服务的基础 URL（默认: http://localhost:8000）
+- `WS_BASE_URL`: WebSocket API 的基础 URL（默认: ws://localhost:8000/api/v1）
 
 #### 模型服务提供商配置
 
@@ -261,13 +265,17 @@ def test_my_feature(client, collection):
 ### 测试参数化
 
 ```python
-@pytest.mark.parametrize("title", [
-    "Quarterly Notes",
-    "Release Checklist",
+@pytest.mark.parametrize("bot_type,message", [
+    ("knowledge", "What is ApeRAG?"),
+    ("basic", "Hello, how are you today?"),
 ])
-def test_collection_titles(client, title):
-    resp = client.post("/api/v1/collections", json={"title": title})
-    assert resp.status_code == HTTPStatus.OK
+def test_chat_message(bot_type, message, request):
+    """Test chat messages for different bot types"""
+    bot = request.getfixturevalue(f"{bot_type}_bot")
+    chat = request.getfixturevalue(f"{bot_type}_chat")
+
+    assert bot["id"]
+    assert chat["id"]
 ```
 
 ### 工具函数使用
