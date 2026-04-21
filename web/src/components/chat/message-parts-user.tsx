@@ -5,6 +5,59 @@ import { UserRound } from 'lucide-react';
 import { useMemo } from 'react';
 import { MessageTimestamp } from './message-timestamp';
 
+const isMentionBoundary = (value?: string) => {
+  if (!value) return true;
+  return !/[A-Za-z0-9_-]/.test(value);
+};
+
+const replaceCollectionMentions = (
+  rawMessage: string,
+  collectionNameById: Map<string, string>,
+) => {
+  const collectionIds = Array.from(collectionNameById.keys()).sort(
+    (left, right) => right.length - left.length,
+  );
+  if (collectionIds.length === 0) return rawMessage;
+
+  let result = '';
+  let cursor = 0;
+
+  while (cursor < rawMessage.length) {
+    const mentionStart = rawMessage.indexOf('@', cursor);
+    if (mentionStart === -1) {
+      result += rawMessage.slice(cursor);
+      break;
+    }
+
+    result += rawMessage.slice(cursor, mentionStart);
+
+    if (!isMentionBoundary(rawMessage[mentionStart - 1])) {
+      result += '@';
+      cursor = mentionStart + 1;
+      continue;
+    }
+
+    const matchedCollectionId = collectionIds.find((collectionId) => {
+      const mentionEnd = mentionStart + 1 + collectionId.length;
+      return (
+        rawMessage.startsWith(collectionId, mentionStart + 1) &&
+        isMentionBoundary(rawMessage[mentionEnd])
+      );
+    });
+
+    if (!matchedCollectionId) {
+      result += '@';
+      cursor = mentionStart + 1;
+      continue;
+    }
+
+    result += `@${collectionNameById.get(matchedCollectionId) || matchedCollectionId}`;
+    cursor = mentionStart + 1 + matchedCollectionId.length;
+  }
+
+  return result;
+};
+
 export const MessagePartsUser = ({ parts }: { parts: ChatMessage[] }) => {
   const { collections } = useBotContext();
 
@@ -21,12 +74,8 @@ export const MessagePartsUser = ({ parts }: { parts: ChatMessage[] }) => {
         ]),
     );
 
-    const mentionPattern = /(^|\s)@([A-Za-z0-9]{24})(?=\s|$)/g;
-    return rawMessage.replace(mentionPattern, (match, prefix, collectionId) => {
-      const collectionName = collectionNameById.get(collectionId);
-      if (!collectionName) return match;
-      return `${prefix}@${collectionName}`;
-    });
+    // Replace only exact @collection-id mentions that exist in the current bot context.
+    return replaceCollectionMentions(rawMessage, collectionNameById);
   }, [collections, parts]);
 
   return (
