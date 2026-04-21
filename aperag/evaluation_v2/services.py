@@ -33,6 +33,7 @@ from aperag.db.models import (
     BenchmarkDatasetVersionStatus,
     EvaluationRun,
     EvaluationRunItem,
+    EvaluationRunItemStatus,
     EvaluationRunStatus,
 )
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
@@ -43,9 +44,11 @@ from aperag.evaluation_v2.schemas import (
     BenchmarkDatasetVersionCreate,
     BenchmarkDatasetVersionEnvelope,
     EvaluationRunCreate,
+    EvaluationRunDetailResponse,
     EvaluationRunEnvelope,
-    EvaluationRunItemEnvelope,
     EvaluationRunItemAttemptEnvelope,
+    EvaluationRunItemEnvelope,
+    EvaluationRunProgress,
     EvaluationRunSummary,
     JudgeConfig,
 )
@@ -78,15 +81,21 @@ def _to_run_envelope(run: EvaluationRun) -> EvaluationRunEnvelope:
     return envelope
 
 
+def _to_run_progress(summary: Optional[EvaluationRunSummary]) -> EvaluationRunProgress:
+    if not summary or summary.total <= 0:
+        return EvaluationRunProgress(percent=0)
+
+    resolved = summary.completed + summary.failed + summary.cancelled
+    return EvaluationRunProgress(percent=round((resolved / summary.total) * 100))
+
+
 class BenchmarkDatasetService:
     """Dataset + dataset-version CRUD."""
 
     def __init__(self, db_ops: Optional[AsyncDatabaseOps] = None):
         self.db_ops = db_ops or async_db_ops
 
-    async def create_dataset(
-        self, user_id: str, request: BenchmarkDatasetCreate
-    ) -> BenchmarkDatasetEnvelope:
+    async def create_dataset(self, user_id: str, request: BenchmarkDatasetCreate) -> BenchmarkDatasetEnvelope:
         dataset = BenchmarkDataset(
             user_id=user_id,
             collection_id=request.collection_id,
@@ -190,18 +199,19 @@ class BenchmarkDatasetService:
         created = await self.db_ops.create_benchmark_dataset_version(dataset_id, version, cases)
         return BenchmarkDatasetVersionEnvelope.model_validate(created)
 
-    async def list_versions(
-        self, user_id: str, dataset_id: str
-    ) -> list[BenchmarkDatasetVersionEnvelope]:
+    async def list_versions(self, user_id: str, dataset_id: str) -> list[BenchmarkDatasetVersionEnvelope]:
         dataset = await self.db_ops.get_benchmark_dataset(user_id, dataset_id)
         if not dataset:
             raise ResourceNotFoundException("BenchmarkDataset", dataset_id)
         rows = await self.db_ops.list_dataset_versions(dataset_id)
         return [BenchmarkDatasetVersionEnvelope.model_validate(r) for r in rows]
 
-    async def get_version(self, version_id: str) -> BenchmarkDatasetVersion:
+    async def get_version(self, user_id: str, version_id: str) -> BenchmarkDatasetVersion:
         version = await self.db_ops.get_dataset_version(version_id)
         if not version:
+            raise ResourceNotFoundException("BenchmarkDatasetVersion", version_id)
+        dataset = await self.db_ops.get_benchmark_dataset(user_id, version.dataset_id)
+        if not dataset:
             raise ResourceNotFoundException("BenchmarkDatasetVersion", version_id)
         return version
 
@@ -223,10 +233,10 @@ class EvaluationRunService:
         self.db_ops = db_ops or async_db_ops
         self.dataset_service = dataset_service or BenchmarkDatasetService(self.db_ops)
 
-    async def create_run(
-        self, user_id: str, request: EvaluationRunCreate
-    ) -> EvaluationRunEnvelope:
-        version = await self.dataset_service.get_version(request.dataset_version_id)
+    async def create_run(self, user_id: str, request: EvaluationRunCreate) -> EvaluationRunEnvelope:
+        version = await self.dataset_service.get_version(user_id, request.dataset_version_id)
+        if version.status != BenchmarkDatasetVersionStatus.PUBLISHED:
+            raise ValidationException("Only published dataset versions can be evaluated")
         bot = await self.db_ops.query_bot(user_id, request.bot_id)
         if not bot:
             raise ResourceNotFoundException("Bot", request.bot_id)
@@ -245,7 +255,7 @@ class EvaluationRunService:
             model_config_snapshot=request.model_config_snapshot,
             judge_config=judge_payload,
             status=EvaluationRunStatus.QUEUED,
-            summary=EvaluationRunSummary(total_cases=len(cases)).model_dump(),
+            summary=EvaluationRunSummary(total=len(cases), pending=len(cases)).model_dump(),
         )
         items = [
             EvaluationRunItem(
@@ -283,6 +293,15 @@ class EvaluationRunService:
         run = await self._require_run(user_id, run_id)
         return _to_run_envelope(run)
 
+    async def get_run_detail(self, user_id: str, run_id: str) -> EvaluationRunDetailResponse:
+        run = await self._require_run(user_id, run_id)
+        envelope = _to_run_envelope(run)
+        return EvaluationRunDetailResponse(
+            run=envelope,
+            summary=envelope.summary,
+            progress=_to_run_progress(envelope.summary),
+        )
+
     async def cancel_run(self, user_id: str, run_id: str) -> EvaluationRunEnvelope:
         run = await self._require_run(user_id, run_id)
         if run.status in (
@@ -295,20 +314,37 @@ class EvaluationRunService:
         updated = await self.db_ops.update_run_status(run_id, EvaluationRunStatus.CANCELLED)
         return _to_run_envelope(updated)
 
-    async def retry_run(
-        self, user_id: str, run_id: str, scope: str = "failed"
-    ) -> tuple[EvaluationRunEnvelope, int]:
-        """Phase 3 will re-queue failed attempts; for MVP we just flip status."""
-        run = await self._require_run(user_id, run_id)
-        if run.status == EvaluationRunStatus.RUNNING:
-            raise ValidationException("Cannot retry a run that is still running")
+    async def retry_run_item(self, user_id: str, run_id: str, item_id: str) -> EvaluationRunItemEnvelope:
+        """Re-queue a single run item for another attempt.
 
-        updated = await self.db_ops.update_run_status(
-            run_id, EvaluationRunStatus.QUEUED, error_message=None
-        )
+        Per frozen contract the only retry surface is run-scoped item retry:
+        `POST /api/v2/evaluation-runs/{runId}/items/{itemId}/retry`. Phase 3
+        worker pipeline will pick the PENDING item and produce a new attempt.
+        """
+        run = await self._require_run(user_id, run_id)
+        item = await self.db_ops.get_run_item(item_id)
+        if not item or item.run_id != run_id:
+            raise ResourceNotFoundException("EvaluationRunItem", item_id)
+        if item.status not in (
+            EvaluationRunItemStatus.FAILED,
+            EvaluationRunItemStatus.CANCELLED,
+        ):
+            raise ValidationException("Only failed or cancelled run items can be retried")
+
+        if run.status in (
+            EvaluationRunStatus.CANCELLED,
+            EvaluationRunStatus.COMPLETED,
+            EvaluationRunStatus.FAILED,
+        ):
+            await self.db_ops.update_run_status(
+                run_id,
+                EvaluationRunStatus.QUEUED,
+                error_message=None,
+            )
+
+        item = await self.db_ops.requeue_run_item(run_id, item_id)
         await self.launch_run(run_id)
-        # retried_count is filled by the Phase 3 worker layer; return 0 for now
-        return _to_run_envelope(updated), 0
+        return EvaluationRunItemEnvelope.model_validate(item)
 
     async def list_run_items(
         self, user_id: str, run_id: str, page: int, page_size: int
@@ -318,10 +354,10 @@ class EvaluationRunService:
         return [EvaluationRunItemEnvelope.model_validate(r) for r in rows], total
 
     async def list_run_item_attempts(
-        self, user_id: str, item_id: str
+        self, user_id: str, run_id: str, item_id: str
     ) -> list[EvaluationRunItemAttemptEnvelope]:
         item = await self.db_ops.get_run_item(item_id)
-        if not item:
+        if not item or item.run_id != run_id:
             raise ResourceNotFoundException("EvaluationRunItem", item_id)
         run = await self.db_ops.get_evaluation_run(user_id, item.run_id)
         if not run:

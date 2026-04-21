@@ -21,7 +21,7 @@ shape here stable; runtime data access DTOs live next to the repositories.
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Literal, Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -33,7 +33,6 @@ from aperag.db.models import (
     EvaluationRunItemStatus,
     EvaluationRunStatus,
 )
-
 
 # ---------------------------------------------------------------------------
 # BenchmarkDataset
@@ -54,7 +53,7 @@ class BenchmarkDatasetUpdate(BaseModel):
 
 
 class BenchmarkDatasetEnvelope(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
     id: str
     user_id: str
@@ -63,16 +62,20 @@ class BenchmarkDatasetEnvelope(BaseModel):
     description: Optional[str] = None
     source_type: BenchmarkDatasetSourceType
     schema_hint: Optional[dict[str, Any]] = None
-    gmt_created: datetime
-    gmt_updated: datetime
+    created_at: datetime = Field(validation_alias="gmt_created")
+    updated_at: datetime = Field(validation_alias="gmt_updated")
     latest_version: Optional["BenchmarkDatasetVersionEnvelope"] = None
 
 
-class BenchmarkDatasetList(BaseModel):
-    items: list[BenchmarkDatasetEnvelope] = Field(default_factory=list)
+class EvaluationPagination(BaseModel):
     total: int = 0
-    page: int = 1
-    page_size: int = 20
+    offset: int = 0
+    limit: int = 20
+
+
+class BenchmarkDatasetListResponse(BaseModel):
+    items: list[BenchmarkDatasetEnvelope] = Field(default_factory=list)
+    pagination: EvaluationPagination = Field(default_factory=EvaluationPagination)
 
 
 # ---------------------------------------------------------------------------
@@ -101,7 +104,7 @@ class BenchmarkDatasetVersionCreate(BaseModel):
 
 
 class BenchmarkCaseEnvelope(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
     id: str
     dataset_version_id: str
@@ -112,11 +115,11 @@ class BenchmarkCaseEnvelope(BaseModel):
     tags: Optional[list[str]] = None
     case_metadata: Optional[dict[str, Any]] = None
     sort_key: int
-    gmt_created: datetime
+    created_at: datetime = Field(validation_alias="gmt_created")
 
 
 class BenchmarkDatasetVersionEnvelope(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
     id: str
     dataset_id: str
@@ -125,21 +128,19 @@ class BenchmarkDatasetVersionEnvelope(BaseModel):
     status: BenchmarkDatasetVersionStatus
     case_count: int
     source_snapshot: Optional[dict[str, Any]] = None
-    gmt_created: datetime
-    gmt_updated: datetime
-    gmt_published: Optional[datetime] = None
+    created_at: datetime = Field(validation_alias="gmt_created")
+    updated_at: datetime = Field(validation_alias="gmt_updated")
+    published_at: Optional[datetime] = Field(default=None, validation_alias="gmt_published")
 
 
-class BenchmarkDatasetVersionList(BaseModel):
+class BenchmarkDatasetVersionListResponse(BaseModel):
     items: list[BenchmarkDatasetVersionEnvelope] = Field(default_factory=list)
-    total: int = 0
+    pagination: EvaluationPagination = Field(default_factory=EvaluationPagination)
 
 
-class BenchmarkCaseList(BaseModel):
+class BenchmarkCaseListResponse(BaseModel):
     items: list[BenchmarkCaseEnvelope] = Field(default_factory=list)
-    total: int = 0
-    page: int = 1
-    page_size: int = 100
+    pagination: EvaluationPagination = Field(default_factory=EvaluationPagination)
 
 
 # ---------------------------------------------------------------------------
@@ -168,18 +169,25 @@ class EvaluationRunCreate(BaseModel):
 
 
 class EvaluationRunSummary(BaseModel):
-    total_cases: int = 0
+    model_config = ConfigDict(populate_by_name=True)
+
+    total: int = Field(default=0, validation_alias="total_cases")
     pending: int = 0
     running: int = 0
     completed: int = 0
     failed: int = 0
     cancelled: int = 0
-    average_score: Optional[float] = None
+    avg_score: Optional[float] = Field(default=None, validation_alias="average_score")
     pass_rate: Optional[float] = None
 
 
+class EvaluationRunProgress(BaseModel):
+    percent: Optional[int] = None
+    eta_ms: Optional[int] = None
+
+
 class EvaluationRunEnvelope(BaseModel):
-    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True, protected_namespaces=())
 
     id: str
     user_id: str
@@ -191,22 +199,20 @@ class EvaluationRunEnvelope(BaseModel):
     judge_config: Optional[JudgeConfig] = None
     bot_config_snapshot: Optional[dict[str, Any]] = None
     model_config_snapshot: Optional[dict[str, Any]] = None
-    error_message: Optional[str] = None
-    gmt_created: datetime
-    gmt_updated: datetime
-    gmt_started: Optional[datetime] = None
-    gmt_finished: Optional[datetime] = None
+    error: Optional[str] = Field(default=None, validation_alias="error_message")
+    created_at: datetime = Field(validation_alias="gmt_created")
+    updated_at: datetime = Field(validation_alias="gmt_updated")
+    started_at: Optional[datetime] = Field(default=None, validation_alias="gmt_started")
+    finished_at: Optional[datetime] = Field(default=None, validation_alias="gmt_finished")
 
 
-class EvaluationRunList(BaseModel):
+class EvaluationRunListResponse(BaseModel):
     items: list[EvaluationRunEnvelope] = Field(default_factory=list)
-    total: int = 0
-    page: int = 1
-    page_size: int = 20
+    pagination: EvaluationPagination = Field(default_factory=EvaluationPagination)
 
 
 class EvaluationRunItemEnvelope(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
     id: str
     run_id: str
@@ -215,19 +221,20 @@ class EvaluationRunItemEnvelope(BaseModel):
     status: EvaluationRunItemStatus
     best_score: Optional[Decimal] = None
     latest_attempt_id: Optional[str] = None
+    latest_attempt: Optional["EvaluationRunItemAttemptEnvelope"] = None
     attempt_count: int
-    error_message: Optional[str] = None
-    gmt_created: datetime
-    gmt_updated: datetime
+    error: Optional[str] = Field(default=None, validation_alias="error_message")
+    created_at: datetime = Field(validation_alias="gmt_created")
+    updated_at: datetime = Field(validation_alias="gmt_updated")
 
 
-class EvaluationRunItemList(BaseModel):
+class EvaluationRunItemListResponse(BaseModel):
     items: list[EvaluationRunItemEnvelope] = Field(default_factory=list)
-    total: int = 0
+    pagination: EvaluationPagination = Field(default_factory=EvaluationPagination)
 
 
 class EvaluationRunItemAttemptEnvelope(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
     id: str
     run_item_id: str
@@ -241,15 +248,21 @@ class EvaluationRunItemAttemptEnvelope(BaseModel):
     score: Optional[Decimal] = None
     latency_ms: Optional[int] = None
     token_usage: Optional[dict[str, Any]] = None
-    error_message: Optional[str] = None
+    error: Optional[str] = Field(default=None, validation_alias="error_message")
     retry_reason: Optional[str] = None
-    gmt_created: datetime
-    gmt_started: Optional[datetime] = None
-    gmt_finished: Optional[datetime] = None
+    created_at: datetime = Field(validation_alias="gmt_created")
+    started_at: Optional[datetime] = Field(default=None, validation_alias="gmt_started")
+    finished_at: Optional[datetime] = Field(default=None, validation_alias="gmt_finished")
 
 
 class EvaluationRunItemAttemptList(BaseModel):
     items: list[EvaluationRunItemAttemptEnvelope] = Field(default_factory=list)
+
+
+class EvaluationRunDetailResponse(BaseModel):
+    run: EvaluationRunEnvelope
+    summary: Optional[EvaluationRunSummary] = None
+    progress: Optional[EvaluationRunProgress] = None
 
 
 class CancelRunResponse(BaseModel):
@@ -257,13 +270,9 @@ class CancelRunResponse(BaseModel):
     status: EvaluationRunStatus
 
 
-class RetryRunResponse(BaseModel):
-    run_id: str
-    status: EvaluationRunStatus
-    retried_count: int
-
-
-RetryScope = Literal["failed", "all"]
+class RetryRunItemResponse(BaseModel):
+    item: EvaluationRunItemEnvelope
 
 
 BenchmarkDatasetEnvelope.model_rebuild()
+EvaluationRunItemEnvelope.model_rebuild()

@@ -79,18 +79,18 @@ class AsyncEvaluationV2RepositoryMixin(AsyncRepositoryProtocol):
                 conditions.append(BenchmarkDataset.collection_id == collection_id)
             base = select(BenchmarkDataset).where(and_(*conditions))
 
-            total = (
-                await session.execute(
-                    select(func.count()).select_from(base.subquery())
-                )
-            ).scalar_one()
+            total = (await session.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
             rows = (
-                await session.execute(
-                    base.order_by(BenchmarkDataset.gmt_created.desc())
-                    .offset((page - 1) * page_size)
-                    .limit(page_size)
+                (
+                    await session.execute(
+                        base.order_by(BenchmarkDataset.gmt_created.desc())
+                        .offset((page - 1) * page_size)
+                        .limit(page_size)
+                    )
                 )
-            ).scalars().all()
+                .scalars()
+                .all()
+            )
             return list(rows), total
 
         return await self._execute_query(_query)
@@ -214,16 +214,18 @@ class AsyncEvaluationV2RepositoryMixin(AsyncRepositoryProtocol):
     ) -> tuple[list[BenchmarkCase], int]:
         async def _query(session: AsyncSession):
             base = select(BenchmarkCase).where(BenchmarkCase.dataset_version_id == version_id)
-            total = (
-                await session.execute(select(func.count()).select_from(base.subquery()))
-            ).scalar_one()
+            total = (await session.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
             rows = (
-                await session.execute(
-                    base.order_by(BenchmarkCase.sort_key.asc(), BenchmarkCase.gmt_created.asc())
-                    .offset((page - 1) * page_size)
-                    .limit(page_size)
+                (
+                    await session.execute(
+                        base.order_by(BenchmarkCase.sort_key.asc(), BenchmarkCase.gmt_created.asc())
+                        .offset((page - 1) * page_size)
+                        .limit(page_size)
+                    )
                 )
-            ).scalars().all()
+                .scalars()
+                .all()
+            )
             return list(rows), total
 
         return await self._execute_query(_query)
@@ -281,16 +283,16 @@ class AsyncEvaluationV2RepositoryMixin(AsyncRepositoryProtocol):
             if bot_id:
                 conditions.append(EvaluationRun.bot_id == bot_id)
             base = select(EvaluationRun).where(and_(*conditions))
-            total = (
-                await session.execute(select(func.count()).select_from(base.subquery()))
-            ).scalar_one()
+            total = (await session.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
             rows = (
-                await session.execute(
-                    base.order_by(EvaluationRun.gmt_created.desc())
-                    .offset((page - 1) * page_size)
-                    .limit(page_size)
+                (
+                    await session.execute(
+                        base.order_by(EvaluationRun.gmt_created.desc()).offset((page - 1) * page_size).limit(page_size)
+                    )
                 )
-            ).scalars().all()
+                .scalars()
+                .all()
+            )
             return list(rows), total
 
         return await self._execute_query(_query)
@@ -331,21 +333,21 @@ class AsyncEvaluationV2RepositoryMixin(AsyncRepositoryProtocol):
 
     # -- EvaluationRunItem / Attempt ---------------------------------------
 
-    async def list_run_items(
-        self, run_id: str, page: int, page_size: int
-    ) -> tuple[list[EvaluationRunItem], int]:
+    async def list_run_items(self, run_id: str, page: int, page_size: int) -> tuple[list[EvaluationRunItem], int]:
         async def _query(session: AsyncSession):
             base = select(EvaluationRunItem).where(EvaluationRunItem.run_id == run_id)
-            total = (
-                await session.execute(select(func.count()).select_from(base.subquery()))
-            ).scalar_one()
+            total = (await session.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
             rows = (
-                await session.execute(
-                    base.order_by(EvaluationRunItem.gmt_created.asc())
-                    .offset((page - 1) * page_size)
-                    .limit(page_size)
+                (
+                    await session.execute(
+                        base.order_by(EvaluationRunItem.gmt_created.asc())
+                        .offset((page - 1) * page_size)
+                        .limit(page_size)
+                    )
                 )
-            ).scalars().all()
+                .scalars()
+                .all()
+            )
             return list(rows), total
 
         return await self._execute_query(_query)
@@ -378,3 +380,23 @@ class AsyncEvaluationV2RepositoryMixin(AsyncRepositoryProtocol):
             return list((await session.execute(stmt)).scalars().all())
 
         return await self._execute_query(_query)
+
+    async def requeue_run_item(self, run_id: str, item_id: str) -> Optional[EvaluationRunItem]:
+        from aperag.db.models import EvaluationRunItemStatus  # local import to avoid cycle
+
+        async def _operation(session: AsyncSession):
+            stmt = select(EvaluationRunItem).where(
+                EvaluationRunItem.id == item_id,
+                EvaluationRunItem.run_id == run_id,
+            )
+            instance = (await session.execute(stmt)).scalars().first()
+            if not instance:
+                return None
+            instance.status = EvaluationRunItemStatus.PENDING
+            instance.error_message = None
+            instance.gmt_updated = utc_now()
+            await session.flush()
+            await session.refresh(instance)
+            return instance
+
+        return await self.execute_with_transaction(_operation)
