@@ -56,13 +56,6 @@ class _FakeChatDbOps:
                 ]
             },
         )
-        self.feedback = SimpleNamespace(
-            message_id="turn-1",
-            type="good",
-            tag=None,
-            message=None,
-        )
-        self.feedback_kwargs = None
 
     async def query_chat(self, user, bot_id, chat_id):
         if user == "user-1" and bot_id == "bot-1" and chat_id == "chat-1":
@@ -74,33 +67,10 @@ class _FakeChatDbOps:
             return [self.turn]
         return []
 
-    async def query_chat_feedbacks(self, user, chat_id):
-        if user == "user-1" and chat_id == "chat-1":
-            return [self.feedback]
-        return []
-
     async def query_agent_artifacts_by_turn(self, turn_id):
         if turn_id == "turn-1":
             return [self.answer_artifact, self.reference_artifact]
         return []
-
-    async def query_agent_turn(self, user, chat_id, turn_id):
-        if user == "user-1" and chat_id == "chat-1" and turn_id == "turn-1":
-            return self.turn
-        return None
-
-    async def set_message_feedback_state(self, **kwargs):
-        self.feedback_kwargs = kwargs
-        return {"message_id": kwargs["message_id"], "type": kwargs["feedback_type"]}
-
-    async def remove_message_feedback(self, user, chat_id, message_id):
-        self.feedback_kwargs = {
-            "action": "remove",
-            "user": user,
-            "chat_id": chat_id,
-            "message_id": message_id,
-        }
-        return True
 
 
 @pytest.mark.asyncio
@@ -126,24 +96,4 @@ async def test_get_chat_projects_v3_turn_history():
     assert ai_group[1].type == "references"
     assert ai_group[1].references is not None
     assert len(ai_group[1].references) == 1
-    assert ai_group[1].feedback is not None
-    assert ai_group[1].feedback.type == "good"
-
-
-@pytest.mark.asyncio
-async def test_feedback_message_uses_v3_turn_and_artifacts():
-    service = ChatService()
-    service.db_ops = _FakeChatDbOps()
-
-    result = await service.feedback_message(
-        user="user-1",
-        chat_id="chat-1",
-        message_id="turn-1",
-        feedback_type="good",
-        feedback_tag=None,
-        feedback_message=None,
-    )
-
-    assert result["action"] == "upserted"
-    assert service.db_ops.feedback_kwargs["question"] == "What changed?"
-    assert service.db_ops.feedback_kwargs["original_answer"] == "Here is the answer."
+    assert "feedback" not in ai_group[1].model_dump(exclude_none=True)

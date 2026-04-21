@@ -346,22 +346,50 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/failResponse'
-  /bots/{bot_id}/chats/{chat_id}/messages/{message_id}:
-    post:
-      summary: Feedback a message
-      description: Feedback a message
+  /chats/{chat_id}/feedback:
+    get:
+      summary: List turn feedback for a chat
+      description: Get all persisted feedback states for turns in a chat
+      security:
+        - BearerAuth: []
       parameters:
-        - name: bot_id
-          in: path
-          required: true
-          schema:
-            type: string
         - name: chat_id
           in: path
           required: true
           schema:
             type: string
-        - name: message_id
+      responses:
+        '200':
+          description: Turn feedback list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/turnFeedbackList'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: Chat not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+  /chats/{chat_id}/turns/{turn_id}/feedback:
+    post:
+      summary: Create or update turn feedback
+      description: Persist the feedback state for a turn
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: chat_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: turn_id
           in: path
           required: true
           schema:
@@ -371,10 +399,57 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/feedback'
+              $ref: '#/components/schemas/turnFeedbackWrite'
       responses:
         '200':
-          description: A message
+          description: Updated turn feedback
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/turnFeedback'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: Turn not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+    delete:
+      summary: Delete turn feedback
+      description: Remove persisted feedback state for a turn
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: chat_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: turn_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Turn feedback deleted
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: Turn not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
   /chats/{chat_id}/documents:
     post:
       summary: Upload document to chat
@@ -1324,6 +1399,25 @@ paths:
       responses:
         '204':
           description: Settings updated successfully
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+  /settings/parser_health:
+    get:
+      summary: Get parser health report
+      description: Returns parser preflight status, dependency readiness, external service reachability, and support tiers.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Parser health report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParserHealthReport'
         '401':
           description: Unauthorized
           content:
@@ -5185,24 +5279,6 @@ components:
         metadata:
           type: object
           additionalProperties: true
-    feedback:
-      type: object
-      properties:
-        type:
-          type: string
-          enum:
-            - good
-            - bad
-        tag:
-          type: string
-          enum:
-            - Harmful
-            - Unsafe
-            - Fake
-            - Unhelpful
-            - Other
-        message:
-          type: string
     file:
       type: object
       properties:
@@ -5245,8 +5321,6 @@ components:
           type: array
           items:
             type: string
-        feedback:
-          $ref: '#/components/schemas/feedback'
         files:
           type: array
           items:
@@ -5326,6 +5400,68 @@ components:
           description: Generated title string
       required:
         - title
+    turnFeedback:
+      type: object
+      properties:
+        turn_id:
+          type: string
+        type:
+          type: string
+          enum:
+            - good
+            - bad
+        tag:
+          type: string
+          enum:
+            - Harmful
+            - Unsafe
+            - Fake
+            - Unhelpful
+            - Other
+        message:
+          type: string
+        created:
+          type: string
+          format: date-time
+        updated:
+          type: string
+          format: date-time
+      required:
+        - turn_id
+        - type
+    turnFeedbackList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/turnFeedback'
+      required:
+        - items
+    feedback:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+            - good
+            - bad
+        tag:
+          type: string
+          enum:
+            - Harmful
+            - Unsafe
+            - Fake
+            - Unhelpful
+            - Other
+        message:
+          type: string
+    turnFeedbackWrite:
+      allOf:
+        - $ref: '#/components/schemas/feedback'
+        - type: object
+          required:
+            - type
     document:
       type: object
       properties:
@@ -5869,6 +6005,111 @@ components:
         use_markitdown:
           type: boolean
           description: Whether to use MarkItDown
+    ParserHealthItem:
+      type: object
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        status:
+          type: string
+          enum:
+            - ok
+            - warning
+            - error
+            - disabled
+        detail:
+          type: string
+      required:
+        - key
+        - label
+        - status
+        - detail
+    ParserSupportTier:
+      type: object
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        category:
+          type: string
+          enum:
+            - official
+            - conditional
+            - enhanced
+            - optional
+        parser:
+          type: string
+        formats:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+          enum:
+            - available
+            - limited
+            - unavailable
+            - disabled
+        detail:
+          type: string
+        requirements:
+          type: array
+          items:
+            type: string
+      required:
+        - key
+        - label
+        - category
+        - parser
+        - formats
+        - status
+        - detail
+        - requirements
+    ParserHealthReport:
+      type: object
+      properties:
+        default_parser:
+          type: string
+        parser_order:
+          type: array
+          items:
+            type: string
+        available_extensions:
+          type: array
+          items:
+            type: string
+        dependencies:
+          type: array
+          items:
+            $ref: '#/components/schemas/ParserHealthItem'
+        services:
+          type: array
+          items:
+            $ref: '#/components/schemas/ParserHealthItem'
+        support_tiers:
+          type: array
+          items:
+            $ref: '#/components/schemas/ParserSupportTier'
+        warnings:
+          type: array
+          items:
+            type: string
+        recommendations:
+          type: array
+          items:
+            type: string
+      required:
+        - default_parser
+        - parser_order
+        - available_extensions
+        - dependencies
+        - services
+        - support_tiers
+        - warnings
+        - recommendations
     promptDetail:
       type: object
       description: Detailed prompt information with source and customization status
