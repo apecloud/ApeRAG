@@ -14,7 +14,7 @@
 
 import logging
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile, WebSocket
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile
 
 from aperag.db.models import User
 from aperag.exceptions import BusinessException
@@ -25,7 +25,7 @@ from aperag.service.chat_service import chat_service_global
 from aperag.service.chat_title_service import chat_title_service
 from aperag.service.collection_service import collection_service
 from aperag.utils.audit_decorator import audit
-from aperag.views.auth import UserManager, authenticate_websocket_user, get_user_manager, required_user
+from aperag.views.auth import required_user
 
 logger = logging.getLogger(__name__)
 
@@ -81,22 +81,6 @@ async def feedback_message_view(
     return await chat_service_global.feedback_message(
         str(user.id), chat_id, message_id, feedback.type, feedback.tag, feedback.message
     )
-
-
-@router.websocket("/bots/{bot_id}/chats/{chat_id}/connect")
-async def websocket_chat_endpoint(
-    websocket: WebSocket, bot_id: str, chat_id: str, user_manager: UserManager = Depends(get_user_manager)
-):
-    """WebSocket endpoint for real-time chat with bots
-
-    Supports cookie-based authentication to get user_id
-    """
-    # Authenticate user from WebSocket cookies
-    user_id = await authenticate_websocket_user(websocket, user_manager)
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-
-    await chat_service_global.handle_websocket_chat(websocket, user_id, bot_id, chat_id)
 
 
 @router.post("/bots/{bot_id}/chats/{chat_id}/title")
