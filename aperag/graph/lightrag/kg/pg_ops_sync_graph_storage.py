@@ -332,6 +332,16 @@ class PGOpsSyncGraphStorage(BaseGraphStorage):
 
         return await asyncio.to_thread(_sync_get_node_ids)
 
+    async def search_node_ids_by_label(self, node_label: str, limit: int) -> list[str] | None:
+        """Search node IDs directly from PostgreSQL without materializing all labels."""
+
+        def _sync_search_node_ids_by_label():
+            from aperag.db.ops import db_ops
+
+            return db_ops.search_graph_node_ids_by_label(self.workspace, node_label, limit)
+
+        return await asyncio.to_thread(_sync_search_node_ids_by_label)
+
     async def get_knowledge_graph(self, node_label: str, max_depth: int = 3, max_nodes: int = 1000) -> KnowledgeGraph:
         """
         Get a connected subgraph of nodes matching the specified label.
@@ -346,24 +356,22 @@ class PGOpsSyncGraphStorage(BaseGraphStorage):
             from aperag.db.ops import db_ops
 
             result = KnowledgeGraph()
-            MAX_GRAPH_NODES = max_nodes
-
-            # Get all labels first
-            all_labels = db_ops.get_all_graph_labels(self.workspace)
-
-            # Filter based on node_label pattern
             if node_label == "*":
-                # Get all nodes (limited by max_nodes)
-                matching_labels = all_labels[:MAX_GRAPH_NODES]
+                top_degree_nodes_result = db_ops.get_top_degree_graph_nodes(self.workspace, max_nodes)
+                if top_degree_nodes_result:
+                    nodes_data, _total_nodes = top_degree_nodes_result
+                    matching_labels = list(nodes_data.keys())
+                else:
+                    nodes_data = {}
+                    matching_labels = []
             else:
-                # Filter by pattern (similar to LIKE operation)
-                matching_labels = [label for label in all_labels if node_label in label]
-                if len(matching_labels) > MAX_GRAPH_NODES:
-                    matching_labels = matching_labels[:MAX_GRAPH_NODES]
+                matching_labels = db_ops.search_graph_node_ids_by_label(self.workspace, node_label, max_nodes)
+                nodes_data = {}
 
             # Get node details for each matching label using batch operation
             if matching_labels:
-                nodes_data = db_ops.get_graph_nodes_batch(self.workspace, matching_labels)
+                if not nodes_data:
+                    nodes_data = db_ops.get_graph_nodes_batch(self.workspace, matching_labels)
 
                 for entity_id, node_data in nodes_data.items():
                     # Unified semantics: id=entity_id, labels=[entity_type] or [entity_id], edges by entity_id

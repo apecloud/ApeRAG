@@ -502,6 +502,18 @@ class BaseGraphStorage(StorageNameSpace, ABC):
         """
         return None
 
+    async def search_node_ids_by_label(self, node_label: str, limit: int) -> list[str] | None:
+        """Return node IDs matching a label pattern in stable ascending ID order."""
+        return None
+
+    async def get_nodes_by_source_ids(self, chunk_ids: list[str]) -> dict[str, dict] | None:
+        """Return graph nodes whose source_id overlaps the provided chunk IDs."""
+        return None
+
+    async def get_edges_by_source_ids(self, chunk_ids: list[str]) -> dict[tuple[str, str], dict] | None:
+        """Return graph edges whose source_id overlaps the provided chunk IDs."""
+        return None
+
     @abstractmethod
     async def upsert_node(self, node_id: str, node_data: dict[str, str]) -> None:
         """Insert a new node or update an existing node in the graph.

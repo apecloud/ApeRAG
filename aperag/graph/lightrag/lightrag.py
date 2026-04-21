@@ -970,58 +970,14 @@ class LightRAG:
             entities_to_update_in_graph = {}
             relationships_to_delete_from_graph = set()
             relationships_to_update_in_graph = {}
-            graph_fallback_batch_size = 200
+            graph_nodes = await self.chunk_entity_relation_graph.get_nodes_by_source_ids(chunk_id_list)
+            graph_edges = await self.chunk_entity_relation_graph.get_edges_by_source_ids(chunk_id_list)
 
-            graph_nodes = {}
-            graph_edges = {}
-
-            if hasattr(self.chunk_entity_relation_graph, "get_nodes_by_source_ids"):
-                graph_nodes = await self.chunk_entity_relation_graph.get_nodes_by_source_ids(chunk_id_list)
-            if hasattr(self.chunk_entity_relation_graph, "get_edges_by_source_ids"):
-                graph_edges = await self.chunk_entity_relation_graph.get_edges_by_source_ids(chunk_id_list)
-
-            if not graph_nodes:
-                all_labels = await self.chunk_entity_relation_graph.get_all_labels()
-                for start in range(0, len(all_labels), graph_fallback_batch_size):
-                    batch_labels = all_labels[start : start + graph_fallback_batch_size]
-                    batch_nodes = await self.chunk_entity_relation_graph.get_nodes_batch(batch_labels)
-                    for node_label, node_data in batch_nodes.items():
-                        if not node_data or "source_id" not in node_data:
-                            continue
-                        sources = {
-                            source_id
-                            for source_id in split_string_by_multi_markers(node_data["source_id"], [GRAPH_FIELD_SEP])
-                            if source_id
-                        }
-                        if sources.intersection(chunk_ids):
-                            graph_nodes[node_label] = node_data
-
-            if not graph_edges and graph_nodes:
-                seen_edge_pairs = set()
-                graph_node_ids = list(graph_nodes.keys())
-                for start in range(0, len(graph_node_ids), graph_fallback_batch_size):
-                    batch_node_ids = graph_node_ids[start : start + graph_fallback_batch_size]
-                    node_edges_batch = await self.chunk_entity_relation_graph.get_nodes_edges_batch(batch_node_ids)
-                    edge_pairs = []
-                    for edge_list in node_edges_batch.values():
-                        for pair in edge_list:
-                            if pair not in seen_edge_pairs:
-                                edge_pairs.append({"src": pair[0], "tgt": pair[1]})
-                                seen_edge_pairs.add(pair)
-                    if edge_pairs:
-                        batch_edges = await self.chunk_entity_relation_graph.get_edges_batch(edge_pairs)
-                        for edge_pair, edge_data in batch_edges.items():
-                            if not edge_data or "source_id" not in edge_data:
-                                continue
-                            sources = {
-                                source_id
-                                for source_id in split_string_by_multi_markers(
-                                    edge_data["source_id"], [GRAPH_FIELD_SEP]
-                                )
-                                if source_id
-                            }
-                            if sources.intersection(chunk_ids):
-                                graph_edges[edge_pair] = edge_data
+            if graph_nodes is None or graph_edges is None:
+                backend_name = type(self.chunk_entity_relation_graph).__name__
+                raise NotImplementedError(
+                    f"{backend_name} does not support bounded source-id graph lookups required for document delete"
+                )
 
             for node_label, node_data in graph_nodes.items():
                 if not node_data or "source_id" not in node_data:
@@ -1694,14 +1650,14 @@ class LightRAG:
 
             sampled_labels = await self.chunk_entity_relation_graph.get_node_ids(limit=sample_size)
             if sampled_labels is None:
-                # Fallback for backends that have not implemented the lighter-weight primitive yet.
-                all_labels = await self.chunk_entity_relation_graph.get_all_labels()
-                self.lightrag_logger.debug(f"Found {len(all_labels)} entities in workspace {self.workspace}")
-                sampled_labels = all_labels[:sample_size] if len(all_labels) > sample_size else all_labels
-            else:
-                self.lightrag_logger.debug(
-                    f"Fetched {len(sampled_labels)} entity ids directly from storage for workspace {self.workspace}"
+                backend_name = type(self.chunk_entity_relation_graph).__name__
+                raise NotImplementedError(
+                    f"{backend_name} does not support bounded node-id sampling required for KG export"
                 )
+
+            self.lightrag_logger.debug(
+                f"Fetched {len(sampled_labels)} entity ids directly from storage for workspace {self.workspace}"
+            )
 
             self.lightrag_logger.debug(f"Sampling {len(sampled_labels)} entities for export")
 

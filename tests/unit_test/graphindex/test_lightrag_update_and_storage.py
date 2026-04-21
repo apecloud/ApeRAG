@@ -4,10 +4,10 @@ import pytest
 
 from aperag.graph.lightrag import utils_graph
 from aperag.graph.lightrag.base import QueryParam
-from aperag.graph.lightrag.lightrag import LightRAG
-from aperag.graph.lightrag.operate import _find_most_related_edges_from_entities, get_high_degree_nodes
 from aperag.graph.lightrag.kg.pg_ops_sync_vector_storage import PGOpsSyncVectorStorage
+from aperag.graph.lightrag.lightrag import LightRAG
 from aperag.graph.lightrag.namespace import NameSpace
+from aperag.graph.lightrag.operate import _find_most_related_edges_from_entities, get_high_degree_nodes
 from aperag.graph.lightrag_manager import _process_document_async
 
 
@@ -110,8 +110,7 @@ class _FakeGraphStorage:
     def __init__(self, nodes=None, edges_with_data_by_node=None):
         self.nodes = dict(nodes or {})
         self.edges_with_data_by_node = {
-            node_id: list(edges)
-            for node_id, edges in (edges_with_data_by_node or {}).items()
+            node_id: list(edges) for node_id, edges in (edges_with_data_by_node or {}).items()
         }
         self.calls = []
         self.upserted_nodes = []
@@ -373,10 +372,18 @@ class _FakeExportGraphStorage:
         self.calls.append(("get_incident_edges_with_data_batch", tuple(node_ids)))
         return {
             "entity-1": [
-                ("entity-1", "entity-2", {"description": "rel", "keywords": "kw", "weight": 3.0, "source_id": "chunk-1"})
+                (
+                    "entity-1",
+                    "entity-2",
+                    {"description": "rel", "keywords": "kw", "weight": 3.0, "source_id": "chunk-1"},
+                )
             ],
             "entity-2": [
-                ("entity-1", "entity-2", {"description": "rel", "keywords": "kw", "weight": 3.0, "source_id": "chunk-1"})
+                (
+                    "entity-1",
+                    "entity-2",
+                    {"description": "rel", "keywords": "kw", "weight": 3.0, "source_id": "chunk-1"},
+                )
             ],
         }
 
@@ -412,6 +419,25 @@ async def test_export_for_kg_eval_prefers_node_ids_and_incident_edges_primitive(
     assert ("get_incident_edges_with_data_batch", ("entity-1", "entity-2")) in rag.chunk_entity_relation_graph.calls
 
 
+class _FakeExportGraphStorageWithoutNodeIds:
+    async def get_node_ids(self, limit=None):
+        return None
+
+    async def get_all_labels(self):
+        raise AssertionError("get_all_labels() should no longer be used as silent fallback for export")
+
+
+@pytest.mark.asyncio
+async def test_export_for_kg_eval_raises_when_bounded_node_id_sampling_is_missing():
+    rag = LightRAG.__new__(LightRAG)
+    rag.workspace = "workspace-1"
+    rag.lightrag_logger = _FakeLogger()
+    rag.chunk_entity_relation_graph = _FakeExportGraphStorageWithoutNodeIds()
+
+    with pytest.raises(NotImplementedError, match="bounded node-id sampling"):
+        await LightRAG.export_for_kg_eval(rag, sample_size=2, include_source_texts=False)
+
+
 class _FakeOperateGraphStorage:
     def __init__(self):
         self.calls = []
@@ -420,7 +446,11 @@ class _FakeOperateGraphStorage:
         self.calls.append(("get_incident_edges_with_data_batch", tuple(node_ids)))
         return {
             "entity-1": [
-                ("entity-1", "entity-2", {"description": "edge desc", "keywords": "kw", "weight": 2.0, "source_id": "chunk-1"})
+                (
+                    "entity-1",
+                    "entity-2",
+                    {"description": "edge desc", "keywords": "kw", "weight": 2.0, "source_id": "chunk-1"},
+                )
             ]
         }
 
@@ -450,3 +480,52 @@ async def test_find_most_related_edges_from_entities_prefers_incident_edge_primi
     assert result[0]["src_tgt"] == ("entity-1", "entity-2")
     assert result[0]["rank"] == 9
     assert ("get_incident_edges_with_data_batch", ("entity-1",)) in graph_storage.calls
+
+
+class _FakeDeleteTextChunks:
+    async def get_by_doc_id(self, _doc_id):
+        return {
+            "chunk-1": {
+                "full_doc_id": "doc-1",
+                "content": "chunk content",
+            }
+        }
+
+    async def delete(self, _ids):
+        return None
+
+
+class _FakeDeleteVectorStorage:
+    async def get_by_chunk_ids(self, _chunk_ids):
+        return {}
+
+    async def upsert(self, _data):
+        return None
+
+    async def delete(self, _ids):
+        return None
+
+    async def delete_entity(self, _entity_name):
+        return None
+
+
+class _FakeDeleteGraphStorageWithoutSourcePrimitive:
+    async def get_nodes_by_source_ids(self, _chunk_ids):
+        return None
+
+    async def get_edges_by_source_ids(self, _chunk_ids):
+        return None
+
+
+@pytest.mark.asyncio
+async def test_adelete_by_doc_id_raises_when_bounded_source_lookup_is_missing():
+    rag = LightRAG.__new__(LightRAG)
+    rag.workspace = "workspace-1"
+    rag.lightrag_logger = _FakeLogger()
+    rag.text_chunks = _FakeDeleteTextChunks()
+    rag.entities_vdb = _FakeDeleteVectorStorage()
+    rag.relationships_vdb = _FakeDeleteVectorStorage()
+    rag.chunk_entity_relation_graph = _FakeDeleteGraphStorageWithoutSourcePrimitive()
+
+    with pytest.raises(NotImplementedError, match="bounded source-id graph lookups"):
+        await LightRAG.adelete_by_doc_id(rag, "doc-1")
