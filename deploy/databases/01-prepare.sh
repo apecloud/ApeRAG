@@ -24,21 +24,43 @@ print "Adding and updating KubeBlocks Helm repository..."
 helm repo add kubeblocks $HELM_REPO
 helm repo update
 
+helm_release_status() {
+    local release_name="$1"
+
+    helm status "$release_name" --namespace kb-system 2>/dev/null \
+        | awk '/^STATUS: / {print $2; exit}' || true
+}
+
+run_addon_release_install() {
+    local release_name="$1"
+    local chart_name="$2"
+
+    helm upgrade --install "$release_name" "kubeblocks/${chart_name}" \
+        --namespace kb-system \
+        --version "$ADDON_CLUSTER_CHART_VERSION"
+}
+
 install_addon_release() {
     local addon_name="$1"
     local release_name="$2"
     local chart_name="$3"
     local addon_resource="$4"
     local attempt_output=""
+    local retry_output=""
+    local release_status=""
 
     print "Installing ${addon_name} addon..."
 
-    if helm status "$release_name" --namespace kb-system >/dev/null 2>&1; then
+    release_status="$(helm_release_status "$release_name")"
+    if [ "$release_status" = "deployed" ]; then
         print_success "${addon_name} addon Helm release already exists."
         return 0
     fi
+    if [ -n "$release_status" ]; then
+        print_warning "${addon_name} addon Helm release exists in ${release_status} state; reconciling it."
+    fi
 
-    if attempt_output="$(helm upgrade --install "$release_name" "kubeblocks/${chart_name}" --namespace kb-system --version "$ADDON_CLUSTER_CHART_VERSION" 2>&1)"; then
+    if attempt_output="$(run_addon_release_install "$release_name" "$chart_name" 2>&1)"; then
         echo "$attempt_output"
         return 0
     fi
@@ -48,10 +70,20 @@ install_addon_release() {
     if grep -q "already exists" <<<"$attempt_output"; then
         print_warning "${addon_name} addon install hit an already-exists race; waiting for addon state to settle..."
         for _ in {1..12}; do
-            if helm status "$release_name" --namespace kb-system >/dev/null 2>&1 || \
-               kubectl get addons.extensions.kubeblocks.io "$addon_resource" -n "$NAMESPACE" >/dev/null 2>&1; then
-                print_success "${addon_name} addon state is available after the concurrent install race."
+            release_status="$(helm_release_status "$release_name")"
+            if [ "$release_status" = "deployed" ]; then
+                print_success "${addon_name} addon Helm release recovered to deployed after the concurrent install race."
                 return 0
+            fi
+            if [ -n "$release_status" ] || \
+               kubectl get addons.extensions.kubeblocks.io "$addon_resource" -n "$NAMESPACE" >/dev/null 2>&1; then
+                print_warning "${addon_name} addon state is available after the concurrent install race (release=${release_status:-<missing>}); reconciling once."
+                if retry_output="$(run_addon_release_install "$release_name" "$chart_name" 2>&1)"; then
+                    echo "$retry_output"
+                    return 0
+                fi
+                echo "$retry_output" >&2
+                break
             fi
             sleep 5
         done
@@ -75,10 +107,18 @@ wait_for_addon_enabled() {
             return 0
         fi
         if [ "$phase" = "Failed" ]; then
-            release_status="$(helm status "$release_name" --namespace kb-system 2>/dev/null | awk '/^STATUS: / {print $2; exit}' || true)"
+            release_status="$(helm_release_status "$release_name")"
             if [ "$release_status" = "deployed" ]; then
                 print_warning "${addon_name} addon phase stayed Failed after an install race, but Helm release ${release_name} is deployed; continuing."
                 return 0
+            fi
+        fi
+        if [ -z "$phase" ]; then
+            release_status="$(helm_release_status "$release_name")"
+            if [ "$release_status" = "failed" ]; then
+                print_error "${addon_name} addon Helm release ${release_name} is failed and addon resource is still missing."
+                helm status "$release_name" --namespace kb-system || true
+                return 1
             fi
         fi
         sleep 5
