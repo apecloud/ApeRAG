@@ -31,6 +31,7 @@ check_dependencies(){
   print "Checking dependencies..."
   command -v kubectl >/dev/null 2>&1 || { print "Error: kubectl command not found"; exit 1; }
   command -v helm >/dev/null 2>&1 || { print "Error: helm command not found"; exit 1; }
+  command -v curl >/dev/null 2>&1 || { print "Error: curl command not found"; exit 1; }
 
   # Check if Kubernetes is available
   print "Checking if Kubernetes is available..."

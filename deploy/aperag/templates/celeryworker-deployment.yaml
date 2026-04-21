@@ -26,6 +26,12 @@ spec:
         {{- include "aperag.selectorLabels" . | nindent 8 }}
         {{- include "celeryworker.labels" . | nindent 8 }}
     spec:
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- range . }}
+        - name: {{ . }}
+        {{- end }}
+      {{- end }}
       containers:
         - command:
             - /bin/sh

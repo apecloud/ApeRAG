@@ -4,8 +4,11 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
+permissions:
+  contents: read
+
 jobs:
-  e2e-http:
+  e2e-http-compose:
     if: ${{ !github.event.pull_request.draft }}
     uses: ./.github/workflows/e2e-http-smoke.yml
     secrets: inherit

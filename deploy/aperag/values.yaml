@@ -2,6 +2,7 @@ image:
   repository: "docker.io/apecloud/aperag"  # Full image name including registry
   tag: "v0.0.0-nightly"
   pullPolicy: IfNotPresent
+  pullSecrets: []
 
 nameOverride: ""
 fullnameOverride: ""
