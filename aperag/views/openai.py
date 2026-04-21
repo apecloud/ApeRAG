@@ -13,9 +13,10 @@
 # limitations under the License.
 
 from fastapi import APIRouter, Depends, Request
+from fastapi.responses import StreamingResponse
 
 from aperag.db.models import User
-from aperag.service.chat_completion_service import OpenAIFormatter
+from aperag.service.chat_completion_service import OpenAIFormatter, chat_completion_service
 from aperag.views.auth import required_user
 
 router = APIRouter(tags=["openai"])
@@ -23,7 +24,18 @@ router = APIRouter(tags=["openai"])
 
 @router.post("/chat/completions")
 async def openai_chat_completions_view(request: Request, user: User = Depends(required_user)):
-    """OpenAI-compatible chat completions endpoint - not implemented for Agent Runtime V3."""
-    return OpenAIFormatter.format_error(
-        "The /v1/chat/completions endpoint is not implemented. Please use the Agent Runtime V3 turns API at /api/v2/agent/chats/{chat_id}/turns."
+    """OpenAI-compatible chat completions endpoint backed by Agent Runtime V2."""
+    try:
+        body_data = await request.json()
+    except Exception:
+        return OpenAIFormatter.format_error("Invalid JSON request body")
+
+    stream, response = await chat_completion_service.openai_chat_completions(
+        str(user.id),
+        body_data,
+        request.query_params,
+        request.headers,
     )
+    if stream is not None:
+        return StreamingResponse(stream, media_type="text/event-stream")
+    return response
