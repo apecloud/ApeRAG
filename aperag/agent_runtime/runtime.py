@@ -38,9 +38,7 @@ from aperag.tasks.processing_lease import generate_processing_token
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_AGENT_TURN_LEASE_RENEW_INTERVAL_SECONDS = int(
-    os.getenv("APERAG_AGENT_TURN_LEASE_RENEW_INTERVAL_SECONDS", "30")
-)
+DEFAULT_AGENT_TURN_LEASE_RENEW_INTERVAL_SECONDS = int(os.getenv("APERAG_AGENT_TURN_LEASE_RENEW_INTERVAL_SECONDS", "30"))
 
 
 @dataclass
