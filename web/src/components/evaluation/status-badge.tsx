@@ -32,17 +32,13 @@ const getStatusLabel = (
 
   const key = `status.${status.toLowerCase()}`;
   try {
-    return t(key);
+    return t(key as never);
   } catch {
     return fallbackLabel(status);
   }
 };
 
-export const DatasetVersionStatusBadge = ({
-  status,
-}: {
-  status?: string;
-}) => {
+export const DatasetVersionStatusBadge = ({ status }: { status?: string }) => {
   const t = useTranslations('page_benchmarks');
   return (
     <Badge
@@ -57,11 +53,7 @@ export const DatasetVersionStatusBadge = ({
   );
 };
 
-export const EvaluationStatusBadge = ({
-  status,
-}: {
-  status?: string;
-}) => {
+export const EvaluationStatusBadge = ({ status }: { status?: string }) => {
   const t = useTranslations('page_bot_evaluation');
   return (
     <Badge

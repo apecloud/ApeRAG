@@ -1,12 +1,12 @@
+import { BenchmarksPanel } from '@/components/evaluation/benchmarks-panel';
+import { listBenchmarkDatasets } from '@/components/evaluation/server';
 import {
   PageContainer,
   PageContent,
   PageHeader,
 } from '@/components/page-container';
-import { BenchmarksPanel } from '@/components/evaluation/benchmarks-panel';
-import { listBenchmarkDatasets } from '@/components/evaluation/server';
-import { CollectionHeader } from '../collection-header';
 import { getTranslations } from 'next-intl/server';
+import { CollectionHeader } from '../collection-header';
 
 export default async function Page({
   params,
@@ -35,6 +35,7 @@ export default async function Page({
       <CollectionHeader />
       <PageContent>
         <BenchmarksPanel
+          collectionId={collectionId}
           items={datasets.items}
           unavailable={datasets.unavailable}
           error={datasets.error}

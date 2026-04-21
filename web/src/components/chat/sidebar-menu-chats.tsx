@@ -26,6 +26,7 @@ export const SideBarMenuChats = () => {
   const { bot, workspace, chats, chatCreate, chatDelete } = useBotContext();
   const pathname = usePathname();
   const sidebar_workspace = useTranslations('sidebar_workspace');
+  const botChatsBasePath = workspace ? '/workspace/bots' : '/bots';
   return (
     <SidebarGroup>
       <SidebarGroupLabel className="mb-1 flex flex-row justify-between pr-0">
@@ -51,10 +52,7 @@ export const SideBarMenuChats = () => {
       <SidebarGroupContent>
         <SidebarMenu>
           {chats?.map((chat) => {
-            let url = `/bots/${bot?.id}/chats/${chat.id}`;
-            if (workspace) {
-              url = '/workspace' + url;
-            }
+            const url = `${botChatsBasePath}/${bot?.id}/chats/${chat.id}`;
             return (
               <SidebarMenuItem key={chat.id} className="group/item">
                 <SidebarMenuButton

@@ -1,11 +1,11 @@
+import { BotSectionNav } from '@/components/evaluation/bot-section-nav';
+import { EvaluationRunsPanel } from '@/components/evaluation/evaluation-runs-panel';
+import { listEvaluationRuns } from '@/components/evaluation/server';
 import {
   PageContainer,
   PageContent,
   PageHeader,
 } from '@/components/page-container';
-import { BotSectionNav } from '@/components/evaluation/bot-section-nav';
-import { EvaluationRunsPanel } from '@/components/evaluation/evaluation-runs-panel';
-import { listEvaluationRuns } from '@/components/evaluation/server';
 import { getServerApi } from '@/lib/api/server';
 import { toJson } from '@/lib/utils';
 import { getTranslations } from 'next-intl/server';
@@ -13,10 +13,13 @@ import { notFound } from 'next/navigation';
 
 export default async function Page({
   params,
+  searchParams,
 }: {
   params: Promise<{ botId: string }>;
+  searchParams?: Promise<{ datasetVersionId?: string }>;
 }) {
   const { botId } = await params;
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const serverApi = await getServerApi();
   const pageBot = await getTranslations('page_bot');
   const pageBotEvaluation = await getTranslations('page_bot_evaluation');
@@ -59,6 +62,7 @@ export default async function Page({
           runs={runs.items}
           unavailable={runs.unavailable}
           error={runs.error}
+          initialDatasetVersionId={resolvedSearchParams?.datasetVersionId}
         />
       </PageContent>
     </PageContainer>

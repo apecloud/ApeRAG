@@ -1,10 +1,10 @@
 import { Chat } from '@/api';
+import { BotSectionNav } from '@/components/evaluation/bot-section-nav';
 import {
   PageContainer,
   PageContent,
   PageHeader,
 } from '@/components/page-container';
-import { BotSectionNav } from '@/components/evaluation/bot-section-nav';
 import { getServerApi } from '@/lib/api/server';
 import _ from 'lodash';
 import { getTranslations } from 'next-intl/server';
@@ -28,7 +28,7 @@ export default async function Page({
   const chat: Chat | undefined = _.first(chatsRes.data.items || []);
 
   if (chat) {
-    redirect(`/bots/${botId}/chats/${chat.id}`);
+    redirect(`/workspace/bots/${botId}/chats/${chat.id}`);
   }
 
   return (
