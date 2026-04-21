@@ -3,13 +3,12 @@
 import { cn } from '@/lib/utils';
 import { ImageIcon } from 'lucide-react';
 import Link from 'next/link';
+import { useParams, usePathname } from 'next/navigation';
 import {
   JSX,
   MouseEventHandler,
   useCallback,
-  useEffect,
   useMemo,
-  useState,
 } from 'react';
 import ReactMarkdown from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
@@ -28,6 +27,55 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from './ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 
 import './markdown.css';
+
+type AssetContext = {
+  collectionId?: string;
+  documentId?: string;
+  mode?: 'workspace' | 'marketplace';
+};
+
+const getRouteParam = (value: string | string[] | undefined) => {
+  if (Array.isArray(value)) {
+    return value[0];
+  }
+  return value;
+};
+
+const parseAssetUrl = (src: string) => {
+  const [assetId = '', queryString = ''] = src.replace('asset://', '').split('?');
+  const params = new URLSearchParams(queryString);
+
+  return {
+    assetId,
+    collectionId: params.get('collection_id') || undefined,
+    documentId: params.get('document_id') || undefined,
+  };
+};
+
+export const buildDocumentAssetUrl = (src: string, context?: AssetContext) => {
+  if (!src.startsWith('asset://')) {
+    return src;
+  }
+
+  const { assetId, collectionId: queryCollectionId, documentId: queryDocumentId } =
+    parseAssetUrl(src);
+
+  const collectionId = queryCollectionId || context?.collectionId;
+  const documentId = queryDocumentId || context?.documentId;
+
+  if (!assetId || !collectionId || !documentId) {
+    return undefined;
+  }
+
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
+  const routePrefix =
+    context?.mode === 'marketplace' ? 'marketplace/collections' : 'collections';
+  const query = new URLSearchParams({
+    path: `assets/${assetId}`,
+  });
+
+  return `${basePath}/api/v1/${routePrefix}/${collectionId}/documents/${documentId}/object?${query.toString()}`;
+};
 
 const securityLink = (props: JSX.IntrinsicElements['a']) => {
   const target = props.href?.match(/^http/) ? '_blank' : '_self';
@@ -88,24 +136,31 @@ const unSecurityLink = (props: JSX.IntrinsicElements['a']) => {
 
 export const CustomImage = ({
   src,
+  resolveAssetUrl,
   ...props
-}: JSX.IntrinsicElements['img']) => {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [imageUrl, setImageUrl] = useState<string>();
+}: JSX.IntrinsicElements['img'] & {
+  resolveAssetUrl?: (src: string) => string | undefined;
+}) => {
+  const imageUrl = useMemo(() => {
+    if (typeof src !== 'string') {
+      return undefined;
+    }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const getImageSrc = useCallback(async () => {
-    if (typeof src !== 'string') return;
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const [path, queryString] = src.replace('asset://', '').split('?');
-  }, [src]);
+    if (src.startsWith('asset://')) {
+      return resolveAssetUrl?.(src);
+    }
 
-  useEffect(() => {}, []);
-
-  return;
+    return src;
+  }, [resolveAssetUrl, src]);
 
   return imageUrl ? (
-    <img {...props} alt={props.alt} src={imageUrl} />
+    <img
+      {...props}
+      alt={props.alt}
+      src={imageUrl}
+      loading="lazy"
+      style={{ maxWidth: '100%', height: 'auto' }}
+    />
   ) : (
     <Skeleton className="my-4 h-[125px] w-full rounded-xl py-4 pt-8 text-center">
       <ImageIcon className="mx-auto size-12 opacity-20" />
@@ -113,7 +168,7 @@ export const CustomImage = ({
   );
 };
 
-export const mdComponents = {
+const createMdComponents = (resolveAssetUrl?: (src: string) => string | undefined) => ({
   h1: (props: JSX.IntrinsicElements['h1']) => (
     <h1 className="my-6 text-5xl font-bold first:mt-0 last:mb-0">
       {props.children}
@@ -170,7 +225,13 @@ export const mdComponents = {
         </Skeleton>
       );
     } else if (typeof src === 'string' && src.startsWith('asset://')) {
-      return <CustomImage src={src} {...props} />;
+      return (
+        <CustomImage
+          src={src}
+          {...props}
+          resolveAssetUrl={resolveAssetUrl}
+        />
+      );
     } else {
       return (
         <img
@@ -259,7 +320,7 @@ export const mdComponents = {
   th: (props: JSX.IntrinsicElements['th']) => (
     <TableCell>{props.children}</TableCell>
   ),
-};
+});
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const mdRehypePlugins: any = [
@@ -292,6 +353,9 @@ export const Markdown = ({
   security?: boolean;
   children?: string;
 }) => {
+  const pathname = usePathname();
+  const params = useParams<{ collectionId?: string; documentId?: string }>();
+
   const rehypePlugins = useMemo(() => {
     const plugins = [...mdRehypePlugins];
     if (rehypeToc) {
@@ -305,15 +369,36 @@ export const Markdown = ({
     return plugins;
   }, [rehypeToc]);
 
+  const assetContext = useMemo(
+    () => ({
+      collectionId: getRouteParam(params?.collectionId),
+      documentId: getRouteParam(params?.documentId),
+      mode: pathname?.startsWith('/marketplace/')
+        ? ('marketplace' as const)
+        : ('workspace' as const),
+    }),
+    [params?.collectionId, params?.documentId, pathname],
+  );
+
+  const resolveAssetUrl = useCallback(
+    (src: string) => buildDocumentAssetUrl(src, assetContext),
+    [assetContext],
+  );
+
+  const components = useMemo(
+    () => ({
+      a: security ? securityLink : unSecurityLink,
+      ...createMdComponents(resolveAssetUrl),
+    }),
+    [resolveAssetUrl, security],
+  );
+
   return (
     <ReactMarkdown
       rehypePlugins={rehypePlugins}
       remarkPlugins={mdRemarkPlugins}
       urlTransform={(url) => url}
-      components={{
-        a: security ? securityLink : unSecurityLink,
-        ...mdComponents,
-      }}
+      components={components}
     >
       {children}
     </ReactMarkdown>
