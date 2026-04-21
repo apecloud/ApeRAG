@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState, useTransition } from 'react';
 
 import type { Bot } from '@/api';
 import { FormatDate } from '@/components/format-date';
-import { useBotContext } from '@/components/providers/bot-provider';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -82,7 +81,6 @@ export const EvaluationRunsPanel = ({
 }) => {
   const t = useTranslations('page_bot_evaluation');
   const router = useRouter();
-  const { collections } = useBotContext();
   const [searchValue, setSearchValue] = useState('');
   const [createRunOpen, setCreateRunOpen] = useState(false);
   const [createRunForm, setCreateRunForm] = useState<CreateRunFormState>({
@@ -112,9 +110,7 @@ export const EvaluationRunsPanel = ({
     };
   }, [runs]);
 
-  const collectionEvaluationHref = collections[0]?.id
-    ? `/workspace/collections/${collections[0].id}/benchmarks`
-    : '/workspace/collections';
+  const collectionEvaluationHref = '/workspace/collections';
 
   const refreshPage = () => {
     startTransition(() => {

@@ -2,8 +2,8 @@
 
 import { useMemo, useState, useTransition } from 'react';
 
+import { CopyToClipboard } from '@/components/copy-to-clipboard';
 import { FormatDate } from '@/components/format-date';
-import { useBotContext } from '@/components/providers/bot-provider';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -24,14 +24,11 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  ArrowRight,
   Database,
   FolderPlus,
-  PlayCircle,
   Sparkles,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
@@ -108,7 +105,6 @@ export const BenchmarksPanel = ({
 }) => {
   const t = useTranslations('page_benchmarks');
   const router = useRouter();
-  const { bot } = useBotContext();
   const [searchValue, setSearchValue] = useState('');
   const [createDatasetOpen, setCreateDatasetOpen] = useState(false);
   const [createVersionOpen, setCreateVersionOpen] = useState(false);
@@ -265,11 +261,6 @@ export const BenchmarksPanel = ({
     );
   }
 
-  const createdRunHref =
-    latestCreatedVersion?.versionId && bot?.id
-      ? `/workspace/bots/${bot.id}/evaluation?datasetVersionId=${latestCreatedVersion.versionId}`
-      : undefined;
-
   return (
     <>
       <div className="flex flex-col gap-6">
@@ -367,7 +358,7 @@ export const BenchmarksPanel = ({
 
         {latestCreatedVersion && (
           <Card className="border-emerald-200 bg-emerald-50/70 shadow-[0_20px_60px_-40px_rgba(5,150,105,0.5)]">
-            <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <CardHeader className="gap-4">
               <div className="space-y-2">
                 <CardTitle className="text-xl">
                   {t('created_version_title')}
@@ -381,14 +372,24 @@ export const BenchmarksPanel = ({
                   })}
                 </CardDescription>
               </div>
-              {createdRunHref && (
-                <Button asChild className="rounded-full">
-                  <Link href={createdRunHref}>
-                    <PlayCircle className="size-4" />
-                    {t('continue_to_bot_runs')}
-                  </Link>
-                </Button>
-              )}
+              <div className="rounded-2xl border border-emerald-200/80 bg-white/80 p-4">
+                <div className="text-xs font-medium tracking-[0.16em] text-emerald-700 uppercase">
+                  {t('published_version_id')}
+                </div>
+                <div className="mt-2 flex items-center gap-3">
+                  <code className="min-w-0 flex-1 truncate rounded-xl bg-emerald-100/80 px-3 py-2 text-sm text-emerald-950">
+                    {latestCreatedVersion.versionId}
+                  </code>
+                  <CopyToClipboard
+                    text={latestCreatedVersion.versionId}
+                    variant="outline"
+                    className="border-emerald-200 bg-white text-emerald-900 hover:bg-emerald-50"
+                  />
+                </div>
+                <p className="mt-3 text-sm text-slate-700">
+                  {t('choose_bot_hint')}
+                </p>
+              </div>
             </CardHeader>
           </Card>
         )}
@@ -468,18 +469,6 @@ export const BenchmarksPanel = ({
                     <FolderPlus className="size-4" />
                     {t('create_dataset')}
                   </Button>
-                  {createdRunHref && (
-                    <Button
-                      asChild
-                      variant="outline"
-                      className="rounded-full bg-white"
-                    >
-                      <Link href={createdRunHref}>
-                        {t('continue_to_bot_runs')}
-                        <ArrowRight className="size-4" />
-                      </Link>
-                    </Button>
-                  )}
                 </div>
               </div>
               <div className="grid gap-3">
