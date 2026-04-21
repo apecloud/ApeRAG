@@ -15,7 +15,6 @@
 import logging
 from typing import Optional
 
-from fastapi import WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aperag.db import models as db_models
@@ -25,7 +24,6 @@ from aperag.schema import view_models
 from aperag.schema.view_models import Chat, ChatDetails
 from aperag.utils.history import (
     RedisChatMessageHistory,
-    fail_response,
     get_async_redis_client,
 )
 
@@ -222,34 +220,6 @@ class ChatService:
             )
             result = {"action": "upserted", "feedback": feedback}
         return result
-
-    async def handle_websocket_chat(self, websocket: WebSocket, user: str, bot_id: str, chat_id: str):
-        """Handle WebSocket chat connections for agent-type bots."""
-        await websocket.accept()
-
-        try:
-            bot = await self.db_ops.query_bot(user, bot_id)
-            if not bot:
-                await websocket.send_text(fail_response("error", "Bot not found"))
-                return
-
-            if bot.type != db_models.BotType.AGENT:
-                await websocket.send_text(fail_response("error", "Only agent bots are supported"))
-                return
-
-            from aperag.service.agent_chat_service import AgentChatService
-
-            agent_service = AgentChatService()
-            await agent_service.handle_websocket_agent_chat(websocket, user, bot_id, chat_id)
-
-        except WebSocketDisconnect:
-            logger.info(f"WebSocket disconnected for bot {bot_id}, chat {chat_id}")
-        except Exception as e:
-            logger.exception(f"WebSocket error: {e}")
-            try:
-                await websocket.send_text(fail_response("error", str(e)))
-            except Exception as e:
-                logger.exception(f"Error sending fail response: {e}")
 
 
 # Create a global service instance for easy access

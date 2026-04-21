@@ -27,8 +27,6 @@ import { MessagePartsUser } from './message-parts-user';
 
 const AGENT_RUNTIME_BASE_PATH = `${process.env.NEXT_PUBLIC_BASE_PATH || ''}/api/v2/agent`;
 const ACTIVE_TURN_STORAGE_PREFIX = 'agent-runtime-v3:active-turn:';
-const LEGACY_WEBSOCKET_FALLBACK =
-  process.env.NEXT_PUBLIC_AGENT_LEGACY_WEBSOCKET_FALLBACK === '1';
 
 const TURN_EVENT_TYPES = [
   'turn.started',
@@ -140,7 +138,6 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
     {},
   );
   const [activeTurnId, setActiveTurnId] = useState<string | null>(null);
-  const [legacyFallbackEnabled, setLegacyFallbackEnabled] = useState(false);
 
   const streamsRef = useRef<Record<string, EventSource>>({});
   const reconnectTimersRef = useRef<
@@ -502,91 +499,6 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
     [chatId, closeStream, fetchSnapshot, mergeSnapshot, onStreamEvent],
   );
 
-  const handleLegacyFallback = useCallback(
-    async (params: ChatInputSubmitParams) => {
-      setLegacyFallbackEnabled(true);
-      toast.info('Falling back to legacy websocket chat path.');
-
-      const protocol =
-        window.location.protocol === 'http:' ? 'ws://' : 'wss://';
-      const host = window.location.host;
-      const socket = new WebSocket(
-        `${protocol}${host}${process.env.NEXT_PUBLIC_BASE_PATH || ''}/api/v1/bots/${botId}/chats/${chatId}/connect`,
-      );
-
-      socket.onmessage = (message) => {
-        const fragment = JSON.parse(message.data) as ChatMessage;
-        if (fragment.type === 'stop' && chatRename && chat) {
-          chatRename(chat);
-        }
-        setMessages((previous) => {
-          const next = cloneMessages(previous);
-          const partsIndex = next.findLastIndex((parts) =>
-            Boolean(
-              parts.find(
-                (part) =>
-                  part.id !== 'error' &&
-                  part.id === fragment.id &&
-                  part.role === 'ai',
-              ),
-            ),
-          );
-          const parts = partsIndex > -1 ? next[partsIndex] : undefined;
-
-          if (parts) {
-            if (fragment.type === 'stop') {
-              parts.push({
-                id: fragment.id,
-                type: 'references',
-                references: Array.isArray(fragment.data) ? fragment.data : [],
-                data: '',
-                role: 'ai',
-              });
-            }
-            if (fragment.type === 'start') {
-              parts.push({
-                ...fragment,
-                type: 'start',
-                data: '',
-              });
-            } else if (fragment.type === 'message') {
-              const part = parts.find((item) => item.type === 'message');
-              if (part) {
-                part.data = (part.data || '') + (fragment.data || '');
-              } else {
-                parts.push(fragment);
-              }
-            } else {
-              const part = parts.find(
-                (item) => fragment.part_id && fragment.part_id === item.part_id,
-              );
-              if (part) {
-                part.data = (part.data || '') + (fragment.data || '');
-              } else {
-                parts.push(fragment);
-              }
-            }
-            next[partsIndex] = [...parts];
-          } else {
-            next.push([{ ...fragment, role: 'ai' }]);
-          }
-
-          return next;
-        });
-      };
-
-      socket.onopen = () => {
-        socket.send(JSON.stringify(params));
-      };
-
-      socket.onerror = () => {
-        toast.error('Legacy websocket fallback failed.');
-        socket.close();
-      };
-    },
-    [botId, chat, chatId, chatRename],
-  );
-
   const handleSendMessage = useCallback(
     async (params: ChatInputSubmitParams) => {
       if (!chatId) return;
@@ -628,10 +540,6 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
             ? error.message
             : 'Failed to create a new agent turn.',
         );
-
-        if (LEGACY_WEBSOCKET_FALLBACK) {
-          await handleLegacyFallback(params);
-        }
       }
     },
     [
@@ -639,7 +547,6 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
       connectTurnStream,
       ensureTurnGroups,
       fetchJson,
-      handleLegacyFallback,
       setTurnState,
       updateActiveTurn,
     ],
@@ -852,11 +759,6 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
         loading={loading}
         onCancel={handleCancel}
       />
-      {legacyFallbackEnabled && (
-        <div className="text-muted-foreground px-4 text-xs">
-          Legacy websocket fallback is enabled for this session.
-        </div>
-      )}
     </div>
   );
 };
