@@ -21,10 +21,11 @@ tests/e2e_pytest/
 
 ## Current Scope
 
-- `test_chat.py`
-  keeps streaming and websocket coverage that Hurl should not own
 - `test_document_download.py`
   keeps a few extra negative-path download checks while the main download path now lives in Hurl
+
+Retired in this phase:
+- legacy websocket chat pytest coverage
 
 Migrated in this phase:
 - available-model coverage moved to `tests/e2e_http/hurl/full/10_provider_llm.hurl`
@@ -64,7 +65,6 @@ Edit the `.env` file and add the following configuration:
 ```bash
 # API Service Configuration
 API_BASE_URL=http://localhost:8000
-WS_BASE_URL=ws://localhost:8000/api/v1
 
 # Embedding Model Service Configuration
 EMBEDDING_MODEL_PROVIDER=siliconflow
@@ -94,10 +94,7 @@ RERANK_MODEL_NAME=BAAI/bge-large-zh-1.5
 make test-e2e
 
 # Run specific test file
-pytest tests/e2e_pytest/test_chat.py
-
-# Run a specific retained chat test
-pytest tests/e2e_pytest/test_chat.py::test_chat_message_websocket_api
+pytest tests/e2e_pytest/test_document_download.py
 
 # Show detailed output
 pytest tests/e2e_pytest/ -v
@@ -115,7 +112,6 @@ pytest tests/e2e_pytest/ -x
 
 #### API Service Configuration
 - `API_BASE_URL`: Base URL for ApeRAG API service (default: http://localhost:8000)
-- `WS_BASE_URL`: Base URL for WebSocket API (default: ws://localhost:8000/api/v1)
 
 #### Model Service Provider Configuration
 
@@ -265,17 +261,13 @@ def test_my_feature(client, collection):
 ### Test Parameterization
 
 ```python
-@pytest.mark.parametrize("bot_type,message", [
-    ("knowledge", "What is ApeRAG?"),
-    ("basic", "Hello, how are you today?"),
+@pytest.mark.parametrize("title", [
+    "Quarterly Notes",
+    "Release Checklist",
 ])
-def test_chat_message(bot_type, message, request):
-    """Test chat messages for different bot types"""
-    bot = request.getfixturevalue(f"{bot_type}_bot")
-    chat = request.getfixturevalue(f"{bot_type}_chat")
-
-    assert bot["id"]
-    assert chat["id"]
+def test_collection_titles(client, title):
+    resp = client.post("/api/v1/collections", json={"title": title})
+    assert resp.status_code == HTTPStatus.OK
 ```
 
 ### Using Utility Functions
