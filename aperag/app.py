@@ -32,7 +32,6 @@ if settings.otel_enabled:
     )
 
 from fastapi import FastAPI  # noqa: E402
-
 from aperag.exception_handlers import register_exception_handlers
 from aperag.llm.litellm_track import register_custom_llm_track
 from aperag.mcp import mcp_server
