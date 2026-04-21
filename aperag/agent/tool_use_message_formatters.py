@@ -293,7 +293,9 @@ class ToolResultFormatter:
                     if backends:
                         results += f"\n\n • 后端尝试：{backends}"
                 else:
-                    results = f"Web search was unavailable for this step (provider path: {providers}, error: {error_code})"
+                    results = (
+                        f"Web search was unavailable for this step (provider path: {providers}, error: {error_code})"
+                    )
                     if backends:
                         results += f"\n\n • Backends tried: {backends}"
             elif search_meta and search_meta.search_status == "disabled":
