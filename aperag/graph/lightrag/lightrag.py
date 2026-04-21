@@ -801,8 +801,11 @@ class LightRAG:
     async def aquery_context(
         self,
         query: str,
-        param: QueryParam = QueryParam(),
+        param: QueryParam | None = None,
     ):
+        if param is None:
+            param = QueryParam()
+
         param.original_query = query
         context_data = await build_query_context(
             query.strip(),
@@ -822,6 +825,9 @@ class LightRAG:
             return ""
 
         entities_context, relations_context, text_units_context = context_data
+
+        if not entities_context and not relations_context and not text_units_context:
+            return ""
 
         # Remove file_path from all contexts before serialization
         def remove_file_path_from_context(context_list):

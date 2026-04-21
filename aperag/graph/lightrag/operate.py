@@ -851,7 +851,7 @@ async def build_query_context(
     # Handle empty keywords
     if hl_keywords == [] and ll_keywords == []:
         logger.warning("low_level_keywords and high_level_keywords is empty")
-        return PROMPTS["fail_response"]
+        return [], [], []
     if ll_keywords == [] and query_param.mode in ["local", "hybrid"]:
         logger.warning(
             "low_level_keywords is empty, switching from %s mode to global mode",
@@ -1140,8 +1140,8 @@ async def _build_query_context_from_keywords(
             hl_text_units_context, ll_text_units_context, vector_text_units_context
         )
     # not necessary to use LLM to generate a response
-    if not entities_context and not relations_context:
-        return None
+    if not entities_context and not relations_context and not text_units_context:
+        return [], [], []
 
     return entities_context, relations_context, text_units_context
 
@@ -1162,7 +1162,7 @@ async def _get_node_data(
     results = await entities_vdb.query(query, top_k=query_param.top_k, ids=query_param.ids)
 
     if not len(results):
-        return "", "", ""
+        return [], [], []
 
     # Extract all entity IDs from your results list
     node_ids = [r["entity_name"] for r in results]
@@ -1457,7 +1457,7 @@ async def _get_edge_data(
     results = await relationships_vdb.query(keywords, top_k=query_param.top_k, ids=query_param.ids)
 
     if not len(results):
-        return "", "", ""
+        return [], [], []
 
     # Prepare edge pairs in two forms:
     # For the batch edge properties function, use dicts.
