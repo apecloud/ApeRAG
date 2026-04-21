@@ -50,6 +50,18 @@ class _FakeRag:
         self.calls.append(("finalize",))
 
 
+class _FailingDeleteRag(_FakeRag):
+    async def adelete_by_doc_id(self, doc_id: str):
+        self.calls.append(("delete", doc_id))
+        raise RuntimeError("delete failed")
+
+
+class _FailingGraphIndexRag(_FakeRag):
+    async def aprocess_graph_indexing(self, chunks, collection_id=None):
+        self.calls.append(("graph", sorted(chunks.keys()), collection_id))
+        raise RuntimeError("graph rebuild failed")
+
+
 @pytest.mark.asyncio
 async def test_process_document_async_deletes_existing_state_before_rebuild(monkeypatch):
     fake_rag = _FakeRag()
@@ -67,6 +79,52 @@ async def test_process_document_async_deletes_existing_state_before_rebuild(monk
 
     assert result["status"] == "success"
     assert result["chunks_created"] == 1
+    assert fake_rag.calls[:3] == [
+        ("delete", "doc-1"),
+        ("insert", ["doc-1"]),
+        ("graph", ["chunk-1"], "collection-1"),
+    ]
+    assert fake_rag.calls[-1] == ("finalize",)
+
+
+@pytest.mark.asyncio
+async def test_process_document_async_stops_when_delete_preflight_fails_and_finalizes(monkeypatch):
+    fake_rag = _FailingDeleteRag()
+
+    async def _fake_create_lightrag_instance(collection):
+        return fake_rag
+
+    monkeypatch.setattr(
+        "aperag.graph.lightrag_manager.create_lightrag_instance",
+        _fake_create_lightrag_instance,
+    )
+
+    collection = SimpleNamespace(id="collection-1")
+    with pytest.raises(RuntimeError, match="delete failed"):
+        await _process_document_async(collection, "new content", "doc-1", "/tmp/doc.txt")
+
+    assert fake_rag.calls == [
+        ("delete", "doc-1"),
+        ("finalize",),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_process_document_async_propagates_graph_rebuild_failure_and_finalizes(monkeypatch):
+    fake_rag = _FailingGraphIndexRag()
+
+    async def _fake_create_lightrag_instance(collection):
+        return fake_rag
+
+    monkeypatch.setattr(
+        "aperag.graph.lightrag_manager.create_lightrag_instance",
+        _fake_create_lightrag_instance,
+    )
+
+    collection = SimpleNamespace(id="collection-1")
+    with pytest.raises(RuntimeError, match="graph rebuild failed"):
+        await _process_document_async(collection, "new content", "doc-1", "/tmp/doc.txt")
+
     assert fake_rag.calls[:3] == [
         ("delete", "doc-1"),
         ("insert", ["doc-1"]),
@@ -435,6 +493,45 @@ async def test_amerge_entities_uses_batch_graph_primitives_and_batch_delete():
     assert len(relationships_vdb.deleted) == 1
     assert any(node_id == "merged" for node_id, _ in graph_storage.upserted_nodes)
     assert result["entity_name"] == "merged"
+
+
+@pytest.mark.asyncio
+async def test_amerge_entities_aborts_before_mutation_when_batch_edge_fetch_fails():
+    graph_storage = _FakeGraphStorage(
+        nodes={
+            "A": {"entity_id": "A", "entity_type": "PERSON", "description": "desc A", "source_id": "chunk-a"},
+            "B": {"entity_id": "B", "entity_type": "PERSON", "description": "desc B", "source_id": "chunk-b"},
+        }
+    )
+    entities_vdb = _FakeEntityVectorStorage()
+    relationships_vdb = _FakeRelationVectorStorage()
+
+    async def _failing_get_incident_edges_with_data_batch(node_ids):
+        graph_storage.calls.append(("get_incident_edges_with_data_batch", tuple(node_ids)))
+        raise RuntimeError("incident edge batch failed")
+
+    graph_storage.get_incident_edges_with_data_batch = _failing_get_incident_edges_with_data_batch
+
+    with pytest.raises(RuntimeError, match="incident edge batch failed"):
+        await utils_graph.amerge_entities(
+            graph_storage,
+            entities_vdb,
+            relationships_vdb,
+            ["A", "B"],
+            "merged",
+            graph_db_lock=_FakeAsyncLock(),
+        )
+
+    assert ("get_nodes_batch", ("A", "B", "merged")) in graph_storage.calls
+    assert ("get_incident_edges_with_data_batch", ("A", "B")) in graph_storage.calls
+    assert graph_storage.upserted_nodes == []
+    assert graph_storage.upserted_edges == []
+    assert graph_storage.removed_nodes_batches == []
+    assert entities_vdb.deleted == []
+    assert entities_vdb.deleted_entities == []
+    assert entities_vdb.upserts == []
+    assert relationships_vdb.deleted == []
+    assert relationships_vdb.upserts == []
 
 
 @pytest.mark.asyncio
