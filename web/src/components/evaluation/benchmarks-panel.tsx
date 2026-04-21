@@ -162,23 +162,24 @@ export const BenchmarksPanel = ({
     }
 
     try {
-      const payload = await postEvaluationAction<{
-        dataset?: BenchmarkDataset;
-      }>('/api/v2/benchmark-datasets', {
+      const payload = await postEvaluationAction<BenchmarkDataset>(
+        '/api/v2/benchmark-datasets',
+        {
         name: datasetForm.name.trim(),
         description: datasetForm.description.trim() || undefined,
         collection_id: collectionId,
         source_type: 'manual',
-      });
+        },
+      );
 
-      if (!payload.dataset?.id) {
+      if (!payload.id) {
         throw new Error(t('create_dataset_missing_id'));
       }
 
       const nextDataset: BenchmarkDataset = {
-        ...payload.dataset,
-        name: payload.dataset.name || datasetForm.name.trim(),
-        version_count: payload.dataset.version_count ?? 0,
+        ...payload,
+        name: payload.name || datasetForm.name.trim(),
+        version_count: payload.version_count ?? 0,
       };
 
       toast.success(t('create_dataset_success'));
@@ -202,21 +203,22 @@ export const BenchmarksPanel = ({
     }
 
     try {
-      const payload = await postEvaluationAction<{
-        dataset_version?: BenchmarkDatasetVersion;
-      }>(`/api/v2/benchmark-datasets/${versionTarget.id}/versions`, {
-        version_name: versionForm.versionName.trim() || undefined,
-        cases: [
-          {
-            case_key: versionForm.caseKey.trim() || undefined,
-            input_message: versionForm.inputMessage.trim(),
-            expected_answer: versionForm.expectedAnswer.trim() || undefined,
-            reference_context: versionForm.referenceContext.trim() || undefined,
-          },
-        ],
-      });
+      const payload = await postEvaluationAction<BenchmarkDatasetVersion>(
+        `/api/v2/benchmark-datasets/${versionTarget.id}/versions`,
+        {
+          version_name: versionForm.versionName.trim() || undefined,
+          cases: [
+            {
+              case_key: versionForm.caseKey.trim() || undefined,
+              input_message: versionForm.inputMessage.trim(),
+              expected_answer: versionForm.expectedAnswer.trim() || undefined,
+              reference_context: versionForm.referenceContext.trim() || undefined,
+            },
+          ],
+        },
+      );
 
-      if (!payload.dataset_version?.id) {
+      if (!payload.id) {
         throw new Error(t('create_version_missing_id'));
       }
 
@@ -224,11 +226,11 @@ export const BenchmarksPanel = ({
       setLatestCreatedVersion({
         datasetId: versionTarget.id,
         datasetName: versionTarget.name || t('datasets'),
-        versionId: payload.dataset_version.id,
+        versionId: payload.id,
         versionName:
-          payload.dataset_version.version_name ||
+          payload.version_name ||
           versionForm.versionName.trim() ||
-          payload.dataset_version.version,
+          payload.version,
       });
       setCreateVersionOpen(false);
       setVersionForm(defaultVersionForm);
