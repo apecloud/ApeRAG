@@ -127,7 +127,11 @@ class ChatService:
             )
             if not answer_artifact:
                 answer_artifact = next(
-                    (artifact for artifact in artifacts if _artifact_type_value(artifact) == db_models.AgentArtifactType.ANSWER.value),
+                    (
+                        artifact
+                        for artifact in artifacts
+                        if _artifact_type_value(artifact) == db_models.AgentArtifactType.ANSWER.value
+                    ),
                     None,
                 )
 
@@ -334,7 +338,11 @@ class ChatService:
         )
         if not answer_artifact:
             answer_artifact = next(
-                (artifact for artifact in artifacts if _artifact_type_value(artifact) == db_models.AgentArtifactType.ANSWER.value),
+                (
+                    artifact
+                    for artifact in artifacts
+                    if _artifact_type_value(artifact) == db_models.AgentArtifactType.ANSWER.value
+                ),
                 None,
             )
 
