@@ -1289,11 +1289,7 @@ async def _find_most_related_text_unit_from_entities(
     knowledge_graph_inst: BaseGraphStorage,
     tokenizer: Tokenizer,
 ):
-    text_units = [
-        normalize_source_references(dp["source_id"])
-        for dp in node_datas
-        if dp["source_id"] is not None
-    ]
+    text_units = [normalize_source_references(dp["source_id"]) for dp in node_datas if dp["source_id"] is not None]
 
     node_names = [dp["entity_name"] for dp in node_datas]
     incident_edges_dict = await knowledge_graph_inst.get_incident_edges_with_data_batch(node_names)
@@ -1633,11 +1629,7 @@ async def _find_related_text_unit_from_relationships(
     text_chunks_db: BaseKVStorage,
     tokenizer: Tokenizer,
 ):
-    text_units = [
-        normalize_source_references(dp["source_id"])
-        for dp in edge_datas
-        if dp["source_id"] is not None
-    ]
+    text_units = [normalize_source_references(dp["source_id"]) for dp in edge_datas if dp["source_id"] is not None]
     all_text_units_lookup = {}
 
     async def fetch_chunk_data(c_id, index):
