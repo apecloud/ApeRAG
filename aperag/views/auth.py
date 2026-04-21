@@ -17,7 +17,7 @@ import secrets
 from datetime import timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, WebSocket
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi_users import BaseUserManager, FastAPIUsers
 from fastapi_users.authentication import (
     AuthenticationBackend,
@@ -179,49 +179,6 @@ fastapi_users = FastAPIUsers[User, str](
     get_user_manager,
     [auth_backend],
 )
-
-
-# --- WebSocket Authentication ---
-async def authenticate_websocket_user(websocket: WebSocket, user_manager: UserManager) -> Optional[str]:
-    """Authenticate WebSocket connection using session cookie"""
-    try:
-        cookies_header = None
-        if hasattr(websocket, "headers"):
-            if hasattr(websocket.headers, "get"):
-                cookie_value = websocket.headers.get("cookie") or websocket.headers.get(b"cookie")
-                if cookie_value:
-                    cookies_header = cookie_value.decode() if isinstance(cookie_value, bytes) else cookie_value
-            else:
-                try:
-                    for name, value in websocket.headers:
-                        if name == b"cookie" or name == "cookie":
-                            cookies_header = value.decode() if isinstance(value, bytes) else value
-                            break
-                except (TypeError, ValueError):
-                    logger.debug("WebSocket headers format not supported for authentication")
-        if not cookies_header:
-            logger.debug("No cookies found in WebSocket headers")
-            return None
-        session_token = None
-        for cookie in cookies_header.split(";"):
-            cookie = cookie.strip()
-            if cookie.startswith("session="):
-                session_token = cookie.split("=", 1)[1]
-                break
-        if not session_token:
-            logger.debug("No session cookie found")
-            return None
-        jwt_strategy = get_jwt_strategy()
-        user_data = await jwt_strategy.read_token(session_token, user_manager)
-        if user_data:
-            logger.debug(f"Successfully authenticated user from WebSocket: {user_data.id}")
-            return str(user_data.id)
-        else:
-            logger.debug("JWT token validation returned no user data")
-            return None
-    except Exception as e:
-        logger.error(f"WebSocket authentication error: {e}")
-        return None
 
 
 # --- API Key Authentication ---

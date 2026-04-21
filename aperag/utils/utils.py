@@ -14,23 +14,11 @@
 
 import base64
 import hashlib
-import re
 from datetime import datetime, timezone
 
 from Crypto.Cipher import AES
 
 AVAILABLE_SOURCE = ["system"]
-
-
-def extract_bot_and_chat_id(path: str):
-    match = re.match(
-        r"/api/v1/bots/(?P<bot_id>\w+)/chats/(?P<chat_id>\w+)/connect$",
-        path,
-    )
-    if match:
-        return match.group("bot_id"), match.group("chat_id")
-    else:
-        raise ValueError(f"Invalid path format: {path}")
 
 
 def now_unix_milliseconds():
