@@ -119,7 +119,7 @@ export type UserActivityContext = {
   source_name?: string | null;
   keyword?: string | null;
   count?: number | null;
-  target_type?: 'knowledge_base' | 'document' | 'web' | 'chat_history' | null;
+  target_type?: 'knowledge_base' | 'document' | 'web' | null;
   scope_label?: string | null;
 };
 
@@ -148,7 +148,6 @@ const terminalTimelineItemStatuses = new Set(['completed', 'failed']);
 const knowledgeSearchTools = new Set(['list_collections', 'search_collection']);
 const webSearchTools = new Set(['search_web', 'web_search']);
 const readingTools = new Set(['read_document', 'web_read']);
-const chatHistoryTools = new Set(['query_chat_messages']);
 
 function mapReferenceItem(item: ReferenceBundleItem): Reference {
   return {
@@ -167,7 +166,6 @@ function mapReferenceItem(item: ReferenceBundleItem): Reference {
 function extractAnswerText(
   snapshot: AgentTurnSnapshot,
   streamingAnswer: string,
-  fallbackParts: ChatMessage[],
 ) {
   const answerArtifact = snapshot.artifacts.find(
     (artifact) => artifact.artifact_type === 'answer',
@@ -176,20 +174,14 @@ function extractAnswerText(
     typeof answerArtifact?.payload?.text === 'string'
       ? answerArtifact.payload.text
       : typeof answerArtifact?.payload?.content === 'string'
-        ? answerArtifact.payload.content
-        : '';
+      ? answerArtifact.payload.content
+      : '';
   if (artifactText) return artifactText;
   if (streamingAnswer) return streamingAnswer;
-  return fallbackParts
-    .filter((part) => part.type === 'message')
-    .map((part) => part.data || '')
-    .join('');
+  return '';
 }
 
-function extractReferences(
-  snapshot: AgentTurnSnapshot,
-  fallbackParts: ChatMessage[],
-): Reference[] {
+function extractReferences(snapshot: AgentTurnSnapshot): Reference[] {
   const referenceArtifact = snapshot.artifacts.find(
     (artifact) => artifact.artifact_type === 'reference_bundle',
   );
@@ -199,10 +191,7 @@ function extractReferences(
   if (items.length > 0) {
     return items.map(mapReferenceItem);
   }
-  return (
-    fallbackParts.findLast((part) => Array.isArray(part.references))
-      ?.references || []
-  );
+  return [];
 }
 
 function compactPreview(value: unknown, maxLength = 220) {
@@ -298,7 +287,6 @@ function inferTargetType(
   if (readingTools.has(toolName)) {
     return toolName === 'read_document' ? 'document' : 'web';
   }
-  if (chatHistoryTools.has(toolName)) return 'chat_history';
   return undefined;
 }
 
@@ -393,7 +381,7 @@ function inferActivityIntentFromTool(toolName?: string): UserActivityIntent {
   if (knowledgeSearchTools.has(toolName) || webSearchTools.has(toolName)) {
     return 'searching_knowledge';
   }
-  if (readingTools.has(toolName) || chatHistoryTools.has(toolName)) {
+  if (readingTools.has(toolName)) {
     return 'reading_source';
   }
   return 'waiting';
@@ -884,8 +872,8 @@ export const AgentTurnCard = ({
   };
 
   const answerText = useMemo(
-    () => extractAnswerText(snapshot, streamingAnswer, fallbackParts),
-    [fallbackParts, snapshot, streamingAnswer],
+    () => extractAnswerText(snapshot, streamingAnswer),
+    [snapshot, streamingAnswer],
   );
   const timelineItems = (() => {
     const items = buildDisplayedTimelineItems(
@@ -914,8 +902,8 @@ export const AgentTurnCard = ({
     });
   })();
   const references = useMemo(
-    () => extractReferences(snapshot, fallbackParts),
-    [fallbackParts, snapshot],
+    () => extractReferences(snapshot),
+    [snapshot],
   );
 
   const feedbackParts = useMemo<ChatMessage[]>(() => {

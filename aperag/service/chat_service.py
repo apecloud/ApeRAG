@@ -30,6 +30,52 @@ from aperag.utils.history import (
 logger = logging.getLogger(__name__)
 
 
+def _artifact_type_value(artifact) -> Optional[str]:
+    if not artifact:
+        return None
+    artifact_type = getattr(artifact, "artifact_type", None)
+    return artifact_type.value if hasattr(artifact_type, "value") else artifact_type
+
+
+def _extract_artifact_text(artifact) -> str:
+    if not artifact or not isinstance(getattr(artifact, "payload", None), dict):
+        return ""
+    return artifact.payload.get("text") or artifact.payload.get("content") or artifact.payload.get("message") or ""
+
+
+def _coerce_feedback(feedback) -> Optional[view_models.Feedback]:
+    if not feedback:
+        return None
+    return view_models.Feedback(type=feedback.type, tag=feedback.tag, message=feedback.message)
+
+
+def _coerce_timestamp(value) -> Optional[float]:
+    return value.timestamp() if value else None
+
+
+def _map_reference_item(item: dict) -> view_models.Reference:
+    return view_models.Reference(
+        score=item.get("score"),
+        text=item.get("snippet") or "",
+        metadata={
+            **(item.get("metadata") or {}),
+            "title": item.get("title"),
+            "source_type": item.get("source_type"),
+            "source_id": item.get("source_id"),
+            "uri": item.get("uri"),
+        },
+    )
+
+
+def _extract_references(artifact) -> list[view_models.Reference]:
+    if not artifact or not isinstance(getattr(artifact, "payload", None), dict):
+        return []
+    items = artifact.payload.get("items")
+    if not isinstance(items, list):
+        return []
+    return [_map_reference_item(item) for item in items if isinstance(item, dict)]
+
+
 class ChatService:
     """Chat service that handles business logic for chats"""
 
@@ -51,6 +97,102 @@ class ChatService:
             created=chat.gmt_created.isoformat(),
             updated=chat.gmt_updated.isoformat(),
         )
+
+    async def _build_v3_chat_history(self, user: str, chat_id: str) -> list[list[view_models.ChatMessage]]:
+        turns = await self.db_ops.query_agent_turns(user, chat_id)
+        feedback_map = {
+            feedback.message_id: _coerce_feedback(feedback)
+            for feedback in await self.db_ops.query_chat_feedbacks(user, chat_id)
+        }
+
+        history: list[list[view_models.ChatMessage]] = []
+        for turn in turns:
+            history.append(
+                [
+                    view_models.ChatMessage(
+                        id=turn.id,
+                        type="message",
+                        role="human",
+                        data=turn.input_text,
+                        timestamp=_coerce_timestamp(turn.gmt_created),
+                    )
+                ]
+            )
+
+            artifacts = await self.db_ops.query_agent_artifacts_by_turn(turn.id)
+            answer_artifact = (
+                next((artifact for artifact in artifacts if artifact.id == turn.answer_artifact_id), None)
+                if turn.answer_artifact_id
+                else None
+            )
+            if not answer_artifact:
+                answer_artifact = next(
+                    (artifact for artifact in artifacts if _artifact_type_value(artifact) == db_models.AgentArtifactType.ANSWER.value),
+                    None,
+                )
+
+            reference_artifact = (
+                next((artifact for artifact in artifacts if artifact.id == turn.reference_bundle_artifact_id), None)
+                if turn.reference_bundle_artifact_id
+                else None
+            )
+            if not reference_artifact:
+                reference_artifact = next(
+                    (
+                        artifact
+                        for artifact in artifacts
+                        if _artifact_type_value(artifact) == db_models.AgentArtifactType.REFERENCE_BUNDLE.value
+                    ),
+                    None,
+                )
+
+            answer_text = _extract_artifact_text(answer_artifact)
+            if not answer_text and turn.status in {
+                db_models.AgentTurnStatus.FAILED,
+                db_models.AgentTurnStatus.CANCELLED,
+            }:
+                answer_text = turn.error_message or ""
+
+            ai_parts: list[view_models.ChatMessage] = []
+            if answer_text:
+                ai_parts.append(
+                    view_models.ChatMessage(
+                        id=turn.id,
+                        type="message",
+                        role="ai",
+                        data=answer_text,
+                        timestamp=_coerce_timestamp(turn.gmt_finished) or _coerce_timestamp(turn.gmt_created),
+                    )
+                )
+            else:
+                ai_parts.append(
+                    view_models.ChatMessage(
+                        id=turn.id,
+                        type="start",
+                        role="ai",
+                        data="",
+                        timestamp=_coerce_timestamp(turn.gmt_created),
+                    )
+                )
+
+            references = _extract_references(reference_artifact)
+            feedback = feedback_map.get(turn.id)
+            if references or feedback:
+                ai_parts.append(
+                    view_models.ChatMessage(
+                        id=turn.id,
+                        type="references",
+                        role="ai",
+                        data="",
+                        references=references,
+                        feedback=feedback,
+                        timestamp=_coerce_timestamp(turn.gmt_finished) or _coerce_timestamp(turn.gmt_created),
+                    )
+                )
+
+            history.append(ai_parts)
+
+        return history
 
     async def create_chat(self, user: str, bot_id: str) -> view_models.Chat:
         # First check if bot exists
@@ -122,15 +264,11 @@ class ChatService:
         return await self.db_ops._execute_query(_execute_paginated_query)
 
     async def get_chat(self, user: str, bot_id: str, chat_id: str) -> view_models.ChatDetails:
-        # Import here to avoid circular imports
-        from aperag.utils.history import query_chat_messages
-
         chat = await self.db_ops.query_chat(user, bot_id, chat_id)
         if chat is None:
             raise ChatNotFoundException(chat_id)
 
-        # Get chat history
-        messages = await query_chat_messages(user, chat_id)
+        messages = await self._build_v3_chat_history(user, chat_id)
 
         # Build response object
         chat_obj = self.build_chat_response(chat)
@@ -184,22 +322,31 @@ class ChatService:
         feedback_message: str = None,
     ) -> dict:
         """Handle message feedback for chat messages"""
-        # Get message from Redis history to validate it exists and get context
-        history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
-        ai_msg = None
-        human_msg = None
-        for message in await history.messages:
-            if message.message_id != message_id:
-                continue
-            if message.role == "ai":
-                ai_msg = message
-            if message.role == "human":
-                human_msg = message
-
-        if not ai_msg:
+        turn = await self.db_ops.query_agent_turn(user, chat_id, message_id)
+        if not turn:
             raise ResourceNotFoundException("AI Message", message_id)
-        if not human_msg:
-            raise ResourceNotFoundException("Human Message", message_id)
+
+        artifacts = await self.db_ops.query_agent_artifacts_by_turn(turn.id)
+        answer_artifact = (
+            next((artifact for artifact in artifacts if artifact.id == turn.answer_artifact_id), None)
+            if turn.answer_artifact_id
+            else None
+        )
+        if not answer_artifact:
+            answer_artifact = next(
+                (artifact for artifact in artifacts if _artifact_type_value(artifact) == db_models.AgentArtifactType.ANSWER.value),
+                None,
+            )
+
+        answer_text = _extract_artifact_text(answer_artifact)
+        if not answer_text and turn.status in {
+            db_models.AgentTurnStatus.FAILED,
+            db_models.AgentTurnStatus.CANCELLED,
+        }:
+            answer_text = turn.error_message or ""
+
+        if not answer_text:
+            raise ResourceNotFoundException("AI Message", message_id)
 
         # Handle feedback state change based on UX design principles
         if feedback_type is None:
@@ -215,8 +362,8 @@ class ChatService:
                 feedback_type=feedback_type,
                 feedback_tag=feedback_tag,
                 feedback_message=feedback_message,
-                question=human_msg.get_main_content(),
-                original_answer=ai_msg.get_main_content(),
+                question=turn.input_text,
+                original_answer=answer_text,
             )
             result = {"action": "upserted", "feedback": feedback}
         return result

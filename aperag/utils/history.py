@@ -194,54 +194,6 @@ class RedisChatMessageHistory:
     async def release_redis(self):
         await self.redis_client.close(close_connection_pool=True)
 
-
-async def query_chat_messages(user: str, chat_id: str):
-    """
-    Query chat messages from Redis and convert to frontend format.
-
-    Returns:
-        Array of conversation turns, where each turn is an array of message parts
-        格式: [[turn1_parts], [turn2_parts], ...]
-    """
-    from aperag.db.ops import async_db_ops
-    from aperag.schema import view_models
-
-    try:
-        # Get all stored messages (each StoredChatMessage represents one conversation turn)
-        chat_history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
-        stored_messages = await chat_history.messages
-
-        if not stored_messages:
-            return []
-
-        # Get feedbacks for this chat
-        feedbacks = await async_db_ops.query_chat_feedbacks(user, chat_id)
-        feedback_map = {feedback.message_id: feedback for feedback in feedbacks}
-
-        # Convert each StoredChatMessage (conversation turn) to frontend format
-        conversation_turns = []
-        for stored_message in stored_messages:
-            # Convert this turn to frontend format (returns array of parts)
-            chat_message_list = stored_message.to_frontend_format()
-
-            # Add feedback data if available
-            for chat_msg in chat_message_list:
-                msg_id = chat_msg.id
-                feedback = feedback_map.get(msg_id)
-                if feedback and chat_msg.role == "ai":
-                    chat_msg.feedback = view_models.Feedback(
-                        type=feedback.type, tag=feedback.tag, message=feedback.message
-                    )
-
-            conversation_turns.append(chat_message_list)
-
-        return conversation_turns
-
-    except Exception as e:
-        logger.error(f"Error querying chat messages: {e}")
-        return []
-
-
 def success_response(message_id, data):
     return json.dumps(
         {

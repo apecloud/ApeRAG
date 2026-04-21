@@ -344,7 +344,7 @@ async def test_agent_runtime_redis_store_turn_claim_renew_and_release(monkeypatc
 
 
 @pytest.mark.asyncio
-async def test_history_writer_keeps_legacy_history_and_appends_missing_v3_turns(monkeypatch):
+async def test_history_writer_builds_context_from_v3_turns_only():
     completed_turn = _build_turn(
         id="turn-v3",
         status=AgentTurnStatus.COMPLETED,
@@ -371,20 +371,8 @@ async def test_history_writer_keeps_legacy_history_and_appends_missing_v3_turns(
         )
     )
 
-    legacy_turn = [
-        SimpleNamespace(id="legacy-turn", role="human", type="message", data="old question"),
-        SimpleNamespace(id="legacy-turn", role="ai", type="message", data="old answer"),
-    ]
-
-    async def _fake_query_chat_messages(*_args, **_kwargs):
-        return [legacy_turn]
-
-    monkeypatch.setattr(agent_runtime_services, "query_chat_messages", _fake_query_chat_messages)
-
     context = await writer.build_history_context("user-1", "chat-1")
 
-    assert "User: old question" in context
-    assert "Assistant: old answer" in context
     assert "User: new question" in context
     assert "Assistant: new answer" in context
     assert "missing answer question" not in context

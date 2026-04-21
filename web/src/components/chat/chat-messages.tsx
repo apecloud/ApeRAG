@@ -648,8 +648,8 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
           if (!cancelled) {
             mergeSnapshot(snapshot);
           }
-        } catch {
-          // Ignore legacy chat history groups that are not Agent Runtime V3 turns.
+        } catch (error) {
+          console.error('Failed to load historical turn snapshot', turnId, error);
         }
       }
     };

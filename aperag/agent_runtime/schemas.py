@@ -48,7 +48,7 @@ class UserActivityContext(BaseModel):
     source_name: Optional[str] = None
     keyword: Optional[str] = None
     count: Optional[int] = None
-    target_type: Optional[Literal["knowledge_base", "document", "web", "chat_history"]] = None
+    target_type: Optional[Literal["knowledge_base", "document", "web"]] = None
     scope_label: Optional[str] = None
 
 
