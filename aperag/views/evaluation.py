@@ -14,17 +14,18 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from aperag.chat.history.message import StoredChatMessage
 from aperag.db.models import User
-from aperag.exceptions import CollectionNotFoundException
 from aperag.schema import view_models
-from aperag.service.agent_chat_service import AgentChatService
-from aperag.service.collection_service import collection_service
-from aperag.service.evaluation_service import evaluation_service
+from aperag.service.evaluation_service import EVALUATION_DISABLED_MESSAGE, EvaluationDisabledError, evaluation_service
 from aperag.service.question_set_service import question_set_service
 from aperag.views.auth import required_user
 
-router = APIRouter(tags=["evaluation"])
+
+async def evaluation_feature_disabled():
+    raise HTTPException(status_code=410, detail=EVALUATION_DISABLED_MESSAGE)
+
+
+router = APIRouter(tags=["evaluation"], dependencies=[Depends(evaluation_feature_disabled)])
 
 MAX_QUESTIONS_PER_SET = 1000
 
@@ -202,10 +203,10 @@ async def create_evaluation(
     request: view_models.EvaluationCreate,
     user: User = Depends(required_user),
 ):
-    # TODO: check quota limit
-    # The request model is generated from OpenAPI spec, so it should match the new structure.
-    # No changes needed here as long as the view_models are up to date.
-    return await evaluation_service.create_evaluation(request, user.id)
+    try:
+        return await evaluation_service.create_evaluation(request, user.id)
+    except EvaluationDisabledError as exc:
+        raise HTTPException(status_code=410, detail=str(exc)) from exc
 
 
 @router.get("/evaluations/{eval_id}", response_model=view_models.EvaluationDetail)
@@ -254,7 +255,10 @@ async def pause_evaluation(
     eval_id: str,
     user: User = Depends(required_user),
 ):
-    evaluation = await evaluation_service.pause_evaluation(eval_id, user.id)
+    try:
+        evaluation = await evaluation_service.pause_evaluation(eval_id, user.id)
+    except EvaluationDisabledError as exc:
+        raise HTTPException(status_code=410, detail=str(exc)) from exc
     if not evaluation:
         raise HTTPException(status_code=404, detail="Evaluation not found")
     return evaluation
@@ -265,7 +269,10 @@ async def resume_evaluation(
     eval_id: str,
     user: User = Depends(required_user),
 ):
-    evaluation = await evaluation_service.resume_evaluation(eval_id, user.id)
+    try:
+        evaluation = await evaluation_service.resume_evaluation(eval_id, user.id)
+    except EvaluationDisabledError as exc:
+        raise HTTPException(status_code=410, detail=str(exc)) from exc
     if not evaluation:
         raise HTTPException(status_code=404, detail="Evaluation not found")
     return evaluation
@@ -277,7 +284,10 @@ async def retry_evaluation(
     scope: str = Query("failed", enum=["failed", "all"]),
     user: User = Depends(required_user),
 ):
-    evaluation = await evaluation_service.retry_evaluation(eval_id, user.id, scope)
+    try:
+        evaluation = await evaluation_service.retry_evaluation(eval_id, user.id, scope)
+    except EvaluationDisabledError as exc:
+        raise HTTPException(status_code=410, detail=str(exc)) from exc
     if not evaluation:
         raise HTTPException(status_code=404, detail="Evaluation not found")
     return evaluation
@@ -291,43 +301,7 @@ async def chat_with_agent_for_evaluation(
     request: view_models.EvaluationChatWithAgentRequest,
     user: User = Depends(required_user),
 ):
-    """
-    (Internal) Handles a chat request for an evaluation item.
-    This endpoint is called by the Celery worker to execute agent logic in the FastAPI process.
-    """
-    agent_service = AgentChatService()
-    try:
-        collection = await collection_service.get_collection(user.id, request.collection_id)
-        if not collection:
-            raise CollectionNotFoundException(f"Collection {request.collection_id} not found.")
-        collections = [collection]
-    except CollectionNotFoundException as e:
-        raise HTTPException(status_code=404, detail=str(e))
-
-    result = await agent_service.chat_for_evaluation(
-        query=request.question_text,
-        user_id=user.id,
-        model_name=request.agent_llm_config.model_name,
-        model_service_provider=request.agent_llm_config.model_service_provider,
-        custom_llm_provider=request.agent_llm_config.custom_llm_provider,
-        collections=collections,
-        language=request.language or "en-US",
-    )
-
-    # AgentErrorResponse is a TypedDict, which does not support instance checks,
-    # so we check the type field.
-    if isinstance(result, dict) and result.get("type") == "error":
-        return view_models.AgentErrorResponse(
-            type="error",
-            id=result["id"],
-            data=result["data"],
-            timestamp=result["timestamp"],
-        )
-    elif isinstance(result, StoredChatMessage):
-        msgs = result.to_frontend_format()
-        return view_models.ChatSuccessResponse(messages=msgs)
-    else:
-        raise HTTPException(status_code=500, detail=f"Unknown response type, object: {result}")
+    raise HTTPException(status_code=410, detail=EVALUATION_DISABLED_MESSAGE)
 
 
 # endregion

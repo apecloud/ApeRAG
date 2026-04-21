@@ -23,6 +23,48 @@ from aperag.utils.utils import utc_now
 
 
 class AsyncEvaluationRepositoryMixin(AsyncRepositoryProtocol):
+    async def disable_active_evaluations(self, error_message: str) -> tuple[int, int]:
+        """Hard-disables active evaluations and their runnable items."""
+
+        async def _operation(session: AsyncSession):
+            active_eval_ids = list(
+                (
+                    await session.scalars(
+                        select(Evaluation.id).where(
+                            Evaluation.status.in_([EvaluationStatus.PENDING, EvaluationStatus.RUNNING])
+                        )
+                    )
+                ).all()
+            )
+            if not active_eval_ids:
+                return 0, 0
+
+            now = utc_now()
+            evaluation_result = await session.execute(
+                update(Evaluation)
+                .where(Evaluation.id.in_(active_eval_ids))
+                .values(
+                    status=EvaluationStatus.FAILED,
+                    error_message=error_message,
+                    gmt_updated=now,
+                )
+            )
+            item_result = await session.execute(
+                update(EvaluationItem)
+                .where(EvaluationItem.evaluation_id.in_(active_eval_ids))
+                .where(EvaluationItem.status.in_([EvaluationItemStatus.PENDING, EvaluationItemStatus.RUNNING]))
+                .values(
+                    status=EvaluationItemStatus.FAILED,
+                    llm_judge_score=0,
+                    llm_judge_reasoning=error_message,
+                    gmt_updated=now,
+                )
+            )
+            await session.flush()
+            return evaluation_result.rowcount or 0, item_result.rowcount or 0
+
+        return await self.execute_with_transaction(_operation)
+
     async def create_evaluation(self, evaluation: Evaluation, questions: List[Question]) -> Evaluation:
         """Creates a new evaluation."""
 

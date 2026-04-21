@@ -46,6 +46,28 @@ MAX_CONCURRENT_EVALUATIONS = int(os.getenv("MAX_CONCURRENT_EVALUATIONS", 5))
 MAX_CONCURRENT_PROCESSING_TASKS_PER_EVALUATION = int(os.getenv("MAX_CONCURRENT_PROCESSING_TASKS_PER_EVALUATION", 1))
 EVALUATION_ITEM_PROCESSING_TASK_TIMEOUT_MINUTES = int(os.getenv("EVALUATION_ITEM_PROCESSING_TASK_TIMEOUT_MINUTES", 15))
 APERAG_API_BASE_URL = os.getenv("APERAG_API_BASE_URL", "http://localhost:8000")
+EVALUATION_FEATURE_ENABLED = False
+EVALUATION_DISABLED_MESSAGE = "Evaluation is disabled during Agent framework retirement."
+
+
+class EvaluationDisabledError(RuntimeError):
+    """Raised when the legacy evaluation feature is intentionally retired."""
+
+
+def ensure_evaluation_feature_enabled():
+    if not EVALUATION_FEATURE_ENABLED:
+        raise EvaluationDisabledError(EVALUATION_DISABLED_MESSAGE)
+
+
+async def disable_active_evaluation_runs(db_ops: AsyncDatabaseOps) -> tuple[int, int]:
+    disabled_evaluations, disabled_items = await db_ops.disable_active_evaluations(EVALUATION_DISABLED_MESSAGE)
+    if disabled_evaluations or disabled_items:
+        logger.warning(
+            "Disabled evaluation retirement path: %s evaluations, %s items",
+            disabled_evaluations,
+            disabled_items,
+        )
+    return disabled_evaluations, disabled_items
 
 
 class EvaluationExecutor:
@@ -65,6 +87,10 @@ class EvaluationExecutor:
         logger.info("Scanning for pending and running evaluations...")
 
         async for session in get_async_session(self.engine):
+            if not EVALUATION_FEATURE_ENABLED:
+                await disable_active_evaluation_runs(AsyncDatabaseOps(session))
+                return
+
             # 1. Schedule new evaluations
             running_count_stmt = select(func.count(Evaluation.id)).where(Evaluation.status == EvaluationStatus.RUNNING)
             running_count = (await session.execute(running_count_stmt)).scalar_one()
@@ -134,6 +160,10 @@ class EvaluationExecutor:
         logger.info(f"Initializing evaluation {evaluation_id}")
         async for session in get_async_session(self.engine):
             try:
+                if not EVALUATION_FEATURE_ENABLED:
+                    await disable_active_evaluation_runs(AsyncDatabaseOps(session))
+                    return
+
                 evaluation = await session.get(Evaluation, evaluation_id)
                 if not evaluation:
                     logger.error(f"Evaluation {evaluation_id} not found.")
@@ -180,6 +210,10 @@ class EvaluationExecutor:
                     return
 
                 async for session in get_async_session(self.engine):
+                    if not EVALUATION_FEATURE_ENABLED:
+                        await disable_active_evaluation_runs(AsyncDatabaseOps(session))
+                        return
+
                     evaluation = await session.get(Evaluation, evaluation_id)
                     if not evaluation or evaluation.gmt_deleted or evaluation.status != EvaluationStatus.RUNNING:
                         logger.info(f"Evaluation {evaluation_id} is not in a runnable state. Halting.")
@@ -234,6 +268,10 @@ class EvaluationExecutor:
 
         async for session in get_async_session(self.engine):
             try:
+                if not EVALUATION_FEATURE_ENABLED:
+                    await disable_active_evaluation_runs(AsyncDatabaseOps(session))
+                    return
+
                 update_stmt = (
                     update(EvaluationItem)
                     .where(EvaluationItem.id == item_id)
@@ -521,6 +559,7 @@ class EvaluationService:
 
     async def create_evaluation(self, request: view_models.EvaluationCreate, user_id: str) -> Evaluation:
         """Creates a new evaluation task."""
+        ensure_evaluation_feature_enabled()
 
         # Basic configuration checks
         question_set = await self.db_ops.get_question_set_by_id(request.question_set_id, user_id)
@@ -631,6 +670,7 @@ class EvaluationService:
 
     async def pause_evaluation(self, eval_id: str, user_id: str) -> Evaluation | None:
         """Pauses a running evaluation."""
+        ensure_evaluation_feature_enabled()
         return await self.db_ops.update_evaluation_status(
             eval_id,
             user_id,
@@ -640,6 +680,7 @@ class EvaluationService:
 
     async def resume_evaluation(self, eval_id: str, user_id: str) -> Evaluation | None:
         """Resumes a paused evaluation by setting it back to pending."""
+        ensure_evaluation_feature_enabled()
         evaluation = await self.db_ops.update_evaluation_status(
             eval_id, user_id, EvaluationStatus.PENDING, [EvaluationStatus.PAUSED]
         )
@@ -652,6 +693,7 @@ class EvaluationService:
 
     async def retry_evaluation(self, eval_id: str, user_id: str, scope: str) -> Evaluation | None:
         """Retries items in an evaluation based on the scope."""
+        ensure_evaluation_feature_enabled()
         evaluation = await self.db_ops.retry_evaluation(eval_id, user_id, scope)
         if evaluation:
             # Trigger the scheduler to pick it up
