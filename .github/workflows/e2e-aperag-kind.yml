@@ -35,6 +35,7 @@ env:
   HURL_VERSION: "7.1.0"
   KIND_VERSION: "v0.29.0"
   KIND_CLUSTER_NAME: "aperag-e2e"
+  DATABASE_PROFILE: "kind"
 
 jobs:
   e2e-kind:

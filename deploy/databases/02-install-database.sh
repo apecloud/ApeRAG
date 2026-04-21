@@ -9,6 +9,22 @@ DATABASE_SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pw
 source "$DATABASE_SCRIPT_DIR/00-config.sh"
 
 CLUSTER_READY_TIMEOUT="${CLUSTER_READY_TIMEOUT:-600}"
+DATABASE_PROFILE="${DATABASE_PROFILE:-}"
+
+resolve_values_file() {
+  local values_dir="$1"
+  local default_file="${values_dir}/values.yaml"
+
+  if [ -n "$DATABASE_PROFILE" ]; then
+    local profile_file="${values_dir}/values.${DATABASE_PROFILE}.yaml"
+    if [ -f "$profile_file" ]; then
+      echo "$profile_file"
+      return 0
+    fi
+  fi
+
+  echo "$default_file"
+}
 
 cluster_phase() {
   local cluster_name="$1"
@@ -82,10 +98,13 @@ install_cluster() {
   local display_name="$1"
   local release_name="$2"
   local chart_name="$3"
-  local values_file="$4"
+  local values_dir="$4"
   local cluster_name="$5"
+  local values_file=""
 
-  print "Installing ${display_name} cluster..."
+  values_file="$(resolve_values_file "$values_dir")"
+
+  print "Installing ${display_name} cluster with values file ${values_file}..."
   helm upgrade --install "$release_name" "kubeblocks/${chart_name}" \
     -f "$values_file" \
     --namespace "$NAMESPACE" \
@@ -101,7 +120,7 @@ if [ "$ENABLE_POSTGRESQL" = true ]; then
     "PostgreSQL" \
     "pg-cluster" \
     "postgresql-cluster" \
-    "$DATABASE_SCRIPT_DIR/postgresql/values.yaml" \
+    "$DATABASE_SCRIPT_DIR/postgresql" \
     "pg-cluster"
 fi
 
@@ -110,7 +129,7 @@ if [ "$ENABLE_REDIS" = true ]; then
     "Redis" \
     "redis-cluster" \
     "redis-cluster" \
-    "$DATABASE_SCRIPT_DIR/redis/values.yaml" \
+    "$DATABASE_SCRIPT_DIR/redis" \
     "redis-cluster"
 fi
 
@@ -119,7 +138,7 @@ if [ "$ENABLE_ELASTICSEARCH" = true ]; then
     "Elasticsearch" \
     "es-cluster" \
     "elasticsearch-cluster" \
-    "$DATABASE_SCRIPT_DIR/elasticsearch/values.yaml" \
+    "$DATABASE_SCRIPT_DIR/elasticsearch" \
     "es-cluster"
 fi
 
@@ -128,7 +147,7 @@ if [ "$ENABLE_QDRANT" = true ]; then
     "Qdrant" \
     "qdrant-cluster" \
     "qdrant-cluster" \
-    "$DATABASE_SCRIPT_DIR/qdrant/values.yaml" \
+    "$DATABASE_SCRIPT_DIR/qdrant" \
     "qdrant-cluster"
 fi
 
@@ -137,7 +156,7 @@ if [ "$ENABLE_MONGODB" = true ]; then
     "MongoDB" \
     "mongodb-cluster" \
     "mongodb-cluster" \
-    "$DATABASE_SCRIPT_DIR/mongodb/values.yaml" \
+    "$DATABASE_SCRIPT_DIR/mongodb" \
     "mongodb-cluster"
 fi
 
@@ -146,7 +165,7 @@ if [ "$ENABLE_NEO4J" = true ]; then
     "Neo4j" \
     "neo4j-cluster" \
     "neo4j-cluster" \
-    "$DATABASE_SCRIPT_DIR/neo4j/values.yaml" \
+    "$DATABASE_SCRIPT_DIR/neo4j" \
     "neo4j-cluster"
 fi
 
