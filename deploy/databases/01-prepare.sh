@@ -40,6 +40,14 @@ run_addon_release_install() {
         --version "$ADDON_CLUSTER_CHART_VERSION"
 }
 
+addon_runtime_prereqs_ready() {
+    local cluster_definition_name="$1"
+    local component_version_name="$2"
+
+    kubectl get clusterdefinitions.apps.kubeblocks.io "$cluster_definition_name" >/dev/null 2>&1 &&
+        kubectl get componentversions.apps.kubeblocks.io "$component_version_name" >/dev/null 2>&1
+}
+
 install_addon_release() {
     local addon_name="$1"
     local release_name="$2"
@@ -96,6 +104,8 @@ wait_for_addon_enabled() {
     local addon_resource="$1"
     local addon_name="$2"
     local release_name="$3"
+    local cluster_definition_name="$4"
+    local component_version_name="$5"
     local phase=""
     local release_status=""
 
@@ -106,15 +116,21 @@ wait_for_addon_enabled() {
             print_success "${addon_name} addon is Enabled."
             return 0
         fi
+        release_status="$(helm_release_status "$release_name")"
+        if [ "$release_status" = "deployed" ] &&
+           addon_runtime_prereqs_ready "$cluster_definition_name" "$component_version_name"; then
+            if [ "$phase" != "Enabled" ]; then
+                print_warning "${addon_name} addon control-plane phase is ${phase:-<missing>}, but Helm release ${release_name} is deployed and runtime prerequisites (${cluster_definition_name}, ${component_version_name}) are ready; continuing."
+            fi
+            return 0
+        fi
         if [ "$phase" = "Failed" ]; then
-            release_status="$(helm_release_status "$release_name")"
             if [ "$release_status" = "deployed" ]; then
                 print_warning "${addon_name} addon phase stayed Failed after an install race, but Helm release ${release_name} is deployed; continuing."
                 return 0
             fi
         fi
         if [ -z "$phase" ]; then
-            release_status="$(helm_release_status "$release_name")"
             if [ "$release_status" = "failed" ]; then
                 print_error "${addon_name} addon Helm release ${release_name} is failed and addon resource is still missing."
                 helm status "$release_name" --namespace kb-system || true
@@ -132,32 +148,32 @@ wait_for_addon_enabled() {
 # Install database addons based on configuration
 if [ "$ENABLE_POSTGRESQL" = true ]; then
     install_addon_release "PostgreSQL" "kb-addon-postgresql" "postgresql" "postgresql"
-    wait_for_addon_enabled "postgresql" "PostgreSQL" "kb-addon-postgresql"
+    wait_for_addon_enabled "postgresql" "PostgreSQL" "kb-addon-postgresql" "postgresql" "postgresql"
 fi
 
 if [ "$ENABLE_REDIS" = true ]; then
     install_addon_release "Redis" "kb-addon-redis" "redis" "redis"
-    wait_for_addon_enabled "redis" "Redis" "kb-addon-redis"
+    wait_for_addon_enabled "redis" "Redis" "kb-addon-redis" "redis" "redis"
 fi
 
 if [ "$ENABLE_ELASTICSEARCH" = true ]; then
     install_addon_release "Elasticsearch" "kb-addon-elasticsearch" "elasticsearch" "elasticsearch"
-    wait_for_addon_enabled "elasticsearch" "Elasticsearch" "kb-addon-elasticsearch"
+    wait_for_addon_enabled "elasticsearch" "Elasticsearch" "kb-addon-elasticsearch" "elasticsearch" "elasticsearch"
 fi
 
 if [ "$ENABLE_QDRANT" = true ]; then
     install_addon_release "Qdrant" "kb-addon-qdrant" "qdrant" "qdrant"
-    wait_for_addon_enabled "qdrant" "Qdrant" "kb-addon-qdrant"
+    wait_for_addon_enabled "qdrant" "Qdrant" "kb-addon-qdrant" "qdrant" "qdrant"
 fi
 
 if [ "$ENABLE_MONGODB" = true ]; then
     install_addon_release "MongoDB" "kb-addon-mongodb" "mongodb" "mongodb"
-    wait_for_addon_enabled "mongodb" "MongoDB" "kb-addon-mongodb"
+    wait_for_addon_enabled "mongodb" "MongoDB" "kb-addon-mongodb" "mongodb" "mongodb"
 fi
 
 if [ "$ENABLE_NEO4J" = true ]; then
     install_addon_release "Neo4j" "kb-addon-neo4j" "neo4j" "neo4j"
-    wait_for_addon_enabled "neo4j" "Neo4j" "kb-addon-neo4j"
+    wait_for_addon_enabled "neo4j" "Neo4j" "kb-addon-neo4j" "neo4j" "neo4j"
 fi
 
 print_success "KubeBlocks database addons installation completed!"
