@@ -221,6 +221,7 @@ class ChatService:
             result = {"action": "upserted", "feedback": feedback}
         return result
 
+
 # Create a global service instance for easy access
 # This uses the global db_ops instance and doesn't require session management in views
 chat_service_global = ChatService()
