@@ -338,6 +338,8 @@ async def web_search(
     Note:
         Supports parallel execution of regular search and LLM.txt discovery.
         Results are automatically merged and ranked.
+        Response payloads include lightweight `meta` diagnostics so callers can
+        distinguish empty results from provider unavailability.
     """
     try:
         api_key = get_api_key()

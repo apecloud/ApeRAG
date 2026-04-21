@@ -60,6 +60,14 @@ class DuckDuckGoProvider(BaseSearchProvider):
         Returns:
             List of search result items
         """
+        self.last_search_meta = {
+            "search_status": "empty",
+            "provider_used": ["duckduckgo"],
+            "backend_used": ["duckduckgo"],
+            "fallback_used": False,
+            "error_code": None,
+        }
+
         # Validate parameters
         has_query = query and query.strip()
         has_source = source and source.strip()
@@ -99,7 +107,13 @@ class DuckDuckGoProvider(BaseSearchProvider):
 
         # Perform search
         loop = asyncio.get_event_loop()
-        results = await loop.run_in_executor(None, self._search_sync, final_query, max_results, timeout, locale)
+        try:
+            results = await loop.run_in_executor(None, self._search_sync, final_query, max_results, timeout, locale)
+        except Exception as exc:
+            logger.warning("DuckDuckGo search failed query=%s error=%s", final_query, exc)
+            self.last_search_meta["search_status"] = "unavailable"
+            self.last_search_meta["error_code"] = "duckduckgo_unavailable"
+            return []
 
         # Filter results to target domain when source is provided
         if target_domain:
@@ -114,8 +128,10 @@ class DuckDuckGoProvider(BaseSearchProvider):
                 result.rank = i + 1
 
             logger.info(f"Site-specific search completed: {len(filtered_results)} results from {target_domain}")
+            self.last_search_meta["search_status"] = "ok" if filtered_results else "empty"
             return filtered_results
 
+        self.last_search_meta["search_status"] = "ok" if results else "empty"
         return results
 
     def _search_sync(self, query: str, max_results: int, timeout: int, locale: str) -> List[WebSearchResultItem]:

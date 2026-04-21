@@ -5,7 +5,7 @@ Abstract base class for web search providers.
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from aperag.schema.view_models import WebSearchResultItem
 
@@ -25,6 +25,7 @@ class BaseSearchProvider(ABC):
             config: Provider-specific configuration
         """
         self.config = config or {}
+        self.last_search_meta: Dict[str, Any] = {}
 
     @abstractmethod
     async def search(
