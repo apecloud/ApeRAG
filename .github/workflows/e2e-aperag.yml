@@ -83,6 +83,7 @@ run-name: >
 permissions:
   id-token: write
   contents: read
+  packages: read
 
 jobs:
   check-release-version:

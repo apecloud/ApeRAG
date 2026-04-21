@@ -38,6 +38,7 @@ on:
 permissions:
   id-token: write
   contents: read
+  packages: read
 
 env:
   HELM_VERSION: "v3.12.0"
@@ -93,6 +94,16 @@ jobs:
           ./deploy/databases/02-install-database.sh
           kubectl get pods -n default -o wide
 
+      - name: Create GHCR image pull secret
+        if: ${{ inputs.deploy_mode == 'code' }}
+        run: |
+          kubectl create secret docker-registry ghcr-creds \
+            --namespace default \
+            --docker-server=ghcr.io \
+            --docker-username="${{ github.actor }}" \
+            --docker-password="${{ github.token }}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
       - name: Deploy ApeRAG from release
         if: ${{ inputs.deploy_mode == 'release' }}
         run: |
@@ -111,6 +122,7 @@ jobs:
             --set image.repository="${{ inputs.backend_image_repo }}" \
             --set image.tag="${{ inputs.image_tag }}" \
             --set image.pullPolicy=Always \
+            --set image.pullSecrets[0]=ghcr-creds \
             --set frontend.replicaCount=0 \
             --wait --timeout=20m
 

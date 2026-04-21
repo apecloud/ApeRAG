@@ -24,6 +24,12 @@ spec:
       labels:
         {{- include "aperag.selectorLabels" . | nindent 8 }}
     spec:
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- range . }}
+        - name: {{ . }}
+        {{- end }}
+      {{- end }}
       containers:
         - args:
             - /bin/sh
