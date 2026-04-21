@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from sqlalchemy import select
+from sqlalchemy import String, select
+from sqlalchemy.dialects.postgresql import array as pg_array
 
 from aperag.db.models import (
     LightRAGDocChunksModel,
@@ -21,6 +22,13 @@ from aperag.db.models import (
 )
 from aperag.db.repositories.base import SyncRepositoryProtocol
 from aperag.utils.utils import utc_now
+
+
+def _build_chunk_ids_overlap_clause(column, chunk_ids: list[str]):
+    unique_chunk_ids = [chunk_id for chunk_id in dict.fromkeys(chunk_ids) if chunk_id]
+    if not unique_chunk_ids:
+        return None
+    return column.op("&&")(pg_array(unique_chunk_ids, type_=String()))
 
 
 class LightragRepositoryMixin(SyncRepositoryProtocol):
@@ -172,10 +180,12 @@ class LightragRepositoryMixin(SyncRepositoryProtocol):
         """Query LightRAG VDB entities whose chunk_ids overlap with the given chunk IDs"""
 
         def _query(session):
-            if not chunk_ids:
+            overlap_clause = _build_chunk_ids_overlap_clause(LightRAGVDBEntityModel.chunk_ids, chunk_ids)
+            if overlap_clause is None:
                 return {}
             stmt = select(LightRAGVDBEntityModel).where(
-                LightRAGVDBEntityModel.workspace == workspace, LightRAGVDBEntityModel.chunk_ids.overlap(chunk_ids)
+                LightRAGVDBEntityModel.workspace == workspace,
+                overlap_clause,
             )
             result = session.execute(stmt)
             return {entity.id: entity for entity in result.scalars().all()}
@@ -265,10 +275,12 @@ class LightragRepositoryMixin(SyncRepositoryProtocol):
         """Query LightRAG VDB relations whose chunk_ids overlap with the given chunk IDs"""
 
         def _query(session):
-            if not chunk_ids:
+            overlap_clause = _build_chunk_ids_overlap_clause(LightRAGVDBRelationModel.chunk_ids, chunk_ids)
+            if overlap_clause is None:
                 return {}
             stmt = select(LightRAGVDBRelationModel).where(
-                LightRAGVDBRelationModel.workspace == workspace, LightRAGVDBRelationModel.chunk_ids.overlap(chunk_ids)
+                LightRAGVDBRelationModel.workspace == workspace,
+                overlap_clause,
             )
             result = session.execute(stmt)
             return {relation.id: relation for relation in result.scalars().all()}
