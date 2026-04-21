@@ -144,6 +144,7 @@ type OrderedTimelineItem = {
 };
 
 const terminalStatuses = new Set(['COMPLETED', 'FAILED', 'CANCELLED']);
+const terminalTimelineItemStatuses = new Set(['completed', 'failed']);
 const knowledgeSearchTools = new Set(['list_collections', 'search_collection']);
 const webSearchTools = new Set(['search_web', 'web_search']);
 const readingTools = new Set(['read_document', 'web_read']);
@@ -509,17 +510,57 @@ function normalizeTimelineStatus(event: AgentTimelineEventEnvelope) {
   return normalized || 'waiting';
 }
 
-function serializeUserActivity(activity: UserActivityEnvelope) {
+function serializeDisplayedUserActivity(activity: UserActivityEnvelope) {
   return JSON.stringify({
     intent: activity.intent,
     title_key: activity.title_key,
     subtitle_key: activity.subtitle_key,
-    detail_key: activity.detail_key,
-    context: activity.context || null,
+    context: {
+      keyword: activity.context?.keyword || null,
+      source_name: activity.context?.source_name || null,
+      target_type: activity.context?.target_type || null,
+      scope_label: activity.context?.scope_label || null,
+    },
   });
 }
 
-function findMergeableActivityIndex(
+function mergeUserActivityEnvelope(
+  previous: UserActivityEnvelope,
+  next: UserActivityEnvelope,
+): UserActivityEnvelope {
+  return {
+    ...previous,
+    ...next,
+    detail_key: next.detail_key ?? previous.detail_key,
+    context: {
+      ...(previous.context || {}),
+      ...(next.context || {}),
+    },
+  };
+}
+
+function normalizeDisplayedStepStatus(previousStatus: string, nextStatus: string) {
+  if (nextStatus === 'failed') return 'failed';
+  if (nextStatus === 'completed') {
+    return previousStatus === 'failed' ? 'failed' : 'completed';
+  }
+  if (nextStatus === 'running') {
+    if (terminalTimelineItemStatuses.has(previousStatus)) {
+      return previousStatus;
+    }
+    return 'running';
+  }
+  if (nextStatus === 'waiting') {
+    return previousStatus === 'running' ? 'running' : previousStatus || 'waiting';
+  }
+  return nextStatus;
+}
+
+function shouldDisplayUserActivityInTimeline(activity: UserActivityEnvelope) {
+  return activity.intent !== 'waiting';
+}
+
+function findDisplayedStepIndex(
   entries: OrderedTimelineItem[],
   status: string,
   activity: UserActivityEnvelope,
@@ -529,17 +570,29 @@ function findMergeableActivityIndex(
 
   const previous = entries[lastIndex];
   if (
-    previous.status === status &&
-    serializeUserActivity(previous.userActivity) === serializeUserActivity(activity)
+    serializeDisplayedUserActivity(previous.userActivity) !==
+    serializeDisplayedUserActivity(activity)
+  ) {
+    return -1;
+  }
+
+  if (
+    terminalTimelineItemStatuses.has(previous.status) &&
+    previous.status !== status
+  ) {
+    return -1;
+  }
+
+  if (
+    terminalTimelineItemStatuses.has(previous.status) &&
+    previous.status === status
   ) {
     return lastIndex;
   }
 
   if (
-    previous.status === 'running' &&
-    status === 'completed' &&
-    (previous.occurrences || 1) === 1 &&
-    serializeUserActivity(previous.userActivity) === serializeUserActivity(activity)
+    !terminalTimelineItemStatuses.has(previous.status) &&
+    ['waiting', 'running', 'completed', 'failed'].includes(status)
   ) {
     return lastIndex;
   }
@@ -547,8 +600,53 @@ function findMergeableActivityIndex(
   return -1;
 }
 
-function buildOrderedTimelineItems(
+function closeTimelineItems(
+  entries: OrderedTimelineItem[],
+  turnStatus: string,
+): OrderedTimelineItem[] {
+  const normalizedTurnStatus = turnStatus.toUpperCase();
+
+  if (
+    normalizedTurnStatus !== 'COMPLETED' &&
+    normalizedTurnStatus !== 'FAILED' &&
+    normalizedTurnStatus !== 'CANCELLED'
+  ) {
+    return entries;
+  }
+
+  const lastOpenIndex = entries.findLastIndex(
+    (entry) =>
+      shouldDisplayUserActivityInTimeline(entry.userActivity) &&
+      (entry.status === 'waiting' || entry.status === 'running'),
+  );
+
+  const closedEntries = entries
+    .map((entry, index) => {
+      if (!shouldDisplayUserActivityInTimeline(entry.userActivity)) return null;
+      if (entry.status !== 'waiting' && entry.status !== 'running') {
+        return entry;
+      }
+
+      if (normalizedTurnStatus === 'COMPLETED') {
+        return {
+          ...entry,
+          status: 'completed',
+        };
+      }
+
+      return {
+        ...entry,
+        status: index === lastOpenIndex ? 'failed' : 'completed',
+      };
+    })
+    .filter((entry): entry is OrderedTimelineItem => entry != null);
+
+  return closedEntries;
+}
+
+function buildDisplayedTimelineItems(
   timeline: AgentTimelineEventEnvelope[],
+  turnStatus: string,
 ): OrderedTimelineItem[] {
   const orderedEvents = [...timeline].sort((left, right) => {
     if (left.sequence !== right.sequence) {
@@ -561,11 +659,12 @@ function buildOrderedTimelineItems(
   for (const event of orderedEvents) {
     const userActivity = inferUserActivity(event);
     if (!userActivity) continue;
+    if (!shouldDisplayUserActivityInTimeline(userActivity)) continue;
 
     const status = normalizeTimelineStatus(event);
     const argsPreview = compactPreview(event.data.args, 180);
     const resultPreview = compactPreview(event.data.result, 280);
-    const mergeableIndex = findMergeableActivityIndex(
+    const mergeableIndex = findDisplayedStepIndex(
       entries,
       status,
       userActivity,
@@ -573,15 +672,15 @@ function buildOrderedTimelineItems(
 
     if (mergeableIndex >= 0) {
       const previous = entries[mergeableIndex];
-      const nextOccurrences =
-        previous.status === status
-          ? (previous.occurrences || 1) + 1
-          : previous.occurrences || 1;
       entries[mergeableIndex] = {
         ...previous,
-        status,
+        userActivity: mergeUserActivityEnvelope(
+          previous.userActivity,
+          userActivity,
+        ),
+        status: normalizeDisplayedStepStatus(previous.status, status),
         timestamp: event.timestamp,
-        occurrences: nextOccurrences,
+        occurrences: (previous.occurrences || 1) + 1,
         argsPreview: previous.argsPreview || argsPreview,
         resultPreview: resultPreview || previous.resultPreview,
         rawType: event.type,
@@ -603,7 +702,7 @@ function buildOrderedTimelineItems(
     });
   }
 
-  return entries;
+  return closeTimelineItems(entries, turnStatus);
 }
 
 function getAnswerSectionTitle(status: string, hasAnswerText: boolean) {
@@ -639,15 +738,19 @@ function getTimelineItemStyles(item: OrderedTimelineItem) {
   if (item.userActivity.intent === 'error' || item.status === 'failed') {
     return {
       iconWrapper: 'border-destructive/25 bg-destructive/10 text-destructive',
-      card: 'border-destructive/20 bg-destructive/5',
+      card: 'border-destructive/20 bg-destructive/5 shadow-sm',
+      badge:
+        'border-destructive/20 bg-destructive/10 text-destructive',
     };
   }
 
   if (item.userActivity.intent === 'completed' || item.status === 'completed') {
     return {
       iconWrapper:
-        'border-emerald-500/25 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-      card: 'border-emerald-500/15 bg-emerald-500/5',
+        'border-emerald-500/15 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400',
+      card: 'border-border/50 bg-background/70 opacity-85',
+      badge:
+        'border-emerald-500/15 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400',
     };
   }
 
@@ -655,13 +758,17 @@ function getTimelineItemStyles(item: OrderedTimelineItem) {
     return {
       iconWrapper:
         'border-emerald-500/25 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-      card: 'border-emerald-500/15 bg-emerald-500/5',
+      card:
+        'border-emerald-500/20 bg-emerald-500/8 shadow-sm shadow-emerald-500/10 ring-1 ring-emerald-500/10',
+      badge:
+        'border-emerald-500/20 bg-emerald-500/12 text-emerald-700 dark:text-emerald-300',
     };
   }
 
   return {
     iconWrapper: 'border-border/70 bg-background text-foreground',
     card: 'border-border/60 bg-background/70',
+    badge: 'border-border/60 bg-background text-muted-foreground',
   };
 }
 
@@ -781,7 +888,10 @@ export const AgentTurnCard = ({
     [fallbackParts, snapshot, streamingAnswer],
   );
   const timelineItems = (() => {
-    const items = buildOrderedTimelineItems(snapshot.timeline);
+    const items = buildDisplayedTimelineItems(
+      snapshot.timeline,
+      snapshot.turn.status,
+    );
     if (!answerText) return items;
 
     return items.map((item) => {
@@ -909,20 +1019,19 @@ export const AgentTurnCard = ({
                         item.userActivity.detail_key,
                         translationValues,
                       );
-                      const hasDebugContent =
-                        !!item.argsPreview ||
-                        !!item.resultPreview ||
-                        !!item.technicalType;
 
                       const cardBody = (
                         <>
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <div className="text-sm font-medium">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="text-sm font-medium leading-5">
                               {title}
                             </div>
                             <Badge
                               variant="outline"
-                              className="h-5 rounded-full px-1.5 text-[9px]"
+                              className={cn(
+                                'h-5 rounded-full px-1.5 text-[9px]',
+                                styles.badge,
+                              )}
                             >
                               {getItemStatusLabel(item.status)}
                             </Badge>
@@ -945,16 +1054,6 @@ export const AgentTurnCard = ({
                               {detail}
                             </div>
                           )}
-                          {(item.occurrences || 1) > 1 && (
-                            <div className="text-muted-foreground mt-1.5 text-[11px]">
-                              {translatePageChat(
-                                'activity_stream.repeated',
-                                {
-                                  count: item.occurrences || 1,
-                                },
-                              )}
-                            </div>
-                          )}
                         </>
                       );
 
@@ -975,79 +1074,14 @@ export const AgentTurnCard = ({
                           </div>
 
                           <div className="min-w-0 flex-1 pb-3">
-                            {hasDebugContent ? (
-                              <Collapsible
-                                className="group/timeline-item"
-                              >
-                                <div
-                                  className={cn(
-                                    'rounded-xl border px-3 py-2.5',
-                                    styles.card,
-                                  )}
-                                >
-                                  <CollapsibleTrigger asChild>
-                                    <button
-                                      type="button"
-                                      className="flex w-full items-start gap-2 text-left"
-                                    >
-                                      <ChevronRight className="text-muted-foreground mt-0.5 size-3.5 shrink-0 transition-transform group-data-[state=open]/timeline-item:rotate-90" />
-                                      <div className="min-w-0 flex-1">
-                                        {cardBody}
-                                      </div>
-                                    </button>
-                                  </CollapsibleTrigger>
-                                  <CollapsibleContent className="mt-2 border-t pt-2">
-                                    <div className="grid gap-2 text-xs">
-                                      {item.technicalType && (
-                                        <div className="grid gap-1">
-                                          <div className="text-muted-foreground">
-                                            {pageChat(
-                                              'activity_stream.debug.technical_type',
-                                            )}
-                                          </div>
-                                          <div className="font-mono break-all">
-                                            {item.technicalType}
-                                          </div>
-                                        </div>
-                                      )}
-                                      {item.argsPreview && (
-                                        <div className="grid gap-1">
-                                          <div className="text-muted-foreground">
-                                            {pageChat(
-                                              'activity_stream.debug.command_input',
-                                            )}
-                                          </div>
-                                          <pre className="bg-background overflow-x-auto rounded-md border p-2 whitespace-pre-wrap break-all">
-                                            {item.argsPreview}
-                                          </pre>
-                                        </div>
-                                      )}
-                                      {item.resultPreview && (
-                                        <div className="grid gap-1">
-                                          <div className="text-muted-foreground">
-                                            {pageChat(
-                                              'activity_stream.debug.result_summary',
-                                            )}
-                                          </div>
-                                          <pre className="bg-background overflow-x-auto rounded-md border p-2 whitespace-pre-wrap break-all">
-                                            {item.resultPreview}
-                                          </pre>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </CollapsibleContent>
-                                </div>
-                              </Collapsible>
-                            ) : (
-                              <div
-                                className={cn(
-                                  'rounded-xl border px-3 py-2.5',
-                                  styles.card,
-                                )}
-                              >
-                                {cardBody}
-                              </div>
-                            )}
+                            <div
+                              className={cn(
+                                'rounded-xl border px-3 py-2.5 transition-colors',
+                                styles.card,
+                              )}
+                            >
+                              {cardBody}
+                            </div>
                           </div>
                         </div>
                       );
