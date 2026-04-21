@@ -206,6 +206,14 @@ class BenchmarkDatasetService:
         rows = await self.db_ops.list_dataset_versions(dataset_id)
         return [BenchmarkDatasetVersionEnvelope.model_validate(r) for r in rows]
 
+    async def get_version_envelope(
+        self, user_id: str, dataset_id: str, version_id: str
+    ) -> BenchmarkDatasetVersionEnvelope:
+        version = await self.get_version(user_id, version_id)
+        if version.dataset_id != dataset_id:
+            raise ResourceNotFoundException("BenchmarkDatasetVersion", version_id)
+        return BenchmarkDatasetVersionEnvelope.model_validate(version)
+
     async def get_version(self, user_id: str, version_id: str) -> BenchmarkDatasetVersion:
         version = await self.db_ops.get_dataset_version(version_id)
         if not version:

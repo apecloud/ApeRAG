@@ -142,6 +142,18 @@ async def list_benchmark_dataset_versions_view(
 
 
 @router.get(
+    "/benchmark-datasets/{dataset_id}/versions/{version_id}",
+    response_model=BenchmarkDatasetVersionEnvelope,
+)
+async def get_benchmark_dataset_version_view(
+    dataset_id: str,
+    version_id: str,
+    user: User = Depends(required_user),
+) -> BenchmarkDatasetVersionEnvelope:
+    return await benchmark_dataset_service.get_version_envelope(str(user.id), dataset_id, version_id)
+
+
+@router.get(
     "/benchmark-datasets/{dataset_id}/versions/{version_id}/cases",
     response_model=BenchmarkCaseListResponse,
 )
