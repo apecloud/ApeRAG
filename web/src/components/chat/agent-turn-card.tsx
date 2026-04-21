@@ -23,11 +23,17 @@ import {
 } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import {
+  AlertTriangle,
   Bot,
+  BookOpen,
+  Brain,
   BrainCircuit,
+  CheckCircle2,
   ChevronRight,
+  Clock3,
   LoaderCircle,
-  TerminalSquare,
+  PencilLine,
+  Search,
 } from 'lucide-react';
 import { useFormatter, useTranslations } from 'next-intl';
 import { useMemo } from 'react';
@@ -75,10 +81,12 @@ export type AgentTimelineEventEnvelope = {
   sequence: number;
   timestamp: string;
   type: string;
+  technical_type?: string | null;
   label?: string | null;
   status?: string | null;
   actor: 'agent' | 'tool' | 'system';
   data: Record<string, unknown>;
+  user_activity?: UserActivityEnvelope | null;
 };
 
 export type AgentTurnSnapshot = {
@@ -97,23 +105,49 @@ export type ReferenceBundleItem = {
   metadata?: Record<string, unknown>;
 };
 
-type TimelineEntry = {
-  key: string;
-  title: string;
-  subtitle?: string;
-  timestamp?: string | null;
+export type UserActivityIntent =
+  | 'thinking'
+  | 'searching_knowledge'
+  | 'reading_source'
+  | 'comparing_results'
+  | 'writing_answer'
+  | 'waiting'
+  | 'completed'
+  | 'error';
+
+export type UserActivityContext = {
+  source_name?: string | null;
+  keyword?: string | null;
+  count?: number | null;
+  target_type?: 'knowledge_base' | 'document' | 'web' | 'chat_history' | null;
+  scope_label?: string | null;
 };
 
-type OrderedTimelineItem = TimelineEntry & {
-  kind: 'activity' | 'command';
+export type UserActivityEnvelope = {
+  intent: UserActivityIntent;
+  title_key: string;
+  subtitle_key: string;
+  detail_key?: string | null;
+  context?: UserActivityContext | null;
+};
+
+type OrderedTimelineItem = {
+  key: string;
   status: string;
-  commandLabel?: string;
+  rawType: string;
+  technicalType?: string | null;
+  userActivity: UserActivityEnvelope;
+  timestamp?: string | null;
   argsPreview?: string;
   resultPreview?: string;
   occurrences?: number;
 };
 
 const terminalStatuses = new Set(['COMPLETED', 'FAILED', 'CANCELLED']);
+const knowledgeSearchTools = new Set(['list_collections', 'search_collection']);
+const webSearchTools = new Set(['search_web', 'web_search']);
+const readingTools = new Set(['read_document', 'web_read']);
+const chatHistoryTools = new Set(['query_chat_messages']);
 
 function mapReferenceItem(item: ReferenceBundleItem): Reference {
   return {
@@ -190,150 +224,303 @@ function compactPreview(value: unknown, maxLength = 220) {
   return `${normalized.slice(0, maxLength).trimEnd()}...`;
 }
 
-function humanizeToolName(toolName: string) {
-  return toolName.replace(/[_-]+/g, ' ').trim();
+function normalizeActivityText(value: unknown, maxLength = 160) {
+  if (typeof value !== 'string') return undefined;
+  const normalized = value.trim().replace(/\s+/g, ' ');
+  if (!normalized) return undefined;
+  if (normalized.length <= maxLength) return normalized;
+  return `${normalized.slice(0, maxLength - 3).trimEnd()}...`;
 }
 
-function describeActivityStep(event: AgentTimelineEventEnvelope) {
-  const status = String(event.status || '').toLowerCase();
-  const toolName =
-    typeof event.data.tool_name === 'string'
-      ? humanizeToolName(event.data.tool_name)
-      : undefined;
+function iterActivityPayloads(
+  data: Record<string, unknown>,
+): Record<string, unknown>[] {
+  const payloads: Record<string, unknown>[] = [data];
 
-  switch (status) {
-    case 'thinking':
-      return {
-        title: 'Planning the next step',
-        subtitle: 'Reviewing the request and deciding what to do next.',
-      };
-    case 'searching':
-      return {
-        title: 'Looking for supporting context',
-        subtitle: 'Searching for information that can support the reply.',
-      };
-    case 'calling_tool':
-      return null;
-    case 'reading_result':
-      return {
-        title: toolName
-          ? `Reviewing results from ${toolName}`
-          : 'Reviewing the latest results',
-        subtitle: 'Using the returned context to decide the next move.',
-      };
-    case 'composing':
-      return {
-        title: 'Writing the answer',
-        subtitle: 'Turning the gathered context into a response.',
-      };
-    default:
-      return null;
-  }
-}
-
-function summarizeCollectionResult(result: unknown) {
-  if (!result || typeof result !== 'object') return undefined;
-
-  const items = (result as { items?: unknown }).items;
-  if (!Array.isArray(items)) return undefined;
-
-  if (items.length === 0) {
-    return 'No knowledge bases were available for this step.';
-  }
-
-  return `Found ${items.length} knowledge base${items.length === 1 ? '' : 's'}.`;
-}
-
-function summarizeToolResult(label: string, result: unknown, status: string) {
-  if (status === 'failed') {
-    if (typeof result === 'string' && result.trim()) {
-      return result.trim();
-    }
-    return 'This step ended before returning a usable result.';
-  }
-
-  switch (label) {
-    case 'list_collections':
-      return summarizeCollectionResult(result);
-    default: {
-      const preview = compactPreview(result, 180);
-      return preview
-        ? preview.replace(/\s+/g, ' ').trim()
-        : 'Step completed and returned context for the answer.';
+  for (const key of ['args', 'result']) {
+    const nested = data[key];
+    if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+      payloads.push(nested as Record<string, unknown>);
     }
   }
+
+  return payloads;
 }
 
-function describeCommandStep(label: string, status: string, result: unknown) {
-  switch (label) {
-    case 'list_collections':
-      return status === 'running'
-        ? {
-            title: 'Checking available knowledge bases',
-            subtitle: 'Finding which knowledge bases can be used in this reply.',
-          }
-        : {
-            title:
-              status === 'failed'
-                ? 'Could not check available knowledge bases'
-                : 'Checked available knowledge bases',
-            subtitle: summarizeToolResult(label, result, status),
-          };
-    case 'search_web':
-    case 'web_search':
-      return status === 'running'
-        ? {
-            title: 'Searching the web for supporting context',
-            subtitle: 'Looking for external information that can support the reply.',
-          }
-        : {
-            title:
-              status === 'failed'
-                ? 'Could not search the web'
-                : 'Searched the web for supporting context',
-            subtitle: summarizeToolResult(label, result, status),
-          };
-    case 'external_action':
-      return status === 'running'
-        ? {
-            title: 'Calling an external action',
-            subtitle: 'Waiting for the external action to return more context.',
-          }
-        : {
-            title:
-              status === 'failed'
-                ? 'External action did not complete'
-                : 'Completed an external action',
-            subtitle: summarizeToolResult(label, result, status),
-          };
-    default: {
-      const readableLabel = humanizeToolName(label);
-      return status === 'running'
-        ? {
-            title: `Using ${readableLabel}`,
-            subtitle: 'Gathering context that can support the reply.',
-          }
-        : {
-            title:
-              status === 'failed'
-                ? `${readableLabel} did not complete`
-                : `Used ${readableLabel}`,
-            subtitle: summarizeToolResult(label, result, status),
-          };
+function extractActivityString(
+  data: Record<string, unknown>,
+  keys: string[],
+  maxLength = 160,
+) {
+  for (const payload of iterActivityPayloads(data)) {
+    for (const key of keys) {
+      const value = normalizeActivityText(payload[key], maxLength);
+      if (value) return value;
     }
   }
+  return undefined;
 }
 
-function findOpenCommandIndex(
+function extractActivityCount(data: Record<string, unknown>) {
+  for (const payload of iterActivityPayloads(data)) {
+    for (const key of ['count', 'total', 'total_count', 'result_count']) {
+      const value = payload[key];
+      if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
+        return value;
+      }
+    }
+
+    for (const key of ['items', 'results']) {
+      const items = payload[key];
+      if (Array.isArray(items)) {
+        return items.length;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+function inferToolName(event: AgentTimelineEventEnvelope) {
+  return (
+    extractActivityString(event.data, ['tool_name']) ||
+    normalizeActivityText(event.label)
+  );
+}
+
+function inferTargetType(
+  toolName?: string,
+): UserActivityContext['target_type'] | undefined {
+  if (!toolName) return undefined;
+  if (knowledgeSearchTools.has(toolName)) return 'knowledge_base';
+  if (webSearchTools.has(toolName)) return 'web';
+  if (readingTools.has(toolName)) {
+    return toolName === 'read_document' ? 'document' : 'web';
+  }
+  if (chatHistoryTools.has(toolName)) return 'chat_history';
+  return undefined;
+}
+
+function buildActivityContext(
+  data: Record<string, unknown>,
+  toolName?: string,
+): UserActivityContext | undefined {
+  const keyword = extractActivityString(data, [
+    'query',
+    'keyword',
+    'keywords',
+    'search_query',
+  ]);
+  const sourceName = extractActivityString(
+    data,
+    [
+      'source_name',
+      'collection_name',
+      'collection_title',
+      'document_title',
+      'title',
+      'name',
+    ],
+    120,
+  );
+  const count = extractActivityCount(data);
+  const targetType = inferTargetType(toolName);
+  const scopeLabel = extractActivityString(
+    data,
+    ['collection_id', 'document_id', 'url'],
+    120,
+  );
+
+  if (
+    keyword == null &&
+    sourceName == null &&
+    count == null &&
+    targetType == null &&
+    scopeLabel == null
+  ) {
+    return undefined;
+  }
+
+  return {
+    keyword,
+    source_name: sourceName,
+    count,
+    target_type: targetType,
+    scope_label:
+      scopeLabel && scopeLabel !== sourceName ? scopeLabel : undefined,
+  };
+}
+
+function getActivityDetailKey(
+  intent: UserActivityIntent,
+  context?: UserActivityContext,
+) {
+  if (!context) return undefined;
+  if (intent === 'searching_knowledge') {
+    if (context.keyword) return 'activity.searching_knowledge.detail.keyword';
+    if (context.source_name) {
+      return 'activity.searching_knowledge.detail.source_name';
+    }
+    if (context.count != null) {
+      return 'activity.searching_knowledge.detail.count';
+    }
+  }
+  if (intent === 'reading_source' && context.source_name) {
+    return 'activity.reading_source.detail.source_name';
+  }
+  if (intent === 'comparing_results' && context.count != null) {
+    return 'activity.comparing_results.detail.count';
+  }
+  return undefined;
+}
+
+function createUserActivity(
+  intent: UserActivityIntent,
+  context?: UserActivityContext,
+): UserActivityEnvelope {
+  return {
+    intent,
+    title_key: `activity.${intent}.title`,
+    subtitle_key: `activity.${intent}.subtitle`,
+    detail_key: getActivityDetailKey(intent, context),
+    context,
+  };
+}
+
+function inferActivityIntentFromTool(toolName?: string): UserActivityIntent {
+  if (!toolName) return 'waiting';
+  if (knowledgeSearchTools.has(toolName) || webSearchTools.has(toolName)) {
+    return 'searching_knowledge';
+  }
+  if (readingTools.has(toolName) || chatHistoryTools.has(toolName)) {
+    return 'reading_source';
+  }
+  return 'waiting';
+}
+
+function inferUserActivity(
+  event: AgentTimelineEventEnvelope,
+): UserActivityEnvelope | undefined {
+  if (event.user_activity) return event.user_activity;
+
+  const technicalType = event.technical_type || event.type;
+  const normalizedStatus = String(event.status || '').toLowerCase();
+  const toolName = inferToolName(event);
+  const context = buildActivityContext(event.data, toolName);
+
+  if (technicalType === 'agent.state.changed') {
+    if (normalizedStatus === 'thinking') {
+      return createUserActivity('thinking');
+    }
+    if (normalizedStatus === 'searching') {
+      return createUserActivity('searching_knowledge', context);
+    }
+    if (normalizedStatus === 'calling_tool') {
+      return createUserActivity(inferActivityIntentFromTool(toolName), context);
+    }
+    if (normalizedStatus === 'reading_result') {
+      return createUserActivity('comparing_results', context);
+    }
+    if (normalizedStatus === 'composing' || normalizedStatus === 'streaming') {
+      return createUserActivity('writing_answer');
+    }
+    if (normalizedStatus === 'done') {
+      return createUserActivity('completed');
+    }
+    if (normalizedStatus === 'failed' || normalizedStatus === 'error') {
+      return createUserActivity('error');
+    }
+    return createUserActivity('waiting');
+  }
+
+  if (
+    technicalType === 'tool.started' ||
+    technicalType === 'external_action.started'
+  ) {
+    return createUserActivity(inferActivityIntentFromTool(toolName), context);
+  }
+
+  if (
+    technicalType === 'tool.finished' ||
+    technicalType === 'external_action.finished'
+  ) {
+    if (normalizedStatus === 'failed' || normalizedStatus === 'error') {
+      return createUserActivity('error');
+    }
+    const intent = inferActivityIntentFromTool(toolName);
+    return createUserActivity(
+      intent === 'waiting' ? 'comparing_results' : intent,
+      context,
+    );
+  }
+
+  if (technicalType === 'text.delta') {
+    return createUserActivity('writing_answer');
+  }
+
+  if (technicalType === 'turn.started') {
+    return createUserActivity('thinking');
+  }
+  if (technicalType === 'turn.completed') {
+    return createUserActivity('completed');
+  }
+  if (
+    technicalType === 'turn.failed' ||
+    technicalType === 'turn.cancelled'
+  ) {
+    return createUserActivity('error');
+  }
+
+  return createUserActivity('waiting');
+}
+
+function normalizeTimelineStatus(event: AgentTimelineEventEnvelope) {
+  const technicalType = event.technical_type || event.type;
+  if (
+    technicalType === 'tool.started' ||
+    technicalType === 'external_action.started'
+  ) {
+    return 'running';
+  }
+  if (
+    technicalType === 'tool.finished' ||
+    technicalType === 'external_action.finished'
+  ) {
+    const normalized = String(event.status || '').toLowerCase();
+    if (normalized === 'failed' || normalized === 'error') return 'failed';
+    return 'completed';
+  }
+  if (technicalType === 'text.delta') return 'running';
+  if (technicalType === 'turn.completed') return 'completed';
+  if (
+    technicalType === 'turn.failed' ||
+    technicalType === 'turn.cancelled'
+  ) {
+    return 'failed';
+  }
+  return String(event.status || '').toLowerCase() || 'waiting';
+}
+
+function serializeUserActivity(activity: UserActivityEnvelope) {
+  return JSON.stringify({
+    intent: activity.intent,
+    title_key: activity.title_key,
+    subtitle_key: activity.subtitle_key,
+    detail_key: activity.detail_key,
+    context: activity.context || null,
+  });
+}
+
+function findMergeableActivityIndex(
   entries: OrderedTimelineItem[],
-  commandLabel: string,
+  status: string,
+  activity: UserActivityEnvelope,
 ) {
   for (let index = entries.length - 1; index >= 0; index -= 1) {
     const item = entries[index];
     if (
-      item.kind === 'command' &&
-      item.commandLabel === commandLabel &&
-      item.status === 'running'
+      item.status === status &&
+      serializeUserActivity(item.userActivity) === serializeUserActivity(activity)
     ) {
       return index;
     }
@@ -353,160 +540,88 @@ function buildOrderedTimelineItems(
   const entries: OrderedTimelineItem[] = [];
 
   for (const event of orderedEvents) {
-    if (event.type === 'agent.state.changed') {
-      const status = String(event.status || '').toLowerCase();
-      const description = describeActivityStep(event);
-      if (!description) continue;
-      const previous = entries[entries.length - 1];
-      if (
-        previous &&
-        previous.kind === 'activity' &&
-        previous.status === status &&
-        previous.title === description.title &&
-        previous.subtitle === description.subtitle
-      ) {
-        previous.timestamp = event.timestamp;
-        previous.occurrences = (previous.occurrences || 1) + 1;
-        continue;
-      }
+    const userActivity = inferUserActivity(event);
+    if (!userActivity) continue;
 
-      entries.push({
-        key: `${event.sequence}-${event.type}`,
-        kind: 'activity',
-        title: description.title,
-        subtitle: description.subtitle,
+    const status = normalizeTimelineStatus(event);
+    const argsPreview = compactPreview(event.data.args, 180);
+    const resultPreview = compactPreview(event.data.result, 280);
+    const mergeableIndex = findMergeableActivityIndex(
+      entries,
+      status,
+      userActivity,
+    );
+
+    if (mergeableIndex >= 0) {
+      const previous = entries[mergeableIndex];
+      entries[mergeableIndex] = {
+        ...previous,
         timestamp: event.timestamp,
-        status,
-        occurrences: 1,
-      });
+        occurrences: (previous.occurrences || 1) + 1,
+        argsPreview: previous.argsPreview || argsPreview,
+        resultPreview: resultPreview || previous.resultPreview,
+      };
       continue;
     }
 
-    if (
-      event.type === 'tool.started' ||
-      event.type === 'tool.finished' ||
-      event.type === 'external_action.started' ||
-      event.type === 'external_action.finished'
-    ) {
-      const fallbackLabel =
-        event.type.startsWith('external_action') ? 'external_action' : 'tool';
-      const rawLabel =
-        typeof event.data.tool_name === 'string'
-          ? event.data.tool_name
-          : event.label || fallbackLabel;
-      const normalizedStatus =
-        event.type.endsWith('.started')
-          ? 'running'
-          : String(event.status || 'finished').toLowerCase();
-      const description = describeCommandStep(
-        rawLabel,
-        normalizedStatus,
-        event.data.result,
-      );
-      const nextArgsPreview = compactPreview(event.data.args, 180);
-      const nextResultPreview = compactPreview(event.data.result, 280);
-
-      if (event.type.endsWith('.started')) {
-        entries.push({
-          key: `${event.sequence}-${event.type}`,
-          kind: 'command',
-          title: description.title,
-          subtitle: description.subtitle,
-          timestamp: event.timestamp,
-          status: normalizedStatus,
-          commandLabel: rawLabel,
-          argsPreview: nextArgsPreview,
-          resultPreview: nextResultPreview,
-        });
-        continue;
-      }
-
-      const openCommandIndex = findOpenCommandIndex(entries, rawLabel);
-      if (openCommandIndex >= 0) {
-        const previous = entries[openCommandIndex];
-        entries[openCommandIndex] = {
-          ...previous,
-          title: description.title,
-          subtitle: description.subtitle,
-          timestamp: event.timestamp,
-          status: normalizedStatus,
-          argsPreview: previous.argsPreview || nextArgsPreview,
-          resultPreview: nextResultPreview || previous.resultPreview,
-        };
-        continue;
-      }
-
-      entries.push({
-        key: `${event.sequence}-${event.type}`,
-        kind: 'command',
-        title: description.title,
-        subtitle: description.subtitle,
-        timestamp: event.timestamp,
-        status: normalizedStatus,
-        commandLabel: rawLabel,
-        argsPreview: nextArgsPreview,
-        resultPreview: nextResultPreview,
-      });
-      continue;
-    }
-
-    if (event.type === 'turn.failed' || event.type === 'turn.cancelled') {
-      entries.push({
-        key: `${event.sequence}-${event.type}`,
-        kind: 'activity',
-        title: event.type === 'turn.failed' ? 'Run failed' : 'Run cancelled',
-        subtitle:
-          typeof event.data.error === 'string' ? event.data.error : undefined,
-        timestamp: event.timestamp,
-        status: event.type === 'turn.failed' ? 'failed' : 'cancelled',
-      });
-    }
+    entries.push({
+      key: `${event.sequence}-${event.type}`,
+      status,
+      rawType: event.type,
+      technicalType: event.technical_type || event.type,
+      userActivity,
+      timestamp: event.timestamp,
+      argsPreview,
+      resultPreview,
+      occurrences: 1,
+    });
   }
 
   return entries;
 }
 
 function getAnswerSectionTitle(status: string, hasAnswerText: boolean) {
-  if (status === 'FAILED') return hasAnswerText ? 'Failure details' : 'Run failed';
-  if (status === 'CANCELLED') return hasAnswerText ? 'Cancelled output' : 'Run cancelled';
-  if (status === 'COMPLETED') return 'Final answer';
-  return hasAnswerText ? 'Draft answer' : 'Answer';
+  if (status === 'FAILED') {
+    return hasAnswerText
+      ? 'page_chat.answer_section.failure_details'
+      : 'page_chat.answer_section.run_failed';
+  }
+  if (status === 'CANCELLED') {
+    return hasAnswerText
+      ? 'page_chat.answer_section.cancelled_output'
+      : 'page_chat.answer_section.run_cancelled';
+  }
+  if (status === 'COMPLETED') {
+    return 'page_chat.answer_section.final_answer';
+  }
+  return hasAnswerText
+    ? 'page_chat.answer_section.draft_answer'
+    : 'page_chat.answer_section.answer';
 }
 
 function describeEmptyAnswerState(status: string) {
   if (status === 'FAILED') {
-    return 'This run ended before a final answer was produced.';
+    return 'page_chat.answer_section.failed_empty';
   }
   if (status === 'CANCELLED') {
-    return 'This run was cancelled before a final answer was produced.';
+    return 'page_chat.answer_section.cancelled_empty';
   }
-  return 'The answer will appear here once the activity stream finishes.';
-}
-
-function getTimelineItemBadgeLabel(item: OrderedTimelineItem) {
-  if (item.kind === 'activity') return 'step';
-  if (item.status === 'running') return 'running';
-  if (item.status === 'success') return 'done';
-  if (item.status === 'failed') return 'failed';
-  return 'command';
-}
-
-function getTimelineItemIcon(item: OrderedTimelineItem) {
-  return item.kind === 'activity' ? BrainCircuit : TerminalSquare;
+  return 'page_chat.answer_section.pending_empty';
 }
 
 function getTimelineItemStyles(item: OrderedTimelineItem) {
-  if (item.kind === 'activity') {
-    return {
-      iconWrapper: 'border-primary/25 bg-primary/10 text-primary',
-      card: 'border-border/60 bg-muted/25',
-    };
-  }
-
-  if (item.status === 'failed') {
+  if (item.userActivity.intent === 'error' || item.status === 'failed') {
     return {
       iconWrapper: 'border-destructive/25 bg-destructive/10 text-destructive',
       card: 'border-destructive/20 bg-destructive/5',
+    };
+  }
+
+  if (item.userActivity.intent === 'completed' || item.status === 'completed') {
+    return {
+      iconWrapper:
+        'border-emerald-500/25 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+      card: 'border-emerald-500/15 bg-emerald-500/5',
     };
   }
 
@@ -524,6 +639,48 @@ function getTimelineItemStyles(item: OrderedTimelineItem) {
   };
 }
 
+function getTimelineItemIcon(item: OrderedTimelineItem) {
+  switch (item.userActivity.intent) {
+    case 'thinking':
+      return BrainCircuit;
+    case 'searching_knowledge':
+      return Search;
+    case 'reading_source':
+      return BookOpen;
+    case 'comparing_results':
+      return Brain;
+    case 'writing_answer':
+      return PencilLine;
+    case 'completed':
+      return CheckCircle2;
+    case 'error':
+      return AlertTriangle;
+    case 'waiting':
+    default:
+      return Clock3;
+  }
+}
+
+function getActivityTranslationValues(
+  context?: UserActivityContext | null,
+  targetTypeLabel?: string,
+) {
+  if (!context) return undefined;
+  return {
+    sourceName: context.source_name || undefined,
+    keyword: context.keyword || undefined,
+    count: context.count ?? undefined,
+    targetType: targetTypeLabel || undefined,
+    scopeLabel: context.scope_label || undefined,
+  };
+}
+
+function getStatusTone(status: string): 'default' | 'secondary' | 'destructive' {
+  if (status === 'COMPLETED') return 'default';
+  if (status === 'FAILED' || status === 'CANCELLED') return 'destructive';
+  return 'secondary';
+}
+
 export const AgentTurnCard = ({
   snapshot,
   pending,
@@ -537,31 +694,57 @@ export const AgentTurnCard = ({
   fallbackParts: ChatMessage[];
   onFeedback: (part: ChatMessage, feedback: Feedback) => void;
 }) => {
+  const t = useTranslations();
   const pageChat = useTranslations('page_chat');
   const format = useFormatter();
+
+  const translateActivityText = (
+    key: string | null | undefined,
+    values?: Record<string, string | number | undefined>,
+  ) => {
+    if (!key) return undefined;
+    return t(
+      key as never,
+      values as never,
+    );
+  };
+
+  const translatePageChat = (
+    key: string,
+    values?: Record<string, string | number | undefined>,
+  ) =>
+    pageChat(
+      key as never,
+      values as never,
+    );
 
   const answerText = useMemo(
     () => extractAnswerText(snapshot, streamingAnswer, fallbackParts),
     [fallbackParts, snapshot, streamingAnswer],
   );
-  const timelineItems = useMemo(() => {
+  const timelineItems = (() => {
     const items = buildOrderedTimelineItems(snapshot.timeline);
     if (!answerText) return items;
 
     return items.map((item) => {
       if (
-        item.kind === 'activity' &&
         item.status === 'failed' &&
-        item.subtitle?.trim() === answerText.trim()
+        translateActivityText(
+          item.userActivity.detail_key || item.userActivity.subtitle_key,
+          getActivityTranslationValues(item.userActivity.context),
+        )?.trim() === answerText.trim()
       ) {
         return {
           ...item,
-          subtitle: undefined,
+          userActivity: {
+            ...item.userActivity,
+            detail_key: null,
+          },
         };
       }
       return item;
     });
-  }, [answerText, snapshot.timeline]);
+  })();
   const references = useMemo(
     () => extractReferences(snapshot, fallbackParts),
     [fallbackParts, snapshot],
@@ -588,6 +771,7 @@ export const AgentTurnCard = ({
     : pending
       ? 'RUNNING'
       : snapshot.turn.status;
+  const displayStatusKey = displayStatus.toLowerCase();
   const showAnswerSection = Boolean(answerText) || terminalStatuses.has(displayStatus);
 
   return (
@@ -603,10 +787,10 @@ export const AgentTurnCard = ({
       <div className="flex min-w-0 max-w-sm flex-1 flex-col gap-2.5 sm:max-w-lg md:max-w-2xl lg:max-w-3xl xl:max-w-4xl">
         <div className="flex flex-row items-center gap-2">
           <Badge
-            variant={displayStatus === 'COMPLETED' ? 'default' : 'secondary'}
+            variant={getStatusTone(displayStatus)}
             className="h-5 px-2 text-[10px]"
           >
-            {displayStatus}
+            {translatePageChat(`activity_stream.status.${displayStatusKey}`)}
           </Badge>
           {timestamp && (
             <div className="text-muted-foreground text-xs">
@@ -628,7 +812,7 @@ export const AgentTurnCard = ({
                 >
                   <ChevronRight className="size-3.5 transition-transform group-data-[state=open]/activity-stream:rotate-90" />
                   <span className="text-[11px] font-medium tracking-[0.12em] uppercase">
-                    Activity stream
+                    {pageChat('activity_stream.label')}
                   </span>
                   <span className="text-[11px]">
                     {timelineItems.length}
@@ -639,14 +823,39 @@ export const AgentTurnCard = ({
                 <div className="flex flex-col gap-0">
                   {timelineItems.length === 0 ? (
                     <div className="text-muted-foreground rounded-lg border border-dashed px-3 py-2 text-sm">
-                      Waiting for activity events...
+                      {pageChat('activity_stream.empty')}
                     </div>
                   ) : (
                     timelineItems.map((item, index) => {
                       const Icon = getTimelineItemIcon(item);
                       const styles = getTimelineItemStyles(item);
+                      const targetTypeLabel =
+                        item.userActivity.context?.target_type
+                          ? pageChat(
+                              `activity_stream.target_type.${item.userActivity.context.target_type}`,
+                            )
+                          : undefined;
+                      const translationValues = getActivityTranslationValues(
+                        item.userActivity.context,
+                        targetTypeLabel,
+                      );
+                      const title = translateActivityText(
+                        item.userActivity.title_key,
+                        translationValues,
+                      );
+                      const subtitle = translateActivityText(
+                        item.userActivity.subtitle_key,
+                        translationValues,
+                      );
+                      const detail = translateActivityText(
+                        item.userActivity.detail_key,
+                        translationValues,
+                      );
                       const hasExpandableContent =
-                        !!item.argsPreview || !!item.resultPreview;
+                        !!detail ||
+                        !!item.argsPreview ||
+                        !!item.resultPreview ||
+                        !!item.technicalType;
 
                       return (
                         <div key={item.key} className="flex gap-2.5">
@@ -685,13 +894,15 @@ export const AgentTurnCard = ({
                                       <div className="min-w-0 flex-1">
                                         <div className="flex flex-wrap items-center gap-1.5">
                                           <div className="text-sm font-medium">
-                                            {item.title}
+                                            {title}
                                           </div>
                                           <Badge
                                             variant="outline"
                                             className="h-5 rounded-full px-1.5 text-[9px] uppercase"
                                           >
-                                            {getTimelineItemBadgeLabel(item)}
+                                            {translatePageChat(
+                                              `activity_stream.item_status.${item.status}`,
+                                            )}
                                           </Badge>
                                           {item.timestamp && (
                                             <div className="text-muted-foreground text-[10px]">
@@ -702,16 +913,24 @@ export const AgentTurnCard = ({
                                             </div>
                                           )}
                                         </div>
-                                        {item.subtitle && (
+                                        {subtitle && (
                                           <div className="text-muted-foreground mt-1 text-xs">
-                                            {item.subtitle}
+                                            {subtitle}
                                           </div>
                                         )}
-                                        {item.kind === 'activity' &&
-                                          (item.occurrences || 1) > 1 && (
+                                        {detail && (
+                                          <div className="text-foreground/85 mt-1.5 text-xs">
+                                            {detail}
+                                          </div>
+                                        )}
+                                        {(item.occurrences || 1) > 1 && (
                                             <div className="text-muted-foreground mt-1.5 text-[11px]">
-                                              Repeated {item.occurrences} times
-                                              while this step stayed active.
+                                              {translatePageChat(
+                                                'activity_stream.repeated',
+                                                {
+                                                  count: item.occurrences || 1,
+                                                },
+                                              )}
                                             </div>
                                           )}
                                       </div>
@@ -719,10 +938,24 @@ export const AgentTurnCard = ({
                                   </CollapsibleTrigger>
                                   <CollapsibleContent className="mt-2 border-t pt-2">
                                     <div className="grid gap-2 text-xs">
+                                      {item.technicalType && (
+                                        <div className="grid gap-1">
+                                          <div className="text-muted-foreground">
+                                            {pageChat(
+                                              'activity_stream.debug.technical_type',
+                                            )}
+                                          </div>
+                                          <div className="font-mono break-all">
+                                            {item.technicalType}
+                                          </div>
+                                        </div>
+                                      )}
                                       {item.argsPreview && (
                                         <div className="grid gap-1">
                                           <div className="text-muted-foreground">
-                                            Command input
+                                            {pageChat(
+                                              'activity_stream.debug.command_input',
+                                            )}
                                           </div>
                                           <pre className="bg-background overflow-x-auto rounded-md border p-2 whitespace-pre-wrap break-all">
                                             {item.argsPreview}
@@ -732,7 +965,9 @@ export const AgentTurnCard = ({
                                       {item.resultPreview && (
                                         <div className="grid gap-1">
                                           <div className="text-muted-foreground">
-                                            Result summary
+                                            {pageChat(
+                                              'activity_stream.debug.result_summary',
+                                            )}
                                           </div>
                                           <pre className="bg-background overflow-x-auto rounded-md border p-2 whitespace-pre-wrap break-all">
                                             {item.resultPreview}
@@ -752,13 +987,15 @@ export const AgentTurnCard = ({
                               >
                                 <div className="flex flex-wrap items-center gap-1.5">
                                   <div className="text-sm font-medium">
-                                    {item.title}
+                                    {title}
                                   </div>
                                   <Badge
                                     variant="outline"
                                     className="h-5 rounded-full px-1.5 text-[9px] uppercase"
                                   >
-                                    {getTimelineItemBadgeLabel(item)}
+                                    {translatePageChat(
+                                      `activity_stream.item_status.${item.status}`,
+                                    )}
                                   </Badge>
                                   {item.timestamp && (
                                     <div className="text-muted-foreground text-[10px]">
@@ -769,16 +1006,24 @@ export const AgentTurnCard = ({
                                     </div>
                                   )}
                                 </div>
-                                {item.subtitle && (
+                                {subtitle && (
                                   <div className="text-muted-foreground mt-1 text-xs">
-                                    {item.subtitle}
+                                    {subtitle}
                                   </div>
                                 )}
-                                {item.kind === 'activity' &&
-                                  (item.occurrences || 1) > 1 && (
+                                {detail && (
+                                  <div className="text-foreground/85 mt-1.5 text-xs">
+                                    {detail}
+                                  </div>
+                                )}
+                                {(item.occurrences || 1) > 1 && (
                                     <div className="text-muted-foreground mt-1.5 text-[11px]">
-                                      Repeated {item.occurrences} times while
-                                      this step stayed active.
+                                      {translatePageChat(
+                                        'activity_stream.repeated',
+                                        {
+                                          count: item.occurrences || 1,
+                                        },
+                                      )}
                                     </div>
                                   )}
                               </div>
@@ -806,14 +1051,14 @@ export const AgentTurnCard = ({
             >
               <CardContent className="px-4 py-4 text-sm">
                 <div className="text-muted-foreground mb-2 text-[11px] font-medium tracking-[0.12em] uppercase">
-                  {getAnswerSectionTitle(displayStatus, Boolean(answerText))}
+                  {t(getAnswerSectionTitle(displayStatus, Boolean(answerText)))}
                 </div>
                 {answerText ? (
                   <Markdown>{answerText}</Markdown>
                 ) : pending ? (
                   <div className="space-y-2">
                     <div className="text-muted-foreground text-sm">
-                      {describeEmptyAnswerState(displayStatus)}
+                      {t(describeEmptyAnswerState(displayStatus))}
                     </div>
                     <div className="flex flex-row gap-2 py-1">
                       <div className="bg-muted-foreground animate-caret-blink size-2 rounded-full delay-0" />
@@ -823,7 +1068,7 @@ export const AgentTurnCard = ({
                   </div>
                 ) : (
                   <div className="text-muted-foreground text-sm">
-                    {describeEmptyAnswerState(displayStatus)}
+                    {t(describeEmptyAnswerState(displayStatus))}
                   </div>
                 )}
               </CardContent>
@@ -837,36 +1082,46 @@ export const AgentTurnCard = ({
                 className="text-muted-foreground hover:text-foreground flex items-center gap-2 text-left text-xs transition-colors"
               >
                 <ChevronRight className="size-3 transition-transform group-data-[state=open]/details:rotate-90" />
-                <span>Details</span>
+                <span>{pageChat('activity_stream.debug.title')}</span>
               </button>
             </CollapsibleTrigger>
             <CollapsibleContent className="mt-2">
               <div className="bg-muted/20 grid gap-3 rounded-xl border border-dashed px-4 py-3 text-xs">
                 <div className="grid gap-1">
-                  <div className="text-muted-foreground">Turn ID</div>
+                  <div className="text-muted-foreground">
+                    {pageChat('activity_stream.debug.turn_id')}
+                  </div>
                   <div className="font-mono break-all">
                     {snapshot.turn.turn_id}
                   </div>
                 </div>
                 <div className="grid gap-1">
-                  <div className="text-muted-foreground">Request ID</div>
+                  <div className="text-muted-foreground">
+                    {pageChat('activity_stream.debug.request_id')}
+                  </div>
                   <div className="font-mono break-all">
                     {snapshot.turn.request_id}
                   </div>
                 </div>
                 <div className="grid gap-1">
-                  <div className="text-muted-foreground">Status</div>
-                  <div>{snapshot.turn.status}</div>
+                  <div className="text-muted-foreground">
+                    {pageChat('activity_stream.debug.status')}
+                  </div>
+                  <div>{translatePageChat(`activity_stream.status.${displayStatusKey}`)}</div>
                 </div>
                 {snapshot.turn.error_code && (
                   <div className="grid gap-1">
-                    <div className="text-muted-foreground">Error Code</div>
+                    <div className="text-muted-foreground">
+                      {pageChat('activity_stream.debug.error_code')}
+                    </div>
                     <div className="font-mono">{snapshot.turn.error_code}</div>
                   </div>
                 )}
                 {snapshot.turn.error_message && (
                   <div className="grid gap-1">
-                    <div className="text-muted-foreground">Error Message</div>
+                    <div className="text-muted-foreground">
+                      {pageChat('activity_stream.debug.error_message')}
+                    </div>
                     <div className="break-all">
                       {snapshot.turn.error_message}
                     </div>

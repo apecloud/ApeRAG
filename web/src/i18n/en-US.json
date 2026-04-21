@@ -189,6 +189,53 @@
     "web_search_is_enabled": "Web search is enabled",
     "web_search_is_disabled": "Web search is disabled",
     "references": "References",
+    "activity_stream": {
+      "label": "Activity stream",
+      "empty": "Waiting for activity events...",
+      "repeated": "Repeated {count} times while this step stayed active.",
+      "status": {
+        "queued": "Queued",
+        "running": "Running",
+        "completed": "Completed",
+        "failed": "Failed",
+        "cancelled": "Cancelled"
+      },
+      "item_status": {
+        "waiting": "Waiting",
+        "running": "Active",
+        "completed": "Done",
+        "failed": "Issue"
+      },
+      "target_type": {
+        "knowledge_base": "knowledge base",
+        "document": "document",
+        "web": "web",
+        "chat_history": "chat history"
+      },
+      "debug": {
+        "title": "Debug details",
+        "technical_type": "Technical event",
+        "command_input": "Tool input",
+        "result_summary": "Tool result",
+        "turn_id": "Turn ID",
+        "request_id": "Request ID",
+        "status": "Status",
+        "error_code": "Error code",
+        "error_message": "Error message"
+      }
+    },
+    "answer_section": {
+      "failure_details": "Failure details",
+      "run_failed": "Run failed",
+      "cancelled_output": "Cancelled output",
+      "run_cancelled": "Run cancelled",
+      "final_answer": "Final answer",
+      "draft_answer": "Draft answer",
+      "answer": "Answer",
+      "failed_empty": "This run ended before a final answer was produced.",
+      "cancelled_empty": "This run was cancelled before a final answer was produced.",
+      "pending_empty": "The answer will appear here once the activity stream finishes."
+    },
     "feedback": {
       "title": "Tell Us What You Think",
       "choose_a_category": "Please choose a category for your feedback below.",
@@ -214,6 +261,51 @@
       },
       "share_your_feedback": "Share your feedback",
       "share_your_feedback_placeholder": "Please provide your feedback so we can continue to enhance your experience."
+    }
+  },
+  "activity": {
+    "thinking": {
+      "title": "Thinking",
+      "subtitle": "Understanding your request and planning the next step."
+    },
+    "searching_knowledge": {
+      "title": "Searching",
+      "subtitle": "Looking through relevant sources for useful information.",
+      "detail": {
+        "keyword": "Keyword: {keyword}",
+        "source_name": "Source: {sourceName}",
+        "count": "Checking {count} results"
+      }
+    },
+    "reading_source": {
+      "title": "Reading",
+      "subtitle": "Reviewing source content before answering.",
+      "detail": {
+        "source_name": "Reading: {sourceName}"
+      }
+    },
+    "comparing_results": {
+      "title": "Comparing",
+      "subtitle": "Comparing candidate results and deciding what matters most.",
+      "detail": {
+        "count": "Comparing {count} results"
+      }
+    },
+    "writing_answer": {
+      "title": "Writing",
+      "subtitle": "Drafting a clear response."
+    },
+    "waiting": {
+      "title": "Waiting",
+      "subtitle": "Preparing the next step."
+    },
+    "completed": {
+      "title": "Completed",
+      "subtitle": "The answer is ready."
+    },
+    "error": {
+      "title": "Needs attention",
+      "subtitle": "This run hit a problem before it finished."
     }
   },
   "page_collection_new": {
