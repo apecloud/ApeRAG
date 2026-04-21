@@ -29,7 +29,7 @@ This matrix is the working contract for converging the test tree toward:
 | bot agent config get/update | no | no | yes | no | no | fully owned by Hurl |
 | chat create/list/get/update/delete | no | no | yes | no | no | fully owned by Hurl |
 | chat title generation contract | partial | no | yes | no | no | Hurl owns the provider-aware HTTP contract; unit coverage now guards the empty-history fallback path |
-| unsupported `/v1/chat/completions` error contract | no | no | yes | no | no | Hurl asserts the stable not-implemented response; no pytest happy-path remains |
+| unsupported `/v1/chat/completions` error contract | no | no | yes | no | no | Hurl asserts the stable not-implemented response and current Agent Runtime V3 guidance; no pytest happy-path remains |
 | chat streaming / websocket | no | no | no | `test_chat.py` | no | keep thin pytest supplement |
 | graph labels / graph overview / parameter validation | no | no | yes | no | `tests/integration/graphstorage/` | Hurl owns stable HTTP surface; integration keeps backend oracle |
 | cache behavior | some | no | no | no | `tests/integration/cache/` | keep integration |

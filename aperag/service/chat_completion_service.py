@@ -116,7 +116,7 @@ class ChatCompletionService:
     async def openai_chat_completions(self, user, body_data, query_params):
         """Handle OpenAI-compatible chat completions - Not implemented"""
         return None, OpenAIFormatter.format_error(
-            "The /v1/chat/completions endpoint is not implemented. Please use WebSocket API for agent-type bots."
+            "The /v1/chat/completions endpoint is not implemented. Please use the Agent Runtime V3 turns API at /api/v2/agent/chats/{chat_id}/turns."
         )
 
 

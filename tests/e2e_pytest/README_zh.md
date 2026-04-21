@@ -32,7 +32,7 @@ tests/e2e_pytest/
 - provider model CRUD 迁到 `tests/e2e_http/hurl/full/10_provider_llm.hurl`
 - bot CRUD 与 agent config 覆盖迁到 `tests/e2e_http/hurl/full/12_bot.hurl`
 - 确定性的 chat create/list/get/update/delete 覆盖迁到 `tests/e2e_http/hurl/full/13_chat_http.hurl`
-- 未实现的 `/v1/chat/completions` 错误契约迁到 `tests/e2e_http/hurl/full/13_chat_http.hurl`
+- 未实现的 `/v1/chat/completions` 错误契约迁到 `tests/e2e_http/hurl/full/13_chat_http.hurl`，并更新为指向 Agent Runtime V3 turns
 
 ## 🚀 快速开始
 

@@ -88,6 +88,16 @@ jsonpath "$.graph_index_status" == "SKIPPED"
 jsonpath "$.summary_index_status" == "SKIPPED"
 jsonpath "$.vision_index_status" == "SKIPPED"
 
+GET {{base_url}}/api/v1/collections/{{collection_id}}/documents/{{document_id}}/preview
+HTTP 200
+[Asserts]
+jsonpath "$.doc_object_path" == "original.txt"
+jsonpath "$.doc_filename" == "tests/e2e_http/testdata/full-document.txt"
+jsonpath "$.converted_pdf_object_path" == null
+jsonpath "$.markdown_content" exists
+jsonpath "$.chunks" exists
+jsonpath "$.vision_chunks" exists
+
 GET {{base_url}}/api/v1/collections/{{collection_id}}/documents?search=full-document&sort_by=status&sort_order=asc
 HTTP 200
 [Asserts]

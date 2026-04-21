@@ -23,7 +23,7 @@ router = APIRouter(tags=["openai"])
 
 @router.post("/chat/completions")
 async def openai_chat_completions_view(request: Request, user: User = Depends(required_user)):
-    """OpenAI-compatible chat completions endpoint - Not implemented for agent-type bots"""
+    """OpenAI-compatible chat completions endpoint - not implemented for Agent Runtime V3."""
     return OpenAIFormatter.format_error(
-        "The /v1/chat/completions endpoint is not implemented. Please use WebSocket API for agent-type bots."
+        "The /v1/chat/completions endpoint is not implemented. Please use the Agent Runtime V3 turns API at /api/v2/agent/chats/{chat_id}/turns."
     )
