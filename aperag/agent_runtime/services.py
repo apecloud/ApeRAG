@@ -26,6 +26,9 @@ from aperag.agent_runtime.schemas import (
     AgentTurnSnapshot,
     CreateTurnRequest,
     ReferenceBundleItem,
+    UserActivityContext,
+    UserActivityEnvelope,
+    UserActivityIntent,
 )
 from aperag.agent_runtime.storage import AgentRuntimeRedisStore
 from aperag.db.models import AgentEventActor, AgentTurnStatus, BotType
@@ -69,6 +72,225 @@ def _apply_runtime_state_to_turn(
     if runtime_state.get("error_message"):
         updates["error_message"] = runtime_state["error_message"]
     return turn_envelope.model_copy(update=updates)
+
+
+_ACTIVITY_TITLE_KEYS = {
+    UserActivityIntent.THINKING: "activity.thinking.title",
+    UserActivityIntent.SEARCHING_KNOWLEDGE: "activity.searching_knowledge.title",
+    UserActivityIntent.READING_SOURCE: "activity.reading_source.title",
+    UserActivityIntent.COMPARING_RESULTS: "activity.comparing_results.title",
+    UserActivityIntent.WRITING_ANSWER: "activity.writing_answer.title",
+    UserActivityIntent.WAITING: "activity.waiting.title",
+    UserActivityIntent.COMPLETED: "activity.completed.title",
+    UserActivityIntent.ERROR: "activity.error.title",
+}
+
+_ACTIVITY_SUBTITLE_KEYS = {
+    UserActivityIntent.THINKING: "activity.thinking.subtitle",
+    UserActivityIntent.SEARCHING_KNOWLEDGE: "activity.searching_knowledge.subtitle",
+    UserActivityIntent.READING_SOURCE: "activity.reading_source.subtitle",
+    UserActivityIntent.COMPARING_RESULTS: "activity.comparing_results.subtitle",
+    UserActivityIntent.WRITING_ANSWER: "activity.writing_answer.subtitle",
+    UserActivityIntent.WAITING: "activity.waiting.subtitle",
+    UserActivityIntent.COMPLETED: "activity.completed.subtitle",
+    UserActivityIntent.ERROR: "activity.error.subtitle",
+}
+
+_KNOWLEDGE_SEARCH_TOOLS = {"list_collections", "search_collection"}
+_WEB_SEARCH_TOOLS = {"search_web", "web_search"}
+_READING_TOOLS = {"read_document", "web_read"}
+_CHAT_HISTORY_TOOLS = {"query_chat_messages"}
+
+
+def _normalize_activity_text(value: Any, *, max_length: int = 160) -> Optional[str]:
+    if not isinstance(value, str):
+        return None
+    normalized = " ".join(value.strip().split())
+    if not normalized:
+        return None
+    if len(normalized) <= max_length:
+        return normalized
+    return f"{normalized[: max_length - 3].rstrip()}..."
+
+
+def _iter_activity_payloads(data: Any) -> list[dict[str, Any]]:
+    payloads: list[dict[str, Any]] = []
+    if isinstance(data, dict):
+        payloads.append(data)
+        for key in ("args", "result"):
+            nested = data.get(key)
+            if isinstance(nested, dict):
+                payloads.append(nested)
+    return payloads
+
+
+def _extract_activity_string(data: Any, *keys: str, max_length: int = 160) -> Optional[str]:
+    for payload in _iter_activity_payloads(data):
+        for key in keys:
+            value = _normalize_activity_text(payload.get(key), max_length=max_length)
+            if value:
+                return value
+    return None
+
+
+def _extract_activity_count(data: Any) -> Optional[int]:
+    for payload in _iter_activity_payloads(data):
+        for key in ("count", "total", "total_count", "result_count"):
+            value = payload.get(key)
+            if isinstance(value, int) and value >= 0:
+                return value
+        for key in ("items", "results"):
+            items = payload.get(key)
+            if isinstance(items, list):
+                return len(items)
+    return None
+
+
+def _extract_tool_name(label: Optional[str], data: dict[str, Any]) -> Optional[str]:
+    return _extract_activity_string(data, "tool_name") or _normalize_activity_text(label)
+
+
+def _infer_target_type(tool_name: Optional[str]) -> Optional[str]:
+    if not tool_name:
+        return None
+    if tool_name in _KNOWLEDGE_SEARCH_TOOLS:
+        return "knowledge_base"
+    if tool_name in _READING_TOOLS:
+        return "document" if tool_name == "read_document" else "web"
+    if tool_name in _WEB_SEARCH_TOOLS:
+        return "web"
+    if tool_name in _CHAT_HISTORY_TOOLS:
+        return "chat_history"
+    return None
+
+
+def _build_activity_context(data: dict[str, Any], tool_name: Optional[str]) -> Optional[UserActivityContext]:
+    values: dict[str, Any] = {}
+
+    keyword = _extract_activity_string(data, "query", "keyword", "keywords", "search_query")
+    if keyword:
+        values["keyword"] = keyword
+
+    source_name = _extract_activity_string(
+        data,
+        "source_name",
+        "collection_name",
+        "collection_title",
+        "document_title",
+        "title",
+        "name",
+        max_length=120,
+    )
+    if source_name:
+        values["source_name"] = source_name
+
+    count = _extract_activity_count(data)
+    if count is not None:
+        values["count"] = count
+
+    target_type = _infer_target_type(tool_name)
+    if target_type:
+        values["target_type"] = target_type
+
+    scope_label = _extract_activity_string(data, "collection_id", "document_id", "url", max_length=120)
+    if scope_label and scope_label != values.get("source_name"):
+        values["scope_label"] = scope_label
+
+    if not values:
+        return None
+    return UserActivityContext.model_validate(values)
+
+
+def _detail_key_for_activity(intent: UserActivityIntent, context: Optional[UserActivityContext]) -> Optional[str]:
+    if not context:
+        return None
+    if intent == UserActivityIntent.SEARCHING_KNOWLEDGE:
+        if context.keyword:
+            return "activity.searching_knowledge.detail.keyword"
+        if context.source_name:
+            return "activity.searching_knowledge.detail.source_name"
+        if context.count is not None:
+            return "activity.searching_knowledge.detail.count"
+    if intent == UserActivityIntent.READING_SOURCE and context.source_name:
+        return "activity.reading_source.detail.source_name"
+    if intent == UserActivityIntent.COMPARING_RESULTS and context.count is not None:
+        return "activity.comparing_results.detail.count"
+    return None
+
+
+def _build_user_activity(
+    intent: UserActivityIntent, context: Optional[UserActivityContext] = None
+) -> UserActivityEnvelope:
+    return UserActivityEnvelope(
+        intent=intent,
+        title_key=_ACTIVITY_TITLE_KEYS[intent],
+        subtitle_key=_ACTIVITY_SUBTITLE_KEYS[intent],
+        detail_key=_detail_key_for_activity(intent, context),
+        context=context,
+    )
+
+
+def _infer_tool_activity_intent(tool_name: Optional[str]) -> Optional[UserActivityIntent]:
+    if not tool_name:
+        return None
+    if tool_name in _KNOWLEDGE_SEARCH_TOOLS or tool_name in _WEB_SEARCH_TOOLS:
+        return UserActivityIntent.SEARCHING_KNOWLEDGE
+    if tool_name in _READING_TOOLS:
+        return UserActivityIntent.READING_SOURCE
+    if tool_name in _CHAT_HISTORY_TOOLS:
+        return UserActivityIntent.READING_SOURCE
+    return None
+
+
+def _build_user_activity_for_event(
+    *,
+    technical_type: str,
+    label: Optional[str],
+    status: Optional[str],
+    data: dict[str, Any],
+) -> UserActivityEnvelope:
+    normalized_status = str(status or "").lower()
+    tool_name = _extract_tool_name(label, data)
+    context = _build_activity_context(data, tool_name)
+
+    if technical_type == "agent.state.changed":
+        if normalized_status == "thinking":
+            return _build_user_activity(UserActivityIntent.THINKING)
+        if normalized_status == "searching":
+            return _build_user_activity(UserActivityIntent.SEARCHING_KNOWLEDGE, context=context)
+        if normalized_status == "calling_tool":
+            return _build_user_activity(_infer_tool_activity_intent(tool_name) or UserActivityIntent.WAITING, context)
+        if normalized_status == "reading_result":
+            return _build_user_activity(UserActivityIntent.COMPARING_RESULTS, context=context)
+        if normalized_status in {"composing", "streaming"}:
+            return _build_user_activity(UserActivityIntent.WRITING_ANSWER)
+        if normalized_status == "done":
+            return _build_user_activity(UserActivityIntent.COMPLETED)
+        if normalized_status in {"error", "failed"}:
+            return _build_user_activity(UserActivityIntent.ERROR)
+        return _build_user_activity(UserActivityIntent.WAITING)
+
+    if technical_type in {"tool.started", "external_action.started"}:
+        return _build_user_activity(_infer_tool_activity_intent(tool_name) or UserActivityIntent.WAITING, context)
+
+    if technical_type in {"tool.finished", "external_action.finished"}:
+        if normalized_status in {"failed", "error"}:
+            return _build_user_activity(UserActivityIntent.ERROR)
+        return _build_user_activity(
+            _infer_tool_activity_intent(tool_name) or UserActivityIntent.COMPARING_RESULTS, context
+        )
+
+    if technical_type == "text.delta":
+        return _build_user_activity(UserActivityIntent.WRITING_ANSWER)
+
+    if technical_type == "turn.started":
+        return _build_user_activity(UserActivityIntent.THINKING)
+    if technical_type == "turn.completed":
+        return _build_user_activity(UserActivityIntent.COMPLETED)
+    if technical_type in {"turn.failed", "turn.cancelled"}:
+        return _build_user_activity(UserActivityIntent.ERROR)
+
+    return _build_user_activity(UserActivityIntent.WAITING)
 
 
 def _extract_answer_text_from_artifact(artifact) -> str:
@@ -201,7 +423,8 @@ class TurnService:
 
         persisted_events = await self.db_ops.query_agent_timeline_events(turn_id, after_sequence=0, limit=2000)
         cached_events = [
-            AgentTimelineEventEnvelope.model_validate(item) for item in await self.redis_store.get_all_events(turn_id)
+            EventService.adapt_event_envelope(AgentTimelineEventEnvelope.model_validate(item))
+            for item in await self.redis_store.get_all_events(turn_id)
         ]
         merged_events: dict[int, AgentTimelineEventEnvelope] = {
             event.sequence: EventService.to_event_envelope(event) for event in persisted_events
@@ -290,23 +513,40 @@ class EventService:
     ) -> list[AgentTimelineEventEnvelope]:
         cached = await self.redis_store.get_events_after(turn_id, after_sequence=after_sequence, limit=limit)
         if cached:
-            return [AgentTimelineEventEnvelope.model_validate(item) for item in cached]
+            return [self.adapt_event_envelope(AgentTimelineEventEnvelope.model_validate(item)) for item in cached]
         persisted = await self.db_ops.query_agent_timeline_events(turn_id, after_sequence=after_sequence, limit=limit)
         return [self.to_event_envelope(item) for item in persisted]
 
     @staticmethod
     def to_event_envelope(event) -> AgentTimelineEventEnvelope:
         actor_value = event.actor.value if hasattr(event.actor, "value") else event.actor
-        return AgentTimelineEventEnvelope(
+        envelope = AgentTimelineEventEnvelope(
             event_id=event.id,
             turn_id=event.turn_id,
             sequence=event.sequence,
             timestamp=event.timestamp,
             type=event.type,
+            technical_type=event.type,
             label=event.label,
             status=event.status,
             actor=actor_value,
             data=event.data or {},
+        )
+        return EventService.adapt_event_envelope(envelope)
+
+    @staticmethod
+    def adapt_event_envelope(event: AgentTimelineEventEnvelope) -> AgentTimelineEventEnvelope:
+        technical_type = event.technical_type or event.type
+        return event.model_copy(
+            update={
+                "technical_type": technical_type,
+                "user_activity": _build_user_activity_for_event(
+                    technical_type=technical_type,
+                    label=event.label,
+                    status=event.status,
+                    data=event.data or {},
+                ),
+            }
         )
 
 

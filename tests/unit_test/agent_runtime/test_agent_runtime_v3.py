@@ -11,8 +11,9 @@ from aperag.agent_runtime.schemas import (
     AgentTimelineEventEnvelope,
     AgentTurnSnapshot,
     CreateTurnRequest,
+    UserActivityIntent,
 )
-from aperag.agent_runtime.services import HistoryWriter, TurnService
+from aperag.agent_runtime.services import EventService, HistoryWriter, TurnService
 from aperag.db.models import AgentEventActor, AgentTurnStatus
 from aperag.views import agent_runtime as agent_runtime_view
 
@@ -225,6 +226,75 @@ async def test_turn_snapshot_merges_persisted_events_cached_events_and_runtime_s
     assert snapshot.turn.reference_bundle_artifact_id == "bundle-1"
     assert [event.sequence for event in snapshot.timeline] == [1, 2]
     assert snapshot.artifacts[0].artifact_id == "artifact-1"
+
+
+@pytest.mark.asyncio
+async def test_event_service_to_event_envelope_adds_user_activity_contract():
+    event = _build_event(
+        3,
+        "tool.started",
+        label="search_collection",
+        status="started",
+        data={
+            "tool_name": "search_collection",
+            "args": {
+                "query": "OpenAI API key",
+                "collection_name": "Product Docs",
+            },
+        },
+    )
+
+    envelope = EventService.to_event_envelope(event)
+
+    assert envelope.technical_type == "tool.started"
+    assert envelope.user_activity is not None
+    assert envelope.user_activity.intent == UserActivityIntent.SEARCHING_KNOWLEDGE
+    assert envelope.user_activity.title_key == "activity.searching_knowledge.title"
+    assert envelope.user_activity.subtitle_key == "activity.searching_knowledge.subtitle"
+    assert envelope.user_activity.detail_key == "activity.searching_knowledge.detail.keyword"
+    assert envelope.user_activity.context is not None
+    assert envelope.user_activity.context.keyword == "OpenAI API key"
+    assert envelope.user_activity.context.source_name == "Product Docs"
+    assert envelope.user_activity.context.target_type == "knowledge_base"
+
+
+@pytest.mark.asyncio
+async def test_turn_snapshot_backfills_user_activity_for_legacy_cached_events():
+    turn = _build_turn()
+    legacy_cached_event = {
+        "event_id": "event-3",
+        "turn_id": "turn-1",
+        "sequence": 3,
+        "timestamp": _now().isoformat(),
+        "type": "tool.finished",
+        "label": "search_collection",
+        "status": "success",
+        "actor": "tool",
+        "data": {
+            "tool_name": "search_collection",
+            "result": {
+                "items": [{"id": "doc-1"}, {"id": "doc-2"}],
+                "collection_name": "Product Docs",
+            },
+        },
+    }
+
+    service = TurnService(
+        db_ops=_FakeDbOps(turn=turn),
+        redis_store=_FakeRedisStore(events=[legacy_cached_event], runtime_state=None),
+    )
+
+    snapshot = await service.get_turn_snapshot("user-1", "chat-1", "turn-1")
+
+    assert len(snapshot.timeline) == 1
+    event = snapshot.timeline[0]
+    assert event.technical_type == "tool.finished"
+    assert event.user_activity is not None
+    assert event.user_activity.intent == UserActivityIntent.SEARCHING_KNOWLEDGE
+    assert event.user_activity.detail_key == "activity.searching_knowledge.detail.source_name"
+    assert event.user_activity.context is not None
+    assert event.user_activity.context.source_name == "Product Docs"
+    assert event.user_activity.context.count == 2
 
 
 @pytest.mark.asyncio

@@ -33,6 +33,33 @@ class VisibleAgentState(str, Enum):
     FAILED = "Failed"
 
 
+class UserActivityIntent(str, Enum):
+    THINKING = "thinking"
+    SEARCHING_KNOWLEDGE = "searching_knowledge"
+    READING_SOURCE = "reading_source"
+    COMPARING_RESULTS = "comparing_results"
+    WRITING_ANSWER = "writing_answer"
+    WAITING = "waiting"
+    COMPLETED = "completed"
+    ERROR = "error"
+
+
+class UserActivityContext(BaseModel):
+    source_name: Optional[str] = None
+    keyword: Optional[str] = None
+    count: Optional[int] = None
+    target_type: Optional[Literal["knowledge_base", "document", "web", "chat_history"]] = None
+    scope_label: Optional[str] = None
+
+
+class UserActivityEnvelope(BaseModel):
+    intent: UserActivityIntent
+    title_key: str
+    subtitle_key: str
+    detail_key: Optional[str] = None
+    context: Optional[UserActivityContext] = None
+
+
 class AgentTurnEnvelope(BaseModel):
     schema_version: str = AGENT_RUNTIME_SCHEMA_VERSION
     turn_id: str
@@ -62,10 +89,12 @@ class AgentTimelineEventEnvelope(BaseModel):
     sequence: int
     timestamp: datetime
     type: str
+    technical_type: Optional[str] = None
     label: Optional[str] = None
     status: Optional[str] = None
     actor: Literal["agent", "tool", "system"]
     data: dict[str, Any] = Field(default_factory=dict)
+    user_activity: Optional[UserActivityEnvelope] = None
 
 
 class AgentArtifactEnvelope(BaseModel):
