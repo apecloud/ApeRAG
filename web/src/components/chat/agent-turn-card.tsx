@@ -537,7 +537,8 @@ function findMergeableActivityIndex(
 
   if (
     previous.status === 'running' &&
-    (status === 'completed' || status === 'failed') &&
+    status === 'completed' &&
+    (previous.occurrences || 1) === 1 &&
     serializeUserActivity(previous.userActivity) === serializeUserActivity(activity)
   ) {
     return lastIndex;
