@@ -476,6 +476,15 @@ function inferUserActivity(
 
 function normalizeTimelineStatus(event: AgentTimelineEventEnvelope) {
   const technicalType = event.technical_type || event.type;
+  const normalized = String(event.status || '').toLowerCase();
+
+  if (technicalType === 'agent.state.changed') {
+    if (normalized === 'failed' || normalized === 'error') return 'failed';
+    if (normalized === 'done' || normalized === 'completed') return 'completed';
+    return 'running';
+  }
+
+  if (technicalType === 'turn.started') return 'running';
   if (
     technicalType === 'tool.started' ||
     technicalType === 'external_action.started'
@@ -486,7 +495,6 @@ function normalizeTimelineStatus(event: AgentTimelineEventEnvelope) {
     technicalType === 'tool.finished' ||
     technicalType === 'external_action.finished'
   ) {
-    const normalized = String(event.status || '').toLowerCase();
     if (normalized === 'failed' || normalized === 'error') return 'failed';
     return 'completed';
   }
@@ -498,7 +506,7 @@ function normalizeTimelineStatus(event: AgentTimelineEventEnvelope) {
   ) {
     return 'failed';
   }
-  return String(event.status || '').toLowerCase() || 'waiting';
+  return normalized || 'waiting';
 }
 
 function serializeUserActivity(activity: UserActivityEnvelope) {
@@ -522,6 +530,14 @@ function findMergeableActivityIndex(
   const previous = entries[lastIndex];
   if (
     previous.status === status &&
+    serializeUserActivity(previous.userActivity) === serializeUserActivity(activity)
+  ) {
+    return lastIndex;
+  }
+
+  if (
+    previous.status === 'running' &&
+    (status === 'completed' || status === 'failed') &&
     serializeUserActivity(previous.userActivity) === serializeUserActivity(activity)
   ) {
     return lastIndex;
@@ -556,12 +572,19 @@ function buildOrderedTimelineItems(
 
     if (mergeableIndex >= 0) {
       const previous = entries[mergeableIndex];
+      const nextOccurrences =
+        previous.status === status
+          ? (previous.occurrences || 1) + 1
+          : previous.occurrences || 1;
       entries[mergeableIndex] = {
         ...previous,
+        status,
         timestamp: event.timestamp,
-        occurrences: (previous.occurrences || 1) + 1,
+        occurrences: nextOccurrences,
         argsPreview: previous.argsPreview || argsPreview,
         resultPreview: resultPreview || previous.resultPreview,
+        rawType: event.type,
+        technicalType: event.technical_type || event.type,
       };
       continue;
     }
@@ -705,20 +728,52 @@ export const AgentTurnCard = ({
     values?: Record<string, string | number | undefined>,
   ) => {
     if (!key) return undefined;
-    return t(
+    const message = t(
       key as never,
       values as never,
     );
+    return message === key ? undefined : message;
   };
 
   const translatePageChat = (
     key: string,
     values?: Record<string, string | number | undefined>,
-  ) =>
-    pageChat(
+  ) => {
+    const message = pageChat(
       key as never,
       values as never,
     );
+    return message === key || message === `page_chat.${key}`
+      ? undefined
+      : message;
+  };
+
+  const getItemStatusLabel = (status: string) => {
+    return (
+      translatePageChat(`activity_stream.item_status.${status}`) ||
+      {
+        waiting: 'Waiting',
+        running: 'In progress',
+        completed: 'Completed',
+        failed: 'Issue',
+      }[status] ||
+      'Waiting'
+    );
+  };
+
+  const getTurnStatusLabel = (statusKey: string) => {
+    return (
+      translatePageChat(`activity_stream.status.${statusKey}`) ||
+      {
+        queued: 'Queued',
+        running: 'Running',
+        completed: 'Completed',
+        failed: 'Failed',
+        cancelled: 'Cancelled',
+      }[statusKey] ||
+      statusKey
+    );
+  };
 
   const answerText = useMemo(
     () => extractAnswerText(snapshot, streamingAnswer, fallbackParts),
@@ -792,7 +847,7 @@ export const AgentTurnCard = ({
             variant={getStatusTone(displayStatus)}
             className="h-5 px-2 text-[10px]"
           >
-            {translatePageChat(`activity_stream.status.${displayStatusKey}`)}
+            {getTurnStatusLabel(displayStatusKey)}
           </Badge>
           {timestamp && (
             <div className="text-muted-foreground text-xs">
@@ -853,11 +908,54 @@ export const AgentTurnCard = ({
                         item.userActivity.detail_key,
                         translationValues,
                       );
-                      const hasExpandableContent =
-                        !!detail ||
+                      const hasDebugContent =
                         !!item.argsPreview ||
                         !!item.resultPreview ||
                         !!item.technicalType;
+
+                      const cardBody = (
+                        <>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <div className="text-sm font-medium">
+                              {title}
+                            </div>
+                            <Badge
+                              variant="outline"
+                              className="h-5 rounded-full px-1.5 text-[9px]"
+                            >
+                              {getItemStatusLabel(item.status)}
+                            </Badge>
+                            {item.timestamp && (
+                              <div className="text-muted-foreground text-[10px]">
+                                {format.dateTime(
+                                  new Date(item.timestamp),
+                                  'short',
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          {subtitle && (
+                            <div className="text-muted-foreground mt-1 text-xs">
+                              {subtitle}
+                            </div>
+                          )}
+                          {detail && (
+                            <div className="text-foreground/85 mt-1.5 text-xs">
+                              {detail}
+                            </div>
+                          )}
+                          {(item.occurrences || 1) > 1 && (
+                            <div className="text-muted-foreground mt-1.5 text-[11px]">
+                              {translatePageChat(
+                                'activity_stream.repeated',
+                                {
+                                  count: item.occurrences || 1,
+                                },
+                              )}
+                            </div>
+                          )}
+                        </>
+                      );
 
                       return (
                         <div key={item.key} className="flex gap-2.5">
@@ -876,9 +974,8 @@ export const AgentTurnCard = ({
                           </div>
 
                           <div className="min-w-0 flex-1 pb-3">
-                            {hasExpandableContent ? (
+                            {hasDebugContent ? (
                               <Collapsible
-                                defaultOpen={pending && item.status === 'running'}
                                 className="group/timeline-item"
                               >
                                 <div
@@ -894,47 +991,7 @@ export const AgentTurnCard = ({
                                     >
                                       <ChevronRight className="text-muted-foreground mt-0.5 size-3.5 shrink-0 transition-transform group-data-[state=open]/timeline-item:rotate-90" />
                                       <div className="min-w-0 flex-1">
-                                        <div className="flex flex-wrap items-center gap-1.5">
-                                          <div className="text-sm font-medium">
-                                            {title}
-                                          </div>
-                                          <Badge
-                                            variant="outline"
-                                            className="h-5 rounded-full px-1.5 text-[9px] uppercase"
-                                          >
-                                            {translatePageChat(
-                                              `activity_stream.item_status.${item.status}`,
-                                            )}
-                                          </Badge>
-                                          {item.timestamp && (
-                                            <div className="text-muted-foreground text-[10px]">
-                                              {format.dateTime(
-                                                new Date(item.timestamp),
-                                                'short',
-                                              )}
-                                            </div>
-                                          )}
-                                        </div>
-                                        {subtitle && (
-                                          <div className="text-muted-foreground mt-1 text-xs">
-                                            {subtitle}
-                                          </div>
-                                        )}
-                                        {detail && (
-                                          <div className="text-foreground/85 mt-1.5 text-xs">
-                                            {detail}
-                                          </div>
-                                        )}
-                                        {(item.occurrences || 1) > 1 && (
-                                            <div className="text-muted-foreground mt-1.5 text-[11px]">
-                                              {translatePageChat(
-                                                'activity_stream.repeated',
-                                                {
-                                                  count: item.occurrences || 1,
-                                                },
-                                              )}
-                                            </div>
-                                          )}
+                                        {cardBody}
                                       </div>
                                     </button>
                                   </CollapsibleTrigger>
@@ -987,47 +1044,7 @@ export const AgentTurnCard = ({
                                   styles.card,
                                 )}
                               >
-                                <div className="flex flex-wrap items-center gap-1.5">
-                                  <div className="text-sm font-medium">
-                                    {title}
-                                  </div>
-                                  <Badge
-                                    variant="outline"
-                                    className="h-5 rounded-full px-1.5 text-[9px] uppercase"
-                                  >
-                                    {translatePageChat(
-                                      `activity_stream.item_status.${item.status}`,
-                                    )}
-                                  </Badge>
-                                  {item.timestamp && (
-                                    <div className="text-muted-foreground text-[10px]">
-                                      {format.dateTime(
-                                        new Date(item.timestamp),
-                                        'short',
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                                {subtitle && (
-                                  <div className="text-muted-foreground mt-1 text-xs">
-                                    {subtitle}
-                                  </div>
-                                )}
-                                {detail && (
-                                  <div className="text-foreground/85 mt-1.5 text-xs">
-                                    {detail}
-                                  </div>
-                                )}
-                                {(item.occurrences || 1) > 1 && (
-                                    <div className="text-muted-foreground mt-1.5 text-[11px]">
-                                      {translatePageChat(
-                                        'activity_stream.repeated',
-                                        {
-                                          count: item.occurrences || 1,
-                                        },
-                                      )}
-                                    </div>
-                                  )}
+                                {cardBody}
                               </div>
                             )}
                           </div>
@@ -1109,7 +1126,7 @@ export const AgentTurnCard = ({
                   <div className="text-muted-foreground">
                     {pageChat('activity_stream.debug.status')}
                   </div>
-                  <div>{translatePageChat(`activity_stream.status.${displayStatusKey}`)}</div>
+                  <div>{getTurnStatusLabel(displayStatusKey)}</div>
                 </div>
                 {snapshot.turn.error_code && (
                   <div className="grid gap-1">

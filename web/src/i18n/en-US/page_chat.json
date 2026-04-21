@@ -31,8 +31,8 @@
     },
     "item_status": {
       "waiting": "Waiting",
-      "running": "Active",
-      "completed": "Done",
+      "running": "In progress",
+      "completed": "Completed",
       "failed": "Issue"
     },
     "target_type": {
