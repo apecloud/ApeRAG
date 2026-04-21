@@ -13,10 +13,27 @@
 # limitations under the License.
 
 import json
+import os
 from typing import Any
 
 from aperag.agent_runtime.schemas import AgentTimelineEventEnvelope
 from aperag.db.redis_manager import RedisConnectionManager
+
+DEFAULT_AGENT_TURN_LEASE_TTL_SECONDS = int(os.getenv("APERAG_AGENT_TURN_LEASE_TTL_SECONDS", "300"))
+
+_RENEW_TURN_LEASE_SCRIPT = """
+if redis.call('GET', KEYS[1]) == ARGV[1] then
+  return redis.call('EXPIRE', KEYS[1], tonumber(ARGV[2]))
+end
+return 0
+"""
+
+_RELEASE_TURN_LEASE_SCRIPT = """
+if redis.call('GET', KEYS[1]) == ARGV[1] then
+  return redis.call('DEL', KEYS[1])
+end
+return 0
+"""
 
 
 class AgentRuntimeRedisStore:
@@ -32,6 +49,9 @@ class AgentRuntimeRedisStore:
 
     def _cancel_key(self, turn_id: str) -> str:
         return f"{self.prefix}:turn:{turn_id}:cancelled"
+
+    def _lease_key(self, turn_id: str) -> str:
+        return f"{self.prefix}:turn:{turn_id}:lease"
 
     async def append_event(self, event: AgentTimelineEventEnvelope) -> None:
         client = await RedisConnectionManager.get_async_client()
@@ -75,3 +95,20 @@ class AgentRuntimeRedisStore:
     async def is_cancelled(self, turn_id: str) -> bool:
         client = await RedisConnectionManager.get_async_client()
         return await client.exists(self._cancel_key(turn_id)) > 0
+
+    async def try_claim_turn(self, turn_id: str, owner_token: str, ttl_seconds: int | None = None) -> bool:
+        client = await RedisConnectionManager.get_async_client()
+        ttl = max(ttl_seconds or DEFAULT_AGENT_TURN_LEASE_TTL_SECONDS, 1)
+        claimed = await client.set(self._lease_key(turn_id), owner_token, ex=ttl, nx=True)
+        return bool(claimed)
+
+    async def renew_turn_claim(self, turn_id: str, owner_token: str, ttl_seconds: int | None = None) -> bool:
+        client = await RedisConnectionManager.get_async_client()
+        ttl = max(ttl_seconds or DEFAULT_AGENT_TURN_LEASE_TTL_SECONDS, 1)
+        renewed = await client.eval(_RENEW_TURN_LEASE_SCRIPT, 1, self._lease_key(turn_id), owner_token, ttl)
+        return bool(renewed)
+
+    async def release_turn_claim(self, turn_id: str, owner_token: str) -> bool:
+        client = await RedisConnectionManager.get_async_client()
+        released = await client.eval(_RELEASE_TURN_LEASE_SCRIPT, 1, self._lease_key(turn_id), owner_token)
+        return bool(released)
