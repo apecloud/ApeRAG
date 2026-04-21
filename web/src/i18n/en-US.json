@@ -404,6 +404,8 @@
     "empty_title": "No benchmark datasets yet",
     "empty_description": "Create and publish benchmark datasets for this collection to unlock evaluation runs.",
     "no_description": "No description available",
+    "error_title": "Benchmark data could not be loaded",
+    "error_description": "The benchmark endpoint returned an error. Please retry after the backend contract and server state are checked.",
     "not_available_title": "Benchmark APIs are not ready yet",
     "not_available_description": "The frontend route is in place. Data will populate here once the evaluation v2 backend endpoints land.",
     "status": {
@@ -454,6 +456,8 @@
     "empty_detail_description": "The run detail endpoint is reachable, but this run has not returned structured data yet.",
     "empty_items_title": "No run items yet",
     "empty_items_description": "Items will appear after the run is created and the worker starts dispatching attempts.",
+    "error_title": "Evaluation data could not be loaded",
+    "error_description": "The evaluation endpoint returned an error. Please retry after the backend contract and server state are checked.",
     "not_available_title": "Evaluation APIs are not ready yet",
     "not_available_description": "The UI is ready. Data and actions will appear here once the evaluation v2 endpoints are merged.",
     "status": {

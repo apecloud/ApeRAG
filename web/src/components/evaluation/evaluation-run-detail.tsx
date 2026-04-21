@@ -191,6 +191,15 @@ export const EvaluationRunDetail = ({
     );
   }
 
+  if (error) {
+    return (
+      <EvaluationApiNotice
+        title={t('error_title')}
+        description={error || t('error_description')}
+      />
+    );
+  }
+
   if (!run) {
     return (
       <EvaluationEmptyState
@@ -351,7 +360,7 @@ export const EvaluationRunDetail = ({
                       {item.latest_attempt?.agent_chat_id ? (
                         <Link
                           className="text-primary text-sm underline-offset-4 hover:underline"
-                          href={`/workspace/bots/${botId}/chats/${item.latest_attempt.agent_chat_id}`}
+                          href={`/workspace/bots/${run.bot_id || botId}/chats/${item.latest_attempt.agent_chat_id}`}
                         >
                           {t('open_chat')}
                         </Link>

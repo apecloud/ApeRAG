@@ -84,6 +84,15 @@ export const EvaluationRunsPanel = ({
     );
   }
 
+  if (error) {
+    return (
+      <EvaluationApiNotice
+        title={t('error_title')}
+        description={error || t('error_description')}
+      />
+    );
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div className="grid gap-4 xl:grid-cols-[1.4fr_repeat(4,1fr)]">

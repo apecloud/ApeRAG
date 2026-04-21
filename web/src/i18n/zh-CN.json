@@ -407,6 +407,8 @@
     "empty_title": "还没有 benchmark 数据集",
     "empty_description": "先为这个知识库创建并发布 benchmark 数据集，后续才能发起 evaluation run。",
     "no_description": "暂无描述",
+    "error_title": "Benchmark 数据加载失败",
+    "error_description": "Benchmark 接口返回了错误，请先检查后端 contract 和服务状态后再重试。",
     "not_available_title": "Benchmark API 还未就绪",
     "not_available_description": "前端路由和页面已经准备好，等 evaluation v2 后端接口合入后，这里就会展示真实数据。",
     "status": {
@@ -457,6 +459,8 @@
     "empty_detail_description": "路由已经打通，但这个 run 还没有返回完整详情数据。",
     "empty_items_title": "还没有 run item",
     "empty_items_description": "run 创建后，worker 开始分发 attempt，这里就会逐步出现 item。",
+    "error_title": "Evaluation 数据加载失败",
+    "error_description": "Evaluation 接口返回了错误，请先检查后端 contract 和服务状态后再重试。",
     "not_available_title": "Evaluation API 还未就绪",
     "not_available_description": "前端页面已经准备好，等 evaluation v2 接口合入后，这里会自动显示真实数据和操作。",
     "status": {

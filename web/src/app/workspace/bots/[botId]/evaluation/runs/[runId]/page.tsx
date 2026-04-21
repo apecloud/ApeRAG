@@ -20,6 +20,16 @@ export default async function Page({
   params: Promise<{ botId: string; runId: string }>;
 }) {
   const { botId, runId } = await params;
+  const [runDetail, runItems] = await Promise.all([
+    getEvaluationRunDetail(runId),
+    listEvaluationRunItems(runId),
+  ]);
+  const resolvedBotId = runDetail.payload?.run?.bot_id || botId;
+
+  if (runDetail.payload?.run?.bot_id && runDetail.payload.run.bot_id !== botId) {
+    notFound();
+  }
+
   const serverApi = await getServerApi();
   const pageBot = await getTranslations('page_bot');
   const pageBotEvaluation = await getTranslations('page_bot_evaluation');
@@ -28,17 +38,12 @@ export default async function Page({
 
   try {
     const botRes = await serverApi.defaultApi.botsBotIdGet({
-      botId,
+      botId: resolvedBotId,
     });
     bot = toJson(botRes.data);
   } catch {
     notFound();
   }
-
-  const [runDetail, runItems] = await Promise.all([
-    getEvaluationRunDetail(runId),
-    listEvaluationRunItems(runId),
-  ]);
 
   return (
     <PageContainer>
@@ -48,12 +53,12 @@ export default async function Page({
             title: pageBot('metadata.title'),
           },
           {
-            title: bot.title || botId,
-            href: `/workspace/bots/${botId}/evaluation`,
+            title: bot.title || resolvedBotId,
+            href: `/workspace/bots/${resolvedBotId}/evaluation`,
           },
           {
             title: pageBotEvaluation('metadata.title'),
-            href: `/workspace/bots/${botId}/evaluation`,
+            href: `/workspace/bots/${resolvedBotId}/evaluation`,
           },
           {
             title: runId,
@@ -61,11 +66,11 @@ export default async function Page({
         ]}
       />
       <PageContent className="pb-0">
-        <BotSectionNav botId={botId} active="evaluation" />
+        <BotSectionNav botId={resolvedBotId} active="evaluation" />
       </PageContent>
       <PageContent>
         <EvaluationRunDetail
-          botId={botId}
+          botId={resolvedBotId}
           detail={runDetail.payload}
           items={runItems.items}
           unavailable={runDetail.unavailable || runItems.unavailable}
