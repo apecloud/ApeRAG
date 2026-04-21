@@ -111,6 +111,26 @@ class ChatDocumentService:
 
         return documents_metadata
 
+    async def has_documents_in_chat(self, chat_id: str, user_id: str) -> bool:
+        """Return whether the current chat already has searchable uploaded files."""
+        collection = await chat_collection_service.get_user_chat_collection(user_id)
+        if not collection:
+            return False
+
+        documents = await self.db_ops.query_documents([user_id], collection.id)
+        for document in documents:
+            if not document.doc_metadata:
+                continue
+            try:
+                metadata = json.loads(document.doc_metadata)
+            except json.JSONDecodeError:
+                continue
+
+            if metadata.get("file_type") == "chat_upload" and metadata.get("chat_id") == chat_id:
+                return True
+
+        return False
+
     async def associate_documents_with_message(
         self, chat_id: str, message_id: str, files: List[str], user: str
     ) -> List[Dict[str, Any]]:
