@@ -941,6 +941,9 @@ export const AgentTurnCard = ({
       : snapshot.turn.status;
   const displayStatusKey = displayStatus.toLowerCase();
   const showAnswerSection = Boolean(answerText) || terminalStatuses.has(displayStatus);
+  const showReferencesTrigger =
+    references.length > 0 &&
+    !(displayStatus === 'COMPLETED' && Boolean(answerText));
 
   return (
     <div className="flex w-full flex-row gap-3">
@@ -1251,7 +1254,7 @@ export const AgentTurnCard = ({
         </div>
 
         <div className="flex flex-row items-center gap-2">
-          {references.length > 0 && (
+          {showReferencesTrigger && (
             <Sheet>
               <SheetTrigger asChild>
                 <Button variant="ghost" size="sm" className="cursor-pointer">
