@@ -14,8 +14,10 @@
 
 # Configuration constants
 import json
+from pathlib import Path
 from typing import Any, List, Tuple
 
+from aperag.docparser.base import ParserError
 from aperag.exceptions import CollectionNotFoundException, DocumentNotFoundException
 
 
@@ -26,6 +28,9 @@ class TaskConfig:
 
 def parse_document_content(document, collection) -> Tuple[str, List[Any], Any]:
     """Parse document content for indexing (shared across all index types)"""
+    import asyncio
+
+    from aperag.docparser.preflight import run_document_parse_preflight
     from aperag.index.document_parser import document_parser
     from aperag.schema.utils import parseCollectionConfig
     from aperag.service.setting_service import setting_service
@@ -40,12 +45,21 @@ def parse_document_content(document, collection) -> Tuple[str, List[Any], Any]:
     try:
         global_settings = setting_service.get_all_settings_sync()
 
+        asyncio.run(
+            run_document_parse_preflight(
+                Path(local_doc.path),
+                parser_config=global_settings,
+                object_store_base_path=document.object_store_base_path(),
+            )
+        )
+
         # Parse document to get content and parts
         parsing_result = document_parser.process_document_parsing(
             local_doc.path,
             local_doc.metadata,
             document.object_store_base_path(),
             global_settings,
+            skip_preflight=True,
         )
 
         # Add chat metadata to all document parts if this is a chat upload
@@ -69,6 +83,9 @@ def parse_document_content(document, collection) -> Tuple[str, List[Any], Any]:
                 pass
 
         return parsing_result.content, doc_parts, local_doc
+    except ParserError:
+        source.cleanup_document(local_doc.path)
+        raise
     except Exception as e:
         # Cleanup on error
         source.cleanup_document(local_doc.path)

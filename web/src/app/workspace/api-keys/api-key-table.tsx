@@ -15,10 +15,9 @@ import {
 } from '@tanstack/react-table';
 import * as React from 'react';
 
-import { CopyToClipboard } from '@/components/copy-to-clipboard';
-
 import { z } from 'zod';
 
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
 import { Checkbox } from '@/components/ui/checkbox';
@@ -106,10 +105,8 @@ export function ApiKeyTable({ data }: { data: ApiKey[] }) {
       cell: ({ row }) => {
         return (
           <div className="flex flex-row items-center gap-2">
-            <span>{row.original.key}</span>
-            {row.original.key && (
-              <CopyToClipboard variant="ghost" text={row.original.key} />
-            )}
+            <span className="font-mono text-sm">{row.original.key}</span>
+            <Badge variant="outline">{page_api_keys('masked_badge')}</Badge>
           </div>
         );
       },
@@ -204,6 +201,9 @@ export function ApiKeyTable({ data }: { data: ApiKey[] }) {
             value={searchValue}
             onChange={(e) => setSearchValue(e.currentTarget.value)}
           />
+          <p className="text-muted-foreground mt-2 text-xs">
+            {page_api_keys('masked_notice')}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <ApiKeyActions action="add">

@@ -6,8 +6,6 @@
 
 ApeRAG 是一个生产级 RAG（检索增强生成）平台，结合了图 RAG、向量搜索、全文搜索和先进的 AI 智能体。构建具有混合检索、多模态文档处理、智能代理和企业级管理功能的复杂 AI 应用程序。
 
-**🚀 [在线体验 ApeRAG](https://rag.apecloud.com/)** - 通过我们的托管演示体验完整的平台功能
-
 ApeRAG 是你构建自己的知识图谱、进行上下文工程以及部署能够自主搜索和推理知识库的智能 AI 代理的最佳选择。
 
 [Read English Documentation](README.md)
@@ -51,7 +49,7 @@ ApeRAG 支持 [MCP（模型上下文协议）](https://modelcontextprotocol.io/)
 {
   "mcpServers": {
     "aperag-mcp": {
-      "url": "https://rag.apecloud.com/mcp/",
+      "url": "http://localhost:8000/mcp/",
       "headers": {
         "Authorization": "Bearer your-api-key-here"
       }
@@ -64,7 +62,7 @@ ApeRAG 支持 [MCP（模型上下文协议）](https://modelcontextprotocol.io/)
 1. **HTTP Authorization 头**（推荐）：`Authorization: Bearer your-api-key`
 2. **环境变量**（备用）：`APERAG_API_KEY=your-api-key`
 
-**重要提示**：将 `https://rag.apecloud.com` 替换为您实际的 ApeRAG API 地址，将 `your-api-key-here` 替换为 ApeRAG 设置中的有效 API 密钥。
+**重要提示**：若为非本机部署，请将示例 URL 换成实际 API 源地址对应的 MCP 路径（如 `https://<你的域名>/mcp/`）。将 `your-api-key-here` 替换为 ApeRAG 设置中的有效 API 密钥。
 
 MCP 服务器提供：
 - **集合浏览**：列出和探索您的知识集合
@@ -73,29 +71,7 @@ MCP 服务器提供：
 
 #### 增强文档解析
 
-为了获得增强的文档解析能力，ApeRAG 支持由 MinerU 驱动的**高级文档解析服务**，可为复杂文档、表格和公式提供优异的解析能力。
-
-<details>
-<summary><strong>增强文档解析命令</strong></summary>
-
-```bash
-# 启用高级文档解析服务
-DOCRAY_HOST=http://aperag-docray:8639 docker compose --profile docray up -d
-
-# 启用带 GPU 加速的高级解析
-DOCRAY_HOST=http://aperag-docray-gpu:8639 docker compose --profile docray-gpu up -d
-```
-
-或使用 Makefile 快捷方式（需要 [GNU Make](https://www.gnu.org/software/make/)）：
-```bash
-# 启用高级文档解析服务
-make compose-up WITH_DOCRAY=1
-
-# 启用带 GPU 加速的高级解析（推荐）
-make compose-up WITH_DOCRAY=1 WITH_GPU=1
-```
-
-</details>
+为了获得增强的文档解析能力，ApeRAG 支持基于 MinerU 的高级解析能力，适用于复杂文档、表格、公式和 OCR 场景。
 
 #### 开发与贡献
 
@@ -197,8 +173,6 @@ kubectl get pods -n default -l app.kubernetes.io/instance=aperag
 
 ### 配置选项
 
-**资源要求**：默认包含 [`doc-ray`](https://github.com/apecloud/doc-ray) 服务（需要 4+ CPU 核心，8GB+ RAM）。要禁用：在 `values.yaml` 中设置 `docray.enabled: false`。
-
 **高级设置**：查看 `values.yaml` 了解额外的配置选项，包括镜像、资源和 Ingress 设置。
 
 ### 访问您的部署
@@ -252,4 +226,4 @@ ApeRAG 中基于图的知识检索能力由深度修改的 [LightRAG](https://gi
 
 ## 许可证
 
-ApeRAG 采用 Apache License 2.0 许可。详情请参见 [LICENSE](./LICENSE) 文件。 
+ApeRAG 采用 Apache License 2.0 许可。详情请参见 [LICENSE](./LICENSE) 文件。

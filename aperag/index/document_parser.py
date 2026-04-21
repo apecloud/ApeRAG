@@ -21,8 +21,9 @@ from typing import Any, Dict, List, Optional
 import pikepdf
 import pypdfium2 as pdfium
 
-from aperag.docparser.base import AssetBinPart, MarkdownPart, PdfPart
+from aperag.docparser.base import AssetBinPart, MarkdownPart, ParserError, PdfPart
 from aperag.docparser.doc_parser import DocParser
+from aperag.docparser.preflight import run_document_parse_preflight
 from aperag.objectstore.base import get_object_store
 
 logger = logging.getLogger(__name__)
@@ -241,6 +242,7 @@ class DocumentParser:
         file_metadata: Dict[str, Any],
         object_store_base_path: Optional[str] = None,
         parser_config: Optional[Dict[str, Any]] = None,
+        skip_preflight: bool = False,
     ) -> DocumentParsingResult:
         """
         Complete document parsing workflow
@@ -255,6 +257,17 @@ class DocumentParser:
             DocumentParsingResult containing parsed parts and content
         """
         try:
+            if not skip_preflight:
+                import asyncio
+
+                asyncio.run(
+                    run_document_parse_preflight(
+                        Path(filepath),
+                        parser_config=parser_config,
+                        object_store_base_path=object_store_base_path,
+                    )
+                )
+
             # Parse document into parts
             doc_parts = self.parse_document(filepath, file_metadata, parser_config)
 
@@ -263,8 +276,15 @@ class DocumentParser:
 
             return DocumentParsingResult(doc_parts=doc_parts, content=content, metadata={"parts_count": len(doc_parts)})
 
+        except ParserError:
+            raise
         except Exception as e:
-            raise Exception(f"Document parsing failed for {filepath}: {str(e)}")
+            raise ParserError(
+                f"Document parsing failed for {filepath}",
+                code="parse_failed",
+                detail=str(e),
+                source="runtime",
+            ) from e
 
 
 # Global parser instance

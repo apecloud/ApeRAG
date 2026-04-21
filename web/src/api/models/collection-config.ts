@@ -30,7 +30,7 @@ import type { ModelSpec } from './model-spec';
  */
 export interface CollectionConfig {
     /**
-     * Source system identifier
+     * Source system identifier. Only `system` is supported.
      * @type {string}
      * @memberof CollectionConfig
      */
@@ -95,125 +95,6 @@ export interface CollectionConfig {
      * @memberof CollectionConfig
      */
     'completion'?: ModelSpec;
-    /**
-     * Path for local and ftp sources
-     * @type {string}
-     * @memberof CollectionConfig
-     * @deprecated
-     */
-    'path'?: string;
-    /**
-     * FTP host
-     * @type {string}
-     * @memberof CollectionConfig
-     * @deprecated
-     */
-    'host'?: string;
-    /**
-     * FTP username
-     * @type {string}
-     * @memberof CollectionConfig
-     * @deprecated
-     */
-    'username'?: string;
-    /**
-     * FTP password
-     * @type {string}
-     * @memberof CollectionConfig
-     * @deprecated
-     */
-    'password'?: string;
-    /**
-     * Region for S3/OSS
-     * @type {string}
-     * @memberof CollectionConfig
-     * @deprecated
-     */
-    'region'?: string;
-    /**
-     * Access key ID for S3/OSS
-     * @type {string}
-     * @memberof CollectionConfig
-     * @deprecated
-     */
-    'access_key_id'?: string;
-    /**
-     * Secret access key for S3/OSS
-     * @type {string}
-     * @memberof CollectionConfig
-     * @deprecated
-     */
-    'secret_access_key'?: string;
-    /**
-     * Bucket name for S3/OSS
-     * @type {string}
-     * @memberof CollectionConfig
-     * @deprecated
-     */
-    'bucket'?: string;
-    /**
-     * Directory path in bucket for S3/OSS
-     * @type {string}
-     * @memberof CollectionConfig
-     * @deprecated
-     */
-    'dir'?: string;
-    /**
-     * Email source configuration
-     * @type {object}
-     * @memberof CollectionConfig
-     * @deprecated
-     */
-    'email_source'?: object;
-    /**
-     * POP3 server address
-     * @type {string}
-     * @memberof CollectionConfig
-     * @deprecated
-     */
-    'pop_server'?: string;
-    /**
-     * Email server port
-     * @type {string}
-     * @memberof CollectionConfig
-     * @deprecated
-     */
-    'port'?: string;
-    /**
-     * Email address
-     * @type {string}
-     * @memberof CollectionConfig
-     * @deprecated
-     */
-    'email_address'?: string;
-    /**
-     * Email password
-     * @type {string}
-     * @memberof CollectionConfig
-     * @deprecated
-     */
-    'email_password'?: string;
-    /**
-     * Feishu app ID
-     * @type {string}
-     * @memberof CollectionConfig
-     * @deprecated
-     */
-    'app_id'?: string;
-    /**
-     * Feishu app secret
-     * @type {string}
-     * @memberof CollectionConfig
-     * @deprecated
-     */
-    'app_secret'?: string;
-    /**
-     * Feishu space ID
-     * @type {string}
-     * @memberof CollectionConfig
-     * @deprecated
-     */
-    'space_id'?: string;
 }
 
 export const CollectionConfigLanguageEnum = {

@@ -41,6 +41,34 @@ from .prompt import GRAPH_FIELD_SEP
 from .utils import compute_mdhash_id, logger
 
 
+async def _get_nodes_by_id_batch(chunk_entity_relation_graph, node_ids: list[str]) -> dict[str, dict[str, Any]]:
+    unique_node_ids = list(dict.fromkeys(node_id for node_id in node_ids if node_id))
+    if not unique_node_ids:
+        return {}
+    return await chunk_entity_relation_graph.get_nodes_batch(unique_node_ids)
+
+
+async def _get_edges_for_nodes(
+    chunk_entity_relation_graph,
+    node_ids: list[str],
+) -> list[tuple[str, str, dict[str, Any]]]:
+    unique_node_ids = list(dict.fromkeys(node_id for node_id in node_ids if node_id))
+    if not unique_node_ids:
+        return []
+
+    node_edges_batch = await chunk_entity_relation_graph.get_incident_edges_with_data_batch(unique_node_ids)
+    seen_edge_pairs: set[tuple[str, str]] = set()
+    deduplicated_edges: list[tuple[str, str, dict[str, Any]]] = []
+    for node_id in unique_node_ids:
+        for source, target, edge_data in node_edges_batch.get(node_id, []) or []:
+            edge_pair = (source, target)
+            if edge_pair in seen_edge_pairs:
+                continue
+            seen_edge_pairs.add(edge_pair)
+            deduplicated_edges.append((source, target, edge_data))
+    return deduplicated_edges
+
+
 async def adelete_by_entity(
     chunk_entity_relation_graph, entities_vdb, relationships_vdb, entity_name: str, graph_db_lock: LockProtocol = None
 ) -> None:
@@ -85,9 +113,8 @@ async def adelete_by_relation(
     # Use graph database lock to ensure atomic graph and vector db operations
     async with graph_db_lock:
         try:
-            # Check if the relation exists
-            edge_exists = await chunk_entity_relation_graph.has_edge(source_entity, target_entity)
-            if not edge_exists:
+            edge_data = await chunk_entity_relation_graph.get_edge(source_entity, target_entity)
+            if edge_data is None:
                 logger.warning(f"Relation from '{source_entity}' to '{target_entity}' does not exist")
                 return
 
@@ -135,22 +162,24 @@ async def aedit_entity(
     async with graph_db_lock:
         try:
             # 1. Get current entity information
-            node_exists = await chunk_entity_relation_graph.has_node(entity_name)
-            if not node_exists:
-                raise ValueError(f"Entity '{entity_name}' does not exist")
-            node_data = await chunk_entity_relation_graph.get_node(entity_name)
-
-            # Check if entity is being renamed
+            entity_ids_to_fetch = [entity_name]
             new_entity_name = updated_data.get("entity_name", entity_name)
             is_renaming = new_entity_name != entity_name
+            if is_renaming:
+                entity_ids_to_fetch.append(new_entity_name)
 
+            existing_nodes = await _get_nodes_by_id_batch(chunk_entity_relation_graph, entity_ids_to_fetch)
+            node_data = existing_nodes.get(entity_name)
+            if node_data is None:
+                raise ValueError(f"Entity '{entity_name}' does not exist")
+
+            # Check if entity is being renamed
             # If renaming, check if new name already exists
             if is_renaming:
                 if not allow_rename:
                     raise ValueError("Entity renaming is not allowed. Set allow_rename=True to enable this feature")
 
-                existing_node = await chunk_entity_relation_graph.has_node(new_entity_name)
-                if existing_node:
+                if new_entity_name in existing_nodes:
                     raise ValueError(f"Entity name '{new_entity_name}' already exists, cannot rename")
 
             # 2. Update entity information in the graph
@@ -171,24 +200,20 @@ async def aedit_entity(
                 relations_to_update = []
                 relations_to_delete = []
                 # Get all edges related to the original entity
-                edges = await chunk_entity_relation_graph.get_node_edges(entity_name)
-                if edges:
-                    # Recreate edges for the new entity
-                    for source, target in edges:
-                        edge_data = await chunk_entity_relation_graph.get_edge(source, target)
-                        if edge_data:
-                            relations_to_delete.append(
-                                compute_mdhash_id(source + target, prefix="rel-", workspace=relationships_vdb.workspace)
-                            )
-                            relations_to_delete.append(
-                                compute_mdhash_id(target + source, prefix="rel-", workspace=relationships_vdb.workspace)
-                            )
-                            if source == entity_name:
-                                await chunk_entity_relation_graph.upsert_edge(new_entity_name, target, edge_data)
-                                relations_to_update.append((new_entity_name, target, edge_data))
-                            else:  # target == entity_name
-                                await chunk_entity_relation_graph.upsert_edge(source, new_entity_name, edge_data)
-                                relations_to_update.append((source, new_entity_name, edge_data))
+                related_edges = await _get_edges_for_nodes(chunk_entity_relation_graph, [entity_name])
+                for source, target, edge_data in related_edges:
+                    relations_to_delete.append(
+                        compute_mdhash_id(source + target, prefix="rel-", workspace=relationships_vdb.workspace)
+                    )
+                    relations_to_delete.append(
+                        compute_mdhash_id(target + source, prefix="rel-", workspace=relationships_vdb.workspace)
+                    )
+                    if source == entity_name:
+                        await chunk_entity_relation_graph.upsert_edge(new_entity_name, target, edge_data)
+                        relations_to_update.append((new_entity_name, target, edge_data))
+                    else:  # target == entity_name
+                        await chunk_entity_relation_graph.upsert_edge(source, new_entity_name, edge_data)
+                        relations_to_update.append((source, new_entity_name, edge_data))
 
                 # Delete old entity
                 await chunk_entity_relation_graph.delete_node(entity_name)
@@ -304,10 +329,9 @@ async def aedit_relation(
     async with graph_db_lock:
         try:
             # 1. Get current relation information
-            edge_exists = await chunk_entity_relation_graph.has_edge(source_entity, target_entity)
-            if not edge_exists:
-                raise ValueError(f"Relation from '{source_entity}' to '{target_entity}' does not exist")
             edge_data = await chunk_entity_relation_graph.get_edge(source_entity, target_entity)
+            if edge_data is None:
+                raise ValueError(f"Relation from '{source_entity}' to '{target_entity}' does not exist")
             # Important: First delete the old relation record from the vector database
             old_relation_id = compute_mdhash_id(
                 source_entity + target_entity, prefix="rel-", workspace=relationships_vdb.workspace
@@ -474,18 +498,16 @@ async def acreate_relation(
     # Use graph database lock to ensure atomic graph and vector db operations
     async with graph_db_lock:
         try:
-            # Check if both entities exist
-            source_exists = await chunk_entity_relation_graph.has_node(source_entity)
-            target_exists = await chunk_entity_relation_graph.has_node(target_entity)
+            existing_nodes = await _get_nodes_by_id_batch(chunk_entity_relation_graph, [source_entity, target_entity])
 
-            if not source_exists:
+            if source_entity not in existing_nodes:
                 raise ValueError(f"Source entity '{source_entity}' does not exist")
-            if not target_exists:
+            if target_entity not in existing_nodes:
                 raise ValueError(f"Target entity '{target_entity}' does not exist")
 
             # Check if relation already exists
-            existing_edge = await chunk_entity_relation_graph.has_edge(source_entity, target_entity)
-            if existing_edge:
+            existing_edge = await chunk_entity_relation_graph.get_edge(source_entity, target_entity)
+            if existing_edge is not None:
                 raise ValueError(f"Relation from '{source_entity}' to '{target_entity}' already exists")
 
             # Prepare edge data with defaults if missing
@@ -594,19 +616,22 @@ async def amerge_entities(
             target_entity_data = {} if target_entity_data is None else target_entity_data
 
             # 1. Check if all source entities exist
+            existing_nodes = await _get_nodes_by_id_batch(
+                chunk_entity_relation_graph, source_entities + [target_entity]
+            )
+
             source_entities_data = {}
             for entity_name in source_entities:
-                node_exists = await chunk_entity_relation_graph.has_node(entity_name)
-                if not node_exists:
+                node_data = existing_nodes.get(entity_name)
+                if node_data is None:
                     raise ValueError(f"Source entity '{entity_name}' does not exist")
-                node_data = await chunk_entity_relation_graph.get_node(entity_name)
                 source_entities_data[entity_name] = node_data
 
             # 2. Check if target entity exists and get its data if it does
-            target_exists = await chunk_entity_relation_graph.has_node(target_entity)
+            target_exists = target_entity in existing_nodes
             existing_target_entity_data = {}
             if target_exists:
-                existing_target_entity_data = await chunk_entity_relation_graph.get_node(target_entity)
+                existing_target_entity_data = existing_nodes[target_entity]
                 logger.info(f"Target entity '{target_entity}' already exists, will merge data")
 
             # 3. Merge entity data
@@ -620,16 +645,7 @@ async def amerge_entities(
                 merged_entity_data[key] = value
 
             # 4. Get all relationships of the source entities
-            all_relations = []
-            for entity_name in source_entities:
-                # Get all relationships of the source entities
-                edges = await chunk_entity_relation_graph.get_node_edges(entity_name)
-                if edges:
-                    for src, tgt in edges:
-                        # Ensure src is the current entity
-                        if src == entity_name:
-                            edge_data = await chunk_entity_relation_graph.get_edge(src, tgt)
-                            all_relations.append((src, tgt, edge_data))
+            all_relations = await _get_edges_for_nodes(chunk_entity_relation_graph, source_entities)
 
             # 5. Create or update the target entity
             merged_entity_data["entity_id"] = target_entity
@@ -687,7 +703,7 @@ async def amerge_entities(
                 await chunk_entity_relation_graph.upsert_edge(rel_data["src"], rel_data["tgt"], rel_data["data"])
                 logger.info(f"Created or updated relationship: {rel_data['src']} -> {rel_data['tgt']}")
 
-                # Delete relationships records from vector database
+            if relations_to_delete:
                 await relationships_vdb.delete(relations_to_delete)
                 logger.info(f"Deleted {len(relations_to_delete)} relation records for entity from vector database")
 
@@ -739,19 +755,17 @@ async def amerge_entities(
                 await relationships_vdb.upsert(relation_data_for_vdb)
 
             # 9. Delete source entities
-            for entity_name in source_entities:
-                if entity_name == target_entity:
-                    logger.info(f"Skipping deletion of '{entity_name}' as it's also the target entity")
-                    continue
-
-                # Delete entity node from knowledge graph
-                await chunk_entity_relation_graph.delete_node(entity_name)
-
-                # Delete entity record from vector database
-                entity_id = compute_mdhash_id(entity_name, prefix="ent-", workspace=entities_vdb.workspace)
-                await entities_vdb.delete([entity_id])
-
-                logger.info(f"Deleted source entity '{entity_name}' and its vector embedding from database")
+            source_entities_to_delete = [entity_name for entity_name in source_entities if entity_name != target_entity]
+            if source_entities_to_delete:
+                await chunk_entity_relation_graph.remove_nodes(source_entities_to_delete)
+                entity_ids_to_delete = [
+                    compute_mdhash_id(entity_name, prefix="ent-", workspace=entities_vdb.workspace)
+                    for entity_name in source_entities_to_delete
+                ]
+                await entities_vdb.delete(entity_ids_to_delete)
+                logger.info(
+                    f"Deleted {len(source_entities_to_delete)} source entities and their vector embeddings from database"
+                )
 
             logger.info(f"Successfully merged {len(source_entities)} entities into '{target_entity}'")
             return await get_entity_info(

@@ -19,7 +19,6 @@ from fastapi import APIRouter, Depends, Request, Response
 from aperag.db.models import User
 from aperag.schema import view_models
 from aperag.service.bot_service import bot_service
-from aperag.service.flow_service import flow_service_global
 from aperag.utils.audit_decorator import audit
 from aperag.views.auth import required_user
 
@@ -64,13 +63,3 @@ async def update_bot_view(
 async def delete_bot_view(request: Request, bot_id: str, user: User = Depends(required_user)):
     await bot_service.delete_bot(str(user.id), bot_id)
     return Response(status_code=204)
-
-
-@router.post("/bots/{bot_id}/flow/debug", tags=["flows"])
-async def debug_flow_stream_view(
-    request: Request,
-    bot_id: str,
-    debug: view_models.DebugFlowRequest,
-    user: User = Depends(required_user),
-):
-    return await flow_service_global.debug_flow_stream(str(user.id), bot_id, debug)

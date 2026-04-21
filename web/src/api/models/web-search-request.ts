@@ -21,7 +21,7 @@
  */
 export interface WebSearchRequest {
     /**
-     * Search query for regular web search. Optional if only using LLM.txt discovery.
+     * Search query for web search. Optional when using source-only site browsing.
      * @type {string}
      * @memberof WebSearchRequest
      */
@@ -50,11 +50,5 @@ export interface WebSearchRequest {
      * @memberof WebSearchRequest
      */
     'source'?: string;
-    /**
-     * Domain for LLM.txt discovery search. When provided, performs additional LLM-optimized content discovery from the specified domain, independent of the main search. Results are merged with regular search results.
-     * @type {string}
-     * @memberof WebSearchRequest
-     */
-    'search_llms_txt'?: string;
 }
 

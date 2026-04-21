@@ -152,7 +152,7 @@ class TestRealWorldReading:
         try:
             print(f"\n=== Batch Reading: {len(urls)} URLs ===")
 
-            response = await service.read(WebReadRequest(urls=urls, timeout=15, max_concurrent=2))
+            response = await service.read(WebReadRequest(url_list=urls, timeout=15, max_concurrent=2))
 
             print(f"Total URLs: {response.total_urls}")
             print(f"Successful: {response.successful}")
@@ -177,88 +177,6 @@ class TestRealWorldReading:
             pytest.skip(f"Batch reading test skipped due to: {e}")
         finally:
             await service.close()
-
-
-@pytest.mark.integration
-class TestRealWorldLLMTxtDiscovery:
-    """Real world LLM.txt discovery tests."""
-
-    @pytest.mark.asyncio
-    async def test_discover_real_llm_txt_files(self):
-        """Test discovering actual LLM.txt files from known sources."""
-        from aperag.websearch.search.providers.llm_txt_search_provider import LLMTxtSearchProvider
-
-        provider = LLMTxtSearchProvider()
-
-        # Known sources that likely have LLM.txt files
-        test_sources = [
-            "modelcontextprotocol.io",  # Known to have llms.txt
-            "docs.anthropic.com",  # Anthropic documentation
-        ]
-
-        try:
-            for source in test_sources:
-                print(f"\n=== LLM.txt Discovery: {source} ===")
-
-                results = await provider.search(query="documentation", source=source, max_results=5, timeout=20)
-
-                print(f"Found {len(results)} LLM.txt results")
-
-                if results:
-                    for result in results:
-                        print(f"URL: {result.url}")
-                        print(f"Title: {result.title}")
-                        print(f"Snippet: {result.snippet[:100]}...")
-
-                        # Validate LLM.txt URL structure
-                        assert "llms" in result.url.lower()
-                        assert result.url.startswith("https://")
-                        assert result.domain == source
-
-                    print("✅ LLM.txt discovery successful!")
-                else:
-                    print("⚠️ No LLM.txt files found for this source")
-
-        except Exception as e:
-            pytest.skip(f"LLM.txt discovery test skipped due to: {e}")
-        finally:
-            await provider.close()
-
-    @pytest.mark.asyncio
-    async def test_direct_llm_txt_url_reading(self):
-        """Test reading a direct LLM.txt URL."""
-        from aperag.websearch.search.providers.llm_txt_search_provider import LLMTxtSearchProvider
-
-        provider = LLMTxtSearchProvider()
-
-        # Direct LLM.txt URL (known to exist)
-        direct_url = "https://modelcontextprotocol.io/llms-full.txt"
-
-        try:
-            print(f"\n=== Direct LLM.txt Reading: {direct_url} ===")
-
-            results = await provider.search(query="test", source=direct_url, max_results=1, timeout=15)
-
-            if results:
-                result = results[0]
-                print(f"URL: {result.url}")
-                print(f"Title: {result.title}")
-                print(f"Domain: {result.domain}")
-                print(f"Snippet: {result.snippet[:200]}...")
-
-                assert result.url == direct_url
-                assert result.domain == "modelcontextprotocol.io"
-                assert len(result.snippet) > 0
-
-                print("✅ Direct LLM.txt reading successful!")
-            else:
-                print("⚠️ Failed to read direct LLM.txt URL")
-
-        except Exception as e:
-            pytest.skip(f"Direct LLM.txt test skipped due to: {e}")
-        finally:
-            await provider.close()
-
 
 @pytest.mark.integration
 class TestRealWorldPerformance:

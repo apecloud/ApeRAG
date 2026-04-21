@@ -317,29 +317,24 @@ async def web_search(
     timeout: int = 30,
     locale: str = "en-US",
     source: str = "",
-    search_llms_txt: str = "",
 ) -> Dict[str, Any]:
-    """Perform web search using various search engines with advanced domain targeting.
+    """Perform best-effort web search with optional domain targeting.
 
     Args:
-        query: Search query for regular web search. Optional if only using LLM.txt discovery.
+        query: Search query for web search. Optional when using source-only site browsing.
         max_results: Maximum number of results to return (default: 5)
         timeout: Request timeout in seconds (default: 30)
         locale: Browser locale (default: en-US)
         source: Optional domain or URL for site-specific filtering. When provided with query,
                 limits search results to this domain (e.g., 'site:vercel.com query').
-        search_llms_txt: Domain for LLM.txt discovery search. When provided, performs additional
-                        LLM-optimized content discovery from the specified domain, independent
-                        of the main search. Results are merged with regular search results.
 
     Returns:
         Web search results with URLs, titles, snippets, and metadata
 
     Note:
-        Supports parallel execution of regular search and LLM.txt discovery.
-        Results are automatically merged and ranked.
-        Response payloads include lightweight `meta` diagnostics so callers can
-        distinguish empty results from provider unavailability.
+        Uses JINA first when configured, otherwise falls back to DuckDuckGo.
+        Search failures are soft-failed into empty result sets with lightweight `meta` diagnostics so
+        downstream workflows stay stable while still distinguishing empty vs unavailable responses.
     """
     try:
         api_key = get_api_key()
@@ -357,9 +352,6 @@ async def web_search(
 
         if source and source.strip():
             search_data["source"] = source.strip()
-
-        if search_llms_txt and search_llms_txt.strip():
-            search_data["search_llms_txt"] = search_llms_txt.strip()
 
         # Use longer timeout for web search operations
         async with httpx.AsyncClient(timeout=90.0) as client:
@@ -545,20 +537,6 @@ site_results = web_search(
     max_results=10
 )
 
-# LLM.txt discovery search (independent)
-llms_txt_results = web_search(
-    search_llms_txt="anthropic.com",  # discover LLM.txt content from anthropic.com
-    max_results=5
-)
-
-# Combined search: regular + LLM.txt discovery
-combined_results = web_search(
-    query="machine learning tutorials",
-    source="docs.python.org",  # regular search limited to Python docs
-    search_llms_txt="openai.com",  # plus LLM.txt discovery from OpenAI
-    max_results=8
-)
-
 # Search results include URLs, titles, snippets, and domains
 for result in web_results.results:
     print(f"Title: {result.title}")
@@ -591,11 +569,10 @@ for result in content.results:
 
 ### Combined Workflow Example:
 ```
-# 1. Search web for recent information with LLM.txt discovery
+# 1. Search web for recent information
 web_results = web_search(
     query="latest AI developments 2025",
     source="anthropic.com",  # limit regular search to Anthropic's content
-    search_llms_txt="anthropic.com",  # discover LLM-optimized content from Anthropic
     max_results=3
 )
 
@@ -653,10 +630,9 @@ I can help you search your knowledge base effectively using ApeRAG.
 - 📚 **Browse your collections** to understand what data you have (with essential details)
 - 🎯 **Find specific information** with precise queries
 - 💡 **Suggest search strategies** for complex queries
-- 🌐 **Search the web** for latest information using multiple search engines
+- 🌐 **Search the web** for latest information with domain targeting and best-effort fallback
 - 📄 **Read web content** and extract clean text from any web page
 - 🔗 **Combine web and internal search** for comprehensive results
-- 🤖 **LLM.txt discovery** for AI-optimized content from any domain
 - 🎯 **Domain-targeted search** with flexible result filtering
 - 🏢 **Site-specific search** to focus on specific websites or domains
 
@@ -694,7 +670,7 @@ def get_api_key() -> str:
     # Try to get API key from HTTP headers first
     try:
         # Use FastMCP's dependency function to get HTTP headers
-        headers = get_http_headers()
+        headers = get_http_headers(include={"authorization"})
 
         if headers:
             # Try to extract Authorization header

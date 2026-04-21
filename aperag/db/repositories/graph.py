@@ -15,16 +15,34 @@
 import logging
 from typing import Any, Dict, List, Optional, Tuple
 
-from sqlalchemy import and_, delete, func, or_, select, text
+from sqlalchemy import and_, delete, func, or_, select, text, union_all
 from sqlalchemy.dialects.postgresql import insert
 
 from aperag.db.models import LightRAGGraphEdge, LightRAGGraphNode
+from aperag.graph.lightrag.prompt import GRAPH_FIELD_SEP
 
 logger = logging.getLogger(__name__)
 
 
 class GraphRepositoryMixin:
     """Graph Repository Mixin for LightRAG Graph operations using SQLAlchemy"""
+
+    @staticmethod
+    def _build_source_id_overlap_clause(column, chunk_ids: List[str]):
+        if not chunk_ids:
+            return None
+
+        conditions = []
+        for chunk_id in set(chunk_ids):
+            conditions.extend(
+                [
+                    column == chunk_id,
+                    column.like(f"{chunk_id}{GRAPH_FIELD_SEP}%"),
+                    column.like(f"%{GRAPH_FIELD_SEP}{chunk_id}{GRAPH_FIELD_SEP}%"),
+                    column.like(f"%{GRAPH_FIELD_SEP}{chunk_id}"),
+                ]
+            )
+        return or_(*conditions) if conditions else None
 
     # Node operations
     def upsert_graph_node(self, workspace: str, node_id: str, node_data: Dict[str, Any]) -> None:
@@ -314,6 +332,75 @@ class GraphRepositoryMixin:
 
         return self._execute_query(_get_labels)
 
+    def get_graph_nodes_by_source_ids(self, workspace: str, chunk_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+        """Get graph nodes whose source_id references any of the given chunk IDs"""
+        if not chunk_ids:
+            return {}
+
+        def _get_nodes(session):
+            overlap_clause = self._build_source_id_overlap_clause(LightRAGGraphNode.source_id, chunk_ids)
+            stmt = select(LightRAGGraphNode).where(
+                and_(
+                    LightRAGGraphNode.workspace == workspace,
+                    LightRAGGraphNode.source_id.is_not(None),
+                    overlap_clause,
+                )
+            )
+            result = session.execute(stmt)
+            nodes = {}
+            for node in result.unique().scalars():
+                node_dict = {
+                    "entity_id": node.entity_id,
+                    "entity_type": node.entity_type,
+                    "description": node.description,
+                    "source_id": node.source_id,
+                    "file_path": node.file_path,
+                    "created_at": int(node.createtime.timestamp()) if node.createtime else None,
+                }
+                if node.entity_name and node.entity_name != node.entity_id:
+                    node_dict["entity_name"] = node.entity_name
+                nodes[node.entity_id] = {k: v for k, v in node_dict.items() if v is not None}
+            return nodes
+
+        return self._execute_query(_get_nodes)
+
+    def get_graph_edges_by_source_ids(
+        self, workspace: str, chunk_ids: List[str]
+    ) -> Dict[Tuple[str, str], Dict[str, Any]]:
+        """Get graph edges whose source_id references any of the given chunk IDs"""
+        if not chunk_ids:
+            return {}
+
+        def _get_edges(session):
+            overlap_clause = self._build_source_id_overlap_clause(LightRAGGraphEdge.source_id, chunk_ids)
+            stmt = select(LightRAGGraphEdge).where(
+                and_(
+                    LightRAGGraphEdge.workspace == workspace,
+                    LightRAGGraphEdge.source_id.is_not(None),
+                    overlap_clause,
+                )
+            )
+            result = session.execute(stmt)
+            edges = {}
+            for edge in result.unique().scalars():
+                pair = (edge.source_entity_id, edge.target_entity_id)
+                edge_dict = {
+                    "weight": float(edge.weight) if edge.weight is not None else 0.0,
+                    "keywords": edge.keywords,
+                    "description": edge.description,
+                    "source_id": edge.source_id,
+                    "file_path": edge.file_path,
+                }
+                required_fields = {"weight", "keywords", "description", "source_id"}
+                filtered_result = {}
+                for key, value in edge_dict.items():
+                    if key in required_fields or value is not None:
+                        filtered_result[key] = value
+                edges[pair] = filtered_result
+            return edges
+
+        return self._execute_query(_get_edges)
+
     def drop_graph_workspace(self, workspace: str) -> Dict[str, str]:
         """Drop all graph data for a workspace"""
 
@@ -419,6 +506,116 @@ class GraphRepositoryMixin:
 
         return self._execute_query(_get_degrees_batch)
 
+    def get_top_degree_graph_nodes(self, workspace: str, limit: int) -> Tuple[Dict[str, Dict[str, Any]], int]:
+        """Get top-degree graph nodes with node payloads in a single repository call."""
+
+        def _get_top_degree_graph_nodes(session):
+            total_stmt = select(func.count(LightRAGGraphNode.id)).where(LightRAGGraphNode.workspace == workspace)
+            total_nodes = session.execute(total_stmt).scalar() or 0
+            if total_nodes == 0 or limit <= 0:
+                return {}, total_nodes
+
+            outgoing = (
+                select(
+                    LightRAGGraphEdge.source_entity_id.label("entity_id"),
+                    func.count().label("degree_part"),
+                )
+                .where(LightRAGGraphEdge.workspace == workspace)
+                .group_by(LightRAGGraphEdge.source_entity_id)
+            )
+            incoming = (
+                select(
+                    LightRAGGraphEdge.target_entity_id.label("entity_id"),
+                    func.count().label("degree_part"),
+                )
+                .where(LightRAGGraphEdge.workspace == workspace)
+                .group_by(LightRAGGraphEdge.target_entity_id)
+            )
+
+            degree_parts = union_all(outgoing, incoming).subquery()
+            degree_totals = (
+                select(
+                    degree_parts.c.entity_id,
+                    func.sum(degree_parts.c.degree_part).label("degree"),
+                )
+                .group_by(degree_parts.c.entity_id)
+                .subquery()
+            )
+
+            stmt = (
+                select(LightRAGGraphNode, degree_totals.c.degree)
+                .join(
+                    degree_totals,
+                    and_(
+                        LightRAGGraphNode.workspace == workspace,
+                        LightRAGGraphNode.entity_id == degree_totals.c.entity_id,
+                    ),
+                )
+                .where(LightRAGGraphNode.workspace == workspace, degree_totals.c.degree > 0)
+                .order_by(degree_totals.c.degree.desc(), LightRAGGraphNode.entity_id)
+                .limit(limit)
+            )
+
+            result = session.execute(stmt)
+            nodes = {}
+            for node, degree in result:
+                node_dict = {
+                    "entity_id": node.entity_id,
+                    "entity_type": node.entity_type,
+                    "description": node.description,
+                    "source_id": node.source_id,
+                    "file_path": node.file_path,
+                    "created_at": int(node.createtime.timestamp()) if node.createtime else None,
+                    "degree": int(degree or 0),
+                }
+                if node.entity_name and node.entity_name != node.entity_id:
+                    node_dict["entity_name"] = node.entity_name
+                nodes[node.entity_id] = {k: v for k, v in node_dict.items() if v is not None}
+
+            return nodes, total_nodes
+
+        return self._execute_query(_get_top_degree_graph_nodes)
+
+    def get_graph_node_ids(self, workspace: str, limit: Optional[int] = None) -> List[str]:
+        """Get graph node IDs directly, optionally with a limit."""
+
+        def _get_graph_node_ids(session):
+            stmt = (
+                select(LightRAGGraphNode.entity_id)
+                .where(LightRAGGraphNode.workspace == workspace)
+                .order_by(LightRAGGraphNode.entity_id)
+            )
+            if limit is not None:
+                stmt = stmt.limit(limit)
+
+            result = session.execute(stmt)
+            return [row[0] for row in result]
+
+        return self._execute_query(_get_graph_node_ids)
+
+    def search_graph_node_ids_by_label(self, workspace: str, node_label: str, limit: int) -> List[str]:
+        """Search graph node IDs by label pattern in stable ascending order."""
+        if limit <= 0:
+            return []
+
+        def _search_graph_node_ids_by_label(session):
+            stmt = (
+                select(LightRAGGraphNode.entity_id)
+                .where(
+                    and_(
+                        LightRAGGraphNode.workspace == workspace,
+                        LightRAGGraphNode.entity_id.ilike(f"%{node_label}%"),
+                    )
+                )
+                .order_by(LightRAGGraphNode.entity_id)
+                .limit(limit)
+            )
+
+            result = session.execute(stmt)
+            return [row[0] for row in result]
+
+        return self._execute_query(_search_graph_node_ids_by_label)
+
     def get_graph_edges_batch(
         self, workspace: str, edge_pairs: List[Tuple[str, str]]
     ) -> Dict[Tuple[str, str], Dict[str, Any]]:
@@ -513,6 +710,75 @@ class GraphRepositoryMixin:
             return edges_dict
 
         return self._execute_query(_get_nodes_edges_batch)
+
+    def get_graph_incident_edges_with_data_batch(
+        self, workspace: str, node_ids: List[str]
+    ) -> Dict[str, List[Tuple[str, str, Dict[str, Any]]]]:
+        """Get incident edges with edge payloads for multiple nodes in one query."""
+        if not node_ids:
+            return {}
+
+        def _get_incident_edges_with_data_batch(session):
+            query = text("""
+                WITH outgoing_edges AS (
+                    SELECT
+                        e.source_entity_id AS node_id,
+                        e.source_entity_id,
+                        e.target_entity_id,
+                        e.weight,
+                        e.keywords,
+                        e.description,
+                        e.source_id,
+                        e.file_path
+                    FROM lightrag_graph_edges e
+                    WHERE e.workspace = :workspace
+                      AND e.source_entity_id = ANY(:node_ids)
+                ),
+                incoming_edges AS (
+                    SELECT
+                        e.target_entity_id AS node_id,
+                        e.source_entity_id,
+                        e.target_entity_id,
+                        e.weight,
+                        e.keywords,
+                        e.description,
+                        e.source_id,
+                        e.file_path
+                    FROM lightrag_graph_edges e
+                    WHERE e.workspace = :workspace
+                      AND e.target_entity_id = ANY(:node_ids)
+                )
+                SELECT *
+                FROM outgoing_edges
+                UNION ALL
+                SELECT *
+                FROM incoming_edges
+                ORDER BY node_id, source_entity_id, target_entity_id
+            """)
+
+            result = session.execute(query, {"workspace": workspace, "node_ids": node_ids})
+            edges_dict = {node_id: [] for node_id in node_ids}
+
+            for row in result:
+                node_id = row.node_id
+                edge_data = {
+                    "weight": float(row.weight) if row.weight is not None else 0.0,
+                    "keywords": row.keywords,
+                    "description": row.description,
+                    "source_id": row.source_id,
+                    "file_path": row.file_path,
+                }
+                required_fields = {"weight", "keywords", "description", "source_id"}
+                filtered_edge_data = {}
+                for key, value in edge_data.items():
+                    if key in required_fields or value is not None:
+                        filtered_edge_data[key] = value
+
+                edges_dict[node_id].append((row.source_entity_id, row.target_entity_id, filtered_edge_data))
+
+            return edges_dict
+
+        return self._execute_query(_get_incident_edges_with_data_batch)
 
     def delete_graph_nodes_batch(self, workspace: str, node_ids: List[str]) -> None:
         """Delete multiple nodes and their edges in batch using efficient SQL"""

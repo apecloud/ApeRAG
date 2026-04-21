@@ -38,6 +38,7 @@ from aperag.agent.agent_session_manager_lifecycle import agent_session_manager_l
 from aperag.exception_handlers import register_exception_handlers
 from aperag.llm.litellm_track import register_custom_llm_track
 from aperag.mcp import mcp_server
+from aperag.views.agent_runtime import router as agent_runtime_router
 from aperag.views.api_key import router as api_key_router
 from aperag.views.audit import router as audit_router
 from aperag.views.auth import router as auth_router
@@ -47,7 +48,6 @@ from aperag.views.collections import router as collections_router
 from aperag.views.config import router as config_router
 from aperag.views.evaluation import router as evaluation_router
 from aperag.views.export import router as export_router
-from aperag.views.flow import router as flow_router
 from aperag.views.graph import router as graph_router
 from aperag.views.llm import router as llm_router
 from aperag.views.main import router as main_router
@@ -102,7 +102,6 @@ app.include_router(collections_router, prefix="/api/v1")  # Add collections rout
 app.include_router(export_router, prefix="/api/v1")  # Add export router
 app.include_router(api_key_router, prefix="/api/v1")
 app.include_router(audit_router, prefix="/api/v1")  # Add audit router
-app.include_router(flow_router, prefix="/api/v1")
 app.include_router(llm_router, prefix="/api/v1")
 app.include_router(graph_router, prefix="/api/v1")
 app.include_router(marketplace_router, prefix="/api/v1")  # Add marketplace router
@@ -115,6 +114,7 @@ app.include_router(bot_router, prefix="/api/v1")
 app.include_router(chat_router, prefix="/api/v1")
 app.include_router(openai_router, prefix="/v1")
 app.include_router(config_router, prefix="/api/v1/config")
+app.include_router(agent_runtime_router, prefix="/api/v2")
 
 # Only include test router in dev mode
 if os.environ.get("DEPLOYMENT_MODE") == "dev":

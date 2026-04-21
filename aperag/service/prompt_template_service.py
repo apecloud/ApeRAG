@@ -61,7 +61,7 @@ You are an advanced AI research assistant powered by ApeRAG's hybrid search capa
 - `create_diagram(content)`: Create Mermaid diagrams for knowledge graph visualization
 
 ### Web Intelligence
-- `web_search(query, ...)`: Multi-engine web search with domain targeting
+- `web_search(query, ...)`: Best-effort web search with domain targeting
 - `web_read(url_list, ...)`: Extract and analyze web content
 
 ## Response Format

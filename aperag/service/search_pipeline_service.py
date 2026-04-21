@@ -1,0 +1,433 @@
+# Copyright 2025 ApeCloud, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import asyncio
+import logging
+from functools import partial
+from typing import List, Optional, Tuple
+
+from aperag.config import build_vector_db_context, settings
+from aperag.context.context import ContextManager
+from aperag.db.models import Collection
+from aperag.db.ops import async_db_ops
+from aperag.exceptions import ValidationException
+from aperag.index.fulltext_index import extract_keywords
+from aperag.llm.embed.base_embedding import get_collection_embedding_service_sync
+from aperag.llm.llm_error_types import (
+    EmbeddingError,
+    InvalidConfigurationError,
+    ProviderNotFoundError,
+    RerankError,
+)
+from aperag.llm.rerank.rerank_service import RerankService
+from aperag.query.query import DocumentWithScore
+from aperag.schema.utils import parseCollectionConfig
+from aperag.schema.view_models import SearchRequest, SearchResultItem
+from aperag.service.default_model_service import default_model_service
+from aperag.utils.utils import generate_vector_db_collection_name
+
+logger = logging.getLogger(__name__)
+
+
+def _deduplicate_vision_results(results: List[DocumentWithScore]) -> List[DocumentWithScore]:
+    """Prefer vision_to_text hits when both image index variants return the same asset."""
+    vision_to_text_keys = set()
+    for doc in results:
+        metadata = doc.metadata or {}
+        if (
+            metadata.get("indexer") == "vision"
+            and metadata.get("index_method") == "vision_to_text"
+            and metadata.get("collection_id") is not None
+            and metadata.get("document_id") is not None
+            and metadata.get("asset_id") is not None
+        ):
+            key = (
+                metadata["collection_id"],
+                metadata["document_id"],
+                metadata["asset_id"],
+            )
+            vision_to_text_keys.add(key)
+
+    if not vision_to_text_keys:
+        return results
+
+    deduplicated_results = []
+    for doc in results:
+        metadata = doc.metadata or {}
+        if (
+            metadata.get("indexer") == "vision"
+            and metadata.get("index_method") != "vision_to_text"
+            and metadata.get("collection_id") is not None
+            and metadata.get("document_id") is not None
+            and metadata.get("asset_id") is not None
+        ):
+            key = (
+                metadata["collection_id"],
+                metadata["document_id"],
+                metadata["asset_id"],
+            )
+            if key in vision_to_text_keys:
+                logger.info(f"Removing duplicate vision document for asset {key[2]} from document {key[1]}")
+                continue
+        deduplicated_results.append(doc)
+
+    return deduplicated_results
+
+
+class SearchPipelineService:
+    """Direct Python orchestration for collection and chat search."""
+
+    async def execute_search(
+        self,
+        data: SearchRequest,
+        collection_id: str,
+        search_user_id: str,
+        chat_id: Optional[str] = None,
+    ) -> Tuple[List[SearchResultItem], str]:
+        query = (data.query or "").strip()
+        if not query:
+            raise ValidationException("query is required")
+
+        recall_tasks = []
+        collection = await async_db_ops.query_collection(search_user_id, collection_id)
+        if not collection:
+            raise ValidationException(f"collection not found: {collection_id}")
+
+        if data.vector_search:
+            recall_tasks.append(
+                self._vector_search(
+                    collection=collection,
+                    query=query,
+                    top_k=data.vector_search.topk,
+                    similarity_threshold=data.vector_search.similarity,
+                    chat_id=chat_id,
+                )
+            )
+        if data.fulltext_search:
+            recall_tasks.append(
+                self._fulltext_search(
+                    collection=collection,
+                    query=query,
+                    top_k=data.fulltext_search.topk,
+                    keywords=data.fulltext_search.keywords,
+                    user_id=search_user_id,
+                    chat_id=chat_id,
+                )
+            )
+        if data.graph_search:
+            recall_tasks.append(
+                self._graph_search(
+                    collection=collection,
+                    query=query,
+                    top_k=data.graph_search.topk,
+                )
+            )
+        if data.summary_search:
+            recall_tasks.append(
+                self._summary_search(
+                    collection=collection,
+                    query=query,
+                    top_k=data.summary_search.topk,
+                    similarity_threshold=data.summary_search.similarity,
+                )
+            )
+        if data.vision_search:
+            recall_tasks.append(
+                self._vision_search(
+                    collection=collection,
+                    query=query,
+                    top_k=data.vision_search.topk,
+                    similarity_threshold=data.vision_search.similarity,
+                )
+            )
+
+        if not recall_tasks:
+            raise ValidationException("At least one search strategy must be enabled")
+
+        recall_results = await asyncio.gather(*recall_tasks)
+        merged_docs = self._merge_results(recall_results)
+        reranked_docs = await self._rerank(
+            query=query,
+            docs=merged_docs,
+            user_id=search_user_id,
+            use_rerank=bool(data.rerank),
+        )
+
+        items = []
+        for idx, doc in enumerate(reranked_docs):
+            metadata = doc.metadata or {}
+            items.append(
+                SearchResultItem(
+                    rank=idx + 1,
+                    score=doc.score,
+                    content=doc.text,
+                    source=metadata.get("source", ""),
+                    recall_type=metadata.get("recall_type", ""),
+                    metadata=metadata,
+                )
+            )
+
+        return items, "rerank"
+
+    async def _vector_search(
+        self,
+        collection: Collection,
+        query: str,
+        top_k: int,
+        similarity_threshold: float,
+        chat_id: Optional[str] = None,
+    ) -> List[DocumentWithScore]:
+        try:
+            collection_name = generate_vector_db_collection_name(collection.id)
+            embedding_model, vector_size = get_collection_embedding_service_sync(collection)
+            vectordb_ctx = build_vector_db_context(collection_name, vector_size=vector_size)
+            context_manager = ContextManager(collection_name, embedding_model, settings.vector_db_type, vectordb_ctx)
+
+            vector = await asyncio.to_thread(embedding_model.embed_query, query)
+            query_fn = partial(
+                context_manager.query,
+                query,
+                score_threshold=similarity_threshold,
+                topk=top_k,
+                vector=vector,
+                index_types=["vector"],
+                chat_id=chat_id,
+            )
+            results = await asyncio.to_thread(query_fn)
+            for item in results:
+                if item.metadata is None:
+                    item.metadata = {}
+                item.metadata["recall_type"] = "vector_search"
+            return results
+        except ProviderNotFoundError as e:
+            logger.warning(f"Vector search skipped for collection {collection.id} due to provider not found: {str(e)}")
+            return []
+        except EmbeddingError as e:
+            logger.warning(f"Vector search skipped for collection {collection.id} due to embedding error: {str(e)}")
+            return []
+        except Exception as e:
+            logger.error(f"Vector search failed for collection {collection.id}: {str(e)}")
+            return []
+
+    async def _fulltext_search(
+        self,
+        collection: Collection,
+        query: str,
+        top_k: int,
+        keywords: Optional[List[str]],
+        user_id: str,
+        chat_id: Optional[str] = None,
+    ) -> List[DocumentWithScore]:
+        from aperag.index.fulltext_index import fulltext_indexer
+
+        index_name = generate_vector_db_collection_name(collection.id)
+        final_keywords = list(keywords or [])
+        if not final_keywords:
+            extractor_ctx = {
+                "index_name": index_name,
+                "es_host": settings.es_host,
+                "es_timeout": settings.es_timeout,
+                "es_max_retries": settings.es_max_retries,
+                "user_id": user_id,
+            }
+            final_keywords = await extract_keywords(query, extractor_ctx)
+
+        final_keywords = list(set(final_keywords))
+        docs = await fulltext_indexer.search_document(index_name, final_keywords, top_k * 3, chat_id=chat_id)
+        for doc in docs:
+            if doc.metadata is None:
+                doc.metadata = {}
+            doc.metadata["recall_type"] = "fulltext_search"
+        return docs
+
+    async def _graph_search(
+        self,
+        collection: Collection,
+        query: str,
+        top_k: int,
+    ) -> List[DocumentWithScore]:
+        config = parseCollectionConfig(collection.config)
+        if not config.enable_knowledge_graph:
+            logger.warning(f"Collection {collection.id} does not have knowledge graph enabled")
+            return []
+
+        from aperag.graph import lightrag_manager
+        from aperag.graph.lightrag import QueryParam
+
+        rag = await lightrag_manager.create_lightrag_instance(collection)
+        param = QueryParam(mode="hybrid", only_need_context=True, top_k=top_k)
+        context = await rag.aquery_context(query=query, param=param)
+        if not context:
+            return []
+        return [DocumentWithScore(text=context, metadata={"recall_type": "graph_search"})]
+
+    async def _summary_search(
+        self,
+        collection: Collection,
+        query: str,
+        top_k: int,
+        similarity_threshold: float,
+    ) -> List[DocumentWithScore]:
+        try:
+            collection_name = generate_vector_db_collection_name(collection.id)
+            embedding_model, vector_size = get_collection_embedding_service_sync(collection)
+            vectordb_ctx = build_vector_db_context(collection_name, vector_size=vector_size)
+            context_manager = ContextManager(collection_name, embedding_model, settings.vector_db_type, vectordb_ctx)
+
+            vector = await asyncio.to_thread(embedding_model.embed_query, query)
+            query_fn = partial(
+                context_manager.query,
+                query,
+                score_threshold=similarity_threshold,
+                topk=top_k,
+                vector=vector,
+                index_types=["summary"],
+            )
+            results = await asyncio.to_thread(query_fn)
+            for item in results:
+                if item.metadata is None:
+                    item.metadata = {}
+                item.metadata["recall_type"] = "summary_search"
+            return results
+        except ProviderNotFoundError as e:
+            logger.warning(f"Summary search skipped for collection {collection.id} due to provider not found: {str(e)}")
+            return []
+        except EmbeddingError as e:
+            logger.warning(f"Summary search skipped for collection {collection.id} due to embedding error: {str(e)}")
+            return []
+        except Exception as e:
+            logger.error(f"Summary search failed for collection {collection.id}: {str(e)}")
+            return []
+
+    async def _vision_search(
+        self,
+        collection: Collection,
+        query: str,
+        top_k: int,
+        similarity_threshold: float,
+    ) -> List[DocumentWithScore]:
+        try:
+            collection_name = generate_vector_db_collection_name(collection.id)
+            embedding_model, vector_size = get_collection_embedding_service_sync(collection)
+            vectordb_ctx = build_vector_db_context(collection_name, vector_size=vector_size)
+            context_manager = ContextManager(collection_name, embedding_model, settings.vector_db_type, vectordb_ctx)
+
+            vector = await asyncio.to_thread(embedding_model.embed_query, query)
+            expanded_top_k = top_k * 2
+            query_fn = partial(
+                context_manager.query,
+                query,
+                score_threshold=similarity_threshold,
+                topk=expanded_top_k,
+                vector=vector,
+                index_types=["vision"],
+            )
+            results = await asyncio.to_thread(query_fn)
+            for item in results:
+                if item.metadata is None:
+                    item.metadata = {}
+                item.metadata["recall_type"] = "vision_search"
+            results = _deduplicate_vision_results(results)
+            return results[:expanded_top_k]
+        except ProviderNotFoundError as e:
+            logger.warning(f"Vision search skipped for collection {collection.id} due to provider not found: {str(e)}")
+            return []
+        except EmbeddingError as e:
+            logger.warning(f"Vision search skipped for collection {collection.id} due to embedding error: {str(e)}")
+            return []
+        except Exception as e:
+            logger.error(f"Vision search failed for collection {collection.id}: {str(e)}")
+            return []
+
+    def _merge_results(self, result_sets: List[List[DocumentWithScore]]) -> List[DocumentWithScore]:
+        all_docs = []
+        for docs in result_sets:
+            all_docs.extend(docs)
+
+        seen = set()
+        unique_docs = []
+        for doc in all_docs:
+            key = doc.text or ""
+            if key in seen:
+                continue
+            seen.add(key)
+            unique_docs.append(doc)
+        return unique_docs
+
+    async def _rerank(
+        self,
+        query: str,
+        docs: List[DocumentWithScore],
+        user_id: str,
+        use_rerank: bool,
+    ) -> List[DocumentWithScore]:
+        if not docs:
+            return []
+
+        if not use_rerank:
+            return self._apply_fallback_strategy(docs)
+
+        model, model_service_provider, custom_llm_provider = await default_model_service.get_default_rerank_config(
+            user_id
+        )
+        if not all([model, model_service_provider, custom_llm_provider]):
+            return self._apply_fallback_strategy(docs)
+
+        try:
+            api_key = await async_db_ops.query_provider_api_key(model_service_provider, user_id)
+            if not api_key:
+                raise InvalidConfigurationError(
+                    "api_key", api_key, f"API KEY not found for LLM Provider:{model_service_provider}"
+                )
+
+            llm_provider = await async_db_ops.query_llm_provider_by_name(model_service_provider)
+            if not llm_provider:
+                raise ProviderNotFoundError(model_service_provider, "Rerank")
+            base_url = llm_provider.base_url
+            if not base_url:
+                raise InvalidConfigurationError(
+                    "base_url", base_url, f"Base URL not configured for provider '{model_service_provider}'"
+                )
+
+            rerank_service = RerankService(
+                rerank_provider=custom_llm_provider,
+                rerank_model=model,
+                rerank_service_url=base_url,
+                rerank_service_api_key=api_key,
+            )
+            rerank_service.validate_configuration()
+            return await rerank_service.async_rerank(query, docs)
+        except (InvalidConfigurationError, ProviderNotFoundError, RerankError) as e:
+            logger.warning(f"Rerank configuration/runtime issue, using fallback strategy: {str(e)}")
+            return self._apply_fallback_strategy(docs)
+        except Exception as e:
+            logger.error(f"Unexpected rerank failure, using fallback strategy: {str(e)}")
+            return self._apply_fallback_strategy(docs)
+
+    def _apply_fallback_strategy(self, docs: List[DocumentWithScore]) -> List[DocumentWithScore]:
+        graph_results = []
+        other_results = []
+
+        for doc in docs:
+            metadata = doc.metadata or {}
+            if metadata.get("recall_type", "") == "graph_search":
+                graph_results.append(doc)
+            else:
+                other_results.append(doc)
+
+        other_results.sort(key=lambda x: x.score if x.score is not None else 0.0, reverse=True)
+        return graph_results + other_results
+
+
+search_pipeline_service = SearchPipelineService()

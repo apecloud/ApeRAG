@@ -14,6 +14,7 @@
 
 import logging
 
+from aperag.db.repositories.agent_runtime import AsyncAgentRuntimeRepositoryMixin
 from aperag.db.repositories.api_key import AsyncApiKeyRepositoryMixin
 from aperag.db.repositories.base import AsyncBaseRepository, SyncBaseRepository
 from aperag.db.repositories.bot import AsyncBotRepositoryMixin
@@ -65,6 +66,7 @@ class DatabaseOps(
 class AsyncDatabaseOps(
     AsyncBaseRepository,
     AsyncApiKeyRepositoryMixin,
+    AsyncAgentRuntimeRepositoryMixin,
     AsyncCollectionRepositoryMixin,
     AsyncDocumentRepositoryMixin,
     AsyncBotRepositoryMixin,

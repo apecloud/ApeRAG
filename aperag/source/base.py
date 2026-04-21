@@ -79,46 +79,9 @@ class Source(ABC):
 
 
 def get_source(collectionConfig: CollectionConfig) -> Source:
-    source = None
-    match collectionConfig.source:
-        case "system":
-            from aperag.source.upload import UploadSource
+    if collectionConfig.source != "system":
+        raise CustomSourceInitializationError(f"unsupported collection source: {collectionConfig.source}")
 
-            source = UploadSource(collectionConfig)
-        case "local":
-            from aperag.source.local import LocalSource
+    from aperag.source.upload import UploadSource
 
-            source = LocalSource(collectionConfig)
-        case "s3":
-            from aperag.source.s3 import S3Source
-
-            source = S3Source(collectionConfig)
-        case "oss":
-            from aperag.source.oss import OSSSource
-
-            source = OSSSource(collectionConfig)
-        case "feishu":
-            from aperag.source.feishu.feishu import FeishuSource
-
-            source = FeishuSource(collectionConfig)
-        case "ftp":
-            from aperag.source.ftp import FTPSource
-
-            source = FTPSource(collectionConfig)
-        case "email":
-            from aperag.source.Email import EmailSource
-
-            source = EmailSource(collectionConfig)
-        case "url":
-            from aperag.source.url import URLSource
-
-            source = URLSource(collectionConfig)
-        case "tencent":
-            from aperag.source.tencent.tencent import TencentSource
-
-            source = TencentSource(collectionConfig)
-        case "git":
-            from aperag.source.github import GitHubSource
-
-            source = GitHubSource(collectionConfig)
-    return source
+    return UploadSource(collectionConfig)

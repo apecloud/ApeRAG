@@ -1,63 +1,18 @@
-name: CICD-PUSH
+name: Unit-Test
 
 on:
   push:
     branches:
-      - '*'
-      - '*/*'
+      - "**"
     tags-ignore:
-      - '*'
-
-env:
-  GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-  BASE_BRANCH: origin/main
-  GO_VERSION: "1.20"
+      - "*"
 
 jobs:
-  trigger-mode:
+  lint-and-unit:
     runs-on: ubuntu-latest
-    outputs:
-      trigger-mode: ${{ steps.get_trigger_mode.outputs.trigger_mode }}
-    steps:
-      - name: Cancel Previous Runs
-        if: github.ref_name != 'main'
-        uses: styfle/cancel-workflow-action@0.11.0
-        with:
-          all_but_latest: true
-          access_token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Get trigger mode
-        id: get_trigger_mode
-        run: |
-          TRIGGER_MODE=`bash .github/utils/utils.sh --type 6 \
-              --branch-name "${{ github.ref_name }}" \
-              --base-branch "${{ env.BASE_BRANCH }}"`
-          
-          echo $TRIGGER_MODE
-          echo trigger_mode=$TRIGGER_MODE >> $GITHUB_OUTPUT
-
-  pre-push:
-    needs: trigger-mode
-    runs-on: ubuntu-latest
-    name: Push Pre-Check
     steps:
       - uses: actions/checkout@v4
-      - name: Spell Check with Typos
-        if: contains(needs.trigger-mode.outputs.trigger-mode, '[docs]')
-        uses: crate-ci/typos@v1.13.14
-        with:
-          files: docs/
-          config: .github/utils/typos.toml
 
-  unit-test:
-    needs: trigger-mode
-    runs-on: ubuntu-latest
-    if: contains(needs.trigger-mode.outputs.trigger-mode, '[test]')
-    steps:
-      - uses: actions/checkout@v4
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
@@ -68,50 +23,25 @@ jobs:
         with:
           version: "latest"
           python-version: "3.11"
-          github-token: ${{ env.GITHUB_TOKEN }}
 
-      - name: make lint
+      - name: Install dependencies
         run: |
-          pip install ruff
+          make env-install
+
+      - name: Run lint
+        run: |
           make lint
 
-      - name: make test
+      - name: Run unit tests with coverage
         run: |
-          make install
-          uv pip install pytest
-          make unit-test
+          make test-unit
 
-  check-image:
-    needs: trigger-mode
-    if: ${{ contains(needs.trigger-mode.outputs.trigger-mode, '[docker]') }}
-    uses: apecloud/apecloud-cd/.github/workflows/release-image-check.yml@v0.1.49
-    with:
-      IMG: "apecloud/aperag"
-      BUILDX_PLATFORMS: "linux/amd64"
-      DOCKERFILE_PATH: "./Dockerfile"
-      PYTHON_VERSION: "3.11"
-    secrets: inherit
-
-  check-frontend-image:
-    needs: trigger-mode
-    if: ${{ contains(needs.trigger-mode.outputs.trigger-mode, '[frontend]') }}
-    uses: apecloud/apecloud-cd/.github/workflows/release-image-check.yml@v0.1.49
-    with:
-      IMG: "apecloud/aperag-frontend"
-      BUILDX_PLATFORMS: "linux/amd64"
-      DOCKERFILE_PATH: "./web/Dockerfile"
-      CONTEXT: "./web"
-      PYTHON_VERSION: "3.11"
-      MAKE_OPS_PRE: "build-aperag-frontend-assets"
-    secrets: inherit
-
-  check-helm:
-    needs: trigger-mode
-    if: ${{ contains(needs.trigger-mode.outputs.trigger-mode, '[deploy]') }}
-    uses: apecloud/apecloud-cd/.github/workflows/release-charts-check.yml@v0.1.48
-    with:
-      VERSION: "v0.4.0-check"
-      CHART_NAME: "aperag"
-      CHART_DIR: "deploy"
-      APECD_REF: "v0.1.48"
-    secrets: inherit
+      - name: Upload unit coverage artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-coverage
+          path: |
+            tests/report/unit-coverage.xml
+            tests/report/unit-coverage.json
+          if-no-files-found: error

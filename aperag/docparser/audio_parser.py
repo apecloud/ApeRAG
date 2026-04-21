@@ -18,7 +18,7 @@ from typing import Any
 import requests
 
 from aperag.config import settings
-from aperag.docparser.base import BaseParser, FallbackError, Part, TextPart
+from aperag.docparser.base import BaseParser, FallbackError, ParserError, Part, TextPart
 
 SUPPORTED_EXTENSIONS = [
     ".mp3",
@@ -32,6 +32,8 @@ SUPPORTED_EXTENSIONS = [
     ".flac",
 ]
 
+REQUEST_TIMEOUT = 60
+
 
 class AudioParser(BaseParser):
     name = "audio"
@@ -41,7 +43,12 @@ class AudioParser(BaseParser):
 
     def parse_file(self, path: Path, metadata: dict[str, Any] = {}, **kwargs) -> list[Part]:
         if not settings.whisper_host:
-            raise FallbackError("WHISPER_HOST is not set")
+            raise FallbackError(
+                "Audio transcription is not configured",
+                parser_name=self.name,
+                code="service_not_configured",
+                detail="Set WHISPER_HOST to enable audio transcription.",
+            )
 
         content = self.recognize_speech(path)
         metadata = metadata.copy()
@@ -57,8 +64,6 @@ class AudioParser(BaseParser):
             "output": "txt",
         }
 
-        files = {"audio_file": open(str(path), "rb")}
-
         headers = {
             "Accept": "application/json",
         }
@@ -66,5 +71,21 @@ class AudioParser(BaseParser):
         # TODO: extract media metadata by using exiftool
 
         # Server: https://github.com/ahmetoner/whisper-asr-webservice
-        response = requests.post(settings.whisper_host + "/asr", params=params, files=files, headers=headers)
-        return response.text
+        try:
+            with open(str(path), "rb") as audio_file:
+                response = requests.post(
+                    settings.whisper_host + "/asr",
+                    params=params,
+                    files={"audio_file": audio_file},
+                    headers=headers,
+                    timeout=REQUEST_TIMEOUT,
+                )
+                response.raise_for_status()
+                return response.text
+        except requests.exceptions.RequestException as e:
+            raise ParserError(
+                "Audio transcription request failed",
+                parser_name=self.name,
+                code="service_unreachable",
+                detail=str(e),
+            ) from e

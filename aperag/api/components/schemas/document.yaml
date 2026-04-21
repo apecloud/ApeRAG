@@ -110,18 +110,6 @@ documentList:
             $ref: '#/document'
     - $ref: './common.yaml#/paginatedResponse'
 
-documentCreate:
-  type: object
-  properties:
-    title:
-      type: string
-    description:
-      type: string
-    source:
-      type: string
-    collection_id:
-      type: string
-
 rebuildIndexesRequest:
   type: object
   properties:

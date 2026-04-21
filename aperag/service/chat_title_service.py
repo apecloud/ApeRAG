@@ -52,6 +52,13 @@ class ChatTitleService:
         if not chat:
             raise BusinessException(ErrorCode.CHAT_NOT_FOUND, "Chat not found")
 
+        # Read recent conversation turns from Redis
+        history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
+        stored_messages = await history.messages
+        if not stored_messages:
+            current_title = getattr(chat, "title", None)
+            return current_title.strip() if current_title and current_title.strip() else "Untitled"
+
         # Load default model configuration
         model, provider_name, custom_provider = await default_model_service.get_default_background_task_config(user_id)
         if not (model and provider_name and custom_provider):
@@ -68,9 +75,6 @@ class ChatTitleService:
                 ErrorCode.API_KEY_NOT_FOUND, f"API key for provider '{provider_name}' not configured"
             )
 
-        # Read recent conversation turns from Redis
-        history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
-        stored_messages = await history.messages
         # Take most recent N turns
         recent_turns = stored_messages[-turns:] if turns < len(stored_messages) else stored_messages
         # Convert to OpenAI format messages

@@ -31,7 +31,7 @@ ApeRAG 是一款具备多模态索引、AI 智能体、MCP 支持及可扩展 K8
 
 ## Step 1: 准备知识库
 
-访问 ApeRAG 官网 https://rag.apecloud.com/ ，注册登录后选择或导入一个知识库。这里以三国演义知识库为例，点击订阅知识库。
+打开 ApeRAG Web 界面（见[快速开始](../../../../README-zh.md#快速开始)；Docker Compose 启动时一般为 http://localhost:3000/web/）。登录后选择或导入知识库。下文以「三国演义」知识库为例，点击订阅。
 
 <div align="center">
   <img src="/images/zh-CN/dify/step1-subscribe-collection.png" alt="订阅知识库" width="800" />
@@ -49,7 +49,7 @@ ApeRAG 是一款具备多模态索引、AI 智能体、MCP 支持及可扩展 K8
 
 ### 2.2 填写配置信息
 
-填写 Server URL：`https://rag.apecloud.com/mcp/`，以及在 ApeRAG 中复制的 API Key，点击确定。
+填写 Server URL：`http://localhost:8000/mcp/`（若非本机部署，请改为实际 API 地址，例如 `https://<你的域名>/mcp/`），并粘贴从 ApeRAG 复制的 API Key，点击确定。
 
 <div align="center">
   <img src="/images/zh-CN/dify/step2-configure-mcp.png" alt="配置 MCP" width="700" />

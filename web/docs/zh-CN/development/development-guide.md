@@ -38,7 +38,7 @@ cp envs/env.template .env
 
 ```bash
 # 启动核心数据库：PostgreSQL、Redis、Qdrant、Elasticsearch
-make compose-infra
+make infra-up
 ```
 
 这将在后台启动所有必需的数据库服务。您的 `.env` 文件中的默认连接设置已预配置为与这些服务一起工作。
@@ -48,19 +48,8 @@ make compose-infra
 
 ```bash
 # 使用 Neo4j 而不是 PostgreSQL 进行图存储
-make compose-infra WITH_NEO4J=1
-
-# 添加高级文档解析服务（DocRay）
-make compose-infra WITH_DOCRAY=1
-
-# 组合多个选项
-make compose-infra WITH_NEO4J=1 WITH_DOCRAY=1
-
-# GPU 加速文档解析（需要约 6GB VRAM）
-make compose-infra WITH_DOCRAY=1 WITH_GPU=1
+make infra-up WITH_NEO4J=1
 ```
-
-**注意**：DocRay 为复杂的 PDF、表格和公式提供增强的文档解析。CPU 模式需要 4+ 核心和 8GB+ RAM。
 
 </details>
 
@@ -69,7 +58,7 @@ make compose-infra WITH_DOCRAY=1 WITH_GPU=1
 创建 Python 虚拟环境并设置开发工具：
 
 ```bash
-make dev
+make env-dev
 ```
 
 此命令将：
@@ -91,7 +80,7 @@ source .venv/bin/activate
 安装所有后端和前端依赖项：
 
 ```bash
-make install
+make env-install
 ```
 
 此命令将：
@@ -103,7 +92,7 @@ make install
 设置数据库架构：
 
 ```bash
-make migrate
+make db-migrate
 ```
 
 ### 7. ▶️ 启动开发服务
@@ -112,19 +101,19 @@ make migrate
 
 **终端 1 - 后端 API 服务器：**
 ```bash
-make run-backend
+make serve-api
 ```
 这将在 `http://localhost:8000` 启动 FastAPI 开发服务器，代码更改时自动重新加载。
 
 **终端 2 - Celery Worker：**
 ```bash
-make run-celery
+make serve-worker
 ```
 这将启动 Celery worker 以处理异步后台任务。
 
 **终端 3 - 前端（可选）：**
 ```bash
-make run-frontend
+make serve-web
 ```
 这将在 `http://localhost:3000` 启动前端开发服务器，支持热重载。
 
@@ -142,21 +131,21 @@ make run-frontend
 **停止数据库服务：**
 ```bash
 # 停止数据库服务（保留数据）
-make compose-down
+make stack-down
 
 # 停止服务并移除所有数据卷
-make compose-down REMOVE_VOLUMES=1
+make stack-down REMOVE_VOLUMES=1
 ```
 
 **停止开发服务：**
-- 后端 API 服务器：在运行 `make run-backend` 的终端中按 `Ctrl+C`
-- Celery Worker：在运行 `make run-celery` 的终端中按 `Ctrl+C`
-- 前端服务器：在运行 `make run-frontend` 的终端中按 `Ctrl+C`
+- 后端 API 服务器：在运行 `make serve-api` 的终端中按 `Ctrl+C`
+- Celery Worker：在运行 `make serve-worker` 的终端中按 `Ctrl+C`
+- 前端服务器：在运行 `make serve-web` 的终端中按 `Ctrl+C`
 
 **数据管理：**
-- `make compose-down` - 停止服务但保留所有数据（PostgreSQL、Redis、Qdrant 等）
-- `make compose-down REMOVE_VOLUMES=1` - 停止服务并**⚠️ 永久删除所有数据**
-- 即使已经运行过 `make compose-down`，您也可以运行 `make compose-down REMOVE_VOLUMES=1`
+- `make stack-down` - 停止服务但保留所有数据（PostgreSQL、Redis、Qdrant 等）
+- `make stack-down REMOVE_VOLUMES=1` - 停止服务并**⚠️ 永久删除所有数据**
+- 即使已经运行过 `make stack-down`，您也可以运行 `make stack-down REMOVE_VOLUMES=1`
 
 **验证数据移除：**
 ```bash
@@ -176,16 +165,16 @@ docker volume ls | grep aperag
 1. 编辑 OpenAPI 规范：`aperag/api/paths/[endpoint-name].yaml`
 2. 重新生成后端模型：
    ```bash
-   make generate-models  # 这会在内部运行 merge-openapi
+   make api-generate-models  # 这会在内部运行 merge-openapi
    ```
 3. 实现后端视图：`aperag/views/[module].py`
 4. 生成前端 TypeScript 客户端：
    ```bash
-   make generate-frontend-sdk  # 更新 frontend/src/api/
+   make api-generate-sdk  # 更新 frontend/src/api/
    ```
 5. 测试 API：
    ```bash
-   make test
+   make test-all
    # ✅ 检查实时文档：http://localhost:8000/docs
    ```
 
@@ -195,16 +184,16 @@ docker volume ls | grep aperag
 1. 编辑 `aperag/db/models.py` 中的 SQLModel 类
 2. 生成迁移文件：
    ```bash
-   make makemigration  # 在 migration/versions/ 中创建新迁移
+   make db-revision  # 在 migration/versions/ 中创建新迁移
    ```
 3. 将迁移应用到数据库：
    ```bash
-   make migrate  # 更新数据库架构
+   make db-migrate  # 更新数据库架构
    ```
 4. 更新相关代码（`aperag/db/repositories/` 中的仓库，`aperag/service/` 中的服务）
 5. 验证更改：
    ```bash
-   make test  # ✅ 确保一切正常工作
+   make test-all  # ✅ 确保一切正常工作
    ```
 
 ### Q: ⚡ 如何添加具有后台处理的新功能？
@@ -216,14 +205,14 @@ docker volume ls | grep aperag
    - 数据库模型：`aperag/db/models.py`
 2. 更新 API 并生成代码：
    ```bash
-   make makemigration      # 生成迁移文件
-   make migrate           # 应用数据库更改
-   make generate-models   # 更新 Pydantic 模型
-   make generate-frontend-sdk  # 更新 TypeScript 客户端
+   make db-revision      # 生成迁移文件
+   make db-migrate           # 应用数据库更改
+   make api-generate-models   # 更新 Pydantic 模型
+   make api-generate-sdk  # 更新 TypeScript 客户端
    ```
 3. 质量保证：
    ```bash
-   make format && make lint && make test
+   make format && make lint && make test-all
    ```
 
 ### Q: 🧪 如何运行单元测试和 e2e 测试？
@@ -231,7 +220,7 @@ docker volume ls | grep aperag
 **单元测试（快速，无外部依赖）：**
 ```bash
 # 运行所有单元测试
-make unit-test
+make test-unit
 
 # 运行特定测试文件
 uv run pytest tests/unit_test/test_model_service.py -v
@@ -246,11 +235,11 @@ uv run pytest tests/unit_test/ --cov=aperag --cov-report=html
 **E2E 测试（需要运行服务）：**
 ```bash
 # 设置：首先启动所需服务
-make compose-infra      # 🗄️ 启动数据库
-make run-backend       # 🚀 启动 API 服务器（单独终端）
+make infra-up      # 🗄️ 启动数据库
+make serve-api       # 🚀 启动 API 服务器（单独终端）
 
 # 运行所有 e2e 测试
-make e2e-test
+make test-e2e
 
 # 运行特定 e2e 测试模块
 uv run pytest tests/e2e_test/test_chat/ -v
@@ -260,17 +249,17 @@ uv run pytest tests/e2e_test/graphstorage/ -v
 uv run pytest tests/e2e_test/test_specific.py -v -s
 
 # 性能基准测试（带计时）
-make e2e-performance-test
+make test-e2e-perf
 ```
 
 **完整测试套件：**
 ```bash
 # 运行所有内容（单元 + e2e）
-make test
+make test-all
 
 # 使用不同配置进行测试
-make compose-infra WITH_NEO4J=1  # 使用 Neo4j 而不是 PostgreSQL 进行测试
-make test
+make infra-up WITH_NEO4J=1  # 使用 Neo4j 而不是 PostgreSQL 进行测试
+make test-all
 ```
 
 ### Q: 🐛 如何调试失败的测试？
@@ -280,21 +269,21 @@ make test
    ```bash
    # 带完整输出的单个测试
    uv run pytest tests/unit_test/test_failing.py::test_specific_function -v -s
-   
+
    # 在第一次失败时停止
    uv run pytest tests/unit_test/ -x --tb=short
    ```
 2. 对于 e2e 测试失败，确保服务正在运行：
    ```bash
-   make compose-infra       # 数据库服务
-   make run-backend         # API 服务器
-   make run-celery         # 后台 workers（如果测试异步任务）
+   make infra-up       # 数据库服务
+   make serve-api         # API 服务器
+   make serve-worker         # 后台 workers（如果测试异步任务）
    ```
 3. 使用调试工具：
    ```bash
    # 使用 pdb 调试器运行
    uv run pytest tests/unit_test/test_failing.py --pdb
-   
+
    # 在测试期间捕获日志
    uv run pytest tests/e2e_test/test_failing.py --log-cli-level=DEBUG
    ```
@@ -310,9 +299,9 @@ make test
 **评估工作流程：**
 ```bash
 # 确保环境准备就绪
-make compose-infra WITH_NEO4J=1  # 使用 Neo4j 获得更好的图性能
-make run-backend
-make run-celery
+make infra-up WITH_NEO4J=1  # 使用 Neo4j 获得更好的图性能
+make serve-api
+make serve-worker
 
 # 运行全面的 RAG 评估
 make evaluate               # 📊 运行 aperag.evaluation.run 模块
@@ -326,8 +315,8 @@ make evaluate               # 📊 运行 aperag.evaluation.run 模块
 1. 编辑 `pyproject.toml`（添加/更新包）
 2. 更新虚拟环境：
    ```bash
-   make install            # 使用 uv 同步所有组和额外内容
-   make test              # 验证兼容性
+   make env-install            # 使用 uv 同步所有组和额外内容
+   make test-all              # 验证兼容性
    ```
 
 **前端依赖项：**
@@ -335,8 +324,8 @@ make evaluate               # 📊 运行 aperag.evaluation.run 模块
 2. 更新并测试：
    ```bash
    cd frontend && yarn install
-   make run-frontend      # 测试前端编译
-   make generate-frontend-sdk  # 确保 API 客户端仍然工作
+   make serve-web      # 测试前端编译
+   make api-generate-sdk  # 确保 API 客户端仍然工作
    ```
 
 ### Q: 🚀 如何准备代码进行生产部署？
@@ -350,49 +339,49 @@ make evaluate               # 📊 运行 aperag.evaluation.run 模块
    ```
 2. 全面测试：
    ```bash
-   make test             # 所有单元 + e2e 测试
-   make e2e-performance-test  # 性能基准测试
+   make test-all             # 所有单元 + e2e 测试
+   make test-e2e-perf  # 性能基准测试
    ```
 3. API 一致性：
    ```bash
-   make generate-models         # 确保模型与 OpenAPI 规范匹配
-   make generate-frontend-sdk   # 更新前端客户端
+   make api-generate-models         # 确保模型与 OpenAPI 规范匹配
+   make api-generate-sdk   # 更新前端客户端
    ```
 4. 数据库迁移：
    ```bash
-   make makemigration    # 生成任何待处理的迁移
+   make db-revision    # 生成任何待处理的迁移
    ```
 5. 全栈集成测试：
    ```bash
-   make compose-up WITH_NEO4J=1 WITH_DOCRAY=1  # 类似生产的设置
+   make stack-up WITH_NEO4J=1 WITH_DOCRAY=1  # 类似生产的设置
    # 在 http://localhost:3000/web/ 手动测试
-   make compose-down
+   make stack-down
    ```
 
 ### Q: 🔄 如何完全重置我的开发环境？
 
 **核选项重置（销毁所有数据）：**
 ```bash
-make compose-down REMOVE_VOLUMES=1  # ⚠️ 停止服务 + 删除所有数据
-make clean                         # 🧹 清理临时文件
+make stack-down REMOVE_VOLUMES=1  # ⚠️ 停止服务 + 删除所有数据
+make env-clean                         # 🧹 清理临时文件
 
 # 重新开始
-make compose-infra                 # 🗄️ 新的数据库
-make migrate                      # 🔄 应用所有迁移
-make run-backend                  # 🚀 启动 API 服务器
-make run-celery                   # ⚡ 启动后台 workers
+make infra-up                 # 🗄️ 新的数据库
+make db-migrate                      # 🔄 应用所有迁移
+make serve-api                  # 🚀 启动 API 服务器
+make serve-worker                   # ⚡ 启动后台 workers
 ```
 
 **软重置（保留数据）：**
 ```bash
-make compose-down                 # ⏹️ 停止服务，保留数据
-make compose-infra               # 🗄️ 重启数据库
-make migrate                    # 🔄 应用任何新迁移
+make stack-down                 # ⏹️ 停止服务，保留数据
+make infra-up               # 🗄️ 重启数据库
+make db-migrate                    # 🔄 应用任何新迁移
 ```
 
 **仅重置 Python 环境：**
 ```bash
 rm -rf .venv/                   # 🗑️ 移除虚拟环境
-make dev                       # ⚙️ 重新创建所有内容
+make env-dev                       # ⚙️ 重新创建所有内容
 source .venv/bin/activate      # ✅ 重新激活
-``` 
+```

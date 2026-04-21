@@ -1,9 +1,6 @@
 # ApeRAG
 [![Trust Score](https://archestra.ai/mcp-catalog/api/badge/quality/apecloud/ApeRAG)](https://archestra.ai/mcp-catalog/apecloud__aperag)
 
-**🚀 [Try ApeRAG Live Demo](https://rag.apecloud.com/)** - Experience the full platform capabilities with our hosted demo
-
-
 ![HarryPotterKG2.png](docs%2Fen-US%2Fimages%2FHarryPotterKG2.png)
 
 ![chat2.png](docs%2Fen-US%2Fimages%2Fchat2.png)
@@ -52,7 +49,7 @@ ApeRAG supports [MCP (Model Context Protocol)](https://modelcontextprotocol.io/)
 {
   "mcpServers": {
     "aperag-mcp": {
-      "url": "https://rag.apecloud.com/mcp/",
+      "url": "http://localhost:8000/mcp/",
       "headers": {
         "Authorization": "Bearer your-api-key-here"
       }
@@ -65,7 +62,7 @@ ApeRAG supports [MCP (Model Context Protocol)](https://modelcontextprotocol.io/)
 1. **HTTP Authorization Header** (Recommended): `Authorization: Bearer your-api-key`
 2. **Environment Variable** (Fallback): `APERAG_API_KEY=your-api-key`
 
-**Important**: Replace `https://rag.apecloud.com` with your actual ApeRAG API URL and `your-api-key-here` with a valid API key from your ApeRAG settings.
+**Important**: Use your deployed API origin if not local (e.g. `https://your-host/mcp/`). Replace `your-api-key-here` with a valid API key from your ApeRAG settings.
 
 The MCP server provides:
 - **Collection browsing**: List and explore your knowledge collections
@@ -74,29 +71,7 @@ The MCP server provides:
 
 #### Enhanced Document Parsing
 
-For enhanced document parsing capabilities, ApeRAG supports an **advanced document parsing service** powered by MinerU, which provides superior parsing for complex documents, tables, and formulas. 
-
-<details>
-<summary><strong>Enhanced Document Parsing Commands</strong></summary>
-
-```bash
-# Enable advanced document parsing service
-DOCRAY_HOST=http://aperag-docray:8639 docker compose --profile docray up -d
-
-# Enable advanced parsing with GPU acceleration 
-DOCRAY_HOST=http://aperag-docray-gpu:8639 docker compose --profile docray-gpu up -d
-```
-
-Or use the Makefile shortcuts (requires [GNU Make](https://www.gnu.org/software/make/)):
-```bash
-# Enable advanced document parsing service
-make compose-up WITH_DOCRAY=1
-
-# Enable advanced parsing with GPU acceleration (recommended)
-make compose-up WITH_DOCRAY=1 WITH_GPU=1
-```
-
-</details>
+For enhanced document parsing capabilities, ApeRAG supports MinerU-based parsing for complex documents, tables, formulas, and OCR-heavy inputs.
 
 #### Development & Contributing
 
@@ -197,8 +172,6 @@ kubectl get pods -n default -l app.kubernetes.io/instance=aperag
 ```
 
 ### Configuration Options
-
-**Resource Requirements**: By default, includes [`doc-ray`](https://github.com/apecloud/doc-ray) service (requires 4+ CPU cores, 8GB+ RAM). To disable: set `docray.enabled: false` in `values.yaml`.
 
 **Advanced Settings**: Review `values.yaml` for additional configuration options including images, resources, and Ingress settings.
 

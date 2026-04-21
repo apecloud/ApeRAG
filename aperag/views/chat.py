@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import logging
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile, WebSocket
@@ -26,7 +25,7 @@ from aperag.service.chat_service import chat_service_global
 from aperag.service.chat_title_service import chat_title_service
 from aperag.service.collection_service import collection_service
 from aperag.utils.audit_decorator import audit
-from aperag.views.auth import UserManager, authenticate_websocket_user, get_user_manager, optional_user, required_user
+from aperag.views.auth import UserManager, authenticate_websocket_user, get_user_manager, required_user
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +104,7 @@ async def generate_chat_title_view(
     bot_id: str,
     chat_id: str,
     request_body: view_models.TitleGenerateRequest = view_models.TitleGenerateRequest(),
-    user: User = Depends(optional_user),
+    user: User = Depends(required_user),
 ) -> view_models.TitleGenerateResponse:
     try:
         title = await chat_title_service.generate_title(
@@ -119,31 +118,6 @@ async def generate_chat_title_view(
         return {"title": title}
     except BusinessException as be:
         raise HTTPException(status_code=400, detail={"error_code": be.error_code.name, "message": str(be)})
-
-
-@router.post("/chat/completions/frontend", tags=["chats"])
-async def frontend_chat_completions_view(request: Request, user: User = Depends(required_user)):
-    body = await request.body()
-
-    # Try to parse JSON first, fallback to text for backward compatibility
-    try:
-        data = json.loads(body.decode("utf-8"))
-        message = data.get("message", "")
-        files = data.get("files", [])
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        # Fallback to text message for backward compatibility
-        message = body.decode("utf-8")
-        files = []
-
-    query_params = dict(request.query_params)
-    stream = query_params.get("stream", "false").lower() == "true"
-    bot_id = query_params.get("bot_id", "")
-    chat_id = query_params.get("chat_id", "")
-    msg_id = request.headers.get("msg_id", "")
-
-    return await chat_service_global.frontend_chat_completions(
-        str(user.id), message, stream, bot_id, chat_id, msg_id, files
-    )
 
 
 @router.post("/chats/{chat_id}/search")

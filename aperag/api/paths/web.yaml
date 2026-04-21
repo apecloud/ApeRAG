@@ -1,7 +1,7 @@
 webSearch:
   post:
     summary: Web search
-    description: Perform web search using various search engines
+    description: Perform best-effort web search with optional domain targeting
     tags:
       - web
     security:
@@ -64,11 +64,11 @@ webSearch:
                   code: "400"
                   message: "Search query cannot be empty"
               invalid_engine:
-                summary: Invalid search engine
-                description: Unsupported search engine
+                summary: Missing search input
+                description: Neither query nor source was provided
                 value:
                   code: "400"
-                  message: "Unsupported search engine: invalid_engine"
+                  message: "At least one search input is required"
       '401':
         description: Unauthorized
         content:
@@ -210,4 +210,4 @@ webRead:
                 description: Content reading operation failed
                 value:
                   code: "500"
-                  message: "Content reading failed: Provider error" 
+                  message: "Content reading failed: Provider error"

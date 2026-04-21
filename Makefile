@@ -21,12 +21,52 @@ else
     LOCAL_PLATFORM = linux/amd64
 endif
 
+.PHONY: help
+help:
+	@printf "\nApeRAG Make Targets\n\n"
+	@printf "Recommended commands:\n\n"
+	@printf "Environment\n"
+	@printf "  make env-install          Install Python dependencies into .venv\n"
+	@printf "  make env-dev              Prepare the local development environment\n"
+	@printf "  make env-clean            Clean local development state\n\n"
+	@printf "Database / Infra\n"
+	@printf "  make db-migrate           Apply database migrations\n"
+	@printf "  make db-revision          Create a new alembic migration\n"
+	@printf "  make infra-up             Start infra dependencies only\n"
+	@printf "  make stack-up             Start the full local stack\n"
+	@printf "  make stack-down           Stop the local stack\n"
+	@printf "  make stack-logs           Tail stack logs\n\n"
+	@printf "Services\n"
+	@printf "  make serve-api            Run backend API locally\n"
+	@printf "  make serve-worker         Run celery worker locally\n"
+	@printf "  make serve-beat           Run celery beat locally\n"
+	@printf "  make serve-flower         Run flower locally\n"
+	@printf "  make serve-web            Run frontend locally\n\n"
+	@printf "Tests\n"
+	@printf "  make test-all             Run unit + integration + pytest E2E suites\n"
+	@printf "  make test-unit            Run unit tests\n"
+	@printf "  make test-integration     Run integration tests\n"
+	@printf "  make test-e2e             Run pytest-based residual E2E tests\n"
+	@printf "  make test-e2e-perf        Run pytest-based E2E performance tests\n"
+	@printf "  make test-http-bootstrap  Prepare HTTP E2E bootstrap state\n"
+	@printf "  make test-http-smoke      Run HTTP smoke suite against an existing target\n"
+	@printf "  make test-http-full       Run full HTTP suite against an existing target\n"
+	@printf "  make test-http-up-compose / test-http-down-compose\n"
+	@printf "  make test-http-smoke-compose / test-http-full-compose\n"
+	@printf "  make test-http-up-k8s / test-http-down-k8s\n"
+	@printf "  make test-http-smoke-k8s / test-http-full-k8s\n\n"
+	@printf "Build / API\n"
+	@printf "  make api-generate-models  Generate backend view models from OpenAPI\n"
+	@printf "  make api-generate-sdk     Generate frontend SDK\n"
+	@printf "  make build                Build production images\n"
+	@printf "  make release-version      Generate version metadata\n\n"
+
 ##################################################
 # Environment & Dependencies
 ##################################################
 
 # Python environment setup
-.PHONY: install-uv venv install clean
+.PHONY: install-uv venv env-install env-dev env-clean
 install-uv:
 	@if [ -z "$$(which uv)" ]; then \
 		echo "Installing uv..."; \
@@ -39,13 +79,13 @@ venv: install-uv
 		uv venv -p 3.11.12; \
 	fi
 
-install: venv
+env-install: venv
 	@echo "Installing Python dependencies..."
 	uv sync --all-groups --all-extras
 
 # Development environment setup
-.PHONY: dev install-hooks
-dev: install-uv venv install-addlicense install-hooks
+.PHONY: install-hooks
+env-dev: env-install install-addlicense install-hooks
 	@echo "Installing development tools..."
 	@command -v redocly >/dev/null || npm install @redocly/cli -g
 	@command -v openapi-generator-cli >/dev/null || npm install @openapitools/openapi-generator-cli -g
@@ -54,49 +94,46 @@ dev: install-uv venv install-addlicense install-hooks
 	@echo "✅ Development environment ready!"
 	@echo "📝 Next steps:"
 	@echo "   1. Activate virtual environment: source .venv/bin/activate"
-	@echo "   2. Install dependencies: make install"
-	@echo "   3. Start databases: make compose-infra"
-	@echo "   4. Apply migrations: make migrate"
-	@echo "   5. Run services: make run-backend, make run-celery"
+	@echo "   2. Start databases: make infra-up"
+	@echo "   3. Apply migrations: make db-migrate"
+	@echo "   4. Run services: make serve-api, make serve-worker"
 
 install-hooks:
 	@echo "Installing git hooks..."
 	@./scripts/install-hooks.sh
 
 # Environment cleanup
-clean:
+env-clean:
 	@echo "Cleaning development environment..."
 	@rm -f db.sqlite3
-	@$(MAKE) compose-down REMOVE_VOLUMES=1
+	@$(MAKE) stack-down REMOVE_VOLUMES=1
 
 ##################################################
 # Database & Infrastructure
 ##################################################
 
 # Database schema management
-.PHONY: makemigration migrate
-makemigration:
+.PHONY: db-revision db-migrate
+db-revision:
 	@uv run alembic -c aperag/alembic.ini revision --autogenerate
 
-migrate:
+db-migrate:
 	@uv run alembic -c aperag/alembic.ini upgrade head
 
 # Docker Compose infrastructure
 
 # Variables for compose command based on environment flags
 # Usage examples:
-#   make compose-up                              # Full application
-#   make compose-up WITH_NEO4J=1                 # Full application + Neo4j
-#   make compose-up WITH_DOCRAY=1                # Full application + DocRay
-#   make compose-up WITH_JAEGER=1                # Full application + Jaeger
-#   make compose-up WITH_NEO4J=1 WITH_DOCRAY=1   # Full application + Neo4j + DocRay
-#   make compose-up WITH_NEO4J=1 WITH_DOCRAY=1 WITH_GPU=1  # All features
-#   make compose-up WITH_JAEGER=1 WITH_NEO4J=1   # Full application + Jaeger + Neo4j
-#   make compose-infra                           # Infrastructure only (databases)
-#   make compose-infra WITH_NEO4J=1              # Infrastructure + Neo4j
-#   make compose-infra WITH_JAEGER=1             # Infrastructure + Jaeger
-#   make compose-down                            # Stop all services
-#   make compose-down REMOVE_VOLUMES=1           # Stop and remove volumes
+#   make stack-up                                # Full application
+#   make stack-up WITH_NEO4J=1                   # Full application + Neo4j
+#   make stack-up WITH_NEBULA=1                  # Full application + Nebula Graph
+#   make stack-up WITH_JAEGER=1                  # Full application + Jaeger
+#   make stack-up WITH_JAEGER=1 WITH_NEO4J=1     # Full application + Jaeger + Neo4j
+#   make infra-up                                # Infrastructure only (databases)
+#   make infra-up WITH_NEO4J=1                   # Infrastructure + Neo4j
+#   make infra-up WITH_JAEGER=1                  # Infrastructure + Jaeger
+#   make stack-down                              # Stop all services
+#   make stack-down REMOVE_VOLUMES=1             # Stop and remove volumes
 _PROFILES_TO_ACTIVATE :=
 _EXTRA_ENVS :=
 _COMPOSE_DOWN_FLAGS :=
@@ -106,18 +143,12 @@ ifeq ($(WITH_NEO4J),1)
     _PROFILES_TO_ACTIVATE += --profile neo4j
 endif
 
-ifeq ($(WITH_JAEGER),1)
-    _PROFILES_TO_ACTIVATE += --profile jaeger
+ifeq ($(WITH_NEBULA),1)
+    _PROFILES_TO_ACTIVATE += --profile nebula
 endif
 
-ifeq ($(WITH_DOCRAY),1)
-    ifeq ($(WITH_GPU),1)
-        _PROFILES_TO_ACTIVATE += --profile docray-gpu
-		_EXTRA_ENVS += DOCRAY_HOST=http://aperag-docray-gpu:8639
-    else
-        _PROFILES_TO_ACTIVATE += --profile docray
-		_EXTRA_ENVS += DOCRAY_HOST=http://aperag-docray:8639
-    endif
+ifeq ($(WITH_JAEGER),1)
+    _PROFILES_TO_ACTIVATE += --profile jaeger
 endif
 
 # Determine flags for 'compose-down'
@@ -125,22 +156,26 @@ ifeq ($(REMOVE_VOLUMES),1)
     _COMPOSE_DOWN_FLAGS += -v
 endif
 
-.PHONY: compose-up compose-down compose-logs compose-infra
+.PHONY: stack-up stack-down stack-logs infra-up
 # Full application startup
-compose-up:
+stack-up:
 	$(_EXTRA_ENVS) docker-compose $(_PROFILES_TO_ACTIVATE) -f docker-compose.yml up -d
 
 # Infrastructure only (databases + supporting services)
-# Optional services like Neo4j and Jaeger will ONLY start if explicitly enabled:
-#   make compose-infra WITH_NEO4J=1    # adds Neo4j
-#   make compose-infra WITH_JAEGER=1   # adds Jaeger
-compose-infra:
-	docker-compose $(_PROFILES_TO_ACTIVATE) -f docker-compose.yml up -d postgres redis qdrant es jaeger
+# Optional services like Neo4j, Nebula, and Jaeger will ONLY start if explicitly enabled:
+#   make infra-up WITH_NEO4J=1    # adds Neo4j
+#   make infra-up WITH_NEBULA=1   # adds Nebula Graph
+#   make infra-up WITH_JAEGER=1   # adds Jaeger
+infra-up:
+	docker-compose $(_PROFILES_TO_ACTIVATE) -f docker-compose.yml up -d \
+		postgres redis qdrant es jaeger \
+		$(if $(filter 1,$(WITH_NEO4J)),neo4j,) \
+		$(if $(filter 1,$(WITH_NEBULA)),nebula-metad nebula-storaged nebula-graphd nebula-storage-activator,)
 
-compose-down:
-	docker-compose --profile docray --profile docray-gpu --profile neo4j --profile jaeger -f docker-compose.yml down $(_COMPOSE_DOWN_FLAGS)
+stack-down:
+	docker-compose --profile neo4j --profile nebula --profile jaeger -f docker-compose.yml down $(_COMPOSE_DOWN_FLAGS)
 
-compose-logs:
+stack-logs:
 	docker-compose -f docker-compose.yml logs -f
 
 ##################################################
@@ -148,20 +183,20 @@ compose-logs:
 ##################################################
 
 # Local development services
-.PHONY: run-backend run-frontend run-celery run-flower run-beat
-run-backend: migrate
+.PHONY: serve-api serve-web serve-worker serve-flower serve-beat
+serve-api: db-migrate
 	uvicorn aperag.app:app --host 0.0.0.0 --log-config scripts/uvicorn-log-config.yaml
 
-run-celery:
+serve-worker:
 	celery -A config.celery worker -B -l INFO --pool=threads --concurrency=16
 
-run-beat:
+serve-beat:
 	celery -A config.celery beat -l INFO
 
-run-flower:
+serve-flower:
 	celery -A config.celery flower --conf/flowerconfig.py
 
-run-frontend:
+serve-web:
 	cd ./web && yarn dev
 
 ##################################################
@@ -182,17 +217,27 @@ static-check:
 	uvx mypy ./aperag
 
 # Testing suite
-.PHONY: test unit-test e2e-test e2e-performance-test
-test:
-	uv run pytest tests/ -v
+.PHONY: test-all test-unit test-integration test-e2e test-e2e-perf \
+	test-http-bootstrap test-http-smoke test-http-full \
+	test-http-up-compose test-http-down-compose test-http-smoke-compose test-http-full-compose \
+	test-http-up-k8s test-http-down-k8s test-http-smoke-k8s test-http-full-k8s
+test-all: test-unit test-integration test-e2e
 
-unit-test:
-	uv run pytest tests/unit_test/ -v
+test-unit:
+	@mkdir -p tests/report
+	uv run pytest tests/unit_test/ -v \
+		--cov=aperag \
+		--cov-report=term-missing:skip-covered \
+		--cov-report=xml:tests/report/unit-coverage.xml \
+		--cov-report=json:tests/report/unit-coverage.json
 
-e2e-test:
-	uv run pytest --benchmark-disable tests/e2e_test/ -v
+test-integration:
+	uv run pytest tests/integration/ -v
 
-e2e-performance-test:
+test-e2e:
+	uv run pytest --benchmark-disable tests/e2e_pytest/ -v
+
+test-e2e-perf:
 	@echo "Running E2E performance test..."
 	@uv run pytest -v \
 		--benchmark-enable \
@@ -201,7 +246,40 @@ e2e-performance-test:
 		--benchmark-save-data \
 		--benchmark-storage=tests/report \
 		--benchmark-save=benchmark-result-$$(date +%Y%m%d%H%M%S) \
-		tests/e2e_test/
+		tests/e2e_pytest/
+
+test-http-bootstrap:
+	@./tests/e2e_http/bootstrap/bootstrap.sh
+
+test-http-smoke:
+	@./tests/e2e_http/scripts/run_smoke.sh
+
+test-http-full:
+	@./tests/e2e_http/scripts/run_full.sh
+
+test-http-up-compose:
+	@./tests/e2e_http/runners/compose/up.sh
+
+test-http-down-compose:
+	@./tests/e2e_http/runners/compose/down.sh
+
+test-http-smoke-compose:
+	@./tests/e2e_http/scripts/run_compose_smoke.sh
+
+test-http-full-compose:
+	@./tests/e2e_http/scripts/run_compose_full.sh
+
+test-http-up-k8s:
+	@./tests/e2e_http/runners/k8s/up.sh
+
+test-http-down-k8s:
+	@./tests/e2e_http/runners/k8s/down.sh
+
+test-http-smoke-k8s:
+	@./tests/e2e_http/scripts/run_k8s_smoke.sh
+
+test-http-full-k8s:
+	@./tests/e2e_http/scripts/run_k8s_full.sh
 
 # RAG evaluation
 .PHONY: evaluate
@@ -214,11 +292,11 @@ evaluate:
 ##################################################
 
 # OpenAPI and model generation
-.PHONY: merge-openapi generate-models generate-frontend-sdk
+.PHONY: merge-openapi api-generate-models api-generate-sdk
 merge-openapi:
 	@cd aperag && npx --yes @redocly/cli bundle ./api/openapi.yaml > ./api/openapi.merged.yaml
 
-generate-models: merge-openapi
+api-generate-models: merge-openapi
 	@datamodel-codegen \
 		--input aperag/api/openapi.merged.yaml \
 		--input-file-type openapi \
@@ -231,7 +309,7 @@ generate-models: merge-openapi
 		--output-model-type pydantic_v2.BaseModel
 	@rm aperag/api/openapi.merged.yaml
 
-generate-frontend-sdk:
+api-generate-sdk:
 	cd ./web && yarn api:build
 
 # LLM configuration generation
@@ -240,8 +318,8 @@ llm_provider:
 	python ./models/generate_model_configs.py
 
 # Version management
-.PHONY: version
-version:
+.PHONY: release-version
+release-version:
 	@git rev-parse HEAD | cut -c1-7 > commit_id.txt
 	@echo "VERSION = \"$(VERSION)\"" > $(VERSION_FILE)
 	@echo "GIT_COMMIT_ID = \"$$(cat commit_id.txt)\"" >> $(VERSION_FILE)
@@ -272,7 +350,7 @@ build-aperag-frontend-assets:
 .PHONY: build build-aperag build-aperag-frontend
 build: build-aperag build-aperag-frontend
 
-build-aperag: setup-builder version
+build-aperag: setup-builder release-version
 	docker buildx build -t $(REGISTRY)/$(APERAG_IMAGE):$(VERSION) \
 		--platform $(BUILDX_PLATFORM) $(BUILDX_ARGS) --push \
 		-f ./Dockerfile .
@@ -286,7 +364,7 @@ build-aperag-frontend: setup-builder build-aperag-frontend-assets
 .PHONY: build-local build-aperag-local build-aperag-frontend-local
 build-local: build-aperag-local build-aperag-frontend-local
 
-build-aperag-local: setup-builder version
+build-aperag-local: setup-builder release-version
 	docker buildx build -t $(APERAG_IMAGE):$(VERSION) \
 		--platform $(LOCAL_PLATFORM) $(BUILDX_ARGS) --load \
 		-f ./Dockerfile .

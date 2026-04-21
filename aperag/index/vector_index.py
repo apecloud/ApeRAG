@@ -56,17 +56,21 @@ class VectorIndexer(BaseIndexer):
             # Get embedding model and create embeddings
             embedding_model, vector_size = get_collection_embedding_service_sync(collection)
             vector_store_adaptor = get_vector_db_connector(
-                collection=generate_vector_db_collection_name(collection_id=collection.id)
+                collection=generate_vector_db_collection_name(collection_id=collection.id),
+                vector_size=vector_size,
             )
 
             # Filter out non-text parts
             doc_parts = [part for part in doc_parts if hasattr(part, "content") and part.content]
 
-            # Add indexer metadata to parts for proper identification
+            # Tag every chunk with its indexer and its owning ApeRAG collection.
+            # ``collection_id`` is the multitenancy tenant key; the Qdrant
+            # connector uses it for both payload and filter.
             for part in doc_parts:
                 if not hasattr(part, "metadata"):
                     part.metadata = {}
                 part.metadata["indexer"] = "vector"
+                part.metadata["collection_id"] = collection.id
 
             # Generate embeddings and store in vector database
             ctx_ids = create_embeddings_and_store(
@@ -130,9 +134,13 @@ class VectorIndexer(BaseIndexer):
                     index_data = json.loads(doc_index.index_data)
                     old_ctx_ids = index_data.get("context_ids", [])
 
+            # Create new vectors first (we need the embedding model to size the connector)
+            embedding_model, vector_size = get_collection_embedding_service_sync(collection)
+
             # Get vector store adaptor
             vector_store_adaptor = get_vector_db_connector(
-                collection=generate_vector_db_collection_name(collection_id=collection.id)
+                collection=generate_vector_db_collection_name(collection_id=collection.id),
+                vector_size=vector_size,
             )
 
             # Delete old vectors
@@ -143,14 +151,12 @@ class VectorIndexer(BaseIndexer):
             # Filter out non-text parts
             doc_parts = [part for part in doc_parts if hasattr(part, "content") and part.content]
 
-            # Add indexer metadata to parts for proper identification
+            # Tag every chunk with its indexer and its owning ApeRAG collection.
             for part in doc_parts:
                 if not hasattr(part, "metadata"):
                     part.metadata = {}
                 part.metadata["indexer"] = "vector"
-
-            # Create new vectors
-            embedding_model, vector_size = get_collection_embedding_service_sync(collection)
+                part.metadata["collection_id"] = collection.id
             ctx_ids = create_embeddings_and_store(
                 parts=doc_parts,
                 vector_store_adaptor=vector_store_adaptor,
@@ -215,9 +221,18 @@ class VectorIndexer(BaseIndexer):
                     success=True, index_type=self.index_type, metadata={"message": "No context IDs to delete"}
                 )
 
-            # Delete vectors from vector database
+            # Delete vectors from vector database. We still need vector_size so
+            # the connector routes to the correct global collection.
+            try:
+                _, vector_size = get_collection_embedding_service_sync(collection)
+            except Exception:
+                # Fall back to None; the connector will use its configured default.
+                # Worst case we hit the wrong global collection and the delete is
+                # a no-op, which is safe.
+                vector_size = None
             vector_db = get_vector_db_connector(
-                collection=generate_vector_db_collection_name(collection_id=collection.id)
+                collection=generate_vector_db_collection_name(collection_id=collection.id),
+                vector_size=vector_size,
             )
             vector_db.connector.delete(ids=ctx_ids)
 

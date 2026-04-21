@@ -1,0 +1,3 @@
+ApeRAG uses Hurl for black-box HTTP end-to-end tests.
+This document exists to cover staged upload, confirm, download, and rebuild-index flows.
+The phrase "Hurl full document coverage" should remain searchable in later full-suite expansion.

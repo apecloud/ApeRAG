@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 try:
     from duckduckgo_search import DDGS
+    from duckduckgo_search.exceptions import DuckDuckGoSearchException, RatelimitException, TimeoutException
 except ImportError:
     logger.error("duckduckgo_search package is required. Install with: pip install duckduckgo-search")
     raise
@@ -38,6 +39,9 @@ class DuckDuckGoProvider(BaseSearchProvider):
         """
         super().__init__(config)
         self.supported_engines = ["duckduckgo", "ddg"]
+        self.backend_fallback_order = self._normalize_backend_order(
+            (config or {}).get("backend_fallback_order", ["auto", "html", "lite"])
+        )
 
     async def search(
         self,
@@ -63,7 +67,7 @@ class DuckDuckGoProvider(BaseSearchProvider):
         self.last_search_meta = {
             "search_status": "empty",
             "provider_used": ["duckduckgo"],
-            "backend_used": ["duckduckgo"],
+            "backend_used": [],
             "fallback_used": False,
             "error_code": None,
         }
@@ -128,10 +132,12 @@ class DuckDuckGoProvider(BaseSearchProvider):
                 result.rank = i + 1
 
             logger.info(f"Site-specific search completed: {len(filtered_results)} results from {target_domain}")
-            self.last_search_meta["search_status"] = "ok" if filtered_results else "empty"
+            if self.last_search_meta["search_status"] != "unavailable":
+                self.last_search_meta["search_status"] = "ok" if filtered_results else "empty"
             return filtered_results
 
-        self.last_search_meta["search_status"] = "ok" if results else "empty"
+        if self.last_search_meta["search_status"] != "unavailable":
+            self.last_search_meta["search_status"] = "ok" if results else "empty"
         return results
 
     def _search_sync(self, query: str, max_results: int, timeout: int, locale: str) -> List[WebSearchResultItem]:
@@ -150,17 +156,54 @@ class DuckDuckGoProvider(BaseSearchProvider):
         # Configure DuckDuckGo search
         region = "cn-zh" if locale.startswith("zh") else "wt-wt"
 
-        # Perform search
-        with DDGS() as ddgs:
-            search_results = list(
-                ddgs.text(
+        search_results = []
+        last_error: Exception | None = None
+        attempted_backends: list[str] = []
+
+        for backend in self.backend_fallback_order:
+            attempted_backends.append(backend)
+            logger.info("DuckDuckGo search attempt backend=%s query=%s", backend, query)
+            try:
+                with DDGS() as ddgs:
+                    search_results = list(
+                        ddgs.text(
+                            query,
+                            region=region,
+                            safesearch="moderate",
+                            timelimit=None,
+                            backend=backend,
+                            max_results=max_results,
+                        )
+                    )
+
+                logger.info("DuckDuckGo search backend=%s completed results=%s", backend, len(search_results))
+                self.last_search_meta["backend_used"] = [f"duckduckgo:{backend}"]
+                self.last_search_meta["fallback_used"] = len(attempted_backends) > 1
+
+                # Respect an empty response as a valid search result instead of issuing more external requests.
+                break
+            except (RatelimitException, TimeoutException, DuckDuckGoSearchException) as exc:
+                last_error = exc
+                logger.warning(
+                    "DuckDuckGo search backend=%s failed query=%s error=%s",
+                    backend,
                     query,
-                    region=region,
-                    safesearch="moderate",
-                    timelimit=None,
-                    max_results=max_results,
+                    exc,
                 )
+                continue
+
+        if search_results == [] and last_error is not None:
+            logger.warning(
+                "DuckDuckGo search exhausted all backends query=%s backends=%s last_error=%s",
+                query,
+                self.backend_fallback_order,
+                last_error,
             )
+            self.last_search_meta["search_status"] = "unavailable"
+            self.last_search_meta["backend_used"] = [f"duckduckgo:{backend}" for backend in attempted_backends]
+            self.last_search_meta["fallback_used"] = len(attempted_backends) > 1
+            self.last_search_meta["error_code"] = "duckduckgo_unavailable"
+            return []
 
         # Convert results to our format
         results = []
@@ -191,3 +234,16 @@ class DuckDuckGoProvider(BaseSearchProvider):
             List of supported search engine names
         """
         return self.supported_engines.copy()
+
+    @staticmethod
+    def _normalize_backend_order(backends: List[str]) -> List[str]:
+        """Normalize DuckDuckGo backend fallback order while preserving the first occurrence."""
+        valid_backends = {"auto", "html", "lite"}
+        normalized = []
+
+        for backend in backends or []:
+            backend_name = str(backend).strip().lower()
+            if backend_name in valid_backends and backend_name not in normalized:
+                normalized.append(backend_name)
+
+        return normalized or ["auto", "html", "lite"]

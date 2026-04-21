@@ -45,6 +45,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { toast } from 'sonner';
 import * as z from 'zod';
+import { isVisibleCollectionConfigKey } from './feature-visibility';
 
 const collectionModelSchema = z
   .object({
@@ -414,7 +415,9 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
-              {objectKeys(CollectionConfigIndexTypes).map((key) => {
+              {objectKeys(CollectionConfigIndexTypes)
+                .filter(isVisibleCollectionConfigKey)
+                .map((key) => {
                 const item = CollectionConfigIndexTypes[key];
                 return (
                   <FormField
@@ -454,7 +457,7 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
                     )}
                   />
                 );
-              })}
+                })}
             </CardContent>
           </Card>
 

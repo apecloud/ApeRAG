@@ -30,16 +30,17 @@
 
 3.  **独立解析器**：
     * **`MarkItDownParser` (`markitdown_parser.py`)**：
-        * 处理各种格式，包括 `.txt`、`.md`、`.html`、`.ipynb`、`.pdf`、`.epub` 以及 Microsoft Office 文档（`.docx`、`.doc`、`.xlsx`、`.xls`、`.pptx`、`.ppt`）。
+        * 处理各种格式，包括 `.txt`、`.md`、`.html`、`.ipynb`、`.pdf`、`.epub`、`.csv`、`.tsv`、`.xml`、`.rst`、`.eml` 以及 Microsoft Office 文档（`.docx`、`.doc`、`.xlsx`、`.xls`、`.pptx`、`.ppt`）。
         * 使用 `markitdown` 库进行主要的 Markdown 转换。
         * 对于旧版 Office 格式（`.doc`、`.ppt`），它可以首先使用 `soffice` (LibreOffice/OpenOffice) 将其转换为现代 XML 格式。
+        * 这是私有化交付下的默认解析主路径，应保持为主要交付路径。
         * 生成的 Markdown 随后由 `parse_md.py` 处理。
-    * **`DocRayParser` (`docray_parser.py`)**：
-        * 专为复杂、布局密集型文档设计，如 `.pdf`、`.docx`、`.doc`、`.pptx`、`.ppt`。
-        * 依赖外部“DocRay”微服务（通过 `settings.DOCRAY_HOST` 配置）。
-        * 将文档提交给 DocRay，轮询完成状态，并检索结构化的 JSON 输出（“middle_json”）以及提取的图像。
-        * 此 `middle_json` 提供详细的布局信息（页面、块、边界框），然后将其转换为 `Part` 对象，包括用于图像的 `AssetBinPart`。
-        * 还从这些部分生成合并的 Markdown 表示。
+    * **`MinerUParser` (`mineru_parser.py`)**：
+        * 专为复杂、布局密集型文档和 OCR 场景设计，如 `.pdf`、`.docx`、`.doc`、`.pptx`、`.ppt` 以及常见图片格式。
+        * 依赖 MinerU API 和配置好的 API token。
+        * 它是可选增强兜底路径，不是默认解析主路径。
+        * 获取结构化布局输出和提取的图像，并将其转换为 `Part` 对象，包括用于图像的 `AssetBinPart`。
+        * 同时会基于这些部分生成合并后的 Markdown 表示。
     * **`AudioParser` (`audio_parser.py`)**：
         * 将音频文件（例如，`.mp3`、`.wav`、`.ogg`）转录为文本。
         * 使用外部 Whisper ASR Web 服务（通过 `settings.WHISPER_HOST` 配置）。
@@ -50,7 +51,7 @@
         * 输出一个带有提取文本的 `TextPart`。
 
 4.  **Markdown 处理 (`parse_md.py`)**：
-    * 接收 Markdown 字符串（通常是 `MarkItDownParser` 或 `DocRayParser` 的输出），并将其转换为详细的 `Part` 对象列表。
+    * 接收 Markdown 字符串（通常是 `MarkItDownParser` 或 `MinerUParser` 的输出），并将其转换为详细的 `Part` 对象列表。
     * 使用 `markdown-it-py` 对 Markdown 进行分词。
     * `PartConverter` 类遍历这些 token，创建相应的 `Part` 对象（例如，`TitlePart`、`TextPart`、`CodePart`、`ImagePart`）。
     * 处理嵌入的 Base64 数据 URI：将其转换为 `AssetBinPart` 对象，并用 `asset://` 链接替换 Markdown 中的 URI。
@@ -78,10 +79,10 @@
 ## 工作流程
 
 1.  文件路径提供给 `DocParser`。
-2.  `DocParser` 选择一个合适的解析器（例如，`MarkItDownParser`、`DocRayParser`）。
+2.  `DocParser` 选择一个合适的解析器（例如，`MarkItDownParser`、`MinerUParser`）。
 3.  选定的解析器处理文件：
     * 它可能将文件转换为 Markdown（例如，`MarkItDownParser`）。
-    * 它可能调用外部服务进行复杂解析或 OCR/ASR（`DocRayParser`、`ImageParser`、`AudioParser`）。
+    * 它可能调用外部服务进行复杂解析或 OCR/ASR（`MinerUParser`、`ImageParser`、`AudioParser`）。
 4.  （可能是中间 Markdown）内容被 `parse_md.py` 解析成 `Part` 对象列表（如果适用）。此步骤将文档结构化为语义单元，如段落、标题、代码块，并处理嵌入的图像。
 5.  生成的 `Part` 对象列表随后传递给 `chunking.py` 中的 `rechunk` 函数。
 6.  `rechunk` 智能地组合和拆分这些部分，形成所需 token 大小的最终文本块，准备好进行嵌入。元数据，包括标题层级和源位置，与每个块相关联。

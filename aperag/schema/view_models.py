@@ -25,7 +25,6 @@ from pydantic import (
     AnyUrl,
     BaseModel,
     ConfigDict,
-    EmailStr,
     Field,
     RootModel,
     confloat,
@@ -112,7 +111,9 @@ class IndexPrompts(BaseModel):
 
 class CollectionConfig(BaseModel):
     source: Optional[str] = Field(
-        None, description='Source system identifier', examples=['system']
+        'system',
+        description='Source system identifier. Only `system` is supported.',
+        examples=['system'],
     )
     enable_vector: Optional[bool] = Field(
         True, description='Whether to enable vector index'
@@ -153,100 +154,6 @@ class CollectionConfig(BaseModel):
     )
     embedding: Optional[ModelSpec] = None
     completion: Optional[ModelSpec] = None
-    path: Optional[str] = Field(None, description='Path for local and ftp sources')
-    host: Optional[str] = Field(None, description='FTP host')
-    username: Optional[str] = Field(None, description='FTP username')
-    password: Optional[str] = Field(None, description='FTP password')
-    region: Optional[str] = Field(None, description='Region for S3/OSS')
-    access_key_id: Optional[str] = Field(None, description='Access key ID for S3/OSS')
-    secret_access_key: Optional[str] = Field(
-        None, description='Secret access key for S3/OSS'
-    )
-    bucket: Optional[str] = Field(None, description='Bucket name for S3/OSS')
-    dir: Optional[str] = Field(None, description='Directory path in bucket for S3/OSS')
-    email_source: Optional[dict[str, Any]] = Field(
-        None, description='Email source configuration'
-    )
-    pop_server: Optional[str] = Field(None, description='POP3 server address')
-    port: Optional[str] = Field(None, description='Email server port')
-    email_address: Optional[str] = Field(None, description='Email address')
-    email_password: Optional[str] = Field(None, description='Email password')
-    app_id: Optional[str] = Field(None, description='Feishu app ID')
-    app_secret: Optional[str] = Field(None, description='Feishu app secret')
-    space_id: Optional[str] = Field(None, description='Feishu space ID')
-
-
-class Local(BaseModel):
-    path: Optional[str] = None
-
-
-class Bucket(BaseModel):
-    bucket: Optional[str] = None
-    dir: Optional[str] = None
-
-
-class Oss(BaseModel):
-    access_key_id: Optional[str] = None
-    access_key_secret: Optional[str] = None
-    buckets: Optional[list[Bucket]] = None
-    bucket: Optional[str] = None
-    endpoint: Optional[str] = None
-    region: Optional[str] = None
-    dir: Optional[str] = None
-
-
-class S3(BaseModel):
-    access_key_id: Optional[str] = None
-    access_key_secret: Optional[str] = None
-    buckets: Optional[list[dict[str, Any]]] = None
-    bucket: Optional[str] = None
-    region: Optional[str] = None
-    dir: Optional[str] = None
-
-
-class Ftp(BaseModel):
-    path: Optional[str] = None
-    host: Optional[str] = None
-    port: Optional[float] = None
-    username: Optional[str] = None
-
-
-class Email(BaseModel):
-    pop_server: Optional[str] = None
-    port: Optional[float] = None
-    email_address: Optional[str] = None
-    email_password: Optional[str] = None
-    detect_spam: Optional[bool] = None
-
-
-class Url(BaseModel):
-    url: Optional[str] = None
-    name: Optional[str] = None
-
-
-class Feishu(BaseModel):
-    app_id: Optional[str] = None
-    app_secret: Optional[str] = None
-    space_id: Optional[str] = None
-    node_id: Optional[str] = None
-    method: Optional[str] = None
-    target_format: Optional[str] = None
-
-
-class CollectionSource(BaseModel):
-    category: Optional[
-        Literal[
-            'upload', 'tencent', 'oss', 'local', 's3', 'ftp', 'email', 'url', 'github'
-        ]
-    ] = None
-    upload: Optional[dict[str, Any]] = None
-    local: Optional[Local] = None
-    oss: Optional[Oss] = None
-    s3: Optional[S3] = None
-    ftp: Optional[Ftp] = None
-    email: Optional[Email] = None
-    url: Optional[Url] = None
-    feishu: Optional[Feishu] = None
 
 
 class Collection(BaseModel):
@@ -259,7 +166,6 @@ class Collection(BaseModel):
     type: Optional[str] = None
     description: Optional[str] = None
     config: Optional[CollectionConfig] = None
-    source: Optional[CollectionSource] = None
     status: Optional[Literal['ACTIVE', 'INACTIVE', 'DELETED']] = None
     created: Optional[datetime] = None
     updated: Optional[datetime] = None
@@ -271,196 +177,6 @@ class Collection(BaseModel):
     )
 
 
-class Retry(BaseModel):
-    max_attempts: Optional[int] = Field(
-        None, description='Maximum number of retry attempts', examples=[3]
-    )
-    delay: Optional[int] = Field(
-        None, description='Delay between retries in seconds', examples=[5]
-    )
-
-
-class Notification(BaseModel):
-    email: Optional[list[EmailStr]] = Field(None, examples=[['admin@example.com']])
-
-
-class ErrorHandling(BaseModel):
-    strategy: Optional[Literal['stop_on_error', 'continue_on_error']] = Field(
-        None, description='Error handling strategy', examples=['stop_on_error']
-    )
-    notification: Optional[Notification] = None
-
-
-class ExecutionConfig(BaseModel):
-    """
-    Configuration for workflow execution
-    """
-
-    timeout: Optional[int] = Field(
-        None, description='Overall timeout in seconds', examples=[300]
-    )
-    retry: Optional[Retry] = None
-    error_handling: Optional[ErrorHandling] = None
-
-
-class SchemaDefinition(BaseModel):
-    """
-    JSON Schema definition
-    """
-
-    model_config = ConfigDict(
-        extra='allow',
-    )
-    type: Optional[
-        Literal['object', 'array', 'string', 'number', 'integer', 'boolean']
-    ] = None
-    properties: Optional[dict[str, Any]] = None
-    required: Optional[list[str]] = None
-    additionalProperties: Optional[bool] = None
-
-
-class Input(BaseModel):
-    schema_: SchemaDefinition = Field(..., alias='schema')
-    values: Optional[dict[str, Any]] = Field(
-        None, description='Default values and template references'
-    )
-
-
-class Output(BaseModel):
-    schema_: SchemaDefinition = Field(..., alias='schema')
-
-
-class Data(BaseModel):
-    input: Input
-    output: Output
-    collapsed: Optional[bool] = Field(
-        None,
-        description='Whether the node is collapsed, only useful for frontend to collapse the node',
-        examples=[False],
-    )
-
-
-class Position(BaseModel):
-    """
-    Position of the node in the frontend
-    """
-
-    x: Optional[float] = None
-    y: Optional[float] = None
-
-
-class Measured(BaseModel):
-    """
-    Measured position of the node, only useful for frontend to measure the node
-    """
-
-    width: Optional[float] = None
-    height: Optional[float] = None
-
-
-class Node(BaseModel):
-    id: str = Field(
-        ...,
-        description='Unique identifier for the node',
-        examples=['vector_search_3f8e2c1a'],
-    )
-    ariaLabel: Optional[str] = Field(None, description='label for the node')
-    type: Literal[
-        'start',
-        'vector_search',
-        'fulltext_search',
-        'graph_search',
-        'merge',
-        'rerank',
-        'llm',
-    ] = Field(..., description='Type of node', examples=['vector_search'])
-    title: Optional[str] = Field(
-        None, description='Human-readable title of the node', examples=['Vector Search']
-    )
-    data: Data
-    position: Optional[Position] = Field(
-        None, description='Position of the node in the frontend'
-    )
-    dragHandle: Optional[str] = Field(
-        None,
-        description='Drag handle of the node, only useful for frontend to drag the node',
-    )
-    measured: Optional[Measured] = Field(
-        None,
-        description='Measured position of the node, only useful for frontend to measure the node',
-    )
-    selected: Optional[bool] = Field(
-        None,
-        description='Whether the node is selected, only useful for frontend to select the node',
-    )
-    deletable: Optional[bool] = Field(
-        None,
-        description='Whether the node is deletable, only useful for frontend to delete the node',
-        examples=[True],
-    )
-
-
-class Edge(BaseModel):
-    id: Optional[str] = Field(
-        None,
-        description='Unique identifier for the edge, only useful for frontend to identify the edge',
-        examples=['edge_1'],
-    )
-    deletable: Optional[bool] = Field(
-        None,
-        description='Whether the edge is deletable, only useful for frontend to delete the edge',
-        examples=[True],
-    )
-    type: Optional[str] = Field(None, description='Type of the edge', examples=['edge'])
-    source: str = Field(..., description='ID of the source node', examples=['start'])
-    target: str = Field(
-        ..., description='ID of the target node', examples=['vector_search_3f8e2c1a']
-    )
-
-
-class WorkflowStyle(BaseModel):
-    """
-    Workflow style
-    """
-
-    edgeType: Optional[
-        Literal['straight', 'step', 'smoothstep', 'default', 'simplebezier']
-    ] = None
-    layoutDirection: Optional[Literal['TB', 'LR']] = None
-
-
-class WorkflowDefinition(BaseModel):
-    name: str = Field(
-        ...,
-        description='Machine-readable identifier for the workflow',
-        examples=['rag_flow'],
-    )
-    title: str = Field(
-        ...,
-        description='Human-readable title of the workflow',
-        examples=['RAG Knowledge Base Flow'],
-    )
-    description: Optional[str] = Field(
-        None,
-        description='Detailed description of the workflow',
-        examples=['A typical RAG flow with parallel retrieval and reranking'],
-    )
-    version: str = Field(
-        ..., description='Version number of the workflow definition', examples=['1.0.0']
-    )
-    execution: Optional[ExecutionConfig] = None
-    schema_: Optional[dict[str, SchemaDefinition]] = Field(
-        None,
-        alias='schema',
-        description='Custom schema definitions used across the workflow',
-    )
-    nodes: list[Node] = Field(..., description='List of nodes in the workflow')
-    edges: list[Edge] = Field(
-        ..., description='List of edges connecting nodes in the workflow'
-    )
-    style: Optional[WorkflowStyle] = None
-
-
 class Agent(BaseModel):
     completion: Optional[ModelSpec] = None
     system_prompt_template: Optional[str] = None
@@ -470,7 +186,6 @@ class Agent(BaseModel):
 
 class BotConfig(BaseModel):
     agent: Optional[Agent] = None
-    flow: Optional[WorkflowDefinition] = None
 
 
 class Bot(BaseModel):
@@ -514,8 +229,8 @@ class FailResponse(BaseModel):
 class BotCreate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
-    type: Optional[Literal['knowledge', 'common', 'agent']] = Field(
-        None, description='The type of bot', examples=['knowledge']
+    type: Optional[Literal['agent']] = Field(
+        'agent', description='The supported bot type', examples=['agent']
     )
     config: Optional[BotConfig] = None
 
@@ -525,10 +240,6 @@ class BotUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     config: Optional[BotConfig] = None
-
-
-class DebugFlowRequest(BaseModel):
-    query: str
 
 
 class Chat(BaseModel):
@@ -788,14 +499,12 @@ class CollectionCreate(BaseModel):
     config: Optional[CollectionConfig] = None
     type: Optional[str] = None
     description: Optional[str] = None
-    source: Optional[CollectionSource] = None
 
 
 class CollectionUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     config: Optional[CollectionConfig] = None
-    source: Optional[CollectionSource] = None
 
 
 class DocumentList(PaginatedResponse):
@@ -804,13 +513,6 @@ class DocumentList(PaginatedResponse):
     """
 
     items: Optional[list[Document]] = None
-
-
-class DocumentCreate(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
-    source: Optional[str] = None
-    collection_id: Optional[str] = None
 
 
 class RebuildIndexesRequest(BaseModel):
@@ -1027,7 +729,6 @@ class SearchRequest(BaseModel):
 class Settings(BaseModel):
     use_mineru: Optional[bool] = Field(None, description='Whether to use MinerU')
     mineru_api_token: Optional[str] = Field(None, description='API token for MinerU')
-    use_doc_ray: Optional[bool] = Field(None, description='Whether to use DocRay')
     use_markitdown: Optional[bool] = Field(
         None, description='Whether to use MarkItDown'
     )
@@ -2428,7 +2129,7 @@ class WebSearchRequest(BaseModel):
 
     query: Optional[str] = Field(
         None,
-        description='Search query for regular web search. Optional if only using LLM.txt discovery.',
+        description='Search query for web search. Optional when using source-only site browsing.',
         examples=['ApeRAG 2025年最新发展'],
     )
     max_results: Optional[int] = Field(
@@ -2444,11 +2145,6 @@ class WebSearchRequest(BaseModel):
         None,
         description="Domain or URL for site-specific filtering. When provided with query, limits search results to this domain (e.g., 'site:vercel.com query').",
         examples=['vercel.com'],
-    )
-    search_llms_txt: Optional[str] = Field(
-        None,
-        description='Domain for LLM.txt discovery search. When provided, performs additional LLM-optimized content discovery from the specified domain, independent of the main search. Results are merged with regular search results.',
-        examples=['anthropic.com'],
     )
 
 

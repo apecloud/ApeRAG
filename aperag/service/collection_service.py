@@ -21,8 +21,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from aperag.db import models as db_models
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.exceptions import ValidationException
-from aperag.flow.base.models import Edge, FlowInstance, NodeInstance
-from aperag.flow.engine import FlowEngine
 from aperag.schema import view_models
 from aperag.schema.utils import dumpCollectionConfig, parseCollectionConfig
 from aperag.schema.view_models import (
@@ -34,6 +32,7 @@ from aperag.schema.view_models import (
 from aperag.service.collection_summary_service import collection_summary_service
 from aperag.service.marketplace_collection_service import marketplace_collection_service
 from aperag.service.marketplace_service import marketplace_service
+from aperag.service.search_pipeline_service import search_pipeline_service
 from aperag.utils.constant import QuotaType
 from aperag.views.utils import validate_source_connect_config
 from config.celery_tasks import collection_delete_task, collection_init_task
@@ -297,194 +296,14 @@ class CollectionService:
         flow_name: str = "search",
         flow_title: str = "Search",
     ) -> Tuple[List[SearchResultItem], str]:
-        """
-        Execute search flow and return search result items and rerank node ID.
-
-        Args:
-            data: Search request data
-            collection_id: Target collection ID for search
-            search_user_id: User ID to use for search operations (may differ from requester for marketplace collections)
-            chat_id: Optional chat ID for filtering in chat searches
-            flow_name: Name of the flow instance
-            flow_title: Title of the flow instance
-
-        Returns:
-            Tuple of (search result items, rerank node id)
-        """
-        from aperag.service.default_model_service import default_model_service
-
-        # Build flow for search execution
-        nodes = {}
-        edges = []
-        merge_node_id = "merge"
-        merge_node_values = {
-            "merge_strategy": "union",
-            "deduplicate": True,
-        }
-        query = data.query
-        # Configure search nodes based on request
-        if data.vector_search:
-            node_id = "vector_search"
-            input_values = {
-                "query": query,
-                "top_k": data.vector_search.topk if data.vector_search else 5,
-                "similarity_threshold": data.vector_search.similarity if data.vector_search else 0.2,
-                "collection_ids": [collection_id],
-            }
-            # Add chat_id for filtering if provided
-            if chat_id:
-                input_values["chat_id"] = chat_id
-
-            nodes[node_id] = NodeInstance(
-                id=node_id,
-                type="vector_search",
-                input_values=input_values,
-            )
-            merge_node_values["vector_search_docs"] = "{{ nodes.vector_search.output.docs }}"
-            edges.append(Edge(source=node_id, target=merge_node_id))
-
-        if data.fulltext_search:
-            node_id = "fulltext_search"
-            input_values = {
-                "query": query,
-                "top_k": data.fulltext_search.topk if data.fulltext_search else 5,
-                "collection_ids": [collection_id],
-                "keywords": data.fulltext_search.keywords,
-            }
-            # Add chat_id for filtering if provided
-            if chat_id:
-                input_values["chat_id"] = chat_id
-
-            nodes[node_id] = NodeInstance(
-                id=node_id,
-                type="fulltext_search",
-                input_values=input_values,
-            )
-            merge_node_values["fulltext_search_docs"] = "{{ nodes.fulltext_search.output.docs }}"
-            edges.append(Edge(source=node_id, target=merge_node_id))
-
-        if data.graph_search:
-            input_values = {
-                "query": query,
-                "top_k": data.graph_search.topk if data.graph_search else 5,
-                "collection_ids": [collection_id],
-            }
-            # Add chat_id for filtering if provided
-            if chat_id:
-                input_values["chat_id"] = chat_id
-
-            nodes["graph_search"] = NodeInstance(
-                id="graph_search",
-                type="graph_search",
-                input_values=input_values,
-            )
-            merge_node_values["graph_search_docs"] = "{{ nodes.graph_search.output.docs }}"
-            edges.append(Edge(source="graph_search", target=merge_node_id))
-
-        if data.summary_search:
-            node_id = "summary_search"
-            input_values = {
-                "query": query,
-                "top_k": data.summary_search.topk if data.summary_search else 5,
-                "similarity_threshold": data.summary_search.similarity if data.summary_search else 0.2,
-                "collection_ids": [collection_id],
-            }
-            # Add chat_id for filtering if provided
-            if chat_id:
-                input_values["chat_id"] = chat_id
-
-            nodes[node_id] = NodeInstance(
-                id=node_id,
-                type="summary_search",
-                input_values=input_values,
-            )
-            merge_node_values["summary_search_docs"] = "{{ nodes.summary_search.output.docs }}"
-            edges.append(Edge(source=node_id, target=merge_node_id))
-
-        if data.vision_search:
-            node_id = "vision_search"
-            input_values = {
-                "query": query,
-                "top_k": data.vision_search.topk if data.vision_search else 5,
-                "similarity_threshold": data.vision_search.similarity if data.vision_search else 0.2,
-                "collection_ids": [collection_id],
-            }
-            # Add chat_id for filtering if provided
-            if chat_id:
-                input_values["chat_id"] = chat_id
-
-            nodes[node_id] = NodeInstance(
-                id=node_id,
-                type="vision_search",
-                input_values=input_values,
-            )
-            merge_node_values["vision_search_docs"] = "{{ nodes.vision_search.output.docs }}"
-            edges.append(Edge(source=node_id, target=merge_node_id))
-
-        nodes[merge_node_id] = NodeInstance(
-            id=merge_node_id,
-            type="merge",
-            input_values=merge_node_values,
+        """Execute search using direct Python orchestration."""
+        _ = (flow_name, flow_title)
+        return await search_pipeline_service.execute_search(
+            data=data,
+            collection_id=collection_id,
+            search_user_id=search_user_id,
+            chat_id=chat_id,
         )
-
-        # Add rerank node to flow
-        if data.rerank:
-            model, model_service_provider, custom_llm_provider = await default_model_service.get_default_rerank_config(
-                search_user_id
-            )
-            use_rerank_service = model is not None
-        else:
-            model, model_service_provider, custom_llm_provider = None, None, None
-            use_rerank_service = False
-
-        rerank_node_id = "rerank"
-        nodes[rerank_node_id] = NodeInstance(
-            id=rerank_node_id,
-            type="rerank",
-            input_values={
-                "use_rerank_service": use_rerank_service,
-                "model": model,
-                "model_service_provider": model_service_provider,
-                "custom_llm_provider": custom_llm_provider,
-                "docs": "{{ nodes.merge.output.docs }}",
-            },
-        )
-        # Add edge from merge to rerank
-        edges.append(Edge(source=merge_node_id, target=rerank_node_id))
-
-        # Execute search flow
-        flow = FlowInstance(
-            name=flow_name,
-            title=flow_title,
-            nodes=nodes,
-            edges=edges,
-        )
-        engine = FlowEngine()
-        # Build initial data with chat_id if provided
-        initial_data = {"query": query, "user": search_user_id}
-        if chat_id:
-            initial_data["chat_id"] = chat_id
-        result, _ = await engine.execute_flow(flow, initial_data)
-
-        if not result:
-            raise Exception("Failed to execute flow")
-
-        # Process search results from rerank node
-        docs = result.get(rerank_node_id, {}).docs
-        items = []
-        for idx, doc in enumerate(docs):
-            items.append(
-                SearchResultItem(
-                    rank=idx + 1,
-                    score=doc.score,
-                    content=doc.text,
-                    source=doc.metadata.get("source", ""),
-                    recall_type=doc.metadata.get("recall_type", ""),
-                    metadata=doc.metadata,
-                )
-            )
-
-        return items, rerank_node_id
 
     async def create_search(
         self, user: str, collection_id: str, data: view_models.SearchRequest

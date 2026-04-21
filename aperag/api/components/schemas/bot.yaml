@@ -14,8 +14,6 @@ botConfig:
           type: array
           items:
             $ref: './collection.yaml#/collection'
-    flow:
-      $ref: './flow.yaml#/components/schemas/WorkflowDefinition'
 
 
 botCreate:
@@ -28,11 +26,9 @@ botCreate:
     type:
       type: string
       enum:
-        - knowledge
-        - common
         - agent
-      description: The type of bot
-      example: knowledge
+      description: The supported bot type
+      example: agent
     config:
       $ref: '#/botConfig'
 
@@ -64,7 +60,7 @@ bot:
         - common
         - agent
       description: The type of bot
-      example: knowledge
+      example: agent
     config:
       $ref: '#/botConfig'
     created:
@@ -84,11 +80,3 @@ botList:
         $ref: '#/bot'
     pageResult:
       $ref: './common.yaml#/pageResult'
-
-debugFlowRequest:
-  type: object
-  properties:
-    query:
-      type: string
-  required:
-    - query

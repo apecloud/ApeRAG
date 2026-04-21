@@ -31,7 +31,7 @@ ApeRAG is a production-grade RAG platform with multimodal indexing, AI agents, M
 
 ## Step 1: Prepare Knowledge Base
 
-Visit ApeRAG at https://rag.apecloud.com/ , register/login, and select or import a knowledge base. Here we use the Romance of the Three Kingdoms example - click subscribe.
+Open your ApeRAG web UI (see [Quick Start](../../../README.md#quick-start); with Docker Compose this is typically http://localhost:3000/web/). Sign in and select or import a knowledge base. This walkthrough uses the Romance of the Three Kingdoms example—click **Subscribe**.
 
 <div align="center">
   <img src="/images/en-US/dify/step1-subscribe-collection.png" alt="Subscribe to Collection" width="800" />
@@ -49,7 +49,7 @@ Go to Dify - Tools - MCP, click Add MCP Server.
 
 ### 2.2 Fill Configuration
 
-Fill in Server URL: `https://rag.apecloud.com/mcp/` and your API Key copied from ApeRAG, then click Confirm.
+Fill in Server URL: `http://localhost:8000/mcp/` (use `https://<your-aperag-host>/mcp/` if ApeRAG is not local), paste your API Key from ApeRAG, then click Confirm.
 
 <div align="center">
   <img src="/images/en-US/dify/step2-configure-mcp.png" alt="Configure MCP" width="700" />
