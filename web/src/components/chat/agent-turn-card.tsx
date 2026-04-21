@@ -1019,6 +1019,10 @@ export const AgentTurnCard = ({
                         item.userActivity.detail_key,
                         translationValues,
                       );
+                      const hasDebugContent =
+                        !!item.argsPreview ||
+                        !!item.resultPreview ||
+                        !!item.technicalType;
 
                       const cardBody = (
                         <>
@@ -1074,13 +1078,73 @@ export const AgentTurnCard = ({
                           </div>
 
                           <div className="min-w-0 flex-1 pb-3">
-                            <div
-                              className={cn(
-                                'rounded-xl border px-3 py-2.5 transition-colors',
-                                styles.card,
+                            <div className="space-y-2">
+                              <div
+                                className={cn(
+                                  'rounded-xl border px-3 py-2.5 transition-colors',
+                                  styles.card,
+                                )}
+                              >
+                                {cardBody}
+                              </div>
+
+                              {hasDebugContent && (
+                                <Collapsible className="group/timeline-debug">
+                                  <CollapsibleTrigger asChild>
+                                    <button
+                                      type="button"
+                                      className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-[11px] transition-colors"
+                                    >
+                                      <ChevronRight className="size-3 transition-transform group-data-[state=open]/timeline-debug:rotate-90" />
+                                      <span>
+                                        {pageChat(
+                                          'activity_stream.debug.title',
+                                        )}
+                                      </span>
+                                    </button>
+                                  </CollapsibleTrigger>
+                                  <CollapsibleContent className="pt-1">
+                                    <div className="bg-muted/20 grid gap-2 rounded-xl border border-dashed px-3 py-2 text-xs">
+                                      {item.technicalType && (
+                                        <div className="grid gap-1">
+                                          <div className="text-muted-foreground">
+                                            {pageChat(
+                                              'activity_stream.debug.technical_type',
+                                            )}
+                                          </div>
+                                          <div className="font-mono break-all">
+                                            {item.technicalType}
+                                          </div>
+                                        </div>
+                                      )}
+                                      {item.argsPreview && (
+                                        <div className="grid gap-1">
+                                          <div className="text-muted-foreground">
+                                            {pageChat(
+                                              'activity_stream.debug.command_input',
+                                            )}
+                                          </div>
+                                          <pre className="bg-background overflow-x-auto rounded-md border p-2 whitespace-pre-wrap break-all">
+                                            {item.argsPreview}
+                                          </pre>
+                                        </div>
+                                      )}
+                                      {item.resultPreview && (
+                                        <div className="grid gap-1">
+                                          <div className="text-muted-foreground">
+                                            {pageChat(
+                                              'activity_stream.debug.result_summary',
+                                            )}
+                                          </div>
+                                          <pre className="bg-background overflow-x-auto rounded-md border p-2 whitespace-pre-wrap break-all">
+                                            {item.resultPreview}
+                                          </pre>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </CollapsibleContent>
+                                </Collapsible>
                               )}
-                            >
-                              {cardBody}
                             </div>
                           </div>
                         </div>
