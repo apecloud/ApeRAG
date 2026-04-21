@@ -63,7 +63,9 @@ install_addon_release() {
 wait_for_addon_enabled() {
     local addon_resource="$1"
     local addon_name="$2"
+    local release_name="$3"
     local phase=""
+    local release_status=""
 
     print "Waiting for ${addon_name} addon to reach Enabled phase..."
     for _ in {1..36}; do
@@ -71,6 +73,13 @@ wait_for_addon_enabled() {
         if [ "$phase" = "Enabled" ]; then
             print_success "${addon_name} addon is Enabled."
             return 0
+        fi
+        if [ "$phase" = "Failed" ]; then
+            release_status="$(helm status "$release_name" --namespace kb-system 2>/dev/null | awk '/^STATUS: / {print $2; exit}' || true)"
+            if [ "$release_status" = "deployed" ]; then
+                print_warning "${addon_name} addon phase stayed Failed after an install race, but Helm release ${release_name} is deployed; continuing."
+                return 0
+            fi
         fi
         sleep 5
     done
@@ -83,32 +92,32 @@ wait_for_addon_enabled() {
 # Install database addons based on configuration
 if [ "$ENABLE_POSTGRESQL" = true ]; then
     install_addon_release "PostgreSQL" "kb-addon-postgresql" "postgresql" "postgresql"
-    wait_for_addon_enabled "postgresql" "PostgreSQL"
+    wait_for_addon_enabled "postgresql" "PostgreSQL" "kb-addon-postgresql"
 fi
 
 if [ "$ENABLE_REDIS" = true ]; then
     install_addon_release "Redis" "kb-addon-redis" "redis" "redis"
-    wait_for_addon_enabled "redis" "Redis"
+    wait_for_addon_enabled "redis" "Redis" "kb-addon-redis"
 fi
 
 if [ "$ENABLE_ELASTICSEARCH" = true ]; then
     install_addon_release "Elasticsearch" "kb-addon-elasticsearch" "elasticsearch" "elasticsearch"
-    wait_for_addon_enabled "elasticsearch" "Elasticsearch"
+    wait_for_addon_enabled "elasticsearch" "Elasticsearch" "kb-addon-elasticsearch"
 fi
 
 if [ "$ENABLE_QDRANT" = true ]; then
     install_addon_release "Qdrant" "kb-addon-qdrant" "qdrant" "qdrant"
-    wait_for_addon_enabled "qdrant" "Qdrant"
+    wait_for_addon_enabled "qdrant" "Qdrant" "kb-addon-qdrant"
 fi
 
 if [ "$ENABLE_MONGODB" = true ]; then
     install_addon_release "MongoDB" "kb-addon-mongodb" "mongodb" "mongodb"
-    wait_for_addon_enabled "mongodb" "MongoDB"
+    wait_for_addon_enabled "mongodb" "MongoDB" "kb-addon-mongodb"
 fi
 
 if [ "$ENABLE_NEO4J" = true ]; then
     install_addon_release "Neo4j" "kb-addon-neo4j" "neo4j" "neo4j"
-    wait_for_addon_enabled "neo4j" "Neo4j"
+    wait_for_addon_enabled "neo4j" "Neo4j" "kb-addon-neo4j"
 fi
 
 print_success "KubeBlocks database addons installation completed!"
