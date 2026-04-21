@@ -194,6 +194,7 @@ class RedisChatMessageHistory:
     async def release_redis(self):
         await self.redis_client.close(close_connection_pool=True)
 
+
 def success_response(message_id, data):
     return json.dumps(
         {
