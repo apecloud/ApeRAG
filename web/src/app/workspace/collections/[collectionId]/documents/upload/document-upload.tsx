@@ -78,7 +78,9 @@ type DocumentsWithFile = {
 
 type AsyncTask = (callback: (error?: Error | null) => void) => void;
 
-let uploadController: AbortController | undefined;
+const UPLOAD_CONCURRENCY = 5;
+const SIMULATED_PROGRESS_MAX = 95;
+const SIMULATED_PROGRESS_INTERVAL_MS = 100;
 
 export const DocumentUpload = () => {
   const { collection } = useCollectionContext();
@@ -92,6 +94,7 @@ export const DocumentUpload = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 20 });
   const uploadingFilesRef = useRef<Set<string>>(new Set());
+  const uploadControllerRef = useRef<AbortController | null>(null);
 
   // ── Staged document helpers ──────────────────────────────────────────────
 
@@ -197,10 +200,11 @@ export const DocumentUpload = () => {
 
   const stopUpload = useCallback(() => {
     setIsUploading(false);
-    uploadController?.abort();
+    uploadControllerRef.current?.abort();
+    uploadControllerRef.current = null;
   }, []);
 
-  useEffect(() => stopUpload, [stopUpload]);
+  useEffect(() => () => stopUpload(), [stopUpload]);
 
   const startUpload = useCallback(
     (docs: DocumentsWithFile[]) => {
@@ -223,23 +227,37 @@ export const DocumentUpload = () => {
 
       const tasks: AsyncTask[] = filesToUpload.map((_doc) => async (callback) => {
         const file = _doc.file!;
+        const controller = uploadControllerRef.current;
         if (!collection?.id) {
           callback();
           return;
         }
+        if (!controller || controller.signal.aborted) {
+          callback();
+          return;
+        }
 
-        const networkSimulation = async () => {
-          const totalChunks = 100;
-          let uploadedChunks = 0;
-          for (let i = 0; i < totalChunks; i++) {
+        const progressController = new AbortController();
+        const syncProgressAbort = () => progressController.abort();
+        controller.signal.addEventListener('abort', syncProgressAbort, {
+          once: true,
+        });
+
+        const networkSimulation = async (signal: AbortSignal) => {
+          let progress = 0;
+          while (!signal.aborted && progress < SIMULATED_PROGRESS_MAX) {
             await new Promise((resolve) =>
-              setTimeout(resolve, Math.random() * 5 + 5),
+              setTimeout(resolve, SIMULATED_PROGRESS_INTERVAL_MS),
             );
-            uploadedChunks++;
-            const progress = (uploadedChunks / totalChunks) * 99;
+            if (signal.aborted) return;
+
+            progress = Math.min(
+              progress + Math.max(1, Math.ceil((SIMULATED_PROGRESS_MAX - progress) / 8)),
+              SIMULATED_PROGRESS_MAX,
+            );
             setDocuments((docs) => {
               const doc = docs.find((d) => d.file && _.isEqual(d.file, file));
-              if (doc) {
+              if (doc && doc.progress_status !== 'success') {
                 doc.progress = Number(progress.toFixed(0));
                 doc.progress_status = 'uploading';
               }
@@ -247,15 +265,14 @@ export const DocumentUpload = () => {
             });
           }
         };
+        const progressTask = networkSimulation(progressController.signal);
 
         try {
-          const [res] = await Promise.all([
-            apiClient.defaultApi.collectionsCollectionIdDocumentsUploadPost(
+          const res =
+            await apiClient.defaultApi.collectionsCollectionIdDocumentsUploadPost(
               { collectionId: collection.id, file },
-              { timeout: 1000 * 30 },
-            ),
-            networkSimulation(),
-          ]);
+              { timeout: 1000 * 30, signal: controller.signal },
+            );
 
           setDocuments((docs) => {
             const doc = docs.find((d) => d.file && _.isEqual(d.file, file));
@@ -273,11 +290,17 @@ export const DocumentUpload = () => {
           setDocuments((docs) => {
             const doc = docs.find((d) => d.file && _.isEqual(d.file, file));
             if (doc) {
-              Object.assign(doc, { progress: 0, progress_status: 'failed' });
+              Object.assign(doc, {
+                progress: controller.signal.aborted ? doc.progress : 0,
+                progress_status: controller.signal.aborted ? 'pending' : 'failed',
+              });
             }
             return [...docs];
           });
         } finally {
+          progressController.abort();
+          controller.signal.removeEventListener('abort', syncProgressAbort);
+          await progressTask;
           const fileKey = `${file.name}-${file.size}-${file.lastModified}`;
           uploadingFilesRef.current.delete(fileKey);
         }
@@ -285,21 +308,28 @@ export const DocumentUpload = () => {
       });
 
       setIsUploading(true);
-      uploadController = new AbortController();
+      const controller = new AbortController();
+      uploadControllerRef.current = controller;
       async.eachLimit(
         tasks,
-        3,
+        UPLOAD_CONCURRENCY,
         (task, callback) => {
-          if (uploadController?.signal.aborted) {
+          if (controller.signal.aborted) {
             setIsUploading(false);
-            callback(new Error('stop upload'));
+            callback();
           } else {
             task(callback);
           }
         },
         (err) => {
-          if (err) console.error('Upload error:', err);
-          else console.log('Upload completed');
+          if (uploadControllerRef.current === controller) {
+            uploadControllerRef.current = null;
+          }
+          if (err && !controller.signal.aborted) {
+            console.error('Upload error:', err);
+          } else if (!controller.signal.aborted) {
+            console.log('Upload completed');
+          }
           setIsUploading(false);
         },
       );
@@ -436,6 +466,7 @@ export const DocumentUpload = () => {
     data: documents,
     columns,
     state: { rowSelection, pagination },
+    autoResetPageIndex: false,
     getRowId: (row) =>
       String(row.document_id ?? (row.file ? `${row.file.name}-${row.file.lastModified}` : row.filename)),
     enableRowSelection: true,
