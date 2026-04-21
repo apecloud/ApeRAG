@@ -40,10 +40,7 @@ export const BotSectionNav = async ({
             key={link.key}
             asChild
             variant={isActive ? 'default' : 'outline'}
-            className={cn(
-              'rounded-full',
-              !isActive && 'bg-background',
-            )}
+            className={cn('rounded-full', !isActive && 'bg-background')}
           >
             <Link href={link.href}>
               <Icon className="size-4" />

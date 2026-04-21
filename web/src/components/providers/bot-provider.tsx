@@ -57,6 +57,7 @@ export const BotProvider = ({
 
   const [collections, setCollections] = useState<Collection[]>([]);
   const [providerModels, setProviderModels] = useState<ProviderModels>([]);
+  const botChatsBasePath = workspace ? '/workspace/bots' : '/bots';
 
   const loadData = useCallback(async () => {
     const [modelRes, collectionsRes] = await Promise.all([
@@ -110,20 +111,14 @@ export const BotProvider = ({
 
       if (params.chatId === chat.id) {
         const item = chats?.find((c) => c.id !== chat.id);
-        let url = '';
-        if (item) {
-          url = `/bots/${bot?.id}/chats/${item.id}`;
-        } else {
-          url = `/bots/${bot?.id}/chats`;
-        }
-        if (workspace) {
-          url = '/workspace' + url;
-        }
+        const url = item
+          ? `${botChatsBasePath}/${bot?.id}/chats/${item.id}`
+          : `${botChatsBasePath}/${bot?.id}/chats`;
         router.push(url);
       }
       chatsReload();
     },
-    [bot?.id, chats, chatsReload, params.chatId, router, workspace],
+    [bot?.id, botChatsBasePath, chats, chatsReload, params.chatId, router],
   );
 
   const chatRename = useCallback(
@@ -163,14 +158,11 @@ export const BotProvider = ({
     });
 
     if (res.data.id) {
-      let url = `/bots/${bot.id}/chats/${res.data.id}`;
-      if (workspace) {
-        url = '/workspace' + url;
-      }
+      const url = `${botChatsBasePath}/${bot.id}/chats/${res.data.id}`;
       router.push(url);
       chatsReload();
     }
-  }, [bot?.id, chatsReload, router, workspace]);
+  }, [bot?.id, botChatsBasePath, chatsReload, router]);
 
   useEffect(() => {
     if (chats.length === 0) {

@@ -4,8 +4,6 @@ import { useEffect, useMemo, useState, useTransition } from 'react';
 
 import { FormatDate } from '@/components/format-date';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { Input } from '@/components/ui/input';
 import {
   Card,
   CardContent,
@@ -13,6 +11,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Progress } from '@/components/ui/progress';
 import {
   Table,
   TableBody,
@@ -256,7 +256,9 @@ export const EvaluationRunDetail = ({
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>{t('summary_total')}</CardDescription>
-            <CardTitle className="text-3xl">{detail.summary?.total ?? 0}</CardTitle>
+            <CardTitle className="text-3xl">
+              {detail.summary?.total ?? 0}
+            </CardTitle>
           </CardHeader>
         </Card>
         <Card>
@@ -333,7 +335,9 @@ export const EvaluationRunDetail = ({
               <TableBody>
                 {filteredItems.map((item) => (
                   <TableRow key={item.id}>
-                    <TableCell className="font-medium">{item.case_key || '--'}</TableCell>
+                    <TableCell className="font-medium">
+                      {item.case_key || '--'}
+                    </TableCell>
                     <TableCell>
                       <EvaluationStatusBadge status={item.status} />
                     </TableCell>
@@ -345,12 +349,15 @@ export const EvaluationRunDetail = ({
                     <TableCell>
                       <div className="space-y-1">
                         <div>
-                          {t('attempt_label')} #{item.latest_attempt?.attempt_no ?? '--'}
+                          {t('attempt_label')} #
+                          {item.latest_attempt?.attempt_no ?? '--'}
                         </div>
                         {item.latest_attempt?.finished_at && (
                           <div className="text-muted-foreground text-xs">
                             <FormatDate
-                              datetime={new Date(item.latest_attempt.finished_at)}
+                              datetime={
+                                new Date(item.latest_attempt.finished_at)
+                              }
                             />
                           </div>
                         )}
@@ -368,11 +375,12 @@ export const EvaluationRunDetail = ({
                         '--'
                       )}
                     </TableCell>
-                    <TableCell className="max-w-60 whitespace-normal text-sm">
+                    <TableCell className="max-w-60 text-sm whitespace-normal">
                       {item.error || item.latest_attempt?.error || '--'}
                     </TableCell>
                     <TableCell className="text-right">
-                      {(item.status === 'failed' || item.status === 'cancelled') && (
+                      {(item.status === 'failed' ||
+                        item.status === 'cancelled') && (
                         <Button
                           size="sm"
                           variant="outline"

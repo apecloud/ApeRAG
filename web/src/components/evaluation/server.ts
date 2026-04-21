@@ -23,12 +23,13 @@ type ListState<T> = FetchState<unknown> & {
   page?: EvaluationPagination;
 };
 
-const API_SERVER_ORIGIN = process.env.API_SERVER_ENDPOINT || 'http://localhost:8000';
+const API_SERVER_ORIGIN =
+  process.env.API_SERVER_ENDPOINT || 'http://localhost:8000';
 const API_SERVER_BASE_PATH = process.env.API_SERVER_BASE_PATH || '/api/v1';
-const API_ROOT_BASE_PATH = API_SERVER_BASE_PATH.replace(/\/api\/v1\/?$/, '').replace(
-  /\/$/,
+const API_ROOT_BASE_PATH = API_SERVER_BASE_PATH.replace(
+  /\/api\/v1\/?$/,
   '',
-);
+).replace(/\/$/, '');
 const API_V2_BASE_URL = `${API_SERVER_ORIGIN}${API_ROOT_BASE_PATH}/api/v2`;
 
 const buildUrl = (
@@ -93,7 +94,11 @@ const fetchEvaluationV2 = async <T>(
       },
     });
 
-    if (response.status === 404 || response.status === 405 || response.status === 501) {
+    if (
+      response.status === 404 ||
+      response.status === 405 ||
+      response.status === 501
+    ) {
       return {
         payload: null,
         unavailable: true,
