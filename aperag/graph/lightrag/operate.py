@@ -1290,7 +1290,7 @@ async def _find_most_related_text_unit_from_entities(
     tokenizer: Tokenizer,
 ):
     text_units = [
-        split_string_by_multi_markers(dp["source_id"], [GRAPH_FIELD_SEP])
+        normalize_source_references(dp["source_id"])
         for dp in node_datas
         if dp["source_id"] is not None
     ]
@@ -1327,7 +1327,7 @@ async def _find_most_related_text_unit_from_entities(
 
     # Add null check for node data
     all_one_hop_text_units_lookup = {
-        k: set(split_string_by_multi_markers(v["source_id"], [GRAPH_FIELD_SEP]))
+        k: set(normalize_source_references(v["source_id"]))
         for k, v in zip(all_one_hop_nodes, all_one_hop_nodes_data)
         if v is not None and "source_id" in v  # Add source_id check
     }
@@ -1634,7 +1634,7 @@ async def _find_related_text_unit_from_relationships(
     tokenizer: Tokenizer,
 ):
     text_units = [
-        split_string_by_multi_markers(dp["source_id"], [GRAPH_FIELD_SEP])
+        normalize_source_references(dp["source_id"])
         for dp in edge_datas
         if dp["source_id"] is not None
     ]
