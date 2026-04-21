@@ -163,7 +163,7 @@ class _FakeRequest:
 
 @pytest.mark.asyncio
 async def test_turn_snapshot_merges_persisted_events_cached_events_and_runtime_state():
-    turn = _build_turn()
+    turn = _build_turn(answer_artifact_id="artifact-db", timeline_cursor=0)
     persisted_event = _build_event(1, "turn.started", status="running")
     cached_event = AgentTimelineEventEnvelope(
         event_id="event-2",
@@ -188,8 +188,9 @@ async def test_turn_snapshot_merges_persisted_events_cached_events_and_runtime_s
             events=[cached_event],
             runtime_state={
                 "status": "RUNNING",
-                "timeline_cursor": 2,
-                "answer_artifact_id": "artifact-1",
+                "timeline_cursor": 1,
+                "answer_artifact_id": None,
+                "reference_bundle_artifact_id": "bundle-1",
             },
         ),
     )
@@ -198,7 +199,8 @@ async def test_turn_snapshot_merges_persisted_events_cached_events_and_runtime_s
 
     assert snapshot.turn.status == "RUNNING"
     assert snapshot.turn.timeline_cursor == 2
-    assert snapshot.turn.answer_artifact_id == "artifact-1"
+    assert snapshot.turn.answer_artifact_id == "artifact-db"
+    assert snapshot.turn.reference_bundle_artifact_id == "bundle-1"
     assert [event.sequence for event in snapshot.timeline] == [1, 2]
     assert snapshot.artifacts[0].artifact_id == "artifact-1"
 
@@ -231,15 +233,25 @@ async def test_history_writer_keeps_legacy_history_and_appends_missing_v3_turns(
         id="turn-v3",
         status=AgentTurnStatus.COMPLETED,
         input_text="new question",
+        answer_artifact_id="artifact-answer",
+    )
+    incomplete_answer_turn = _build_turn(
+        id="turn-v3-missing-answer",
+        status=AgentTurnStatus.COMPLETED,
+        input_text="missing answer question",
     )
     answer_artifact = SimpleNamespace(
+        id="artifact-answer",
         artifact_type="answer",
         payload={"text": "new answer"},
     )
     writer = HistoryWriter(
         db_ops=_FakeHistoryDbOps(
-            turns=[completed_turn],
-            artifacts_by_turn={"turn-v3": [answer_artifact]},
+            turns=[completed_turn, incomplete_answer_turn],
+            artifacts_by_turn={
+                "turn-v3": [answer_artifact],
+                "turn-v3-missing-answer": [],
+            },
         )
     )
 
@@ -259,6 +271,7 @@ async def test_history_writer_keeps_legacy_history_and_appends_missing_v3_turns(
     assert "Assistant: old answer" in context
     assert "User: new question" in context
     assert "Assistant: new answer" in context
+    assert "missing answer question" not in context
 
 
 @pytest.mark.asyncio

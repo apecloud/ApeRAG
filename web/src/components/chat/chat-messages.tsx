@@ -118,6 +118,21 @@ function cloneMessages(messages: ChatMessage[][]) {
   return messages.map((parts) => [...parts]);
 }
 
+function hasAnswerArtifact(snapshot: AgentTurnSnapshot) {
+  return snapshot.artifacts.some((artifact) => artifact.artifact_type === 'answer');
+}
+
+function getStreamingAnswerFromSnapshot(snapshot: AgentTurnSnapshot) {
+  if (hasAnswerArtifact(snapshot)) return '';
+  return snapshot.timeline
+    .filter(
+      (event) =>
+        event.type === 'text.delta' && typeof event.data.delta === 'string',
+    )
+    .map((event) => event.data.delta as string)
+    .join('');
+}
+
 export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
   const { chatRename } = useBotContext();
   const { botId, chatId } = useParams<{ botId: string; chatId: string }>();
@@ -153,7 +168,8 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
         const next = updater(previous[turnId]);
         if (!next) {
           if (!(turnId in previous)) return previous;
-          const { [turnId]: _, ...rest } = previous;
+          const rest = { ...previous };
+          delete rest[turnId];
           return rest;
         }
         return {
@@ -280,13 +296,14 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
 
   const mergeSnapshot = useCallback(
     (snapshot: AgentTurnSnapshot) => {
-      setTurnState(snapshot.turn.turn_id, (previous) => ({
+      const streamingAnswer = getStreamingAnswerFromSnapshot(snapshot);
+      setTurnState(snapshot.turn.turn_id, () => ({
         snapshot: {
           turn: snapshot.turn,
           timeline: snapshot.timeline,
           artifacts: snapshot.artifacts,
         },
-        streamingAnswer: previous?.streamingAnswer || '',
+        streamingAnswer,
         pending: !isTerminalStatus(snapshot.turn.status),
       }));
       ensureTurnGroups(snapshot.turn, false);
@@ -700,11 +717,18 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
   }, [chat.history]);
 
   useEffect(() => {
+    const storedActiveTurnId =
+      typeof window === 'undefined'
+        ? null
+        : window.sessionStorage.getItem(activeTurnStorageKey);
     const potentialTurnIds = [
       ...new Set(
         (chat.history || [])
           .map((parts) => getAiGroupId(parts))
-          .filter((value): value is string => Boolean(value)),
+          .filter(
+            (value): value is string =>
+              Boolean(value) && value !== storedActiveTurnId,
+          ),
       ),
     ];
 
@@ -731,7 +755,13 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
     return () => {
       cancelled = true;
     };
-  }, [chat.history, fetchSnapshot, mergeSnapshot, turnStates]);
+  }, [
+    activeTurnStorageKey,
+    chat.history,
+    fetchSnapshot,
+    mergeSnapshot,
+    turnStates,
+  ]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !chat.id) return;
@@ -779,8 +809,9 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
   ]);
 
   useEffect(() => {
+    const activeStreams = streamsRef.current;
     return () => {
-      Object.keys(streamsRef.current).forEach((turnId) => closeStream(turnId));
+      Object.keys(activeStreams).forEach((turnId) => closeStream(turnId));
     };
   }, [closeStream]);
 
