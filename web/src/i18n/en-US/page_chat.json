@@ -18,6 +18,55 @@
 
   "references": "References",
 
+  "activity_stream": {
+    "label": "Activity stream",
+    "empty": "Waiting for activity events...",
+    "repeated": "Repeated {count} times while this step stayed active.",
+    "status": {
+      "queued": "Queued",
+      "running": "Running",
+      "completed": "Completed",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    },
+    "item_status": {
+      "waiting": "Waiting",
+      "running": "Active",
+      "completed": "Done",
+      "failed": "Issue"
+    },
+    "target_type": {
+      "knowledge_base": "knowledge base",
+      "document": "document",
+      "web": "web",
+      "chat_history": "chat history"
+    },
+    "debug": {
+      "title": "Debug details",
+      "technical_type": "Technical event",
+      "command_input": "Tool input",
+      "result_summary": "Tool result",
+      "turn_id": "Turn ID",
+      "request_id": "Request ID",
+      "status": "Status",
+      "error_code": "Error code",
+      "error_message": "Error message"
+    }
+  },
+
+  "answer_section": {
+    "failure_details": "Failure details",
+    "run_failed": "Run failed",
+    "cancelled_output": "Cancelled output",
+    "run_cancelled": "Run cancelled",
+    "final_answer": "Final answer",
+    "draft_answer": "Draft answer",
+    "answer": "Answer",
+    "failed_empty": "This run ended before a final answer was produced.",
+    "cancelled_empty": "This run was cancelled before a final answer was produced.",
+    "pending_empty": "The answer will appear here once the activity stream finishes."
+  },
+
   "feedback": {
     "title": "Tell Us What You Think",
 
