@@ -669,7 +669,7 @@ def get_api_key() -> str:
     # Try to get API key from HTTP headers first
     try:
         # Use FastMCP's dependency function to get HTTP headers
-        headers = get_http_headers()
+        headers = get_http_headers(include={"authorization"})
 
         if headers:
             # Try to extract Authorization header
