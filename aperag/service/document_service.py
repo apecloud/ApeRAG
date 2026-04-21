@@ -1391,7 +1391,7 @@ class DocumentService:
 
         from aperag.db.ops import async_db_ops as _db_ops
         from aperag.schema.view_models import WebReadRequest
-        from aperag.websearch.reader.reader_service import ReaderService
+        from aperag.websearch.reader.reader_service import read_with_jina_fallback
 
         # Validate URL count
         if len(urls) > 10:
@@ -1401,20 +1401,21 @@ class DocumentService:
 
         # Determine which reader to use based on user's JINA API key
         jina_api_key = await _db_ops.query_provider_api_key("jina", user_id=user_id, need_public=True)
+        logger.info(
+            "Starting fetch-url import collection_id=%s urls=%s jina_configured=%s",
+            collection_id,
+            len(url_strings),
+            bool(jina_api_key),
+        )
 
         web_read_request = WebReadRequest(url_list=url_strings, timeout=30)
 
         try:
-            if jina_api_key:
-                async with ReaderService(provider_name="jina", provider_config={"api_key": jina_api_key}) as svc:
-                    web_response = await svc.read(web_read_request)
-                # Check if JINA returned any successes; fallback if not
-                if not any(r.status == "success" for r in web_response.results):
-                    async with ReaderService(provider_name="trafilatura") as svc:
-                        web_response = await svc.read(web_read_request)
-            else:
-                async with ReaderService(provider_name="trafilatura") as svc:
-                    web_response = await svc.read(web_read_request)
+            web_response = await read_with_jina_fallback(
+                web_read_request,
+                jina_api_key,
+                log_context=f"fetch_url_documents collection_id={collection_id}",
+            )
         except Exception as e:
             logger.error(f"Web read service failed: {e}")
             # Return all URLs as failed
@@ -1427,6 +1428,13 @@ class DocumentService:
                 for u in url_strings
             ]
             return view_models.FetchUrlResponse(results=results, total=len(results), succeeded=0, failed=len(results))
+
+        logger.info(
+            "Fetch-url read stage completed collection_id=%s successful=%s failed=%s",
+            collection_id,
+            web_response.successful,
+            web_response.failed,
+        )
 
         results = []
         for item in web_response.results:
@@ -1458,6 +1466,12 @@ class DocumentService:
 
             try:
                 upload_response = await self.upload_document(user_id, collection_id, virtual_file)
+                logger.info(
+                    "Fetch-url imported successfully collection_id=%s url=%s document_id=%s",
+                    collection_id,
+                    item.url,
+                    upload_response.document_id,
+                )
                 results.append(
                     view_models.FetchUrlResultItem(
                         url=item.url,
@@ -1483,6 +1497,13 @@ class DocumentService:
                 )
 
         succeeded = sum(1 for r in results if r.fetch_status == "success")
+        logger.info(
+            "Fetch-url import completed collection_id=%s total=%s succeeded=%s failed=%s",
+            collection_id,
+            len(results),
+            succeeded,
+            len(results) - succeeded,
+        )
         return view_models.FetchUrlResponse(
             results=results,
             total=len(results),

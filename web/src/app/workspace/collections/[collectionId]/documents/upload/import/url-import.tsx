@@ -130,12 +130,23 @@ export const UrlImport = ({ onSuccess }: Props) => {
       if (succeeded.length > 0) {
         onSuccess(fetchResults);
       }
-    } catch {
+    } catch (error: unknown) {
+      const detail =
+        typeof error === 'object' &&
+        error !== null &&
+        'response' in error &&
+        typeof (error as { response?: { data?: { detail?: unknown } } }).response?.data?.detail ===
+          'string'
+          ? (error as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : error instanceof Error
+            ? error.message
+            : 'Request failed';
+
       setResults(
         parseUrls(urlText).map((url) => ({
           url,
           fetch_status: 'error' as const,
-          error: 'Request failed',
+          error: detail || 'Request failed',
         })),
       );
     } finally {

@@ -29,7 +29,7 @@ from aperag.schema.view_models import (
     WebSearchResponse,
 )
 from aperag.views.auth import required_user
-from aperag.websearch.reader.reader_service import ReaderService
+from aperag.websearch.reader.reader_service import ReaderService, read_with_jina_fallback
 from aperag.websearch.search.search_service import SearchService
 
 logger = logging.getLogger(__name__)
@@ -270,30 +270,8 @@ async def _read_with_jina_fallback(request: WebReadRequest, jina_api_key: str) -
     Raises:
         WebReadError: If both JINA and Trafilatura fail
     """
-    # Try JINA first
     try:
-        logger.info("Attempting to read with JINA")
-        async with ReaderService(provider_name="jina", provider_config={"api_key": jina_api_key}) as jina_service:
-            jina_result = await jina_service.read(request)
-
-            # Check if JINA was successful
-            if jina_result and hasattr(jina_result, "results"):
-                successful_count = sum(1 for r in jina_result.results if r.status == "success")
-                if successful_count > 0:
-                    logger.info(f"JINA succeeded: {successful_count}/{jina_result.total_urls} URLs")
-                    return jina_result
-                else:
-                    logger.info("JINA completed but no URLs were successfully processed")
-            else:
-                logger.info("JINA returned empty or invalid result")
-
-    except Exception as e:
-        logger.info(f"JINA failed: {e}")
-
-    # Fallback to Trafilatura
-    logger.info("Falling back to Trafilatura")
-    try:
-        return await _read_with_trafilatura_only(request)
+        return await read_with_jina_fallback(request, jina_api_key, log_context="web_read_endpoint")
     except Exception as e:
         raise WebReadError(f"Both JINA and Trafilatura reading failed. Last error: {str(e)}") from e
 

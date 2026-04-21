@@ -122,6 +122,72 @@ def test_fetch_url_documents_falls_back_when_jina_returns_no_successes(monkeypat
     assert [call[0] for call in _FakeReaderService.calls] == ["jina", "trafilatura"]
 
 
+def test_fetch_url_documents_falls_back_per_failed_url_when_jina_partially_succeeds(monkeypatch):
+    service = DocumentService()
+    service.upload_document = AsyncMock(
+        side_effect=[
+            view_models.UploadDocumentResponse(
+                document_id="doc-fetch-3a",
+                filename="Primary Title.md",
+                size=14,
+                status="UPLOADED",
+            ),
+            view_models.UploadDocumentResponse(
+                document_id="doc-fetch-3b",
+                filename="Fallback Title.md",
+                size=16,
+                status="UPLOADED",
+            ),
+        ]
+    )
+
+    _FakeReaderService.calls = []
+    _FakeReaderService.plans = [
+        _web_read_response(
+            view_models.WebReadResultItem(
+                url="https://example.com/primary",
+                status="success",
+                title="Primary Title",
+                content="primary markdown",
+            ),
+            view_models.WebReadResultItem(
+                url="https://example.com/fallback",
+                status="error",
+                error="provider timeout",
+                error_code="timeout",
+            ),
+        ),
+        _web_read_response(
+            view_models.WebReadResultItem(
+                url="https://example.com/fallback",
+                status="success",
+                title="Fallback Title",
+                content="fallback markdown",
+            )
+        ),
+    ]
+
+    monkeypatch.setattr("aperag.db.ops.async_db_ops.query_provider_api_key", AsyncMock(return_value="jina-key"))
+    monkeypatch.setattr("aperag.websearch.reader.reader_service.ReaderService", _FakeReaderService)
+
+    response = asyncio.run(
+        service.fetch_url_documents(
+            "user-1",
+            "col-1",
+            ["https://example.com/primary", "https://example.com/fallback"],
+        )
+    )
+
+    assert response.succeeded == 2
+    assert response.failed == 0
+    assert [call[0] for call in _FakeReaderService.calls] == ["jina", "trafilatura"]
+    assert [result.url for result in response.results] == [
+        "https://example.com/primary",
+        "https://example.com/fallback",
+    ]
+    assert [result.fetch_status for result in response.results] == ["success", "success"]
+
+
 def test_fetch_url_documents_reports_upload_failures_per_url(monkeypatch):
     service = DocumentService()
     service.upload_document = AsyncMock(side_effect=RuntimeError("quota exceeded"))

@@ -415,6 +415,14 @@ async def web_search(
     """
     try:
         api_key = get_api_key()
+        logger.info(
+            "MCP web_search request query=%s source=%s max_results=%s timeout=%s locale=%s",
+            query.strip() if query else "",
+            source.strip() if source else "",
+            max_results,
+            timeout,
+            locale,
+        )
 
         # Build search request
         search_data = {
@@ -441,11 +449,28 @@ async def web_search(
                 try:
                     # Parse response using view model for type safety
                     search_response = WebSearchResponse.model_validate(response.json())
+                    logger.info(
+                        "MCP web_search completed query=%s source=%s status=%s results=%s providers=%s backends=%s fallback=%s",
+                        query.strip() if query else "",
+                        source.strip() if source else "",
+                        search_response.meta.search_status if search_response.meta else "unknown",
+                        len(search_response.results),
+                        search_response.meta.provider_used if search_response.meta else [],
+                        search_response.meta.backend_used if search_response.meta else [],
+                        search_response.meta.fallback_used if search_response.meta else False,
+                    )
                     return search_response.model_dump()
                 except Exception as e:
                     logger.error(f"Failed to parse web search response: {e}")
                     return {"error": "Failed to parse web search response", "details": str(e)}
             else:
+                logger.warning(
+                    "MCP web_search failed status=%s query=%s source=%s body=%s",
+                    response.status_code,
+                    query.strip() if query else "",
+                    source.strip() if source else "",
+                    response.text,
+                )
                 return {"error": f"Web search failed: {response.status_code}", "details": response.text}
     except ValueError as e:
         return {"error": str(e)}
@@ -496,6 +521,13 @@ async def web_read(
     """
     try:
         api_key = get_api_key()
+        logger.info(
+            "MCP web_read request urls=%s timeout=%s locale=%s max_concurrent=%s",
+            len(url_list or []),
+            timeout,
+            locale,
+            max_concurrent,
+        )
 
         # Validate url_list parameter
         if not url_list or len(url_list) == 0:
@@ -520,11 +552,23 @@ async def web_read(
                 try:
                     # Parse response using view model for type safety
                     read_response = WebReadResponse.model_validate(response.json())
+                    logger.info(
+                        "MCP web_read completed urls=%s successful=%s failed=%s",
+                        read_response.total_urls,
+                        read_response.successful,
+                        read_response.failed,
+                    )
                     return read_response.model_dump()
                 except Exception as e:
                     logger.error(f"Failed to parse web read response: {e}")
                     return {"error": "Failed to parse web read response", "details": str(e)}
             else:
+                logger.warning(
+                    "MCP web_read failed status=%s urls=%s body=%s",
+                    response.status_code,
+                    len(url_list or []),
+                    response.text,
+                )
                 return {"error": f"Web read failed: {response.status_code}", "details": response.text}
     except ValueError as e:
         return {"error": str(e)}
