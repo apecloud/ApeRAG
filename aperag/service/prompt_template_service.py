@@ -68,7 +68,7 @@ DEFAULT_AGENT_QUERY_PROMPT = """{% set collection_list = [] %}
 {% set collection_rule = "Discover and select relevant collections automatically." %}
 {% endif %}
 {% set web_status = "enabled" if web_search_enabled else "disabled" %}
-{% set chat_context = "Files are available in this chat." if chat_id else "No chat files are available." %}
+{% set chat_context = "Files are available in this chat." if has_chat_files else "No chat files are available." %}
 {% set response_language = language or "the user's language" %}
 
 **User request**: {{ query }}
@@ -119,6 +119,7 @@ def build_agent_query_prompt(
         - collections: List of collection objects with id and title
         - web_search_enabled: Boolean indicating if web search is enabled
         - chat_id: Chat ID string (may be None)
+        - has_chat_files: Boolean indicating if files were uploaded in this chat
         - language: Language code
     """
     # Create Jinja2 template
@@ -130,6 +131,7 @@ def build_agent_query_prompt(
         "collections": agent_message.collections or [],
         "web_search_enabled": agent_message.web_search_enabled or False,
         "chat_id": chat_id,
+        "has_chat_files": bool(agent_message.files),
         "language": agent_message.language,
     }
 
