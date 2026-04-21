@@ -42,7 +42,7 @@ import numpy as np
 from ..base import (
     BaseVectorStorage,
 )
-from ..prompt import GRAPH_FIELD_SEP
+from ..source_refs import normalize_source_references
 from ..utils import logger
 
 
@@ -141,13 +141,7 @@ class PGOpsSyncVectorStorage(BaseVectorStorage):
             vector = item.get("__vector__", item.get("content_vector"))
             if hasattr(vector, "tolist"):
                 vector = vector.tolist()
-            chunk_ids = item.get("chunk_ids")
-            if chunk_ids is None:
-                source_id = item.get("source_id")
-                if isinstance(source_id, str) and source_id:
-                    chunk_ids = source_id.split(GRAPH_FIELD_SEP) if GRAPH_FIELD_SEP in source_id else [source_id]
-                else:
-                    chunk_ids = []
+            chunk_ids = normalize_source_references(item.get("chunk_ids"), item.get("source_id"))
             return {
                 "entity_name": item["entity_name"],
                 "content": item["content"],
@@ -161,11 +155,9 @@ class PGOpsSyncVectorStorage(BaseVectorStorage):
                 vector = vector.tolist()
             chunk_ids = item.get("chunk_ids")
             if chunk_ids is None:
-                source_id = item.get("source_id")
-                if isinstance(source_id, str) and source_id:
-                    chunk_ids = source_id.split(GRAPH_FIELD_SEP) if GRAPH_FIELD_SEP in source_id else [source_id]
-                else:
-                    chunk_ids = []
+                chunk_ids = normalize_source_references(item.get("source_id"))
+            else:
+                chunk_ids = normalize_source_references(chunk_ids)
             return {
                 "source_id": item["src_id"],
                 "target_id": item["tgt_id"],

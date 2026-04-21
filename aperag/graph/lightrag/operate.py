@@ -57,6 +57,7 @@ from .prompt import (
     GRAPH_FIELD_SEP,
     PROMPTS,
 )
+from .source_refs import normalize_source_references, serialize_source_references
 from .types import GraphNodeData, GraphNodeDataDict, MergeSuggestion
 from .utils import (
     LightRAGLogger,
@@ -192,6 +193,7 @@ async def _handle_single_entity_extraction(
         entity_type=entity_type,
         description=entity_description,
         source_id=chunk_key,
+        chunk_ids=[chunk_key],
         file_path=file_path,
     )
 
@@ -233,6 +235,7 @@ async def _handle_single_relationship_extraction(
         description=edge_description,
         keywords=edge_keywords,
         source_id=edge_source_id,
+        chunk_ids=[chunk_key],
         file_path=file_path,
     )
 
@@ -279,7 +282,6 @@ async def _merge_nodes_then_upsert(
 
     # 1. Initialize containers for collecting existing entity data
     already_entity_types = []
-    already_source_ids = []
     already_description = []
     already_file_paths = []
 
@@ -290,8 +292,6 @@ async def _merge_nodes_then_upsert(
         already_entity_types.append(already_node["entity_type"])
 
         # 2.2. Split and collect existing source IDs (multiple IDs separated by GRAPH_FIELD_SEP)
-        already_source_ids.extend(split_string_by_multi_markers(already_node["source_id"], [GRAPH_FIELD_SEP]))
-
         # 2.3. Split and collect existing file paths (multiple paths separated by GRAPH_FIELD_SEP)
         already_file_paths.extend(split_string_by_multi_markers(already_node["file_path"], [GRAPH_FIELD_SEP]))
 
@@ -311,7 +311,12 @@ async def _merge_nodes_then_upsert(
     description = GRAPH_FIELD_SEP.join(sorted(set([dp["description"] for dp in nodes_data] + already_description)))
 
     # 3.3. Merge source IDs, deduplicated
-    source_id = GRAPH_FIELD_SEP.join(set([dp["source_id"] for dp in nodes_data] + already_source_ids))
+    chunk_ids = normalize_source_references(
+        *(dp.get("chunk_ids") for dp in nodes_data),
+        *(dp.get("source_id") for dp in nodes_data),
+        already_node.get("source_id") if already_node else None,
+    )
+    source_id = serialize_source_references(chunk_ids)
 
     # 3.4. Merge file paths, deduplicated
     file_path = GRAPH_FIELD_SEP.join(set([dp["file_path"] for dp in nodes_data] + already_file_paths))
@@ -381,7 +386,6 @@ async def _merge_edges_then_upsert(
         return None
 
     already_weights = []
-    already_source_ids = []
     already_description = []
     already_keywords = []
     already_file_paths = []
@@ -391,10 +395,6 @@ async def _merge_edges_then_upsert(
     if already_edge:
         # Get weight with default 0.0 if missing
         already_weights.append(already_edge.get("weight", 0.0))
-
-        # Get source_id with empty string default if missing or None
-        if already_edge.get("source_id") is not None:
-            already_source_ids.extend(split_string_by_multi_markers(already_edge["source_id"], [GRAPH_FIELD_SEP]))
 
         # Get file_path with empty string default if missing or None
         if already_edge.get("file_path") is not None:
@@ -427,9 +427,12 @@ async def _merge_edges_then_upsert(
     # Join all unique keywords with commas
     keywords = ",".join(sorted(all_keywords))
 
-    source_id = GRAPH_FIELD_SEP.join(
-        set([dp["source_id"] for dp in edges_data if dp.get("source_id")] + already_source_ids)
+    chunk_ids = normalize_source_references(
+        *(dp.get("chunk_ids") for dp in edges_data),
+        *(dp.get("source_id") for dp in edges_data if dp.get("source_id")),
+        already_edge.get("source_id") if already_edge else None,
     )
+    source_id = serialize_source_references(chunk_ids)
     file_path = GRAPH_FIELD_SEP.join(
         set([dp["file_path"] for dp in edges_data if dp.get("file_path")] + already_file_paths)
     )
@@ -587,6 +590,7 @@ async def _merge_nodes_and_edges_impl(
                             "entity_type": entity_data["entity_type"],
                             "content": f"{entity_data['entity_name']}\n{entity_data['description']}",
                             "source_id": entity_data["source_id"],
+                            "chunk_ids": normalize_source_references(entity_data.get("source_id")),
                             "file_path": entity_data.get("file_path", "unknown_source"),
                         }
                     }
@@ -633,7 +637,7 @@ async def _merge_nodes_and_edges_impl(
                             "tgt_id": edge_data["tgt_id"],
                             "keywords": edge_data["keywords"],
                             "content": f"{edge_data['src_id']}\t{edge_data['tgt_id']}\n{edge_data['keywords']}\n{edge_data['description']}",
-                            "source_id": edge_data["source_id"],
+                            "chunk_ids": normalize_source_references(edge_data.get("source_id")),
                             "file_path": edge_data.get("file_path", "unknown_source"),
                         }
                     }

@@ -224,10 +224,12 @@ async def test_adelete_by_doc_id_updates_shared_refs_and_deletes_exclusive_refs(
         {
             "ent-shared": {
                 "entity_name": "SharedEntity",
+                "source_id": f"chunk-a{GRAPH_FIELD_SEP}chunk-b",
                 "chunk_ids": ["chunk-a", "chunk-b"],
             },
             "ent-exclusive": {
                 "entity_name": "ExclusiveEntity",
+                "source_id": "chunk-a",
                 "chunk_ids": ["chunk-a"],
             },
         }
@@ -263,6 +265,7 @@ async def test_adelete_by_doc_id_updates_shared_refs_and_deletes_exclusive_refs(
         {
             "ent-shared": {
                 "entity_name": "SharedEntity",
+                "source_id": "chunk-b",
                 "chunk_ids": ["chunk-b"],
             }
         }
