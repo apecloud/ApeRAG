@@ -83,6 +83,18 @@ from .utils import (
 )
 
 
+def _compute_chunk_instance_id(
+    doc_id: str,
+    chunk_data: dict[str, Any],
+    fallback_index: int,
+    workspace: str,
+) -> str:
+    """Generate a stable chunk ID for a document-local chunk instance."""
+    chunk_order_index = chunk_data.get("chunk_order_index", fallback_index)
+    chunk_identity = f"{doc_id}:{chunk_order_index}:{chunk_data['content']}"
+    return compute_mdhash_id(chunk_identity, prefix="chunk-", workspace=workspace)
+
+
 @final
 @dataclass
 class LightRAG:
@@ -687,7 +699,7 @@ class LightRAG:
                     logger.warning(f"Chunk {i} has empty content, skipping")
                     continue
 
-                chunk_id = compute_mdhash_id(chunk_data["content"], prefix="chunk-", workspace=self.workspace)
+                chunk_id = _compute_chunk_instance_id(doc_id, chunk_data, i, self.workspace)
                 chunks[chunk_id] = {
                     **chunk_data,
                     "full_doc_id": doc_id,
