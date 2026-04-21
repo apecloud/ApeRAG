@@ -89,6 +89,24 @@ def _to_run_progress(summary: Optional[EvaluationRunSummary]) -> EvaluationRunPr
     return EvaluationRunProgress(percent=round((resolved / summary.total) * 100))
 
 
+def _requeue_run_summary(
+    summary_payload: Optional[dict],
+    item_status: EvaluationRunItemStatus,
+) -> Optional[dict]:
+    if not summary_payload:
+        return None
+
+    summary = EvaluationRunSummary.model_validate(summary_payload)
+    summary.pending += 1
+
+    if item_status == EvaluationRunItemStatus.FAILED and summary.failed > 0:
+        summary.failed -= 1
+    if item_status == EvaluationRunItemStatus.CANCELLED and summary.cancelled > 0:
+        summary.cancelled -= 1
+
+    return summary.model_dump()
+
+
 class BenchmarkDatasetService:
     """Dataset + dataset-version CRUD."""
 
@@ -339,16 +357,20 @@ class EvaluationRunService:
         ):
             raise ValidationException("Only failed or cancelled run items can be retried")
 
+        next_run_status = run.status
         if run.status in (
             EvaluationRunStatus.CANCELLED,
             EvaluationRunStatus.COMPLETED,
             EvaluationRunStatus.FAILED,
         ):
-            await self.db_ops.update_run_status(
-                run_id,
-                EvaluationRunStatus.QUEUED,
-                error_message=None,
-            )
+            next_run_status = EvaluationRunStatus.QUEUED
+
+        await self.db_ops.update_run_status(
+            run_id,
+            next_run_status,
+            error_message=None,
+            summary=_requeue_run_summary(run.summary, item.status),
+        )
 
         item = await self.db_ops.requeue_run_item(run_id, item_id)
         await self.launch_run(run_id)

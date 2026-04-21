@@ -38,6 +38,7 @@ from aperag.evaluation_v2.schemas import (
     EvaluationRunListResponse,
 )
 from aperag.evaluation_v2.services import benchmark_dataset_service, evaluation_run_service
+from aperag.exceptions import ResourceNotFoundException
 from aperag.views.auth import required_user
 
 router = APIRouter(tags=["evaluation-v2"])
@@ -166,7 +167,7 @@ async def list_benchmark_cases_view(
 ) -> BenchmarkCaseListResponse:
     version = await benchmark_dataset_service.get_version(str(user.id), version_id)
     if version.dataset_id != dataset_id:
-        return BenchmarkCaseListResponse(items=[], pagination=_pagination(0, page, page_size))
+        raise ResourceNotFoundException("BenchmarkDatasetVersion", version_id)
 
     rows, total = await benchmark_dataset_service.db_ops.list_cases_for_version(version_id, page, page_size)
     items = [BenchmarkCaseEnvelope.model_validate(row) for row in rows]

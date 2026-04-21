@@ -324,6 +324,8 @@ class AsyncEvaluationV2RepositoryMixin(AsyncRepositoryProtocol):
                 EvaluationRunStatus.CANCELLED,
             ):
                 run.gmt_finished = now
+            else:
+                run.gmt_finished = None
             run.gmt_updated = now
             await session.flush()
             await session.refresh(run)
