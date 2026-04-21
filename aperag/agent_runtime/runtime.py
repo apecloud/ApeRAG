@@ -16,6 +16,7 @@ import asyncio
 import json
 import logging
 import os
+from contextlib import suppress
 from dataclasses import dataclass
 from typing import Any, Optional
 
@@ -27,13 +28,17 @@ from pydantic_ai.providers.openai import OpenAIProvider
 
 from aperag.agent_runtime.schemas import CreateTurnRequest, ReferenceBundleItem, VisibleAgentState
 from aperag.agent_runtime.services import ArtifactService, EventService, HistoryWriter, TurnService, _parse_bot_config
+from aperag.agent_runtime.storage import DEFAULT_AGENT_TURN_LEASE_TTL_SECONDS
 from aperag.db.models import AgentArtifactType, AgentEventActor, AgentTurnStatus
 from aperag.db.ops import async_db_ops
 from aperag.exceptions import ResourceNotFoundException, ValidationException
 from aperag.schema import view_models
 from aperag.service.prompt_template_service import build_agent_query_prompt, prompt_template_service
+from aperag.tasks.processing_lease import generate_processing_token
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_AGENT_TURN_LEASE_RENEW_INTERVAL_SECONDS = int(os.getenv("APERAG_AGENT_TURN_LEASE_RENEW_INTERVAL_SECONDS", "30"))
 
 
 @dataclass
@@ -46,8 +51,85 @@ class ResolvedAgentRequest:
     aperag_api_key: str
 
 
+class TurnLeaseLostError(RuntimeError):
+    pass
+
+
+class TurnLeaseGuard:
+    def __init__(
+        self,
+        *,
+        turn_service: TurnService,
+        turn_id: str,
+        owner_token: str,
+        ttl_seconds: int = DEFAULT_AGENT_TURN_LEASE_TTL_SECONDS,
+        renew_interval_seconds: int = DEFAULT_AGENT_TURN_LEASE_RENEW_INTERVAL_SECONDS,
+    ):
+        self.turn_service = turn_service
+        self.turn_id = turn_id
+        self.owner_token = owner_token
+        self.ttl_seconds = max(ttl_seconds, 1)
+        self.renew_interval_seconds = max(renew_interval_seconds, 1)
+        self._stop_event = asyncio.Event()
+        self._ownership_lost = asyncio.Event()
+        self._renew_task: asyncio.Task | None = None
+
+    async def start(self) -> None:
+        if self._renew_task is not None:
+            return
+        self._renew_task = asyncio.create_task(
+            self._renew_loop(),
+            name=f"agent-runtime-lease-renew-{self.turn_id}",
+        )
+
+    async def stop(self) -> None:
+        self._stop_event.set()
+        if self._renew_task is not None:
+            self._renew_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await self._renew_task
+        try:
+            await self.turn_service.redis_store.release_turn_claim(self.turn_id, self.owner_token)
+        except Exception:
+            logger.exception("Failed to release turn lease for %s", self.turn_id)
+
+    @property
+    def ownership_lost(self) -> bool:
+        return self._ownership_lost.is_set()
+
+    def ensure_owned(self) -> None:
+        if self.ownership_lost:
+            raise TurnLeaseLostError(f"Turn lease ownership lost for {self.turn_id}")
+
+    async def _renew_loop(self) -> None:
+        while not self._stop_event.is_set():
+            try:
+                await asyncio.wait_for(self._stop_event.wait(), timeout=self.renew_interval_seconds)
+                return
+            except asyncio.TimeoutError:
+                pass
+
+            try:
+                renewed = await self.turn_service.redis_store.renew_turn_claim(
+                    self.turn_id,
+                    self.owner_token,
+                    ttl_seconds=self.ttl_seconds,
+                )
+            except Exception:
+                logger.exception("Failed to renew turn lease for %s", self.turn_id)
+                continue
+
+            if renewed:
+                continue
+
+            self._ownership_lost.set()
+            logger.warning("Turn lease ownership lost for %s", self.turn_id)
+            self._stop_event.set()
+            return
+
+
 class AgentRuntime:
-    async def run_turn(self, *, turn, chat, bot, user: str, request: CreateTurnRequest) -> None:
+    async def run_turn(self, *, turn, chat, bot, user: str, request: CreateTurnRequest, lease_owner: str) -> None:
         raise NotImplementedError()
 
     async def cancel_turn(self, turn_id: str) -> None:
@@ -65,10 +147,22 @@ class AgentRuntimeTaskManager:
             self.turn_service, self.event_service, self.artifact_service, self.history_writer
         )
 
-    def launch_turn(self, *, turn, chat, bot, user: str, request: CreateTurnRequest) -> None:
+    async def claim_turn(self, turn_id: str) -> str | None:
+        owner_token = generate_processing_token()
+        claimed = await self.turn_service.redis_store.try_claim_turn(turn_id, owner_token)
+        return owner_token if claimed else None
+
+    def launch_turn(self, *, turn, chat, bot, user: str, request: CreateTurnRequest, lease_owner: str) -> None:
         async def _runner():
             try:
-                await self.runtime.run_turn(turn=turn, chat=chat, bot=bot, user=user, request=request)
+                await self.runtime.run_turn(
+                    turn=turn,
+                    chat=chat,
+                    bot=bot,
+                    user=user,
+                    request=request,
+                    lease_owner=lease_owner,
+                )
             finally:
                 self.tasks.pop(turn.id, None)
 
@@ -120,11 +214,12 @@ class PydanticAIRuntime(AgentRuntime):
     async def cancel_turn(self, turn_id: str) -> None:
         await self.turn_service.redis_store.mark_cancelled(turn_id)
 
-    async def run_turn(self, *, turn, chat, bot, user: str, request: CreateTurnRequest) -> None:
+    async def run_turn(self, *, turn, chat, bot, user: str, request: CreateTurnRequest, lease_owner: str) -> None:
         sequence = 0
         text_chunks: list[str] = []
         reference_items: list[ReferenceBundleItem] = []
         tool_summaries: list[str] = []
+        lease_guard = TurnLeaseGuard(turn_service=self.turn_service, turn_id=turn.id, owner_token=lease_owner)
 
         async def emit(
             event_type: str,
@@ -147,8 +242,11 @@ class PydanticAIRuntime(AgentRuntime):
             )
 
         try:
+            await lease_guard.start()
             await self.turn_service.redis_store.clear_cancelled(turn.id)
+            lease_guard.ensure_owned()
             resolved_request = await self._resolve_request(user=user, chat_id=chat.id, bot=bot, request=request)
+            lease_guard.ensure_owned()
             await self.turn_service.mark_running(turn.id)
             await emit("turn.started", actor=AgentEventActor.SYSTEM, status="running", data={"chat_id": chat.id})
             await emit(
@@ -194,7 +292,7 @@ class PydanticAIRuntime(AgentRuntime):
                 )
 
                 async for event in agent.run_stream_events(prompt):
-                    await self._check_cancelled(turn.id)
+                    await self._check_cancelled(turn.id, lease_guard=lease_guard)
 
                     if isinstance(event, pai_messages.FunctionToolCallEvent):
                         tool_name = event.part.tool_name
@@ -292,6 +390,7 @@ class PydanticAIRuntime(AgentRuntime):
                                 data={"delta": final_text},
                             )
 
+            lease_guard.ensure_owned()
             answer_text = "".join(text_chunks).strip()
             answer_artifact = await self.artifact_service.create_artifact(
                 turn_id=turn.id,
@@ -350,7 +449,13 @@ class PydanticAIRuntime(AgentRuntime):
                 tool_summaries=tool_summaries,
                 references=reference_items,
             )
+        except TurnLeaseLostError:
+            logger.warning("Agent Runtime V3 lease lost for turn %s; exiting duplicate runner", turn.id)
+            return
         except asyncio.CancelledError:
+            if lease_guard.ownership_lost:
+                logger.warning("Agent Runtime V3 cancelled after lease loss for turn %s", turn.id)
+                return
             await emit(
                 "agent.state.changed",
                 actor=AgentEventActor.AGENT,
@@ -367,6 +472,13 @@ class PydanticAIRuntime(AgentRuntime):
             await self.turn_service.mark_cancelled(turn.id, sequence=sequence)
             raise
         except Exception as exc:
+            if lease_guard.ownership_lost:
+                logger.warning(
+                    "Agent Runtime V3 suppressing failure for turn %s after lease loss: %s",
+                    turn.id,
+                    exc,
+                )
+                return
             logger.exception("Agent Runtime V3 turn failed: %s", turn.id)
             error_artifact = await self.artifact_service.create_artifact(
                 turn_id=turn.id,
@@ -406,6 +518,8 @@ class PydanticAIRuntime(AgentRuntime):
                 error_message=str(exc),
                 tool_summaries=tool_summaries,
             )
+        finally:
+            await lease_guard.stop()
 
     async def _resolve_request(
         self, *, user: str, chat_id: str, bot, request: CreateTurnRequest
@@ -468,7 +582,9 @@ class PydanticAIRuntime(AgentRuntime):
             aperag_api_key=aperag_api_key,
         )
 
-    async def _check_cancelled(self, turn_id: str) -> None:
+    async def _check_cancelled(self, turn_id: str, lease_guard: TurnLeaseGuard | None = None) -> None:
+        if lease_guard:
+            lease_guard.ensure_owned()
         if await self.turn_service.redis_store.is_cancelled(turn_id):
             raise asyncio.CancelledError()
 

@@ -49,10 +49,17 @@ async def create_turn_view(
     request: Request, chat_id: str, body: CreateTurnRequest, user: User = Depends(required_user)
 ) -> CreateTurnResponse:
     chat, bot, turn, created = await runtime_manager.turn_service.create_or_get_turn(str(user.id), chat_id, body)
-    if created or (
-        turn.status in {AgentTurnStatus.QUEUED, AgentTurnStatus.RUNNING} and turn.id not in runtime_manager.tasks
-    ):
-        runtime_manager.launch_turn(turn=turn, chat=chat, bot=bot, user=str(user.id), request=body)
+    if created or turn.status in {AgentTurnStatus.QUEUED, AgentTurnStatus.RUNNING}:
+        lease_owner = await runtime_manager.claim_turn(turn.id)
+        if lease_owner:
+            runtime_manager.launch_turn(
+                turn=turn,
+                chat=chat,
+                bot=bot,
+                user=str(user.id),
+                request=body,
+                lease_owner=lease_owner,
+            )
 
     return CreateTurnResponse(
         turn=runtime_manager.turn_service.to_turn_envelope(turn),

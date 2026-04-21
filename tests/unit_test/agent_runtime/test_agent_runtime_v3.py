@@ -5,6 +5,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 import aperag.agent_runtime.services as agent_runtime_services
+import aperag.agent_runtime.storage as agent_runtime_storage
 from aperag.agent_runtime.schemas import (
     AgentArtifactEnvelope,
     AgentTimelineEventEnvelope,
@@ -42,6 +43,27 @@ class _FakeRedisStore:
         current.update(state)
         self.runtime_state = current
         return current
+
+
+class _FakeLeaseRedisClient:
+    def __init__(self):
+        self.values = {}
+
+    async def set(self, key, value, ex=None, nx=False):
+        if nx and key in self.values:
+            return False
+        self.values[key] = value
+        return True
+
+    async def eval(self, script, _numkeys, key, token, *_args):
+        if "EXPIRE" in script:
+            return 1 if self.values.get(key) == token else 0
+        if "DEL" in script:
+            if self.values.get(key) == token:
+                self.values.pop(key, None)
+                return 1
+            return 0
+        raise AssertionError(f"Unexpected script: {script}")
 
 
 class _FakeDbOps:
@@ -228,6 +250,30 @@ async def test_create_or_get_turn_recovers_existing_turn_after_idempotency_race(
 
 
 @pytest.mark.asyncio
+async def test_agent_runtime_redis_store_turn_claim_renew_and_release(monkeypatch):
+    client = _FakeLeaseRedisClient()
+
+    async def _fake_get_async_client(_cls, redis_url=None):
+        return client
+
+    monkeypatch.setattr(
+        agent_runtime_storage.RedisConnectionManager,
+        "get_async_client",
+        classmethod(_fake_get_async_client),
+    )
+
+    store = agent_runtime_storage.AgentRuntimeRedisStore(prefix="test-agent-runtime")
+
+    assert await store.try_claim_turn("turn-1", "owner-a") is True
+    assert await store.try_claim_turn("turn-1", "owner-b") is False
+    assert await store.renew_turn_claim("turn-1", "owner-a") is True
+    assert await store.renew_turn_claim("turn-1", "owner-b") is False
+    assert await store.release_turn_claim("turn-1", "owner-b") is False
+    assert await store.release_turn_claim("turn-1", "owner-a") is True
+    assert await store.try_claim_turn("turn-1", "owner-b") is True
+
+
+@pytest.mark.asyncio
 async def test_history_writer_keeps_legacy_history_and_appends_missing_v3_turns(monkeypatch):
     completed_turn = _build_turn(
         id="turn-v3",
@@ -343,8 +389,14 @@ async def test_agent_runtime_views_create_stream_snapshot_cancel_and_artifact(mo
             self.event_service = _FakeEventService()
             self.artifact_service = _FakeArtifactService()
             self.tasks = {}
+            self.claim_turn_id = None
+            self.claim_turn_result = "lease-owner"
             self.launch_args = None
             self.cancelled_turn_id = None
+
+        async def claim_turn(self, turn_id):
+            self.claim_turn_id = turn_id
+            return self.claim_turn_result
 
         def launch_turn(self, **kwargs):
             self.launch_args = kwargs
@@ -367,7 +419,9 @@ async def test_agent_runtime_views_create_stream_snapshot_cancel_and_artifact(mo
     )
     assert create_response.turn.turn_id == "turn-1"
     assert create_response.stream_url.endswith("/api/v2/agent/chats/chat-1/turns/turn-1/events")
+    assert fake_runtime_manager.claim_turn_id == "turn-1"
     assert fake_runtime_manager.launch_args["turn"].id == "turn-1"
+    assert fake_runtime_manager.launch_args["lease_owner"] == "lease-owner"
 
     snapshot_response = await agent_runtime_view.get_turn_snapshot_view(
         "chat-1",
@@ -404,3 +458,47 @@ async def test_agent_runtime_views_create_stream_snapshot_cancel_and_artifact(mo
     joined = "".join(chunks)
     assert "event: turn.started" in joined
     assert '"turn_id": "turn-1"' in joined
+
+
+@pytest.mark.asyncio
+async def test_agent_runtime_view_create_skips_launch_when_turn_claim_fails(monkeypatch):
+    turn = _build_turn(status=AgentTurnStatus.QUEUED, timeline_cursor=0)
+
+    class _FakeTurnService:
+        async def create_or_get_turn(self, _user, _chat_id, _body):
+            return (
+                SimpleNamespace(id="chat-1"),
+                SimpleNamespace(id="bot-1"),
+                turn,
+                True,
+            )
+
+        def to_turn_envelope(self, _turn):
+            return TurnService.to_turn_envelope(turn)
+
+    class _FakeRuntimeManager:
+        def __init__(self):
+            self.turn_service = _FakeTurnService()
+            self.claim_turn_id = None
+            self.launch_args = None
+
+        async def claim_turn(self, turn_id):
+            self.claim_turn_id = turn_id
+            return None
+
+        def launch_turn(self, **kwargs):
+            self.launch_args = kwargs
+
+    fake_runtime_manager = _FakeRuntimeManager()
+    monkeypatch.setattr(agent_runtime_view, "runtime_manager", fake_runtime_manager)
+
+    response = await agent_runtime_view.create_turn_view(
+        _FakeRequest(),
+        "chat-1",
+        CreateTurnRequest(query="hello"),
+        user=SimpleNamespace(id="user-1"),
+    )
+
+    assert response.turn.turn_id == "turn-1"
+    assert fake_runtime_manager.claim_turn_id == "turn-1"
+    assert fake_runtime_manager.launch_args is None
