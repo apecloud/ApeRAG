@@ -322,6 +322,9 @@ const createMdComponents = (resolveAssetUrl?: (src: string) => string | undefine
   ),
 });
 
+// Keep the legacy export for MDX consumers that do not need route-aware asset resolution.
+export const mdComponents = createMdComponents();
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const mdRehypePlugins: any = [
   rehypeRaw,
