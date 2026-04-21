@@ -70,6 +70,7 @@ from .operate import (
     merge_nodes_and_edges,
 )
 from .prompt import DEFAULT_ENTITY_TYPES, GRAPH_FIELD_SEP
+from .source_refs import normalize_source_references, serialize_source_references
 from .types import KnowledgeGraph
 from .utils import (
     EmbeddingFunc,
@@ -79,7 +80,6 @@ from .utils import (
     compute_mdhash_id,
     create_lightrag_logger,
     logger,
-    split_string_by_multi_markers,
 )
 
 
@@ -306,7 +306,7 @@ class LightRAG:
             embedding_func=self.embedding_func,
             cosine_better_than_threshold=self.cosine_better_than_threshold,
             _max_batch_size=self.max_batch_size,
-            meta_fields={"entity_name", "source_id", "content", "file_path"},
+            meta_fields={"entity_name", "source_id", "chunk_ids", "content", "file_path"},
         )
         self.relationships_vdb: BaseVectorStorage = self.vector_db_storage_cls(  # type: ignore
             namespace=NameSpace.VECTOR_STORE_RELATIONSHIPS,
@@ -314,7 +314,7 @@ class LightRAG:
             embedding_func=self.embedding_func,
             cosine_better_than_threshold=self.cosine_better_than_threshold,
             _max_batch_size=self.max_batch_size,
-            meta_fields={"src_id", "tgt_id", "source_id", "content", "file_path"},
+            meta_fields={"src_id", "tgt_id", "source_id", "chunk_ids", "content", "file_path"},
         )
         self.chunks_vdb: BaseVectorStorage = self.vector_db_storage_cls(  # type: ignore
             namespace=NameSpace.VECTOR_STORE_CHUNKS,
@@ -948,6 +948,8 @@ class LightRAG:
                 elif len(new_chunk_ids) != len(old_chunk_ids):
                     updated_entity = dict(entity_data)
                     updated_entity["chunk_ids"] = sorted(new_chunk_ids)
+                    if "source_id" in updated_entity:
+                        updated_entity["source_id"] = serialize_source_references(updated_entity["chunk_ids"])
                     entities_to_update_in_vdb[entity_id] = updated_entity
                     self.lightrag_logger.debug(
                         f"Entity {entity_data.get('entity_name')} chunk_ids updated: {len(old_chunk_ids)} -> {len(new_chunk_ids)}"
@@ -1001,11 +1003,7 @@ class LightRAG:
                 if not node_data or "source_id" not in node_data:
                     continue
 
-                sources = {
-                    source_id
-                    for source_id in split_string_by_multi_markers(node_data["source_id"], [GRAPH_FIELD_SEP])
-                    if source_id
-                }
+                sources = set(normalize_source_references(node_data["source_id"]))
                 if not sources.intersection(chunk_ids):
                     continue
 
@@ -1017,7 +1015,7 @@ class LightRAG:
                     )
                 else:
                     updated_node = dict(node_data)
-                    updated_node["source_id"] = GRAPH_FIELD_SEP.join(sorted(sources))
+                    updated_node["source_id"] = serialize_source_references(sorted(sources))
                     entities_to_update_in_graph[node_label] = updated_node
                     self.lightrag_logger.debug(f"Entity {node_label} source_id will be updated in graph")
 
@@ -1025,11 +1023,7 @@ class LightRAG:
                 if not edge_data or "source_id" not in edge_data:
                     continue
 
-                sources = {
-                    source_id
-                    for source_id in split_string_by_multi_markers(edge_data["source_id"], [GRAPH_FIELD_SEP])
-                    if source_id
-                }
+                sources = set(normalize_source_references(edge_data["source_id"]))
                 if not sources.intersection(chunk_ids):
                     continue
 
@@ -1042,7 +1036,7 @@ class LightRAG:
                     )
                 else:
                     updated_edge = dict(edge_data)
-                    updated_edge["source_id"] = GRAPH_FIELD_SEP.join(sorted(sources))
+                    updated_edge["source_id"] = serialize_source_references(sorted(sources))
                     relationships_to_update_in_graph[(src, tgt)] = updated_edge
                     self.lightrag_logger.debug(f"Relationship {src}-{tgt} source_id will be updated in graph")
 
@@ -1484,6 +1478,7 @@ class LightRAG:
                     "entity_type": merged_entity_data.get("entity_type", "UNKNOWN"),
                     "content": entity_content,
                     "source_id": merged_entity_data.get("source_id", ""),
+                    "chunk_ids": normalize_source_references(merged_entity_data.get("source_id")),
                     "file_path": merged_entity_data.get("file_path", ""),
                 }
             }
@@ -1512,7 +1507,7 @@ class LightRAG:
                     "src_id": src,
                     "tgt_id": tgt,
                     "content": rel_content,
-                    "source_id": edge_data.get("source_id", ""),
+                    "chunk_ids": normalize_source_references(edge_data.get("source_id")),
                     "file_path": edge_data.get("file_path", ""),
                     "keywords": edge_data.get("keywords", ""),
                     "description": edge_data.get("description", ""),
@@ -1580,13 +1575,16 @@ class LightRAG:
             elif strategy == "keep_last":
                 merged_data[key] = values[-1]
             elif strategy == "join_unique":
-                # Handle fields separated by GRAPH_FIELD_SEP
-                unique_items = set()
-                for value in values:
-                    if value:
-                        items = str(value).split(GRAPH_FIELD_SEP)
-                        unique_items.update(item.strip() for item in items if item.strip())
-                merged_data[key] = GRAPH_FIELD_SEP.join(sorted(unique_items))
+                if key == "source_id":
+                    merged_data[key] = serialize_source_references(*values)
+                else:
+                    # Handle fields separated by GRAPH_FIELD_SEP
+                    unique_items = set()
+                    for value in values:
+                        if value:
+                            items = str(value).split(GRAPH_FIELD_SEP)
+                            unique_items.update(item.strip() for item in items if item.strip())
+                    merged_data[key] = GRAPH_FIELD_SEP.join(sorted(unique_items))
             else:
                 # Default: keep first
                 merged_data[key] = values[0]
@@ -1622,16 +1620,21 @@ class LightRAG:
             elif strategy == "keep_last":
                 merged_data[key] = values[-1]
             elif strategy == "join_unique":
-                # Handle fields separated by GRAPH_FIELD_SEP or commas
-                unique_items = set()
-                for value in values:
-                    if value:
-                        # Try both separators
-                        items = str(value).replace(",", GRAPH_FIELD_SEP).split(GRAPH_FIELD_SEP)
-                        unique_items.update(item.strip() for item in items if item.strip())
-                merged_data[key] = (
-                    ",".join(sorted(unique_items)) if key == "keywords" else GRAPH_FIELD_SEP.join(sorted(unique_items))
-                )
+                if key == "source_id":
+                    merged_data[key] = serialize_source_references(*values)
+                else:
+                    # Handle fields separated by GRAPH_FIELD_SEP or commas
+                    unique_items = set()
+                    for value in values:
+                        if value:
+                            # Try both separators
+                            items = str(value).replace(",", GRAPH_FIELD_SEP).split(GRAPH_FIELD_SEP)
+                            unique_items.update(item.strip() for item in items if item.strip())
+                    merged_data[key] = (
+                        ",".join(sorted(unique_items))
+                        if key == "keywords"
+                        else GRAPH_FIELD_SEP.join(sorted(unique_items))
+                    )
             elif strategy == "max":
                 # For numeric fields like weight
                 try:
@@ -1743,9 +1746,8 @@ class LightRAG:
                 for entity_id, node_data in nodes_data.items():
                     source_id = node_data.get("source_id")
                     if source_id:
-                        chunk_ids = source_id.split(GRAPH_FIELD_SEP) if GRAPH_FIELD_SEP in source_id else [source_id]
                         entity_name = node_data.get("entity_name", entity_id)
-                        for chunk_id in chunk_ids:
+                        for chunk_id in normalize_source_references(source_id):
                             chunk_id = chunk_id.strip()
                             if chunk_id:
                                 chunk_id_to_entities.setdefault(chunk_id, []).append(entity_name)
@@ -1754,12 +1756,11 @@ class LightRAG:
                 for (source_entity_id, target_entity_id), edge_data in edges_data.items():
                     source_id = edge_data.get("source_id")
                     if source_id:
-                        chunk_ids = source_id.split(GRAPH_FIELD_SEP) if GRAPH_FIELD_SEP in source_id else [source_id]
                         source_name = nodes_data.get(source_entity_id, {}).get("entity_name", source_entity_id)
                         target_name = nodes_data.get(target_entity_id, {}).get("entity_name", target_entity_id)
                         edge_tuple = [source_name, target_name]
 
-                        for chunk_id in chunk_ids:
+                        for chunk_id in normalize_source_references(source_id):
                             chunk_id = chunk_id.strip()
                             if chunk_id:
                                 chunk_id_to_edges.setdefault(chunk_id, []).append(edge_tuple)

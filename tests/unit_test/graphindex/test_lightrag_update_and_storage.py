@@ -7,7 +7,13 @@ from aperag.graph.lightrag.base import QueryParam
 from aperag.graph.lightrag.kg.pg_ops_sync_vector_storage import PGOpsSyncVectorStorage
 from aperag.graph.lightrag.lightrag import LightRAG
 from aperag.graph.lightrag.namespace import NameSpace
-from aperag.graph.lightrag.operate import _find_most_related_edges_from_entities, get_high_degree_nodes
+from aperag.graph.lightrag.operate import (
+    _find_most_related_edges_from_entities,
+    get_high_degree_nodes,
+    merge_nodes_and_edges,
+)
+from aperag.graph.lightrag.prompt import GRAPH_FIELD_SEP
+from aperag.graph.lightrag.utils import compute_mdhash_id
 from aperag.graph.lightrag_manager import _process_document_async
 
 
@@ -106,6 +112,101 @@ async def test_pg_vector_upsert_reuses_existing_vector_for_metadata_only_update(
     assert captured["vector_data"]["entity-1"]["chunk_ids"] == ["chunk-a", "chunk-b"]
 
 
+@pytest.mark.asyncio
+async def test_pg_vector_upsert_normalizes_chunk_ids_from_legacy_source_id(monkeypatch):
+    captured = {}
+
+    def _capture_upsert(_workspace, vector_data):
+        captured["vector_data"] = vector_data
+
+    monkeypatch.setattr(
+        "aperag.db.ops.db_ops.upsert_lightrag_vdb_relation",
+        _capture_upsert,
+    )
+
+    storage = PGOpsSyncVectorStorage(
+        namespace=NameSpace.VECTOR_STORE_RELATIONSHIPS,
+        workspace="workspace-1",
+        embedding_func=lambda _batch: None,
+    )
+
+    await storage.upsert(
+        {
+            "rel-1": {
+                "src_id": "Alpha",
+                "tgt_id": "Beta",
+                "content": "Alpha\tBeta\nworks_with\nrelation desc",
+                "content_vector": [0.1, 0.2, 0.3],
+                "source_id": f"chunk-b{GRAPH_FIELD_SEP}chunk-a{GRAPH_FIELD_SEP}chunk-b",
+                "file_path": "/tmp/rel.txt",
+            }
+        }
+    )
+
+    assert captured["vector_data"]["rel-1"]["chunk_ids"] == ["chunk-a", "chunk-b"]
+
+
+@pytest.mark.asyncio
+async def test_merge_nodes_and_edges_upserts_explicit_chunk_ids_to_vector_storage():
+    graph_storage = _FakeGraphStorage()
+    entities_vdb = _FakeEntityVectorStorage()
+    relationships_vdb = _FakeRelationVectorStorage()
+
+    chunk_results = [
+        (
+            {
+                "Alpha": [
+                    {
+                        "entity_name": "Alpha",
+                        "entity_type": "ORG",
+                        "description": "alpha desc",
+                        "source_id": f"chunk-b{GRAPH_FIELD_SEP}chunk-a",
+                        "chunk_ids": ["chunk-b", "chunk-a"],
+                        "file_path": "/tmp/alpha.txt",
+                    }
+                ]
+            },
+            {
+                ("Alpha", "Beta"): [
+                    {
+                        "src_id": "Alpha",
+                        "tgt_id": "Beta",
+                        "description": "relation desc",
+                        "keywords": "works_with",
+                        "weight": 1.0,
+                        "source_id": f"chunk-b{GRAPH_FIELD_SEP}chunk-a",
+                        "chunk_ids": ["chunk-b", "chunk-a"],
+                        "file_path": "/tmp/alpha.txt",
+                    }
+                ]
+            },
+        )
+    ]
+
+    result = await merge_nodes_and_edges(
+        chunk_results=chunk_results,
+        component=["Alpha", "Beta"],
+        workspace="workspace-1",
+        knowledge_graph_inst=graph_storage,
+        entity_vdb=entities_vdb,
+        relationships_vdb=relationships_vdb,
+        llm_model_func=lambda *_args, **_kwargs: None,
+        tokenizer=_FakeTokenizer(),
+        llm_model_max_token_size=2048,
+        summary_to_max_tokens=256,
+        language="zh-CN",
+        force_llm_summary_on_merge=99,
+        lightrag_logger=_FakeLogger(),
+    )
+
+    entity_id = compute_mdhash_id("Alpha", prefix="ent-", workspace="workspace-1")
+    rel_id = compute_mdhash_id("AlphaBeta", prefix="rel-", workspace="workspace-1")
+
+    assert result == {"entity_count": 1, "relation_count": 1}
+    assert entities_vdb.upserts[0][entity_id]["chunk_ids"] == ["chunk-a", "chunk-b"]
+    assert relationships_vdb.upserts[0][rel_id]["chunk_ids"] == ["chunk-a", "chunk-b"]
+
+
 class _FakeGraphStorage:
     def __init__(self, nodes=None, edges_with_data_by_node=None):
         self.nodes = dict(nodes or {})
@@ -130,6 +231,25 @@ class _FakeGraphStorage:
     async def get_incident_edges_with_data_batch(self, node_ids):
         self.calls.append(("get_incident_edges_with_data_batch", tuple(node_ids)))
         return await self.get_nodes_edges_with_data_batch(node_ids)
+
+    async def get_nodes_edges_batch(self, node_ids):
+        self.calls.append(("get_nodes_edges_batch", tuple(node_ids)))
+        return {
+            node_id: [(source, target) for source, target, _edge_data in self.edges_with_data_by_node.get(node_id, [])]
+            for node_id in node_ids
+        }
+
+    async def get_edges_batch(self, edge_pairs):
+        self.calls.append(("get_edges_batch", tuple((edge["src"], edge["tgt"]) for edge in edge_pairs)))
+        all_edges = {}
+        for edges in self.edges_with_data_by_node.values():
+            for edge_source, edge_target, edge_data in edges:
+                all_edges[(edge_source, edge_target)] = dict(edge_data)
+        return {
+            (edge["src"], edge["tgt"]): all_edges[(edge["src"], edge["tgt"])]
+            for edge in edge_pairs
+            if (edge["src"], edge["tgt"]) in all_edges
+        }
 
     async def upsert_node(self, node_id, node_data):
         self.calls.append(("upsert_node", node_id))
@@ -183,15 +303,30 @@ class _FakeGraphStorage:
         self.calls.append(("get_node_ids", limit))
         return list(self.nodes.keys())[:limit] if limit is not None else list(self.nodes.keys())
 
+    async def node_degrees_batch(self, node_ids):
+        self.calls.append(("node_degrees_batch", tuple(node_ids)))
+        degrees = {node_id: 0 for node_id in node_ids}
+        for edges in self.edges_with_data_by_node.values():
+            for edge_source, edge_target, _edge_data in edges:
+                if edge_source in degrees:
+                    degrees[edge_source] += 1
+                if edge_target in degrees:
+                    degrees[edge_target] += 1
+        return degrees
+
 
 class _FakeEntityVectorStorage:
     def __init__(self):
         self.workspace = "workspace-1"
         self.deleted = []
+        self.deleted_entities = []
         self.upserts = []
 
     async def delete(self, ids):
         self.deleted.append(list(ids))
+
+    async def delete_entity(self, entity_name):
+        self.deleted_entities.append(entity_name)
 
     async def upsert(self, data):
         self.upserts.append(data)
@@ -302,6 +437,43 @@ async def test_amerge_entities_uses_batch_graph_primitives_and_batch_delete():
     assert result["entity_name"] == "merged"
 
 
+@pytest.mark.asyncio
+async def test_amerge_nodes_upserts_explicit_chunk_ids_to_vector_storage():
+    rag = LightRAG.__new__(LightRAG)
+    rag.workspace = "workspace-1"
+    rag.lightrag_logger = _FakeLogger()
+    rag.chunk_entity_relation_graph = _FakeGraphStorage(
+        nodes={
+            "A": {"entity_id": "A", "entity_type": "PERSON", "description": "desc A", "source_id": "chunk-b"},
+            "B": {"entity_id": "B", "entity_type": "PERSON", "description": "desc B", "source_id": "chunk-a"},
+            "X": {"entity_id": "X", "entity_type": "ORG", "description": "desc X", "source_id": "chunk-x"},
+            "Y": {"entity_id": "Y", "entity_type": "ORG", "description": "desc Y", "source_id": "chunk-y"},
+        },
+        edges_with_data_by_node={
+            "A": [("A", "X", {"description": "edge ax", "keywords": "k1", "source_id": "chunk-b", "weight": 1})],
+            "B": [("B", "Y", {"description": "edge by", "keywords": "k2", "source_id": "chunk-a", "weight": 2})],
+        },
+    )
+    rag.entities_vdb = _FakeEntityVectorStorage()
+    rag.relationships_vdb = _FakeRelationVectorStorage()
+
+    result = await LightRAG.amerge_nodes(
+        rag,
+        ["A", "B"],
+        {"entity_name": "merged"},
+    )
+
+    merged_entity_id = compute_mdhash_id("merged", prefix="ent-", workspace=rag.workspace)
+
+    assert result["status"] == "success"
+    assert rag.entities_vdb.upserts[0][merged_entity_id]["chunk_ids"] == ["chunk-a", "chunk-b"]
+    assert all(
+        relation_data["chunk_ids"]
+        for upsert_batch in rag.relationships_vdb.upserts
+        for relation_data in upsert_batch.values()
+    )
+
+
 class _FakeHighDegreeGraphStorage:
     async def get_top_degree_nodes(self, limit):
         assert limit == 2
@@ -396,6 +568,12 @@ class _FakeLogger:
         return None
 
     def error(self, *_args, **_kwargs):
+        return None
+
+    def log_entity_merge(self, *_args, **_kwargs):
+        return None
+
+    def log_relation_merge(self, *_args, **_kwargs):
         return None
 
 
