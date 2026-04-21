@@ -1,3 +1,4 @@
+import httpx
 import litellm
 import pytest
 
@@ -64,3 +65,76 @@ async def test_async_rerank_accepts_score_alias(monkeypatch):
     assert len(detailed) == 1
     assert detailed[0].original_index == 0
     assert detailed[0].relevance_score == pytest.approx(0.73)
+
+
+@pytest.mark.parametrize(
+    ("configured_base_url", "expected_url"),
+    [
+        (
+            "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            "https://dashscope.aliyuncs.com/api/v1/services/rerank/text-rerank/text-rerank",
+        ),
+        (
+            "https://proxy.example.com/dashscope/compatible-mode/v1",
+            "https://proxy.example.com/dashscope/api/v1/services/rerank/text-rerank/text-rerank",
+        ),
+        (
+            "https://proxy.example.com/dashscope/api/v1/services/rerank/text-rerank/text-rerank",
+            "https://proxy.example.com/dashscope/api/v1/services/rerank/text-rerank/text-rerank",
+        ),
+    ],
+)
+def test_resolve_alibabacloud_rerank_url(configured_base_url, expected_url):
+    service = RerankService(
+        rerank_provider="alibabacloud",
+        rerank_model="gte-rerank-v2",
+        rerank_service_url=configured_base_url,
+        rerank_service_api_key="test-key",
+    )
+
+    assert service._resolve_alibabacloud_rerank_url() == expected_url
+
+
+@pytest.mark.asyncio
+async def test_call_alibabacloud_rerank_api_uses_resolved_base_url(monkeypatch):
+    captured = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"output": {"results": [{"index": 1, "relevance_score": 0.88}]}}
+
+    class FakeAsyncClient:
+        def __init__(self, timeout):
+            assert timeout == 60.0
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(self, url, headers, json):
+            captured["url"] = url
+            captured["headers"] = headers
+            captured["json"] = json
+            return FakeResponse()
+
+    monkeypatch.setattr(httpx, "AsyncClient", FakeAsyncClient)
+
+    service = RerankService(
+        rerank_provider="alibabacloud",
+        rerank_model="gte-rerank-v2",
+        rerank_service_url="https://proxy.example.com/dashscope/compatible-mode/v1",
+        rerank_service_api_key="test-key",
+    )
+
+    response = await service._call_alibabacloud_rerank_api("capital of France", ["Paris", "Tokyo"])
+
+    assert captured["url"] == "https://proxy.example.com/dashscope/api/v1/services/rerank/text-rerank/text-rerank"
+    assert captured["headers"]["Authorization"] == "Bearer test-key"
+    assert captured["json"]["model"] == "gte-rerank-v2"
+    assert captured["json"]["parameters"]["top_n"] == 2
+    assert response == {"results": [{"index": 1, "relevance_score": 0.88}]}
