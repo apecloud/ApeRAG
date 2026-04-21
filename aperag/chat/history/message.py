@@ -27,7 +27,6 @@ class StoredChatMessagePart(BaseModel):
     # Extended fields
     references: List[Dict[str, Any]] = Field(default_factory=list, description="Document references")
     urls: List[str] = Field(default_factory=list, description="URL references")
-    feedback: Optional[Dict[str, Any]] = Field(None, description="User feedback data")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
 
 
@@ -71,7 +70,6 @@ class StoredChatMessage(BaseModel):
                 data=part.content,  # Frontend expects "data" field
                 references=part.references if part.references else None,
                 urls=part.urls if part.urls else None,
-                feedback=part.feedback,
                 files=self.files,
             )
             frontend_messages.append(chatMessage)

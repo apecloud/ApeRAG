@@ -24,6 +24,7 @@ from aperag.service.chat_document_service import chat_document_service
 from aperag.service.chat_service import chat_service_global
 from aperag.service.chat_title_service import chat_title_service
 from aperag.service.collection_service import collection_service
+from aperag.service.turn_feedback_service import turn_feedback_service_global
 from aperag.utils.audit_decorator import audit
 from aperag.views.auth import required_user
 
@@ -68,19 +69,32 @@ async def update_chat_view(
     return await chat_service_global.update_chat(str(user.id), bot_id, chat_id, chat_in)
 
 
-@router.post("/bots/{bot_id}/chats/{chat_id}/messages/{message_id}")
-@audit(resource_type="message", api_name="FeedbackMessage")
-async def feedback_message_view(
+@router.get("/chats/{chat_id}/feedback")
+async def list_turn_feedback_view(
+    request: Request, chat_id: str, user: User = Depends(required_user)
+) -> view_models.TurnFeedbackList:
+    return await turn_feedback_service_global.list_turn_feedbacks(str(user.id), chat_id)
+
+
+@router.post("/chats/{chat_id}/turns/{turn_id}/feedback")
+@audit(resource_type="turn_feedback", api_name="UpsertTurnFeedback")
+async def upsert_turn_feedback_view(
     request: Request,
-    bot_id: str,
     chat_id: str,
-    message_id: str,
+    turn_id: str,
     feedback: view_models.Feedback,
     user: User = Depends(required_user),
+) -> view_models.TurnFeedback:
+    return await turn_feedback_service_global.upsert_turn_feedback(str(user.id), chat_id, turn_id, feedback)
+
+
+@router.delete("/chats/{chat_id}/turns/{turn_id}/feedback")
+@audit(resource_type="turn_feedback", api_name="DeleteTurnFeedback")
+async def delete_turn_feedback_view(
+    request: Request, chat_id: str, turn_id: str, user: User = Depends(required_user)
 ):
-    return await chat_service_global.feedback_message(
-        str(user.id), chat_id, message_id, feedback.type, feedback.tag, feedback.message
-    )
+    await turn_feedback_service_global.delete_turn_feedback(str(user.id), chat_id, turn_id)
+    return Response(status_code=204)
 
 
 @router.post("/bots/{bot_id}/chats/{chat_id}/title")

@@ -43,12 +43,6 @@ def _extract_artifact_text(artifact) -> str:
     return artifact.payload.get("text") or artifact.payload.get("content") or artifact.payload.get("message") or ""
 
 
-def _coerce_feedback(feedback) -> Optional[view_models.Feedback]:
-    if not feedback:
-        return None
-    return view_models.Feedback(type=feedback.type, tag=feedback.tag, message=feedback.message)
-
-
 def _coerce_timestamp(value) -> Optional[float]:
     return value.timestamp() if value else None
 
@@ -100,10 +94,6 @@ class ChatService:
 
     async def _build_v3_chat_history(self, user: str, chat_id: str) -> list[list[view_models.ChatMessage]]:
         turns = await self.db_ops.query_agent_turns(user, chat_id)
-        feedback_map = {
-            feedback.message_id: _coerce_feedback(feedback)
-            for feedback in await self.db_ops.query_chat_feedbacks(user, chat_id)
-        }
 
         history: list[list[view_models.ChatMessage]] = []
         for turn in turns:
@@ -180,8 +170,7 @@ class ChatService:
                 )
 
             references = _extract_references(reference_artifact)
-            feedback = feedback_map.get(turn.id)
-            if references or feedback:
+            if references:
                 ai_parts.append(
                     view_models.ChatMessage(
                         id=turn.id,
@@ -189,7 +178,6 @@ class ChatService:
                         role="ai",
                         data="",
                         references=references,
-                        feedback=feedback,
                         timestamp=_coerce_timestamp(turn.gmt_finished) or _coerce_timestamp(turn.gmt_created),
                     )
                 )
@@ -315,68 +303,6 @@ class ChatService:
             return self.build_chat_response(deleted_chat)
 
         return None
-
-    async def feedback_message(
-        self,
-        user: str,
-        chat_id: str,
-        message_id: str,
-        feedback_type: str = None,
-        feedback_tag: str = None,
-        feedback_message: str = None,
-    ) -> dict:
-        """Handle message feedback for chat messages"""
-        turn = await self.db_ops.query_agent_turn(user, chat_id, message_id)
-        if not turn:
-            raise ResourceNotFoundException("AI Message", message_id)
-
-        artifacts = await self.db_ops.query_agent_artifacts_by_turn(turn.id)
-        answer_artifact = (
-            next((artifact for artifact in artifacts if artifact.id == turn.answer_artifact_id), None)
-            if turn.answer_artifact_id
-            else None
-        )
-        if not answer_artifact:
-            answer_artifact = next(
-                (
-                    artifact
-                    for artifact in artifacts
-                    if _artifact_type_value(artifact) == db_models.AgentArtifactType.ANSWER.value
-                ),
-                None,
-            )
-
-        answer_text = _extract_artifact_text(answer_artifact)
-        if not answer_text and turn.status in {
-            db_models.AgentTurnStatus.FAILED,
-            db_models.AgentTurnStatus.CANCELLED,
-        }:
-            answer_text = turn.error_message or ""
-
-        if not answer_text:
-            raise ResourceNotFoundException("AI Message", message_id)
-
-        # Handle feedback state change based on UX design principles
-        if feedback_type is None:
-            # User wants to remove feedback (cancel like/dislike)
-            success_removed = await self.db_ops.remove_message_feedback(user, chat_id, message_id)
-            result = {"action": "deleted", "success": success_removed}
-        else:
-            # User wants to set feedback state (like/dislike)
-            feedback = await self.db_ops.set_message_feedback_state(
-                user=user,
-                chat_id=chat_id,
-                message_id=message_id,
-                feedback_type=feedback_type,
-                feedback_tag=feedback_tag,
-                feedback_message=feedback_message,
-                question=turn.input_text,
-                original_answer=answer_text,
-            )
-            result = {"action": "upserted", "feedback": feedback}
-        return result
-
-
 # Create a global service instance for easy access
 # This uses the global db_ops instance and doesn't require session management in views
 chat_service_global = ChatService()

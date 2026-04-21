@@ -2,7 +2,6 @@
 
 import { ChatDetails, ChatMessage, Feedback } from '@/api';
 import { useBotContext } from '@/components/providers/bot-provider';
-import { apiClient } from '@/lib/api/client';
 import _ from 'lodash';
 import { useParams } from 'next/navigation';
 import {
@@ -25,6 +24,7 @@ import { ChatInput, ChatInputSubmitParams } from './chat-input';
 import { MessagePartsAi } from './message-parts-ai';
 import { MessagePartsUser } from './message-parts-user';
 
+const API_BASE_PATH = `${process.env.NEXT_PUBLIC_BASE_PATH || ''}/api/v1`;
 const AGENT_RUNTIME_BASE_PATH = `${process.env.NEXT_PUBLIC_BASE_PATH || ''}/api/v2/agent`;
 const ACTIVE_TURN_STORAGE_PREFIX = 'agent-runtime-v3:active-turn:';
 
@@ -53,6 +53,14 @@ type AgentTurnState = {
   snapshot: AgentTurnSnapshot;
   streamingAnswer: string;
   pending: boolean;
+};
+
+type TurnFeedbackListResponse = {
+  items: Array<
+    Feedback & {
+      turn_id: string;
+    }
+  >;
 };
 
 function isTerminalStatus(status?: string) {
@@ -132,11 +140,14 @@ function getStreamingAnswerFromSnapshot(snapshot: AgentTurnSnapshot) {
 
 export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
   const { chatRename } = useBotContext();
-  const { botId, chatId } = useParams<{ botId: string; chatId: string }>();
+  const { chatId } = useParams<{ chatId: string }>();
   const [messages, setMessages] = useState<ChatMessage[][]>(chat.history || []);
   const [turnStates, setTurnStates] = useState<Record<string, AgentTurnState>>(
     {},
   );
+  const [feedbackByTurnId, setFeedbackByTurnId] = useState<
+    Record<string, Feedback>
+  >({});
   const [activeTurnId, setActiveTurnId] = useState<string | null>(null);
 
   const streamsRef = useRef<Record<string, EventSource>>({});
@@ -261,9 +272,21 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
         );
       }
 
+      if (response.status === 204) {
+        return undefined as T;
+      }
+
       return (await response.json()) as T;
     },
     [],
+  );
+
+  const fetchTurnFeedbacks = useCallback(
+    async () =>
+      fetchJson<TurnFeedbackListResponse>(`${API_BASE_PATH}/chats/${chatId}/feedback`, {
+        method: 'GET',
+      }),
+    [chatId, fetchJson],
   );
 
   const fetchArtifact = useCallback(
@@ -574,37 +597,37 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
   }, [activeTurnId, chatId, fetchJson]);
 
   const handleMessageFeedback = useCallback(
-    async (part: ChatMessage, feedback: Feedback) => {
-      if (!botId || !chatId || !part.id) return;
+    async (turnId: string, feedback: Feedback) => {
+      if (!chatId || !turnId) return;
 
-      const response =
-        await apiClient.defaultApi.botsBotIdChatsChatIdMessagesMessageIdPost({
-          botId,
-          chatId,
-          messageId: part.id,
-          feedback,
-        });
-
-      if (response.status === 200) {
-        setMessages((previous) => {
-          const next = cloneMessages(previous);
-          const parts = next.find((items) =>
-            items.find(
-              (message) =>
-                message.id === part.id && message.type === 'references',
-            ),
-          );
-          const feedbackPart = parts?.find(
-            (message) => message.type === 'references',
-          );
-          if (feedbackPart) {
-            feedbackPart.feedback = feedback;
-          }
-          return next;
-        });
+      if (feedback.type) {
+        await fetchJson(
+          `${API_BASE_PATH}/chats/${chatId}/turns/${turnId}/feedback`,
+          {
+            method: 'POST',
+            body: JSON.stringify(feedback),
+          },
+        );
+        setFeedbackByTurnId((previous) => ({
+          ...previous,
+          [turnId]: feedback,
+        }));
+        return;
       }
+
+      await fetchJson(
+        `${API_BASE_PATH}/chats/${chatId}/turns/${turnId}/feedback`,
+        {
+          method: 'DELETE',
+        },
+      );
+      setFeedbackByTurnId((previous) => {
+        const next = { ...previous };
+        delete next[turnId];
+        return next;
+      });
     },
-    [botId, chatId],
+    [chatId, fetchJson],
   );
 
   useEffect(() => {
@@ -619,6 +642,40 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
   useEffect(() => {
     setMessages(chat.history || []);
   }, [chat.history]);
+
+  useEffect(() => {
+    if (!chatId) return;
+
+    let cancelled = false;
+    setFeedbackByTurnId({});
+
+    const loadTurnFeedbacks = async () => {
+      try {
+        const response = await fetchTurnFeedbacks();
+        if (cancelled) return;
+        setFeedbackByTurnId(
+          Object.fromEntries(
+            response.items.map((item) => [
+              item.turn_id,
+              {
+                type: item.type,
+                tag: item.tag,
+                message: item.message,
+              },
+            ]),
+          ),
+        );
+      } catch (error) {
+        console.error('Failed to load turn feedback', error);
+      }
+    };
+
+    void loadTurnFeedbacks();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [chatId, fetchTurnFeedbacks]);
 
   useEffect(() => {
     const storedActiveTurnId =
@@ -734,7 +791,7 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
                   snapshot={turnState.snapshot}
                   pending={turnState.pending}
                   streamingAnswer={turnState.streamingAnswer}
-                  fallbackParts={parts}
+                  feedback={turnId ? feedbackByTurnId[turnId] : undefined}
                   onFeedback={handleMessageFeedback}
                 />
               ) : (
@@ -742,7 +799,8 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
                   pending={false}
                   loading={false}
                   parts={parts}
-                  hanldeMessageFeedback={handleMessageFeedback}
+                  feedback={turnId ? feedbackByTurnId[turnId] : undefined}
+                  onFeedback={handleMessageFeedback}
                 />
               )
             ) : (
