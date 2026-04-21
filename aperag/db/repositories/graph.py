@@ -15,8 +15,9 @@
 import logging
 from typing import Any, Dict, List, Optional, Tuple
 
-from sqlalchemy import and_, delete, func, or_, select, text, union_all
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import String, and_, cast, delete, func, or_, select, text, tuple_, union_all
+from sqlalchemy.dialects.postgresql import ARRAY, insert
+from sqlalchemy.dialects.postgresql import array as pg_array
 
 from aperag.db.models import LightRAGGraphEdge, LightRAGGraphNode
 from aperag.graph.lightrag.prompt import GRAPH_FIELD_SEP
@@ -29,20 +30,21 @@ class GraphRepositoryMixin:
 
     @staticmethod
     def _build_source_id_overlap_clause(column, chunk_ids: List[str]):
-        if not chunk_ids:
+        unique_chunk_ids = [chunk_id for chunk_id in dict.fromkeys(chunk_ids) if chunk_id]
+        if not unique_chunk_ids:
             return None
 
-        conditions = []
-        for chunk_id in set(chunk_ids):
-            conditions.extend(
-                [
-                    column == chunk_id,
-                    column.like(f"{chunk_id}{GRAPH_FIELD_SEP}%"),
-                    column.like(f"%{GRAPH_FIELD_SEP}{chunk_id}{GRAPH_FIELD_SEP}%"),
-                    column.like(f"%{GRAPH_FIELD_SEP}{chunk_id}"),
-                ]
-            )
-        return or_(*conditions) if conditions else None
+        source_refs_array = cast(func.string_to_array(column, GRAPH_FIELD_SEP), ARRAY(String()))
+        typed_chunk_ids = cast(pg_array(unique_chunk_ids), ARRAY(String()))
+        return source_refs_array.op("&&")(typed_chunk_ids)
+
+    @staticmethod
+    def _build_edge_pairs_clause(edge_pairs: List[Tuple[str, str]]):
+        unique_edge_pairs = list(dict.fromkeys(edge_pairs))
+        if not unique_edge_pairs:
+            return None
+
+        return tuple_(LightRAGGraphEdge.source_entity_id, LightRAGGraphEdge.target_entity_id).in_(unique_edge_pairs)
 
     # Node operations
     def upsert_graph_node(self, workspace: str, node_id: str, node_data: Dict[str, Any]) -> None:
@@ -624,15 +626,11 @@ class GraphRepositoryMixin:
             return {}
 
         def _get_edges_batch(session):
-            # Create conditions for all edge pairs efficiently
-            conditions = []
-            for source, target in edge_pairs:
-                conditions.append(
-                    and_(LightRAGGraphEdge.source_entity_id == source, LightRAGGraphEdge.target_entity_id == target)
-                )
+            pair_clause = self._build_edge_pairs_clause(edge_pairs)
+            if pair_clause is None:
+                return {}
 
-            # Use OR with all conditions for batch query
-            stmt = select(LightRAGGraphEdge).where(and_(LightRAGGraphEdge.workspace == workspace, or_(*conditions)))
+            stmt = select(LightRAGGraphEdge).where(and_(LightRAGGraphEdge.workspace == workspace, pair_clause))
 
             result = session.execute(stmt)
             edges = {}
@@ -814,17 +812,11 @@ class GraphRepositoryMixin:
             return
 
         def _delete_edges_batch(session):
-            # Create conditions for all edge pairs efficiently
-            conditions = []
-            for source, target in edges:
-                conditions.append(
-                    and_(LightRAGGraphEdge.source_entity_id == source, LightRAGGraphEdge.target_entity_id == target)
-                )
+            pair_clause = self._build_edge_pairs_clause(edges)
+            if pair_clause is None:
+                return
 
-            # Use OR with all conditions for batch delete
-            delete_stmt = delete(LightRAGGraphEdge).where(
-                and_(LightRAGGraphEdge.workspace == workspace, or_(*conditions))
-            )
+            delete_stmt = delete(LightRAGGraphEdge).where(and_(LightRAGGraphEdge.workspace == workspace, pair_clause))
             session.execute(delete_stmt)
             session.flush()
             logger.debug(f"Batch deleted {len(edges)} graph edges in workspace {workspace}")
