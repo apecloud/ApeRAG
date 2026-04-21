@@ -34,11 +34,34 @@ API_BASE_URL = "http://localhost:8000"
 
 @mcp_server.tool
 async def list_collections() -> Dict[str, Any]:
-    """List all collections available to the user.
+    """Discover which knowledge bases the current user can access.
+
+    Use this when:
+    - You need to find available knowledge bases before choosing where to search.
+    - The user asks what collections or knowledge bases are available.
+
+    Do not use this when:
+    - The user already specified a target collection and you can search it directly.
+    - You need to search temporary files uploaded in the current chat.
+
+    What success means:
+    - You received the collections currently accessible to the user.
+
+    What an empty result means:
+    - The current user has no accessible collections in this environment.
+    - It does not automatically mean the system is broken.
+
+    What failure may mean:
+    - auth / permission: the request is missing a valid ApeRAG credential or access right.
+    - network / timeout: the MCP or backend path did not complete in time.
+
+    How to explain this step to the user:
+    - While running: "Checking which knowledge bases are available."
+    - After completion: "Checked which knowledge bases are available."
 
     Returns:
         List of collections with only essential information (id, title, description)
-        for security and optimized LLM search.
+        for secure and efficient LLM use.
 
     Note:
         Uses CollectionViewList view model for type-safe response parsing but filters
@@ -78,12 +101,31 @@ async def search_collection(
     topk: int = 5,
     query_keywords: list[str] = None,
 ) -> Dict[str, Any]:
-    """Search for knowledge in a persistent collection/knowledge base using vector, full-text, graph, and/or summary search.
+    """Search a persistent knowledge base for evidence relevant to the current request.
 
-    PRIMARY USE CASE: This is the main tool for searching permanent knowledge repositories.
-    Use this for general Q&A, knowledge retrieval, and accessing organized knowledge collections.
+    Use this when:
+    - You already know which collection should be searched.
+    - The user asks a knowledge question that should be answered from indexed documents.
 
-    For temporary files uploaded in a chat session, use search_chat_files instead.
+    Do not use this when:
+    - The target files were uploaded only in the current chat; use search_chat_files instead.
+    - No collection has been selected or discovered yet.
+
+    What success means:
+    - You retrieved candidate evidence from the chosen collection.
+
+    What an empty result means:
+    - This collection did not return strong evidence for the current query.
+    - It does not prove the answer is false; it means this source did not support the step.
+
+    What failure may mean:
+    - auth / permission: the current user cannot access this collection.
+    - network / timeout: the search path did not complete.
+    - bad request: the collection ID or search config is invalid.
+
+    How to explain this step to the user:
+    - While running: "Searching the selected knowledge base for evidence about the request."
+    - After completion: "Reviewed results from the selected knowledge base."
 
     Args:
         collection_id: The ID of the collection to search in
@@ -220,18 +262,30 @@ async def search_chat_files(
     rerank: bool = True,
     topk: int = 5,
 ) -> Dict[str, Any]:
-    """Search ONLY within files temporarily uploaded by the user in THIS specific chat session.
+    """Search files uploaded in the current chat for evidence relevant to this turn.
 
-    IMPORTANT - When to Use This Tool:
-    - ONLY when searching files that the user explicitly uploaded in THIS chat conversation
-    - For temporary, session-specific document analysis (e.g., "analyze this PDF I just uploaded")
-    - When the user references documents they shared in the current chat
+    Use this when:
+    - The user refers to files shared in this chat session.
+    - You need evidence from temporary, chat-scoped documents.
 
-    DO NOT Use This Tool For:
-    - Searching general knowledge bases or collections (use search_collection instead)
-    - Accessing persistent/permanent knowledge repositories
-    - General Q&A that doesn't involve chat-uploaded files
-    - When no files have been uploaded in the current chat
+    Do not use this when:
+    - You are searching a persistent knowledge base; use search_collection instead.
+    - No files were uploaded in the current chat.
+
+    What success means:
+    - You found candidate evidence inside the current chat's uploaded files.
+
+    What an empty result means:
+    - The uploaded files did not return useful evidence for this query.
+    - It does not automatically mean the files are unreadable or the system failed.
+
+    What failure may mean:
+    - auth / permission: the current request cannot access this chat's files.
+    - network / timeout: the search path did not complete.
+
+    How to explain this step to the user:
+    - While running: "Searching files uploaded in this chat."
+    - After completion: "Reviewed results from files uploaded in this chat."
 
     Args:
         chat_id: The ID of the chat to search files in
@@ -318,7 +372,30 @@ async def web_search(
     locale: str = "en-US",
     source: str = "",
 ) -> Dict[str, Any]:
-    """Perform best-effort web search with optional domain targeting.
+    """Search the web for current or missing information.
+
+    Use this when:
+    - The current turn allows web access.
+    - You need current information, external verification, or gap-filling beyond ApeRAG collections.
+
+    Do not use this when:
+    - The current turn disables web access.
+    - Collection or chat-file evidence is already sufficient for the requested step.
+
+    What success means:
+    - You received candidate web results with titles, snippets, and URLs.
+
+    What an empty result means:
+    - No strong web results were found for this query and scope.
+    - Use `meta.search_status` to distinguish a genuine empty result from `unavailable` or `disabled`.
+
+    What failure may mean:
+    - network / timeout: external search could not complete.
+    - upstream search provider issue: the search backend could not return usable results.
+
+    How to explain this step to the user:
+    - While running: "Searching the web for current or missing information."
+    - After completion: "Checked web sources for supporting information."
 
     Args:
         query: Search query for web search. Optional when using source-only site browsing.
@@ -334,7 +411,7 @@ async def web_search(
     Note:
         Uses JINA first when configured, otherwise falls back to DuckDuckGo.
         Search failures are soft-failed into empty result sets with lightweight `meta` diagnostics so
-        downstream workflows stay stable while still distinguishing empty vs unavailable responses.
+        downstream workflows stay stable while still distinguishing `ok`, `empty`, `unavailable`, and `disabled`.
     """
     try:
         api_key = get_api_key()
@@ -381,7 +458,29 @@ async def web_read(
     locale: str = "en-US",
     max_concurrent: int = 5,
 ) -> Dict[str, Any]:
-    """Read and extract content from web pages.
+    """Read web pages and extract the content needed for the current request.
+
+    Use this when:
+    - You already have one or more URLs that need to be inspected.
+    - The next step requires reading source content, not just search snippets.
+
+    Do not use this when:
+    - You still need to discover candidate URLs first; use web_search instead.
+    - Web access is disabled for the current turn.
+
+    What success means:
+    - You extracted readable content from the requested URLs.
+
+    What an empty result means:
+    - The pages did not yield usable readable content for this step.
+
+    What failure may mean:
+    - network / timeout: the reader could not fetch or finish processing the URLs.
+    - page access issue: the target page blocked access or could not be parsed successfully.
+
+    How to explain this step to the user:
+    - While running: "Reading content from web sources."
+    - After completion: "Reviewed content from the selected web pages."
 
     Args:
         url_list: List of URLs to read content from (for single URL, use array with one element)
