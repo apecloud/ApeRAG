@@ -10,6 +10,11 @@ permissions:
   id-token: write
 
 jobs:
+  e2e-http-compose:
+    if: ${{ !github.event.pull_request.draft }}
+    uses: ./.github/workflows/e2e-http-smoke.yml
+    secrets: inherit
+
   e2e-http:
     if: ${{ !github.event.pull_request.draft }}
     uses: ./.github/workflows/e2e-aperag.yml
