@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from sqlalchemy import String, select
+from sqlalchemy import cast, select
 from sqlalchemy.dialects.postgresql import array as pg_array
 
 from aperag.db.models import (
@@ -28,7 +28,12 @@ def _build_chunk_ids_overlap_clause(column, chunk_ids: list[str]):
     unique_chunk_ids = [chunk_id for chunk_id in dict.fromkeys(chunk_ids) if chunk_id]
     if not unique_chunk_ids:
         return None
-    return column.op("&&")(pg_array(unique_chunk_ids, type_=String()))
+
+    # Keep RHS typed as the same ARRAY element type as the storage column.
+    # PostgreSQL will reject `varchar[] && text[]`, which is exactly what the
+    # current runtime failure is hitting in LightRAG VDB entity/relation lookups.
+    typed_array = cast(pg_array(unique_chunk_ids), column.type)
+    return column.op("&&")(typed_array)
 
 
 class LightragRepositoryMixin(SyncRepositoryProtocol):

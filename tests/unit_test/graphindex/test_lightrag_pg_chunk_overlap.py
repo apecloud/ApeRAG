@@ -54,7 +54,7 @@ def _compile_postgres(stmt) -> str:
     return str(stmt.compile(dialect=postgresql.dialect()))
 
 
-def test_query_lightrag_vdb_entity_by_chunk_ids_uses_pg_array_overlap_operator():
+def test_query_lightrag_vdb_entity_by_chunk_ids_casts_rhs_to_varchar_array():
     repo = _RepoUnderTest([_Entity("entity-1")])
 
     result = repo.query_lightrag_vdb_entity_by_chunk_ids("workspace-1", ["chunk-1", "chunk-2", "chunk-1", ""])
@@ -62,11 +62,12 @@ def test_query_lightrag_vdb_entity_by_chunk_ids_uses_pg_array_overlap_operator()
     assert result == {"entity-1": repo.session._items[0]}
     compiled = _compile_postgres(repo.session.captured_stmt)
     assert "lightrag_vdb_entity.workspace = %(workspace_1)s" in compiled
-    assert "lightrag_vdb_entity.chunk_ids && ARRAY[" in compiled
+    assert "lightrag_vdb_entity.chunk_ids && CAST(ARRAY[" in compiled
+    assert " AS VARCHAR[])" in compiled
     assert compiled.count("param_") == 2
 
 
-def test_query_lightrag_vdb_relation_by_chunk_ids_uses_pg_array_overlap_operator():
+def test_query_lightrag_vdb_relation_by_chunk_ids_casts_rhs_to_varchar_array():
     repo = _RepoUnderTest([_Relation("relation-1")])
 
     result = repo.query_lightrag_vdb_relation_by_chunk_ids("workspace-1", ["chunk-a", "chunk-b"])
@@ -74,7 +75,8 @@ def test_query_lightrag_vdb_relation_by_chunk_ids_uses_pg_array_overlap_operator
     assert result == {"relation-1": repo.session._items[0]}
     compiled = _compile_postgres(repo.session.captured_stmt)
     assert "lightrag_vdb_relation.workspace = %(workspace_1)s" in compiled
-    assert "lightrag_vdb_relation.chunk_ids && ARRAY[" in compiled
+    assert "lightrag_vdb_relation.chunk_ids && CAST(ARRAY[" in compiled
+    assert " AS VARCHAR[])" in compiled
 
 
 def test_query_lightrag_vdb_entity_by_chunk_ids_returns_empty_without_query_for_empty_input():
