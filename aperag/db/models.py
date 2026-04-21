@@ -241,6 +241,48 @@ class EvaluationItemStatus(str, Enum):
     FAILED = "FAILED"
 
 
+class BenchmarkDatasetVersionStatus(str, Enum):
+    DRAFT = "draft"
+    PUBLISHED = "published"
+    ARCHIVED = "archived"
+
+
+class BenchmarkDatasetSourceType(str, Enum):
+    MANUAL = "manual"
+    IMPORT = "import"
+    MIGRATED_FROM_QUESTION_SET = "migrated_from_question_set"
+
+
+class EvaluationRunStatus(str, Enum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class EvaluationRunItemStatus(str, Enum):
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class EvaluationRunItemAttemptStatus(str, Enum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class EvaluationJudgeMode(str, Enum):
+    NONE = "none"
+    EXACT_MATCH = "exact_match"
+    LLM_AS_JUDGE = "llm_as_judge"
+
+
 # Models
 class Collection(Base):
     __tablename__ = "collection"
@@ -1270,3 +1312,158 @@ class PromptTemplate(Base):
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)
+
+
+# ===== Evaluation v2 (new evaluation product line on top of Agent Runtime V3) =====
+
+
+class BenchmarkDataset(Base):
+    __tablename__ = "benchmark_datasets"
+    __table_args__ = (
+        Index("idx_benchmark_datasets_user", "user_id"),
+        Index("idx_benchmark_datasets_collection", "collection_id"),
+    )
+
+    id = Column(String(32), primary_key=True, default=lambda: "bds_" + random_id()[:16])
+    user_id = Column(String(256), nullable=False)
+    collection_id = Column(String(24), nullable=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    source_type = Column(
+        EnumColumn(BenchmarkDatasetSourceType),
+        nullable=False,
+        default=BenchmarkDatasetSourceType.MANUAL,
+    )
+    schema_hint = Column(JSON, nullable=True)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+    gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)
+
+
+class BenchmarkDatasetVersion(Base):
+    __tablename__ = "benchmark_dataset_versions"
+    __table_args__ = (
+        UniqueConstraint("dataset_id", "version", name="uq_benchmark_dataset_version"),
+        Index("idx_benchmark_dataset_versions_dataset", "dataset_id"),
+        Index("idx_benchmark_dataset_versions_status", "status"),
+    )
+
+    id = Column(String(32), primary_key=True, default=lambda: "bdv_" + random_id()[:16])
+    dataset_id = Column(String(32), nullable=False)
+    version = Column(Integer, nullable=False)
+    version_name = Column(String(255), nullable=True)
+    status = Column(
+        EnumColumn(BenchmarkDatasetVersionStatus),
+        nullable=False,
+        default=BenchmarkDatasetVersionStatus.PUBLISHED,
+    )
+    case_count = Column(Integer, nullable=False, default=0)
+    source_snapshot = Column(JSON, nullable=True)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+    gmt_published = Column(DateTime(timezone=True), nullable=True)
+
+
+class BenchmarkCase(Base):
+    __tablename__ = "benchmark_cases"
+    __table_args__ = (
+        UniqueConstraint("dataset_version_id", "case_key", name="uq_benchmark_case_version_key"),
+        Index("idx_benchmark_cases_version", "dataset_version_id"),
+    )
+
+    id = Column(String(32), primary_key=True, default=lambda: "bc_" + random_id()[:16])
+    dataset_version_id = Column(String(32), nullable=False)
+    case_key = Column(String(128), nullable=False)
+    input_message = Column(Text, nullable=False)
+    expected_answer = Column(Text, nullable=True)
+    reference_context = Column(Text, nullable=True)
+    tags = Column(JSON, nullable=True)
+    case_metadata = Column(JSON, nullable=True)
+    sort_key = Column(Integer, nullable=False, default=0)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class EvaluationRun(Base):
+    __tablename__ = "evaluation_runs"
+    __table_args__ = (
+        Index("idx_evaluation_runs_user", "user_id"),
+        Index("idx_evaluation_runs_bot", "bot_id"),
+        Index("idx_evaluation_runs_status", "status"),
+        Index("idx_evaluation_runs_dataset_version", "dataset_version_id"),
+    )
+
+    id = Column(String(32), primary_key=True, default=lambda: "er_" + random_id()[:16])
+    user_id = Column(String(256), nullable=False)
+    bot_id = Column(String(24), nullable=False)
+    dataset_version_id = Column(String(32), nullable=False)
+    name = Column(String(255), nullable=True)
+    bot_config_snapshot = Column(JSON, nullable=True)
+    model_config_snapshot = Column(JSON, nullable=True)
+    judge_config = Column(JSON, nullable=True)
+    status = Column(
+        EnumColumn(EvaluationRunStatus),
+        nullable=False,
+        default=EvaluationRunStatus.QUEUED,
+    )
+    summary = Column(JSON, nullable=True)
+    error_message = Column(Text, nullable=True)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+    gmt_started = Column(DateTime(timezone=True), nullable=True)
+    gmt_finished = Column(DateTime(timezone=True), nullable=True)
+
+
+class EvaluationRunItem(Base):
+    __tablename__ = "evaluation_run_items"
+    __table_args__ = (
+        UniqueConstraint("run_id", "case_id", name="uq_evaluation_run_item_run_case"),
+        Index("idx_evaluation_run_items_run", "run_id"),
+        Index("idx_evaluation_run_items_status", "status"),
+    )
+
+    id = Column(String(32), primary_key=True, default=lambda: "eri_" + random_id()[:16])
+    run_id = Column(String(32), nullable=False)
+    case_id = Column(String(32), nullable=False)
+    case_key = Column(String(128), nullable=False)
+    status = Column(
+        EnumColumn(EvaluationRunItemStatus),
+        nullable=False,
+        default=EvaluationRunItemStatus.PENDING,
+    )
+    best_score = Column(Numeric(6, 3), nullable=True)
+    latest_attempt_id = Column(String(32), nullable=True)
+    attempt_count = Column(Integer, nullable=False, default=0)
+    error_message = Column(Text, nullable=True)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+
+class EvaluationRunItemAttempt(Base):
+    __tablename__ = "evaluation_run_item_attempts"
+    __table_args__ = (
+        UniqueConstraint("run_item_id", "attempt_no", name="uq_evaluation_run_item_attempt_no"),
+        Index("idx_evaluation_run_item_attempts_item", "run_item_id"),
+        Index("idx_evaluation_run_item_attempts_run", "run_id"),
+    )
+
+    id = Column(String(32), primary_key=True, default=lambda: "era_" + random_id()[:16])
+    run_item_id = Column(String(32), nullable=False)
+    run_id = Column(String(32), nullable=False)
+    attempt_no = Column(Integer, nullable=False)
+    status = Column(
+        EnumColumn(EvaluationRunItemAttemptStatus),
+        nullable=False,
+        default=EvaluationRunItemAttemptStatus.QUEUED,
+    )
+    agent_chat_id = Column(String(24), nullable=True)
+    agent_turn_id = Column(String(24), nullable=True)
+    answer_text = Column(Text, nullable=True)
+    judge_result = Column(JSON, nullable=True)
+    score = Column(Numeric(6, 3), nullable=True)
+    latency_ms = Column(Integer, nullable=True)
+    token_usage = Column(JSON, nullable=True)
+    error_message = Column(Text, nullable=True)
+    retry_reason = Column(Text, nullable=True)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_started = Column(DateTime(timezone=True), nullable=True)
+    gmt_finished = Column(DateTime(timezone=True), nullable=True)
