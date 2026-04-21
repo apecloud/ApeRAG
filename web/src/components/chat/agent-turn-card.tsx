@@ -1311,11 +1311,13 @@ export const AgentTurnCard = ({
             hanldeMessageFeedback={onFeedback}
           />
 
-          <CopyToClipboard
-            variant="ghost"
-            className={cn('text-muted-foreground', !answerText && 'opacity-50')}
-            text={answerText}
-          />
+          {answerText && (
+            <CopyToClipboard
+              variant="ghost"
+              className="text-muted-foreground"
+              text={answerText}
+            />
+          )}
         </div>
       </div>
     </div>
