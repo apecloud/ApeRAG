@@ -28,6 +28,7 @@ install_addon_release() {
     local addon_name="$1"
     local release_name="$2"
     local chart_name="$3"
+    local addon_resource="$4"
     local attempt_output=""
 
     print "Installing ${addon_name} addon..."
@@ -44,11 +45,12 @@ install_addon_release() {
 
     echo "$attempt_output" >&2
 
-    if grep -q "release: already exists" <<<"$attempt_output"; then
-        print_warning "${addon_name} addon release appeared during install; waiting for Helm state to settle..."
+    if grep -q "already exists" <<<"$attempt_output"; then
+        print_warning "${addon_name} addon install hit an already-exists race; waiting for addon state to settle..."
         for _ in {1..12}; do
-            if helm status "$release_name" --namespace kb-system >/dev/null 2>&1; then
-                print_success "${addon_name} addon Helm release is available after the concurrent install race."
+            if helm status "$release_name" --namespace kb-system >/dev/null 2>&1 || \
+               kubectl get addons.extensions.kubeblocks.io "$addon_resource" -n "$NAMESPACE" >/dev/null 2>&1; then
+                print_success "${addon_name} addon state is available after the concurrent install race."
                 return 0
             fi
             sleep 5
@@ -80,32 +82,32 @@ wait_for_addon_enabled() {
 
 # Install database addons based on configuration
 if [ "$ENABLE_POSTGRESQL" = true ]; then
-    install_addon_release "PostgreSQL" "kb-addon-postgresql" "postgresql"
+    install_addon_release "PostgreSQL" "kb-addon-postgresql" "postgresql" "postgresql"
     wait_for_addon_enabled "postgresql" "PostgreSQL"
 fi
 
 if [ "$ENABLE_REDIS" = true ]; then
-    install_addon_release "Redis" "kb-addon-redis" "redis"
+    install_addon_release "Redis" "kb-addon-redis" "redis" "redis"
     wait_for_addon_enabled "redis" "Redis"
 fi
 
 if [ "$ENABLE_ELASTICSEARCH" = true ]; then
-    install_addon_release "Elasticsearch" "kb-addon-elasticsearch" "elasticsearch"
+    install_addon_release "Elasticsearch" "kb-addon-elasticsearch" "elasticsearch" "elasticsearch"
     wait_for_addon_enabled "elasticsearch" "Elasticsearch"
 fi
 
 if [ "$ENABLE_QDRANT" = true ]; then
-    install_addon_release "Qdrant" "kb-addon-qdrant" "qdrant"
+    install_addon_release "Qdrant" "kb-addon-qdrant" "qdrant" "qdrant"
     wait_for_addon_enabled "qdrant" "Qdrant"
 fi
 
 if [ "$ENABLE_MONGODB" = true ]; then
-    install_addon_release "MongoDB" "kb-addon-mongodb" "mongodb"
+    install_addon_release "MongoDB" "kb-addon-mongodb" "mongodb" "mongodb"
     wait_for_addon_enabled "mongodb" "MongoDB"
 fi
 
 if [ "$ENABLE_NEO4J" = true ]; then
-    install_addon_release "Neo4j" "kb-addon-neo4j" "neo4j"
+    install_addon_release "Neo4j" "kb-addon-neo4j" "neo4j" "neo4j"
     wait_for_addon_enabled "neo4j" "Neo4j"
 fi
 
