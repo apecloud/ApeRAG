@@ -516,15 +516,17 @@ function findMergeableActivityIndex(
   status: string,
   activity: UserActivityEnvelope,
 ) {
-  for (let index = entries.length - 1; index >= 0; index -= 1) {
-    const item = entries[index];
-    if (
-      item.status === status &&
-      serializeUserActivity(item.userActivity) === serializeUserActivity(activity)
-    ) {
-      return index;
-    }
+  const lastIndex = entries.length - 1;
+  if (lastIndex < 0) return -1;
+
+  const previous = entries[lastIndex];
+  if (
+    previous.status === status &&
+    serializeUserActivity(previous.userActivity) === serializeUserActivity(activity)
+  ) {
+    return lastIndex;
   }
+
   return -1;
 }
 
