@@ -60,6 +60,26 @@ def test_build_agent_query_prompt_marks_chat_files_available_only_when_uploaded(
     assert "Chat files: Files are available in this chat." in prompt
 
 
+def test_build_agent_query_prompt_respects_chat_level_file_override():
+    agent_message = view_models.AgentMessage(
+        query="Continue using the files from earlier in this chat",
+        collections=[],
+        web_search_enabled=False,
+        language="en-US",
+        files=[],
+    )
+
+    prompt = pts.build_agent_query_prompt(
+        chat_id="chat-123",
+        agent_message=agent_message,
+        user="user-1",
+        template=pts.DEFAULT_AGENT_QUERY_PROMPT,
+        has_chat_files=True,
+    )
+
+    assert "Chat files: Files are available in this chat." in prompt
+
+
 def test_build_agent_query_prompt_handles_default_scope_and_language_fallback():
     agent_message = view_models.AgentMessage(
         query="Summarize the available sources",

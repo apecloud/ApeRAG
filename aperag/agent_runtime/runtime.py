@@ -159,11 +159,15 @@ class PydanticAIRuntime(AgentRuntime):
             )
 
             history_context = await self.history_writer.build_history_context(user, chat.id)
+            from aperag.service.chat_document_service import chat_document_service
+
+            has_chat_files = await chat_document_service.has_documents_in_chat(chat.id, user)
             prompt = build_agent_query_prompt(
                 chat.id,
                 agent_message=resolved_request.agent_message,
                 user=user,
                 template=resolved_request.query_prompt_template,
+                has_chat_files=has_chat_files,
             )
             if history_context:
                 prompt = f"{history_context}\n\nCurrent turn:\n{prompt}"

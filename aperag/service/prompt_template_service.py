@@ -98,6 +98,7 @@ def build_agent_query_prompt(
     agent_message: view_models.AgentMessage,
     user: str,
     template: str,
+    has_chat_files: Optional[bool] = None,
 ) -> str:
     """
     Build a comprehensive prompt for LLM using Jinja2 template rendering.
@@ -110,6 +111,7 @@ def build_agent_query_prompt(
         agent_message: The agent message containing query and configuration
         user: The user identifier
         template: Jinja2 template string (resolved from prompt_template_service)
+        has_chat_files: Optional explicit override for whether the current chat has searchable uploaded files
 
     Returns:
         The formatted prompt string using Jinja2 template rendering
@@ -131,7 +133,7 @@ def build_agent_query_prompt(
         "collections": agent_message.collections or [],
         "web_search_enabled": agent_message.web_search_enabled or False,
         "chat_id": chat_id,
-        "has_chat_files": bool(agent_message.files),
+        "has_chat_files": bool(agent_message.files) if has_chat_files is None else has_chat_files,
         "language": agent_message.language,
     }
 

@@ -505,9 +505,17 @@ class AgentChatService:
 
             llm.history = memory
 
+            from aperag.service.chat_document_service import chat_document_service
+
+            has_chat_files = await chat_document_service.has_documents_in_chat(chat_id, user)
+
             # Build query prompt using resolved query prompt template
             comprehensive_prompt = build_agent_query_prompt(
-                chat_id, agent_message=merged_agent_message, user=user, template=resolved_query_prompt
+                chat_id,
+                agent_message=merged_agent_message,
+                user=user,
+                template=resolved_query_prompt,
+                has_chat_files=has_chat_files,
             )
 
             request_params = RequestParams(
