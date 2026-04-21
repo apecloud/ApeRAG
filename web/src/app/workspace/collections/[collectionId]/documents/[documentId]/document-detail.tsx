@@ -2,7 +2,7 @@
 import { Document, DocumentPreview } from '@/api';
 import { getDocumentStatusColor } from '@/app/workspace/collections/tools';
 import { FormatDate } from '@/components/format-date';
-import { Markdown } from '@/components/markdown';
+import { buildDocumentAssetUrl, Markdown } from '@/components/markdown';
 import { useCollectionContext } from '@/components/providers/collection-provider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -39,6 +39,13 @@ export const DocumentDetail = ({
     return Boolean(documentPreview.doc_filename?.match(/\.pdf/));
   }, [documentPreview.doc_filename]);
 
+  const hasPdfPreview = Boolean(
+    isPdf && documentPreview.converted_pdf_object_path,
+  );
+  const visionChunks = documentPreview.vision_chunks || [];
+  const hasVisionPreview = visionChunks.length > 0;
+  const defaultTab = hasPdfPreview ? 'pdf' : 'markdown';
+
   useEffect(() => {
     const loadPDF = async () => {
       const { pdfjs } = await import('react-pdf');
@@ -53,7 +60,7 @@ export const DocumentDetail = ({
 
   return (
     <>
-      <Tabs defaultValue="markdown" className="gap-4">
+      <Tabs defaultValue={defaultTab} className="gap-4">
         <div className="flex flex-row items-center justify-between gap-2">
           <div className="flex flex-row items-center gap-4">
             <Button asChild variant="ghost" size="icon">
@@ -89,8 +96,11 @@ export const DocumentDetail = ({
               </div>
             </div>
             <TabsList>
+              {hasPdfPreview && <TabsTrigger value="pdf">PDF</TabsTrigger>}
+              {hasVisionPreview && (
+                <TabsTrigger value="vision">Images</TabsTrigger>
+              )}
               <TabsTrigger value="markdown">Markdown</TabsTrigger>
-              {isPdf && <TabsTrigger value="pdf">PDF</TabsTrigger>}
             </TabsList>
           </div>
         </div>
@@ -98,12 +108,65 @@ export const DocumentDetail = ({
         <TabsContent value="markdown">
           <Card>
             <CardContent>
-              <Markdown>{documentPreview.markdown_content}</Markdown>
+              {documentPreview.markdown_content?.trim() ? (
+                <Markdown>{documentPreview.markdown_content}</Markdown>
+              ) : (
+                <div className="text-muted-foreground py-6 text-sm">
+                  Markdown preview is unavailable for this document.
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
 
-        {isPdf && (
+        {hasVisionPreview && (
+          <TabsContent value="vision">
+            <div className="grid gap-4 lg:grid-cols-2">
+              {visionChunks.map((chunk, index) => {
+                const imageUrl = chunk.asset_id
+                  ? buildDocumentAssetUrl(
+                      `asset://${chunk.asset_id}?collection_id=${collection.id}&document_id=${document.id}`,
+                      {
+                        collectionId: collection.id,
+                        documentId: document.id,
+                        mode: 'workspace',
+                      },
+                    )
+                  : undefined;
+                const pageIdx =
+                  typeof chunk.metadata === 'object' &&
+                  chunk.metadata &&
+                  'page_idx' in chunk.metadata
+                    ? Number(chunk.metadata.page_idx) + 1
+                    : undefined;
+
+                return (
+                  <Card key={chunk.id || chunk.asset_id || index}>
+                    <CardContent className="space-y-4">
+                      {imageUrl ? (
+                        <img
+                          src={imageUrl}
+                          alt={`Document image ${index + 1}`}
+                          className="w-full rounded-md border"
+                        />
+                      ) : null}
+                      <div className="space-y-2">
+                        <div className="text-sm font-medium">
+                          {pageIdx ? `Page ${pageIdx}` : `Image ${index + 1}`}
+                        </div>
+                        <div className="text-muted-foreground whitespace-pre-wrap text-sm">
+                          {chunk.text || 'No extracted image summary available.'}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </TabsContent>
+        )}
+
+        {hasPdfPreview && (
           <TabsContent value="pdf">
             <PDFDocument
               file={`${process.env.NEXT_PUBLIC_BASE_PATH || ''}/api/v1/collections/${collection.id}/documents/${document.id}/object?path=${documentPreview.converted_pdf_object_path}`}
