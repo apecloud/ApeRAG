@@ -16,27 +16,32 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
+def _execute_concurrent_ddl(sql: str) -> None:
+    # These indexes land on live LightRAG tables, so build/drop them without
+    # taking the write-blocking locks of transactional CREATE/DROP INDEX.
+    with op.get_context().autocommit_block():
+        op.execute(sql)
+
+
 def upgrade() -> None:
-    op.create_index(
-        "idx_lightrag_doc_chunks_workspace_doc",
-        "lightrag_doc_chunks",
-        ["workspace", "full_doc_id"],
+    _execute_concurrent_ddl(
+        "CREATE INDEX CONCURRENTLY IF NOT EXISTS "
+        "idx_lightrag_doc_chunks_workspace_doc "
+        "ON lightrag_doc_chunks (workspace, full_doc_id)"
     )
-    op.create_index(
-        "idx_lightrag_vdb_entity_chunk_ids_gin",
-        "lightrag_vdb_entity",
-        ["chunk_ids"],
-        postgresql_using="gin",
+    _execute_concurrent_ddl(
+        "CREATE INDEX CONCURRENTLY IF NOT EXISTS "
+        "idx_lightrag_vdb_entity_chunk_ids_gin "
+        "ON lightrag_vdb_entity USING gin (chunk_ids)"
     )
-    op.create_index(
-        "idx_lightrag_vdb_relation_chunk_ids_gin",
-        "lightrag_vdb_relation",
-        ["chunk_ids"],
-        postgresql_using="gin",
+    _execute_concurrent_ddl(
+        "CREATE INDEX CONCURRENTLY IF NOT EXISTS "
+        "idx_lightrag_vdb_relation_chunk_ids_gin "
+        "ON lightrag_vdb_relation USING gin (chunk_ids)"
     )
 
 
 def downgrade() -> None:
-    op.drop_index("idx_lightrag_vdb_relation_chunk_ids_gin", table_name="lightrag_vdb_relation")
-    op.drop_index("idx_lightrag_vdb_entity_chunk_ids_gin", table_name="lightrag_vdb_entity")
-    op.drop_index("idx_lightrag_doc_chunks_workspace_doc", table_name="lightrag_doc_chunks")
+    _execute_concurrent_ddl("DROP INDEX CONCURRENTLY IF EXISTS idx_lightrag_vdb_relation_chunk_ids_gin")
+    _execute_concurrent_ddl("DROP INDEX CONCURRENTLY IF EXISTS idx_lightrag_vdb_entity_chunk_ids_gin")
+    _execute_concurrent_ddl("DROP INDEX CONCURRENTLY IF EXISTS idx_lightrag_doc_chunks_workspace_doc")
