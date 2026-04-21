@@ -1,0 +1,45 @@
+{
+  "thinking": {
+    "title": "Thinking",
+    "subtitle": "Understanding your request and planning the next step."
+  },
+  "searching_knowledge": {
+    "title": "Searching",
+    "subtitle": "Looking through relevant sources for useful information.",
+    "detail": {
+      "keyword": "Keyword: {keyword}",
+      "source_name": "Source: {sourceName}",
+      "count": "Checking {count} results"
+    }
+  },
+  "reading_source": {
+    "title": "Reading",
+    "subtitle": "Reviewing source content before answering.",
+    "detail": {
+      "source_name": "Reading: {sourceName}"
+    }
+  },
+  "comparing_results": {
+    "title": "Comparing",
+    "subtitle": "Comparing candidate results and deciding what matters most.",
+    "detail": {
+      "count": "Comparing {count} results"
+    }
+  },
+  "writing_answer": {
+    "title": "Writing",
+    "subtitle": "Drafting a clear response."
+  },
+  "waiting": {
+    "title": "Waiting",
+    "subtitle": "Preparing the next step."
+  },
+  "completed": {
+    "title": "Completed",
+    "subtitle": "The answer is ready."
+  },
+  "error": {
+    "title": "Needs attention",
+    "subtitle": "This run hit a problem before it finished."
+  }
+}

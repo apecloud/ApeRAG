@@ -1,0 +1,45 @@
+{
+  "thinking": {
+    "title": "思考中",
+    "subtitle": "正在理解你的问题并规划下一步。"
+  },
+  "searching_knowledge": {
+    "title": "搜索中",
+    "subtitle": "正在查找相关信息来源。",
+    "detail": {
+      "keyword": "关键词：{keyword}",
+      "source_name": "来源：{sourceName}",
+      "count": "正在检查 {count} 条结果"
+    }
+  },
+  "reading_source": {
+    "title": "读取中",
+    "subtitle": "正在阅读相关内容后再组织回答。",
+    "detail": {
+      "source_name": "正在阅读：{sourceName}"
+    }
+  },
+  "comparing_results": {
+    "title": "比较中",
+    "subtitle": "正在比较候选结果并筛选关键信息。",
+    "detail": {
+      "count": "正在比较 {count} 条结果"
+    }
+  },
+  "writing_answer": {
+    "title": "整理回答",
+    "subtitle": "正在组织一段清晰的回答。"
+  },
+  "waiting": {
+    "title": "准备中",
+    "subtitle": "正在准备下一步。"
+  },
+  "completed": {
+    "title": "已完成",
+    "subtitle": "回答已经准备好了。"
+  },
+  "error": {
+    "title": "需要处理",
+    "subtitle": "本次运行在完成前遇到了问题。"
+  }
+}
