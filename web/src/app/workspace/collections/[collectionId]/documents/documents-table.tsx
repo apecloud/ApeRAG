@@ -53,6 +53,56 @@ import { DocumentIndexStatus } from './document-index-status';
 import { DocumentReBuildFailedIndex } from './document-rebuild-failed-index';
 import { DocumentReBuildIndex } from './document-rebuild-index';
 
+const FAST_POLL_INTERVAL_MS = 5_000;
+const FAST_BACKGROUND_POLL_INTERVAL_MS = 30_000;
+const SLOW_POLL_INTERVAL_MS = 60_000;
+const SLOW_BACKGROUND_POLL_INTERVAL_MS = 120_000;
+
+const NON_TERMINAL_DOCUMENT_STATUSES = new Set([
+  'UPLOADED',
+  'PENDING',
+  'RUNNING',
+  'DELETING',
+]);
+
+const NON_TERMINAL_INDEX_STATUSES = new Set([
+  'PENDING',
+  'CREATING',
+  'DELETING',
+  'DELETION_IN_PROGRESS',
+]);
+
+const getEnabledIndexStatusKeys = (config?: {
+  enable_fulltext?: boolean;
+  enable_knowledge_graph?: boolean;
+  enable_vector?: boolean;
+}) => {
+  const keys: Array<keyof Document> = [];
+  if (config?.enable_fulltext) keys.push('fulltext_index_status');
+  if (config?.enable_knowledge_graph) keys.push('graph_index_status');
+  if (config?.enable_vector) keys.push('vector_index_status');
+  return keys;
+};
+
+const hasNonTerminalDocumentState = (
+  document: Document,
+  enabledIndexStatusKeys: Array<keyof Document>,
+) => {
+  if (
+    document.status &&
+    NON_TERMINAL_DOCUMENT_STATUSES.has(document.status)
+  ) {
+    return true;
+  }
+
+  return enabledIndexStatusKeys.some((key) => {
+    const status = document[key];
+    return (
+      typeof status === 'string' && NON_TERMINAL_INDEX_STATUSES.has(status)
+    );
+  });
+};
+
 export function DocumentsTable({
   data,
   pageCount,
@@ -74,6 +124,11 @@ export function DocumentsTable({
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
+  const [isPageVisible, setIsPageVisible] = React.useState(
+    () =>
+      typeof document === 'undefined' ||
+      document.visibilityState === 'visible',
+  );
 
   const query = React.useMemo(() => {
     return {
@@ -89,6 +144,17 @@ export function DocumentsTable({
     setSearchValue(query.search || '');
   }, [query]);
 
+  React.useEffect(() => {
+    const handleVisibilityChange = () => {
+      setIsPageVisible(document.visibilityState === 'visible');
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
   const handleSearch = React.useCallback(
     (params: { page?: number; pageSize?: number; search?: string }) => {
       const urlSearchParams = new URLSearchParams();
@@ -103,6 +169,48 @@ export function DocumentsTable({
     },
     [query, router, pathname],
   );
+
+  const enabledIndexStatusKeys = React.useMemo(
+    () => getEnabledIndexStatusKeys(collection.config),
+    [collection.config],
+  );
+
+  const hasNonTerminalRows = React.useMemo(
+    () =>
+      data.some((document) =>
+        hasNonTerminalDocumentState(document, enabledIndexStatusKeys),
+      ),
+    [data, enabledIndexStatusKeys],
+  );
+
+  const hasDirtySearchInput = searchValue !== (query.search || '');
+  const [, startRefreshTransition] = React.useTransition();
+
+  const pollIntervalMs = React.useMemo(() => {
+    if (hasDirtySearchInput) return null;
+
+    if (hasNonTerminalRows) {
+      return isPageVisible
+        ? FAST_POLL_INTERVAL_MS
+        : FAST_BACKGROUND_POLL_INTERVAL_MS;
+    }
+
+    return isPageVisible ? SLOW_POLL_INTERVAL_MS : SLOW_BACKGROUND_POLL_INTERVAL_MS;
+  }, [hasDirtySearchInput, hasNonTerminalRows, isPageVisible]);
+
+  React.useEffect(() => {
+    if (!pollIntervalMs) return;
+
+    const refreshTimer = window.setTimeout(() => {
+      startRefreshTransition(() => {
+        router.refresh();
+      });
+    }, pollIntervalMs);
+
+    return () => {
+      window.clearTimeout(refreshTimer);
+    };
+  }, [pollIntervalMs, router, startRefreshTransition]);
 
   const columns: ColumnDef<Document>[] = React.useMemo(() => {
     const indexCols: ColumnDef<Document>[] = [];
