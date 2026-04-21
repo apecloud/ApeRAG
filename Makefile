@@ -66,7 +66,7 @@ help:
 ##################################################
 
 # Python environment setup
-.PHONY: install-uv venv env-install env-dev env-clean
+.PHONY: install-uv venv env-install env-dev dev env-clean
 install-uv:
 	@if [ -z "$$(which uv)" ]; then \
 		echo "Installing uv..."; \
@@ -85,6 +85,8 @@ env-install: venv
 
 # Development environment setup
 .PHONY: install-hooks
+dev: env-dev
+
 env-dev: env-install install-addlicense install-hooks
 	@echo "Installing development tools..."
 	@command -v redocly >/dev/null || npm install @redocly/cli -g
