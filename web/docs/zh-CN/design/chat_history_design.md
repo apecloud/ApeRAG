@@ -467,57 +467,11 @@ chatMessage:
 
 ## 消息写入流程
 
-### WebSocket实时聊天
+### Agent Runtime 写入路径
 
-**接口**: `WS /api/v1/bots/{bot_id}/chats/{chat_id}/connect`
-
-```python
-async def handle_websocket_chat(websocket: WebSocket, user: str, bot_id: str, chat_id: str):
-    await websocket.accept()
-    
-    while True:
-        # 1. 接收用户消息
-        data = json.loads(await websocket.receive_text())
-        message_content = data.get("data")
-        message_id = str(uuid.uuid4())
-        
-        # 2. 写入用户消息到Redis
-        history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
-        await history.add_user_message(message_content, message_id, files=data.get("files", []))
-        
-        # 3. 执行Flow获取AI响应
-        flow = FlowParser.parse(flow_config)
-        engine = FlowEngine()
-        _, system_outputs = await engine.execute_flow(flow, initial_data)
-        
-        # 4. 流式传输AI响应
-        async for chunk in async_generator():
-            await websocket.send_text(success_response(message_id, chunk))
-            full_message += chunk
-        
-        # 5. AI消息写入Redis（由Flow内部的Runner自动调用history.add_ai_message()）
-```
-
-**写入方法**:
-
-```python
-# 用户消息
-await history.add_user_message(
-    message="用户的问题",
-    message_id="uuid-1",
-    files=[{"id": "file1", "name": "doc.pdf"}]
-)
-
-# AI消息
-await history.add_ai_message(
-    content="AI的回答",
-    chat_id="chat_abc123",
-    message_id="uuid-2",
-    tool_use_list=[{"data": "工具调用信息"}],  # 可选
-    references=[{"score": 0.95, "text": "..."}],  # 可选
-    urls=["https://example.com"]  # 可选
-)
-```
+旧的 WebSocket 聊天接口 `WS /api/v1/bots/{bot_id}/chats/{chat_id}/connect` 已经退休。
+当前 Agent 聊天写入走的是 v2 turn/timeline API 加 SSE 事件流。上面的 history schema 仍可作为背景说明，
+但不应再依据这份文档实现新的 WebSocket chat client。
 
 ## 设计特点
 
@@ -634,4 +588,3 @@ ApeRAG的聊天历史消息系统采用**混合存储 + Part-Based消息设计**
 5. **清晰的分层架构**（View → Service → Repository → Storage）
 
 这种设计既保证了性能，又支持复杂的AI交互场景，同时具有良好的可扩展性。
-

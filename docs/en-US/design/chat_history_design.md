@@ -461,57 +461,11 @@ chatMessage:
 
 ## Message Write Flow
 
-### WebSocket Real-time Chat
+### Agent Runtime Write Path
 
-**Endpoint**: `WS /api/v1/bots/{bot_id}/chats/{chat_id}/connect`
-
-```python
-async def handle_websocket_chat(websocket: WebSocket, user: str, bot_id: str, chat_id: str):
-    await websocket.accept()
-    
-    while True:
-        # 1. Receive user message
-        data = json.loads(await websocket.receive_text())
-        message_content = data.get("data")
-        message_id = str(uuid.uuid4())
-        
-        # 2. Write user message to Redis
-        history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
-        await history.add_user_message(message_content, message_id, files=data.get("files", []))
-        
-        # 3. Execute Flow to get AI response
-        flow = FlowParser.parse(flow_config)
-        engine = FlowEngine()
-        _, system_outputs = await engine.execute_flow(flow, initial_data)
-        
-        # 4. Stream AI response
-        async for chunk in async_generator():
-            await websocket.send_text(success_response(message_id, chunk))
-            full_message += chunk
-        
-        # 5. Write AI message to Redis (automatically called by Flow Runner's history.add_ai_message())
-```
-
-**Write Methods**:
-
-```python
-# User message
-await history.add_user_message(
-    message="User's question",
-    message_id="uuid-1",
-    files=[{"id": "file1", "name": "doc.pdf"}]
-)
-
-# AI message
-await history.add_ai_message(
-    content="AI's answer",
-    chat_id="chat_abc123",
-    message_id="uuid-2",
-    tool_use_list=[{"data": "Tool call info"}],  # Optional
-    references=[{"score": 0.95, "text": "..."}],  # Optional
-    urls=["https://example.com"]  # Optional
-)
-```
+The legacy WebSocket chat endpoint `WS /api/v1/bots/{bot_id}/chats/{chat_id}/connect` has been retired.
+Current agent chat writes now go through the v2 turn/timeline APIs and SSE event stream. Keep the history
+schema above as background, but do not use this document to implement new WebSocket chat clients.
 
 ## Design Features
 
@@ -628,4 +582,3 @@ ApeRAG's chat history message system adopts **Hybrid Storage + Part-Based Messag
 5. **Clear Layered Architecture** (View → Service → Repository → Storage)
 
 This design ensures both performance and support for complex AI interaction scenarios, while maintaining good scalability.
-

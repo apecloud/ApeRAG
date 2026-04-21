@@ -20,7 +20,6 @@ load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 # Base URLs for API testing
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
-WS_BASE_URL = os.getenv("WS_BASE_URL", "ws://localhost:8000/api/v1")
 
 # Please specify the model service provider name and API key using environment variables
 EMBEDDING_MODEL_PROVIDER = os.getenv("EMBEDDING_MODEL_PROVIDER", "alibabacloud")
