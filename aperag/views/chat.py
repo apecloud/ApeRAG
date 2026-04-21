@@ -90,9 +90,7 @@ async def upsert_turn_feedback_view(
 
 @router.delete("/chats/{chat_id}/turns/{turn_id}/feedback")
 @audit(resource_type="turn_feedback", api_name="DeleteTurnFeedback")
-async def delete_turn_feedback_view(
-    request: Request, chat_id: str, turn_id: str, user: User = Depends(required_user)
-):
+async def delete_turn_feedback_view(request: Request, chat_id: str, turn_id: str, user: User = Depends(required_user)):
     await turn_feedback_service_global.delete_turn_feedback(str(user.id), chat_id, turn_id)
     return Response(status_code=204)
 
