@@ -15,15 +15,21 @@ export const MessagePartsAi = ({
   pending,
   loading,
   parts,
-  hanldeMessageFeedback,
+  feedback,
+  onFeedback,
 }: {
   pending: boolean;
   loading: boolean;
   parts: ChatMessage[];
-  hanldeMessageFeedback: (part: ChatMessage, feedback: Feedback) => void;
+  feedback?: Feedback;
+  onFeedback: (turnId: string, feedback: Feedback) => void;
 }) => {
   const references = useMemo(
-    () => parts.findLast((part) => part.references)?.references || [],
+    () => parts.findLast((part) => part.type === 'references')?.references || [],
+    [parts],
+  );
+  const turnId = useMemo(
+    () => parts.find((part) => part.role === 'ai' && part.id)?.id,
     [parts],
   );
   const copyText = useMemo(
@@ -75,8 +81,9 @@ export const MessagePartsAi = ({
             </>
           )}
           <MessageFeedback
-            parts={parts}
-            hanldeMessageFeedback={hanldeMessageFeedback}
+            turnId={turnId}
+            feedback={feedback}
+            onFeedback={onFeedback}
           />
           {copyText && (
             <>

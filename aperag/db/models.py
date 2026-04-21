@@ -177,19 +177,12 @@ class AgentArtifactType(str, Enum):
     ERROR_SUMMARY = "error_summary"
 
 
-class MessageFeedbackStatus(str, Enum):
-    PENDING = "PENDING"
-    RUNNING = "RUNNING"
-    COMPLETE = "COMPLETE"
-    FAILED = "FAILED"
-
-
-class MessageFeedbackType(str, Enum):
+class TurnFeedbackType(str, Enum):
     GOOD = "good"
     BAD = "bad"
 
 
-class MessageFeedbackTag(str, Enum):
+class TurnFeedbackTag(str, Enum):
     HARMFUL = "Harmful"
     UNSAFE = "Unsafe"
     FAKE = "Fake"
@@ -601,25 +594,17 @@ class AgentArtifact(Base):
     gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
 
-class MessageFeedback(Base):
-    __tablename__ = "message_feedback"
-    __table_args__ = (
-        UniqueConstraint("chat_id", "message_id", "gmt_deleted", name="uq_feedback_chat_message_deleted"),
-    )
+class TurnFeedback(Base):
+    __tablename__ = "turn_feedback"
 
-    user = Column(String(256), nullable=False, index=True)  # Add index for user queries
+    user = Column(String(256), nullable=False, index=True)
     chat_id = Column(String(24), primary_key=True)
-    message_id = Column(String(256), primary_key=True)
-    type = Column(EnumColumn(MessageFeedbackType), nullable=True)
-    tag = Column(EnumColumn(MessageFeedbackTag), nullable=True)
+    turn_id = Column(String(256), primary_key=True)
+    type = Column(EnumColumn(TurnFeedbackType), nullable=False)
+    tag = Column(EnumColumn(TurnFeedbackTag), nullable=True)
     message = Column(Text, nullable=True)
-    question = Column(Text, nullable=True)
-    status = Column(EnumColumn(MessageFeedbackStatus), nullable=True, index=True)  # Add index for status queries
-    original_answer = Column(Text, nullable=True)
-    revised_answer = Column(Text, nullable=True)
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Add index for soft delete queries
 
     async def get_chat(self, session):
         """Get the associated chat object"""

@@ -1,9 +1,4 @@
-import {
-  ChatMessage,
-  Feedback,
-  FeedbackTagEnum,
-  FeedbackTypeEnum,
-} from '@/api';
+import { Feedback, FeedbackTagEnum, FeedbackTypeEnum } from '@/api';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -28,7 +23,7 @@ import { cn, objectKeys } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ThumbsDown, ThumbsUp } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -40,11 +35,13 @@ const feedbackSchema = z.object({
 });
 
 export const MessageFeedback = ({
-  parts,
-  hanldeMessageFeedback,
+  turnId,
+  feedback,
+  onFeedback,
 }: {
-  parts: ChatMessage[];
-  hanldeMessageFeedback: (part: ChatMessage, feedback: Feedback) => void;
+  turnId?: string;
+  feedback?: Feedback;
+  onFeedback: (turnId: string, feedback: Feedback) => void;
 }) => {
   const [visible, setVisible] = useState<boolean>(false);
   const form = useForm<z.infer<typeof feedbackSchema>>({
@@ -53,33 +50,31 @@ export const MessageFeedback = ({
   const page_chat = useTranslations('page_chat');
   const common_action = useTranslations('common.action');
 
-  const part = useMemo(() => parts.findLast((p) => p.references), [parts]);
-
   const handleVote = useCallback(
     (type: FeedbackTypeEnum) => {
-      if (!part) return;
-      if (type === part?.feedback?.type) {
-        hanldeMessageFeedback(part, {});
+      if (!turnId) return;
+      if (type === feedback?.type) {
+        onFeedback(turnId, {});
       } else if (type === FeedbackTypeEnum.good) {
-        hanldeMessageFeedback(part, { type });
+        onFeedback(turnId, { type });
       } else {
         setVisible(true);
       }
     },
-    [hanldeMessageFeedback, part],
+    [feedback?.type, onFeedback, turnId],
   );
 
   const handleBadVote = useCallback(
     (values: z.infer<typeof feedbackSchema>) => {
-      if (!part) return;
-      hanldeMessageFeedback(part, {
+      if (!turnId) return;
+      onFeedback(turnId, {
         type: FeedbackTypeEnum.bad,
         tag: values.tag,
         message: values.message,
       });
       setVisible(false);
     },
-    [hanldeMessageFeedback, part],
+    [onFeedback, turnId],
   );
 
   return (
@@ -178,10 +173,10 @@ export const MessageFeedback = ({
       <Button
         variant="ghost"
         size="icon"
-        disabled={!part}
+        disabled={!turnId}
         className={cn(
           'cursor-pointer',
-          part?.feedback?.type === FeedbackTypeEnum.good
+          feedback?.type === FeedbackTypeEnum.good
             ? 'text-green-500 hover:text-green-600'
             : 'text-muted-foreground',
         )}
@@ -192,10 +187,10 @@ export const MessageFeedback = ({
       <Button
         variant="ghost"
         size="icon"
-        disabled={!part}
+        disabled={!turnId}
         className={cn(
           'cursor-pointer',
-          part?.feedback?.type === FeedbackTypeEnum.bad
+          feedback?.type === FeedbackTypeEnum.bad
             ? 'text-rose-500 hover:text-rose-600'
             : 'text-muted-foreground',
         )}
