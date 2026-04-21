@@ -8,6 +8,8 @@ DATABASE_SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pw
 source "$DATABASE_SCRIPT_DIR/00-config.sh"
 
 KB_RELEASE_TAG="v${KB_VERSION#v}"
+KB_PUBLIC_IMAGE_REGISTRY="docker.io"
+KB_PUBLIC_IMAGE_NAMESPACE="apecloud"
 
 # Check dependencies
 check_dependencies
@@ -42,7 +44,15 @@ install_kubeblocks() {
     helm repo update
 
     # Install KubeBlocks
-    helm install kubeblocks kubeblocks/kubeblocks --namespace kb-system --create-namespace --version=${KB_VERSION}
+    helm install kubeblocks kubeblocks/kubeblocks \
+        --namespace kb-system \
+        --create-namespace \
+        --version="${KB_VERSION}" \
+        --set image.registry="${KB_PUBLIC_IMAGE_REGISTRY}" \
+        --set dataProtection.image.registry="${KB_PUBLIC_IMAGE_REGISTRY}" \
+        --set addonChartsImage.registry="${KB_PUBLIC_IMAGE_REGISTRY}" \
+        --set registryConfig.defaultRegistry="${KB_PUBLIC_IMAGE_REGISTRY}" \
+        --set registryConfig.defaultNamespace="${KB_PUBLIC_IMAGE_NAMESPACE}"
 
     # Verify installation
     print "Waiting for KubeBlocks to be ready..."
