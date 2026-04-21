@@ -26,6 +26,10 @@ export const MessagePartsAi = ({
     () => parts.findLast((part) => part.references)?.references || [],
     [parts],
   );
+  const copyText = useMemo(
+    () => parts.map((part) => part.data || '').join('').trim(),
+    [parts],
+  );
 
   return (
     <div className="flex w-max flex-row gap-4">
@@ -74,15 +78,19 @@ export const MessagePartsAi = ({
             parts={parts}
             hanldeMessageFeedback={hanldeMessageFeedback}
           />
-          <Separator
-            orientation="vertical"
-            className="data-[orientation=vertical]:h-4"
-          />
-          <CopyToClipboard
-            variant="ghost"
-            className="text-muted-foreground"
-            text={parts.map((part) => part.data).join('')}
-          />
+          {copyText && (
+            <>
+              <Separator
+                orientation="vertical"
+                className="data-[orientation=vertical]:h-4"
+              />
+              <CopyToClipboard
+                variant="ghost"
+                className="text-muted-foreground"
+                text={copyText}
+              />
+            </>
+          )}
         </div>
       </div>
     </div>

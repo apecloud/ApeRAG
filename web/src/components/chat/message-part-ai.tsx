@@ -37,7 +37,7 @@ export const MessagePartAi = ({
       );
     case 'thinking':
       return (
-        <MessageCollapseContent title="Thinging" animate={loading}>
+        <MessageCollapseContent title="Thinking" animate={loading}>
           <Markdown>{part.data}</Markdown>
         </MessageCollapseContent>
       );
