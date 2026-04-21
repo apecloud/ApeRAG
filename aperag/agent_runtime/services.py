@@ -45,6 +45,38 @@ def _parse_bot_config(bot) -> Optional[view_models.BotConfig]:
         return None
 
 
+def _coerce_timeline_cursor(value: Any) -> int:
+    return value if isinstance(value, int) and value >= 0 else 0
+
+
+def _apply_runtime_state_to_turn(
+    turn_envelope: AgentTurnEnvelope, runtime_state: dict[str, Any] | None, latest_sequence: int
+) -> AgentTurnEnvelope:
+    timeline_cursor = max(_coerce_timeline_cursor(turn_envelope.timeline_cursor), latest_sequence)
+    updates: dict[str, Any] = {"timeline_cursor": timeline_cursor}
+    if not runtime_state:
+        return turn_envelope.model_copy(update=updates)
+
+    updates["timeline_cursor"] = max(timeline_cursor, _coerce_timeline_cursor(runtime_state.get("timeline_cursor")))
+    if "status" in runtime_state:
+        updates["status"] = runtime_state["status"]
+    if runtime_state.get("answer_artifact_id"):
+        updates["answer_artifact_id"] = runtime_state["answer_artifact_id"]
+    if runtime_state.get("reference_bundle_artifact_id"):
+        updates["reference_bundle_artifact_id"] = runtime_state["reference_bundle_artifact_id"]
+    if runtime_state.get("error_code"):
+        updates["error_code"] = runtime_state["error_code"]
+    if runtime_state.get("error_message"):
+        updates["error_message"] = runtime_state["error_message"]
+    return turn_envelope.model_copy(update=updates)
+
+
+def _extract_answer_text_from_artifact(artifact) -> str:
+    if not artifact or not isinstance(artifact.payload, dict):
+        return ""
+    return artifact.payload.get("text") or artifact.payload.get("content") or ""
+
+
 class TurnService:
     def __init__(self, db_ops: AsyncDatabaseOps | None = None, redis_store: AgentRuntimeRedisStore | None = None):
         self.db_ops = db_ops or async_db_ops
@@ -179,28 +211,11 @@ class TurnService:
 
         runtime_state = await self.redis_store.get_runtime_state(turn_id)
         artifacts = await self.db_ops.query_agent_artifacts_by_turn(turn_id)
-        turn_envelope = self.to_turn_envelope(turn)
         timeline = [merged_events[key] for key in sorted(merged_events)]
         latest_sequence = timeline[-1].sequence if timeline else 0
-
-        if runtime_state:
-            timeline_cursor = runtime_state.get("timeline_cursor")
-            turn_envelope = turn_envelope.model_copy(
-                update={
-                    "status": runtime_state.get("status", turn_envelope.status),
-                    "timeline_cursor": max(
-                        turn_envelope.timeline_cursor,
-                        timeline_cursor if isinstance(timeline_cursor, int) else latest_sequence,
-                        latest_sequence,
-                    ),
-                    "answer_artifact_id": runtime_state.get("answer_artifact_id", turn_envelope.answer_artifact_id),
-                    "reference_bundle_artifact_id": runtime_state.get(
-                        "reference_bundle_artifact_id", turn_envelope.reference_bundle_artifact_id
-                    ),
-                    "error_code": runtime_state.get("error_code", turn_envelope.error_code),
-                    "error_message": runtime_state.get("error_message", turn_envelope.error_message),
-                }
-            )
+        turn_envelope = _apply_runtime_state_to_turn(
+            self.to_turn_envelope(turn), runtime_state, latest_sequence=latest_sequence
+        )
 
         return AgentTurnSnapshot(
             turn=turn_envelope,
@@ -383,17 +398,19 @@ class HistoryWriter:
             if turn.status != AgentTurnStatus.COMPLETED or turn.id in legacy_turn_ids:
                 continue
             artifacts = await self.db_ops.query_agent_artifacts_by_turn(turn.id)
-            answer = next(
-                (
-                    artifact
-                    for artifact in artifacts
-                    if getattr(artifact.artifact_type, "value", artifact.artifact_type) == "answer"
-                ),
-                None,
-            )
-            answer_text = ""
-            if answer and isinstance(answer.payload, dict):
-                answer_text = answer.payload.get("text") or answer.payload.get("content") or ""
+            answer = None
+            if turn.answer_artifact_id:
+                answer = next((artifact for artifact in artifacts if artifact.id == turn.answer_artifact_id), None)
+            if not answer:
+                answer = next(
+                    (
+                        artifact
+                        for artifact in artifacts
+                        if getattr(artifact.artifact_type, "value", artifact.artifact_type) == "answer"
+                    ),
+                    None,
+                )
+            answer_text = _extract_answer_text_from_artifact(answer)
             if not answer_text:
                 continue
             v3_lines.append(f"User: {turn.input_text}")
