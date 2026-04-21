@@ -847,6 +847,7 @@ class LightRAGDocChunksModel(Base):
     """LightRAG Document Chunks Storage Model"""
 
     __tablename__ = "lightrag_doc_chunks"
+    __table_args__ = (Index("idx_lightrag_doc_chunks_workspace_doc", "workspace", "full_doc_id"),)
 
     id = Column(String(255), primary_key=True)
     workspace = Column(String(255), primary_key=True)
@@ -864,6 +865,7 @@ class LightRAGVDBEntityModel(Base):
     """LightRAG VDB Entity Storage Model"""
 
     __tablename__ = "lightrag_vdb_entity"
+    __table_args__ = (Index("idx_lightrag_vdb_entity_chunk_ids_gin", "chunk_ids", postgresql_using="gin"),)
 
     id = Column(String(255), primary_key=True)
     workspace = Column(String(255), primary_key=True)
@@ -880,6 +882,7 @@ class LightRAGVDBRelationModel(Base):
     """LightRAG VDB Relation Storage Model"""
 
     __tablename__ = "lightrag_vdb_relation"
+    __table_args__ = (Index("idx_lightrag_vdb_relation_chunk_ids_gin", "chunk_ids", postgresql_using="gin"),)
 
     id = Column(String(255), primary_key=True)
     workspace = Column(String(255), primary_key=True)
