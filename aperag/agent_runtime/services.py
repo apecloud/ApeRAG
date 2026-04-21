@@ -18,7 +18,6 @@ from typing import Any, Optional
 
 from sqlalchemy.exc import IntegrityError
 
-from aperag.agent.agent_history_manager import AgentHistoryManager
 from aperag.agent_runtime.schemas import (
     AgentArtifactEnvelope,
     AgentTimelineEventEnvelope,
@@ -35,7 +34,6 @@ from aperag.db.models import AgentEventActor, AgentTurnStatus, BotType
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.exceptions import ChatNotFoundException, ResourceNotFoundException, ValidationException
 from aperag.schema import view_models
-from aperag.utils.history import query_chat_messages
 from aperag.utils.utils import utc_now
 
 
@@ -99,7 +97,6 @@ _ACTIVITY_SUBTITLE_KEYS = {
 _KNOWLEDGE_SEARCH_TOOLS = {"list_collections", "search_collection"}
 _WEB_SEARCH_TOOLS = {"search_web", "web_search"}
 _READING_TOOLS = {"read_document", "web_read"}
-_CHAT_HISTORY_TOOLS = {"query_chat_messages"}
 
 
 def _normalize_activity_text(value: Any, *, max_length: int = 160) -> Optional[str]:
@@ -159,8 +156,6 @@ def _infer_target_type(tool_name: Optional[str]) -> Optional[str]:
         return "document" if tool_name == "read_document" else "web"
     if tool_name in _WEB_SEARCH_TOOLS:
         return "web"
-    if tool_name in _CHAT_HISTORY_TOOLS:
-        return "chat_history"
     return None
 
 
@@ -236,8 +231,6 @@ def _infer_tool_activity_intent(tool_name: Optional[str]) -> Optional[UserActivi
     if tool_name in _KNOWLEDGE_SEARCH_TOOLS or tool_name in _WEB_SEARCH_TOOLS:
         return UserActivityIntent.SEARCHING_KNOWLEDGE
     if tool_name in _READING_TOOLS:
-        return UserActivityIntent.READING_SOURCE
-    if tool_name in _CHAT_HISTORY_TOOLS:
         return UserActivityIntent.READING_SOURCE
     return None
 
@@ -614,28 +607,12 @@ class ArtifactService:
 class HistoryWriter:
     def __init__(self, db_ops: AsyncDatabaseOps | None = None):
         self.db_ops = db_ops or async_db_ops
-        self.history_manager = AgentHistoryManager()
 
     async def build_history_context(self, user: str, chat_id: str, limit: int = 8) -> str:
         turns = await self.db_ops.query_recent_agent_turns(user, chat_id, limit=limit)
-        legacy_history = await query_chat_messages(user, chat_id)
-        legacy_lines: list[str] = []
-        legacy_turn_ids: set[str] = set()
-        for turn_parts in legacy_history[-limit:]:
-            turn_ids = {str(part.id) for part in turn_parts if getattr(part, "id", None)}
-            legacy_turn_ids.update(turn_ids)
-            human_texts = [
-                part.data for part in turn_parts if part.role == "human" and part.type == "message" and part.data
-            ]
-            ai_texts = [part.data for part in turn_parts if part.role == "ai" and part.type == "message" and part.data]
-            if human_texts:
-                legacy_lines.append(f"User: {' '.join(human_texts)}")
-            if ai_texts:
-                legacy_lines.append(f"Assistant: {' '.join(ai_texts)}")
-
-        v3_lines: list[str] = []
+        lines: list[str] = []
         for turn in turns:
-            if turn.status != AgentTurnStatus.COMPLETED or turn.id in legacy_turn_ids:
+            if turn.status != AgentTurnStatus.COMPLETED:
                 continue
             artifacts = await self.db_ops.query_agent_artifacts_by_turn(turn.id)
             answer = None
@@ -653,10 +630,9 @@ class HistoryWriter:
             answer_text = _extract_answer_text_from_artifact(answer)
             if not answer_text:
                 continue
-            v3_lines.append(f"User: {turn.input_text}")
-            v3_lines.append(f"Assistant: {answer_text}")
+            lines.append(f"User: {turn.input_text}")
+            lines.append(f"Assistant: {answer_text}")
 
-        lines = legacy_lines + v3_lines
         return "Conversation so far:\n" + "\n".join(lines) if lines else ""
 
     async def commit_completed_turn(
@@ -668,17 +644,7 @@ class HistoryWriter:
         tool_summaries: list[str],
         references: list[ReferenceBundleItem],
     ) -> bool:
-        history = await self.history_manager.get_chat_history(turn.chat_id)
-        return await self.history_manager.save_conversation_turn(
-            message_id=turn.id,
-            trace_id=turn.request_id,
-            history=history,
-            user_query=request.query,
-            ai_response=answer_text,
-            files=[file.model_dump(exclude_none=True) for file in request.files or []],
-            tool_use_list=[{"data": summary} for summary in tool_summaries],
-            tool_references=[item.model_dump(exclude_none=True) for item in references],
-        )
+        return True
 
     async def commit_failed_turn(
         self,
@@ -688,14 +654,4 @@ class HistoryWriter:
         error_message: str,
         tool_summaries: list[str],
     ) -> bool:
-        history = await self.history_manager.get_chat_history(turn.chat_id)
-        return await self.history_manager.save_conversation_turn(
-            message_id=turn.id,
-            trace_id=turn.request_id,
-            history=history,
-            user_query=request.query,
-            ai_response=error_message,
-            files=[file.model_dump(exclude_none=True) for file in request.files or []],
-            tool_use_list=[{"data": summary} for summary in tool_summaries],
-            tool_references=[],
-        )
+        return True

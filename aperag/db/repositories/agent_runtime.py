@@ -40,6 +40,18 @@ class AsyncAgentRuntimeRepositoryMixin(AsyncRepositoryProtocol):
 
         return await self._execute_query(_query)
 
+    async def query_agent_turns(self, user: str, chat_id: str) -> list[AgentTurn]:
+        async def _query(session):
+            stmt = (
+                select(AgentTurn)
+                .where(AgentTurn.chat_id == chat_id, AgentTurn.user == user)
+                .order_by(AgentTurn.gmt_created.asc())
+            )
+            result = await session.execute(stmt)
+            return result.scalars().all()
+
+        return await self._execute_query(_query)
+
     async def query_agent_turn_by_idempotency(
         self, user: str, chat_id: str, client_idempotency_key: str
     ) -> Optional[AgentTurn]:
