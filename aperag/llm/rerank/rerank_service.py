@@ -14,6 +14,7 @@
 
 import json
 import logging
+from dataclasses import dataclass
 from typing import List
 
 import httpx
@@ -28,6 +29,19 @@ from aperag.llm.llm_error_types import (
 from aperag.query.query import DocumentWithScore
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class RerankResult:
+    original_index: int
+    relevance_score: float
+    document: DocumentWithScore
+
+
+@dataclass(frozen=True)
+class _RankedResult:
+    index: int
+    relevance_score: float
 
 
 class RerankService:
@@ -49,6 +63,17 @@ class RerankService:
         self.max_documents = 1000
 
     async def async_rerank(self, query: str, results: List[DocumentWithScore]) -> List[DocumentWithScore]:
+        ranked_results = await self.async_rerank_with_details(query, results)
+        return [
+            DocumentWithScore(
+                text=ranked.document.text,
+                score=ranked.relevance_score,
+                metadata=ranked.document.metadata,
+            )
+            for ranked in ranked_results
+        ]
+
+    async def async_rerank_with_details(self, query: str, results: List[DocumentWithScore]) -> List[RerankResult]:
         try:
             # Validate inputs
             if not query or not query.strip():
@@ -80,10 +105,18 @@ class RerankService:
                     raise InvalidDocumentError("All documents are empty or invalid", document_count=len(results))
 
             # Call the cached internal method with simple types
-            reranked_indices = await self._rank_texts(query, texts)
+            ranked_results = await self._rank_texts(query, texts)
 
-            # Reconstruct DocumentWithScore objects in the new order
-            reranked_results = [results[i] for i in reranked_indices if 0 <= i < len(results)]
+            # Reconstruct structured results in provider order while preserving original indices and scores.
+            reranked_results = [
+                RerankResult(
+                    original_index=ranked.index,
+                    relevance_score=ranked.relevance_score,
+                    document=results[ranked.index],
+                )
+                for ranked in ranked_results
+                if 0 <= ranked.index < len(results)
+            ]
 
             logger.info(f"Successfully reranked {len(reranked_results)} documents")
             return reranked_results
@@ -96,7 +129,7 @@ class RerankService:
             # Convert litellm errors to our custom types
             raise wrap_litellm_error(e, "rerank", self.rerank_provider, self.model) from e
 
-    async def _rank_texts(self, query: str, texts: List[str]) -> List[int]:
+    async def _rank_texts(self, query: str, texts: List[str]) -> List[_RankedResult]:
         try:
             # Handle different providers
             if self.rerank_provider == "alibabacloud" or "alibabacloud" in self.rerank_provider.lower():
@@ -124,14 +157,20 @@ class RerankService:
 
             # Extract and validate indices
             try:
-                indices = [item["index"] for item in resp["results"]]
+                ranked_results = [
+                    _RankedResult(
+                        index=item["index"],
+                        relevance_score=float(item.get("relevance_score", item.get("score", 0.0))),
+                    )
+                    for item in resp["results"]
+                ]
 
                 # Validate indices
-                if len(indices) != len(texts):
-                    logger.warning(f"Rerank returned {len(indices)} indices for {len(texts)} documents")
+                if len(ranked_results) != len(texts):
+                    logger.warning(f"Rerank returned {len(ranked_results)} indices for {len(texts)} documents")
 
                 # Check for invalid indices
-                invalid_rerank_indices = [idx for idx in indices if idx < 0 or idx >= len(texts)]
+                invalid_rerank_indices = [ranked.index for ranked in ranked_results if ranked.index < 0 or ranked.index >= len(texts)]
                 if invalid_rerank_indices:
                     raise RerankError(
                         f"Invalid rerank indices: {invalid_rerank_indices}",
@@ -143,8 +182,8 @@ class RerankService:
                     )
 
                 # Return the valid indices
-                valid_indices = [idx for idx in indices if 0 <= idx < len(texts)]
-                return valid_indices
+                valid_ranked_results = [ranked for ranked in ranked_results if 0 <= ranked.index < len(texts)]
+                return valid_ranked_results
 
             except (KeyError, IndexError, TypeError) as e:
                 raise RerankError(
