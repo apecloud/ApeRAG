@@ -400,8 +400,6 @@ class PromptTemplateService:
         Resolve agent system prompt with 3-tier priority.
         Priority: Bot config > User default > System default > Hardcoded
 
-        This method is used by agent_chat_service.py
-
         Args:
             bot: Bot object (from database, can be None to skip bot-level config)
             user_id: User ID
@@ -445,8 +443,6 @@ class PromptTemplateService:
         """
         Resolve agent query prompt template with 3-tier priority.
         Priority: Bot config > User default > System default > Hardcoded
-
-        This method is used by agent_chat_service.py
 
         Args:
             bot: Bot object (from database, can be None to skip bot-level config)
