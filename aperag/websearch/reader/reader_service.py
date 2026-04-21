@@ -5,7 +5,7 @@ Main service class for web content reading functionality with provider abstracti
 """
 
 import logging
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from aperag.schema.view_models import WebReadRequest, WebReadResponse, WebReadResultItem
 from aperag.websearch.reader.base_reader import BaseReaderProvider
@@ -261,3 +261,120 @@ class ReaderService:
             ReaderService instance
         """
         return cls(provider_name=provider_name, provider_config=config)
+
+
+def _merge_reader_results(
+    primary_response: WebReadResponse,
+    fallback_response: WebReadResponse,
+    fallback_indexes: list[int],
+) -> WebReadResponse:
+    """Merge fallback results back into the original request order."""
+    merged_results = [result.model_copy(deep=True) for result in primary_response.results]
+
+    fallback_result_count = min(len(fallback_indexes), len(fallback_response.results))
+    if fallback_result_count < len(fallback_indexes):
+        logger.warning(
+            "Reader fallback returned fewer results than expected expected=%s actual=%s",
+            len(fallback_indexes),
+            len(fallback_response.results),
+        )
+
+    for offset in range(fallback_result_count):
+        target_index = fallback_indexes[offset]
+        primary_result = merged_results[target_index]
+        fallback_result = fallback_response.results[offset]
+
+        if primary_result.status == "success":
+            continue
+
+        if fallback_result.status == "success":
+            merged_results[target_index] = fallback_result.model_copy(deep=True)
+            continue
+
+        if not primary_result.error and fallback_result.error:
+            merged_results[target_index] = fallback_result.model_copy(deep=True)
+
+    successful = sum(1 for result in merged_results if result.status == "success")
+    failed = len(merged_results) - successful
+    processing_time = (primary_response.processing_time or 0.0) + (fallback_response.processing_time or 0.0)
+
+    return WebReadResponse(
+        results=merged_results,
+        total_urls=primary_response.total_urls,
+        successful=successful,
+        failed=failed,
+        processing_time=processing_time,
+    )
+
+
+async def read_with_jina_fallback(
+    request: WebReadRequest,
+    jina_api_key: Optional[str],
+    *,
+    log_context: str = "web_read",
+) -> WebReadResponse:
+    """
+    Read web content with JINA preferred and Trafilatura fallback.
+
+    Fallback is applied per URL so partial JINA failures do not force callers to
+    lose recoverable pages.
+    """
+    if not jina_api_key:
+        logger.info("%s using Trafilatura only urls=%s", log_context, len(request.url_list))
+        async with ReaderService(provider_name="trafilatura") as trafilatura_service:
+            response = await trafilatura_service.read(request)
+        logger.info(
+            "%s completed provider=trafilatura successful=%s failed=%s",
+            log_context,
+            response.successful,
+            response.failed,
+        )
+        return response
+
+    try:
+        logger.info("%s using JINA first urls=%s", log_context, len(request.url_list))
+        async with ReaderService(provider_name="jina", provider_config={"api_key": jina_api_key}) as jina_service:
+            jina_response = await jina_service.read(request)
+    except Exception as exc:
+        logger.warning("%s JINA pass crashed error=%s; falling back to Trafilatura", log_context, exc)
+        async with ReaderService(provider_name="trafilatura") as trafilatura_service:
+            fallback_response = await trafilatura_service.read(request)
+        logger.info(
+            "%s completed provider=trafilatura-after-jina-crash successful=%s failed=%s",
+            log_context,
+            fallback_response.successful,
+            fallback_response.failed,
+        )
+        return fallback_response
+
+    fallback_indexes = [index for index, result in enumerate(jina_response.results) if result.status != "success"]
+    if not fallback_indexes:
+        logger.info(
+            "%s completed provider=jina successful=%s failed=%s fallback_used=false",
+            log_context,
+            jina_response.successful,
+            jina_response.failed,
+        )
+        return jina_response
+
+    fallback_urls = [request.url_list[index] for index in fallback_indexes]
+    logger.info(
+        "%s JINA partial failure failed_urls=%s successful=%s failed=%s; retrying with Trafilatura",
+        log_context,
+        len(fallback_urls),
+        jina_response.successful,
+        jina_response.failed,
+    )
+
+    fallback_request = request.model_copy(update={"url_list": fallback_urls})
+    async with ReaderService(provider_name="trafilatura") as trafilatura_service:
+        fallback_response = await trafilatura_service.read(fallback_request)
+
+    merged_response = _merge_reader_results(jina_response, fallback_response, fallback_indexes)
+    logger.info(
+        "%s completed providers=jina,trafilatura successful=%s failed=%s fallback_used=true",
+        log_context,
+        merged_response.successful,
+        merged_response.failed,
+    )
+    return merged_response

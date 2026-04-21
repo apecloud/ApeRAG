@@ -274,6 +274,7 @@ class ToolResultFormatter:
         """Format web search result"""
         query = result.query or ""
         count = len(result.results or [])
+        search_meta = result.meta
 
         # Part 1: Search execution
         if self.language == "zh-CN":
@@ -283,10 +284,28 @@ class ToolResultFormatter:
 
         # Part 2: Results (only if has results)
         if count == 0:
-            if self.language == "zh-CN":
-                results = "没有找到任何网页结果"
+            if search_meta and search_meta.search_status == "unavailable":
+                providers = " -> ".join(search_meta.provider_used or []) or "unknown"
+                backends = ", ".join(search_meta.backend_used or [])
+                error_code = search_meta.error_code or "search_unavailable"
+                if self.language == "zh-CN":
+                    results = f"网页搜索当前不可用（provider：{providers}，错误码：{error_code}）"
+                    if backends:
+                        results += f"\n\n • 后端尝试：{backends}"
+                else:
+                    results = f"Web search was unavailable for this step (provider path: {providers}, error: {error_code})"
+                    if backends:
+                        results += f"\n\n • Backends tried: {backends}"
+            elif search_meta and search_meta.search_status == "disabled":
+                if self.language == "zh-CN":
+                    results = "本轮对话未启用网页搜索"
+                else:
+                    results = "Web search was disabled for this turn"
             else:
-                results = "No web results found"
+                if self.language == "zh-CN":
+                    results = "没有找到任何网页结果"
+                else:
+                    results = "No web results found"
             return f"{execution}\n\n{results}"
         else:
             if self.language == "zh-CN":
