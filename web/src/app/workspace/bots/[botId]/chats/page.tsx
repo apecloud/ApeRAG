@@ -4,6 +4,7 @@ import {
   PageContent,
   PageHeader,
 } from '@/components/page-container';
+import { BotSectionNav } from '@/components/evaluation/bot-section-nav';
 import { getServerApi } from '@/lib/api/server';
 import _ from 'lodash';
 import { getTranslations } from 'next-intl/server';
@@ -36,6 +37,9 @@ export default async function Page({
         breadcrumbs={[{ title: page_chat('metadata.title') }]}
         extra=""
       />
+      <PageContent className="pb-0">
+        <BotSectionNav botId={botId} active="chats" />
+      </PageContent>
       <PageContent></PageContent>
     </PageContainer>
   );

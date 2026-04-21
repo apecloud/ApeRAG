@@ -388,6 +388,83 @@
     "rag_answer": "RAG Answer",
     "judge_reason": "LLM Judge Reasoning"
   },
+  "page_benchmarks": {
+    "metadata": {
+      "title": "Benchmarks",
+      "description": "Curate benchmark datasets for this collection, track ready versions, and prepare published cases for bot evaluations."
+    },
+    "datasets": "Datasets",
+    "ready_datasets": "Ready datasets",
+    "cases": "Cases",
+    "latest_version": "Latest version",
+    "version_count": "Versions",
+    "source_type": "Source",
+    "created_at": "Created",
+    "search_placeholder": "Search benchmark datasets",
+    "empty_title": "No benchmark datasets yet",
+    "empty_description": "Create and publish benchmark datasets for this collection to unlock evaluation runs.",
+    "no_description": "No description available",
+    "not_available_title": "Benchmark APIs are not ready yet",
+    "not_available_description": "The frontend route is in place. Data will populate here once the evaluation v2 backend endpoints land.",
+    "status": {
+      "draft": "Draft",
+      "published": "Published",
+      "archived": "Archived"
+    }
+  },
+  "page_bot_evaluation": {
+    "metadata": {
+      "title": "Evaluation Runs",
+      "description": "Track benchmark runs for this bot, inspect progress, and drill into item-level execution details."
+    },
+    "bot_scope": "Bot scope",
+    "runs": "Runs",
+    "run_detail": "Run detail",
+    "dataset_version": "Dataset version",
+    "progress": "Progress",
+    "avg_score": "Avg. score",
+    "summary_total": "Total",
+    "summary_pending": "Pending",
+    "summary_running": "Running",
+    "summary_completed": "Completed",
+    "summary_failed": "Failed",
+    "summary_cancelled": "Cancelled",
+    "created_at": "Created",
+    "updated_at": "Updated",
+    "items": "Run items",
+    "items_description": "Each item reflects one benchmark case and its latest execution attempt.",
+    "latest_attempt": "Latest attempt",
+    "attempt_label": "Attempt",
+    "case_key": "Case key",
+    "score": "Score",
+    "trace": "Trace",
+    "open_chat": "Open chat",
+    "error": "Error",
+    "actions": "Actions",
+    "status_label": "Status",
+    "cancel_run": "Cancel run",
+    "retry_item": "Retry item",
+    "cancel_success": "Run cancelled",
+    "retry_success": "Retry queued",
+    "action_failed": "Action failed",
+    "search_placeholder": "Search runs, cases, or trace ids",
+    "empty_title": "No evaluation runs yet",
+    "empty_description": "Run a published benchmark dataset against this bot to populate this page.",
+    "empty_detail_title": "Run details are not available yet",
+    "empty_detail_description": "The run detail endpoint is reachable, but this run has not returned structured data yet.",
+    "empty_items_title": "No run items yet",
+    "empty_items_description": "Items will appear after the run is created and the worker starts dispatching attempts.",
+    "not_available_title": "Evaluation APIs are not ready yet",
+    "not_available_description": "The UI is ready. Data and actions will appear here once the evaluation v2 endpoints are merged.",
+    "status": {
+      "queued": "Queued",
+      "pending": "Pending",
+      "running": "Running",
+      "completed": "Completed",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    }
+  },
   "page_graph": {
     "metadata": {
       "title": "Knowledge Graph"

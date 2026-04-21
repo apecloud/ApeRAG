@@ -391,6 +391,83 @@
     "rag_answer": "系统回答",
     "judge_reason": "评测结论"
   },
+  "page_benchmarks": {
+    "metadata": {
+      "title": "Benchmarks",
+      "description": "为当前知识库整理评测数据集、跟踪可运行版本，并为机器人评测准备已发布 case。"
+    },
+    "datasets": "数据集",
+    "ready_datasets": "可运行数据集",
+    "cases": "用例数",
+    "latest_version": "最新版本",
+    "version_count": "版本数",
+    "source_type": "来源",
+    "created_at": "创建时间",
+    "search_placeholder": "搜索 benchmark 数据集",
+    "empty_title": "还没有 benchmark 数据集",
+    "empty_description": "先为这个知识库创建并发布 benchmark 数据集，后续才能发起 evaluation run。",
+    "no_description": "暂无描述",
+    "not_available_title": "Benchmark API 还未就绪",
+    "not_available_description": "前端路由和页面已经准备好，等 evaluation v2 后端接口合入后，这里就会展示真实数据。",
+    "status": {
+      "draft": "草稿",
+      "published": "已发布",
+      "archived": "已归档"
+    }
+  },
+  "page_bot_evaluation": {
+    "metadata": {
+      "title": "Evaluation Runs",
+      "description": "查看这个机器人的 benchmark run、执行进度，以及逐条 item 的运行结果。"
+    },
+    "bot_scope": "机器人范围",
+    "runs": "运行记录",
+    "run_detail": "运行详情",
+    "dataset_version": "数据集版本",
+    "progress": "进度",
+    "avg_score": "平均分",
+    "summary_total": "总数",
+    "summary_pending": "待运行",
+    "summary_running": "运行中",
+    "summary_completed": "已完成",
+    "summary_failed": "失败",
+    "summary_cancelled": "已取消",
+    "created_at": "创建时间",
+    "updated_at": "更新时间",
+    "items": "运行项",
+    "items_description": "每条 item 对应一个 benchmark case，以及它最近一次 attempt 的执行状态。",
+    "latest_attempt": "最近一次尝试",
+    "attempt_label": "尝试",
+    "case_key": "用例键",
+    "score": "分数",
+    "trace": "Trace",
+    "open_chat": "打开会话",
+    "error": "错误",
+    "actions": "操作",
+    "status_label": "状态",
+    "cancel_run": "取消运行",
+    "retry_item": "重试此项",
+    "cancel_success": "已取消该 run",
+    "retry_success": "已加入重试队列",
+    "action_failed": "操作失败",
+    "search_placeholder": "搜索 run、case 或 trace id",
+    "empty_title": "还没有 evaluation run",
+    "empty_description": "等这个机器人开始跑已发布的 benchmark 数据集后，这里就会出现运行记录。",
+    "empty_detail_title": "暂时还没有结构化运行详情",
+    "empty_detail_description": "路由已经打通，但这个 run 还没有返回完整详情数据。",
+    "empty_items_title": "还没有 run item",
+    "empty_items_description": "run 创建后，worker 开始分发 attempt，这里就会逐步出现 item。",
+    "not_available_title": "Evaluation API 还未就绪",
+    "not_available_description": "前端页面已经准备好，等 evaluation v2 接口合入后，这里会自动显示真实数据和操作。",
+    "status": {
+      "queued": "已排队",
+      "pending": "待运行",
+      "running": "运行中",
+      "completed": "已完成",
+      "failed": "失败",
+      "cancelled": "已取消"
+    }
+  },
   "page_graph": {
     "metadata": {
       "title": "知识图谱"

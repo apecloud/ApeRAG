@@ -30,6 +30,7 @@ import {
   Download,
   EllipsisVertical,
   Files,
+  FlaskConical,
   Settings,
   Trash,
   VectorSquare,
@@ -52,12 +53,14 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
   const { collection, share, loadShare } = useCollectionContext();
   const pathname = usePathname();
   const page_collections = useTranslations('page_collections');
+  const page_benchmarks = useTranslations('page_benchmarks');
   const page_documents = useTranslations('page_documents');
   const page_graph = useTranslations('page_graph');
 
   const urls = useMemo(() => {
     return {
       documents: `/workspace/collections/${collection.id}/documents`,
+      benchmarks: `/workspace/collections/${collection.id}/benchmarks`,
       search: `/workspace/collections/${collection.id}/search`,
       graph: `/workspace/collections/${collection.id}/graph`,
       settings: `/workspace/collections/${collection.id}/settings`,
@@ -197,6 +200,20 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
               <Files />
               <span className="hidden sm:inline">
                 {page_documents('metadata.title')}
+              </span>
+            </Link>
+          </Button>
+
+          <Button
+            asChild
+            data-active={Boolean(pathname.match(urls.benchmarks))}
+            className="hover:border-b-primary data-[active=true]:border-b-primary h-10 rounded-none border-y-2 border-y-transparent px-1 has-[>svg]:px-2"
+            variant="ghost"
+          >
+            <Link href={urls.benchmarks}>
+              <FlaskConical />
+              <span className="hidden sm:inline">
+                {page_benchmarks('metadata.title')}
               </span>
             </Link>
           </Button>
