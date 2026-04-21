@@ -32,8 +32,8 @@
     "item_status": {
       "waiting": "等待中",
       "running": "进行中",
-      "completed": "完成",
-      "failed": "异常"
+      "completed": "已完成",
+      "failed": "失败"
     },
     "target_type": {
       "knowledge_base": "知识库",

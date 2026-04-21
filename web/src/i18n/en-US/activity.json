@@ -1,45 +1,45 @@
 {
   "thinking": {
-    "title": "Thinking",
-    "subtitle": "Understanding your request and planning the next step."
+    "title": "Understand the question",
+    "subtitle": "Clarifying your goal and deciding what information is needed."
   },
   "searching_knowledge": {
-    "title": "Searching",
-    "subtitle": "Looking through relevant sources for useful information.",
+    "title": "Find relevant sources",
+    "subtitle": "Looking through knowledge bases or the web for information related to your question.",
     "detail": {
-      "keyword": "Keyword: {keyword}",
+      "keyword": "Looking for information about “{keyword}”",
       "source_name": "Source: {sourceName}",
-      "count": "Checking {count} results"
+      "count": "Reviewed {count} results"
     }
   },
   "reading_source": {
-    "title": "Reading",
-    "subtitle": "Reviewing source content before answering.",
+    "title": "Read the sources",
+    "subtitle": "Pulling out the parts that matter most for your question.",
     "detail": {
-      "source_name": "Reading: {sourceName}"
+      "source_name": "Source: {sourceName}"
     }
   },
   "comparing_results": {
-    "title": "Comparing",
-    "subtitle": "Comparing candidate results and deciding what matters most.",
+    "title": "Compare the results",
+    "subtitle": "Sorting through the options to keep the most relevant and reliable information.",
     "detail": {
-      "count": "Comparing {count} results"
+      "count": "Compared {count} results"
     }
   },
   "writing_answer": {
-    "title": "Writing",
-    "subtitle": "Drafting a clear response."
+    "title": "Prepare the answer",
+    "subtitle": "Organizing the information into a final response."
   },
   "waiting": {
-    "title": "Waiting",
-    "subtitle": "Preparing the next step."
+    "title": "Prepare the next step",
+    "subtitle": "Getting ready for what comes next."
   },
   "completed": {
-    "title": "Completed",
-    "subtitle": "The answer is ready."
+    "title": "Answer ready",
+    "subtitle": "Everything needed for the reply has been prepared."
   },
   "error": {
-    "title": "Needs attention",
-    "subtitle": "This run hit a problem before it finished."
+    "title": "Process interrupted",
+    "subtitle": "This run did not finish successfully."
   }
 }
