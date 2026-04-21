@@ -45,6 +45,9 @@ class _RankedResult:
 
 
 class RerankService:
+    ALIBABACLOUD_RERANK_PATH = "/api/v1/services/rerank/text-rerank/text-rerank"
+    ALIBABACLOUD_COMPATIBLE_MODE_PATH = "/compatible-mode/v1"
+
     def __init__(
         self,
         rerank_provider: str,
@@ -170,7 +173,9 @@ class RerankService:
                     logger.warning(f"Rerank returned {len(ranked_results)} indices for {len(texts)} documents")
 
                 # Check for invalid indices
-                invalid_rerank_indices = [ranked.index for ranked in ranked_results if ranked.index < 0 or ranked.index >= len(texts)]
+                invalid_rerank_indices = [
+                    ranked.index for ranked in ranked_results if ranked.index < 0 or ranked.index >= len(texts)
+                ]
                 if invalid_rerank_indices:
                     raise RerankError(
                         f"Invalid rerank indices: {invalid_rerank_indices}",
@@ -203,10 +208,18 @@ class RerankService:
             # Convert litellm errors to our custom types
             raise wrap_litellm_error(e, "rerank", self.rerank_provider, self.model) from e
 
+    def _resolve_alibabacloud_rerank_url(self) -> str:
+        base_url = self.api_base.rstrip("/")
+        if base_url.endswith(self.ALIBABACLOUD_RERANK_PATH):
+            return base_url
+        if base_url.endswith(self.ALIBABACLOUD_COMPATIBLE_MODE_PATH):
+            base_url = base_url[: -len(self.ALIBABACLOUD_COMPATIBLE_MODE_PATH)]
+        return f"{base_url}{self.ALIBABACLOUD_RERANK_PATH}"
+
     async def _call_alibabacloud_rerank_api(self, query: str, documents: List[str]) -> dict:
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
-                url = "https://dashscope.aliyuncs.com/api/v1/services/rerank/text-rerank/text-rerank"
+                url = self._resolve_alibabacloud_rerank_url()
                 headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
 
                 payload = {
