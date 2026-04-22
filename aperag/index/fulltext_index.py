@@ -26,6 +26,7 @@ from aperag.docparser.chunking import rechunk
 from aperag.index.base import BaseIndexer, IndexResult, IndexType
 from aperag.llm.completion.completion_service import CompletionService
 from aperag.query.query import DocumentWithScore
+from aperag.schema.utils import parseCollectionConfig
 from aperag.utils.tokenizer import get_default_tokenizer
 from aperag.utils.utils import generate_fulltext_index_name
 
@@ -52,8 +53,8 @@ class FulltextIndexer(BaseIndexer):
         self.async_es = AsyncElasticsearch(self.es_host, **config)
 
     def is_enabled(self, collection) -> bool:
-        """Fulltext indexing is always enabled"""
-        return True
+        """Fulltext indexing follows the collection contract."""
+        return parseCollectionConfig(collection.config).enable_fulltext is not False
 
     def _extract_chunk_data(self, part) -> Tuple[str, str, Dict[str, Any]]:
         """Extract chunk content, title and metadata from a document part"""
@@ -68,7 +69,12 @@ class FulltextIndexer(BaseIndexer):
         return chunk_content, title_text, chunk_metadata
 
     def _process_chunks(
-        self, document_id: int, doc_parts: List[Any], document_name: str, index_name: str
+        self,
+        document_id: int,
+        doc_parts: List[Any],
+        document_name: str,
+        index_name: str,
+        collection_id: str,
     ) -> Tuple[int, int]:
         """Process and insert all chunks for a document. Returns (chunk_count, total_content_length)"""
         chunk_count = 0
@@ -89,7 +95,14 @@ class FulltextIndexer(BaseIndexer):
 
             chunk_id = f"{document_id}_{chunk_idx}"
             self._insert_chunk(
-                index_name, chunk_id, document_id, document_name, chunk_content, title_text, chunk_metadata
+                index_name,
+                chunk_id,
+                document_id,
+                collection_id,
+                document_name,
+                chunk_content,
+                title_text,
+                chunk_metadata,
             )
             chunk_count += 1
             total_content_length += len(chunk_content)
@@ -120,6 +133,13 @@ class FulltextIndexer(BaseIndexer):
     def create_index(self, document_id: int, content: str, doc_parts: List[Any], collection, **kwargs) -> IndexResult:
         """Create fulltext index for document chunks"""
         try:
+            if not self.is_enabled(collection):
+                return IndexResult(
+                    success=True,
+                    index_type=self.index_type,
+                    metadata={"message": "Fulltext indexing disabled", "status": "skipped"},
+                )
+
             # Filter out non-text parts
             doc_parts = [part for part in doc_parts if hasattr(part, "content") and part.content]
 
@@ -136,7 +156,13 @@ class FulltextIndexer(BaseIndexer):
                 raise Exception(f"Document {document_id} not found")
 
             index_name = generate_fulltext_index_name(collection.id)
-            chunk_count, total_content_length = self._process_chunks(document_id, doc_parts, document.name, index_name)
+            chunk_count, total_content_length = self._process_chunks(
+                document_id,
+                doc_parts,
+                document.name,
+                index_name,
+                str(collection.id),
+            )
 
             logger.info(f"Fulltext index created for document {document_id} with {chunk_count} chunks")
             return self._create_success_result(index_name, document.name, chunk_count, total_content_length, "created")
@@ -150,6 +176,13 @@ class FulltextIndexer(BaseIndexer):
     def update_index(self, document_id: int, content: str, doc_parts: List[Any], collection, **kwargs) -> IndexResult:
         """Update fulltext index for document chunks"""
         try:
+            if not self.is_enabled(collection):
+                return IndexResult(
+                    success=True,
+                    index_type=self.index_type,
+                    metadata={"message": "Fulltext indexing disabled", "status": "skipped"},
+                )
+
             document = db_ops.query_document_by_id(document_id)
             if not document:
                 raise Exception(f"Document {document_id} not found")
@@ -169,7 +202,11 @@ class FulltextIndexer(BaseIndexer):
             # Create new chunks if there are doc_parts
             if doc_parts:
                 chunk_count, total_content_length = self._process_chunks(
-                    document_id, doc_parts, document.name, index_name
+                    document_id,
+                    doc_parts,
+                    document.name,
+                    index_name,
+                    str(collection.id),
                 )
                 logger.info(f"Fulltext index updated for document {document_id} with {chunk_count} chunks")
                 return self._create_success_result(
@@ -231,6 +268,7 @@ class FulltextIndexer(BaseIndexer):
         index: str,
         chunk_id: str,
         doc_id: int,
+        collection_id: str,
         doc_name: str,
         content: str,
         title_text: str = "",
@@ -242,8 +280,10 @@ class FulltextIndexer(BaseIndexer):
             return
 
         doc = {
+            "collection_id": collection_id,
             "document_id": doc_id,
             "chunk_id": chunk_id,
+            "chat_id": (metadata or {}).get("chat_id"),
             "name": doc_name,
             "content": content,
             "title": title_text,
@@ -273,7 +313,17 @@ class FulltextIndexer(BaseIndexer):
 
             # Add chat_id filter if provided
             if chat_id:
-                query["bool"]["filter"] = [{"term": {"metadata.chat_id": chat_id}}]
+                query["bool"]["filter"] = [
+                    {
+                        "bool": {
+                            "should": [
+                                {"term": {"chat_id": str(chat_id)}},
+                                {"term": {"metadata.chat_id": str(chat_id)}},
+                            ],
+                            "minimum_should_match": 1,
+                        }
+                    }
+                ]
             sort = [{"_score": {"order": "desc"}}]
             resp = await self.async_es.search(index=index, query=query, sort=sort, size=topk)
             hits = resp.body["hits"]
@@ -304,8 +354,11 @@ class FulltextIndexer(BaseIndexer):
             return result
         except Exception as e:
             logger.error(f"Failed to search documents in index {index}: {str(e)}")
-            # Return empty list on error to allow the flow to continue
-            return []
+            raise FulltextSearchDegradedError(f"search failed for {index}: {str(e)}") from e
+
+
+class FulltextSearchDegradedError(RuntimeError):
+    """Raised when fulltext search cannot execute and the caller should degrade explicitly."""
 
 
 # Global instance
@@ -556,8 +609,10 @@ def create_index(index: str):
             "properties": {
                 "content": {"type": "text", "analyzer": "ik_max_word", "search_analyzer": "ik_smart"},
                 "title": {"type": "text", "analyzer": "ik_max_word", "search_analyzer": "ik_smart"},
+                "collection_id": {"type": "keyword"},
                 "document_id": {"type": "keyword"},
                 "chunk_id": {"type": "keyword"},
+                "chat_id": {"type": "keyword"},
                 "name": {"type": "keyword"},
                 "metadata": {"type": "object", "enabled": False},
             }

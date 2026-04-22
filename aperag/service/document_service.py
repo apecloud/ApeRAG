@@ -39,6 +39,7 @@ from aperag.exceptions import (
 from aperag.index.manager import document_index_manager
 from aperag.objectstore.base import get_async_object_store
 from aperag.schema import view_models
+from aperag.schema.utils import parseCollectionConfig
 from aperag.schema.view_models import Chunk, DocumentList, DocumentPreview, VisionChunk
 from aperag.service.marketplace_service import marketplace_service
 from aperag.utils.pagination import (
@@ -198,10 +199,11 @@ class DocumentService:
         """
         Get the list of index types to create based on collection configuration.
         """
-        index_types = [
-            db_models.DocumentIndexType.VECTOR,
-            db_models.DocumentIndexType.FULLTEXT,
-        ]
+        parsed_config = parseCollectionConfig(json.dumps(collection_config))
+        index_types = [db_models.DocumentIndexType.VECTOR]
+
+        if parsed_config.enable_fulltext is not False:
+            index_types.append(db_models.DocumentIndexType.FULLTEXT)
 
         if collection_config.get("enable_knowledge_graph", False):
             index_types.append(db_models.DocumentIndexType.GRAPH)

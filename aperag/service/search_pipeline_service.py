@@ -35,7 +35,7 @@ from aperag.query.query import DocumentWithScore
 from aperag.schema.utils import parseCollectionConfig
 from aperag.schema.view_models import SearchRequest, SearchResultItem
 from aperag.service.default_model_service import default_model_service
-from aperag.utils.utils import generate_vector_db_collection_name
+from aperag.utils.utils import generate_fulltext_index_name, generate_vector_db_collection_name
 
 logger = logging.getLogger(__name__)
 
@@ -229,9 +229,14 @@ class SearchPipelineService:
         user_id: str,
         chat_id: Optional[str] = None,
     ) -> List[DocumentWithScore]:
-        from aperag.index.fulltext_index import fulltext_indexer
+        from aperag.index.fulltext_index import FulltextSearchDegradedError, fulltext_indexer
 
-        index_name = generate_vector_db_collection_name(collection.id)
+        config = parseCollectionConfig(collection.config)
+        if config.enable_fulltext is False:
+            logger.info("Skipping fulltext search for collection %s because enable_fulltext=false", collection.id)
+            return []
+
+        index_name = generate_fulltext_index_name(collection.id)
         final_keywords = list(keywords or [])
         if not final_keywords:
             extractor_ctx = {
@@ -244,7 +249,19 @@ class SearchPipelineService:
             final_keywords = await extract_keywords(query, extractor_ctx)
 
         final_keywords = list(set(final_keywords))
-        docs = await fulltext_indexer.search_document(index_name, final_keywords, top_k * 3, chat_id=chat_id)
+        if not final_keywords:
+            logger.warning(
+                "Fulltext keyword extraction degraded for collection %s; falling back to raw query token",
+                collection.id,
+            )
+            final_keywords = [query]
+
+        try:
+            docs = await fulltext_indexer.search_document(index_name, final_keywords, top_k * 3, chat_id=chat_id)
+        except FulltextSearchDegradedError as e:
+            logger.warning("Fulltext search degraded for collection %s: %s", collection.id, e)
+            return []
+
         for doc in docs:
             if doc.metadata is None:
                 doc.metadata = {}

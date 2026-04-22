@@ -62,8 +62,14 @@ class CollectionTask:
             # Initialize vector database connections
             self._initialize_vector_databases(collection_id, collection)
 
-            # Initialize fulltext index
-            self._initialize_fulltext_index(collection_id)
+            config = parseCollectionConfig(collection.config)
+            if config.enable_fulltext is not False:
+                self._initialize_fulltext_index(collection_id)
+            else:
+                logger.info(
+                    "Skipping fulltext index initialization for collection %s because enable_fulltext=false",
+                    collection_id,
+                )
 
             # No per-collection cutover flip here: graphindex v2 is the
             # only graph backend after the LightRAG removal, so the
