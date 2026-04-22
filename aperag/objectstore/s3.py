@@ -21,18 +21,32 @@ import aioboto3
 import boto3
 from botocore.config import Config
 from botocore.exceptions import ClientError
+from pydantic import BaseModel
 
 from aperag.objectstore.base import AsyncObjectStore, ObjectStore
 
 logger = logging.getLogger(__name__)
 
 
-class S3(ObjectStore):
-    """Sync S3-compatible object store (MinIO, AWS S3, Alibaba OSS, etc.).
+class S3Config(BaseModel):
+    """Backward-compatible runtime config for the S3 object store.
 
-    Accepts the ``S3Config`` from ``aperag.config`` directly — no
-    intermediate BaseModel copy needed.
+    ``aperag.config.S3Config`` is still used to load environment-backed
+    settings, but the object-store module needs a plain model that callers and
+    tests can instantiate directly with explicit keyword arguments.
     """
+
+    endpoint: str
+    access_key: str
+    secret_key: str
+    bucket: str
+    region: str | None = None
+    prefix_path: str | None = None
+    use_path_style: bool = False
+
+
+class S3(ObjectStore):
+    """Sync S3-compatible object store (MinIO, AWS S3, Alibaba OSS, etc.)."""
 
     def __init__(self, cfg) -> None:
         self.conn = None
