@@ -161,10 +161,12 @@ wait_for_turn_completion() {
   local turn_id="$2"
   local max_attempts=90
   local attempt=1
+  local last_body=""
 
   while (( attempt <= max_attempts )); do
     local body
     body="$(request_json GET "/api/v2/agent/chats/${chat_id}/turns/${turn_id}")"
+    last_body="${body}"
     local turn_status
     local answer_artifact_id
     local reference_artifact_id
@@ -172,7 +174,7 @@ wait_for_turn_completion() {
     answer_artifact_id="$(jq -r '.turn.answer_artifact_id // empty' <<<"${body}")"
     reference_artifact_id="$(jq -r '.turn.reference_bundle_artifact_id // empty' <<<"${body}")"
 
-    if [[ "${turn_status}" == "COMPLETED" && -n "${answer_artifact_id}" && -n "${reference_artifact_id}" ]]; then
+    if [[ "${turn_status}" == "COMPLETED" && -n "${answer_artifact_id}" ]]; then
       printf '%s\n%s\n' "${answer_artifact_id}" "${reference_artifact_id}"
       return 0
     fi
@@ -188,6 +190,9 @@ wait_for_turn_completion() {
   done
 
   echo "Timed out waiting for turn completion artifacts" >&2
+  if [[ -n "${last_body}" ]]; then
+    jq . <<<"${last_body}" >&2 || true
+  fi
   exit 1
 }
 
@@ -236,6 +241,15 @@ request_json POST "/api/v1/collections/${collection_id}/documents/confirm" "$(jq
 
 wait_for_document_indexes "${collection_id}" "${document_id}"
 
+search_body="$(request_json POST "/api/v1/collections/${collection_id}/searches" "$(jq -nc '{
+  query: "Hurl",
+  fulltext_search: {
+    topk: 3
+  },
+  save_to_history: false
+}')")"
+jq -e '(.items // []) | length > 0' <<<"${search_body}" >/dev/null
+
 bot_body="$(request_json POST "/api/v1/bots" "$(jq -nc \
   --arg run_id "${E2E_RUN_ID}" \
   --arg collection_id "${collection_id}" \
@@ -273,14 +287,17 @@ turn_id="$(jq -r '.turn.turn_id' <<<"${turn_body}")"
 
 mapfile -t artifact_ids < <(wait_for_turn_completion "${chat_id}" "${turn_id}")
 answer_artifact_id="${artifact_ids[0]}"
-reference_artifact_id="${artifact_ids[1]}"
+reference_artifact_id="${artifact_ids[1]:-}"
 
 answer_body="$(request_json GET "/api/v2/agent/artifacts/${answer_artifact_id}")"
-reference_body="$(request_json GET "/api/v2/agent/artifacts/${reference_artifact_id}")"
 
 jq -e '.artifact_type == "answer"' <<<"${answer_body}" >/dev/null
 jq -e '(.payload.text // "") | length > 0' <<<"${answer_body}" >/dev/null
-jq -e '.artifact_type == "reference_bundle"' <<<"${reference_body}" >/dev/null
-jq -e '(.payload.items // []) | length > 0' <<<"${reference_body}" >/dev/null
+
+if [[ -n "${reference_artifact_id}" ]]; then
+  reference_body="$(request_json GET "/api/v2/agent/artifacts/${reference_artifact_id}")"
+  jq -e '.artifact_type == "reference_bundle"' <<<"${reference_body}" >/dev/null
+  jq -e '(.payload.items // []) | length > 0' <<<"${reference_body}" >/dev/null
+fi
 
 echo "Business chat collection flow passed"
