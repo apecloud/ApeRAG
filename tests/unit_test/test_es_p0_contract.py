@@ -125,7 +125,7 @@ async def test_fulltext_search_logs_explicit_degrade_on_backend_failure(monkeypa
 
 
 @pytest.mark.asyncio
-async def test_fulltext_index_search_filters_on_explicit_chat_id(monkeypatch):
+async def test_fulltext_index_search_uses_dual_read_chat_filter(monkeypatch):
     captured = {}
 
     class FakeAsyncIndices:
@@ -151,7 +151,17 @@ async def test_fulltext_index_search_filters_on_explicit_chat_id(monkeypatch):
     docs = await FulltextIndexer.search_document(indexer, "ft-col-1", ["hello"], topk=3, chat_id="chat-1")
 
     assert docs == []
-    assert captured["query"]["bool"]["filter"] == [{"term": {"chat_id": "chat-1"}}]
+    assert captured["query"]["bool"]["filter"] == [
+        {
+            "bool": {
+                "should": [
+                    {"term": {"chat_id": "chat-1"}},
+                    {"term": {"metadata.chat_id": "chat-1"}},
+                ],
+                "minimum_should_match": 1,
+            }
+        }
+    ]
 
 
 def test_create_index_mapping_exposes_explicit_filter_fields(monkeypatch):

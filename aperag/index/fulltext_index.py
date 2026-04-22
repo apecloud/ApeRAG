@@ -313,7 +313,17 @@ class FulltextIndexer(BaseIndexer):
 
             # Add chat_id filter if provided
             if chat_id:
-                query["bool"]["filter"] = [{"term": {"chat_id": chat_id}}]
+                query["bool"]["filter"] = [
+                    {
+                        "bool": {
+                            "should": [
+                                {"term": {"chat_id": str(chat_id)}},
+                                {"term": {"metadata.chat_id": str(chat_id)}},
+                            ],
+                            "minimum_should_match": 1,
+                        }
+                    }
+                ]
             sort = [{"_score": {"order": "desc"}}]
             resp = await self.async_es.search(index=index, query=query, sort=sort, size=topk)
             hits = resp.body["hits"]

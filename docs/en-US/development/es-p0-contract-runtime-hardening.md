@@ -28,7 +28,9 @@ index migration risk:
 - Fulltext document indexing tasks skip cleanly when the collection disables fulltext.
 - Fulltext search uses `generate_fulltext_index_name(...)`, not the vector helper.
 - Fulltext chunks store explicit top-level filter fields.
-- Chat-scoped fulltext search filters on explicit `chat_id`.
+- Chat-scoped fulltext search writes explicit top-level `chat_id`, but keeps a
+  temporary dual-read filter on both `chat_id` and legacy `metadata.chat_id`
+  until the later reindex / rollout line removes the historical path.
 - Fulltext keyword extraction falls back to the raw query token when all extractors
   return nothing.
 - Fulltext backend failures are logged as explicit degrade events before returning
@@ -56,6 +58,14 @@ That means:
 - Rollback remains a code rollback, not an ES data rollback.
 
 The physical model changes only in the later P1 implementation.
+
+P0 also does **not** make collection-config flips self-healing at the data plane:
+
+- Turning `enable_fulltext` off stops new runtime reads and writes.
+- Turning it back on does not automatically purge or rebuild existing ES
+  projections.
+- Fulltext projection convergence after config flips still requires an explicit
+  rebuild / rollout action.
 
 ## Source Of Truth
 
