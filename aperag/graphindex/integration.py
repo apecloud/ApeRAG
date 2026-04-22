@@ -1,0 +1,248 @@
+# Copyright 2025 ApeCloud, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Wiring layer: turn an ApeRAG ``Collection`` into a ready-to-use
+``GraphIndexService``.
+
+This is the **only** file inside ``aperag/graphindex/`` that imports
+from outside the module. Pure module code (``service.py``, ``dto.py``,
+``engine``, ``storage``, ``config``) does not know what an ApeRAG
+``Collection`` is, what a ``CompletionService`` is, or which Postgres
+URL to use. Keeping that knowledge in one file means the rest of the
+module is reusable in tests, scripts, and (eventually) a separate
+service deployment without dragging the whole ApeRAG stack along.
+
+Two factory functions:
+
+* ``make_service_for_collection(collection)`` — async, used by the
+  FastAPI request path.
+* ``run_index_document_sync(collection, doc_id, content, file_path)``
+  / ``run_delete_document_sync(...)`` — sync wrappers for Celery tasks
+  that don't have an event loop on their thread.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+from typing import Any, Awaitable, Optional
+
+from sqlalchemy.ext.asyncio import AsyncEngine
+
+from aperag.config import async_engine, settings
+from aperag.db.models import Collection
+from aperag.db.ops import db_ops
+from aperag.graphindex.config import GraphIndexConfig
+from aperag.graphindex.dto import (
+    DeleteDocumentResult,
+    IndexDocumentResult,
+)
+from aperag.graphindex.service import GraphIndexService
+from aperag.graphindex.storage.postgres import PostgresGraphStore
+from aperag.schema.utils import parseCollectionConfig
+
+logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Process-level singletons
+# ---------------------------------------------------------------------------
+#
+# The Postgres store and the GraphIndexConfig are stable for the life of
+# a worker process — there's no per-collection variation on either.
+# Building one of each at module import time and reusing them avoids the
+# per-request setup tax that v1 paid via ``initialize_storages`` /
+# ``finalize_storages``.
+
+_DEFAULT_CONFIG = GraphIndexConfig(
+    chunk_token_size=getattr(settings, "chunk_size", None) or 1200,
+    chunk_overlap_token_size=getattr(settings, "chunk_overlap_size", None) or 100,
+)
+
+
+def _build_store(engine: AsyncEngine | None = None) -> PostgresGraphStore:
+    """The store is a thin wrapper around an AsyncEngine; safe to share."""
+    return PostgresGraphStore(engine=engine or async_engine)
+
+
+_DEFAULT_STORE = _build_store()
+
+
+# ---------------------------------------------------------------------------
+# Per-collection LLM wiring
+# ---------------------------------------------------------------------------
+
+
+def _build_llm_callable(collection: Collection):
+    """Construct the ``LLMCall`` for a specific collection.
+
+    Reads the collection's completion config (provider, model, base_url,
+    api key from the user's provider record) and returns an async
+    function ``(prompt) -> str``. The function is closure-bound to the
+    config so multiple concurrent calls can share it safely without
+    serialising on a global LLM client.
+    """
+    config = parseCollectionConfig(collection.config)
+    provider_name = config.completion.model_service_provider
+    api_key = db_ops.query_provider_api_key(provider_name, collection.user)
+    if not api_key:
+        raise RuntimeError(f"graphindex: API key not found for provider {provider_name!r} (collection {collection.id})")
+    provider = db_ops.query_llm_provider_by_name(provider_name)
+    base_url = provider.base_url
+
+    # Local import: CompletionService pulls in litellm which is heavy at
+    # import time and we don't want to pay it just for ``import aperag.graphindex``.
+    from aperag.llm.completion.completion_service import CompletionService
+
+    async def _llm(prompt: str) -> str:
+        svc = CompletionService(
+            provider=config.completion.custom_llm_provider,
+            model=config.completion.model,
+            base_url=base_url,
+            api_key=api_key,
+            temperature=0.0,  # deterministic output for extraction
+            max_tokens=None,
+            caching=False,
+        )
+        # No history, no images, no memory. Single-turn JSON request.
+        return await svc.agenerate(history=[], prompt=prompt, images=[], memory=False)
+
+    return _llm
+
+
+def _embed_callable_or_none(_collection: Collection):
+    """Reserved for the embedding-anchored query path in a future PR.
+
+    v2's ``query_context`` uses simple name-match anchoring, no
+    embedding. Returning ``None`` keeps the slot wired so swapping in
+    an embedding-based anchor resolver later is one line of change.
+    """
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Public factories
+# ---------------------------------------------------------------------------
+
+
+def make_service_for_collection(
+    collection: Collection,
+    *,
+    config: Optional[GraphIndexConfig] = None,
+) -> GraphIndexService:
+    """Build a ``GraphIndexService`` ready to operate on this collection.
+
+    Cheap to call: the heavy bits (engine, store) are process singletons.
+    Only the LLM closure is built fresh per call, and it doesn't open
+    any connections until the first ``llm(prompt)`` call.
+    """
+    return GraphIndexService(
+        store=_DEFAULT_STORE,
+        llm=_build_llm_callable(collection),
+        embed_query=_embed_callable_or_none(collection),
+        config=config or _DEFAULT_CONFIG,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Sync wrappers for Celery
+# ---------------------------------------------------------------------------
+
+
+def run_index_document_sync(
+    collection: Collection,
+    doc_id: str,
+    content: str,
+    file_path: str,
+) -> IndexDocumentResult:
+    """Sync entry point for Celery tasks.
+
+    Builds a fresh event loop because Celery workers don't run one by
+    default. Mirrors what v1 ``process_document_for_celery`` did, but
+    against the new service.
+    """
+
+    async def _run() -> IndexDocumentResult:
+        svc = make_service_for_collection(collection)
+        return await svc.index_document(
+            collection_id=str(collection.id),
+            doc_id=doc_id,
+            content=content,
+            file_path=file_path,
+        )
+
+    return _run_in_new_loop(_run())
+
+
+def run_delete_document_sync(collection: Collection, doc_id: str) -> DeleteDocumentResult:
+    """Sync delete entry point for Celery tasks."""
+
+    async def _run() -> DeleteDocumentResult:
+        svc = make_service_for_collection(collection)
+        return await svc.delete_document(collection_id=str(collection.id), doc_id=doc_id)
+
+    return _run_in_new_loop(_run())
+
+
+def run_drop_collection_sync(collection_id: str) -> None:
+    """Sync collection-wipe entry point for the collection-delete task.
+
+    Doesn't need a Collection object — operates by id only, since by
+    delete time the collection row may already be soft-deleted.
+    """
+
+    async def _run() -> None:
+        svc = GraphIndexService(
+            store=_DEFAULT_STORE,
+            # No LLM needed; this is a pure data-wipe.
+            llm=_no_op_llm,
+            config=_DEFAULT_CONFIG,
+        )
+        await svc.drop_collection(collection_id=collection_id)
+
+    return _run_in_new_loop(_run())
+
+
+async def _no_op_llm(_prompt: str) -> str:
+    raise RuntimeError("graphindex: LLM was called from a no-LLM service; this is a wiring bug")
+
+
+def _run_in_new_loop(coro: Awaitable[Any]) -> Any:
+    """Run ``coro`` in a new event loop, with task cancellation cleanup
+    on exit. Replicates the v1 ``_run_in_new_loop`` semantics so the
+    Celery contract is unchanged."""
+    loop = asyncio.new_event_loop()
+    try:
+        asyncio.set_event_loop(loop)
+        return loop.run_until_complete(coro)
+    finally:
+        try:
+            pending = [t for t in asyncio.all_tasks(loop) if not t.done()]
+            for task in pending:
+                task.cancel()
+            if pending:
+                loop.run_until_complete(asyncio.wait(pending, timeout=1.0))
+        except Exception:
+            pass
+        finally:
+            loop.close()
+            asyncio.set_event_loop(None)
+
+
+__all__ = [
+    "make_service_for_collection",
+    "run_index_document_sync",
+    "run_delete_document_sync",
+    "run_drop_collection_sync",
+]

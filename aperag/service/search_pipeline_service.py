@@ -262,15 +262,16 @@ class SearchPipelineService:
             logger.warning(f"Collection {collection.id} does not have knowledge graph enabled")
             return []
 
-        from aperag.graph import lightrag_manager
-        from aperag.graph.lightrag import QueryParam
+        # graphindex v2 path: zero per-request lifecycle work, no
+        # finalize_storages cleanup needed (the v1 path here was missing
+        # that cleanup, see docs/zh-CN/design/graphindex_rewrite.md).
+        from aperag.graphindex.integration import make_service_for_collection
 
-        rag = await lightrag_manager.create_lightrag_instance(collection)
-        param = QueryParam(mode="hybrid", only_need_context=True, top_k=top_k)
-        context = await rag.aquery_context(query=query, param=param)
-        if not context:
+        svc = make_service_for_collection(collection)
+        ctx = await svc.query_context(collection_id=str(collection.id), query=query, top_k=top_k)
+        if not ctx.text:
             return []
-        return [DocumentWithScore(text=context, metadata={"recall_type": "graph_search"})]
+        return [DocumentWithScore(text=ctx.text, metadata={"recall_type": "graph_search"})]
 
     async def _summary_search(
         self,

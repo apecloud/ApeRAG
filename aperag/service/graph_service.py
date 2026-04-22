@@ -19,8 +19,9 @@ from aperag.concurrent_control import get_or_create_lock, lock_context
 from aperag.db.models import MergeSuggestionStatus
 from aperag.db.ops import async_db_ops
 from aperag.exceptions import CollectionNotFoundException
-from aperag.graph import lightrag_manager
-from aperag.graph.lightrag.types import KnowledgeGraph
+from aperag.graph import lightrag_manager  # still used by curation methods
+from aperag.graphindex.dto import Entity as GraphIndexEntity
+from aperag.graphindex.dto import Relation as GraphIndexRelation
 from aperag.schema import view_models
 from aperag.utils.utils import utc_now
 
@@ -37,15 +38,13 @@ class GraphService:
         self.db_ops = async_db_ops
 
     async def get_graph_labels(self, user_id: str, collection_id: str) -> view_models.GraphLabelsResponse:
-        """Get available node labels in the knowledge graph"""
-        db_collection = await self._get_and_validate_collection(user_id, collection_id)
+        """Get available node labels in the knowledge graph (graphindex v2)."""
+        await self._get_and_validate_collection(user_id, collection_id)
 
-        rag = await lightrag_manager.create_lightrag_instance(db_collection)
-        try:
-            labels = await rag.get_graph_labels()
-            return view_models.GraphLabelsResponse(labels=labels)
-        finally:
-            await rag.finalize_storages()
+        from aperag.graphindex.integration import _DEFAULT_STORE  # process singleton
+
+        labels = await _DEFAULT_STORE.list_labels(collection_id)
+        return view_models.GraphLabelsResponse(labels=labels)
 
     def _optimize_graph_for_visualization(self, nodes, edges, max_nodes):
         """Optimize graph by selecting well-connected nodes"""
@@ -79,43 +78,43 @@ class GraphService:
         max_depth: int = 3,
         max_nodes: int = 1000,
     ) -> Dict[str, Any]:
-        """Get knowledge graph with overview or subgraph mode"""
-        db_collection = await self._get_and_validate_collection(user_id, collection_id)
+        """Get knowledge graph subgraph for UI display (graphindex v2)."""
+        await self._get_and_validate_collection(user_id, collection_id)
 
-        rag = await lightrag_manager.create_lightrag_instance(db_collection)
-        try:
-            # Determine query parameters
-            if not label or label == "*":
-                node_label, query_max_nodes = "*", max_nodes * 2
-                mode_description = "overview"
-            else:
-                node_label, query_max_nodes = label, max_nodes
-                mode_description = f"subgraph from '{label}'"
+        from aperag.graphindex.integration import _DEFAULT_STORE
 
-            # Get knowledge graph
-            kg: KnowledgeGraph = await rag.get_knowledge_graph(
-                node_label=node_label,
-                max_depth=max_depth,
-                max_nodes=query_max_nodes,
+        normalized_label = None if not label or label == "*" else label
+        # In overview mode (no label) we ask for 2x max_nodes to give the
+        # visualisation optimizer some room to pick well-connected nodes;
+        # truncation gets fixed up below.
+        query_max_nodes = max_nodes * 2 if normalized_label is None else max_nodes
+        mode_description = "overview" if normalized_label is None else f"subgraph from '{label}'"
+
+        kg = await _DEFAULT_STORE.list_subgraph(
+            collection_id=collection_id,
+            label=normalized_label,
+            max_depth=max_depth,
+            max_nodes=query_max_nodes,
+        )
+
+        # If overview mode produced more than the user asked for, run the
+        # degree-based picker; otherwise pass through.
+        if normalized_label is None and len(kg.nodes) > max_nodes:
+            optimized_nodes, optimized_edges = self._optimize_graph_for_visualization(
+                _adapt_nodes(kg.nodes), _adapt_edges(kg.edges), max_nodes
             )
+            is_truncated = True
+        else:
+            optimized_nodes = _adapt_nodes(kg.nodes)
+            optimized_edges = _adapt_edges(kg.edges)
+            is_truncated = bool(getattr(kg, "is_truncated", False))
 
-            # Optimize if needed
-            if (not label or label == "*") and len(kg.nodes) > max_nodes:
-                optimized_nodes, optimized_edges = self._optimize_graph_for_visualization(kg.nodes, kg.edges, max_nodes)
-                is_truncated = True
-            else:
-                optimized_nodes, optimized_edges = kg.nodes, kg.edges
-                is_truncated = getattr(kg, "is_truncated", False)
-
-            result = self._convert_graph_to_dict(optimized_nodes, optimized_edges, is_truncated)
-
-            logger.info(
-                f"Retrieved {mode_description} graph for collection {collection_id}: "
-                f"{len(result['nodes'])} nodes, {len(result['edges'])} edges"
-            )
-            return result
-        finally:
-            await rag.finalize_storages()
+        result = self._convert_graph_to_dict(optimized_nodes, optimized_edges, is_truncated)
+        logger.info(
+            f"Retrieved {mode_description} graph for collection {collection_id}: "
+            f"{len(result['nodes'])} nodes, {len(result['edges'])} edges"
+        )
+        return result
 
     def _convert_graph_to_dict(self, nodes, edges, is_truncated=False) -> Dict[str, Any]:
         """
@@ -452,6 +451,85 @@ class GraphService:
             return result
         finally:
             await rag.finalize_storages()
+
+
+# ---------------------------------------------------------------------------
+# Adapter helpers: graphindex DTOs → shape expected by ``_convert_graph_to_dict``
+# ---------------------------------------------------------------------------
+#
+# ``_convert_graph_to_dict`` and ``_optimize_graph_for_visualization`` were
+# written for the v1 ``KnowledgeGraph`` schema (``KnowledgeGraphNode`` /
+# ``KnowledgeGraphEdge`` from LightRAG). Rather than rewrite both
+# methods, we wrap graphindex DTOs in simple proxy objects exposing the
+# attributes those methods read. Keeps the diff small and the shape
+# obvious.
+
+
+from types import SimpleNamespace  # noqa: E402  (intentional in-line import)
+
+
+def _adapt_nodes(nodes):
+    """Wrap ``graphindex.Entity`` objects so legacy code can read
+    ``.id`` / ``.labels`` / ``.properties`` / per-field attributes."""
+    out = []
+    for n in nodes:
+        if not isinstance(n, GraphIndexEntity):
+            out.append(n)  # already in legacy shape (defensive)
+            continue
+        props = {
+            "entity_id": n.entity_id,
+            "entity_name": n.name,
+            "entity_type": n.type,
+            "description": n.description,
+            "source_id": ",".join(n.source_chunk_ids) if n.source_chunk_ids else "",
+            "file_path": "",
+        }
+        out.append(
+            SimpleNamespace(
+                id=n.entity_id,
+                labels=[n.type] if n.type else [n.name],
+                properties=props,
+                # per-field fallbacks consumed by extract_properties default
+                entity_id=n.entity_id,
+                entity_name=n.name,
+                entity_type=n.type,
+                description=n.description,
+                source_id=props["source_id"],
+                file_path="",
+            )
+        )
+    return out
+
+
+def _adapt_edges(edges):
+    """Wrap ``graphindex.Relation`` objects similarly."""
+    out = []
+    for e in edges:
+        if not isinstance(e, GraphIndexRelation):
+            out.append(e)
+            continue
+        props = {
+            "weight": float(e.weight),
+            "description": e.description,
+            "keywords": "",
+            "source_id": ",".join(e.source_chunk_ids) if e.source_chunk_ids else "",
+            "file_path": "",
+        }
+        out.append(
+            SimpleNamespace(
+                id=f"{e.source_id}->{e.target_id}",
+                type="DIRECTED",
+                source=e.source_id,
+                target=e.target_id,
+                properties=props,
+                weight=props["weight"],
+                description=e.description,
+                keywords="",
+                source_id=props["source_id"],
+                file_path="",
+            )
+        )
+    return out
 
 
 # Global service instance

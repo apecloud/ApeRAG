@@ -109,18 +109,24 @@ class DocumentIndexTask:
                     logger.info(f"Graph indexing disabled for document {document_id}")
                     result_data = {"success": True, "message": "Graph indexing disabled"}
                 else:
-                    from aperag.graph.lightrag_manager import process_document_for_celery
+                    # graphindex v2 sync entry point — replaces the v1
+                    # ``process_document_for_celery`` path. See
+                    # ``docs/zh-CN/design/graphindex_rewrite.md``.
+                    from aperag.graphindex.integration import run_index_document_sync
 
-                    result = process_document_for_celery(
+                    res = run_index_document_sync(
                         collection=collection,
-                        content=parsed_data.content,
                         doc_id=document_id,
+                        content=parsed_data.content,
                         file_path=parsed_data.file_path,
                     )
-                    if result.get("status") != "success":
-                        error_msg = result.get("message", "Unknown error")
-                        raise Exception(f"Graph indexing failed: {error_msg}")
-                    result_data = result
+                    result_data = {
+                        "status": "success",
+                        "doc_id": res.doc_id,
+                        "chunks_created": res.chunks_created,
+                        "entities_extracted": res.entities_extracted,
+                        "relations_extracted": res.relations_extracted,
+                    }
 
             elif index_type == DocumentIndexType.SUMMARY.value:
                 from aperag.index.summary_index import summary_indexer
@@ -211,12 +217,12 @@ class DocumentIndexTask:
                 from aperag.index.graph_index import graph_indexer
 
                 if graph_indexer.is_enabled(collection):
-                    from aperag.graph.lightrag_manager import delete_document_for_celery
+                    # graphindex v2 sync delete. Pure data-wipe; on
+                    # failure the exception bubbles up so Celery's retry
+                    # policy can apply uniformly.
+                    from aperag.graphindex.integration import run_delete_document_sync
 
-                    result = delete_document_for_celery(collection=collection, doc_id=document_id)
-                    if result.get("status") != "success":
-                        error_msg = result.get("message", "Unknown error")
-                        raise Exception(f"Graph index deletion failed: {error_msg}")
+                    run_delete_document_sync(collection=collection, doc_id=document_id)
 
             elif index_type == DocumentIndexType.SUMMARY.value:
                 from aperag.index.summary_index import summary_indexer
@@ -299,18 +305,24 @@ class DocumentIndexTask:
                     logger.info(f"Graph indexing disabled for document {document_id}")
                     result_data = {"success": True, "message": "Graph indexing disabled"}
                 else:
-                    from aperag.graph.lightrag_manager import process_document_for_celery
+                    # graphindex v2 sync entry point — replaces the v1
+                    # ``process_document_for_celery`` path. See
+                    # ``docs/zh-CN/design/graphindex_rewrite.md``.
+                    from aperag.graphindex.integration import run_index_document_sync
 
-                    result = process_document_for_celery(
+                    res = run_index_document_sync(
                         collection=collection,
-                        content=parsed_data.content,
                         doc_id=document_id,
+                        content=parsed_data.content,
                         file_path=parsed_data.file_path,
                     )
-                    if result.get("status") != "success":
-                        error_msg = result.get("message", "Unknown error")
-                        raise Exception(f"Graph indexing failed: {error_msg}")
-                    result_data = result
+                    result_data = {
+                        "status": "success",
+                        "doc_id": res.doc_id,
+                        "chunks_created": res.chunks_created,
+                        "entities_extracted": res.entities_extracted,
+                        "relations_extracted": res.relations_extracted,
+                    }
 
             elif index_type == DocumentIndexType.SUMMARY.value:
                 from aperag.index.summary_index import summary_indexer

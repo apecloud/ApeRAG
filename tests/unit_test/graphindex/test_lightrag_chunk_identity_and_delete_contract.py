@@ -42,9 +42,7 @@ class _FakeChunkStorage:
 
     async def get_by_doc_id(self, doc_id):
         return {
-            record_id: dict(value)
-            for record_id, value in self.records.items()
-            if value.get("full_doc_id") == doc_id
+            record_id: dict(value) for record_id, value in self.records.items() if value.get("full_doc_id") == doc_id
         }
 
 
@@ -287,13 +285,9 @@ async def test_adelete_by_doc_id_updates_shared_refs_and_deletes_exclusive_refs(
         compute_mdhash_id("node-ynode-x", prefix="rel-", workspace=rag.workspace),
     }
 
-    assert rag.chunk_entity_relation_graph.upserted_nodes == [
-        ("SharedNode", {"source_id": "chunk-b"})
-    ]
+    assert rag.chunk_entity_relation_graph.upserted_nodes == [("SharedNode", {"source_id": "chunk-b"})]
     assert rag.chunk_entity_relation_graph.removed_nodes == [["ExclusiveNode"]]
-    assert rag.chunk_entity_relation_graph.upserted_edges == [
-        (("node-a", "node-b"), {"source_id": "chunk-b"})
-    ]
+    assert rag.chunk_entity_relation_graph.upserted_edges == [(("node-a", "node-b"), {"source_id": "chunk-b"})]
     assert rag.chunk_entity_relation_graph.removed_edges == [[("node-x", "node-y")]]
 
     assert rag.chunks_vdb.deleted_ids == [["chunk-a"]]

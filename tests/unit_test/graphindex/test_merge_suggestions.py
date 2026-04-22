@@ -17,7 +17,6 @@ from aperag.graph.lightrag.prompt import (
     DEFAULT_RECORD_DELIMITER,
     DEFAULT_TUPLE_DELIMITER,
     GRAPH_FIELD_SEP,
-    PROMPTS,
 )
 from aperag.graph.lightrag.types import GraphNodeData, MergeSuggestion
 
