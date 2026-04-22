@@ -42,3 +42,7 @@ for file in "${FULL_DIR}"/*.hurl; do
     --secret openrouter_api_key="${E2E_OPENROUTER_API_KEY}" \
     "${file}"
 done
+
+echo "Running scripted business-flow checks"
+"${ROOT_DIR}/tests/e2e_http/scripts/run_chat_collection_flow.sh"
+"${ROOT_DIR}/tests/e2e_http/scripts/run_graph_index_flow.sh"

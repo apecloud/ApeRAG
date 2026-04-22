@@ -36,6 +36,8 @@ Current v1 scope:
   - assert the stable unsupported `/v1/chat/completions` error contract
   - cover a provider-aware business flow: collection + document + bot-bound chat turn
   - cover graph labels + graph overview + parameter validation endpoints
+  - cover a scripted chat business flow that waits for vector/fulltext indexing, then asserts a non-empty answer artifact and a non-empty reference bundle
+  - cover a scripted graph business flow that waits for knowledge-graph indexing to become `ACTIVE`, then asserts non-empty labels, nodes, and edges
 
 Non-goals for v1:
 - Replacing every existing pytest-based E2E immediately
@@ -46,6 +48,9 @@ Important behavior notes from the current implementation:
 - Smoke tests create and clean up their own business resources.
 - `document` smoke intentionally validates upload and basic lifecycle only; it does not require provider-backed indexing to complete.
 - `document` full validates stable document/search HTTP contracts without hard-coding async index completion or search relevance guarantees.
+- `run_full.sh` now includes two supplemental scripted flows after the Hurl contracts:
+  - `run_chat_collection_flow.sh` proves provider-backed indexing completes and bot chat returns both an answer artifact and references.
+  - `run_graph_index_flow.sh` proves knowledge-graph indexing completes and graph APIs return real graph content.
 - API key smoke explicitly logs out before bearer-only checks so cookie auth does not mask key behavior.
 - Full Hurl tests are intentionally separated from smoke so provider/API-key failures do not dilute the minimal deployment contract.
 

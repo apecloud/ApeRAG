@@ -1,0 +1,5 @@
+ApeCloud builds ApeRAG for enterprise knowledge retrieval.
+ApeRAG uses Hurl to validate HTTP workflows in continuous integration.
+Zhang San leads the ApeRAG testing effort at ApeCloud.
+ApeRAG connects PostgreSQL for metadata storage and Qdrant for vector search.
+The testing team uses knowledge graphs to map relationships between ApeCloud, ApeRAG, Hurl, PostgreSQL, and Qdrant.
