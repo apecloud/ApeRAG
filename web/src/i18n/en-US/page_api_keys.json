@@ -8,18 +8,19 @@
   "creation_time": "Creation time",
   "last_used_time": "Last used time",
   "api_keys": "API Keys",
-  "masked_badge": "Masked",
-  "masked_notice": "Existing API keys are only shown in masked form. Create a new key if you need to copy it again.",
   "api_key_placeholder": "Please describe the purpose of an Api Key.",
   "api_key_description": "API keys must be kept confidential (e.g., stored in environment variables) to avoid exploitation or unexpected charges.",
   "add_api_keys": "Create Api Key",
-  "created_api_key_title": "Save your new API key now",
-  "created_api_key_description": "This API key will only be shown once. Store it somewhere secure before closing this dialog.",
-  "created_api_key_label": "API key",
-  "created_api_key_hint": "For security reasons, you won't be able to view this full key again after closing this dialog.",
-  "copy_created_api_key": "Copy API key",
-  "saved_api_key": "I've saved this key",
   "edit_api_keys": "Edit",
   "delete_api_key": "Delete Api Key",
-  "delete_api_key_confirm": "Confirm deletion of the API key?"
+  "delete_api_key_confirm": "Confirm deletion of the API key?",
+  "created_api_key_title": "API key created",
+  "created_api_key_description": "This is the only time the full API key will be shown. Copy and store it securely before closing this dialog.",
+  "created_api_key_label": "Generated API key",
+  "created_api_key_hint": "Anyone with this key can access ApeRAG APIs using the permissions of your account.",
+  "copy_created_api_key": "Copy API key",
+  "saved_api_key": "I have stored this key"
+  ,
+  "masked_badge": "Masked",
+  "masked_notice": "Only a masked preview of each API key is shown in the table. The full key can only be copied once when it is created."
 }
