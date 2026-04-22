@@ -18,4 +18,10 @@ Current files:
 - `17_chat_collection_flow.hurl`
   provider-aware business flow: collection create, document upload/confirm, bot bind collection, chat create, turn create/snapshot
 
+Supplemental scripted flows executed by `tests/e2e_http/scripts/run_full.sh`:
+- `run_chat_collection_flow.sh`
+  waits for vector/fulltext indexing, then proves chat returns a non-empty answer artifact and a non-empty reference bundle
+- `run_graph_index_flow.sh`
+  waits for graph indexing to become `ACTIVE`, then proves graph labels / nodes / edges are non-empty
+
 WebSocket and streaming-specific coverage should remain in a thin supplemental layer rather than being forced into Hurl.
