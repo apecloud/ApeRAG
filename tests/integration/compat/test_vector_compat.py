@@ -174,13 +174,13 @@ def test_delete_by_filter(connector):
     from aperag.vectorstore.filters import And, Eq
 
     points = [
-        _point("ge_del1", 0.3, indexer="graph_entity", collection_id="col1"),
-        _point("ge_del2", 0.3, indexer="graph_entity", collection_id="col2"),
-        _point("p_keep", 0.3, indexer="vector", collection_id="col1"),
+        _point("ge_del1", 0.3, indexer="graph_entity", shadow_scope="col1"),
+        _point("ge_del2", 0.3, indexer="graph_entity", shadow_scope="col2"),
+        _point("p_keep", 0.3, indexer="vector", shadow_scope="col1"),
     ]
     conn.upsert(points)
 
-    conn.delete_by_filter(And(parts=(Eq("indexer", "graph_entity"), Eq("collection_id", "col1"))))
+    conn.delete_by_filter(And(parts=(Eq("indexer", "graph_entity"), Eq("shadow_scope", "col1"))))
 
     hits = conn.search(
         QueryRequest(

@@ -226,9 +226,13 @@ class Neo4jGraphStore:
                     description = (description + DESCRIPTION_SEPARATOR + frag) if description else frag
                 chunk_ids.update(r["chunks"] or [])
 
-            # Redirect edges from sources to target
+            # Redirect edges from sources to target. Multiple sources can
+            # collide onto the same (target, other) key, so collapse those
+            # in Python first, then hand the rebuilt edges to the normal
+            # relation upsert path.
             edges_redirected = 0
             edges_collapsed = 0
+            rebuilt_map: dict[tuple[str, str], Relation] = {}
             for direction in ["outgoing", "incoming"]:
                 if direction == "outgoing":
                     match_q = (
@@ -252,7 +256,39 @@ class Neo4jGraphStore:
                     if new_src == new_tgt:
                         edges_collapsed += 1
                         continue
-                    edges_redirected += 1
+                    key = (new_src, new_tgt)
+                    incoming = Relation(
+                        collection_id=collection_id,
+                        source_id=new_src,
+                        target_id=new_tgt,
+                        description=e["desc"] or "",
+                        weight=float(e["w"] or 0),
+                        source_chunk_ids=tuple(e["chunks"] or ()),
+                    )
+                    if key in rebuilt_map:
+                        existing = rebuilt_map[key]
+                        desc_a = (existing.description or "").strip()
+                        desc_b = (incoming.description or "").strip()
+                        if not desc_a:
+                            merged_desc = desc_b
+                        elif not desc_b or desc_b in desc_a:
+                            merged_desc = existing.description
+                        else:
+                            merged_desc = existing.description + DESCRIPTION_SEPARATOR + incoming.description
+                        rebuilt_map[key] = Relation(
+                            collection_id=collection_id,
+                            source_id=new_src,
+                            target_id=new_tgt,
+                            description=merged_desc,
+                            weight=max(existing.weight, incoming.weight),
+                            source_chunk_ids=tuple(
+                                dict.fromkeys((*existing.source_chunk_ids, *incoming.source_chunk_ids))
+                            ),
+                        )
+                        edges_collapsed += 1
+                    else:
+                        rebuilt_map[key] = incoming
+                        edges_redirected += 1
 
             # Delete source edges
             await session.run(
@@ -284,6 +320,10 @@ class Neo4jGraphStore:
                 desc=description,
                 chunks=sorted(chunk_ids),
             )
+
+        rebuilt = list(rebuilt_map.values())
+        if rebuilt:
+            await self.upsert_relations(collection_id, rebuilt)
 
         return MergeEntitiesResult(
             target_entity_id=target_entity_id,
