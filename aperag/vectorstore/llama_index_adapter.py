@@ -28,6 +28,8 @@ from llama_index.core.schema import BaseNode
 
 from aperag.vectorstore.dto import VectorPoint
 
+_FILTERABLE_METADATA_KEYS = ("indexer", "chat_id", "collection_id")
+
 
 def node_to_vector_point(node: BaseNode, *, tenant_id: str | None = None) -> VectorPoint:
     """Convert a LlamaIndex node into the backend-neutral ``VectorPoint``.
@@ -37,8 +39,16 @@ def node_to_vector_point(node: BaseNode, *, tenant_id: str | None = None) -> Vec
     * ``vector`` = ``node.embedding`` — must already be computed;
       upserting a node without an embedding is a caller bug.
     * ``payload`` carries the *flat* ``{text, metadata}`` shape that new
-      data uses. We deliberately do NOT serialize the entire node into a
-      ``_node_content`` string: that convention belonged to LlamaIndex's
+      data uses, AND mirrors query-time filterable keys
+      (``indexer``/``chat_id``/``collection_id``) at the top level so the
+      filter DSL — which still addresses flat payload keys — continues to
+      hit new writes. Without this mirror, ``Eq("indexer", ...)`` and
+      ``Eq("chat_id", ...)`` would silently miss every point written
+      through this adapter (the keys would live only under
+      ``metadata.*``). We deliberately do NOT flatten the rest of
+      ``metadata``: only keys the filter contract already knows about are
+      lifted. We also do NOT serialize the entire node into a
+      ``_node_content`` string — that convention belonged to LlamaIndex's
       QdrantVectorStore and locks readers into LlamaIndex forever. The
       reader side (``dto.flatten_node_payload``) still understands
       ``_node_content`` for backward-read of pre-migration data.
@@ -59,10 +69,16 @@ def node_to_vector_point(node: BaseNode, *, tenant_id: str | None = None) -> Vec
     except Exception:
         text = getattr(node, "text", "") or ""
 
+    payload: dict = {"text": text, "metadata": metadata}
+    for key in _FILTERABLE_METADATA_KEYS:
+        value = metadata.get(key)
+        if value is not None:
+            payload[key] = value
+
     return VectorPoint(
         id=str(node.node_id),
         vector=list(node.embedding),
-        payload={"text": text, "metadata": metadata},
+        payload=payload,
     )
 
 
