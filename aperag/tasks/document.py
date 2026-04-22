@@ -91,16 +91,20 @@ class DocumentIndexTask:
             elif index_type == DocumentIndexType.FULLTEXT.value:
                 from aperag.index.fulltext_index import fulltext_indexer
 
-                result = fulltext_indexer.create_index(
-                    document_id=document_id,
-                    content=parsed_data.content,
-                    doc_parts=parsed_data.doc_parts,
-                    collection=collection,
-                    file_path=parsed_data.file_path,
-                )
-                if not result.success:
-                    raise Exception(result.error)
-                result_data = result.data or {"success": True}
+                if not fulltext_indexer.is_enabled(collection):
+                    logger.info(f"Fulltext indexing disabled for document {document_id}")
+                    result_data = {"success": True, "message": "Fulltext indexing disabled"}
+                else:
+                    result = fulltext_indexer.create_index(
+                        document_id=document_id,
+                        content=parsed_data.content,
+                        doc_parts=parsed_data.doc_parts,
+                        collection=collection,
+                        file_path=parsed_data.file_path,
+                    )
+                    if not result.success:
+                        raise Exception(result.error)
+                    result_data = result.data or {"success": True}
 
             elif index_type == DocumentIndexType.GRAPH.value:
                 from aperag.index.graph_index import graph_indexer
@@ -281,16 +285,20 @@ class DocumentIndexTask:
             elif index_type == DocumentIndexType.FULLTEXT.value:
                 from aperag.index.fulltext_index import fulltext_indexer
 
-                result = fulltext_indexer.update_index(
-                    document_id=document_id,
-                    content=parsed_data.content,
-                    doc_parts=parsed_data.doc_parts,
-                    collection=collection,
-                    file_path=parsed_data.file_path,
-                )
-                if not result.success:
-                    raise Exception(result.error)
-                result_data = result.data or {"success": True}
+                if not fulltext_indexer.is_enabled(collection):
+                    logger.info(f"Fulltext indexing disabled for document {document_id}")
+                    result_data = {"success": True, "message": "Fulltext indexing disabled"}
+                else:
+                    result = fulltext_indexer.update_index(
+                        document_id=document_id,
+                        content=parsed_data.content,
+                        doc_parts=parsed_data.doc_parts,
+                        collection=collection,
+                        file_path=parsed_data.file_path,
+                    )
+                    if not result.success:
+                        raise Exception(result.error)
+                    result_data = result.data or {"success": True}
 
             elif index_type == DocumentIndexType.GRAPH.value:
                 from aperag.index.graph_index import graph_indexer

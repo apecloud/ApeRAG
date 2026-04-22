@@ -184,6 +184,9 @@ services:
       - "discovery.type=single-node"
       - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
       - "xpack.security.enabled=false"
+      - "ES_REQUIRE_IK_PLUGIN=true"
+      - "ES_AUTO_INSTALL_IK=true"
+      - "ES_IK_PLUGIN_URL=https://get.infini.cloud/elasticsearch/analysis-ik/8.8.2"
     volumes:
       - aperag-es-data:/usr/share/elasticsearch/data
       - ./scripts/init-es.sh:/usr/share/elasticsearch/bin/init-es.sh
