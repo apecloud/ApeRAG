@@ -24,7 +24,6 @@ from aperag.config import get_vector_db_connector
 from aperag.db import models as db_models
 from aperag.db.models import CollectionStatus
 from aperag.db.ops import db_ops
-from aperag.graph import lightrag_manager
 from aperag.index.fulltext_index import create_index, delete_collection_documents, delete_index
 from aperag.llm.embed.base_embedding import get_collection_embedding_service_sync
 from aperag.objectstore.base import get_object_store
