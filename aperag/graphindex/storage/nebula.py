@@ -68,7 +68,7 @@ _SCHEMA_VISIBILITY_DELAY_SECONDS = 1.0
 
 def _escape(s: str) -> str:
     """Escape a string for nGQL string literals."""
-    return s.replace("\\", "\\\\").replace('"', '\\"').replace("'", "\\'")
+    return json.dumps(s, ensure_ascii=False)[1:-1]
 
 
 def _encode_chunk_ids(ids: Sequence[str]) -> str:
@@ -216,6 +216,18 @@ class NebulaGraphStore:
             raise last_error
         raise RuntimeError("Nebula schema retry loop exited without a result")
 
+    def _space_exists(self, space: str) -> bool:
+        try:
+            result = self._execute("", "SHOW SPACES")
+        except Exception:
+            return False
+
+        for i in range(result.row_size()):
+            row = result.row_values(i)
+            if row and row[0].is_string() and row[0].as_string() == space:
+                return True
+        return False
+
     def _space(self, collection_id: str) -> str:
         return _space_name(self._space_prefix, collection_id)
 
@@ -237,22 +249,30 @@ class NebulaGraphStore:
             f"chunk_id string, doc_id string, order_in_doc int, "
             f"text string, file_path string)",
             f"CREATE EDGE IF NOT EXISTS `{_EDGE_TYPE}`(description string, weight double, source_chunk_ids string)",
+            f"CREATE TAG INDEX IF NOT EXISTS `idx_{_ENTITY_TAG}_name` ON `{_ENTITY_TAG}`(name(128))",
+            f"CREATE TAG INDEX IF NOT EXISTS `idx_{_ENTITY_TAG}_type` ON `{_ENTITY_TAG}`(type(64))",
+            f"CREATE TAG INDEX IF NOT EXISTS `idx_{_CHUNK_TAG}_doc_id` ON `{_CHUNK_TAG}`(doc_id(128))",
+            f"CREATE EDGE INDEX IF NOT EXISTS `idx_{_EDGE_TYPE}_weight` ON `{_EDGE_TYPE}`(weight)",
         ]
         last_error: RuntimeError | None = None
 
         # Freshly created spaces can take a short moment before `USE <space>`
         # becomes valid on the next session. Retry the schema setup only for
         # that visibility window; surface all other nGQL errors immediately.
-        for _ in range(10):
+        for _ in range(_SCHEMA_VISIBILITY_RETRIES):
             try:
+                if not self._space_exists(space):
+                    time.sleep(_SCHEMA_VISIBILITY_DELAY_SECONDS)
+                    continue
                 self._execute_multi(space, stmts)
-                time.sleep(1)
+                time.sleep(_SCHEMA_VISIBILITY_DELAY_SECONDS)
                 return space
             except RuntimeError as exc:
-                if "SpaceNotFound" not in str(exc):
+                error_message = str(exc)
+                if "SpaceNotFound" not in error_message and _SCHEMA_VISIBILITY_ERROR not in error_message:
                     raise
                 last_error = exc
-                time.sleep(1)
+                time.sleep(_SCHEMA_VISIBILITY_DELAY_SECONDS)
 
         if last_error is not None:
             raise last_error
@@ -261,6 +281,14 @@ class NebulaGraphStore:
     async def drop_collection(self, collection_id: str) -> None:
         space = self._space(collection_id)
         await asyncio.to_thread(self._execute, "", f"DROP SPACE IF EXISTS `{space}`")
+
+        def _wait_until_dropped() -> None:
+            for _ in range(_SCHEMA_VISIBILITY_RETRIES):
+                if not self._space_exists(space):
+                    return
+                time.sleep(_SCHEMA_VISIBILITY_DELAY_SECONDS)
+
+        await asyncio.to_thread(_wait_until_dropped)
         logger.info("nebula graphstore: dropped space %s", space)
 
     # ============================================================ write
@@ -568,9 +596,9 @@ class NebulaGraphStore:
                     f"YIELD properties(vertex).entity_id AS eid, "
                     f"properties(vertex).name AS name, "
                     f"properties(vertex).type AS type, "
-                    f"properties(vertex).description AS desc, "
+                    f"properties(vertex).description AS description_text, "
                     f"properties(vertex).source_chunk_ids AS chunks "
-                    f"| ORDER BY $-.desc DESC | LIMIT {limit}",
+                    f"| ORDER BY $-.description_text DESC | LIMIT {limit}",
                 )
             except Exception:
                 return []
@@ -604,7 +632,7 @@ class NebulaGraphStore:
                     space,
                     f"LOOKUP ON `{_EDGE_TYPE}` "
                     f"YIELD src(edge) AS src, dst(edge) AS dst, "
-                    f"properties(edge).description AS desc, "
+                    f"properties(edge).description AS description_text, "
                     f"properties(edge).weight AS w, "
                     f"properties(edge).source_chunk_ids AS chunks "
                     f"| LIMIT {limit}",
@@ -820,7 +848,7 @@ class NebulaGraphStore:
                     f"YIELD properties(vertex).entity_id AS eid, "
                     f"properties(vertex).name AS name, "
                     f"properties(vertex).type AS type, "
-                    f"properties(vertex).description AS desc, "
+                    f"properties(vertex).description AS description_text, "
                     f"properties(vertex).source_chunk_ids AS chunks",
                 )
                 out = []
@@ -857,7 +885,7 @@ class NebulaGraphStore:
                         f"YIELD properties(vertex).entity_id AS eid, "
                         f"properties(vertex).name AS name, "
                         f"properties(vertex).type AS type, "
-                        f"properties(vertex).description AS desc, "
+                        f"properties(vertex).description AS description_text, "
                         f"properties(vertex).source_chunk_ids AS chunks",
                     )
                     for i in range(result.row_size()):
@@ -899,9 +927,9 @@ class NebulaGraphStore:
                     f"YIELD $$.`{_ENTITY_TAG}`.entity_id AS eid, "
                     f"$$.`{_ENTITY_TAG}`.name AS name, "
                     f"$$.`{_ENTITY_TAG}`.type AS type, "
-                    f"$$.`{_ENTITY_TAG}`.description AS desc, "
+                    f"$$.`{_ENTITY_TAG}`.description AS entity_description, "
                     f"$$.`{_ENTITY_TAG}`.source_chunk_ids AS chunks, "
-                    f"`{_EDGE_TYPE}`.description AS r_desc, "
+                    f"`{_EDGE_TYPE}`.description AS relation_description, "
                     f"`{_EDGE_TYPE}`.weight AS r_w, "
                     f"`{_EDGE_TYPE}`.source_chunk_ids AS r_chunks, "
                     f"`{_EDGE_TYPE}`._src AS r_src, "
@@ -925,7 +953,7 @@ class NebulaGraphStore:
                         f"YIELD properties(vertex).entity_id AS eid, "
                         f"properties(vertex).name AS name, "
                         f"properties(vertex).type AS type, "
-                        f"properties(vertex).description AS desc, "
+                        f"properties(vertex).description AS description_text, "
                         f"properties(vertex).source_chunk_ids AS chunks",
                     )
                     if r.row_size() > 0:

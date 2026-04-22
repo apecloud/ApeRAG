@@ -11,7 +11,7 @@ from __future__ import annotations
 import pytest
 
 from aperag.graphindex.dto import Chunk
-from aperag.graphindex.storage.nebula import NebulaGraphStore
+from aperag.graphindex.storage.nebula import NebulaGraphStore, _escape
 
 
 def test_ensure_space_retries_visibility_window_and_uses_create_edge(monkeypatch):
@@ -26,8 +26,28 @@ def test_ensure_space_retries_visibility_window_and_uses_create_edge(monkeypatch
         ]
     )
 
+    class _Value:
+        def __init__(self, value: str):
+            self._value = value
+
+        def is_string(self) -> bool:
+            return True
+
+        def as_string(self) -> str:
+            return self._value
+
+    class _ShowSpacesResult:
+        def row_size(self) -> int:
+            return 1
+
+        def row_values(self, index: int):
+            assert index == 0
+            return [_Value("compat_test_compat_test_demo")]
+
     def fake_execute(space: str, stmt: str):
         execute_calls.append((space, stmt))
+        if stmt == "SHOW SPACES":
+            return _ShowSpacesResult()
         return None
 
     def fake_execute_multi(space: str, stmts: list[str]):
@@ -44,18 +64,22 @@ def test_ensure_space_retries_visibility_window_and_uses_create_edge(monkeypatch
     space = store._ensure_space("compat_test_demo")
 
     assert space == "compat_test_compat_test_demo"
-    assert execute_calls == [
-        (
-            "",
-            "CREATE SPACE IF NOT EXISTS `compat_test_compat_test_demo` "
-            "(vid_type=FIXED_STRING(128), partition_num=1, replica_factor=1)",
-        )
-    ]
+    assert (
+        "",
+        "CREATE SPACE IF NOT EXISTS `compat_test_compat_test_demo` "
+        "(vid_type=FIXED_STRING(128), partition_num=1, replica_factor=1)",
+    ) in execute_calls
+    assert ("", "SHOW SPACES") in execute_calls
     assert len(execute_multi_calls) == 2
 
     schema_stmts = execute_multi_calls[-1][1]
     assert any("CREATE EDGE IF NOT EXISTS `relates_to`" in stmt for stmt in schema_stmts)
     assert all("CREATE EDGE TYPE" not in stmt for stmt in schema_stmts)
+    assert any("CREATE TAG INDEX IF NOT EXISTS `idx_entity_name`" in stmt for stmt in schema_stmts)
+
+
+def test_escape_encodes_control_characters_for_ngql_strings():
+    assert _escape('target entity\n\nsource "one"\\two') == 'target entity\\n\\nsource \\"one\\"\\\\two'
 
 
 @pytest.mark.asyncio
