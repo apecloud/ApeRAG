@@ -43,6 +43,7 @@ import json
 import logging
 import re
 import threading
+import time
 from typing import Any, Optional, Sequence
 
 from aperag.graphindex.dto import (
@@ -202,10 +203,6 @@ class NebulaGraphStore:
             "",
             f"CREATE SPACE IF NOT EXISTS `{space}` (vid_type=FIXED_STRING(128), partition_num=1, replica_factor=1)",
         )
-        import time
-
-        time.sleep(1)
-
         stmts = [
             f"CREATE TAG IF NOT EXISTS `{_ENTITY_TAG}`("
             f"entity_id string, name string, type string, "
@@ -213,13 +210,27 @@ class NebulaGraphStore:
             f"CREATE TAG IF NOT EXISTS `{_CHUNK_TAG}`("
             f"chunk_id string, doc_id string, order_in_doc int, "
             f"text string, file_path string)",
-            f"CREATE EDGE TYPE IF NOT EXISTS `{_EDGE_TYPE}`("
+            f"CREATE EDGE IF NOT EXISTS `{_EDGE_TYPE}`("
             f"description string, weight double, source_chunk_ids string)",
         ]
-        self._execute_multi(space, stmts)
-        import time
+        last_error: RuntimeError | None = None
 
-        time.sleep(1)
+        # Freshly created spaces can take a short moment before `USE <space>`
+        # becomes valid on the next session. Retry the schema setup only for
+        # that visibility window; surface all other nGQL errors immediately.
+        for _ in range(10):
+            try:
+                self._execute_multi(space, stmts)
+                time.sleep(1)
+                return space
+            except RuntimeError as exc:
+                if "SpaceNotFound" not in str(exc):
+                    raise
+                last_error = exc
+                time.sleep(1)
+
+        if last_error is not None:
+            raise last_error
         return space
 
     async def drop_collection(self, collection_id: str) -> None:
