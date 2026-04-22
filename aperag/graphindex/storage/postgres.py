@@ -681,6 +681,18 @@ class PostgresGraphStore:
             for r in rows
         ]
 
+    async def find_entities_by_ids(self, collection_id: str, entity_ids: Sequence[str]) -> list[Entity]:
+        if not entity_ids:
+            return []
+        sql = (
+            f"SELECT entity_id, name, type, description, source_chunk_ids "
+            f"FROM {NODES_TABLE} "
+            f"WHERE collection_id = :cid AND entity_id = ANY(CAST(:ids AS text[]))"
+        )
+        async with self._engine.connect() as conn:
+            rows = (await conn.execute(text(sql), {"cid": collection_id, "ids": list(entity_ids)})).all()
+        return [_row_to_entity(row, collection_id) for row in rows]
+
     async def find_entities_by_names(self, collection_id: str, names: Sequence[str]) -> list[Entity]:
         if not names:
             return []

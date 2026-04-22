@@ -67,6 +67,10 @@ class _StubStore:
             relations_removed=0,
         )
 
+    async def find_entities_by_ids(self, collection_id, entity_ids):
+        self.calls.append(("find_entities_by_ids", (collection_id, list(entity_ids)), {}))
+        return list(self.find_result)
+
     async def find_entities_by_names(self, collection_id, names):
         self.calls.append(("find_entities_by_names", (collection_id, list(names)), {}))
         return list(self.find_result)
@@ -88,6 +92,14 @@ class _StubStore:
     async def list_subgraph(self, collection_id, label, max_depth, max_nodes):
         self.calls.append(("list_subgraph", (collection_id, label, max_depth, max_nodes), {}))
         return self.subgraph_result
+
+    async def get_chunks_by_ids(self, collection_id, chunk_ids):
+        from aperag.graphindex.dto import Chunk
+
+        return [
+            Chunk(chunk_id=cid, doc_id="d", collection_id=collection_id, order_in_doc=0, text=f"text of {cid}")
+            for cid in chunk_ids
+        ]
 
     async def merge_entities(self, collection_id, *, target_entity_id, source_entity_ids):
         self.calls.append(("merge_entities", (collection_id, target_entity_id, list(source_entity_ids)), {}))

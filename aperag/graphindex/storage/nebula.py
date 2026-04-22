@@ -344,7 +344,79 @@ class NebulaGraphStore:
                 except Exception:
                     continue
 
-            # Delete source vertices (edges auto-deleted in Nebula)
+            if not merged:
+                return MergeEntitiesResult(
+                    target_entity_id=target_entity_id,
+                    merged_source_ids=(),
+                    description=desc,
+                    source_chunk_ids=tuple(sorted(chunks)),
+                    edges_redirected=0,
+                    edges_collapsed=0,
+                )
+
+            # Redirect edges: for each source, find its edges and
+            # re-create them pointing to/from the target.
+            edges_redirected = 0
+            edges_collapsed = 0
+            for sid in merged:
+                for direction in ("outgoing", "incoming"):
+                    try:
+                        if direction == "outgoing":
+                            r = self._execute(
+                                space,
+                                f'GO FROM "{_escape(sid)}" OVER `{_EDGE_TYPE}` '
+                                f"YIELD `{_EDGE_TYPE}`._dst AS dst, "
+                                f"`{_EDGE_TYPE}`.description AS d, "
+                                f"`{_EDGE_TYPE}`.weight AS w, "
+                                f"`{_EDGE_TYPE}`.source_chunk_ids AS c",
+                            )
+                            for i in range(r.row_size()):
+                                row = r.row_values(i)
+                                other = row[0].as_string() if row[0].is_string() else ""
+                                new_src, new_tgt = target_entity_id, other
+                                if new_src == new_tgt or other in source_ids:
+                                    edges_collapsed += 1
+                                    continue
+                                edge_desc = row[1].as_string() if row[1].is_string() else ""
+                                edge_w = row[2].as_double() if row[2].is_double() else 0.0
+                                edge_chunks = row[3].as_string() if row[3].is_string() else ""
+                                self._execute(
+                                    space,
+                                    f"INSERT EDGE `{_EDGE_TYPE}`(description, weight, source_chunk_ids) "
+                                    f'VALUES "{_escape(new_src)}"->"{_escape(new_tgt)}":('
+                                    f'"{_escape(edge_desc)}", {float(edge_w)}, "{_escape(edge_chunks)}")',
+                                )
+                                edges_redirected += 1
+                        else:
+                            r = self._execute(
+                                space,
+                                f'GO FROM "{_escape(sid)}" OVER `{_EDGE_TYPE}` REVERSELY '
+                                f"YIELD `{_EDGE_TYPE}`._src AS src, "
+                                f"`{_EDGE_TYPE}`.description AS d, "
+                                f"`{_EDGE_TYPE}`.weight AS w, "
+                                f"`{_EDGE_TYPE}`.source_chunk_ids AS c",
+                            )
+                            for i in range(r.row_size()):
+                                row = r.row_values(i)
+                                other = row[0].as_string() if row[0].is_string() else ""
+                                new_src, new_tgt = other, target_entity_id
+                                if new_src == new_tgt or other in source_ids:
+                                    edges_collapsed += 1
+                                    continue
+                                edge_desc = row[1].as_string() if row[1].is_string() else ""
+                                edge_w = row[2].as_double() if row[2].is_double() else 0.0
+                                edge_chunks = row[3].as_string() if row[3].is_string() else ""
+                                self._execute(
+                                    space,
+                                    f"INSERT EDGE `{_EDGE_TYPE}`(description, weight, source_chunk_ids) "
+                                    f'VALUES "{_escape(new_src)}"->"{_escape(new_tgt)}":('
+                                    f'"{_escape(edge_desc)}", {float(edge_w)}, "{_escape(edge_chunks)}")',
+                                )
+                                edges_redirected += 1
+                    except Exception:
+                        logger.exception("nebula merge: edge redirect failed for source %s", sid)
+
+            # Delete source vertices (and their original edges)
             for sid in merged:
                 self._execute(space, f'DELETE VERTEX "{_escape(sid)}" WITH EDGE')
 
@@ -361,8 +433,8 @@ class NebulaGraphStore:
                 merged_source_ids=tuple(merged),
                 description=desc,
                 source_chunk_ids=tuple(sorted(chunks)),
-                edges_redirected=0,
-                edges_collapsed=0,
+                edges_redirected=edges_redirected,
+                edges_collapsed=edges_collapsed,
             )
 
         return await asyncio.to_thread(_do)
@@ -409,7 +481,47 @@ class NebulaGraphStore:
     async def find_oversized_relations(
         self, collection_id: str, *, min_chars: int, min_fragments: int, limit: int = 200
     ) -> list[Relation]:
-        return []
+        def _do() -> list[Relation]:
+            space = self._space(collection_id)
+            try:
+                result = self._execute(
+                    space,
+                    f"LOOKUP ON `{_EDGE_TYPE}` "
+                    f"YIELD src(edge) AS src, dst(edge) AS dst, "
+                    f"properties(edge).description AS desc, "
+                    f"properties(edge).weight AS w, "
+                    f"properties(edge).source_chunk_ids AS chunks "
+                    f"| LIMIT {limit}",
+                )
+            except Exception:
+                return []
+            out = []
+            for i in range(result.row_size()):
+                row = result.row_values(i)
+                d = row[2].as_string() if row[2].is_string() else ""
+                frags = len(d.split(DESCRIPTION_SEPARATOR)) if d else 0
+                if len(d) >= min_chars or frags >= min_fragments:
+                    src_id = row[0].as_string() if row[0].is_string() else ""
+                    tgt_id = row[1].as_string() if row[1].is_string() else ""
+                    if src_id and tgt_id:
+                        try:
+                            out.append(
+                                Relation(
+                                    collection_id=collection_id,
+                                    source_id=src_id,
+                                    target_id=tgt_id,
+                                    description=d,
+                                    weight=float(row[3].as_double()) if row[3].is_double() else 0.0,
+                                    source_chunk_ids=_decode_chunk_ids(
+                                        row[4].as_string() if row[4].is_string() else ""
+                                    ),
+                                )
+                            )
+                        except (ValueError, KeyError):
+                            continue
+            return out
+
+        return await asyncio.to_thread(_do)
 
     async def rewrite_entity_description(self, collection_id: str, entity_id: str, description: str) -> None:
         def _do():
@@ -436,9 +548,19 @@ class NebulaGraphStore:
 
     # =========================================================== delete
     async def delete_document_rows(self, collection_id: str, doc_id: str) -> DeleteDocumentResult:
+        """Prune + orphan cleanup, matching the PG semantics:
+
+        1. Find chunk ids for the document.
+        2. Delete chunk vertices.
+        3. For every entity/relation, remove those chunk ids from
+           ``source_chunk_ids``.
+        4. Delete entities/relations whose ``source_chunk_ids`` became
+           empty (orphans).
+        """
+
         def _do() -> DeleteDocumentResult:
             space = self._space(collection_id)
-            # Find chunk vids
+            # 1. Find chunk ids
             try:
                 result = self._execute(
                     space,
@@ -448,25 +570,85 @@ class NebulaGraphStore:
             except Exception:
                 return DeleteDocumentResult(doc_id=doc_id, chunks_removed=0, entities_removed=0, relations_removed=0)
 
-            chunk_ids = []
-            chunk_vids = []
+            chunk_ids_set: set[str] = set()
+            chunk_vids: list[str] = []
             for i in range(result.row_size()):
                 row = result.row_values(i)
                 chunk_vids.append(row[0].as_string())
-                chunk_ids.append(row[1].as_string() if row[1].is_string() else "")
+                cid = row[1].as_string() if row[1].is_string() else ""
+                if cid:
+                    chunk_ids_set.add(cid)
 
-            if not chunk_ids:
+            if not chunk_ids_set:
                 return DeleteDocumentResult(doc_id=doc_id, chunks_removed=0, entities_removed=0, relations_removed=0)
 
-            # Delete chunk vertices
+            # 2. Delete chunk vertices
             for vid in chunk_vids:
                 self._execute(space, f'DELETE VERTEX "{_escape(vid)}"')
+
+            # 3. Prune chunk ids from entities; collect orphans
+            entities_removed = 0
+            try:
+                ent_result = self._execute(
+                    space,
+                    f"LOOKUP ON `{_ENTITY_TAG}` YIELD id(vertex) AS vid, properties(vertex).source_chunk_ids AS chunks",
+                )
+                for i in range(ent_result.row_size()):
+                    row = ent_result.row_values(i)
+                    vid = row[0].as_string()
+                    raw_chunks = row[1].as_string() if row[1].is_string() else ""
+                    current = set(_decode_chunk_ids(raw_chunks))
+                    pruned = current - chunk_ids_set
+                    if current != pruned:
+                        if not pruned:
+                            self._execute(space, f'DELETE VERTEX "{_escape(vid)}" WITH EDGE')
+                            entities_removed += 1
+                        else:
+                            self._execute(
+                                space,
+                                f'UPDATE VERTEX ON `{_ENTITY_TAG}` "{_escape(vid)}" '
+                                f'SET source_chunk_ids = "{_escape(_encode_chunk_ids(sorted(pruned)))}"',
+                            )
+            except Exception:
+                logger.exception("nebula delete_document_rows: entity prune failed")
+
+            # 4. Prune relations
+            relations_removed = 0
+            try:
+                rel_result = self._execute(
+                    space,
+                    f"LOOKUP ON `{_EDGE_TYPE}` "
+                    f"YIELD src(edge) AS src, dst(edge) AS dst, "
+                    f"properties(edge).source_chunk_ids AS chunks",
+                )
+                for i in range(rel_result.row_size()):
+                    row = rel_result.row_values(i)
+                    src = row[0].as_string() if row[0].is_string() else ""
+                    dst = row[1].as_string() if row[1].is_string() else ""
+                    raw_chunks = row[2].as_string() if row[2].is_string() else ""
+                    current = set(_decode_chunk_ids(raw_chunks))
+                    pruned = current - chunk_ids_set
+                    if current != pruned:
+                        if not pruned:
+                            self._execute(
+                                space,
+                                f'DELETE EDGE `{_EDGE_TYPE}` "{_escape(src)}"->"{_escape(dst)}"',
+                            )
+                            relations_removed += 1
+                        else:
+                            self._execute(
+                                space,
+                                f'UPDATE EDGE ON `{_EDGE_TYPE}` "{_escape(src)}"->"{_escape(dst)}" '
+                                f'SET source_chunk_ids = "{_escape(_encode_chunk_ids(sorted(pruned)))}"',
+                            )
+            except Exception:
+                logger.exception("nebula delete_document_rows: relation prune failed")
 
             return DeleteDocumentResult(
                 doc_id=doc_id,
                 chunks_removed=len(chunk_vids),
-                entities_removed=0,
-                relations_removed=0,
+                entities_removed=entities_removed,
+                relations_removed=relations_removed,
             )
 
         return await asyncio.to_thread(_do)
@@ -505,6 +687,42 @@ class NebulaGraphStore:
                     )
                 )
             return out
+
+        return await asyncio.to_thread(_do)
+
+    async def find_entities_by_ids(self, collection_id: str, entity_ids: Sequence[str]) -> list[Entity]:
+        if not entity_ids:
+            return []
+
+        def _do() -> list[Entity]:
+            space = self._space(collection_id)
+            vids = ", ".join(f'"{_escape(eid)}"' for eid in entity_ids)
+            try:
+                result = self._execute(
+                    space,
+                    f"FETCH PROP ON `{_ENTITY_TAG}` {vids} "
+                    f"YIELD properties(vertex).entity_id AS eid, "
+                    f"properties(vertex).name AS name, "
+                    f"properties(vertex).type AS type, "
+                    f"properties(vertex).description AS desc, "
+                    f"properties(vertex).source_chunk_ids AS chunks",
+                )
+                out = []
+                for i in range(result.row_size()):
+                    row = result.row_values(i)
+                    out.append(
+                        Entity(
+                            entity_id=row[0].as_string() if row[0].is_string() else "",
+                            collection_id=collection_id,
+                            name=row[1].as_string() if row[1].is_string() else "",
+                            type=row[2].as_string() if row[2].is_string() else "",
+                            description=row[3].as_string() if row[3].is_string() else "",
+                            source_chunk_ids=_decode_chunk_ids(row[4].as_string() if row[4].is_string() else ""),
+                        )
+                    )
+                return out
+            except Exception:
+                return []
 
         return await asyncio.to_thread(_do)
 

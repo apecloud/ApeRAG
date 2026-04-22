@@ -169,6 +169,12 @@ class GraphStore(Protocol):
         missing ids are silently skipped.
         """
 
+    async def find_entities_by_ids(self, collection_id: str, entity_ids: Sequence[str]) -> list[Entity]:
+        """Fetch entities by their ``entity_id``. Used by the vector
+        recall path after gathering candidate ids from both entity and
+        relation shadow vectors.
+        """
+
     async def find_entities_by_names(self, collection_id: str, names: Sequence[str]) -> list[Entity]:
         """Exact-match entity lookup by name. The query path uses it
         after the embedding-based recall narrows the candidate set."""

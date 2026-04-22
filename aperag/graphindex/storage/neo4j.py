@@ -480,6 +480,17 @@ class Neo4jGraphStore:
                 async for rec in result
             ]
 
+    async def find_entities_by_ids(self, collection_id: str, entity_ids: Sequence[str]) -> list[Entity]:
+        if not entity_ids:
+            return []
+        async with self._driver.session() as session:
+            result = await session.run(
+                f"MATCH (n:{_ENTITY_LABEL} {{collection_id: $cid}}) WHERE n.entity_id IN $ids RETURN n",
+                cid=collection_id,
+                ids=list(entity_ids),
+            )
+            return [_node_to_entity(rec["n"], collection_id) async for rec in result]
+
     async def find_entities_by_names(self, collection_id: str, names: Sequence[str]) -> list[Entity]:
         if not names:
             return []
