@@ -105,7 +105,16 @@ class GraphCurationService(AsyncBaseRepository):
         if created:
             from config.celery_tasks import generate_graph_curation_run_task
 
-            generate_graph_curation_run_task.delay(run.id, collection_id)
+            try:
+                generate_graph_curation_run_task.delay(run.id, collection_id)
+            except Exception as exc:
+                logger.exception(
+                    "graph curation: failed to enqueue run %s for collection %s",
+                    run.id,
+                    collection_id,
+                )
+                await self._mark_run_failed(run.id, f"enqueue_failed: {exc}")
+                raise RuntimeError("Failed to schedule graph curation run") from exc
 
         return {
             "run": self._run_to_dict(run),

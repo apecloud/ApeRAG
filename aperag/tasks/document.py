@@ -56,7 +56,6 @@ class DocumentIndexTask:
 
     def _upsert_graph_index(self, document_id: str, collection, parsed_data: ParsedDocumentData) -> dict:
         """Index a document into the graphindex v2 graph store."""
-        from aperag.graph_curation.integration import run_expire_graph_curation_collection_sync
         from aperag.graphindex.integration import run_index_document_sync
 
         res = run_index_document_sync(
@@ -65,7 +64,7 @@ class DocumentIndexTask:
             content=parsed_data.content,
             file_path=parsed_data.file_path,
         )
-        run_expire_graph_curation_collection_sync(str(collection.id), "document_reindex")
+        self._expire_graph_curation_collection_best_effort(str(collection.id), "document_reindex")
         return {
             "status": "success",
             "doc_id": res.doc_id,
@@ -76,11 +75,24 @@ class DocumentIndexTask:
 
     def _delete_graph_index(self, document_id: str, collection) -> None:
         """Delete a document's graph rows from graphindex v2."""
-        from aperag.graph_curation.integration import run_expire_graph_curation_collection_sync
         from aperag.graphindex.integration import run_delete_document_sync
 
         run_delete_document_sync(collection=collection, doc_id=document_id)
-        run_expire_graph_curation_collection_sync(str(collection.id), "document_delete")
+        self._expire_graph_curation_collection_best_effort(str(collection.id), "document_delete")
+
+    def _expire_graph_curation_collection_best_effort(self, collection_id: str, reason: str) -> None:
+        """Expire stale graph-curation suggestions without blocking graph truth writes."""
+        from aperag.graph_curation.integration import run_expire_graph_curation_collection_sync
+
+        try:
+            run_expire_graph_curation_collection_sync(collection_id, reason)
+        except Exception:
+            logger.warning(
+                "Graph curation invalidation failed for collection %s (%s); graph truth write already succeeded",
+                collection_id,
+                reason,
+                exc_info=True,
+            )
 
     def create_index(self, document_id: str, index_type: str, parsed_data: ParsedDocumentData) -> IndexTaskResult:
         """

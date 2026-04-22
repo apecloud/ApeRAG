@@ -21,7 +21,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal, Optional, Union
 
-from pydantic import AnyUrl, BaseModel, ConfigDict, Field, RootModel, confloat, conint
+from pydantic import AnyUrl, BaseModel, ConfigDict, Field, RootModel, confloat, conint, field_validator
 
 
 class ModelSpec(BaseModel):
@@ -1124,6 +1124,13 @@ class SuggestionActionRequest(BaseModel):
         description="Action to take on the suggestion (case-insensitive, e.g., 'Accept', 'REJECT', 'accept')",
         examples=["accept"],
     )
+
+    @field_validator("action", mode="before")
+    @classmethod
+    def normalize_action(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip().lower()
+        return value
 
 
 class SuggestionActionMergeResult(BaseModel):
