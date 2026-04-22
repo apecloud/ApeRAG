@@ -179,15 +179,19 @@ class CollectionTask:
         if not enable_knowledge_graph:
             return deletion_stats
 
+        from aperag.graph_curation.integration import run_purge_graph_curation_collection_sync
         from aperag.graphindex.integration import run_drop_collection_sync
 
         try:
             run_drop_collection_sync(str(collection.id))
+            run_purge_graph_curation_collection_sync(str(collection.id))
             deletion_stats["graphindex_dropped"] = True
+            deletion_stats["graph_curation_purged"] = True
             logger.info(f"graphindex: dropped all rows for collection {collection.id}")
         except Exception as e:
             deletion_stats["graphindex_dropped"] = False
             deletion_stats["graphindex_error"] = str(e)
+            deletion_stats["graph_curation_purged"] = False
             logger.warning(f"graphindex: failed to drop collection {collection.id}: {e}")
 
         return deletion_stats

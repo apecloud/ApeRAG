@@ -265,12 +265,12 @@ nodeMergeResponse:
 
 mergeSuggestionEntity:
   type: object
-  description: Entity information in merge suggestion
+  description: Snapshot of an entity captured during graph-curation analysis
   properties:
     entity_id:
       type: string
       description: Entity ID
-      example: "墨香居"
+      example: "e_moxiangju"
     entity_name:
       type: string
       description: Entity name
@@ -283,208 +283,202 @@ mergeSuggestionEntity:
       type: string
       description: Entity description
       example: "这条老巷子里唯一的旧书店"
-    degree:
+    source_chunk_count:
       type: integer
-      description: Node degree (number of connections)
-      example: 8
-      nullable: true
+      description: Number of source chunks contributing to the entity
+      example: 3
+      minimum: 0
   required:
     - entity_id
     - entity_name
     - entity_type
     - description
+    - source_chunk_count
 
-mergeSuggestionTargetEntity:
+graphCurationRunSummary:
   type: object
-  description: Suggested target entity for merge
-  properties:
-    entity_name:
-      type: string
-      description: Suggested entity name after merge
-      example: "墨香居"
-    entity_type:
-      type: string
-      description: Suggested entity type after merge
-      example: "ORGANIZATION"
-  required:
-    - entity_name
-    - entity_type
-
-mergeSuggestion:
-  type: object
-  description: Node merge suggestion
-  properties:
-    entities:
-      type: array
-      items:
-        $ref: '#/mergeSuggestionEntity'
-      description: List of entities suggested for merging
-      minItems: 2
-    confidence_score:
-      type: number
-      format: float
-      minimum: 0.0
-      maximum: 1.0
-      description: LLM confidence score for this merge suggestion
-      example: 0.85
-    merge_reason:
-      type: string
-      description: LLM-generated reason for suggesting this merge
-      example: "两个实体都描述同一个书店，'墨香居'是具体名称，'旧书店'是通用描述，应该合并为同一实体"
-    suggested_target_entity:
-      $ref: '#/mergeSuggestionTargetEntity'
-  required:
-    - entities
-    - confidence_score
-    - merge_reason
-    - suggested_target_entity
-
-mergeSuggestionsRequest:
-  type: object
-  description: Request for generating node merge suggestions
-  properties:
-    max_suggestions:
-      type: integer
-      minimum: 1
-      maximum: 100
-      default: 50
-      description: Maximum number of merge suggestions to return
-      example: 50
-    max_concurrent_llm_calls:
-      type: integer
-      minimum: 1
-      maximum: 16
-      default: 4
-      description: Maximum number of concurrent LLM calls for batch analysis
-      example: 4
-    force_refresh:
-      type: boolean
-      default: false
-      description: Force regeneration of suggestions even if valid cached suggestions exist
-      example: false
-
-mergeSuggestionItem:
-  type: object
-  description: Individual merge suggestion item
+  description: Summary of an asynchronous graph-curation run
   properties:
     id:
       type: string
-      description: Suggestion ID
-      example: "msug123"
+      description: Run ID
+      example: "gcr_abcd1234efgh5678"
     collection_id:
       type: string
       description: Collection ID
       example: "col123"
-    suggestion_batch_id:
+    status:
       type: string
-      description: Suggestion batch ID
-      example: "batch456"
+      enum: ["PENDING", "RUNNING", "COMPLETED", "FAILED"]
+      description: Run lifecycle status
+      example: "COMPLETED"
+    stats:
+      type: object
+      description: Best-effort execution stats
+      additionalProperties: true
+    error_message:
+      type: string
+      description: Failure message if the run failed
+      example: "LLM adjudication timed out"
+      nullable: true
+    created:
+      type: string
+      format: date-time
+      description: Creation timestamp
+      example: "2026-04-23T00:00:00Z"
+      nullable: true
+    updated:
+      type: string
+      format: date-time
+      description: Last update timestamp
+      example: "2026-04-23T00:02:00Z"
+      nullable: true
+    started:
+      type: string
+      format: date-time
+      description: Run start timestamp
+      example: "2026-04-23T00:00:05Z"
+      nullable: true
+    finished:
+      type: string
+      format: date-time
+      description: Run finish timestamp
+      example: "2026-04-23T00:02:00Z"
+      nullable: true
+  required:
+    - id
+    - collection_id
+    - status
+    - stats
+
+mergeSuggestionsRequest:
+  type: object
+  description: Start a new graph-curation analysis run
+  additionalProperties: false
+  example: {}
+
+mergeSuggestionItem:
+  type: object
+  description: Persisted merge suggestion produced by graph curation
+  properties:
+    id:
+      type: string
+      description: Suggestion ID
+      example: "gcs_abcd1234efgh5678"
+    run_id:
+      type: string
+      description: Run that produced this suggestion
+      example: "gcr_abcd1234efgh5678"
+    collection_id:
+      type: string
+      description: Collection ID
+      example: "col123"
     entity_ids:
       type: array
       items:
         type: string
-      description: Entity IDs suggested for merging
-      example: ["墨香居", "书店", "旧书店"]
+      description: Entity IDs in the candidate merge set
+      example: ["e_moxiangju", "e_old_bookstore"]
+    entities:
+      type: array
+      items:
+        $ref: '#/mergeSuggestionEntity'
+      description: Entity snapshots captured when the suggestion was generated
     confidence_score:
       type: number
       format: float
       minimum: 0.0
       maximum: 1.0
-      description: LLM confidence score for this merge suggestion
-      example: 0.85
-    merge_reason:
+      description: Aggregated confidence score for this suggestion
+      example: 0.91
+    target_entity_id:
       type: string
-      description: LLM-generated reason for suggesting this merge
-      example: "两个实体都描述同一个书店，'墨香居'是具体名称，'旧书店'是通用描述，应该合并为同一实体"
-    suggested_target_entity:
-      $ref: '#/mergeSuggestionTargetEntity'
+      description: Recommended surviving entity ID if accepted
+      example: "e_moxiangju"
+    reason:
+      type: string
+      description: Human-readable explanation from pairwise LLM adjudication
+      example: "两个实体都在描述同一家旧书店，名称和上下文高度重合。"
+    evidence:
+      type: object
+      description: Structured supporting evidence used during candidate generation and adjudication
+      additionalProperties: true
+      nullable: true
     status:
       type: string
-      enum: ["PENDING", "ACCEPTED", "REJECTED", "EXPIRED"]
+      enum: ["PENDING", "ACCEPTED", "REJECTED", "EXPIRED", "SUPERSEDED"]
       description: Status of the suggestion
       example: "PENDING"
+    resolution_note:
+      type: string
+      description: System note describing why the suggestion left pending state
+      example: "superseded_by:gcs_other"
+      nullable: true
     created:
       type: string
       format: date-time
       description: Creation timestamp
-      example: "2025-01-07T10:00:00Z"
+      example: "2026-04-23T00:02:00Z"
+      nullable: true
+    updated:
+      type: string
+      format: date-time
+      description: Last update timestamp
+      example: "2026-04-23T00:05:00Z"
+      nullable: true
     operated_at:
       type: string
       format: date-time
       description: User operation timestamp
-      example: "2025-01-08T15:30:00Z"
+      example: "2026-04-23T00:05:00Z"
       nullable: true
   required:
     - id
+    - run_id
     - collection_id
-    - suggestion_batch_id
     - entity_ids
+    - entities
     - confidence_score
-    - merge_reason
-    - suggested_target_entity
+    - target_entity_id
+    - reason
     - status
     - created
+    - updated
+
+mergeSuggestionsRunResponse:
+  type: object
+  description: Response returned when starting a graph-curation analysis run
+  properties:
+    run:
+      $ref: '#/graphCurationRunSummary'
+    started:
+      type: boolean
+      description: Whether a new run was actually scheduled
+      example: true
+    message:
+      type: string
+      description: Human-readable status message
+      example: "Graph curation run started"
+  required:
+    - run
+    - started
+    - message
 
 mergeSuggestionsResponse:
   type: object
-  description: Response containing node merge suggestions
+  description: Latest persisted graph-curation run and its suggestions
   properties:
+    run:
+      $ref: '#/graphCurationRunSummary'
+      nullable: true
     suggestions:
       type: array
       items:
         $ref: '#/mergeSuggestionItem'
-      description: List of merge suggestions ordered by confidence score (highest first)
-    total_analyzed_nodes:
-      type: integer
-      description: Total number of nodes analyzed
-      example: 156
-      minimum: 0
-    processing_time_seconds:
-      type: number
-      format: float
-      description: Processing time in seconds
-      example: 12.5
-      minimum: 0.0
-    from_cache:
-      type: boolean
-      description: Whether suggestions were loaded from cache
-      example: false
-      default: false
-    generated_at:
-      type: string
-      format: date-time
-      description: Generation timestamp
-      example: "2025-01-07T10:00:00Z"
-    total_suggestions:
-      type: integer
-      description: Total number of suggestions
-      example: 5
-      minimum: 0
-    pending_count:
-      type: integer
-      description: Number of pending suggestions
-      example: 3
-      minimum: 0
-    accepted_count:
-      type: integer
-      description: Number of accepted suggestions
-      example: 1
-      minimum: 0
-    rejected_count:
-      type: integer
-      description: Number of rejected suggestions
-      example: 1
-      minimum: 0
+      description: Suggestions from the latest run, ordered by confidence score
   required:
+    - run
     - suggestions
-    - total_analyzed_nodes
-    - processing_time_seconds
-    - from_cache
-    - generated_at
-    - total_suggestions
-    - pending_count
-    - accepted_count
-    - rejected_count
 
 suggestionActionRequest:
   type: object
@@ -495,14 +489,52 @@ suggestionActionRequest:
       enum: ["accept", "reject"]
       description: Action to take on the suggestion (case-insensitive, e.g., 'Accept', 'REJECT', 'accept')
       example: "accept"
-    target_entity_data:
-      $ref: '#/targetEntityDataRequest'
-      description: Optional override for target entity data (only used when action is 'accept')
   required:
     - action
   additionalProperties: false
   example:
     action: "accept"
+
+suggestionActionMergeResult:
+  type: object
+  description: Merge result returned when a suggestion is accepted
+  properties:
+    target_entity_id:
+      type: string
+      description: Surviving entity ID after merge
+      example: "e_moxiangju"
+    merged_source_ids:
+      type: array
+      items:
+        type: string
+      description: Merged-away entity IDs
+      example: ["e_old_bookstore"]
+    description:
+      type: string
+      description: Merged description of the surviving entity
+    source_chunk_ids:
+      type: array
+      items:
+        type: string
+      description: Source chunk IDs preserved on the surviving entity
+      example: ["chunk_1", "chunk_8"]
+    edges_redirected:
+      type: integer
+      description: Number of redirected edges
+      example: 5
+      minimum: 0
+    edges_collapsed:
+      type: integer
+      description: Number of duplicate edges collapsed
+      example: 2
+      minimum: 0
+  required:
+    - target_entity_id
+    - merged_source_ids
+    - description
+    - source_chunk_ids
+    - edges_redirected
+    - edges_collapsed
 
 suggestionActionResponse:
   type: object
@@ -513,10 +545,6 @@ suggestionActionResponse:
       description: Status of the action operation
       example: "success"
       enum: ["success", "error"]
-    message:
-      type: string
-      description: Detailed message about the action operation
-      example: "Suggestion msug123 has been accepted and merge completed"
     suggestion_id:
       type: string
       description: The suggestion ID that was processed
@@ -526,12 +554,17 @@ suggestionActionResponse:
       enum: ["accept", "reject"]
       description: The action that was performed (normalized to lowercase)
       example: "accept"
+    suggestion_status:
+      type: string
+      enum: ["ACCEPTED", "REJECTED"]
+      description: Suggestion status after processing the action
+      example: "ACCEPTED"
     merge_result:
-      $ref: '#/nodeMergeResponse'
+      $ref: '#/suggestionActionMergeResult'
       description: Merge operation result (only present when action is 'accept')
       nullable: true
   required:
     - status
-    - message
     - suggestion_id
     - action
+    - suggestion_status

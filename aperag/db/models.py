@@ -1032,6 +1032,21 @@ class ExportTaskStatus(str, Enum):
     EXPIRED = "EXPIRED"
 
 
+class GraphCurationRunStatus(str, Enum):
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
+class GraphCurationSuggestionStatus(str, Enum):
+    PENDING = "PENDING"
+    ACCEPTED = "ACCEPTED"
+    REJECTED = "REJECTED"
+    EXPIRED = "EXPIRED"
+    SUPERSEDED = "SUPERSEDED"
+
+
 class ExportTask(Base):
     __tablename__ = "export_task"
     __table_args__ = (
@@ -1055,6 +1070,60 @@ class ExportTask(Base):
     gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_completed = Column(DateTime(timezone=True), nullable=True)
     gmt_expires = Column(DateTime(timezone=True), nullable=True)
+
+
+class GraphCurationRun(Base):
+    __tablename__ = "graph_curation_runs"
+    __table_args__ = (
+        Index("idx_graph_curation_runs_collection_status", "collection_id", "status"),
+        Index("idx_graph_curation_runs_user_created", "user_id", "gmt_created"),
+    )
+
+    id = Column(String(32), primary_key=True, default=lambda: "gcr_" + random_id()[:16])
+    user_id = Column(String(256), nullable=False)
+    collection_id = Column(String(24), nullable=False)
+    status = Column(
+        EnumColumn(GraphCurationRunStatus),
+        nullable=False,
+        default=GraphCurationRunStatus.PENDING,
+    )
+    config_json = Column(JSON, nullable=True)
+    stats = Column(JSON, nullable=True)
+    error_message = Column(Text, nullable=True)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+    gmt_started = Column(DateTime(timezone=True), nullable=True)
+    gmt_finished = Column(DateTime(timezone=True), nullable=True)
+
+
+class GraphCurationSuggestion(Base):
+    __tablename__ = "graph_curation_suggestions"
+    __table_args__ = (
+        Index("idx_graph_curation_suggestions_run", "run_id"),
+        Index("idx_graph_curation_suggestions_collection_status", "collection_id", "status"),
+        Index("idx_graph_curation_suggestions_collection_created", "collection_id", "gmt_created"),
+    )
+
+    id = Column(String(32), primary_key=True, default=lambda: "gcs_" + random_id()[:16])
+    run_id = Column(String(32), nullable=False)
+    user_id = Column(String(256), nullable=False)
+    collection_id = Column(String(24), nullable=False)
+    status = Column(
+        EnumColumn(GraphCurationSuggestionStatus),
+        nullable=False,
+        default=GraphCurationSuggestionStatus.PENDING,
+    )
+    entity_ids = Column(JSON, nullable=False)
+    entity_snapshots = Column(JSON, nullable=False)
+    target_entity_id = Column(String(255), nullable=False)
+    confidence_score = Column(Numeric(6, 3), nullable=False)
+    reason = Column(Text, nullable=False)
+    evidence = Column(JSON, nullable=True)
+    resolution_note = Column(Text, nullable=True)
+    operated_by = Column(String(256), nullable=True)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+    gmt_operated = Column(DateTime(timezone=True), nullable=True)
 
 
 class PromptTemplate(Base):

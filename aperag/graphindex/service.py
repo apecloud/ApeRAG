@@ -289,6 +289,79 @@ class GraphIndexService:
 
         return result
 
+    async def list_entities_for_curation(
+        self,
+        *,
+        collection_id: str,
+        limit: int,
+    ) -> List[Entity]:
+        """Return up to ``limit`` entities for offline curation analysis.
+
+        This stays a bounded read on graph truth rather than introducing a
+        second enumeration path just for curation. Passing ``0`` thresholds
+        intentionally disables the "oversized" predicate and lets the store
+        act as a simple collection-scoped entity listing primitive.
+        """
+        return await self._store.find_oversized_entities(
+            collection_id=collection_id,
+            min_chars=0,
+            min_fragments=0,
+            limit=limit,
+        )
+
+    async def find_entity_shadow_neighbors(
+        self,
+        *,
+        collection_id: str,
+        entity_ids: List[str],
+        top_k_per_entity: int,
+        score_threshold: float,
+    ) -> dict[str, list[tuple[str, float]]]:
+        """Return nearest ``graph_entity`` shadow-vector neighbors.
+
+        Used by the graph-curation workflow to enrich deterministic name
+        blocking with semantic recall while staying inside the existing
+        vectorstore abstraction. The search is restricted to the
+        caller-provided ``entity_ids`` set so offline curation stays
+        bounded to one analysis run.
+        """
+        del collection_id  # Tenant scoping is already enforced by the connector.
+        if self._vector_connector is None or not entity_ids or top_k_per_entity <= 0:
+            return {}
+
+        from aperag.vectorstore.dto import QueryRequest
+        from aperag.vectorstore.filters import Eq, _in, all_of
+
+        connector = self._vector_connector
+        points = connector.retrieve([f"ge_{entity_id}" for entity_id in entity_ids], with_vectors=True)
+        if not points:
+            return {}
+
+        allowed_ids = list(dict.fromkeys(entity_ids))
+        flt = all_of(Eq("indexer", "graph_entity"), _in("entity_id", allowed_ids))
+        neighbors: dict[str, list[tuple[str, float]]] = {}
+        for point in points:
+            source_id = (point.payload or {}).get("entity_id")
+            if not source_id or not point.vector:
+                continue
+            hits = connector.search(
+                QueryRequest(
+                    embedding=point.vector,
+                    top_k=top_k_per_entity + 1,
+                    flt=flt,
+                    score_threshold=score_threshold,
+                )
+            )
+            neighbor_list: list[tuple[str, float]] = []
+            for hit in hits:
+                target_id = (hit.payload or {}).get("entity_id")
+                if not target_id or target_id == source_id:
+                    continue
+                neighbor_list.append((target_id, float(hit.score)))
+            if neighbor_list:
+                neighbors[source_id] = neighbor_list
+        return neighbors
+
     # ============================================================= read
     async def query_context(
         self,

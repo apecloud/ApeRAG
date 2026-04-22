@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Graph-index HTTP routes.
+"""Graph HTTP routes.
 
-Merge endpoint is live against graphindex v2 + its LLM-based description
-summarization. Merge-suggestion discovery and the KG-eval export are not
-re-implemented in v2 and remain HTTP 410 until a dedicated curation
-module is introduced (see ``docs/zh-CN/design/graphindex_rewrite.md``).
+``graphindex`` owns graph truth and merge primitives.
+``graph_curation`` owns merge-suggestion discovery and review state.
+
+The only removed route left in this file is the historical KG-eval
+export endpoint.
 """
 
 from __future__ import annotations
@@ -28,6 +29,8 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Request
 
 from aperag.db.models import User
 from aperag.exceptions import CollectionNotFoundException
+from aperag.graph_curation import graph_curation_service
+from aperag.schema import view_models
 from aperag.service.graph_service import graph_service
 from aperag.views.auth import required_user
 
@@ -35,16 +38,15 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-_REMOVAL_DETAIL = (
-    "This graph-curation endpoint was removed together with the "
-    "LightRAG-based graph index in graphindex v2. See "
-    "docs/zh-CN/design/graphindex_rewrite.md."
+_KG_EVAL_REMOVAL_DETAIL = (
+    "This legacy KG-eval export endpoint was removed together with the "
+    "LightRAG-era graph workflow. See docs/zh-CN/design/graphindex_rewrite.md."
 )
 
 
 def _gone() -> HTTPException:
-    """Uniform 410 response for every removed curation route."""
-    return HTTPException(status_code=410, detail=_REMOVAL_DETAIL)
+    """Uniform 410 response for the removed KG-eval route."""
+    return HTTPException(status_code=410, detail=_KG_EVAL_REMOVAL_DETAIL)
 
 
 @router.post("/collections/{collection_id}/graphs/nodes/merge", tags=["graph"])
@@ -93,13 +95,59 @@ async def merge_nodes_view(
     "/collections/{collection_id}/graphs/merge-suggestions/{suggestion_id}/action",
     tags=["graph"],
 )
-async def handle_suggestion_action_view(request: Request, collection_id: str, suggestion_id: str) -> dict:
-    raise _gone()
+async def handle_suggestion_action_view(
+    request: Request,
+    collection_id: str,
+    suggestion_id: str,
+    payload: view_models.SuggestionActionRequest = Body(...),
+    user: User = Depends(required_user),
+) -> dict:
+    try:
+        return await graph_curation_service.handle_action(
+            str(user.id),
+            collection_id,
+            suggestion_id,
+            action=payload.action,
+        )
+    except CollectionNotFoundException:
+        raise HTTPException(status_code=404, detail="Collection not found")
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=exc.args[0] if exc.args else "Suggestion not found",
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @router.post("/collections/{collection_id}/graphs/merge-suggestions", tags=["graph"])
-async def merge_suggestions_view(request: Request, collection_id: str) -> dict:
-    raise _gone()
+async def merge_suggestions_view(
+    request: Request,
+    collection_id: str,
+    payload: view_models.MergeSuggestionsRequest = Body(default_factory=view_models.MergeSuggestionsRequest),
+    user: User = Depends(required_user),
+) -> dict:
+    del payload
+    try:
+        return await graph_curation_service.start_run(str(user.id), collection_id)
+    except CollectionNotFoundException:
+        raise HTTPException(status_code=404, detail="Collection not found")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/collections/{collection_id}/graphs/merge-suggestions", tags=["graph"])
+async def get_merge_suggestions_view(
+    request: Request,
+    collection_id: str,
+    user: User = Depends(required_user),
+) -> dict:
+    try:
+        return await graph_curation_service.get_latest(str(user.id), collection_id)
+    except CollectionNotFoundException:
+        raise HTTPException(status_code=404, detail="Collection not found")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @router.get("/collections/{collection_id}/graphs/export/kg-eval", tags=["graph"])

@@ -56,6 +56,7 @@ class DocumentIndexTask:
 
     def _upsert_graph_index(self, document_id: str, collection, parsed_data: ParsedDocumentData) -> dict:
         """Index a document into the graphindex v2 graph store."""
+        from aperag.graph_curation.integration import run_expire_graph_curation_collection_sync
         from aperag.graphindex.integration import run_index_document_sync
 
         res = run_index_document_sync(
@@ -64,6 +65,7 @@ class DocumentIndexTask:
             content=parsed_data.content,
             file_path=parsed_data.file_path,
         )
+        run_expire_graph_curation_collection_sync(str(collection.id), "document_reindex")
         return {
             "status": "success",
             "doc_id": res.doc_id,
@@ -74,9 +76,11 @@ class DocumentIndexTask:
 
     def _delete_graph_index(self, document_id: str, collection) -> None:
         """Delete a document's graph rows from graphindex v2."""
+        from aperag.graph_curation.integration import run_expire_graph_curation_collection_sync
         from aperag.graphindex.integration import run_delete_document_sync
 
         run_delete_document_sync(collection=collection, doc_id=document_id)
+        run_expire_graph_curation_collection_sync(str(collection.id), "document_delete")
 
     def create_index(self, document_id: str, index_type: str, parsed_data: ParsedDocumentData) -> IndexTaskResult:
         """
