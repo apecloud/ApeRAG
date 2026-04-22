@@ -21,25 +21,20 @@ import aioboto3
 import boto3
 from botocore.config import Config
 from botocore.exceptions import ClientError
-from pydantic import BaseModel
 
 from aperag.objectstore.base import AsyncObjectStore, ObjectStore
 
 logger = logging.getLogger(__name__)
 
 
-class S3Config(BaseModel):
-    endpoint: str
-    access_key: str
-    secret_key: str
-    bucket: str
-    region: str | None = None
-    prefix_path: str | None = None
-    use_path_style: bool = False
-
-
 class S3(ObjectStore):
-    def __init__(self, cfg: S3Config):
+    """Sync S3-compatible object store (MinIO, AWS S3, Alibaba OSS, etc.).
+
+    Accepts the ``S3Config`` from ``aperag.config`` directly — no
+    intermediate BaseModel copy needed.
+    """
+
+    def __init__(self, cfg) -> None:
         self.conn = None
         self.cfg = cfg
         self._checked_bucket = None
@@ -60,7 +55,11 @@ class S3(ObjectStore):
                 config = Config(s3={"addressing_style": "path"})
             self.conn = boto3.client("s3", config=config, **s3_params)
         except Exception:
-            logger.exception(f"Fail to connect at region {self.region} or endpoint {self.endpoint_url}")
+            logger.exception(
+                "Failed to connect to S3 at region=%s endpoint=%s",
+                self.cfg.region,
+                self.cfg.endpoint,
+            )
 
     def _ensure_bucket(self):
         self._ensure_conn()
@@ -237,20 +236,25 @@ class S3(ObjectStore):
 
 
 class AsyncS3(AsyncObjectStore):
-    def __init__(self, cfg: S3Config, session: aioboto3.Session | None = None):
-        self.session = session
+    """Async S3-compatible object store.
+
+    Uses a **lazy-initialized, long-lived** aioboto3 client for
+    non-streaming operations (``put``, ``delete``, ``obj_exists``,
+    ``get_obj_size``, prefix ops). Streaming operations (``get``,
+    ``stream_range``) open a dedicated client context so the response
+    body can outlive the method call.
+
+    Before this change, every single operation opened and closed a new
+    S3 client — measurable overhead on hot paths like batch document
+    parsing that calls ``put`` dozens of times.
+    """
+
+    def __init__(self, cfg) -> None:
+        self._session = aioboto3.Session()
         self.cfg = cfg
         self._checked_bucket = None
-
-    async def _ensure_conn(self):
-        if self.session is not None:
-            return
-
-        try:
-            self.session = aioboto3.Session()
-        except Exception:
-            logger.exception("Failed to create aioboto3 session")
-            raise
+        self._client = None
+        self._client_ctx = None
 
     def _get_client_kwargs(self):
         params = {
@@ -260,18 +264,30 @@ class AsyncS3(AsyncObjectStore):
         }
         if self.cfg.endpoint:
             params["endpoint_url"] = self.cfg.endpoint
-
         if self.cfg.use_path_style:
             params["config"] = Config(s3={"addressing_style": "path"})
         return params
 
-    async def _ensure_bucket(self, client):
+    async def _ensure_client(self):
+        """Lazy-init a long-lived S3 client for non-streaming ops."""
+        if self._client is not None:
+            return
+        self._client_ctx = self._session.client("s3", **self._get_client_kwargs())
+        self._client = await self._client_ctx.__aenter__()
+
+    async def _ensure_bucket(self):
         if self._checked_bucket == self.cfg.bucket:
             return
-        if await self.bucket_exists(self.cfg.bucket):
+        await self._ensure_client()
+        try:
+            await self._client.head_bucket(Bucket=self.cfg.bucket)
             self._checked_bucket = self.cfg.bucket
-            return
-        await client.create_bucket(Bucket=self.cfg.bucket)
+        except ClientError as e:
+            if e.response["Error"]["Code"] in ("404", "NoSuchBucket"):
+                await self._client.create_bucket(Bucket=self.cfg.bucket)
+                self._checked_bucket = self.cfg.bucket
+            else:
+                raise
 
     def _final_path(self, path: str) -> str:
         if self.cfg.prefix_path:
@@ -279,34 +295,29 @@ class AsyncS3(AsyncObjectStore):
         return path
 
     async def bucket_exists(self, bucket: str) -> bool:
-        await self._ensure_conn()
-        async with self.session.client("s3", **self._get_client_kwargs()) as client:
-            try:
-                await client.head_bucket(Bucket=bucket)
-                return True
-            except ClientError as e:
-                if e.response["Error"]["Code"] in ("404", "NoSuchBucket"):
-                    return False
-                raise
+        await self._ensure_client()
+        try:
+            await self._client.head_bucket(Bucket=bucket)
+            return True
+        except ClientError as e:
+            if e.response["Error"]["Code"] in ("404", "NoSuchBucket"):
+                return False
+            raise
 
     async def put(self, path: str, data: bytes | IO[bytes]):
-        await self._ensure_conn()
+        await self._ensure_bucket()
         path = self._final_path(path)
         if isinstance(data, bytes):
             data = BytesIO(data)
-
-        async with self.session.client("s3", **self._get_client_kwargs()) as client:
-            await self._ensure_bucket(client)
-            await client.upload_fileobj(data, self.cfg.bucket, path)
+        await self._client.upload_fileobj(data, self.cfg.bucket, path)
 
     async def get(self, path: str) -> Tuple[AsyncIterator[bytes], int] | None:
-        await self._ensure_conn()
-        path = self._final_path(path)
-
-        client_context = self.session.client("s3", **self._get_client_kwargs())
+        # Streaming: need a dedicated client context so the response
+        # body can outlive this method call.
+        client_context = self._session.client("s3", **self._get_client_kwargs())
         client = await client_context.__aenter__()
         try:
-            response = await client.get_object(Bucket=self.cfg.bucket, Key=path)
+            response = await client.get_object(Bucket=self.cfg.bucket, Key=self._final_path(path))
             stream = response["Body"]
             size = response["ContentLength"]
         except ClientError as e:
@@ -329,21 +340,16 @@ class AsyncS3(AsyncObjectStore):
         return generator(), size
 
     async def get_obj_size(self, path: str) -> int | None:
-        await self._ensure_conn()
-        path = self._final_path(path)
+        await self._ensure_client()
         try:
-            async with self.session.client("s3", **self._get_client_kwargs()) as client:
-                response = await client.head_object(Bucket=self.cfg.bucket, Key=path)
-                return response.get("ContentLength")
+            response = await self._client.head_object(Bucket=self.cfg.bucket, Key=self._final_path(path))
+            return response.get("ContentLength")
         except ClientError:
             return None
 
     async def stream_range(
         self, path: str, start: int, end: int | None = None
     ) -> Tuple[AsyncIterator[bytes], int] | None:
-        await self._ensure_conn()
-        path = self._final_path(path)
-
         if start < 0 or (end is not None and end < start):
             raise ValueError("Invalid range: start/end positions are illogical.")
 
@@ -351,16 +357,17 @@ class AsyncS3(AsyncObjectStore):
         if end is not None:
             range_str += str(end)
 
-        client_context = self.session.client("s3", **self._get_client_kwargs())
+        # Streaming: dedicated client context.
+        client_context = self._session.client("s3", **self._get_client_kwargs())
         client = await client_context.__aenter__()
         try:
-            response = await client.get_object(Bucket=self.cfg.bucket, Key=path, Range=range_str)
+            response = await client.get_object(Bucket=self.cfg.bucket, Key=self._final_path(path), Range=range_str)
             stream = response["Body"]
             content_length = response["ContentLength"]
         except ClientError as e:
             await client_context.__aexit__(*sys.exc_info())
             if e.response["Error"]["Code"] in ("InvalidRange", "NoSuchKey", "NoSuchBucket"):
-                logger.warning(f"Failed to stream range for S3 object at {path} with range '{range_str}': {e}")
+                logger.warning("Failed to stream range for S3 object at %s with range '%s': %s", path, range_str, e)
                 return None
             raise
         except Exception:
@@ -378,60 +385,54 @@ class AsyncS3(AsyncObjectStore):
         return generator(), content_length
 
     async def obj_exists(self, path: str) -> bool:
-        await self._ensure_conn()
-        path = self._final_path(path)
+        await self._ensure_client()
         try:
-            async with self.session.client("s3", **self._get_client_kwargs()) as client:
-                await client.head_object(Bucket=self.cfg.bucket, Key=path)
-                return True
+            await self._client.head_object(Bucket=self.cfg.bucket, Key=self._final_path(path))
+            return True
         except ClientError as e:
             if e.response["Error"]["Code"] in ("404", "NoSuchKey"):
                 return False
             raise
 
     async def delete(self, path: str):
-        await self._ensure_conn()
-        path = self._final_path(path)
+        await self._ensure_client()
         try:
-            async with self.session.client("s3", **self._get_client_kwargs()) as client:
-                await client.delete_object(Bucket=self.cfg.bucket, Key=path)
+            await self._client.delete_object(Bucket=self.cfg.bucket, Key=self._final_path(path))
         except ClientError as e:
             if e.response["Error"]["Code"] not in ("NoSuchKey", "NoSuchBucket"):
                 raise
 
     async def delete_objects_by_prefix(self, path_prefix: str):
-        await self._ensure_conn()
+        await self._ensure_client()
         path_prefix = self._final_path(path_prefix)
 
-        async with self.session.client("s3", **self._get_client_kwargs()) as client:
-            all_objects_to_delete = []
-            paginator = client.get_paginator("list_objects_v2")
-            async for page in paginator.paginate(Bucket=self.cfg.bucket, Prefix=path_prefix):
-                if "Contents" in page:
-                    for obj in page["Contents"]:
-                        all_objects_to_delete.append({"Key": obj["Key"]})
+        all_objects_to_delete = []
+        paginator = self._client.get_paginator("list_objects_v2")
+        async for page in paginator.paginate(Bucket=self.cfg.bucket, Prefix=path_prefix):
+            if "Contents" in page:
+                for obj in page["Contents"]:
+                    all_objects_to_delete.append({"Key": obj["Key"]})
 
-            if not all_objects_to_delete:
-                return
+        if not all_objects_to_delete:
+            return
 
-            for i in range(0, len(all_objects_to_delete), 1000):
-                delete_batch = all_objects_to_delete[i : i + 1000]
-                await client.delete_objects(Bucket=self.cfg.bucket, Delete={"Objects": delete_batch, "Quiet": True})
+        for i in range(0, len(all_objects_to_delete), 1000):
+            delete_batch = all_objects_to_delete[i : i + 1000]
+            await self._client.delete_objects(Bucket=self.cfg.bucket, Delete={"Objects": delete_batch, "Quiet": True})
 
     async def list_objects_by_prefix(self, path_prefix: str) -> list[str]:
-        await self._ensure_conn()
+        await self._ensure_client()
         full_prefix = self._final_path(path_prefix)
         prefix_strip_len = len(self._final_path("")) if self.cfg.prefix_path else 0
         result = []
 
-        async with self.session.client("s3", **self._get_client_kwargs()) as client:
-            paginator = client.get_paginator("list_objects_v2")
-            async for page in paginator.paginate(Bucket=self.cfg.bucket, Prefix=full_prefix):
-                if "Contents" in page:
-                    for obj in page["Contents"]:
-                        key = obj["Key"]
-                        if prefix_strip_len:
-                            key = key[prefix_strip_len:]
-                        result.append(key)
+        paginator = self._client.get_paginator("list_objects_v2")
+        async for page in paginator.paginate(Bucket=self.cfg.bucket, Prefix=full_prefix):
+            if "Contents" in page:
+                for obj in page["Contents"]:
+                    key = obj["Key"]
+                    if prefix_strip_len:
+                        key = key[prefix_strip_len:]
+                    result.append(key)
 
         return result

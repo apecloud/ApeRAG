@@ -191,24 +191,34 @@ class RedisConnectionManager:
 
     @classmethod
     def get_pool_info(cls) -> dict:
-        """Get connection pool information for monitoring."""
+        """Get connection pool information for monitoring.
+
+        Uses only public attributes (``max_connections``,
+        ``created_connections``) and ``getattr`` for internals that
+        may change across redis-py versions.
+        """
         info = {}
 
-        if cls._async_pool:
-            info["async_pool"] = {
-                "max_connections": cls._async_pool.max_connections,
-                "created_connections": cls._async_pool.created_connections,
-                "available_connections": len(cls._async_pool._available_connections),
-                "in_use_connections": len(cls._async_pool._in_use_connections),
-            }
-
-        if cls._sync_pool:
-            info["sync_pool"] = {
-                "max_connections": cls._sync_pool.max_connections,
-                "created_connections": cls._sync_pool.created_connections,
-                "available_connections": len(cls._sync_pool._available_connections),
-                "in_use_connections": len(cls._sync_pool._in_use_connections),
-            }
+        for label, pool in [("async_pool", cls._async_pool), ("sync_pool", cls._sync_pool)]:
+            if pool is None:
+                continue
+            pool_info: dict = {"max_connections": getattr(pool, "max_connections", "N/A")}
+            # created_connections is public since redis-py 4.x.
+            if hasattr(pool, "created_connections"):
+                pool_info["created_connections"] = pool.created_connections
+            # _available_connections / _in_use_connections are private
+            # internals; read them defensively.
+            for attr, key in [
+                ("_available_connections", "available_connections"),
+                ("_in_use_connections", "in_use_connections"),
+            ]:
+                val = getattr(pool, attr, None)
+                if val is not None:
+                    try:
+                        pool_info[key] = len(val)
+                    except TypeError:
+                        pass
+            info[label] = pool_info
 
         if not info:
             info["status"] = "not_initialized"
