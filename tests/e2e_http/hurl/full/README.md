@@ -10,10 +10,12 @@ Current files:
 - `12_bot.hurl`
   bot CRUD plus agent config get/update
 - `13_chat_http.hurl`
-  chat create/list/get/update/delete plus OpenAI-shaped `/v1/chat/completions` contract
+  chat create/list/get/update/delete plus unsupported `/v1/chat/completions` contract pointing callers to Agent Runtime V3 turns
 - `14_graph_http.hurl`
   graph labels and graph overview endpoints
 - `15_agent_runtime_v3.hurl`
   v2 agent runtime HTTP contract: create turn, idempotency, snapshot, cancel
+- `17_chat_collection_flow.hurl`
+  provider-aware business flow: collection create, document upload/confirm, bot bind collection, chat create, turn create/snapshot
 
 WebSocket and streaming-specific coverage should remain in a thin supplemental layer rather than being forced into Hurl.
