@@ -61,6 +61,9 @@ logger = logging.getLogger(__name__)
 _ENTITY_TAG = "entity"
 _CHUNK_TAG = "chunk"
 _EDGE_TYPE = "relates_to"
+_SCHEMA_VISIBILITY_ERROR = "No schema found for"
+_SCHEMA_VISIBILITY_RETRIES = 10
+_SCHEMA_VISIBILITY_DELAY_SECONDS = 1.0
 
 
 def _escape(s: str) -> str:
@@ -190,6 +193,29 @@ class NebulaGraphStore:
         finally:
             session.release()
 
+    def _execute_with_schema_retry(self, space: str, stmt: str) -> Any:
+        """Retry writes while Nebula schema metadata is still propagating.
+
+        Freshly created tags / edge types can lag for a short window after
+        ``CREATE TAG`` / ``CREATE EDGE`` succeeds. The first write in a new
+        collection should tolerate only that transient schema-visibility error;
+        all other failures still surface immediately.
+        """
+
+        last_error: RuntimeError | None = None
+        for _ in range(_SCHEMA_VISIBILITY_RETRIES):
+            try:
+                return self._execute(space, stmt)
+            except RuntimeError as exc:
+                if _SCHEMA_VISIBILITY_ERROR not in str(exc):
+                    raise
+                last_error = exc
+                time.sleep(_SCHEMA_VISIBILITY_DELAY_SECONDS)
+
+        if last_error is not None:
+            raise last_error
+        raise RuntimeError("Nebula schema retry loop exited without a result")
+
     def _space(self, collection_id: str) -> str:
         return _space_name(self._space_prefix, collection_id)
 
@@ -253,7 +279,7 @@ class NebulaGraphStore:
                     f'"{_escape(c.chunk_id)}", "{_escape(c.doc_id)}", '
                     f'{c.order_in_doc}, "{_escape(c.text)}", "{_escape(c.file_path or "")}")'
                 )
-                self._execute(space, stmt)
+                self._execute_with_schema_retry(space, stmt)
 
         await asyncio.to_thread(_do)
 
@@ -304,7 +330,7 @@ class NebulaGraphStore:
                     f'"{_escape(e.type)}", "{_escape(final_desc)}", '
                     f'"{all_chunks_str}")'
                 )
-                self._execute(space, stmt)
+                self._execute_with_schema_retry(space, stmt)
 
         await asyncio.to_thread(_do)
 
@@ -325,7 +351,7 @@ class NebulaGraphStore:
                     f'"{_escape(r.description)}", {float(r.weight)}, '
                     f'"{chunks_str}")'
                 )
-                self._execute(space, stmt)
+                self._execute_with_schema_retry(space, stmt)
 
         await asyncio.to_thread(_do)
 

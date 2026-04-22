@@ -8,6 +8,9 @@
 
 from __future__ import annotations
 
+import pytest
+
+from aperag.graphindex.dto import Chunk
 from aperag.graphindex.storage.nebula import NebulaGraphStore
 
 
@@ -53,3 +56,45 @@ def test_ensure_space_retries_visibility_window_and_uses_create_edge(monkeypatch
     schema_stmts = execute_multi_calls[-1][1]
     assert any("CREATE EDGE IF NOT EXISTS `relates_to`" in stmt for stmt in schema_stmts)
     assert all("CREATE EDGE TYPE" not in stmt for stmt in schema_stmts)
+
+
+@pytest.mark.asyncio
+async def test_upsert_chunks_retries_transient_schema_visibility_error(monkeypatch):
+    store = NebulaGraphStore(hosts="127.0.0.1:9669", space_prefix="compat_test")
+    chunk = Chunk(
+        chunk_id="c1",
+        doc_id="d1",
+        collection_id="compat_test_demo",
+        order_in_doc=0,
+        text="Alice met Bob at Acme Labs.",
+    )
+
+    execute_calls: list[tuple[str, str]] = []
+    outcomes = iter(
+        [
+            RuntimeError("Nebula query failed: SemanticError: No schema found for `chunk'"),
+            None,
+        ]
+    )
+
+    monkeypatch.setattr(store, "_ensure_space", lambda _collection_id: "compat_test_compat_test_demo")
+
+    def fake_execute(space: str, stmt: str):
+        execute_calls.append((space, stmt))
+        outcome = next(outcomes)
+        if outcome is not None:
+            raise outcome
+        return None
+
+    async def fake_to_thread(func, *args, **kwargs):
+        return func(*args, **kwargs)
+
+    monkeypatch.setattr(store, "_execute", fake_execute)
+    monkeypatch.setattr("aperag.graphindex.storage.nebula.asyncio.to_thread", fake_to_thread)
+    monkeypatch.setattr("aperag.graphindex.storage.nebula.time.sleep", lambda _seconds: None)
+
+    await store.upsert_chunks("compat_test_demo", [chunk])
+
+    assert len(execute_calls) == 2
+    assert all(space == "compat_test_compat_test_demo" for space, _stmt in execute_calls)
+    assert all("INSERT VERTEX IF NOT EXISTS `chunk`" in stmt for _space, stmt in execute_calls)
