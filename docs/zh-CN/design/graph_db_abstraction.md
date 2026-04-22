@@ -3,6 +3,12 @@
 > Status: **设计与计划文档（仅文档，无代码改动）**。落地分 M1 / M2 / M3
 > 多个小 PR，详见 §8 路线图。
 >
+> **先读这个**：[`lightrag_refactor.md`](./lightrag_refactor.md)。本文
+> 的 **Layer B** == 那份文档的 **Phase 1 facade**。实际推荐的落地顺序
+> 是"先做 LightRAG facade（覆盖了本文的 M1 + M2），再按需清理内部存储
+> 抽象（本文的 M3）"。两份文档**刻意拆成两份**是为了分别从两个角度回答
+> 同一组问题，读顺序见 `lightrag_refactor.md` §7。
+>
 > 关联文档：[`vector_db_abstraction.md`](./vector_db_abstraction.md)。
 > 向量抽象层的设计思路与本文保持一致，优先"最小可行、不留尾巴、不过
 > 度设计"。
