@@ -1036,18 +1036,109 @@ graph_nodes_merge:
               $ref: '../components/schemas/common.yaml#/failResponse'
 
 graph_merge_suggestions:
-  post:
-    summary: Generate node merge suggestions
+  get:
+    summary: Get latest graph merge suggestions
     description: |
-      Analyze knowledge graph to identify potentially mergeable nodes using LLM for semantic similarity.
-      Returns confidence-ranked merge suggestions for user review and decision.
-
-      This is a stateless endpoint that analyzes the current graph and returns suggestions
-      without persisting any state. Users can then use the suggestions with the existing
-      merge_nodes endpoint to perform actual merges.
-
-      The algorithm prioritizes high-degree nodes and uses LLM to judge semantic similarity
-      based on entity names, types, and descriptions.
+      Return the latest persisted graph-curation run for the collection together
+      with its merge suggestions. Suggestions are generated asynchronously and
+      remain pending until explicitly accepted or rejected.
+    tags:
+      - graph
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: collection_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Collection ID
+    responses:
+      '200':
+        description: Latest graph-curation run fetched successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/graph.yaml#/mergeSuggestionsResponse'
+            examples:
+              completed_run:
+                summary: Latest completed run with suggestions
+                value:
+                  run:
+                    id: "gcr_abcd1234efgh5678"
+                    collection_id: "col123"
+                    status: "COMPLETED"
+                    stats:
+                      analyzed_entities: 128
+                      candidate_pairs: 42
+                      positive_pairs: 8
+                      suggestions: 3
+                    error_message: null
+                    created: "2026-04-23T00:00:00Z"
+                    updated: "2026-04-23T00:01:18Z"
+                    started: "2026-04-23T00:00:02Z"
+                    finished: "2026-04-23T00:01:18Z"
+                  suggestions:
+                    - id: "gcs_abcd1234efgh5678"
+                      run_id: "gcr_abcd1234efgh5678"
+                      collection_id: "col123"
+                      status: "PENDING"
+                      entity_ids: ["e_moxiangju", "e_old_bookstore"]
+                      entities:
+                        - entity_id: "e_moxiangju"
+                          entity_name: "墨香居"
+                          entity_type: "ORGANIZATION"
+                          description: "这条老巷子里唯一的旧书店"
+                          source_chunk_count: 3
+                        - entity_id: "e_old_bookstore"
+                          entity_name: "旧书店"
+                          entity_type: "ORGANIZATION"
+                          description: "经营各种书籍的小店"
+                          source_chunk_count: 2
+                      target_entity_id: "e_moxiangju"
+                      confidence_score: 0.91
+                      reason: "两个实体都在描述同一家旧书店，名称和上下文高度重合。"
+                      evidence:
+                        pair_count: 1
+                      resolution_note: null
+                      created: "2026-04-23T00:01:18Z"
+                      updated: "2026-04-23T00:01:18Z"
+                      operated_at: null
+              empty:
+                summary: No run has been created yet
+                value:
+                  run: null
+                  suggestions: []
+      '400':
+        description: Bad request - collection has knowledge graph disabled
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Collection not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+  post:
+    summary: Start graph merge suggestion analysis
+    description: |
+      Start a new asynchronous graph-curation run for the collection.
+      The run performs cheap deterministic candidate generation, pairwise
+      LLM adjudication, and persists merge suggestions for later review.
     tags:
       - graph
     security:
@@ -1068,60 +1159,48 @@ graph_merge_suggestions:
           examples:
             default:
               summary: Default request
-              description: Generate up to 10 suggestions for all entity types
-              value:
-                max_suggestions: 10
-            specific_types:
-              summary: Specific entity types
-              description: Only analyze PERSON and ORGANIZATION entities
-              value:
-                max_suggestions: 20
-                entity_types: ["PERSON", "ORGANIZATION"]
-            minimal:
-              summary: Minimal request
-              description: Empty request body uses default values
+              description: Start a run with server-side defaults
               value: {}
     responses:
       '200':
-        description: Merge suggestions generated successfully
+        description: Graph-curation run scheduled successfully
         content:
           application/json:
             schema:
-              $ref: '../components/schemas/graph.yaml#/mergeSuggestionsResponse'
+              $ref: '../components/schemas/graph.yaml#/mergeSuggestionsRunResponse'
             examples:
-              with_suggestions:
-                summary: Response with suggestions
-                description: Successful analysis with merge suggestions
+              started:
+                summary: New run scheduled
                 value:
-                  suggestions:
-                    - entities:
-                        - entity_id: "墨香居"
-                          entity_name: "墨香居"
-                          entity_type: "ORGANIZATION"
-                          description: "这条老巷子里唯一的旧书店"
-                          degree: 8
-                        - entity_id: "旧书店"
-                          entity_name: "旧书店"
-                          entity_type: "ORGANIZATION"
-                          description: "经营各种书籍的小店"
-                          degree: 5
-                      confidence_score: 0.85
-                      merge_reason: "两个实体都描述同一个书店，'墨香居'是具体名称，'旧书店'是通用描述，应该合并为同一实体"
-                      suggested_target_entity:
-                        entity_name: "墨香居"
-                        entity_type: "ORGANIZATION"
-                        description: "墨香居是这条老巷子里唯一的旧书店，经营各种书籍"
-                  total_analyzed_nodes: 156
-                  processing_time_seconds: 12.5
-              no_suggestions:
-                summary: No suggestions found
-                description: Analysis completed but no merge candidates found
+                  run:
+                    id: "gcr_abcd1234efgh5678"
+                    collection_id: "col123"
+                    status: "PENDING"
+                    stats: {}
+                    error_message: null
+                    created: "2026-04-23T00:00:00Z"
+                    updated: "2026-04-23T00:00:00Z"
+                    started: null
+                    finished: null
+                  started: true
+                  message: "Graph curation run started"
+              already_running:
+                summary: Run already active
                 value:
-                  suggestions: []
-                  total_analyzed_nodes: 45
-                  processing_time_seconds: 3.2
+                  run:
+                    id: "gcr_existing1234567"
+                    collection_id: "col123"
+                    status: "RUNNING"
+                    stats: {}
+                    error_message: null
+                    created: "2026-04-23T00:00:00Z"
+                    updated: "2026-04-23T00:00:05Z"
+                    started: "2026-04-23T00:00:02Z"
+                    finished: null
+                  started: false
+                  message: "Graph curation run already in progress"
       '400':
-        description: Bad request - invalid parameters
+        description: Bad request - collection has knowledge graph disabled
         content:
           application/json:
             schema:
@@ -1149,22 +1228,11 @@ graph_suggestion_action:
   post:
     summary: Accept or reject a merge suggestion
     description: |
-      Take action on a specific merge suggestion.
+      Take action on a persisted graph-curation suggestion.
 
-      Actions:
-      - accept: Accept the suggestion and perform the merge operation
-      - reject: Reject the suggestion and mark it as rejected
-
-      When accepting, the system will:
-      1. Update suggestion status to ACCEPTED
-      2. Perform the actual node merge using suggested entity IDs
-      3. Mark related suggestions involving the same entities as EXPIRED
-
-      When rejecting, the system will:
-      1. Update suggestion status to REJECTED
-      2. No merge operation is performed
-
-      The target entity data can be optionally overridden when accepting a suggestion.
+      - `accept`: call the existing graph merge primitive and mark overlapping
+        pending suggestions as superseded.
+      - `reject`: mark the suggestion as rejected without mutating graph truth.
     tags:
       - graph
     security:
@@ -1199,14 +1267,6 @@ graph_suggestion_action:
               description: Reject the suggestion without merging
               value:
                 action: "reject"
-            accept_with_override:
-              summary: Accept with custom target data
-              description: Accept suggestion but override target entity data
-              value:
-                action: "accept"
-                target_entity_data:
-                  entity_name: "Custom Name"
-                  description: "Custom description for merged entity"
     responses:
       '200':
         description: Action completed successfully
@@ -1220,28 +1280,24 @@ graph_suggestion_action:
                 description: Suggestion accepted and merge completed
                 value:
                   status: "success"
-                  message: "Suggestion msug123 has been accepted and merge completed"
-                  suggestion_id: "msug123"
+                  suggestion_id: "gcs_abcd1234efgh5678"
                   action: "accept"
+                  suggestion_status: "ACCEPTED"
                   merge_result:
-                    status: "success"
-                    message: "Successfully merged 2 entities into 墨香居"
-                    entity_ids: ["墨香居", "书店"]
-                    target_entity_data:
-                      entity_name: "墨香居"
-                      entity_type: "ORGANIZATION"
-                      description: "墨香居是这条老巷子里唯一的旧书店，经营着各种书籍"
-                    source_entities: ["书店"]
+                    target_entity_id: "e_moxiangju"
+                    merged_source_ids: ["e_old_bookstore"]
+                    description: "墨香居是这条老巷子里唯一的旧书店，经营着各种书籍"
+                    source_chunk_ids: ["chunk_1", "chunk_8"]
                     redirected_edges: 5
-                    merged_description_length: 45
+                    edges_collapsed: 2
               reject_success:
                 summary: Reject action successful
                 description: Suggestion rejected successfully
                 value:
                   status: "success"
-                  message: "Suggestion msug123 has been rejected"
-                  suggestion_id: "msug123"
+                  suggestion_id: "gcs_abcd1234efgh5678"
                   action: "reject"
+                  suggestion_status: "REJECTED"
                   merge_result: null
       '400':
         description: Bad request - invalid action or suggestion already processed

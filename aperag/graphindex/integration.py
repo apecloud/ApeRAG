@@ -91,7 +91,7 @@ _DEFAULT_STORE = _build_store()
 # ---------------------------------------------------------------------------
 
 
-def _build_llm_callable(collection: Collection):
+def build_collection_llm_callable(collection: Collection):
     """Construct the ``LLMCall`` for a specific collection.
 
     Reads the collection's completion config (provider, model, base_url,
@@ -134,7 +134,7 @@ def _build_llm_callable(collection: Collection):
     return _llm
 
 
-def _build_embed_callables(collection: Collection):
+def build_collection_embed_callables(collection: Collection):
     """Build the ``embed_query`` and ``embed_texts`` callables for
     vector-based entity/relation recall.
 
@@ -163,7 +163,7 @@ def _build_embed_callables(collection: Collection):
     return _embed_query, _embed_texts
 
 
-def _build_vector_connector_or_none(collection: Collection):
+def build_collection_vector_connector_or_none(collection: Collection):
     """Return a ``VectorStoreConnector`` for writing/reading entity and
     relation embeddings, or ``None`` if configuration is incomplete.
 
@@ -201,11 +201,11 @@ def make_service_for_collection(
     Only the LLM closure is built fresh per call, and it doesn't open
     any connections until the first ``llm(prompt)`` call.
     """
-    embed_query, embed_texts = _build_embed_callables(collection)
-    vector_connector = _build_vector_connector_or_none(collection)
+    embed_query, embed_texts = build_collection_embed_callables(collection)
+    vector_connector = build_collection_vector_connector_or_none(collection)
     return GraphIndexService(
         store=_DEFAULT_STORE,
-        llm=_build_llm_callable(collection),
+        llm=build_collection_llm_callable(collection),
         embed_query=embed_query,
         embed_texts=embed_texts,
         vector_connector=vector_connector,
@@ -299,6 +299,9 @@ def _run_in_new_loop(coro: Awaitable[Any]) -> Any:
 
 
 __all__ = [
+    "build_collection_llm_callable",
+    "build_collection_embed_callables",
+    "build_collection_vector_connector_or_none",
     "make_service_for_collection",
     "run_index_document_sync",
     "run_delete_document_sync",

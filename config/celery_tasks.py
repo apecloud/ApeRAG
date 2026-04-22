@@ -1389,6 +1389,19 @@ def cleanup_expired_documents_task():
     return result
 
 
+@app.task(bind=True)
+def generate_graph_curation_run_task(self, run_id: str, collection_id: str) -> Any:
+    """Execute one graph-curation scan run."""
+    try:
+        from aperag.graph_curation.integration import run_graph_curation_run_sync
+
+        run_graph_curation_run_sync(run_id, collection_id)
+        return {"success": True, "run_id": run_id, "collection_id": collection_id}
+    except Exception as e:
+        logger.error(f"Graph curation run failed for {collection_id}/{run_id}: {e}", exc_info=True)
+        raise
+
+
 # ========== Evaluation Tasks ==========
 
 

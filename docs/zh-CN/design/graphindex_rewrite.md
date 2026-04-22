@@ -1,6 +1,7 @@
 # Graph Index 模块重写（v2）
 
-> Status: **v2 已落地 + 归一化/合并能力已回填**。
+> Status: **v2 已落地 + 归一化/合并能力已回填 + merge suggestion 已迁入独立
+> `graph_curation` 模块**。
 >
 > 历史记录：
 >
@@ -41,7 +42,7 @@
 | `get_knowledge_graph`（拉一张子图）             | ✅ **原生实现**       | UI 图浏览器依赖                              |
 | **description 归一化（LLM 摘要）**               | ✅ **原生实现（v2.2）** | 累积多片段 → LLM 总结，详见 §4                   |
 | **`merge_entities`（多个 entity 合并成 1 个）**   | ✅ **原生实现（v2.2）** | 走 SQL 结构合并 + LLM 总结 description，详见 §4  |
-| `generate_merge_suggestions`（LLM 挖合并候选）  | ❌ **删除**         | UX 层发现算法，不属于 Graph Index 职责；日后单独做模块    |
+| `generate_merge_suggestions`（LLM 挖合并候选）  | ✅ **迁出 Graph Index** | 现在归属独立 `graph_curation` workflow，详见 `graph_curation.md` |
 | `export_for_kg_eval`（导出评测数据）             | ❌ **删除**         | 管理工具；需要时可以基于 graphindex 表直接 dump        |
 
 
@@ -50,11 +51,10 @@
 单纯在字符上限处截断又会丢信息。v2.2 的实现用 LLM 总结在写后和合并
 后各做一次压缩，保证语义不丢。详细设计见 §4。
 
-**`generate_merge_suggestions` 和 `export_for_kg_eval` 仍然不回。**
-前者是发现候选的 UX 管线（LightRAG 用 500 行 LLM orchestration 实现），
-不是 Graph Index 的职责；未来要做应当放在独立 curation 模块。后者是
-一个薄 SQL dump，需要时再写。这两个的 REST 路由继续保留 **HTTP 410
-Gone** 作为运行时信号。
+**边界保持不变：Graph Index 仍然不负责 merge suggestion discovery。**
+变化只在于：这条能力已经按第一性原理迁到了独立的
+`graph_curation` 模块，而不是继续停留在 `410 Gone`。`export_for_kg_eval`
+仍然不回；它是单独的管理工具，不属于 Graph Index 主链。
 
 ---
 
@@ -461,8 +461,8 @@ DSL 过滤。
 
 ## 8. 业务层切换点
 
-所有 5 处调用全部改指 `aperag/graphindex`；curation 的 3 个 REST 路由
-保留返回 410 直到前端 UI 清理完成。
+所有 5 处 graph truth 调用都改指 `aperag/graphindex`；merge suggestion
+改由独立的 `graph_curation` 模块接管；只剩 `kg-eval` 导出路由保留 `410`。
 
 
 | 位置                                                         | 本 PR 改动                                                                 |
@@ -474,7 +474,8 @@ DSL 过滤。
 | `aperag/tasks/document.py`（3 处 celery 调用）                   | → `run_index_document_sync` / `run_delete_document_sync`                 |
 | `aperag/service/prompt_template_service.py::hardcoded[graph]` | → `graphindex.prompts.ENTITY_RELATION_EXTRACTION`                        |
 | `aperag/views/graph.py::merge_nodes_view`                    | **200**，委托 `graph_service.merge_entities` → `GraphIndexService.merge_entities` |
-| `aperag/views/graph.py`（merge_suggestions / kg-eval）         | **410 Gone**（属于 UX 层能力，本次范围外）                                           |
+| `aperag/views/graph.py::merge_suggestions*`                 | → `graph_curation_service.start_run / get_latest / handle_action`                    |
+| `aperag/views/graph.py::export_kg_eval_view`               | **410 Gone**（管理工具，本次范围外）                                                  |
 
 
 ---
@@ -506,4 +507,3 @@ DSL 过滤。
 - 不做 KV storage / doc status storage —— 这些是 LightRAG 内部实现细节，
   v2 的流程不需要它们；
 - 不做 v1 ↔ v2 数据迁移工具 —— 切换是硬切换，用户按需 re-index。
-

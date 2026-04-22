@@ -64,6 +64,7 @@ class DocumentIndexTask:
             content=parsed_data.content,
             file_path=parsed_data.file_path,
         )
+        self._expire_graph_curation_collection_best_effort(str(collection.id), "document_reindex")
         return {
             "status": "success",
             "doc_id": res.doc_id,
@@ -77,6 +78,21 @@ class DocumentIndexTask:
         from aperag.graphindex.integration import run_delete_document_sync
 
         run_delete_document_sync(collection=collection, doc_id=document_id)
+        self._expire_graph_curation_collection_best_effort(str(collection.id), "document_delete")
+
+    def _expire_graph_curation_collection_best_effort(self, collection_id: str, reason: str) -> None:
+        """Expire stale graph-curation suggestions without blocking graph truth writes."""
+        from aperag.graph_curation.integration import run_expire_graph_curation_collection_sync
+
+        try:
+            run_expire_graph_curation_collection_sync(collection_id, reason)
+        except Exception:
+            logger.warning(
+                "Graph curation invalidation failed for collection %s (%s); graph truth write already succeeded",
+                collection_id,
+                reason,
+                exc_info=True,
+            )
 
     def create_index(self, document_id: str, index_type: str, parsed_data: ParsedDocumentData) -> IndexTaskResult:
         """

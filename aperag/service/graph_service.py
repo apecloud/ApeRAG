@@ -26,19 +26,9 @@ Three endpoints route through here:
 * ``merge_entities`` — consolidate multiple entities into one, with an
   LLM-generated summary description.
 
-Two LightRAG-era curation features are not re-exposed in v2:
-
-* ``generate_merge_suggestions`` / ``handle_suggestion_action`` — the
-  "discover clusters to merge" pipeline. It was a 500-line LLM
-  orchestration over LightRAG internals; its v2 replacement (if the
-  product needs one) should be a dedicated module, not part of
-  graphindex.
-* ``export_for_kg_eval`` — snapshot export for the KG eval harness.
-  Can be rebuilt as a thin SQL dump whenever we want it back.
-
-The REST routes for those two actions still exist under
-``aperag/views/graph.py`` and return HTTP 410 until the frontend is
-updated. See ``docs/zh-CN/design/graphindex_rewrite.md``.
+Merge-suggestion discovery itself now lives in the dedicated
+``aperag.graph_curation`` module. This service remains the thin wrapper
+around the one merge truth path.
 """
 
 from __future__ import annotations
@@ -164,6 +154,16 @@ class GraphService:
             target_entity_id=target_entity_id,
             source_entity_ids=source_entity_ids,
         )
+        try:
+            from aperag.graph_curation import graph_curation_service
+
+            await graph_curation_service.expire_pending_for_entities(
+                collection_id=collection_id,
+                entity_ids=[target_entity_id, *source_entity_ids],
+                reason="manual_merge",
+            )
+        except Exception:
+            logger.exception("Failed to expire stale graph-curation suggestions after manual merge")
         return {
             "target_entity_id": result.target_entity_id,
             "merged_source_ids": list(result.merged_source_ids),
