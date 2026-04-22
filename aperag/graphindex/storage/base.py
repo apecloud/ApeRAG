@@ -161,6 +161,14 @@ class GraphStore(Protocol):
         """
 
     # ---- reads --------------------------------------------------------
+    async def get_chunks_by_ids(self, collection_id: str, chunk_ids: Sequence[str]) -> list[Chunk]:
+        """Fetch chunk text by id for citation display in graph context.
+
+        Used after BFS expansion to rehydrate the document chunks that
+        entities/relations point at. Returns only chunks that exist;
+        missing ids are silently skipped.
+        """
+
     async def find_entities_by_names(self, collection_id: str, names: Sequence[str]) -> list[Entity]:
         """Exact-match entity lookup by name. The query path uses it
         after the embedding-based recall narrows the candidate set."""

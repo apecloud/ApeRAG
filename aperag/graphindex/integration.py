@@ -38,9 +38,7 @@ import asyncio
 import logging
 from typing import Any, Awaitable, Optional
 
-from sqlalchemy.ext.asyncio import AsyncEngine
-
-from aperag.config import async_engine, settings
+from aperag.config import async_engine, build_graph_db_context, settings
 from aperag.db.models import Collection
 from aperag.db.ops import db_ops
 from aperag.graphindex.config import GraphIndexConfig
@@ -49,7 +47,7 @@ from aperag.graphindex.dto import (
     IndexDocumentResult,
 )
 from aperag.graphindex.service import GraphIndexService
-from aperag.graphindex.storage.postgres import PostgresGraphStore
+from aperag.graphindex.storage.connector import GraphStoreAdaptor
 from aperag.schema.utils import parseCollectionConfig
 
 logger = logging.getLogger(__name__)
@@ -59,7 +57,7 @@ logger = logging.getLogger(__name__)
 # Process-level singletons
 # ---------------------------------------------------------------------------
 #
-# The Postgres store and the GraphIndexConfig are stable for the life of
+# The graph store and the GraphIndexConfig are stable for the life of
 # a worker process — there's no per-collection variation on either.
 # Building one of each at module import time and reusing them avoids the
 # per-request setup tax that v1 paid via ``initialize_storages`` /
@@ -71,9 +69,18 @@ _DEFAULT_CONFIG = GraphIndexConfig(
 )
 
 
-def _build_store(engine: AsyncEngine | None = None) -> PostgresGraphStore:
-    """The store is a thin wrapper around an AsyncEngine; safe to share."""
-    return PostgresGraphStore(engine=engine or async_engine)
+def _build_store():
+    """Build the graph store according to ``settings.graph_db_type``.
+
+    PostgreSQL reuses the application's ``async_engine``; Neo4j and
+    Nebula read their connection details from env (via
+    ``build_graph_db_context``). The returned object implements the
+    ``GraphStore`` Protocol regardless of backend.
+    """
+    ctx = build_graph_db_context()
+    if settings.graph_db_type == "postgresql":
+        ctx["engine"] = async_engine
+    return GraphStoreAdaptor(settings.graph_db_type, ctx=ctx).store
 
 
 _DEFAULT_STORE = _build_store()
@@ -127,14 +134,55 @@ def _build_llm_callable(collection: Collection):
     return _llm
 
 
-def _embed_callable_or_none(_collection: Collection):
-    """Reserved for the embedding-anchored query path in a future PR.
+def _build_embed_callables(collection: Collection):
+    """Build the ``embed_query`` and ``embed_texts`` callables for
+    vector-based entity/relation recall.
 
-    v2's ``query_context`` uses simple name-match anchoring, no
-    embedding. Returning ``None`` keeps the slot wired so swapping in
-    an embedding-based anchor resolver later is one line of change.
+    Returns ``(embed_query, embed_texts)`` or ``(None, None)`` if the
+    collection's embedding model cannot be resolved (e.g. provider not
+    configured).
     """
-    return None
+    try:
+        from aperag.llm.embed.base_embedding import get_collection_embedding_service_sync
+
+        embedding_model, _vector_size = get_collection_embedding_service_sync(collection)
+    except Exception:
+        logger.warning("graphindex: could not build embedding for collection %s; vector recall disabled", collection.id)
+        return None, None
+
+    async def _embed_query(text: str) -> list[float]:
+        import asyncio
+
+        return await asyncio.to_thread(embedding_model.embed_query, text)
+
+    async def _embed_texts(texts: list[str]) -> list[list[float]]:
+        import asyncio
+
+        return await asyncio.to_thread(embedding_model.embed_documents, texts)
+
+    return _embed_query, _embed_texts
+
+
+def _build_vector_connector_or_none(collection: Collection):
+    """Return a ``VectorStoreConnector`` for writing/reading entity and
+    relation embeddings, or ``None`` if configuration is incomplete.
+
+    Reuses the same vectorstore backend and collection that chunk
+    embeddings use — entity/relation vectors are distinguished by the
+    ``index_type`` payload field, not by a separate physical store.
+    """
+    try:
+        from aperag.config import get_vector_db_connector
+        from aperag.llm.embed.base_embedding import get_collection_embedding_service_sync
+        from aperag.utils.utils import generate_vector_db_collection_name
+
+        _embedding_model, vector_size = get_collection_embedding_service_sync(collection)
+        collection_name = generate_vector_db_collection_name(collection.id)
+        adaptor = get_vector_db_connector(collection_name, vector_size=vector_size)
+        return adaptor.connector
+    except Exception:
+        logger.warning("graphindex: could not build vector connector for collection %s", collection.id)
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -153,10 +201,14 @@ def make_service_for_collection(
     Only the LLM closure is built fresh per call, and it doesn't open
     any connections until the first ``llm(prompt)`` call.
     """
+    embed_query, embed_texts = _build_embed_callables(collection)
+    vector_connector = _build_vector_connector_or_none(collection)
     return GraphIndexService(
         store=_DEFAULT_STORE,
         llm=_build_llm_callable(collection),
-        embed_query=_embed_callable_or_none(collection),
+        embed_query=embed_query,
+        embed_texts=embed_texts,
+        vector_connector=vector_connector,
         config=config or _DEFAULT_CONFIG,
     )
 

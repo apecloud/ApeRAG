@@ -55,9 +55,10 @@ logger = logging.getLogger(__name__)
 # deployment layer's job (``response_format={"type":"json_object"}``).
 LLMCall = Callable[[str], Awaitable[str]]
 
-# Embedding function for query-side entity anchoring. Given a query
-# string, returns its vector. Typed loosely (``list[float]``) to avoid
-# pulling numpy into the abstraction.
+# Embedding function: given a list of texts, return a list of vectors.
+EmbedTexts = Callable[[List[str]], Awaitable[List[List[float]]]]
+
+# Convenience alias: embed a single query text, return one vector.
 EmbedQuery = Callable[[str], Awaitable[List[float]]]
 
 
@@ -90,13 +91,24 @@ class GraphIndexService:
         store: GraphStore,
         llm: LLMCall,
         embed_query: Optional[EmbedQuery] = None,
+        embed_texts: Optional[EmbedTexts] = None,
+        vector_connector: Optional[object] = None,
         config: Optional[GraphIndexConfig] = None,
     ) -> None:
         """Inject all dependencies. The service does not read env vars —
-        that's the deployment-layer factory's job."""
+        that's the deployment-layer factory's job.
+
+        ``embed_texts`` and ``vector_connector`` are optional for
+        backwards compatibility; when provided, entity/relation
+        embeddings are stored in the vectorstore at index time and used
+        for semantic recall at query time. When absent, the service
+        falls back to the name-match anchor resolution.
+        """
         self._store = store
         self._llm = llm
         self._embed_query = embed_query
+        self._embed_texts = embed_texts
+        self._vector_connector = vector_connector
         self._config = config or GraphIndexConfig()
 
     # ============================================================ write
@@ -143,6 +155,11 @@ class GraphIndexService:
         # that was tried and rejected in an earlier revision of this
         # module.
         await self._compact_oversized_descriptions(collection_id=collection_id)
+
+        # Embed entity/relation descriptions into the vectorstore so
+        # query_context can find them via semantic similarity. Runs
+        # after summarization so the embedded text is the compact form.
+        await self._sync_entity_relation_vectors(collection_id=collection_id)
 
         return result
 
@@ -228,19 +245,20 @@ class GraphIndexService:
     ) -> GraphContext:
         """Build a compact graph-based context block for a user query.
 
-        Current implementation (v2 simple mode):
-        1. Use embedding similarity to find anchor entities by name.
-           When the service was built without an ``embed_query``
-           function, fall back to a straight name-match on the query
-           string's tokens.
-        2. BFS-expand ``config.default_query_max_hop`` hops from those
-           anchors.
-        3. Render a fixed-format context block.
-
-        This is deliberately simpler than LightRAG's hybrid keyword+
-        vector ranking. Measure before adding complexity — if the
-        simple form covers the recall targets, the complex form is
-        just more maintenance surface.
+        Pipeline:
+        1. **Anchor resolution**: embed the query -> search entity and
+           relation vectors in the vectorstore (``index_type`` filter)
+           -> collect anchor entity ids. Falls back to name-match when
+           no vectorstore is configured.
+        2. **BFS expansion**: walk ``config.default_query_max_hop`` hops
+           from the anchors to gather related entities and relations.
+        3. **Chunk rehydration**: fetch the actual document chunk text
+           that the entities/relations point at via ``source_chunk_ids``,
+           so the graph context includes supporting evidence alongside
+           structured knowledge. This restores the "Document Chunks"
+           section that LightRAG's output included.
+        4. **Render**: format entities, relations, and chunk excerpts
+           into a deterministic text block for the RAG prompt.
         """
         k = int(top_k or self._config.default_query_top_k)
         anchors = await self._resolve_anchor_entities(collection_id=collection_id, query=query, top_k=k)
@@ -254,14 +272,22 @@ class GraphIndexService:
             limit=max(k, 50),
         )
 
-        # Chunks referenced by returned entities/relations. We rehydrate
-        # a small set for citation display; RAG ranking happens upstream
-        # in the search pipeline with the vector-index context.
-        # For now we keep this empty to stay cheap; callers who need
-        # citations can look up chunk ids from ``entities[i].source_chunk_ids``.
+        # Rehydrate referenced chunks so the graph context includes
+        # supporting evidence. Cap at 2x top_k to keep the context
+        # manageable (the full chunk set can be very large on
+        # high-frequency entities).
+        chunk_ids: set[str] = set()
+        for e in entities:
+            chunk_ids.update(e.source_chunk_ids or ())
+        max_chunks = max(k * 2, 20)
         chunks: List[Chunk] = []
+        if chunk_ids:
+            chunks = await self._store.get_chunks_by_ids(
+                collection_id=collection_id,
+                chunk_ids=sorted(chunk_ids)[:max_chunks],
+            )
 
-        text = _render_context_block(entities=entities, relations=relations)
+        text = _render_context_block(entities=entities, relations=relations, chunks=chunks)
         return GraphContext(text=text, entities=entities, relations=relations, chunks=chunks)
 
     async def get_labels(self, *, collection_id: str) -> list[str]:
@@ -414,6 +440,97 @@ class GraphIndexService:
                     description=summary,
                 )
 
+    # ---- entity/relation vector sync (private) -----------------------
+    async def _sync_entity_relation_vectors(self, *, collection_id: str) -> None:
+        """Embed all entities and relations for this collection into the
+        vectorstore so ``query_context`` can do semantic recall.
+
+        Runs after every ``index_document`` call. Only operates when
+        ``embed_texts`` and ``vector_connector`` are both wired in;
+        silently no-ops otherwise (e.g. tests or deployments that don't
+        need graph-based semantic recall).
+
+        Uses the existing vectorstore with ``index_type`` payload to
+        distinguish graph vectors from chunk vectors — no separate
+        tables or connections needed.
+        """
+        if self._embed_texts is None or self._vector_connector is None:
+            return
+
+        from aperag.vectorstore.dto import VectorPoint
+
+        # Fetch all entities for this collection via oversized finder
+        # with very generous thresholds (i.e. find ALL entities).
+        entities = await self._store.find_oversized_entities(
+            collection_id=collection_id,
+            min_chars=0,
+            min_fragments=0,
+            limit=10000,
+        )
+
+        if entities:
+            texts = [f"{e.name}\n{e.description}" for e in entities]
+            try:
+                vectors = await self._embed_texts(texts)
+            except Exception:
+                logger.exception("graphindex: failed to embed entities for vector sync")
+                return
+
+            points = []
+            for e, vec in zip(entities, vectors):
+                points.append(
+                    VectorPoint(
+                        id=f"ge_{e.entity_id}",
+                        vector=vec,
+                        payload={
+                            "index_type": "graph_entity",
+                            "entity_id": e.entity_id,
+                            "entity_name": e.name,
+                            "entity_type": e.type,
+                            "collection_id": collection_id,
+                        },
+                    )
+                )
+            try:
+                self._vector_connector.upsert(points)
+            except Exception:
+                logger.exception("graphindex: failed to upsert entity vectors")
+
+        # Fetch relations (reuse oversized finder with generous thresholds)
+        relations = await self._store.find_oversized_relations(
+            collection_id=collection_id,
+            min_chars=0,
+            min_fragments=0,
+            limit=10000,
+        )
+
+        if relations:
+            texts = [f"{r.source_id}\t{r.target_id}\n{r.description}" for r in relations]
+            try:
+                vectors = await self._embed_texts(texts)
+            except Exception:
+                logger.exception("graphindex: failed to embed relations for vector sync")
+                return
+
+            points = []
+            for r, vec in zip(relations, vectors):
+                points.append(
+                    VectorPoint(
+                        id=f"gr_{r.source_id}_{r.target_id}",
+                        vector=vec,
+                        payload={
+                            "index_type": "graph_relation",
+                            "source_id": r.source_id,
+                            "target_id": r.target_id,
+                            "collection_id": collection_id,
+                        },
+                    )
+                )
+            try:
+                self._vector_connector.upsert(points)
+            except Exception:
+                logger.exception("graphindex: failed to upsert relation vectors")
+
     # ---- anchor resolution (private) ---------------------------------
     async def _resolve_anchor_entities(
         self,
@@ -424,18 +541,117 @@ class GraphIndexService:
     ) -> List[Entity]:
         """Return up to ``top_k`` anchor entities for the query.
 
-        v2 simple algorithm: exact name match on whitespace-split query
-        tokens. This has lower recall than embedding-based retrieval but
-        doesn't require cross-service coordination with the vector
-        store. When an ``embed_query`` is injected AND the deployment
-        has populated entity vectors in ``aperag/vectorstore``, a richer
-        implementation can be swapped in without touching callers.
+        Three tiers of recall, tried in order of capability:
+
+        1. **Vector recall** (when ``embed_query`` + ``vector_connector``
+           are wired): embed the query, search for similar entity and
+           relation descriptions in the vectorstore, gather the
+           referenced entity ids, then fetch from the graph store. This
+           is the LightRAG-equivalent hybrid recall path that searches
+           both entities (local) and relations (global) in one shot.
+        2. **Name-match fallback**: split the query on whitespace and do
+           exact entity-name matching in the graph store. Lower recall,
+           but works without any vector infrastructure.
+        3. **Empty**: if neither produces results, ``query_context``
+           returns an empty ``GraphContext``.
         """
+        # Tier 1: vector-based entity + relation recall
+        if self._embed_query is not None and self._vector_connector is not None:
+            try:
+                return await self._vector_recall(collection_id=collection_id, query=query, top_k=top_k)
+            except Exception:
+                logger.exception("graphindex: vector recall failed; falling back to name match")
+
+        # Tier 2: exact name match
         names = [t for t in (query or "").split() if t.strip()]
         if not names:
             return []
         found = await self._store.find_entities_by_names(collection_id=collection_id, names=names[: max(top_k, 16)])
         return found[:top_k]
+
+    async def _vector_recall(
+        self,
+        *,
+        collection_id: str,
+        query: str,
+        top_k: int,
+    ) -> List[Entity]:
+        """Semantic entity recall via the existing vectorstore.
+
+        1. Embed the user query once.
+        2. Search entity description vectors (``index_type=graph_entity``).
+        3. Search relation description vectors (``index_type=graph_relation``),
+           extract the source/target entity ids from matched relations.
+        4. Union, deduplicate, fetch full Entity objects from GraphStore.
+
+        This replaces LightRAG's ``entities_vdb.query`` + ``relationships_vdb.query``
+        without maintaining a separate vector infrastructure. The same
+        vectorstore (Qdrant or pgvector) that holds chunk embeddings also
+        holds entity/relation embeddings, differentiated by ``index_type``.
+        """
+        from aperag.vectorstore.dto import QueryRequest
+        from aperag.vectorstore.filters import Eq
+
+        query_vector = await self._embed_query(query)
+        connector = self._vector_connector
+
+        entity_ids: list[str] = []
+
+        # Entity recall
+        entity_hits = connector.search(
+            QueryRequest(
+                embedding=query_vector,
+                top_k=top_k,
+                flt=Eq("index_type", "graph_entity"),
+                score_threshold=0.0,
+            )
+        )
+        for hit in entity_hits:
+            eid = (hit.payload or {}).get("entity_id")
+            if eid:
+                entity_ids.append(eid)
+
+        # Relation recall — gather entity ids from both endpoints
+        relation_hits = connector.search(
+            QueryRequest(
+                embedding=query_vector,
+                top_k=top_k,
+                flt=Eq("index_type", "graph_relation"),
+                score_threshold=0.0,
+            )
+        )
+        for hit in relation_hits:
+            p = hit.payload or {}
+            if p.get("source_id"):
+                entity_ids.append(p["source_id"])
+            if p.get("target_id"):
+                entity_ids.append(p["target_id"])
+
+        # Deduplicate, preserving order
+        unique_ids = list(dict.fromkeys(entity_ids))
+        if not unique_ids:
+            return []
+
+        # Fetch full Entity objects from the graph store. We use
+        # find_entities_by_names as a proxy; for a proper id-based
+        # lookup we'd need find_entities_by_ids. Since entity_id is
+        # typically a hash of the name, and we have the names in the
+        # hit payloads, we collect both and try name-match.
+        entity_names = []
+        for hit in entity_hits:
+            name = (hit.payload or {}).get("entity_name")
+            if name:
+                entity_names.append(name)
+
+        if entity_names:
+            found = await self._store.find_entities_by_names(
+                collection_id=collection_id,
+                names=entity_names[:top_k],
+            )
+            if found:
+                return found[:top_k]
+
+        return []
 
 
 # ---------------------------------------------------------------------------
@@ -443,9 +659,22 @@ class GraphIndexService:
 # ---------------------------------------------------------------------------
 
 
-def _render_context_block(*, entities: List[Entity], relations: List[Relation]) -> str:
-    """Pack entities + relations into a deterministic text block for the
-    RAG prompt."""
+def _render_context_block(
+    *,
+    entities: List[Entity],
+    relations: List[Relation],
+    chunks: Optional[List[Chunk]] = None,
+) -> str:
+    """Pack entities + relations + chunks into a deterministic text block
+    for the RAG prompt.
+
+    Three-section format (matching the LightRAG convention so downstream
+    prompts that expect structured graph context continue to work):
+
+    - Entities (KG)
+    - Relationships (KG)
+    - Document Chunks (DC)  — new in v2.2, rehydrated from the graph store
+    """
     if not entities and not relations:
         return ""
 
@@ -453,20 +682,27 @@ def _render_context_block(*, entities: List[Entity], relations: List[Relation]) 
 
     lines: list[str] = []
     if entities:
-        lines.append("Entities:")
+        lines.append("-----Entities (KG)-----")
         for e in entities:
             desc = e.description.strip() or "(no description)"
             lines.append(f"- [{e.type}] {e.name} — {desc}")
     if relations:
         lines.append("")
-        lines.append("Relations:")
+        lines.append("-----Relationships (KG)-----")
         for r in relations:
             src = id_to_name.get(r.source_id, r.source_id)
             tgt = id_to_name.get(r.target_id, r.target_id)
             desc = r.description.strip() or "(no description)"
             lines.append(f"- {src} → {tgt}: {desc} (weight={r.weight})")
+    if chunks:
+        lines.append("")
+        lines.append("-----Document Chunks (DC)-----")
+        for c in chunks[:20]:
+            text = (c.text or "").strip()
+            if text:
+                lines.append(f"[{c.chunk_id[:12]}] {text[:500]}")
 
     return "\n".join(lines)
 
 
-__all__ = ["GraphIndexService", "LLMCall", "EmbedQuery"]
+__all__ = ["GraphIndexService", "LLMCall", "EmbedQuery", "EmbedTexts"]

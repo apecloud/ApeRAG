@@ -194,9 +194,51 @@ def render_summarization_prompt(
     )
 
 
+KEYWORD_EXTRACTION: str = """\
+---Role---
+
+You are a helpful assistant tasked with identifying both high-level and
+low-level keywords in the user's query.
+
+---Goal---
+
+Given the query, list both high-level and low-level keywords.
+High-level keywords focus on overarching concepts or themes.
+Low-level keywords focus on specific entities, details, or concrete terms.
+
+---Instructions---
+
+- Output the keywords in JSON format (it will be parsed by a JSON parser,
+  do not add any extra content in the output).
+- The JSON should have two keys:
+  - "high_level_keywords" for overarching concepts or themes
+  - "low_level_keywords" for specific entities or details
+
+---Example---
+
+Query: "How does international trade influence global economic stability?"
+
+Output:
+{{"high_level_keywords": ["international trade", "global economic stability", "economic impact"],
+  "low_level_keywords": ["trade agreements", "tariffs", "currency exchange", "imports", "exports"]}}
+
+---Real Data---
+
+Query: {query}
+
+Output (JSON only, keep the same language as the query):"""
+
+
+def render_keyword_extraction_prompt(*, query: str) -> str:
+    """Fill in the keyword extraction prompt template."""
+    return KEYWORD_EXTRACTION.format(query=query)
+
+
 __all__ = [
     "ENTITY_RELATION_EXTRACTION",
     "DESCRIPTION_SUMMARIZATION",
+    "KEYWORD_EXTRACTION",
     "render_extraction_prompt",
     "render_summarization_prompt",
+    "render_keyword_extraction_prompt",
 ]

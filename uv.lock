@@ -362,6 +362,12 @@ dev = [
 evaluation = [
     { name = "ragas" },
 ]
+graph-nebula = [
+    { name = "nebula3-python" },
+]
+graph-neo4j = [
+    { name = "neo4j" },
+]
 model = [
     { name = "flagembedding" },
     { name = "sentence-transformers" },
@@ -430,6 +436,8 @@ requires-dist = [
     { name = "mcp-agent", specifier = ">=0.2.6" },
     { name = "moto", marker = "extra == 'test'" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.4.1,<2.0.0" },
+    { name = "nebula3-python", marker = "extra == 'graph-nebula'", specifier = ">=3.0.0" },
+    { name = "neo4j", marker = "extra == 'graph-neo4j'", specifier = ">=5.0.0" },
     { name = "numpy", specifier = ">=2.1.3" },
     { name = "openai", specifier = ">=2.32.0,<3.0.0" },
     { name = "opentelemetry-api", specifier = ">=1.20.0" },
@@ -486,7 +494,7 @@ requires-dist = [
     { name = "watchfiles", specifier = ">=1.0.0" },
     { name = "whitenoise", specifier = ">=6.5.0,<7.0.0" },
 ]
-provides-extras = ["all", "evaluation", "model", "dev", "test"]
+provides-extras = ["all", "evaluation", "graph-neo4j", "graph-nebula", "model", "dev", "test"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "datamodel-code-generator", specifier = ">=0.30.0" }]
@@ -2265,6 +2273,18 @@ wheels = [
 ]
 
 [[package]]
+name = "httplib2"
+version = "0.31.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pyparsing" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c1/1f/e86365613582c027dda5ddb64e1010e57a3d53e99ab8a72093fa13d565ec/httplib2-0.31.2.tar.gz", hash = "sha256:385e0869d7397484f4eab426197a4c020b606edd43372492337c0b4010ae5d24", size = 250800, upload-time = "2026-01-23T11:04:44.165Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2f/90/fd509079dfcab01102c0fdd87f3a9506894bc70afcf9e9785ef6b2b3aff6/httplib2-0.31.2-py3-none-any.whl", hash = "sha256:dbf0c2fa3862acf3c55c078ea9c0bc4481d7dc5117cae71be9514912cf9f8349", size = 91099, upload-time = "2026-01-23T11:04:42.78Z" },
+]
+
+[[package]]
 name = "httptools"
 version = "0.6.4"
 source = { registry = "https://pypi.org/simple" }
@@ -3646,6 +3666,34 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/98/a4/1ab47638b92648243faf97a5aeb6ea83059cc3624972ab6b8d2316078d3f/mypy_extensions-1.0.0.tar.gz", hash = "sha256:75dbf8955dc00442a438fc4d0666508a9a97b6bd41aa2f0ffe9d2f2725af0782", size = 4433, upload-time = "2023-02-04T12:11:27.157Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/2a/e2/5d3f6ada4297caebe1a2add3b126fe800c96f56dbe5d1988a2cbe0b267aa/mypy_extensions-1.0.0-py3-none-any.whl", hash = "sha256:4392f6c0eb8a5668a69e23d168ffa70f0be9ccfd32b5cc2d26a34ae5b844552d", size = 4695, upload-time = "2023-02-04T12:11:25.002Z" },
+]
+
+[[package]]
+name = "nebula3-python"
+version = "3.8.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "future" },
+    { name = "httplib2" },
+    { name = "httpx", extra = ["http2"] },
+    { name = "pytz" },
+    { name = "six" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/7d/5b/418091182ec585762497f087f04d6e8dcd8c5f7de416b01d6c901c1e8055/nebula3_python-3.8.3.tar.gz", hash = "sha256:da4693171079e9d5efb01a579f7fb62ef7655f6169cc2ff2cbb7b7d902e2cf3d", size = 3228870, upload-time = "2024-10-22T03:55:47.774Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e7/51/fdcc871d1b04d4e2a0293e27ae7d33fe33eea9077323401fb5016f19dcef/nebula3_python-3.8.3-py3-none-any.whl", hash = "sha256:ef583d15c012751cce05bcf8b3869881dbbc3286c6e3fa8b5c65b7c5bb808c38", size = 331255, upload-time = "2024-10-22T03:55:45.887Z" },
+]
+
+[[package]]
+name = "neo4j"
+version = "6.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pytz" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/1b/01/d6ce65e4647f6cb2b9cca3b813978f7329b54b4e36660aaec1ddf0ccce7a/neo4j-6.1.0.tar.gz", hash = "sha256:b5dde8c0d8481e7b6ae3733569d990dd3e5befdc5d452f531ad1884ed3500b84", size = 239629, upload-time = "2026-01-12T11:27:34.777Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/70/5c/ee71e2dd955045425ef44283f40ba1da67673cf06404916ca2950ac0cd39/neo4j-6.1.0-py3-none-any.whl", hash = "sha256:3bd93941f3a3559af197031157220af9fd71f4f93a311db687bd69ffa417b67d", size = 325326, upload-time = "2026-01-12T11:27:33.196Z" },
 ]
 
 [[package]]
