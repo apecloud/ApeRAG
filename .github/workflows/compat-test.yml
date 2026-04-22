@@ -1,0 +1,193 @@
+name: Backend-Compat-Test
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'aperag/graphindex/**'
+      - 'aperag/vectorstore/**'
+      - 'tests/integration/compat/**'
+      - '.github/workflows/compat-test.yml'
+  workflow_dispatch:
+    inputs:
+      with_neo4j:
+        description: 'Enable Neo4j backend tests'
+        type: boolean
+        default: true
+      with_nebula:
+        description: 'Enable Nebula backend tests'
+        type: boolean
+        default: true
+
+jobs:
+  # ───────────────────────────────────────────────────────
+  # Job 1: Graph store compatibility (PG always, Neo4j/Nebula opt-in)
+  # ───────────────────────────────────────────────────────
+  graph-compat:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - backend: postgresql
+            services_profile: ""
+          - backend: neo4j
+            services_profile: "neo4j"
+          - backend: nebula
+            services_profile: "nebula"
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        ports: ["5432:5432"]
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: make env-install
+
+      - name: Start Neo4j (if needed)
+        if: matrix.backend == 'neo4j'
+        run: |
+          docker run -d --name neo4j-test \
+            -p 7474:7474 -p 7687:7687 \
+            -e NEO4J_AUTH=neo4j/password \
+            -e NEO4J_PLUGINS='["apoc"]' \
+            -e NEO4J_ACCEPT_LICENSE_AGREEMENT=yes \
+            neo4j:5.26.5-enterprise
+          # Wait for Neo4j to be ready
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:7474 > /dev/null 2>&1; then
+              echo "Neo4j is ready"
+              break
+            fi
+            echo "Waiting for Neo4j... ($i/30)"
+            sleep 5
+          done
+
+      - name: Start Nebula (if needed)
+        if: matrix.backend == 'nebula'
+        run: |
+          # Use docker-compose to start the Nebula cluster
+          docker compose --profile nebula -f docker-compose.yml up -d \
+            nebula-metad nebula-storaged nebula-graphd nebula-storage-activator
+          # Wait for Nebula graphd to be ready
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:19669/status > /dev/null 2>&1; then
+              echo "Nebula is ready"
+              break
+            fi
+            echo "Waiting for Nebula... ($i/30)"
+            sleep 10
+          done
+
+      - name: Run graph compat tests (PostgreSQL)
+        if: matrix.backend == 'postgresql'
+        run: |
+          COMPAT_PG_URL="postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/postgres" \
+          uv run pytest tests/integration/compat/test_graph_compat.py -v --tb=short
+
+      - name: Run graph compat tests (Neo4j)
+        if: matrix.backend == 'neo4j'
+        run: |
+          COMPAT_NEO4J_URI="bolt://127.0.0.1:7687" \
+          COMPAT_NEO4J_USER="neo4j" \
+          COMPAT_NEO4J_PASS="password" \
+          uv run pytest tests/integration/compat/test_graph_compat.py -v --tb=short
+
+      - name: Run graph compat tests (Nebula)
+        if: matrix.backend == 'nebula'
+        run: |
+          COMPAT_NEBULA_HOSTS="127.0.0.1:9669" \
+          uv run pytest tests/integration/compat/test_graph_compat.py -v --tb=short
+
+  # ───────────────────────────────────────────────────────
+  # Job 2: Vector store compatibility (Qdrant + pgvector)
+  # ───────────────────────────────────────────────────────
+  vector-compat:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - backend: qdrant
+          - backend: pgvector
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        ports: ["5432:5432"]
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: make env-install
+
+      - name: Start Qdrant (if needed)
+        if: matrix.backend == 'qdrant'
+        run: |
+          docker run -d --name qdrant-test \
+            -p 6333:6333 \
+            qdrant/qdrant:v1.13.6
+          for i in $(seq 1 15); do
+            if curl -sf http://localhost:6333/healthz > /dev/null 2>&1; then
+              echo "Qdrant is ready"
+              break
+            fi
+            echo "Waiting for Qdrant... ($i/15)"
+            sleep 3
+          done
+
+      - name: Run vector compat tests (Qdrant)
+        if: matrix.backend == 'qdrant'
+        run: |
+          COMPAT_QDRANT_URL="http://127.0.0.1:6333" \
+          uv run pytest tests/integration/compat/test_vector_compat.py -v --tb=short
+
+      - name: Run vector compat tests (pgvector)
+        if: matrix.backend == 'pgvector'
+        run: |
+          COMPAT_PGVECTOR_URL="postgresql://postgres:postgres@127.0.0.1:5432/postgres" \
+          uv run pytest tests/integration/compat/test_vector_compat.py -v --tb=short
