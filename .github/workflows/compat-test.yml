@@ -92,15 +92,48 @@ jobs:
           # Use docker-compose to start the Nebula cluster
           docker compose --profile nebula -f docker-compose.yml up -d \
             nebula-metad nebula-storaged nebula-graphd nebula-storage-activator
-          # Wait for Nebula graphd to be ready
+          # Wait for Nebula graphd to be ready.
+          ready=0
           for i in $(seq 1 30); do
             if curl -sf http://localhost:19669/status > /dev/null 2>&1; then
               echo "Nebula is ready"
+              ready=1
               break
             fi
             echo "Waiting for Nebula... ($i/30)"
             sleep 10
           done
+          if [ "$ready" -ne 1 ]; then
+            echo "Nebula graphd did not become ready."
+            docker compose --profile nebula -f docker-compose.yml ps
+            docker compose --profile nebula -f docker-compose.yml logs --tail=200 \
+              nebula-metad nebula-storaged nebula-graphd nebula-storage-activator
+            exit 1
+          fi
+
+          # Wait until storaged is registered via the activator before running tests.
+          activated=0
+          for i in $(seq 1 30); do
+            status=$(docker inspect -f '{{.State.Status}} {{.State.ExitCode}}' aperag-nebula-storage-activator 2>/dev/null || true)
+            if [ "$status" = "exited 0" ]; then
+              echo "Nebula storaged is activated"
+              activated=1
+              break
+            fi
+            if [ "$status" = "exited 1" ]; then
+              echo "Nebula storage activator failed."
+              break
+            fi
+            echo "Waiting for Nebula storage activation... ($i/30)"
+            sleep 5
+          done
+          if [ "$activated" -ne 1 ]; then
+            echo "Nebula storage activation did not complete successfully."
+            docker compose --profile nebula -f docker-compose.yml ps
+            docker compose --profile nebula -f docker-compose.yml logs --tail=200 \
+              nebula-metad nebula-storaged nebula-graphd nebula-storage-activator
+            exit 1
+          fi
 
       - name: Run graph compat tests (PostgreSQL)
         if: matrix.backend == 'postgresql'
