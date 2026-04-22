@@ -135,6 +135,18 @@ class Config(BaseSettings):
     qdrant_vectors_on_disk: bool = Field(True, alias="QDRANT_VECTORS_ON_DISK")
     qdrant_on_disk_payload: bool = Field(True, alias="QDRANT_ON_DISK_PAYLOAD")
 
+    # Graph DB backend. Defaults to PostgreSQL (shared with the main ApeRAG
+    # database). Set GRAPH_DB_TYPE to "neo4j" or "nebula" plus the
+    # corresponding connection env vars to switch.
+    graph_db_type: str = Field("postgresql", alias="GRAPH_DB_TYPE")
+    neo4j_uri: str = Field("", alias="NEO4J_URI")
+    neo4j_username: str = Field("neo4j", alias="NEO4J_USERNAME")
+    neo4j_password: str = Field("", alias="NEO4J_PASSWORD")
+    nebula_hosts: str = Field("", alias="NEBULA_HOSTS")
+    nebula_username: str = Field("root", alias="NEBULA_USERNAME")
+    nebula_password: str = Field("", alias="NEBULA_PASSWORD")
+    nebula_space_prefix: str = Field("aperag", alias="NEBULA_SPACE_PREFIX")
+
     # pgvector backend knobs. pgvector by default piggybacks on the main
     # ApeRAG PostgreSQL (``database_url``) so a private-delivery deployment
     # saves one component; set ``PGVECTOR_DATABASE_URL`` to point at a
@@ -400,3 +412,26 @@ def get_vector_db_connector(collection: str, vector_size: Optional[int] = None) 
     """
     ctx = build_vector_db_context(collection, vector_size=vector_size)
     return VectorStoreConnectorAdaptor(settings.vector_db_type, ctx=ctx)
+
+
+def build_graph_db_context() -> Dict[str, Any]:
+    """Build the ctx dict for the configured graph backend.
+
+    Mirrors ``build_vector_db_context`` in spirit: all backend-specific
+    knobs are merged into one dict so connectors can pick what they need
+    and ignore the rest. PostgreSQL reuses the main ApeRAG database
+    engine (injected separately); Neo4j/Nebula need their own DSN.
+    """
+    return {
+        "graph_db_type": settings.graph_db_type,
+        # PostgreSQL — engine injected by integration.py, not here
+        # Neo4j
+        "neo4j_uri": settings.neo4j_uri,
+        "neo4j_username": settings.neo4j_username,
+        "neo4j_password": settings.neo4j_password,
+        # Nebula
+        "nebula_hosts": settings.nebula_hosts,
+        "nebula_username": settings.nebula_username,
+        "nebula_password": settings.nebula_password,
+        "nebula_space_prefix": settings.nebula_space_prefix,
+    }

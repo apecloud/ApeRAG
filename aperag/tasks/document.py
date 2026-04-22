@@ -54,6 +54,30 @@ class DocumentIndexTask:
             local_doc_info=local_doc_info,
         )
 
+    def _upsert_graph_index(self, document_id: str, collection, parsed_data: ParsedDocumentData) -> dict:
+        """Index a document into the graphindex v2 graph store."""
+        from aperag.graphindex.integration import run_index_document_sync
+
+        res = run_index_document_sync(
+            collection=collection,
+            doc_id=document_id,
+            content=parsed_data.content,
+            file_path=parsed_data.file_path,
+        )
+        return {
+            "status": "success",
+            "doc_id": res.doc_id,
+            "chunks_created": res.chunks_created,
+            "entities_extracted": res.entities_extracted,
+            "relations_extracted": res.relations_extracted,
+        }
+
+    def _delete_graph_index(self, document_id: str, collection) -> None:
+        """Delete a document's graph rows from graphindex v2."""
+        from aperag.graphindex.integration import run_delete_document_sync
+
+        run_delete_document_sync(collection=collection, doc_id=document_id)
+
     def create_index(self, document_id: str, index_type: str, parsed_data: ParsedDocumentData) -> IndexTaskResult:
         """
         Create a single index for a document using parsed data
@@ -109,18 +133,7 @@ class DocumentIndexTask:
                     logger.info(f"Graph indexing disabled for document {document_id}")
                     result_data = {"success": True, "message": "Graph indexing disabled"}
                 else:
-                    from aperag.graph.lightrag_manager import process_document_for_celery
-
-                    result = process_document_for_celery(
-                        collection=collection,
-                        content=parsed_data.content,
-                        doc_id=document_id,
-                        file_path=parsed_data.file_path,
-                    )
-                    if result.get("status") != "success":
-                        error_msg = result.get("message", "Unknown error")
-                        raise Exception(f"Graph indexing failed: {error_msg}")
-                    result_data = result
+                    result_data = self._upsert_graph_index(document_id, collection, parsed_data)
 
             elif index_type == DocumentIndexType.SUMMARY.value:
                 from aperag.index.summary_index import summary_indexer
@@ -211,12 +224,7 @@ class DocumentIndexTask:
                 from aperag.index.graph_index import graph_indexer
 
                 if graph_indexer.is_enabled(collection):
-                    from aperag.graph.lightrag_manager import delete_document_for_celery
-
-                    result = delete_document_for_celery(collection=collection, doc_id=document_id)
-                    if result.get("status") != "success":
-                        error_msg = result.get("message", "Unknown error")
-                        raise Exception(f"Graph index deletion failed: {error_msg}")
+                    self._delete_graph_index(document_id, collection)
 
             elif index_type == DocumentIndexType.SUMMARY.value:
                 from aperag.index.summary_index import summary_indexer
@@ -299,18 +307,7 @@ class DocumentIndexTask:
                     logger.info(f"Graph indexing disabled for document {document_id}")
                     result_data = {"success": True, "message": "Graph indexing disabled"}
                 else:
-                    from aperag.graph.lightrag_manager import process_document_for_celery
-
-                    result = process_document_for_celery(
-                        collection=collection,
-                        content=parsed_data.content,
-                        doc_id=document_id,
-                        file_path=parsed_data.file_path,
-                    )
-                    if result.get("status") != "success":
-                        error_msg = result.get("message", "Unknown error")
-                        raise Exception(f"Graph indexing failed: {error_msg}")
-                    result_data = result
+                    result_data = self._upsert_graph_index(document_id, collection, parsed_data)
 
             elif index_type == DocumentIndexType.SUMMARY.value:
                 from aperag.index.summary_index import summary_indexer

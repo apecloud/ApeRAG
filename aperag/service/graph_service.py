@@ -12,65 +12,75 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Graph-index business service.
+
+Thin wrapper around ``aperag.graphindex.GraphIndexService`` that handles
+the ApeRAG-specific concerns: collection lookup, auth, and mapping
+graphindex DTOs to the shapes the REST UI expects. All the real logic
+(SQL, LLM, summarization) lives inside graphindex.
+
+Three endpoints route through here:
+
+* ``get_graph_labels`` — list entity types for the UI dropdown.
+* ``get_knowledge_graph`` — fetch a subgraph for visualization.
+* ``merge_entities`` — consolidate multiple entities into one, with an
+  LLM-generated summary description.
+
+Two LightRAG-era curation features are not re-exposed in v2:
+
+* ``generate_merge_suggestions`` / ``handle_suggestion_action`` — the
+  "discover clusters to merge" pipeline. It was a 500-line LLM
+  orchestration over LightRAG internals; its v2 replacement (if the
+  product needs one) should be a dedicated module, not part of
+  graphindex.
+* ``export_for_kg_eval`` — snapshot export for the KG eval harness.
+  Can be rebuilt as a thin SQL dump whenever we want it back.
+
+The REST routes for those two actions still exist under
+``aperag/views/graph.py`` and return HTTP 410 until the frontend is
+updated. See ``docs/zh-CN/design/graphindex_rewrite.md``.
+"""
+
+from __future__ import annotations
+
 import logging
 from typing import Any, Dict, List
 
-from aperag.concurrent_control import get_or_create_lock, lock_context
-from aperag.db.models import MergeSuggestionStatus
 from aperag.db.ops import async_db_ops
 from aperag.exceptions import CollectionNotFoundException
-from aperag.graph import lightrag_manager
-from aperag.graph.lightrag.types import KnowledgeGraph
+from aperag.graphindex.dto import Entity as GraphIndexEntity
+from aperag.graphindex.dto import Relation as GraphIndexRelation
 from aperag.schema import view_models
-from aperag.utils.utils import utc_now
 
 logger = logging.getLogger(__name__)
 
 
 class GraphService:
-    """Service for knowledge graph operations"""
+    """Read-side graph service used by the UI."""
 
-    def __init__(self):
+    def __init__(self) -> None:
+        # Local import avoids an import cycle with ``collection_service``.
         from aperag.service.collection_service import collection_service
 
         self.collection_service = collection_service
         self.db_ops = async_db_ops
 
+    # ================================================================== labels
     async def get_graph_labels(self, user_id: str, collection_id: str) -> view_models.GraphLabelsResponse:
-        """Get available node labels in the knowledge graph"""
+        """List distinct entity types for a collection.
+
+        Empty list when the collection has not been indexed yet — that
+        is the *correct* answer, not a cue to fall back to anything.
+        """
         db_collection = await self._get_and_validate_collection(user_id, collection_id)
 
-        rag = await lightrag_manager.create_lightrag_instance(db_collection)
-        try:
-            labels = await rag.get_graph_labels()
-            return view_models.GraphLabelsResponse(labels=labels)
-        finally:
-            await rag.finalize_storages()
+        from aperag.graphindex.integration import make_service_for_collection
 
-    def _optimize_graph_for_visualization(self, nodes, edges, max_nodes):
-        """Optimize graph by selecting well-connected nodes"""
-        if len(nodes) <= max_nodes:
-            return nodes, edges
+        svc = make_service_for_collection(db_collection)
+        labels = await svc.get_labels(collection_id=collection_id)
+        return view_models.GraphLabelsResponse(labels=labels)
 
-        # Calculate node degrees
-        degree_map = {node.id: 0 for node in nodes}
-        for edge in edges:
-            if edge.source in degree_map and edge.target in degree_map:
-                degree_map[edge.source] += 1
-                degree_map[edge.target] += 1
-
-        # Select top nodes by degree
-        sorted_nodes = sorted(nodes, key=lambda node: (-degree_map[node.id], node.id))
-        selected_nodes = sorted_nodes[:max_nodes]
-        selected_node_ids = {node.id for node in selected_nodes}
-
-        # Filter edges between selected nodes
-        optimized_edges = [
-            edge for edge in edges if edge.source in selected_node_ids and edge.target in selected_node_ids
-        ]
-
-        return selected_nodes, optimized_edges
-
+    # ============================================================= subgraph UI
     async def get_knowledge_graph(
         self,
         user_id: str,
@@ -79,353 +89,164 @@ class GraphService:
         max_depth: int = 3,
         max_nodes: int = 1000,
     ) -> Dict[str, Any]:
-        """Get knowledge graph with overview or subgraph mode"""
+        """Fetch a knowledge-graph subgraph for visualization.
+
+        ``label`` is either a specific entity type or "*" / empty for
+        overview mode. In overview mode we oversample 2x and apply a
+        degree-based picker so the visualiser gets well-connected
+        nodes; the subsequent truncation sets ``is_truncated`` on the
+        response.
+        """
         db_collection = await self._get_and_validate_collection(user_id, collection_id)
 
-        rag = await lightrag_manager.create_lightrag_instance(db_collection)
-        try:
-            # Determine query parameters
-            if not label or label == "*":
-                node_label, query_max_nodes = "*", max_nodes * 2
-                mode_description = "overview"
-            else:
-                node_label, query_max_nodes = label, max_nodes
-                mode_description = f"subgraph from '{label}'"
+        from aperag.graphindex.integration import make_service_for_collection
 
-            # Get knowledge graph
-            kg: KnowledgeGraph = await rag.get_knowledge_graph(
-                node_label=node_label,
-                max_depth=max_depth,
-                max_nodes=query_max_nodes,
-            )
+        svc = make_service_for_collection(db_collection)
 
-            # Optimize if needed
-            if (not label or label == "*") and len(kg.nodes) > max_nodes:
-                optimized_nodes, optimized_edges = self._optimize_graph_for_visualization(kg.nodes, kg.edges, max_nodes)
-                is_truncated = True
-            else:
-                optimized_nodes, optimized_edges = kg.nodes, kg.edges
-                is_truncated = getattr(kg, "is_truncated", False)
+        normalized_label = None if not label or label == "*" else label
+        query_max_nodes = max_nodes * 2 if normalized_label is None else max_nodes
+        mode_description = "overview" if normalized_label is None else f"subgraph from '{label}'"
 
-            result = self._convert_graph_to_dict(optimized_nodes, optimized_edges, is_truncated)
+        kg = await svc.get_knowledge_graph(
+            collection_id=collection_id,
+            label=normalized_label,
+            max_depth=max_depth,
+            max_nodes=query_max_nodes,
+        )
+        raw_nodes = _adapt_nodes(kg.nodes)
+        raw_edges = _adapt_edges(kg.edges)
+        is_truncated = bool(getattr(kg, "is_truncated", False))
 
-            logger.info(
-                f"Retrieved {mode_description} graph for collection {collection_id}: "
-                f"{len(result['nodes'])} nodes, {len(result['edges'])} edges"
-            )
-            return result
-        finally:
-            await rag.finalize_storages()
+        # Overview mode: prune to top-degree nodes when we asked the
+        # storage for more than the UI limit. Sub-label mode passes
+        # through unchanged.
+        if normalized_label is None and len(raw_nodes) > max_nodes:
+            optimized_nodes, optimized_edges = self._optimize_graph_for_visualization(raw_nodes, raw_edges, max_nodes)
+            is_truncated = True
+        else:
+            optimized_nodes = raw_nodes
+            optimized_edges = raw_edges
 
-    def _convert_graph_to_dict(self, nodes, edges, is_truncated=False) -> Dict[str, Any]:
+        result = self._to_ui_dict(optimized_nodes, optimized_edges, is_truncated)
+        logger.info(
+            "Retrieved %s graph for collection %s: %d nodes, %d edges",
+            mode_description,
+            collection_id,
+            len(result["nodes"]),
+            len(result["edges"]),
+        )
+        return result
+
+    # ================================================================== merge
+    async def merge_entities(
+        self,
+        user_id: str,
+        collection_id: str,
+        *,
+        target_entity_id: str,
+        source_entity_ids: List[str],
+    ) -> Dict[str, Any]:
+        """Merge entities and return a summary payload for the UI.
+
+        The heavy lifting (structural merge + LLM summary of the merged
+        description) happens inside
+        ``GraphIndexService.merge_entities``. This layer only validates
+        the collection and reshapes the DTO into the dict the existing
+        frontend expects.
         """
-        Convert KnowledgeGraph to API dict. Semantics (see KnowledgeGraphNode):
-        - id: node identity and display key (storage must use entity_id).
-        - labels: pass-through from storage (e.g. [entity_type]); fallback to entity_id for display if empty.
-        - properties: entity_id, entity_type, description, source_id, file_path, entity_name.
-        """
+        db_collection = await self._get_and_validate_collection(user_id, collection_id)
 
-        def extract_properties(obj, default_fields):
+        from aperag.graphindex.integration import make_service_for_collection
+
+        svc = make_service_for_collection(db_collection)
+        result = await svc.merge_entities(
+            collection_id=collection_id,
+            target_entity_id=target_entity_id,
+            source_entity_ids=source_entity_ids,
+        )
+        return {
+            "target_entity_id": result.target_entity_id,
+            "merged_source_ids": list(result.merged_source_ids),
+            "description": result.description,
+            "source_chunk_ids": list(result.source_chunk_ids),
+            "edges_redirected": result.edges_redirected,
+            "edges_collapsed": result.edges_collapsed,
+        }
+
+    # --------------------------------------------------------- internal helpers
+    def _optimize_graph_for_visualization(self, nodes, edges, max_nodes):
+        """Pick the top ``max_nodes`` entities by degree, filter edges to
+        those whose endpoints survived the pick.
+
+        Used only in overview mode (no label filter). Degree is
+        computed from the edge list we already fetched, not with a
+        separate SQL query, because overview mode always fetches the
+        full subset anyway.
+        """
+        if len(nodes) <= max_nodes:
+            return nodes, edges
+
+        degree_map = {node.id: 0 for node in nodes}
+        for edge in edges:
+            if edge.source in degree_map and edge.target in degree_map:
+                degree_map[edge.source] += 1
+                degree_map[edge.target] += 1
+
+        sorted_nodes = sorted(nodes, key=lambda n: (-degree_map[n.id], n.id))
+        selected_nodes = sorted_nodes[:max_nodes]
+        selected_ids = {n.id for n in selected_nodes}
+        optimized_edges = [edge for edge in edges if edge.source in selected_ids and edge.target in selected_ids]
+        return selected_nodes, optimized_edges
+
+    def _to_ui_dict(self, nodes, edges, is_truncated: bool) -> Dict[str, Any]:
+        """Convert adapted nodes/edges into the JSON the frontend expects.
+
+        The schema is preserved exactly as it was under LightRAG so the
+        web UI doesn't need to change: each node carries ``id``,
+        ``labels``, and a flat ``properties`` dict; each edge has
+        ``source``, ``target``, ``type``, and ``properties``.
+        """
+        default_node_fields = [
+            "entity_id",
+            "entity_name",
+            "entity_type",
+            "description",
+            "source_id",
+            "file_path",
+        ]
+        default_edge_fields = ["weight", "description", "keywords", "source_id", "file_path"]
+
+        def extract_properties(obj, fields):
             if hasattr(obj, "properties") and obj.properties:
                 return obj.properties
-            return {field: getattr(obj, field, None) for field in default_fields if hasattr(obj, field)}
-
-        default_node_fields = ["entity_id", "entity_name", "entity_type", "description", "source_id", "file_path"]
+            return {f: getattr(obj, f, None) for f in fields if hasattr(obj, f)}
 
         def node_to_item(node):
             props = extract_properties(node, default_node_fields)
-            # Use storage labels when present; else fallback so display is never numeric id
             if getattr(node, "labels", None) and node.labels:
                 labels = node.labels
             else:
                 display = props.get("entity_id") or props.get("entity_name")
                 labels = [display] if display is not None else ([node.id] if hasattr(node, "id") else [])
-            return {
-                "id": node.id,
-                "labels": labels,
-                "properties": props,
-            }
+            return {"id": node.id, "labels": labels, "properties": props}
 
         return {
-            "nodes": [node_to_item(node) for node in nodes],
+            "nodes": [node_to_item(n) for n in nodes],
             "edges": [
                 {
                     "id": edge.id,
                     "type": getattr(edge, "type", "DIRECTED"),
                     "source": edge.source,
                     "target": edge.target,
-                    "properties": extract_properties(
-                        edge, ["weight", "description", "keywords", "source_id", "file_path"]
-                    ),
+                    "properties": extract_properties(edge, default_edge_fields),
                 }
                 for edge in edges
             ],
             "is_truncated": is_truncated,
         }
 
-    async def get_or_generate_merge_suggestions(
-        self,
-        user_id: str,
-        collection_id: str,
-        max_suggestions: int = 10,
-        max_concurrent_llm_calls: int = 4,
-        force_refresh: bool = False,
-    ) -> dict[str, Any]:
-        """Get cached active suggestions or generate new ones"""
-        await self._get_and_validate_collection(user_id, collection_id)
-
-        # Use collection-specific lock to prevent concurrent generation for the same collection
-        lock_name = f"merge_suggestions_{collection_id}"
-        lock = get_or_create_lock(lock_name)
-
-        try:
-            async with lock_context(lock, timeout=120.0):
-                logger.debug(f"Acquired lock '{lock_name}' for merge suggestions generation")
-
-                if not force_refresh:
-                    active_suggestions = await self.db_ops.get_active_suggestions(collection_id)
-                    if active_suggestions:  # If there are active suggestions
-                        return await self.get_merge_suggestions(collection_id, from_cache=True)
-
-                # Generate and store new suggestions
-                await self.generate_merge_suggestions(user_id, collection_id, max_suggestions, max_concurrent_llm_calls)
-
-                return await self.get_merge_suggestions(collection_id, from_cache=False)
-        except TimeoutError:
-            logger.warning(f"Failed to acquire lock '{lock_name}' within timeout, falling back to cache")
-            # Fallback: return existing suggestions
-            return await self.get_merge_suggestions(collection_id, from_cache=True)
-
-    async def _update_active_suggestions(self, collection_id: str, suggestions: List[dict]) -> None:
-        """Update active suggestions (clear old ones and store new ones)"""
-        # Always clear existing active suggestions when generating new ones
-        cleared_count = await self.db_ops.clear_active_suggestions(collection_id)
-        if cleared_count > 0:
-            logger.info(f"Cleared {cleared_count} existing active suggestions for collection {collection_id}")
-
-        # Store new suggestions if any
-        if suggestions and len(suggestions) > 0:
-            await self.db_ops.create_active_suggestions(suggestions)
-        else:
-            logger.debug("No new suggestions to store")
-
-    async def get_merge_suggestions(self, collection_id: str, from_cache: bool = False, **kwargs) -> dict[str, Any]:
-        """Get complete suggestions response with active and history suggestions combined"""
-        # Get active suggestions and history suggestions in parallel for efficiency
-        import asyncio
-
-        active_suggestions, history_suggestions = await asyncio.gather(
-            self.db_ops.get_active_suggestions(collection_id),
-            self.db_ops.get_suggestion_history(collection_id, limit=100),  # Get recent history
-        )
-
-        # Format active suggestions (always PENDING, no operated_at)
-        active_items = [
-            {
-                "id": suggestion.id,
-                "collection_id": suggestion.collection_id,
-                "suggestion_batch_id": suggestion.suggestion_batch_id,
-                "entity_ids": suggestion.entity_ids,
-                "confidence_score": float(suggestion.confidence_score),
-                "merge_reason": suggestion.merge_reason,
-                "suggested_target_entity": suggestion.suggested_target_entity,
-                "status": str(suggestion.status),  # Convert enum to string
-                "created": suggestion.gmt_created,
-                "operated_at": None,  # Active suggestions don't have operated_at
-            }
-            for suggestion in active_suggestions
-        ]
-
-        # Format history suggestions (ACCEPTED/REJECTED, has operated_at)
-        history_items = [
-            {
-                "id": suggestion.id,
-                "collection_id": suggestion.collection_id,
-                "suggestion_batch_id": suggestion.suggestion_batch_id,
-                "entity_ids": suggestion.entity_ids,
-                "confidence_score": float(suggestion.confidence_score),
-                "merge_reason": suggestion.merge_reason,
-                "suggested_target_entity": suggestion.suggested_target_entity,
-                "status": str(suggestion.status),  # Convert enum to string
-                "created": suggestion.gmt_created,
-                "operated_at": suggestion.operated_at,
-            }
-            for suggestion in history_suggestions
-        ]
-
-        # Combine: active first, then history
-        all_suggestions = active_items + history_items
-
-        # Calculate statistics from the actual data
-        pending_count = len(active_items)
-        accepted_count = sum(1 for item in history_items if item["status"] == "ACCEPTED")
-        rejected_count = sum(1 for item in history_items if item["status"] == "REJECTED")
-
-        return {
-            "suggestions": all_suggestions,
-            "total_analyzed_nodes": kwargs.get("total_analyzed_nodes", 0),
-            "processing_time_seconds": kwargs.get("processing_time_seconds", 0.0),
-            "from_cache": from_cache,
-            "generated_at": utc_now(),
-            "total_suggestions": len(all_suggestions),
-            "pending_count": pending_count,
-            "accepted_count": accepted_count,
-            "rejected_count": rejected_count,
-        }
-
-    async def generate_merge_suggestions(
-        self,
-        user_id: str,
-        collection_id: str,
-        max_suggestions: int = 10,
-        max_concurrent_llm_calls: int = 4,
-    ) -> dict[str, Any]:
-        """Generate node merge suggestions using LLM analysis and store them"""
-        db_collection = await self._get_and_validate_collection(user_id, collection_id)
-
-        # Generate suggestions using LightRAG
-        rag = await lightrag_manager.create_lightrag_instance(db_collection)
-        try:
-            llm_result = await rag.agenerate_merge_suggestions(
-                max_suggestions=max_suggestions,
-                entity_types=None,  # Default to None (consider all entity types)
-                debug_mode=False,  # Default to False
-                max_concurrent_llm_calls=max_concurrent_llm_calls,
-            )
-        finally:
-            await rag.finalize_storages()
-
-        # Prepare suggestion data for storage
-        suggestion_data = [
-            {
-                "collection_id": collection_id,
-                "entity_ids": [entity["entity_id"] for entity in suggestion["entities"]],
-                "confidence_score": suggestion["confidence_score"],
-                "merge_reason": suggestion["merge_reason"],
-                "suggested_target_entity": suggestion["suggested_target_entity"],
-            }
-            for suggestion in llm_result.get("suggestions", [])
-        ]
-
-        # Store suggestions if any were generated
-        if suggestion_data:
-            await self._update_active_suggestions(collection_id, suggestion_data)
-            logger.info(f"Stored {len(suggestion_data)} new active suggestions for collection {collection_id}")
-
-        # Return the LLM result with metadata for response formatting
-        return llm_result
-
-    async def merge_nodes(
-        self,
-        user_id: str,
-        collection_id: str,
-        entity_ids: list[str],
-        target_entity_data: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        """Merge graph nodes directly using entity IDs"""
-        if not entity_ids:
-            raise ValueError("entity_ids cannot be empty")
-
-        db_collection = await self._get_and_validate_collection(user_id, collection_id)
-
-        # Execute merge directly
-        result = await self._execute_merge_operation(
-            db_collection=db_collection,
-            entity_ids=entity_ids,
-            target_entity_data=target_entity_data,
-        )
-
-        logger.info(f"Successfully merged entities {entity_ids} in collection {collection_id}")
-        return result
-
-    async def handle_suggestion_action(
-        self,
-        user_id: str,
-        collection_id: str,
-        suggestion_id: str,
-        action: str,
-        target_entity_data: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        """Handle accept/reject action on a merge suggestion"""
-        # Normalize action to lowercase for case-insensitive comparison
-        normalized_action = action.lower().strip()
-        if normalized_action not in ["accept", "reject"]:
-            raise ValueError(f"Invalid action: {action}. Must be 'accept' or 'reject' (case-insensitive)")
-
-        db_collection = await self._get_and_validate_collection(user_id, collection_id)
-
-        # Get and validate active suggestion
-        suggestion = await self.db_ops.get_active_suggestion_by_id(suggestion_id)
-        if not suggestion:
-            raise ValueError(f"Active suggestion not found: {suggestion_id}")
-
-        if suggestion.collection_id != collection_id:
-            raise ValueError(f"Suggestion {suggestion_id} does not belong to collection {collection_id}")
-
-        # Determine the status for history record
-        history_status = (
-            MergeSuggestionStatus.ACCEPTED if normalized_action == "accept" else MergeSuggestionStatus.REJECTED
-        )
-
-        if normalized_action == "reject":
-            # Move to history and remove from active suggestions
-            await self.db_ops.move_to_history(suggestion, history_status, user_id)
-
-            logger.info(f"Suggestion {suggestion_id} has been rejected")
-            return {
-                "status": "success",
-                "message": f"Suggestion {suggestion_id} has been rejected",
-                "suggestion_id": suggestion_id,
-                "action": normalized_action,
-                "merge_result": None,
-            }
-
-        else:  # normalized_action == "accept"
-            # Accept and perform merge
-            merge_target_data = target_entity_data or suggestion.suggested_target_entity
-
-            # Execute merge operation
-            merge_result = await self._execute_merge_operation(
-                db_collection=db_collection,
-                entity_ids=suggestion.entity_ids,
-                target_entity_data=merge_target_data,
-            )
-
-            # Move to history and remove from active suggestions
-            await self.db_ops.move_to_history(suggestion, history_status, user_id)
-
-            logger.info(f"Suggestion {suggestion_id} has been accepted and merge completed")
-            return {
-                "status": "success",
-                "message": f"Suggestion {suggestion_id} has been accepted and merge completed",
-                "suggestion_id": suggestion_id,
-                "action": normalized_action,
-                "merge_result": merge_result,
-            }
-
-    async def _execute_merge_operation(
-        self,
-        db_collection,
-        entity_ids: list[str],
-        target_entity_data: dict[str, Any] | None,
-    ) -> dict[str, Any]:
-        """Execute the actual node merge operation"""
-        rag = await lightrag_manager.create_lightrag_instance(db_collection)
-        try:
-            result = await rag.amerge_nodes(
-                entity_ids=entity_ids,
-                target_entity_data=target_entity_data,
-            )
-
-            # Add entity_ids to result for consistency
-            result["entity_ids"] = entity_ids
-
-            return result
-        finally:
-            await rag.finalize_storages()
-
     async def _get_and_validate_collection(self, user_id: str, collection_id: str):
-        """Get collection and validate knowledge graph is enabled"""
+        """Resolve the DB collection row and enforce that graph is enabled."""
         try:
             view_collection = await self.collection_service.get_collection(user_id, collection_id)
         except Exception:
@@ -440,18 +261,82 @@ class GraphService:
 
         return db_collection
 
-    async def export_for_kg_eval(
-        self, user_id: str, collection_id: str, sample_size: int = 100000, include_source_texts: bool = True
-    ) -> Dict[str, Any]:
-        """Export collection knowledge graph data in KG-Eval framework format"""
-        db_collection = await self._get_and_validate_collection(user_id, collection_id)
 
-        rag = await lightrag_manager.create_lightrag_instance(db_collection)
-        try:
-            result = await rag.export_for_kg_eval(sample_size=sample_size, include_source_texts=include_source_texts)
-            return result
-        finally:
-            await rag.finalize_storages()
+# ---------------------------------------------------------------------------
+# Adapter helpers: graphindex DTOs → UI shape
+# ---------------------------------------------------------------------------
+#
+# ``_to_ui_dict`` and ``_optimize_graph_for_visualization`` were originally
+# written for the LightRAG ``KnowledgeGraph`` schema. Rather than rewrite
+# the UI contract, we wrap graphindex DTOs in lightweight proxy objects
+# that expose the attributes those helpers read. Keeps the frontend
+# contract unchanged and the adapter isolated in one place.
+
+from types import SimpleNamespace  # noqa: E402  (intentional in-line import)
+
+
+def _adapt_nodes(nodes: List[GraphIndexEntity]) -> List[SimpleNamespace]:
+    """Wrap ``graphindex.Entity`` for the UI dict builder."""
+    out: List[SimpleNamespace] = []
+    for n in nodes:
+        if not isinstance(n, GraphIndexEntity):
+            # Already in legacy shape (defensive; should not happen after
+            # the LightRAG removal but cheap to keep).
+            out.append(n)  # type: ignore[arg-type]
+            continue
+        props = {
+            "entity_id": n.entity_id,
+            "entity_name": n.name,
+            "entity_type": n.type,
+            "description": n.description,
+            "source_id": ",".join(n.source_chunk_ids) if n.source_chunk_ids else "",
+            "file_path": "",
+        }
+        out.append(
+            SimpleNamespace(
+                id=n.entity_id,
+                labels=[n.type] if n.type else [n.name],
+                properties=props,
+                entity_id=n.entity_id,
+                entity_name=n.name,
+                entity_type=n.type,
+                description=n.description,
+                source_id=props["source_id"],
+                file_path="",
+            )
+        )
+    return out
+
+
+def _adapt_edges(edges: List[GraphIndexRelation]) -> List[SimpleNamespace]:
+    """Wrap ``graphindex.Relation`` for the UI dict builder."""
+    out: List[SimpleNamespace] = []
+    for e in edges:
+        if not isinstance(e, GraphIndexRelation):
+            out.append(e)  # type: ignore[arg-type]
+            continue
+        props = {
+            "weight": float(e.weight),
+            "description": e.description,
+            "keywords": "",
+            "source_id": ",".join(e.source_chunk_ids) if e.source_chunk_ids else "",
+            "file_path": "",
+        }
+        out.append(
+            SimpleNamespace(
+                id=f"{e.source_id}->{e.target_id}",
+                type="DIRECTED",
+                source=e.source_id,
+                target=e.target_id,
+                properties=props,
+                weight=props["weight"],
+                description=e.description,
+                keywords="",
+                source_id=props["source_id"],
+                file_path="",
+            )
+        )
+    return out
 
 
 # Global service instance

@@ -223,6 +223,28 @@ static-check:
 	test-http-up-k8s test-http-down-k8s test-http-smoke-k8s test-http-full-k8s
 test-all: test-unit test-integration test-e2e
 
+# Cross-backend compatibility tests.
+# Require running databases; use `make infra-up WITH_NEO4J=1 WITH_NEBULA=1`
+# to start all backends, then run these targets.
+#
+# PG is always tested (uses the default compose postgres).
+# Neo4j / Nebula are opt-in via their env vars.
+.PHONY: test-compat-graph test-compat-vector test-compat-all
+test-compat-graph:
+	COMPAT_PG_URL=$${COMPAT_PG_URL:-postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/postgres} \
+	COMPAT_NEO4J_URI=$${COMPAT_NEO4J_URI:-} \
+	COMPAT_NEO4J_USER=$${COMPAT_NEO4J_USER:-neo4j} \
+	COMPAT_NEO4J_PASS=$${COMPAT_NEO4J_PASS:-password} \
+	COMPAT_NEBULA_HOSTS=$${COMPAT_NEBULA_HOSTS:-} \
+	uv run pytest tests/integration/compat/test_graph_compat.py -v
+
+test-compat-vector:
+	COMPAT_QDRANT_URL=$${COMPAT_QDRANT_URL:-http://127.0.0.1:6333} \
+	COMPAT_PGVECTOR_URL=$${COMPAT_PGVECTOR_URL:-postgresql://postgres:postgres@127.0.0.1:5432/postgres} \
+	uv run pytest tests/integration/compat/test_vector_compat.py -v
+
+test-compat-all: test-compat-graph test-compat-vector
+
 test-unit:
 	@mkdir -p tests/report
 	uv run pytest tests/unit_test/ -v \

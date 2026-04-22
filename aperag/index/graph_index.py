@@ -24,7 +24,16 @@ logger = logging.getLogger(__name__)
 
 
 class GraphIndexer(AsyncIndexer):
-    """Graph index implementation using LightRAG"""
+    """Enable/disable gate for the per-collection graph index.
+
+    Business code (search pipeline, document tasks) asks this indexer
+    whether graph indexing is enabled for a collection and then routes
+    to ``aperag.graphindex`` for the actual work. The method bodies
+    below only emit reconciliation-scheduling metadata; no graph
+    writes happen here. Kept as a separate file because the
+    reconciliation loop treats it uniformly with ``vector_index`` and
+    ``fulltext_index``.
+    """
 
     def __init__(self):
         super().__init__(IndexType.GRAPH)
@@ -62,7 +71,7 @@ class GraphIndexer(AsyncIndexer):
         self, document_id: int, content: str, doc_parts: List[Any], collection, **kwargs
     ) -> IndexResult:
         """
-        Create graph index asynchronously using LightRAG
+        Schedule asynchronous graph indexing.
 
         Args:
             document_id: Document ID
@@ -218,18 +227,18 @@ class GraphIndexer(AsyncIndexer):
                 success=False, index_type=self.index_type, error=f"Graph index deletion scheduling failed: {str(e)}"
             )
 
-    def process_lightrag_result(self, result: Dict[str, Any]) -> IndexResult:
-        """
-        Process LightRAG processing result
+    def process_indexing_result(self, result: Dict[str, Any]) -> IndexResult:
+        """Adapt a graphindex indexer result dict into an ``IndexResult``.
 
-        Args:
-            result: Result from LightRAG processing
-
-        Returns:
-            IndexResult: Processed result
+        Accepts the shape returned by
+        ``DocumentIndexTask._upsert_graph_index`` (status / chunks_created
+        / entities_extracted / relations_extracted). Kept as a thin
+        adapter so the reconciliation layer doesn't need to know which
+        graph backend produced the numbers.
         """
         try:
-            if result.get("status") == "success":
+            status = result.get("status")
+            if status == "success":
                 return IndexResult(
                     success=True,
                     index_type=self.index_type,
@@ -240,23 +249,23 @@ class GraphIndexer(AsyncIndexer):
                     },
                     metadata={"status": "complete", "processing_time": result.get("processing_time")},
                 )
-            elif result.get("status") == "warning":
+            if status == "warning":
                 return IndexResult(
                     success=True,
                     index_type=self.index_type,
                     data={"warning_message": result.get("message")},
                     metadata={"status": "complete_with_warnings"},
                 )
-            else:
-                return IndexResult(
-                    success=False,
-                    index_type=self.index_type,
-                    error=f"LightRAG processing failed: {result.get('message', 'Unknown error')}",
-                )
-
+            return IndexResult(
+                success=False,
+                index_type=self.index_type,
+                error=f"Graph indexing failed: {result.get('message', 'Unknown error')}",
+            )
         except Exception as e:
             return IndexResult(
-                success=False, index_type=self.index_type, error=f"Failed to process LightRAG result: {str(e)}"
+                success=False,
+                index_type=self.index_type,
+                error=f"Failed to process graph indexing result: {e}",
             )
 
 

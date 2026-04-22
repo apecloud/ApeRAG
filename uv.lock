@@ -309,9 +309,6 @@ dependencies = [
     { name = "markdownify" },
     { name = "markitdown", extra = ["all"] },
     { name = "mcp-agent" },
-    { name = "nano-vectordb" },
-    { name = "nebula3-python" },
-    { name = "neo4j" },
     { name = "numpy" },
     { name = "openai" },
     { name = "opentelemetry-api" },
@@ -365,8 +362,11 @@ dev = [
 evaluation = [
     { name = "ragas" },
 ]
-lightrag-dev = [
-    { name = "nano-vectordb" },
+graph-nebula = [
+    { name = "nebula3-python" },
+]
+graph-neo4j = [
+    { name = "neo4j" },
 ]
 model = [
     { name = "flagembedding" },
@@ -436,10 +436,8 @@ requires-dist = [
     { name = "mcp-agent", specifier = ">=0.2.6" },
     { name = "moto", marker = "extra == 'test'" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.4.1,<2.0.0" },
-    { name = "nano-vectordb", specifier = ">=0.0.4.3" },
-    { name = "nano-vectordb", marker = "extra == 'lightrag-dev'" },
-    { name = "nebula3-python", specifier = "==3.8.3" },
-    { name = "neo4j", specifier = ">=5.28.1" },
+    { name = "nebula3-python", marker = "extra == 'graph-nebula'", specifier = ">=3.0.0" },
+    { name = "neo4j", marker = "extra == 'graph-neo4j'", specifier = ">=5.0.0" },
     { name = "numpy", specifier = ">=2.1.3" },
     { name = "openai", specifier = ">=2.32.0,<3.0.0" },
     { name = "opentelemetry-api", specifier = ">=1.20.0" },
@@ -496,7 +494,7 @@ requires-dist = [
     { name = "watchfiles", specifier = ">=1.0.0" },
     { name = "whitenoise", specifier = ">=6.5.0,<7.0.0" },
 ]
-provides-extras = ["all", "lightrag-dev", "evaluation", "model", "dev", "test"]
+provides-extras = ["all", "evaluation", "graph-neo4j", "graph-nebula", "model", "dev", "test"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "datamodel-code-generator", specifier = ">=0.30.0" }]
@@ -2276,14 +2274,14 @@ wheels = [
 
 [[package]]
 name = "httplib2"
-version = "0.22.0"
+version = "0.31.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pyparsing" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/3d/ad/2371116b22d616c194aa25ec410c9c6c37f23599dcd590502b74db197584/httplib2-0.22.0.tar.gz", hash = "sha256:d7a10bc5ef5ab08322488bde8c726eeee5c8618723fdb399597ec58f3d82df81", size = 351116, upload-time = "2023-03-21T22:29:37.214Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c1/1f/e86365613582c027dda5ddb64e1010e57a3d53e99ab8a72093fa13d565ec/httplib2-0.31.2.tar.gz", hash = "sha256:385e0869d7397484f4eab426197a4c020b606edd43372492337c0b4010ae5d24", size = 250800, upload-time = "2026-01-23T11:04:44.165Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a8/6c/d2fbdaaa5959339d53ba38e94c123e4e84b8fbc4b84beb0e70d7c1608486/httplib2-0.22.0-py3-none-any.whl", hash = "sha256:14ae0a53c1ba8f3d37e9e27cf37eabb0fb9980f435ba405d546948b009dd64dc", size = 96854, upload-time = "2023-03-21T22:29:35.683Z" },
+    { url = "https://files.pythonhosted.org/packages/2f/90/fd509079dfcab01102c0fdd87f3a9506894bc70afcf9e9785ef6b2b3aff6/httplib2-0.31.2-py3-none-any.whl", hash = "sha256:dbf0c2fa3862acf3c55c078ea9c0bc4481d7dc5117cae71be9514912cf9f8349", size = 91099, upload-time = "2026-01-23T11:04:42.78Z" },
 ]
 
 [[package]]
@@ -3671,18 +3669,6 @@ wheels = [
 ]
 
 [[package]]
-name = "nano-vectordb"
-version = "0.0.4.3"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "numpy" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/cb/ff/ed9ff1c4e5b0418687c17d02fdc453c212e7550c62622914ba0243c106bc/nano_vectordb-0.0.4.3.tar.gz", hash = "sha256:3d13074476f2b739e51261974ed44aa467725579966219734c03502c929ed3b5", size = 6332, upload-time = "2024-11-11T12:50:50.584Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/9b/d8/f1876f59916da0a2147e63066650c46bf7992828a9e92f1b4e3b695f1fb0/nano_vectordb-0.0.4.3-py3-none-any.whl", hash = "sha256:1b70401a54c02fabf76515b5dfb630076434547ed3c6861828ee8771b6dd7c19", size = 5590, upload-time = "2024-11-11T12:50:48.9Z" },
-]
-
-[[package]]
 name = "nebula3-python"
 version = "3.8.3"
 source = { registry = "https://pypi.org/simple" }
@@ -3700,14 +3686,14 @@ wheels = [
 
 [[package]]
 name = "neo4j"
-version = "5.28.1"
+version = "6.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pytz" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/4b/20/733dac16f7cedc80b23093415822c9763302519cba0e7c8bcdb5c01fc512/neo4j-5.28.1.tar.gz", hash = "sha256:ae8e37a1d895099062c75bc359b2cce62099baac7be768d0eba7180c1298e214", size = 231094, upload-time = "2025-02-10T08:36:22.566Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/1b/01/d6ce65e4647f6cb2b9cca3b813978f7329b54b4e36660aaec1ddf0ccce7a/neo4j-6.1.0.tar.gz", hash = "sha256:b5dde8c0d8481e7b6ae3733569d990dd3e5befdc5d452f531ad1884ed3500b84", size = 239629, upload-time = "2026-01-12T11:27:34.777Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/6a/57/94225fe5e9dabdc0ff60c88cbfcedf11277f4b34e7ab1373d3e62dbdd207/neo4j-5.28.1-py3-none-any.whl", hash = "sha256:6755ef9e5f4e14b403aef1138fb6315b120631a0075c138b5ddb2a06b87b09fd", size = 312258, upload-time = "2025-02-10T08:36:16.209Z" },
+    { url = "https://files.pythonhosted.org/packages/70/5c/ee71e2dd955045425ef44283f40ba1da67673cf06404916ca2950ac0cd39/neo4j-6.1.0-py3-none-any.whl", hash = "sha256:3bd93941f3a3559af197031157220af9fd71f4f93a311db687bd69ffa417b67d", size = 325326, upload-time = "2026-01-12T11:27:33.196Z" },
 ]
 
 [[package]]

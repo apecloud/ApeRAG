@@ -12,149 +12,96 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Graph-index HTTP routes.
+
+Merge endpoint is live against graphindex v2 + its LLM-based description
+summarization. Merge-suggestion discovery and the KG-eval export are not
+re-implemented in v2 and remain HTTP 410 until a dedicated curation
+module is introduced (see ``docs/zh-CN/design/graphindex_rewrite.md``).
+"""
+
+from __future__ import annotations
+
 import logging
-from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
 
 from aperag.db.models import User
 from aperag.exceptions import CollectionNotFoundException
-from aperag.schema import view_models
-from aperag.utils.audit_decorator import audit
-
-# Import authentication dependencies
+from aperag.service.graph_service import graph_service
 from aperag.views.auth import required_user
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+_REMOVAL_DETAIL = (
+    "This graph-curation endpoint was removed together with the "
+    "LightRAG-based graph index in graphindex v2. See "
+    "docs/zh-CN/design/graphindex_rewrite.md."
+)
+
+
+def _gone() -> HTTPException:
+    """Uniform 410 response for every removed curation route."""
+    return HTTPException(status_code=410, detail=_REMOVAL_DETAIL)
+
 
 @router.post("/collections/{collection_id}/graphs/nodes/merge", tags=["graph"])
-@audit(resource_type="index", api_name="MergeNodes")
 async def merge_nodes_view(
     request: Request,
     collection_id: str,
-    merge_request: view_models.NodeMergeRequest,
+    payload: dict = Body(...),
     user: User = Depends(required_user),
-) -> view_models.NodeMergeResponse:
-    """Merge multiple graph nodes into one"""
-    from aperag.service.graph_service import graph_service
+) -> dict:
+    """Merge N entities in a collection's knowledge graph into one.
 
-    logger.info(f"Merging nodes: entity_ids={merge_request.entity_ids} in collection {collection_id}")
+    Request body:
+    ``{"entity_ids": ["a", "b", "c"], "target_entity_id": "a" | null}``
+
+    * ``entity_ids`` must contain at least two ids.
+    * ``target_entity_id`` is the surviving entity; if omitted we pick
+      the first id in ``entity_ids`` (callers that want "highest
+      degree" auto-selection should do that on the client — the
+      service layer intentionally does not embed a product policy).
+    * The response echoes the merged description **after** LLM
+      summarization, so the frontend can refresh the entity detail
+      panel without a second fetch.
+    """
+    entity_ids = payload.get("entity_ids") or []
+    if not isinstance(entity_ids, list) or len(entity_ids) < 2:
+        raise HTTPException(status_code=400, detail="entity_ids must be a list with at least two entity ids")
+    target = payload.get("target_entity_id") or entity_ids[0]
+    sources = [eid for eid in entity_ids if eid != target]
+    if not sources:
+        raise HTTPException(status_code=400, detail="At least one source entity distinct from the target is required")
 
     try:
-        # Call graph service
-        result = await graph_service.merge_nodes(
-            user_id=str(user.id),
-            collection_id=collection_id,
-            entity_ids=merge_request.entity_ids,
-            target_entity_data=merge_request.target_entity_data.model_dump(exclude_unset=True)
-            if merge_request.target_entity_data
-            else None,
+        return await graph_service.merge_entities(
+            str(user.id),
+            collection_id,
+            target_entity_id=target,
+            source_entity_ids=sources,
         )
-        return view_models.NodeMergeResponse(**result)
     except CollectionNotFoundException:
         raise HTTPException(status_code=404, detail="Collection not found")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.post("/collections/{collection_id}/graphs/merge-suggestions/{suggestion_id}/action", tags=["graph"])
-@audit(resource_type="index", api_name="HandleSuggestionAction")
-async def handle_suggestion_action_view(
-    request: Request,
-    collection_id: str,
-    suggestion_id: str,
-    action_request: view_models.SuggestionActionRequest,
-    user: User = Depends(required_user),
-) -> view_models.SuggestionActionResponse:
-    """Accept or reject a merge suggestion"""
-    from aperag.service.graph_service import graph_service
-
-    logger.info(
-        f"Handling suggestion action: {action_request.action} for suggestion {suggestion_id} in collection {collection_id}"
-    )
-
-    try:
-        result = await graph_service.handle_suggestion_action(
-            user_id=str(user.id),
-            collection_id=collection_id,
-            suggestion_id=suggestion_id,
-            action=action_request.action,
-            target_entity_data=action_request.target_entity_data.model_dump(exclude_unset=True)
-            if action_request.target_entity_data
-            else None,
-        )
-        return view_models.SuggestionActionResponse(**result)
-    except CollectionNotFoundException:
-        raise HTTPException(status_code=404, detail="Collection not found")
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+@router.post(
+    "/collections/{collection_id}/graphs/merge-suggestions/{suggestion_id}/action",
+    tags=["graph"],
+)
+async def handle_suggestion_action_view(request: Request, collection_id: str, suggestion_id: str) -> dict:
+    raise _gone()
 
 
 @router.post("/collections/{collection_id}/graphs/merge-suggestions", tags=["graph"])
-@audit(resource_type="index", api_name="GenerateMergeSuggestions")
-async def merge_suggestions_view(
-    request: Request,
-    collection_id: str,
-    suggestions_request: Optional[view_models.MergeSuggestionsRequest] = Body(None),
-    user: User = Depends(required_user),
-) -> view_models.MergeSuggestionsResponse:
-    """Get cached suggestions or generate new ones using LLM analysis"""
-    from aperag.service.graph_service import graph_service
-
-    # If no request body provided, create default request
-    if suggestions_request is None:
-        suggestions_request = view_models.MergeSuggestionsRequest()
-
-    logger.info(
-        f"Getting merge suggestions for collection {collection_id}, "
-        f"max_suggestions={suggestions_request.max_suggestions}, "
-        f"force_refresh={suggestions_request.force_refresh}"
-    )
-
-    try:
-        # Call graph service
-        result = await graph_service.get_or_generate_merge_suggestions(
-            user_id=str(user.id),
-            collection_id=collection_id,
-            max_suggestions=suggestions_request.max_suggestions,
-            max_concurrent_llm_calls=suggestions_request.max_concurrent_llm_calls,
-            force_refresh=suggestions_request.force_refresh,
-        )
-
-        logger.info(
-            f"Returned {len(result['suggestions'])} merge suggestions for collection {collection_id} "
-            f"(from_cache={result['from_cache']}, {result['processing_time_seconds']:.2f}s)"
-        )
-
-        return view_models.MergeSuggestionsResponse(**result)
-    except CollectionNotFoundException:
-        raise HTTPException(status_code=404, detail="Collection not found")
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+async def merge_suggestions_view(request: Request, collection_id: str) -> dict:
+    raise _gone()
 
 
 @router.get("/collections/{collection_id}/graphs/export/kg-eval", tags=["graph"])
-async def export_kg_eval_view(
-    request: Request,
-    collection_id: str,
-    sample_size: int = 100000,
-    include_source_texts: bool = True,
-    user: User = Depends(required_user),
-) -> Dict[str, Any]:
-    """Export collection knowledge graph data in KG-Eval framework format"""
-    from aperag.service.graph_service import graph_service
-
-    # Validate parameters
-    if not (1 <= sample_size <= 1000000):
-        raise HTTPException(status_code=400, detail="sample_size must be between 1 and 1000000")
-
-    try:
-        result = await graph_service.export_for_kg_eval(str(user.id), collection_id, sample_size, include_source_texts)
-        return result
-    except CollectionNotFoundException:
-        raise HTTPException(status_code=404, detail="Collection not found")
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+async def export_kg_eval_view(request: Request, collection_id: str) -> dict:
+    raise _gone()

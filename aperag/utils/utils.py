@@ -33,10 +33,6 @@ def generate_vector_db_collection_name(collection_id) -> str:
     return str(collection_id)
 
 
-def generate_lightrag_namespace_prefix(collection_id) -> str:
-    return str(collection_id)
-
-
 def utc_now():
     return datetime.now(timezone.utc)
 

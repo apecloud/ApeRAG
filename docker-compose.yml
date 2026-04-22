@@ -273,8 +273,7 @@ services:
       - --v=0
       - --minloglevel=0
     depends_on:
-      nebula-metad:
-        condition: service_healthy
+      - nebula-metad
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://nebula-storaged:19779/status"]
       interval: 30s
@@ -304,8 +303,7 @@ services:
       - --v=0
       - --minloglevel=0
     depends_on:
-      nebula-storaged:
-        condition: service_healthy
+      - nebula-storaged
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://nebula-graphd:19669/status"]
       interval: 30s
@@ -350,6 +348,5 @@ services:
           exit 1
         done
     depends_on:
-      nebula-graphd:
-        condition: service_healthy
+      - nebula-graphd
     profiles: ["nebula"]

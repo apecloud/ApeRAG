@@ -257,20 +257,26 @@ class SearchPipelineService:
         query: str,
         top_k: int,
     ) -> List[DocumentWithScore]:
+        """Knowledge-graph retrieval path. Always routes to graphindex v2.
+
+        A collection that hasn't been indexed yet returns no context;
+        this is the correct behaviour — search pipelines compose
+        (vector + graph + fulltext), and a blank graph just means
+        "graph contributes nothing this time", not "fall back to
+        something stale".
+        """
         config = parseCollectionConfig(collection.config)
         if not config.enable_knowledge_graph:
             logger.warning(f"Collection {collection.id} does not have knowledge graph enabled")
             return []
 
-        from aperag.graph import lightrag_manager
-        from aperag.graph.lightrag import QueryParam
+        from aperag.graphindex.integration import make_service_for_collection
 
-        rag = await lightrag_manager.create_lightrag_instance(collection)
-        param = QueryParam(mode="hybrid", only_need_context=True, top_k=top_k)
-        context = await rag.aquery_context(query=query, param=param)
-        if not context:
+        svc = make_service_for_collection(collection)
+        ctx = await svc.query_context(collection_id=str(collection.id), query=query, top_k=top_k)
+        if not ctx.text:
             return []
-        return [DocumentWithScore(text=context, metadata={"recall_type": "graph_search"})]
+        return [DocumentWithScore(text=ctx.text, metadata={"recall_type": "graph_search"})]
 
     async def _summary_search(
         self,
