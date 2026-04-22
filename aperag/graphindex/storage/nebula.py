@@ -210,8 +210,7 @@ class NebulaGraphStore:
             f"CREATE TAG IF NOT EXISTS `{_CHUNK_TAG}`("
             f"chunk_id string, doc_id string, order_in_doc int, "
             f"text string, file_path string)",
-            f"CREATE EDGE IF NOT EXISTS `{_EDGE_TYPE}`("
-            f"description string, weight double, source_chunk_ids string)",
+            f"CREATE EDGE IF NOT EXISTS `{_EDGE_TYPE}`(description string, weight double, source_chunk_ids string)",
         ]
         last_error: RuntimeError | None = None
 
