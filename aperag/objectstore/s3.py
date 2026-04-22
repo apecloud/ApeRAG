@@ -263,8 +263,10 @@ class AsyncS3(AsyncObjectStore):
     parsing that calls ``put`` dozens of times.
     """
 
-    def __init__(self, cfg) -> None:
-        self._session = aioboto3.Session()
+    def __init__(self, cfg, session: aioboto3.Session | None = None) -> None:
+        # Keep the old constructor/session attribute contract for tests and any
+        # explicit callers while still reusing a long-lived client internally.
+        self.session = session or aioboto3.Session()
         self.cfg = cfg
         self._checked_bucket = None
         self._client = None
@@ -286,7 +288,7 @@ class AsyncS3(AsyncObjectStore):
         """Lazy-init a long-lived S3 client for non-streaming ops."""
         if self._client is not None:
             return
-        self._client_ctx = self._session.client("s3", **self._get_client_kwargs())
+        self._client_ctx = self.session.client("s3", **self._get_client_kwargs())
         self._client = await self._client_ctx.__aenter__()
 
     async def _ensure_bucket(self):
@@ -328,7 +330,7 @@ class AsyncS3(AsyncObjectStore):
     async def get(self, path: str) -> Tuple[AsyncIterator[bytes], int] | None:
         # Streaming: need a dedicated client context so the response
         # body can outlive this method call.
-        client_context = self._session.client("s3", **self._get_client_kwargs())
+        client_context = self.session.client("s3", **self._get_client_kwargs())
         client = await client_context.__aenter__()
         try:
             response = await client.get_object(Bucket=self.cfg.bucket, Key=self._final_path(path))
@@ -372,7 +374,7 @@ class AsyncS3(AsyncObjectStore):
             range_str += str(end)
 
         # Streaming: dedicated client context.
-        client_context = self._session.client("s3", **self._get_client_kwargs())
+        client_context = self.session.client("s3", **self._get_client_kwargs())
         client = await client_context.__aenter__()
         try:
             response = await client.get_object(Bucket=self.cfg.bucket, Key=self._final_path(path), Range=range_str)
