@@ -166,22 +166,47 @@ class GraphIndexService:
     async def delete_document(self, *, collection_id: str, doc_id: str) -> DeleteDocumentResult:
         """Remove every row that exists *only* because of ``doc_id``.
 
-        Entities and relations supported by multiple documents are kept
-        but have ``doc_id``'s chunks pruned from their
-        ``source_chunk_ids`` list. After the topology delete, shadow
-        vectors are re-synced to match — orphaned entity/relation
-        vectors whose topology row was deleted are purged, and surviving
-        entities whose description changed (chunk-pruning can shorten
-        it) get their vector updated.
+        Shadow vector lifecycle is closed via a snapshot-diff approach:
+
+        1. Snapshot the set of surviving entity/relation ids BEFORE the
+           topology delete (we need the pre-delete set to know what
+           might vanish).
+        2. Run the topology delete.
+        3. Snapshot the surviving set AFTER.
+        4. The diff (pre - post) gives us the ids of entities/relations
+           that were removed — delete their shadow vectors by
+           deterministic id (``ge_{eid}`` / ``gr_{src}_{tgt}``).
+        5. Re-embed surviving entities/relations whose descriptions may
+           have changed (chunk-pruning can shorten them).
+
+        This avoids the flawed "ANN search as list-all" approach that
+        the first attempt used. Shadow vector ids are deterministic
+        functions of entity/relation ids, so we never need to enumerate
+        the vectorstore to find stale shadows.
         """
+        # 1. Pre-delete snapshot
+        pre_entity_ids = await self._collect_entity_ids(collection_id)
+        pre_relation_keys = await self._collect_relation_keys(collection_id)
+
+        # 2. Topology delete
         result = await self._store.delete_document_rows(collection_id=collection_id, doc_id=doc_id)
 
-        # Re-sync shadow vectors so they match the post-delete topology.
-        # _sync_entity_relation_vectors does a full upsert of surviving
-        # entities/relations; _purge_stale_shadow_vectors then removes
-        # any shadow vectors whose topology row no longer exists.
+        # 3. Post-delete snapshot
+        post_entity_ids = await self._collect_entity_ids(collection_id)
+        post_relation_keys = await self._collect_relation_keys(collection_id)
+
+        # 4. Delete shadow vectors for removed entities/relations
+        removed_entity_shadow_ids = [f"ge_{eid}" for eid in (pre_entity_ids - post_entity_ids)]
+        removed_relation_shadow_ids = [f"gr_{src}_{tgt}" for src, tgt in (pre_relation_keys - post_relation_keys)]
+        stale_ids = removed_entity_shadow_ids + removed_relation_shadow_ids
+        if stale_ids and self._vector_connector is not None:
+            try:
+                self._vector_connector.delete(stale_ids)
+            except Exception:
+                logger.exception("graphindex: failed to delete stale shadow vectors after document delete")
+
+        # 5. Re-embed surviving entities/relations (descriptions may have changed)
         await self._sync_entity_relation_vectors(collection_id=collection_id)
-        await self._purge_stale_shadow_vectors(collection_id=collection_id)
 
         return result
 
@@ -190,12 +215,24 @@ class GraphIndexService:
         ApeRAG collection itself (not an individual document).
 
         Cleans both the graph topology and any shadow vectors in the
-        vectorstore. The vectorstore cleanup uses ``delete_by_filter``
-        scoped to this collection's graph vectors only — chunk vectors
-        managed by the vector index pipeline are untouched.
+        vectorstore. Shadow cleanup uses ``delete_by_filter`` scoped to
+        this collection's graph vectors only — chunk vectors managed by
+        the vector index pipeline are untouched.
         """
+        # Snapshot all entity/relation ids before dropping topology, so
+        # we can delete their shadow vectors by deterministic id.
+        entity_ids = await self._collect_entity_ids(collection_id)
+        relation_keys = await self._collect_relation_keys(collection_id)
+
         await self._store.drop_collection(collection_id)
-        await self._delete_all_shadow_vectors(collection_id=collection_id)
+
+        if self._vector_connector is not None:
+            shadow_ids = [f"ge_{eid}" for eid in entity_ids] + [f"gr_{src}_{tgt}" for src, tgt in relation_keys]
+            if shadow_ids:
+                try:
+                    self._vector_connector.delete(shadow_ids)
+                except Exception:
+                    logger.exception("graphindex: failed to delete shadow vectors after collection drop")
 
     async def merge_entities(
         self,
@@ -550,106 +587,20 @@ class GraphIndexService:
             except Exception:
                 logger.exception("graphindex: failed to upsert relation vectors")
 
-    # ---- shadow vector cleanup (private) ------------------------------
-    async def _purge_stale_shadow_vectors(self, *, collection_id: str) -> None:
-        """Remove shadow vectors whose topology row no longer exists.
-
-        After a document delete, the topology side has pruned/removed
-        entities and relations. This method fetches the surviving set
-        of entity/relation ids from the graph store, then deletes any
-        shadow vector in the vectorstore whose id is NOT in that set.
-
-        Approach: fetch all surviving entity ids from the store, build
-        the expected shadow vector ids (``ge_{eid}`` / ``gr_{src}_{tgt}``),
-        then delete shadow vectors not in that set. We use
-        ``delete_by_filter`` where possible, falling back to
-        point-by-point delete when the filter DSL can't express
-        set-exclusion.
-        """
-        if self._vector_connector is None:
-            return
-
-        from aperag.vectorstore.filters import And, Eq
-
-        # Collect surviving entity ids from the graph store.
-        surviving_entities = await self._store.find_oversized_entities(
-            collection_id=collection_id,
-            min_chars=0,
-            min_fragments=0,
-            limit=100000,
+    # ---- shadow vector identity helpers (private) ---------------------
+    async def _collect_entity_ids(self, collection_id: str) -> set[str]:
+        """Return the set of entity_ids currently in the graph store."""
+        entities = await self._store.find_oversized_entities(
+            collection_id=collection_id, min_chars=0, min_fragments=0, limit=100000
         )
-        surviving_entity_shadow_ids = {f"ge_{e.entity_id}" for e in surviving_entities}
+        return {e.entity_id for e in entities}
 
-        surviving_relations = await self._store.find_oversized_relations(
-            collection_id=collection_id,
-            min_chars=0,
-            min_fragments=0,
-            limit=100000,
+    async def _collect_relation_keys(self, collection_id: str) -> set[tuple[str, str]]:
+        """Return the set of (source_id, target_id) currently in the graph store."""
+        relations = await self._store.find_oversized_relations(
+            collection_id=collection_id, min_chars=0, min_fragments=0, limit=100000
         )
-        surviving_relation_shadow_ids = {f"gr_{r.source_id}_{r.target_id}" for r in surviving_relations}
-        surviving_ids = surviving_entity_shadow_ids | surviving_relation_shadow_ids
-
-        # Retrieve all graph shadow vectors for this collection, then
-        # delete any that don't correspond to a surviving topology row.
-        for index_type in ("graph_entity", "graph_relation"):
-            try:
-                from aperag.vectorstore.dto import QueryRequest
-
-                # Use a zero-vector search with high top_k to list all
-                # shadow vectors of this type. Not ideal at scale, but
-                # correct and simple. A production optimization would be
-                # a dedicated "list by filter" method on the connector.
-                hits = self._vector_connector.search(
-                    QueryRequest(
-                        embedding=[0.0] * 8,  # dummy vector; score doesn't matter
-                        top_k=100000,
-                        flt=And(
-                            children=(
-                                Eq("indexer", index_type),
-                                Eq("collection_id", collection_id),
-                            )
-                        ),
-                        score_threshold=0.0,
-                    )
-                )
-                stale_ids = [h.id for h in hits if h.id not in surviving_ids]
-                if stale_ids:
-                    self._vector_connector.delete(stale_ids)
-            except Exception:
-                logger.exception(
-                    "graphindex: failed to purge stale %s shadow vectors for collection %s",
-                    index_type,
-                    collection_id,
-                )
-
-    async def _delete_all_shadow_vectors(self, *, collection_id: str) -> None:
-        """Remove ALL graph shadow vectors for a collection.
-
-        Used by ``drop_collection`` to ensure no orphan shadow vectors
-        survive after the topology is wiped. Uses ``delete_by_filter``
-        scoped to the collection's ``graph_entity`` and ``graph_relation``
-        index types.
-        """
-        if self._vector_connector is None:
-            return
-
-        from aperag.vectorstore.filters import And, Eq
-
-        for index_type in ("graph_entity", "graph_relation"):
-            try:
-                flt = And(
-                    children=(
-                        Eq("indexer", index_type),
-                        Eq("collection_id", collection_id),
-                    )
-                )
-                self._vector_connector.delete_by_filter(flt)
-            except Exception:
-                logger.exception(
-                    "graphindex: failed to delete %s shadow vectors for collection %s",
-                    index_type,
-                    collection_id,
-                )
+        return {(r.source_id, r.target_id) for r in relations}
 
     # ---- anchor resolution (private) ---------------------------------
     async def _resolve_anchor_entities(

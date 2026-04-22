@@ -354,10 +354,17 @@ class NebulaGraphStore:
                     edges_collapsed=0,
                 )
 
-            # Redirect edges: for each source, find its edges and
-            # re-create them pointing to/from the target.
+            # Redirect edges: collect all affected edges into an
+            # in-memory map keyed by (new_src, new_tgt), then collapse
+            # duplicates matching upsert_relations semantics (GREATEST
+            # weight, description append with dedup, union chunk ids)
+            # before writing back. This mirrors the PG backend's
+            # Python-side dedup that avoids duplicate-key issues.
             edges_redirected = 0
             edges_collapsed = 0
+            # Map (new_src, new_tgt) -> (desc, weight, chunk_ids_set)
+            redirected_map: dict[tuple[str, str], tuple[str, float, set[str]]] = {}
+
             for sid in merged:
                 for direction in ("outgoing", "incoming"):
                     try:
@@ -370,23 +377,6 @@ class NebulaGraphStore:
                                 f"`{_EDGE_TYPE}`.weight AS w, "
                                 f"`{_EDGE_TYPE}`.source_chunk_ids AS c",
                             )
-                            for i in range(r.row_size()):
-                                row = r.row_values(i)
-                                other = row[0].as_string() if row[0].is_string() else ""
-                                new_src, new_tgt = target_entity_id, other
-                                if new_src == new_tgt or other in source_ids:
-                                    edges_collapsed += 1
-                                    continue
-                                edge_desc = row[1].as_string() if row[1].is_string() else ""
-                                edge_w = row[2].as_double() if row[2].is_double() else 0.0
-                                edge_chunks = row[3].as_string() if row[3].is_string() else ""
-                                self._execute(
-                                    space,
-                                    f"INSERT EDGE `{_EDGE_TYPE}`(description, weight, source_chunk_ids) "
-                                    f'VALUES "{_escape(new_src)}"->"{_escape(new_tgt)}":('
-                                    f'"{_escape(edge_desc)}", {float(edge_w)}, "{_escape(edge_chunks)}")',
-                                )
-                                edges_redirected += 1
                         else:
                             r = self._execute(
                                 space,
@@ -396,25 +386,47 @@ class NebulaGraphStore:
                                 f"`{_EDGE_TYPE}`.weight AS w, "
                                 f"`{_EDGE_TYPE}`.source_chunk_ids AS c",
                             )
-                            for i in range(r.row_size()):
-                                row = r.row_values(i)
-                                other = row[0].as_string() if row[0].is_string() else ""
+                        for i in range(r.row_size()):
+                            row = r.row_values(i)
+                            other = row[0].as_string() if row[0].is_string() else ""
+                            if direction == "outgoing":
+                                new_src, new_tgt = target_entity_id, other
+                            else:
                                 new_src, new_tgt = other, target_entity_id
-                                if new_src == new_tgt or other in source_ids:
-                                    edges_collapsed += 1
-                                    continue
-                                edge_desc = row[1].as_string() if row[1].is_string() else ""
-                                edge_w = row[2].as_double() if row[2].is_double() else 0.0
-                                edge_chunks = row[3].as_string() if row[3].is_string() else ""
-                                self._execute(
-                                    space,
-                                    f"INSERT EDGE `{_EDGE_TYPE}`(description, weight, source_chunk_ids) "
-                                    f'VALUES "{_escape(new_src)}"->"{_escape(new_tgt)}":('
-                                    f'"{_escape(edge_desc)}", {float(edge_w)}, "{_escape(edge_chunks)}")',
-                                )
+                            if new_src == new_tgt or other in source_ids:
+                                edges_collapsed += 1
+                                continue
+                            key = (new_src, new_tgt)
+                            edge_desc = row[1].as_string() if row[1].is_string() else ""
+                            edge_w = float(row[2].as_double()) if row[2].is_double() else 0.0
+                            edge_c = set(_decode_chunk_ids(row[3].as_string() if row[3].is_string() else ""))
+
+                            if key in redirected_map:
+                                ex_desc, ex_w, ex_c = redirected_map[key]
+                                # Collapse: append description (with dedup),
+                                # GREATEST weight, union chunk ids
+                                if edge_desc and edge_desc not in ex_desc:
+                                    ex_desc = (ex_desc + DESCRIPTION_SEPARATOR + edge_desc) if ex_desc else edge_desc
+                                redirected_map[key] = (ex_desc, max(ex_w, edge_w), ex_c | edge_c)
+                                edges_collapsed += 1
+                            else:
+                                redirected_map[key] = (edge_desc, edge_w, edge_c)
                                 edges_redirected += 1
                     except Exception:
                         logger.exception("nebula merge: edge redirect failed for source %s", sid)
+
+            # Write collapsed edges
+            for (new_src, new_tgt), (e_desc, e_w, e_c) in redirected_map.items():
+                try:
+                    self._execute(
+                        space,
+                        f"INSERT EDGE `{_EDGE_TYPE}`(description, weight, source_chunk_ids) "
+                        f'VALUES "{_escape(new_src)}"->"{_escape(new_tgt)}":('
+                        f'"{_escape(e_desc)}", {float(e_w)}, '
+                        f'"{_escape(_encode_chunk_ids(sorted(e_c)))}")',
+                    )
+                except Exception:
+                    logger.exception("nebula merge: failed to write redirected edge %s->%s", new_src, new_tgt)
 
             # Delete source vertices (and their original edges)
             for sid in merged:
