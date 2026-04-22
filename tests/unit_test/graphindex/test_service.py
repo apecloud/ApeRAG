@@ -23,6 +23,7 @@ from aperag.graphindex import (
     Entity,
     GraphContext,
     GraphIndexService,
+    IndexDocumentResult,
     KnowledgeGraph,
     Relation,
 )
@@ -123,6 +124,18 @@ class _StubStore:
 
     async def rewrite_relation_description(self, collection_id, source_id, target_id, description):
         self.calls.append(("rewrite_relation_description", (collection_id, source_id, target_id, description), {}))
+
+
+class _StubVectorConnector:
+    def __init__(self) -> None:
+        self.deleted_batches: list[list[str]] = []
+        self.upsert_batches: list[list[str]] = []
+
+    def delete(self, ids):
+        self.deleted_batches.append(list(ids))
+
+    def upsert(self, points):
+        self.upsert_batches.append([p.id for p in points])
 
 
 def _stub_store_factory() -> _StubStore:
@@ -229,6 +242,101 @@ async def test_index_document_wipes_existing_rows_before_extracting():
     upsert_positions = [i for i, (name, *_) in enumerate(store.calls) if name in upsert_names]
     if upsert_positions:
         assert min(upsert_positions) > first_delete_idx
+
+
+@pytest.mark.asyncio
+async def test_index_document_rebuild_deletes_stale_shadow_vectors(monkeypatch):
+    class _LifecycleStore(_StubStore):
+        def __init__(self) -> None:
+            super().__init__()
+            self.entity_state = [
+                Entity(
+                    entity_id="old-e",
+                    collection_id="c",
+                    name="Old",
+                    type="person",
+                    description="old desc",
+                ),
+                Entity(
+                    entity_id="other-e",
+                    collection_id="c",
+                    name="Other",
+                    type="person",
+                    description="other desc",
+                ),
+            ]
+            self.relation_state = [
+                Relation(
+                    collection_id="c",
+                    source_id="old-e",
+                    target_id="other-e",
+                    description="old relation",
+                )
+            ]
+
+        async def find_oversized_entities(self, collection_id, *, min_chars, min_fragments, limit=200):
+            self.calls.append(
+                ("find_oversized_entities", (collection_id,), {"min_chars": min_chars, "min_fragments": min_fragments})
+            )
+            if min_chars == 0 and min_fragments == 0:
+                return list(self.entity_state)
+            return []
+
+        async def find_oversized_relations(self, collection_id, *, min_chars, min_fragments, limit=200):
+            self.calls.append(
+                ("find_oversized_relations", (collection_id,), {"min_chars": min_chars, "min_fragments": min_fragments})
+            )
+            if min_chars == 0 and min_fragments == 0:
+                return list(self.relation_state)
+            return []
+
+    store = _LifecycleStore()
+    vector = _StubVectorConnector()
+
+    async def embed_texts(texts: list[str]) -> list[list[float]]:
+        return [[0.1] * 8 for _ in texts]
+
+    async def fake_index_document(*, store, llm, config, collection_id, doc_id, content, file_path):
+        store.entity_state = [
+            Entity(
+                entity_id="new-e",
+                collection_id=collection_id,
+                name="New",
+                type="person",
+                description="new desc",
+            ),
+            Entity(
+                entity_id="other-e",
+                collection_id=collection_id,
+                name="Other",
+                type="person",
+                description="other desc",
+            ),
+        ]
+        store.relation_state = [
+            Relation(
+                collection_id=collection_id,
+                source_id="new-e",
+                target_id="other-e",
+                description="new relation",
+            )
+        ]
+        return IndexDocumentResult(doc_id=doc_id, chunks_created=1, entities_extracted=2, relations_extracted=1)
+
+    import aperag.graphindex.service as service_module
+
+    monkeypatch.setattr(service_module, "index_document", fake_index_document)
+
+    svc = GraphIndexService(store=store, llm=_null_llm, embed_texts=embed_texts, vector_connector=vector)
+    await svc.index_document(collection_id="c", doc_id="d1", content="", file_path="")
+
+    assert vector.deleted_batches == [["ge_old-e", "gr_old-e_other-e"]]
+    upserted_ids = [point_id for batch in vector.upsert_batches for point_id in batch]
+    assert "ge_new-e" in upserted_ids
+    assert "ge_other-e" in upserted_ids
+    assert "gr_new-e_other-e" in upserted_ids
+    assert "ge_old-e" not in upserted_ids
+    assert "gr_old-e_other-e" not in upserted_ids
 
 
 @pytest.mark.asyncio

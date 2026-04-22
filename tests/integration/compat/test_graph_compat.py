@@ -252,6 +252,104 @@ async def test_description_accumulation(store):
 
 
 @pytest.mark.asyncio
+async def test_merge_entities_collapses_preexisting_target_edge(store):
+    """Merging sources into a target must also merge with the target's
+    pre-existing edge, not just collapse redirected source edges."""
+    name, s = store
+    chunks = [
+        Chunk(chunk_id="mc1", doc_id="d1", collection_id=COLLECTION_ID, order_in_doc=0, text="target edge"),
+        Chunk(chunk_id="mc2", doc_id="d2", collection_id=COLLECTION_ID, order_in_doc=0, text="source 1 edge"),
+        Chunk(chunk_id="mc3", doc_id="d3", collection_id=COLLECTION_ID, order_in_doc=0, text="source 2 edge"),
+    ]
+    await s.upsert_chunks(COLLECTION_ID, chunks)
+    await s.upsert_entities(
+        COLLECTION_ID,
+        [
+            Entity(
+                entity_id="e-target",
+                collection_id=COLLECTION_ID,
+                name="Target",
+                type="person",
+                description="target entity",
+                source_chunk_ids=("mc1",),
+            ),
+            Entity(
+                entity_id="e-src1",
+                collection_id=COLLECTION_ID,
+                name="Source One",
+                type="person",
+                description="source entity one",
+                source_chunk_ids=("mc2",),
+            ),
+            Entity(
+                entity_id="e-src2",
+                collection_id=COLLECTION_ID,
+                name="Source Two",
+                type="person",
+                description="source entity two",
+                source_chunk_ids=("mc3",),
+            ),
+            Entity(
+                entity_id="e-other",
+                collection_id=COLLECTION_ID,
+                name="Other",
+                type="person",
+                description="other entity",
+                source_chunk_ids=("mc1", "mc2", "mc3"),
+            ),
+        ],
+    )
+    await s.upsert_relations(
+        COLLECTION_ID,
+        [
+            Relation(
+                collection_id=COLLECTION_ID,
+                source_id="e-target",
+                target_id="e-other",
+                description="target pre-existing edge",
+                weight=5.0,
+                source_chunk_ids=("mc1",),
+            ),
+            Relation(
+                collection_id=COLLECTION_ID,
+                source_id="e-src1",
+                target_id="e-other",
+                description="source one redirected edge",
+                weight=7.0,
+                source_chunk_ids=("mc2",),
+            ),
+            Relation(
+                collection_id=COLLECTION_ID,
+                source_id="e-src2",
+                target_id="e-other",
+                description="source two redirected edge",
+                weight=8.0,
+                source_chunk_ids=("mc3",),
+            ),
+        ],
+    )
+
+    result = await s.merge_entities(COLLECTION_ID, target_entity_id="e-target", source_entity_ids=["e-src1", "e-src2"])
+    assert set(result.merged_source_ids) == {"e-src1", "e-src2"}, f"[{name}] expected both sources to merge"
+
+    entities, relations = await s.expand_neighborhood(COLLECTION_ID, ["e-target"], max_hop=1, limit=50)
+    entity_ids = {e.entity_id for e in entities}
+    assert {"e-target", "e-other"} <= entity_ids, f"[{name}] merged neighborhood missing expected entities"
+
+    target_edges = [r for r in relations if r.source_id == "e-target" and r.target_id == "e-other"]
+    assert len(target_edges) == 1, f"[{name}] expected exactly one merged target->other edge, got {relations}"
+
+    [merged_edge] = target_edges
+    assert merged_edge.weight == pytest.approx(8.0), f"[{name}] weight should keep max source/target edge weight"
+    assert set(merged_edge.source_chunk_ids) == {"mc1", "mc2", "mc3"}, (
+        f"[{name}] chunk provenance should be unioned across target and redirected edges"
+    )
+    assert "target pre-existing edge" in merged_edge.description, f"[{name}] target edge description was lost"
+    assert "source one redirected edge" in merged_edge.description, f"[{name}] source 1 description was lost"
+    assert "source two redirected edge" in merged_edge.description, f"[{name}] source 2 description was lost"
+
+
+@pytest.mark.asyncio
 async def test_delete_document_removes_orphans(store):
     """Deleting a document should remove orphan entities/relations."""
     name, s = store

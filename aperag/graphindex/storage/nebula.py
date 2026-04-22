@@ -85,6 +85,29 @@ def _space_name(prefix: str, collection_id: str) -> str:
     return f"{prefix}_{safe_id}"
 
 
+def _merge_description(existing: str, incoming: str) -> str:
+    existing = existing or ""
+    incoming = incoming or ""
+    if not existing:
+        return incoming
+    if not incoming or incoming in existing:
+        return existing
+    return existing + DESCRIPTION_SEPARATOR + incoming
+
+
+def _merge_relation_payload(
+    existing: tuple[str, float, set[str]],
+    incoming: tuple[str, float, set[str]],
+) -> tuple[str, float, set[str]]:
+    existing_desc, existing_weight, existing_chunks = existing
+    incoming_desc, incoming_weight, incoming_chunks = incoming
+    return (
+        _merge_description(existing_desc, incoming_desc),
+        max(existing_weight, incoming_weight),
+        existing_chunks | incoming_chunks,
+    )
+
+
 class NebulaGraphStore:
     """``GraphStore`` backed by Nebula Graph.
 
@@ -364,6 +387,37 @@ class NebulaGraphStore:
             edges_collapsed = 0
             # Map (new_src, new_tgt) -> (desc, weight, chunk_ids_set)
             redirected_map: dict[tuple[str, str], tuple[str, float, set[str]]] = {}
+            existing_outgoing_cache: dict[str, dict[tuple[str, str], tuple[str, float, set[str]]]] = {}
+
+            def _load_outgoing_edges(src_id: str) -> dict[tuple[str, str], tuple[str, float, set[str]]]:
+                if src_id in existing_outgoing_cache:
+                    return existing_outgoing_cache[src_id]
+
+                edges: dict[tuple[str, str], tuple[str, float, set[str]]] = {}
+                try:
+                    result = self._execute(
+                        space,
+                        f'GO FROM "{_escape(src_id)}" OVER `{_EDGE_TYPE}` '
+                        f"YIELD `{_EDGE_TYPE}`._dst AS dst, "
+                        f"`{_EDGE_TYPE}`.description AS d, "
+                        f"`{_EDGE_TYPE}`.weight AS w, "
+                        f"`{_EDGE_TYPE}`.source_chunk_ids AS c",
+                    )
+                    for i in range(result.row_size()):
+                        row = result.row_values(i)
+                        dst = row[0].as_string() if row[0].is_string() else ""
+                        if not dst:
+                            continue
+                        edges[(src_id, dst)] = (
+                            row[1].as_string() if row[1].is_string() else "",
+                            float(row[2].as_double()) if row[2].is_double() else 0.0,
+                            set(_decode_chunk_ids(row[3].as_string() if row[3].is_string() else "")),
+                        )
+                except Exception:
+                    logger.exception("nebula merge: failed to inspect outgoing edges for %s", src_id)
+
+                existing_outgoing_cache[src_id] = edges
+                return edges
 
             for sid in merged:
                 for direction in ("outgoing", "incoming"):
@@ -400,20 +454,34 @@ class NebulaGraphStore:
                             edge_desc = row[1].as_string() if row[1].is_string() else ""
                             edge_w = float(row[2].as_double()) if row[2].is_double() else 0.0
                             edge_c = set(_decode_chunk_ids(row[3].as_string() if row[3].is_string() else ""))
+                            incoming_payload = (edge_desc, edge_w, edge_c)
 
                             if key in redirected_map:
-                                ex_desc, ex_w, ex_c = redirected_map[key]
-                                # Collapse: append description (with dedup),
-                                # GREATEST weight, union chunk ids
-                                if edge_desc and edge_desc not in ex_desc:
-                                    ex_desc = (ex_desc + DESCRIPTION_SEPARATOR + edge_desc) if ex_desc else edge_desc
-                                redirected_map[key] = (ex_desc, max(ex_w, edge_w), ex_c | edge_c)
+                                redirected_map[key] = _merge_relation_payload(redirected_map[key], incoming_payload)
                                 edges_collapsed += 1
                             else:
-                                redirected_map[key] = (edge_desc, edge_w, edge_c)
+                                redirected_map[key] = incoming_payload
                                 edges_redirected += 1
                     except Exception:
                         logger.exception("nebula merge: edge redirect failed for source %s", sid)
+
+            # A redirected edge can also collide with an edge the target
+            # already had before the merge. Those pre-existing edges must
+            # be merged under the same rules as PG / Protocol.
+            existing_collision_keys: set[tuple[str, str]] = set()
+            for key, incoming_payload in list(redirected_map.items()):
+                existing_payload = _load_outgoing_edges(key[0]).get(key)
+                if existing_payload is None:
+                    continue
+                redirected_map[key] = _merge_relation_payload(existing_payload, incoming_payload)
+                existing_collision_keys.add(key)
+                edges_collapsed += 1
+
+            for src, dst in existing_collision_keys:
+                try:
+                    self._execute(space, f'DELETE EDGE `{_EDGE_TYPE}` "{_escape(src)}"->"{_escape(dst)}"')
+                except Exception:
+                    logger.exception("nebula merge: failed to delete pre-existing edge %s->%s", src, dst)
 
             # Write collapsed edges
             for (new_src, new_tgt), (e_desc, e_w, e_c) in redirected_map.items():

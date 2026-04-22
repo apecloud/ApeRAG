@@ -177,7 +177,7 @@ def test_delete_by_filter(connector):
     ]
     conn.upsert(points)
 
-    conn.delete_by_filter(And(children=(Eq("indexer", "graph_entity"), Eq("collection_id", "col1"))))
+    conn.delete_by_filter(And(parts=(Eq("indexer", "graph_entity"), Eq("collection_id", "col1"))))
 
     hits = conn.search(
         QueryRequest(

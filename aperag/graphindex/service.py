@@ -134,6 +134,7 @@ class GraphIndexService:
         # the UUID4-based chunk_ids emitted by chunk_document() plus the
         # ARRAY union in upsert_entities / upsert_relations would cause
         # source_chunk_ids to monotonically grow on every re-index.
+        pre_entity_ids, pre_relation_keys = await self._snapshot_shadow_identity(collection_id)
         await self._store.delete_document_rows(collection_id=collection_id, doc_id=doc_id)
 
         result = await index_document(
@@ -159,6 +160,12 @@ class GraphIndexService:
         # Embed entity/relation descriptions into the vectorstore so
         # query_context can find them via semantic similarity. Runs
         # after summarization so the embedded text is the compact form.
+        post_entity_ids, post_relation_keys = await self._snapshot_shadow_identity(collection_id)
+        await self._delete_removed_shadow_vectors(
+            removed_entity_ids=pre_entity_ids - post_entity_ids,
+            removed_relation_keys=pre_relation_keys - post_relation_keys,
+            reason="document rebuild",
+        )
         await self._sync_entity_relation_vectors(collection_id=collection_id)
 
         return result
@@ -185,25 +192,20 @@ class GraphIndexService:
         the vectorstore to find stale shadows.
         """
         # 1. Pre-delete snapshot
-        pre_entity_ids = await self._collect_entity_ids(collection_id)
-        pre_relation_keys = await self._collect_relation_keys(collection_id)
+        pre_entity_ids, pre_relation_keys = await self._snapshot_shadow_identity(collection_id)
 
         # 2. Topology delete
         result = await self._store.delete_document_rows(collection_id=collection_id, doc_id=doc_id)
 
         # 3. Post-delete snapshot
-        post_entity_ids = await self._collect_entity_ids(collection_id)
-        post_relation_keys = await self._collect_relation_keys(collection_id)
+        post_entity_ids, post_relation_keys = await self._snapshot_shadow_identity(collection_id)
 
         # 4. Delete shadow vectors for removed entities/relations
-        removed_entity_shadow_ids = [f"ge_{eid}" for eid in (pre_entity_ids - post_entity_ids)]
-        removed_relation_shadow_ids = [f"gr_{src}_{tgt}" for src, tgt in (pre_relation_keys - post_relation_keys)]
-        stale_ids = removed_entity_shadow_ids + removed_relation_shadow_ids
-        if stale_ids and self._vector_connector is not None:
-            try:
-                self._vector_connector.delete(stale_ids)
-            except Exception:
-                logger.exception("graphindex: failed to delete stale shadow vectors after document delete")
+        await self._delete_removed_shadow_vectors(
+            removed_entity_ids=pre_entity_ids - post_entity_ids,
+            removed_relation_keys=pre_relation_keys - post_relation_keys,
+            reason="document delete",
+        )
 
         # 5. Re-embed surviving entities/relations (descriptions may have changed)
         await self._sync_entity_relation_vectors(collection_id=collection_id)
@@ -215,24 +217,20 @@ class GraphIndexService:
         ApeRAG collection itself (not an individual document).
 
         Cleans both the graph topology and any shadow vectors in the
-        vectorstore. Shadow cleanup uses ``delete_by_filter`` scoped to
-        this collection's graph vectors only — chunk vectors managed by
-        the vector index pipeline are untouched.
+        vectorstore. Chunk vectors managed by the vector index pipeline
+        are untouched.
         """
         # Snapshot all entity/relation ids before dropping topology, so
         # we can delete their shadow vectors by deterministic id.
-        entity_ids = await self._collect_entity_ids(collection_id)
-        relation_keys = await self._collect_relation_keys(collection_id)
+        entity_ids, relation_keys = await self._snapshot_shadow_identity(collection_id)
 
         await self._store.drop_collection(collection_id)
 
-        if self._vector_connector is not None:
-            shadow_ids = [f"ge_{eid}" for eid in entity_ids] + [f"gr_{src}_{tgt}" for src, tgt in relation_keys]
-            if shadow_ids:
-                try:
-                    self._vector_connector.delete(shadow_ids)
-                except Exception:
-                    logger.exception("graphindex: failed to delete shadow vectors after collection drop")
+        await self._delete_removed_shadow_vectors(
+            removed_entity_ids=entity_ids,
+            removed_relation_keys=relation_keys,
+            reason="collection drop",
+        )
 
     async def merge_entities(
         self,
@@ -588,6 +586,40 @@ class GraphIndexService:
                 logger.exception("graphindex: failed to upsert relation vectors")
 
     # ---- shadow vector identity helpers (private) ---------------------
+    async def _snapshot_shadow_identity(self, collection_id: str) -> tuple[set[str], set[tuple[str, str]]]:
+        """Return the current entity / relation identity sets that back
+        graph shadow vectors.
+
+        When no vector connector is wired, there are no graph shadow
+        vectors to clean up, so callers can short-circuit to empty sets.
+        """
+        if self._vector_connector is None:
+            return set(), set()
+        entity_ids = await self._collect_entity_ids(collection_id)
+        relation_keys = await self._collect_relation_keys(collection_id)
+        return entity_ids, relation_keys
+
+    async def _delete_removed_shadow_vectors(
+        self,
+        *,
+        removed_entity_ids: set[str],
+        removed_relation_keys: set[tuple[str, str]],
+        reason: str,
+    ) -> None:
+        """Delete graph shadow vectors whose topology rows disappeared."""
+        if self._vector_connector is None:
+            return
+
+        shadow_ids = [f"ge_{eid}" for eid in removed_entity_ids]
+        shadow_ids.extend(f"gr_{src}_{tgt}" for src, tgt in removed_relation_keys)
+        if not shadow_ids:
+            return
+
+        try:
+            self._vector_connector.delete(shadow_ids)
+        except Exception:
+            logger.exception("graphindex: failed to delete shadow vectors after %s", reason)
+
     async def _collect_entity_ids(self, collection_id: str) -> set[str]:
         """Return the set of entity_ids currently in the graph store."""
         entities = await self._store.find_oversized_entities(
