@@ -311,6 +311,22 @@ class PostgresGraphStore:
         )
 
     # ============================================================= read
+    async def has_collection_data(self, collection_id: str) -> bool:
+        """Cheap existence probe for the cutover gate.
+
+        A single ``SELECT 1 ... LIMIT 1`` on the nodes table, hitting
+        the ``(collection_id, entity_id)`` primary key. Subsecond on
+        cold cache; effectively free once the collection is active.
+        """
+        async with self._engine.connect() as conn:
+            row = (
+                await conn.execute(
+                    text(f"SELECT 1 FROM {NODES_TABLE} WHERE collection_id = :cid LIMIT 1"),
+                    {"cid": collection_id},
+                )
+            ).first()
+        return row is not None
+
     async def find_entities_by_names(self, collection_id: str, names: Sequence[str]) -> list[Entity]:
         if not names:
             return []

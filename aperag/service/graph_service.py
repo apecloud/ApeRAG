@@ -38,13 +38,28 @@ class GraphService:
         self.db_ops = async_db_ops
 
     async def get_graph_labels(self, user_id: str, collection_id: str) -> view_models.GraphLabelsResponse:
-        """Get available node labels in the knowledge graph (graphindex v2)."""
-        await self._get_and_validate_collection(user_id, collection_id)
+        """Get available node labels in the knowledge graph.
 
-        from aperag.graphindex.integration import _DEFAULT_STORE  # process singleton
+        Cutover-safe: reads v2 when the collection has any v2 rows; falls
+        back to legacy LightRAG otherwise. Collections indexed before v2
+        shipped therefore keep working until the user triggers re-index.
+        """
+        db_collection = await self._get_and_validate_collection(user_id, collection_id)
 
-        labels = await _DEFAULT_STORE.list_labels(collection_id)
-        return view_models.GraphLabelsResponse(labels=labels)
+        from aperag.graphindex.integration import make_service_for_collection
+
+        svc = make_service_for_collection(db_collection)
+        if await svc.has_data(collection_id=collection_id):
+            labels = await svc.get_labels(collection_id=collection_id)
+            return view_models.GraphLabelsResponse(labels=labels)
+
+        # Cutover fallback: collection hasn't been re-indexed against v2 yet.
+        rag = await lightrag_manager.create_lightrag_instance(db_collection)
+        try:
+            labels = await rag.get_graph_labels()
+            return view_models.GraphLabelsResponse(labels=labels)
+        finally:
+            await rag.finalize_storages()
 
     def _optimize_graph_for_visualization(self, nodes, edges, max_nodes):
         """Optimize graph by selecting well-connected nodes"""
@@ -78,10 +93,17 @@ class GraphService:
         max_depth: int = 3,
         max_nodes: int = 1000,
     ) -> Dict[str, Any]:
-        """Get knowledge graph subgraph for UI display (graphindex v2)."""
-        await self._get_and_validate_collection(user_id, collection_id)
+        """Get knowledge graph subgraph for UI display.
 
-        from aperag.graphindex.integration import _DEFAULT_STORE
+        Cutover-safe: reads v2 when the collection has any v2 rows; falls
+        back to legacy LightRAG otherwise.
+        """
+        db_collection = await self._get_and_validate_collection(user_id, collection_id)
+
+        from aperag.graphindex.integration import make_service_for_collection
+
+        svc = make_service_for_collection(db_collection)
+        use_v2 = await svc.has_data(collection_id=collection_id)
 
         normalized_label = None if not label or label == "*" else label
         # In overview mode (no label) we ask for 2x max_nodes to give the
@@ -90,28 +112,46 @@ class GraphService:
         query_max_nodes = max_nodes * 2 if normalized_label is None else max_nodes
         mode_description = "overview" if normalized_label is None else f"subgraph from '{label}'"
 
-        kg = await _DEFAULT_STORE.list_subgraph(
-            collection_id=collection_id,
-            label=normalized_label,
-            max_depth=max_depth,
-            max_nodes=query_max_nodes,
-        )
+        if use_v2:
+            kg = await svc.get_knowledge_graph(
+                collection_id=collection_id,
+                label=normalized_label,
+                max_depth=max_depth,
+                max_nodes=query_max_nodes,
+            )
+            raw_nodes = _adapt_nodes(kg.nodes)
+            raw_edges = _adapt_edges(kg.edges)
+            is_truncated = bool(getattr(kg, "is_truncated", False))
+        else:
+            # Cutover fallback: collection hasn't been re-indexed against v2 yet.
+            rag = await lightrag_manager.create_lightrag_instance(db_collection)
+            try:
+                legacy_kg = await rag.get_knowledge_graph(
+                    node_label=normalized_label or "*",
+                    max_depth=max_depth,
+                    max_nodes=query_max_nodes,
+                )
+            finally:
+                await rag.finalize_storages()
+            raw_nodes = legacy_kg.nodes
+            raw_edges = legacy_kg.edges
+            is_truncated = bool(getattr(legacy_kg, "is_truncated", False))
 
         # If overview mode produced more than the user asked for, run the
         # degree-based picker; otherwise pass through.
-        if normalized_label is None and len(kg.nodes) > max_nodes:
+        if normalized_label is None and len(raw_nodes) > max_nodes:
             optimized_nodes, optimized_edges = self._optimize_graph_for_visualization(
-                _adapt_nodes(kg.nodes), _adapt_edges(kg.edges), max_nodes
+                raw_nodes, raw_edges, max_nodes
             )
             is_truncated = True
         else:
-            optimized_nodes = _adapt_nodes(kg.nodes)
-            optimized_edges = _adapt_edges(kg.edges)
-            is_truncated = bool(getattr(kg, "is_truncated", False))
+            optimized_nodes = raw_nodes
+            optimized_edges = raw_edges
 
         result = self._convert_graph_to_dict(optimized_nodes, optimized_edges, is_truncated)
         logger.info(
-            f"Retrieved {mode_description} graph for collection {collection_id}: "
+            f"Retrieved {mode_description} graph for collection {collection_id} "
+            f"(source={'v2' if use_v2 else 'legacy'}): "
             f"{len(result['nodes'])} nodes, {len(result['edges'])} edges"
         )
         return result
@@ -279,7 +319,16 @@ class GraphService:
         max_suggestions: int = 10,
         max_concurrent_llm_calls: int = 4,
     ) -> dict[str, Any]:
-        """Generate node merge suggestions using LLM analysis and store them"""
+        """Generate node merge suggestions using LLM analysis and store them.
+
+        Curation has not been ported to graphindex v2 yet. For
+        collections that have been re-indexed against v2, the legacy
+        LightRAG-backed merge-suggestion path would be reading a stale
+        snapshot that no longer reflects the primary graph — we refuse
+        rather than return silently-wrong answers. See the scope note
+        in ``docs/zh-CN/design/graphindex_rewrite.md`` §6.
+        """
+        await self._assert_legacy_curation_allowed(user_id, collection_id)
         db_collection = await self._get_and_validate_collection(user_id, collection_id)
 
         # Generate suggestions using LightRAG
@@ -321,10 +370,14 @@ class GraphService:
         entity_ids: list[str],
         target_entity_data: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Merge graph nodes directly using entity IDs"""
+        """Merge graph nodes directly using entity IDs.
+
+        Refused on v2 collections (see ``_assert_legacy_curation_allowed``).
+        """
         if not entity_ids:
             raise ValueError("entity_ids cannot be empty")
 
+        await self._assert_legacy_curation_allowed(user_id, collection_id)
         db_collection = await self._get_and_validate_collection(user_id, collection_id)
 
         # Execute merge directly
@@ -345,12 +398,18 @@ class GraphService:
         action: str,
         target_entity_data: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Handle accept/reject action on a merge suggestion"""
+        """Handle accept/reject action on a merge suggestion.
+
+        The accept branch performs a merge, so we gate the whole entry
+        point — rejecting the suggestion is harmless on stale data, but
+        the decision flow reads more clearly with a single guard.
+        """
         # Normalize action to lowercase for case-insensitive comparison
         normalized_action = action.lower().strip()
         if normalized_action not in ["accept", "reject"]:
             raise ValueError(f"Invalid action: {action}. Must be 'accept' or 'reject' (case-insensitive)")
 
+        await self._assert_legacy_curation_allowed(user_id, collection_id)
         db_collection = await self._get_and_validate_collection(user_id, collection_id)
 
         # Get and validate active suggestion
@@ -408,7 +467,12 @@ class GraphService:
         entity_ids: list[str],
         target_entity_data: dict[str, Any] | None,
     ) -> dict[str, Any]:
-        """Execute the actual node merge operation"""
+        """Execute the actual node merge operation.
+
+        The v2-cutover guard lives on the public callers
+        (``merge_nodes`` / ``handle_suggestion_action``) so this internal
+        helper doesn't re-query the store on every call.
+        """
         rag = await lightrag_manager.create_lightrag_instance(db_collection)
         try:
             result = await rag.amerge_nodes(
@@ -439,10 +503,41 @@ class GraphService:
 
         return db_collection
 
+    async def _assert_legacy_curation_allowed(self, user_id: str, collection_id: str) -> None:
+        """Refuse curation calls when the collection has been moved to v2.
+
+        During the v1 → v2 transition window, curation (merge suggestions,
+        merge execution, KG-Eval export) still operates against the
+        legacy LightRAG store. For collections that have been re-indexed
+        against v2, that store is a frozen snapshot — running curation
+        against it would modify data that is no longer the source of
+        truth and leave the real v2 graph untouched. Until curation is
+        ported (tracked for a follow-up PR), we raise instead of
+        returning silently-stale results.
+        """
+        db_collection = await self.collection_service.db_ops.query_collection(user_id, collection_id)
+        if not db_collection:
+            raise CollectionNotFoundException(collection_id)
+
+        from aperag.graphindex.integration import make_service_for_collection
+
+        svc = make_service_for_collection(db_collection)
+        if await svc.has_data(collection_id=collection_id):
+            raise NotImplementedError(
+                f"Graph curation (merge suggestions / merge / export) is not yet available "
+                f"for collections indexed against graphindex v2 (collection {collection_id}). "
+                f"Curation will be ported in a follow-up PR."
+            )
+
     async def export_for_kg_eval(
         self, user_id: str, collection_id: str, sample_size: int = 100000, include_source_texts: bool = True
     ) -> Dict[str, Any]:
-        """Export collection knowledge graph data in KG-Eval framework format"""
+        """Export collection knowledge graph data in KG-Eval framework format.
+
+        Like merge-suggestions, this still reads from LightRAG, so we
+        refuse when the collection has been re-indexed against v2.
+        """
+        await self._assert_legacy_curation_allowed(user_id, collection_id)
         db_collection = await self._get_and_validate_collection(user_id, collection_id)
 
         rag = await lightrag_manager.create_lightrag_instance(db_collection)

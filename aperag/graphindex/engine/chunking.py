@@ -60,11 +60,13 @@ def chunk_document(
     Contract:
     * Stable ordering: ``order_in_doc`` starts at 0 and monotonically
       increases. Callers that stream chunks (e.g. indexer) rely on this.
-    * Deterministic chunk count given the same inputs (important for
+    * Deterministic chunk **count** given the same inputs (important for
       incremental re-ingest).
-    * Chunk ids are UUID4 — not derived from content — so repeated
-      ingest rebuilds the graph from the new chunks cleanly rather than
-      partially overwriting.
+    * Chunk **ids** are UUID4, intentionally non-deterministic — repeat
+      runs for the same document produce different chunk ids. That is
+      safe because ``GraphIndexService.index_document`` runs
+      ``delete_document_rows`` before extraction, so stale chunks from
+      a previous run never survive alongside the new ones.
 
     Returns an empty list when ``content`` is empty / all whitespace.
     The caller is expected to handle "no chunks" as a valid outcome

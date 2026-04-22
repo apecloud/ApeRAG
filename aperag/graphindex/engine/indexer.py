@@ -26,9 +26,10 @@ Three stages, chained by the module's single public function
 **Batching & atomicity**: we insert all chunks first, then the extracted
 entities, then the relations. If extraction crashes mid-way through a
 document, partial chunks may exist in the store — deliberate, so a retry
-can resume without re-running every LLM call. The caller is responsible
-for idempotency via ``delete_document_rows`` before retry if that
-matters to them.
+can resume without re-running every LLM call. Rebuild idempotency is
+handled one level up in ``GraphIndexService.index_document`` (which runs
+``delete_document_rows`` before invoking this engine), so the engine
+itself does not deduplicate against existing rows.
 """
 
 from __future__ import annotations

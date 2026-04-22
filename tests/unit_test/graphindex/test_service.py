@@ -36,6 +36,7 @@ class _StubStore:
         self.labels_result: list[str] = []
         self.subgraph_result = KnowledgeGraph(nodes=(), edges=(), is_truncated=False)
         self.delete_result: Optional[DeleteDocumentResult] = None
+        self.has_data_result: bool = False
 
     async def ensure_schema(self) -> None:
         self.calls.append(("ensure_schema", (), {}))
@@ -60,6 +61,10 @@ class _StubStore:
             entities_removed=0,
             relations_removed=0,
         )
+
+    async def has_collection_data(self, collection_id):
+        self.calls.append(("has_collection_data", (collection_id,), {}))
+        return self.has_data_result
 
     async def find_entities_by_names(self, collection_id, names):
         self.calls.append(("find_entities_by_names", (collection_id, list(names)), {}))
@@ -149,6 +154,55 @@ async def test_query_context_empty_query_returns_empty_context():
     assert ctx.text == ""
     # Did NOT call expand_neighborhood:
     assert all(c[0] != "expand_neighborhood" for c in store.calls)
+
+
+# ---------------------------------------------------------------------------
+# write-path rebuild idempotency (blocker 1)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_index_document_wipes_existing_rows_before_extracting():
+    """Consecutive ``index_document`` calls for the same ``doc_id`` must
+    first delete the prior rows so ``source_chunk_ids`` does not grow
+    unboundedly across rebuilds. The delete must happen **before** any
+    upsert — checked by position in ``store.calls``."""
+    store = _StubStore()
+    svc = GraphIndexService(store=store, llm=_null_llm)
+
+    await svc.index_document(collection_id="c", doc_id="d1", content="", file_path="")
+    await svc.index_document(collection_id="c", doc_id="d1", content="", file_path="")
+
+    delete_calls = [i for i, (name, *_ ) in enumerate(store.calls) if name == "delete_document_rows"]
+    assert len(delete_calls) == 2, f"expected two delete calls, saw {store.calls}"
+    # Each delete must target the right (collection_id, doc_id)
+    for idx in delete_calls:
+        assert store.calls[idx][1] == ("c", "d1")
+    # Any upsert for this doc must occur after at least one delete
+    upsert_names = {"upsert_chunks", "upsert_entities", "upsert_relations"}
+    first_delete_idx = delete_calls[0]
+    upsert_positions = [i for i, (name, *_ ) in enumerate(store.calls) if name in upsert_names]
+    if upsert_positions:
+        assert min(upsert_positions) > first_delete_idx
+
+
+# ---------------------------------------------------------------------------
+# cutover gate (blocker 2)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_has_data_delegates_to_store():
+    """``has_data`` is the read-path cutover gate; it must proxy to the
+    store without transforming the boolean."""
+    store = _StubStore()
+    store.has_data_result = True
+    svc = GraphIndexService(store=store, llm=_null_llm)
+    assert await svc.has_data(collection_id="c") is True
+    assert ("has_collection_data", ("c",), {}) in store.calls
+
+    store.has_data_result = False
+    assert await svc.has_data(collection_id="c") is False
 
 
 @pytest.mark.asyncio

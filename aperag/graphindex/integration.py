@@ -92,6 +92,11 @@ def _build_llm_callable(collection: Collection):
     function ``(prompt) -> str``. The function is closure-bound to the
     config so multiple concurrent calls can share it safely without
     serialising on a global LLM client.
+
+    The ``CompletionService`` is instantiated once per callable and
+    reused across every chunk extraction for the same document. Before
+    this, each per-chunk call rebuilt the client (litellm import, HTTP
+    session, etc.) — a meaningful overhead on high-chunk documents.
     """
     config = parseCollectionConfig(collection.config)
     provider_name = config.completion.model_service_provider
@@ -105,16 +110,17 @@ def _build_llm_callable(collection: Collection):
     # import time and we don't want to pay it just for ``import aperag.graphindex``.
     from aperag.llm.completion.completion_service import CompletionService
 
+    svc = CompletionService(
+        provider=config.completion.custom_llm_provider,
+        model=config.completion.model,
+        base_url=base_url,
+        api_key=api_key,
+        temperature=0.0,  # deterministic output for extraction
+        max_tokens=None,
+        caching=False,
+    )
+
     async def _llm(prompt: str) -> str:
-        svc = CompletionService(
-            provider=config.completion.custom_llm_provider,
-            model=config.completion.model,
-            base_url=base_url,
-            api_key=api_key,
-            temperature=0.0,  # deterministic output for extraction
-            max_tokens=None,
-            caching=False,
-        )
         # No history, no images, no memory. Single-turn JSON request.
         return await svc.agenerate(history=[], prompt=prompt, images=[], memory=False)
 

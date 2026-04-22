@@ -110,6 +110,17 @@ class GraphStore(Protocol):
         connect"). ``max_hop == 1`` is the standard RAG setting.
         """
 
+    async def has_collection_data(self, collection_id: str) -> bool:
+        """Return ``True`` iff this collection has at least one entity row.
+
+        Used by the cutover fallback in the business layer: during the
+        v1 → v2 transition, collections that have not yet been
+        re-indexed against v2 have zero rows here, and the read-path
+        (labels / subgraph / query_context) should fall back to the
+        legacy LightRAG store. Must be a cheap existence check —
+        ``SELECT 1 ... LIMIT 1``, never a COUNT(*).
+        """
+
     async def list_labels(self, collection_id: str) -> list[str]:
         """Distinct entity types seen in the collection, stable ordered.
 

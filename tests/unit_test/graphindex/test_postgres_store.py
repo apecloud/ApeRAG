@@ -241,6 +241,65 @@ async def test_delete_document_removes_orphans_keeps_shared(store):
 
 
 # ---------------------------------------------------------------------------
+# rebuild idempotency — regression for blocker 1
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_rebuild_cycle_does_not_accumulate_chunk_ids(store):
+    """Simulates ``GraphIndexService.index_document`` running twice on
+    the same ``doc_id``: delete-before-rebuild must keep
+    ``source_chunk_ids`` equal to the *new* chunk ids only, never the
+    union of old + new. Without the facade-level delete this grows
+    unboundedly because chunk ids are UUID4 and change each run."""
+    cid = "col-rebuild"
+
+    # ----- first indexing cycle
+    c_old = _mk_chunk(cid, "d1", 0, "Alice met Bob (v1)")
+    await store.upsert_chunks(cid, [c_old])
+    await store.upsert_entities(cid, [_mk_entity(cid, "e-alice", "Alice", [c_old.chunk_id])])
+    await store.upsert_relations(
+        cid,
+        [_mk_relation(cid, "e-alice", "e-alice-self", [c_old.chunk_id])],
+    )
+
+    # ----- second indexing cycle: delete then re-upsert with NEW chunk id
+    await store.delete_document_rows(cid, "d1")
+
+    c_new = _mk_chunk(cid, "d1", 0, "Alice met Bob (v2)")
+    await store.upsert_chunks(cid, [c_new])
+    await store.upsert_entities(cid, [_mk_entity(cid, "e-alice", "Alice", [c_new.chunk_id])])
+
+    found = await store.find_entities_by_names(cid, ["Alice"])
+    assert len(found) == 1
+    # Exact new-only membership; the old UUID4 must not be present.
+    assert set(found[0].source_chunk_ids) == {c_new.chunk_id}
+    assert c_old.chunk_id not in set(found[0].source_chunk_ids)
+
+
+# ---------------------------------------------------------------------------
+# has_collection_data cutover gate — regression for blocker 2
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_has_collection_data_reflects_presence(store):
+    """The cutover gate must return False before anything is written
+    and True once the collection has any v2 rows."""
+    cid = "col-gate"
+    assert await store.has_collection_data(cid) is False
+
+    c = _mk_chunk(cid, "d", 0, "x")
+    await store.upsert_chunks(cid, [c])
+    await store.upsert_entities(cid, [_mk_entity(cid, "e", "E", [c.chunk_id])])
+
+    assert await store.has_collection_data(cid) is True
+
+    await store.drop_collection(cid)
+    assert await store.has_collection_data(cid) is False
+
+
+# ---------------------------------------------------------------------------
 # list_labels / list_subgraph
 # ---------------------------------------------------------------------------
 

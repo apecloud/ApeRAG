@@ -38,9 +38,11 @@ Robustness notes:
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
+import random
 from typing import Any, Callable, Optional
 
 from aperag.graphindex.config import GraphIndexConfig
@@ -78,22 +80,35 @@ async def extract_from_chunk(
 
     raw: Optional[str] = None
     last_exc: Optional[BaseException] = None
-    for attempt in range(config.llm_max_retries + 1):
+    # Exponential backoff with jitter: 0s on first attempt, then
+    # 0.5s, 1.0s, 2.0s, 4.0s (+ up to ~20% jitter). Upper-bounded at
+    # 10s so the worst case stays well under a typical Celery task
+    # soft-timeout. Without this we would hammer a 429-throttled or
+    # mid-outage LLM endpoint through the full retry budget inside a
+    # few milliseconds.
+    max_attempts = config.llm_max_retries + 1
+    for attempt in range(max_attempts):
+        if attempt > 0:
+            delay = min(10.0, 0.5 * (2 ** (attempt - 1)))
+            delay *= 1.0 + random.random() * 0.2
+            await asyncio.sleep(delay)
         try:
             raw = await llm(prompt)
             if isinstance(raw, str) and raw.strip():
                 break
             logger.warning(
-                "graphindex.extract: empty LLM response on chunk %s (attempt %d)",
+                "graphindex.extract: empty LLM response on chunk %s (attempt %d/%d)",
                 chunk.chunk_id,
-                attempt,
+                attempt + 1,
+                max_attempts,
             )
         except Exception as exc:  # noqa: BLE001
             last_exc = exc
             logger.warning(
-                "graphindex.extract: LLM error on chunk %s (attempt %d): %s",
+                "graphindex.extract: LLM error on chunk %s (attempt %d/%d): %s",
                 chunk.chunk_id,
-                attempt,
+                attempt + 1,
+                max_attempts,
                 exc,
             )
     if not raw:
@@ -122,7 +137,7 @@ async def extract_from_chunk(
 
 
 def _safe_json_parse(raw: str) -> Optional[dict]:
-    """Best-effort JSON parse. Tolerates leading/trailing non-JSON noise
+    r"""Best-effort JSON parse. Tolerates leading/trailing non-JSON noise
     (some LLMs prefix ``Output:`` or fence with ``\`\`\`json``)."""
     s = raw.strip()
     # Strip markdown fences if present.
@@ -149,9 +164,12 @@ def normalize_entity_id(collection_id: str, name: str) -> str:
 
     Uses a hash of ``(collection_id, lowercased_trimmed_name)`` so the
     same entity name written in multiple chunks collapses to a single
-    row at upsert time. 12-char prefix of SHA-1 keeps the id short and
-    collision-safe well past what we'll realistically store
-    per-collection (~trillions of entities).
+    row at upsert time. 12-char prefix of SHA-1 (48 bits) is ample for
+    per-collection entity counts at expected ApeRAG scale; the
+    birthday-collision threshold sits in the low-tens-of-millions
+    range per collection, well above any realistic knowledge-graph
+    we've seen. If per-collection entity counts ever approach 10M,
+    widen this to 16 chars and run a collision audit.
     """
     key = f"{collection_id}::{name.strip().lower()}"
     return hashlib.sha1(key.encode("utf-8")).hexdigest()[:12]

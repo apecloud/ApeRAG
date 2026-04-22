@@ -262,16 +262,32 @@ class SearchPipelineService:
             logger.warning(f"Collection {collection.id} does not have knowledge graph enabled")
             return []
 
-        # graphindex v2 path: zero per-request lifecycle work, no
-        # finalize_storages cleanup needed (the v1 path here was missing
-        # that cleanup, see docs/zh-CN/design/graphindex_rewrite.md).
         from aperag.graphindex.integration import make_service_for_collection
 
         svc = make_service_for_collection(collection)
-        ctx = await svc.query_context(collection_id=str(collection.id), query=query, top_k=top_k)
-        if not ctx.text:
+        collection_id = str(collection.id)
+
+        # Cutover gate: v2 if the collection has already been (re-)indexed
+        # against it; otherwise fall back to the legacy LightRAG context
+        # so collections built before v2 shipped keep working until the
+        # user triggers re-index. See graphindex_rewrite.md §6.
+        if await svc.has_data(collection_id=collection_id):
+            ctx = await svc.query_context(collection_id=collection_id, query=query, top_k=top_k)
+            text = ctx.text
+        else:
+            from aperag.graph import lightrag_manager
+            from aperag.graph.lightrag import QueryParam
+
+            rag = await lightrag_manager.create_lightrag_instance(collection)
+            try:
+                param = QueryParam(mode="hybrid", only_need_context=True, top_k=top_k)
+                text = await rag.aquery_context(query=query, param=param)
+            finally:
+                await rag.finalize_storages()
+
+        if not text:
             return []
-        return [DocumentWithScore(text=ctx.text, metadata={"recall_type": "graph_search"})]
+        return [DocumentWithScore(text=text, metadata={"recall_type": "graph_search"})]
 
     async def _summary_search(
         self,

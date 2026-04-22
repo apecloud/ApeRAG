@@ -101,9 +101,21 @@ class GraphIndexService:
         file_path: str = "",
     ) -> IndexDocumentResult:
         """Chunk, extract, and persist a document's contribution to the
-        knowledge graph. Idempotent on ``doc_id`` when the caller pairs
-        it with ``delete_document`` first — the extraction pipeline does
-        not deduplicate against existing rows by itself."""
+        knowledge graph.
+
+        Rebuild-safe on ``doc_id``: the service wipes any prior rows for
+        this ``(collection_id, doc_id)`` first, then runs the fresh
+        extraction. Callers do NOT need to pair this with
+        ``delete_document`` — update / retry / reindex are all safe.
+        The wipe is idempotent on an empty slate (zero-row delete)."""
+        # Rebuild semantics: drop every row whose only source is this
+        # doc_id, and prune this doc's chunks from entity/relation
+        # source lists on rows that also cite other docs. Without this,
+        # the UUID4-based chunk_ids emitted by chunk_document() plus the
+        # ARRAY union in upsert_entities / upsert_relations would cause
+        # source_chunk_ids to monotonically grow on every re-index.
+        await self._store.delete_document_rows(collection_id=collection_id, doc_id=doc_id)
+
         return await index_document(
             store=self._store,
             llm=self._llm,
@@ -174,6 +186,16 @@ class GraphIndexService:
 
         text = _render_context_block(entities=entities, relations=relations)
         return GraphContext(text=text, entities=entities, relations=relations, chunks=chunks)
+
+    async def has_data(self, *, collection_id: str) -> bool:
+        """Cutover gate: does this collection have any v2 rows yet?
+
+        The business layer uses this to decide whether to read v2 or
+        fall back to legacy LightRAG during the transition window. Kept
+        on the service (not the store) so callers never need to import
+        the store directly — the facade stays the single public surface.
+        """
+        return await self._store.has_collection_data(collection_id)
 
     async def get_labels(self, *, collection_id: str) -> list[str]:
         return await self._store.list_labels(collection_id)
