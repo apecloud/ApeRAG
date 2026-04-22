@@ -292,11 +292,7 @@ class Local(ObjectStore):
             # If it doesn't exist, then missing_ok=True behavior is achieved, or it was an invalid path.
 
     def delete_objects_by_prefix(self, path_prefix: str):
-        # Normalize the prefix to be relative and use forward slashes for consistent matching
         normalized_prefix = path_prefix.lstrip("/").replace("\\", "/")
-
-        # An empty prefix (after normalization) would mean deleting everything under _base_storage_path.
-        # This is a destructive operation, so we require a non-empty prefix.
         if not normalized_prefix:
             logger.warning(
                 "Attempted to delete objects with an empty or root prefix. "
@@ -304,59 +300,55 @@ class Local(ObjectStore):
             )
             return
 
-        files_deleted_count = 0
-        # Keep track of parent directories of deleted files to check for emptiness later.
-        parent_dirs_to_check = set()
+        # Phase 1: collect targets (lazy iteration, only matching files
+        # are kept in memory). We collect first and delete second to
+        # avoid modifying the directory tree while iterating it.
+        targets: list[Path] = []
+        parent_dirs: set[Path] = set()
         try:
-            # The path_prefix is relative to the conceptual root of the object store.
-            # We iterate files under _base_storage_path and check their relative path.
-            # Use a list to realize the generator from rglob, avoiding issues with modifying the file system while iterating
-            paths_to_check = list(self._base_storage_path.rglob("*"))
-            for item_path in paths_to_check:
-                if item_path.is_file():
-                    try:
-                        # Get path relative to the effective object store root (_base_storage_path)
-                        relative_to_base_str = str(item_path.relative_to(self._base_storage_path)).replace("\\", "/")
-                        if relative_to_base_str.startswith(normalized_prefix):
-                            # Add parent directory to the set for later cleanup check.
-                            parent_dirs_to_check.add(item_path.parent)
-                            item_path.unlink()
-                            files_deleted_count += 1
-                    except ValueError:
-                        # Should not happen if rglob is from _base_storage_path and item_path is under it.
-                        logger.debug(f"Item {item_path} not relative to {self._base_storage_path}, skipping.")
-                    except OSError as e:
-                        logger.error(f"Failed to delete file {item_path} during prefix deletion: {e}")
-
-            # After deleting all matching files, clean up empty directories.
-            # We process them in reverse order of path length to handle nested empty dirs correctly.
-            sorted_dirs = sorted(list(parent_dirs_to_check), key=lambda p: len(str(p)), reverse=True)
-            for dir_path in sorted_dirs:
-                self._cleanup_empty_dirs(dir_path)
-
-            if files_deleted_count > 0:
-                logger.info(f"Deleted {files_deleted_count} objects with prefix '{path_prefix}'.")
-            else:
-                logger.info(f"No objects found with prefix '{path_prefix}' to delete.")
-
+            for item_path in self._base_storage_path.rglob("*"):
+                if not item_path.is_file():
+                    continue
+                try:
+                    relative = str(item_path.relative_to(self._base_storage_path)).replace("\\", "/")
+                    if relative.startswith(normalized_prefix):
+                        targets.append(item_path)
+                        parent_dirs.add(item_path.parent)
+                except ValueError:
+                    pass
         except Exception as e:
-            logger.error(f"Error during deletion of objects with prefix '{path_prefix}': {e}")
+            logger.error("Error scanning objects with prefix '%s': %s", path_prefix, e)
             raise IOError(f"Error during deletion of objects with prefix '{path_prefix}'") from e
+
+        # Phase 2: delete collected targets.
+        for item_path in targets:
+            try:
+                item_path.unlink(missing_ok=True)
+            except OSError as e:
+                logger.error("Failed to delete file %s during prefix deletion: %s", item_path, e)
+
+        # Phase 3: clean up empty parent directories (deepest first).
+        for dir_path in sorted(parent_dirs, key=lambda p: len(str(p)), reverse=True):
+            self._cleanup_empty_dirs(dir_path)
+
+        if targets:
+            logger.info("Deleted %d objects with prefix '%s'.", len(targets), path_prefix)
 
     def list_objects_by_prefix(self, path_prefix: str) -> list[str]:
         normalized_prefix = path_prefix.lstrip("/").replace("\\", "/")
         result = []
         try:
             for item_path in self._base_storage_path.rglob("*"):
-                if item_path.is_file():
-                    try:
-                        relative = str(item_path.relative_to(self._base_storage_path)).replace("\\", "/")
-                        if relative.startswith(normalized_prefix):
-                            result.append(relative)
-                    except ValueError:
-                        logger.debug(f"Item {item_path} not relative to {self._base_storage_path}, skipping.")
+                if not item_path.is_file():
+                    continue
+                try:
+                    relative = str(item_path.relative_to(self._base_storage_path)).replace("\\", "/")
+                    if relative.startswith(normalized_prefix):
+                        result.append(relative)
+                except ValueError:
+                    pass
         except Exception as e:
-            logger.error(f"Error listing objects with prefix '{path_prefix}': {e}")
+            logger.error("Error listing objects with prefix '%s': %s", path_prefix, e)
             raise IOError(f"Error listing objects with prefix '{path_prefix}'") from e
         return result
 
