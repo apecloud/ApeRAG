@@ -42,10 +42,12 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from aperag.graphindex.dto import (
+    DESCRIPTION_SEPARATOR,
     Chunk,
     DeleteDocumentResult,
     Entity,
     KnowledgeGraph,
+    MergeEntitiesResult,
     Relation,
 )
 from aperag.graphindex.models import (
@@ -67,6 +69,10 @@ class PostgresGraphStore:
     """
 
     def __init__(self, engine: AsyncEngine) -> None:
+        """The store is intentionally LLM-agnostic: size caps and
+        summarization decisions are the service layer's job, not the
+        storage layer's. That keeps this class purely SQL and lets tests
+        exercise the merge / upsert semantics without an LLM stub."""
         self._engine = engine
 
     # =========================================================== schema
@@ -134,8 +140,21 @@ class PostgresGraphStore:
             await conn.execute(text(sql), params)
 
     async def upsert_entities(self, collection_id: str, entities: Sequence[Entity]) -> None:
-        """Insert entities; on conflict merge source_chunk_ids as a
-        set union and keep the longer description (simple but stable)."""
+        """Insert entities; on ``(collection_id, entity_id)`` conflict:
+
+        * ``source_chunk_ids``: set-union with existing ids.
+        * ``description``: append the incoming fragment to the existing
+          text with a ``\\n\\n`` separator, **without cap**. Size
+          bounding is the service layer's job (see
+          ``GraphIndexService._compact_oversized_descriptions``): the
+          storage layer is intentionally LLM-agnostic. If the incoming
+          fragment is already a substring of the stored description —
+          which happens when identical boilerplate appears in multiple
+          chunks — it is skipped so we don't double-store identical
+          sentences.
+        * ``name`` / ``type``: take the newer value (closed vocabulary,
+          repeated writes converge).
+        """
         if not entities:
             return
         values_sql, params = _build_multi_row_values(
@@ -153,27 +172,19 @@ class PostgresGraphStore:
             columns=("cid", "eid", "name", "type", "desc", "chunks"),
             cast_columns={"chunks": "text[]"},
         )
+        params["sep"] = DESCRIPTION_SEPARATOR
+
         sql = (
             f"INSERT INTO {NODES_TABLE} "
             f"(collection_id, entity_id, name, type, description, source_chunk_ids) "
             f"VALUES {values_sql} "
             f"ON CONFLICT (collection_id, entity_id) DO UPDATE SET "
-            # Union the chunk id arrays without duplicates.
             f"source_chunk_ids = ARRAY("
             f"  SELECT DISTINCT unnest("
             f"    {NODES_TABLE}.source_chunk_ids || EXCLUDED.source_chunk_ids"
             f"  )"
             f"), "
-            # Prefer the longer description — cheap proxy for "more
-            # informative". Real merge semantics belong in the curation
-            # pipeline, not here.
-            f"description = CASE "
-            f"  WHEN length(EXCLUDED.description) > length({NODES_TABLE}.description) "
-            f"  THEN EXCLUDED.description "
-            f"  ELSE {NODES_TABLE}.description "
-            f"END, "
-            # Keep the newer type; type is a closed-set vocabulary from
-            # the extraction prompt, so values converge on repeated writes.
+            f"description = {_sql_append_fragment(current=f'{NODES_TABLE}.description', incoming='EXCLUDED.description')}, "
             f"type = EXCLUDED.type, "
             f"name = EXCLUDED.name, "
             f"updated_at = now()"
@@ -182,9 +193,12 @@ class PostgresGraphStore:
             await conn.execute(text(sql), params)
 
     async def upsert_relations(self, collection_id: str, relations: Sequence[Relation]) -> None:
-        """Insert relations; on ``(source, target)`` conflict union the
-        chunk id set, take the max weight, and concatenate descriptions
-        with a separator."""
+        """Insert relations; on ``(source, target)`` conflict:
+
+        * ``source_chunk_ids``: set-union.
+        * ``weight``: ``GREATEST(existing, new)`` — stronger evidence wins.
+        * ``description``: same append-fragment rule as entities.
+        """
         if not relations:
             return
         values_sql, params = _build_multi_row_values(
@@ -202,6 +216,8 @@ class PostgresGraphStore:
             columns=("cid", "src", "tgt", "desc", "w", "chunks"),
             cast_columns={"chunks": "text[]"},
         )
+        params["sep"] = DESCRIPTION_SEPARATOR
+
         sql = (
             f"INSERT INTO {EDGES_TABLE} "
             f"(collection_id, source_id, target_id, description, weight, source_chunk_ids) "
@@ -213,11 +229,7 @@ class PostgresGraphStore:
             f"  )"
             f"), "
             f"weight = GREATEST({EDGES_TABLE}.weight, EXCLUDED.weight), "
-            f"description = CASE "
-            f"  WHEN length(EXCLUDED.description) > length({EDGES_TABLE}.description) "
-            f"  THEN EXCLUDED.description "
-            f"  ELSE {EDGES_TABLE}.description "
-            f"END, "
+            f"description = {_sql_append_fragment(current=f'{EDGES_TABLE}.description', incoming='EXCLUDED.description')}, "
             f"updated_at = now()"
         )
         async with self._engine.begin() as conn:
@@ -310,6 +322,340 @@ class PostgresGraphStore:
             entities_removed=int(deleted_nodes),
             relations_removed=int(deleted_edges),
         )
+
+    # ============================================================ merge
+    async def merge_entities(
+        self,
+        collection_id: str,
+        *,
+        target_entity_id: str,
+        source_entity_ids: Sequence[str],
+    ) -> MergeEntitiesResult:
+        """Merge ``source_entity_ids`` into ``target_entity_id`` in a
+        single transaction.
+
+        Semantics:
+
+        * Target entity gains the union of all source chunks plus its own.
+        * Target description gets every source fragment appended
+          (``\\n\\n`` separator, deduplicated via substring check). The
+          **service layer** runs LLM summarization afterwards when the
+          resulting description exceeds the configured thresholds; this
+          method intentionally does not call the LLM so the storage
+          layer stays testable without network.
+        * Every edge touching a source is redirected to target. Edges
+          that become self-loops (target<->target) or duplicates of an
+          existing target edge are collapsed: chunk-id arrays union,
+          weights take ``GREATEST``, descriptions append with the usual
+          dedup.
+        * Source rows are deleted.
+
+        Returns the post-merge target row plus counts, so the service
+        layer can decide whether to trigger description summarization.
+
+        Raises ``ValueError`` if target does not exist.
+        """
+        source_ids = [s for s in source_entity_ids if s and s != target_entity_id]
+        if not source_ids:
+            raise ValueError("merge_entities requires at least one source distinct from the target")
+
+        async with self._engine.begin() as conn:
+            # 0. Load target + source rows (lock them so no concurrent
+            # upsert corrupts the merge mid-transaction).
+            target_row = (
+                await conn.execute(
+                    text(
+                        f"SELECT entity_id, name, type, description, source_chunk_ids "
+                        f"FROM {NODES_TABLE} "
+                        f"WHERE collection_id = :cid AND entity_id = :eid "
+                        f"FOR UPDATE"
+                    ),
+                    {"cid": collection_id, "eid": target_entity_id},
+                )
+            ).first()
+            if target_row is None:
+                raise ValueError(f"Target entity {target_entity_id!r} not found in collection {collection_id!r}")
+
+            source_rows = (
+                await conn.execute(
+                    text(
+                        f"SELECT entity_id, description, source_chunk_ids "
+                        f"FROM {NODES_TABLE} "
+                        f"WHERE collection_id = :cid AND entity_id = ANY(CAST(:ids AS text[])) "
+                        f"FOR UPDATE"
+                    ),
+                    {"cid": collection_id, "ids": source_ids},
+                )
+            ).all()
+            if not source_rows:
+                # Nothing to do; return the target as-is.
+                return MergeEntitiesResult(
+                    target_entity_id=target_entity_id,
+                    merged_source_ids=tuple(),
+                    description=target_row.description or "",
+                    source_chunk_ids=tuple(target_row.source_chunk_ids or ()),
+                    edges_redirected=0,
+                    edges_collapsed=0,
+                )
+
+            # 1. Build the new target description by appending each
+            #    source fragment, deduplicating substrings.
+            description = target_row.description or ""
+            for s in source_rows:
+                frag = (s.description or "").strip()
+                if not frag:
+                    continue
+                if description and frag in description:
+                    continue
+                description = (description + DESCRIPTION_SEPARATOR + frag) if description else frag
+
+            # 2. Union of chunk ids.
+            chunk_ids: set[str] = set(target_row.source_chunk_ids or ())
+            for s in source_rows:
+                chunk_ids.update(s.source_chunk_ids or ())
+
+            # 3. Redirect edges. Any edge that has a source/target in
+            #    ``source_ids`` gets its endpoint rewritten to the
+            #    target entity id. ``ON CONFLICT`` then collapses any
+            #    collision with an existing (target, X) / (X, target)
+            #    edge via the same merge rules as ``upsert_relations``.
+            #
+            # Step 3a: load every affected edge so we can rewrite in
+            # application code (PG doesn't let you update a row then
+            # re-insert it via ON CONFLICT in one statement without
+            # gymnastics, and we also need to delete self-loops).
+            affected_rows = (
+                await conn.execute(
+                    text(
+                        f"SELECT source_id, target_id, description, weight, source_chunk_ids "
+                        f"FROM {EDGES_TABLE} "
+                        f"WHERE collection_id = :cid "
+                        f"  AND (source_id = ANY(CAST(:ids AS text[])) "
+                        f"       OR target_id = ANY(CAST(:ids AS text[])))"
+                    ),
+                    {"cid": collection_id, "ids": source_ids},
+                )
+            ).all()
+
+            # Remove them all first; we'll re-insert via the standard
+            # upsert path so conflicts merge cleanly.
+            await conn.execute(
+                text(
+                    f"DELETE FROM {EDGES_TABLE} "
+                    f"WHERE collection_id = :cid "
+                    f"  AND (source_id = ANY(CAST(:ids AS text[])) "
+                    f"       OR target_id = ANY(CAST(:ids AS text[])))"
+                ),
+                {"cid": collection_id, "ids": source_ids},
+            )
+
+            redirected = 0
+            collapsed = 0
+            # Rebuild redirected edges. Two sources pointing at the
+            # same third entity (e.g. src1→other and src2→other) both
+            # become target→other after redirect; we MUST collapse
+            # those in Python before sending them to the database,
+            # otherwise PG rejects the INSERT with
+            # ``CardinalityViolationError`` because ON CONFLICT DO
+            # UPDATE cannot apply to two rows with the same key in
+            # one statement.
+            rebuilt_map: dict[tuple[str, str], Relation] = {}
+            for e in affected_rows:
+                new_src = target_entity_id if e.source_id in source_ids else e.source_id
+                new_tgt = target_entity_id if e.target_id in source_ids else e.target_id
+                if new_src == new_tgt:
+                    # Drop self-loops; they carry no information after merge.
+                    collapsed += 1
+                    continue
+                key = (new_src, new_tgt)
+                incoming = Relation(
+                    collection_id=collection_id,
+                    source_id=new_src,
+                    target_id=new_tgt,
+                    description=e.description or "",
+                    weight=float(e.weight or 0),
+                    source_chunk_ids=tuple(e.source_chunk_ids or ()),
+                )
+                if key in rebuilt_map:
+                    existing = rebuilt_map[key]
+                    union_chunks = tuple(dict.fromkeys((*existing.source_chunk_ids, *incoming.source_chunk_ids)))
+                    # Concat descriptions with the same dedup-by-substring
+                    # rule the SQL path would apply.
+                    desc_a = (existing.description or "").strip()
+                    desc_b = (incoming.description or "").strip()
+                    if not desc_a:
+                        new_desc = desc_b
+                    elif not desc_b or desc_b in desc_a:
+                        new_desc = existing.description
+                    else:
+                        new_desc = existing.description + DESCRIPTION_SEPARATOR + incoming.description
+                    rebuilt_map[key] = Relation(
+                        collection_id=collection_id,
+                        source_id=new_src,
+                        target_id=new_tgt,
+                        description=new_desc,
+                        weight=max(existing.weight, incoming.weight),
+                        source_chunk_ids=union_chunks,
+                    )
+                    collapsed += 1
+                else:
+                    rebuilt_map[key] = incoming
+                    redirected += 1
+            rebuilt = list(rebuilt_map.values())
+
+            # 4. Delete source entities.
+            await conn.execute(
+                text(
+                    f"DELETE FROM {NODES_TABLE} WHERE collection_id = :cid   AND entity_id = ANY(CAST(:ids AS text[]))"
+                ),
+                {"cid": collection_id, "ids": source_ids},
+            )
+
+            # 5. Persist merged target (single row update is enough — no
+            #    upsert needed, target was locked in step 0).
+            await conn.execute(
+                text(
+                    f"UPDATE {NODES_TABLE} SET "
+                    f"description = :desc, "
+                    f"source_chunk_ids = CAST(:chunks AS text[]), "
+                    f"updated_at = now() "
+                    f"WHERE collection_id = :cid AND entity_id = :eid"
+                ),
+                {
+                    "cid": collection_id,
+                    "eid": target_entity_id,
+                    "desc": description,
+                    "chunks": sorted(chunk_ids),
+                },
+            )
+
+        # 6. Re-insert redirected edges OUTSIDE the merge transaction
+        #    so ``upsert_relations`` uses its own transaction. Splitting
+        #    keeps merge_entities free of the giant VALUES clause
+        #    plumbing and re-uses the upsert conflict logic.
+        if rebuilt:
+            await self.upsert_relations(collection_id, rebuilt)
+
+        return MergeEntitiesResult(
+            target_entity_id=target_entity_id,
+            merged_source_ids=tuple(s.entity_id for s in source_rows),
+            description=description,
+            source_chunk_ids=tuple(sorted(chunk_ids)),
+            edges_redirected=redirected,
+            edges_collapsed=collapsed,
+        )
+
+    # ======================================================== normalize
+    async def find_oversized_entities(
+        self,
+        collection_id: str,
+        *,
+        min_chars: int,
+        min_fragments: int,
+        limit: int = 200,
+    ) -> list[Entity]:
+        """Return entities whose description is long enough that the
+        service layer should consider LLM-summarizing it.
+
+        An entity qualifies if EITHER:
+
+        * ``length(description) >= min_chars``, or
+        * its fragment count (``split on DESCRIPTION_SEPARATOR``) is at
+          least ``min_fragments``.
+
+        The query is cheap on a modern PG with GIN or even no index —
+        graphindex_nodes is written at ``O(chunks)`` per document, so
+        the oversized set is tiny in practice. ``limit`` is here purely
+        as a cost cap so an accidentally runaway row count doesn't try
+        to pull 10k rows into memory.
+        """
+        sep_occurrences = "array_length(string_to_array(description, :sep), 1)"
+        sql = (
+            f"SELECT entity_id, name, type, description, source_chunk_ids "
+            f"FROM {NODES_TABLE} "
+            f"WHERE collection_id = :cid "
+            f"  AND description IS NOT NULL "
+            f"  AND ( "
+            f"    length(description) >= :minchars "
+            f"    OR COALESCE({sep_occurrences}, 1) >= :minfrags "
+            f"  ) "
+            f"ORDER BY length(description) DESC "
+            f"LIMIT :lim"
+        )
+        params = {
+            "cid": collection_id,
+            "sep": DESCRIPTION_SEPARATOR,
+            "minchars": int(min_chars),
+            "minfrags": int(min_fragments),
+            "lim": int(limit),
+        }
+        async with self._engine.connect() as conn:
+            rows = (await conn.execute(text(sql), params)).all()
+        return [_row_to_entity(r, collection_id) for r in rows]
+
+    async def find_oversized_relations(
+        self,
+        collection_id: str,
+        *,
+        min_chars: int,
+        min_fragments: int,
+        limit: int = 200,
+    ) -> list[Relation]:
+        sep_occurrences = "array_length(string_to_array(description, :sep), 1)"
+        sql = (
+            f"SELECT source_id, target_id, description, weight, source_chunk_ids "
+            f"FROM {EDGES_TABLE} "
+            f"WHERE collection_id = :cid "
+            f"  AND description IS NOT NULL "
+            f"  AND ( "
+            f"    length(description) >= :minchars "
+            f"    OR COALESCE({sep_occurrences}, 1) >= :minfrags "
+            f"  ) "
+            f"ORDER BY length(description) DESC "
+            f"LIMIT :lim"
+        )
+        params = {
+            "cid": collection_id,
+            "sep": DESCRIPTION_SEPARATOR,
+            "minchars": int(min_chars),
+            "minfrags": int(min_fragments),
+            "lim": int(limit),
+        }
+        async with self._engine.connect() as conn:
+            rows = (await conn.execute(text(sql), params)).all()
+        return [_row_to_relation(r, collection_id) for r in rows]
+
+    async def rewrite_entity_description(
+        self,
+        collection_id: str,
+        entity_id: str,
+        description: str,
+    ) -> None:
+        """Replace the entity's description wholesale with a summary."""
+        async with self._engine.begin() as conn:
+            await conn.execute(
+                text(
+                    f"UPDATE {NODES_TABLE} SET description = :desc, updated_at = now() "
+                    f"WHERE collection_id = :cid AND entity_id = :eid"
+                ),
+                {"cid": collection_id, "eid": entity_id, "desc": description},
+            )
+
+    async def rewrite_relation_description(
+        self,
+        collection_id: str,
+        source_id: str,
+        target_id: str,
+        description: str,
+    ) -> None:
+        async with self._engine.begin() as conn:
+            await conn.execute(
+                text(
+                    f"UPDATE {EDGES_TABLE} SET description = :desc, updated_at = now() "
+                    f"WHERE collection_id = :cid AND source_id = :src AND target_id = :tgt"
+                ),
+                {"cid": collection_id, "src": source_id, "tgt": target_id, "desc": description},
+            )
 
     # ============================================================= read
 
@@ -480,6 +826,34 @@ class PostgresGraphStore:
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+
+def _sql_append_fragment(*, current: str, incoming: str) -> str:
+    """Return a SQL expression that appends ``incoming`` to ``current``
+    with the ``DESCRIPTION_SEPARATOR`` between them.
+
+    Behaviour:
+
+    * If ``current`` is NULL or empty → result is ``incoming``.
+    * If ``current`` already contains ``incoming`` as a substring
+      (``position(incoming IN current) > 0``) → result is ``current``
+      unchanged. This avoids duplicating identical sentences that appear
+      in multiple chunks of the same document, which was the #1 source
+      of "why is this description repeating itself" complaints.
+    * Otherwise → ``current || :sep || incoming``.
+
+    No length cap is applied here — the service layer decides when an
+    accumulated description should be LLM-summarized or, as a last
+    resort, truncated.
+    """
+    return (
+        f"CASE "
+        f"  WHEN {current} IS NULL OR {current} = '' THEN {incoming} "
+        f"  WHEN {incoming} IS NULL OR {incoming} = '' THEN {current} "
+        f"  WHEN position({incoming} IN {current}) > 0 THEN {current} "
+        f"  ELSE {current} || :sep || {incoming} "
+        f"END"
+    )
 
 
 def _build_multi_row_values(

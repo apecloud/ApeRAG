@@ -14,25 +14,31 @@
 
 """Graph-index business service.
 
-After the LightRAG removal this service is deliberately small: it owns
-only the two read paths that power the knowledge-graph UI (label list,
-visual subgraph). Everything else — document indexing, document
-deletion, query-context for retrieval — goes through
-``aperag.graphindex.GraphIndexService`` directly from the task or
-search-pipeline layer, with no extra service wrapper.
+Thin wrapper around ``aperag.graphindex.GraphIndexService`` that handles
+the ApeRAG-specific concerns: collection lookup, auth, and mapping
+graphindex DTOs to the shapes the REST UI expects. All the real logic
+(SQL, LLM, summarization) lives inside graphindex.
 
-Three LightRAG-era features have been dropped entirely:
+Three endpoints route through here:
 
-* ``generate_merge_suggestions`` / ``get_or_generate_merge_suggestions``
-* ``merge_nodes`` / ``handle_suggestion_action``
-* ``export_for_kg_eval``
+* ``get_graph_labels`` — list entity types for the UI dropdown.
+* ``get_knowledge_graph`` — fetch a subgraph for visualization.
+* ``merge_entities`` — consolidate multiple entities into one, with an
+  LLM-generated summary description.
 
-They were LLM-heavy curation features built on LightRAG's entity-merge
-machinery; porting them to graphindex v2 was explicitly out of scope
-for the rewrite. The REST routes are kept in ``aperag/views/graph.py``
-returning HTTP 410 so the frontend gets a clear runtime signal until
-its UI surface is cleaned up in a follow-up. See
-``docs/zh-CN/design/graphindex_rewrite.md`` for rationale.
+Two LightRAG-era curation features are not re-exposed in v2:
+
+* ``generate_merge_suggestions`` / ``handle_suggestion_action`` — the
+  "discover clusters to merge" pipeline. It was a 500-line LLM
+  orchestration over LightRAG internals; its v2 replacement (if the
+  product needs one) should be a dedicated module, not part of
+  graphindex.
+* ``export_for_kg_eval`` — snapshot export for the KG eval harness.
+  Can be rebuilt as a thin SQL dump whenever we want it back.
+
+The REST routes for those two actions still exist under
+``aperag/views/graph.py`` and return HTTP 410 until the frontend is
+updated. See ``docs/zh-CN/design/graphindex_rewrite.md``.
 """
 
 from __future__ import annotations
@@ -130,6 +136,42 @@ class GraphService:
             len(result["edges"]),
         )
         return result
+
+    # ================================================================== merge
+    async def merge_entities(
+        self,
+        user_id: str,
+        collection_id: str,
+        *,
+        target_entity_id: str,
+        source_entity_ids: List[str],
+    ) -> Dict[str, Any]:
+        """Merge entities and return a summary payload for the UI.
+
+        The heavy lifting (structural merge + LLM summary of the merged
+        description) happens inside
+        ``GraphIndexService.merge_entities``. This layer only validates
+        the collection and reshapes the DTO into the dict the existing
+        frontend expects.
+        """
+        db_collection = await self._get_and_validate_collection(user_id, collection_id)
+
+        from aperag.graphindex.integration import make_service_for_collection
+
+        svc = make_service_for_collection(db_collection)
+        result = await svc.merge_entities(
+            collection_id=collection_id,
+            target_entity_id=target_entity_id,
+            source_entity_ids=source_entity_ids,
+        )
+        return {
+            "target_entity_id": result.target_entity_id,
+            "merged_source_ids": list(result.merged_source_ids),
+            "description": result.description,
+            "source_chunk_ids": list(result.source_chunk_ids),
+            "edges_redirected": result.edges_redirected,
+            "edges_collapsed": result.edges_collapsed,
+        }
 
     # --------------------------------------------------------- internal helpers
     def _optimize_graph_for_visualization(self, nodes, edges, max_nodes):

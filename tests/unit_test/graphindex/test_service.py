@@ -26,6 +26,8 @@ from aperag.graphindex import (
     KnowledgeGraph,
     Relation,
 )
+from aperag.graphindex.config import GraphIndexConfig
+from aperag.graphindex.dto import DESCRIPTION_SEPARATOR, MergeEntitiesResult
 
 
 class _StubStore:
@@ -36,6 +38,10 @@ class _StubStore:
         self.labels_result: list[str] = []
         self.subgraph_result = KnowledgeGraph(nodes=(), edges=(), is_truncated=False)
         self.delete_result: Optional[DeleteDocumentResult] = None
+        # Normalization / merge surface.
+        self.oversized_entities: list[Entity] = []
+        self.oversized_relations: list[Relation] = []
+        self.merge_result: Optional[MergeEntitiesResult] = None
 
     async def ensure_schema(self) -> None:
         self.calls.append(("ensure_schema", (), {}))
@@ -82,6 +88,38 @@ class _StubStore:
     async def list_subgraph(self, collection_id, label, max_depth, max_nodes):
         self.calls.append(("list_subgraph", (collection_id, label, max_depth, max_nodes), {}))
         return self.subgraph_result
+
+    async def merge_entities(self, collection_id, *, target_entity_id, source_entity_ids):
+        self.calls.append(("merge_entities", (collection_id, target_entity_id, list(source_entity_ids)), {}))
+        assert self.merge_result is not None, "test must set merge_result before calling merge_entities"
+        return self.merge_result
+
+    async def find_oversized_entities(self, collection_id, *, min_chars, min_fragments, limit=200):
+        self.calls.append(
+            ("find_oversized_entities", (collection_id,), {"min_chars": min_chars, "min_fragments": min_fragments})
+        )
+        return list(self.oversized_entities)
+
+    async def find_oversized_relations(self, collection_id, *, min_chars, min_fragments, limit=200):
+        self.calls.append(
+            ("find_oversized_relations", (collection_id,), {"min_chars": min_chars, "min_fragments": min_fragments})
+        )
+        return list(self.oversized_relations)
+
+    async def rewrite_entity_description(self, collection_id, entity_id, description):
+        self.calls.append(("rewrite_entity_description", (collection_id, entity_id, description), {}))
+
+    async def rewrite_relation_description(self, collection_id, source_id, target_id, description):
+        self.calls.append(("rewrite_relation_description", (collection_id, source_id, target_id, description), {}))
+
+
+def _stub_store_factory() -> _StubStore:
+    """Return a stub with the normalization/merge fields initialised so
+    it can stand in anywhere the real store is expected."""
+    store = _StubStore()
+    store.oversized_entities = []
+    store.oversized_relations = []
+    return store
 
 
 async def _null_llm(_prompt: str) -> str:
@@ -216,3 +254,163 @@ async def test_query_context_renders_entities_and_relations():
     assert "Works with" in ctx.text
     assert len(ctx.entities) == 2
     assert len(ctx.relations) == 1
+
+
+# ---------------------------------------------------------------------------
+# Normalization: LLM summarization of oversized descriptions
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_index_document_summarizes_oversized_entities_via_llm():
+    """After writing a document, the service must ask the store for any
+    entity whose description is above threshold and call the LLM to
+    produce a compact summary, then persist the summary via
+    ``rewrite_entity_description``.
+
+    This is the v2 replacement for LightRAG's
+    ``force_llm_summary_on_merge`` behaviour. Critically, the summary
+    must come from the LLM, not from any client-side truncation — that
+    would lose information, which is exactly the failure mode this test
+    protects against.
+    """
+    store = _stub_store_factory()
+    long_desc = DESCRIPTION_SEPARATOR.join(f"Fragment {i}: Alice does something." for i in range(10))
+    store.oversized_entities = [
+        Entity(entity_id="e1", collection_id="c", name="Alice", type="person", description=long_desc)
+    ]
+
+    captured_prompts: list[str] = []
+
+    async def llm(prompt: str) -> str:
+        captured_prompts.append(prompt)
+        return "Alice is a person who has done many things across the document."
+
+    svc = GraphIndexService(store=store, llm=llm, config=GraphIndexConfig(summarize_at_fragments=6))
+
+    await svc.index_document(collection_id="c", doc_id="d", content="", file_path="")
+
+    rewrites = [c for c in store.calls if c[0] == "rewrite_entity_description"]
+    assert len(rewrites) == 1, f"expected one rewrite, saw: {store.calls}"
+    rewritten = rewrites[0][1][2]
+    assert "Alice" in rewritten
+    assert DESCRIPTION_SEPARATOR not in rewritten, "summary must not contain raw fragments"
+    # The LLM was asked with a prompt containing each fragment.
+    assert captured_prompts, "LLM was not invoked — summarization must go through the LLM"
+    assert "Fragment 0" in captured_prompts[0]
+
+
+@pytest.mark.asyncio
+async def test_summarization_falls_back_to_truncation_only_when_llm_fails():
+    """If the LLM raises, the service must still keep the description
+    bounded so the DB doesn't accumulate megabytes. The fallback is
+    word-boundary truncation; it is explicitly marked so operators can
+    find capped rows and treat them as degraded."""
+    store = _stub_store_factory()
+    long_desc = "A " * 5000  # 10000 chars, way above the cap
+    store.oversized_entities = [
+        Entity(entity_id="e1", collection_id="c", name="Alice", type="person", description=long_desc)
+    ]
+
+    async def failing_llm(_prompt: str) -> str:
+        raise RuntimeError("simulated LLM outage")
+
+    svc = GraphIndexService(
+        store=store,
+        llm=failing_llm,
+        config=GraphIndexConfig(summarize_at_fragments=6, max_description_chars=4000),
+    )
+    await svc.index_document(collection_id="c", doc_id="d", content="", file_path="")
+
+    rewrites = [c for c in store.calls if c[0] == "rewrite_entity_description"]
+    assert len(rewrites) == 1
+    written = rewrites[0][1][2]
+    assert len(written) <= 4000
+    assert "[truncated]" in written, "fallback must be clearly marked so operators can audit"
+
+
+@pytest.mark.asyncio
+async def test_index_document_skips_summary_when_no_oversized_rows():
+    """Happy path: small document, no description grew beyond the
+    threshold, no LLM calls beyond extraction. Guards against the
+    summarization pass becoming an unconditional expense."""
+    store = _stub_store_factory()
+    # oversized_entities / oversized_relations are already empty
+
+    llm_calls: list[str] = []
+
+    async def llm(prompt: str) -> str:
+        llm_calls.append(prompt)
+        return "{}"
+
+    svc = GraphIndexService(store=store, llm=llm)
+    await svc.index_document(collection_id="c", doc_id="d", content="", file_path="")
+
+    assert not any(c[0] == "rewrite_entity_description" for c in store.calls)
+    assert not any(c[0] == "rewrite_relation_description" for c in store.calls)
+
+
+# ---------------------------------------------------------------------------
+# Merge entities (LLM-summarized description, not plain concat)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_merge_entities_summarizes_merged_description():
+    """After the SQL merge produces a long patchwork description, the
+    service must call the LLM to collapse it into one coherent
+    paragraph BEFORE returning. The failure mode this protects against
+    is "merged entity has a 10-fragment description that no user can
+    read" — the specific regression the user flagged when reviewing
+    the first rewrite attempt."""
+    store = _stub_store_factory()
+    patchwork = DESCRIPTION_SEPARATOR.join(f"Claim {i} about the entity." for i in range(8))
+    store.merge_result = MergeEntitiesResult(
+        target_entity_id="A",
+        merged_source_ids=("B", "C"),
+        description=patchwork,
+        source_chunk_ids=("chunk1", "chunk2", "chunk3"),
+        edges_redirected=3,
+        edges_collapsed=1,
+    )
+
+    summary = "A is the merged entity and does these things."
+
+    async def llm(prompt: str) -> str:
+        assert "Claim 0" in prompt, "summarization prompt must contain the fragments verbatim"
+        return summary
+
+    svc = GraphIndexService(store=store, llm=llm, config=GraphIndexConfig(summarize_at_fragments=6))
+
+    result = await svc.merge_entities(collection_id="c", target_entity_id="A", source_entity_ids=["B", "C"])
+
+    assert result.description == summary
+    # The summary must have been persisted.
+    rewrites = [c for c in store.calls if c[0] == "rewrite_entity_description"]
+    assert any(call[1] == ("c", "A", summary) for call in rewrites)
+
+
+@pytest.mark.asyncio
+async def test_merge_entities_skips_summary_on_short_description():
+    """If the merged description is already small, skip the LLM round
+    trip. Prevents the merge API from paying a summarization cost on
+    every call, which would make the UI feel sluggish."""
+    store = _stub_store_factory()
+    store.merge_result = MergeEntitiesResult(
+        target_entity_id="A",
+        merged_source_ids=("B",),
+        description="A short merged description.",
+        source_chunk_ids=("chunk1",),
+        edges_redirected=0,
+        edges_collapsed=0,
+    )
+
+    async def llm(_prompt: str) -> str:
+        raise AssertionError("LLM must not be called when description is already compact")
+
+    svc = GraphIndexService(store=store, llm=llm, config=GraphIndexConfig(summarize_at_fragments=6))
+
+    result = await svc.merge_entities(collection_id="c", target_entity_id="A", source_entity_ids=["B"])
+
+    assert result.description == "A short merged description."
+    assert not any(c[0] == "rewrite_entity_description" for c in store.calls)

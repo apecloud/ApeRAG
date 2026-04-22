@@ -136,4 +136,67 @@ def render_extraction_prompt(
     )
 
 
-__all__ = ["ENTITY_RELATION_EXTRACTION", "render_extraction_prompt"]
+DESCRIPTION_SUMMARIZATION: str = """\
+You are consolidating a knowledge-graph entry.
+
+Below are {fragment_count} short descriptions of the same
+{subject_kind}, extracted from different chunks of a document. Your job
+is to produce ONE coherent summary in {language} that preserves every
+fact mentioned.
+
+**Rules**
+
+1. Output ONLY the summary text. No preamble, no JSON, no markdown.
+2. Target length: around {target_chars} characters (one or two
+   paragraphs). Go longer if the fragments genuinely require it; never
+   omit a fact to hit the target.
+3. Merge duplicate facts into one sentence. Keep conflicting facts
+   both — the downstream pipeline will flag contradictions, so do not
+   silently pick a winner.
+4. Do not add information that isn't in the fragments.
+5. For a relation, keep the subject–predicate–object framing clear
+   ("<source> <verb> <target> because ...").
+
+**Subject**: {subject_label}
+
+**Fragments** (separated by "---"):
+
+---
+{fragments_block}
+---
+
+Summary (plain text, {language}):"""
+
+
+def render_summarization_prompt(
+    *,
+    subject_kind: str,
+    subject_label: str,
+    fragments: list[str] | tuple[str, ...],
+    language: str,
+    target_chars: int,
+) -> str:
+    """Render the description-summarization prompt.
+
+    ``subject_kind`` is "entity" or "relation"; ``subject_label`` is the
+    entity name or ``"<source> → <target>"`` for a relation. The
+    fragments are inlined verbatim, separated by ``---`` lines so the
+    model can tell them apart.
+    """
+    block = "\n---\n".join(f.strip() for f in fragments if f and f.strip())
+    return DESCRIPTION_SUMMARIZATION.format(
+        subject_kind=subject_kind,
+        subject_label=subject_label,
+        fragments_block=block,
+        fragment_count=len([f for f in fragments if f and f.strip()]),
+        language=language,
+        target_chars=target_chars,
+    )
+
+
+__all__ = [
+    "ENTITY_RELATION_EXTRACTION",
+    "DESCRIPTION_SUMMARIZATION",
+    "render_extraction_prompt",
+    "render_summarization_prompt",
+]

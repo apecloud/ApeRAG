@@ -35,6 +35,7 @@ from aperag.graphindex.dto import (
     DeleteDocumentResult,
     Entity,
     KnowledgeGraph,
+    MergeEntitiesResult,
     Relation,
 )
 
@@ -72,12 +73,82 @@ class GraphStore(Protocol):
 
     async def upsert_entities(self, collection_id: str, entities: Sequence[Entity]) -> None:
         """Insert entities; on id conflict merge ``source_chunk_ids`` and
-        extend ``description`` (keeping the longer of the two for
-        simplicity — see ``postgres.py`` for the exact policy)."""
+        append the incoming description fragment to the stored one
+        (``\\n\\n`` separator, identical-substring dedup, **no cap**).
+        Size bounding / LLM summarization is the service layer's job."""
 
     async def upsert_relations(self, collection_id: str, relations: Sequence[Relation]) -> None:
         """Insert relations; on ``(source_id, target_id)`` conflict merge
-        ``source_chunk_ids`` and keep the max weight observed."""
+        ``source_chunk_ids``, keep the max weight observed, and append
+        the description fragment under the same rules as entities."""
+
+    # ---- merge / normalize -------------------------------------------
+    async def merge_entities(
+        self,
+        collection_id: str,
+        *,
+        target_entity_id: str,
+        source_entity_ids: Sequence[str],
+    ) -> MergeEntitiesResult:
+        """Merge ``source_entity_ids`` into ``target_entity_id``.
+
+        Contract:
+
+        * Target absorbs every source chunk id.
+        * Target description accumulates source fragments with
+          dedup-by-substring; LLM summarization of the result is the
+          service layer's responsibility.
+        * Every edge that touched a source is redirected to target.
+          Self-loops (target↔target) are dropped. Duplicate
+          ``(target, X)`` edges collapse via the same conflict rules
+          as ``upsert_relations``.
+        * Source rows are deleted.
+
+        Must run atomically.
+        """
+
+    async def find_oversized_entities(
+        self,
+        collection_id: str,
+        *,
+        min_chars: int,
+        min_fragments: int,
+        limit: int = 200,
+    ) -> list[Entity]:
+        """Return entities whose description has exceeded either size
+        threshold. Called by the service layer after a write batch to
+        pick candidates for LLM summarization.
+        """
+
+    async def find_oversized_relations(
+        self,
+        collection_id: str,
+        *,
+        min_chars: int,
+        min_fragments: int,
+        limit: int = 200,
+    ) -> list[Relation]:
+        """Same as :meth:`find_oversized_entities` but for relations."""
+
+    async def rewrite_entity_description(
+        self,
+        collection_id: str,
+        entity_id: str,
+        description: str,
+    ) -> None:
+        """Replace an entity's description wholesale. Used after LLM
+        summarization; the caller guarantees the new description covers
+        the information previously held in fragments.
+        """
+
+    async def rewrite_relation_description(
+        self,
+        collection_id: str,
+        source_id: str,
+        target_id: str,
+        description: str,
+    ) -> None:
+        """Same as :meth:`rewrite_entity_description` but for relations."""
 
     # ---- deletes ------------------------------------------------------
     async def delete_document_rows(self, collection_id: str, doc_id: str) -> DeleteDocumentResult:

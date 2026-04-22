@@ -97,6 +97,40 @@ class GraphIndexConfig:
     max_relations_per_chunk: int = 80
     """Same principle, for relations."""
 
+    # ---- normalization / summarization --------------------------------
+    summarize_at_fragments: int = 6
+    """Trigger an LLM summary of an entity or relation's ``description``
+    once the accumulated text has reached this many fragments (joined by
+    ``\\n\\n``). LightRAG's analogue was ``force_llm_summary_on_merge``
+    with default 10; we pick 6 because a high-frequency entity with 6
+    supporting mentions already reads as a patchwork paragraph, and
+    early summarization keeps retrieval prompts compact. Set to a very
+    large number to effectively disable description summarization (not
+    recommended — see ``max_description_chars`` fallback)."""
+
+    max_description_chars: int = 4000
+    """Hard cap on the stored ``description`` column. Two layers of
+    protection stack:
+
+    1. The write path normally calls ``summarize_at_fragments`` long
+       before descriptions reach this size — the cap is just a safety
+       rail against runaway growth (e.g. 100+ mentions of a single
+       entity inside one big document).
+    2. If the LLM summarizer is not wired in (``llm=None``), fails,
+       or times out, the service falls back to truncating at a word
+       boundary with a short "… [truncated]" marker. Truncation loses
+       information; summarization is always preferred when available.
+
+    Keep this well above ``summary_target_chars`` so a fresh summary
+    never re-triggers truncation on the same write."""
+
+    summary_target_chars: int = 800
+    """Target length for LLM-produced summaries. The prompt asks the
+    model to produce ~this many characters of coherent text covering
+    the facts in every fragment, so after summarization a description
+    sits well under ``max_description_chars`` and the fragment count
+    resets to 1."""
+
     def __post_init__(self) -> None:
         if self.chunk_token_size <= 0:
             raise ValueError("chunk_token_size must be positive")
@@ -108,6 +142,17 @@ class GraphIndexConfig:
             )
         if not self.entity_types:
             raise ValueError("entity_types must contain at least one type")
+        if self.summarize_at_fragments < 2:
+            raise ValueError("summarize_at_fragments must be at least 2")
+        if self.max_description_chars <= 0:
+            raise ValueError("max_description_chars must be positive")
+        if self.summary_target_chars <= 0:
+            raise ValueError("summary_target_chars must be positive")
+        if self.summary_target_chars >= self.max_description_chars:
+            raise ValueError(
+                "summary_target_chars must be less than max_description_chars; "
+                "otherwise a fresh summary could re-trigger truncation"
+            )
         # Normalize entity_types to a tuple for hash-safety on frozen dc.
         object.__setattr__(self, "entity_types", tuple(self.entity_types))
 

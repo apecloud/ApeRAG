@@ -335,3 +335,201 @@ async def test_drop_collection_removes_all_tenant_rows(store):
     assert await store.find_entities_by_names(cid_a, ["A"]) == []
     b_hits = await store.find_entities_by_names(cid_b, ["B"])
     assert [e.name for e in b_hits] == ["B"]
+
+
+# ---------------------------------------------------------------------------
+# Description accumulation: concat + dedup, no cap in SQL layer
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_upsert_entity_accumulates_descriptions(store):
+    """Each upsert appends its fragment to the stored description with
+    the shared separator. Critical: the SQL layer does NOT truncate —
+    size bounding is the service layer's job and must remain so."""
+    from aperag.graphindex.dto import DESCRIPTION_SEPARATOR
+
+    cid = "col-desc"
+    c = _mk_chunk(cid, "d", 0, "x")
+    await store.upsert_chunks(cid, [c])
+
+    await store.upsert_entities(
+        cid,
+        [Entity(entity_id="e", collection_id=cid, name="E", type="person", description="First fragment.")],
+    )
+    await store.upsert_entities(
+        cid,
+        [Entity(entity_id="e", collection_id=cid, name="E", type="person", description="Second fragment.")],
+    )
+    await store.upsert_entities(
+        cid,
+        [Entity(entity_id="e", collection_id=cid, name="E", type="person", description="Third fragment.")],
+    )
+
+    [found] = await store.find_entities_by_names(cid, ["E"])
+    fragments = found.description.split(DESCRIPTION_SEPARATOR)
+    assert fragments == ["First fragment.", "Second fragment.", "Third fragment."]
+
+
+@pytest.mark.asyncio
+async def test_upsert_entity_dedupes_identical_fragments(store):
+    """If the same fragment is seen twice we don't store it twice — a
+    common pattern when identical boilerplate appears in multiple
+    chunks of the same document."""
+    cid = "col-dedup"
+    c = _mk_chunk(cid, "d", 0, "x")
+    await store.upsert_chunks(cid, [c])
+
+    await store.upsert_entities(
+        cid,
+        [Entity(entity_id="e", collection_id=cid, name="E", type="person", description="One fragment.")],
+    )
+    await store.upsert_entities(
+        cid,
+        [Entity(entity_id="e", collection_id=cid, name="E", type="person", description="One fragment.")],
+    )
+
+    [found] = await store.find_entities_by_names(cid, ["E"])
+    assert found.description == "One fragment."
+
+
+# ---------------------------------------------------------------------------
+# find_oversized_entities / find_oversized_relations
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_find_oversized_entities_returns_rows_past_threshold(store):
+    from aperag.graphindex.dto import DESCRIPTION_SEPARATOR
+
+    cid = "col-over"
+    c = _mk_chunk(cid, "d", 0, "x")
+    await store.upsert_chunks(cid, [c])
+
+    # Short — under both thresholds.
+    await store.upsert_entities(
+        cid,
+        [Entity(entity_id="small", collection_id=cid, name="Small", type="person", description="tiny")],
+    )
+    # Long by fragment count.
+    many_frags = DESCRIPTION_SEPARATOR.join(f"frag{i}" for i in range(10))
+    await store.upsert_entities(
+        cid,
+        [Entity(entity_id="frags", collection_id=cid, name="Frags", type="person", description=many_frags)],
+    )
+    # Long by character count.
+    await store.upsert_entities(
+        cid,
+        [Entity(entity_id="chars", collection_id=cid, name="Chars", type="person", description="a" * 5000)],
+    )
+
+    oversized = await store.find_oversized_entities(cid, min_chars=4000, min_fragments=6, limit=50)
+    ids = {e.entity_id for e in oversized}
+    assert ids == {"frags", "chars"}
+
+
+@pytest.mark.asyncio
+async def test_rewrite_entity_description_replaces_in_place(store):
+    cid = "col-rw"
+    c = _mk_chunk(cid, "d", 0, "x")
+    await store.upsert_chunks(cid, [c])
+    await store.upsert_entities(
+        cid,
+        [Entity(entity_id="e", collection_id=cid, name="E", type="person", description="original long desc")],
+    )
+    await store.rewrite_entity_description(cid, "e", "summary")
+    [found] = await store.find_entities_by_names(cid, ["E"])
+    assert found.description == "summary"
+
+
+# ---------------------------------------------------------------------------
+# merge_entities: structural merge in one transaction
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_merge_entities_redirects_edges_and_unions_chunks(store):
+    cid = "col-merge"
+    c1 = _mk_chunk(cid, "d1", 0, "chunk 1 text")
+    c2 = _mk_chunk(cid, "d2", 0, "chunk 2 text")
+    c3 = _mk_chunk(cid, "d3", 0, "chunk 3 text")
+    await store.upsert_chunks(cid, [c1, c2, c3])
+    await store.upsert_entities(
+        cid,
+        [
+            Entity(
+                entity_id="target",
+                collection_id=cid,
+                name="Target",
+                type="person",
+                description="Target description.",
+                source_chunk_ids=(c1.chunk_id,),
+            ),
+            Entity(
+                entity_id="src1",
+                collection_id=cid,
+                name="Source One",
+                type="person",
+                description="Source one adds details.",
+                source_chunk_ids=(c2.chunk_id,),
+            ),
+            Entity(
+                entity_id="src2",
+                collection_id=cid,
+                name="Source Two",
+                type="person",
+                description="Source two adds more details.",
+                source_chunk_ids=(c3.chunk_id,),
+            ),
+            # Bystander entity so we can verify its edges are untouched.
+            _mk_entity(cid, "other", "Other", [c1.chunk_id]),
+        ],
+    )
+    await store.upsert_relations(
+        cid,
+        [
+            _mk_relation(cid, "src1", "other", [c2.chunk_id]),
+            _mk_relation(cid, "src2", "other", [c3.chunk_id]),
+            # Edge between two sources — becomes a self-loop after merge,
+            # must be dropped.
+            _mk_relation(cid, "src1", "src2", [c2.chunk_id]),
+        ],
+    )
+
+    result = await store.merge_entities(cid, target_entity_id="target", source_entity_ids=["src1", "src2"])
+
+    assert result.target_entity_id == "target"
+    assert set(result.merged_source_ids) == {"src1", "src2"}
+    assert "Source one adds details." in result.description
+    assert "Source two adds more details." in result.description
+    # Two source chunks unioned into target.
+    assert set(result.source_chunk_ids) == {c1.chunk_id, c2.chunk_id, c3.chunk_id}
+    # src1↔src2 and each src→other contribute 3 affected edges; after
+    # redirect src1↔src2 collapses to a self-loop and is dropped; the
+    # two edges to "other" collapse into one target→other edge.
+    assert result.edges_collapsed >= 1
+
+    # Source entities were removed.
+    assert await store.find_entities_by_names(cid, ["Source One", "Source Two"]) == []
+    # Target still exists with the merged chunks.
+    [target] = await store.find_entities_by_names(cid, ["Target"])
+    assert set(target.source_chunk_ids) == {c1.chunk_id, c2.chunk_id, c3.chunk_id}
+
+    # The edges touching "other" all land on target, not the sources.
+    entities, relations = await store.expand_neighborhood(
+        collection_id=cid, anchor_entity_ids=["target"], max_hop=1, limit=50
+    )
+    assert {e.entity_id for e in entities} >= {"target", "other"}
+    assert all(r.source_id == "target" and r.target_id == "other" for r in relations) or all(
+        r.source_id == "other" and r.target_id == "target" for r in relations
+    )
+
+
+@pytest.mark.asyncio
+async def test_merge_entities_missing_target_raises(store):
+    cid = "col-merge-missing"
+    c = _mk_chunk(cid, "d", 0, "x")
+    await store.upsert_chunks(cid, [c])
+
+    with pytest.raises(ValueError):
+        await store.merge_entities(cid, target_entity_id="ghost", source_entity_ids=["also-missing"])

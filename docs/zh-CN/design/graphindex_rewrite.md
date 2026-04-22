@@ -1,9 +1,16 @@
 # Graph Index 模块重写（v2）
 
-> Status: **v2 已落地，LightRAG 已彻底删除**。这份文档的第二次更新把
-> 初版遗留下来的"v1 继续跑"部分也一并清掉：`aperag/graph/` 整个目录、
-> 双后端回退、cutover 标记表、三个 curation 功能、两个图数据库 sync
-> manager、`neo4j` / `nebula3-python` / `nano-vectordb` 依赖全部删除。
+> Status: **v2 已落地 + 归一化/合并能力已回填**。
+>
+> 历史记录：
+>
+> 1. 第一次落地：完成 extraction、storage、query 核心路径，删除 LightRAG + 三个 curation 功能。
+> 2. 第二次修订：把"简单截断 + 不走 LLM 合并"的激进裁剪**撤回**。
+>    用户反馈（原话）："我不同意'upsert_entities 改成累积描述 …
+>    纯确定性，不走 LLM'。我认为得走 LLM 做总结，你这样是丢失信息！
+>    合并 API 同理，原本的功能至少是能运行的 …"
+>    本次修订在 §4 新增 "归一化 + 合并" 章节，基于 LLM 摘要重新实现
+>    这两条路径；merge 端点从 410 改回 200。
 >
 > 相关文档：`[vector_db_abstraction.md](./vector_db_abstraction.md)`。
 
@@ -32,15 +39,22 @@
 | `query_context`（RAG 查询→图上下文）             | ✅ **原生实现**       | 被 search pipeline 依赖                   |
 | `get_labels`（列实体类型）                      | ✅ **原生实现**       | UI 图浏览器依赖                              |
 | `get_knowledge_graph`（拉一张子图）             | ✅ **原生实现**       | UI 图浏览器依赖                              |
-| `generate_merge_suggestions`（LLM 生成合并建议） | ❌ **删除**         | LightRAG 策展特性，非 Graph Index 核心能力       |
-| `merge_nodes`（执行合并）                      | ❌ **删除**         | 同上                                     |
-| `export_for_kg_eval`（导出评测数据）             | ❌ **删除**         | 管理工具；需要时可以基于 graphindex 表重写            |
+| **description 归一化（LLM 摘要）**               | ✅ **原生实现（v2.2）** | 累积多片段 → LLM 总结，详见 §4                   |
+| **`merge_entities`（多个 entity 合并成 1 个）**   | ✅ **原生实现（v2.2）** | 走 SQL 结构合并 + LLM 总结 description，详见 §4  |
+| `generate_merge_suggestions`（LLM 挖合并候选）  | ❌ **删除**         | UX 层发现算法，不属于 Graph Index 职责；日后单独做模块    |
+| `export_for_kg_eval`（导出评测数据）             | ❌ **删除**         | 管理工具；需要时可以基于 graphindex 表直接 dump        |
 
 
-**三个 curation 功能被明确移除**。用户的判断依据：它们不属于
-"Graph Index 层" 的职责，只是 LightRAG 历史特性。REST 路由保留在
-`aperag/views/graph.py` 返回 **HTTP 410 Gone** 作为运行时信号；前端
-UI 的清理放到独立 PR，不在本次范围。
+**被保留下来的两件事**（归一化 + 合并）是被第二轮评审明确要回的：
+没有 LLM 摘要，单纯拼接描述会让高频实体的 description 越长越乱；
+单纯在字符上限处截断又会丢信息。v2.2 的实现用 LLM 总结在写后和合并
+后各做一次压缩，保证语义不丢。详细设计见 §4。
+
+**`generate_merge_suggestions` 和 `export_for_kg_eval` 仍然不回。**
+前者是发现候选的 UX 管线（LightRAG 用 500 行 LLM orchestration 实现），
+不是 Graph Index 的职责；未来要做应当放在独立 curation 模块。后者是
+一个薄 SQL dump，需要时再写。这两个的 REST 路由继续保留 **HTTP 410
+Gone** 作为运行时信号。
 
 ---
 
@@ -102,7 +116,183 @@ LightRAG v1 用自定义的 tuple-delimited 格式：
 
 ---
 
-## 4. 模块结构
+## 4. 归一化（description 摘要）+ 合并（merge_entities）
+
+### 4.1 问题陈述
+
+用户反馈：
+
+> upsert_entities 不能简单 concat 再截断 —— 那是在丢信息。merge API
+> 同理，不走 LLM 的"合并"会丢语义。我想要的是**改善**代码，不是
+> **破坏功能**。
+
+触发这段反馈的上一版方案是纯确定性：
+- `upsert_entities`：`description = current || "\n\n" || new_fragment`，超过 4000 字符就截断到词边界 + `"…"`。
+- `merge_entities`：SQL 合并，结束；**不调 LLM**。
+
+问题：
+- 在高频实体（例如 "张三" 被 30 个 chunk 提到）上，accumulate 会很快撞上 4000 字符的硬上限，随后 **70% 的描述被截断**。
+- 合并后的 description 是 N 个碎片堆在一起，既难读又让下游的 retrieval prompt 膨胀。LightRAG 原版在 `force_llm_summary_on_merge` 分支会走 LLM 汇总；我们直接扔掉了这条路径。
+
+本次修订把 LLM 摘要加回来，但**关键分层没动**：存储层依旧不碰 LLM，
+压缩决策完全由 service 层负责。
+
+### 4.2 分层职责
+
+```
+┌───────────────────────────────────────────────────────┐
+│ aperag/graphindex/service.py   GraphIndexService       │
+│  • index_document 末尾 sweep oversized → LLM 摘要      │
+│  • merge_entities: store.merge_entities 之后按需 LLM 摘要 │
+│  • _should_summarize / _summarize / _fallback_truncate  │
+└───────────────────────────────────────────────────────┘
+              │  rewrite_entity_description / rewrite_relation_description
+              ▼
+┌───────────────────────────────────────────────────────┐
+│ aperag/graphindex/storage/base.py   GraphStore Protocol│
+│  • upsert_entities / upsert_relations  — 纯 concat      │
+│  • merge_entities       — 纯 SQL 结构合并              │
+│  • find_oversized_entities / find_oversized_relations  │
+│  • rewrite_entity_description / rewrite_relation_description │
+└───────────────────────────────────────────────────────┘
+              │
+              ▼
+┌───────────────────────────────────────────────────────┐
+│ aperag/graphindex/storage/postgres.py                  │
+│  • ON CONFLICT DO UPDATE: concat + substring-dedup     │
+│  • 没有字符 cap、没有 LLM                              │
+└───────────────────────────────────────────────────────┘
+```
+
+**好处**：存储层可以在没有 LLM stub 的情况下做集成测试（`test_postgres_store.py`）。
+Service 层可以用纯 Python stub 测 LLM 决策分支（`test_service.py`）。
+
+### 4.3 累积规则（upsert 路径）
+
+**SQL 语句**：
+
+```sql
+description = CASE
+  WHEN existing IS NULL OR existing = ''         THEN incoming
+  WHEN incoming IS NULL OR incoming = ''         THEN existing
+  WHEN position(incoming IN existing) > 0        THEN existing
+  ELSE existing || :sep || incoming
+END
+```
+
+- **`:sep` = `"\n\n"`**，定义在 `aperag.graphindex.dto.DESCRIPTION_SEPARATOR`。
+- **substring dedup**：同一份 boilerplate 出现在多个 chunk 时不会被写两次。这是第一版最常见的抱怨（"我的 description 在重复自己"）。
+- **没有 cap**：上层决定是否摘要、何时摘要。SQL 层的 contract 是"写多少存多少，只做 dedup"。
+
+### 4.4 摘要触发条件（`_should_summarize`）
+
+```python
+fragments = description.split("\n\n")
+if len(fragments) >= summarize_at_fragments:  # 默认 6
+    return True
+if len(description) >= max_description_chars:  # 默认 4000
+    return True
+return False
+```
+
+**两个阈值的职责不同**：
+- `summarize_at_fragments=6`（默认）：正常触发点。LightRAG 默认 10；
+  我们取 6，因为**当 description 已经是 6 段拼凑出来的时候，人眼
+  读起来就已经像"N 条流水账"而不是一段连贯描述了**，早一点摘要能
+  让 RAG prompt 更紧凑。
+- `max_description_chars=4000`（默认）：安全兜底。正常路径下不会
+  命中（6 片段 × 平均 400 字符 ≈ 2400）。只有当 `llm=None`（开发模式
+  禁用了 LLM）或者一个 chunk 里塞满了同一个实体时会兜到。
+
+### 4.5 摘要实现（`_summarize_description`）
+
+```python
+prompt = render_summarization_prompt(
+    subject_kind="entity" | "relation",
+    subject_label=entity.name | f"{src}→{tgt}",
+    fragments=description.split("\n\n"),
+    language=config.extraction_language,
+    target_chars=config.summary_target_chars,  # 默认 800
+)
+raw = await self._llm(prompt)
+```
+
+prompt（`aperag/graphindex/prompts.py::DESCRIPTION_SUMMARIZATION`）
+的核心约束：
+
+1. "每个 fragment 的事实都必须保留" —— 明确反对选择性丢弃；
+2. 矛盾点**两份都留**，下游 pipeline 再做冲突标注（不让 LLM 自作主张挑一边）；
+3. 不添加原文外的信息；
+4. 只输出纯文本，不要 JSON 外壳 —— 避免单独写一个解析分支。
+
+**失败处理**：LLM 抛异常 / 返回空 → `_fallback_truncate`（词边界截断 +
+`" … [truncated]"` 标记）。`[truncated]` marker 是可 grep 的，运维需要
+的时候可以批量审计哪些行是"降级"写入的。
+
+### 4.6 merge_entities（合并 API）
+
+**两步走**，故意不放在一个 SQL transaction 里：
+
+**第 1 步** — `PostgresGraphStore.merge_entities`（纯 SQL）：
+
+1. `SELECT ... FOR UPDATE` 锁 target + 每个 source；
+2. 在 Python 里 dedup 拼接 target.description + 每个 source.description；
+3. `SELECT` 出所有涉及 source 的 edge；`DELETE` 掉它们；
+4. 在 Python 里做 endpoint rewrite（source_id/target_id → target_id）；自环 drop；**同 key 的 redirected edge 在 Python 里合并（union chunks / max weight / concat description）**，避免 `INSERT ... ON CONFLICT` 在一条语句里撞到两行同 key 触发 PG 的 `CardinalityViolationError`；
+5. `UPDATE` target 行（new description + union chunk_ids）；
+6. `DELETE` source 行；
+7. 返回 `MergeEntitiesResult`（包括 **pre-summary** 的 description）。
+
+**第 2 步** — `GraphIndexService.merge_entities`（LLM 决策）：
+
+```python
+result = await store.merge_entities(...)
+if self._should_summarize(result.description):
+    summary = await self._summarize_description(...)
+    await store.rewrite_entity_description(..., summary)
+    result = dataclasses.replace(result, description=summary)
+return result
+```
+
+为什么**分两步、不把 LLM 放进同一个 transaction**：
+- LLM 调用延迟高（P95 几秒），不能占着 PG 的行锁；
+- 摘要失败时结构合并不应回滚 —— 结构合并的价值独立于描述美化；
+- 单元测试可以用 `_StubStore` 直接测 service 决策，不需要真 PG。
+
+### 4.7 配置
+
+`GraphIndexConfig`：
+
+| 字段                                | 默认  | 含义                                       |
+| --------------------------------- | --- | ---------------------------------------- |
+| `summarize_at_fragments`          | 6   | 达到多少个 `\n\n` 片段就触发 LLM 摘要                |
+| `max_description_chars`           | 4000| 硬上限 / 兜底阈值                               |
+| `summary_target_chars`            | 800 | 给摘要 prompt 的目标字数（实际会浮动）                  |
+
+约束（`__post_init__`）：
+- `summarize_at_fragments >= 2`；
+- `summary_target_chars < max_description_chars`（否则刚摘要完又会触发截断）。
+
+### 4.8 测试覆盖
+
+- `test_dto.py`：`MergeEntitiesResult` 字段锁定、`DESCRIPTION_SEPARATOR == "\n\n"`。
+- `test_postgres_store.py`（gated on `APERAG_TEST_GRAPHINDEX_PG_URL`）：
+  - `test_upsert_entity_accumulates_descriptions`：多次 upsert 拼接 N 段；
+  - `test_upsert_entity_dedupes_identical_fragments`：相同片段不重复写入；
+  - `test_find_oversized_entities_returns_rows_past_threshold`：按 char / fragment 阈值查询；
+  - `test_rewrite_entity_description_replaces_in_place`：整段替换；
+  - `test_merge_entities_redirects_edges_and_unions_chunks`：结构合并 + edge redirect + 自环 drop + 重复 edge collapse；
+  - `test_merge_entities_missing_target_raises`。
+- `test_service.py`：
+  - `test_index_document_summarizes_oversized_entities_via_llm`：**保证走 LLM，不是截断**；
+  - `test_summarization_falls_back_to_truncation_only_when_llm_fails`：LLM 故障降级；
+  - `test_index_document_skips_summary_when_no_oversized_rows`：happy path 不付出 LLM 成本；
+  - `test_merge_entities_summarizes_merged_description`：合并后必定调 LLM + 持久化；
+  - `test_merge_entities_skips_summary_on_short_description`：小合并不浪费 LLM call。
+
+---
+
+## 5. 模块结构
 
 ```
 aperag/graphindex/
@@ -187,7 +377,7 @@ class GraphStore(Protocol):
 
 ---
 
-## 5. 数据模型
+## 6. 数据模型
 
 ### 5.1 新表（不碰 `lightrag_graph_`*）
 
@@ -254,7 +444,7 @@ DSL 过滤。
 
 ---
 
-## 6. 数据切换策略
+## 7. 数据切换策略
 
 - **旧表彻底删除**。新 Alembic 迁移 `f1e2d3c4b5a6` 一次性 drop：
   - `lightrag_graph_nodes` / `lightrag_graph_edges`
@@ -269,7 +459,7 @@ DSL 过滤。
 
 ---
 
-## 7. 业务层切换点
+## 8. 业务层切换点
 
 所有 5 处调用全部改指 `aperag/graphindex`；curation 的 3 个 REST 路由
 保留返回 410 直到前端 UI 清理完成。
@@ -283,12 +473,13 @@ DSL 过滤。
 | `aperag/tasks/collection.py::_delete_knowledge_graph_data` | → `run_drop_collection_sync`                                             |
 | `aperag/tasks/document.py`（3 处 celery 调用）                   | → `run_index_document_sync` / `run_delete_document_sync`                 |
 | `aperag/service/prompt_template_service.py::hardcoded[graph]` | → `graphindex.prompts.ENTITY_RELATION_EXTRACTION`                        |
-| `aperag/views/graph.py`（merge / merge_suggestions / kg-eval） | **410 Gone**（前端 UI 清理独立 PR）                                           |
+| `aperag/views/graph.py::merge_nodes_view`                    | **200**，委托 `graph_service.merge_entities` → `GraphIndexService.merge_entities` |
+| `aperag/views/graph.py`（merge_suggestions / kg-eval）         | **410 Gone**（属于 UX 层能力，本次范围外）                                           |
 
 
 ---
 
-## 8. 代码质量约束
+## 9. 代码质量约束
 
 全文档贴一条（避免未来再问为什么这样写）：
 
@@ -304,7 +495,7 @@ DSL 过滤。
 
 ---
 
-## 9. 不做什么
+## 10. 不做什么
 
 - 不做 `BaseGraphStorage` 那种 24 方法的胖接口；
 - 不做 "gleaning"（LightRAG 的多轮提取）—— 一次 LLM 调用足够，多轮复杂度

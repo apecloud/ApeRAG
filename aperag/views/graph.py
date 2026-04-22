@@ -14,42 +14,30 @@
 
 """Graph-index HTTP routes.
 
-After the LightRAG removal the knowledge-graph surface exposed to the
-web frontend is intentionally minimal:
-
-* Labels list and subgraph-for-visualisation live on
-  ``aperag/views/collections.py`` because they are collection-scoped
-  read operations and share auth / quota plumbing there.
-* The three LightRAG-era curation endpoints — merge suggestions,
-  merge execution, KG-Eval export — used to live here. They were
-  removed as part of the graphindex v2 rewrite (see
-  ``docs/zh-CN/design/graphindex_rewrite.md`` §1). We keep the routes
-  mounted and returning **HTTP 410 Gone** so:
-  * existing frontend bundles get an explicit, debuggable error on
-    click, rather than a confusing backend 404;
-  * cleaning up the web UI can happen as a dedicated follow-up PR
-    without racing against this backend removal;
-  * operators grepping access logs see a single, distinctive status
-    code for "curation was removed" versus "route doesn't exist".
-
-Once the frontend drops the merge-suggestion UI the whole router can
-be deleted.
+Merge endpoint is live against graphindex v2 + its LLM-based description
+summarization. Merge-suggestion discovery and the KG-eval export are not
+re-implemented in v2 and remain HTTP 410 until a dedicated curation
+module is introduced (see ``docs/zh-CN/design/graphindex_rewrite.md``).
 """
 
 from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
+
+from aperag.db.models import User
+from aperag.exceptions import CollectionNotFoundException
+from aperag.service.graph_service import graph_service
+from aperag.views.auth import required_user
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 _REMOVAL_DETAIL = (
-    "Graph-curation endpoints (merge suggestions, merge execution, "
-    "KG-Eval export) were removed together with the LightRAG-based "
-    "graph index in graphindex v2. See "
+    "This graph-curation endpoint was removed together with the "
+    "LightRAG-based graph index in graphindex v2. See "
     "docs/zh-CN/design/graphindex_rewrite.md."
 )
 
@@ -60,8 +48,45 @@ def _gone() -> HTTPException:
 
 
 @router.post("/collections/{collection_id}/graphs/nodes/merge", tags=["graph"])
-async def merge_nodes_view(request: Request, collection_id: str) -> dict:
-    raise _gone()
+async def merge_nodes_view(
+    request: Request,
+    collection_id: str,
+    payload: dict = Body(...),
+    user: User = Depends(required_user),
+) -> dict:
+    """Merge N entities in a collection's knowledge graph into one.
+
+    Request body:
+    ``{"entity_ids": ["a", "b", "c"], "target_entity_id": "a" | null}``
+
+    * ``entity_ids`` must contain at least two ids.
+    * ``target_entity_id`` is the surviving entity; if omitted we pick
+      the first id in ``entity_ids`` (callers that want "highest
+      degree" auto-selection should do that on the client — the
+      service layer intentionally does not embed a product policy).
+    * The response echoes the merged description **after** LLM
+      summarization, so the frontend can refresh the entity detail
+      panel without a second fetch.
+    """
+    entity_ids = payload.get("entity_ids") or []
+    if not isinstance(entity_ids, list) or len(entity_ids) < 2:
+        raise HTTPException(status_code=400, detail="entity_ids must be a list with at least two entity ids")
+    target = payload.get("target_entity_id") or entity_ids[0]
+    sources = [eid for eid in entity_ids if eid != target]
+    if not sources:
+        raise HTTPException(status_code=400, detail="At least one source entity distinct from the target is required")
+
+    try:
+        return await graph_service.merge_entities(
+            str(user.id),
+            collection_id,
+            target_entity_id=target,
+            source_entity_ids=sources,
+        )
+    except CollectionNotFoundException:
+        raise HTTPException(status_code=404, detail="Collection not found")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.post(

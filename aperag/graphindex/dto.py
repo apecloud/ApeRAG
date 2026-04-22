@@ -168,6 +168,49 @@ class GraphContext:
         object.__setattr__(self, "chunks", tuple(self.chunks))
 
 
+# Separator placed between accumulated description fragments. Storage
+# backends use it in their ``UPDATE ... SET description = ...`` concat
+# expression; the service layer splits on it to recover fragments before
+# sending them to the summarization LLM. Kept here (in the data-contract
+# module) rather than in any specific backend so every layer agrees on
+# the format.
+DESCRIPTION_SEPARATOR: str = "\n\n"
+
+
+@dataclass(frozen=True)
+class MergeEntitiesResult:
+    """Summary of a ``merge_entities`` call returned from the storage
+    layer. The service layer consumes this to decide whether to run
+    post-merge LLM summarization on the target description.
+
+    Fields:
+
+    * ``target_entity_id`` — the surviving entity id (echoed so callers
+      don't have to track it separately from the ``Result``).
+    * ``merged_source_ids`` — source rows that were actually deleted.
+      May be shorter than the caller's ``source_entity_ids`` list when
+      some ids didn't exist; the merge is idempotent in that direction.
+    * ``description`` — the target's post-merge description, BEFORE
+      any LLM summarization. The service layer inspects this to decide
+      whether to trigger a summary pass.
+    * ``source_chunk_ids`` — union of every merged source's chunks plus
+      the target's own.
+    * ``edges_redirected`` — edges whose endpoint was rewritten from a
+      source entity to the target.
+    * ``edges_collapsed`` — edges dropped because redirecting produced a
+      self-loop (``target == target``) or duplicate of a pre-existing
+      ``(target, X)`` edge. Chunk ids of collapsed duplicates are
+      unioned into the surviving edge so provenance is preserved.
+    """
+
+    target_entity_id: str
+    merged_source_ids: tuple[str, ...]
+    description: str
+    source_chunk_ids: tuple[str, ...]
+    edges_redirected: int
+    edges_collapsed: int
+
+
 @dataclass(frozen=True)
 class KnowledgeGraph:
     """A subgraph returned for UI display.
@@ -192,6 +235,8 @@ __all__ = [
     "Relation",
     "IndexDocumentResult",
     "DeleteDocumentResult",
+    "MergeEntitiesResult",
     "GraphContext",
     "KnowledgeGraph",
+    "DESCRIPTION_SEPARATOR",
 ]

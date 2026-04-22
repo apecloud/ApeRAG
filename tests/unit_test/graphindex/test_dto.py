@@ -16,10 +16,12 @@ from __future__ import annotations
 import pytest
 
 from aperag.graphindex.dto import (
+    DESCRIPTION_SEPARATOR,
     Chunk,
     Entity,
     GraphContext,
     KnowledgeGraph,
+    MergeEntitiesResult,
     Relation,
 )
 
@@ -116,3 +118,26 @@ class TestCompoundResults:
     def test_knowledge_graph_defaults(self):
         kg = KnowledgeGraph(nodes=[], edges=[])
         assert kg.is_truncated is False
+
+    def test_merge_entities_result_carries_merge_payload(self):
+        """The service layer reads ``description`` and
+        ``source_chunk_ids`` off ``MergeEntitiesResult`` to decide
+        whether to trigger LLM summarization. Pin the fields so a later
+        refactor can't silently drop one."""
+        r = MergeEntitiesResult(
+            target_entity_id="t",
+            merged_source_ids=("s1", "s2"),
+            description="combined",
+            source_chunk_ids=("c1", "c2"),
+            edges_redirected=3,
+            edges_collapsed=1,
+        )
+        assert r.target_entity_id == "t"
+        assert r.description == "combined"
+        assert r.source_chunk_ids == ("c1", "c2")
+
+    def test_description_separator_is_double_newline(self):
+        """Downstream code (service, storage, prompts) all rely on this
+        separator being a double-newline. Pin it so a refactor can't
+        change it by accident."""
+        assert DESCRIPTION_SEPARATOR == "\n\n"

@@ -33,15 +33,18 @@ from typing import Awaitable, Callable, List, Optional
 
 from aperag.graphindex.config import GraphIndexConfig
 from aperag.graphindex.dto import (
+    DESCRIPTION_SEPARATOR,
     Chunk,
     DeleteDocumentResult,
     Entity,
     GraphContext,
     IndexDocumentResult,
     KnowledgeGraph,
+    MergeEntitiesResult,
     Relation,
 )
 from aperag.graphindex.engine import index_document
+from aperag.graphindex.prompts import render_summarization_prompt
 from aperag.graphindex.storage.base import GraphStore
 
 logger = logging.getLogger(__name__)
@@ -70,10 +73,15 @@ class GraphIndexService:
       the search pipeline).
     * ``get_labels`` — list entity types (UI dropdown).
     * ``get_knowledge_graph`` — fetch a subgraph for display.
+    * ``merge_entities`` — consolidate N entities into one (the
+      replacement for LightRAG's "merge nodes" curation action).
 
-    The three curation actions — merge suggestions, merge execution, KG
-    eval export — are intentionally NOT here in v2; they still route
-    through the legacy LightRAG path. A follow-up PR will port them.
+    Merge-suggestion discovery (offering candidate clusters to a human)
+    and KG-eval export are not in v2. Both were thin wrappers over
+    LightRAG internals; their v2 replacements belong in a separate
+    curation module once we have a concrete product design for them —
+    building them now would be speculative and the current code base
+    can re-add them without touching this service.
     """
 
     def __init__(
@@ -116,7 +124,7 @@ class GraphIndexService:
         # source_chunk_ids to monotonically grow on every re-index.
         await self._store.delete_document_rows(collection_id=collection_id, doc_id=doc_id)
 
-        return await index_document(
+        result = await index_document(
             store=self._store,
             llm=self._llm,
             config=self._config,
@@ -125,6 +133,18 @@ class GraphIndexService:
             content=content,
             file_path=file_path,
         )
+
+        # Normalization pass: any entity / relation whose description
+        # has accumulated enough fragments to be hard for humans (and
+        # expensive for retrieval prompts) gets LLM-summarized into a
+        # single coherent paragraph. This is the v2 replacement for
+        # LightRAG's ``force_llm_summary_on_merge`` behaviour — without
+        # destroying information, unlike the plain truncation approach
+        # that was tried and rejected in an earlier revision of this
+        # module.
+        await self._compact_oversized_descriptions(collection_id=collection_id)
+
+        return result
 
     async def delete_document(self, *, collection_id: str, doc_id: str) -> DeleteDocumentResult:
         """Remove every row that exists *only* because of ``doc_id``.
@@ -140,6 +160,63 @@ class GraphIndexService:
         """Wipe the whole collection. Called when the user deletes the
         ApeRAG collection itself (not an individual document)."""
         await self._store.drop_collection(collection_id)
+
+    async def merge_entities(
+        self,
+        *,
+        collection_id: str,
+        target_entity_id: str,
+        source_entity_ids: List[str],
+    ) -> MergeEntitiesResult:
+        """Merge several entities into one.
+
+        This is the v2 replacement for the "merge nodes" curation action
+        the UI used to call. Compared with LightRAG's multi-step
+        pipeline, the implementation here is two simple passes:
+
+        1. ``GraphStore.merge_entities`` performs the structural merge
+           in a single SQL transaction — union source chunks, redirect
+           edges, collapse duplicates, delete source rows.
+        2. The merged description (every source fragment appended to
+           the target's) is then handed to the LLM to produce ONE
+           coherent paragraph that keeps every fact. Without this step
+           the merged description would just be N patchwork fragments;
+           with it, the target reads as a single entity just like
+           LightRAG's original merge output — only with less code and
+           without the ``merge_suggestion`` schema baggage.
+
+        If the post-merge description is already under the
+        summarization threshold (small merge, short fragments), step 2
+        is skipped to save a round-trip.
+        """
+        result = await self._store.merge_entities(
+            collection_id=collection_id,
+            target_entity_id=target_entity_id,
+            source_entity_ids=source_entity_ids,
+        )
+
+        if self._should_summarize(result.description):
+            summary = await self._summarize_description(
+                subject_kind="entity",
+                subject_label=target_entity_id,
+                description=result.description,
+            )
+            if summary:
+                await self._store.rewrite_entity_description(
+                    collection_id=collection_id,
+                    entity_id=target_entity_id,
+                    description=summary,
+                )
+                result = MergeEntitiesResult(
+                    target_entity_id=result.target_entity_id,
+                    merged_source_ids=result.merged_source_ids,
+                    description=summary,
+                    source_chunk_ids=result.source_chunk_ids,
+                    edges_redirected=result.edges_redirected,
+                    edges_collapsed=result.edges_collapsed,
+                )
+
+        return result
 
     # ============================================================= read
     async def query_context(
@@ -204,6 +281,138 @@ class GraphIndexService:
             max_depth=max_depth,
             max_nodes=max_nodes,
         )
+
+    # ---- normalization (private) -------------------------------------
+    def _should_summarize(self, description: str) -> bool:
+        """Decide whether a description deserves an LLM summary pass.
+
+        Triggers when EITHER:
+
+        * the text has grown to ``summarize_at_fragments`` or more
+          fragments (cheap way to detect "high-frequency entity with
+          many partial mentions"), OR
+        * it has passed ``max_description_chars`` (safety net in case
+          the per-fragment cap is set loose).
+        """
+        if not description:
+            return False
+        fragments = description.split(DESCRIPTION_SEPARATOR)
+        if len(fragments) >= self._config.summarize_at_fragments:
+            return True
+        if len(description) >= self._config.max_description_chars:
+            return True
+        return False
+
+    async def _summarize_description(
+        self,
+        *,
+        subject_kind: str,
+        subject_label: str,
+        description: str,
+    ) -> Optional[str]:
+        """LLM-summarize an accumulated description.
+
+        Returns the summary, or ``None`` if the LLM call failed or the
+        service has no LLM wired in. On failure we fall back to the
+        character cap with a word-boundary truncation, which is lossy
+        but keeps the database bounded. The caller should treat
+        ``None`` as "leave the description as-is".
+        """
+        fragments = [f for f in description.split(DESCRIPTION_SEPARATOR) if f.strip()]
+        if not fragments:
+            return None
+
+        if self._llm is None:
+            return self._fallback_truncate(description)
+
+        prompt = render_summarization_prompt(
+            subject_kind=subject_kind,
+            subject_label=subject_label,
+            fragments=fragments,
+            language=self._config.extraction_language,
+            target_chars=self._config.summary_target_chars,
+        )
+        try:
+            raw = await self._llm(prompt)
+        except Exception:
+            logger.exception(
+                "graphindex: summarization LLM call failed for %s %s; falling back to truncation",
+                subject_kind,
+                subject_label,
+            )
+            return self._fallback_truncate(description)
+
+        summary = (raw or "").strip()
+        if not summary:
+            return self._fallback_truncate(description)
+        return summary
+
+    def _fallback_truncate(self, description: str) -> str:
+        """Last-resort hard cap for descriptions. Only used when the
+        LLM summarizer is unavailable (``llm=None``) or failed. Keeps
+        the database bounded; annotates the end with a marker so
+        operators can find capped rows if needed.
+        """
+        cap = self._config.max_description_chars
+        marker = " … [truncated]"
+        if len(description) <= cap:
+            return description
+        # Prefer a word boundary within the last 64 chars of the cap.
+        window = description[: cap - len(marker)]
+        cut = window.rfind(" ", max(0, len(window) - 64))
+        if cut <= 0:
+            cut = len(window)
+        return window[:cut].rstrip() + marker
+
+    async def _compact_oversized_descriptions(self, *, collection_id: str) -> None:
+        """Post-write sweep: find entities / relations whose descriptions
+        have grown past the summarization thresholds, run the LLM, and
+        write the summary back.
+
+        Runs once per ``index_document`` call. This is not a generic
+        background job — it's synchronous on the critical write path so
+        that a user viewing the collection right after an index run
+        already sees compact descriptions. On a typical document this
+        sweep touches zero to a handful of rows; in the worst case
+        (every entity overshoots), the cost is bounded by the LLM
+        concurrency cap in the indexer.
+        """
+        entities = await self._store.find_oversized_entities(
+            collection_id=collection_id,
+            min_chars=self._config.max_description_chars,
+            min_fragments=self._config.summarize_at_fragments,
+        )
+        for e in entities:
+            summary = await self._summarize_description(
+                subject_kind="entity",
+                subject_label=e.name,
+                description=e.description,
+            )
+            if summary and summary != e.description:
+                await self._store.rewrite_entity_description(
+                    collection_id=collection_id,
+                    entity_id=e.entity_id,
+                    description=summary,
+                )
+
+        relations = await self._store.find_oversized_relations(
+            collection_id=collection_id,
+            min_chars=self._config.max_description_chars,
+            min_fragments=self._config.summarize_at_fragments,
+        )
+        for r in relations:
+            summary = await self._summarize_description(
+                subject_kind="relation",
+                subject_label=f"{r.source_id} → {r.target_id}",
+                description=r.description,
+            )
+            if summary and summary != r.description:
+                await self._store.rewrite_relation_description(
+                    collection_id=collection_id,
+                    source_id=r.source_id,
+                    target_id=r.target_id,
+                    description=summary,
+                )
 
     # ---- anchor resolution (private) ---------------------------------
     async def _resolve_anchor_entities(
