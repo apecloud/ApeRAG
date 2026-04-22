@@ -78,9 +78,7 @@ class GraphCurationService(AsyncBaseRepository):
                 select(GraphCurationRun)
                 .where(
                     GraphCurationRun.collection_id == collection_id,
-                    GraphCurationRun.status.in_(
-                        [GraphCurationRunStatus.PENDING, GraphCurationRunStatus.RUNNING]
-                    ),
+                    GraphCurationRun.status.in_([GraphCurationRunStatus.PENDING, GraphCurationRunStatus.RUNNING]),
                 )
                 .order_by(GraphCurationRun.gmt_created.desc())
                 .limit(1)
@@ -331,7 +329,9 @@ class GraphCurationService(AsyncBaseRepository):
 
     async def purge_collection(self, collection_id: str) -> None:
         async def _op(session: AsyncSession):
-            await session.execute(delete(GraphCurationSuggestion).where(GraphCurationSuggestion.collection_id == collection_id))
+            await session.execute(
+                delete(GraphCurationSuggestion).where(GraphCurationSuggestion.collection_id == collection_id)
+            )
             await session.execute(delete(GraphCurationRun).where(GraphCurationRun.collection_id == collection_id))
 
         await self.execute_with_transaction(_op)
