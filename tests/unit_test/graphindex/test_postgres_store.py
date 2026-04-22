@@ -46,9 +46,11 @@ from aperag.graphindex import (  # noqa: E402
 )
 from aperag.graphindex.models import (  # noqa: E402
     CHUNKS_TABLE,
+    COLLECTION_STATE_TABLE,
     EDGES_TABLE,
     NODES_TABLE,
     GraphIndexChunk,  # noqa: F401
+    GraphIndexCollectionState,  # noqa: F401
     GraphIndexEdge,  # noqa: F401
     GraphIndexNode,  # noqa: F401
 )
@@ -63,20 +65,21 @@ async def store():
     engine = create_async_engine(PG_URL, future=True)
     # Create only the graphindex_* tables (not every aperag table).
     async with engine.begin() as conn:
-        for table in (NODES_TABLE, EDGES_TABLE, CHUNKS_TABLE):
+        for table in (NODES_TABLE, EDGES_TABLE, CHUNKS_TABLE, COLLECTION_STATE_TABLE):
             await conn.execute(__import__("sqlalchemy").text(f"DROP TABLE IF EXISTS {table} CASCADE"))
 
         def _create(sync_conn):
             Base.metadata.tables[NODES_TABLE].create(sync_conn, checkfirst=True)
             Base.metadata.tables[EDGES_TABLE].create(sync_conn, checkfirst=True)
             Base.metadata.tables[CHUNKS_TABLE].create(sync_conn, checkfirst=True)
+            Base.metadata.tables[COLLECTION_STATE_TABLE].create(sync_conn, checkfirst=True)
 
         await conn.run_sync(_create)
 
     yield PostgresGraphStore(engine=engine)
 
     async with engine.begin() as conn:
-        for table in (EDGES_TABLE, NODES_TABLE, CHUNKS_TABLE):
+        for table in (EDGES_TABLE, NODES_TABLE, CHUNKS_TABLE, COLLECTION_STATE_TABLE):
             await conn.execute(__import__("sqlalchemy").text(f"DROP TABLE IF EXISTS {table} CASCADE"))
     await engine.dispose()
 
@@ -278,25 +281,76 @@ async def test_rebuild_cycle_does_not_accumulate_chunk_ids(store):
 
 
 # ---------------------------------------------------------------------------
-# has_collection_data cutover gate — regression for blocker 2
+# cutover marker — regression for blocker 2 (explicit-marker revision)
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_has_collection_data_reflects_presence(store):
-    """The cutover gate must return False before anything is written
-    and True once the collection has any v2 rows."""
+async def test_collection_state_fixture_includes_marker_table(store):
+    """Make sure the fixture brought up ``graphindex_collection_state``
+    — the tests below assume it exists."""
+    from sqlalchemy import text as sql_text
+
+    async with store._engine.connect() as conn:
+        await conn.execute(sql_text("SELECT 1 FROM graphindex_collection_state LIMIT 1"))
+
+
+@pytest.mark.asyncio
+async def test_mark_collection_initialized_flips_gate(store):
+    """Before any ``mark_collection_initialized`` call the gate returns
+    False; after it the gate flips to True; repeat calls are
+    idempotent (no ``ON CONFLICT`` failure)."""
     cid = "col-gate"
-    assert await store.has_collection_data(cid) is False
+    assert await store.is_collection_initialized(cid) is False
 
-    c = _mk_chunk(cid, "d", 0, "x")
+    await store.mark_collection_initialized(cid)
+    assert await store.is_collection_initialized(cid) is True
+
+    # Idempotent — second call must not raise.
+    await store.mark_collection_initialized(cid)
+    assert await store.is_collection_initialized(cid) is True
+
+
+@pytest.mark.asyncio
+async def test_gate_stays_true_even_with_empty_graph(store):
+    """Key regression: a collection that was initialised on v2 but
+    whose graph is empty (no entity rows) must still read True from
+    the gate — otherwise the business layer silently falls back to
+    legacy LightRAG stale data. This is the scenario @ApeRAG专家
+    flagged: extraction yields zero entities, or all entities get
+    pruned when their only-source docs are deleted."""
+    cid = "col-empty"
+
+    # Simulate "extraction produced nothing" — only chunks get upserted.
+    c = _mk_chunk(cid, "d", 0, "boilerplate with no extractable entities")
     await store.upsert_chunks(cid, [c])
-    await store.upsert_entities(cid, [_mk_entity(cid, "e", "E", [c.chunk_id])])
+    await store.mark_collection_initialized(cid)
 
-    assert await store.has_collection_data(cid) is True
+    # graphindex_nodes is empty for this collection:
+    found = await store.find_entities_by_names(cid, ["anything"])
+    assert found == []
+
+    # But the cutover gate must still report True.
+    assert await store.is_collection_initialized(cid) is True
+
+    # And after wiping the last chunk (so all three graph tables are
+    # empty for this collection) the gate STILL reports True — the
+    # marker is rollout state, not data content.
+    await store.delete_document_rows(cid, "d")
+    assert await store.is_collection_initialized(cid) is True
+
+
+@pytest.mark.asyncio
+async def test_drop_collection_clears_marker(store):
+    """Only ``drop_collection`` is allowed to clear the marker — per-
+    document deletes must not, because "this collection is on v2"
+    survives individual docs coming and going."""
+    cid = "col-drop"
+    await store.mark_collection_initialized(cid)
+    assert await store.is_collection_initialized(cid) is True
 
     await store.drop_collection(cid)
-    assert await store.has_collection_data(cid) is False
+    assert await store.is_collection_initialized(cid) is False
 
 
 # ---------------------------------------------------------------------------

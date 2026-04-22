@@ -267,11 +267,14 @@ class SearchPipelineService:
         svc = make_service_for_collection(collection)
         collection_id = str(collection.id)
 
-        # Cutover gate: v2 if the collection has already been (re-)indexed
-        # against it; otherwise fall back to the legacy LightRAG context
-        # so collections built before v2 shipped keep working until the
-        # user triggers re-index. See graphindex_rewrite.md §6.
-        if await svc.has_data(collection_id=collection_id):
+        # Cutover gate: v2 if the collection has been initialised on v2
+        # (explicit marker row), otherwise fall back to the legacy
+        # LightRAG context so collections built before v2 shipped keep
+        # working until the user triggers re-index. A v2 collection
+        # with an empty graph still goes to v2 (returns no context)
+        # rather than silently reading stale legacy data. See
+        # graphindex_rewrite.md §6.
+        if await svc.is_v2_initialized(collection_id=collection_id):
             ctx = await svc.query_context(collection_id=collection_id, query=query, top_k=top_k)
             text = ctx.text
         else:

@@ -50,6 +50,7 @@ from aperag.graphindex.dto import (
 )
 from aperag.graphindex.models import (
     CHUNKS_TABLE,
+    COLLECTION_STATE_TABLE,
     EDGES_TABLE,
     NODES_TABLE,
 )
@@ -84,7 +85,10 @@ class PostgresGraphStore:
 
     async def drop_collection(self, collection_id: str) -> None:
         """Rip out every row tagged with this collection id across all
-        three tables. Used by the collection-delete Celery task.
+        four tables (edges, nodes, chunks, plus the v2 marker). Used by
+        the collection-delete Celery task. The marker is cleared last
+        so a partial failure cannot leave the gate stuck "on v2" over
+        a now-empty dataset.
         """
         async with self._engine.begin() as conn:
             await conn.execute(
@@ -97,6 +101,10 @@ class PostgresGraphStore:
             )
             await conn.execute(
                 text(f"DELETE FROM {CHUNKS_TABLE} WHERE collection_id = :cid"),
+                {"cid": collection_id},
+            )
+            await conn.execute(
+                text(f"DELETE FROM {COLLECTION_STATE_TABLE} WHERE collection_id = :cid"),
                 {"cid": collection_id},
             )
         logger.info("graphindex: dropped all rows for collection %s", collection_id)
@@ -310,22 +318,45 @@ class PostgresGraphStore:
             relations_removed=int(deleted_edges),
         )
 
-    # ============================================================= read
-    async def has_collection_data(self, collection_id: str) -> bool:
-        """Cheap existence probe for the cutover gate.
+    # =================================================== cutover marker
+    async def mark_collection_initialized(self, collection_id: str) -> None:
+        """Idempotently set the v2 marker row for this collection.
 
-        A single ``SELECT 1 ... LIMIT 1`` on the nodes table, hitting
-        the ``(collection_id, entity_id)`` primary key. Subsecond on
-        cold cache; effectively free once the collection is active.
+        Writes one row into ``graphindex_collection_state``; on repeat
+        calls the ``ON CONFLICT DO NOTHING`` clause makes it a no-op.
+        ``initialized_at`` comes from the column's ``server_default``
+        so the first-successful-index timestamp is preserved across
+        later rebuilds.
+        """
+        async with self._engine.begin() as conn:
+            await conn.execute(
+                text(
+                    f"INSERT INTO {COLLECTION_STATE_TABLE} (collection_id) "
+                    f"VALUES (:cid) ON CONFLICT (collection_id) DO NOTHING"
+                ),
+                {"cid": collection_id},
+            )
+
+    async def is_collection_initialized(self, collection_id: str) -> bool:
+        """Primary-key existence probe for the cutover gate.
+
+        Hits the ``collection_id`` PK index, so it's sub-millisecond
+        cold and effectively free under load. The gate is decoupled
+        from ``graphindex_nodes`` content on purpose — see
+        ``graphindex/models.py`` for why "marker row exists" is the
+        correct rollout-state signal and "at least one entity row"
+        is not.
         """
         async with self._engine.connect() as conn:
             row = (
                 await conn.execute(
-                    text(f"SELECT 1 FROM {NODES_TABLE} WHERE collection_id = :cid LIMIT 1"),
+                    text(f"SELECT 1 FROM {COLLECTION_STATE_TABLE} WHERE collection_id = :cid LIMIT 1"),
                     {"cid": collection_id},
                 )
             ).first()
         return row is not None
+
+    # ============================================================= read
 
     async def find_entities_by_names(self, collection_id: str, names: Sequence[str]) -> list[Entity]:
         if not names:

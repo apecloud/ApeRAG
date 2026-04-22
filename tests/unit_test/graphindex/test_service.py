@@ -36,7 +36,7 @@ class _StubStore:
         self.labels_result: list[str] = []
         self.subgraph_result = KnowledgeGraph(nodes=(), edges=(), is_truncated=False)
         self.delete_result: Optional[DeleteDocumentResult] = None
-        self.has_data_result: bool = False
+        self.is_initialized_result: bool = False
 
     async def ensure_schema(self) -> None:
         self.calls.append(("ensure_schema", (), {}))
@@ -62,9 +62,13 @@ class _StubStore:
             relations_removed=0,
         )
 
-    async def has_collection_data(self, collection_id):
-        self.calls.append(("has_collection_data", (collection_id,), {}))
-        return self.has_data_result
+    async def mark_collection_initialized(self, collection_id):
+        self.calls.append(("mark_collection_initialized", (collection_id,), {}))
+        self.is_initialized_result = True
+
+    async def is_collection_initialized(self, collection_id):
+        self.calls.append(("is_collection_initialized", (collection_id,), {}))
+        return self.is_initialized_result
 
     async def find_entities_by_names(self, collection_id, names):
         self.calls.append(("find_entities_by_names", (collection_id, list(names)), {}))
@@ -186,23 +190,71 @@ async def test_index_document_wipes_existing_rows_before_extracting():
         assert min(upsert_positions) > first_delete_idx
 
 
+@pytest.mark.asyncio
+async def test_index_document_marks_collection_initialized_after_success():
+    """Every successful ``index_document`` must set the v2 marker so
+    the read path stops falling back to legacy LightRAG. The marker
+    call has to happen **after** the engine has returned — if it ran
+    before extraction, a failed first run would strand reads on v2
+    with zero data."""
+    store = _StubStore()
+    svc = GraphIndexService(store=store, llm=_null_llm)
+
+    await svc.index_document(collection_id="c-new", doc_id="d", content="", file_path="")
+
+    names_in_order = [c[0] for c in store.calls]
+    assert "mark_collection_initialized" in names_in_order
+    mark_idx = names_in_order.index("mark_collection_initialized")
+    delete_idx = names_in_order.index("delete_document_rows")
+    # Delete runs inside the facade before the engine; marker must
+    # come after both that and any upserts the engine emits.
+    assert mark_idx > delete_idx
+    for upsert_name in ("upsert_chunks", "upsert_entities", "upsert_relations"):
+        if upsert_name in names_in_order:
+            assert mark_idx > names_in_order.index(upsert_name)
+
+
 # ---------------------------------------------------------------------------
-# cutover gate (blocker 2)
+# cutover gate — explicit marker semantics (blocker 2)
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_has_data_delegates_to_store():
-    """``has_data`` is the read-path cutover gate; it must proxy to the
-    store without transforming the boolean."""
+async def test_is_v2_initialized_delegates_to_store():
+    """``is_v2_initialized`` is the read-path cutover gate; it must
+    proxy to the store's marker check without transforming the
+    boolean."""
     store = _StubStore()
-    store.has_data_result = True
+    store.is_initialized_result = True
     svc = GraphIndexService(store=store, llm=_null_llm)
-    assert await svc.has_data(collection_id="c") is True
-    assert ("has_collection_data", ("c",), {}) in store.calls
+    assert await svc.is_v2_initialized(collection_id="c") is True
+    assert ("is_collection_initialized", ("c",), {}) in store.calls
 
-    store.has_data_result = False
-    assert await svc.has_data(collection_id="c") is False
+    store.is_initialized_result = False
+    assert await svc.is_v2_initialized(collection_id="c") is False
+
+
+@pytest.mark.asyncio
+async def test_cutover_gate_decoupled_from_graph_contents():
+    """Empty-graph regression: a collection can be on v2 but have
+    zero entities (extraction yielded nothing, or all entities were
+    pruned when their source docs were deleted). The cutover gate
+    must still report True so reads stay on v2 instead of silently
+    falling back to legacy stale data.
+
+    The stub simulates this: a fresh ``index_document`` flips the
+    marker on regardless of whether any entities were upserted."""
+    store = _StubStore()
+    svc = GraphIndexService(store=store, llm=_null_llm)
+
+    # Run index_document with empty content — no chunks, no entities,
+    # no relations get upserted by the engine. But the marker flip
+    # in the facade still runs unconditionally on success.
+    await svc.index_document(collection_id="c-empty", doc_id="d", content="", file_path="")
+
+    # The collection is now "on v2" even though no data landed in the
+    # graph tables.
+    assert await svc.is_v2_initialized(collection_id="c-empty") is True
 
 
 @pytest.mark.asyncio

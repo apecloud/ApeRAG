@@ -116,7 +116,7 @@ class GraphIndexService:
         # source_chunk_ids to monotonically grow on every re-index.
         await self._store.delete_document_rows(collection_id=collection_id, doc_id=doc_id)
 
-        return await index_document(
+        result = await index_document(
             store=self._store,
             llm=self._llm,
             config=self._config,
@@ -125,6 +125,17 @@ class GraphIndexService:
             content=content,
             file_path=file_path,
         )
+
+        # Flip the cutover marker after the indexing engine has
+        # returned. Placing the call here (not before extraction)
+        # means a collection is only considered "on v2" after at
+        # least one successful round-trip, so a failed first index
+        # cannot silently strand reads on v2 while no data exists.
+        # The call is idempotent; every subsequent index_document
+        # on the same collection is a cheap no-op.
+        await self._store.mark_collection_initialized(collection_id)
+
+        return result
 
     async def delete_document(self, *, collection_id: str, doc_id: str) -> DeleteDocumentResult:
         """Remove every row that exists *only* because of ``doc_id``.
@@ -187,15 +198,22 @@ class GraphIndexService:
         text = _render_context_block(entities=entities, relations=relations)
         return GraphContext(text=text, entities=entities, relations=relations, chunks=chunks)
 
-    async def has_data(self, *, collection_id: str) -> bool:
-        """Cutover gate: does this collection have any v2 rows yet?
+    async def is_v2_initialized(self, *, collection_id: str) -> bool:
+        """Cutover gate: has this collection ever been indexed on v2?
 
-        The business layer uses this to decide whether to read v2 or
-        fall back to legacy LightRAG during the transition window. Kept
-        on the service (not the store) so callers never need to import
-        the store directly — the facade stays the single public surface.
+        ``True`` after the first successful ``index_document`` for the
+        collection — set via an explicit marker row, not derived from
+        ``graphindex_nodes`` content. This distinction matters: a
+        collection can legitimately be on v2 with an empty graph
+        (extraction produced zero entities, or the user deleted every
+        document). The business layer must continue to read v2 in
+        that case, not silently fall back to legacy LightRAG.
+
+        Kept on the service (not the store) so callers never need to
+        import the store directly — the facade stays the single
+        public surface.
         """
-        return await self._store.has_collection_data(collection_id)
+        return await self._store.is_collection_initialized(collection_id)
 
     async def get_labels(self, *, collection_id: str) -> list[str]:
         return await self._store.list_labels(collection_id)

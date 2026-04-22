@@ -40,16 +40,20 @@ class GraphService:
     async def get_graph_labels(self, user_id: str, collection_id: str) -> view_models.GraphLabelsResponse:
         """Get available node labels in the knowledge graph.
 
-        Cutover-safe: reads v2 when the collection has any v2 rows; falls
-        back to legacy LightRAG otherwise. Collections indexed before v2
-        shipped therefore keep working until the user triggers re-index.
+        Cutover-safe: reads v2 once the collection has been initialised
+        on v2 (explicit marker in ``graphindex_collection_state``);
+        falls back to legacy LightRAG otherwise. Collections indexed
+        before v2 shipped therefore keep working until the user
+        triggers re-index. A v2 collection with a legitimately empty
+        graph still reads from v2 — it does **not** silently route
+        back to stale legacy data.
         """
         db_collection = await self._get_and_validate_collection(user_id, collection_id)
 
         from aperag.graphindex.integration import make_service_for_collection
 
         svc = make_service_for_collection(db_collection)
-        if await svc.has_data(collection_id=collection_id):
+        if await svc.is_v2_initialized(collection_id=collection_id):
             labels = await svc.get_labels(collection_id=collection_id)
             return view_models.GraphLabelsResponse(labels=labels)
 
@@ -95,15 +99,17 @@ class GraphService:
     ) -> Dict[str, Any]:
         """Get knowledge graph subgraph for UI display.
 
-        Cutover-safe: reads v2 when the collection has any v2 rows; falls
-        back to legacy LightRAG otherwise.
+        Cutover-safe: reads v2 once the collection has been initialised
+        on v2 (explicit marker), falls back to legacy LightRAG
+        otherwise. A v2 collection with an empty graph is still
+        served from v2 rather than routed back to stale legacy data.
         """
         db_collection = await self._get_and_validate_collection(user_id, collection_id)
 
         from aperag.graphindex.integration import make_service_for_collection
 
         svc = make_service_for_collection(db_collection)
-        use_v2 = await svc.has_data(collection_id=collection_id)
+        use_v2 = await svc.is_v2_initialized(collection_id=collection_id)
 
         normalized_label = None if not label or label == "*" else label
         # In overview mode (no label) we ask for 2x max_nodes to give the
@@ -508,12 +514,15 @@ class GraphService:
 
         During the v1 → v2 transition window, curation (merge suggestions,
         merge execution, KG-Eval export) still operates against the
-        legacy LightRAG store. For collections that have been re-indexed
-        against v2, that store is a frozen snapshot — running curation
-        against it would modify data that is no longer the source of
-        truth and leave the real v2 graph untouched. Until curation is
-        ported (tracked for a follow-up PR), we raise instead of
-        returning silently-stale results.
+        legacy LightRAG store. For collections that have been
+        initialised on v2 (explicit marker row present), that store
+        is a frozen snapshot — running curation against it would
+        modify data that is no longer the source of truth and leave
+        the real v2 graph untouched. Until curation is ported
+        (tracked for a follow-up PR), we raise instead of returning
+        silently-stale results. A v2 collection with an empty graph
+        is still considered v2 here, so the guard holds even when
+        ``graphindex_nodes`` has no rows.
         """
         db_collection = await self.collection_service.db_ops.query_collection(user_id, collection_id)
         if not db_collection:
@@ -522,7 +531,7 @@ class GraphService:
         from aperag.graphindex.integration import make_service_for_collection
 
         svc = make_service_for_collection(db_collection)
-        if await svc.has_data(collection_id=collection_id):
+        if await svc.is_v2_initialized(collection_id=collection_id):
             raise NotImplementedError(
                 f"Graph curation (merge suggestions / merge / export) is not yet available "
                 f"for collections indexed against graphindex v2 (collection {collection_id}). "
