@@ -99,7 +99,9 @@ def ensure_physical_index_exists(
 
     created_physical = False
     if not es.indices.exists(index=physical_index).body:
-        es.indices.create(index=physical_index, body={"settings": _fulltext_settings(), "mappings": _fulltext_mapping()})
+        es.indices.create(
+            index=physical_index, body={"settings": _fulltext_settings(), "mappings": _fulltext_mapping()}
+        )
         created_physical = True
 
     return {"physical_index": physical_index, "created_physical": created_physical}
@@ -117,7 +119,12 @@ def ensure_shared_index(
     if current_target is not None:
         if physical_index is not None:
             ensure_physical_index_exists(physical_index=physical_index, es=es)
-        return {"alias": alias, "physical_index": current_target, "created_physical": False, "targets": [current_target]}
+        return {
+            "alias": alias,
+            "physical_index": current_target,
+            "created_physical": False,
+            "targets": [current_target],
+        }
 
     ensured = ensure_physical_index_exists(physical_index=physical_index, es=es)
     es.indices.put_alias(index=ensured["physical_index"], name=alias)
@@ -185,7 +192,9 @@ def delete_collection_documents(
     return int(response.get("deleted", 0))
 
 
-def build_legacy_reindex_body(source_index: str, collection_id: str, dest_index: Optional[str] = None) -> Dict[str, Any]:
+def build_legacy_reindex_body(
+    source_index: str, collection_id: str, dest_index: Optional[str] = None
+) -> Dict[str, Any]:
     return {
         "source": {"index": source_index},
         "dest": {"index": dest_index or generate_fulltext_physical_index_name()},
