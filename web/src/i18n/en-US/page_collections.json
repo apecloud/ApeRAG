@@ -71,6 +71,8 @@
 
   "embedding_model": "Embedding Model",
   "embedding_model_description": "An embedding model translates data into numerical vectors that capture their semantic meaning and relationships.",
+  "embedding_model_locked_badge": "Locked after creation",
+  "embedding_model_locked_description": "The embedding model cannot be changed after the collection is created, because different embedding models produce incompatible vectors. Create a new collection if you need a different model.",
 
   "completion_model": "Completion Model",
   "completion_model_description": "A completion model is an AI that generates new content by predicting the most likely subsequent text based on a given input.",

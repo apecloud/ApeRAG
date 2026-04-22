@@ -329,3 +329,104 @@ def test_multitenant_without_tenant_id_raises():
                 "multitenant": True,
             }
         )
+
+
+# ---------------------------------------------------------------------------
+# purge_all_shards: the safety net when vector_size can no longer be resolved
+# ---------------------------------------------------------------------------
+
+
+def _make_shard(client: QdrantClient, vector_size: int, distance: str = "Cosine") -> str:
+    """Create an ``aperag_vectors_{size}_{dist}`` collection directly.
+
+    Used to simulate the "historical data in a different-dimension shard"
+    situation that makes ``purge_all_shards`` necessary.
+    """
+    name = global_collection_name(vector_size, distance)
+    if not client.collection_exists(name):
+        client.create_collection(
+            collection_name=name,
+            vectors_config=rest.VectorParams(size=vector_size, distance=rest.Distance.COSINE),
+        )
+    return name
+
+
+def _seed_into_shard(client: QdrantClient, shard: str, tenant: str, vectors: List[List[float]]) -> List[str]:
+    ids = [str(uuid.uuid4()) for _ in vectors]
+    points = [
+        rest.PointStruct(id=pid, vector=vec, payload={TENANT_PAYLOAD_KEY: tenant}) for pid, vec in zip(ids, vectors)
+    ]
+    client.upsert(collection_name=shard, points=points, wait=True)
+    return ids
+
+
+def test_purge_all_shards_removes_tenant_from_every_global_collection(shared_client):
+    """This is the exact scenario that motivated
+    ``_purge_tenant_from_all_global_collections``: an ApeRAG collection's
+    embedding provider is removed, so ``vector_size`` can no longer be
+    resolved, so the normal ``delete_collection`` path routes to a default
+    shard and leaves orphaned points in the shard that actually holds the
+    tenant's vectors. ``purge_all_shards=True`` must clean up every shard.
+
+    We simulate by directly creating two shards with different dims, seeding
+    tenant A into both and tenant B into one; then calling
+    ``delete_collection(purge_all_shards=True)`` from a 4-dim-bound A
+    connector and asserting both shards are clean for A but B survives.
+    """
+    # Shard 1: 4-dim — what the A connector "thinks" it's bound to.
+    shard4 = _make_shard(shared_client, 4)
+    # Shard 2: 3-dim — simulates the shard where A's legacy points actually live.
+    shard3 = _make_shard(shared_client, 3)
+
+    ids_a4 = _seed_into_shard(shared_client, shard4, "col_a", [[1.0, 0.0, 0.0, 0.0]])
+    ids_a3 = _seed_into_shard(shared_client, shard3, "col_a", [[1.0, 0.0, 0.0]])
+    ids_b4 = _seed_into_shard(shared_client, shard4, "col_b", [[0.0, 1.0, 0.0, 0.0]])
+
+    # A's connector is built for 4-dim — mirroring "current config says 4-dim"
+    # even though historical data also lives in the 3-dim shard.
+    a = _make_connector("col_a", client=shared_client)
+
+    a.delete_collection(purge_all_shards=True)
+
+    # Both shards must be free of A's points.
+    for shard, ids in ((shard4, ids_a4), (shard3, ids_a3)):
+        survivors = shared_client.retrieve(collection_name=shard, ids=ids)
+        assert survivors == [], f"purge_all_shards left {len(survivors)} point(s) of tenant A in {shard}"
+
+    # B's points in shard4 are preserved — filter was scoped to A's tenant_id.
+    remaining_b = shared_client.retrieve(collection_name=shard4, ids=ids_b4)
+    assert len(remaining_b) == 1
+
+    # Physical shards must NOT be dropped; other tenants rely on them.
+    assert shared_client.collection_exists(shard4)
+    assert shared_client.collection_exists(shard3)
+
+
+def test_purge_all_shards_ignores_legacy_named_collections(shared_client):
+    """``_purge_tenant_from_all_global_collections`` must scan only names
+    starting with ``aperag_vectors_``. Any legacy per-tenant collection
+    (``col<hex>``) or unrelated collection in the same Qdrant cluster must
+    be left completely alone — we'd otherwise risk deleting data belonging
+    to a deployment still on the old layout mid-migration.
+    """
+    shard4 = _make_shard(shared_client, 4)
+    ids_a4 = _seed_into_shard(shared_client, shard4, "col_a", [[1.0, 0.0, 0.0, 0.0]])
+
+    # An unrelated, legacy-named collection in the same cluster.
+    legacy_name = "col_legacy_unrelated_x"
+    shared_client.create_collection(
+        collection_name=legacy_name,
+        vectors_config=rest.VectorParams(size=4, distance=rest.Distance.COSINE),
+    )
+    legacy_ids = _seed_into_shard(shared_client, legacy_name, "col_a", [[0.0, 1.0, 0.0, 0.0]])
+
+    a = _make_connector("col_a", client=shared_client)
+    a.delete_collection(purge_all_shards=True)
+
+    # A's points gone from the global shard.
+    assert shared_client.retrieve(collection_name=shard4, ids=ids_a4) == []
+
+    # Legacy-named collection untouched, even though its payload has
+    # collection_id=col_a — the prefix guard saves us.
+    still_there = shared_client.retrieve(collection_name=legacy_name, ids=legacy_ids)
+    assert len(still_there) == 1, "purge must not touch non-aperag_vectors_* collections"

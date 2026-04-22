@@ -36,7 +36,7 @@ import json
 import logging
 import os
 import threading
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 import qdrant_client
 from llama_index.vector_stores.qdrant import QdrantVectorStore
@@ -45,7 +45,8 @@ from qdrant_client.http.exceptions import UnexpectedResponse
 from qdrant_client.http.models import ScoredPoint
 
 from aperag.query.query import DocumentWithScore, QueryResult, QueryWithEmbedding
-from aperag.vectorstore.base import VectorStoreConnector
+from aperag.vectorstore.base import VectorPoint, VectorStoreConnector
+from aperag.vectorstore.filters import And, Eq, In, IsEmpty, Not, Or, VectorFilter
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +66,92 @@ TENANT_PAYLOAD_KEY = "collection_id"
 # it's only appended to, never mutated concurrently in conflicting ways.
 _ENSURED_COLLECTIONS: set = set()
 _ENSURE_LOCK = threading.Lock()
+
+# ---------------------------------------------------------------------------
+# QdrantClient process-level pool
+# ---------------------------------------------------------------------------
+#
+# Historical behavior: every ``QdrantVectorStoreConnector(ctx)`` built a fresh
+# ``QdrantClient``, which in turn opens its own HTTP/gRPC connection pool
+# (and, in HTTPS mode, a fresh TLS handshake). In a read-heavy deployment
+# every search request went through ``search_pipeline_service._vector_search``
+# → ``ContextManager(...)`` → new connector → new client. Under load that
+# adds up to a lot of avoidable setup cost and file descriptors.
+#
+# The cache below keys by the subset of ctx that actually identifies the
+# destination endpoint. It's intentionally tiny: behavior-affecting knobs like
+# ``timeout`` are intentionally NOT part of the key, because changing them
+# between connectors should just update the existing client's setting, not
+# spawn a new connection. If callers need truly different transport configs
+# they should hit different endpoints (different ``url``).
+#
+# ``:memory:`` clients are deliberately NOT cached — they are used by tests
+# as isolated, per-test stores. Caching them would silently share state
+# across tests and is exactly the "surprise in a production config that works
+# differently in test mode" footgun we're trying to avoid.
+_CLIENT_CACHE: Dict[tuple, qdrant_client.QdrantClient] = {}
+_CLIENT_LOCK = threading.Lock()
+
+
+def _client_cache_key(
+    url: str,
+    port: int,
+    grpc_port: int,
+    prefer_grpc: bool,
+    https: bool,
+    api_key: Optional[str],
+) -> tuple:
+    return (url, int(port), int(grpc_port), bool(prefer_grpc), bool(https), api_key or "")
+
+
+def _get_or_create_client(
+    url: str,
+    port: int = 6333,
+    grpc_port: int = 6334,
+    prefer_grpc: bool = False,
+    https: bool = False,
+    api_key: Optional[str] = None,
+    timeout: int = 300,
+    **extra: Any,
+) -> qdrant_client.QdrantClient:
+    """Return a process-shared QdrantClient for the given endpoint.
+
+    Safe under threads: creation is guarded by a lock and wrapped with a
+    double-check, so concurrent first callers don't stampede into building
+    N clients for the same key. For ``:memory:`` URLs we bypass the cache
+    entirely — each caller gets its own isolated store, which is what
+    tests (and only tests) rely on.
+    """
+    if url == ":memory:":
+        return qdrant_client.QdrantClient(":memory:")
+
+    key = _client_cache_key(url, port, grpc_port, prefer_grpc, https, api_key)
+    cached = _CLIENT_CACHE.get(key)
+    if cached is not None:
+        return cached
+
+    with _CLIENT_LOCK:
+        cached = _CLIENT_CACHE.get(key)
+        if cached is not None:
+            return cached
+        client = qdrant_client.QdrantClient(
+            url=url,
+            port=port,
+            grpc_port=grpc_port,
+            prefer_grpc=prefer_grpc,
+            https=https,
+            api_key=api_key,
+            timeout=timeout,
+            **extra,
+        )
+        _CLIENT_CACHE[key] = client
+        return client
+
+
+def _reset_client_cache() -> None:
+    """Clear the process-level client cache. Intended for tests only."""
+    with _CLIENT_LOCK:
+        _CLIENT_CACHE.clear()
 
 
 def global_collection_name(vector_size: int, distance: str) -> str:
@@ -233,6 +320,84 @@ def _merge_tenant_filter(user_filter: Any, tenant_id: Optional[str]) -> Any:
 
 
 # ---------------------------------------------------------------------------
+# VectorFilter DSL -> qdrant_client.models.Filter
+# ---------------------------------------------------------------------------
+#
+# Translation is intentionally tree-walking and stateless. Any future node
+# added to ``aperag.vectorstore.filters.VectorFilter`` must have a branch
+# here or ``_translate_filter`` raises — this is the single choke point for
+# the Qdrant backend and we want the error loud rather than silent.
+
+
+def _translate_filter(flt: Optional[VectorFilter]) -> Optional[rest.Filter]:
+    """Convert a backend-neutral DSL tree into a Qdrant ``Filter``.
+
+    Returns ``None`` for a ``None`` input so callers don't need to check.
+    Always returns a top-level ``Filter`` (never a raw ``Condition``) so
+    that ``_merge_tenant_filter`` has a consistent shape to work with.
+    """
+    if flt is None:
+        return None
+    # Leaf nodes: wrap in Filter(must=[cond]) so the caller always gets a
+    # Filter regardless of whether the leaf is top-level or nested.
+    if isinstance(flt, Eq):
+        return rest.Filter(must=[rest.FieldCondition(key=flt.key, match=rest.MatchValue(value=flt.value))])
+    if isinstance(flt, In):
+        # Empty In is a logic bug: matches nothing, which is almost never
+        # what the caller intended. Surface it loudly.
+        if not flt.values:
+            raise ValueError(f"In filter on key {flt.key!r} has empty values list")
+        return rest.Filter(must=[rest.FieldCondition(key=flt.key, match=rest.MatchAny(any=list(flt.values)))])
+    if isinstance(flt, IsEmpty):
+        return rest.Filter(must=[rest.IsEmptyCondition(is_empty=rest.PayloadField(key=flt.key))])
+
+    # Boolean combinators: translate children, then attach under the right
+    # slot. Children are already Filter objects (never Conditions), so
+    # nesting is valid Qdrant syntax: Filter(must=[Filter(...), Filter(...)])
+    # is equivalent to AND-ing the two inner Filters.
+    if isinstance(flt, And):
+        subs = [_translate_filter(p) for p in flt.parts]
+        subs = [s for s in subs if s is not None]
+        return rest.Filter(must=subs)
+    if isinstance(flt, Or):
+        subs = [_translate_filter(p) for p in flt.parts]
+        subs = [s for s in subs if s is not None]
+        return rest.Filter(should=subs)
+    if isinstance(flt, Not):
+        sub = _translate_filter(flt.inner)
+        return rest.Filter(must_not=[sub] if sub is not None else [])
+
+    raise TypeError(
+        f"Unsupported VectorFilter node: {type(flt).__name__}. "
+        "Add a branch in aperag.vectorstore.qdrant_connector._translate_filter"
+    )
+
+
+def _normalize_filter_input(flt: Any) -> Optional[rest.Filter]:
+    """Accept either a DSL node, an already-translated Qdrant Filter, or None.
+
+    * ``None`` -> ``None``
+    * DSL node (``Eq`` / ``In`` / ...) -> translated Filter
+    * ``rest.Filter`` -> passed through (used by the migration script and
+      any caller that still hand-rolls a raw Qdrant Filter; once those go
+      away this branch can be removed).
+    * anything else -> ``None`` with a warning, same as the pre-DSL behavior
+      so we don't introduce a new crash mode.
+    """
+    if flt is None:
+        return None
+    if isinstance(flt, rest.Filter):
+        return flt
+    if isinstance(flt, (Eq, In, IsEmpty, And, Or, Not)):
+        return _translate_filter(flt)
+    logger.warning(
+        "ignoring filter of unsupported type %s (expected VectorFilter DSL or qdrant Filter)",
+        type(flt).__name__,
+    )
+    return None
+
+
+# ---------------------------------------------------------------------------
 # connector
 # ---------------------------------------------------------------------------
 
@@ -273,19 +438,21 @@ class QdrantVectorStoreConnector(VectorStoreConnector):
         else:
             self.collection_name = self.tenant_id
 
-        # Client
-        if self.url == ":memory:":
-            self.client = qdrant_client.QdrantClient(":memory:")
-        else:
-            self.client = qdrant_client.QdrantClient(
-                url=self.url,
-                port=self.port,
-                grpc_port=self.grpc_port,
-                prefer_grpc=self.prefer_grpc,
-                https=self.https,
-                timeout=self.timeout,
-                **kwargs,
-            )
+        # Client — reuse a process-level pool keyed by endpoint. Creating a
+        # new QdrantClient per connector was measurable overhead under load
+        # (one TCP/TLS setup per query for high-QPS workloads); the cache is
+        # keyed on the subset of ctx that identifies the endpoint. Tests that
+        # want isolation pass ``url=":memory:"`` which bypasses the cache.
+        self.client = _get_or_create_client(
+            url=self.url,
+            port=self.port,
+            grpc_port=self.grpc_port,
+            prefer_grpc=self.prefer_grpc,
+            https=self.https,
+            api_key=ctx.get("api_key"),
+            timeout=self.timeout,
+            **kwargs,
+        )
 
         # In multitenant mode pre-create the global collection (idempotent)
         # so llama_index's auto-creation path sees "exists" and doesn't try to
@@ -367,11 +534,24 @@ class QdrantVectorStoreConnector(VectorStoreConnector):
             _ENSURED_COLLECTIONS.add(cache_key)
 
     # ------------------------------------------------------------------ search
-    def search(self, query: QueryWithEmbedding, **kwargs):
+    def search(
+        self,
+        query: QueryWithEmbedding,
+        *,
+        filter: Optional[Any] = None,
+        score_threshold: float = 0.1,
+        **kwargs: Any,
+    ) -> QueryResult:
+        """Top-k vector search, optionally filtered.
+
+        ``filter`` accepts either a ``VectorFilter`` DSL tree (preferred)
+        or a raw ``qdrant_client.models.Filter`` (legacy; tolerated so
+        the migration script / tests can still hand-roll filters). The
+        DSL path is documented in ``aperag.vectorstore.filters``.
+        """
         consistency = kwargs.get("consistency", "majority")
         search_params = kwargs.get("search_params")
-        score_threshold = kwargs.get("score_threshold", 0.1)
-        filter_conditions = kwargs.get("filter")
+        filter_conditions = _normalize_filter_input(filter)
 
         if self.multitenant:
             filter_conditions = _merge_tenant_filter(filter_conditions, self.tenant_id)
@@ -528,8 +708,18 @@ class QdrantVectorStoreConnector(VectorStoreConnector):
         * Multitenant: delete all points whose payload matches ``collection_id``,
           leaving the global collection (and other tenants) untouched.
         * Legacy: drop the whole physical collection.
+
+        Pass ``purge_all_shards=True`` to scan every ``aperag_vectors_*``
+        collection and delete all points tagged with this tenant. Useful when
+        the caller cannot resolve the correct ``vector_size`` any more (e.g.
+        the collection's embedding provider has been removed from config): a
+        normal ``delete_collection`` would route to the connector's default
+        global collection and silently leave orphans behind.
         """
         if self.multitenant:
+            if kwargs.get("purge_all_shards"):
+                self._purge_tenant_from_all_global_collections()
+                return
             try:
                 self.client.delete(
                     collection_name=self.collection_name,
@@ -559,22 +749,103 @@ class QdrantVectorStoreConnector(VectorStoreConnector):
                 return
             raise
 
+    def _purge_tenant_from_all_global_collections(self) -> None:
+        """Best-effort purge of this tenant's points across every global shard.
+
+        Called from the delete path when ``vector_size`` cannot be resolved,
+        so we cannot route to a single ``aperag_vectors_{size}_{distance}``
+        collection. We iterate all collections whose name starts with the
+        multi-tenant naming prefix and issue a filtered delete on each.
+
+        This is explicitly best-effort:
+        * failures on individual collections are logged, not re-raised — we'd
+          rather succeed on 7 of 8 shards than zero;
+        * we never touch non-``aperag_vectors_*`` collections (including
+          legacy per-tenant ``col<hex>`` names), so this is safe to run even
+          in mixed deployments during the migration window.
+        """
+        try:
+            existing = [c.name for c in self.client.get_collections().collections]
+        except Exception:
+            logger.exception("qdrant: could not list collections for orphan purge")
+            return
+        prefix = "aperag_vectors_"
+        for name in existing:
+            if not name.startswith(prefix):
+                continue
+            try:
+                self.client.delete(
+                    collection_name=name,
+                    points_selector=rest.FilterSelector(
+                        filter=rest.Filter(
+                            must=[
+                                rest.FieldCondition(
+                                    key=TENANT_PAYLOAD_KEY,
+                                    match=rest.MatchValue(value=self.tenant_id),
+                                )
+                            ]
+                        )
+                    ),
+                )
+                logger.info("qdrant: purged tenant %s from %s", self.tenant_id, name)
+            except UnexpectedResponse as e:
+                if "not found" in str(e).lower() or "doesn't exist" in str(e).lower():
+                    continue
+                logger.warning("qdrant: failed to purge %s from %s: %s", self.tenant_id, name, e)
+            except Exception:
+                logger.exception("qdrant: unexpected error purging %s from %s", self.tenant_id, name)
+
     # ---------------------------------------------------------------- retrieval
-    def retrieve(self, ids: List[str], with_payload: bool = True, with_vectors: bool = False):
+    def retrieve(
+        self,
+        ids: Sequence[str],
+        *,
+        with_payload: bool = True,
+        with_vectors: bool = False,
+    ) -> List[VectorPoint]:
         """Retrieve points by id, enforcing the tenant guard in multitenant mode.
 
         Exposed because several service-layer call sites (document preview /
         chunk listing) used to call ``self.client.retrieve`` directly against a
         per-tenant collection; after multitenancy they must both target the
         global collection *and* filter by tenant.
+
+        Returns backend-neutral ``VectorPoint`` objects so callers don't pick
+        up a dependency on ``qdrant_client.http.models.Record``.
         """
-        points = self.client.retrieve(
+        raw = self.client.retrieve(
             collection_name=self.collection_name,
             ids=list(ids),
             with_payload=with_payload,
             with_vectors=with_vectors,
         )
+
+        # Normalize Qdrant Records -> VectorPoint. We normalize id to str
+        # because that's VectorPoint's contract (see base.py); Pydantic
+        # Chunk.id downstream is Optional[str] so round-trip is stable.
+        def _vec(p: Any) -> Optional[List[float]]:
+            v = getattr(p, "vector", None)
+            if v is None:
+                return None
+            if isinstance(v, list):
+                return v
+            # qdrant can return dict[name, list] for multi-vector collections;
+            # we only ever store single-vector, so pick the first value.
+            if isinstance(v, dict) and v:
+                first = next(iter(v.values()))
+                return first if isinstance(first, list) else None
+            return None
+
+        out = [
+            VectorPoint(
+                id=str(p.id),
+                payload=dict(p.payload or {}),
+                vector=_vec(p),
+            )
+            for p in raw
+        ]
+
         if not self.multitenant:
-            return points
+            return out
         # Defense-in-depth filter: drop any points that don't match the tenant.
-        return [p for p in points if (p.payload or {}).get(TENANT_PAYLOAD_KEY) == self.tenant_id]
+        return [p for p in out if (p.payload or {}).get(TENANT_PAYLOAD_KEY) == self.tenant_id]

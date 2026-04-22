@@ -210,6 +210,58 @@ class CollectionService:
             raise CollectionNotFoundException(collection_id)
         return await self.build_collection_response(collection)
 
+    @staticmethod
+    def _embedding_identity(cfg) -> Optional[tuple]:
+        """Return a tuple that uniquely identifies an embedding model binding.
+
+        Returns None when no embedding is configured yet (e.g. freshly created
+        collection whose user has not filled it in), so first-time assignment is
+        still allowed.
+        """
+        if cfg is None:
+            return None
+        emb = getattr(cfg, "embedding", None)
+        if emb is None:
+            return None
+        model = getattr(emb, "model", None)
+        msp = getattr(emb, "model_service_provider", None)
+        clp = getattr(emb, "custom_llm_provider", None)
+        if not model and not msp and not clp:
+            return None
+        return (model, msp, clp)
+
+    def _reject_embedding_change(self, instance: db_models.Collection, update: view_models.CollectionUpdate) -> None:
+        """Raise ValidationException if the update tries to change the embedding binding."""
+        if update.config is None:
+            return
+        try:
+            old_cfg = parseCollectionConfig(instance.config) if instance.config else None
+        except Exception:
+            old_cfg = None
+
+        old_id = self._embedding_identity(old_cfg)
+        new_id = self._embedding_identity(update.config)
+
+        if old_id is None:
+            # First-time binding is allowed.
+            return
+        if new_id is None:
+            raise ValidationException(
+                "Embedding model of an existing collection cannot be cleared. "
+                "Keep the original embedding configuration or create a new collection."
+            )
+        if old_id != new_id:
+            old_model, _old_msp, _old_clp = old_id
+            new_model, _new_msp, _new_clp = new_id
+            raise ValidationException(
+                "Embedding model of an existing collection cannot be changed "
+                f"(current: {old_model!r}, requested: {new_model!r}). "
+                "Different embedding models produce vectors of different dimensions "
+                "and/or incompatible semantics, which would leave existing vectors "
+                "orphaned and break retrieval. Please create a new collection and "
+                "re-ingest your documents if a different model is required."
+            )
+
     async def update_collection(
         self, user: str, collection_id: str, collection: view_models.CollectionUpdate
     ) -> view_models.Collection:
@@ -219,6 +271,16 @@ class CollectionService:
         instance = await self.db_ops.query_collection(user, collection_id)
         if instance is None:
             raise CollectionNotFoundException(collection_id)
+
+        # Guardrail: embedding model/provider of an existing collection MUST NOT change.
+        # Different embedding models produce vectors with different dimensions and/or
+        # incompatible semantics. Silently switching will (a) leak orphan points in the
+        # previous global collection (under multi-tenant mode), (b) break retrieval
+        # recall, (c) in legacy mode even cause Qdrant to reject writes with a
+        # dimension mismatch error. Rejecting here is the least surprising behavior;
+        # users who truly need a different model should create a new collection and
+        # re-ingest their data.
+        self._reject_embedding_change(instance, collection)
 
         # Direct call to repository method, which handles its own transaction
         config_str = dumpCollectionConfig(collection.config)

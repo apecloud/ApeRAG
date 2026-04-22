@@ -202,29 +202,43 @@ class CollectionTask:
           collection is left in place for other tenants.
         * Legacy mode: drops the whole per-tenant Qdrant collection.
 
-        We best-effort resolve ``vector_size`` so the connector routes to the
-        right global collection. If resolution fails (e.g. embedding provider
-        has been removed), we fall back to the default; the deletion becomes a
-        no-op on the wrong collection, which is safe.
+        Routing in multitenant mode is ``vector_size``-aware (each
+        ``(vector_size, distance)`` pair lives in a distinct global Qdrant
+        collection). We try to resolve ``vector_size`` from the collection's
+        embedding config first. If that fails — typically because the
+        embedding provider/model has been removed from the LLM registry, or
+        the collection row is already malformed — we fall back to
+        ``purge_all_shards``: scan every ``aperag_vectors_*`` collection and
+        delete any points tagged with this tenant. That avoids the silent
+        "route-to-wrong-shard, leave orphans" failure mode we had before.
         """
         collection = db_ops.query_collection_by_id(collection_id, ignore_deleted=False)
         vector_size = None
+        resolve_failed = False
         if collection is not None:
             try:
                 _, vector_size = get_collection_embedding_service_sync(collection)
             except Exception as e:
+                resolve_failed = True
                 logger.warning(
                     "Could not resolve vector_size for collection %s during delete; "
-                    "falling back to default routing: %s",
+                    "will purge across every global shard as a safety net: %s",
                     collection_id,
                     e,
                 )
+        else:
+            resolve_failed = True
 
         vector_db_conn = get_vector_db_connector(
             collection=generate_vector_db_collection_name(collection_id=collection_id),
             vector_size=vector_size,
         )
-        vector_db_conn.connector.delete_collection()
+        if resolve_failed:
+            # Best-effort: iterate every aperag_vectors_* collection and drop
+            # points with this tenant_id. No-op on the legacy connector path.
+            vector_db_conn.connector.delete_collection(purge_all_shards=True)
+        else:
+            vector_db_conn.connector.delete_collection()
 
         logger.debug(f"Deleted vector database data for collection {collection_id}")
 

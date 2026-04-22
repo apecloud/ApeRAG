@@ -12,40 +12,60 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Vector retrieval orchestration.
+
+``ContextManager`` wraps the configured ``VectorStoreConnectorAdaptor`` and
+takes care of:
+
+* Building query embeddings (if not pre-supplied by the caller).
+* Translating business-level filter intent (index_types, chat_id) into the
+  backend-neutral ``VectorFilter`` DSL.
+* Issuing the actual search.
+
+Before this module migrated to the DSL, filter construction branched on
+``self.vectordb_type == "qdrant"`` and directly imported
+``qdrant_client.models``. That made adding a second backend a per-site
+refactor. The DSL path keeps this file backend-agnostic — the concrete
+connector is the single place that knows Qdrant.
+"""
+
 from abc import ABC
-from typing import Any, List, Optional
+from typing import List, Optional
 
 from aperag.query.query import QueryWithEmbedding
 from aperag.vectorstore.connector import VectorStoreConnectorAdaptor
+from aperag.vectorstore.filters import Eq, In, IsEmpty, VectorFilter, all_of, any_of
 
 
 class ContextManager(ABC):
     def __init__(self, collection_name, embedding_model, vectordb_type, vectordb_ctx):
         self.collection_name = collection_name
         self.embedding_model = embedding_model
+        # Retained only for diagnostics / callers that still inspect the type.
+        # Code paths in this class are backend-agnostic.
         self.vectordb_type = vectordb_type
         self.adaptor = VectorStoreConnectorAdaptor(vectordb_type, vectordb_ctx)
 
     def query(self, query, score_threshold=0.5, topk=3, vector=None, index_types=None, chat_id=None):
-        """
-        Query vectors with optional filtering by index types and chat_id
+        """Query vectors with optional filtering by index types and chat_id.
 
         Args:
-            query: Query string
-            score_threshold: Similarity threshold
-            topk: Number of results to return
-            vector: Pre-computed query vector (optional)
-            index_types: List of index types to include (e.g., ["vector", "vision", "summary"])
-                        If None, no filtering is applied
-            chat_id: Chat ID to filter chat documents (optional)
+            query: Query string.
+            score_threshold: Similarity threshold.
+            topk: Number of results to return.
+            vector: Pre-computed query vector (optional).
+            index_types: List of index types to include
+                (e.g. ``["vector", "vision", "summary"]``). If None, no index
+                filter is applied.
+            chat_id: Chat ID to include chat-scoped documents (optional).
 
         Returns:
-            List of DocumentWithScore objects
+            List of DocumentWithScore objects.
         """
         if vector is None:
             vector = self.embedding_model.embed_query(query)
 
-        # Create filter based on index_types and chat_id if provided
+        # Build backend-neutral filter; concrete connector translates.
         filter_condition = self._create_combined_filter(index_types, chat_id)
 
         query_embedding = QueryWithEmbedding(query=query, top_k=topk, embedding=vector)
@@ -62,89 +82,39 @@ class ContextManager(ABC):
         )
         return results.results
 
-    def _create_index_types_filter(self, index_types: List[str]) -> Optional[Any]:
-        """
-        Create a filter to include only specified index types
+    # ------------------------------------------------------------------ filter
+    def _create_index_types_filter(self, index_types: Optional[List[str]]) -> Optional[VectorFilter]:
+        """Include only points tagged with one of ``index_types``, OR points
+        from before we started tagging (so old data stays searchable).
 
-        Args:
-            index_types: List of index types to include (e.g., ["vector", "vision", "summary"])
-
-        Returns:
-            Filter object specific to the vector database type, or None if not supported
+        Historical note: the ``indexer`` payload field was added in a later
+        migration; older points don't carry it. We therefore OR the membership
+        test with an ``IsEmpty`` guard — otherwise introducing an index_type
+        filter silently hides pre-migration data.
         """
         if not index_types:
             return None
-
-        if self.vectordb_type == "qdrant":
-            from qdrant_client.models import FieldCondition, Filter, IsEmptyCondition, MatchAny, PayloadField
-
-            return Filter(
-                should=[
-                    FieldCondition(key="indexer", match=MatchAny(any=index_types)),
-                    # compitable with existing vectors don't have indexer field
-                    IsEmptyCondition(
-                        is_empty=PayloadField(key="indexer"),
-                    ),
-                ]
-            )
-
-        # Add support for other vector databases here
-        # elif self.vectordb_type == "pinecone":
-        #     return {"indexer": {"$in": indexer_values}}
-        # elif self.vectordb_type == "weaviate":
-        #     return {"where": {"operator": "Or", "operands": [...]}}
-
-        return None
+        return any_of(
+            In(key="indexer", values=tuple(index_types)),
+            IsEmpty(key="indexer"),
+        )
 
     def _create_combined_filter(
-        self, index_types: Optional[List[str]] = None, chat_id: Optional[str] = None
-    ) -> Optional[Any]:
+        self,
+        index_types: Optional[List[str]] = None,
+        chat_id: Optional[str] = None,
+    ) -> Optional[VectorFilter]:
+        """Combine the index-type and chat-id filters into a single tree.
+
+        Returns ``None`` when no constraints apply so the connector can
+        short-circuit. The shape is always an AND of whichever of
+        ``(index_types_filter, chat_id_eq)`` are present, matching the
+        semantics of the pre-DSL implementation.
         """
-        Create a combined filter for index types and chat_id
-
-        Args:
-            index_types: List of index types to include (e.g., ["vector", "vision", "summary"])
-            chat_id: Chat ID to filter chat documents
-
-        Returns:
-            Filter object specific to the vector database type, or None if no filters
-        """
-        if not index_types and not chat_id:
-            return None
-
-        if self.vectordb_type == "qdrant":
-            from qdrant_client.models import (
-                FieldCondition,
-                Filter,
-                IsEmptyCondition,
-                MatchAny,
-                MatchValue,
-                PayloadField,
-            )
-
-            conditions = []
-
-            # Add index_types filter
-            if index_types:
-                index_types_condition = [
-                    FieldCondition(key="indexer", match=MatchAny(any=index_types)),
-                    # Compatible with existing vectors that don't have indexer field
-                    IsEmptyCondition(is_empty=PayloadField(key="indexer")),
-                ]
-                conditions.extend(index_types_condition)
-
-            # Add chat_id filter
-            if chat_id:
-                chat_id_condition = FieldCondition(key="chat_id", match=MatchValue(value=chat_id))
-                if conditions:
-                    # If we have index_types conditions, combine them with AND logic
-                    return Filter(must=[chat_id_condition, Filter(should=conditions)])
-                else:
-                    # Only chat_id filter
-                    return Filter(must=[chat_id_condition])
-
-            # Only index_types filter
-            return Filter(should=conditions)
-
-        # Add support for other vector databases here
-        return None
+        parts = []
+        idx = self._create_index_types_filter(index_types)
+        if idx is not None:
+            parts.append(idx)
+        if chat_id:
+            parts.append(Eq(key="chat_id", value=chat_id))
+        return all_of(*parts)
