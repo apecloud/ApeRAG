@@ -90,16 +90,18 @@ _BACKENDS = {
 }
 
 
-def _available_backends():
+def _available_backend_names():
     available = []
-    for name, factory in _BACKENDS.items():
-        result = factory()
-        if result is not None:
-            available.append(pytest.param((name, result[0], result[1]), id=name))
+    if os.environ.get("COMPAT_PG_URL"):
+        available.append(pytest.param("postgresql", id="postgresql"))
+    if os.environ.get("COMPAT_NEO4J_URI"):
+        available.append(pytest.param("neo4j", id="neo4j"))
+    if os.environ.get("COMPAT_NEBULA_HOSTS"):
+        available.append(pytest.param("nebula", id="nebula"))
     return available
 
 
-_available = _available_backends()
+_available = _available_backend_names()
 
 if not _available:
     pytestmark = pytest.mark.skip(
@@ -110,7 +112,10 @@ if not _available:
 @pytest.fixture(params=_available if _available else [pytest.param(None, marks=pytest.mark.skip)])
 async def store(request):
     """Yield a (backend_name, store) tuple. Clean up after test."""
-    name, store_obj, engine = request.param
+    name = request.param
+    store_result = _BACKENDS[name]()
+    assert store_result is not None
+    store_obj, engine = store_result
 
     # For PG: ensure tables exist
     if name == "postgresql" and engine is not None:
@@ -133,6 +138,12 @@ async def store(request):
     # Cleanup
     try:
         await store_obj.drop_collection(COLLECTION_ID)
+    except Exception:
+        pass
+    try:
+        close = getattr(store_obj, "close", None)
+        if close is not None:
+            await close()
     except Exception:
         pass
     if name == "postgresql" and engine is not None:

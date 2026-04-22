@@ -76,19 +76,16 @@ _BACKEND_FACTORIES = {
 }
 
 
-def _available_backends():
+def _available_backend_names():
     available = []
-    for name, factory in _BACKEND_FACTORIES.items():
-        try:
-            conn = factory()
-            if conn is not None:
-                available.append(pytest.param((name, conn), id=name))
-        except Exception:
-            pass
+    if os.environ.get("COMPAT_QDRANT_URL"):
+        available.append(pytest.param("qdrant", id="qdrant"))
+    if os.environ.get("COMPAT_PGVECTOR_URL"):
+        available.append(pytest.param("pgvector", id="pgvector"))
     return available
 
 
-_available = _available_backends()
+_available = _available_backend_names()
 
 if not _available:
     pytestmark = pytest.mark.skip(reason="No vector backend env vars set (COMPAT_QDRANT_URL / COMPAT_PGVECTOR_URL)")
@@ -96,7 +93,9 @@ if not _available:
 
 @pytest.fixture(params=_available if _available else [pytest.param(None, marks=pytest.mark.skip)])
 def connector(request):
-    name, conn = request.param
+    name = request.param
+    conn = _BACKEND_FACTORIES[name]()
+    assert conn is not None
     yield name, conn
     try:
         conn.drop_tenant()
@@ -110,7 +109,11 @@ def connector(request):
 def _point(id_: str, vec_seed: float, **payload):
     from aperag.vectorstore.dto import VectorPoint
 
-    return VectorPoint(id=id_, vector=[vec_seed] * VECTOR_SIZE, payload=payload)
+    return VectorPoint(id=_point_id(id_), vector=[vec_seed] * VECTOR_SIZE, payload=payload)
+
+
+def _point_id(seed: str) -> str:
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, f"compat-vector:{seed}"))
 
 
 # --- tests ---
@@ -136,7 +139,7 @@ def test_upsert_and_search(connector):
     )
     assert len(hits) >= 1, f"[{name}] no search results"
     ids = {h.id for h in hits}
-    assert "p1" in ids or "p2" in ids, f"[{name}] expected at least one hit"
+    assert _point_id("p1") in ids or _point_id("p2") in ids, f"[{name}] expected at least one hit"
 
 
 def test_upsert_graph_entity_and_filter(connector):
@@ -160,8 +163,8 @@ def test_upsert_graph_entity_and_filter(connector):
         )
     )
     ids = {h.id for h in hits}
-    assert "ge_e1" in ids, f"[{name}] graph entity not found via filter"
-    assert "p_chunk" not in ids, f"[{name}] chunk vector should be excluded by filter"
+    assert _point_id("ge_e1") in ids, f"[{name}] graph entity not found via filter"
+    assert _point_id("p_chunk") not in ids, f"[{name}] chunk vector should be excluded by filter"
 
 
 def test_delete_by_filter(connector):
@@ -187,8 +190,8 @@ def test_delete_by_filter(connector):
         )
     )
     ids = {h.id for h in hits}
-    assert "ge_del1" not in ids, f"[{name}] deleted vector still found"
-    assert "p_keep" in ids, f"[{name}] non-matching vector was deleted"
+    assert _point_id("ge_del1") not in ids, f"[{name}] deleted vector still found"
+    assert _point_id("p_keep") in ids, f"[{name}] non-matching vector was deleted"
 
 
 def test_retrieve_by_ids(connector):
@@ -200,7 +203,7 @@ def test_retrieve_by_ids(connector):
     ]
     conn.upsert(points)
 
-    results = conn.retrieve(["ret1", "ret2"])
+    results = conn.retrieve([_point_id("ret1"), _point_id("ret2")])
     ids = {r.id for r in results}
-    assert "ret1" in ids, f"[{name}] ret1 not retrieved"
-    assert "ret2" in ids, f"[{name}] ret2 not retrieved"
+    assert _point_id("ret1") in ids, f"[{name}] ret1 not retrieved"
+    assert _point_id("ret2") in ids, f"[{name}] ret2 not retrieved"
