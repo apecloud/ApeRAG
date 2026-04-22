@@ -30,6 +30,15 @@ import pytest
 COLLECTION = f"compat_vec_{uuid.uuid4().hex[:8]}"
 VECTOR_SIZE = 8
 
+# Both qdrant and pgvector require point ids to be UUIDs (or unsigned
+# ints). Derive deterministic UUIDs from human-readable labels so the
+# test assertions stay readable without hardcoding hex strings.
+_ID_NAMESPACE = uuid.UUID("12345678-1234-5678-1234-567812345678")
+
+
+def _id(label: str) -> str:
+    return str(uuid.uuid5(_ID_NAMESPACE, label))
+
 
 def _make_qdrant_connector():
     url = os.environ.get("COMPAT_QDRANT_URL")
@@ -121,9 +130,10 @@ def test_upsert_and_search(connector):
     name, conn = connector
     from aperag.vectorstore.dto import QueryRequest
 
+    p1, p2 = _id("p1"), _id("p2")
     points = [
-        _point("p1", 0.1, indexer="vector", text="hello"),
-        _point("p2", 0.9, indexer="vector", text="world"),
+        _point(p1, 0.1, indexer="vector", text="hello"),
+        _point(p2, 0.9, indexer="vector", text="world"),
     ]
     conn.upsert(points)
 
@@ -135,8 +145,8 @@ def test_upsert_and_search(connector):
         )
     )
     assert len(hits) >= 1, f"[{name}] no search results"
-    ids = {h.id for h in hits}
-    assert "p1" in ids or "p2" in ids, f"[{name}] expected at least one hit"
+    ids = {str(h.id) for h in hits}
+    assert p1 in ids or p2 in ids, f"[{name}] expected at least one hit"
 
 
 def test_upsert_graph_entity_and_filter(connector):
@@ -145,9 +155,10 @@ def test_upsert_graph_entity_and_filter(connector):
     from aperag.vectorstore.dto import QueryRequest
     from aperag.vectorstore.filters import Eq
 
+    ge_e1, p_chunk = _id("ge_e1"), _id("p_chunk")
     points = [
-        _point("ge_e1", 0.5, indexer="graph_entity", entity_name="Alice", collection_id="test"),
-        _point("p_chunk", 0.5, indexer="vector", text="chunk text"),
+        _point(ge_e1, 0.5, indexer="graph_entity", entity_name="Alice", collection_id="test"),
+        _point(p_chunk, 0.5, indexer="vector", text="chunk text"),
     ]
     conn.upsert(points)
 
@@ -159,9 +170,9 @@ def test_upsert_graph_entity_and_filter(connector):
             score_threshold=0.0,
         )
     )
-    ids = {h.id for h in hits}
-    assert "ge_e1" in ids, f"[{name}] graph entity not found via filter"
-    assert "p_chunk" not in ids, f"[{name}] chunk vector should be excluded by filter"
+    ids = {str(h.id) for h in hits}
+    assert ge_e1 in ids, f"[{name}] graph entity not found via filter"
+    assert p_chunk not in ids, f"[{name}] chunk vector should be excluded by filter"
 
 
 def test_delete_by_filter(connector):
@@ -170,10 +181,11 @@ def test_delete_by_filter(connector):
     from aperag.vectorstore.dto import QueryRequest
     from aperag.vectorstore.filters import And, Eq
 
+    ge_del1, ge_del2, p_keep = _id("ge_del1"), _id("ge_del2"), _id("p_keep")
     points = [
-        _point("ge_del1", 0.3, indexer="graph_entity", collection_id="col1"),
-        _point("ge_del2", 0.3, indexer="graph_entity", collection_id="col2"),
-        _point("p_keep", 0.3, indexer="vector", collection_id="col1"),
+        _point(ge_del1, 0.3, indexer="graph_entity", collection_id="col1"),
+        _point(ge_del2, 0.3, indexer="graph_entity", collection_id="col2"),
+        _point(p_keep, 0.3, indexer="vector", collection_id="col1"),
     ]
     conn.upsert(points)
 
@@ -186,21 +198,22 @@ def test_delete_by_filter(connector):
             score_threshold=0.0,
         )
     )
-    ids = {h.id for h in hits}
-    assert "ge_del1" not in ids, f"[{name}] deleted vector still found"
-    assert "p_keep" in ids, f"[{name}] non-matching vector was deleted"
+    ids = {str(h.id) for h in hits}
+    assert ge_del1 not in ids, f"[{name}] deleted vector still found"
+    assert p_keep in ids, f"[{name}] non-matching vector was deleted"
 
 
 def test_retrieve_by_ids(connector):
     """retrieve() should return vectors by id."""
     name, conn = connector
+    ret1, ret2 = _id("ret1"), _id("ret2")
     points = [
-        _point("ret1", 0.2, indexer="vector", text="a"),
-        _point("ret2", 0.8, indexer="vector", text="b"),
+        _point(ret1, 0.2, indexer="vector", text="a"),
+        _point(ret2, 0.8, indexer="vector", text="b"),
     ]
     conn.upsert(points)
 
-    results = conn.retrieve(["ret1", "ret2"])
-    ids = {r.id for r in results}
-    assert "ret1" in ids, f"[{name}] ret1 not retrieved"
-    assert "ret2" in ids, f"[{name}] ret2 not retrieved"
+    results = conn.retrieve([ret1, ret2])
+    ids = {str(r.id) for r in results}
+    assert ret1 in ids, f"[{name}] ret1 not retrieved"
+    assert ret2 in ids, f"[{name}] ret2 not retrieved"

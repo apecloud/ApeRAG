@@ -42,64 +42,41 @@ from aperag.graphindex.dto import Chunk, Entity, Relation
 COLLECTION_ID = f"compat_test_{uuid.uuid4().hex[:8]}"
 
 # --- fixtures: one per backend -------------------------------------------
+#
+# IMPORTANT: backend stores / drivers are constructed *inside* the fixture,
+# not at module import time. pytest-asyncio is configured with
+# ``asyncio_default_fixture_loop_scope = "function"`` (see pyproject.toml),
+# so every test runs in a fresh event loop. Async drivers (neo4j's
+# AsyncGraphDatabase, SQLAlchemy's AsyncEngine) bind internal state to
+# whichever loop is running when they're created — so module-level
+# construction causes ``RuntimeError: Task attached to a different loop``
+# on every test after the first.
 
 
-def _make_pg_store():
-    url = os.environ.get("COMPAT_PG_URL")
-    if not url:
-        return None
-    from sqlalchemy.ext.asyncio import create_async_engine
-
-    from aperag.graphindex.storage.postgres import PostgresGraphStore
-
-    engine = create_async_engine(url, future=True)
-    return PostgresGraphStore(engine=engine), engine
+def _pg_available() -> bool:
+    return bool(os.environ.get("COMPAT_PG_URL"))
 
 
-def _make_neo4j_store():
-    uri = os.environ.get("COMPAT_NEO4J_URI")
-    if not uri:
-        return None
-    from aperag.graphindex.storage.neo4j import Neo4jGraphStore
-
-    return Neo4jGraphStore(
-        uri=uri,
-        username=os.environ.get("COMPAT_NEO4J_USER", "neo4j"),
-        password=os.environ.get("COMPAT_NEO4J_PASS", "password"),
-    ), None
+def _neo4j_available() -> bool:
+    return bool(os.environ.get("COMPAT_NEO4J_URI"))
 
 
-def _make_nebula_store():
-    hosts = os.environ.get("COMPAT_NEBULA_HOSTS")
-    if not hosts:
-        return None
-    from aperag.graphindex.storage.nebula import NebulaGraphStore
-
-    return NebulaGraphStore(
-        hosts=hosts,
-        username=os.environ.get("COMPAT_NEBULA_USER", "root"),
-        password=os.environ.get("COMPAT_NEBULA_PASS", "nebula"),
-        space_prefix="compat_test",
-    ), None
+def _nebula_available() -> bool:
+    return bool(os.environ.get("COMPAT_NEBULA_HOSTS"))
 
 
 _BACKENDS = {
-    "postgresql": _make_pg_store,
-    "neo4j": _make_neo4j_store,
-    "nebula": _make_nebula_store,
+    "postgresql": _pg_available,
+    "neo4j": _neo4j_available,
+    "nebula": _nebula_available,
 }
 
 
-def _available_backends():
-    available = []
-    for name, factory in _BACKENDS.items():
-        result = factory()
-        if result is not None:
-            available.append(pytest.param((name, result[0], result[1]), id=name))
-    return available
+def _available_backend_names():
+    return [pytest.param(name, id=name) for name, probe in _BACKENDS.items() if probe()]
 
 
-_available = _available_backends()
+_available = _available_backend_names()
 
 if not _available:
     pytestmark = pytest.mark.skip(
@@ -107,36 +84,85 @@ if not _available:
     )
 
 
+async def _build_pg_store():
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    from aperag.db.models import Base
+    from aperag.graphindex.models import CHUNKS_TABLE, EDGES_TABLE, NODES_TABLE
+    from aperag.graphindex.storage.postgres import PostgresGraphStore
+
+    engine = create_async_engine(os.environ["COMPAT_PG_URL"], future=True)
+
+    async with engine.begin() as conn:
+        for table in (NODES_TABLE, EDGES_TABLE, CHUNKS_TABLE):
+            await conn.execute(__import__("sqlalchemy").text(f"DROP TABLE IF EXISTS {table} CASCADE"))
+
+        def _create(sync_conn):
+            Base.metadata.tables[NODES_TABLE].create(sync_conn, checkfirst=True)
+            Base.metadata.tables[EDGES_TABLE].create(sync_conn, checkfirst=True)
+            Base.metadata.tables[CHUNKS_TABLE].create(sync_conn, checkfirst=True)
+
+        await conn.run_sync(_create)
+
+    store_obj = PostgresGraphStore(engine=engine)
+    return store_obj, engine
+
+
+def _build_neo4j_store():
+    from aperag.graphindex.storage.neo4j import Neo4jGraphStore
+
+    store_obj = Neo4jGraphStore(
+        uri=os.environ["COMPAT_NEO4J_URI"],
+        username=os.environ.get("COMPAT_NEO4J_USER", "neo4j"),
+        password=os.environ.get("COMPAT_NEO4J_PASS", "password"),
+    )
+    return store_obj, None
+
+
+def _build_nebula_store():
+    from aperag.graphindex.storage.nebula import NebulaGraphStore
+
+    store_obj = NebulaGraphStore(
+        hosts=os.environ["COMPAT_NEBULA_HOSTS"],
+        username=os.environ.get("COMPAT_NEBULA_USER", "root"),
+        password=os.environ.get("COMPAT_NEBULA_PASS", "nebula"),
+        space_prefix="compat_test",
+    )
+    return store_obj, None
+
+
 @pytest.fixture(params=_available if _available else [pytest.param(None, marks=pytest.mark.skip)])
 async def store(request):
-    """Yield a (backend_name, store) tuple. Clean up after test."""
-    name, store_obj, engine = request.param
+    """Yield a (backend_name, store) tuple. Construct per-test so async
+    drivers bind to the currently running event loop. Clean up after."""
+    name = request.param
 
-    # For PG: ensure tables exist
-    if name == "postgresql" and engine is not None:
-        from aperag.db.models import Base
-        from aperag.graphindex.models import CHUNKS_TABLE, EDGES_TABLE, NODES_TABLE
+    if name == "postgresql":
+        store_obj, engine = await _build_pg_store()
+    elif name == "neo4j":
+        store_obj, engine = _build_neo4j_store()
+    elif name == "nebula":
+        store_obj, engine = _build_nebula_store()
+    else:
+        pytest.skip(f"unknown backend: {name}")
 
-        async with engine.begin() as conn:
-            for table in (NODES_TABLE, EDGES_TABLE, CHUNKS_TABLE):
-                await conn.execute(__import__("sqlalchemy").text(f"DROP TABLE IF EXISTS {table} CASCADE"))
-
-            def _create(sync_conn):
-                Base.metadata.tables[NODES_TABLE].create(sync_conn, checkfirst=True)
-                Base.metadata.tables[EDGES_TABLE].create(sync_conn, checkfirst=True)
-                Base.metadata.tables[CHUNKS_TABLE].create(sync_conn, checkfirst=True)
-
-            await conn.run_sync(_create)
-
-    yield name, store_obj
-
-    # Cleanup
     try:
-        await store_obj.drop_collection(COLLECTION_ID)
-    except Exception:
-        pass
-    if name == "postgresql" and engine is not None:
-        await engine.dispose()
+        yield name, store_obj
+    finally:
+        try:
+            await store_obj.drop_collection(COLLECTION_ID)
+        except Exception:
+            pass
+        close = getattr(store_obj, "close", None)
+        if close is not None:
+            try:
+                result = close()
+                if hasattr(result, "__await__"):
+                    await result
+            except Exception:
+                pass
+        if engine is not None:
+            await engine.dispose()
 
 
 # --- deterministic test data ---------------------------------------------
