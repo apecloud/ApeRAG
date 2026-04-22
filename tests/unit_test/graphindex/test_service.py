@@ -177,7 +177,7 @@ async def test_index_document_wipes_existing_rows_before_extracting():
     await svc.index_document(collection_id="c", doc_id="d1", content="", file_path="")
     await svc.index_document(collection_id="c", doc_id="d1", content="", file_path="")
 
-    delete_calls = [i for i, (name, *_ ) in enumerate(store.calls) if name == "delete_document_rows"]
+    delete_calls = [i for i, (name, *_) in enumerate(store.calls) if name == "delete_document_rows"]
     assert len(delete_calls) == 2, f"expected two delete calls, saw {store.calls}"
     # Each delete must target the right (collection_id, doc_id)
     for idx in delete_calls:
@@ -185,33 +185,22 @@ async def test_index_document_wipes_existing_rows_before_extracting():
     # Any upsert for this doc must occur after at least one delete
     upsert_names = {"upsert_chunks", "upsert_entities", "upsert_relations"}
     first_delete_idx = delete_calls[0]
-    upsert_positions = [i for i, (name, *_ ) in enumerate(store.calls) if name in upsert_names]
+    upsert_positions = [i for i, (name, *_) in enumerate(store.calls) if name in upsert_names]
     if upsert_positions:
         assert min(upsert_positions) > first_delete_idx
 
 
 @pytest.mark.asyncio
-async def test_index_document_marks_collection_initialized_after_success():
-    """Every successful ``index_document`` must set the v2 marker so
-    the read path stops falling back to legacy LightRAG. The marker
-    call has to happen **after** the engine has returned — if it ran
-    before extraction, a failed first run would strand reads on v2
-    with zero data."""
+async def test_mark_collection_initialized_delegates_to_store():
+    """Collection-level rollout code must be able to flip the explicit
+    v2 marker through the facade without importing the store."""
     store = _StubStore()
     svc = GraphIndexService(store=store, llm=_null_llm)
 
-    await svc.index_document(collection_id="c-new", doc_id="d", content="", file_path="")
+    await svc.mark_collection_initialized(collection_id="c-new")
 
-    names_in_order = [c[0] for c in store.calls]
-    assert "mark_collection_initialized" in names_in_order
-    mark_idx = names_in_order.index("mark_collection_initialized")
-    delete_idx = names_in_order.index("delete_document_rows")
-    # Delete runs inside the facade before the engine; marker must
-    # come after both that and any upserts the engine emits.
-    assert mark_idx > delete_idx
-    for upsert_name in ("upsert_chunks", "upsert_entities", "upsert_relations"):
-        if upsert_name in names_in_order:
-            assert mark_idx > names_in_order.index(upsert_name)
+    assert ("mark_collection_initialized", ("c-new",), {}) in store.calls
+    assert await svc.is_v2_initialized(collection_id="c-new") is True
 
 
 # ---------------------------------------------------------------------------
@@ -242,15 +231,14 @@ async def test_cutover_gate_decoupled_from_graph_contents():
     must still report True so reads stay on v2 instead of silently
     falling back to legacy stale data.
 
-    The stub simulates this: a fresh ``index_document`` flips the
-    marker on regardless of whether any entities were upserted."""
+    The stub simulates this by flipping the marker explicitly without
+    requiring any entity rows to exist."""
     store = _StubStore()
     svc = GraphIndexService(store=store, llm=_null_llm)
 
-    # Run index_document with empty content — no chunks, no entities,
-    # no relations get upserted by the engine. But the marker flip
-    # in the facade still runs unconditionally on success.
-    await svc.index_document(collection_id="c-empty", doc_id="d", content="", file_path="")
+    # A collection-level rollout owner can explicitly cut the
+    # collection over to v2 even when the graph is still empty.
+    await svc.mark_collection_initialized(collection_id="c-empty")
 
     # The collection is now "on v2" even though no data landed in the
     # graph tables.

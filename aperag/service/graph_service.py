@@ -40,13 +40,13 @@ class GraphService:
     async def get_graph_labels(self, user_id: str, collection_id: str) -> view_models.GraphLabelsResponse:
         """Get available node labels in the knowledge graph.
 
-        Cutover-safe: reads v2 once the collection has been initialised
-        on v2 (explicit marker in ``graphindex_collection_state``);
-        falls back to legacy LightRAG otherwise. Collections indexed
-        before v2 shipped therefore keep working until the user
-        triggers re-index. A v2 collection with a legitimately empty
-        graph still reads from v2 — it does **not** silently route
-        back to stale legacy data.
+        Cutover-safe: reads v2 once the collection has been explicitly
+        cut over on v2 (marker in ``graphindex_collection_state``);
+        falls back to legacy LightRAG otherwise. Old collections can
+        therefore stay on legacy truth until collection-level migration
+        is complete. A v2 collection with a legitimately empty graph
+        still reads from v2 — it does **not** silently route back to
+        stale legacy data.
         """
         db_collection = await self._get_and_validate_collection(user_id, collection_id)
 
@@ -99,10 +99,10 @@ class GraphService:
     ) -> Dict[str, Any]:
         """Get knowledge graph subgraph for UI display.
 
-        Cutover-safe: reads v2 once the collection has been initialised
-        on v2 (explicit marker), falls back to legacy LightRAG
-        otherwise. A v2 collection with an empty graph is still
-        served from v2 rather than routed back to stale legacy data.
+        Cutover-safe: reads v2 once the collection has been explicitly
+        cut over on v2 (explicit marker), falls back to legacy LightRAG
+        otherwise. A v2 collection with an empty graph is still served
+        from v2 rather than routed back to stale legacy data.
         """
         db_collection = await self._get_and_validate_collection(user_id, collection_id)
 
@@ -146,9 +146,7 @@ class GraphService:
         # If overview mode produced more than the user asked for, run the
         # degree-based picker; otherwise pass through.
         if normalized_label is None and len(raw_nodes) > max_nodes:
-            optimized_nodes, optimized_edges = self._optimize_graph_for_visualization(
-                raw_nodes, raw_edges, max_nodes
-            )
+            optimized_nodes, optimized_edges = self._optimize_graph_for_visualization(raw_nodes, raw_edges, max_nodes)
             is_truncated = True
         else:
             optimized_nodes = raw_nodes

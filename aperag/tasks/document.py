@@ -54,6 +54,76 @@ class DocumentIndexTask:
             local_doc_info=local_doc_info,
         )
 
+    def _is_graph_v2_collection(self, collection) -> bool:
+        """Return True only when the collection has been explicitly cut
+        over to graphindex v2 as its source of truth."""
+        from aperag.graphindex.integration import run_is_v2_initialized_sync
+
+        return run_is_v2_initialized_sync(str(collection.id))
+
+    def _run_graphindex_rebuild(self, document_id: str, collection, parsed_data: ParsedDocumentData) -> dict:
+        from aperag.graphindex.integration import run_index_document_sync
+
+        res = run_index_document_sync(
+            collection=collection,
+            doc_id=document_id,
+            content=parsed_data.content,
+            file_path=parsed_data.file_path,
+        )
+        return {
+            "status": "success",
+            "doc_id": res.doc_id,
+            "chunks_created": res.chunks_created,
+            "entities_extracted": res.entities_extracted,
+            "relations_extracted": res.relations_extracted,
+        }
+
+    def _run_legacy_graph_rebuild(self, document_id: str, collection, parsed_data: ParsedDocumentData) -> dict:
+        from aperag.graph.lightrag_manager import process_document_for_celery
+
+        return process_document_for_celery(
+            collection=collection,
+            content=parsed_data.content,
+            doc_id=document_id,
+            file_path=parsed_data.file_path,
+        )
+
+    def _run_graph_delete(self, document_id: str, collection) -> None:
+        from aperag.graphindex.integration import run_delete_document_sync
+
+        run_delete_document_sync(collection=collection, doc_id=document_id)
+
+    def _run_legacy_graph_delete(self, document_id: str, collection) -> None:
+        from aperag.graph.lightrag_manager import delete_document_for_celery
+
+        delete_document_for_celery(collection=collection, doc_id=document_id)
+
+    def _upsert_graph_index(self, document_id: str, collection, parsed_data: ParsedDocumentData) -> dict:
+        use_v2_truth = self._is_graph_v2_collection(collection)
+        if use_v2_truth:
+            return self._run_graphindex_rebuild(document_id, collection, parsed_data)
+
+        # Old collections stay on legacy truth until an explicit
+        # collection-level cutover. While they are still legacy-backed,
+        # mirror every write into v2 as shadow state so current reads
+        # stay correct and future migration tooling does not lose new
+        # work that happened after the PR landed.
+        legacy_result = self._run_legacy_graph_rebuild(document_id, collection, parsed_data)
+        self._run_graphindex_rebuild(document_id, collection, parsed_data)
+        return legacy_result
+
+    def _delete_graph_index(self, document_id: str, collection) -> None:
+        use_v2_truth = self._is_graph_v2_collection(collection)
+        if use_v2_truth:
+            self._run_graph_delete(document_id, collection)
+            return
+
+        # Same rule as writes: keep legacy truth correct until explicit
+        # collection-level cutover, but delete from the v2 shadow too so
+        # future migration does not resurrect already-removed docs.
+        self._run_legacy_graph_delete(document_id, collection)
+        self._run_graph_delete(document_id, collection)
+
     def create_index(self, document_id: str, index_type: str, parsed_data: ParsedDocumentData) -> IndexTaskResult:
         """
         Create a single index for a document using parsed data
@@ -109,24 +179,7 @@ class DocumentIndexTask:
                     logger.info(f"Graph indexing disabled for document {document_id}")
                     result_data = {"success": True, "message": "Graph indexing disabled"}
                 else:
-                    # graphindex v2 sync entry point — replaces the v1
-                    # ``process_document_for_celery`` path. See
-                    # ``docs/zh-CN/design/graphindex_rewrite.md``.
-                    from aperag.graphindex.integration import run_index_document_sync
-
-                    res = run_index_document_sync(
-                        collection=collection,
-                        doc_id=document_id,
-                        content=parsed_data.content,
-                        file_path=parsed_data.file_path,
-                    )
-                    result_data = {
-                        "status": "success",
-                        "doc_id": res.doc_id,
-                        "chunks_created": res.chunks_created,
-                        "entities_extracted": res.entities_extracted,
-                        "relations_extracted": res.relations_extracted,
-                    }
+                    result_data = self._upsert_graph_index(document_id, collection, parsed_data)
 
             elif index_type == DocumentIndexType.SUMMARY.value:
                 from aperag.index.summary_index import summary_indexer
@@ -217,12 +270,7 @@ class DocumentIndexTask:
                 from aperag.index.graph_index import graph_indexer
 
                 if graph_indexer.is_enabled(collection):
-                    # graphindex v2 sync delete. Pure data-wipe; on
-                    # failure the exception bubbles up so Celery's retry
-                    # policy can apply uniformly.
-                    from aperag.graphindex.integration import run_delete_document_sync
-
-                    run_delete_document_sync(collection=collection, doc_id=document_id)
+                    self._delete_graph_index(document_id, collection)
 
             elif index_type == DocumentIndexType.SUMMARY.value:
                 from aperag.index.summary_index import summary_indexer
@@ -305,24 +353,7 @@ class DocumentIndexTask:
                     logger.info(f"Graph indexing disabled for document {document_id}")
                     result_data = {"success": True, "message": "Graph indexing disabled"}
                 else:
-                    # graphindex v2 sync entry point — replaces the v1
-                    # ``process_document_for_celery`` path. See
-                    # ``docs/zh-CN/design/graphindex_rewrite.md``.
-                    from aperag.graphindex.integration import run_index_document_sync
-
-                    res = run_index_document_sync(
-                        collection=collection,
-                        doc_id=document_id,
-                        content=parsed_data.content,
-                        file_path=parsed_data.file_path,
-                    )
-                    result_data = {
-                        "status": "success",
-                        "doc_id": res.doc_id,
-                        "chunks_created": res.chunks_created,
-                        "entities_extracted": res.entities_extracted,
-                        "relations_extracted": res.relations_extracted,
-                    }
+                    result_data = self._upsert_graph_index(document_id, collection, parsed_data)
 
             elif index_type == DocumentIndexType.SUMMARY.value:
                 from aperag.index.summary_index import summary_indexer

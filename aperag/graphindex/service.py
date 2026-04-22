@@ -116,7 +116,7 @@ class GraphIndexService:
         # source_chunk_ids to monotonically grow on every re-index.
         await self._store.delete_document_rows(collection_id=collection_id, doc_id=doc_id)
 
-        result = await index_document(
+        return await index_document(
             store=self._store,
             llm=self._llm,
             config=self._config,
@@ -125,17 +125,6 @@ class GraphIndexService:
             content=content,
             file_path=file_path,
         )
-
-        # Flip the cutover marker after the indexing engine has
-        # returned. Placing the call here (not before extraction)
-        # means a collection is only considered "on v2" after at
-        # least one successful round-trip, so a failed first index
-        # cannot silently strand reads on v2 while no data exists.
-        # The call is idempotent; every subsequent index_document
-        # on the same collection is a cheap no-op.
-        await self._store.mark_collection_initialized(collection_id)
-
-        return result
 
     async def delete_document(self, *, collection_id: str, doc_id: str) -> DeleteDocumentResult:
         """Remove every row that exists *only* because of ``doc_id``.
@@ -151,6 +140,20 @@ class GraphIndexService:
         """Wipe the whole collection. Called when the user deletes the
         ApeRAG collection itself (not an individual document)."""
         await self._store.drop_collection(collection_id)
+
+    async def mark_collection_initialized(self, *, collection_id: str) -> None:
+        """Explicitly cut the collection over to v2.
+
+        This is intentionally **not** tied to a single document write.
+        A collection-level truth switch must only happen when the caller
+        knows the collection is safe to read from v2 as a whole: for
+        example, a brand-new collection created after the rollout, or a
+        future full-collection migration job that has finished re-indexing
+        every document. Keeping the flip explicit avoids the mixed-state
+        bug where one doc landing in v2 makes the whole collection stop
+        seeing legacy-only documents.
+        """
+        await self._store.mark_collection_initialized(collection_id)
 
     # ============================================================= read
     async def query_context(
@@ -199,15 +202,20 @@ class GraphIndexService:
         return GraphContext(text=text, entities=entities, relations=relations, chunks=chunks)
 
     async def is_v2_initialized(self, *, collection_id: str) -> bool:
-        """Cutover gate: has this collection ever been indexed on v2?
+        """Cutover gate: should this collection read from v2?
 
-        ``True`` after the first successful ``index_document`` for the
-        collection — set via an explicit marker row, not derived from
-        ``graphindex_nodes`` content. This distinction matters: a
-        collection can legitimately be on v2 with an empty graph
-        (extraction produced zero entities, or the user deleted every
-        document). The business layer must continue to read v2 in
-        that case, not silently fall back to legacy LightRAG.
+        The marker is explicit collection-level rollout state, not
+        "did some single document happen to index into v2". This
+        distinction matters twice:
+
+        1. A collection can legitimately be on v2 with an empty graph
+           (zero-entity extraction, or every document later deleted).
+           The business layer must continue to read v2 in that case,
+           not silently fall back to stale legacy data.
+        2. An old collection can be partially re-indexed. A single
+           doc landing in v2 must not flip the whole collection away
+           from the remaining legacy truth until a caller explicitly
+           completes the collection-level cutover.
 
         Kept on the service (not the store) so callers never need to
         import the store directly — the facade stays the single

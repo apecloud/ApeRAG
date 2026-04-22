@@ -65,6 +65,16 @@ class CollectionTask:
             # Initialize fulltext index
             self._initialize_fulltext_index(collection_id)
 
+            # Brand-new collections are safe to cut over to v2 as a
+            # whole: they have no pre-existing LightRAG truth to
+            # preserve. Old collections reach this marker through an
+            # explicit migration flow, not through doc-level writes.
+            config = parseCollectionConfig(collection.config)
+            if config.enable_knowledge_graph:
+                from aperag.graphindex.integration import run_mark_collection_initialized_sync
+
+                run_mark_collection_initialized_sync(str(collection.id))
+
             # Update collection status
             collection.status = CollectionStatus.ACTIVE
             db_ops.update_collection(collection)

@@ -5,10 +5,11 @@ Revises: d4e5f6a7b8c9
 Create Date: 2026-04-22 17:00:00.000000
 
 Adds ``graphindex_collection_state``, the explicit per-collection
-"this collection is on v2" marker. A row is inserted the first time
-``GraphIndexService.index_document`` completes for the collection;
-its presence is the signal the business layer uses to route reads
-to v2 vs. fall back to legacy LightRAG.
+"this collection is on v2" marker. The row is written only by
+collection-level rollout code (for example new-collection bootstrap or
+a future full migration tool), and its presence is the signal the
+business layer uses to route reads to v2 vs. fall back to legacy
+LightRAG.
 
 Having an explicit marker decouples rollout state from data content:
 a collection that has been migrated to v2 but whose graph is
@@ -19,7 +20,7 @@ full rationale.
 
 No data migration: existing collections have no marker row, so
 they correctly keep reading through the legacy fallback path until
-the user runs a v2 re-index.
+an explicit collection-level cutover occurs.
 """
 
 from typing import Sequence, Union

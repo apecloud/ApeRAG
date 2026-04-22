@@ -20,12 +20,13 @@ discriminator:
 * ``graphindex_nodes``            — entities
 * ``graphindex_edges``            — relations (directed)
 * ``graphindex_chunks``           — source chunks, for citation and re-ingest
-* ``graphindex_collection_state`` — explicit "this collection is on v2" marker
+* ``graphindex_collection_state`` — explicit collection-level v2 cutover marker
 
 The first three hold graph data. The fourth is the cutover flag: a
-single row per collection, written the first time ``index_document``
-succeeds, read by the facade to decide whether a given collection's
-business reads should go to v2 or fall back to legacy LightRAG.
+single row per collection, written only when collection-level rollout
+code explicitly flips that collection to v2, read by the facade to
+decide whether business reads should go to v2 or fall back to legacy
+LightRAG.
 
 Why a dedicated marker table rather than "is there at least one
 ``graphindex_nodes`` row?": a valid v2 run can legitimately produce
@@ -34,7 +35,8 @@ pruned when their sole source document is deleted). Deriving cutover
 state from data presence would misread "v2, empty graph" as "not on
 v2 yet" and route those reads to stale legacy data — the very
 split-brain this module is supposed to eliminate. The marker row is
-**rollout state**, not **data content**, so it has to live separately.
+therefore **collection-level rollout state**, not **data content**, so
+it has to live separately.
 
 Table names share the ``graphindex_`` prefix so any cross-tenant
 "purge everything for collection X" operation can target them as a
@@ -155,7 +157,7 @@ class GraphIndexChunk(Base):
 
 
 class GraphIndexCollectionState(Base):
-    """Explicit "this collection is on v2" marker.
+    """Explicit collection-level "v2 is the source of truth" marker.
 
     Presence of a row is the cutover signal for the read path: with a
     row, the facade routes labels / subgraph / graph search to v2;

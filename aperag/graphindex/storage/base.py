@@ -111,14 +111,18 @@ class GraphStore(Protocol):
         """
 
     async def mark_collection_initialized(self, collection_id: str) -> None:
-        """Flip the "this collection is on v2" marker on.
+        """Flip the collection-level "v2 is the source of truth" marker on.
 
-        Called by ``GraphIndexService.index_document`` once extraction
-        has finished successfully. Idempotent — repeated calls are
-        no-ops (``ON CONFLICT DO NOTHING``). Once set, the marker
-        stays until ``drop_collection`` wipes the collection wholesale;
-        it is **not** cleared by per-document deletes, because "this
-        collection is on v2" is rollout state, not data content.
+        Called only by code that owns collection-level rollout, such as
+        new-collection bootstrap or a future full-collection migration
+        tool. It must NOT be tied to a single document write, otherwise
+        a partially migrated legacy collection flips too early and loses
+        visibility of still-legacy documents. Idempotent — repeated
+        calls are no-ops (``ON CONFLICT DO NOTHING``). Once set, the
+        marker stays until ``drop_collection`` wipes the collection
+        wholesale; it is **not** cleared by per-document deletes,
+        because "this collection is on v2" is rollout state, not data
+        content.
         """
 
     async def is_collection_initialized(self, collection_id: str) -> bool:
@@ -128,10 +132,10 @@ class GraphStore(Protocol):
         ``True`` result routes reads to v2, ``False`` routes them to
         the legacy LightRAG fallback. The gate is deliberately
         independent of ``graphindex_nodes`` content — a collection
-        that has been migrated to v2 but whose graph is legitimately
-        empty (zero-entity extraction, or all docs later deleted)
-        must still read from v2, not from stale legacy data. See
-        ``graphindex/models.py`` for the full rationale.
+        that has been explicitly cut over to v2 but whose graph is
+        legitimately empty (zero-entity extraction, or all docs later
+        deleted) must still read from v2, not from stale legacy data.
+        See ``graphindex/models.py`` for the full rationale.
 
         Cheap existence check (``SELECT 1 ... LIMIT 1`` against a
         primary-key index).
