@@ -26,6 +26,7 @@ from aperag.docparser.base import Part
 from aperag.docparser.chunking import rechunk
 from aperag.utils.tokenizer import get_default_tokenizer
 from aperag.vectorstore.connector import VectorStoreConnectorAdaptor
+from aperag.vectorstore.llama_index_adapter import nodes_to_vector_points
 
 logger = logging.getLogger(__name__)
 
@@ -128,5 +129,9 @@ def create_embeddings_and_store(
         nodes[i].embedding = vectors[i]
 
     logger.info(f"processed document with {len(parts)} parts and {len(vectors)} chunks")
-    # 5. Add nodes to vector store and return results
-    return vector_store_adaptor.connector.store.add(nodes)
+    # 5. Convert LlamaIndex nodes to backend-neutral VectorPoints and upsert.
+    # ``nodes_to_vector_points`` stamps ``metadata.collection_id`` as a
+    # defense-in-depth fallback when callers forgot to — preserves the
+    # old auto-injection behavior that this function used to do inline.
+    points = nodes_to_vector_points(nodes, tenant_id=tenant_id)
+    return vector_store_adaptor.connector.upsert(points)

@@ -281,12 +281,17 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
   /**
    * Watch embeddingModelName
    * When the embedding model name is changed, synchronize changes to other model parameters.
+   * In edit mode the embedding binding is immutable (backend rejects changes), so we
+   * keep whatever values the collection already has and skip the auto-synchronisation
+   * to avoid accidentally overwriting them with a default when the current model is
+   * no longer present in the available models list.
    */
   const embeddingModelName = useWatch({
     control: form.control,
     name: 'config.embedding.model',
   });
   useEffect(() => {
+    if (action === 'edit') return;
     if (_.isEmpty(embeddingModels)) return;
 
     let defaultModel: ModelSpec | undefined;
@@ -320,7 +325,7 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
       'config.embedding.model',
       currentModel?.model || defaultModel?.model || '',
     );
-  }, [embeddingModelName, embeddingModels, form]);
+  }, [action, embeddingModelName, embeddingModels, form]);
 
   /**
    * load models
@@ -473,46 +478,66 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
               <FormField
                 control={form.control}
                 name="config.embedding.model"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{page_collections('embedding_model')}</FormLabel>
-                    <FormControl className="ml-auto">
-                      <Select
-                        {...field}
-                        onValueChange={field.onChange}
-                        value={field.value || ''}
-                      >
-                        <SelectTrigger className="w-full cursor-pointer md:w-6/12">
-                          <SelectValue placeholder="Select a model" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {embeddingModels
-                            ?.filter((item) => _.size(item.models))
-                            .map((item) => {
-                              return (
-                                <SelectGroup key={item.name}>
-                                  <SelectLabel>{item.label}</SelectLabel>
-                                  {item.models?.map((model) => {
-                                    return (
-                                      <SelectItem
-                                        key={model.model}
-                                        value={model.model || ''}
-                                      >
-                                        {model.model}
-                                      </SelectItem>
-                                    );
-                                  })}
-                                </SelectGroup>
-                              );
-                            })}
-                        </SelectContent>
-                      </Select>
-                    </FormControl>
-                    <FormDescription>
-                      {page_collections('embedding_model_description')}
-                    </FormDescription>
-                  </FormItem>
-                )}
+                render={({ field }) => {
+                  const embeddingLocked = action === 'edit';
+                  return (
+                    <FormItem>
+                      <FormLabel>
+                        {page_collections('embedding_model')}
+                        {embeddingLocked && (
+                          <Badge variant="secondary" className="ml-2">
+                            {page_collections('embedding_model_locked_badge')}
+                          </Badge>
+                        )}
+                      </FormLabel>
+                      <FormControl className="ml-auto">
+                        <Select
+                          {...field}
+                          onValueChange={field.onChange}
+                          value={field.value || ''}
+                          disabled={embeddingLocked}
+                        >
+                          <SelectTrigger
+                            className={cn(
+                              'w-full md:w-6/12',
+                              embeddingLocked
+                                ? 'cursor-not-allowed opacity-70'
+                                : 'cursor-pointer',
+                            )}
+                          >
+                            <SelectValue placeholder="Select a model" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {embeddingModels
+                              ?.filter((item) => _.size(item.models))
+                              .map((item) => {
+                                return (
+                                  <SelectGroup key={item.name}>
+                                    <SelectLabel>{item.label}</SelectLabel>
+                                    {item.models?.map((model) => {
+                                      return (
+                                        <SelectItem
+                                          key={model.model}
+                                          value={model.model || ''}
+                                        >
+                                          {model.model}
+                                        </SelectItem>
+                                      );
+                                    })}
+                                  </SelectGroup>
+                                );
+                              })}
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <FormDescription>
+                        {embeddingLocked
+                          ? page_collections('embedding_model_locked_description')
+                          : page_collections('embedding_model_description')}
+                      </FormDescription>
+                    </FormItem>
+                  );
+                }}
               />
 
               <Separator />

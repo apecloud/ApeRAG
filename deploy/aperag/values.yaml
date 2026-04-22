@@ -154,6 +154,15 @@ api:
     QDRANT_MMAP_THRESHOLD_KB: "20480"
     QDRANT_VECTORS_ON_DISK: "True"
     QDRANT_ON_DISK_PAYLOAD: "True"
+    # pgvector knobs. Leave PGVECTOR_DATABASE_URL empty to reuse the
+    # main ApeRAG PostgreSQL (recommended for small-to-medium private
+    # deployments — one fewer component to operate). Switch by setting
+    # VECTOR_DB_TYPE=pgvector. Refer to docs/zh-CN/design/
+    # vector_db_abstraction.md for sizing / trade-off guidance.
+    PGVECTOR_DATABASE_URL: ""
+    PGVECTOR_HNSW_M: "16"
+    PGVECTOR_HNSW_EF_CONSTRUCTION: "64"
+    PGVECTOR_HNSW_EF_SEARCH: "40"
     # Object Store
     OBJECT_STORE_TYPE: local
     OBJECT_STORE_LOCAL_ROOT_DIR: /data/objects

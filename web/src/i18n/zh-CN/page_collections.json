@@ -71,6 +71,8 @@
 
   "embedding_model": "嵌入模型（Embedding Model）",
   "embedding_model_description": "嵌入模型能够将数据转换为数值向量，这些向量能够捕捉数据的语义信息及其相互关系。",
+  "embedding_model_locked_badge": "创建后不可修改",
+  "embedding_model_locked_description": "嵌入模型在 Collection 创建后不可修改。不同嵌入模型产生的向量维度或语义分布不兼容，切换会导致原有向量变为孤儿数据、检索失效。如需使用其他模型，请新建 Collection 并重新导入文档。",
 
   "completion_model": "补全模型（Completion Model）",
   "completion_model_description": "补全模型能根据给定输入预测最可能的下文内容，从而生成新的文本。",

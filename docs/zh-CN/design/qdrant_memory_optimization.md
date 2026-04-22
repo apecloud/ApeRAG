@@ -182,17 +182,11 @@ Qdrant 为此专门提供了三项能力，缺一不可：
    }
   ```
    `is_tenant: true` 是 Qdrant **1.11+** 引入的特殊标记（[官方发布说明](https://qdrant.tech/blog/qdrant-1.11.x/)）。打开后，Qdrant 的 optimizer 会**按照 tenant 字段对点进行物理分组存储**（tenant 相同的点会被尽量放在同一个 segment 内），查询时相当于只扫描对应 tenant 的子集，性能和独立 collection 几乎等价。
-
    **⚠️ 版本兼容**：生产现在的 Qdrant 是 **1.10.0**，不支持 `is_tenant`。连接器在 `aperag/vectorstore/qdrant_connector.py::_ensure_tenant_payload_index` 里采用了兜底策略：优先尝试 `is_tenant=True`，失败时降级为普通 keyword 索引。在 1.10 上：
-   - ✅ payload filter 本身完全工作，租户隔离语义严格成立；
-   - ✅ "1847 个 collection → 1 个" 的合并收益完全拿到（~3–5 GiB 的 RocksDB 实例开销立刻消失）；
-   - ❌ segment 级 defragmentation 不会生效，tenant 点会混存在同一批 segment 中，查询时 HNSW 需要跨更多"别人的"节点。预期 p95 查询延迟有几十百分比的退化（退化量随全局 collection 的总点数线性增长）。
-
+  - ✅ payload filter 本身完全工作，租户隔离语义严格成立；
+  - ✅ "1847 个 collection → 1 个" 的合并收益完全拿到（~3–5 GiB 的 RocksDB 实例开销立刻消失）；
+  - ❌ segment 级 defragmentation 不会生效，tenant 点会混存在同一批 segment 中，查询时 HNSW 需要跨更多"别人的"节点。预期 p95 查询延迟有几十百分比的退化（退化量随全局 collection 的总点数线性增长）。
    **强烈建议**：把 Qdrant server 从 1.10.0 升到 1.11.x（或 1.12.x）作为本次停服窗口的一部分。升级只需改镜像 tag，不涉及数据迁移。升上去后，新建 collection 自动带 is_tenant 优化；**已有的全局 collection 上的索引不会自动升级**——需要在升级后重建索引：
-   ```sh
-   curl -X DELETE  $QDRANT/collections/aperag_vectors_1024_cosine/index/collection_id
-   # 重启任意 ApeRAG 进程，其连接器启动时会检测不存在，自动用 is_tenant=True 重建
-   ```
 
 ##### B.1.2 查询时的过滤模板
 
@@ -231,15 +225,15 @@ hits = client.query_points(
 
 1. **停服**：停掉 apiserver / celery worker / beat，Qdrant 仍然运行。
 2. **迁移**：跑 `scripts/migrate_qdrant_multitenancy.py`：
-   - 自动枚举所有 `col<hex>` 源 collection，跳过孤儿（DB 里查不到的）；
-   - 为每个 `(vector_size, distance)` 组合创建 `aperag_vectors_{size}_{distance}` 全局 collection，写入完整配置（INT8 量化 / HNSW on_disk / 2 segments / mmap 阈值 / tenant index）；
-   - scroll 源 collection 所有点，把 `payload.collection_id = <源 collection 名>` 注入后 upsert 进全局 collection；
-   - **默认不删源 collection**，需要显式 `--delete-old` 或第二阶段 `--only-delete`；
+  - 自动枚举所有 `col<hex>` 源 collection，跳过孤儿（DB 里查不到的）；
+  - 为每个 `(vector_size, distance)` 组合创建 `aperag_vectors_{size}_{distance}` 全局 collection，写入完整配置（INT8 量化 / HNSW on_disk / 2 segments / mmap 阈值 / tenant index）；
+  - scroll 源 collection 所有点，把 `payload.collection_id = <源 collection 名>` 注入后 upsert 进全局 collection；
+  - **默认不删源 collection**，需要显式 `--delete-old` 或第二阶段 `--only-delete`；
 3. **发布新版代码**，默认 `QDRANT_MULTITENANT=True`。
 4. **观察 24 h**：读路径（document chunks / search / retrieve）、写路径（新建 collection、新上传文档）都正常后；
 5. **清理**：再跑一次 `--only-delete` 把老的 `col<hex>` collection 删除。
 
-> **⚠️ 单向门警告**：一旦新版代码接收任何新写入（新建 collection、新上传文档、新 chat 产生的 chunk），`QDRANT_MULTITENANT` **不能简单切回 `False` 就算回滚**——那期间写入的新点只在 `aperag_vectors_*` 里，legacy 模式下看不到；同期新建的 ApeRAG Collection 也不会有对应的 `col<hex>` 物理 collection。如果必须回滚，需要反向迁移（从全局 collection 按 `collection_id` scroll 回每个 `col<hex>`）——这段逻辑目前**未实现**。所以：回滚窗口 = 新版代码上线到接收第一笔新写入之间的那几分钟。如果发现问题必须在窗口内决策。
+> **⚠️ 单向门警告**：一旦新版代码接收任何新写入（新建 collection、新上传文档、新 chat 产生的 chunk），`QDRANT_MULTITENANT` **不能简单切回 `False` 就算回滚**——那期间写入的新点只在 `aperag_vectors`_* 里，legacy 模式下看不到；同期新建的 ApeRAG Collection 也不会有对应的 `col<hex>` 物理 collection。如果必须回滚，需要反向迁移（从全局 collection 按 `collection_id` scroll 回每个 `col<hex>`）——这段逻辑目前**未实现**。所以：回滚窗口 = 新版代码上线到接收第一笔新写入之间的那几分钟。如果发现问题必须在窗口内决策。
 
 > **另一个单向影响**：是否在停服窗口里把 Qdrant server 顺带从 1.10.0 升到 1.11.x 也是一次决策——见 B.1.1。升级一次就回不去了（KubeBlocks qdrant 0.9.1 支持任意 tag 切换，但数据文件在 1.11 上会被 optimizer 重排）。
 
@@ -304,18 +298,15 @@ qdrant_default_segment_number: int = Field(2, alias="QDRANT_DEFAULT_SEGMENT_NUMB
 
 然后在两处 values 里把默认值同步过去：
 
-1. **`deploy/aperag/values.yaml`**（当前仓库）：在 `vars` 段追加：
-
-   ```yaml
+1. `**deploy/aperag/values.yaml**`（当前仓库）：在 `vars` 段追加：
+  ```yaml
    QDRANT_ENABLE_QUANTIZATION: "true"
    QDRANT_QUANTIZATION_TYPE: "int8"
    QDRANT_HNSW_ON_DISK: "true"
    QDRANT_DEFAULT_SEGMENT_NUMBER: "2"
-   ```
-
-2. **`apecloud/aperag-values`**（独立仓库，生产部署用）：同步上面四个环境变量；Qdrant 子 chart 的 server-side 配置（`deploy/databases/qdrant/values.yaml` 等价项）也要加：
-
-   ```yaml
+  ```
+2. `**apecloud/aperag-values**`（独立仓库，生产部署用）：同步上面四个环境变量；Qdrant 子 chart 的 server-side 配置（`deploy/databases/qdrant/values.yaml` 等价项）也要加：
+  ```yaml
    extra:
      config:
        storage:
@@ -326,11 +317,10 @@ qdrant_default_segment_number: int = Field(2, alias="QDRANT_DEFAULT_SEGMENT_NUMB
            on_disk: true
          wal:
            wal_capacity_mb: 8
-   ```
-
-   > aperag-values 仓库的 PR 需要和本仓库的 Settings/connector 代码改动**同步发版**，避免应用开了量化但旧 Qdrant 不支持的问题。
-   >
-   > **Qdrant 版本要求**：INT8 量化 / HNSW on_disk / 2 segments / mmap threshold 这些选项 **1.10.0 全部支持**，无需升级。但多租户 **`is_tenant=True`** 需要 **1.11+**；生产 1.10.0 会被连接器自动降级为普通 keyword 索引——功能正确但失去 segment 级 defragmentation。**建议在本次停服窗口里把 Qdrant 也升到 1.11+**（只改镜像 tag，无数据迁移），或在下一次停服窗口里升，并接受 1.11 之前的查询延迟退化。详见 B.1.1 的版本兼容说明。
+  ```
+  > aperag-values 仓库的 PR 需要和本仓库的 Settings/connector 代码改动**同步发版**，避免应用开了量化但旧 Qdrant 不支持的问题。
+  >
+  > **Qdrant 版本要求**：INT8 量化 / HNSW on_disk / 2 segments / mmap threshold 这些选项 **1.10.0 全部支持**，无需升级。但多租户 `**is_tenant=True`** 需要 **1.11+**；生产 1.10.0 会被连接器自动降级为普通 keyword 索引——功能正确但失去 segment 级 defragmentation。**建议在本次停服窗口里把 Qdrant 也升到 1.11+**（只改镜像 tag，无数据迁移），或在下一次停服窗口里升，并接受 1.11 之前的查询延迟退化。详见 B.1.1 的版本兼容说明。
 
 #### C.2 其他零散优化
 
@@ -376,21 +366,25 @@ qdrant_default_segment_number: int = Field(2, alias="QDRANT_DEFAULT_SEGMENT_NUMB
 
 ### 基线（清理前）
 
-| 项 | 值 |
-|---|---|
-| Qdrant collection 总数 | **1847** |
-| PG `status='ACTIVE'` | 2003（其中 1833 已在 Qdrant、170 尚未上传文档） |
-| PG `status='DELETED'` | 179（其中 165 早就不在 Qdrant，仅 14 条残留） |
+
+| 项                      | 值                                                         |
+| ---------------------- | --------------------------------------------------------- |
+| Qdrant collection 总数   | **1847**                                                  |
+| PG `status='ACTIVE'`   | 2003（其中 1833 已在 Qdrant、170 尚未上传文档）                        |
+| PG `status='DELETED'`  | 179（其中 165 早就不在 Qdrant，仅 14 条残留）                          |
 | Qdrant `qdrant` 容器 RSS | **12 517 MiB**（约 12.2 GiB，`kubectl top pod --containers`） |
+
 
 ### 待删清单分类
 
 严格按 `IN_QDRANT \ ACTIVE_IN_PG` 计算，共 **14** 条，全部来源于 PG `status='DELETED'`：
 
-| 分类 | 数量 |
-|---|---|
+
+| 分类                                     | 数量     |
+| -------------------------------------- | ------ |
 | DELETED 来源（PG 标记 DELETED 但 Qdrant 仍残留） | **14** |
-| 孤儿来源（Qdrant 有、PG 完全查不到） | **0** |
+| 孤儿来源（Qdrant 有、PG 完全查不到）                | **0**  |
+
 
 完整列表：
 
@@ -405,20 +399,24 @@ colc49a291371cc17fc  colf67799b2b73f391e
 
 通过 `kubectl port-forward qdrant-cluster-qdrant-0 16333:6333` + `curl -X DELETE http://localhost:16333/collections/{name}` 逐条删除，串行、无并发，完成后关闭 port-forward。
 
-| 项 | 值 |
-|---|---|
-| 发起 DELETE 请求数 | 14 |
-| HTTP 200 且 `result=true` | 13 |
+
+| 项                                                           | 值                           |
+| ----------------------------------------------------------- | --------------------------- |
+| 发起 DELETE 请求数                                               | 14                          |
+| HTTP 200 且 `result=true`                                    | 13                          |
 | HTTP 200 但 `result=false`（Qdrant 端 "collection 已不存在" 的幂等响应） | 1（首条 `col234abe498124212b`） |
-| 真实失败（HTTP 非 200） | **0** |
-| 删除后抽检 14 个名字的 `GET /collections/{name}` | **全部 404**，确认已从 Qdrant 完全消失 |
+| 真实失败（HTTP 非 200）                                            | **0**                       |
+| 删除后抽检 14 个名字的 `GET /collections/{name}`                     | **全部 404**，确认已从 Qdrant 完全消失 |
+
 
 ### 清理后状态
 
-| 项 | 值（立即） |
-|---|---|
-| Qdrant collection 总数 | **1833**（-14） |
+
+| 项                      | 值（立即）                                    |
+| ---------------------- | ---------------------------------------- |
+| Qdrant collection 总数   | **1833**（-14）                            |
 | Qdrant `qdrant` 容器 RSS | **12 492 MiB**（约 12.2 GiB，立即值 ≈ -25 MiB） |
+
 
 > 说明：Qdrant 1.10 的 `DELETE /collections/{name}` 只把 collection 从 meta 中摘除，底层段文件回收 / mmap unmap 依赖 optimizer 下一轮调度，进程 RSS 的下降通常滞后。**本条记录为删除完成瞬时的 `kubectl top` 值，真实回收预计在 24 h 内体现。**
 
@@ -432,3 +430,204 @@ colc49a291371cc17fc  colf67799b2b73f391e
 ### 失败条目列表
 
 无真实失败。唯一的非典型响应（首条 `col234abe498124212b` 返回 `result:false`）为 Qdrant 端的幂等提示，对象事实上已不存在；抽检 `GET /collections/col234abe498124212b` 返回 404，最终状态正确。
+
+---
+
+## 7. 附加改造：Embedding 模型锁定（本 PR 一并上线）
+
+### 7.1 为什么要锁
+
+多租户化之后，**物理 collection 由 `(vector_size, distance)` 唯一决定**
+（见 `global_collection_name()`）。如果允许用户在 Collection 创建后修改
+embedding model，会发生两类数据完整性问题：
+
+1. **维度切换**（e.g. `bge-m3@1024` → `text-embedding-3-large@3072`）：
+   写入会被路由到新的 `aperag_vectors_3072_cosine`；但旧的
+   `aperag_vectors_1024_cosine` 仍残留着该租户的全部历史向量，**永远不会被读到**，
+   也不会被 `delete_collection` 清理（因为 delete 路径用**当前**的 vector_size 选
+   shard）。
+2. **同维度异模型**（e.g. `bge-large-zh@1024` → `bge-m3@1024`）：物理上落同一
+   shard，但两组向量在同一 HNSW 图里语义空间不兼容，召回质量会莫名退化，且
+   `is_tenant` 优化也救不了（`is_tenant` 只按 tenant 分 segment，不区分模型）。
+
+这两种失败模式在单机 Qdrant 时代就已经存在，只是单机 Qdrant 写入时会因维度
+mismatch 直接报错（"硬失败"）；多租户化后变成**软失败**——写入成功，但
+retrieval 完全错乱。所以必须从接口层直接禁止。
+
+### 7.2 改动点
+
+- **后端**：`aperag/service/collection_service.py::CollectionService._reject_embedding_change`
+  - 在 `update_collection` 的开头调用，校验：
+    - `embedding.model` 不变；
+    - `embedding.model_service_provider` / `custom_llm_provider` 不变；
+    - 已有 embedding 配置不可被 "清空"。
+  - 任一不满足抛 `ValidationException`（映射到 HTTP 400）。
+  - 首次绑定（老数据或初次创建后补填）仍然允许。
+- **前端**：`web/src/app/workspace/collections/collection-form.tsx`
+  - `action === 'edit'` 时 `Select` 置 `disabled`；
+  - 显示 Badge "创建后不可修改 / Locked after creation"；
+  - `FormDescription` 改为解释性文案；
+  - **并跳过** `embeddingModelName` 的 `useEffect` watcher——否则若用户切到 "edit"
+    模式时模型清单里刚好没有原模型（比如对应 provider 已下架），watcher 会自动把
+    表单里的 model 改成列表第 0 项，提交时被后端校验拒绝，用户看起来像 "我啥也
+    没动就不让保存"。
+- **i18n**：新增两个 key `embedding_model_locked_badge`、`embedding_model_locked_description`
+  （`page_collections.json` 中英文各一份）。
+
+### 7.3 为什么不在 OpenAPI schema 上强制
+
+考虑过在 `aperag/api/components/schemas/collection.yaml` 里为 `CollectionUpdate`
+单独拷一份不含 `embedding` 的子 schema，但：
+
+- 现有 `CollectionUpdate = CollectionCreate` 的全量复用会被破坏；
+- 前端已经在 edit 模式下不提交 embedding 字段的 UX 由锁定逻辑保证；
+- 服务端显式报错反而比 "schema 层静默 drop 字段" 更友好（用户能看到具体原因）。
+
+因此采用 "schema 保持灵活 + service 层强校验" 的组合。
+
+---
+
+## 8. 向量数据库全链路 Review 要点
+
+本节记录在实现多租户 + embedding 锁定过程中做的一次**全链路代码 review**，
+分成 "已修 / 已知有意为之 / 待跟进" 三档，避免以后踩同一个坑。
+
+### 8.1 已修（本 PR）
+
+**R1. Delete 路径在 embedding provider 下线时会把数据孤在 Qdrant 里**
+（`aperag/tasks/collection.py::_delete_vector_databases`）
+
+- 背景：多租户化后 `delete_collection` 依赖当前 `vector_size` 去选 shard。
+  若 provider 被下架 → `get_collection_embedding_service_sync` 抛异常 →
+  代码原本默默 fallback 到某个 "默认" shard，真实 shard 里的该租户向量永远留在那里。
+- 修复：新增 `QdrantVectorStoreConnector._purge_tenant_from_all_global_collections`，
+  `delete_collection(purge_all_shards=True)` 时枚举所有 `aperag_vectors_*` 做
+  `FilterSelector` 级别的点删除；`_delete_vector_databases` 在无法解析 vector_size
+  时走这个兜底路径。
+- 影响：删 Collection 再也不会留孤儿点。
+
+**R2. Node metadata 里 `collection_id` 可能缺失**
+（`aperag/llm/embed/embedding_utils.py::create_embeddings_and_store`）
+
+- 背景：多租户过滤依赖 payload 顶层的 `collection_id`（LlamaIndex 会把
+  `node.metadata` 扁平化进 payload）；但 `vector_index / summary_index` 历史上
+  只在 `extra_info` 里塞，没有在 `node.metadata` 里设，视觉 index 的两个路径
+  甚至完全绕过了 `create_embeddings_and_store`。
+- 修复：
+  - 在三个 indexer 里显式 `part.metadata['collection_id'] = ...`；
+  - 在 `create_embeddings_and_store` 里再补一次防御性注入（如缺就用 connector
+    的 `tenant_id`）；
+  - vision 两处直连 `store.add` 也补了相同字段。
+- 影响：即使上游忘设，多租户过滤依然命中正确 shard。
+
+**R3. `is_tenant=True` 在 Qdrant < 1.11 的兼容**
+
+- Qdrant 1.10（线上版本）不认 `is_tenant` 字段，直接 `400`。
+- 修复：`_ensure_tenant_payload_index` 三级 fallback：先带 `is_tenant` 试 →
+  捕获 → 不带 `is_tenant` 的 keyword 索引 → 再捕获 → 记 warning。
+  升级到 1.11+ 之后 tenant 级 defragmentation 自动生效，无需再改代码。
+
+**R4. `create_collection` 的初始化顺序**
+
+- 以前是先构造 `QdrantVectorStore(client, collection_name)`（LlamaIndex 里这步
+  会触发 `GET /collections/xxx`，collection 不存在时抛 warning/error），再
+  `_ensure_collection`。
+- 改成 "先 ensure，后 wrap"，去掉了一条噪声日志，也避免了冷启动窗口里
+  竞态读到 404。
+
+**R5. 迁移脚本的安全断言**
+
+- `scripts/migrate_qdrant_multitenancy.py` 在开头加了
+  `assert generate_vector_db_collection_name(x) == str(x)`。
+  若未来改命名规则，脚本会立即停机而不是静默把数据写错 shard。
+
+### 8.2 已知但有意为之（这次不动）
+
+**K1. 每次 search 会重建 `QdrantClient`**
+（`aperag/service/search_pipeline_service.py` 的三个 `_*_search` 都会
+`VectorStoreConnectorAdaptor(ctx)` 一次）
+
+- 现状：`_ENSURED_COLLECTIONS` 进程级 set 避免了重复 `_ensure_collection`，
+  但 `QdrantClient` 本身每次都是新的。
+- 为什么先不动：(1) HTTP client 本身带 keep-alive，grpc 也有连接池，单查询
+  overhead 可接受；(2) 做成单例需要把线程安全、刷新策略、tenant 切换等一起设计，
+  范围超出本 PR。
+- Follow-up：放到抽象层 M2（见 `vector_db_abstraction.md` §4.1）。
+
+**K2. `ContextManager._create_combined_filter` 硬编码 Qdrant filter 类型**
+（`aperag/context/context.py` 直接 import `qdrant_client.models`）
+
+- 典型抽象破口：任何后端切换都要在这里加分支。
+- 为什么先不动：单后端状态下，重构此处没有功能收益，反而引入回归风险。
+- Follow-up：抽象层 M2 中新增 `VectorFilter` DSL 后统一收敛。
+
+**K3. `retrieve()` 未进入基类**
+（`aperag/vectorstore/base.py` 里没有该抽象方法，但 `document_service.py` 直接
+调 `connector.retrieve(...)`）
+
+- 若未来切 pgvector/Milvus 会直接 `AttributeError`。
+- Follow-up：抽象层 M2 中补齐，顺便把 `with_vectors`、`with_payload` 这些参数
+  做成统一语义。
+
+**K4. Vision 索引绕过 `create_embeddings_and_store`，直连 `store.add(nodes)`**
+（`aperag/index/vision_index.py` 两处）
+
+- 目前我们在两处都手工补了 `metadata['collection_id']`，语义是对的，但
+  "两份写路径" 带来的维护成本需要记住——将来 `create_embeddings_and_store`
+  的 metadata 约定变更时，vision 路径要同步修改，容易漏。
+- Follow-up：抽象层 M2 中把 "写点" 统一到 `connector.upsert(tenant, points)`，
+  彻底去掉 `store.add` 直连。
+
+**K5. 业务层 collection id 被直接当做 tenant id**
+
+- `QdrantVectorStoreConnector.__init__` 用 `ctx['collection']` 当
+  `tenant_id`；`generate_vector_db_collection_name(collection_id) == str(collection_id)`
+  是幂等映射。
+- 这是当前正确、简单的做法；迁移脚本也断言了这点。记录在案，防止以后
+  有人把 "Qdrant collection name" 和 "ApeRAG collection id" 拆成两个不同字符串
+  时忘了同步断言。
+
+### 8.3 待跟进（不在本 PR 范围）
+
+**F1. `ContextManager` 过滤条件里 `doc_id` / `document_id` / `ref_doc_id` 三名共存**
+
+- 历史上 LlamaIndex 往 payload 里同时写 `doc_id` 和 `document_id`（不同版本命名），
+  部分过滤用 `doc_id`、部分用 `document_id`。
+- 当前 review 认为语义 OK（查询端兼容两套），但等 M2 抽象层时应该收敛到单一 key。
+
+**F2. `retrieve` 的 `with_payload=True` 语义差异**
+
+- Qdrant 的 "payload" ≈ pgvector 的 "payload JSONB"；但 LlamaIndex 期望 payload 里
+  包含 `_node_content` 序列化字符串。未来实现 pgvector 后端时要注意把这种
+  LlamaIndex 约定从"协议"降级成"Qdrant 后端实现细节"（见抽象层 §5.1）。
+
+**F3. 并发场景下 `_ENSURED_COLLECTIONS` 的 lock 粒度**
+
+- 当前 `threading.Lock()` 是进程级、全局单把锁。多个线程同时首次访问不同
+  collection 时会串行化，但由于 `_ensure_collection` 本身幂等、只在冷启动触发
+  一次，实际不是瓶颈。观测到 QPS 上升再评估。
+
+**F4. Qdrant 1.10 → 1.11 升级窗口**
+
+- 升级后 `_ensure_tenant_payload_index` 的 "带 is_tenant" 路径会开始生效，此时
+  已经存在的 keyword 索引不会自动升级为 tenant-aware。建议升级操作脚本里
+  额外一步 `DELETE index → 重建 with is_tenant=True`（无数据影响，毫秒级）。
+
+---
+
+## 9. 关联设计：向量数据库抽象层
+
+本次 Qdrant 优化已经暴露了三条抽象破口（见 §8.2 K1/K2/K3）。这些问题在
+单后端状态下可以接受，但一旦要支持 pgvector/Milvus 就会成为硬阻塞。
+
+详见同目录 [`vector_db_abstraction.md`](./vector_db_abstraction.md)，该文档以
+当前代码事实为起点，给出了：
+
+- 三层分层（Transport / 能力抽象 / 调优）；
+- 最小可行过滤 DSL；
+- Qdrant / pgvector / Milvus 三个后端的实现草图；
+- 路线图 M1 → M4；
+- 与本次 embedding 锁定的依赖关系（锁定是抽象层的前置条件）。
+
+**何时启动抽象层**：触发条件见 `vector_db_abstraction.md` §10。在触发之前，
+本文档和抽象层设计文档共同构成决策依据，不做任何代码层面的先行重构。
