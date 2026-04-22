@@ -1,7 +1,8 @@
 # 向量数据库抽象层设计分析（ApeRAG）
 
-> Status: **M2 已落地**（本文的分析已经变成了现网代码）。后续 pgvector 的
-> M3 工作仍在 roadmap 里，会按本文的分层和 DSL 约束来实现。
+> Status: **M2 + M3 已落地**（本文从分析文档升级成"文档即实现"）。两个
+> 后端（Qdrant、pgvector）共存、同一抽象，可通过 `VECTOR_DB_TYPE` 一行
+> env 切换。
 
 ## 变更记录
 
@@ -9,6 +10,7 @@
 |---|---|
 | 2026-04-20 | 初稿：分层、DSL、三后端草图、路线图 |
 | 2026-04-21 | M2 落地：`VectorFilter` DSL、Qdrant translator、`VectorPoint`、client pool、`retrieve()` 入基类 |
+| 2026-04-22 | M3 落地：pgvector 后端、DTO 全套（`TenantRef`/`VectorShape`/`QueryRequest`/`SearchHit`）、`upsert` 进入契约、去 LlamaIndex 写依赖 |
 
 ## 1. 背景与目标
 
@@ -42,24 +44,24 @@ Qdrant 连接器已经承担了三件相互耦合的事情：
 | 上层入口 | 索引写入 `aperag/index/*.py`、检索 `aperag/service/search_pipeline_service.py` | 每次按需构造 `VectorStoreConnectorAdaptor`、`ContextManager` | 每次请求重建连接 |
 | 分片路由 | `aperag/config.py`：`build_vector_db_context`、`get_vector_db_connector` | 注入 `multitenant/quantization/...` ctx | Qdrant 专属字段混在 Config 里 |
 
-**当前抽象的 4 个真实缺口**（2026-04-20 分析；M2 之后 1/2/4 已关闭，3 仍保留）：
+**当前抽象的 4 个真实缺口**（2026-04-20 分析；M2 + M3 之后全部关闭）：
 
-| # | 缺口 | M2 状态 |
+| # | 缺口 | 状态 |
 |---|---|---|
 | 1 | `retrieve(ids)` 只在 Qdrant 连接器上存在 | ✅ 已进基类，返回 `VectorPoint` |
 | 2 | `ContextManager` 硬编码 `qdrant_client.models` | ✅ 已迁到 `VectorFilter` DSL |
-| 3 | `LlamaIndex.QdrantVectorStore` 被直接暴露给业务层 | ⏸ 保留，等 M3 |
+| 3 | `LlamaIndex.QdrantVectorStore` 被直接暴露给业务层 | ✅ M3：新增 `upsert(points)`，业务写路径彻底不经 LlamaIndex |
 | 4 | 每次 search 重建 `QdrantClient` | ✅ 已进程级复用 |
 
-缺口 3 的完整细节（保留给 M3）：
-
-- `vector_store_adaptor.connector.store.add(nodes)` 仍在 vision_index.py
-  两处、embedding_utils.py 使用；
-- 写入 payload 依旧会被 LlamaIndex 注入 `_node_content` / `doc_id` /
-  `document_id` / `ref_doc_id`；
-- 这些字段是 Qdrant 后端的**实现细节**，在 M3 引入 pgvector 时，我们会
-  提供一个新的 `connector.upsert(points)` 接口替代 `store.add(nodes)`，
-  届时再一次性把 LlamaIndex 从业务写路径上拆掉。
+LlamaIndex 在代码库里的实际地位：仅剩的存在形式是 `TextNode` 作为
+chunker / embedder 的**中间**数据结构。在 `embedding_utils.py` 和
+`vision_index.py` 里，`BaseNode` 经过 `nodes_to_vector_points()`（见
+`aperag/vectorstore/llama_index_adapter.py`）一次性转成
+backend-neutral 的 `VectorPoint`；连接器层（Qdrant / pgvector）对
+LlamaIndex 完全无感。**读路径**的 `_node_content` 反序列化逻辑被抽到
+`flatten_node_payload()`（`aperag/vectorstore/dto.py`），只为了向后
+兼容 M2 之前由 `LlamaIndex.QdrantVectorStore.add()` 写入的老数据；新
+写入的数据采用扁平 `{text, metadata}`，读路径两种都支持。
 
 ---
 
@@ -315,13 +317,54 @@ SELECT id, payload, embedding <=> :q AS score
 `test_qdrant_filter_translation.py` / `test_qdrant_client_cache.py` /
 `test_context_manager_filter.py`。
 
-### M3：pgvector 实现（3~4 周）
+### M3：pgvector 实现（✅ **已落地**）
 
-- 新增 `pgvector_connector.py`，复用 `aperag/db/ops` 的 session 池。
-- 新增 `VECTOR_DB_TYPE=pgvector` 路径；migration 模板（`alembic` 脚本建立
-  每个需要的 `aperag_vectors_{size}_{distance}` 表）。
-- Reuse embedding lock 的前端逻辑（和 Qdrant 完全一致）。
-- 性能 benchmark：10 万 / 100 万 vectors 的 latency 对比报告。
+实际落地范围（比草案更激进，把 M2 时故意推迟的"DTO 全套 + 去 LlamaIndex
+写依赖"都一并做掉了）：
+
+- ✅ `aperag/vectorstore/pgvector_connector.py`：动态 `CREATE TABLE IF
+  NOT EXISTS aperag_vectors_<size>_<distance>`（与 Qdrant 的物理分片命名
+  对齐），HNSW + tenant_id + GIN(payload) 三个索引一并建好；`CREATE
+  EXTENSION IF NOT EXISTS vector` 由连接器发起。
+- ✅ 不走 alembic 模板：表按 shape 动态创建，与 Qdrant 的 `ensure_collection`
+  一致的幂等语义；进程级 `_ENSURED_TABLES` 缓存避免重复 DDL。
+- ✅ SQL filter translator（`_SqlFilter.translate`）把 `VectorFilter`
+  编译成参数化 `WHERE` 片段 + bind dict。**所有值都走 bind 参数**，
+  key 走白名单校验，彻底屏蔽注入面。
+- ✅ SQLAlchemy `Engine` 按 `database_url` 进程级共享，与 Qdrant
+  `_get_or_create_client` 的模式保持一致。
+- ✅ 默认复用 ApeRAG 主 Postgres（共享 `DATABASE_URL`），"零新组件"
+  部署；若 vector 规模压垮主 DB，设 `PGVECTOR_DATABASE_URL` 独立出去，
+  一个 env 搞定。
+- ✅ embedding lock（前端 + service）和 Qdrant 完全共用，无需改动。
+- ✅ 端到端测试 `test_pgvector_end_to_end.py`：10 个用例，gated by
+  `APERAG_TEST_PGVECTOR_URL` env（本地 `apecloud/pgvector:pg16` + 主
+  DB 起在 docker-compose 时默认可跑）。
+
+### M2 的补完（本次 PR 一起做）
+
+M2 当时"保留尾巴"的三件事，M3 实现 pgvector 时**一次性补齐**：
+
+- ✅ **DTO 全套**：`TenantRef(id)` / `VectorShape(size, distance)` /
+  `VectorPoint(id, vector, payload)` / `QueryRequest(embedding, top_k,
+  flt, score_threshold, with_vectors, hints)` / `SearchHit(id, score,
+  payload, vector?)`，全部 frozen dataclass。`dto.py` 严禁 import 任何
+  后端 SDK。
+- ✅ **`connector.upsert(points)` 抽象**：`VectorStoreConnector` 基类
+  新增抽象方法；Qdrant / pgvector 都原生实现；`embedding_utils.py` 和
+  `vision_index.py`（两处）迁过去，不再用 `store.add(nodes)`。
+- ✅ **`delete_by_filter(flt)` 抽象**：基类方法，两后端都支持；空/None
+  过滤器被显式 raise 而不是"全删"。
+- ✅ **`drop_tenant(purge_all_shards)`** 替代历史的 `delete_collection`：
+  命名更准确（多租户语义下它从不物理 drop 一个 collection）；
+  `purge_all_shards=True` 的语义两后端完全一致——按 `aperag_vectors_*`
+  前缀扫分片、按 tenant_id 删行。
+- ✅ **`base.py::VectorStoreConnector` 不再要求 `self.store`**：LlamaIndex
+  的 `VectorStore` 类型从基类契约里拿掉；后端各自决定是否持有。
+- ✅ **`flatten_node_payload()` 抽到 DTO 模块**：所有读路径（Qdrant
+  `search` 结果、`document_service` 的 chunk 预览）统一走它，把
+  "`_node_content` 反序列化 + relationships 派生 source" 的历史逻辑
+  收到一个地方，两个后端共用。
 
 ### M4：生产切换策略（按需）
 

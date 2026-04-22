@@ -72,6 +72,21 @@ def test_build_context_propagates_all_optimization_flags(clean_vector_db_context
     assert ctx["on_disk_payload"] is True
 
 
+def test_build_context_populates_pgvector_knobs_even_for_qdrant_deploys(clean_vector_db_context):
+    """pgvector settings are merged into ctx regardless of which backend
+    the deployment is configured for. Each connector reads only the keys
+    it understands, so having both Qdrant and pgvector knobs present at
+    the same time is cheap and makes ``VECTOR_DB_TYPE=pgvector`` a
+    one-flag flip."""
+    ctx = build_vector_db_context("col1", vector_size=1024)
+    # Either explicit PGVECTOR_DATABASE_URL wins, or we fall back to the
+    # main database_url — never empty.
+    assert ctx["pgvector_database_url"]
+    assert isinstance(ctx["pgvector_hnsw_m"], int)
+    assert isinstance(ctx["pgvector_hnsw_ef_construction"], int)
+    assert isinstance(ctx["pgvector_hnsw_ef_search"], int)
+
+
 def test_build_context_respects_ctx_override(monkeypatch):
     # If the operator pins a flag inside VECTOR_DB_CONTEXT JSON, it must win
     # over the settings-level default. This is how the migration script tells

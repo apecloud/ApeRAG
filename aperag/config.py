@@ -135,6 +135,17 @@ class Config(BaseSettings):
     qdrant_vectors_on_disk: bool = Field(True, alias="QDRANT_VECTORS_ON_DISK")
     qdrant_on_disk_payload: bool = Field(True, alias="QDRANT_ON_DISK_PAYLOAD")
 
+    # pgvector backend knobs. pgvector by default piggybacks on the main
+    # ApeRAG PostgreSQL (``database_url``) so a private-delivery deployment
+    # saves one component; set ``PGVECTOR_DATABASE_URL`` to point at a
+    # separate Postgres if vector volume outgrows the main DB.
+    pgvector_database_url: Optional[str] = Field(None, alias="PGVECTOR_DATABASE_URL")
+    pgvector_hnsw_m: int = Field(16, alias="PGVECTOR_HNSW_M")
+    pgvector_hnsw_ef_construction: int = Field(64, alias="PGVECTOR_HNSW_EF_CONSTRUCTION")
+    # ef_search is a per-query knob; QueryRequest.hints["ef_search"] wins over
+    # this setting when both are set.
+    pgvector_hnsw_ef_search: int = Field(40, alias="PGVECTOR_HNSW_EF_SEARCH")
+
     # Object store
     object_store_type: str = Field("local", alias="OBJECT_STORE_TYPE")
     object_store_local_config: Optional[LocalObjectStoreConfig] = None
@@ -337,22 +348,27 @@ SyncSessionDep = Annotated[Session, Depends(get_sync_session)]
 
 
 def build_vector_db_context(collection: str, vector_size: Optional[int] = None) -> Dict[str, Any]:
-    """Build the ctx dict that QdrantVectorStoreConnector expects.
+    """Build the ctx dict for the configured backend's connector.
 
     Centralised so both the app and the migration script produce identical
     contexts. The ``vector_size`` argument is required when multitenancy is
-    enabled — different embedding models map to different physical Qdrant
-    collections (``aperag_vectors_{size}_{distance}``), so we must know the
-    size before we route.
+    enabled — different embedding models map to different physical shards
+    (``aperag_vectors_{size}_{distance}``), so we must know the size before
+    we route.
+
+    Backend-specific knobs (``QDRANT_*``, ``PGVECTOR_*``) are merged in
+    regardless of which backend is active; connectors only read the keys
+    they understand and ignore the rest, so having both sets present at
+    once costs nothing at runtime and makes backend switching a pure env
+    flip.
     """
-    ctx = json.loads(settings.vector_db_context)
+    ctx = json.loads(settings.vector_db_context) if settings.vector_db_context else {}
     ctx["collection"] = collection
 
     if vector_size is not None:
         ctx["vector_size"] = int(vector_size)
 
-    # Merge the operator-level knobs into the ctx. Individual callers can still
-    # override by pre-setting the field in VECTOR_DB_CONTEXT JSON.
+    # Qdrant knobs
     ctx.setdefault("multitenant", settings.qdrant_multitenant)
     ctx.setdefault("quantization_enabled", settings.qdrant_quantization_enabled)
     ctx.setdefault("quantization_type", settings.qdrant_quantization_type)
@@ -363,6 +379,14 @@ def build_vector_db_context(collection: str, vector_size: Optional[int] = None) 
     ctx.setdefault("mmap_threshold_kb", settings.qdrant_mmap_threshold_kb)
     ctx.setdefault("vectors_on_disk", settings.qdrant_vectors_on_disk)
     ctx.setdefault("on_disk_payload", settings.qdrant_on_disk_payload)
+
+    # pgvector knobs. Fall back to the main ApeRAG database when
+    # PGVECTOR_DATABASE_URL is unset — that's the recommended private-delivery
+    # topology (one Postgres serves both metadata and vectors).
+    ctx.setdefault("pgvector_database_url", settings.pgvector_database_url or settings.database_url)
+    ctx.setdefault("pgvector_hnsw_m", settings.pgvector_hnsw_m)
+    ctx.setdefault("pgvector_hnsw_ef_construction", settings.pgvector_hnsw_ef_construction)
+    ctx.setdefault("pgvector_hnsw_ef_search", settings.pgvector_hnsw_ef_search)
     return ctx
 
 

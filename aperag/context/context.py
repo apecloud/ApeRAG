@@ -20,20 +20,20 @@ takes care of:
 * Building query embeddings (if not pre-supplied by the caller).
 * Translating business-level filter intent (index_types, chat_id) into the
   backend-neutral ``VectorFilter`` DSL.
-* Issuing the actual search.
+* Issuing the actual search via the new DTO-based ``connector.search``.
+* Adapting each backend's ``SearchHit`` back to the project-wide
+  ``DocumentWithScore`` shape that ``search_pipeline_service`` consumes.
 
-Before this module migrated to the DSL, filter construction branched on
-``self.vectordb_type == "qdrant"`` and directly imported
-``qdrant_client.models``. That made adding a second backend a per-site
-refactor. The DSL path keeps this file backend-agnostic — the concrete
-connector is the single place that knows Qdrant.
+The file imports nothing from ``qdrant_client`` / ``psycopg`` / …; that
+backend-ignorance is the whole point of the DSL + DTO layer.
 """
 
 from abc import ABC
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
-from aperag.query.query import QueryWithEmbedding
+from aperag.query.query import DocumentWithScore
 from aperag.vectorstore.connector import VectorStoreConnectorAdaptor
+from aperag.vectorstore.dto import QueryRequest, SearchHit, flatten_node_payload
 from aperag.vectorstore.filters import Eq, In, IsEmpty, VectorFilter, all_of, any_of
 
 
@@ -46,12 +46,20 @@ class ContextManager(ABC):
         self.vectordb_type = vectordb_type
         self.adaptor = VectorStoreConnectorAdaptor(vectordb_type, vectordb_ctx)
 
-    def query(self, query, score_threshold=0.5, topk=3, vector=None, index_types=None, chat_id=None):
+    def query(
+        self,
+        query,
+        score_threshold: float = 0.5,
+        topk: int = 3,
+        vector: Optional[List[float]] = None,
+        index_types: Optional[List[str]] = None,
+        chat_id: Optional[str] = None,
+    ) -> List[DocumentWithScore]:
         """Query vectors with optional filtering by index types and chat_id.
 
         Args:
             query: Query string.
-            score_threshold: Similarity threshold.
+            score_threshold: Similarity threshold (higher = stricter).
             topk: Number of results to return.
             vector: Pre-computed query vector (optional).
             index_types: List of index types to include
@@ -60,27 +68,25 @@ class ContextManager(ABC):
             chat_id: Chat ID to include chat-scoped documents (optional).
 
         Returns:
-            List of DocumentWithScore objects.
+            List of DocumentWithScore objects (project-wide neutral result
+            type; built from each backend's SearchHit).
         """
         if vector is None:
             vector = self.embedding_model.embed_query(query)
 
-        # Build backend-neutral filter; concrete connector translates.
         filter_condition = self._create_combined_filter(index_types, chat_id)
 
-        query_embedding = QueryWithEmbedding(query=query, top_k=topk, embedding=vector)
-        results = self.adaptor.connector.search(
-            query_embedding,
-            collection_name=self.collection_name,
-            query_vector=query_embedding.embedding,
+        request = QueryRequest(
+            embedding=list(vector),
+            top_k=int(topk),
+            flt=filter_condition,
+            score_threshold=float(score_threshold),
             with_vectors=True,
-            limit=query_embedding.top_k,
-            consistency="majority",
-            search_params={"hnsw_ef": 128, "exact": False},
-            score_threshold=score_threshold,
-            filter=filter_condition,
+            hints=_default_search_hints(),
         )
-        return results.results
+
+        hits: List[SearchHit] = self.adaptor.connector.search(request)
+        return [_hit_to_document(hit) for hit in hits]
 
     # ------------------------------------------------------------------ filter
     def _create_index_types_filter(self, index_types: Optional[List[str]]) -> Optional[VectorFilter]:
@@ -118,3 +124,44 @@ class ContextManager(ABC):
         if chat_id:
             parts.append(Eq(key="chat_id", value=chat_id))
         return all_of(*parts)
+
+
+# ---------------------------------------------------------------------------
+# helpers
+# ---------------------------------------------------------------------------
+
+
+def _default_search_hints() -> Dict[str, Any]:
+    """Per-backend hints that improve retrieval quality at typical settings.
+
+    Backends read only the keys they understand:
+    * Qdrant: ``hnsw_ef``, ``exact``, ``consistency``.
+    * pgvector: ``ef_search``.
+
+    Having both present is safe — unknown keys are ignored.
+    """
+    return {
+        # Qdrant
+        "hnsw_ef": 128,
+        "exact": False,
+        "consistency": "majority",
+        # pgvector
+        "ef_search": 80,
+    }
+
+
+def _hit_to_document(hit: SearchHit) -> DocumentWithScore:
+    """Flatten a backend-neutral ``SearchHit`` into the project's
+    ``DocumentWithScore`` shape.
+
+    The flattening helper in ``dto`` handles both the *new* payload
+    shape (``{text, metadata}``) and the *old* LlamaIndex one
+    (``{_node_content: json_str}``), so readers tolerate data written
+    before / after the refactor without any per-caller branching.
+    """
+    flat = flatten_node_payload(hit.payload or {})
+    return DocumentWithScore(
+        text=flat.get("text"),
+        metadata=flat.get("metadata"),
+        score=hit.score,
+    )

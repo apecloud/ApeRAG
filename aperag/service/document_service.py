@@ -822,35 +822,23 @@ class DocumentService:
                     collection=generate_vector_db_collection_name(collection_id=collection_id),
                     vector_size=vector_size,
                 )
-                points = vector_store_adaptor.connector.retrieve(ids=ctx_ids, with_payload=True)
+                points = vector_store_adaptor.connector.retrieve(ids=ctx_ids)
 
-                # 3. Format the response
+                # 3. Format the response using the shared payload flattener,
+                # which understands both the modern {text, metadata} shape
+                # and the legacy LlamaIndex _node_content JSON blob.
+                from aperag.vectorstore.dto import flatten_node_payload
+
                 chunks = []
                 for point in points:
-                    if point.payload:
-                        # In llama-index-0.10.13, the payload is stored in _node_content
-                        node_content = point.payload.get("_node_content")
-                        if node_content and isinstance(node_content, str):
-                            try:
-                                payload_data = json.loads(node_content)
-                                chunks.append(
-                                    Chunk(
-                                        id=point.id,
-                                        text=payload_data.get("text", ""),
-                                        metadata=payload_data.get("metadata", {}),
-                                    )
-                                )
-                            except json.JSONDecodeError:
-                                logger.warning(f"Could not parse _node_content for point {point.id}")
-                        else:
-                            # Fallback for older or different data structures
-                            chunks.append(
-                                Chunk(
-                                    id=point.id,
-                                    text=point.payload.get("text", ""),
-                                    metadata=point.payload.get("metadata", {}),
-                                )
-                            )
+                    flat = flatten_node_payload(point.payload or {})
+                    chunks.append(
+                        Chunk(
+                            id=point.id,
+                            text=flat.get("text") or "",
+                            metadata=flat.get("metadata") or {},
+                        )
+                    )
 
                 return chunks
             except Exception as e:
@@ -907,41 +895,25 @@ class DocumentService:
                     collection=generate_vector_db_collection_name(collection_id=collection_id),
                     vector_size=vector_size,
                 )
-                points = vector_store_adaptor.connector.retrieve(ids=ctx_ids, with_payload=True)
+                points = vector_store_adaptor.connector.retrieve(ids=ctx_ids)
 
-                # 3. Format the response
+                # Use the shared flattener; filter to vision-to-text
+                # entries only (this endpoint's contract).
+                from aperag.vectorstore.dto import flatten_node_payload
+
                 vision_chunks = []
                 for point in points:
-                    if point.payload:
-                        # In llama-index-0.10.13, the payload is stored in _node_content
-                        node_content = point.payload.get("_node_content")
-                        if node_content and isinstance(node_content, str):
-                            try:
-                                payload_data = json.loads(node_content)
-                                metadata = payload_data.get("metadata", {})
-                                if metadata.get("index_method") == "vision_to_text":
-                                    vision_chunks.append(
-                                        VisionChunk(
-                                            id=point.id,
-                                            asset_id=metadata.get("asset_id"),
-                                            text=payload_data.get("text", ""),
-                                            metadata=metadata,
-                                        )
-                                    )
-                            except json.JSONDecodeError:
-                                logger.warning(f"Could not parse _node_content for point {point.id}")
-                        else:
-                            # Fallback for older or different data structures
-                            metadata = point.payload.get("metadata", {})
-                            if metadata.get("index_method") == "vision_to_text":
-                                vision_chunks.append(
-                                    VisionChunk(
-                                        id=point.id,
-                                        asset_id=metadata.get("asset_id"),
-                                        text=point.payload.get("text", ""),
-                                        metadata=metadata,
-                                    )
-                                )
+                    flat = flatten_node_payload(point.payload or {})
+                    metadata = flat.get("metadata") or {}
+                    if metadata.get("index_method") == "vision_to_text":
+                        vision_chunks.append(
+                            VisionChunk(
+                                id=point.id,
+                                asset_id=metadata.get("asset_id"),
+                                text=flat.get("text") or "",
+                                metadata=metadata,
+                            )
+                        )
                 return vision_chunks
             except Exception as e:
                 logger.error(

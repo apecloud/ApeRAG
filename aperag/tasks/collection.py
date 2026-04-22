@@ -130,12 +130,16 @@ class CollectionTask:
         # Get embedding service
         _, vector_size = get_collection_embedding_service_sync(collection)
 
-        # Create main vector database collection (idempotent in multitenant mode)
+        # Create main vector database collection (idempotent in multitenant mode).
+        # The connector's __init__ calls ensure_collection() eagerly; this extra
+        # ensure_collection() is a cheap explicit for operational clarity so
+        # "did the cluster bootstrap create the physical shard?" has a clear
+        # single call in the trace.
         vector_db_conn = get_vector_db_connector(
             collection=generate_vector_db_collection_name(collection_id=collection_id),
             vector_size=vector_size,
         )
-        vector_db_conn.connector.create_collection(vector_size=vector_size)
+        vector_db_conn.connector.ensure_collection()
 
         logger.debug(f"Initialized vector databases for collection {collection_id}")
 
@@ -235,10 +239,10 @@ class CollectionTask:
         )
         if resolve_failed:
             # Best-effort: iterate every aperag_vectors_* collection and drop
-            # points with this tenant_id. No-op on the legacy connector path.
-            vector_db_conn.connector.delete_collection(purge_all_shards=True)
+            # rows with this tenant_id. No-op on the legacy connector path.
+            vector_db_conn.connector.drop_tenant(purge_all_shards=True)
         else:
-            vector_db_conn.connector.delete_collection()
+            vector_db_conn.connector.drop_tenant()
 
         logger.debug(f"Deleted vector database data for collection {collection_id}")
 

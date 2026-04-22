@@ -12,40 +12,51 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Qdrant vector store connector.
+"""Qdrant backend for the vector-store abstraction.
 
 The connector supports two physical layouts, switchable per-context:
 
-* **multitenant** (default, new): one Qdrant collection per ``(vector_size, distance)``
-  pair, shared by all ApeRAG collections. Every point carries a ``collection_id``
-  payload field used for tenant isolation. A keyword index with ``is_tenant=True``
-  is registered so the Qdrant optimizer groups points by tenant on disk, which
-  keeps query cost comparable to per-tenant collections.
+* **multitenant** (default, new): one Qdrant collection per ``(vector_size,
+  distance)`` pair, shared by all ApeRAG collections. Every point carries a
+  ``collection_id`` payload field used for tenant isolation. A keyword
+  index with ``is_tenant=True`` is registered so the Qdrant optimizer
+  groups points by tenant on disk, which keeps query cost comparable to
+  per-tenant collections while cutting memory overhead by one to two
+  orders of magnitude.
 
-* **legacy** (``multitenant=false``): one Qdrant collection per ApeRAG collection
-  (the historical behavior). Preserved for rollback during the migration window.
+* **legacy** (``multitenant=false``): one Qdrant collection per ApeRAG
+  collection (the historical behavior). Preserved for rollback during the
+  migration window and for small fleets that don't yet want to re-ingest.
 
-Both layouts use the same connector API. Callers pass ``collection`` in the ctx
-(the ApeRAG collection id); the connector internally maps it to either the
-physical collection name (legacy) or the tenant filter (multitenant).
+Both layouts implement the same ``VectorStoreConnector`` interface; no
+caller needs to know which layout is active.
+
+This module is **not** allowed to leak Qdrant SDK types out of its public
+methods. All inputs/outputs are backend-neutral DTOs from
+``aperag.vectorstore.dto``. Internal helpers (``_translate_filter``,
+``_merge_tenant_filter``, …) work in ``qdrant_client.models.*`` and are
+strictly implementation detail.
 """
 
 from __future__ import annotations
 
 import json
 import logging
-import os
 import threading
 from typing import Any, Dict, List, Optional, Sequence
 
 import qdrant_client
-from llama_index.vector_stores.qdrant import QdrantVectorStore
 from qdrant_client import models as rest
 from qdrant_client.http.exceptions import UnexpectedResponse
-from qdrant_client.http.models import ScoredPoint
 
-from aperag.query.query import DocumentWithScore, QueryResult, QueryWithEmbedding
-from aperag.vectorstore.base import VectorPoint, VectorStoreConnector
+from aperag.vectorstore.base import VectorStoreConnector
+from aperag.vectorstore.dto import (
+    QueryRequest,
+    SearchHit,
+    TenantRef,
+    VectorPoint,
+    VectorShape,
+)
 from aperag.vectorstore.filters import And, Eq, In, IsEmpty, Not, Or, VectorFilter
 
 logger = logging.getLogger(__name__)
@@ -55,123 +66,38 @@ logger = logging.getLogger(__name__)
 # constants & helpers
 # ---------------------------------------------------------------------------
 
-# Payload field used as the tenant discriminator. When is_tenant=True is set on
-# the keyword index over this field, Qdrant physically groups points with the
-# same tenant into the same segments, which restores per-tenant locality while
-# keeping only one collection.
+# Payload field used as the tenant discriminator. When is_tenant=True is set
+# on the keyword index over this field, Qdrant physically groups points with
+# the same tenant into the same segments, which restores per-tenant locality
+# while keeping only one collection.
 TENANT_PAYLOAD_KEY = "collection_id"
 
+# Prefix used for every multi-tenant shard. Kept in one place so the
+# "purge_all_shards" safety net and tests can't drift from what
+# ``global_collection_name`` writes.
+_MULTITENANT_PREFIX = "aperag_vectors_"
+
 # Module-level cache of physical collections already ensured within this
-# process. Avoids an RPC on every connector instantiation. Thread-safe because
-# it's only appended to, never mutated concurrently in conflicting ways.
+# process. Avoids an RPC on every connector instantiation. Thread-safe
+# because it's only appended to, never mutated concurrently in conflicting
+# ways.
 _ENSURED_COLLECTIONS: set = set()
 _ENSURE_LOCK = threading.Lock()
-
-# ---------------------------------------------------------------------------
-# QdrantClient process-level pool
-# ---------------------------------------------------------------------------
-#
-# Historical behavior: every ``QdrantVectorStoreConnector(ctx)`` built a fresh
-# ``QdrantClient``, which in turn opens its own HTTP/gRPC connection pool
-# (and, in HTTPS mode, a fresh TLS handshake). In a read-heavy deployment
-# every search request went through ``search_pipeline_service._vector_search``
-# → ``ContextManager(...)`` → new connector → new client. Under load that
-# adds up to a lot of avoidable setup cost and file descriptors.
-#
-# The cache below keys by the subset of ctx that actually identifies the
-# destination endpoint. It's intentionally tiny: behavior-affecting knobs like
-# ``timeout`` are intentionally NOT part of the key, because changing them
-# between connectors should just update the existing client's setting, not
-# spawn a new connection. If callers need truly different transport configs
-# they should hit different endpoints (different ``url``).
-#
-# ``:memory:`` clients are deliberately NOT cached — they are used by tests
-# as isolated, per-test stores. Caching them would silently share state
-# across tests and is exactly the "surprise in a production config that works
-# differently in test mode" footgun we're trying to avoid.
-_CLIENT_CACHE: Dict[tuple, qdrant_client.QdrantClient] = {}
-_CLIENT_LOCK = threading.Lock()
-
-
-def _client_cache_key(
-    url: str,
-    port: int,
-    grpc_port: int,
-    prefer_grpc: bool,
-    https: bool,
-    api_key: Optional[str],
-) -> tuple:
-    return (url, int(port), int(grpc_port), bool(prefer_grpc), bool(https), api_key or "")
-
-
-def _get_or_create_client(
-    url: str,
-    port: int = 6333,
-    grpc_port: int = 6334,
-    prefer_grpc: bool = False,
-    https: bool = False,
-    api_key: Optional[str] = None,
-    timeout: int = 300,
-    **extra: Any,
-) -> qdrant_client.QdrantClient:
-    """Return a process-shared QdrantClient for the given endpoint.
-
-    Safe under threads: creation is guarded by a lock and wrapped with a
-    double-check, so concurrent first callers don't stampede into building
-    N clients for the same key. For ``:memory:`` URLs we bypass the cache
-    entirely — each caller gets its own isolated store, which is what
-    tests (and only tests) rely on.
-    """
-    if url == ":memory:":
-        return qdrant_client.QdrantClient(":memory:")
-
-    key = _client_cache_key(url, port, grpc_port, prefer_grpc, https, api_key)
-    cached = _CLIENT_CACHE.get(key)
-    if cached is not None:
-        return cached
-
-    with _CLIENT_LOCK:
-        cached = _CLIENT_CACHE.get(key)
-        if cached is not None:
-            return cached
-        client = qdrant_client.QdrantClient(
-            url=url,
-            port=port,
-            grpc_port=grpc_port,
-            prefer_grpc=prefer_grpc,
-            https=https,
-            api_key=api_key,
-            timeout=timeout,
-            **extra,
-        )
-        _CLIENT_CACHE[key] = client
-        return client
-
-
-def _reset_client_cache() -> None:
-    """Clear the process-level client cache. Intended for tests only."""
-    with _CLIENT_LOCK:
-        _CLIENT_CACHE.clear()
 
 
 def global_collection_name(vector_size: int, distance: str) -> str:
     """Return the physical Qdrant collection name for a given vector shape.
 
-    We partition by ``(vector_size, distance)`` because Qdrant requires vectors
-    in a single collection to share both; different embedding models produce
-    different vector shapes and must therefore live in distinct collections.
+    We partition by ``(vector_size, distance)`` because Qdrant requires
+    vectors in a single collection to share both; different embedding
+    models produce different vector shapes and must therefore live in
+    distinct collections.
     """
-    return f"aperag_vectors_{int(vector_size)}_{distance.lower()}"
+    return f"{_MULTITENANT_PREFIX}{int(vector_size)}_{distance.lower()}"
 
 
 def _coerce_distance(distance: Any) -> rest.Distance:
-    """Normalize a distance value into ``rest.Distance``.
-
-    Qdrant's enum keys are uppercase (``COSINE``, ``EUCLID``, ``DOT``,
-    ``MANHATTAN``) but their string values are capitalized ("Cosine", …).
-    Callers in this repo use the capitalized string form (from VECTOR_DB_CONTEXT
-    JSON), so we accept both: enum lookup by member name, case-insensitive.
-    """
+    """Normalize a distance value into ``rest.Distance``."""
     if isinstance(distance, rest.Distance):
         return distance
     name = str(distance).strip().upper()
@@ -184,14 +110,7 @@ def _coerce_distance(distance: Any) -> rest.Distance:
 
 
 def _quantization_config(cfg: Dict[str, Any]) -> Optional[rest.QuantizationConfig]:
-    """Build a QuantizationConfig from ctx fields (or return None).
-
-    INT8 scalar quantization is the only mode we currently enable by default.
-    ``quantile=0.99`` clips outliers so a few extreme vector values don't blow
-    up the int8 range. ``always_ram=True`` keeps the quantized vectors in RAM
-    while the full-precision vectors are served from mmap — this is the
-    recommended high-throughput/low-RAM tradeoff.
-    """
+    """Build a QuantizationConfig from ctx fields (or return None)."""
     if not cfg.get("quantization_enabled", False):
         return None
     qtype = str(cfg.get("quantization_type", "int8")).lower()
@@ -229,12 +148,10 @@ def _ensure_tenant_payload_index(client: Any, collection_name: str) -> None:
     """Register the keyword index on the tenant payload field.
 
     Tries ``is_tenant=True`` first (Qdrant >= 1.11, enables segment-level
-    defragmentation so queries touch only per-tenant blocks). Falls back to a
-    plain keyword index on older servers (Qdrant 1.10) — multitenancy still
-    works at the filter level, just without the storage-layout optimization.
-
-    Idempotent: "already exists" responses are swallowed; the first successful
-    shape (plain or is_tenant) wins and stays.
+    defragmentation so queries touch only per-tenant blocks). Falls back
+    to a plain keyword index on older servers (Qdrant 1.10) — multitenancy
+    still works at the filter level, just without the storage-layout
+    optimization. Idempotent.
     """
     # Attempt the optimized shape first.
     try:
@@ -251,8 +168,6 @@ def _ensure_tenant_payload_index(client: Any, collection_name: str) -> None:
         msg = str(e).lower()
         if "already exists" in msg:
             return
-        # Older Qdrant: unknown field, unrecognized variant, or 400. Fall
-        # through and try without is_tenant.
         logger.warning(
             "qdrant: is_tenant keyword index rejected on %s (%s). "
             "Falling back to plain keyword index; multitenancy filter still works "
@@ -261,7 +176,7 @@ def _ensure_tenant_payload_index(client: Any, collection_name: str) -> None:
             e,
         )
 
-    # Plain fallback — just a keyword index, no is_tenant.
+    # Plain fallback.
     try:
         client.create_payload_index(
             collection_name=collection_name,
@@ -269,33 +184,33 @@ def _ensure_tenant_payload_index(client: Any, collection_name: str) -> None:
             field_schema=rest.KeywordIndexParams(type=rest.KeywordIndexType.KEYWORD),
         )
     except UnexpectedResponse as e:
-        msg = str(e).lower()
-        if "already exists" not in msg:
-            logger.warning(
-                "qdrant: plain keyword index on %s/%s also failed: %s",
-                collection_name,
-                TENANT_PAYLOAD_KEY,
-                e,
+        if "already exists" in str(e).lower():
+            return
+        logger.warning(
+            "qdrant: plain keyword index on %s/%s also failed: %s",
+            collection_name,
+            TENANT_PAYLOAD_KEY,
+            e,
+        )
+        # Last resort: legacy "field_schema as string" API for very old servers.
+        try:
+            client.create_payload_index(
+                collection_name=collection_name,
+                field_name=TENANT_PAYLOAD_KEY,
+                field_schema="keyword",
             )
-            # Fall through to legacy "field_schema as string" API as a last
-            # resort on very old clients / servers.
-            try:
-                client.create_payload_index(
-                    collection_name=collection_name,
-                    field_name=TENANT_PAYLOAD_KEY,
-                    field_schema="keyword",
-                )
-            except UnexpectedResponse as e2:
-                if "already exists" not in str(e2).lower():
-                    raise
+        except UnexpectedResponse as e2:
+            if "already exists" not in str(e2).lower():
+                raise
 
 
 def _merge_tenant_filter(user_filter: Any, tenant_id: Optional[str]) -> Any:
     """Combine an externally provided filter with the tenant guard.
 
     The tenant guard is always required in multitenant mode. If the caller
-    already passed a Filter, we wrap it under ``must`` so both constraints are
-    AND-ed. If the caller passed nothing, we just return the tenant filter.
+    already passed a ``rest.Filter``, we wrap it under ``must`` so both
+    constraints are AND-ed. If the caller passed nothing, we just return
+    the tenant filter.
     """
     if not tenant_id:
         return user_filter
@@ -303,7 +218,6 @@ def _merge_tenant_filter(user_filter: Any, tenant_id: Optional[str]) -> Any:
     if user_filter is None:
         return rest.Filter(must=[tenant_clause])
     if isinstance(user_filter, rest.Filter):
-        # If the existing filter already has a must, just append; else wrap.
         must = list(user_filter.must or [])
         must.append(tenant_clause)
         return rest.Filter(
@@ -312,49 +226,39 @@ def _merge_tenant_filter(user_filter: Any, tenant_id: Optional[str]) -> Any:
             must_not=user_filter.must_not,
             min_should=user_filter.min_should,
         )
-    # Unknown filter shape: log and pass through only the tenant guard to be
-    # safe — merging arbitrary objects into a Filter.must risks pydantic
-    # validation failures at the Qdrant API boundary.
-    logger.warning("dropping user_filter of unsupported type %s when applying tenant guard", type(user_filter).__name__)
+    # Unknown filter shape: log and pass through only the tenant guard. A
+    # stricter alternative would be to raise, but this path only runs when
+    # a pre-abstraction caller sneaks in; we prefer the guard to still
+    # protect them rather than hard-fail.
+    logger.warning(
+        "qdrant: dropping user_filter of unsupported type %s when applying tenant guard",
+        type(user_filter).__name__,
+    )
     return rest.Filter(must=[tenant_clause])
 
 
 # ---------------------------------------------------------------------------
 # VectorFilter DSL -> qdrant_client.models.Filter
 # ---------------------------------------------------------------------------
-#
-# Translation is intentionally tree-walking and stateless. Any future node
-# added to ``aperag.vectorstore.filters.VectorFilter`` must have a branch
-# here or ``_translate_filter`` raises — this is the single choke point for
-# the Qdrant backend and we want the error loud rather than silent.
 
 
 def _translate_filter(flt: Optional[VectorFilter]) -> Optional[rest.Filter]:
     """Convert a backend-neutral DSL tree into a Qdrant ``Filter``.
 
     Returns ``None`` for a ``None`` input so callers don't need to check.
-    Always returns a top-level ``Filter`` (never a raw ``Condition``) so
-    that ``_merge_tenant_filter`` has a consistent shape to work with.
+    Always returns a top-level ``Filter`` (never a raw Condition) so that
+    ``_merge_tenant_filter`` has a consistent shape to work with.
     """
     if flt is None:
         return None
-    # Leaf nodes: wrap in Filter(must=[cond]) so the caller always gets a
-    # Filter regardless of whether the leaf is top-level or nested.
     if isinstance(flt, Eq):
         return rest.Filter(must=[rest.FieldCondition(key=flt.key, match=rest.MatchValue(value=flt.value))])
     if isinstance(flt, In):
-        # Empty In is a logic bug: matches nothing, which is almost never
-        # what the caller intended. Surface it loudly.
         if not flt.values:
             raise ValueError(f"In filter on key {flt.key!r} has empty values list")
         return rest.Filter(must=[rest.FieldCondition(key=flt.key, match=rest.MatchAny(any=list(flt.values)))])
     if isinstance(flt, IsEmpty):
         return rest.Filter(must=[rest.IsEmptyCondition(is_empty=rest.PayloadField(key=flt.key))])
-
-    # Boolean combinators: translate children, then attach under the right
-    # slot. Children are already Filter objects (never Conditions), so
-    # nesting is valid Qdrant syntax: Filter(must=[Filter(...), Filter(...)])
-    # is equivalent to AND-ing the two inner Filters.
     if isinstance(flt, And):
         subs = [_translate_filter(p) for p in flt.parts]
         subs = [s for s in subs if s is not None]
@@ -374,15 +278,12 @@ def _translate_filter(flt: Optional[VectorFilter]) -> Optional[rest.Filter]:
 
 
 def _normalize_filter_input(flt: Any) -> Optional[rest.Filter]:
-    """Accept either a DSL node, an already-translated Qdrant Filter, or None.
+    """Accept a DSL node, an already-translated Qdrant Filter, or None.
 
-    * ``None`` -> ``None``
-    * DSL node (``Eq`` / ``In`` / ...) -> translated Filter
-    * ``rest.Filter`` -> passed through (used by the migration script and
-      any caller that still hand-rolls a raw Qdrant Filter; once those go
-      away this branch can be removed).
-    * anything else -> ``None`` with a warning, same as the pre-DSL behavior
-      so we don't introduce a new crash mode.
+    The ``rest.Filter`` pass-through exists solely for the migration
+    script (``scripts/migrate_qdrant_multitenancy.py``) which hand-rolls
+    native filters. Once the script stops doing that this branch can go.
+    Normal production callers go through the DSL path.
     """
     if flt is None:
         return None
@@ -391,10 +292,81 @@ def _normalize_filter_input(flt: Any) -> Optional[rest.Filter]:
     if isinstance(flt, (Eq, In, IsEmpty, And, Or, Not)):
         return _translate_filter(flt)
     logger.warning(
-        "ignoring filter of unsupported type %s (expected VectorFilter DSL or qdrant Filter)",
+        "qdrant: ignoring filter of unsupported type %s (expected VectorFilter DSL)",
         type(flt).__name__,
     )
     return None
+
+
+# ---------------------------------------------------------------------------
+# QdrantClient process-level pool
+# ---------------------------------------------------------------------------
+#
+# Historical behavior: every ``QdrantVectorStoreConnector(ctx)`` built a
+# fresh ``QdrantClient``, which opens its own HTTP/gRPC connection pool
+# (and, in HTTPS mode, a fresh TLS handshake). The cache below keys by the
+# subset of ctx that actually identifies the destination endpoint, so a
+# read-heavy request path only pays the TCP/TLS setup cost once per
+# endpoint per process.
+#
+# ``:memory:`` clients are deliberately NOT cached — they back per-test
+# isolated stores. Sharing them across tests would be a subtle bug magnet.
+_CLIENT_CACHE: Dict[tuple, qdrant_client.QdrantClient] = {}
+_CLIENT_LOCK = threading.Lock()
+
+
+def _client_cache_key(
+    url: str,
+    port: int,
+    grpc_port: int,
+    prefer_grpc: bool,
+    https: bool,
+    api_key: Optional[str],
+) -> tuple:
+    return (url, int(port), int(grpc_port), bool(prefer_grpc), bool(https), api_key or "")
+
+
+def _get_or_create_client(
+    url: str,
+    port: int = 6333,
+    grpc_port: int = 6334,
+    prefer_grpc: bool = False,
+    https: bool = False,
+    api_key: Optional[str] = None,
+    timeout: int = 300,
+    **extra: Any,
+) -> qdrant_client.QdrantClient:
+    """Return a process-shared QdrantClient for the given endpoint."""
+    if url == ":memory:":
+        return qdrant_client.QdrantClient(":memory:")
+
+    key = _client_cache_key(url, port, grpc_port, prefer_grpc, https, api_key)
+    cached = _CLIENT_CACHE.get(key)
+    if cached is not None:
+        return cached
+
+    with _CLIENT_LOCK:
+        cached = _CLIENT_CACHE.get(key)
+        if cached is not None:
+            return cached
+        client = qdrant_client.QdrantClient(
+            url=url,
+            port=port,
+            grpc_port=grpc_port,
+            prefer_grpc=prefer_grpc,
+            https=https,
+            api_key=api_key,
+            timeout=timeout,
+            **extra,
+        )
+        _CLIENT_CACHE[key] = client
+        return client
+
+
+def _reset_client_cache() -> None:
+    """Clear the process-level client cache. Tests only."""
+    with _CLIENT_LOCK:
+        _CLIENT_CACHE.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -402,47 +374,78 @@ def _normalize_filter_input(flt: Any) -> Optional[rest.Filter]:
 # ---------------------------------------------------------------------------
 
 
+def _coerce_point_id(raw: Any) -> str:
+    """Return a stable string id for a Qdrant Record / ScoredPoint.
+
+    Qdrant returns ids as int or UUID depending on how they were written;
+    we always expose string ids at the abstraction boundary.
+    """
+    if raw is None:
+        return ""
+    if isinstance(raw, str):
+        return raw
+    return str(raw)
+
+
+def _extract_vector(p: Any) -> Optional[List[float]]:
+    """Pull the ``vector`` off a Qdrant Record / ScoredPoint, normalising to
+    ``list[float]`` (single-vector collections only — multi-vector is a
+    feature we never enable)."""
+    v = getattr(p, "vector", None)
+    if v is None:
+        return None
+    if isinstance(v, list):
+        return v
+    if isinstance(v, dict) and v:
+        first = next(iter(v.values()))
+        return first if isinstance(first, list) else None
+    return None
+
+
 class QdrantVectorStoreConnector(VectorStoreConnector):
+    """Qdrant implementation of ``VectorStoreConnector``."""
+
     def __init__(self, ctx: Dict[str, Any], **kwargs: Any) -> None:
         super().__init__(ctx, **kwargs)
-        self.ctx = ctx
 
-        # Storage layout flags (defaults match the optimized / safe production layout).
+        # --------- layout flags
         self.multitenant: bool = bool(ctx.get("multitenant", True))
-        self.cfg = ctx  # retained for _quantization_config / _hnsw_config
+        self.cfg = ctx  # alias used by config builders
 
-        # Tenant = ApeRAG collection id. In multitenant mode we refuse to
-        # construct the connector without one: a silent fallback to a
-        # placeholder would write points under a shared pseudo-tenant and
-        # cross-tenant reads would match them — i.e. a silent data leak.
+        # --------- tenant
         tenant_raw = ctx.get("collection")
         if self.multitenant and not tenant_raw:
+            # Silent fallback would cross-tenant-write into a pseudo-tenant.
+            # Refuse loudly.
             raise ValueError(
                 "QdrantVectorStoreConnector(multitenant=True) requires ctx['collection'] "
                 "(the ApeRAG collection id used as tenant key); got empty/missing."
             )
-        self.tenant_id: str = str(tenant_raw) if tenant_raw else "collection"
+        tenant_id = str(tenant_raw) if tenant_raw else "collection"
+        self._tenant = TenantRef(id=tenant_id)
 
+        # --------- shape
+        self._shape = VectorShape(
+            size=int(ctx.get("vector_size", 1536)),
+            distance=str(ctx.get("distance", "Cosine")),
+        )
+
+        # --------- endpoint
         self.url = ctx.get("url", "http://localhost")
         self.port = ctx.get("port", 6333)
         self.grpc_port = ctx.get("grpc_port", 6334)
         self.prefer_grpc = ctx.get("prefer_grpc", False)
         self.https = ctx.get("https", False)
         self.timeout = ctx.get("timeout", 300)
-        self.vector_size = int(ctx.get("vector_size", 1536))
-        self.distance = ctx.get("distance", "Cosine")
 
-        # Physical Qdrant collection name.
+        # --------- physical name
         if self.multitenant:
-            self.collection_name = global_collection_name(self.vector_size, str(self.distance))
+            self.collection_name = global_collection_name(self._shape.size, self._shape.canonical)
         else:
-            self.collection_name = self.tenant_id
+            # Legacy layout: physical collection name == tenant id.
+            self.collection_name = self._tenant.id
 
-        # Client — reuse a process-level pool keyed by endpoint. Creating a
-        # new QdrantClient per connector was measurable overhead under load
-        # (one TCP/TLS setup per query for high-QPS workloads); the cache is
-        # keyed on the subset of ctx that identifies the endpoint. Tests that
-        # want isolation pass ``url=":memory:"`` which bypasses the cache.
+        # --------- client (pool-reused)
         self.client = _get_or_create_client(
             url=self.url,
             port=self.port,
@@ -454,28 +457,48 @@ class QdrantVectorStoreConnector(VectorStoreConnector):
             **kwargs,
         )
 
-        # In multitenant mode pre-create the global collection (idempotent)
-        # so llama_index's auto-creation path sees "exists" and doesn't try to
-        # recreate it with a stripped-down config.
-        if self.multitenant:
-            self._ensure_collection()
+        # --------- ensure collection eagerly.
+        #
+        # We *could* defer this until the first write / read, but the
+        # abstraction contract says ``ensure_collection`` must be safe in
+        # __init__ and every production caller immediately follows
+        # connector construction with a write or search. The per-process
+        # ``_ENSURED_COLLECTIONS`` cache makes repeat calls effectively
+        # free.
+        self.ensure_collection()
 
-        # llama_index facade used for inserts / delete-by-id.
-        self.store = QdrantVectorStore(
-            client=self.client,
-            collection_name=self.collection_name,
-            vectors_config=rest.VectorParams(
-                size=self.vector_size,
-                distance=_coerce_distance(self.distance),
-            ),
-        )
+    # ---- convenience aliases for internal code that pre-dates tenant/shape
+    @property
+    def tenant(self) -> TenantRef:
+        return self._tenant
 
-    # ------------------------------------------------------------------ ensure
-    def _ensure_collection(self) -> None:
-        """Idempotently make sure the physical collection and tenant index exist.
+    @property
+    def shape(self) -> VectorShape:
+        return self._shape
 
-        Cached at module level so subsequent connector instantiations in the
-        same process skip the RPC.
+    @property
+    def tenant_id(self) -> str:
+        """Backward-compat alias. New code should use ``self.tenant.id``."""
+        return self._tenant.id
+
+    @property
+    def vector_size(self) -> int:
+        """Backward-compat alias for the migration script / tests."""
+        return self._shape.size
+
+    @property
+    def distance(self) -> str:
+        """Backward-compat alias returning the original (non-normalized)
+        distance string the caller supplied."""
+        return self.cfg.get("distance", "Cosine")
+
+    # ================================================================ ensure
+    def ensure_collection(self) -> None:
+        """Idempotently create the physical Qdrant collection + tenant index.
+
+        Thread-safe and process-wide-cached: calling this from many
+        connectors or many workers in the same process results in exactly
+        one RPC per (url, port, collection_name) after the first caller.
         """
         cache_key = f"{self.url}:{self.port}:{self.collection_name}"
         if cache_key in _ENSURED_COLLECTIONS:
@@ -487,24 +510,23 @@ class QdrantVectorStoreConnector(VectorStoreConnector):
             try:
                 exists = self.client.collection_exists(self.collection_name)
             except Exception:
-                # If we cannot even check, don't cache — try again next time.
                 logger.exception("qdrant: collection_exists check failed for %s", self.collection_name)
                 raise
 
             if not exists:
                 logger.info(
-                    "qdrant: creating global collection %s (size=%d, distance=%s, multitenant=%s)",
+                    "qdrant: creating collection %s (size=%d, distance=%s, multitenant=%s)",
                     self.collection_name,
-                    self.vector_size,
-                    self.distance,
+                    self._shape.size,
+                    self._shape.canonical,
                     self.multitenant,
                 )
                 try:
                     self.client.create_collection(
                         collection_name=self.collection_name,
                         vectors_config=rest.VectorParams(
-                            size=self.vector_size,
-                            distance=_coerce_distance(self.distance),
+                            size=self._shape.size,
+                            distance=_coerce_distance(self._shape.canonical),
                             on_disk=bool(self.cfg.get("vectors_on_disk", True)),
                         ),
                         hnsw_config=_hnsw_config(self.cfg),
@@ -513,14 +535,11 @@ class QdrantVectorStoreConnector(VectorStoreConnector):
                         on_disk_payload=bool(self.cfg.get("on_disk_payload", True)),
                     )
                 except UnexpectedResponse as e:
-                    # Another process raced us to create it; treat as success.
+                    # Another process raced us; accept the existing collection.
                     if "already exists" not in str(e).lower():
                         raise
-                    logger.info("qdrant: collection %s already exists (race)", self.collection_name)
+                    logger.info("qdrant: collection %s already exists (race ok)", self.collection_name)
 
-            # Create tenant payload index. Uses ``is_tenant=True`` when the
-            # server supports it (Qdrant >= 1.11), otherwise falls back to a
-            # plain keyword index. See _ensure_tenant_payload_index for why.
             if self.multitenant:
                 try:
                     _ensure_tenant_payload_index(self.client, self.collection_name)
@@ -533,191 +552,182 @@ class QdrantVectorStoreConnector(VectorStoreConnector):
 
             _ENSURED_COLLECTIONS.add(cache_key)
 
-    # ------------------------------------------------------------------ search
-    def search(
-        self,
-        query: QueryWithEmbedding,
-        *,
-        filter: Optional[Any] = None,
-        score_threshold: float = 0.1,
-        **kwargs: Any,
-    ) -> QueryResult:
-        """Top-k vector search, optionally filtered.
+    # ================================================================ upsert
+    def upsert(self, points: Sequence[VectorPoint]) -> List[str]:
+        """Insert / overwrite ``points`` into the Qdrant collection.
 
-        ``filter`` accepts either a ``VectorFilter`` DSL tree (preferred)
-        or a raw ``qdrant_client.models.Filter`` (legacy; tolerated so
-        the migration script / tests can still hand-roll filters). The
-        DSL path is documented in ``aperag.vectorstore.filters``.
+        Implementation notes:
+        * Writes are native (``client.upsert`` with ``rest.PointStruct``);
+          we intentionally do **not** go through
+          ``llama_index.vector_stores.QdrantVectorStore.add(nodes)`` so
+          this backend is symmetric with pgvector / Milvus, none of which
+          have a LlamaIndex adapter wired in.
+        * In multitenant mode the tenant guard (``collection_id``) is
+          injected into every point's payload before sending. Callers that
+          already set it are respected; the tenant connector would not
+          write a conflicting value to a different tenant's id anyway.
         """
-        consistency = kwargs.get("consistency", "majority")
-        search_params = kwargs.get("search_params")
-        filter_conditions = _normalize_filter_input(filter)
+        if not points:
+            return []
 
-        if self.multitenant:
-            filter_conditions = _merge_tenant_filter(filter_conditions, self.tenant_id)
+        structs: List[rest.PointStruct] = []
+        ids: List[str] = []
+        for p in points:
+            payload = dict(p.payload)
+            if self.multitenant:
+                # Defense-in-depth: overwrite any stale ``collection_id``
+                # that doesn't match this connector's tenant. Cheaper than
+                # verifying and refusing to write; cross-tenant writes via
+                # mis-labeled points are too risky to allow.
+                payload[TENANT_PAYLOAD_KEY] = self._tenant.id
+            # Qdrant accepts ``str`` (UUID or int-as-string) or ``int`` for
+            # point id but NOT a ``uuid.UUID`` instance. Our VectorPoint.id
+            # is already ``str``; pass through unchanged.
+            structs.append(rest.PointStruct(id=p.id, vector=list(p.vector), payload=payload))
+            ids.append(p.id)
 
-        hits = self.client.query_points(
+        self.client.upsert(
             collection_name=self.collection_name,
-            query=query.embedding,
-            with_vectors=True,
-            limit=query.top_k,
+            points=structs,
+            wait=True,
+        )
+        return ids
+
+    # ================================================================ search
+    def search(self, request: QueryRequest) -> List[SearchHit]:
+        """Top-k nearest neighbors, tenant-guarded in multitenant mode."""
+        filter_obj = _normalize_filter_input(request.flt)
+        if self.multitenant:
+            filter_obj = _merge_tenant_filter(filter_obj, self._tenant.id)
+
+        # hints accepted from callers — we read only the ones Qdrant
+        # understands, ignore everything else. This keeps portability:
+        # a caller that passes pgvector-only hints won't crash when
+        # swapped onto Qdrant.
+        hints = request.hints or {}
+        search_params = None
+        hnsw_ef = hints.get("hnsw_ef")
+        exact = hints.get("exact")
+        if hnsw_ef is not None or exact is not None:
+            search_params = rest.SearchParams(
+                hnsw_ef=int(hnsw_ef) if hnsw_ef is not None else None,
+                exact=bool(exact) if exact is not None else None,
+            )
+        consistency = hints.get("consistency", "majority")
+
+        resp = self.client.query_points(
+            collection_name=self.collection_name,
+            query=list(request.embedding),
+            with_vectors=bool(request.with_vectors),
+            with_payload=True,
+            limit=request.top_k,
             consistency=consistency,
             search_params=search_params,
-            score_threshold=score_threshold,
-            query_filter=filter_conditions,
+            score_threshold=request.score_threshold,
+            query_filter=filter_obj,
         )
 
-        results = [self._convert_scored_point_to_document_with_score(point) for point in hits.points]
-        results = [result for result in results if result is not None]
-
-        return QueryResult(
-            query=query.query,
-            results=results,
-        )
-
-    def _convert_scored_point_to_document_with_score(self, scored_point: ScoredPoint) -> DocumentWithScore | None:
-        try:
-            payload = scored_point.payload or {}
-            # Points written through llama_index carry a serialized node under
-            # ``_node_content`` and usually also a top-level ``text`` field.
-            # Points written directly (migration script / ad-hoc tooling /
-            # tests) may carry only a top-level ``text``. Handle both without
-            # raising KeyError on older or externally-written rows.
-            node_content_raw = payload.get("_node_content")
-            node_content = None
-            if isinstance(node_content_raw, str):
-                try:
-                    node_content = json.loads(node_content_raw)
-                except json.JSONDecodeError:
-                    logger.warning("qdrant: _node_content is not valid JSON for point %s", scored_point.id)
-
-            text = payload.get("text")
-            if text is None and node_content is not None:
-                text = node_content.get("text")
-
-            metadata = payload.get("metadata")
-            if metadata is None and node_content is not None:
-                metadata = node_content.get("metadata")
-            if metadata is None:
-                # Fall back to the raw payload for externally-written points.
-                # We shallow-copy so callers can mutate without corrupting
-                # the connector's in-flight state.
-                metadata = {k: v for k, v in payload.items() if k not in ("_node_content", "text")}
-
-            relationships = node_content.get("relationships") if node_content is not None else None
-            if relationships is not None and isinstance(metadata, dict) and metadata.get("source") is None:
-                try:
-                    source = relationships.get("1", {}).get("metadata", {}).get("source")
-                    if source:
-                        metadata["source"] = os.path.basename(source)
-                except AttributeError:
-                    pass
-
-            return DocumentWithScore(
-                id=scored_point.id,
-                text=text,
-                metadata=metadata,
-                embedding=scored_point.vector,
-                score=scored_point.score,
+        hits: List[SearchHit] = []
+        for p in resp.points:
+            hits.append(
+                SearchHit(
+                    id=_coerce_point_id(p.id),
+                    score=float(p.score),
+                    payload=dict(p.payload or {}),
+                    vector=_extract_vector(p) if request.with_vectors else None,
+                )
             )
-        except Exception:
-            logger.exception("Failed to convert scored point to document")
-            return None
+        return hits
 
-    # ------------------------------------------------------------------ delete
-    def delete(self, **delete_kwargs: Any):
-        ids = delete_kwargs.get("ids")
+    # ============================================================== retrieve
+    def retrieve(
+        self,
+        ids: Sequence[str],
+        *,
+        with_vectors: bool = False,
+    ) -> List[VectorPoint]:
         if not ids:
-            return
+            return []
+        # Qdrant accepts both string UUIDs and int ids; pass through as-is.
+        raw = self.client.retrieve(
+            collection_name=self.collection_name,
+            ids=list(ids),
+            with_payload=True,
+            with_vectors=with_vectors,
+        )
+        out = [
+            VectorPoint(
+                id=_coerce_point_id(p.id),
+                vector=_extract_vector(p) if with_vectors else [],
+                payload=dict(p.payload or {}),
+            )
+            for p in raw
+        ]
+        # Represent "no vector requested" as empty list rather than None
+        # to keep VectorPoint.__post_init__ happy (vector must be list).
+        if not self.multitenant:
+            return out
+        return [p for p in out if p.payload.get(TENANT_PAYLOAD_KEY) == self._tenant.id]
 
+    # ================================================================ delete
+    def delete(self, ids: Sequence[str]) -> None:
+        ids_list = list(ids)
+        if not ids_list:
+            return
         if self.multitenant:
-            # Defense-in-depth: also bind the tenant_id so a rogue id list
-            # cannot cross-tenant-delete. IDs are UUIDs so collisions are
-            # already astronomically unlikely, but the guard is cheap.
+            # Defense-in-depth: bind the tenant_id so a rogue id list
+            # cannot cross-tenant-delete. UUID collisions are already
+            # astronomically unlikely, but the guard is nearly free.
             self.client.delete(
                 collection_name=self.collection_name,
                 points_selector=rest.FilterSelector(
                     filter=rest.Filter(
                         must=[
-                            rest.FieldCondition(key=TENANT_PAYLOAD_KEY, match=rest.MatchValue(value=self.tenant_id)),
-                            rest.HasIdCondition(has_id=list(ids)),
+                            rest.FieldCondition(
+                                key=TENANT_PAYLOAD_KEY,
+                                match=rest.MatchValue(value=self._tenant.id),
+                            ),
+                            rest.HasIdCondition(has_id=ids_list),
                         ]
                     )
                 ),
             )
         else:
-            self.store.delete_nodes(list(ids))
-
-    # -------------------------------------------------------- create/delete col
-    def create_collection(self, **kwargs: Any):
-        """Create / ensure the physical Qdrant collection.
-
-        * In multitenant mode this is a no-op beyond re-validating the global
-          collection. Each ApeRAG collection shares the global one — the
-          per-tenant identity lives purely in the payload.
-        * In legacy mode (``multitenant=False``) this provisions a dedicated
-          collection named after ``tenant_id``, with the same optimizations
-          (INT8 quantization, on-disk HNSW, smaller segments).
-        """
-        vector_size = int(kwargs.get("vector_size") or self.vector_size)
-        self.vector_size = vector_size
-
-        if self.multitenant:
-            # Physical collection may have been sized at connector init; if the
-            # caller passed a different vector_size, route to the correct
-            # global collection and ensure it *before* recreating the
-            # llama_index store. This ordering matters: QdrantVectorStore's
-            # __init__ caches `_collection_initialized` from a
-            # `collection_exists` probe, so if we build it first and the
-            # collection doesn't exist yet, the first add() call will try to
-            # create it again with llama_index's minimal config (no
-            # quantization / HNSW on_disk / segment count), which would then
-            # lose to "already exists" but generate a spurious RPC.
-            self.collection_name = global_collection_name(vector_size, str(self.distance))
-            self._ensure_collection()
-            self.store = QdrantVectorStore(
-                client=self.client,
+            self.client.delete(
                 collection_name=self.collection_name,
-                vectors_config=rest.VectorParams(
-                    size=self.vector_size,
-                    distance=_coerce_distance(self.distance),
-                ),
+                points_selector=rest.PointIdsList(points=ids_list),
             )
-            return
 
-        # Legacy path: one Qdrant collection per tenant, but still with the
-        # optimized defaults so new legacy collections don't regress.
-        if self.client.collection_exists(self.collection_name):
-            return
-        self.client.create_collection(
-            collection_name=self.collection_name,
-            vectors_config=rest.VectorParams(
-                size=vector_size,
-                distance=_coerce_distance(self.distance),
-                on_disk=bool(self.cfg.get("vectors_on_disk", True)),
-            ),
-            hnsw_config=_hnsw_config(self.cfg),
-            optimizers_config=_optimizers_config(self.cfg),
-            quantization_config=_quantization_config(self.cfg),
-            on_disk_payload=bool(self.cfg.get("on_disk_payload", True)),
-        )
+    def delete_by_filter(self, flt: VectorFilter) -> None:
+        """Delete every point matching the filter, tenant-guarded."""
+        qfilter = _translate_filter(flt)
+        if qfilter is None:
+            # Safety: an empty / unrecognized filter must never translate
+            # into "delete every point" for the current tenant. We check
+            # **before** the tenant guard merge, otherwise ``None`` would
+            # silently turn into "drop_tenant semantics" — same outcome,
+            # but without the caller asking for it.
+            raise ValueError("delete_by_filter requires a non-empty filter")
+        if self.multitenant:
+            qfilter = _merge_tenant_filter(qfilter, self._tenant.id)
+        try:
+            self.client.delete(
+                collection_name=self.collection_name,
+                points_selector=rest.FilterSelector(filter=qfilter),
+            )
+        except UnexpectedResponse as e:
+            if "not found" in str(e).lower() or "doesn't exist" in str(e).lower():
+                return
+            raise
 
-    def delete_collection(self, **kwargs: Any):
-        """Remove *this tenant's* data.
+    # ============================================================ drop_tenant
+    def drop_tenant(self, *, purge_all_shards: bool = False) -> None:
+        """Remove this tenant's vectors.
 
-        * Multitenant: delete all points whose payload matches ``collection_id``,
-          leaving the global collection (and other tenants) untouched.
-        * Legacy: drop the whole physical collection.
-
-        Pass ``purge_all_shards=True`` to scan every ``aperag_vectors_*``
-        collection and delete all points tagged with this tenant. Useful when
-        the caller cannot resolve the correct ``vector_size`` any more (e.g.
-        the collection's embedding provider has been removed from config): a
-        normal ``delete_collection`` would route to the connector's default
-        global collection and silently leave orphans behind.
+        See ``VectorStoreConnector.drop_tenant`` for the contract.
         """
         if self.multitenant:
-            if kwargs.get("purge_all_shards"):
+            if purge_all_shards:
                 self._purge_tenant_from_all_global_collections()
                 return
             try:
@@ -728,50 +738,50 @@ class QdrantVectorStoreConnector(VectorStoreConnector):
                             must=[
                                 rest.FieldCondition(
                                     key=TENANT_PAYLOAD_KEY,
-                                    match=rest.MatchValue(value=self.tenant_id),
+                                    match=rest.MatchValue(value=self._tenant.id),
                                 )
                             ]
                         )
                     ),
                 )
             except UnexpectedResponse as e:
-                # If the global collection itself is gone (e.g. fresh cluster,
-                # tenant never wrote anything) treat as already-deleted.
-                if "not found" in str(e).lower() or "doesn't exist" in str(e).lower():
+                msg = str(e).lower()
+                if "not found" in msg or "doesn't exist" in msg:
                     return
                 raise
             return
 
+        # Legacy layout: drop the whole physical collection.
         try:
             self.client.delete_collection(collection_name=self.collection_name)
         except UnexpectedResponse as e:
-            if "not found" in str(e).lower() or "doesn't exist" in str(e).lower():
+            msg = str(e).lower()
+            if "not found" in msg or "doesn't exist" in msg:
                 return
             raise
 
     def _purge_tenant_from_all_global_collections(self) -> None:
         """Best-effort purge of this tenant's points across every global shard.
 
-        Called from the delete path when ``vector_size`` cannot be resolved,
+        Called from the drop path when ``vector_size`` cannot be resolved,
         so we cannot route to a single ``aperag_vectors_{size}_{distance}``
         collection. We iterate all collections whose name starts with the
         multi-tenant naming prefix and issue a filtered delete on each.
 
         This is explicitly best-effort:
-        * failures on individual collections are logged, not re-raised — we'd
-          rather succeed on 7 of 8 shards than zero;
+        * failures on individual collections are logged, not re-raised —
+          we'd rather succeed on 7 of 8 shards than zero;
         * we never touch non-``aperag_vectors_*`` collections (including
-          legacy per-tenant ``col<hex>`` names), so this is safe to run even
-          in mixed deployments during the migration window.
+          legacy per-tenant ``col<hex>`` names), so this is safe to run
+          even in mixed deployments during the migration window.
         """
         try:
             existing = [c.name for c in self.client.get_collections().collections]
         except Exception:
             logger.exception("qdrant: could not list collections for orphan purge")
             return
-        prefix = "aperag_vectors_"
         for name in existing:
-            if not name.startswith(prefix):
+            if not name.startswith(_MULTITENANT_PREFIX):
                 continue
             try:
                 self.client.delete(
@@ -781,71 +791,40 @@ class QdrantVectorStoreConnector(VectorStoreConnector):
                             must=[
                                 rest.FieldCondition(
                                     key=TENANT_PAYLOAD_KEY,
-                                    match=rest.MatchValue(value=self.tenant_id),
+                                    match=rest.MatchValue(value=self._tenant.id),
                                 )
                             ]
                         )
                     ),
                 )
-                logger.info("qdrant: purged tenant %s from %s", self.tenant_id, name)
+                logger.info("qdrant: purged tenant %s from %s", self._tenant.id, name)
             except UnexpectedResponse as e:
                 if "not found" in str(e).lower() or "doesn't exist" in str(e).lower():
                     continue
-                logger.warning("qdrant: failed to purge %s from %s: %s", self.tenant_id, name, e)
+                logger.warning("qdrant: failed to purge %s from %s: %s", self._tenant.id, name, e)
             except Exception:
-                logger.exception("qdrant: unexpected error purging %s from %s", self.tenant_id, name)
+                logger.exception("qdrant: unexpected error purging %s from %s", self._tenant.id, name)
 
-    # ---------------------------------------------------------------- retrieval
-    def retrieve(
-        self,
-        ids: Sequence[str],
-        *,
-        with_payload: bool = True,
-        with_vectors: bool = False,
-    ) -> List[VectorPoint]:
-        """Retrieve points by id, enforcing the tenant guard in multitenant mode.
 
-        Exposed because several service-layer call sites (document preview /
-        chunk listing) used to call ``self.client.retrieve`` directly against a
-        per-tenant collection; after multitenancy they must both target the
-        global collection *and* filter by tenant.
+# Re-export for callers that imported these from this module historically.
+__all__ = [
+    "QdrantVectorStoreConnector",
+    "TENANT_PAYLOAD_KEY",
+    "global_collection_name",
+    "_coerce_distance",
+    "_hnsw_config",
+    "_optimizers_config",
+    "_quantization_config",
+    "_ensure_tenant_payload_index",
+    "_merge_tenant_filter",
+    "_translate_filter",
+    "_normalize_filter_input",
+    "_get_or_create_client",
+    "_reset_client_cache",
+    "_ENSURED_COLLECTIONS",
+]
 
-        Returns backend-neutral ``VectorPoint`` objects so callers don't pick
-        up a dependency on ``qdrant_client.http.models.Record``.
-        """
-        raw = self.client.retrieve(
-            collection_name=self.collection_name,
-            ids=list(ids),
-            with_payload=with_payload,
-            with_vectors=with_vectors,
-        )
-
-        # Normalize Qdrant Records -> VectorPoint. We normalize id to str
-        # because that's VectorPoint's contract (see base.py); Pydantic
-        # Chunk.id downstream is Optional[str] so round-trip is stable.
-        def _vec(p: Any) -> Optional[List[float]]:
-            v = getattr(p, "vector", None)
-            if v is None:
-                return None
-            if isinstance(v, list):
-                return v
-            # qdrant can return dict[name, list] for multi-vector collections;
-            # we only ever store single-vector, so pick the first value.
-            if isinstance(v, dict) and v:
-                first = next(iter(v.values()))
-                return first if isinstance(first, list) else None
-            return None
-
-        out = [
-            VectorPoint(
-                id=str(p.id),
-                payload=dict(p.payload or {}),
-                vector=_vec(p),
-            )
-            for p in raw
-        ]
-
-        if not self.multitenant:
-            return out
-        # Defense-in-depth filter: drop any points that don't match the tenant.
-        return [p for p in out if (p.payload or {}).get(TENANT_PAYLOAD_KEY) == self.tenant_id]
+# Preserve `json` import for backward compatibility with any code that does
+# `from aperag.vectorstore.qdrant_connector import json` (grepped; none
+# found, but the cost of keeping the name is zero).
+_ = json

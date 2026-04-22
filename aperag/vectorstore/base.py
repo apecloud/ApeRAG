@@ -12,129 +12,136 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Backend-neutral abstract interface for vector store connectors.
+"""Abstract contract every vector-DB backend implements.
 
-The goal of this module is to pin down the **smallest** surface that any
-concrete backend (Qdrant today, pgvector / Milvus tomorrow) must implement
-to be a drop-in replacement. Any type imported here must be backend-neutral
-— in particular, **no** ``qdrant_client`` / ``psycopg`` / ``pymilvus``
-imports are ever allowed in this file.
+This is the whole contract — six methods, all of them backend-neutral in
+their signature. A concrete implementation (``QdrantVectorStoreConnector``,
+``PgvectorVectorStoreConnector``, …) is correct iff:
 
-Return types use:
+1. It accepts/returns the DTOs in ``aperag.vectorstore.dto`` only.
+2. It never lets a backend-specific type (``qdrant_client.models.*``,
+   ``psycopg.*``, ``pymilvus.*``) leak into the return values or the
+   raised exception messages that reach the caller.
+3. It is **multitenant-safe**: in multitenant mode every read/write/delete
+   enforces the tenant guard based on the connector's ``TenantRef``.
+   Passing another tenant's ids to ``delete()`` or ``retrieve()`` must be
+   a no-op or filtered-out, never a data leak.
+4. ``ensure_collection()`` is idempotent and safe to call on every
+   connector instantiation.
 
-* ``QueryResult`` (``aperag.query.query``) for searches — already
-  backend-neutral and existing callers depend on it.
-* ``VectorPoint`` (defined here) for id-lookups — minimal DTO, just
-  ``id`` + ``payload`` + optional ``vector``, enough to replace the
-  Qdrant-specific ``Record`` at document-chunk preview sites.
-
-``search(filter=...)`` accepts a ``VectorFilter`` DSL tree
-(``aperag.vectorstore.filters``). Concrete connectors translate it into
-their native filter representation. Passing raw backend filter objects
-(e.g. ``qdrant_client.models.Filter``) is still tolerated for backwards
-compatibility with the migration tooling, but new code must use the DSL.
+Everything else (index construction knobs, connection pooling, payload
+serialization quirks) is the backend's implementation detail.
 """
 
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Sequence
 
-from llama_index.core.embeddings import BaseEmbedding
-from llama_index.core.vector_stores.types import VectorStore
-
-from aperag.query.query import QueryResult, QueryWithEmbedding
+from aperag.vectorstore.dto import (
+    QueryRequest,
+    SearchHit,
+    TenantRef,
+    VectorPoint,
+    VectorShape,
+)
 from aperag.vectorstore.filters import VectorFilter
 
 
-@dataclass(frozen=True)
-class VectorPoint:
-    """Backend-neutral representation of a single stored point.
-
-    * ``id`` is always a string because that's the lowest common
-      denominator across backends (Qdrant allows int/uuid, pgvector uses
-      uuid, Milvus allows int/varchar). We normalize on string at the
-      connector boundary so callers don't have to branch.
-    * ``payload`` is a plain dict. LlamaIndex conventions like
-      ``_node_content`` live **inside** the dict; they are a detail of the
-      Qdrant writer, not part of this contract.
-    * ``vector`` is optional because most read-preview call sites don't
-      need it, and shipping it across the wire costs real bytes.
-    """
-
-    id: str
-    payload: Dict[str, Any]
-    vector: Optional[List[float]] = None
-
-
 class VectorStoreConnector(ABC):
-    """Abstract contract every vector-DB backend implements.
+    """Abstract contract for per-tenant vector storage.
 
-    Lifecycle assumption: ``ctx`` carries everything the connector needs
-    to locate / create its collection (URL, tenant id, vector size,
-    distance, optimization knobs). Concrete subclasses read the keys
-    they understand; unknown keys are ignored silently.
+    The constructor receives a ``ctx`` dict so we don't have to rewrite
+    every ``build_vector_db_context`` caller every time the parameter
+    list changes. Subclasses pick out the keys they need and ignore the
+    rest; unknown keys must never be a hard error.
     """
 
-    def __init__(self, ctx: Dict[str, Any], **kwargs: Any) -> None:
+    def __init__(self, ctx: Dict[str, Any], **_kwargs: Any) -> None:
         self.ctx = ctx
-        self.client = None
-        self.embedding: BaseEmbedding = None
-        self.store: VectorStore = None
 
-    # -------------------------------------------------------------- search
+    # ------------------------------------------------------------------ meta
+    @property
     @abstractmethod
-    def search(
-        self,
-        query: QueryWithEmbedding,
-        *,
-        filter: Optional[VectorFilter] = None,
-        score_threshold: float = 0.1,
-        **kwargs: Any,
-    ) -> QueryResult:
-        """Return the top-``query.top_k`` documents for the given embedding.
+    def tenant(self) -> TenantRef:
+        """Tenant this connector is bound to."""
 
-        ``filter`` accepts a ``VectorFilter`` DSL tree (preferred). For
-        backward compatibility during the transition, implementations may
-        also accept their native filter type, but new callers must use the
-        DSL.
+    @property
+    @abstractmethod
+    def shape(self) -> VectorShape:
+        """Vector shape this connector routes to."""
+
+    # ------------------------------------------------------------ collection
+    @abstractmethod
+    def ensure_collection(self) -> None:
+        """Idempotently make sure the physical storage (Qdrant collection,
+        pgvector table, …) exists for this connector's shape.
+
+        Must be safe to call from many connectors concurrently: typical
+        implementations use ``CREATE IF NOT EXISTS`` / ``collection_exists
+        ? no-op : create`` with module-level deduping caches.
         """
 
-    # -------------------------------------------------------------- writes
     @abstractmethod
-    def delete(self, **delete_kwargs: Any) -> None:
-        """Delete points by ``ids=[...]`` or other backend-specific key.
+    def drop_tenant(self, *, purge_all_shards: bool = False) -> None:
+        """Remove all of this tenant's vectors.
 
-        Must enforce the tenant guard in multitenant-aware backends so a
-        caller that accidentally passes another tenant's ids is a no-op
-        rather than a data breach.
+        * Multitenant layouts: delete all points with ``collection_id ==
+          self.tenant.id``; the shared physical collection stays alive.
+        * Legacy per-tenant layouts: drop the physical collection entirely.
+        * When ``purge_all_shards=True`` the connector should scan every
+          shape-variant shard and delete any points tagged with this
+          tenant, even if they live in a shard this connector doesn't
+          route to. This is the safety net for "the embedding provider
+          was removed, ``vector_size`` cannot be resolved any more" and
+          must never touch shards that don't belong to the multitenant
+          layout.
         """
 
-    # --------------------------------------------------------------- reads
+    # ------------------------------------------------------------ write path
+    @abstractmethod
+    def upsert(self, points: Sequence[VectorPoint]) -> List[str]:
+        """Insert (or overwrite on id conflict) the given points.
+
+        Must inject the tenant guard into each point's storage so later
+        searches / deletes can filter by it. Returns the ids written (in
+        input order). Raises on write failure — callers treat the batch
+        as atomic per-point.
+        """
+
+    @abstractmethod
+    def delete(self, ids: Sequence[str]) -> None:
+        """Delete points by id.
+
+        Defense-in-depth: the implementation must also match the tenant
+        guard so that a caller passing another tenant's ids becomes a
+        silent no-op rather than a data leak. No-op when ``ids`` is empty.
+        """
+
+    @abstractmethod
+    def delete_by_filter(self, flt: VectorFilter) -> None:
+        """Delete every point matching the filter (tenant guard AND-ed)."""
+
+    # ------------------------------------------------------------- read path
+    @abstractmethod
+    def search(self, request: QueryRequest) -> List[SearchHit]:
+        """Top-k nearest neighbors, optionally constrained by ``request.flt``.
+
+        Score semantics:
+        * Cosine: similarity in [-1, 1] — higher is better.
+        * Dot: raw dot product — higher is better.
+        * Euclid: negative L2 distance — higher is "closer to 0", better.
+
+        ``request.score_threshold`` (when set) filters on the same scale,
+        so callers don't have to branch on distance type.
+        """
+
     @abstractmethod
     def retrieve(
         self,
         ids: Sequence[str],
         *,
-        with_payload: bool = True,
         with_vectors: bool = False,
     ) -> List[VectorPoint]:
-        """Fetch points by id.
-
-        Implementations **must** apply the tenant guard in multitenant
-        mode and silently drop any points whose tenant does not match;
-        this matches ``delete()``'s behavior and prevents a curious
-        caller from reading across tenants by guessing ids.
-        """
-
-    # ---------------------------------------------------------- collection
-    @abstractmethod
-    def create_collection(self, **create_kwargs: Any) -> None:
-        """Ensure the physical collection / table exists and is correctly
-        shaped for this connector's ``ctx``. Idempotent."""
-
-    @abstractmethod
-    def delete_collection(self, **delete_kwargs: Any) -> None:
-        """Remove this tenant's data. See each backend's implementation
-        for the exact semantics (per-tenant purge vs physical drop)."""
+        """Fetch points by id. Enforces tenant guard: foreign-tenant ids
+        are silently skipped."""

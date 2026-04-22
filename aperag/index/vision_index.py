@@ -34,6 +34,7 @@ from aperag.llm.llm_error_types import (
 )
 from aperag.schema.utils import parseCollectionConfig
 from aperag.utils.utils import generate_vector_db_collection_name
+from aperag.vectorstore.llama_index_adapter import nodes_to_vector_points
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +122,8 @@ class VisionIndexer(BaseIndexer):
                 for i, node in enumerate(nodes):
                     node.embedding = vectors[i]
 
-                ctx_ids = vector_store_adaptor.connector.store.add(nodes)
+                points = nodes_to_vector_points(nodes, tenant_id=collection.id)
+                ctx_ids = vector_store_adaptor.connector.upsert(points)
                 all_ctx_ids.extend(ctx_ids)
                 logger.info(f"Created {len(ctx_ids)} direct vision vectors for document {document_id}")
             except Exception as e:
@@ -222,7 +224,8 @@ class VisionIndexer(BaseIndexer):
                 for i, node in enumerate(text_nodes):
                     node.embedding = vectors[i]
 
-                ctx_ids = vector_store_adaptor.connector.store.add(text_nodes)
+                points = nodes_to_vector_points(text_nodes, tenant_id=collection.id)
+                ctx_ids = vector_store_adaptor.connector.upsert(points)
                 all_ctx_ids.extend(ctx_ids)
                 logger.info(f"Created {len(ctx_ids)} vision-to-text vectors for document {document_id}")
             except Exception as e:
