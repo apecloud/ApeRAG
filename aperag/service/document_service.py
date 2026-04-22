@@ -38,8 +38,8 @@ from aperag.exceptions import (
 )
 from aperag.index.manager import document_index_manager
 from aperag.objectstore.base import get_async_object_store
-from aperag.schema.utils import parseCollectionConfig
 from aperag.schema import view_models
+from aperag.schema.utils import parseCollectionConfig
 from aperag.schema.view_models import Chunk, DocumentList, DocumentPreview, VisionChunk
 from aperag.service.marketplace_service import marketplace_service
 from aperag.utils.pagination import (
