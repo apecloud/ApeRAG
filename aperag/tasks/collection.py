@@ -24,13 +24,15 @@ from aperag.config import get_vector_db_connector
 from aperag.db import models as db_models
 from aperag.db.models import CollectionStatus
 from aperag.db.ops import db_ops
-from aperag.index.fulltext_index import create_index, delete_index
+from aperag.graph import lightrag_manager
+from aperag.index.fulltext_index import create_index, delete_collection_documents, delete_index
 from aperag.llm.embed.base_embedding import get_collection_embedding_service_sync
 from aperag.objectstore.base import get_object_store
 from aperag.schema.utils import parseCollectionConfig
 from aperag.tasks.models import TaskResult
 from aperag.utils.utils import (
     generate_fulltext_index_name,
+    generate_legacy_fulltext_index_name,
     generate_vector_db_collection_name,
     utc_now,
 )
@@ -156,7 +158,7 @@ class CollectionTask:
         logger.debug(f"Initialized vector databases for collection {collection_id}")
 
     def _initialize_fulltext_index(self, collection_id: str) -> None:
-        """Initialize fulltext search index"""
+        """Initialize the shared fulltext logical index."""
         index_name = generate_fulltext_index_name(collection_id)
         create_index(index_name)
         logger.debug(f"Initialized fulltext index {index_name}")
@@ -240,10 +242,13 @@ class CollectionTask:
         logger.debug(f"Deleted vector database data for collection {collection_id}")
 
     def _delete_fulltext_index(self, collection_id: str) -> None:
-        """Delete fulltext search index"""
-        index_name = generate_fulltext_index_name(collection_id)
-        delete_index(index_name)
-        logger.debug(f"Deleted fulltext index {index_name}")
+        """Delete a collection's documents from the shared fulltext index and prune legacy index."""
+        deleted_shared = delete_collection_documents(collection_id, index=generate_fulltext_index_name(collection_id))
+        logger.debug("Deleted %s shared fulltext docs for collection %s", deleted_shared, collection_id)
+
+        legacy_index = generate_legacy_fulltext_index_name(collection_id)
+        delete_index(legacy_index)
+        logger.debug(f"Deleted legacy fulltext index {legacy_index}")
 
     def cleanup_expired_documents(self, collection_id: str):
         """

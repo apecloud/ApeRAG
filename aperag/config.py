@@ -178,6 +178,8 @@ class Config(BaseSettings):
     es_host: Optional[str] = Field(None, alias="ES_HOST")
     es_timeout: int = Field(30, alias="ES_TIMEOUT")  # ES request timeout in seconds
     es_max_retries: int = Field(3, alias="ES_MAX_RETRIES")  # Max retries for ES requests
+    es_fulltext_number_of_shards: int = Field(1, alias="ES_FULLTEXT_NUMBER_OF_SHARDS")
+    es_fulltext_number_of_replicas: int = Field(0, alias="ES_FULLTEXT_NUMBER_OF_REPLICAS")
 
     # LLM keyword extraction
     llm_keyword_extraction_provider: str = Field("", alias="LLM_KEYWORD_EXTRACTION_PROVIDER")

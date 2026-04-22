@@ -19,14 +19,35 @@ from datetime import datetime, timezone
 from Crypto.Cipher import AES
 
 AVAILABLE_SOURCE = ["system"]
+FULLTEXT_SHARED_INDEX_ALIAS = "aperag-fulltext"
+FULLTEXT_DEFAULT_INDEX_VERSION = "v1"
 
 
 def now_unix_milliseconds():
     return int(utc_now().timestamp() * 1e3)
 
 
-def generate_fulltext_index_name(collection_id) -> str:
+def generate_fulltext_index_alias() -> str:
+    return FULLTEXT_SHARED_INDEX_ALIAS
+
+
+def normalize_fulltext_index_version(version=None) -> str:
+    if version is None:
+        return FULLTEXT_DEFAULT_INDEX_VERSION
+    version = str(version)
+    return version if version.startswith("v") else f"v{version}"
+
+
+def generate_fulltext_physical_index_name(version=None) -> str:
+    return f"{generate_fulltext_index_alias()}-{normalize_fulltext_index_version(version)}"
+
+
+def generate_legacy_fulltext_index_name(collection_id) -> str:
     return str(collection_id)
+
+
+def generate_fulltext_index_name(collection_id=None) -> str:
+    return generate_fulltext_index_alias()
 
 
 def generate_vector_db_collection_name(collection_id) -> str:

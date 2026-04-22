@@ -257,7 +257,13 @@ class SearchPipelineService:
             final_keywords = [query]
 
         try:
-            docs = await fulltext_indexer.search_document(index_name, final_keywords, top_k * 3, chat_id=chat_id)
+            docs = await fulltext_indexer.search_document(
+                index_name,
+                str(collection.id),
+                final_keywords,
+                top_k * 3,
+                chat_id=chat_id,
+            )
         except FulltextSearchDegradedError as e:
             logger.warning("Fulltext search degraded for collection %s: %s", collection.id, e)
             return []
