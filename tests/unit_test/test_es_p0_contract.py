@@ -76,8 +76,9 @@ async def test_fulltext_search_uses_fulltext_helper_and_query_fallback(monkeypat
     async def fake_extract_keywords(*_args, **_kwargs):
         return []
 
-    async def fake_search_document(index_name, keywords, topk, chat_id=None):
+    async def fake_search_document(index_name, collection_id, keywords, topk, chat_id=None):
         captured["index_name"] = index_name
+        captured["collection_id"] = collection_id
         captured["keywords"] = keywords
         captured["topk"] = topk
         captured["chat_id"] = chat_id
@@ -94,6 +95,7 @@ async def test_fulltext_search_uses_fulltext_helper_and_query_fallback(monkeypat
 
     assert captured == {
         "index_name": "ft-col-1",
+        "collection_id": "col-1",
         "keywords": ["中文问题"],
         "topk": 6,
         "chat_id": "chat-1",
@@ -136,11 +138,12 @@ async def test_fulltext_index_search_uses_dual_read_chat_filter(monkeypatch):
         def __init__(self):
             self.indices = FakeAsyncIndices()
 
-        async def search(self, index, query, sort, size):
+        async def search(self, index, query, sort, size, routing):
             captured["index"] = index
             captured["query"] = query
             captured["sort"] = sort
             captured["size"] = size
+            captured["routing"] = routing
             return SimpleNamespace(body={"hits": {"hits": []}})
 
     from aperag.index.fulltext_index import FulltextIndexer
@@ -148,10 +151,11 @@ async def test_fulltext_index_search_uses_dual_read_chat_filter(monkeypatch):
     indexer = object.__new__(FulltextIndexer)
     indexer.async_es = FakeAsyncEs()
 
-    docs = await FulltextIndexer.search_document(indexer, "ft-col-1", ["hello"], topk=3, chat_id="chat-1")
+    docs = await FulltextIndexer.search_document(indexer, "ft-col-1", "col-1", ["hello"], topk=3, chat_id="chat-1")
 
     assert docs == []
     assert captured["query"]["bool"]["filter"] == [
+        {"term": {"collection_id": "col-1"}},
         {
             "bool": {
                 "should": [
@@ -162,6 +166,7 @@ async def test_fulltext_index_search_uses_dual_read_chat_filter(monkeypatch):
             }
         }
     ]
+    assert captured["routing"] == "col-1"
 
 
 def test_create_index_mapping_exposes_explicit_filter_fields(monkeypatch):
@@ -170,6 +175,15 @@ def test_create_index_mapping_exposes_explicit_filter_fields(monkeypatch):
     class FakeIndices:
         def exists(self, index):
             return SimpleNamespace(body=False)
+
+        def exists_alias(self, name):
+            return SimpleNamespace(body=False)
+
+        def get_alias(self, name):
+            return SimpleNamespace(body={})
+
+        def put_alias(self, index, name):
+            captured["alias"] = (index, name)
 
         def create(self, index, body):
             captured["index"] = index
@@ -186,6 +200,7 @@ def test_create_index_mapping_exposes_explicit_filter_fields(monkeypatch):
     create_index("ft-col-1")
 
     props = captured["body"]["mappings"]["properties"]
+    assert captured["alias"] == ("aperag-fulltext-v1", "ft-col-1")
     assert props["collection_id"]["type"] == "keyword"
     assert props["document_id"]["type"] == "keyword"
     assert props["chunk_id"]["type"] == "keyword"
