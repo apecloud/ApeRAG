@@ -14,9 +14,17 @@
 
 
 from abc import ABC, abstractmethod
-from typing import IO, AsyncIterator, Tuple
+from typing import IO, AsyncIterator, Optional, Tuple
 
 from aperag.config import settings
+
+# Process-level singletons. Created on first call to
+# get_object_store() / get_async_object_store() and reused for the
+# life of the process. This avoids creating a new boto3 client (or
+# local path resolver) on every call — document_service alone calls
+# the factory 6 times per request.
+_SYNC_STORE: Optional["ObjectStore"] = None
+_ASYNC_STORE: Optional["AsyncObjectStore"] = None
 
 
 class ObjectStore(ABC):
@@ -236,30 +244,42 @@ class AsyncObjectStore(ABC):
 
 
 def get_object_store() -> ObjectStore:
+    """Return a process-level singleton synchronous ObjectStore.
+
+    The instance is created on first call and reused for the life of
+    the process. This avoids the overhead of creating a new boto3
+    client / local resolver on every call.
     """
-    Factory function to get a synchronous ObjectStore instance based on settings.
-    """
+    global _SYNC_STORE
+    if _SYNC_STORE is not None:
+        return _SYNC_STORE
+
     match settings.object_store_type:
         case "local":
             from aperag.objectstore.local import Local, LocalConfig
 
-            # Convert pydantic model to dict for unpacking
             local_config_dict = (
                 settings.object_store_local_config.model_dump() if settings.object_store_local_config else {}
             )
-            return Local(LocalConfig(**local_config_dict))
+            _SYNC_STORE = Local(LocalConfig(**local_config_dict))
         case "s3":
-            from aperag.objectstore.s3 import S3, S3Config
+            from aperag.objectstore.s3 import S3
 
-            # Convert pydantic model to dict for unpacking
-            s3_config_dict = settings.object_store_s3_config.model_dump() if settings.object_store_s3_config else {}
-            return S3(S3Config(**s3_config_dict))
+            if settings.object_store_s3_config is None:
+                raise RuntimeError("S3 object store configured but OBJECT_STORE_S3_* env vars are missing")
+            _SYNC_STORE = S3(settings.object_store_s3_config)
+        case _:
+            raise ValueError(f"Unsupported object_store_type: {settings.object_store_type!r}")
+
+    return _SYNC_STORE
 
 
 def get_async_object_store() -> AsyncObjectStore:
-    """
-    Factory function to get an asynchronous AsyncObjectStore instance based on settings.
-    """
+    """Return a process-level singleton asynchronous AsyncObjectStore."""
+    global _ASYNC_STORE
+    if _ASYNC_STORE is not None:
+        return _ASYNC_STORE
+
     match settings.object_store_type:
         case "local":
             from aperag.objectstore.local import AsyncLocal, LocalConfig
@@ -267,9 +287,14 @@ def get_async_object_store() -> AsyncObjectStore:
             local_config_dict = (
                 settings.object_store_local_config.model_dump() if settings.object_store_local_config else {}
             )
-            return AsyncLocal(LocalConfig(**local_config_dict))
+            _ASYNC_STORE = AsyncLocal(LocalConfig(**local_config_dict))
         case "s3":
-            from aperag.objectstore.s3 import AsyncS3, S3Config
+            from aperag.objectstore.s3 import AsyncS3
 
-            s3_config_dict = settings.object_store_s3_config.model_dump() if settings.object_store_s3_config else {}
-            return AsyncS3(S3Config(**s3_config_dict))
+            if settings.object_store_s3_config is None:
+                raise RuntimeError("S3 object store configured but OBJECT_STORE_S3_* env vars are missing")
+            _ASYNC_STORE = AsyncS3(settings.object_store_s3_config)
+        case _:
+            raise ValueError(f"Unsupported object_store_type: {settings.object_store_type!r}")
+
+    return _ASYNC_STORE
