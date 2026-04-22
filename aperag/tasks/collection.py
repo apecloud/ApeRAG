@@ -65,15 +65,12 @@ class CollectionTask:
             # Initialize fulltext index
             self._initialize_fulltext_index(collection_id)
 
-            # Brand-new collections are safe to cut over to v2 as a
-            # whole: they have no pre-existing LightRAG truth to
-            # preserve. Old collections reach this marker through an
-            # explicit migration flow, not through doc-level writes.
-            config = parseCollectionConfig(collection.config)
-            if config.enable_knowledge_graph:
-                from aperag.graphindex.integration import run_mark_collection_initialized_sync
-
-                run_mark_collection_initialized_sync(str(collection.id))
+            # No per-collection cutover flip here: graphindex v2 is the
+            # only graph backend after the LightRAG removal, so the
+            # "which store is the truth for this collection?" question
+            # doesn't exist. A brand-new collection simply has no graph
+            # rows yet — first document write populates them through
+            # ``DocumentIndexTask._upsert_graph_index``.
 
             # Update collection status
             collection.status = CollectionStatus.ACTIVE
@@ -159,36 +156,22 @@ class CollectionTask:
         logger.debug(f"Initialized fulltext index {index_name}")
 
     def _delete_knowledge_graph_data(self, collection) -> Dict[str, Any]:
-        """Delete knowledge graph data for the collection.
+        """Wipe this collection's graphindex rows.
 
-        Two-phase during the v1 → v2 transition:
-
-        1. **graphindex v2 drop** — per-tenant DELETE across the three
-           ``graphindex_*`` tables. Cheap single-statement purge; no
-           per-document loop is needed because v2 rows are always
-           collection-tagged.
-        2. **legacy LightRAG sweep** — iterate the collection's
-           documents and call ``adelete_by_doc_id`` to clear the
-           ``lightrag_graph_*`` / kv / vector rows that the old writer
-           left behind. Without this, deleting a collection that was
-           originally indexed against LightRAG would leak orphan graph
-           data. Dropped when curation finishes porting to v2 (see
-           ``docs/zh-CN/design/graphindex_rewrite.md`` §6).
-
-        Either phase is allowed to fail independently — we record the
-        error and move on rather than abort the whole collection-delete
-        workflow. The DB row gets tombstoned regardless, and a
-        follow-up reconcile can clean any residue.
+        Single tenant-scoped DELETE across the three ``graphindex_*``
+        tables. No per-document loop is needed — every graphindex row
+        is already tagged with ``collection_id``, so one transaction
+        covers the lot. Failure is logged and swallowed so the overall
+        collection-delete flow is not blocked by a transient graph
+        issue; the DB row is tombstoned regardless.
         """
         config = parseCollectionConfig(collection.config)
         enable_knowledge_graph = config.enable_knowledge_graph or False
 
         deletion_stats = {"knowledge_graph_enabled": enable_knowledge_graph}
-
         if not enable_knowledge_graph:
             return deletion_stats
 
-        # Phase 1: v2 drop.
         from aperag.graphindex.integration import run_drop_collection_sync
 
         try:
@@ -200,54 +183,7 @@ class CollectionTask:
             deletion_stats["graphindex_error"] = str(e)
             logger.warning(f"graphindex: failed to drop collection {collection.id}: {e}")
 
-        # Phase 2: legacy LightRAG sweep. Collections originally indexed
-        # before v2 shipped still have rows in ``lightrag_graph_*`` (and
-        # the LightRAG KV / vector namespaces). Walk every document in
-        # this collection and issue a per-doc delete — that's the only
-        # API LightRAG exposes for tenant cleanup.
-        try:
-            lightrag_stats = self._delete_legacy_lightrag_data(collection)
-            deletion_stats.update(lightrag_stats)
-        except Exception as e:
-            deletion_stats["lightrag_error"] = str(e)
-            logger.warning(f"lightrag: failed to sweep legacy data for collection {collection.id}: {e}")
-
         return deletion_stats
-
-    def _delete_legacy_lightrag_data(self, collection) -> Dict[str, Any]:
-        """Per-document ``adelete_by_doc_id`` loop over the legacy store.
-
-        Kept separate from the v2 drop so a v2 failure does not skip
-        the legacy cleanup and vice versa.
-        """
-        from asgiref.sync import async_to_sync
-
-        from aperag.graph import lightrag_manager
-
-        async def _sweep() -> Dict[str, Any]:
-            rag = await lightrag_manager.create_lightrag_instance(collection)
-            try:
-                documents = db_ops.query_documents([collection.user], collection.id)
-                document_ids = [doc.id for doc in documents]
-                if not documents:
-                    return {"lightrag_documents_deleted": 0}
-                deleted = 0
-                failed = 0
-                for doc_id in document_ids:
-                    try:
-                        await rag.adelete_by_doc_id(str(doc_id))
-                        deleted += 1
-                    except Exception as e:
-                        failed += 1
-                        logger.warning(f"lightrag: failed to delete doc {doc_id} for collection {collection.id}: {e}")
-                return {
-                    "lightrag_documents_deleted": deleted,
-                    "lightrag_documents_failed": failed,
-                }
-            finally:
-                await rag.finalize_storages()
-
-        return async_to_sync(_sweep)()
 
     def _delete_vector_databases(self, collection_id: str) -> None:
         """Purge this tenant's vector data.

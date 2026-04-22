@@ -154,6 +154,7 @@ async def test_end_to_end_happy_path():
         collection_id="col",
         doc_id="doc-1",
         content=content,
+        tokenize=str.split,
     )
 
     assert result.chunks_created >= 1
@@ -190,6 +191,7 @@ async def test_single_chunk_failure_does_not_fail_document():
         collection_id="col",
         doc_id="doc-1",
         content=content,
+        tokenize=str.split,
     )
     assert result.chunks_created >= 2
     # At least some entities should land (the non-failing chunks).

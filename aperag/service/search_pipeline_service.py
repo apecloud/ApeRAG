@@ -257,6 +257,14 @@ class SearchPipelineService:
         query: str,
         top_k: int,
     ) -> List[DocumentWithScore]:
+        """Knowledge-graph retrieval path. Always routes to graphindex v2.
+
+        A collection that hasn't been indexed yet returns no context;
+        this is the correct behaviour — search pipelines compose
+        (vector + graph + fulltext), and a blank graph just means
+        "graph contributes nothing this time", not "fall back to
+        something stale".
+        """
         config = parseCollectionConfig(collection.config)
         if not config.enable_knowledge_graph:
             logger.warning(f"Collection {collection.id} does not have knowledge graph enabled")
@@ -265,32 +273,10 @@ class SearchPipelineService:
         from aperag.graphindex.integration import make_service_for_collection
 
         svc = make_service_for_collection(collection)
-        collection_id = str(collection.id)
-
-        # Cutover gate: v2 if the collection has been explicitly cut
-        # over on v2 (explicit marker row), otherwise fall back to the
-        # legacy LightRAG context so old collections keep their legacy
-        # truth until collection-level migration is complete. A v2
-        # collection with an empty graph still goes to v2 (returns no
-        # context) rather than silently reading stale legacy data. See
-        # graphindex_rewrite.md §6.
-        if await svc.is_v2_initialized(collection_id=collection_id):
-            ctx = await svc.query_context(collection_id=collection_id, query=query, top_k=top_k)
-            text = ctx.text
-        else:
-            from aperag.graph import lightrag_manager
-            from aperag.graph.lightrag import QueryParam
-
-            rag = await lightrag_manager.create_lightrag_instance(collection)
-            try:
-                param = QueryParam(mode="hybrid", only_need_context=True, top_k=top_k)
-                text = await rag.aquery_context(query=query, param=param)
-            finally:
-                await rag.finalize_storages()
-
-        if not text:
+        ctx = await svc.query_context(collection_id=str(collection.id), query=query, top_k=top_k)
+        if not ctx.text:
             return []
-        return [DocumentWithScore(text=text, metadata={"recall_type": "graph_search"})]
+        return [DocumentWithScore(text=ctx.text, metadata={"recall_type": "graph_search"})]
 
     async def _summary_search(
         self,

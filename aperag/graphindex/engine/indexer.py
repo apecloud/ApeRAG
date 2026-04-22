@@ -36,7 +36,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Awaitable, Callable
+from typing import Awaitable, Callable, Iterable, Optional
 
 from aperag.graphindex.config import GraphIndexConfig
 from aperag.graphindex.dto import Entity, IndexDocumentResult, Relation
@@ -47,6 +47,7 @@ from aperag.graphindex.storage.base import GraphStore
 logger = logging.getLogger(__name__)
 
 LLMCall = Callable[[str], Awaitable[str]]
+Tokenize = Callable[[str], Iterable[str]]
 
 
 async def index_document(
@@ -58,10 +59,14 @@ async def index_document(
     doc_id: str,
     content: str,
     file_path: str = "",
+    tokenize: Optional[Tokenize] = None,
 ) -> IndexDocumentResult:
     """End-to-end: take raw document text, produce graph rows.
 
     Empty content returns a zero-filled result without touching storage.
+    ``tokenize`` is optional — production leaves it ``None`` to pick up
+    the tiktoken default; tests pass ``str.split`` to keep the pipeline
+    offline.
     """
     chunks = chunk_document(
         collection_id=collection_id,
@@ -70,6 +75,7 @@ async def index_document(
         file_path=file_path,
         chunk_token_size=config.chunk_token_size,
         chunk_overlap_token_size=config.chunk_overlap_token_size,
+        tokenize=tokenize,
     )
     if not chunks:
         return IndexDocumentResult(

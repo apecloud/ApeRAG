@@ -152,10 +152,14 @@ def get_hardcoded_index_prompt(prompt_type: str) -> Optional[str]:
         Hardcoded prompt content, or None if not available
     """
     if prompt_type == "graph":
-        # Return LightRAG's entity extraction prompt
-        from aperag.graph.lightrag.prompt import PROMPTS
+        # Return the graphindex v2 extraction prompt template. Unlike
+        # LightRAG's parameterised ``entity_extraction``, this one
+        # expects ``{input_text}`` / ``{entity_types}`` / ``{language}``
+        # / ``{max_entities}`` / ``{max_relations}`` to be filled by the
+        # caller (see ``aperag.graphindex.prompts.render_extraction_prompt``).
+        from aperag.graphindex.prompts import ENTITY_RELATION_EXTRACTION
 
-        return PROMPTS.get("entity_extraction")
+        return ENTITY_RELATION_EXTRACTION
     elif prompt_type == "summary":
         # Return default summary prompt
         return """Provide a comprehensive summary of the following document, focusing on key concepts, main ideas, and important details. The summary should be clear, concise, and capture the essence of the document."""

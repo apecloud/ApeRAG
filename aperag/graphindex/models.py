@@ -14,29 +14,12 @@
 
 """SQLAlchemy models for the graphindex v2 tables.
 
-Four physical tables, all keyed on ``collection_id`` as the tenant
+Three physical tables, all keyed on ``collection_id`` as the tenant
 discriminator:
 
-* ``graphindex_nodes``            — entities
-* ``graphindex_edges``            — relations (directed)
-* ``graphindex_chunks``           — source chunks, for citation and re-ingest
-* ``graphindex_collection_state`` — explicit collection-level v2 cutover marker
-
-The first three hold graph data. The fourth is the cutover flag: a
-single row per collection, written only when collection-level rollout
-code explicitly flips that collection to v2, read by the facade to
-decide whether business reads should go to v2 or fall back to legacy
-LightRAG.
-
-Why a dedicated marker table rather than "is there at least one
-``graphindex_nodes`` row?": a valid v2 run can legitimately produce
-an empty graph (extraction yields zero entities; all entities later
-pruned when their sole source document is deleted). Deriving cutover
-state from data presence would misread "v2, empty graph" as "not on
-v2 yet" and route those reads to stale legacy data — the very
-split-brain this module is supposed to eliminate. The marker row is
-therefore **collection-level rollout state**, not **data content**, so
-it has to live separately.
+* ``graphindex_nodes``  — entities
+* ``graphindex_edges``  — relations (directed)
+* ``graphindex_chunks`` — source chunks, for citation and re-ingest
 
 Table names share the ``graphindex_`` prefix so any cross-tenant
 "purge everything for collection X" operation can target them as a
@@ -71,7 +54,6 @@ from aperag.db.models import Base
 NODES_TABLE = "graphindex_nodes"
 EDGES_TABLE = "graphindex_edges"
 CHUNKS_TABLE = "graphindex_chunks"
-COLLECTION_STATE_TABLE = "graphindex_collection_state"
 
 
 class GraphIndexNode(Base):
@@ -156,39 +138,11 @@ class GraphIndexChunk(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=sql_text("now()"))
 
 
-class GraphIndexCollectionState(Base):
-    """Explicit collection-level "v2 is the source of truth" marker.
-
-    Presence of a row is the cutover signal for the read path: with a
-    row, the facade routes labels / subgraph / graph search to v2;
-    without a row, it falls back to legacy LightRAG. The column
-    ``initialized_at`` is audit data only — the cutover decision keys
-    purely on row existence, so even an all-empty v2 graph (extraction
-    yielded zero entities, or all docs later deleted) continues to be
-    read from v2, not silently rerouted to stale legacy.
-
-    ``collection_id`` is the primary key directly (no surrogate ``id``),
-    which gives every lookup an index hit and makes the upsert a plain
-    ``ON CONFLICT (collection_id) DO NOTHING``.
-    """
-
-    __tablename__ = COLLECTION_STATE_TABLE
-
-    collection_id = Column(String(255), primary_key=True)
-    initialized_at = Column(
-        DateTime(timezone=True),
-        nullable=False,
-        server_default=sql_text("now()"),
-    )
-
-
 __all__ = [
     "NODES_TABLE",
     "EDGES_TABLE",
     "CHUNKS_TABLE",
-    "COLLECTION_STATE_TABLE",
     "GraphIndexNode",
     "GraphIndexEdge",
     "GraphIndexChunk",
-    "GraphIndexCollectionState",
 ]

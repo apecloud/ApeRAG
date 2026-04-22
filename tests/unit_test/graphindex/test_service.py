@@ -36,7 +36,6 @@ class _StubStore:
         self.labels_result: list[str] = []
         self.subgraph_result = KnowledgeGraph(nodes=(), edges=(), is_truncated=False)
         self.delete_result: Optional[DeleteDocumentResult] = None
-        self.is_initialized_result: bool = False
 
     async def ensure_schema(self) -> None:
         self.calls.append(("ensure_schema", (), {}))
@@ -61,14 +60,6 @@ class _StubStore:
             entities_removed=0,
             relations_removed=0,
         )
-
-    async def mark_collection_initialized(self, collection_id):
-        self.calls.append(("mark_collection_initialized", (collection_id,), {}))
-        self.is_initialized_result = True
-
-    async def is_collection_initialized(self, collection_id):
-        self.calls.append(("is_collection_initialized", (collection_id,), {}))
-        return self.is_initialized_result
 
     async def find_entities_by_names(self, collection_id, names):
         self.calls.append(("find_entities_by_names", (collection_id, list(names)), {}))
@@ -188,61 +179,6 @@ async def test_index_document_wipes_existing_rows_before_extracting():
     upsert_positions = [i for i, (name, *_) in enumerate(store.calls) if name in upsert_names]
     if upsert_positions:
         assert min(upsert_positions) > first_delete_idx
-
-
-@pytest.mark.asyncio
-async def test_mark_collection_initialized_delegates_to_store():
-    """Collection-level rollout code must be able to flip the explicit
-    v2 marker through the facade without importing the store."""
-    store = _StubStore()
-    svc = GraphIndexService(store=store, llm=_null_llm)
-
-    await svc.mark_collection_initialized(collection_id="c-new")
-
-    assert ("mark_collection_initialized", ("c-new",), {}) in store.calls
-    assert await svc.is_v2_initialized(collection_id="c-new") is True
-
-
-# ---------------------------------------------------------------------------
-# cutover gate — explicit marker semantics (blocker 2)
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_is_v2_initialized_delegates_to_store():
-    """``is_v2_initialized`` is the read-path cutover gate; it must
-    proxy to the store's marker check without transforming the
-    boolean."""
-    store = _StubStore()
-    store.is_initialized_result = True
-    svc = GraphIndexService(store=store, llm=_null_llm)
-    assert await svc.is_v2_initialized(collection_id="c") is True
-    assert ("is_collection_initialized", ("c",), {}) in store.calls
-
-    store.is_initialized_result = False
-    assert await svc.is_v2_initialized(collection_id="c") is False
-
-
-@pytest.mark.asyncio
-async def test_cutover_gate_decoupled_from_graph_contents():
-    """Empty-graph regression: a collection can be on v2 but have
-    zero entities (extraction yielded nothing, or all entities were
-    pruned when their source docs were deleted). The cutover gate
-    must still report True so reads stay on v2 instead of silently
-    falling back to legacy stale data.
-
-    The stub simulates this by flipping the marker explicitly without
-    requiring any entity rows to exist."""
-    store = _StubStore()
-    svc = GraphIndexService(store=store, llm=_null_llm)
-
-    # A collection-level rollout owner can explicitly cut the
-    # collection over to v2 even when the graph is still empty.
-    await svc.mark_collection_initialized(collection_id="c-empty")
-
-    # The collection is now "on v2" even though no data landed in the
-    # graph tables.
-    assert await svc.is_v2_initialized(collection_id="c-empty") is True
 
 
 @pytest.mark.asyncio

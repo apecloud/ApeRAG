@@ -220,34 +220,6 @@ def run_drop_collection_sync(collection_id: str) -> None:
     return _run_in_new_loop(_run())
 
 
-def run_mark_collection_initialized_sync(collection_id: str) -> None:
-    """Sync cutover flip for callers that own collection-level rollout."""
-
-    async def _run() -> None:
-        svc = GraphIndexService(
-            store=_DEFAULT_STORE,
-            llm=_no_op_llm,
-            config=_DEFAULT_CONFIG,
-        )
-        await svc.mark_collection_initialized(collection_id=collection_id)
-
-    return _run_in_new_loop(_run())
-
-
-def run_is_v2_initialized_sync(collection_id: str) -> bool:
-    """Sync cutover-gate check for Celery / task code."""
-
-    async def _run() -> bool:
-        svc = GraphIndexService(
-            store=_DEFAULT_STORE,
-            llm=_no_op_llm,
-            config=_DEFAULT_CONFIG,
-        )
-        return await svc.is_v2_initialized(collection_id=collection_id)
-
-    return _run_in_new_loop(_run())
-
-
 async def _no_op_llm(_prompt: str) -> str:
     raise RuntimeError("graphindex: LLM was called from a no-LLM service; this is a wiring bug")
 
@@ -279,6 +251,4 @@ __all__ = [
     "run_index_document_sync",
     "run_delete_document_sync",
     "run_drop_collection_sync",
-    "run_mark_collection_initialized_sync",
-    "run_is_v2_initialized_sync",
 ]

@@ -12,83 +12,69 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Graph-index business service.
+
+After the LightRAG removal this service is deliberately small: it owns
+only the two read paths that power the knowledge-graph UI (label list,
+visual subgraph). Everything else — document indexing, document
+deletion, query-context for retrieval — goes through
+``aperag.graphindex.GraphIndexService`` directly from the task or
+search-pipeline layer, with no extra service wrapper.
+
+Three LightRAG-era features have been dropped entirely:
+
+* ``generate_merge_suggestions`` / ``get_or_generate_merge_suggestions``
+* ``merge_nodes`` / ``handle_suggestion_action``
+* ``export_for_kg_eval``
+
+They were LLM-heavy curation features built on LightRAG's entity-merge
+machinery; porting them to graphindex v2 was explicitly out of scope
+for the rewrite. The REST routes are kept in ``aperag/views/graph.py``
+returning HTTP 410 so the frontend gets a clear runtime signal until
+its UI surface is cleaned up in a follow-up. See
+``docs/zh-CN/design/graphindex_rewrite.md`` for rationale.
+"""
+
+from __future__ import annotations
+
 import logging
 from typing import Any, Dict, List
 
-from aperag.concurrent_control import get_or_create_lock, lock_context
-from aperag.db.models import MergeSuggestionStatus
 from aperag.db.ops import async_db_ops
 from aperag.exceptions import CollectionNotFoundException
-from aperag.graph import lightrag_manager  # still used by curation methods
 from aperag.graphindex.dto import Entity as GraphIndexEntity
 from aperag.graphindex.dto import Relation as GraphIndexRelation
 from aperag.schema import view_models
-from aperag.utils.utils import utc_now
 
 logger = logging.getLogger(__name__)
 
 
 class GraphService:
-    """Service for knowledge graph operations"""
+    """Read-side graph service used by the UI."""
 
-    def __init__(self):
+    def __init__(self) -> None:
+        # Local import avoids an import cycle with ``collection_service``.
         from aperag.service.collection_service import collection_service
 
         self.collection_service = collection_service
         self.db_ops = async_db_ops
 
+    # ================================================================== labels
     async def get_graph_labels(self, user_id: str, collection_id: str) -> view_models.GraphLabelsResponse:
-        """Get available node labels in the knowledge graph.
+        """List distinct entity types for a collection.
 
-        Cutover-safe: reads v2 once the collection has been explicitly
-        cut over on v2 (marker in ``graphindex_collection_state``);
-        falls back to legacy LightRAG otherwise. Old collections can
-        therefore stay on legacy truth until collection-level migration
-        is complete. A v2 collection with a legitimately empty graph
-        still reads from v2 — it does **not** silently route back to
-        stale legacy data.
+        Empty list when the collection has not been indexed yet — that
+        is the *correct* answer, not a cue to fall back to anything.
         """
         db_collection = await self._get_and_validate_collection(user_id, collection_id)
 
         from aperag.graphindex.integration import make_service_for_collection
 
         svc = make_service_for_collection(db_collection)
-        if await svc.is_v2_initialized(collection_id=collection_id):
-            labels = await svc.get_labels(collection_id=collection_id)
-            return view_models.GraphLabelsResponse(labels=labels)
+        labels = await svc.get_labels(collection_id=collection_id)
+        return view_models.GraphLabelsResponse(labels=labels)
 
-        # Cutover fallback: collection hasn't been re-indexed against v2 yet.
-        rag = await lightrag_manager.create_lightrag_instance(db_collection)
-        try:
-            labels = await rag.get_graph_labels()
-            return view_models.GraphLabelsResponse(labels=labels)
-        finally:
-            await rag.finalize_storages()
-
-    def _optimize_graph_for_visualization(self, nodes, edges, max_nodes):
-        """Optimize graph by selecting well-connected nodes"""
-        if len(nodes) <= max_nodes:
-            return nodes, edges
-
-        # Calculate node degrees
-        degree_map = {node.id: 0 for node in nodes}
-        for edge in edges:
-            if edge.source in degree_map and edge.target in degree_map:
-                degree_map[edge.source] += 1
-                degree_map[edge.target] += 1
-
-        # Select top nodes by degree
-        sorted_nodes = sorted(nodes, key=lambda node: (-degree_map[node.id], node.id))
-        selected_nodes = sorted_nodes[:max_nodes]
-        selected_node_ids = {node.id for node in selected_nodes}
-
-        # Filter edges between selected nodes
-        optimized_edges = [
-            edge for edge in edges if edge.source in selected_node_ids and edge.target in selected_node_ids
-        ]
-
-        return selected_nodes, optimized_edges
-
+    # ============================================================= subgraph UI
     async def get_knowledge_graph(
         self,
         user_id: str,
@@ -97,54 +83,37 @@ class GraphService:
         max_depth: int = 3,
         max_nodes: int = 1000,
     ) -> Dict[str, Any]:
-        """Get knowledge graph subgraph for UI display.
+        """Fetch a knowledge-graph subgraph for visualization.
 
-        Cutover-safe: reads v2 once the collection has been explicitly
-        cut over on v2 (explicit marker), falls back to legacy LightRAG
-        otherwise. A v2 collection with an empty graph is still served
-        from v2 rather than routed back to stale legacy data.
+        ``label`` is either a specific entity type or "*" / empty for
+        overview mode. In overview mode we oversample 2x and apply a
+        degree-based picker so the visualiser gets well-connected
+        nodes; the subsequent truncation sets ``is_truncated`` on the
+        response.
         """
         db_collection = await self._get_and_validate_collection(user_id, collection_id)
 
         from aperag.graphindex.integration import make_service_for_collection
 
         svc = make_service_for_collection(db_collection)
-        use_v2 = await svc.is_v2_initialized(collection_id=collection_id)
 
         normalized_label = None if not label or label == "*" else label
-        # In overview mode (no label) we ask for 2x max_nodes to give the
-        # visualisation optimizer some room to pick well-connected nodes;
-        # truncation gets fixed up below.
         query_max_nodes = max_nodes * 2 if normalized_label is None else max_nodes
         mode_description = "overview" if normalized_label is None else f"subgraph from '{label}'"
 
-        if use_v2:
-            kg = await svc.get_knowledge_graph(
-                collection_id=collection_id,
-                label=normalized_label,
-                max_depth=max_depth,
-                max_nodes=query_max_nodes,
-            )
-            raw_nodes = _adapt_nodes(kg.nodes)
-            raw_edges = _adapt_edges(kg.edges)
-            is_truncated = bool(getattr(kg, "is_truncated", False))
-        else:
-            # Cutover fallback: collection hasn't been re-indexed against v2 yet.
-            rag = await lightrag_manager.create_lightrag_instance(db_collection)
-            try:
-                legacy_kg = await rag.get_knowledge_graph(
-                    node_label=normalized_label or "*",
-                    max_depth=max_depth,
-                    max_nodes=query_max_nodes,
-                )
-            finally:
-                await rag.finalize_storages()
-            raw_nodes = legacy_kg.nodes
-            raw_edges = legacy_kg.edges
-            is_truncated = bool(getattr(legacy_kg, "is_truncated", False))
+        kg = await svc.get_knowledge_graph(
+            collection_id=collection_id,
+            label=normalized_label,
+            max_depth=max_depth,
+            max_nodes=query_max_nodes,
+        )
+        raw_nodes = _adapt_nodes(kg.nodes)
+        raw_edges = _adapt_edges(kg.edges)
+        is_truncated = bool(getattr(kg, "is_truncated", False))
 
-        # If overview mode produced more than the user asked for, run the
-        # degree-based picker; otherwise pass through.
+        # Overview mode: prune to top-degree nodes when we asked the
+        # storage for more than the UI limit. Sub-label mode passes
+        # through unchanged.
         if normalized_label is None and len(raw_nodes) > max_nodes:
             optimized_nodes, optimized_edges = self._optimize_graph_for_visualization(raw_nodes, raw_edges, max_nodes)
             is_truncated = True
@@ -152,347 +121,90 @@ class GraphService:
             optimized_nodes = raw_nodes
             optimized_edges = raw_edges
 
-        result = self._convert_graph_to_dict(optimized_nodes, optimized_edges, is_truncated)
+        result = self._to_ui_dict(optimized_nodes, optimized_edges, is_truncated)
         logger.info(
-            f"Retrieved {mode_description} graph for collection {collection_id} "
-            f"(source={'v2' if use_v2 else 'legacy'}): "
-            f"{len(result['nodes'])} nodes, {len(result['edges'])} edges"
+            "Retrieved %s graph for collection %s: %d nodes, %d edges",
+            mode_description,
+            collection_id,
+            len(result["nodes"]),
+            len(result["edges"]),
         )
         return result
 
-    def _convert_graph_to_dict(self, nodes, edges, is_truncated=False) -> Dict[str, Any]:
-        """
-        Convert KnowledgeGraph to API dict. Semantics (see KnowledgeGraphNode):
-        - id: node identity and display key (storage must use entity_id).
-        - labels: pass-through from storage (e.g. [entity_type]); fallback to entity_id for display if empty.
-        - properties: entity_id, entity_type, description, source_id, file_path, entity_name.
-        """
+    # --------------------------------------------------------- internal helpers
+    def _optimize_graph_for_visualization(self, nodes, edges, max_nodes):
+        """Pick the top ``max_nodes`` entities by degree, filter edges to
+        those whose endpoints survived the pick.
 
-        def extract_properties(obj, default_fields):
+        Used only in overview mode (no label filter). Degree is
+        computed from the edge list we already fetched, not with a
+        separate SQL query, because overview mode always fetches the
+        full subset anyway.
+        """
+        if len(nodes) <= max_nodes:
+            return nodes, edges
+
+        degree_map = {node.id: 0 for node in nodes}
+        for edge in edges:
+            if edge.source in degree_map and edge.target in degree_map:
+                degree_map[edge.source] += 1
+                degree_map[edge.target] += 1
+
+        sorted_nodes = sorted(nodes, key=lambda n: (-degree_map[n.id], n.id))
+        selected_nodes = sorted_nodes[:max_nodes]
+        selected_ids = {n.id for n in selected_nodes}
+        optimized_edges = [edge for edge in edges if edge.source in selected_ids and edge.target in selected_ids]
+        return selected_nodes, optimized_edges
+
+    def _to_ui_dict(self, nodes, edges, is_truncated: bool) -> Dict[str, Any]:
+        """Convert adapted nodes/edges into the JSON the frontend expects.
+
+        The schema is preserved exactly as it was under LightRAG so the
+        web UI doesn't need to change: each node carries ``id``,
+        ``labels``, and a flat ``properties`` dict; each edge has
+        ``source``, ``target``, ``type``, and ``properties``.
+        """
+        default_node_fields = [
+            "entity_id",
+            "entity_name",
+            "entity_type",
+            "description",
+            "source_id",
+            "file_path",
+        ]
+        default_edge_fields = ["weight", "description", "keywords", "source_id", "file_path"]
+
+        def extract_properties(obj, fields):
             if hasattr(obj, "properties") and obj.properties:
                 return obj.properties
-            return {field: getattr(obj, field, None) for field in default_fields if hasattr(obj, field)}
-
-        default_node_fields = ["entity_id", "entity_name", "entity_type", "description", "source_id", "file_path"]
+            return {f: getattr(obj, f, None) for f in fields if hasattr(obj, f)}
 
         def node_to_item(node):
             props = extract_properties(node, default_node_fields)
-            # Use storage labels when present; else fallback so display is never numeric id
             if getattr(node, "labels", None) and node.labels:
                 labels = node.labels
             else:
                 display = props.get("entity_id") or props.get("entity_name")
                 labels = [display] if display is not None else ([node.id] if hasattr(node, "id") else [])
-            return {
-                "id": node.id,
-                "labels": labels,
-                "properties": props,
-            }
+            return {"id": node.id, "labels": labels, "properties": props}
 
         return {
-            "nodes": [node_to_item(node) for node in nodes],
+            "nodes": [node_to_item(n) for n in nodes],
             "edges": [
                 {
                     "id": edge.id,
                     "type": getattr(edge, "type", "DIRECTED"),
                     "source": edge.source,
                     "target": edge.target,
-                    "properties": extract_properties(
-                        edge, ["weight", "description", "keywords", "source_id", "file_path"]
-                    ),
+                    "properties": extract_properties(edge, default_edge_fields),
                 }
                 for edge in edges
             ],
             "is_truncated": is_truncated,
         }
 
-    async def get_or_generate_merge_suggestions(
-        self,
-        user_id: str,
-        collection_id: str,
-        max_suggestions: int = 10,
-        max_concurrent_llm_calls: int = 4,
-        force_refresh: bool = False,
-    ) -> dict[str, Any]:
-        """Get cached active suggestions or generate new ones"""
-        await self._get_and_validate_collection(user_id, collection_id)
-
-        # Use collection-specific lock to prevent concurrent generation for the same collection
-        lock_name = f"merge_suggestions_{collection_id}"
-        lock = get_or_create_lock(lock_name)
-
-        try:
-            async with lock_context(lock, timeout=120.0):
-                logger.debug(f"Acquired lock '{lock_name}' for merge suggestions generation")
-
-                if not force_refresh:
-                    active_suggestions = await self.db_ops.get_active_suggestions(collection_id)
-                    if active_suggestions:  # If there are active suggestions
-                        return await self.get_merge_suggestions(collection_id, from_cache=True)
-
-                # Generate and store new suggestions
-                await self.generate_merge_suggestions(user_id, collection_id, max_suggestions, max_concurrent_llm_calls)
-
-                return await self.get_merge_suggestions(collection_id, from_cache=False)
-        except TimeoutError:
-            logger.warning(f"Failed to acquire lock '{lock_name}' within timeout, falling back to cache")
-            # Fallback: return existing suggestions
-            return await self.get_merge_suggestions(collection_id, from_cache=True)
-
-    async def _update_active_suggestions(self, collection_id: str, suggestions: List[dict]) -> None:
-        """Update active suggestions (clear old ones and store new ones)"""
-        # Always clear existing active suggestions when generating new ones
-        cleared_count = await self.db_ops.clear_active_suggestions(collection_id)
-        if cleared_count > 0:
-            logger.info(f"Cleared {cleared_count} existing active suggestions for collection {collection_id}")
-
-        # Store new suggestions if any
-        if suggestions and len(suggestions) > 0:
-            await self.db_ops.create_active_suggestions(suggestions)
-        else:
-            logger.debug("No new suggestions to store")
-
-    async def get_merge_suggestions(self, collection_id: str, from_cache: bool = False, **kwargs) -> dict[str, Any]:
-        """Get complete suggestions response with active and history suggestions combined"""
-        # Get active suggestions and history suggestions in parallel for efficiency
-        import asyncio
-
-        active_suggestions, history_suggestions = await asyncio.gather(
-            self.db_ops.get_active_suggestions(collection_id),
-            self.db_ops.get_suggestion_history(collection_id, limit=100),  # Get recent history
-        )
-
-        # Format active suggestions (always PENDING, no operated_at)
-        active_items = [
-            {
-                "id": suggestion.id,
-                "collection_id": suggestion.collection_id,
-                "suggestion_batch_id": suggestion.suggestion_batch_id,
-                "entity_ids": suggestion.entity_ids,
-                "confidence_score": float(suggestion.confidence_score),
-                "merge_reason": suggestion.merge_reason,
-                "suggested_target_entity": suggestion.suggested_target_entity,
-                "status": str(suggestion.status),  # Convert enum to string
-                "created": suggestion.gmt_created,
-                "operated_at": None,  # Active suggestions don't have operated_at
-            }
-            for suggestion in active_suggestions
-        ]
-
-        # Format history suggestions (ACCEPTED/REJECTED, has operated_at)
-        history_items = [
-            {
-                "id": suggestion.id,
-                "collection_id": suggestion.collection_id,
-                "suggestion_batch_id": suggestion.suggestion_batch_id,
-                "entity_ids": suggestion.entity_ids,
-                "confidence_score": float(suggestion.confidence_score),
-                "merge_reason": suggestion.merge_reason,
-                "suggested_target_entity": suggestion.suggested_target_entity,
-                "status": str(suggestion.status),  # Convert enum to string
-                "created": suggestion.gmt_created,
-                "operated_at": suggestion.operated_at,
-            }
-            for suggestion in history_suggestions
-        ]
-
-        # Combine: active first, then history
-        all_suggestions = active_items + history_items
-
-        # Calculate statistics from the actual data
-        pending_count = len(active_items)
-        accepted_count = sum(1 for item in history_items if item["status"] == "ACCEPTED")
-        rejected_count = sum(1 for item in history_items if item["status"] == "REJECTED")
-
-        return {
-            "suggestions": all_suggestions,
-            "total_analyzed_nodes": kwargs.get("total_analyzed_nodes", 0),
-            "processing_time_seconds": kwargs.get("processing_time_seconds", 0.0),
-            "from_cache": from_cache,
-            "generated_at": utc_now(),
-            "total_suggestions": len(all_suggestions),
-            "pending_count": pending_count,
-            "accepted_count": accepted_count,
-            "rejected_count": rejected_count,
-        }
-
-    async def generate_merge_suggestions(
-        self,
-        user_id: str,
-        collection_id: str,
-        max_suggestions: int = 10,
-        max_concurrent_llm_calls: int = 4,
-    ) -> dict[str, Any]:
-        """Generate node merge suggestions using LLM analysis and store them.
-
-        Curation has not been ported to graphindex v2 yet. For
-        collections that have been re-indexed against v2, the legacy
-        LightRAG-backed merge-suggestion path would be reading a stale
-        snapshot that no longer reflects the primary graph — we refuse
-        rather than return silently-wrong answers. See the scope note
-        in ``docs/zh-CN/design/graphindex_rewrite.md`` §6.
-        """
-        await self._assert_legacy_curation_allowed(user_id, collection_id)
-        db_collection = await self._get_and_validate_collection(user_id, collection_id)
-
-        # Generate suggestions using LightRAG
-        rag = await lightrag_manager.create_lightrag_instance(db_collection)
-        try:
-            llm_result = await rag.agenerate_merge_suggestions(
-                max_suggestions=max_suggestions,
-                entity_types=None,  # Default to None (consider all entity types)
-                debug_mode=False,  # Default to False
-                max_concurrent_llm_calls=max_concurrent_llm_calls,
-            )
-        finally:
-            await rag.finalize_storages()
-
-        # Prepare suggestion data for storage
-        suggestion_data = [
-            {
-                "collection_id": collection_id,
-                "entity_ids": [entity["entity_id"] for entity in suggestion["entities"]],
-                "confidence_score": suggestion["confidence_score"],
-                "merge_reason": suggestion["merge_reason"],
-                "suggested_target_entity": suggestion["suggested_target_entity"],
-            }
-            for suggestion in llm_result.get("suggestions", [])
-        ]
-
-        # Store suggestions if any were generated
-        if suggestion_data:
-            await self._update_active_suggestions(collection_id, suggestion_data)
-            logger.info(f"Stored {len(suggestion_data)} new active suggestions for collection {collection_id}")
-
-        # Return the LLM result with metadata for response formatting
-        return llm_result
-
-    async def merge_nodes(
-        self,
-        user_id: str,
-        collection_id: str,
-        entity_ids: list[str],
-        target_entity_data: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        """Merge graph nodes directly using entity IDs.
-
-        Refused on v2 collections (see ``_assert_legacy_curation_allowed``).
-        """
-        if not entity_ids:
-            raise ValueError("entity_ids cannot be empty")
-
-        await self._assert_legacy_curation_allowed(user_id, collection_id)
-        db_collection = await self._get_and_validate_collection(user_id, collection_id)
-
-        # Execute merge directly
-        result = await self._execute_merge_operation(
-            db_collection=db_collection,
-            entity_ids=entity_ids,
-            target_entity_data=target_entity_data,
-        )
-
-        logger.info(f"Successfully merged entities {entity_ids} in collection {collection_id}")
-        return result
-
-    async def handle_suggestion_action(
-        self,
-        user_id: str,
-        collection_id: str,
-        suggestion_id: str,
-        action: str,
-        target_entity_data: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        """Handle accept/reject action on a merge suggestion.
-
-        The accept branch performs a merge, so we gate the whole entry
-        point — rejecting the suggestion is harmless on stale data, but
-        the decision flow reads more clearly with a single guard.
-        """
-        # Normalize action to lowercase for case-insensitive comparison
-        normalized_action = action.lower().strip()
-        if normalized_action not in ["accept", "reject"]:
-            raise ValueError(f"Invalid action: {action}. Must be 'accept' or 'reject' (case-insensitive)")
-
-        await self._assert_legacy_curation_allowed(user_id, collection_id)
-        db_collection = await self._get_and_validate_collection(user_id, collection_id)
-
-        # Get and validate active suggestion
-        suggestion = await self.db_ops.get_active_suggestion_by_id(suggestion_id)
-        if not suggestion:
-            raise ValueError(f"Active suggestion not found: {suggestion_id}")
-
-        if suggestion.collection_id != collection_id:
-            raise ValueError(f"Suggestion {suggestion_id} does not belong to collection {collection_id}")
-
-        # Determine the status for history record
-        history_status = (
-            MergeSuggestionStatus.ACCEPTED if normalized_action == "accept" else MergeSuggestionStatus.REJECTED
-        )
-
-        if normalized_action == "reject":
-            # Move to history and remove from active suggestions
-            await self.db_ops.move_to_history(suggestion, history_status, user_id)
-
-            logger.info(f"Suggestion {suggestion_id} has been rejected")
-            return {
-                "status": "success",
-                "message": f"Suggestion {suggestion_id} has been rejected",
-                "suggestion_id": suggestion_id,
-                "action": normalized_action,
-                "merge_result": None,
-            }
-
-        else:  # normalized_action == "accept"
-            # Accept and perform merge
-            merge_target_data = target_entity_data or suggestion.suggested_target_entity
-
-            # Execute merge operation
-            merge_result = await self._execute_merge_operation(
-                db_collection=db_collection,
-                entity_ids=suggestion.entity_ids,
-                target_entity_data=merge_target_data,
-            )
-
-            # Move to history and remove from active suggestions
-            await self.db_ops.move_to_history(suggestion, history_status, user_id)
-
-            logger.info(f"Suggestion {suggestion_id} has been accepted and merge completed")
-            return {
-                "status": "success",
-                "message": f"Suggestion {suggestion_id} has been accepted and merge completed",
-                "suggestion_id": suggestion_id,
-                "action": normalized_action,
-                "merge_result": merge_result,
-            }
-
-    async def _execute_merge_operation(
-        self,
-        db_collection,
-        entity_ids: list[str],
-        target_entity_data: dict[str, Any] | None,
-    ) -> dict[str, Any]:
-        """Execute the actual node merge operation.
-
-        The v2-cutover guard lives on the public callers
-        (``merge_nodes`` / ``handle_suggestion_action``) so this internal
-        helper doesn't re-query the store on every call.
-        """
-        rag = await lightrag_manager.create_lightrag_instance(db_collection)
-        try:
-            result = await rag.amerge_nodes(
-                entity_ids=entity_ids,
-                target_entity_data=target_entity_data,
-            )
-
-            # Add entity_ids to result for consistency
-            result["entity_ids"] = entity_ids
-
-            return result
-        finally:
-            await rag.finalize_storages()
-
     async def _get_and_validate_collection(self, user_id: str, collection_id: str):
-        """Get collection and validate knowledge graph is enabled"""
+        """Resolve the DB collection row and enforce that graph is enabled."""
         try:
             view_collection = await self.collection_service.get_collection(user_id, collection_id)
         except Exception:
@@ -507,76 +219,28 @@ class GraphService:
 
         return db_collection
 
-    async def _assert_legacy_curation_allowed(self, user_id: str, collection_id: str) -> None:
-        """Refuse curation calls when the collection has been moved to v2.
-
-        During the v1 → v2 transition window, curation (merge suggestions,
-        merge execution, KG-Eval export) still operates against the
-        legacy LightRAG store. For collections that have been
-        initialised on v2 (explicit marker row present), that store
-        is a frozen snapshot — running curation against it would
-        modify data that is no longer the source of truth and leave
-        the real v2 graph untouched. Until curation is ported
-        (tracked for a follow-up PR), we raise instead of returning
-        silently-stale results. A v2 collection with an empty graph
-        is still considered v2 here, so the guard holds even when
-        ``graphindex_nodes`` has no rows.
-        """
-        db_collection = await self.collection_service.db_ops.query_collection(user_id, collection_id)
-        if not db_collection:
-            raise CollectionNotFoundException(collection_id)
-
-        from aperag.graphindex.integration import make_service_for_collection
-
-        svc = make_service_for_collection(db_collection)
-        if await svc.is_v2_initialized(collection_id=collection_id):
-            raise NotImplementedError(
-                f"Graph curation (merge suggestions / merge / export) is not yet available "
-                f"for collections indexed against graphindex v2 (collection {collection_id}). "
-                f"Curation will be ported in a follow-up PR."
-            )
-
-    async def export_for_kg_eval(
-        self, user_id: str, collection_id: str, sample_size: int = 100000, include_source_texts: bool = True
-    ) -> Dict[str, Any]:
-        """Export collection knowledge graph data in KG-Eval framework format.
-
-        Like merge-suggestions, this still reads from LightRAG, so we
-        refuse when the collection has been re-indexed against v2.
-        """
-        await self._assert_legacy_curation_allowed(user_id, collection_id)
-        db_collection = await self._get_and_validate_collection(user_id, collection_id)
-
-        rag = await lightrag_manager.create_lightrag_instance(db_collection)
-        try:
-            result = await rag.export_for_kg_eval(sample_size=sample_size, include_source_texts=include_source_texts)
-            return result
-        finally:
-            await rag.finalize_storages()
-
 
 # ---------------------------------------------------------------------------
-# Adapter helpers: graphindex DTOs → shape expected by ``_convert_graph_to_dict``
+# Adapter helpers: graphindex DTOs → UI shape
 # ---------------------------------------------------------------------------
 #
-# ``_convert_graph_to_dict`` and ``_optimize_graph_for_visualization`` were
-# written for the v1 ``KnowledgeGraph`` schema (``KnowledgeGraphNode`` /
-# ``KnowledgeGraphEdge`` from LightRAG). Rather than rewrite both
-# methods, we wrap graphindex DTOs in simple proxy objects exposing the
-# attributes those methods read. Keeps the diff small and the shape
-# obvious.
-
+# ``_to_ui_dict`` and ``_optimize_graph_for_visualization`` were originally
+# written for the LightRAG ``KnowledgeGraph`` schema. Rather than rewrite
+# the UI contract, we wrap graphindex DTOs in lightweight proxy objects
+# that expose the attributes those helpers read. Keeps the frontend
+# contract unchanged and the adapter isolated in one place.
 
 from types import SimpleNamespace  # noqa: E402  (intentional in-line import)
 
 
-def _adapt_nodes(nodes):
-    """Wrap ``graphindex.Entity`` objects so legacy code can read
-    ``.id`` / ``.labels`` / ``.properties`` / per-field attributes."""
-    out = []
+def _adapt_nodes(nodes: List[GraphIndexEntity]) -> List[SimpleNamespace]:
+    """Wrap ``graphindex.Entity`` for the UI dict builder."""
+    out: List[SimpleNamespace] = []
     for n in nodes:
         if not isinstance(n, GraphIndexEntity):
-            out.append(n)  # already in legacy shape (defensive)
+            # Already in legacy shape (defensive; should not happen after
+            # the LightRAG removal but cheap to keep).
+            out.append(n)  # type: ignore[arg-type]
             continue
         props = {
             "entity_id": n.entity_id,
@@ -591,7 +255,6 @@ def _adapt_nodes(nodes):
                 id=n.entity_id,
                 labels=[n.type] if n.type else [n.name],
                 properties=props,
-                # per-field fallbacks consumed by extract_properties default
                 entity_id=n.entity_id,
                 entity_name=n.name,
                 entity_type=n.type,
@@ -603,12 +266,12 @@ def _adapt_nodes(nodes):
     return out
 
 
-def _adapt_edges(edges):
-    """Wrap ``graphindex.Relation`` objects similarly."""
-    out = []
+def _adapt_edges(edges: List[GraphIndexRelation]) -> List[SimpleNamespace]:
+    """Wrap ``graphindex.Relation`` for the UI dict builder."""
+    out: List[SimpleNamespace] = []
     for e in edges:
         if not isinstance(e, GraphIndexRelation):
-            out.append(e)
+            out.append(e)  # type: ignore[arg-type]
             continue
         props = {
             "weight": float(e.weight),

@@ -141,20 +141,6 @@ class GraphIndexService:
         ApeRAG collection itself (not an individual document)."""
         await self._store.drop_collection(collection_id)
 
-    async def mark_collection_initialized(self, *, collection_id: str) -> None:
-        """Explicitly cut the collection over to v2.
-
-        This is intentionally **not** tied to a single document write.
-        A collection-level truth switch must only happen when the caller
-        knows the collection is safe to read from v2 as a whole: for
-        example, a brand-new collection created after the rollout, or a
-        future full-collection migration job that has finished re-indexing
-        every document. Keeping the flip explicit avoids the mixed-state
-        bug where one doc landing in v2 makes the whole collection stop
-        seeing legacy-only documents.
-        """
-        await self._store.mark_collection_initialized(collection_id)
-
     # ============================================================= read
     async def query_context(
         self,
@@ -200,28 +186,6 @@ class GraphIndexService:
 
         text = _render_context_block(entities=entities, relations=relations)
         return GraphContext(text=text, entities=entities, relations=relations, chunks=chunks)
-
-    async def is_v2_initialized(self, *, collection_id: str) -> bool:
-        """Cutover gate: should this collection read from v2?
-
-        The marker is explicit collection-level rollout state, not
-        "did some single document happen to index into v2". This
-        distinction matters twice:
-
-        1. A collection can legitimately be on v2 with an empty graph
-           (zero-entity extraction, or every document later deleted).
-           The business layer must continue to read v2 in that case,
-           not silently fall back to stale legacy data.
-        2. An old collection can be partially re-indexed. A single
-           doc landing in v2 must not flip the whole collection away
-           from the remaining legacy truth until a caller explicitly
-           completes the collection-level cutover.
-
-        Kept on the service (not the store) so callers never need to
-        import the store directly — the facade stays the single
-        public surface.
-        """
-        return await self._store.is_collection_initialized(collection_id)
 
     async def get_labels(self, *, collection_id: str) -> list[str]:
         return await self._store.list_labels(collection_id)
