@@ -30,12 +30,10 @@ from aperag.db.models import (
     EvaluationItemStatus,
     EvaluationStatus,
 )
-from aperag.db.ops import AsyncDatabaseOps, async_db_ops
+from aperag.db.ops import AsyncDatabaseOps
 from aperag.db.redis_manager import RedisConnectionManager
-from aperag.exceptions import CollectionNotFoundException
 from aperag.llm.completion.base_completion import get_completion_service
 from aperag.schema import view_models
-from aperag.service.collection_service import collection_service
 from aperag.utils import llm_response
 from aperag.utils.utils import utc_now
 
@@ -48,15 +46,6 @@ EVALUATION_ITEM_PROCESSING_TASK_TIMEOUT_MINUTES = int(os.getenv("EVALUATION_ITEM
 APERAG_API_BASE_URL = os.getenv("APERAG_API_BASE_URL", "http://localhost:8000")
 EVALUATION_FEATURE_ENABLED = False
 EVALUATION_DISABLED_MESSAGE = "Evaluation is disabled during Agent framework retirement."
-
-
-class EvaluationDisabledError(RuntimeError):
-    """Raised when the legacy evaluation feature is intentionally retired."""
-
-
-def ensure_evaluation_feature_enabled():
-    if not EVALUATION_FEATURE_ENABLED:
-        raise EvaluationDisabledError(EVALUATION_DISABLED_MESSAGE)
 
 
 async def disable_active_evaluation_runs(db_ops: AsyncDatabaseOps) -> tuple[int, int]:
@@ -523,185 +512,3 @@ class EvaluationExecutor:
         except Exception:
             item_to_process.llm_judge_score = 0
             item_to_process.llm_judge_reasoning = "Failed to parse JSON. LLM response: " + judge_response_str
-
-
-class EvaluationService:
-    def __init__(self, session: AsyncSession = None):
-        if session is None:
-            self.db_ops = async_db_ops
-        else:
-            self.db_ops = AsyncDatabaseOps(session)
-
-    def _convert_db_evaluation_to_view_model(self, db_eval: Evaluation) -> view_models.Evaluation:
-        """Converts an Evaluation DB model to a Pydantic view model."""
-        if db_eval is None:
-            return None
-
-        # Handle LLM config conversion from JSON/dict to Pydantic model
-        agent_llm_config = view_models.LLMConfig(**db_eval.agent_llm_config) if db_eval.agent_llm_config else None
-        judge_llm_config = view_models.LLMConfig(**db_eval.judge_llm_config) if db_eval.judge_llm_config else None
-
-        return view_models.Evaluation(
-            id=db_eval.id,
-            user_id=db_eval.user_id,
-            name=db_eval.name,
-            collection_id=db_eval.collection_id,
-            question_set_id=db_eval.question_set_id,
-            agent_llm_config=agent_llm_config,
-            judge_llm_config=judge_llm_config,
-            status=db_eval.status,
-            total_questions=db_eval.total_questions,
-            completed_questions=db_eval.completed_questions,
-            average_score=db_eval.average_score,
-            gmt_created=db_eval.gmt_created,
-            gmt_updated=db_eval.gmt_updated,
-        )
-
-    async def create_evaluation(self, request: view_models.EvaluationCreate, user_id: str) -> Evaluation:
-        """Creates a new evaluation task."""
-        ensure_evaluation_feature_enabled()
-
-        # Basic configuration checks
-        question_set = await self.db_ops.get_question_set_by_id(request.question_set_id, user_id)
-        if not question_set:
-            raise ValueError("QuestionSet not found.")
-
-        questions = await self.db_ops.list_all_questions_by_set_id(request.question_set_id)
-        if not questions:
-            raise ValueError("QuestionSet contains no questions.")
-
-        try:
-            await collection_service.get_collection(user_id, request.collection_id)
-        except CollectionNotFoundException:
-            raise ValueError("Collection not found.")
-
-        def check_llm_config(cfg: view_models.LLMConfig):
-            if not cfg.model_name or not cfg.model_service_provider or not cfg.custom_llm_provider:
-                return False
-            return True
-
-        if not check_llm_config(request.agent_llm_config) or not check_llm_config(request.judge_llm_config):
-            raise ValueError("LLM configuration is missing.")
-
-        # Create evaluation
-        db_evaluation = Evaluation(
-            user_id=user_id,
-            name=request.name,
-            collection_id=request.collection_id,
-            question_set_id=request.question_set_id,
-            agent_llm_config=request.agent_llm_config.model_dump(),
-            judge_llm_config=request.judge_llm_config.model_dump(),
-            total_questions=len(questions),
-            status=EvaluationStatus.PENDING,
-        )
-        evaluation = await self.db_ops.create_evaluation(db_evaluation, questions)
-        if evaluation:
-            # Trigger the scheduler to pick it up
-            from config.celery_tasks import reconcile_evaluations_task
-
-            reconcile_evaluations_task.delay()
-
-        return evaluation
-
-    async def get_evaluation(self, eval_id: str, user_id: str) -> view_models.EvaluationDetail | None:
-        """Gets an evaluation by its ID and enriches it with related data."""
-        from aperag.service.collection_service import collection_service
-        from aperag.service.question_set_service import question_set_service
-
-        db_eval = await self.db_ops.get_evaluation_by_id(eval_id, user_id)
-        if not db_eval:
-            return None
-
-        # Fetch related object names
-        collection_name = "Unknown"
-        try:
-            collection = await collection_service.get_collection(user_id, db_eval.collection_id)
-            if collection:
-                collection_name = collection.title
-        except Exception:
-            logger.warning(f"Could not fetch collection {db_eval.collection_id} for evaluation {eval_id}")
-
-        question_set_name = "Unknown"
-        try:
-            qs = await question_set_service.get_question_set(db_eval.question_set_id, user_id)
-            if qs:
-                question_set_name = qs.name
-        except Exception:
-            logger.warning(f"Could not fetch question set {db_eval.question_set_id} for evaluation {eval_id}")
-
-        # Convert to Pydantic model and add extra fields
-        eval_detail = view_models.EvaluationDetail(
-            id=db_eval.id,
-            name=db_eval.name,
-            status=db_eval.status,
-            average_score=db_eval.average_score,
-            gmt_created=db_eval.gmt_created,
-            gmt_updated=db_eval.gmt_updated,
-            collection_name=collection_name,
-            question_set_name=question_set_name,
-            config=view_models.Config1(
-                collection_id=db_eval.collection_id,
-                question_set_id=db_eval.question_set_id,
-                agent_llm_config=db_eval.agent_llm_config,
-                judge_llm_config=db_eval.judge_llm_config,
-            ),
-            items=[],  # Results will be loaded separately in the view
-        )
-        return eval_detail
-
-    async def get_evaluation_items(self, eval_id: str) -> list[EvaluationItem]:
-        """Gets all evaluation items for a given evaluation."""
-        return await self.db_ops.get_evaluation_items_by_eval_id(eval_id)
-
-    async def list_evaluations(
-        self, user_id: str, collection_id: str | None, page: int, page_size: int
-    ) -> tuple[list[view_models.Evaluation], int]:
-        """Lists all evaluations for a user."""
-        db_items, total = await self.db_ops.list_evaluations_by_user(
-            user_id=user_id, collection_id=collection_id, page=page, page_size=page_size
-        )
-        items = [self._convert_db_evaluation_to_view_model(item) for item in db_items]
-        return items, total
-
-    async def delete_evaluation(self, eval_id: str, user_id: str) -> bool:
-        """Deletes an evaluation."""
-        # TODO: Add logic to stop the running task if it's in progress
-        return await self.db_ops.delete_evaluation_by_id(eval_id, user_id)
-
-    async def pause_evaluation(self, eval_id: str, user_id: str) -> Evaluation | None:
-        """Pauses a running evaluation."""
-        ensure_evaluation_feature_enabled()
-        return await self.db_ops.update_evaluation_status(
-            eval_id,
-            user_id,
-            EvaluationStatus.PAUSED,
-            [EvaluationStatus.RUNNING, EvaluationStatus.PENDING],
-        )
-
-    async def resume_evaluation(self, eval_id: str, user_id: str) -> Evaluation | None:
-        """Resumes a paused evaluation by setting it back to pending."""
-        ensure_evaluation_feature_enabled()
-        evaluation = await self.db_ops.update_evaluation_status(
-            eval_id, user_id, EvaluationStatus.PENDING, [EvaluationStatus.PAUSED]
-        )
-        if evaluation:
-            # Trigger the scheduler to pick it up
-            from config.celery_tasks import reconcile_evaluations_task
-
-            reconcile_evaluations_task.delay()
-        return evaluation
-
-    async def retry_evaluation(self, eval_id: str, user_id: str, scope: str) -> Evaluation | None:
-        """Retries items in an evaluation based on the scope."""
-        ensure_evaluation_feature_enabled()
-        evaluation = await self.db_ops.retry_evaluation(eval_id, user_id, scope)
-        if evaluation:
-            # Trigger the scheduler to pick it up
-            from config.celery_tasks import reconcile_evaluations_task
-
-            reconcile_evaluations_task.delay()
-        return evaluation
-
-
-# Global service instances
-evaluation_service = EvaluationService()

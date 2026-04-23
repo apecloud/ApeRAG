@@ -45,7 +45,6 @@ from aperag.views.bot import router as bot_router
 from aperag.views.chat import router as chat_router
 from aperag.views.collections import router as collections_router
 from aperag.views.config import router as config_router
-from aperag.views.evaluation import router as evaluation_router
 from aperag.views.evaluation_v2 import router as evaluation_v2_router
 from aperag.views.export import router as export_router
 from aperag.views.graph import router as graph_router
@@ -104,7 +103,6 @@ app.include_router(marketplace_collections_router, prefix="/api/v1")  # Add mark
 app.include_router(settings_router, prefix="/api/v1")
 app.include_router(prompts_router, prefix="/api/v1")  # Add prompts router
 app.include_router(web_router, prefix="/api/v1")  # Add web search router
-app.include_router(evaluation_router, prefix="/api/v1")
 app.include_router(bot_router, prefix="/api/v1")
 app.include_router(chat_router, prefix="/api/v1")
 app.include_router(openai_router, prefix="/v1")
