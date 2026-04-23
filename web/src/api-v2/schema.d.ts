@@ -699,23 +699,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/collections/{collection_id}/graphs/export/kg-eval": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Export Kg Eval View */
-        get: operations["graph_export_kg_eval_view"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/marketplace/collections": {
         parameters: {
             query?: never;
@@ -7521,39 +7504,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RerankResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    graph_export_kg_eval_view: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
                 };
             };
             /** @description Validation Error */
