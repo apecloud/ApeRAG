@@ -57,7 +57,6 @@ dependencies = [
     "alembic>=1.16.1",
     "sqlalchemy>=2.0.40",
     "pgvector>=0.3.6",
-    "opik>=1.7.34",
     "psycopg>=3.2.9",
     "psycopg-pool>=3.2.6",
     "fastmcp>=3.2.4",
