@@ -3,7 +3,7 @@
 import { apiClient } from '@/lib/api/client';
 import { useCallback, useEffect, useState } from 'react';
 
-import { Collection, ModelSpec } from '@/api';
+import { ModelSpec } from '@/api';
 import {
   createBot,
   createBotChat,
@@ -13,6 +13,8 @@ import {
   updateBotChat,
 } from '@/features/bot/client-api';
 import type { Bot, Chat, ChatDetails } from '@/features/bot/types';
+import { listCollections } from '@/features/collection/client-api';
+import type { CollectionView } from '@/features/collection/types';
 import { useLocale } from 'next-intl';
 import { useParams, useRouter } from 'next/navigation';
 import { createContext, useContext } from 'react';
@@ -28,7 +30,7 @@ type BotContextProps = {
   bot?: Bot;
   chats: Chat[];
   mention: boolean;
-  collections: Collection[];
+  collections: CollectionView[];
   providerModels: ProviderModels;
   chatDelete?: (chat: Chat) => void;
   chatCreate?: () => void;
@@ -64,7 +66,7 @@ export const BotProvider = ({
   const router = useRouter();
   const locale = useLocale();
 
-  const [collections, setCollections] = useState<Collection[]>([]);
+  const [collections, setCollections] = useState<CollectionView[]>([]);
   const [providerModels, setProviderModels] = useState<ProviderModels>([]);
   const botChatsBasePath = workspace ? '/workspace/bots' : '/bots';
 
@@ -75,7 +77,7 @@ export const BotProvider = ({
           tag_filters: [{ operation: 'AND', tags: ['enable_for_agent'] }],
         },
       }),
-      apiClient.defaultApi.collectionsGet(),
+      listCollections(),
     ]);
 
     const items = modelRes.data.items?.map((m) => {
@@ -85,7 +87,7 @@ export const BotProvider = ({
         models: m.completion,
       };
     });
-    setCollections(collectionsRes.data.items || []);
+    setCollections(collectionsRes?.items ?? []);
     setProviderModels(items || []);
   }, []);
 

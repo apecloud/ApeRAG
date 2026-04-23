@@ -34,6 +34,10 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  createCollection,
+  updateCollection,
+} from '@/features/collection/client-api';
 import { apiClient } from '@/lib/api/client';
 import { cn, objectKeys } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -212,20 +216,15 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
     async (values: FormValueType) => {
       if (action === 'edit') {
         if (!collection?.id) return;
-        const res = await apiClient.defaultApi.collectionsCollectionIdPut({
-          collectionId: collection.id,
-          collectionUpdate: values,
-        });
-        if (res.data.id) {
+        const data = await updateCollection(collection.id, values);
+        if (data?.id) {
           toast.success(common_tips('update_success'));
           loadCollection();
         }
       }
       if (action === 'add') {
-        const res = await apiClient.defaultApi.collectionsPost({
-          collectionCreate: values,
-        });
-        if (res.data.id) {
+        const data = await createCollection(values);
+        if (data?.id) {
           toast.success(common_tips('create_success'));
           router.push('/workspace/collections');
         }

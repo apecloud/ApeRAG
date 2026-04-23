@@ -2,8 +2,14 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { Collection, SharingStatusResponse } from '@/api';
-import { apiClient } from '@/lib/api/client';
+import {
+  getCollection,
+  getCollectionSharingStatus,
+} from '@/features/collection/client-api';
+import type {
+  Collection,
+  SharingStatusResponse,
+} from '@/features/collection/types';
 import { createContext, useContext } from 'react';
 
 type CollectionContextProps = {
@@ -43,20 +49,20 @@ export const CollectionProvider = ({
     if (!collection?.id) {
       return;
     }
-    const res = await apiClient.defaultApi.collectionsCollectionIdSharingGet({
-      collectionId: collection.id,
-    });
-    setShare(res.data);
+    const data = await getCollectionSharingStatus(collection.id);
+    if (data) {
+      setShare(data);
+    }
   }, [collection?.id]);
 
   const loadCollection = useCallback(async () => {
     if (!collection?.id) {
       return;
     }
-    const res = await apiClient.defaultApi.collectionsCollectionIdGet({
-      collectionId: collection.id,
-    });
-    setCollection(res.data);
+    const data = await getCollection(collection.id);
+    if (data) {
+      setCollection(data);
+    }
   }, [collection?.id]);
 
   useEffect(() => {
