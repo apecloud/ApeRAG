@@ -1,12 +1,15 @@
 'use client';
 
 import { browserApiClient } from '@/lib/api/typed/browser';
-import type { MineruTokenTestResponse } from '@/features/collection/types';
 
 import type {
+  MineruTokenTestResponse,
   QuotaUpdateRequest,
+  QuotaUpdateResponse,
   Settings,
-  SystemDefaultQuotas,
+  SystemDefaultQuotasResponse,
+  SystemDefaultQuotasUpdateRequest,
+  SystemDefaultQuotasUpdateResponse,
   UserQuotaInfo,
   UserQuotaList,
 } from './types';
@@ -26,6 +29,11 @@ export async function updateSettings(input: Settings): Promise<Settings> {
   return data;
 }
 
+// Note: `Settings_test_mineru_token` response body is typed as `unknown`
+// in the public OpenAPI spec, but the backend returns the
+// `MineruTokenTestResponse` shape at runtime. Cast at the adapter
+// boundary so callers get the concrete type. Phase 4 governance may
+// tighten the schema to remove this cast.
 export async function testMineruToken(
   token: string,
 ): Promise<MineruTokenTestResponse> {
@@ -38,12 +46,12 @@ export async function testMineruToken(
   if (!data) {
     throw new Error('testMineruToken: empty response body');
   }
-  return data;
+  return data as MineruTokenTestResponse;
 }
 
 export async function updateSystemDefaultQuotas(
-  input: SystemDefaultQuotas,
-): Promise<SystemDefaultQuotas> {
+  input: SystemDefaultQuotasUpdateRequest,
+): Promise<SystemDefaultQuotasUpdateResponse> {
   const { data } = await browserApiClient.PUT(
     '/api/v1/system/default-quotas',
     {
@@ -52,6 +60,17 @@ export async function updateSystemDefaultQuotas(
   );
   if (!data) {
     throw new Error('updateSystemDefaultQuotas: empty response body');
+  }
+  return data;
+}
+
+export async function getSystemDefaultQuotas(): Promise<SystemDefaultQuotasResponse> {
+  const { data } = await browserApiClient.GET(
+    '/api/v1/system/default-quotas',
+    {},
+  );
+  if (!data) {
+    throw new Error('getSystemDefaultQuotas: empty response body');
   }
   return data;
 }
@@ -76,7 +95,7 @@ export async function listUserQuotas(): Promise<UserQuotaList> {
 
 export async function getUserQuota(userId: string): Promise<UserQuotaInfo> {
   const { data } = await browserApiClient.GET('/api/v1/quotas', {
-    params: { query: { user_id: userId } as Record<string, string> },
+    params: { query: { user_id: userId } },
   });
   if (!data) {
     throw new Error('getUserQuota: empty response body');
@@ -92,7 +111,7 @@ export async function getUserQuota(userId: string): Promise<UserQuotaInfo> {
 export async function updateUserQuota(
   userId: string,
   input: QuotaUpdateRequest,
-): Promise<UserQuotaInfo> {
+): Promise<QuotaUpdateResponse> {
   const { data } = await browserApiClient.PUT(
     '/api/v1/quotas/{user_id}',
     {
@@ -106,17 +125,16 @@ export async function updateUserQuota(
   return data;
 }
 
-export async function recalculateUserQuota(
-  userId: string,
-): Promise<UserQuotaInfo> {
+// Backend currently returns `unknown` (no typed schema for recalculate
+// response); adapter exposes the raw JSON and lets callers decide how to
+// interpret it. If Phase 4 governance formalizes the response shape, tighten
+// the return type.
+export async function recalculateUserQuota(userId: string): Promise<unknown> {
   const { data } = await browserApiClient.POST(
     '/api/v1/quotas/{user_id}/recalculate',
     {
       params: { path: { user_id: userId } },
     },
   );
-  if (!data) {
-    throw new Error('recalculateUserQuota: empty response body');
-  }
   return data;
 }

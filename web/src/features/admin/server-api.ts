@@ -1,7 +1,7 @@
 import { createServerApiClient } from '@/lib/api/typed/server';
 import type { UserList } from '@/features/identity/types';
 
-import type { Settings, SystemDefaultQuotas } from './types';
+import type { Settings, SystemDefaultQuotasResponse } from './types';
 
 // Admin control-plane server-side reads. Workspace-side reads stay in their
 // own feature (`features/quota/server-api::getUserQuota`); this file does
@@ -13,7 +13,7 @@ export async function getSettings(): Promise<Settings | null> {
   return data ?? null;
 }
 
-export async function getSystemDefaultQuotas(): Promise<SystemDefaultQuotas | null> {
+export async function getSystemDefaultQuotas(): Promise<SystemDefaultQuotasResponse | null> {
   const client = await createServerApiClient();
   const { data } = await client.GET('/api/v1/system/default-quotas', {});
   return data ?? null;
