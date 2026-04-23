@@ -17,7 +17,7 @@ import json
 import logging
 import time
 from dataclasses import dataclass
-from typing import Any, AsyncGenerator, Dict, List, Optional
+from typing import Any, AsyncGenerator, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -77,6 +77,42 @@ class OpenAIChatCompletionRequest(BaseModel):
     max_tokens: Optional[int] = None
     max_completion_tokens: Optional[int] = None
     timeout: Optional[int] = None
+
+
+class OpenAIChatCompletionMessage(BaseModel):
+    role: Literal["assistant"]
+    content: str
+
+
+class OpenAIChatCompletionChoice(BaseModel):
+    index: int
+    message: OpenAIChatCompletionMessage
+    finish_reason: Optional[str] = None
+
+
+class OpenAIChatCompletionUsage(BaseModel):
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+
+
+class OpenAIChatCompletionResponse(BaseModel):
+    id: str
+    object: Literal["chat.completion"]
+    created: int
+    model: str
+    choices: list[OpenAIChatCompletionChoice]
+    usage: OpenAIChatCompletionUsage
+
+
+class OpenAIErrorDetail(BaseModel):
+    message: str
+    type: str
+    code: str
+
+
+class OpenAIErrorResponse(BaseModel):
+    error: OpenAIErrorDetail
 
 
 class OpenAIFormatter:
@@ -156,7 +192,7 @@ class ChatCompletionService:
         yield f"data: {json.dumps(formatter.format_stream_end(msg_id))}\n\n"
 
     async def openai_chat_completions(self, user, body_data, query_params, headers=None):
-        """Handle OpenAI-compatible chat completions through Agent Runtime V2."""
+        """Handle OpenAI-compatible chat completions through Agent Runtime V3."""
         try:
             payload = OpenAIChatCompletionRequest.model_validate(body_data or {})
             bot_id = str(query_params.get("bot_id") or "").strip()

@@ -12,19 +12,57 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 
 from aperag.db.models import User
-from aperag.service.chat_completion_service import OpenAIFormatter, chat_completion_service
+from aperag.service.chat_completion_service import (
+    OpenAIChatCompletionRequest,
+    OpenAIChatCompletionResponse,
+    OpenAIErrorResponse,
+    OpenAIFormatter,
+    chat_completion_service,
+)
 from aperag.views.auth import required_user
 
 router = APIRouter(tags=["openai"])
 
 
-@router.post("/chat/completions")
-async def openai_chat_completions_view(request: Request, user: User = Depends(required_user)):
-    """OpenAI-compatible chat completions endpoint backed by Agent Runtime V2."""
+@router.post(
+    "/chat/completions",
+    response_model=OpenAIChatCompletionResponse | OpenAIErrorResponse,
+    responses={
+        200: {
+            "description": "OpenAI-compatible JSON response or text/event-stream chunks when stream=true",
+            "content": {
+                "text/event-stream": {
+                    "schema": {
+                        "type": "string",
+                        "description": "Server-sent OpenAI chat.completion.chunk events.",
+                    }
+                }
+            },
+        }
+    },
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "application/json": {
+                    "schema": OpenAIChatCompletionRequest.model_json_schema(ref_template="#/components/schemas/{model}")
+                }
+            },
+        }
+    },
+)
+async def openai_chat_completions_view(
+    request: Request,
+    bot_id: str | None = Query(default=None, description="Agent bot id that backs this OpenAI-compatible call"),
+    chat_id: str | None = Query(default=None, description="Existing chat id. Omit to create an ephemeral chat"),
+    language: str = Query(default="en-US", description="Response language passed through to Agent Runtime"),
+    user: User = Depends(required_user),
+):
+    """OpenAI-compatible chat completions endpoint backed by Agent Runtime V3."""
     try:
         body_data = await request.json()
     except Exception:
@@ -33,7 +71,11 @@ async def openai_chat_completions_view(request: Request, user: User = Depends(re
     stream, response = await chat_completion_service.openai_chat_completions(
         str(user.id),
         body_data,
-        request.query_params,
+        {
+            "bot_id": bot_id,
+            "chat_id": chat_id,
+            "language": language,
+        },
         request.headers,
     )
     if stream is not None:

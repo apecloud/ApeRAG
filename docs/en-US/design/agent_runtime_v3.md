@@ -315,6 +315,28 @@ POST /api/v2/agent/chats/{chat_id}/turns/{turn_id}/cancel
 GET /api/v2/agent/artifacts/{artifact_id}
 ```
 
+### 6.2.6 OpenAI-compatible adapter
+
+```text
+POST /v1/chat/completions
+```
+
+This endpoint is a compatibility adapter for OpenAI-shaped clients. It is not
+the primary UI contract. The implementation must translate each request into an
+Agent Runtime V3 turn and then format the result as either:
+
+- `chat.completion` JSON when `stream=false`
+- `text/event-stream` `chat.completion.chunk` frames when `stream=true`
+
+The adapter contract is:
+
+- `bot_id` is required as a query parameter
+- `chat_id` is optional; if omitted, the backend creates and later deletes an
+  ephemeral chat
+- `language` is optional and defaults to `en-US`
+- `Idempotency-Key` / `X-Idempotency-Key` maps to
+  `client_idempotency_key`
+
 ## 6.3 Idempotency and reconnect
 
 ### 6.3.1 Idempotency

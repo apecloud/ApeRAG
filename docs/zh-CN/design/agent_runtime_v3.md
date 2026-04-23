@@ -328,6 +328,28 @@ POST /api/v2/agent/chats/{chat_id}/turns/{turn_id}/cancel
 GET /api/v2/agent/artifacts/{artifact_id}
 ```
 
+### 6.2.6 OpenAI-compatible adapter
+
+```text
+POST /v1/chat/completions
+```
+
+这个接口是给 OpenAI 形状客户端使用的兼容 adapter，不是前端主 UI
+contract。实现必须把每个请求转换成 Agent Runtime V3 turn，再按
+OpenAI 形状格式化输出：
+
+- `stream=false` 时返回 `chat.completion` JSON
+- `stream=true` 时返回 `text/event-stream` 的 `chat.completion.chunk`
+  帧
+
+adapter contract 固定为：
+
+- `bot_id` 是必填 query 参数
+- `chat_id` 可选；不传时后端创建并在请求结束后删除 ephemeral chat
+- `language` 可选，默认 `en-US`
+- `Idempotency-Key` / `X-Idempotency-Key` 映射为
+  `client_idempotency_key`
+
 ## 6.3 幂等与重连
 
 ### 6.3.1 幂等策略
