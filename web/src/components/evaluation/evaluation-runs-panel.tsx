@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react';
 
-import type { Bot } from '@/api';
+import type { Bot } from '@/features/bot/types';
 import { FormatDate } from '@/components/format-date';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';

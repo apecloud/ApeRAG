@@ -5,8 +5,8 @@ import {
   PageContent,
   PageHeader,
 } from '@/components/page-container';
+import { getBot } from '@/features/bot/server-api';
 import { listEvaluationRuns } from '@/features/evaluation/server-api';
-import { getServerApi } from '@/lib/api/server';
 import { toJson } from '@/lib/utils';
 import { getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
@@ -20,17 +20,17 @@ export default async function Page({
 }) {
   const { botId } = await params;
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
-  const serverApi = await getServerApi();
   const pageBot = await getTranslations('page_bot');
   const pageBotEvaluation = await getTranslations('page_bot_evaluation');
 
   let bot;
 
   try {
-    const botRes = await serverApi.defaultApi.botsBotIdGet({
-      botId,
-    });
-    bot = toJson(botRes.data);
+    const botRes = await getBot(botId);
+    if (!botRes) {
+      notFound();
+    }
+    bot = toJson(botRes);
   } catch {
     notFound();
   }

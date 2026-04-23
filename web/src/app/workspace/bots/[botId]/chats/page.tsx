@@ -1,11 +1,11 @@
-import { Chat } from '@/api';
 import { BotSectionNav } from '@/components/evaluation/bot-section-nav';
 import {
   PageContainer,
   PageContent,
   PageHeader,
 } from '@/components/page-container';
-import { getServerApi } from '@/lib/api/server';
+import { listBotChats } from '@/features/bot/server-api';
+import type { Chat } from '@/features/bot/types';
 import _ from 'lodash';
 import { getTranslations } from 'next-intl/server';
 import { redirect } from 'next/navigation';
@@ -15,17 +15,10 @@ export default async function Page({
 }: Readonly<{
   params: Promise<{ botId: string }>;
 }>) {
-  const apiServer = await getServerApi();
   const page_chat = await getTranslations('page_chat');
   const { botId } = await params;
-  const chatsRes = await apiServer.defaultApi.botsBotIdChatsGet({
-    botId,
-    page: 1,
-    pageSize: 1,
-  });
-
-  //@ts-expect-error api define has a bug
-  const chat: Chat | undefined = _.first(chatsRes.data.items || []);
+  const chatsRes = await listBotChats(botId, { page: 1, pageSize: 1 });
+  const chat: Chat | undefined = _.first(chatsRes.items ?? []);
 
   if (chat) {
     redirect(`/workspace/bots/${botId}/chats/${chat.id}`);

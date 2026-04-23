@@ -1,4 +1,3 @@
-import { Chat } from '@/api';
 import { AppLogo } from '@/components/app-topbar';
 import {
   Sidebar,
@@ -7,6 +6,8 @@ import {
   SidebarInset,
   SidebarProvider,
 } from '@/components/ui/sidebar';
+import { listBotChats, listBots } from '@/features/bot/server-api';
+import type { Chat } from '@/features/bot/types';
 import { getServerApi } from '@/lib/api/server';
 import { toJson } from '@/lib/utils';
 import { redirect } from 'next/navigation';
@@ -34,18 +35,13 @@ export default async function Layout({
     redirect(`/auth/signin?callbackUrl=${encodeURIComponent('/workspace')}`);
   }
 
-  const botsRes = await apiServer.defaultApi.botsGet();
-  const bot = botsRes.data.items?.find((item) => item.type === 'agent');
+  const botsRes = await listBots();
+  const bot = botsRes.items?.find((item) => item.type === 'agent') ?? undefined;
   let chats: Chat[] = [];
 
   if (bot?.id) {
-    const chatsRes = await apiServer.defaultApi.botsBotIdChatsGet({
-      botId: bot.id,
-      page: 1,
-      pageSize: 100,
-    });
-    //@ts-expect-error api define has a bug
-    chats = chatsRes.data.items || [];
+    const chatsRes = await listBotChats(bot.id, { page: 1, pageSize: 100 });
+    chats = chatsRes.items ?? [];
   }
 
   return (

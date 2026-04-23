@@ -51,3 +51,64 @@ def test_evaluation_feature_uses_v2_typed_api_boundary():
         REPO_ROOT / "web/src/components/evaluation/benchmarks-panel.tsx"
     ).read_text()
     assert "String(value ?? '').toLowerCase()" in benchmarks_panel
+
+
+def test_bot_feature_uses_v2_typed_api_boundary():
+    checked_paths = [
+        REPO_ROOT / "web/src/app/workspace/bots",
+        REPO_ROOT / "web/src/app/workspace/layout.tsx",
+        REPO_ROOT / "web/src/components/providers/bot-provider.tsx",
+        REPO_ROOT / "web/src/components/evaluation/evaluation-runs-panel.tsx",
+        REPO_ROOT / "web/src/features/bot",
+    ]
+
+    sources = {}
+    for entry in checked_paths:
+        if entry.is_file():
+            sources[entry] = entry.read_text()
+            continue
+        for path in entry.rglob("*"):
+            if path.is_file() and path.suffix in {".ts", ".tsx"}:
+                sources[path] = path.read_text()
+    joined = "\n".join(sources.values())
+    feature_sources = "\n".join(
+        source
+        for path, source in sources.items()
+        if "/web/src/features/bot/" in str(path)
+    )
+
+    # Business code under these paths must not touch the v1 bot surface or the old
+    # generated bots SDK directly.
+    assert "/api/v1/bots" not in joined
+    assert "defaultApi.botsGet" not in joined
+    assert "defaultApi.botsPost" not in joined
+    assert "defaultApi.botsBotId" not in joined
+
+    # features/bot adapter must go through the typed v2 paths and not fall back to
+    # the old `@/api` SDK or raw fetch.
+    assert "from '@/api'" not in feature_sources
+    assert "fetch(" not in feature_sources
+    assert "/api/v2/bots" in feature_sources
+
+    # Title generate must build a fully-typed TitleGenerateRequest body with
+    # runtime-safe concrete defaults. An under-specified `{ language }`-only
+    # body would crash backend `chat_title_service.generate_title()` at
+    # `max(1, turns)` / `min(max_length, 50)`, so the normaliser must never
+    # emit `null` for any of the three required keys.
+    bot_client_api = (
+        REPO_ROOT / "web/src/features/bot/client-api.ts"
+    ).read_text()
+    assert "buildTitleGenerateRequest" in bot_client_api
+    assert "toTitleLanguage" in bot_client_api
+    assert "DEFAULT_TITLE_MAX_LENGTH = 20" in bot_client_api
+    assert "DEFAULT_TITLE_TURNS = 1" in bot_client_api
+    assert "DEFAULT_TITLE_LANGUAGE: TitleLanguage = 'zh-CN'" in bot_client_api
+    assert (
+        "max_length: input.max_length ?? DEFAULT_TITLE_MAX_LENGTH"
+        in bot_client_api
+    )
+    assert "turns: input.turns ?? DEFAULT_TITLE_TURNS" in bot_client_api
+    # Guard the negative case: no `?? null` fallback for any of the three
+    # required keys should reappear.
+    assert "max_length: input.max_length ?? null" not in bot_client_api
+    assert "turns: input.turns ?? null" not in bot_client_api
