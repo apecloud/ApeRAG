@@ -116,10 +116,8 @@ spec:
             {{- end }}
             {{- end }}
             {{- if .Values.neo4j.enabled }}
-            - name: NEO4J_HOST
-              value: {{ .Values.neo4j.NEO4J_HOST | quote }}
-            - name: NEO4J_PORT
-              value: {{ .Values.neo4j.NEO4J_PORT | default "7687" | quote }}
+            - name: NEO4J_URI
+              value: {{ .Values.neo4j.NEO4J_URI | quote }}
             - name: NEO4J_USERNAME
               {{- if .Values.neo4j.NEO4J_CREDENTIALS_SECRET_NAME }}
               valueFrom:
