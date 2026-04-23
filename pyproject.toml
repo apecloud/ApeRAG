@@ -33,7 +33,6 @@ dependencies = [
     "elasticsearch<9.0.0,>=8.9.0",
     "gevent<24.0.0,>=23.9.1",
     "requests<3.0.0,>=2.31.0",
-    "qianfan<1.0.0.0,>=0.4.12.3",
     "pillow<13.0.0,>=12.2.0",
     "openai>=2.32.0,<3.0.0",
     "dashscope<2.0.0,>=1.23.1",
@@ -44,7 +43,6 @@ dependencies = [
     "pipmaster<1.0.0,>=0.5.4",
     "pytablewriter<2.0.0,>=1.2.1",
     "litellm>=1.83.0",
-    "requests",
     "asyncpg>=0.30.0",
     "markitdown[all]>=0.1.5",
     "markdown-it-py[linkify]>=3.0.0",
@@ -98,9 +96,6 @@ prerelease = "allow"
 
 [project.optional-dependencies]
 all = [
-]
-evaluation = [
-    "ragas"
 ]
 graph-neo4j = [
     "neo4j>=5.0.0",

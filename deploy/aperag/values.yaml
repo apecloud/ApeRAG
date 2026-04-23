@@ -220,9 +220,7 @@ api:
     LLM_KEYWORD_EXTRACTION_PROVIDER: "openrouter"
     LLM_KEYWORD_EXTRACTION_MODEL: "google/gemini-2.5-flash"
 
-    # Optional provider / parser integrations
-    QIANFAN_API_KEY: ""
-    QIANFAN_SECRET_KEY: ""
+    # Optional parser integrations
     WHISPER_HOST: ""
     PADDLEOCR_HOST: ""
 

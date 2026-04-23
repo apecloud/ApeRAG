@@ -300,12 +300,6 @@ test-http-smoke-k8s:
 test-http-full-k8s:
 	@./tests/e2e_http/scripts/run_k8s_full.sh
 
-# RAG evaluation
-.PHONY: evaluate
-evaluate:
-	@echo "Running RAG evaluation..."
-	@python -m aperag.evaluation.run
-
 ##################################################
 # Code Generation & API
 ##################################################
