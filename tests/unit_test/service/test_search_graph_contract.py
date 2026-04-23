@@ -1,8 +1,9 @@
 from types import SimpleNamespace
 
 from aperag.graphindex.dto import Entity, Relation
-from aperag.schema.view_models import KnowledgeGraph, SearchResultItem
-from aperag.service.graph_service import GraphService, _adapt_edges, _adapt_nodes
+from aperag.domains.knowledge_graph.schemas import KnowledgeGraph
+from aperag.domains.knowledge_graph.service import GraphService, _adapt_edges, _adapt_nodes
+from aperag.domains.retrieval.schemas import SearchResultItem
 
 
 def test_search_result_metadata_is_public_allowlist():

@@ -464,41 +464,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/collections/{collection_id}/searches": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Searches View */
-        get: operations["search_list_searches_view"];
-        put?: never;
-        /** Create Search View */
-        post: operations["search_create_search_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/collections/{collection_id}/searches/{search_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Deletesearch */
-        delete: operations["search_DeleteSearch"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/collections/{collection_id}/documents/staged": {
         parameters: {
             query?: never;
@@ -511,26 +476,6 @@ export interface paths {
          * @description Return all UPLOADED (staged) documents awaiting confirmation.
          */
         get: operations["documents_list_staged_documents_view"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/collections/{collection_id}/graphs/labels": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Graph Labels View
-         * @description Get all available node labels in the collection's knowledge graph
-         */
-        get: operations["graph_get_graph_labels_view"];
         put?: never;
         post?: never;
         delete?: never;
@@ -598,26 +543,6 @@ export interface paths {
          *     Use POST /documents/confirm to move them to PENDING and start indexing.
          */
         post: operations["documents_fetch_url_document_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/collections/{collection_id}/graphs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Knowledge Graph View
-         * @description Get knowledge graph - overview mode or subgraph mode
-         */
-        get: operations["graph_get_knowledge_graph_view"];
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -768,73 +693,6 @@ export interface paths {
          *     Compatible with industry-standard rerank API format used by Cohere, Jina AI, etc.
          */
         post: operations["llm_create_rerank"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/collections/{collection_id}/graphs/nodes/merge": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Merge Nodes View
-         * @description Merge N entities in a collection's knowledge graph into one.
-         *
-         *     Request body:
-         *     ``{"entity_ids": ["a", "b", "c"], "target_entity_id": "a" | null}``
-         *
-         *     * ``entity_ids`` must contain at least two ids.
-         *     * ``target_entity_id`` is the surviving entity; if omitted we pick
-         *       the first id in ``entity_ids`` (callers that want "highest
-         *       degree" auto-selection should do that on the client — the
-         *       service layer intentionally does not embed a product policy).
-         *     * The response echoes the merged description **after** LLM
-         *       summarization, so the frontend can refresh the entity detail
-         *       panel without a second fetch.
-         */
-        post: operations["graph_merge_nodes_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/collections/{collection_id}/graphs/merge-suggestions/{suggestion_id}/action": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Handle Suggestion Action View */
-        post: operations["graph_handle_suggestion_action_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/collections/{collection_id}/graphs/merge-suggestions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Merge Suggestions View */
-        get: operations["graph_get_merge_suggestions_view"];
-        put?: never;
-        /** Merge Suggestions View */
-        post: operations["graph_merge_suggestions_view"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1265,6 +1123,182 @@ export interface paths {
          *     - If no JINA API key, use Trafilatura only
          */
         post: operations["web_access_web_read_endpoint"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/collections/{collection_id}/searches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Searches View
+         * @description List persisted search history for the collection.
+         *
+         *     Returns the typed empty shape ``SearchResultList(items=[])`` when
+         *     no history has been recorded yet (lesson 9a) — never ``None`` and
+         *     never a raw ``{}``.
+         */
+        get: operations["retrieval_list_searches_view"];
+        put?: never;
+        /**
+         * Create Search View
+         * @description Execute a hybrid search against a collection.
+         *
+         *     When the caller does not own the collection but it is published in
+         *     the marketplace, the service falls back to the owner's namespace
+         *     for provider-key lookup. ``data.save_to_history`` controls whether
+         *     the result is persisted as a ``SearchHistory`` row.
+         */
+        post: operations["retrieval_create_search_view"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/collections/{collection_id}/searches/{search_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Deletesearch
+         * @description Idempotent delete of a persisted search history row.
+         */
+        delete: operations["retrieval_DeleteSearch"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/collections/{collection_id}/graphs/labels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Graph Labels View
+         * @description Get all available node labels in the collection's knowledge graph.
+         *
+         *     Empty list is a legitimate result — the collection simply hasn't
+         *     been indexed yet — not a cue to 404 or fall back.
+         */
+        get: operations["knowledge_graph_get_graph_labels_view"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/collections/{collection_id}/graphs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Knowledge Graph View
+         * @description Get knowledge graph — overview mode or subgraph mode.
+         */
+        get: operations["knowledge_graph_get_knowledge_graph_view"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/collections/{collection_id}/graphs/nodes/merge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Merge Nodes View
+         * @description Merge N entities in a collection's knowledge graph into one.
+         *
+         *     Request body:
+         *     ``{"entity_ids": ["a", "b", "c"], "target_entity_id": "a" | null}``
+         *
+         *     * ``entity_ids`` must contain at least two ids.
+         *     * ``target_entity_id`` is the surviving entity; if omitted we pick
+         *       the first id in ``entity_ids`` (callers that want "highest
+         *       degree" auto-selection should do that on the client — the
+         *       service layer intentionally does not embed a product policy).
+         *     * The response echoes the merged description **after** LLM
+         *       summarization, so the frontend can refresh the entity detail
+         *       panel without a second fetch.
+         */
+        post: operations["knowledge_graph_merge_nodes_view"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/collections/{collection_id}/graphs/merge-suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Merge Suggestions View
+         * @description Return the latest run + its suggestions for this collection.
+         *
+         *     When the collection has never started a curation run the response
+         *     is the typed empty shape ``{"run": None, "suggestions": []}`` —
+         *     never ``None`` and never ``{}``. Lesson 9a.
+         */
+        get: operations["knowledge_graph_get_merge_suggestions_view"];
+        put?: never;
+        /**
+         * Merge Suggestions View
+         * @description Start a new graph-curation analysis run (idempotent).
+         */
+        post: operations["knowledge_graph_merge_suggestions_view"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/collections/{collection_id}/graphs/merge-suggestions/{suggestion_id}/action": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Handle Suggestion Action View
+         * @description Accept or reject a merge suggestion.
+         */
+        post: operations["knowledge_graph_handle_suggestion_action_view"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7051,110 +7085,6 @@ export interface operations {
             };
         };
     };
-    search_list_searches_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SearchResultList"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    search_create_search_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SearchRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SearchResult"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    search_DeleteSearch: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-                search_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     documents_list_staged_documents_view: {
         parameters: {
             query?: {
@@ -7175,39 +7105,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StagedDocumentsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    graph_get_graph_labels_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GraphLabelsResponse"];
                 };
             };
             /** @description Validation Error */
@@ -7319,42 +7216,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FetchUrlResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    graph_get_knowledge_graph_view: {
-        parameters: {
-            query?: {
-                label?: string;
-                max_nodes?: number;
-                max_depth?: number;
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["KnowledgeGraph"];
                 };
             };
             /** @description Validation Error */
@@ -7660,161 +7521,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RerankResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    graph_merge_nodes_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    graph_handle_suggestion_action_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-                suggestion_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SuggestionActionRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    graph_get_merge_suggestions_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    graph_merge_suggestions_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["MergeSuggestionsRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
                 };
             };
             /** @description Validation Error */
@@ -8616,6 +8322,334 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WebReadResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retrieval_list_searches_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchResultList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retrieval_create_search_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SearchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retrieval_DeleteSearch: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                collection_id: string;
+                search_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    knowledge_graph_get_graph_labels_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GraphLabelsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    knowledge_graph_get_knowledge_graph_view: {
+        parameters: {
+            query?: {
+                label?: string;
+                max_nodes?: number;
+                max_depth?: number;
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeGraph"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    knowledge_graph_merge_nodes_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    knowledge_graph_get_merge_suggestions_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    knowledge_graph_merge_suggestions_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["MergeSuggestionsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    knowledge_graph_handle_suggestion_action_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                collection_id: string;
+                suggestion_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuggestionActionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */

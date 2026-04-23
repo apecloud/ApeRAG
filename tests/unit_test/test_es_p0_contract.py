@@ -7,7 +7,7 @@ import pytest
 from aperag.db.models import CollectionStatus, DocumentIndexType
 from aperag.query.query import DocumentWithScore
 from aperag.service.document_service import DocumentService
-from aperag.service.search_pipeline_service import SearchPipelineService
+from aperag.domains.retrieval.pipeline import SearchPipelineService
 from aperag.tasks.collection import CollectionTask
 from aperag.tasks.document import DocumentIndexTask
 
@@ -84,8 +84,8 @@ async def test_fulltext_search_uses_fulltext_helper_and_query_fallback(monkeypat
         captured["chat_id"] = chat_id
         return [DocumentWithScore(text="doc", score=1.0, metadata={})]
 
-    monkeypatch.setattr("aperag.service.search_pipeline_service.extract_keywords", fake_extract_keywords)
-    monkeypatch.setattr("aperag.service.search_pipeline_service.generate_fulltext_index_name", lambda cid: f"ft-{cid}")
+    monkeypatch.setattr("aperag.domains.retrieval.pipeline.extract_keywords", fake_extract_keywords)
+    monkeypatch.setattr("aperag.domains.retrieval.pipeline.generate_fulltext_index_name", lambda cid: f"ft-{cid}")
     monkeypatch.setattr("aperag.index.fulltext_index.fulltext_indexer.search_document", fake_search_document)
 
     service = SearchPipelineService()
@@ -113,7 +113,7 @@ async def test_fulltext_search_logs_explicit_degrade_on_backend_failure(monkeypa
     async def fake_search_document(*_args, **_kwargs):
         raise FulltextSearchDegradedError("boom")
 
-    monkeypatch.setattr("aperag.service.search_pipeline_service.extract_keywords", fake_extract_keywords)
+    monkeypatch.setattr("aperag.domains.retrieval.pipeline.extract_keywords", fake_extract_keywords)
     monkeypatch.setattr("aperag.index.fulltext_index.fulltext_indexer.search_document", fake_search_document)
 
     service = SearchPipelineService()

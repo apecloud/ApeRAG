@@ -20,13 +20,18 @@ document routes were replaced by `aperag/views/collections_v2.py`
 FE adapters (#1579 / #1581 / #1585). Those v1 handlers were removed in
 the `#26` final sweep.
 
+The retrieval + knowledge_graph read / subgraph / curation routes that
+previously lived here were hard-cut by the Phase 2 domain split and
+now live at `aperag/domains/retrieval/api/routes.py` +
+`aperag/domains/knowledge_graph/api/routes.py`; they are mounted under
+`/api/v2/` by `aperag/app.py`. See
+`docs/modularization/breaking-changes/phase2-retrieval-knowledge_graph.md`.
+
 Still here (no v2 replacement yet or upload flow intentionally deferred):
 
 - Document upload flow: `upload`, `confirm`, `fetch-url`, `staged` listing.
   The upload queue will move under a dedicated slice together with the
   cross-page persistent upload queue that was flagged by `#1580`.
-- Search routes under `/collections/{id}/searches*`.
-- Graph routes under `/collections/{id}/graphs`.
 
 New v2 work for any of those should land its own router file and a FE
 adapter pair, same pattern as `collections_v2.py` + `features/collection/*`.
@@ -34,12 +39,10 @@ adapter pair, same pattern as `collections_v2.py` + `features/collection/*`.
 
 import logging
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Request, UploadFile
 
 from aperag.db.models import User
-from aperag.exceptions import CollectionNotFoundException
 from aperag.schema import view_models
-from aperag.service.collection_service import collection_service
 from aperag.service.document_service import document_service
 from aperag.utils.audit_decorator import audit
 from aperag.views.auth import required_user
@@ -47,36 +50,6 @@ from aperag.views.auth import required_user
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-
-# Collection search endpoints
-@router.post("/collections/{collection_id}/searches", tags=["search"])
-@audit(resource_type="search", api_name="CreateSearch")
-async def create_search_view(
-    request: Request,
-    collection_id: str,
-    data: view_models.SearchRequest,
-    user: User = Depends(required_user),
-) -> view_models.SearchResult:
-    return await collection_service.create_search(str(user.id), collection_id, data)
-
-
-@router.delete("/collections/{collection_id}/searches/{search_id}", tags=["search"], name="DeleteSearch")
-@audit(resource_type="search", api_name="DeleteSearch")
-async def delete_search_view(
-    request: Request,
-    collection_id: str,
-    search_id: str,
-    user: User = Depends(required_user),
-):
-    return await collection_service.delete_search(str(user.id), collection_id, search_id)
-
-
-@router.get("/collections/{collection_id}/searches", tags=["search"])
-async def list_searches_view(
-    request: Request, collection_id: str, user: User = Depends(required_user)
-) -> view_models.SearchResultList:
-    return await collection_service.list_searches(str(user.id), collection_id)
 
 
 @router.get("/collections/{collection_id}/documents/staged", tags=["documents"])
@@ -87,25 +60,6 @@ async def list_staged_documents_view(
 ) -> view_models.StagedDocumentsResponse:
     """Return all UPLOADED (staged) documents awaiting confirmation."""
     return await document_service.get_staged_documents(str(user.id), collection_id)
-
-
-# Knowledge Graph API endpoints
-@router.get("/collections/{collection_id}/graphs/labels", tags=["graph"])
-async def get_graph_labels_view(
-    request: Request,
-    collection_id: str,
-    user: User = Depends(required_user),
-) -> view_models.GraphLabelsResponse:
-    """Get all available node labels in the collection's knowledge graph"""
-    from aperag.service.graph_service import graph_service
-
-    try:
-        result = await graph_service.get_graph_labels(str(user.id), collection_id)
-        return result
-    except CollectionNotFoundException:
-        raise HTTPException(status_code=404, detail="Collection not found")
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
 
 
 # Upload-related endpoints. Upload flow stays on v1 until the cross-page
@@ -152,30 +106,3 @@ async def fetch_url_document_view(
     Use POST /documents/confirm to move them to PENDING and start indexing.
     """
     return await document_service.fetch_url_documents(str(user.id), collection_id, fetch_request.urls)
-
-
-@router.get("/collections/{collection_id}/graphs", tags=["graph"], response_model=view_models.KnowledgeGraph)
-async def get_knowledge_graph_view(
-    request: Request,
-    collection_id: str,
-    label: str = "*",
-    max_nodes: int = 1000,
-    max_depth: int = 3,
-    user: User = Depends(required_user),
-) -> view_models.KnowledgeGraph:
-    """Get knowledge graph - overview mode or subgraph mode"""
-    from aperag.service.graph_service import graph_service
-
-    # Validate parameters
-    if not (1 <= max_nodes <= 10000):
-        raise HTTPException(status_code=400, detail="max_nodes must be between 1 and 10000")
-    if not (1 <= max_depth <= 10):
-        raise HTTPException(status_code=400, detail="max_depth must be between 1 and 10")
-
-    try:
-        result = await graph_service.get_knowledge_graph(str(user.id), collection_id, label, max_depth, max_nodes)
-        return result
-    except CollectionNotFoundException:
-        raise HTTPException(status_code=404, detail="Collection not found")
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))

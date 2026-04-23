@@ -10,10 +10,8 @@ web/src/app/workspace/collections/[collectionId]/graph-showcase/collection-graph
 web/src/app/workspace/collections/[collectionId]/graph/collection-graph-node-detail.tsx
 web/src/app/workspace/collections/[collectionId]/graph/collection-graph-node-merge.tsx
 web/src/app/workspace/collections/[collectionId]/graph/collection-graph.tsx
-web/src/app/workspace/collections/[collectionId]/search/search-delete.tsx
 web/src/app/workspace/collections/[collectionId]/search/search-result-drawer.tsx
 web/src/app/workspace/collections/[collectionId]/search/search-table.tsx
-web/src/app/workspace/collections/[collectionId]/search/search-test.tsx
 web/src/app/workspace/collections/feature-visibility.ts
 web/src/components/chat/chat-input.tsx
 web/src/components/providers/app-provider.tsx

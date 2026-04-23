@@ -33,6 +33,8 @@ if settings.otel_enabled:
 
 from fastapi import FastAPI  # noqa: E402
 
+from aperag.domains.knowledge_graph.api.routes import router as knowledge_graph_router
+from aperag.domains.retrieval.api.routes import router as retrieval_router
 from aperag.domains.web_access.api.routes import router as web_access_router
 from aperag.exception_handlers import register_exception_handlers
 from aperag.llm.litellm_track import register_custom_llm_track
@@ -99,12 +101,19 @@ app.include_router(export_router, prefix="/api/v1")  # Add export router
 app.include_router(api_key_router, prefix="/api/v1")
 app.include_router(audit_router, prefix="/api/v1")  # Add audit router
 app.include_router(llm_router, prefix="/api/v1")
+# `graph_router` is a residual file that keeps only the 410-gone KG-eval
+# export shim after Phase 2; the write / read-side graph routes now
+# live under `aperag/domains/knowledge_graph/api/routes.py`.
 app.include_router(graph_router, prefix="/api/v1")
 app.include_router(marketplace_router, prefix="/api/v1")  # Add marketplace router
 app.include_router(marketplace_collections_router, prefix="/api/v1")  # Add marketplace collections router
 app.include_router(settings_router, prefix="/api/v1")
 app.include_router(prompts_router, prefix="/api/v1")  # Add prompts router
 app.include_router(web_access_router, prefix="/api/v2", tags=["web_access"])  # Add web_access domain router
+app.include_router(retrieval_router, prefix="/api/v2", tags=["retrieval"])  # Add retrieval domain router
+app.include_router(
+    knowledge_graph_router, prefix="/api/v2", tags=["knowledge_graph"]
+)  # Add knowledge_graph domain router
 app.include_router(chat_router, prefix="/api/v1")
 app.include_router(openai_router, prefix="/v1")
 app.include_router(config_router, prefix="/api/v1/config")

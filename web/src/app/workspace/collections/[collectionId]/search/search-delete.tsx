@@ -1,6 +1,5 @@
 'use client';
 
-import { SearchResult } from '@/api';
 import { useCollectionContext } from '@/components/providers/collection-provider';
 import {
   AlertDialog,
@@ -13,7 +12,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { apiClient } from '@/lib/api/client';
+import { deleteSearch } from '@/features/retrieval/client-api';
+import type { SearchResult } from '@/features/retrieval/types';
 import { Slot } from '@radix-ui/react-slot';
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
@@ -36,17 +36,11 @@ export const SearchDelete = ({
 
   const handleDelete = async () => {
     if (!searchResult.id || !collection.id) return;
-    const res =
-      await apiClient.defaultApi.collectionsCollectionIdSearchesSearchIdDelete({
-        collectionId: collection.id,
-        searchId: searchResult.id,
-      });
+    await deleteSearch(collection.id, searchResult.id);
 
-    if (res.status === 200) {
-      toast.success('Deleted successfully!');
-      setVisible(false);
-      setTimeout(router.refresh, 300);
-    }
+    toast.success('Deleted successfully!');
+    setVisible(false);
+    setTimeout(router.refresh, 300);
   };
 
   return (

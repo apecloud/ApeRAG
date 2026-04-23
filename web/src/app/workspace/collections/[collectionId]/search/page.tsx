@@ -3,7 +3,7 @@ import {
   PageContent,
   PageHeader,
 } from '@/components/page-container';
-import { getServerApi } from '@/lib/api/server';
+import { listSearches } from '@/features/retrieval/server-api';
 import { getTranslations } from 'next-intl/server';
 import { CollectionHeader } from '../collection-header';
 import { SearchTable } from './search-table';
@@ -16,13 +16,8 @@ export default async function Page({
   const page_collections = await getTranslations('page_collections');
   const page_search = await getTranslations('page_search');
   const { collectionId } = await params;
-  const serverApi = await getServerApi();
 
-  const [searchRes] = await Promise.all([
-    serverApi.defaultApi.collectionsCollectionIdSearchesGet({
-      collectionId,
-    }),
-  ]);
+  const searchRes = await listSearches(collectionId);
 
   return (
     <PageContainer>
@@ -39,7 +34,7 @@ export default async function Page({
       />
       <CollectionHeader />
       <PageContent>
-        <SearchTable data={searchRes.data.items || []} />
+        <SearchTable data={searchRes.items ?? []} />
       </PageContent>
     </PageContainer>
   );
