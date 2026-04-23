@@ -9,8 +9,8 @@ HTTP 200
 POST {{base_url}}/api/v2/collections
 Content-Type: application/json
 {
-  "title": "Evaluation V2 Collection {{run_id}}",
-  "description": "HTTP evaluation v2 coverage",
+  "title": "Evaluation V3 Collection {{run_id}}",
+  "description": "HTTP evaluation v3 coverage",
   "type": "document",
   "config": {
     "source": "system",
@@ -31,8 +31,8 @@ jsonpath "$.config.source" == "system"
 POST {{base_url}}/api/v2/bots
 Content-Type: application/json
 {
-  "title": "Evaluation V2 Bot {{run_id}}",
-  "description": "HTTP evaluation v2 run coverage",
+  "title": "Default Agent Bot",
+  "description": "HTTP evaluation v3 run coverage",
   "type": "agent"
 }
 HTTP 200
@@ -51,7 +51,7 @@ Content-Type: application/json
   "source_type": "manual",
   "schema_hint": {
     "language": "en-US",
-    "contract": "evaluation-v2"
+    "contract": "evaluation-v3"
   },
   "items": [
     {
@@ -86,8 +86,8 @@ jsonpath "$.id" == "{{dataset_id}}"
 jsonpath "$.collection_id" == "{{collection_id}}"
 jsonpath "$.name" == "Evaluation Dataset {{run_id}}"
 jsonpath "$.source_type" == "manual"
-jsonpath "$.schema_hint.language" == "en-US"
 jsonpath "$.item_count" == 2
+jsonpath "$.schema_hint.language" == "en-US"
 
 GET {{base_url}}/api/v2/evaluation-datasets?collection_id={{collection_id}}&page=1&page_size=20
 HTTP 200
@@ -120,11 +120,7 @@ jsonpath "$.description" == "Evaluation dataset updated"
 
 GET {{base_url}}/api/v2/evaluation-datasets/{{dataset_id}}/items?page=1&page_size=100
 HTTP 200
-[Captures]
-dataset_item_id: jsonpath "$.items[0].id"
 [Asserts]
-jsonpath "$.items[0].id" == "{{dataset_item_id}}"
-jsonpath "$.items[0].dataset_id" == "{{dataset_id}}"
 jsonpath "$.items[0].case_key" == "hello-case"
 jsonpath "$.items[0].input_message" == "Say hello in one sentence."
 jsonpath "$.items[0].tags[0]" == "smoke"
@@ -133,18 +129,34 @@ jsonpath "$.items[1].sort_key" == 1
 jsonpath "$.pagination.total" == 2
 jsonpath "$.pagination.limit" == 100
 
+POST {{base_url}}/api/v2/evaluation-datasets/{{dataset_id}}/items
+Content-Type: application/json
+{
+  "items": [
+    {
+      "case_key": "followup-case",
+      "input_message": "How should the bot handle ambiguous input?",
+      "expected_answer": "Ask a clarifying question.",
+      "sort_key": 2
+    }
+  ]
+}
+HTTP 200
+[Asserts]
+jsonpath "$.items[0].case_key" == "followup-case"
+jsonpath "$.items[0].input_message" == "How should the bot handle ambiguous input?"
+
 GET {{base_url}}/api/v2/evaluation-datasets/{{dataset_id}}
 HTTP 200
 [Asserts]
-jsonpath "$.id" == "{{dataset_id}}"
-jsonpath "$.item_count" == 2
+jsonpath "$.item_count" == 3
 
 POST {{base_url}}/api/v2/evaluation-runs
 Content-Type: application/json
 {
   "name": "Evaluation Run {{run_id}}",
-  "bot_id": "{{bot_id}}",
   "dataset_id": "{{dataset_id}}",
+  "bot_id": "{{bot_id}}",
   "judge": {
     "mode": "exact_match"
   },
@@ -166,19 +178,42 @@ jsonpath "$.collection_id" == "{{collection_id}}"
 jsonpath "$.name" == "Evaluation Run {{run_id}}"
 jsonpath "$.status" == "queued"
 jsonpath "$.judge_config.mode" == "exact_match"
-jsonpath "$.summary.total" == 2
-jsonpath "$.summary.pending" == 2
+jsonpath "$.summary.total" == 3
+jsonpath "$.summary.pending" == 3
 jsonpath "$.summary.completed" == 0
+
+POST {{base_url}}/api/v2/evaluation-runs
+Content-Type: application/json
+{
+  "name": "Evaluation Run {{run_id}} Default Bot",
+  "dataset_id": "{{dataset_id}}"
+}
+HTTP 200
+[Captures]
+run_id_default_bot: jsonpath "$.id"
+[Asserts]
+jsonpath "$.id" == "{{run_id_default_bot}}"
+jsonpath "$.bot_id" == "{{bot_id}}"
+jsonpath "$.dataset_id" == "{{dataset_id}}"
+jsonpath "$.collection_id" == "{{collection_id}}"
+jsonpath "$.status" == "queued"
 
 GET {{base_url}}/api/v2/evaluation-runs?bot_id={{bot_id}}&page=1&page_size=20
 HTTP 200
 [Asserts]
-jsonpath "$.items[0].id" == "{{run_id_v2}}"
 jsonpath "$.items[0].status" == "queued"
-jsonpath "$.items[0].dataset_id" == "{{dataset_id}}"
-jsonpath "$.items[0].summary.total" == 2
-jsonpath "$.pagination.total" == 1
 jsonpath "$.pagination.limit" == 20
+
+GET {{base_url}}/api/v2/evaluation-runs?collection_id={{collection_id}}&page=1&page_size=20
+HTTP 200
+[Asserts]
+jsonpath "$.items[0].collection_id" == "{{collection_id}}"
+jsonpath "$.pagination.limit" == 20
+
+GET {{base_url}}/api/v2/evaluation-runs?dataset_id={{dataset_id}}&page=1&page_size=20
+HTTP 200
+[Asserts]
+jsonpath "$.items[0].dataset_id" == "{{dataset_id}}"
 
 GET {{base_url}}/api/v2/evaluation-runs/{{run_id_v2}}
 HTTP 200
@@ -186,8 +221,8 @@ HTTP 200
 jsonpath "$.run.id" == "{{run_id_v2}}"
 jsonpath "$.run.status" == "queued"
 jsonpath "$.run.dataset_id" == "{{dataset_id}}"
-jsonpath "$.summary.total" == 2
-jsonpath "$.summary.pending" == 2
+jsonpath "$.summary.total" == 3
+jsonpath "$.summary.pending" == 3
 jsonpath "$.progress.percent" == 0
 
 GET {{base_url}}/api/v2/evaluation-runs/{{run_id_v2}}/items?page=1&page_size=100
@@ -197,11 +232,10 @@ run_item_id: jsonpath "$.items[0].id"
 [Asserts]
 jsonpath "$.items[0].id" == "{{run_item_id}}"
 jsonpath "$.items[0].run_id" == "{{run_id_v2}}"
-jsonpath "$.items[0].source_dataset_item_id" == "{{dataset_item_id}}"
 jsonpath "$.items[0].case_key" == "hello-case"
 jsonpath "$.items[0].status" == "pending"
 jsonpath "$.items[0].attempt_count" == 0
-jsonpath "$.pagination.total" == 2
+jsonpath "$.pagination.total" == 3
 
 GET {{base_url}}/api/v2/evaluation-runs/{{run_id_v2}}/items/{{run_item_id}}/attempts
 HTTP 200

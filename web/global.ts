@@ -1,12 +1,12 @@
 import { TitleGenerateRequestLanguageEnum } from '@/api';
 import messages from './src/i18n/en-US.json';
-import pageBenchmarks from './src/i18n/en-US/page_benchmarks.json';
 import pageBotEvaluation from './src/i18n/en-US/page_bot_evaluation.json';
+import pageCollectionEvaluations from './src/i18n/en-US/page_collection_evaluations.json';
 
 const typedMessages = {
   ...messages,
-  page_benchmarks: pageBenchmarks,
   page_bot_evaluation: pageBotEvaluation,
+  page_collection_evaluations: pageCollectionEvaluations,
 };
 
 declare module 'next-intl' {
