@@ -18,6 +18,26 @@ function mergeHeaders(
   return headers;
 }
 
+async function serverFetch(request: Request, cookieHeader: string, lang: string) {
+  const response = await fetch(
+    new Request(request, {
+      cache: request.cache || 'no-store',
+      headers: mergeHeaders(request.headers, {
+        Cookie: cookieHeader,
+        Lang: lang,
+      }),
+    }),
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `Server API request failed: ${response.status} ${response.statusText}`,
+    );
+  }
+
+  return response;
+}
+
 export async function createServerApiClient() {
   const lang = await getLocale();
   const cookieHeader = (await cookies())
@@ -26,18 +46,7 @@ export async function createServerApiClient() {
     .join('; ');
 
   return createClient<paths>({
-    baseUrl:
-      (process.env.API_SERVER_ENDPOINT || 'http://localhost:8000') +
-      (process.env.API_SERVER_BASE_PATH || ''),
-    fetch: (request: Request) =>
-      fetch(
-        new Request(request, {
-          cache: request.cache || 'no-store',
-          headers: mergeHeaders(request.headers, {
-            Cookie: cookieHeader,
-            Lang: lang,
-          }),
-        }),
-      ),
+    baseUrl: process.env.API_SERVER_ENDPOINT || 'http://localhost:8000',
+    fetch: (request: Request) => serverFetch(request, cookieHeader, lang),
   });
 }
