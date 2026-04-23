@@ -52,7 +52,6 @@ from aperag.views.config import router as config_router
 from aperag.views.documents_v2 import router as documents_v2_router
 from aperag.views.evaluation_v2 import router as evaluation_v2_router
 from aperag.views.export import router as export_router
-from aperag.views.graph import router as graph_router
 from aperag.views.llm import router as llm_router
 from aperag.views.main import router as main_router
 from aperag.views.marketplace import router as marketplace_router
@@ -101,10 +100,6 @@ app.include_router(export_router, prefix="/api/v1")  # Add export router
 app.include_router(api_key_router, prefix="/api/v1")
 app.include_router(audit_router, prefix="/api/v1")  # Add audit router
 app.include_router(llm_router, prefix="/api/v1")
-# `graph_router` is a residual file that keeps only the 410-gone KG-eval
-# export shim after Phase 2; the write / read-side graph routes now
-# live under `aperag/domains/knowledge_graph/api/routes.py`.
-app.include_router(graph_router, prefix="/api/v1")
 app.include_router(marketplace_router, prefix="/api/v1")  # Add marketplace router
 app.include_router(marketplace_collections_router, prefix="/api/v1")  # Add marketplace collections router
 app.include_router(settings_router, prefix="/api/v1")

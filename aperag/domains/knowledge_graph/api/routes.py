@@ -256,8 +256,10 @@ async def handle_suggestion_action_view(
         raise HTTPException(status_code=400, detail=str(exc))
 
 
-# Historical KG-eval export endpoint removed: ``aperag/views/graph.py``
-# kept a ``410 Gone`` handler alive for back-compat. The canonical v2
-# surface does not re-expose it — the shim is deprecated and will be
-# deleted together with ``aperag/views/graph.py`` by the Phase 2
-# hard-cut. See ``docs/zh-CN/design/graphindex_rewrite.md``.
+# Historical ``GET /api/v1/collections/{id}/graphs/export/kg-eval``
+# endpoint was removed together with the LightRAG-era graph workflow.
+# The ``aperag/views/graph.py`` 410-Gone shim that used to reply on the
+# v1 path was deleted by the Phase 2 hard-cut; v1 KG paths now 404 at
+# the FastAPI level, matching every other v1 KG URL. The canonical v2
+# surface does not re-expose kg-eval. See
+# ``docs/zh-CN/design/graphindex_rewrite.md``.
