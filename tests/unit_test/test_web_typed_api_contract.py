@@ -85,6 +85,11 @@ def test_evaluation_feature_uses_v2_typed_api_boundary():
     ).read_text()
     assert "(dataset.item_count ?? 0) > 0" in collection_runs_panel
     assert "start_run_empty_dataset" in collection_runs_panel
+    # Product flow must not expose a bot override in the Collection
+    # Evaluation page; backend resolves the default evaluation bot.
+    assert "bot_override_" not in collection_runs_panel
+    assert "botId" not in collection_runs_panel
+    assert "bot_id: startRunForm" not in collection_runs_panel
     # When the default-bot resolver fails the toast text is user-readable
     # (msg=38d7e74d UX patch G), not a raw ValidationException echo with
     # `bot_id` in it.

@@ -79,13 +79,11 @@ const isBotMissingError = (message: string): boolean => {
 type StartRunFormState = {
   datasetId: string;
   name: string;
-  botId: string;
 };
 
 const defaultStartRunForm: StartRunFormState = {
   datasetId: '',
   name: '',
-  botId: '',
 };
 
 export const CollectionRunsPanel = ({
@@ -147,7 +145,6 @@ export const CollectionRunsPanel = ({
       const payload = await createEvaluationRun({
         dataset_id: startRunForm.datasetId,
         name: startRunForm.name.trim() || undefined,
-        bot_id: startRunForm.botId.trim() || undefined,
       });
 
       toast.success(t('start_run_success'));
@@ -374,24 +371,6 @@ export const CollectionRunsPanel = ({
                   }))
                 }
               />
-            </div>
-            <div className="grid gap-2">
-              <label className="text-sm font-medium text-slate-900">
-                {t('bot_override_label')}
-              </label>
-              <Input
-                value={startRunForm.botId}
-                placeholder={t('bot_override_placeholder')}
-                onChange={(event) =>
-                  setStartRunForm((prev) => ({
-                    ...prev,
-                    botId: event.currentTarget.value,
-                  }))
-                }
-              />
-              <p className="text-xs text-slate-500">
-                {t('bot_override_helper')}
-              </p>
             </div>
           </div>
           <DialogFooter>
