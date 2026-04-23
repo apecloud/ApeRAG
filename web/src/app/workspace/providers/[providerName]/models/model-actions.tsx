@@ -154,7 +154,6 @@ export const ModelActions = ({
       }
       if (action === 'add') {
         await createProviderModel(provider.name, {
-          provider_name: provider.name,
           api: values.api,
           model: values.model,
           custom_llm_provider: values.custom_llm_provider,

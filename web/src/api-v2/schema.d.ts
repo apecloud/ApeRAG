@@ -2184,6 +2184,206 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/providers/configuration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Provider Configuration View
+         * @description Return providers and configured models visible to the current user.
+         */
+        get: operations["providers_v2_get_provider_configuration_view"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/providers/available-models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Get Available Provider Models View
+         * @description Return provider catalog models, optionally filtered by tags.
+         */
+        post: operations["providers_v2_get_available_provider_models_view"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/default-models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Default Models View
+         * @description Return default model selections for each product scenario.
+         */
+        get: operations["providers_v2_get_default_models_view"];
+        /**
+         * Update Default Models View
+         * @description Update default model selections for each product scenario.
+         */
+        put: operations["providers_v2_update_default_models_view"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Provider View
+         * @description Create a provider owned by the current user.
+         */
+        post: operations["providers_v2_create_provider_view"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/providers/{provider_name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Provider View
+         * @description Return one provider visible to the current user.
+         */
+        get: operations["providers_v2_get_provider_view"];
+        /**
+         * Update Provider View
+         * @description Update a provider owned by the current user.
+         */
+        put: operations["providers_v2_update_provider_view"];
+        post?: never;
+        /**
+         * Delete Provider View
+         * @description Delete a provider owned by the current user.
+         */
+        delete: operations["providers_v2_delete_provider_view"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/providers/{provider_name}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish Provider View
+         * @description Publish a private provider to the public catalog. Admin only.
+         */
+        post: operations["providers_v2_publish_provider_view"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/provider-models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Provider Models View
+         * @description Return models for all visible providers, optionally filtered by provider.
+         */
+        get: operations["providers_v2_list_provider_models_view"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/providers/{provider_name}/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Provider Models By Provider View
+         * @description Return models for one provider visible to the current user.
+         */
+        get: operations["providers_v2_list_provider_models_by_provider_view"];
+        put?: never;
+        /**
+         * Create Provider Model View
+         * @description Create a model under a provider owned by the current user.
+         */
+        post: operations["providers_v2_create_provider_model_view"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/providers/{provider_name}/models/{api}/{model}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Provider Model View
+         * @description Update a model under a provider owned by the current user.
+         */
+        put: operations["providers_v2_update_provider_model_view"];
+        post?: never;
+        /**
+         * Delete Provider Model View
+         * @description Delete a model under a provider owned by the current user.
+         */
+        delete: operations["providers_v2_delete_provider_model_view"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4162,6 +4362,93 @@ export interface components {
             /** Custom Llm Provider */
             custom_llm_provider?: string | null;
         };
+        /** LlmConfigurationResponse */
+        LlmConfigurationResponse: {
+            /**
+             * Providers
+             * @description List of LLM providers
+             */
+            providers: components["schemas"]["LlmProvider"][];
+            /**
+             * Models
+             * @description List of LLM provider models
+             */
+            models: components["schemas"]["LlmProviderModel"][];
+        };
+        /** LlmProvider */
+        LlmProvider: {
+            /**
+             * Name
+             * @description Unique provider name identifier
+             * @example openai
+             */
+            name: string;
+            /**
+             * User Id
+             * @description User ID of the provider owner, "public" for system providers
+             * @example public
+             */
+            user_id: string;
+            /**
+             * Label
+             * @description Human-readable provider display name
+             * @example OpenAI
+             */
+            label: string;
+            /**
+             * Completion Dialect
+             * @description API dialect for completion/chat APIs
+             * @default openai
+             * @example openai
+             */
+            completion_dialect: string | null;
+            /**
+             * Embedding Dialect
+             * @description API dialect for embedding APIs
+             * @default openai
+             * @example openai
+             */
+            embedding_dialect: string | null;
+            /**
+             * Rerank Dialect
+             * @description API dialect for rerank APIs
+             * @default jina_ai
+             * @example jina_ai
+             */
+            rerank_dialect: string | null;
+            /**
+             * Allow Custom Base Url
+             * @description Whether custom base URLs are allowed
+             * @default false
+             */
+            allow_custom_base_url: boolean | null;
+            /**
+             * Base Url
+             * @description Default API base URL for this provider
+             * @example https://api.openai.com/v1
+             */
+            base_url: string;
+            /**
+             * Extra
+             * @description Additional configuration data in JSON format
+             */
+            extra?: string | null;
+            /**
+             * Api Key
+             * @description API key for this provider (if configured by user)
+             */
+            api_key?: string | null;
+            /**
+             * Created
+             * @description Creation timestamp
+             */
+            created?: string | null;
+            /**
+             * Updated
+             * @description Last update timestamp
+             */
+            updated?: string | null;
+        };
         /** LlmProviderCreateWithApiKey */
         LlmProviderCreateWithApiKey: {
             /**
@@ -4218,6 +4505,152 @@ export interface components {
              * @description Provider status - enable to create/update API key, disable to remove API key
              */
             status?: ("enable" | "disable") | null;
+        };
+        /** LlmProviderModel */
+        LlmProviderModel: {
+            /**
+             * Provider Name
+             * @description Reference to LLMProvider.name
+             * @example openai
+             */
+            provider_name: string;
+            /**
+             * Api
+             * @description API type for this model
+             * @example completion
+             * @enum {string}
+             */
+            api: "completion" | "embedding" | "rerank";
+            /**
+             * Model
+             * @description Model name/identifier
+             * @example gpt-4o-mini
+             */
+            model: string;
+            /**
+             * Custom Llm Provider
+             * @description Custom LLM provider implementation
+             * @example openai
+             */
+            custom_llm_provider: string;
+            /**
+             * Context Window
+             * @description Context window size (total tokens)
+             * @example 128000
+             */
+            context_window?: number | null;
+            /**
+             * Max Input Tokens
+             * @description Maximum input tokens
+             * @example 120000
+             */
+            max_input_tokens?: number | null;
+            /**
+             * Max Output Tokens
+             * @description Maximum output tokens
+             * @example 8000
+             */
+            max_output_tokens?: number | null;
+            /**
+             * Tags
+             * @description Tags for model categorization
+             * @default []
+             * @example [
+             *       "free",
+             *       "recommend"
+             *     ]
+             */
+            tags: string[] | null;
+            /**
+             * Created
+             * @description Creation timestamp
+             */
+            created?: string | null;
+            /**
+             * Updated
+             * @description Last update timestamp
+             */
+            updated?: string | null;
+        };
+        /** LlmProviderModelCreateRequest */
+        LlmProviderModelCreateRequest: {
+            /**
+             * Api
+             * @description API type for this model
+             * @enum {string}
+             */
+            api: "completion" | "embedding" | "rerank";
+            /**
+             * Model
+             * @description Model name/identifier
+             */
+            model: string;
+            /**
+             * Custom Llm Provider
+             * @description Custom LLM provider implementation
+             */
+            custom_llm_provider: string;
+            /**
+             * Context Window
+             * @description Context window size (total tokens)
+             * @example 128000
+             */
+            context_window?: number | null;
+            /**
+             * Max Input Tokens
+             * @description Maximum input tokens
+             * @example 120000
+             */
+            max_input_tokens?: number | null;
+            /**
+             * Max Output Tokens
+             * @description Maximum output tokens
+             * @example 8000
+             */
+            max_output_tokens?: number | null;
+            /**
+             * Tags
+             * @description Tags for model categorization
+             * @default []
+             */
+            tags: string[] | null;
+        };
+        /** LlmProviderModelList */
+        LlmProviderModelList: {
+            /** Items */
+            items?: components["schemas"]["LlmProviderModel"][] | null;
+            pageResult?: components["schemas"]["PageResult"] | null;
+        };
+        /** LlmProviderModelUpdate */
+        LlmProviderModelUpdate: {
+            /**
+             * Custom Llm Provider
+             * @description Custom LLM provider implementation
+             */
+            custom_llm_provider?: string | null;
+            /**
+             * Context Window
+             * @description Context window size (total tokens)
+             * @example 128000
+             */
+            context_window?: number | null;
+            /**
+             * Max Input Tokens
+             * @description Maximum input tokens
+             * @example 120000
+             */
+            max_input_tokens?: number | null;
+            /**
+             * Max Output Tokens
+             * @description Maximum output tokens
+             * @example 8000
+             */
+            max_output_tokens?: number | null;
+            /**
+             * Tags
+             * @description Tags for model categorization
+             */
+            tags?: string[] | null;
         };
         /** LlmProviderUpdateWithApiKey */
         LlmProviderUpdateWithApiKey: {
@@ -11060,6 +11493,483 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["EvaluationRunItemEnvelope"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    providers_v2_get_provider_configuration_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LlmConfigurationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    providers_v2_get_available_provider_models_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["TagFilterRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelConfigList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    providers_v2_get_default_models_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DefaultModelsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    providers_v2_update_default_models_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DefaultModelsUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DefaultModelsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    providers_v2_create_provider_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LlmProviderCreateWithApiKey"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LlmProvider"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    providers_v2_get_provider_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                provider_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LlmProvider"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    providers_v2_update_provider_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                provider_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LlmProviderUpdateWithApiKey"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LlmProvider"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    providers_v2_delete_provider_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                provider_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    providers_v2_publish_provider_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                provider_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LlmProvider"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    providers_v2_list_provider_models_view: {
+        parameters: {
+            query?: {
+                provider_name?: string | null;
+                engine?: unknown;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LlmProviderModelList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    providers_v2_list_provider_models_by_provider_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                provider_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LlmProviderModelList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    providers_v2_create_provider_model_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                provider_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LlmProviderModelCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LlmProviderModel"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    providers_v2_update_provider_model_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                provider_name: string;
+                api: string;
+                /** @description Model name. Supports names with slashes. */
+                model: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LlmProviderModelUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LlmProviderModel"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    providers_v2_delete_provider_model_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                provider_name: string;
+                api: string;
+                /** @description Model name. Supports names with slashes. */
+                model: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

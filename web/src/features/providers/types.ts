@@ -1,64 +1,22 @@
 import type { components } from '@/api-v2/schema';
 
-export type ProviderModelApi = 'completion' | 'embedding' | 'rerank';
-export type Provider = {
-  name: string;
-  user_id: string;
-  label: string;
-  completion_dialect: string;
-  embedding_dialect: string;
-  rerank_dialect: string;
-  allow_custom_base_url: boolean;
-  base_url: string;
-  extra?: string | null;
-  api_key?: string | null;
-  created?: string | null;
-  updated?: string | null;
-};
-export type ProviderModel = {
-  provider_name: string;
-  api: ProviderModelApi;
-  model: string;
-  custom_llm_provider: string;
-  context_window?: number | null;
-  max_input_tokens?: number | null;
-  max_output_tokens?: number | null;
-  tags?: string[] | null;
-  created?: string | null;
-  updated?: string | null;
-};
+export type Provider = components['schemas']['LlmProvider'];
+export type ProviderModel = components['schemas']['LlmProviderModel'];
+export type ProviderModelApi = ProviderModel['api'];
 export type ModelConfig = components['schemas']['ModelConfig'];
 export type ModelSpec = components['schemas']['ModelSpec'];
 export type DefaultModelConfig = components['schemas']['DefaultModelConfig'];
 export type DefaultModelScenario = DefaultModelConfig['scenario'];
-export type ProviderModelFormInput = {
-  provider_name: string;
-  api: ProviderModelApi;
-  model: string;
-  custom_llm_provider: string;
-  context_window?: number | null;
-  max_input_tokens?: number | null;
-  max_output_tokens?: number | null;
-  tags: string[];
-};
-export type ProviderModelUpdateInput = {
-  custom_llm_provider?: string | null;
-  context_window?: number | null;
-  max_input_tokens?: number | null;
-  max_output_tokens?: number | null;
-  tags?: string[] | null;
-};
+export type ProviderModelFormInput =
+  components['schemas']['LlmProviderModelCreateRequest'];
+export type ProviderModelUpdateInput =
+  components['schemas']['LlmProviderModelUpdate'];
 
-export type ProviderFormInput = {
-  label: string;
-  base_url: string;
-  completion_dialect: string;
-  embedding_dialect: string;
-  rerank_dialect: string;
-  allow_custom_base_url?: boolean;
-  api_key?: string;
-  extra?: string;
-  status?: 'enable' | 'disable';
+export type ProviderFormInput = Omit<
+  components['schemas']['LlmProviderCreateWithApiKey'],
+  'allow_custom_base_url'
+> & {
+  allow_custom_base_url?: boolean | null;
 };
 
 export type ProviderCatalogViewModel = {

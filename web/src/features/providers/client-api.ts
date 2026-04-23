@@ -4,22 +4,12 @@ import { browserApiClient } from '@/lib/api/typed/browser';
 import type {
   DefaultModelConfig,
   ModelConfig,
-  Provider,
   ProviderModel,
   ProviderModelApi,
   ProviderModelFormInput,
   ProviderModelUpdateInput,
   ProviderFormInput,
 } from './types';
-
-type ProviderApiClient = {
-  GET<T>(path: string, options?: unknown): Promise<{ data?: T }>;
-  POST<T>(path: string, options?: unknown): Promise<{ data?: T }>;
-  PUT<T>(path: string, options?: unknown): Promise<{ data?: T }>;
-  DELETE(path: string, options?: unknown): Promise<{ data?: unknown }>;
-};
-
-const providerApiClient = browserApiClient as unknown as ProviderApiClient;
 
 function providerCreatePayload(input: ProviderFormInput) {
   return {
@@ -29,7 +19,7 @@ function providerCreatePayload(input: ProviderFormInput) {
 }
 
 export async function createProvider(input: ProviderFormInput) {
-  const { data } = await providerApiClient.POST<Provider>('/api/v1/llm_providers', {
+  const { data } = await browserApiClient.POST('/api/v2/providers', {
     body: providerCreatePayload(input),
   });
   return data;
@@ -39,8 +29,8 @@ export async function updateProvider(
   providerName: string,
   input: ProviderFormInput,
 ) {
-  const { data } = await providerApiClient.PUT<Provider>(
-    '/api/v1/llm_providers/{provider_name}',
+  const { data } = await browserApiClient.PUT(
+    '/api/v2/providers/{provider_name}',
     {
       params: { path: { provider_name: providerName } },
       body: input,
@@ -50,14 +40,14 @@ export async function updateProvider(
 }
 
 export async function deleteProvider(providerName: string) {
-  await providerApiClient.DELETE('/api/v1/llm_providers/{provider_name}', {
+  await browserApiClient.DELETE('/api/v2/providers/{provider_name}', {
     params: { path: { provider_name: providerName } },
   });
 }
 
 export async function publishProvider(providerName: string) {
-  const { data } = await providerApiClient.POST<Provider>(
-    '/api/v1/llm_providers/{provider_name}/publish',
+  const { data } = await browserApiClient.POST(
+    '/api/v2/providers/{provider_name}/publish',
     {
       params: { path: { provider_name: providerName } },
     },
@@ -66,8 +56,8 @@ export async function publishProvider(providerName: string) {
 }
 
 export async function getProvider(providerName: string) {
-  const { data } = await providerApiClient.GET<Provider>(
-    '/api/v1/llm_providers/{provider_name}',
+  const { data } = await browserApiClient.GET(
+    '/api/v2/providers/{provider_name}',
     {
       params: { path: { provider_name: providerName } },
     },
@@ -76,8 +66,8 @@ export async function getProvider(providerName: string) {
 }
 
 export async function getProviderModels(providerName: string) {
-  const { data } = await providerApiClient.GET<{ items?: ProviderModel[] }>(
-    '/api/v1/llm_providers/{provider_name}/models',
+  const { data } = await browserApiClient.GET(
+    '/api/v2/providers/{provider_name}/models',
     {
       params: { path: { provider_name: providerName } },
     },
@@ -89,8 +79,8 @@ export async function createProviderModel(
   providerName: string,
   input: ProviderModelFormInput,
 ) {
-  const { data } = await providerApiClient.POST<ProviderModel>(
-    '/api/v1/llm_providers/{provider_name}/models',
+  const { data } = await browserApiClient.POST(
+    '/api/v2/providers/{provider_name}/models',
     {
       params: { path: { provider_name: providerName } },
       body: input,
@@ -105,8 +95,8 @@ export async function updateProviderModel(
   model: string,
   input: ProviderModelUpdateInput,
 ) {
-  const { data } = await providerApiClient.PUT<ProviderModel>(
-    '/api/v1/llm_providers/{provider_name}/models/{api}/{model}',
+  const { data } = await browserApiClient.PUT(
+    '/api/v2/providers/{provider_name}/models/{api}/{model}',
     {
       params: {
         path: { provider_name: providerName, api, model },
@@ -122,8 +112,8 @@ export async function deleteProviderModel(
   api: ProviderModelApi,
   model: string,
 ) {
-  await providerApiClient.DELETE(
-    '/api/v1/llm_providers/{provider_name}/models/{api}/{model}',
+  await browserApiClient.DELETE(
+    '/api/v2/providers/{provider_name}/models/{api}/{model}',
     {
       params: {
         path: { provider_name: providerName, api, model },
@@ -147,25 +137,28 @@ export async function updateProviderModelTags(
 }
 
 export async function getDefaultModels() {
-  const { data } = await browserApiClient.GET('/api/v1/default_models', {});
+  const { data } = await browserApiClient.GET('/api/v2/default-models', {});
   return data?.items ?? [];
 }
 
 export async function updateDefaultModels(defaults: DefaultModelConfig[]) {
-  const { data } = await browserApiClient.PUT('/api/v1/default_models', {
+  const { data } = await browserApiClient.PUT('/api/v2/default-models', {
     body: { defaults },
   });
   return data?.items ?? [];
 }
 
 export async function getAvailableModels(tagFilters: string[][]) {
-  const { data } = await browserApiClient.POST('/api/v1/available_models', {
-    body: {
-      tag_filters: tagFilters.map((tags) => ({
-        operation: 'AND' as const,
-        tags,
-      })),
+  const { data } = await browserApiClient.POST(
+    '/api/v2/providers/available-models',
+    {
+      body: {
+        tag_filters: tagFilters.map((tags) => ({
+          operation: 'AND' as const,
+          tags,
+        })),
+      },
     },
-  });
+  );
   return (data?.items ?? []) as ModelConfig[];
 }

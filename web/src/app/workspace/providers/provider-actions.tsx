@@ -42,7 +42,7 @@ import { Slot } from '@radix-ui/react-slot';
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { type Resolver, useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import * as z from 'zod';
 
@@ -61,6 +61,7 @@ const providerSchema = z.object({
   embedding_dialect: z.string().min(1),
   rerank_dialect: z.string().min(1),
 });
+type ProviderFormValues = z.infer<typeof providerSchema>;
 
 export const ProviderActions = ({
   provider,
@@ -81,9 +82,17 @@ export const ProviderActions = ({
   const common_action = useTranslations('common.action');
   const common_tips = useTranslations('common.tips');
 
-  const form = useForm<z.infer<typeof providerSchema>>({
-    resolver: zodResolver(providerSchema),
-    defaultValues: { ...defaultValue, ...provider },
+  const form = useForm<ProviderFormValues>({
+    resolver: zodResolver(providerSchema) as Resolver<ProviderFormValues>,
+    defaultValues: {
+      label: provider?.label ?? defaultValue.label,
+      base_url: provider?.base_url ?? defaultValue.base_url,
+      completion_dialect:
+        provider?.completion_dialect ?? defaultValue.completion_dialect,
+      embedding_dialect:
+        provider?.embedding_dialect ?? defaultValue.embedding_dialect,
+      rerank_dialect: provider?.rerank_dialect ?? defaultValue.rerank_dialect,
+    },
   });
 
   const handleDelete = useCallback(async () => {
@@ -104,7 +113,7 @@ export const ProviderActions = ({
   }, [action, provider?.name, router, page_models]);
 
   const handleCreateOrUpdate = useCallback(
-    async (values: z.infer<typeof providerSchema>) => {
+    async (values: ProviderFormValues) => {
       let res;
       const { data: params, error } = providerSchema.safeParse(values);
       if (error) {
