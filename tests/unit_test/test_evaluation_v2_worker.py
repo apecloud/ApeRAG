@@ -61,6 +61,7 @@ class _FakeOps:
         self.finalized: list[tuple[str, EvaluationRunItemStatus, str | None, str | None]] = []
         self.mark_running_calls: list[str] = []
         self.dataset_items_accessed = False  # flipped only by the guard below
+        self.summary_only_calls: list[dict] = []
 
     # --- the small subset of AsyncDatabaseOps the worker uses --------------
 
@@ -77,6 +78,15 @@ class _FakeOps:
         self._run.status = status
         if summary is not None:
             self._run.summary = summary
+        return self._run
+
+    async def update_run_summary_only(self, run_id, summary):
+        assert run_id == self._run.id
+        # Track as a separate kind of update so tests can assert that the
+        # worker used the status-preserving path while a run was externally
+        # cancelled mid-flight.
+        self.summary_only_calls.append(summary)
+        self._run.summary = summary
         return self._run
 
     async def mark_run_item_running(self, item_id: str):
@@ -218,16 +228,16 @@ def test_execute_evaluation_run_tracks_incremental_progress_in_summary():
 
     asyncio.run(execute_evaluation_run(run.id, db_ops=ops, dispatch_fn=fake_dispatch))
 
-    # First call: move run into RUNNING with fresh summary.
+    # First status-transition call: QUEUED → RUNNING with fresh summary.
     first_call = ops.update_run_calls[0]
     assert first_call[0] is EvaluationRunStatus.RUNNING
     assert first_call[1]["pending"] == 2 and first_call[1]["running"] == 0
 
-    # Intermediate RUNNING updates must reflect at least one completed item
-    # before the final COMPLETED transition.
-    running_snapshots = [call[1] for call in ops.update_run_calls if call[0] is EvaluationRunStatus.RUNNING]
-    assert any(s.get("completed", 0) >= 1 for s in running_snapshots[1:]), (
-        "summary should reflect completed items before the final run transition"
+    # Intermediate snapshots go through the status-preserving path
+    # (update_run_summary_only) and must reflect at least one completed
+    # item before the final run transition.
+    assert any(s.get("completed", 0) >= 1 for s in ops.summary_only_calls), (
+        "summary_only_calls should reflect completed items before the final run transition"
     )
 
     # Final update: COMPLETED.
@@ -332,6 +342,64 @@ def test_execute_evaluation_run_short_circuits_when_run_missing():
 
     assert final is EvaluationRunStatus.FAILED
     assert ops.update_run_calls == [] and dispatched == []
+
+
+def test_execute_evaluation_run_stops_mid_flight_when_run_cancelled():
+    """The worker must re-read run.status between items so an external
+    ``cancel_run`` call stops dispatch, and the final write must not
+    overwrite the externally-set CANCELLED status back to COMPLETED."""
+
+    run, items = _make_run_and_items(item_count=3)
+    ops = _FakeOps(run, items)
+
+    dispatch_calls: list[str] = []
+
+    async def cancelling_dispatch(*, input_message, **_):
+        dispatch_calls.append(input_message)
+        if len(dispatch_calls) == 1:
+            # Simulate a user pressing Cancel after the first item's
+            # dispatch completes but before the worker picks up the next.
+            run.status = EvaluationRunStatus.CANCELLED
+        return TurnDispatchOutcome(
+            status=EvaluationRunItemAttemptStatus.COMPLETED,
+            answer_text="ok",
+        )
+
+    final = asyncio.run(execute_evaluation_run(run.id, db_ops=ops, dispatch_fn=cancelling_dispatch))
+
+    # The 2nd and 3rd items must be skipped — exactly one dispatch fired.
+    assert len(dispatch_calls) == 1
+    assert len(ops.attempts) == 1
+    # Externally-set CANCELLED must NOT be overwritten by the worker's final write.
+    assert final is EvaluationRunStatus.CANCELLED
+    assert run.status is EvaluationRunStatus.CANCELLED
+    # The final write must go through the summary-only path, not
+    # update_run_status (which would clobber the CANCELLED).
+    assert ops.summary_only_calls, "final update should preserve status via update_run_summary_only"
+    last_status_update = ops.update_run_calls[-1][0] if ops.update_run_calls else None
+    assert last_status_update is EvaluationRunStatus.RUNNING, (
+        "final update_run_status call should remain the QUEUED→RUNNING transition; "
+        "no later status overwrite is allowed when the run is externally cancelled"
+    )
+
+
+def test_execute_evaluation_run_returns_cancelled_when_all_items_cancelled():
+    """If every item's dispatch yields CANCELLED (e.g. a fast-cancelling
+    runtime) and no external ``cancel_run`` flipped the row, the derived
+    final status must be CANCELLED — never the default COMPLETED."""
+
+    run, items = _make_run_and_items(item_count=2)
+    ops = _FakeOps(run, items)
+
+    async def cancelling_dispatch(**_):
+        return TurnDispatchOutcome(status=EvaluationRunItemAttemptStatus.CANCELLED)
+
+    final = asyncio.run(execute_evaluation_run(run.id, db_ops=ops, dispatch_fn=cancelling_dispatch))
+
+    assert final is EvaluationRunStatus.CANCELLED
+    assert run.status is EvaluationRunStatus.CANCELLED
+    assert run.summary["cancelled"] == 2 and run.summary["completed"] == 0 and run.summary["failed"] == 0
+    assert [a["status"] for a in ops.attempts] == [EvaluationRunItemAttemptStatus.CANCELLED] * 2
 
 
 def test_execute_evaluation_run_short_circuits_when_run_already_terminal():

@@ -288,6 +288,28 @@ class AsyncEvaluationV2RepositoryMixin(AsyncRepositoryProtocol):
 
         return await self.execute_with_transaction(_operation)
 
+    async def update_run_summary_only(self, run_id: str, summary: dict) -> Optional[EvaluationRun]:
+        """Update only the run's ``summary`` JSON + ``gmt_updated``.
+
+        Used by the worker between iterations so an externally-set terminal
+        status (e.g. a user pressing Cancel and flipping the run to
+        ``CANCELLED`` via the service layer) is never clobbered by the
+        worker re-asserting ``RUNNING``.
+        """
+
+        async def _operation(session: AsyncSession):
+            stmt = select(EvaluationRun).where(EvaluationRun.id == run_id)
+            run = (await session.execute(stmt)).scalars().first()
+            if not run:
+                return None
+            run.summary = summary
+            run.gmt_updated = utc_now()
+            await session.flush()
+            await session.refresh(run)
+            return run
+
+        return await self.execute_with_transaction(_operation)
+
     async def finalize_run_item(
         self,
         *,

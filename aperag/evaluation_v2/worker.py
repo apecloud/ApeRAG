@@ -223,6 +223,15 @@ _ITEM_STATUS_BY_ATTEMPT: dict[EvaluationRunItemAttemptStatus, EvaluationRunItemS
 }
 
 
+_TERMINAL_RUN_STATUSES: frozenset[EvaluationRunStatus] = frozenset(
+    {
+        EvaluationRunStatus.COMPLETED,
+        EvaluationRunStatus.FAILED,
+        EvaluationRunStatus.CANCELLED,
+    }
+)
+
+
 async def execute_evaluation_run(
     run_id: str,
     *,
@@ -254,11 +263,7 @@ async def execute_evaluation_run(
         logger.warning("evaluation run %s vanished before worker could pick it up", run_id)
         return EvaluationRunStatus.FAILED
 
-    if run.status in (
-        EvaluationRunStatus.COMPLETED,
-        EvaluationRunStatus.FAILED,
-        EvaluationRunStatus.CANCELLED,
-    ):
+    if run.status in _TERMINAL_RUN_STATUSES:
         logger.info(
             "evaluation run %s already in terminal status %s; worker skipping",
             run_id,
@@ -278,6 +283,18 @@ async def execute_evaluation_run(
     bot_id = run.bot_id
 
     for item in items:
+        # Re-read the run before each item so a mid-flight ``cancel_run``
+        # call takes effect on the next iteration. Without this check the
+        # worker keeps dispatching turns even after the user has flipped
+        # the run to ``CANCELLED`` through the service layer.
+        latest = await ops.get_run_for_worker(run_id)
+        if latest is not None and latest.status in _TERMINAL_RUN_STATUSES:
+            logger.info(
+                "evaluation run %s observed terminal status %s mid-flight; stopping loop",
+                run_id,
+                latest.status,
+            )
+            break
         await _process_run_item(
             run=run,
             item=item,
@@ -287,6 +304,15 @@ async def execute_evaluation_run(
             ops=ops,
             dispatch=dispatch,
         )
+
+    # Final write MUST NOT overwrite an externally-set terminal status
+    # (``cancel_run`` → CANCELLED is the hot case, but the same guard also
+    # protects a future forcefail / admin-terminate path). Re-read and pick
+    # "update summary only" when the row is already terminal.
+    final_run = await ops.get_run_for_worker(run_id)
+    if final_run is not None and final_run.status in _TERMINAL_RUN_STATUSES:
+        await ops.update_run_summary_only(run_id, summary.model_dump())
+        return final_run.status
 
     final_status = _final_run_status(summary)
     await ops.update_run_status(run_id, final_status, summary=summary.model_dump())
@@ -309,7 +335,10 @@ async def _process_run_item(
     attempt_no = updated.attempt_count if updated else 1
     summary.pending = max(0, summary.pending - 1)
     summary.running += 1
-    await ops.update_run_status(run.id, EvaluationRunStatus.RUNNING, summary=summary.model_dump())
+    # Push incremental summary without touching run.status — if the run
+    # was just flipped to CANCELLED by the service layer we must not
+    # re-assert RUNNING here.
+    await ops.update_run_summary_only(run.id, summary.model_dump())
 
     try:
         # Value-copy snapshot read — no dataset_items access.
@@ -355,6 +384,10 @@ async def _process_run_item(
 
 
 def _final_run_status(summary: EvaluationRunSummary) -> EvaluationRunStatus:
+    # All items cancelled (e.g. the loop short-circuited on a mid-flight
+    # cancel_run before any dispatch): the run is CANCELLED, not COMPLETED.
+    if summary.cancelled > 0 and summary.completed == 0 and summary.failed == 0:
+        return EvaluationRunStatus.CANCELLED
     if summary.completed == 0 and summary.failed > 0 and summary.cancelled == 0:
         return EvaluationRunStatus.FAILED
     return EvaluationRunStatus.COMPLETED
