@@ -1898,7 +1898,7 @@ export interface paths {
         put?: never;
         /**
          * Openai Chat Completions View
-         * @description OpenAI-compatible chat completions endpoint backed by Agent Runtime V2.
+         * @description OpenAI-compatible chat completions endpoint backed by Agent Runtime V3.
          */
         post: operations["openai_openai_chat_completions_view"];
         delete?: never;
@@ -3846,6 +3846,69 @@ export interface components {
             keywords?: string[] | null;
         };
         /**
+         * GraphEdge
+         * @description Knowledge graph edge representing a relationship
+         */
+        GraphEdge: {
+            /**
+             * Id
+             * @description Unique identifier for the edge
+             * @example 墨香居-深夜读书会
+             */
+            id: string;
+            /**
+             * Type
+             * @description Type of the relationship
+             * @default DIRECTED
+             * @example DIRECTED
+             */
+            type: string | null;
+            /**
+             * Source
+             * @description Source node ID
+             * @example 墨香居
+             */
+            source: string;
+            /**
+             * Target
+             * @description Target node ID
+             * @example 深夜读书会
+             */
+            target: string;
+            /** @description Public edge properties */
+            properties: components["schemas"]["GraphEdgeProperties"];
+        };
+        /**
+         * GraphEdgeProperties
+         * @description Public edge properties for graph visualization.
+         */
+        GraphEdgeProperties: {
+            /**
+             * Weight
+             * @description Relationship weight/strength
+             * @example 9
+             */
+            weight?: number | null;
+            /**
+             * Description
+             * @description Description of the relationship
+             * @example 深夜读书会是墨香居的新活动，旨在提升书店的活力和吸引顾客。
+             */
+            description?: string | null;
+            /**
+             * Keywords
+             * @description Keywords associated with the relationship
+             * @example 书店活力,活动
+             */
+            keywords?: string | null;
+            /**
+             * Source Chunk Count
+             * @description Number of source chunks supporting this relationship; raw chunk IDs are not exposed
+             * @example 2
+             */
+            source_chunk_count?: number | null;
+        };
+        /**
          * GraphLabelsResponse
          * @description Response containing available graph labels
          */
@@ -3861,6 +3924,64 @@ export interface components {
              *     ]
              */
             labels: string[];
+        };
+        /**
+         * GraphNode
+         * @description Knowledge graph node representing an entity
+         */
+        GraphNode: {
+            /**
+             * Id
+             * @description Unique identifier for the node (entity name)
+             * @example 墨香居
+             */
+            id: string;
+            /**
+             * Labels
+             * @description Labels associated with the node
+             * @example [
+             *       "墨香居"
+             *     ]
+             */
+            labels: string[];
+            /** @description Public node properties */
+            properties: components["schemas"]["GraphNodeProperties"];
+        };
+        /**
+         * GraphNodeProperties
+         * @description Public node properties for graph visualization.
+         */
+        GraphNodeProperties: {
+            /**
+             * Entity Id
+             * @description Entity identifier
+             * @example 墨香居
+             */
+            entity_id?: string | null;
+            /**
+             * Entity Name
+             * @description Entity display name
+             * @example 墨香居
+             */
+            entity_name?: string | null;
+            /**
+             * Entity Type
+             * @description Type of the entity
+             * @example organization
+             */
+            entity_type?: string | null;
+            /**
+             * Description
+             * @description Description of the entity
+             * @example 墨香居是这条老巷子里唯一的旧书店，经营着各种书籍，承载了老板李明华的情怀。
+             */
+            description?: string | null;
+            /**
+             * Source Chunk Count
+             * @description Number of source chunks supporting this entity; raw chunk IDs are not exposed
+             * @example 3
+             */
+            source_chunk_count?: number | null;
         };
         /** GraphSearchParams */
         GraphSearchParams: {
@@ -3982,6 +4103,28 @@ export interface components {
             params?: {
                 [key: string]: unknown;
             } | null;
+        };
+        /**
+         * KnowledgeGraph
+         * @description Knowledge graph containing nodes and edges
+         */
+        KnowledgeGraph: {
+            /**
+             * Nodes
+             * @description List of nodes in the knowledge graph
+             */
+            nodes: components["schemas"]["GraphNode"][];
+            /**
+             * Edges
+             * @description List of edges in the knowledge graph
+             */
+            edges: components["schemas"]["GraphEdge"][];
+            /**
+             * Is Truncated
+             * @description Whether the graph was truncated due to size limits
+             * @example false
+             */
+            is_truncated: boolean;
         };
         /**
          * KnowledgeGraphConfig
@@ -4237,6 +4380,63 @@ export interface components {
              *     ]
              */
             tags: string[] | null;
+        };
+        /** OpenAIChatCompletionChoice */
+        OpenAIChatCompletionChoice: {
+            /** Index */
+            index: number;
+            message: components["schemas"]["OpenAIChatCompletionMessage"];
+            /** Finish Reason */
+            finish_reason?: string | null;
+        };
+        /** OpenAIChatCompletionMessage */
+        OpenAIChatCompletionMessage: {
+            /**
+             * Role
+             * @constant
+             */
+            role: "assistant";
+            /** Content */
+            content: string;
+        };
+        /** OpenAIChatCompletionResponse */
+        OpenAIChatCompletionResponse: {
+            /** Id */
+            id: string;
+            /**
+             * Object
+             * @constant
+             */
+            object: "chat.completion";
+            /** Created */
+            created: number;
+            /** Model */
+            model: string;
+            /** Choices */
+            choices: components["schemas"]["OpenAIChatCompletionChoice"][];
+            usage: components["schemas"]["OpenAIChatCompletionUsage"];
+        };
+        /** OpenAIChatCompletionUsage */
+        OpenAIChatCompletionUsage: {
+            /** Prompt Tokens */
+            prompt_tokens: number;
+            /** Completion Tokens */
+            completion_tokens: number;
+            /** Total Tokens */
+            total_tokens: number;
+        };
+        /** OpenAIErrorDetail */
+        OpenAIErrorDetail: {
+            /** Message */
+            message: string;
+            /** Type */
+            type: string;
+            /** Code */
+            code: string;
+        };
+        /** OpenAIErrorResponse */
+        OpenAIErrorResponse: {
+            error: components["schemas"]["OpenAIErrorDetail"];
         };
         /**
          * PageResult
@@ -4787,13 +4987,8 @@ export interface components {
              * @description Recall type
              */
             recall_type?: ("vector_search" | "graph_search" | "fulltext_search" | "summary_search" | "vision_search") | null;
-            /**
-             * Metadata
-             * @description Metadata of the result
-             */
-            metadata?: {
-                [key: string]: unknown;
-            } | null;
+            /** @description Public metadata of the result */
+            metadata?: components["schemas"]["SearchResultMetadata"] | null;
         };
         /**
          * SearchResultList
@@ -4802,6 +4997,61 @@ export interface components {
         SearchResultList: {
             /** Items */
             items?: components["schemas"]["SearchResult"][] | null;
+        };
+        /**
+         * SearchResultMetadata
+         * @description Public metadata carried by search result items.
+         *
+         *     This intentionally allow-lists fields needed by clients and excludes raw
+         *     index/storage metadata such as indexer, index_method, chat_id, object_path,
+         *     and embedded node payloads.
+         */
+        SearchResultMetadata: {
+            /**
+             * Source
+             * @description Display source for the result
+             */
+            source?: string | null;
+            /**
+             * Title
+             * @description Human-readable title when available
+             */
+            title?: string | null;
+            /**
+             * Collection Id
+             * @description Collection identifier for client follow-up actions
+             */
+            collection_id?: string | null;
+            /**
+             * Document Id
+             * @description Document identifier for client follow-up actions
+             */
+            document_id?: string | null;
+            /**
+             * Asset Id
+             * @description Asset identifier for image or binary references
+             */
+            asset_id?: string | null;
+            /**
+             * Mimetype
+             * @description Asset MIME type when the result references an asset
+             */
+            mimetype?: string | null;
+            /**
+             * Page Idx
+             * @description Zero-based page index when available
+             */
+            page_idx?: number | null;
+            /**
+             * Url
+             * @description External source URL when available
+             */
+            url?: string | null;
+            /**
+             * Modality
+             * @description Public content modality
+             */
+            modality?: ("text" | "image") | null;
         };
         /** Settings */
         Settings: {
@@ -7590,7 +7840,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["KnowledgeGraph"];
                 };
             };
             /** @description Validation Error */
@@ -8399,9 +8649,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["KnowledgeGraph"];
                 };
             };
             /** @description Validation Error */
@@ -10044,21 +10292,52 @@ export interface operations {
     openai_openai_chat_completions_view: {
         parameters: {
             query?: {
+                /** @description Agent bot id that backs this OpenAI-compatible call */
+                bot_id?: string | null;
+                /** @description Existing chat id. Omit to create an ephemeral chat */
+                chat_id?: string | null;
+                /** @description Response language passed through to Agent Runtime */
+                language?: string;
                 engine?: unknown;
             };
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Model */
+                    model?: string | null;
+                    /** Messages */
+                    messages?: {
+                        [key: string]: unknown;
+                    }[];
+                    /**
+                     * Stream
+                     * @default false
+                     */
+                    stream?: boolean;
+                    /** Temperature */
+                    temperature?: number | null;
+                    /** Max Tokens */
+                    max_tokens?: number | null;
+                    /** Max Completion Tokens */
+                    max_completion_tokens?: number | null;
+                    /** Timeout */
+                    timeout?: number | null;
+                };
+            };
+        };
         responses: {
-            /** @description Successful Response */
+            /** @description OpenAI-compatible JSON response or text/event-stream chunks when stream=true */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["OpenAIChatCompletionResponse"] | components["schemas"]["OpenAIErrorResponse"];
+                    "text/event-stream": string;
                 };
             };
             /** @description Validation Error */
@@ -10196,7 +10475,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["AgentArtifactEnvelope"];
                 };
             };
             /** @description Validation Error */
@@ -10225,13 +10504,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description Server-sent timeline events for one agent turn. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "text/event-stream": string;
                 };
             };
             /** @description Validation Error */
