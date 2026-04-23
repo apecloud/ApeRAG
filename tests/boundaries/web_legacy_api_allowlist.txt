@@ -30,8 +30,6 @@ web/src/app/workspace/collections/collection-form.tsx
 web/src/app/workspace/collections/collection-list.tsx
 web/src/app/workspace/collections/feature-visibility.ts
 web/src/app/workspace/collections/tools.ts
-web/src/app/workspace/quotas/page.tsx
-web/src/app/workspace/quotas/quota-radial-chart.tsx
 web/src/components/chat/agent-turn-card.tsx
 web/src/components/chat/chat-input.tsx
 web/src/components/chat/chat-messages.tsx
