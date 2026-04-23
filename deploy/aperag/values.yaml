@@ -226,10 +226,6 @@ api:
     WHISPER_HOST: ""
     PADDLEOCR_HOST: ""
 
-    # Optional tracing integration
-    OPIK_API_KEY: ""
-    OPIK_WORKSPACE: ""
-
     # OpenTelemetry / Jaeger
     OTEL_ENABLED: "True"
     OTEL_SERVICE_NAME: aperag

@@ -200,10 +200,6 @@ class Config(BaseSettings):
     cache_enabled: bool = Field(True, alias="CACHE_ENABLED")
     cache_ttl: int = Field(86400, alias="CACHE_TTL")
 
-    # Opik
-    opik_api_key: str = Field("", alias="OPIK_API_KEY")
-    opik_workspace: str = Field("", alias="OPIK_WORKSPACE")
-
     # OpenTelemetry/Jaeger Tracing
     otel_enabled: bool = Field(True, alias="OTEL_ENABLED")
     otel_service_name: str = Field("aperag", alias="OTEL_SERVICE_NAME")
