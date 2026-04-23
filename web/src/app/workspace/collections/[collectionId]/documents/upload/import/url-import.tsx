@@ -1,17 +1,18 @@
 'use client';
 
-import { FetchUrlResultItem, FetchUrlResultItemFetchStatusEnum } from '@/api';
+import { fetchUrlDocuments } from '@/features/document/client-api';
+import type { FetchUrlStatus } from '@/features/document/types';
 import { useCollectionContext } from '@/components/providers/collection-provider';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { apiClient } from '@/lib/api/client';
+import { ApiClientError } from '@/lib/api/typed/errors';
 import { AlertCircle, CheckCircle2, Globe, LoaderCircle } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useCallback, useState } from 'react';
 
 type UrlImportResult = {
   url: string;
-  fetch_status: 'success' | 'error';
+  fetch_status: FetchUrlStatus;
   document_id?: string;
   filename?: string;
   size?: number;
@@ -102,28 +103,16 @@ export const UrlImport = ({ onSuccess }: Props) => {
     setResults(null);
 
     try {
-      const res = await apiClient.defaultApi.collectionsCollectionIdDocumentsFetchUrlPost(
-        {
-          collectionId: collection.id,
-          fetchUrlRequest: { urls },
-        },
-        { timeout: 1000 * 60 },
-      );
-
-      const fetchResults: UrlImportResult[] = (res.data.results as FetchUrlResultItem[]).map(
-        (item) => ({
-          url: item.url,
-          fetch_status:
-            item.fetch_status === FetchUrlResultItemFetchStatusEnum.success
-              ? ('success' as const)
-              : ('error' as const),
-          document_id: item.document_id ?? undefined,
-          filename: item.filename ?? undefined,
-          size: item.size ?? undefined,
-          status: item.status ?? undefined,
-          error: item.error ?? undefined,
-        }),
-      );
+      const res = await fetchUrlDocuments(collection.id, urls);
+      const fetchResults: UrlImportResult[] = res.results.map((item) => ({
+        url: item.url,
+        fetch_status: item.fetch_status,
+        document_id: item.document_id ?? undefined,
+        filename: item.filename ?? undefined,
+        size: item.size ?? undefined,
+        status: item.status ?? undefined,
+        error: item.error ?? undefined,
+      }));
       setResults(fetchResults);
 
       const succeeded = fetchResults.filter((r) => r.fetch_status === 'success');
@@ -132,12 +121,8 @@ export const UrlImport = ({ onSuccess }: Props) => {
       }
     } catch (error: unknown) {
       const detail =
-        typeof error === 'object' &&
-        error !== null &&
-        'response' in error &&
-        typeof (error as { response?: { data?: { detail?: unknown } } }).response?.data?.detail ===
-          'string'
-          ? (error as { response?: { data?: { detail?: string } } }).response?.data?.detail
+        error instanceof ApiClientError
+          ? error.message
           : error instanceof Error
             ? error.message
             : 'Request failed';
