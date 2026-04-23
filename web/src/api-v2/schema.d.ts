@@ -1799,6 +1799,130 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/bots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Bots V2 View
+         * @description List bots owned by the current user.
+         */
+        get: operations["bots_v2_list_bots_v2_view"];
+        put?: never;
+        /**
+         * Create Bot V2 View
+         * @description Create an agent bot owned by the current user.
+         */
+        post: operations["bots_v2_create_bot_v2_view"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/bots/{bot_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Bot V2 View
+         * @description Return one bot owned by the current user.
+         */
+        get: operations["bots_v2_get_bot_v2_view"];
+        /**
+         * Update Bot V2 View
+         * @description Update one bot. The path bot_id is canonical.
+         */
+        put: operations["bots_v2_update_bot_v2_view"];
+        post?: never;
+        /**
+         * Delete Bot V2 View
+         * @description Delete one bot owned by the current user. Idempotent.
+         */
+        delete: operations["bots_v2_delete_bot_v2_view"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/bots/{bot_id}/chats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Chats V2 View
+         * @description List chats under one agent bot.
+         */
+        get: operations["bots_v2_list_chats_v2_view"];
+        put?: never;
+        /**
+         * Create Chat V2 View
+         * @description Create a chat under one agent bot.
+         */
+        post: operations["bots_v2_create_chat_v2_view"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/bots/{bot_id}/chats/{chat_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Chat V2 View
+         * @description Return one chat with history.
+         */
+        get: operations["bots_v2_get_chat_v2_view"];
+        /**
+         * Update Chat V2 View
+         * @description Update one chat. Path bot_id and chat_id are canonical.
+         */
+        put: operations["bots_v2_update_chat_v2_view"];
+        post?: never;
+        /**
+         * Delete Chat V2 View
+         * @description Delete one chat under one agent bot. Idempotent.
+         */
+        delete: operations["bots_v2_delete_chat_v2_view"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/bots/{bot_id}/chats/{chat_id}/title": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate Chat Title V2 View
+         * @description Generate a title for one chat.
+         */
+        post: operations["bots_v2_generate_chat_title_v2_view"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/benchmark-datasets": {
         parameters: {
             query?: never;
@@ -2949,6 +3073,14 @@ export interface components {
         BotUpdate: {
             /** Id */
             id?: string | null;
+            /** Title */
+            title?: string | null;
+            /** Description */
+            description?: string | null;
+            config?: components["schemas"]["BotConfig"] | null;
+        };
+        /** BotUpdateRequest */
+        BotUpdateRequest: {
             /** Title */
             title?: string | null;
             /** Description */
@@ -10357,6 +10489,383 @@ export interface operations {
                 };
                 content: {
                     "text/event-stream": string;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bots_v2_list_bots_v2_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BotList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bots_v2_create_bot_v2_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BotCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Bot"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bots_v2_get_bot_v2_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                bot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Bot"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bots_v2_update_bot_v2_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                bot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BotUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Bot"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bots_v2_delete_bot_v2_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                bot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bots_v2_list_chats_v2_view: {
+        parameters: {
+            query?: {
+                page?: number;
+                page_size?: number;
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                bot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bots_v2_create_chat_v2_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                bot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Chat"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bots_v2_get_chat_v2_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                bot_id: string;
+                chat_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatDetails"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bots_v2_update_chat_v2_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                bot_id: string;
+                chat_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Chat"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bots_v2_delete_chat_v2_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                bot_id: string;
+                chat_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bots_v2_generate_chat_title_v2_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                bot_id: string;
+                chat_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["TitleGenerateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TitleGenerateResponse"];
                 };
             };
             /** @description Validation Error */
