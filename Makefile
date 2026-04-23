@@ -31,6 +31,7 @@ help:
 	@printf "  make env-clean            Clean local development state\n\n"
 	@printf "Database / Infra\n"
 	@printf "  make db-migrate           Apply database migrations\n"
+	@printf "  make db-check             Verify schema matches SQLAlchemy models (no pending diff)\n"
 	@printf "  make db-revision          Create a new alembic migration\n"
 	@printf "  make infra-up             Start infra dependencies only\n"
 	@printf "  make stack-up             Start the full local stack\n"
@@ -110,12 +111,15 @@ env-clean:
 ##################################################
 
 # Database schema management
-.PHONY: db-revision db-migrate
+.PHONY: db-revision db-migrate db-check
 db-revision:
 	@uv run alembic -c aperag/alembic.ini revision --autogenerate
 
 db-migrate:
 	@uv run alembic -c aperag/alembic.ini upgrade head
+
+db-check:
+	@uv run alembic -c aperag/alembic.ini check
 
 # Docker Compose infrastructure
 

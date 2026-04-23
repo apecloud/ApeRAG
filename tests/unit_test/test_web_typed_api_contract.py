@@ -1236,3 +1236,129 @@ def test_documents_upload_regression_hardening():
         "documents-table.tsx must not silence TanStack's Updater typing "
         "with `@ts-expect-error`"
     )
+
+
+def test_phase1_fe_complete_identity_auth_admin_audit_adapter_boundary():
+    """#13 Phase 1 FE complete — identity / auth / admin / audit adapter
+    boundary. All remaining ``@/api`` callers (auth + identity + admin +
+    audit + chat-input + feature-visibility residual) migrate onto
+    ``features/<d>/{client,server}-api``; the legacy ``web/src/api/`` tree
+    and the low-level ``lib/api/{client,server}.ts`` wrappers are
+    deleted.
+
+    Counting canonical (post-#12 merge → post-#13): ``legacy 14 → 0 /
+    raw_schema 13 → 16 / route_data 9 → 0``. The raw_schema +3 adds
+    identity / auth / admin typed adapters; audit is a hand-written
+    mirror (lesson 9a-ter boundary exception for hidden-path endpoints)
+    and does *not* import ``@/api-v2/schema``. Phase 4 governance
+    (msg=659a98da decisions R + S) unhides audit + config and promotes
+    both to typed wrappers.
+    """
+    # identity — User canonical source is `features/identity/types`.
+    identity_types = (
+        REPO_ROOT / "web/src/features/identity/types.ts"
+    ).read_text()
+    assert "components['schemas']['User']" in identity_types
+    assert "from '@/api-v2/schema'" in identity_types
+
+    # auth — typed `login` / `register` / `logout` + raw-fetch OAuth
+    # authorize (redirect, no typed body) + raw-fetch `/api/v1/config`
+    # (hidden from public OpenAPI; lesson 9a-ter boundary exception).
+    auth_client_api = (
+        REPO_ROOT / "web/src/features/auth/client-api.ts"
+    ).read_text()
+    auth_server_api = (
+        REPO_ROOT / "web/src/features/auth/server-api.ts"
+    ).read_text()
+    assert "from '@/lib/api/typed/browser'" in auth_client_api
+    assert "from '@/lib/api/typed/server'" in auth_server_api
+    assert "oauthAuthorize" in auth_client_api
+    assert "getAuthConfig" in auth_server_api
+    assert "/api/v1/config" in auth_server_api
+
+    # admin — umbrella adapter for settings / system default quotas /
+    # per-user quota / admin user list (msg=5f0a370b decision L).
+    admin_client_api = (
+        REPO_ROOT / "web/src/features/admin/client-api.ts"
+    ).read_text()
+    admin_server_api = (
+        REPO_ROOT / "web/src/features/admin/server-api.ts"
+    ).read_text()
+    for method in (
+        "testMineruToken",
+        "updateSettings",
+        "getSystemDefaultQuotas",
+        "updateSystemDefaultQuotas",
+        "updateUserQuota",
+        "recalculateUserQuota",
+        "listUserQuotas",
+    ):
+        assert method in admin_client_api, (
+            f"features/admin/client-api.ts missing `{method}`"
+        )
+    for method in ("getSettings", "getSystemDefaultQuotas", "listUsers"):
+        assert method in admin_server_api, (
+            f"features/admin/server-api.ts missing `{method}`"
+        )
+
+    # audit — hand-written mirror + raw fetch (hidden path
+    # `/api/v1/audit-logs`). `features/audit/types.ts` must NOT import
+    # raw schema; its header must self-document the Phase 4 +1
+    # raw_schema impact so future readers don't hunt for history.
+    audit_types = (
+        REPO_ROOT / "web/src/features/audit/types.ts"
+    ).read_text()
+    audit_client_api = (
+        REPO_ROOT / "web/src/features/audit/client-api.ts"
+    ).read_text()
+    audit_server_api = (
+        REPO_ROOT / "web/src/features/audit/server-api.ts"
+    ).read_text()
+    assert "from '@/api-v2/schema'" not in audit_types
+    assert "raw_schema 13 → 16" in audit_types
+    assert "/api/v1/audit-logs" in audit_client_api
+    assert "/api/v1/audit-logs" in audit_server_api
+
+    # chat-input — #13 Option A thin caller migrates off
+    # `apiClient.chatDocumentsApi.*` onto `features/bot/client-api`.
+    chat_input = (REPO_ROOT / "web/src/components/chat/chat-input.tsx").read_text()
+    assert "from '@/api'" not in chat_input
+    assert "apiClient.chatDocumentsApi" not in chat_input
+    assert "from '@/features/bot/client-api'" in chat_input
+    bot_client_api = (
+        REPO_ROOT / "web/src/features/bot/client-api.ts"
+    ).read_text()
+    assert "uploadChatDocument" in bot_client_api
+    assert "getChatDocument" in bot_client_api
+    assert "'/api/v1/chats/{chat_id}/documents'" in bot_client_api
+
+    # feature-visibility.ts — document residual swaps
+    # `RebuildIndexesRequestIndexTypesEnum` → `DOCUMENT_INDEX_TYPES`.
+    feature_visibility = (
+        REPO_ROOT / "web/src/app/workspace/collections/feature-visibility.ts"
+    ).read_text()
+    assert "from '@/api'" not in feature_visibility
+    assert "RebuildIndexesRequestIndexTypesEnum" not in feature_visibility
+    assert "from '@/features/document/types'" in feature_visibility
+    assert "DocumentIndexType" in feature_visibility
+
+    # Layout identity wiring — root / workspace / admin resolve the
+    # authenticated user through `features/auth/server-api::getCurrentUser`.
+    for layout_path in (
+        REPO_ROOT / "web/src/app/layout.tsx",
+        REPO_ROOT / "web/src/app/workspace/layout.tsx",
+        REPO_ROOT / "web/src/app/admin/layout.tsx",
+    ):
+        layout_source = layout_path.read_text()
+        assert "from '@/api'" not in layout_source, (
+            f"{layout_path} still imports legacy @/api"
+        )
+        assert "getCurrentUser" in layout_source, (
+            f"{layout_path} must resolve the user via "
+            "features/auth/server-api::getCurrentUser"
+        )
+
+    # Phase 1c deletion — legacy SDK tree + low-level wrappers are gone.
+    assert not (REPO_ROOT / "web/src/api").exists()
+    assert not (REPO_ROOT / "web/src/lib/api/client.ts").exists()
+    assert not (REPO_ROOT / "web/src/lib/api/server.ts").exists()

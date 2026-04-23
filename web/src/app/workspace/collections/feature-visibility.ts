@@ -1,4 +1,4 @@
-import { RebuildIndexesRequestIndexTypesEnum } from '@/api';
+import type { DocumentIndexType } from '@/features/document/types';
 import type {
   SearchRecallType,
   SearchResultItem,
@@ -9,9 +9,9 @@ const hiddenCollectionConfigKeys = new Set([
   'config.enable_vision',
 ]);
 
-const hiddenDocumentIndexTypes = new Set<RebuildIndexesRequestIndexTypesEnum>([
-  RebuildIndexesRequestIndexTypesEnum.SUMMARY,
-  RebuildIndexesRequestIndexTypesEnum.VISION,
+const hiddenDocumentIndexTypes = new Set<DocumentIndexType>([
+  'SUMMARY',
+  'VISION',
 ]);
 
 const hiddenSearchRecallTypes = new Set<SearchRecallType>([
@@ -23,9 +23,7 @@ export const isVisibleCollectionConfigKey = (key: string) =>
   !hiddenCollectionConfigKeys.has(key);
 
 export const isVisibleDocumentIndexType = (indexType: string) =>
-  !hiddenDocumentIndexTypes.has(
-    indexType as RebuildIndexesRequestIndexTypesEnum,
-  );
+  !hiddenDocumentIndexTypes.has(indexType as DocumentIndexType);
 
 export const filterVisibleSearchItems = (items?: SearchResultItem[]) =>
   (items || []).filter(

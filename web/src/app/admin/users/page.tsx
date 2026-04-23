@@ -5,7 +5,7 @@ import {
   PageHeader,
   PageTitle,
 } from '@/components/page-container';
-import { getServerApi } from '@/lib/api/server';
+import { listUsers } from '@/features/admin/server-api';
 import { toJson } from '@/lib/utils';
 import { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
@@ -21,10 +21,9 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function Page() {
   const admin_users = await getTranslations('admin_users');
-  const apiServer = await getServerApi();
-  const res = await apiServer.defaultApi.usersGet();
+  const res = await listUsers();
 
-  const users = res.data.items || [];
+  const users = res.items || [];
 
   return (
     <PageContainer>

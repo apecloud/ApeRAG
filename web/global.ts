@@ -1,4 +1,4 @@
-import { TitleGenerateRequestLanguageEnum } from '@/api';
+import type { TitleLanguage } from '@/features/bot/types';
 import messages from './src/i18n/en-US.json';
 import pageBotEvaluation from './src/i18n/en-US/page_bot_evaluation.json';
 import pageCollectionEvaluations from './src/i18n/en-US/page_collection_evaluations.json';
@@ -12,6 +12,6 @@ const typedMessages = {
 declare module 'next-intl' {
   interface AppConfig {
     Messages: typeof typedMessages;
-    Locale: TitleGenerateRequestLanguageEnum;
+    Locale: TitleLanguage;
   }
 }

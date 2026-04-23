@@ -15,6 +15,9 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: read
+    env:
+      E2E_ALIBABACLOUD_API_KEY: ${{ secrets.E2E_ALIBABACLOUD_API_KEY }}
+      E2E_OPENROUTER_API_KEY: ${{ secrets.E2E_OPENROUTER_API_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -37,11 +40,39 @@ jobs:
           sudo mv /tmp/hurl-${HURL_VERSION}-x86_64-unknown-linux-gnu/bin/hurl /usr/local/bin/hurl
           hurl --version
 
-      - name: Run HTTP smoke suite
-        env:
-          E2E_REMOVE_VOLUMES: "1"
+      - name: Start Compose stack
         run: |
-          ./tests/e2e_http/scripts/run_compose_smoke.sh
+          ./tests/e2e_http/runners/compose/up.sh
+
+      - name: Bootstrap HTTP E2E environment
+        run: |
+          ./tests/e2e_http/bootstrap/bootstrap.sh
+
+      - name: Run HTTP smoke suite
+        run: |
+          ./tests/e2e_http/scripts/run_smoke.sh
+
+      - name: Check provider secrets
+        id: provider-secrets
+        shell: bash
+        run: |
+          if [[ -n "${E2E_ALIBABACLOUD_API_KEY}" && -n "${E2E_OPENROUTER_API_KEY}" ]]; then
+            echo "available=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "available=false" >> "${GITHUB_OUTPUT}"
+            echo "Skipping provider-aware suite because required secrets are missing."
+          fi
+
+      - name: Mark provider phase enabled
+        id: provider-phase
+        if: steps.provider-secrets.outputs.available == 'true'
+        run: |
+          echo "started=true" >> "${GITHUB_OUTPUT}"
+
+      - name: Run HTTP provider-aware suite
+        if: steps.provider-secrets.outputs.available == 'true'
+        run: |
+          ./tests/e2e_http/scripts/run_full.sh
 
       - name: Upload bootstrap artifacts on failure
         if: failure()
@@ -55,75 +86,16 @@ jobs:
           # See task #14 (root-cause: task #11 Phase B).
           include-hidden-files: true
 
-      - name: Dump Compose diagnostics on failure
-        if: failure()
-        run: |
-          docker compose -f docker-compose.yml ps || true
-          docker compose -f docker-compose.yml logs --no-color api celeryworker celerybeat postgres redis qdrant es || true
-
-  e2e-http-provider:
-    needs: e2e-http-smoke
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    permissions:
-      contents: read
-    env:
-      E2E_ALIBABACLOUD_API_KEY: ${{ secrets.E2E_ALIBABACLOUD_API_KEY }}
-      E2E_OPENROUTER_API_KEY: ${{ secrets.E2E_OPENROUTER_API_KEY }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Check provider secrets
-        id: provider-secrets
-        shell: bash
-        run: |
-          if [[ -n "${E2E_ALIBABACLOUD_API_KEY}" && -n "${E2E_OPENROUTER_API_KEY}" ]]; then
-            echo "available=true" >> "${GITHUB_OUTPUT}"
-          else
-            echo "available=false" >> "${GITHUB_OUTPUT}"
-            echo "Skipping provider-aware suite because required secrets are missing."
-          fi
-
-      - name: Free disk space for Docker build
-        if: steps.provider-secrets.outputs.available == 'true'
-        run: |
-          df -h
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /opt/hostedtoolcache/CodeQL
-          sudo apt-get clean
-          docker system prune -af --volumes || true
-          df -h
-
-      - name: Install Hurl
-        if: steps.provider-secrets.outputs.available == 'true'
-        run: |
-          HURL_VERSION="7.1.0"
-          curl -fsSL -o /tmp/hurl.tar.gz "https://github.com/Orange-OpenSource/hurl/releases/download/${HURL_VERSION}/hurl-${HURL_VERSION}-x86_64-unknown-linux-gnu.tar.gz"
-          tar -xzf /tmp/hurl.tar.gz -C /tmp
-          sudo mv /tmp/hurl-${HURL_VERSION}-x86_64-unknown-linux-gnu/bin/hurl /usr/local/bin/hurl
-          hurl --version
-
-      - name: Run HTTP provider-aware suite
-        if: steps.provider-secrets.outputs.available == 'true'
+      - name: Capture provider diagnostic bundle on failure
+        if: failure() && steps.provider-phase.outputs.started == 'true'
         env:
-          E2E_REMOVE_VOLUMES: "1"
+          E2E_ALIBABACLOUD_API_KEY: ${{ secrets.E2E_ALIBABACLOUD_API_KEY }}
+          E2E_OPENROUTER_API_KEY: ${{ secrets.E2E_OPENROUTER_API_KEY }}
         run: |
-          ./tests/e2e_http/scripts/run_compose_full.sh
-
-      - name: Upload bootstrap artifacts on failure
-        if: failure() && steps.provider-secrets.outputs.available == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: e2e-http-provider-bootstrap-artifacts
-          path: tests/e2e_http/bootstrap/.generated
-          if-no-files-found: ignore
-          # ``.generated`` starts with a dot (hidden). v4 default skips it. See #14.
-          include-hidden-files: true
+          ./tests/e2e_http/scripts/provider_diagnostic.sh || true
 
       - name: Upload provider diagnostic bundle on failure
-        if: failure() && steps.provider-secrets.outputs.available == 'true'
+        if: failure() && steps.provider-phase.outputs.started == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: e2e-http-provider-diagnostic-artifacts
@@ -131,24 +103,16 @@ jobs:
           if-no-files-found: ignore
           # ``.diagnostic-artifacts`` starts with a dot (hidden). v4 default skips
           # it. The entire bundle produced by ``provider_diagnostic.sh`` ends up
-          # unuploaded without this opt-in. See #14 (root-cause: #11 Phase B).
+          # unuploaded without this opt-in. See task #14 (root-cause: task #11 Phase B).
           include-hidden-files: true
 
       - name: Dump Compose diagnostics on failure
-        if: failure() && steps.provider-secrets.outputs.available == 'true'
-        env:
-          E2E_ALIBABACLOUD_API_KEY: ${{ secrets.E2E_ALIBABACLOUD_API_KEY }}
-          E2E_OPENROUTER_API_KEY: ${{ secrets.E2E_OPENROUTER_API_KEY }}
+        if: failure()
         run: |
-          # Re-run the diagnostic capture here as a safety net: if the
-          # in-script trap failed to execute ``provider_diagnostic.sh`` (e.g.
-          # because the failure happened before the trap was installed), this
-          # step still produces a bundle while the containers are around —
-          # assuming the compose stack has not already been torn down by the
-          # trap. No-op on an empty stack. See task #11.
           docker compose -f docker-compose.yml ps || true
-          if docker compose -f docker-compose.yml ps --quiet | grep -q .; then
-            ./tests/e2e_http/scripts/provider_diagnostic.sh || true
-          else
-            echo "No compose services left to diagnose; relying on in-script trap artifacts."
-          fi
+          docker compose -f docker-compose.yml logs --no-color api celeryworker celerybeat postgres redis qdrant es || true
+
+      - name: Stop Compose stack
+        if: always()
+        run: |
+          ./tests/e2e_http/runners/compose/down.sh

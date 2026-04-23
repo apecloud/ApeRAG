@@ -1,6 +1,16 @@
 'use client';
 
-import { QuotaUpdateRequest, User, UserQuotaInfo } from '@/api';
+import {
+  getUserQuota as getUserQuotaApi,
+  recalculateUserQuota,
+  updateUserQuota,
+} from '@/features/admin/client-api';
+import type {
+  QuotaUpdateRequest,
+  QuotaUpdateResponse,
+  UserQuotaInfo,
+} from '@/features/admin/types';
+import type { User } from '@/features/identity/types';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -21,7 +31,6 @@ import {
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
-import { apiClient } from '@/lib/api/client';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Slot } from '@radix-ui/react-slot';
 import _ from 'lodash';
@@ -65,10 +74,7 @@ export const UserQuotaAction = ({
 
   const getUserQuota = useCallback(async () => {
     if (!user.id) return;
-    const res = await apiClient.quotasApi.quotasGet({
-      userId: user.id,
-    });
-    const data = res.data as UserQuotaInfo;
+    const data = await getUserQuotaApi(user.id);
 
     data.quotas.forEach((quota) => {
       form.setValue(
@@ -85,12 +91,9 @@ export const UserQuotaAction = ({
       const { data: params, error } = quotaSchema.safeParse(values);
       if (!user.id || error) return;
 
-      const res = await apiClient.quotasApi.quotasUserIdPut({
-        userId: user.id,
-        quotaUpdateRequest: params,
-      });
-      if (res.data.success) {
-        toast.success(res.data.message);
+      const res = await updateUserQuota(user.id, params);
+      if (res.success) {
+        toast.success(res.message);
         setVisible(false);
       }
     },
@@ -99,11 +102,12 @@ export const UserQuotaAction = ({
 
   const handleRecalculate = useCallback(async () => {
     if (!user.id) return;
-    const res = await apiClient.quotasApi.quotasUserIdRecalculatePost({
-      userId: user.id,
-    });
-    if (res.data.success) {
-      toast.success(res.data.message);
+    // `recalculateUserQuota` returns `unknown` (backend response not typed in
+    // public OpenAPI; see features/admin/client-api.ts note). Narrow at the
+    // call-site to read the success/message fields produced at runtime.
+    const res = (await recalculateUserQuota(user.id)) as QuotaUpdateResponse;
+    if (res?.success) {
+      toast.success(res.message);
       getUserQuota();
     }
   }, [getUserQuota, user.id]);

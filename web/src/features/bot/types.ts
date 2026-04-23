@@ -29,3 +29,4 @@ export type TitleGenerateRequest =
   components['schemas']['TitleGenerateRequest'];
 export type TitleGenerateResponse =
   components['schemas']['TitleGenerateResponse'];
+export type TitleLanguage = NonNullable<TitleGenerateRequest['language']>;
