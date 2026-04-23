@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from aperag.graphindex.dto import Entity, Relation
+from aperag.domains.knowledge_graph.graphindex.dto import Entity, Relation
 from aperag.domains.knowledge_graph.schemas import KnowledgeGraph
 from aperag.domains.knowledge_graph.service import GraphService, _adapt_edges, _adapt_nodes
 from aperag.domains.retrieval.schemas import SearchResultItem

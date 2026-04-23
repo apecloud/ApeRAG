@@ -42,11 +42,11 @@ from types import SimpleNamespace
 from typing import Any, Dict, List
 
 from aperag.db.ops import async_db_ops
+from aperag.domains.knowledge_graph.graphindex.dto import Entity as GraphIndexEntity
+from aperag.domains.knowledge_graph.graphindex.dto import Relation as GraphIndexRelation
 from aperag.domains.knowledge_graph.ports import CollectionRow
 from aperag.domains.knowledge_graph.schemas import GraphLabelsResponse, KnowledgeGraph
 from aperag.exceptions import CollectionNotFoundException
-from aperag.graphindex.dto import Entity as GraphIndexEntity
-from aperag.graphindex.dto import Relation as GraphIndexRelation
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +66,7 @@ class GraphService:
         """
         db_collection = await self._get_and_validate_collection(user_id, collection_id)
 
-        from aperag.graphindex.integration import make_service_for_collection
+        from aperag.domains.knowledge_graph.graphindex.integration import make_service_for_collection
 
         svc = make_service_for_collection(db_collection)
         labels = await svc.get_labels(collection_id=collection_id)
@@ -91,7 +91,7 @@ class GraphService:
         """
         db_collection = await self._get_and_validate_collection(user_id, collection_id)
 
-        from aperag.graphindex.integration import make_service_for_collection
+        from aperag.domains.knowledge_graph.graphindex.integration import make_service_for_collection
 
         svc = make_service_for_collection(db_collection)
 
@@ -148,7 +148,7 @@ class GraphService:
         """
         db_collection = await self._get_and_validate_collection(user_id, collection_id)
 
-        from aperag.graphindex.integration import make_service_for_collection
+        from aperag.domains.knowledge_graph.graphindex.integration import make_service_for_collection
 
         svc = make_service_for_collection(db_collection)
         result = await svc.merge_entities(

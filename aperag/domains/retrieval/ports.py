@@ -53,7 +53,7 @@ class GraphSearchContract(Protocol):
     """Knowledge-graph search contract consumed by ``retrieval``.
 
     Implementations live in the ``knowledge_graph`` domain (currently
-    ``aperag.graphindex.service.GraphIndexService``) but this domain
+    ``aperag.domains.knowledge_graph.graphindex.service.GraphIndexService``) but this domain
     does **not** import that module. The ``retrieval`` pipeline
     type-binds its dependency to this Protocol; the concrete service
     structurally satisfies it. That keeps the Phase 0 strict ban clean

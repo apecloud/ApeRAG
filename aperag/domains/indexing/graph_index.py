@@ -27,7 +27,7 @@ class GraphIndexer(AsyncIndexer):
 
     Business code (search pipeline, document tasks) asks this indexer
     whether graph indexing is enabled for a collection and then routes
-    to ``aperag.graphindex`` for the actual work. The method bodies
+    to ``aperag.domains.knowledge_graph.graphindex`` for the actual work. The method bodies
     below only emit reconciliation-scheduling metadata; no graph
     writes happen here. Kept as a separate file because the
     reconciliation loop treats it uniformly with ``vector_index`` and

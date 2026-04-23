@@ -18,7 +18,7 @@ The Phase 0 strict ban forbids code under ``aperag/domains/**`` from
 importing ``aperag.db.models``. Several graph paths (the labels /
 subgraph / curation flows) need to read a handful of fields from the
 SQLAlchemy ``Collection`` row so the factory functions in
-``aperag.graphindex.integration`` can build a service instance. Rather
+``aperag.domains.knowledge_graph.graphindex.integration`` can build a service instance. Rather
 than cross the forbidden boundary or drag the whole SQLAlchemy surface
 into the domain, this module declares a minimal ``Protocol`` that
 pins only the fields the domain actually reads. The real ``Collection``

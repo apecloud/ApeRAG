@@ -43,7 +43,7 @@ class GraphStoreAdaptor:
 
         match graph_db_type:
             case "postgresql":
-                from aperag.graphindex.storage.postgres import PostgresGraphStore
+                from aperag.domains.knowledge_graph.graphindex.storage.postgres import PostgresGraphStore
 
                 engine = ctx.get("engine")
                 if engine is None:
@@ -51,7 +51,7 @@ class GraphStoreAdaptor:
                 self.store = PostgresGraphStore(engine=engine)
 
             case "neo4j":
-                from aperag.graphindex.storage.neo4j import Neo4jGraphStore
+                from aperag.domains.knowledge_graph.graphindex.storage.neo4j import Neo4jGraphStore
 
                 self.store = Neo4jGraphStore(
                     uri=ctx["neo4j_uri"],
@@ -60,7 +60,7 @@ class GraphStoreAdaptor:
                 )
 
             case "nebula":
-                from aperag.graphindex.storage.nebula import NebulaGraphStore
+                from aperag.domains.knowledge_graph.graphindex.storage.nebula import NebulaGraphStore
 
                 self.store = NebulaGraphStore(
                     hosts=ctx["nebula_hosts"],

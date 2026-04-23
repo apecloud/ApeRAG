@@ -8,10 +8,10 @@
 
 """Internal pipeline for graphindex v2. NOT a public import surface.
 
-Business code must import from ``aperag.graphindex`` (the facade),
-never directly from ``aperag.graphindex.engine``.
+Business code must import from ``aperag.domains.knowledge_graph.graphindex`` (the facade),
+never directly from ``aperag.domains.knowledge_graph.graphindex.engine``.
 """
 
-from aperag.graphindex.engine.indexer import index_document
+from aperag.domains.knowledge_graph.graphindex.engine.indexer import index_document
 
 __all__ = ["index_document"]

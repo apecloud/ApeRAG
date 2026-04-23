@@ -23,14 +23,14 @@ we don't use.
 Backends (``postgres.py`` today; ``neo4j.py``, ``nebula.py`` later if
 customer demand appears) implement this Protocol against whatever native
 query language they speak. All inputs / outputs are DTOs from
-``aperag.graphindex.dto`` — no native SDK types leak across.
+``aperag.domains.knowledge_graph.graphindex.dto`` — no native SDK types leak across.
 """
 
 from __future__ import annotations
 
 from typing import Optional, Protocol, Sequence
 
-from aperag.graphindex.dto import (
+from aperag.domains.knowledge_graph.graphindex.dto import (
     Chunk,
     DeleteDocumentResult,
     Entity,

@@ -31,7 +31,7 @@ from __future__ import annotations
 import logging
 from typing import Optional, Sequence
 
-from aperag.graphindex.dto import (
+from aperag.domains.knowledge_graph.graphindex.dto import (
     DESCRIPTION_SEPARATOR,
     Chunk,
     DeleteDocumentResult,

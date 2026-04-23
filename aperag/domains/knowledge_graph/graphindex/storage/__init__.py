@@ -8,8 +8,8 @@
 
 """Storage backends for graphindex v2."""
 
-from aperag.graphindex.storage.base import GraphStore
-from aperag.graphindex.storage.connector import GraphStoreAdaptor
-from aperag.graphindex.storage.postgres import PostgresGraphStore
+from aperag.domains.knowledge_graph.graphindex.storage.base import GraphStore
+from aperag.domains.knowledge_graph.graphindex.storage.connector import GraphStoreAdaptor
+from aperag.domains.knowledge_graph.graphindex.storage.postgres import PostgresGraphStore
 
 __all__ = ["GraphStore", "GraphStoreAdaptor", "PostgresGraphStore"]

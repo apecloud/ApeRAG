@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Wiring layer: turn an ApeRAG ``Collection`` into a ready-to-use
+"""Wiring layer: turn an ApeRAG ``CollectionRow`` into a ready-to-use
 ``GraphIndexService``.
 
 This is the **only** file inside ``aperag/graphindex/`` that imports
 from outside the module. Pure module code (``service.py``, ``dto.py``,
 ``engine``, ``storage``, ``config``) does not know what an ApeRAG
-``Collection`` is, what a ``CompletionService`` is, or which Postgres
+``CollectionRow`` is, what a ``CompletionService`` is, or which Postgres
 URL to use. Keeping that knowledge in one file means the rest of the
 module is reusable in tests, scripts, and (eventually) a separate
 service deployment without dragging the whole ApeRAG stack along.
@@ -39,15 +39,15 @@ import logging
 from typing import Any, Awaitable, Optional
 
 from aperag.config import async_engine, build_graph_db_context, settings
-from aperag.db.models import Collection
 from aperag.db.ops import db_ops
-from aperag.graphindex.config import GraphIndexConfig
-from aperag.graphindex.dto import (
+from aperag.domains.knowledge_graph.graphindex.config import GraphIndexConfig
+from aperag.domains.knowledge_graph.graphindex.dto import (
     DeleteDocumentResult,
     IndexDocumentResult,
 )
-from aperag.graphindex.service import GraphIndexService
-from aperag.graphindex.storage.connector import GraphStoreAdaptor
+from aperag.domains.knowledge_graph.graphindex.service import GraphIndexService
+from aperag.domains.knowledge_graph.graphindex.storage.connector import GraphStoreAdaptor
+from aperag.domains.knowledge_graph.ports import CollectionRow
 from aperag.schema.utils import parseCollectionConfig
 
 logger = logging.getLogger(__name__)
@@ -91,7 +91,7 @@ _DEFAULT_STORE = _build_store()
 # ---------------------------------------------------------------------------
 
 
-def build_collection_llm_callable(collection: Collection):
+def build_collection_llm_callable(collection: CollectionRow):
     """Construct the ``LLMCall`` for a specific collection.
 
     Reads the collection's completion config (provider, model, base_url,
@@ -114,7 +114,7 @@ def build_collection_llm_callable(collection: Collection):
     base_url = provider.base_url
 
     # Local import: CompletionService pulls in litellm which is heavy at
-    # import time and we don't want to pay it just for ``import aperag.graphindex``.
+    # import time and we don't want to pay it just for ``import aperag.domains.knowledge_graph.graphindex``.
     from aperag.llm.completion.completion_service import CompletionService
 
     svc = CompletionService(
@@ -134,7 +134,7 @@ def build_collection_llm_callable(collection: Collection):
     return _llm
 
 
-def build_collection_embed_callables(collection: Collection):
+def build_collection_embed_callables(collection: CollectionRow):
     """Build the ``embed_query`` and ``embed_texts`` callables for
     vector-based entity/relation recall.
 
@@ -163,7 +163,7 @@ def build_collection_embed_callables(collection: Collection):
     return _embed_query, _embed_texts
 
 
-def build_collection_vector_connector_or_none(collection: Collection):
+def build_collection_vector_connector_or_none(collection: CollectionRow):
     """Return a ``VectorStoreConnector`` for writing/reading entity and
     relation embeddings, or ``None`` if configuration is incomplete.
 
@@ -191,7 +191,7 @@ def build_collection_vector_connector_or_none(collection: Collection):
 
 
 def make_service_for_collection(
-    collection: Collection,
+    collection: CollectionRow,
     *,
     config: Optional[GraphIndexConfig] = None,
 ) -> GraphIndexService:
@@ -219,7 +219,7 @@ def make_service_for_collection(
 
 
 def run_index_document_sync(
-    collection: Collection,
+    collection: CollectionRow,
     doc_id: str,
     content: str,
     file_path: str,
@@ -243,7 +243,7 @@ def run_index_document_sync(
     return _run_in_new_loop(_run())
 
 
-def run_delete_document_sync(collection: Collection, doc_id: str) -> DeleteDocumentResult:
+def run_delete_document_sync(collection: CollectionRow, doc_id: str) -> DeleteDocumentResult:
     """Sync delete entry point for Celery tasks."""
 
     async def _run() -> DeleteDocumentResult:
@@ -256,7 +256,7 @@ def run_delete_document_sync(collection: Collection, doc_id: str) -> DeleteDocum
 def run_drop_collection_sync(collection_id: str) -> None:
     """Sync collection-wipe entry point for the collection-delete task.
 
-    Doesn't need a Collection object — operates by id only, since by
+    Doesn't need a CollectionRow object — operates by id only, since by
     delete time the collection row may already be soft-deleted.
     """
 

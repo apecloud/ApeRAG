@@ -31,8 +31,8 @@ from __future__ import annotations
 import logging
 from typing import Awaitable, Callable, List, Optional
 
-from aperag.graphindex.config import GraphIndexConfig
-from aperag.graphindex.dto import (
+from aperag.domains.knowledge_graph.graphindex.config import GraphIndexConfig
+from aperag.domains.knowledge_graph.graphindex.dto import (
     DESCRIPTION_SEPARATOR,
     Chunk,
     DeleteDocumentResult,
@@ -43,9 +43,9 @@ from aperag.graphindex.dto import (
     MergeEntitiesResult,
     Relation,
 )
-from aperag.graphindex.engine import index_document
-from aperag.graphindex.prompts import render_summarization_prompt
-from aperag.graphindex.storage.base import GraphStore
+from aperag.domains.knowledge_graph.graphindex.engine import index_document
+from aperag.domains.knowledge_graph.graphindex.prompts import render_summarization_prompt
+from aperag.domains.knowledge_graph.graphindex.storage.base import GraphStore
 
 logger = logging.getLogger(__name__)
 

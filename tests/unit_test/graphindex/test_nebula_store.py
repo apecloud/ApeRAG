@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import pytest
 
-from aperag.graphindex.dto import Chunk
-from aperag.graphindex.storage.nebula import NebulaGraphStore, _escape
+from aperag.domains.knowledge_graph.graphindex.dto import Chunk
+from aperag.domains.knowledge_graph.graphindex.storage.nebula import NebulaGraphStore, _escape
 
 
 def test_ensure_space_retries_visibility_window_and_uses_create_edge(monkeypatch):
@@ -59,7 +59,7 @@ def test_ensure_space_retries_visibility_window_and_uses_create_edge(monkeypatch
 
     monkeypatch.setattr(store, "_execute", fake_execute)
     monkeypatch.setattr(store, "_execute_multi", fake_execute_multi)
-    monkeypatch.setattr("aperag.graphindex.storage.nebula.time.sleep", lambda _seconds: None)
+    monkeypatch.setattr("aperag.domains.knowledge_graph.graphindex.storage.nebula.time.sleep", lambda _seconds: None)
 
     space = store._ensure_space("compat_test_demo")
 
@@ -114,8 +114,8 @@ async def test_upsert_chunks_retries_transient_schema_visibility_error(monkeypat
         return func(*args, **kwargs)
 
     monkeypatch.setattr(store, "_execute", fake_execute)
-    monkeypatch.setattr("aperag.graphindex.storage.nebula.asyncio.to_thread", fake_to_thread)
-    monkeypatch.setattr("aperag.graphindex.storage.nebula.time.sleep", lambda _seconds: None)
+    monkeypatch.setattr("aperag.domains.knowledge_graph.graphindex.storage.nebula.asyncio.to_thread", fake_to_thread)
+    monkeypatch.setattr("aperag.domains.knowledge_graph.graphindex.storage.nebula.time.sleep", lambda _seconds: None)
 
     await store.upsert_chunks("compat_test_demo", [chunk])
 

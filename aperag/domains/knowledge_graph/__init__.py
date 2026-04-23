@@ -19,7 +19,7 @@ the curation-workflow orchestration surface, and the HTTP handlers for
 ``/api/v2/collections/{id}/graphs*`` and
 ``/api/v2/collections/{id}/graph-curation`` (merge-suggestions).
 
-``aperag.graph_curation.*`` and ``aperag.graphindex.*`` remain the
+``aperag.graph_curation.*`` and ``aperag.domains.knowledge_graph.graphindex.*`` remain the
 infrastructure-level truth modules for SQL-heavy curation state and
 the underlying graph storage primitives. They are **not** domain code
 and the Phase 0 strict ban does not forbid domain modules from

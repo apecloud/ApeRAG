@@ -28,7 +28,7 @@ from __future__ import annotations
 import uuid
 from typing import Callable, Iterable, List
 
-from aperag.graphindex.dto import Chunk
+from aperag.domains.knowledge_graph.graphindex.dto import Chunk
 
 
 def _default_tokenize(text: str) -> list[str]:

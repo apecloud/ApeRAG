@@ -26,8 +26,8 @@ Protocol) is implementation detail. Don't import from those paths in
 business code.
 """
 
-from aperag.graphindex.config import GraphIndexConfig
-from aperag.graphindex.dto import (
+from aperag.domains.knowledge_graph.graphindex.config import GraphIndexConfig
+from aperag.domains.knowledge_graph.graphindex.dto import (
     Chunk,
     DeleteDocumentResult,
     Entity,
@@ -36,8 +36,8 @@ from aperag.graphindex.dto import (
     KnowledgeGraph,
     Relation,
 )
-from aperag.graphindex.service import GraphIndexService
-from aperag.graphindex.storage import PostgresGraphStore
+from aperag.domains.knowledge_graph.graphindex.service import GraphIndexService
+from aperag.domains.knowledge_graph.graphindex.storage import PostgresGraphStore
 
 __all__ = [
     "GraphIndexService",

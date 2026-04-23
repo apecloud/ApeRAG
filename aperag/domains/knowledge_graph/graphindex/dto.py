@@ -21,7 +21,7 @@ module boundary.
 Rules when adding / changing types here:
 
 * Frozen dataclasses only — structural equality, hashability, immutability.
-* No imports from ``aperag.graphindex.engine`` / ``storage`` / ``models``:
+* No imports from ``aperag.domains.knowledge_graph.graphindex.engine`` / ``storage`` / ``models``:
   DTOs are the contract between callers and implementation; the arrow is
   one-way.
 * No imports from third-party backend SDKs (``neo4j``, ``pgvector`` etc.).

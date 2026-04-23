@@ -27,7 +27,7 @@ family (see ``PostgresGraphStore.drop_collection``).
 
 **Private module**: these classes are only imported by
 ``storage/postgres.py`` and Alembic migration scripts. Business code
-must not ``from aperag.graphindex.models import ...``. The
+must not ``from aperag.domains.knowledge_graph.graphindex.models import ...``. The
 ``__all__`` whitelist is there to make that conscious.
 """
 
@@ -47,7 +47,7 @@ from sqlalchemy import (
 )
 from sqlalchemy import text as sql_text  # aliased: ``text`` collides with column name
 
-from aperag.db.models import Base
+from aperag.db.base import Base
 
 # Shared table-name constants so Alembic migrations and SQL code paths
 # can reference them without drift.

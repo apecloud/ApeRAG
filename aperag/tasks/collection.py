@@ -179,8 +179,8 @@ class CollectionTask:
         if not enable_knowledge_graph:
             return deletion_stats
 
+        from aperag.domains.knowledge_graph.graphindex.integration import run_drop_collection_sync
         from aperag.graph_curation.integration import run_purge_graph_curation_collection_sync
-        from aperag.graphindex.integration import run_drop_collection_sync
 
         try:
             run_drop_collection_sync(str(collection.id))

@@ -25,7 +25,7 @@ import ``aperag.domains.knowledge_graph`` directly — doing so would
 re-establish a cross-domain static dependency. Instead the
 ``_graph_search`` method type-binds to the Protocol; the concrete
 graphindex service instance structurally satisfies it at runtime.
-``aperag.graphindex.*`` stays legal here because it is infrastructure,
+``aperag.domains.knowledge_graph.graphindex.*`` stays legal here because it is infrastructure,
 not a forbidden aggregate.
 """
 
@@ -83,7 +83,7 @@ def _graph_search_service_for(collection: CollectionRow) -> GraphSearchContract:
     The return type is annotated as the Protocol so the boundary is
     explicit: the caller only sees ``query_context`` and nothing else.
     """
-    from aperag.graphindex.integration import make_service_for_collection
+    from aperag.domains.knowledge_graph.graphindex.integration import make_service_for_collection
 
     return make_service_for_collection(collection)  # type: ignore[return-value]
 

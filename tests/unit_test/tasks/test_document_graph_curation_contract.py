@@ -18,7 +18,7 @@ def test_upsert_graph_index_tolerates_graph_curation_invalidation_failure(monkey
     parsed = SimpleNamespace(content="doc content", file_path="/tmp/doc.txt")
 
     monkeypatch.setattr(
-        "aperag.graphindex.integration.run_index_document_sync",
+        "aperag.domains.knowledge_graph.graphindex.integration.run_index_document_sync",
         lambda **_kwargs: SimpleNamespace(
             doc_id="doc-1",
             chunks_created=2,
@@ -50,7 +50,7 @@ def test_delete_graph_index_tolerates_graph_curation_invalidation_failure(monkey
     calls: list[tuple[str, str]] = []
 
     monkeypatch.setattr(
-        "aperag.graphindex.integration.run_delete_document_sync",
+        "aperag.domains.knowledge_graph.graphindex.integration.run_delete_document_sync",
         lambda **_kwargs: calls.append(("delete", _kwargs["doc_id"])),
     )
     monkeypatch.setattr(

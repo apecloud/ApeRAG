@@ -38,11 +38,11 @@ import asyncio
 import logging
 from typing import Awaitable, Callable, Iterable, Optional
 
-from aperag.graphindex.config import GraphIndexConfig
-from aperag.graphindex.dto import Entity, IndexDocumentResult, Relation
-from aperag.graphindex.engine.chunking import chunk_document
-from aperag.graphindex.engine.extraction import extract_from_chunk
-from aperag.graphindex.storage.base import GraphStore
+from aperag.domains.knowledge_graph.graphindex.config import GraphIndexConfig
+from aperag.domains.knowledge_graph.graphindex.dto import Entity, IndexDocumentResult, Relation
+from aperag.domains.knowledge_graph.graphindex.engine.chunking import chunk_document
+from aperag.domains.knowledge_graph.graphindex.engine.extraction import extract_from_chunk
+from aperag.domains.knowledge_graph.graphindex.storage.base import GraphStore
 
 logger = logging.getLogger(__name__)
 

@@ -33,6 +33,8 @@ from aperag.db.models import (
 )
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.db.repositories.base import AsyncBaseRepository
+from aperag.domains.knowledge_graph.graphindex.dto import Entity
+from aperag.domains.knowledge_graph.graphindex.service import GraphIndexService, LLMCall
 from aperag.exceptions import CollectionNotFoundException
 from aperag.graph_curation.candidate_generation import (
     CandidatePair,
@@ -40,8 +42,6 @@ from aperag.graph_curation.candidate_generation import (
     entity_snapshot,
 )
 from aperag.graph_curation.prompts import render_merge_adjudication_prompt
-from aperag.graphindex.dto import Entity
-from aperag.graphindex.service import GraphIndexService, LLMCall
 from aperag.utils.utils import utc_now
 
 logger = logging.getLogger(__name__)
@@ -192,7 +192,7 @@ class GraphCurationService(AsyncBaseRepository):
                 "merge_result": None,
             }
 
-        from aperag.graphindex.integration import make_service_for_collection
+        from aperag.domains.knowledge_graph.graphindex.integration import make_service_for_collection
 
         graph_service = make_service_for_collection(collection)
         entity_ids = list(suggestion.entity_ids or [])

@@ -14,7 +14,7 @@ empty-input handling — rather than token-exact slicing."""
 
 from __future__ import annotations
 
-from aperag.graphindex.engine.chunking import chunk_document
+from aperag.domains.knowledge_graph.graphindex.engine.chunking import chunk_document
 
 
 def _split(s: str) -> list[str]:

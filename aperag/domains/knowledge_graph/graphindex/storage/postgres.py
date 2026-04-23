@@ -41,7 +41,7 @@ from typing import Optional, Sequence
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from aperag.graphindex.dto import (
+from aperag.domains.knowledge_graph.graphindex.dto import (
     DESCRIPTION_SEPARATOR,
     Chunk,
     DeleteDocumentResult,
@@ -50,7 +50,7 @@ from aperag.graphindex.dto import (
     MergeEntitiesResult,
     Relation,
 )
-from aperag.graphindex.models import (
+from aperag.domains.knowledge_graph.graphindex.models import (
     CHUNKS_TABLE,
     EDGES_TABLE,
     NODES_TABLE,

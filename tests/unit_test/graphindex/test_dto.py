@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import pytest
 
-from aperag.graphindex.dto import (
+from aperag.domains.knowledge_graph.graphindex.dto import (
     DESCRIPTION_SEPARATOR,
     Chunk,
     Entity,

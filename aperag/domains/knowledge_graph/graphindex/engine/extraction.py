@@ -45,9 +45,9 @@ import logging
 import random
 from typing import Any, Callable, Optional
 
-from aperag.graphindex.config import GraphIndexConfig
-from aperag.graphindex.dto import Chunk, Entity, Relation
-from aperag.graphindex.prompts import render_extraction_prompt
+from aperag.domains.knowledge_graph.graphindex.config import GraphIndexConfig
+from aperag.domains.knowledge_graph.graphindex.dto import Chunk, Entity, Relation
+from aperag.domains.knowledge_graph.graphindex.prompts import render_extraction_prompt
 
 logger = logging.getLogger(__name__)
 
