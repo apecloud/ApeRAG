@@ -28,10 +28,14 @@ collection_id: jsonpath "$.id"
 jsonpath "$.id" == "{{collection_id}}"
 jsonpath "$.config.source" == "system"
 
+# Title must NOT be the literal "Default Agent Bot" — auth.py:84 already
+# auto-creates a bot with that exact title on user registration, and the
+# default-bot resolver picks the oldest title match, which would be the
+# auto-created bot, not this one.
 POST {{base_url}}/api/v2/bots
 Content-Type: application/json
 {
-  "title": "Default Agent Bot",
+  "title": "Eval Agent Bot {{run_id}}",
   "description": "HTTP evaluation v3 run coverage",
   "type": "agent"
 }
@@ -182,6 +186,10 @@ jsonpath "$.summary.total" == 3
 jsonpath "$.summary.pending" == 3
 jsonpath "$.summary.completed" == 0
 
+# POST without bot_id exercises the default-bot resolver; the resolved
+# bot_id is NOT {{bot_id}} (that one is titled "Eval Agent Bot ..."),
+# it's the registration-auto bot titled "Default Agent Bot". Capture
+# and verify the title instead of comparing ids.
 POST {{base_url}}/api/v2/evaluation-runs
 Content-Type: application/json
 {
@@ -191,12 +199,18 @@ Content-Type: application/json
 HTTP 200
 [Captures]
 run_id_default_bot: jsonpath "$.id"
+default_resolved_bot_id: jsonpath "$.bot_id"
 [Asserts]
 jsonpath "$.id" == "{{run_id_default_bot}}"
-jsonpath "$.bot_id" == "{{bot_id}}"
 jsonpath "$.dataset_id" == "{{dataset_id}}"
 jsonpath "$.collection_id" == "{{collection_id}}"
 jsonpath "$.status" == "queued"
+
+GET {{base_url}}/api/v2/bots/{{default_resolved_bot_id}}
+HTTP 200
+[Asserts]
+jsonpath "$.id" == "{{default_resolved_bot_id}}"
+jsonpath "$.title" == "Default Agent Bot"
 
 GET {{base_url}}/api/v2/evaluation-runs?bot_id={{bot_id}}&page=1&page_size=20
 HTTP 200
