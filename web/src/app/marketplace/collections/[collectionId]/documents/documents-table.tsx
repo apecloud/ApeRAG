@@ -26,10 +26,10 @@ import * as React from 'react';
 import { defaultStyles, FileIcon } from 'react-file-icon';
 
 import {
-  Document,
-  RebuildIndexesRequestIndexTypesEnum,
-  SharedCollection,
-} from '@/api';
+  DOCUMENT_INDEX_TYPES,
+  type Document,
+} from '@/features/document/types';
+import type { SharedCollection } from '@/features/marketplace/types';
 
 import { DataGrid, DataGridPagination } from '@/components/data-grid';
 import { FormatDate } from '@/components/format-date';
@@ -98,7 +98,7 @@ export function DocumentsTable({
 
   const columns: ColumnDef<Document>[] = React.useMemo(() => {
     const indexCols: ColumnDef<Document>[] = [];
-    objectKeys(RebuildIndexesRequestIndexTypesEnum).map((key) => {
+    DOCUMENT_INDEX_TYPES.map((key) => {
       const accessorKey = key.toLowerCase() + '_index_status';
 
       indexCols.push({

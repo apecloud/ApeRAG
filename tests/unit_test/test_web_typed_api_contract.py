@@ -807,6 +807,68 @@ def test_document_feature_uses_v2_typed_api_boundary():
     document_detail = (workspace_documents / "[documentId]/document-detail.tsx").read_text()
     assert "buildDocumentObjectUrl" in document_detail
 
+    # #4 Phase 1b batch 7 — document type shell migration. Seven type-only
+    # callers must drop `@/api` in favour of `features/document/types` (plus
+    # a `SharedCollection` type import from `features/marketplace/types` for
+    # the marketplace documents-table). The feature-visibility.ts carryover
+    # is **deliberately excluded** because it mixes indexing and retrieval
+    # enums and is deferred to the retrieval/search batch; the upload-flow
+    # trio (`document-upload.tsx`, `url-import.tsx`, `text-import.tsx`)
+    # remains with the future upload batch.
+    batch7_document_paths = [
+        REPO_ROOT
+        / "web/src/app/marketplace/collections/[collectionId]/documents/[documentId]/document-detail.tsx",
+        REPO_ROOT
+        / "web/src/app/marketplace/collections/[collectionId]/documents/document-index-status.tsx",
+        REPO_ROOT
+        / "web/src/app/marketplace/collections/[collectionId]/documents/documents-table.tsx",
+        REPO_ROOT
+        / "web/src/app/workspace/collections/[collectionId]/documents/document-index-status.tsx",
+        REPO_ROOT
+        / "web/src/app/workspace/collections/[collectionId]/documents/document-rebuild-index.tsx",
+        REPO_ROOT
+        / "web/src/app/workspace/collections/[collectionId]/documents/documents-table.tsx",
+        REPO_ROOT / "web/src/app/workspace/collections/tools.ts",
+    ]
+    batch7_sources = {path: path.read_text() for path in batch7_document_paths}
+    batch7_joined = "\n".join(batch7_sources.values())
+
+    # Negative: the 7 migrated type-only files must not reach the legacy
+    # `@/api` SDK or the legacy enum classes that this batch replaces with
+    # schema-derived aliases. `apiClient`/`defaultApi`/`serverApi`/`fetch(`
+    # are already banned transitively via the #28 assertions above plus the
+    # file-level lint; this block is the scoped `@/api` + enum check.
+    assert "from '@/api'" not in batch7_joined
+    assert "DocumentStatusEnum" not in batch7_joined
+    assert "DocumentVectorIndexStatusEnum" not in batch7_joined
+    assert "RebuildIndexesRequestIndexTypesEnum" not in batch7_joined
+
+    # Positive: every migrated file now imports from `features/document/types`;
+    # the marketplace documents-table additionally pulls its SharedCollection
+    # type from `features/marketplace/types` instead of the legacy SDK.
+    for source in batch7_sources.values():
+        assert "from '@/features/document/types'" in source
+    marketplace_documents_table = batch7_sources[
+        REPO_ROOT
+        / "web/src/app/marketplace/collections/[collectionId]/documents/documents-table.tsx"
+    ]
+    assert (
+        "from '@/features/marketplace/types'" in marketplace_documents_table
+    )
+
+    # Positive: `features/document/types.ts` exposes the schema-derived
+    # aliases + the runtime `DOCUMENT_INDEX_TYPES` const (constrained by
+    # `satisfies readonly DocumentIndexType[]`). This is the locked gate
+    # for batch 7; a regression here would mean a handwritten enum or
+    # union slipped back in.
+    document_types = (
+        REPO_ROOT / "web/src/features/document/types.ts"
+    ).read_text()
+    assert "NonNullable<Document['status']>" in document_types
+    assert "NonNullable<Document['vector_index_status']>" in document_types
+    assert "RebuildIndexesRequest['index_types'][number]" in document_types
+    assert "satisfies readonly DocumentIndexType[]" in document_types
+
 
 def test_documents_upload_regression_guards():
     """Regression guards for #前端 #16 document upload UX fixes.

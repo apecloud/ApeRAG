@@ -1,17 +1,15 @@
-import { DocumentStatusEnum } from '@/api';
+import type { DocumentStatus } from '@/features/document/types';
 
-export const getDocumentStatusColor = (status?: DocumentStatusEnum) => {
-  const data: {
-    [key in DocumentStatusEnum]: string;
-  } = {
-    [DocumentStatusEnum.PENDING]: 'text-muted-foreground',
-    [DocumentStatusEnum.RUNNING]: 'text-muted-foreground',
-    [DocumentStatusEnum.COMPLETE]: 'text-accent-foreground',
-    [DocumentStatusEnum.UPLOADED]: 'text-muted-foreground',
-    [DocumentStatusEnum.FAILED]: 'text-red-500',
-    [DocumentStatusEnum.EXPIRED]: 'text-muted-foreground line-through',
-    [DocumentStatusEnum.DELETED]: 'text-muted-foreground line-through',
-    [DocumentStatusEnum.DELETING]: 'text-muted-foreground line-through',
+export const getDocumentStatusColor = (status?: DocumentStatus | null) => {
+  const data: Record<DocumentStatus, string> = {
+    PENDING: 'text-muted-foreground',
+    RUNNING: 'text-muted-foreground',
+    COMPLETE: 'text-accent-foreground',
+    UPLOADED: 'text-muted-foreground',
+    FAILED: 'text-red-500',
+    EXPIRED: 'text-muted-foreground line-through',
+    DELETED: 'text-muted-foreground line-through',
+    DELETING: 'text-muted-foreground line-through',
   };
   return status ? data[status] : 'text-muted-foreground';
 };
