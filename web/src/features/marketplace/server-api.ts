@@ -12,15 +12,28 @@ export async function listMarketplaceCollections(options?: {
   pageSize?: number;
 }): Promise<SharedCollectionList> {
   const client = await createServerApiClient();
+  const page = options?.page ?? 1;
+  const pageSize = options?.pageSize ?? 100;
   const { data } = await client.GET('/api/v1/marketplace/collections', {
     params: {
       query: {
-        page: options?.page ?? 1,
-        page_size: options?.pageSize ?? 100,
+        page,
+        page_size: pageSize,
       },
     },
   });
-  return data ?? {};
+  // `SharedCollectionList` has `items/total/page/page_size` all required;
+  // absent body means "no collections yet", so return a typed empty list
+  // rather than `{}` (which would violate the type contract and silently
+  // mask a malformed response with missing pagination).
+  return (
+    data ?? {
+      items: [],
+      total: 0,
+      page,
+      page_size: pageSize,
+    }
+  );
 }
 
 export async function getMarketplaceCollection(
@@ -49,14 +62,16 @@ export async function listMarketplaceCollectionDocuments(
   },
 ): Promise<MarketplaceDocumentList> {
   const client = await createServerApiClient();
+  const page = options?.page ?? 1;
+  const pageSize = options?.pageSize ?? 20;
   const { data } = await client.GET(
     '/api/v1/marketplace/collections/{collection_id}/documents',
     {
       params: {
         path: { collection_id: collectionId },
         query: {
-          page: options?.page ?? 1,
-          page_size: options?.pageSize ?? 20,
+          page,
+          page_size: pageSize,
           sort_by: options?.sortBy,
           sort_order: options?.sortOrder,
           search: options?.search,
@@ -64,7 +79,19 @@ export async function listMarketplaceCollectionDocuments(
       },
     },
   );
-  return data ?? {};
+  // `DocumentList` fields are all optional, so `{}` is technically valid,
+  // but fall back to a typed empty list for consistency with
+  // `listMarketplaceCollections` and so consumers can rely on `items`
+  // being iterable.
+  return (
+    data ?? {
+      items: [],
+      total: 0,
+      page,
+      page_size: pageSize,
+      total_pages: 0,
+    }
+  );
 }
 
 export async function getMarketplaceCollectionDocumentPreview(

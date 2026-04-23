@@ -18,7 +18,7 @@ export default async function Page({
     getMarketplaceCollection(collectionId),
     getMarketplaceCollectionDocumentPreview(collectionId, documentId),
   ]);
-  if (!collection) {
+  if (!collection || !documentPreview) {
     notFound();
   }
 
