@@ -204,7 +204,12 @@ export const DocumentUpload = () => {
     uploadControllerRef.current = null;
   }, []);
 
-  useEffect(() => () => stopUpload(), [stopUpload]);
+  // Intentionally no unmount-cleanup auto-abort: a bulk upload must survive
+  // same-tab navigation (e.g. user switches to another workspace page while
+  // uploads are still in flight). The trade-off is that in-flight HTTP
+  // requests keep running without UI state after unmount; a cross-page
+  // persistent upload queue is tracked for #24 / follow-up. The "Stop" button
+  // in the uploader still calls `stopUpload()` explicitly.
 
   const startUpload = useCallback(
     (docs: DocumentsWithFile[]) => {

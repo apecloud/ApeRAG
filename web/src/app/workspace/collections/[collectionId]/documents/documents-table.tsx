@@ -386,15 +386,22 @@ export function DocumentsTable({
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     pageCount,
-    onPaginationChange: (fn) => {
-      // @ts-expect-error onPaginationChange
-      const { pageIndex, pageSize } = fn({
+    // TanStack Table's `onPaginationChange` handler receives an
+    // `Updater<PaginationState>` — either a `PaginationState` value or a
+    // `(old: PaginationState) => PaginationState` function. Treating it as
+    // only a function (as the previous `@ts-expect-error` version did) would
+    // throw at runtime whenever TanStack dispatches a plain value, silently
+    // eating pagination clicks. Handle both shapes explicitly.
+    onPaginationChange: (updater) => {
+      const current = {
         pageIndex: query.page - 1,
         pageSize: query.pageSize,
-      });
+      };
+      const next =
+        typeof updater === 'function' ? updater(current) : updater;
       handleSearch({
-        page: pageIndex + 1,
-        pageSize,
+        page: next.pageIndex + 1,
+        pageSize: next.pageSize,
       });
     },
     getCoreRowModel: getCoreRowModel(),

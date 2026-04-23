@@ -112,3 +112,31 @@ def test_bot_feature_uses_v2_typed_api_boundary():
     # required keys should reappear.
     assert "max_length: input.max_length ?? null" not in bot_client_api
     assert "turns: input.turns ?? null" not in bot_client_api
+
+
+def test_documents_upload_regression_guards():
+    """Regression guards for #前端 #16 document upload UX fixes.
+
+    1. `document-upload.tsx` must not auto-abort the bulk upload on unmount.
+       The old `useEffect(() => () => stopUpload(), [stopUpload])` killed
+       in-flight uploads when the user navigated away in the same tab,
+       making the uploader appear to silently stop.
+    2. `documents-table.tsx` must handle TanStack Table's
+       `onPaginationChange` updater as both a value and a function. The
+       old `@ts-expect-error` variant threw at runtime whenever TanStack
+       dispatched a plain value, reverting the visible page to page 1
+       after a click.
+    """
+    upload_tsx = (
+        REPO_ROOT
+        / "web/src/app/workspace/collections/[collectionId]/documents/upload/document-upload.tsx"
+    ).read_text()
+    assert "() => stopUpload()" not in upload_tsx
+    assert "() => () => stopUpload" not in upload_tsx
+
+    table_tsx = (
+        REPO_ROOT
+        / "web/src/app/workspace/collections/[collectionId]/documents/documents-table.tsx"
+    ).read_text()
+    assert "@ts-expect-error onPaginationChange" not in table_tsx
+    assert "typeof updater === 'function'" in table_tsx
