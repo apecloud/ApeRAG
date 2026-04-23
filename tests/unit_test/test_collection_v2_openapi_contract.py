@@ -1,3 +1,5 @@
+import re
+
 from fastapi import FastAPI
 
 from aperag.openapi_spec import build_full_openapi_spec, custom_generate_unique_id, filter_public_openapi
@@ -12,6 +14,24 @@ def _collection_v2_spec():
 
 def _json_ref(spec: dict, path: str, method: str, status: str = "200") -> str:
     return spec["paths"][path][method]["responses"][status]["content"]["application/json"]["schema"]["$ref"]
+
+
+# v1 collection CRUD/sharing ghost paths still wired in main pending #26 final sweep.
+# Strictly collection-scoped (no /documents, /graphs, /searches, /export, /marketplace —
+# those belong to other domain contract tests).
+COLLECTION_V1_GHOST_PATHS = frozenset(
+    {
+        "/api/v1/collections",
+        "/api/v1/collections/test-mineru-token",
+        "/api/v1/collections/{collection_id}",
+        "/api/v1/collections/{collection_id}/sharing",
+        "/api/v1/collections/{collection_id}/summary/generate",
+    }
+)
+
+
+def _collection_v1_ghosts(spec: dict) -> set[str]:
+    return {p for p in spec["paths"] if p in COLLECTION_V1_GHOST_PATHS}
 
 
 REQUIRED_PATHS = {
@@ -67,13 +87,9 @@ def test_collection_v2_command_routes_return_204_without_body():
         responses = spec["paths"][path][method]["responses"]
         assert "204" in responses, f"{method.upper()} {path} must declare 204 response"
         # 204 responses carry no content body.
-        assert "content" not in responses["204"], (
-            f"{method.upper()} {path} 204 response must not carry a JSON body"
-        )
+        assert "content" not in responses["204"], f"{method.upper()} {path} 204 response must not carry a JSON body"
         # Command routes must not register a competing 200 JSON schema.
-        assert "200" not in responses, (
-            f"{method.upper()} {path} must not mix 204 with a 200 JSON response"
-        )
+        assert "200" not in responses, f"{method.upper()} {path} must not mix 204 with a 200 JSON response"
 
 
 def test_collection_v2_write_bodies_do_not_repeat_collection_id():
@@ -132,3 +148,88 @@ def test_collection_v2_mineru_token_request_schema_is_typed():
     assert schema_name == "MineruTokenTestRequest"
     props = spec["components"]["schemas"][schema_name]["properties"]
     assert "token" in props
+
+
+def test_collection_v1_ghost_inventory_is_stable():
+    """v1 collection CRUD/sharing ghost paths in the full+public spec must stay within the pinned baseline.
+
+    The #26 final sweep is expected to remove entries from :data:`COLLECTION_V1_GHOST_PATHS`
+    (set will shrink); nothing should introduce new v1 collection CRUD/sharing routes.
+    """
+    from aperag.app import app
+
+    full_spec = build_full_openapi_spec(app)
+    public_spec = filter_public_openapi(full_spec)
+
+    for spec_name, spec in (("full", full_spec), ("public", public_spec)):
+        current = _collection_v1_ghosts(spec)
+        unexpected = current - COLLECTION_V1_GHOST_PATHS
+        assert not unexpected, (
+            f"{spec_name} spec introduced new v1 collection ghost path(s) {sorted(unexpected)}; "
+            "update COLLECTION_V1_GHOST_PATHS only if intentional"
+        )
+
+
+def test_collection_v2_delete_routes_contract():
+    """Every DELETE route under collections_v2 must respect the command-vs-report contract:
+
+    - must not declare both 200 and 204 success responses
+    - if 204 is declared it must have no application/json body (pure command)
+
+    Generalizes ``test_collection_v2_command_routes_return_204_without_body`` to cover every
+    DELETE route (new ones appear automatically).
+    """
+    spec = _collection_v2_spec()
+    checked = 0
+    for path, operations in spec["paths"].items():
+        op = operations.get("delete")
+        if not op:
+            continue
+        responses = op.get("responses") or {}
+        assert not ("200" in responses and "204" in responses), (
+            f"DELETE {path} must not mix 200 and 204 success responses; pick one"
+        )
+        if "204" in responses:
+            assert "content" not in (responses["204"] or {}), (
+                f"DELETE {path} 204 response must not carry an application/json body"
+            )
+        else:
+            assert "200" in responses, f"DELETE {path} must declare a 200 or 204 success response"
+        checked += 1
+    assert checked >= 1, "collections_v2 should expose at least one DELETE route to exercise this contract"
+
+
+def test_collection_v2_all_write_request_bodies_omit_path_params():
+    """Every POST/PUT/PATCH request body under collections_v2 must not redeclare path params.
+
+    Generalizes ``test_collection_v2_write_bodies_do_not_repeat_collection_id`` to all path params
+    (not just ``collection_id``) so future routes with additional path ids are covered automatically.
+    """
+    spec = _collection_v2_spec()
+    components = spec["components"]["schemas"]
+    path_param_re = re.compile(r"\{([^{}]+)\}")
+
+    checked = 0
+    for path, methods in spec["paths"].items():
+        path_params = set(path_param_re.findall(path))
+        if not path_params:
+            continue
+        for method, operation in methods.items():
+            if method not in {"post", "put", "patch"}:
+                continue
+            request_body = (operation or {}).get("requestBody") or {}
+            json_schema = request_body.get("content", {}).get("application/json", {}).get("schema") or {}
+            ref = json_schema.get("$ref")
+            if not ref:
+                continue
+            schema_name = ref.removeprefix("#/components/schemas/")
+            properties = set(components[schema_name].get("properties", {}).keys())
+            overlap = path_params & properties
+            assert not overlap, (
+                f"{method.upper()} {path} request body {schema_name} duplicates path param(s) {sorted(overlap)}"
+            )
+            checked += 1
+
+    assert checked >= 1, (
+        f"Expected at least 1 write route with request body under collections_v2, but only inspected {checked}"
+    )
