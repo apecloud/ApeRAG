@@ -6,11 +6,6 @@ web/src/app/admin/users/page.tsx
 web/src/app/admin/users/user-quota-action.tsx
 web/src/app/auth/signin/page.tsx
 web/src/app/layout.tsx
-web/src/app/marketplace/collections/[collectionId]/collection-header.tsx
-web/src/app/marketplace/collections/[collectionId]/documents/[documentId]/page.tsx
-web/src/app/marketplace/collections/[collectionId]/documents/page.tsx
-web/src/app/marketplace/collections/[collectionId]/graph/page.tsx
-web/src/app/marketplace/page.tsx
 web/src/app/workspace/collections/[collectionId]/documents/upload/document-upload.tsx
 web/src/app/workspace/collections/[collectionId]/documents/upload/import/text-import.tsx
 web/src/app/workspace/collections/[collectionId]/documents/upload/import/url-import.tsx

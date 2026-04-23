@@ -3,12 +3,9 @@ web/src/app/admin/configuration/parser-settings.tsx
 web/src/app/admin/configuration/quota-settings.tsx
 web/src/app/admin/users/user-quota-action.tsx
 web/src/app/admin/users/users-data-table.tsx
-web/src/app/marketplace/collection-list.tsx
-web/src/app/marketplace/collections/[collectionId]/collection-header.tsx
 web/src/app/marketplace/collections/[collectionId]/documents/[documentId]/document-detail.tsx
 web/src/app/marketplace/collections/[collectionId]/documents/document-index-status.tsx
 web/src/app/marketplace/collections/[collectionId]/documents/documents-table.tsx
-web/src/app/marketplace/page.tsx
 web/src/app/workspace/audit-logs/audit-log-detail.tsx
 web/src/app/workspace/audit-logs/audit-log-table.tsx
 web/src/app/workspace/audit-logs/page.tsx

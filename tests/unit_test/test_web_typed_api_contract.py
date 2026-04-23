@@ -158,6 +158,126 @@ def test_quota_feature_uses_v2_typed_api_boundary():
     assert "from '@/features/quota/types'" in chart_tsx
 
 
+def test_marketplace_feature_uses_v2_typed_api_boundary():
+    """#4 Phase 1b batch 3 — marketplace domain.
+
+    Migrates only marketplace-owned API callers under `app/marketplace/**`
+    to `features/marketplace/*`. Per PM msg=7b4a3b06 / Weston msg=86bfb0cf
+    / dongdong msg=9b7cbaad / 架构师 msg=ca06ddd8, two categories of legacy
+    residue are **deliberately deferred** and must stay out of this test's
+    scope:
+
+    1. `app/marketplace/collections/[collectionId]/documents/{documents-table,
+       document-index-status,[documentId]/document-detail}.tsx` are document
+       subcomponents that currently hold document-domain legacy types and —
+       for `documents-table.tsx` — a mixed `SharedCollection` legacy type.
+       These deferred to the document batch or the marketplace/document
+       boundary cleanup. They still match `@/api` but are *not* in this
+       PR's scope, so the negative assertions below explicitly do not scan
+       them.
+    2. `app/workspace/collections/[collectionId]/graph/collection-graph.tsx`
+       uses `apiClient.defaultApi.marketplaceCollectionsCollectionIdGraphGet`
+       but belongs to the workspace graph tree; it is a cross-domain
+       graph/marketplace boundary item deferred to #5 or a later graph
+       cleanup. The negative assertions below do not scan workspace graph.
+
+    In other words, this test intentionally *does not* try to prove that
+    `marketplaceCollections*` is gone from the whole repo — only that the
+    six migrated callers and `features/marketplace/**` are clean.
+    """
+    migrated_callers = [
+        REPO_ROOT / "web/src/app/marketplace/page.tsx",
+        REPO_ROOT / "web/src/app/marketplace/collection-list.tsx",
+        REPO_ROOT
+        / "web/src/app/marketplace/collections/[collectionId]/collection-header.tsx",
+        REPO_ROOT
+        / "web/src/app/marketplace/collections/[collectionId]/documents/page.tsx",
+        REPO_ROOT
+        / "web/src/app/marketplace/collections/[collectionId]/documents/[documentId]/page.tsx",
+        REPO_ROOT
+        / "web/src/app/marketplace/collections/[collectionId]/graph/page.tsx",
+    ]
+
+    feature_paths = [REPO_ROOT / "web/src/features/marketplace"]
+    feature_sources_by_path: dict[Path, str] = {}
+    for root in feature_paths:
+        for path in root.rglob("*"):
+            if path.is_file() and path.suffix in {".ts", ".tsx"}:
+                feature_sources_by_path[path] = path.read_text()
+
+    migrated_sources_by_path = {
+        path: path.read_text() for path in migrated_callers
+    }
+    scoped_joined = "\n".join(
+        [*migrated_sources_by_path.values(), *feature_sources_by_path.values()]
+    )
+    feature_sources = "\n".join(feature_sources_by_path.values())
+
+    # Negative: the six migrated callers + features/marketplace/** must not
+    # touch the legacy `@/api` SDK directly. Do not scan the deferred
+    # document subcomponents or workspace graph here.
+    assert "from '@/api'" not in scoped_joined
+    assert "apiClient.defaultApi.marketplaceCollections" not in scoped_joined
+    assert "serverApi.defaultApi.marketplaceCollections" not in scoped_joined
+    assert "defaultApi.marketplaceCollectionsGet" not in scoped_joined
+    assert "getServerApi" not in scoped_joined
+
+    # Positive: adapter only reaches the typed v1 marketplace paths.
+    assert "fetch(" not in feature_sources
+    assert "'/api/v1/marketplace/collections'" in feature_sources
+    assert (
+        "'/api/v1/marketplace/collections/{collection_id}'" in feature_sources
+    )
+    assert (
+        "'/api/v1/marketplace/collections/{collection_id}/documents'"
+        in feature_sources
+    )
+    assert (
+        "'/api/v1/marketplace/collections/{collection_id}/documents/{document_id}/preview'"
+        in feature_sources
+    )
+    assert (
+        "'/api/v1/marketplace/collections/{collection_id}/subscribe'"
+        in feature_sources
+    )
+
+    # Positive: callers wire through the feature adapter.
+    page_tsx = migrated_sources_by_path[
+        REPO_ROOT / "web/src/app/marketplace/page.tsx"
+    ]
+    assert "from '@/features/marketplace/server-api'" in page_tsx
+
+    list_tsx = migrated_sources_by_path[
+        REPO_ROOT / "web/src/app/marketplace/collection-list.tsx"
+    ]
+    assert "from '@/features/marketplace/types'" in list_tsx
+
+    header_tsx = migrated_sources_by_path[
+        REPO_ROOT
+        / "web/src/app/marketplace/collections/[collectionId]/collection-header.tsx"
+    ]
+    assert "from '@/features/marketplace/client-api'" in header_tsx
+    assert "from '@/features/marketplace/types'" in header_tsx
+
+    docs_page_tsx = migrated_sources_by_path[
+        REPO_ROOT
+        / "web/src/app/marketplace/collections/[collectionId]/documents/page.tsx"
+    ]
+    assert "from '@/features/marketplace/server-api'" in docs_page_tsx
+
+    doc_detail_page_tsx = migrated_sources_by_path[
+        REPO_ROOT
+        / "web/src/app/marketplace/collections/[collectionId]/documents/[documentId]/page.tsx"
+    ]
+    assert "from '@/features/marketplace/server-api'" in doc_detail_page_tsx
+
+    graph_page_tsx = migrated_sources_by_path[
+        REPO_ROOT
+        / "web/src/app/marketplace/collections/[collectionId]/graph/page.tsx"
+    ]
+    assert "from '@/features/marketplace/server-api'" in graph_page_tsx
+
+
 def test_prompt_feature_uses_v2_typed_api_boundary():
     """#4 Phase 1b batch 1 — prompt domain (FE `features/prompt`, backend
     canonical owner stays `model_platform` per v2 map).

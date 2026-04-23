@@ -1,6 +1,6 @@
 'use client';
 
-import { SharedCollection } from '@/api';
+import type { SharedCollection } from '@/features/marketplace/types';
 import { useAppContext } from '@/components/providers/app-provider';
 import { Badge } from '@/components/ui/badge';
 import {
