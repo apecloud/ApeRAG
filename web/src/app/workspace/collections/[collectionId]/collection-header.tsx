@@ -23,7 +23,10 @@ import _ from 'lodash';
 import { useCollectionContext } from '@/components/providers/collection-provider';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { apiClient } from '@/lib/api/client';
+import {
+  publishCollectionSharing,
+  unpublishCollectionSharing,
+} from '@/features/collection/client-api';
 import { CollectionExport } from '@/components/collections/export-dialog';
 import {
   Calendar,
@@ -73,14 +76,10 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
         return;
       }
       if (checked) {
-        await apiClient.defaultApi.collectionsCollectionIdSharingPost({
-          collectionId: collection?.id,
-        });
+        await publishCollectionSharing(collection.id);
         toast.success(page_collections('published_success'));
       } else {
-        await apiClient.defaultApi.collectionsCollectionIdSharingDelete({
-          collectionId: collection?.id,
-        });
+        await unpublishCollectionSharing(collection.id);
         toast.success(page_collections('unpublished_success'));
       }
       await loadShare();

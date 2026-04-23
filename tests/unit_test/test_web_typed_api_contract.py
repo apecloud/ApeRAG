@@ -114,6 +114,63 @@ def test_bot_feature_uses_v2_typed_api_boundary():
     assert "turns: input.turns ?? null" not in bot_client_api
 
 
+def test_collection_feature_uses_v2_typed_api_boundary():
+    """#24a Collection + Sharing FE typed adapter boundary.
+
+    Business code under these paths must not call the old generated
+    `defaultApi.collections*` / `defaultApi.collectionsCollectionId*` /
+    `defaultApi.collectionsCollectionIdSharing*` SDK directly, and the
+    `features/collection/*` adapter must only reach `/api/v2/collections*`
+    typed paths (no `@/api` fallback, no raw `fetch(`). Document-specific
+    routes (`/documents*`) are deliberately out of scope — they stay with
+    the documents slice and the upload-flow hotfix.
+    """
+    checked_paths = [
+        REPO_ROOT / "web/src/app/workspace/collections/page.tsx",
+        REPO_ROOT / "web/src/app/workspace/collections/collection-form.tsx",
+        REPO_ROOT / "web/src/app/workspace/collections/[collectionId]/layout.tsx",
+        REPO_ROOT
+        / "web/src/app/workspace/collections/[collectionId]/collection-delete.tsx",
+        REPO_ROOT
+        / "web/src/app/workspace/collections/[collectionId]/collection-header.tsx",
+        REPO_ROOT / "web/src/components/providers/collection-provider.tsx",
+        REPO_ROOT / "web/src/components/providers/bot-provider.tsx",
+        REPO_ROOT / "web/src/features/collection",
+    ]
+
+    sources = {}
+    for entry in checked_paths:
+        if entry.is_file():
+            sources[entry] = entry.read_text()
+            continue
+        for path in entry.rglob("*"):
+            if path.is_file() and path.suffix in {".ts", ".tsx"}:
+                sources[path] = path.read_text()
+    joined = "\n".join(sources.values())
+    feature_sources = "\n".join(
+        source
+        for path, source in sources.items()
+        if "/web/src/features/collection/" in str(path)
+    )
+
+    # Business code under #24a scope must not reach the old generated
+    # collection SDK or the v1 collections routes directly.
+    assert "defaultApi.collectionsGet" not in joined
+    assert "defaultApi.collectionsPost" not in joined
+    assert "defaultApi.collectionsCollectionIdGet" not in joined
+    assert "defaultApi.collectionsCollectionIdPut" not in joined
+    assert "defaultApi.collectionsCollectionIdDelete" not in joined
+    assert "defaultApi.collectionsCollectionIdSharingGet" not in joined
+    assert "defaultApi.collectionsCollectionIdSharingPost" not in joined
+    assert "defaultApi.collectionsCollectionIdSharingDelete" not in joined
+
+    # features/collection adapter must only reach v2 typed paths and not
+    # fall back to the old `@/api` generated SDK or raw fetch.
+    assert "from '@/api'" not in feature_sources
+    assert "fetch(" not in feature_sources
+    assert "/api/v2/collections" in feature_sources
+
+
 def test_documents_upload_regression_guards():
     """Regression guards for #前端 #16 document upload UX fixes.
 
