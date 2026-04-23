@@ -51,3 +51,41 @@ def test_evaluation_feature_uses_v2_typed_api_boundary():
         REPO_ROOT / "web/src/components/evaluation/benchmarks-panel.tsx"
     ).read_text()
     assert "String(value ?? '').toLowerCase()" in benchmarks_panel
+
+
+def test_bot_feature_uses_v2_typed_api_boundary():
+    checked_paths = [
+        REPO_ROOT / "web/src/app/workspace/bots",
+        REPO_ROOT / "web/src/app/workspace/layout.tsx",
+        REPO_ROOT / "web/src/components/providers/bot-provider.tsx",
+        REPO_ROOT / "web/src/components/evaluation/evaluation-runs-panel.tsx",
+        REPO_ROOT / "web/src/features/bot",
+    ]
+
+    sources = {}
+    for entry in checked_paths:
+        if entry.is_file():
+            sources[entry] = entry.read_text()
+            continue
+        for path in entry.rglob("*"):
+            if path.is_file() and path.suffix in {".ts", ".tsx"}:
+                sources[path] = path.read_text()
+    joined = "\n".join(sources.values())
+    feature_sources = "\n".join(
+        source
+        for path, source in sources.items()
+        if "/web/src/features/bot/" in str(path)
+    )
+
+    # Business code under these paths must not touch the v1 bot surface or the old
+    # generated bots SDK directly.
+    assert "/api/v1/bots" not in joined
+    assert "defaultApi.botsGet" not in joined
+    assert "defaultApi.botsPost" not in joined
+    assert "defaultApi.botsBotId" not in joined
+
+    # features/bot adapter must go through the typed v2 paths and not fall back to
+    # the old `@/api` SDK or raw fetch.
+    assert "from '@/api'" not in feature_sources
+    assert "fetch(" not in feature_sources
+    assert "/api/v2/bots" in feature_sources

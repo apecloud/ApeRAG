@@ -3,7 +3,16 @@
 import { apiClient } from '@/lib/api/client';
 import { useCallback, useEffect, useState } from 'react';
 
-import { Bot, Chat, ChatDetails, Collection, ModelSpec } from '@/api';
+import { Collection, ModelSpec } from '@/api';
+import {
+  createBot,
+  createBotChat,
+  deleteBotChat,
+  generateBotChatTitle,
+  listBotChats,
+  updateBotChat,
+} from '@/features/bot/client-api';
+import type { Bot, Chat, ChatDetails } from '@/features/bot/types';
 import { useLocale } from 'next-intl';
 import { useParams, useRouter } from 'next/navigation';
 import { createContext, useContext } from 'react';
@@ -81,33 +90,25 @@ export const BotProvider = ({
   }, []);
 
   const botCreate = useCallback(async () => {
-    const createRes = await apiClient.defaultApi.botsPost({
-      botCreate: {
-        title: 'Default Agent Bot',
-        type: 'agent',
-      },
+    const created = await createBot({
+      title: 'Default Agent Bot',
+      type: 'agent',
     });
-    if (createRes.data.id) {
-      setBot(createRes.data);
+    if (created?.id) {
+      setBot(created);
     }
   }, []);
 
   const chatsReload = useCallback(async () => {
     if (!bot?.id) return;
-    const chatsRes = await apiClient.defaultApi.botsBotIdChatsGet({
-      botId: bot.id,
-    });
-    //@ts-expect-error api define has a bug
-    setChats(chatsRes.data.items || []);
+    const chatsRes = await listBotChats(bot.id);
+    setChats(chatsRes?.items ?? []);
   }, [bot?.id]);
 
   const chatDelete = useCallback(
     async (chat: Chat) => {
       if (!chat.bot_id || !chat.id) return;
-      await apiClient.defaultApi.botsBotIdChatsChatIdDelete({
-        botId: chat.bot_id,
-        chatId: chat.id,
-      });
+      await deleteBotChat(chat.bot_id, chat.id);
 
       if (params.chatId === chat.id) {
         const item = chats?.find((c) => c.id !== chat.id);
@@ -124,24 +125,12 @@ export const BotProvider = ({
   const chatRename = useCallback(
     async (chat: Chat) => {
       if (chat.title !== 'New Chat' || !chat.id || !chat.bot_id) return;
-      const titleRes = await apiClient.defaultApi.botsBotIdChatsChatIdTitlePost(
-        {
-          chatId: chat.id,
-          botId: chat.bot_id,
-          titleGenerateRequest: {
-            language: locale,
-          },
-        },
-      );
-      const title = titleRes.data.title;
+      const titleRes = await generateBotChatTitle(chat.bot_id, chat.id, {
+        language: locale,
+      });
+      const title = titleRes?.title;
       if (title) {
-        await apiClient.defaultApi.botsBotIdChatsChatIdPut({
-          chatId: chat.id,
-          botId: chat.bot_id,
-          chatUpdate: {
-            title,
-          },
-        });
+        await updateBotChat(chat.bot_id, chat.id, { title });
         chatsReload();
       }
     },
@@ -150,15 +139,10 @@ export const BotProvider = ({
 
   const chatCreate = useCallback(async () => {
     if (!bot?.id) return;
-    const res = await apiClient.defaultApi.botsBotIdChatsPost({
-      botId: bot.id,
-      chatCreate: {
-        title: '',
-      },
-    });
+    const created = await createBotChat(bot.id);
 
-    if (res.data.id) {
-      const url = `${botChatsBasePath}/${bot.id}/chats/${res.data.id}`;
+    if (created?.id) {
+      const url = `${botChatsBasePath}/${bot.id}/chats/${created.id}`;
       router.push(url);
       chatsReload();
     }
