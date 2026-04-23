@@ -28,6 +28,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from aperag.db.models import (
     BenchmarkDatasetSourceType,
     BenchmarkDatasetVersionStatus,
+    EvaluationDatasetSourceType,
     EvaluationJudgeMode,
     EvaluationRunItemAttemptStatus,
     EvaluationRunItemStatus,
@@ -276,3 +277,100 @@ class RetryRunItemResponse(BaseModel):
 
 BenchmarkDatasetEnvelope.model_rebuild()
 EvaluationRunItemEnvelope.model_rebuild()
+
+
+# ---------------------------------------------------------------------------
+# EvaluationDataset (simplified evaluation model — evaluation-v3 Phase 1)
+# ---------------------------------------------------------------------------
+#
+# These schemas are added alongside the Benchmark* set so the new
+# ``EvaluationDataset`` / ``EvaluationDatasetItem`` tables can be exercised by
+# repository tests and by the Phase 2 service/view switch without touching the
+# still-live benchmark contract. The public API is NOT re-wired in Phase 1.
+
+
+class EvaluationDatasetItemCreate(BaseModel):
+    case_key: Optional[str] = Field(
+        None,
+        max_length=128,
+        description="Stable user-facing key. Auto-generated when omitted.",
+    )
+    input_message: str = Field(..., min_length=1)
+    expected_answer: Optional[str] = None
+    reference_context: Optional[str] = None
+    tags: Optional[list[str]] = None
+    case_metadata: Optional[dict[str, Any]] = None
+    sort_key: int = 0
+
+
+class EvaluationDatasetItemUpdate(BaseModel):
+    case_key: Optional[str] = Field(None, max_length=128)
+    input_message: Optional[str] = Field(None, min_length=1)
+    expected_answer: Optional[str] = None
+    reference_context: Optional[str] = None
+    tags: Optional[list[str]] = None
+    case_metadata: Optional[dict[str, Any]] = None
+    sort_key: Optional[int] = None
+
+
+class EvaluationDatasetCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    description: Optional[str] = None
+    collection_id: Optional[str] = None
+    source_type: EvaluationDatasetSourceType = EvaluationDatasetSourceType.MANUAL
+    schema_hint: Optional[dict[str, Any]] = None
+    items: Optional[list[EvaluationDatasetItemCreate]] = None
+
+
+class EvaluationDatasetUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    description: Optional[str] = None
+
+
+class EvaluationDatasetItemEnvelope(BaseModel):
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+    id: str
+    dataset_id: str
+    case_key: str
+    input_message: str
+    expected_answer: Optional[str] = None
+    reference_context: Optional[str] = None
+    tags: Optional[list[str]] = None
+    case_metadata: Optional[dict[str, Any]] = None
+    sort_key: int
+    created_at: datetime = Field(validation_alias="gmt_created")
+    updated_at: datetime = Field(validation_alias="gmt_updated")
+
+
+class EvaluationDatasetEnvelope(BaseModel):
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+    id: str
+    user_id: str
+    collection_id: Optional[str] = None
+    name: str
+    description: Optional[str] = None
+    source_type: EvaluationDatasetSourceType
+    schema_hint: Optional[dict[str, Any]] = None
+    item_count: int = 0
+    created_at: datetime = Field(validation_alias="gmt_created")
+    updated_at: datetime = Field(validation_alias="gmt_updated")
+
+
+class EvaluationDatasetListResponse(BaseModel):
+    items: list[EvaluationDatasetEnvelope] = Field(default_factory=list)
+    pagination: EvaluationPagination = Field(default_factory=EvaluationPagination)
+
+
+class EvaluationDatasetItemListResponse(BaseModel):
+    items: list[EvaluationDatasetItemEnvelope] = Field(default_factory=list)
+    pagination: EvaluationPagination = Field(default_factory=EvaluationPagination)
+
+
+class EvaluationDatasetItemsAppendRequest(BaseModel):
+    items: list[EvaluationDatasetItemCreate] = Field(default_factory=list)
+
+
+class EvaluationDatasetItemsAppendResponse(BaseModel):
+    items: list[EvaluationDatasetItemEnvelope] = Field(default_factory=list)

@@ -28,6 +28,10 @@ from aperag.db.models import (
     BenchmarkDataset,
     BenchmarkDatasetVersion,
     BenchmarkDatasetVersionStatus,
+    Bot,
+    BotStatus,
+    EvaluationDataset,
+    EvaluationDatasetItem,
     EvaluationRun,
     EvaluationRunItem,
     EvaluationRunItemAttempt,
@@ -402,3 +406,263 @@ class AsyncEvaluationV2RepositoryMixin(AsyncRepositoryProtocol):
             return instance
 
         return await self.execute_with_transaction(_operation)
+
+    # -- EvaluationDataset (evaluation-v3, Phase 1 additive) -----------------
+    #
+    # Helpers below operate on the new ``evaluation_datasets`` /
+    # ``evaluation_dataset_items`` tables. Phase 1 only adds these helpers; no
+    # production code path (benchmark service / views / runtime) calls into
+    # them yet. The contract switch happens in Phase 2.
+
+    async def create_evaluation_dataset(
+        self,
+        dataset: EvaluationDataset,
+        items: Optional[list[EvaluationDatasetItem]] = None,
+    ) -> EvaluationDataset:
+        async def _operation(session: AsyncSession):
+            session.add(dataset)
+            await session.flush()
+            if items:
+                for item in items:
+                    item.dataset_id = dataset.id
+                    session.add(item)
+                dataset.item_count = len(items)
+                await session.flush()
+            await session.refresh(dataset)
+            return dataset
+
+        return await self.execute_with_transaction(_operation)
+
+    async def get_evaluation_dataset(self, user_id: str, dataset_id: str) -> Optional[EvaluationDataset]:
+        async def _query(session: AsyncSession):
+            stmt = select(EvaluationDataset).where(
+                EvaluationDataset.id == dataset_id,
+                EvaluationDataset.user_id == user_id,
+                EvaluationDataset.gmt_deleted.is_(None),
+            )
+            return (await session.execute(stmt)).scalars().first()
+
+        return await self._execute_query(_query)
+
+    async def list_evaluation_datasets(
+        self,
+        user_id: str,
+        collection_id: Optional[str],
+        page: int,
+        page_size: int,
+    ) -> tuple[list[EvaluationDataset], int]:
+        async def _query(session: AsyncSession):
+            conditions = [
+                EvaluationDataset.user_id == user_id,
+                EvaluationDataset.gmt_deleted.is_(None),
+            ]
+            if collection_id:
+                conditions.append(EvaluationDataset.collection_id == collection_id)
+            base = select(EvaluationDataset).where(and_(*conditions))
+            total_stmt = select(func.count()).select_from(base.subquery())
+            total = (await session.execute(total_stmt)).scalar() or 0
+            stmt = (
+                base.order_by(EvaluationDataset.gmt_created.desc())
+                .offset(max(page - 1, 0) * page_size)
+                .limit(page_size)
+            )
+            rows = list((await session.execute(stmt)).scalars().all())
+            return rows, int(total)
+
+        return await self._execute_query(_query)
+
+    async def update_evaluation_dataset(
+        self,
+        user_id: str,
+        dataset_id: str,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> Optional[EvaluationDataset]:
+        async def _operation(session: AsyncSession):
+            stmt = select(EvaluationDataset).where(
+                EvaluationDataset.id == dataset_id,
+                EvaluationDataset.user_id == user_id,
+                EvaluationDataset.gmt_deleted.is_(None),
+            )
+            instance = (await session.execute(stmt)).scalars().first()
+            if not instance:
+                return None
+            if name is not None:
+                instance.name = name
+            if description is not None:
+                instance.description = description
+            instance.gmt_updated = utc_now()
+            await session.flush()
+            await session.refresh(instance)
+            return instance
+
+        return await self.execute_with_transaction(_operation)
+
+    async def soft_delete_evaluation_dataset(self, user_id: str, dataset_id: str) -> bool:
+        async def _operation(session: AsyncSession):
+            stmt = select(EvaluationDataset).where(
+                EvaluationDataset.id == dataset_id,
+                EvaluationDataset.user_id == user_id,
+                EvaluationDataset.gmt_deleted.is_(None),
+            )
+            instance = (await session.execute(stmt)).scalars().first()
+            if not instance:
+                return False
+            now = utc_now()
+            instance.gmt_deleted = now
+            instance.gmt_updated = now
+            await session.flush()
+            return True
+
+        return await self.execute_with_transaction(_operation)
+
+    async def list_evaluation_dataset_items(
+        self, dataset_id: str, page: int, page_size: int
+    ) -> tuple[list[EvaluationDatasetItem], int]:
+        async def _query(session: AsyncSession):
+            conditions = [
+                EvaluationDatasetItem.dataset_id == dataset_id,
+                EvaluationDatasetItem.gmt_deleted.is_(None),
+            ]
+            base = select(EvaluationDatasetItem).where(and_(*conditions))
+            total_stmt = select(func.count()).select_from(base.subquery())
+            total = (await session.execute(total_stmt)).scalar() or 0
+            stmt = (
+                base.order_by(
+                    EvaluationDatasetItem.sort_key.asc(),
+                    EvaluationDatasetItem.gmt_created.asc(),
+                )
+                .offset(max(page - 1, 0) * page_size)
+                .limit(page_size)
+            )
+            rows = list((await session.execute(stmt)).scalars().all())
+            return rows, int(total)
+
+        return await self._execute_query(_query)
+
+    async def list_all_evaluation_dataset_items(self, dataset_id: str) -> list[EvaluationDatasetItem]:
+        async def _query(session: AsyncSession):
+            stmt = (
+                select(EvaluationDatasetItem)
+                .where(
+                    EvaluationDatasetItem.dataset_id == dataset_id,
+                    EvaluationDatasetItem.gmt_deleted.is_(None),
+                )
+                .order_by(
+                    EvaluationDatasetItem.sort_key.asc(),
+                    EvaluationDatasetItem.gmt_created.asc(),
+                )
+            )
+            return list((await session.execute(stmt)).scalars().all())
+
+        return await self._execute_query(_query)
+
+    async def append_evaluation_dataset_items(
+        self, dataset_id: str, items: list[EvaluationDatasetItem]
+    ) -> list[EvaluationDatasetItem]:
+        async def _operation(session: AsyncSession):
+            for item in items:
+                item.dataset_id = dataset_id
+                session.add(item)
+            await session.flush()
+            dataset_stmt = select(EvaluationDataset).where(EvaluationDataset.id == dataset_id)
+            dataset = (await session.execute(dataset_stmt)).scalars().first()
+            if dataset is not None:
+                dataset.item_count = (dataset.item_count or 0) + len(items)
+                dataset.gmt_updated = utc_now()
+            for item in items:
+                await session.refresh(item)
+            return list(items)
+
+        return await self.execute_with_transaction(_operation)
+
+    async def update_evaluation_dataset_item(
+        self,
+        dataset_id: str,
+        item_id: str,
+        **fields,
+    ) -> Optional[EvaluationDatasetItem]:
+        async def _operation(session: AsyncSession):
+            stmt = select(EvaluationDatasetItem).where(
+                EvaluationDatasetItem.id == item_id,
+                EvaluationDatasetItem.dataset_id == dataset_id,
+                EvaluationDatasetItem.gmt_deleted.is_(None),
+            )
+            instance = (await session.execute(stmt)).scalars().first()
+            if not instance:
+                return None
+            allowed = {
+                "case_key",
+                "input_message",
+                "expected_answer",
+                "reference_context",
+                "tags",
+                "case_metadata",
+                "sort_key",
+            }
+            for key, value in fields.items():
+                if key in allowed and value is not None:
+                    setattr(instance, key, value)
+            instance.gmt_updated = utc_now()
+            await session.flush()
+            await session.refresh(instance)
+            return instance
+
+        return await self.execute_with_transaction(_operation)
+
+    async def soft_delete_evaluation_dataset_item(self, dataset_id: str, item_id: str) -> bool:
+        async def _operation(session: AsyncSession):
+            stmt = select(EvaluationDatasetItem).where(
+                EvaluationDatasetItem.id == item_id,
+                EvaluationDatasetItem.dataset_id == dataset_id,
+                EvaluationDatasetItem.gmt_deleted.is_(None),
+            )
+            instance = (await session.execute(stmt)).scalars().first()
+            if not instance:
+                return False
+            now = utc_now()
+            instance.gmt_deleted = now
+            instance.gmt_updated = now
+            dataset_stmt = select(EvaluationDataset).where(EvaluationDataset.id == dataset_id)
+            dataset = (await session.execute(dataset_stmt)).scalars().first()
+            if dataset is not None and (dataset.item_count or 0) > 0:
+                dataset.item_count = (dataset.item_count or 0) - 1
+                dataset.gmt_updated = now
+            await session.flush()
+            return True
+
+        return await self.execute_with_transaction(_operation)
+
+    # -- Default-bot resolver (evaluation-v3, Phase 1 additive) --------------
+
+    async def resolve_default_evaluation_bot(self, user_id: str, default_title: str) -> Optional[Bot]:
+        """Pick a bot for an evaluation run without an explicit ``bot_id``.
+
+        The resolver is DB-only (no HTTP bot route side-channel) and prefers
+        the user's active bot whose ``title`` equals ``default_title`` (the
+        caller passes ``DEFAULT_AGENT_BOT_TITLE``). Ties break on
+        ``gmt_created ASC`` so the result is deterministic. If no such bot
+        exists the resolver falls back to the oldest active bot for the user.
+        Only active, non-soft-deleted bots are considered.
+        """
+
+        async def _query(session: AsyncSession):
+            active_filter = and_(
+                Bot.user == user_id,
+                Bot.status == BotStatus.ACTIVE,
+                Bot.gmt_deleted.is_(None),
+            )
+            preferred_stmt = (
+                select(Bot)
+                .where(and_(active_filter, Bot.title == default_title))
+                .order_by(Bot.gmt_created.asc())
+                .limit(1)
+            )
+            preferred = (await session.execute(preferred_stmt)).scalars().first()
+            if preferred is not None:
+                return preferred
+
+            fallback_stmt = select(Bot).where(active_filter).order_by(Bot.gmt_created.asc()).limit(1)
+            return (await session.execute(fallback_stmt)).scalars().first()
+
+        return await self._execute_query(_query)
