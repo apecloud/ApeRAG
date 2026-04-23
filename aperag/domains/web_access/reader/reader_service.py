@@ -7,10 +7,13 @@ Main service class for web content reading functionality with provider abstracti
 import logging
 from typing import Dict, List, Optional
 
-from aperag.schema.view_models import WebReadRequest, WebReadResponse, WebReadResultItem
-from aperag.websearch.reader.base_reader import BaseReaderProvider
-from aperag.websearch.reader.providers.jina_read_provider import JinaReaderProvider
-from aperag.websearch.reader.providers.trafilatura_read_provider import ReaderProviderError, TrafilaturaProvider
+from aperag.domains.web_access.reader.base_reader import BaseReaderProvider
+from aperag.domains.web_access.reader.providers.jina_read_provider import JinaReaderProvider
+from aperag.domains.web_access.reader.providers.trafilatura_read_provider import (
+    ReaderProviderError,
+    TrafilaturaProvider,
+)
+from aperag.domains.web_access.schemas import WebReadRequest, WebReadResponse, WebReadResultItem
 
 logger = logging.getLogger(__name__)
 

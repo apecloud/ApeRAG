@@ -24,8 +24,8 @@ WebSearch现在支持**智能并行搜索**，可同时执行多种搜索策略�
 # search_llms_txt = OR关系（独立的LLM.txt发现）
 # 最终结果 = 常规搜索结果 + LLM.txt搜索结果（自动去重）
 
-from aperag.views.web import web_search_view
-from aperag.schema.view_models import WebSearchRequest
+from aperag.domains.web_access.api.routes import web_search_endpoint
+from aperag.domains.web_access.schemas import WebSearchRequest
 
 # 组合搜索：常规搜索 + LLM.txt发现（并行执行）
 request = WebSearchRequest(
@@ -90,8 +90,8 @@ aperag/websearch/
 #### 基础用法
 
 ```python
-from aperag.websearch.search.search_service import SearchService
-from aperag.schema.view_models import WebSearchRequest
+from aperag.domains.web_access.search.search_service import SearchService
+from aperag.domains.web_access.schemas import WebSearchRequest
 
 # 创建搜索服务（默认使用DuckDuckGo）
 search_service = SearchService()
@@ -149,7 +149,7 @@ request = WebSearchRequest(
 #### 基础用法
 
 ```python
-from aperag.websearch.search.search_service import SearchService
+from aperag.domains.web_access.search.search_service import SearchService
 
 # 创建JINA搜索服务
 search_service = SearchService(
@@ -207,7 +207,7 @@ LLM_TXT_PATTERNS = [
 
 ```python
 # 新方式：search_llms_txt作为独立参数
-from aperag.views.web import web_search_view
+from aperag.domains.web_access.api.routes import web_search_endpoint
 
 # 方式1: 纯LLM.txt发现
 request = WebSearchRequest(
@@ -241,8 +241,8 @@ print(f"并行搜索: {response.search_engine}")  # "parallel(2 sources)"
 新增的视图层函数，支持智能并行搜索：
 
 ```python
-from aperag.views.web import web_search_view
-from aperag.schema.view_models import WebSearchRequest
+from aperag.domains.web_access.api.routes import web_search_endpoint
+from aperag.domains.web_access.schemas import WebSearchRequest
 
 async def advanced_search_examples():
     """并行搜索的高级用法示例"""
@@ -322,8 +322,8 @@ async def result_merging_demo():
 #### 基础用法
 
 ```python
-from aperag.websearch.reader.reader_service import ReaderService
-from aperag.schema.view_models import WebReadRequest
+from aperag.domains.web_access.reader.reader_service import ReaderService
+from aperag.domains.web_access.schemas import WebReadRequest
 
 # 创建读取服务（默认使用Trafilatura）
 reader_service = ReaderService()
@@ -522,8 +522,8 @@ except Exception as e:
 ### 推荐的使用模式
 
 ```python
-from aperag.views.web import web_search_view
-from aperag.schema.view_models import WebSearchRequest
+from aperag.domains.web_access.api.routes import web_search_endpoint
+from aperag.domains.web_access.schemas import WebSearchRequest
 
 # 1. 🌟 智能并行搜索（推荐）
 async def intelligent_search(topic: str, domain: str = None):
@@ -607,7 +607,7 @@ WebSearch模块已与MCP（Model Context Protocol）接口完全集成：
 import requests
 
 # 通过HTTP API调用并行搜索
-response = requests.post("http://localhost:8000/api/v1/web/search", json={
+response = requests.post("http://localhost:8000/api/v2/web/search", json={
     "query": "machine learning tutorial",
     "search_llms_txt": "docs.anthropic.com",  # 🆕 string类型
     "max_results": 5
@@ -907,7 +907,7 @@ pip install ruff>=0.1.0               # 代码格式检查（已通过）
 - ✅ **智能结果合并**: 自动去重和排序，提供最优搜索体验
 
 **🔧 技术架构改进:**
-- 新增`aperag.views.web.web_search_view`并行搜索视图层
+- 新增`aperag.domains.web_access.api.routes.web_search_endpoint`并行搜索视图层
 - 实现智能的结果合并和去重算法
 - 优化错误处理：支持部分搜索失败的容错机制
 - 完善MCP接口集成，支持新的参数结构

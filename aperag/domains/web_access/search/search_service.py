@@ -7,15 +7,15 @@ Main service class for web search functionality with provider abstraction.
 import logging
 from typing import Dict, List
 
-from aperag.schema.view_models import (
+from aperag.domains.web_access.schemas import (
     WebSearchMeta,
     WebSearchRequest,
     WebSearchResponse,
     WebSearchResultItem,
 )
-from aperag.websearch.search.base_search import BaseSearchProvider
-from aperag.websearch.search.providers.duckduckgo_search_provider import DuckDuckGoProvider
-from aperag.websearch.search.providers.jina_search_provider import JinaSearchProvider
+from aperag.domains.web_access.search.base_search import BaseSearchProvider
+from aperag.domains.web_access.search.providers.duckduckgo_search_provider import DuckDuckGoProvider
+from aperag.domains.web_access.search.providers.jina_search_provider import JinaSearchProvider
 
 logger = logging.getLogger(__name__)
 

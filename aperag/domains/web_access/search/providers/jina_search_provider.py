@@ -11,9 +11,9 @@ from typing import Any, Dict, List, Optional
 
 import aiohttp
 
-from aperag.schema.view_models import WebSearchResultItem
-from aperag.websearch.search.base_search import BaseSearchProvider
-from aperag.websearch.utils.url_validator import URLValidator
+from aperag.domains.web_access.schemas import WebSearchResultItem
+from aperag.domains.web_access.search.base_search import BaseSearchProvider
+from aperag.domains.web_access.utils.url_validator import URLValidator
 
 logger = logging.getLogger(__name__)
 

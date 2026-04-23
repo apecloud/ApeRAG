@@ -7,7 +7,7 @@ Abstract base class for web search providers.
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 
-from aperag.schema.view_models import WebSearchResultItem
+from aperag.domains.web_access.schemas import WebSearchResultItem
 
 
 class BaseSearchProvider(ABC):

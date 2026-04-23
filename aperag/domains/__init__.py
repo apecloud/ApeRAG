@@ -11,17 +11,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-ApeRAG Web Search and Reader Module
-
-Provides web search and content reading capabilities with pluggable provider architecture.
-"""
-
-from .reader.reader_service import ReaderService
-from .search.search_service import SearchService
-
-__all__ = [
-    "SearchService",
-    "ReaderService",
-]

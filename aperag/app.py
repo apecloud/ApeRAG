@@ -33,6 +33,7 @@ if settings.otel_enabled:
 
 from fastapi import FastAPI  # noqa: E402
 
+from aperag.domains.web_access.api.routes import router as web_access_router
 from aperag.exception_handlers import register_exception_handlers
 from aperag.llm.litellm_track import register_custom_llm_track
 from aperag.mcp import mcp_server
@@ -58,7 +59,6 @@ from aperag.views.openai import router as openai_router
 from aperag.views.prompts import router as prompts_router
 from aperag.views.providers_v2 import router as providers_v2_router
 from aperag.views.settings import router as settings_router
-from aperag.views.web import router as web_router
 
 # Initialize MCP server integration with stateless HTTP to fix OpenAI tool call sequence issues
 mcp_app = mcp_server.http_app(path="/", stateless_http=True)
@@ -104,7 +104,7 @@ app.include_router(marketplace_router, prefix="/api/v1")  # Add marketplace rout
 app.include_router(marketplace_collections_router, prefix="/api/v1")  # Add marketplace collections router
 app.include_router(settings_router, prefix="/api/v1")
 app.include_router(prompts_router, prefix="/api/v1")  # Add prompts router
-app.include_router(web_router, prefix="/api/v1")  # Add web search router
+app.include_router(web_access_router, prefix="/api/v2", tags=["web_access"])  # Add web_access domain router
 app.include_router(chat_router, prefix="/api/v1")
 app.include_router(openai_router, prefix="/v1")
 app.include_router(config_router, prefix="/api/v1/config")

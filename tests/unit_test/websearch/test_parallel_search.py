@@ -13,8 +13,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from aperag.schema.view_models import WebSearchMeta, WebSearchRequest, WebSearchResponse, WebSearchResultItem
-from aperag.views.web import web_search_endpoint
+from aperag.domains.web_access.api.routes import web_search_endpoint
+from aperag.domains.web_access.schemas import WebSearchMeta, WebSearchRequest, WebSearchResponse, WebSearchResultItem
 
 
 class TestWebSearchEndpoint:
@@ -57,7 +57,7 @@ class TestWebSearchEndpoint:
             ),
         )
 
-        with patch("aperag.views.web._search_with_jina_fallback", new_callable=AsyncMock) as mock_search:
+        with patch("aperag.domains.web_access.api.routes._search_with_jina_fallback", new_callable=AsyncMock) as mock_search:
             mock_search.return_value = mock_response
 
             request = WebSearchRequest(query="test query", max_results=5)
@@ -97,7 +97,7 @@ class TestWebSearchEndpoint:
             ),
         )
 
-        with patch("aperag.views.web._search_with_jina_fallback", new_callable=AsyncMock) as mock_search:
+        with patch("aperag.domains.web_access.api.routes._search_with_jina_fallback", new_callable=AsyncMock) as mock_search:
             mock_search.return_value = mock_response
 
             request = WebSearchRequest(source="github.com", max_results=3)
@@ -131,7 +131,7 @@ class TestWebSearchEndpoint:
     @pytest.mark.asyncio
     async def test_search_failure_handling_returns_unavailable_meta(self):
         """Test provider unavailability is soft-failed into an unavailable response."""
-        with patch("aperag.views.web._search_with_jina_fallback", new_callable=AsyncMock) as mock_search:
+        with patch("aperag.domains.web_access.api.routes._search_with_jina_fallback", new_callable=AsyncMock) as mock_search:
             mock_search.return_value = WebSearchResponse(
                 query="test query",
                 results=[],
@@ -159,7 +159,7 @@ class TestWebSearchEndpoint:
     @pytest.mark.asyncio
     async def test_empty_results_remain_distinct_from_unavailable(self):
         """Test an empty search response is not mislabeled as provider unavailability."""
-        with patch("aperag.views.web._search_with_jina_fallback", new_callable=AsyncMock) as mock_search:
+        with patch("aperag.domains.web_access.api.routes._search_with_jina_fallback", new_callable=AsyncMock) as mock_search:
             mock_search.return_value = WebSearchResponse(
                 query="no matches",
                 results=[],
@@ -184,7 +184,7 @@ class TestWebSearchEndpoint:
 
     @pytest.mark.asyncio
     async def test_unexpected_internal_error_is_not_soft_failed(self):
-        with patch("aperag.views.web._search_with_jina_fallback", new_callable=AsyncMock) as mock_search:
+        with patch("aperag.domains.web_access.api.routes._search_with_jina_fallback", new_callable=AsyncMock) as mock_search:
             mock_search.side_effect = RuntimeError("unexpected bug")
 
             request = WebSearchRequest(query="test query", max_results=5)

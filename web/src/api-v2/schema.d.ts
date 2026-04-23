@@ -1213,7 +1213,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/web/search": {
+    "/api/v2/web/search": {
         parameters: {
             query?: never;
             header?: never;
@@ -1233,14 +1233,14 @@ export interface paths {
          *     - External provider failures are soft-failed: the endpoint returns an empty result set plus lightweight
          *       diagnostics instead of 500 so callers can distinguish empty, unavailable, and fallback states
          */
-        post: operations["websearch_web_search_endpoint"];
+        post: operations["web_access_web_search_endpoint"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/web/read": {
+    "/api/v2/web/read": {
         parameters: {
             query?: never;
             header?: never;
@@ -1264,7 +1264,7 @@ export interface paths {
          *     - If JINA API key available, try JINA first, fallback to Trafilatura on failure
          *     - If no JINA API key, use Trafilatura only
          */
-        post: operations["websearch_web_read_endpoint"];
+        post: operations["web_access_web_read_endpoint"];
         delete?: never;
         options?: never;
         head?: never;
@@ -8559,7 +8559,7 @@ export interface operations {
             };
         };
     };
-    websearch_web_search_endpoint: {
+    web_access_web_search_endpoint: {
         parameters: {
             query?: {
                 engine?: unknown;
@@ -8594,7 +8594,7 @@ export interface operations {
             };
         };
     };
-    websearch_web_read_endpoint: {
+    web_access_web_read_endpoint: {
         parameters: {
             query?: {
                 engine?: unknown;

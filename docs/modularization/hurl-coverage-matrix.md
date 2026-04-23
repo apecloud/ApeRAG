@@ -21,6 +21,7 @@ phases must update both the Hurl file and this matrix so nothing drifts.
 | `full/15_agent_runtime_v3.hurl` | `agent_runtime` | SSE turn / timeline / artifact contract — hard boundary. |
 | `full/16_evaluation_v2.hurl` | `evaluation` | evaluation v2 dataset + run. |
 | `full/17_chat_collection_flow.hurl` | `conversation` + `knowledge_base` | cross-domain chat over collection. |
+| `full/18_web_access_http.hurl` | `web_access` | deterministic validation-only contract (missing body / bad body / malformed JSON). Provider-independent — never exercises live JINA / DuckDuckGo fetches. |
 
 ## Domains → hurl coverage target
 
@@ -31,7 +32,7 @@ phases must update both the Hurl file and this matrix so nothing drifts.
 | `indexing` | `03_document_basic` (status) | `11_document_full` | Phase 3 pilot DB model split — keep Alembic + status paths covered. |
 | `retrieval` | *(none yet)* | *(none yet)* | Phase 2 — **add `full/18_retrieval_http.hurl`** for create / list / delete + bad request (smoke gate). |
 | `knowledge_graph` | *(none yet)* | `14_graph_http` | Phase 2 — update `14_graph_http.hurl` when `/collections/{id}/graphs*` moves under `aperag/domains/knowledge_graph/api`. |
-| `web_access` | *(none yet)* | *(none yet)* | Phase 2 — add **deterministic contract Hurl** for `/web/search` / `/web/read` (404 / validation only). Provider-dependent live-fetch Hurl, if any, must live in the provider/full job so it cannot block smoke. |
+| `web_access` | *(none yet)* | `18_web_access_http.hurl` | Phase 2a landed: `18_web_access_http.hurl` covers validation-only contract for `/api/v2/web/search` + `/api/v2/web/read` (missing body / bad body / malformed JSON). Provider-dependent live-fetch Hurl, if any, must live in the provider/full job so it cannot block smoke. |
 | `conversation` | *(none yet)* | `12_bot`, `13_chat_http`, `17_chat_collection_flow` | Phase 5 ownership cleanup. |
 | `agent_runtime` | *(none yet)* | `15_agent_runtime_v3` | Phase 5 — SSE shape unchanged unless explicitly redesigned. |
 | `evaluation` | *(none yet)* | `16_evaluation_v2` | Phase 5 — keep v3 simplification guards (`V1_PATHS_REMOVED_IN_FINAL_SWEEP`, `test_e2e_http_uses_simplified_evaluation_v2_contract`). |

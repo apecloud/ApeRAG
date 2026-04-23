@@ -7,7 +7,7 @@ Abstract base class for web content reading providers.
 from abc import ABC, abstractmethod
 from typing import List
 
-from aperag.schema.view_models import WebReadResultItem
+from aperag.domains.web_access.schemas import WebReadResultItem
 
 
 class BaseReaderProvider(ABC):
