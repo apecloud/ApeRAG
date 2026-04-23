@@ -6,7 +6,10 @@ import {
   PageHeader,
   PageTitle,
 } from '@/components/page-container';
-import { getServerApi } from '@/lib/api/server';
+import {
+  getProvider,
+  getProviderModels,
+} from '@/features/providers/server-api';
 import { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
 
@@ -24,16 +27,11 @@ export default async function Page({
   params: Promise<{ providerName: string }>;
 }) {
   const { providerName } = await params;
-  const serverApi = await getServerApi();
   const page_models = await getTranslations('page_models');
 
-  const [modelsRes, providerRes] = await Promise.all([
-    serverApi.defaultApi.llmProvidersProviderNameModelsGet({
-      providerName,
-    }),
-    serverApi.defaultApi.llmProvidersProviderNameGet({
-      providerName,
-    }),
+  const [models, provider] = await Promise.all([
+    getProviderModels(providerName),
+    getProvider(providerName),
   ]);
 
   return (
@@ -44,7 +42,7 @@ export default async function Page({
             title: page_models('metadata.provider_title'),
             href: '/admin/providers',
           },
-          { title: providerRes.data.label },
+          { title: provider?.label ?? providerName },
           { title: page_models('metadata.model_title') },
         ]}
       />
@@ -54,8 +52,8 @@ export default async function Page({
           {page_models('metadata.model_description')}
         </PageDescription>
         <ModelTable
-          provider={providerRes.data}
-          data={modelsRes.data.items || []}
+          provider={provider}
+          data={models}
           pathnamePrefix="/admin"
         />
       </PageContent>

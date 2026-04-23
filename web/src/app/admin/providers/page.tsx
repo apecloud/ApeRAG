@@ -6,7 +6,7 @@ import {
   PageHeader,
   PageTitle,
 } from '@/components/page-container';
-import { getServerApi } from '@/lib/api/server';
+import { getProviderCatalog } from '@/features/providers/server-api';
 import { toJson } from '@/lib/utils';
 import { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
@@ -20,10 +20,8 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function Page() {
-  const serverApi = await getServerApi();
   const page_models = await getTranslations('page_models');
-
-  const res = await serverApi.defaultApi.llmConfigurationGet();
+  const providerCatalog = await getProviderCatalog();
 
   return (
     <PageContainer>
@@ -37,8 +35,8 @@ export default async function Page() {
         </PageDescription>
 
         <ProviderTable
-          data={toJson(res.data.providers) || []}
-          models={toJson(res.data.models) || []}
+          data={toJson(providerCatalog.providers)}
+          models={toJson(providerCatalog.models)}
           urlPrefix="/admin"
         />
       </PageContent>
