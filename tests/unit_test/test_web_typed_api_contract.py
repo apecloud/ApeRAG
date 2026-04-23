@@ -241,6 +241,65 @@ def test_documents_upload_regression_guards():
     assert "typeof updater === 'function'" in table_tsx
 
 
+V1_PATHS_REMOVED_IN_FINAL_SWEEP = frozenset(
+    {
+        # All bot v1 routes (bot_router deleted; #25 FE migrated; #1579)
+        "/api/v1/bots",
+        "/api/v1/bots/{bot_id}",
+        # v1 bot-scoped chat shell (chat_router trimmed; replaced by bots_v2
+        # bot-scoped chat routes in #1577 + #25 FE adapter)
+        "/api/v1/bots/{bot_id}/chats",
+        "/api/v1/bots/{bot_id}/chats/{chat_id}",
+        "/api/v1/bots/{bot_id}/chats/{chat_id}/title",
+        # v1 collection CRUD / sharing / summary / mineru (collections_router
+        # trimmed; replaced by collections_v2 in #1573 + #24a FE in #1581)
+        "/api/v1/collections",
+        "/api/v1/collections/test-mineru-token",
+        "/api/v1/collections/{collection_id}",
+        "/api/v1/collections/{collection_id}/sharing",
+        "/api/v1/collections/{collection_id}/summary/generate",
+        # v1 documents read-side (replaced by documents_v2 in #1575 + #24b FE
+        # in #1585; upload/confirm/fetch-url/staged deliberately kept for
+        # the upload flow slice)
+        "/api/v1/collections/{collection_id}/documents",
+        "/api/v1/collections/{collection_id}/documents/{document_id}",
+        "/api/v1/collections/{collection_id}/documents/{document_id}/download",
+        "/api/v1/collections/{collection_id}/documents/{document_id}/object",
+        "/api/v1/collections/{collection_id}/documents/{document_id}/preview",
+        "/api/v1/collections/{collection_id}/documents/{document_id}/rebuild_indexes",
+        "/api/v1/collections/{collection_id}/rebuild_failed_indexes",
+    }
+)
+
+
+def test_final_sweep_v1_ghost_paths_are_gone_from_exported_spec():
+    """The `#26` final sweep removes every v1 route that has a v2 replacement
+    and is no longer consumed by FE business code. Re-introducing any of
+    them would either resurrect a dead handler or break the hard-cut
+    promise; fail the test instead of silently rolling back.
+
+    The preserved v1 routes (upload / confirm / fetch-url / staged /
+    searches / graphs / feedback / chat documents / marketplace / admin
+    / settings / auth / api-keys / prompts / export / llm / config / web)
+    are deliberately not in this set — they still have FE consumers or
+    no v2 replacement yet.
+    """
+    from aperag.app import app
+    from aperag.openapi_spec import build_full_openapi_spec, filter_public_openapi
+
+    full_spec = build_full_openapi_spec(app)
+    public_spec = filter_public_openapi(full_spec)
+
+    for spec_name, spec in (("full", full_spec), ("public", public_spec)):
+        present = set(spec["paths"]) & V1_PATHS_REMOVED_IN_FINAL_SWEEP
+        assert not present, (
+            f"#26 final sweep regression: {spec_name} OpenAPI spec still "
+            f"contains removed v1 path(s) {sorted(present)}. If this was "
+            "intentional, update V1_PATHS_REMOVED_IN_FINAL_SWEEP here and "
+            "explain in the PR."
+        )
+
+
 def test_documents_upload_regression_hardening():
     """Stronger #30 regression guards layered on top of the minimal
     `test_documents_upload_regression_guards`. The hotfix in #1580 left

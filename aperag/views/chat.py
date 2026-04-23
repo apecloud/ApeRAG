@@ -14,15 +14,12 @@
 
 import logging
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile
 
 from aperag.db.models import User
-from aperag.exceptions import BusinessException
 from aperag.schema import view_models
 from aperag.service.chat_collection_service import chat_collection_service
 from aperag.service.chat_document_service import chat_document_service
-from aperag.service.chat_service import chat_service_global
-from aperag.service.chat_title_service import chat_title_service
 from aperag.service.collection_service import collection_service
 from aperag.service.turn_feedback_service import turn_feedback_service_global
 from aperag.utils.audit_decorator import audit
@@ -33,40 +30,12 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["chats"])
 
 
-@router.post("/bots/{bot_id}/chats")
-@audit(resource_type="chat", api_name="CreateChat")
-async def create_chat_view(request: Request, bot_id: str, user: User = Depends(required_user)) -> view_models.Chat:
-    return await chat_service_global.create_chat(str(user.id), bot_id)
-
-
-@router.get("/bots/{bot_id}/chats")
-async def list_chats_view(
-    request: Request,
-    bot_id: str,
-    page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=100),
-    user: User = Depends(required_user),
-) -> view_models.ChatList:
-    return await chat_service_global.list_chats(str(user.id), bot_id, page, page_size)
-
-
-@router.get("/bots/{bot_id}/chats/{chat_id}")
-async def get_chat_view(
-    request: Request, bot_id: str, chat_id: str, user: User = Depends(required_user)
-) -> view_models.ChatDetails:
-    return await chat_service_global.get_chat(str(user.id), bot_id, chat_id)
-
-
-@router.put("/bots/{bot_id}/chats/{chat_id}")
-@audit(resource_type="chat", api_name="UpdateChat")
-async def update_chat_view(
-    request: Request,
-    bot_id: str,
-    chat_id: str,
-    chat_in: view_models.ChatUpdate,
-    user: User = Depends(required_user),
-) -> view_models.Chat:
-    return await chat_service_global.update_chat(str(user.id), bot_id, chat_id, chat_in)
+# v1 `/bots/{bot_id}/chats*` routes (create/list/get/update/delete + title)
+# were replaced by `bots_v2_router` in aperag/views/bots_v2.py (#1577) and
+# the FE adapter switched over in #1579 (#25). The v1 handlers were
+# removed in the `#26` final sweep. Remaining v1 chat routes below are
+# the ones without v2 replacements yet: `/chats/{chat_id}/feedback*`,
+# `/chats/{chat_id}/search`, `/chats/{chat_id}/documents*`.
 
 
 @router.get("/chats/{chat_id}/feedback")
@@ -93,27 +62,6 @@ async def upsert_turn_feedback_view(
 async def delete_turn_feedback_view(request: Request, chat_id: str, turn_id: str, user: User = Depends(required_user)):
     await turn_feedback_service_global.delete_turn_feedback(str(user.id), chat_id, turn_id)
     return Response(status_code=204)
-
-
-@router.post("/bots/{bot_id}/chats/{chat_id}/title")
-async def generate_chat_title_view(
-    bot_id: str,
-    chat_id: str,
-    request_body: view_models.TitleGenerateRequest = view_models.TitleGenerateRequest(),
-    user: User = Depends(required_user),
-) -> view_models.TitleGenerateResponse:
-    try:
-        title = await chat_title_service.generate_title(
-            user_id=str(user.id),
-            bot_id=bot_id,
-            chat_id=chat_id,
-            max_length=request_body.max_length,
-            language=request_body.language,
-            turns=request_body.turns,
-        )
-        return {"title": title}
-    except BusinessException as be:
-        raise HTTPException(status_code=400, detail={"error_code": be.error_code.name, "message": str(be)})
 
 
 @router.post("/chats/{chat_id}/search")
@@ -193,10 +141,3 @@ async def get_chat_document_view(
         raise HTTPException(status_code=404, detail="Document not found")
 
     return document
-
-
-@router.delete("/bots/{bot_id}/chats/{chat_id}")
-@audit(resource_type="chat", api_name="DeleteChat")
-async def delete_chat_view(request: Request, bot_id: str, chat_id: str, user: User = Depends(required_user)):
-    await chat_service_global.delete_chat(str(user.id), bot_id, chat_id)
-    return Response(status_code=204)
