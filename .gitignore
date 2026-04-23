@@ -174,3 +174,9 @@ web/src/api/openapi.public.json
 cursorplans
 celerybeat-schedule.db
 frontend/node_modules/
+
+# E2E HTTP diagnostic bundle (written by tests/e2e_http/scripts/provider_diagnostic.sh
+# on provider-suite failure; uploaded as a GitHub Actions artifact but never
+# committed).
+tests/e2e_http/.diagnostic-artifacts/
+tests/e2e_http/bootstrap/.generated/

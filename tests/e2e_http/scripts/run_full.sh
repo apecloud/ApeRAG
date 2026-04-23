@@ -31,7 +31,12 @@ FULL_DIR="${ROOT_DIR}/tests/e2e_http/hurl/full"
 
 for file in "${FULL_DIR}"/*.hurl; do
   echo "Running ${file}"
+  # ``--error-format long`` prints the HTTP response body when an assertion
+  # fails, so provider-aware failures like ``POST /api/v1/embeddings`` → 500
+  # surface their FastAPI ``detail`` / LiteLLM error in the job log instead
+  # of leaving reviewers with only the status code. See task #11.
   hurl --test \
+    --error-format long \
     --file-root "${ROOT_DIR}" \
     --variable base_url="${E2E_BASE_URL}" \
     --variable username="${E2E_USERNAME}" \
