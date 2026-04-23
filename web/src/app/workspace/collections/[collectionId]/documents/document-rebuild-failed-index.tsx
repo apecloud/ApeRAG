@@ -12,7 +12,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { apiClient } from '@/lib/api/client';
+import { rebuildFailedDocumentIndexes } from '@/features/document/client-api';
 import { Slot } from '@radix-ui/react-slot';
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
@@ -33,14 +33,9 @@ export const DocumentReBuildFailedIndex = ({
 
   const handleRebuild = async () => {
     if (!collection.id) return;
-    const res =
-      await apiClient.defaultApi.collectionsCollectionIdRebuildFailedIndexesPost(
-        {
-          collectionId: collection.id,
-        },
-      );
+    const res = await rebuildFailedDocumentIndexes(collection.id);
 
-    if (res.data.code === '200') {
+    if (res?.code === '200') {
       toast.success(page_documents('index_rebuild_failed_success'));
       setVisible(false);
       setTimeout(router.refresh, 300);

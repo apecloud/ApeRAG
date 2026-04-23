@@ -3,7 +3,8 @@ import {
   PageContent,
   PageHeader,
 } from '@/components/page-container';
-import { getServerApi } from '@/lib/api/server';
+import { listDocuments } from '@/features/document/server-api';
+import type { Document } from '@/features/document/types';
 import { parsePageParams, toJson } from '@/lib/utils';
 import { getTranslations } from 'next-intl/server';
 import { CollectionHeader } from '../collection-header';
@@ -18,23 +19,29 @@ export default async function Page({
 }>) {
   const { collectionId } = await params;
   const { page, pageSize, search } = await searchParams;
-  const serverApi = await getServerApi();
+  const { page: parsedPage, pageSize: parsedPageSize } = parsePageParams({
+    page,
+    pageSize,
+  });
 
   const page_collections = await getTranslations('page_collections');
   const page_documents = await getTranslations('page_documents');
 
-  const [documentsRes] = await Promise.all([
-    serverApi.defaultApi.collectionsCollectionIdDocumentsGet({
-      collectionId,
-      ...parsePageParams({ page, pageSize }),
+  let documents: Document[] = [];
+  let pageCount = 0;
+  try {
+    const data = await listDocuments(collectionId, {
+      page: parsedPage,
+      pageSize: parsedPageSize,
       sortBy: 'created',
       sortOrder: 'desc',
       search,
-    }),
-  ]);
-
-  //@ts-expect-error api define has a bug
-  const documents = toJson(documentsRes.data.items || []);
+    });
+    documents = data.items ?? [];
+    pageCount = data.total_pages ?? 0;
+  } catch (err) {
+    console.log(err);
+  }
 
   return (
     <PageContainer>
@@ -51,10 +58,7 @@ export default async function Page({
       />
       <CollectionHeader />
       <PageContent>
-        <DocumentsTable
-          data={documents}
-          pageCount={documentsRes.data.total_pages}
-        />
+        <DocumentsTable data={toJson(documents)} pageCount={pageCount} />
       </PageContent>
     </PageContainer>
   );

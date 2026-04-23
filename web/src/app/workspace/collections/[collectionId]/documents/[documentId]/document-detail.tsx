@@ -1,8 +1,9 @@
 'use client';
-import { Document, DocumentPreview } from '@/api';
 import { getDocumentStatusColor } from '@/app/workspace/collections/tools';
 import { FormatDate } from '@/components/format-date';
 import { buildDocumentAssetUrl, Markdown } from '@/components/markdown';
+import { buildDocumentObjectUrl } from '@/features/document/client-api';
+import type { Document, DocumentPreview } from '@/features/document/types';
 import { useCollectionContext } from '@/components/providers/collection-provider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -169,7 +170,11 @@ export const DocumentDetail = ({
         {hasPdfPreview && (
           <TabsContent value="pdf">
             <PDFDocument
-              file={`${process.env.NEXT_PUBLIC_BASE_PATH || ''}/api/v1/collections/${collection.id}/documents/${document.id}/object?path=${documentPreview.converted_pdf_object_path}`}
+              file={buildDocumentObjectUrl(
+                collection.id ?? '',
+                document.id ?? '',
+                documentPreview.converted_pdf_object_path ?? '',
+              )}
               onLoadSuccess={({ numPages }: { numPages: number }) => {
                 setNumPages(numPages);
               }}
