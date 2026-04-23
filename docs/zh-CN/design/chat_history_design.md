@@ -331,7 +331,7 @@ class StoredChatMessagePart(BaseModel):
 
 ### API响应格式
 
-**ChatDetails Schema** (`aperag/api/components/schemas/chat.yaml`):
+**ChatDetails Schema**（FastAPI/Pydantic code-first schema）:
 
 ```yaml
 chatDetails:
@@ -565,7 +565,7 @@ part_id = "uuid-part-1"           # 部分级别（每个part独立）
 - `aperag/chat/history/message.py` - 消息数据结构
 - `aperag/db/models.py` - 数据库模型
 - `aperag/db/repositories/chat.py` - Chat数据库操作
-- `aperag/api/components/schemas/chat.yaml` - OpenAPI Schema
+- `aperag/schema/view_models.py` - Pydantic OpenAPI schema models
 
 ### 前端实现
 - `web/src/app/workspace/bots/[botId]/chats/[chatId]/page.tsx` - 聊天详情页面

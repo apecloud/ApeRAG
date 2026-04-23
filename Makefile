@@ -56,8 +56,8 @@ help:
 	@printf "  make test-http-up-k8s / test-http-down-k8s\n"
 	@printf "  make test-http-smoke-k8s / test-http-full-k8s\n\n"
 	@printf "Build / API\n"
-	@printf "  make api-generate-models  Generate backend view models from OpenAPI\n"
-	@printf "  make api-generate-sdk     Generate frontend SDK\n"
+	@printf "  make openapi-generate     Export code-first OpenAPI specs\n"
+	@printf "  make openapi-check        Verify code-first OpenAPI export\n"
 	@printf "  make build                Build production images\n"
 	@printf "  make release-version      Generate version metadata\n\n"
 
@@ -87,9 +87,6 @@ env-install: venv
 .PHONY: install-hooks
 env-dev: env-install install-addlicense install-hooks
 	@echo "Installing development tools..."
-	@command -v redocly >/dev/null || npm install @redocly/cli -g
-	@command -v openapi-generator-cli >/dev/null || npm install @openapitools/openapi-generator-cli -g
-	@command -v datamodel-codegen >/dev/null || uv tool install datamodel-code-generator
 	@echo ""
 	@echo "✅ Development environment ready!"
 	@echo "📝 Next steps:"
@@ -314,25 +311,12 @@ evaluate:
 ##################################################
 
 # OpenAPI and model generation
-.PHONY: merge-openapi api-generate-models api-generate-sdk
-merge-openapi:
-	@cd aperag && npx --yes @redocly/cli bundle ./api/openapi.yaml > ./api/openapi.merged.yaml
+.PHONY: openapi-generate openapi-check
+openapi-generate:
+	@uv run python scripts/export_openapi.py
 
-api-generate-models: merge-openapi
-	@datamodel-codegen \
-		--input aperag/api/openapi.merged.yaml \
-		--input-file-type openapi \
-		--output aperag/schema/view_models.py \
-		--output-model-type pydantic.BaseModel \
-		--target-python-version 3.11 \
-		--use-standard-collections \
-		--use-schema-description \
-		--enum-field-as-literal all \
-		--output-model-type pydantic_v2.BaseModel
-	@rm aperag/api/openapi.merged.yaml
-
-api-generate-sdk:
-	cd ./web && yarn api:build
+openapi-check:
+	@uv run python scripts/export_openapi.py --check
 
 # LLM configuration generation
 .PHONY: llm_provider

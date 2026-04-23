@@ -36,6 +36,7 @@ from fastapi import FastAPI  # noqa: E402
 from aperag.exception_handlers import register_exception_handlers
 from aperag.llm.litellm_track import register_custom_llm_track
 from aperag.mcp import mcp_server
+from aperag.openapi_spec import custom_generate_unique_id
 from aperag.views.agent_runtime import router as agent_runtime_router
 from aperag.views.api_key import router as api_key_router
 from aperag.views.audit import router as audit_router
@@ -73,6 +74,7 @@ app = FastAPI(
     description="Knowledge management and retrieval system",
     version="1.0.0",
     lifespan=combined_lifespan,  # Combined lifecycle management
+    generate_unique_id_function=custom_generate_unique_id,
 )
 
 # Register global exception handlers

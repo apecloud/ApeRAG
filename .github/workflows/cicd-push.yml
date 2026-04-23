@@ -32,6 +32,10 @@ jobs:
         run: |
           make lint
 
+      - name: Check code-first OpenAPI export
+        run: |
+          make openapi-check
+
       - name: Run unit tests with coverage
         run: |
           make test-unit
