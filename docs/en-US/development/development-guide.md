@@ -297,21 +297,6 @@ make test-all
    uv run pytest tests/path/to/fixed_test.py -v  # Verify fix
    ```
 
-### Q: 📊 How do I run RAG evaluation and analysis?
-
-**Evaluation workflow:**
-```bash
-# Ensure environment is ready
-make infra-up WITH_NEO4J=1  # Use Neo4j for better graph performance
-make serve-api
-make serve-worker
-
-# Run comprehensive RAG evaluation
-make evaluate               # 📊 Runs aperag.evaluation.run module
-
-# 📈 Check evaluation reports in tests/report/
-```
-
 ### Q: 📦 How do I update dependencies safely?
 
 **Python dependencies:**

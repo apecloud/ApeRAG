@@ -185,10 +185,6 @@ class Config(BaseSettings):
     llm_keyword_extraction_provider: str = Field("", alias="LLM_KEYWORD_EXTRACTION_PROVIDER")
     llm_keyword_extraction_model: str = Field("", alias="LLM_KEYWORD_EXTRACTION_MODEL")
 
-    # Qianfan
-    qianfan_api_key: str = Field("", alias="QIANFAN_API_KEY")
-    qianfan_secret_key: str = Field("", alias="QIANFAN_SECRET_KEY")
-
     # OCR/ASR
     whisper_host: str = Field("", alias="WHISPER_HOST")
     paddleocr_host: str = Field("", alias="PADDLEOCR_HOST")

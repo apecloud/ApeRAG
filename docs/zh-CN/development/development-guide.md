@@ -302,21 +302,6 @@ make test-all
    uv run pytest tests/path/to/fixed_test.py -v  # 验证修复
    ```
 
-### Q: 📊 如何运行 RAG 评估和分析？
-
-**评估工作流程：**
-```bash
-# 确保环境准备就绪
-make infra-up WITH_NEO4J=1  # 使用 Neo4j 获得更好的图性能
-make serve-api
-make serve-worker
-
-# 运行全面的 RAG 评估
-make evaluate               # 📊 运行 aperag.evaluation.run 模块
-
-# 📈 检查 tests/report/ 中的评估报告
-```
-
 ### Q: 📦 如何安全地更新依赖项？
 
 **Python 依赖项：**
