@@ -1,7 +1,5 @@
 'use client';
 
-import { LlmProvider, LlmProviderModel } from '@/api';
-
 import {
   ColumnDef,
   ColumnFiltersState,
@@ -35,6 +33,7 @@ import { FormatDate } from '@/components/format-date';
 import { useAppContext } from '@/components/providers/app-provider';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import type { Provider, ProviderModel } from '@/features/providers/types';
 import {
   ChevronDown,
   Columns3,
@@ -56,8 +55,8 @@ export const ProviderTable = ({
   models,
   urlPrefix,
 }: {
-  data: LlmProvider[];
-  models: LlmProviderModel[];
+  data: Provider[];
+  models: ProviderModel[];
   urlPrefix: string;
 }) => {
   const { user } = useAppContext();
@@ -86,8 +85,8 @@ export const ProviderTable = ({
   });
   const [searchValue, setSearchValue] = React.useState<string>('');
 
-  const columns: ColumnDef<LlmProvider>[] = React.useMemo(() => {
-    const cols: ColumnDef<LlmProvider>[] = [
+  const columns: ColumnDef<Provider>[] = React.useMemo(() => {
+    const cols: ColumnDef<Provider>[] = [
       {
         id: 'select',
         header: ({ table }) => (
@@ -220,7 +219,7 @@ export const ProviderTable = ({
       },
     ];
     return cols;
-  }, [models, page_models, urlPrefix]);
+  }, [models, page_models, urlPrefix, user?.role]);
 
   const table = useReactTable({
     data,

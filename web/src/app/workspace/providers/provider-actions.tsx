@@ -1,6 +1,5 @@
 'use client';
 
-import { LlmProvider } from '@/api';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,7 +30,13 @@ import {
   FormLabel,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { apiClient } from '@/lib/api/client';
+import {
+  createProvider,
+  deleteProvider,
+  publishProvider,
+  updateProvider,
+} from '@/features/providers/client-api';
+import type { Provider } from '@/features/providers/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Slot } from '@radix-ui/react-slot';
 import { useTranslations } from 'next-intl';
@@ -62,7 +67,7 @@ export const ProviderActions = ({
   action,
   children,
 }: {
-  provider?: LlmProvider;
+  provider?: Provider;
   action: 'add' | 'edit' | 'delete' | 'publish';
   children?: React.ReactNode;
 }) => {
@@ -83,27 +88,18 @@ export const ProviderActions = ({
 
   const handleDelete = useCallback(async () => {
     if (action === 'delete' && provider?.name) {
-      const res = await apiClient.defaultApi.llmProvidersProviderNameDelete({
-        providerName: provider.name,
-      });
-      if (res?.status === 200) {
-        setDeleteVisible(false);
-        setTimeout(router.refresh, 300);
-      }
+      await deleteProvider(provider.name);
+      setDeleteVisible(false);
+      setTimeout(router.refresh, 300);
     }
   }, [action, provider?.name, router]);
 
   const handlePublish = useCallback(async () => {
     if (action === 'publish' && provider?.name) {
-      const res =
-        await apiClient.defaultApi.llmProvidersProviderNamePublishPost({
-          providerName: provider.name,
-        });
-      if (res?.status === 200) {
-        setPublishVisible(false);
-        toast.success(page_models('provider.publish_success'));
-        setTimeout(router.refresh, 300);
-      }
+      await publishProvider(provider.name);
+      setPublishVisible(false);
+      toast.success(page_models('provider.publish_success'));
+      setTimeout(router.refresh, 300);
     }
   }, [action, provider?.name, router, page_models]);
 
@@ -116,17 +112,12 @@ export const ProviderActions = ({
       }
 
       if (action === 'edit' && provider?.name) {
-        res = await apiClient.defaultApi.llmProvidersProviderNamePut({
-          providerName: provider.name,
-          llmProviderUpdateWithApiKey: params,
-        });
+        res = await updateProvider(provider.name, params);
       }
       if (action === 'add') {
-        res = await apiClient.defaultApi.llmProvidersPost({
-          llmProviderCreateWithApiKey: params,
-        });
+        res = await createProvider(params);
       }
-      if (res?.status === 200) {
+      if (res) {
         setCreateOrUpdateVisible(false);
         setTimeout(router.refresh, 300);
         toast.success(common_tips('save_success'));

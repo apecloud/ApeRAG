@@ -1,8 +1,3 @@
-import {
-  DefaultModelConfig,
-  DefaultModelConfigScenarioEnum,
-  ModelSpec,
-} from '@/api';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -27,7 +22,16 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { apiClient } from '@/lib/api/client';
+import {
+  getAvailableModels,
+  getDefaultModels,
+  updateDefaultModels,
+} from '@/features/providers/client-api';
+import type {
+  DefaultModelConfig,
+  DefaultModelScenario,
+  ScenarioModelGroup,
+} from '@/features/providers/types';
 import _ from 'lodash';
 import { Settings, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -41,37 +45,19 @@ export const ModelsDefaultConfiguration = () => {
   const common_action = useTranslations('common.action');
   const common_tips = useTranslations('common.tips');
   const page_models = useTranslations('page_models');
-  const [scenarioModels, setScenarioModels] = useState<{
-    [key in DefaultModelConfigScenarioEnum]: {
-      label?: string;
-      name?: string;
-      models?: ModelSpec[];
-    }[];
-  }>();
+  const [scenarioModels, setScenarioModels] =
+    useState<Record<DefaultModelScenario, ScenarioModelGroup[]>>();
 
   const loadModels = useCallback(async () => {
     setLoading(true);
-    const [defaultModelsRes, collectionModelsRes, agentModelsRes] =
+    const [defaultModelItems, collectionModels, agentModels] =
       await Promise.all([
-        apiClient.defaultApi.defaultModelsGet(),
-        apiClient.defaultApi.availableModelsPost({
-          tagFilterRequest: {
-            tag_filters: [
-              { operation: 'AND', tags: ['enable_for_collection'] },
-            ],
-          },
-        }),
-        apiClient.defaultApi.availableModelsPost({
-          tagFilterRequest: {
-            tag_filters: [{ operation: 'AND', tags: ['enable_for_agent'] }],
-          },
-        }),
+        getDefaultModels(),
+        getAvailableModels([['enable_for_collection']]),
+        getAvailableModels([['enable_for_agent']]),
       ]);
     setLoading(false);
-    setDefaultModels(defaultModelsRes.data.items || []);
-
-    const agentModels = agentModelsRes.data.items || [];
-    const collectionModels = collectionModelsRes.data.items || [];
+    setDefaultModels(defaultModelItems);
 
     const default_for_agent_completion = agentModels.map((m) => ({
       label: m.label,
@@ -109,7 +95,7 @@ export const ModelsDefaultConfiguration = () => {
   }, []);
 
   const handleScenarioChange = useCallback(
-    (scenario: DefaultModelConfigScenarioEnum, model?: string) => {
+    (scenario: DefaultModelScenario, model?: string) => {
       setDefaultModels((items) => {
         const item = items.find((m) => m.scenario === scenario);
         if (item) {
@@ -125,13 +111,9 @@ export const ModelsDefaultConfiguration = () => {
   );
 
   const handleSave = useCallback(async () => {
-    const res = await apiClient.defaultApi.defaultModelsPut({
-      defaultModelsUpdateRequest: { defaults: defaultModels },
-    });
-    if (res?.status === 200) {
-      setVisible(false);
-      toast.success(common_tips('update_success'));
-    }
+    await updateDefaultModels(defaultModels);
+    setVisible(false);
+    toast.success(common_tips('update_success'));
   }, [common_tips, defaultModels]);
 
   const content = useMemo(() => {
