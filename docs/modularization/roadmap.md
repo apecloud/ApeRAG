@@ -36,6 +36,41 @@ Current baseline: `main @ 6a89865f` after PR #1613.
   remaining legacy imports stays in the allowlist.
 - Domain ownership follows API and data semantics, not directory names.
   Cross-domain calls must go through canonical feature/domain contracts.
+- Bounded redesign is allowed inside the current domain slice. A
+  modularization PR may rewrite old code when that produces a cleaner
+  canonical boundary, provided the behavior contract is explicit, tests
+  are added or updated, and the PR does not expand into another phase or
+  domain.
+
+## Bounded redesign policy
+
+Small modularization PRs are not limited to mechanical file moves or
+import replacement. They may refactor, redesign, or rewrite legacy code
+inside the current slice when the change is needed to land the target
+domain boundary cleanly.
+
+Allowed examples:
+
+- replace legacy enum classes with schema-derived types and typed consts,
+- replace ambiguous adapter fallbacks with typed empty-list or fail-fast
+  behavior,
+- collapse a legacy service/helper into the new domain contract when the
+  old shape would force a permanent shim,
+- rewrite a route shell to expose the canonical contract directly.
+
+Hard limits:
+
+- Behavior changes must be explicit in the PR body. OpenAPI response
+  shape, hurl payload, DB migration, FE contract, and user-visible
+  behavior changes must be listed.
+- Tests must cover the new boundary: unit, typed-contract, boundary,
+  hurl, or migration tests depending on the touched surface.
+- Redesign must stay within the current domain / task scope. Reviewers
+  may request a split if the rewrite crosses into another phase.
+- Temporary bridge or shim code must name the phase or PR that deletes
+  it. Long-term compatibility shims are not accepted by default.
+- If a behavior shift is intentional and not strictly compatible, it
+  must be recorded in the relevant breaking-change table or PR notes.
 
 ## Phase timeline
 
