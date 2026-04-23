@@ -1250,6 +1250,38 @@ class SharingStatusResponse(BaseModel):
     published_at: Optional[datetime] = Field(None, description="Publication time, null when not published")
 
 
+class CollectionSummaryTriggerResponse(BaseModel):
+    """Trigger-response envelope for POST /collections/{collection_id}/summary/generate."""
+
+    collection_id: str = Field(..., description="Collection id whose summary generation was triggered")
+    success: bool = Field(..., description="Whether the background job was scheduled")
+    message: str = Field(..., description="Human-readable status message")
+    summary_status: Literal["PENDING", "GENERATING"] = Field(
+        ...,
+        description="Server-side summary state after the trigger call",
+    )
+
+
+class MineruTokenTestRequest(BaseModel):
+    """Request body for POST /collections/test-mineru-token."""
+
+    token: str = Field(..., description="MinerU API token to validate")
+
+
+class MineruTokenTestResponse(BaseModel):
+    """Response envelope for POST /collections/test-mineru-token.
+
+    `status_code` is the HTTP status returned by MinerU's upstream test endpoint;
+    `data` is the passthrough body echoed to the caller.
+    """
+
+    status_code: int = Field(..., description="HTTP status code returned by MinerU upstream")
+    data: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Passthrough body from MinerU upstream",
+    )
+
+
 class SharedCollectionConfig(BaseModel):
     """
     Configuration settings for shared collection features
