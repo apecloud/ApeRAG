@@ -184,6 +184,16 @@ class EmbeddingService:
                 api_key=self.api_key,
                 input=list(batch),
                 caching=self.caching,
+                # Pin ``encoding_format="float"`` so LiteLLM does not forward
+                # an OpenAI-default that Alibaba DashScope's
+                # ``compatible-mode/v1/embeddings`` rejects with
+                # ``'encoding_format' only support with [float, base64]``
+                # (observed as ``litellm.BadRequestError`` 400 in task #11
+                # Phase B). ``"float"`` is accepted by every OpenAI-compat
+                # provider we call here and matches the wire shape
+                # ``response["data"][i]["embedding"]`` we already consume.
+                # See task #15.
+                encoding_format="float",
             )
 
             if not response or "data" not in response:
