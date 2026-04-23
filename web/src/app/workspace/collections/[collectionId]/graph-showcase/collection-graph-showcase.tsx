@@ -1,11 +1,11 @@
 'use client';
 
-import { GraphEdge, GraphNode, KnowledgeGraph } from '@/api';
 import { Markdown } from '@/components/markdown';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { apiClient } from '@/lib/api/client';
+import { getKnowledgeGraph } from '@/features/knowledge-graph/client-api';
+import type { GraphEdge, GraphNode } from '@/features/knowledge-graph/types';
 import { cn } from '@/lib/utils';
 import Color from 'color';
 import * as d3 from 'd3';
@@ -211,19 +211,13 @@ export const CollectionGraphShowcase = () => {
 
       setLoading(true);
       try {
-        const response = await apiClient.graphApi.collectionsCollectionIdGraphsGet(
-          {
-            collectionId,
-            label: mode === 'focus' && centerNodeId ? centerNodeId : '*',
-            maxNodes: mode === 'focus' ? 220 : 800,
-            maxDepth: mode === 'focus' ? 2 : undefined,
-          },
-          {
-            timeout: 1000 * 20,
-          },
-        );
+        const data = await getKnowledgeGraph(collectionId, {
+          label: mode === 'focus' && centerNodeId ? centerNodeId : '*',
+          maxNodes: mode === 'focus' ? 220 : 800,
+          maxDepth: mode === 'focus' ? 2 : undefined,
+        });
 
-        const data: KnowledgeGraph = response.data;
+        if (!data) return;
         const degrees = new Map<string, number>();
 
         (data.edges || []).forEach((edge) => {

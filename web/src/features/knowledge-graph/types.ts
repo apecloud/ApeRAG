@@ -18,35 +18,76 @@ export type GraphEdgeProperties = NonNullable<
 export type MergeSuggestionsRequest = NonNullable<
   components['schemas']['MergeSuggestionsRequest']
 >;
-export type MergeSuggestionsResponse = NonNullable<
-  components['schemas']['MergeSuggestionsResponse']
->;
-export type MergeSuggestionsRunResponse = NonNullable<
-  components['schemas']['MergeSuggestionsRunResponse']
->;
-export type GraphCurationRunSummary = NonNullable<
-  components['schemas']['GraphCurationRunSummary']
->;
-export type GraphMergeSuggestionItem = NonNullable<
-  components['schemas']['GraphMergeSuggestionItem']
->;
-export type GraphMergeSuggestionEntity = NonNullable<
-  components['schemas']['GraphMergeSuggestionEntity']
->;
 
-export type SuggestionActionRequest = NonNullable<
+// The OpenAPI schema currently models this as just `{ action }`, but the
+// backend accepts an optional `target_entity_data` override when the
+// caller wants to change the resolved name/type before an "accept" run.
+// Mirror that here so callers don't need to cast.
+type RawSuggestionActionRequest = NonNullable<
   components['schemas']['SuggestionActionRequest']
 >;
-export type SuggestionActionResponse = NonNullable<
-  components['schemas']['SuggestionActionResponse']
->;
-export type SuggestionActionMergeResult = NonNullable<
-  components['schemas']['SuggestionActionMergeResult']
->;
 
-export type SuggestionAction = NonNullable<SuggestionActionRequest['action']>;
+export type SuggestionActionRequest = RawSuggestionActionRequest & {
+  target_entity_data?: MergeSuggestionTargetEntity;
+};
+
+export type SuggestionAction = NonNullable<RawSuggestionActionRequest['action']>;
 
 export const SUGGESTION_ACTIONS = [
   'accept',
   'reject',
 ] as const satisfies readonly SuggestionAction[];
+
+// The merge-suggestions endpoints return `{[key: string]: unknown}` in the
+// OpenAPI schema today — the canonical response shape is maintained on the
+// Python side. The FE keeps a typed mirror of that shape so route callers
+// can consume it without falling back to the legacy `@/api` SDK. Keep this
+// list in lockstep with `aperag/schema/view_models.py::MergeSuggestions*`.
+export type MergeSuggestionStatus =
+  | 'PENDING'
+  | 'ACCEPTED'
+  | 'REJECTED'
+  | 'EXPIRED';
+
+export interface MergeSuggestionTargetEntity {
+  entity_name: string;
+  entity_type: string;
+}
+
+export interface MergeSuggestionItem {
+  id: string;
+  collection_id: string;
+  suggestion_batch_id: string;
+  entity_ids: string[];
+  confidence_score: number;
+  merge_reason: string;
+  suggested_target_entity: MergeSuggestionTargetEntity;
+  status: MergeSuggestionStatus;
+  created: string;
+  operated_at?: string;
+}
+
+export interface MergeSuggestionsResponse {
+  suggestions: MergeSuggestionItem[];
+  total_analyzed_nodes: number;
+  processing_time_seconds: number;
+  from_cache: boolean;
+  generated_at: string;
+  total_suggestions: number;
+  pending_count: number;
+  accepted_count: number;
+  rejected_count: number;
+  // Some legacy paths also surface a `run` summary — keep it optional so
+  // the typed FE can opt in without breaking historical callers.
+  run?: unknown;
+}
+
+export type SuggestionActionStatus = 'success' | 'error';
+
+export interface SuggestionActionResponse {
+  status: SuggestionActionStatus;
+  message: string;
+  suggestion_id: string;
+  action: SuggestionAction;
+  merge_result?: unknown;
+}

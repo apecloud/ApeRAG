@@ -27,11 +27,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-import { SearchResult } from '@/api';
 import { DataGrid, DataGridPagination } from '@/components/data-grid';
 import { FormatDate } from '@/components/format-date';
 import { useCollectionContext } from '@/components/providers/collection-provider';
 import { Input } from '@/components/ui/input';
+import type { SearchResult } from '@/features/retrieval/types';
 import _ from 'lodash';
 import {
   ChevronDown,
@@ -145,7 +145,9 @@ export const SearchTable = ({ data }: { data: SearchResult[] }) => {
         accessorKey: 'query',
         header: page_search('questions'),
         cell: ({ row }) => {
-          const visibleItems = filterVisibleSearchItems(row.original.items);
+          const visibleItems = filterVisibleSearchItems(
+            row.original.items ?? undefined,
+          );
           return (
             <div>
               <SearchResultDrawer result={row.original}>

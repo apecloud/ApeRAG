@@ -6,7 +6,6 @@ import type {
   GraphLabelsResponse,
   KnowledgeGraph,
   MergeSuggestionsResponse,
-  MergeSuggestionsRunResponse,
   SuggestionActionRequest,
   SuggestionActionResponse,
 } from './types';
@@ -25,7 +24,12 @@ export async function getGraphLabels(
 
 export async function getKnowledgeGraph(
   collectionId: string,
-  options?: { label?: string; maxNodes?: number; maxDepth?: number },
+  options?: {
+    label?: string;
+    maxNodes?: number;
+    maxDepth?: number;
+    signal?: AbortSignal;
+  },
 ): Promise<KnowledgeGraph | undefined> {
   const { data } = await browserApiClient.GET(
     '/api/v2/collections/{collection_id}/graphs',
@@ -38,6 +42,33 @@ export async function getKnowledgeGraph(
           max_depth: options?.maxDepth ?? 3,
         },
       },
+      signal: options?.signal,
+    },
+  );
+  return data;
+}
+
+export async function getMarketplaceKnowledgeGraph(
+  collectionId: string,
+  options?: {
+    label?: string;
+    maxNodes?: number;
+    maxDepth?: number;
+    signal?: AbortSignal;
+  },
+): Promise<KnowledgeGraph | undefined> {
+  const { data } = await browserApiClient.GET(
+    '/api/v1/marketplace/collections/{collection_id}/graph',
+    {
+      params: {
+        path: { collection_id: collectionId },
+        query: {
+          label: options?.label,
+          max_nodes: options?.maxNodes,
+          max_depth: options?.maxDepth,
+        },
+      },
+      signal: options?.signal,
     },
   );
   return data;
@@ -69,9 +100,9 @@ export async function getMergeSuggestions(
   return data as MergeSuggestionsResponse | undefined;
 }
 
-export async function startMergeSuggestionsRun(
+export async function runMergeSuggestions(
   collectionId: string,
-): Promise<MergeSuggestionsRunResponse | undefined> {
+): Promise<MergeSuggestionsResponse | undefined> {
   const { data } = await browserApiClient.POST(
     '/api/v2/collections/{collection_id}/graphs/merge-suggestions',
     {
@@ -79,7 +110,7 @@ export async function startMergeSuggestionsRun(
       body: {},
     },
   );
-  return data as MergeSuggestionsRunResponse | undefined;
+  return data as MergeSuggestionsResponse | undefined;
 }
 
 export async function handleSuggestionAction(

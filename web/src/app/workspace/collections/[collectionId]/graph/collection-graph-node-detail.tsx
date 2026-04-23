@@ -1,6 +1,5 @@
 'use client';
 
-import { GraphNode } from '@/api';
 import { Markdown } from '@/components/markdown';
 import {
   Drawer,
@@ -8,6 +7,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from '@/components/ui/drawer';
+import type { GraphNode } from '@/features/knowledge-graph/types';
 
 export const CollectionGraphNodeDetail = ({
   open,
@@ -30,7 +30,7 @@ export const CollectionGraphNodeDetail = ({
           <DrawerTitle>{node?.id}</DrawerTitle>
         </DrawerHeader>
         <div className="flex-1 overflow-auto p-4 select-text">
-          <Markdown>{node?.properties.description}</Markdown>
+          <Markdown>{node?.properties.description ?? undefined}</Markdown>
         </div>
       </DrawerContent>
     </Drawer>

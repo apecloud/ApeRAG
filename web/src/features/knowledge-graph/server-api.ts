@@ -53,8 +53,17 @@ export async function getMergeSuggestions(
     },
   );
   // Lesson 9a: typed empty shape when nothing persisted yet.
-  return (data as MergeSuggestionsResponse | undefined) ?? {
-    run: null,
-    suggestions: [],
-  };
+  return (
+    (data as MergeSuggestionsResponse | undefined) ?? {
+      suggestions: [],
+      total_analyzed_nodes: 0,
+      processing_time_seconds: 0,
+      from_cache: false,
+      generated_at: '',
+      total_suggestions: 0,
+      pending_count: 0,
+      accepted_count: 0,
+      rejected_count: 0,
+    }
+  );
 }
