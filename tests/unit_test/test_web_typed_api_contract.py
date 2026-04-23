@@ -89,6 +89,74 @@ def test_api_key_feature_uses_v2_typed_api_boundary():
     assert "serverApi.defaultApi.apikeysGet" not in page_tsx
 
 
+def test_prompt_feature_uses_v2_typed_api_boundary():
+    """#4 Phase 1b batch 1 — prompt domain (FE `features/prompt`, backend
+    canonical owner stays `model_platform` per v2 map).
+
+    Same pattern as `test_api_key_feature_uses_v2_typed_api_boundary`:
+    the Prompt Settings page and its client/server callers must only reach
+    `/api/v1/prompts/user` + `/api/v1/prompts/user/{prompt_type}` through the
+    typed openapi-fetch client behind `features/prompt/*`. Phase 1b does not
+    rename the API path or touch the OpenAPI shape — the `prompt_type` enum
+    and richer response component are known gaps tracked for the later
+    `model_platform` API hard-cut phase.
+
+    Negative assertions are scoped to `app/workspace/prompts/**` and
+    `features/prompt/**` so legitimate uses of "prompt" vocabulary in
+    adjacent places (e.g. `page_prompts` i18n, provider/model prompt fields)
+    stay unaffected. The scope also catches the indirect `getServerApi`
+    route-data regression.
+    """
+    checked_paths = [
+        REPO_ROOT / "web/src/app/workspace/prompts",
+        REPO_ROOT / "web/src/features/prompt",
+    ]
+
+    sources = {
+        path: path.read_text()
+        for root in checked_paths
+        for path in root.rglob("*")
+        if path.is_file() and path.suffix in {".ts", ".tsx"}
+    }
+    joined = "\n".join(sources.values())
+    feature_sources = "\n".join(
+        source
+        for path, source in sources.items()
+        if "/web/src/features/prompt/" in str(path)
+    )
+
+    # Negative: the domain scope must not reach the old generated SDK,
+    # its indirect `getServerApi` path, or the v1 prompt types imported
+    # via `@/api`.
+    assert "from '@/api'" not in joined
+    assert "apiClient.defaultApi.promptsUser" not in joined
+    assert "serverApi.defaultApi.promptsUser" not in joined
+    assert "defaultApi.promptsUserGet" not in joined
+    assert "defaultApi.promptsUserPut" not in joined
+    assert "defaultApi.promptsUserPromptTypeDelete" not in joined
+    assert "getServerApi" not in joined
+
+    # Positive: the adapter must only reach the typed v1 prompt paths
+    # through the typed openapi client. Phase 1b does not rename the API
+    # path — the v1→v2 hard-cut is deferred to the `model_platform` phase.
+    assert "from '@/api'" not in feature_sources
+    assert "fetch(" not in feature_sources
+    assert "'/api/v1/prompts/user'" in feature_sources
+    assert "'/api/v1/prompts/user/{prompt_type}'" in feature_sources
+
+    # Positive: the business caller wiring goes through the feature adapter.
+    settings_tsx = (
+        REPO_ROOT / "web/src/app/workspace/prompts/prompt-settings.tsx"
+    ).read_text()
+    assert "from '@/features/prompt/client-api'" in settings_tsx
+    assert "from '@/features/prompt/types'" in settings_tsx
+
+    page_tsx = (
+        REPO_ROOT / "web/src/app/workspace/prompts/page.tsx"
+    ).read_text()
+    assert "from '@/features/prompt/server-api'" in page_tsx
+
+
 def test_evaluation_feature_uses_v2_typed_api_boundary():
     """Evaluation v3 simplification: FE must only touch the new
     `/api/v2/evaluation-datasets*` and `/api/v2/evaluation-runs*` surface.
