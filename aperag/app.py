@@ -42,6 +42,7 @@ from aperag.views.api_key import router as api_key_router
 from aperag.views.audit import router as audit_router
 from aperag.views.auth import router as auth_router
 from aperag.views.bot import router as bot_router
+from aperag.views.bots_v2 import router as bots_v2_router
 from aperag.views.chat import router as chat_router
 from aperag.views.collections import router as collections_router
 from aperag.views.collections_v2 import router as collections_v2_router
@@ -110,6 +111,7 @@ app.include_router(chat_router, prefix="/api/v1")
 app.include_router(openai_router, prefix="/v1")
 app.include_router(config_router, prefix="/api/v1/config")
 app.include_router(agent_runtime_router, prefix="/api/v2")
+app.include_router(bots_v2_router, prefix="/api/v2")
 app.include_router(evaluation_v2_router, prefix="/api/v2")
 app.include_router(providers_v2_router, prefix="/api/v2")
 app.include_router(collections_v2_router, prefix="/api/v2")

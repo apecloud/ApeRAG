@@ -207,6 +207,12 @@ class BotUpdate(BaseModel):
     config: Optional[BotConfig] = None
 
 
+class BotUpdateRequest(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    config: Optional[BotConfig] = None
+
+
 class Chat(BaseModel):
     id: Optional[str] = None
     title: Optional[str] = None
