@@ -347,6 +347,32 @@ def test_execute_evaluation_run_returns_cancelled_when_all_items_cancelled():
     assert run.summary["failed"] == 0
 
 
+def test_execute_evaluation_run_does_not_overwrite_externally_failed_run_status():
+    run, items = _make_run_and_items(item_count=2)
+    ops = _FakeOps(run, items)
+    captured_inputs: list[str] = []
+
+    async def fake_dispatch(*, input_message, **_):
+        captured_inputs.append(input_message)
+        ops._run.status = EvaluationRunStatus.FAILED
+        return TurnDispatchOutcome(
+            status=EvaluationRunItemAttemptStatus.COMPLETED,
+            answer_text="first item completed before external force-fail",
+        )
+
+    final = asyncio.run(execute_evaluation_run(run.id, db_ops=ops, dispatch_fn=fake_dispatch))
+
+    assert final is EvaluationRunStatus.FAILED
+    assert run.status is EvaluationRunStatus.FAILED
+    assert captured_inputs == [items[0].input_message]
+    assert len(ops.attempts) == 1
+    assert items[0].status is EvaluationRunItemStatus.COMPLETED
+    assert items[1].status is EvaluationRunItemStatus.PENDING
+    assert run.summary["completed"] == 1
+    assert run.summary["pending"] == 1
+    assert run.summary["running"] == 0
+
+
 def test_execute_evaluation_run_catches_dispatch_exception_and_records_failed_attempt():
     run, items = _make_run_and_items(item_count=1)
     ops = _FakeOps(run, items)
