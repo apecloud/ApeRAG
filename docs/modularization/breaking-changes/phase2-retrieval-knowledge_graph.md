@@ -31,10 +31,20 @@
 | `/api/v1/collections/{id}/graphs/merge-suggestions` | `/api/v2/collections/{id}/graphs/merge-suggestions` | `POST` | `MergeSuggestionsRequest` → `MergeSuggestionsRunResponse` | `web/src/features/knowledge-graph/client-api.ts::startMergeSuggestionsRun` | `20_knowledge_graph_http.hurl` | Provider-dependent write flow — smoke hurl only asserts the GET empty shape + schedule gate; full provider-run coverage deferred to Phase 3. |
 | `/api/v1/collections/{id}/graphs/merge-suggestions/{sid}/action` | `/api/v2/collections/{id}/graphs/merge-suggestions/{sid}/action` | `POST` | `SuggestionActionRequest` → `SuggestionActionResponse` | `web/src/features/knowledge-graph/client-api.ts::handleSuggestionAction` | `20_knowledge_graph_http.hurl` | Hurl asserts 404 on non-existent suggestion id. |
 
+Removed paths (no v2 equivalent):
+
+- `GET /api/v1/collections/{id}/graphs/export/kg-eval` — removed in
+  Phase 2; no consumer migration needed (grep-verified zero hits in
+  `web/src`, `aperag/mcp/server.py`, and `tests/e2e_http/hurl/`; the
+  historical `410 Gone` shim that lived in the deleted
+  `aperag/views/graph.py` was itself just a courtesy on top of a
+  feature that had already been removed with the LightRAG-era graph
+  workflow). Per @符炫炜 msg=e681e580 final ruling + @earayu2 msg=0d65c850.
+  If a future phase needs ops-diagnostic graph surface, a fresh
+  endpoint will be designed — the old URL is not coming back.
+
 Unchanged but touched paths:
 
-- `/api/v1/collections/{id}/graphs/export/kg-eval` (still `410 Gone` —
-  kept as the last residual route in `aperag/views/graph.py`).
 - `/api/v1/collections/{id}/documents/{upload,confirm,fetch-url,staged}`
   (upload flow stays on v1 — Non-goal 4).
 - MCP `search_collection` tool URL moved from `/api/v1/...` to
@@ -130,13 +140,14 @@ Final allowlist values:
     `aperag.graphindex.integration` (for the graphindex factory that
     returns a `GraphSearchContract`-typed service) is whitelisted.
   - `test_no_legacy_retrieval_or_graph_routes_remain` — parses
-    `aperag/views/collections.py` + `aperag/views/graph.py` for any
-    `@router.*("/collections/{id}/searches` /
+    `aperag/views/collections.py` (plus any future residual views
+    module) for any `@router.*("/collections/{id}/searches` /
     `/collections/{id}/graphs/labels` /
     `/collections/{id}/graphs` /
     `/collections/{id}/graph-curation` decorators and fails if one
-    survives. `GET /collections/{id}/graphs/export/kg-eval` (410 Gone
-    shim) is intentionally exempt via regex lookahead.
+    survives. `aperag/views/graph.py` is deleted in this PR, so the
+    test now only scans `collections.py`; `GET /collections/{id}/graphs/export/kg-eval`
+    is fully gone (no v2 shim).
 - Hurl updated: `tests/e2e_http/hurl/full/19_retrieval_http.hurl`
   (new) + `tests/e2e_http/hurl/full/20_knowledge_graph_http.hurl`
   (new). Deterministic contract coverage only; provider-dependent
