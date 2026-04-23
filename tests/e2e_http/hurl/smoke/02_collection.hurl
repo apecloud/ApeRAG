@@ -6,7 +6,7 @@ Content-Type: application/json
 }
 HTTP 200
 
-POST {{base_url}}/api/v1/collections
+POST {{base_url}}/api/v2/collections
 Content-Type: application/json
 {
   "title": "Smoke Collection {{run_id}}",
@@ -31,18 +31,18 @@ jsonpath "$.status" == "ACTIVE"
 jsonpath "$.config.source" == "system"
 jsonpath "$.config.enable_knowledge_graph" == false
 
-GET {{base_url}}/api/v1/collections/{{collection_id}}
+GET {{base_url}}/api/v2/collections/{{collection_id}}
 HTTP 200
 [Asserts]
 jsonpath "$.id" == "{{collection_id}}"
 jsonpath "$.type" == "document"
 
-GET {{base_url}}/api/v1/collections?page=1&page_size=50
+GET {{base_url}}/api/v2/collections?page=1&page_size=50
 HTTP 200
 [Asserts]
 header "content-type" contains "application/json"
 
-PUT {{base_url}}/api/v1/collections/{{collection_id}}
+PUT {{base_url}}/api/v2/collections/{{collection_id}}
 Content-Type: application/json
 {
   "title": "Smoke Collection {{run_id}} Updated",
@@ -61,8 +61,8 @@ HTTP 200
 jsonpath "$.id" == "{{collection_id}}"
 jsonpath "$.title" == "Smoke Collection {{run_id}} Updated"
 
-DELETE {{base_url}}/api/v1/collections/{{collection_id}}
-HTTP 200
+DELETE {{base_url}}/api/v2/collections/{{collection_id}}
+HTTP 204
 
-GET {{base_url}}/api/v1/collections/{{collection_id}}
+GET {{base_url}}/api/v2/collections/{{collection_id}}
 HTTP 404
