@@ -1,11 +1,13 @@
 import { createServerApiClient } from '@/lib/api/typed/server';
 
 import type {
-  BenchmarkDataset,
+  EvaluationDataset,
+  EvaluationDatasetItem,
   EvaluationPagination,
   EvaluationRun,
   EvaluationRunDetailResponse,
   EvaluationRunItem,
+  EvaluationRunItemAttempt,
   FetchState,
   ListState,
 } from './types';
@@ -34,16 +36,14 @@ const pageFrom = (
   page?: EvaluationPagination | null,
 ): EvaluationPagination | undefined => page ?? undefined;
 
-export async function listBenchmarkDatasets(
+export async function listEvaluationDatasets(
   collectionId: string,
-): Promise<ListState<BenchmarkDataset>> {
+): Promise<ListState<EvaluationDataset>> {
   const client = await createServerApiClient();
   const result = await fetchState(async () => {
-    const { data } = await client.GET('/api/v2/benchmark-datasets', {
+    const { data } = await client.GET('/api/v2/evaluation-datasets', {
       params: {
-        query: {
-          collection_id: collectionId,
-        },
+        query: { collection_id: collectionId },
       },
     });
     return data;
@@ -56,15 +56,57 @@ export async function listBenchmarkDatasets(
   };
 }
 
+export async function getEvaluationDataset(
+  datasetId: string,
+): Promise<FetchState<EvaluationDataset>> {
+  const client = await createServerApiClient();
+  return fetchState(async () => {
+    const { data } = await client.GET(
+      '/api/v2/evaluation-datasets/{dataset_id}',
+      {
+        params: {
+          path: { dataset_id: datasetId },
+        },
+      },
+    );
+    return data as EvaluationDataset;
+  });
+}
+
+export async function listEvaluationDatasetItems(
+  datasetId: string,
+): Promise<ListState<EvaluationDatasetItem>> {
+  const client = await createServerApiClient();
+  const result = await fetchState(async () => {
+    const { data } = await client.GET(
+      '/api/v2/evaluation-datasets/{dataset_id}/items',
+      {
+        params: {
+          path: { dataset_id: datasetId },
+        },
+      },
+    );
+    return data;
+  });
+
+  return {
+    ...result,
+    items: result.payload?.items ?? [],
+    page: pageFrom(result.payload?.pagination),
+  };
+}
+
 export async function listEvaluationRuns(
-  botId: string,
+  filter: { collectionId?: string; botId?: string; datasetId?: string },
 ): Promise<ListState<EvaluationRun>> {
   const client = await createServerApiClient();
   const result = await fetchState(async () => {
     const { data } = await client.GET('/api/v2/evaluation-runs', {
       params: {
         query: {
-          bot_id: botId,
+          collection_id: filter.collectionId,
+          bot_id: filter.botId,
+          dataset_id: filter.datasetId,
         },
       },
     });
@@ -85,9 +127,7 @@ export async function getEvaluationRunDetail(
   return fetchState(async () => {
     const { data } = await client.GET('/api/v2/evaluation-runs/{run_id}', {
       params: {
-        path: {
-          run_id: runId,
-        },
+        path: { run_id: runId },
       },
     });
     return data as EvaluationRunDetailResponse;
@@ -103,9 +143,7 @@ export async function listEvaluationRunItems(
       '/api/v2/evaluation-runs/{run_id}/items',
       {
         params: {
-          path: {
-            run_id: runId,
-          },
+          path: { run_id: runId },
         },
       },
     );
@@ -116,5 +154,29 @@ export async function listEvaluationRunItems(
     ...result,
     items: result.payload?.items ?? [],
     page: pageFrom(result.payload?.pagination),
+  };
+}
+
+export async function listEvaluationRunItemAttempts(
+  runId: string,
+  itemId: string,
+): Promise<ListState<EvaluationRunItemAttempt>> {
+  const client = await createServerApiClient();
+  const result = await fetchState(async () => {
+    const { data } = await client.GET(
+      '/api/v2/evaluation-runs/{run_id}/items/{item_id}/attempts',
+      {
+        params: {
+          path: { run_id: runId, item_id: itemId },
+        },
+      },
+    );
+    return data;
+  });
+
+  return {
+    ...result,
+    items: result.payload?.items ?? [],
+    page: undefined,
   };
 }

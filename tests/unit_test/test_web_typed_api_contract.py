@@ -19,6 +19,15 @@ def test_server_typed_client_uses_api_root_not_legacy_v1_base_path():
 
 
 def test_evaluation_feature_uses_v2_typed_api_boundary():
+    """Evaluation v3 simplification: FE must only touch the new
+    `/api/v2/evaluation-datasets*` and `/api/v2/evaluation-runs*` surface.
+
+    The old `Benchmark* / Dataset Version / dataset_version_id` concepts were
+    dropped in the `#20` v3 simplification. Re-introducing any of them in the
+    FE — even in a helper or search predicate — either resurrects a
+    user-visible concept we deliberately removed or points the typed client at
+    a path that no longer exists.
+    """
     checked_paths = [
         REPO_ROOT / "web/src/app/workspace/collections/[collectionId]",
         REPO_ROOT / "web/src/app/workspace/bots/[botId]/evaluation",
@@ -37,16 +46,50 @@ def test_evaluation_feature_uses_v2_typed_api_boundary():
         source for path, source in sources.items() if "/web/src/features/evaluation/" in str(path)
     )
 
+    # Negative: v1 evaluation + old generated SDK must stay out of scope.
     assert "/api/v1/evaluations" not in joined
     assert "/api/v1/question-sets" not in joined
     assert "apiClient.evaluationApi" not in joined
     assert "from '@/api'" not in feature_sources
     assert "fetch(" not in feature_sources
-    assert "/api/v2/benchmark-datasets" in feature_sources
+
+    # Negative: no benchmark / dataset version residue anywhere under
+    # evaluation scope. `benchmark-datasets` path, `dataset_version_id`
+    # field and the old generated types must all be gone.
+    assert "/api/v2/benchmark-datasets" not in joined
+    assert "dataset_version_id" not in joined
+    assert "BenchmarkDataset" not in joined
+    assert "createBenchmarkDatasetVersion" not in joined
+    assert "listBenchmarkDatasets" not in joined
+    assert "DatasetVersionStatusBadge" not in joined
+    assert "page_benchmarks" not in joined
+    assert "benchmarksApi" not in joined
+
+    # Positive: features/evaluation must reach both the new dataset and run
+    # paths and nothing else.
+    assert "/api/v2/evaluation-datasets" in feature_sources
     assert "/api/v2/evaluation-runs" in feature_sources
 
-    benchmarks_panel = (REPO_ROOT / "web/src/components/evaluation/benchmarks-panel.tsx").read_text()
-    assert "String(value ?? '').toLowerCase()" in benchmarks_panel
+    # Positive: the new datasets panel search predicate keeps the null-safe
+    # cast so `undefined` description or source_type values do not throw.
+    datasets_panel = (
+        REPO_ROOT / "web/src/components/evaluation/evaluation-datasets-panel.tsx"
+    ).read_text()
+    assert "String(value ?? '').toLowerCase()" in datasets_panel
+
+    # Positive: Start Evaluation is gated on `dataset.item_count > 0` so a
+    # freshly-created empty dataset cannot be run, matching msg=38d7e74d
+    # UX patch F.
+    collection_runs_panel = (
+        REPO_ROOT / "web/src/components/evaluation/collection-runs-panel.tsx"
+    ).read_text()
+    assert "(dataset.item_count ?? 0) > 0" in collection_runs_panel
+    assert "start_run_empty_dataset" in collection_runs_panel
+    # When the default-bot resolver fails the toast text is user-readable
+    # (msg=38d7e74d UX patch G), not a raw ValidationException echo with
+    # `bot_id` in it.
+    assert "start_run_no_bot_error" in collection_runs_panel
+    assert "isBotMissingError" in collection_runs_panel
 
 
 def test_bot_feature_uses_v2_typed_api_boundary():

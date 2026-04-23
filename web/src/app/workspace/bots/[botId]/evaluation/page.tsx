@@ -13,13 +13,10 @@ import { notFound } from 'next/navigation';
 
 export default async function Page({
   params,
-  searchParams,
 }: {
   params: Promise<{ botId: string }>;
-  searchParams?: Promise<{ datasetVersionId?: string }>;
 }) {
   const { botId } = await params;
-  const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const pageBot = await getTranslations('page_bot');
   const pageBotEvaluation = await getTranslations('page_bot_evaluation');
 
@@ -35,7 +32,7 @@ export default async function Page({
     notFound();
   }
 
-  const runs = await listEvaluationRuns(botId);
+  const runs = await listEvaluationRuns({ botId });
 
   return (
     <PageContainer>
@@ -62,7 +59,6 @@ export default async function Page({
           runs={runs.items}
           unavailable={runs.unavailable}
           error={runs.error}
-          initialDatasetVersionId={resolvedSearchParams?.datasetVersionId}
         />
       </PageContent>
     </PageContainer>

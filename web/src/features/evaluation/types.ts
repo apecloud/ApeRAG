@@ -1,8 +1,5 @@
 import type { components } from '@/api-v2/schema';
 
-export type DatasetVersionStatus =
-  components['schemas']['BenchmarkDatasetVersionStatus'];
-
 export type EvaluationRunStatus = components['schemas']['EvaluationRunStatus'];
 
 export type EvaluationRunItemStatus =
@@ -11,20 +8,29 @@ export type EvaluationRunItemStatus =
 export type EvaluationAttemptStatus =
   components['schemas']['EvaluationRunItemAttemptStatus'];
 
-export type BenchmarkDatasetSourceType =
-  components['schemas']['BenchmarkDatasetSourceType'];
+export type EvaluationDatasetSourceType =
+  components['schemas']['EvaluationDatasetSourceType'];
 
-export type BenchmarkDataset =
-  components['schemas']['BenchmarkDatasetEnvelope'];
+export type EvaluationDataset =
+  components['schemas']['EvaluationDatasetEnvelope'];
 
-export type BenchmarkDatasetCreate =
-  components['schemas']['BenchmarkDatasetCreate'];
+export type EvaluationDatasetCreate =
+  components['schemas']['EvaluationDatasetCreate'];
 
-export type BenchmarkDatasetVersion =
-  components['schemas']['BenchmarkDatasetVersionEnvelope'];
+export type EvaluationDatasetUpdate =
+  components['schemas']['EvaluationDatasetUpdate'];
 
-export type BenchmarkDatasetVersionCreate =
-  components['schemas']['BenchmarkDatasetVersionCreate'];
+export type EvaluationDatasetItem =
+  components['schemas']['EvaluationDatasetItemEnvelope'];
+
+export type EvaluationDatasetItemCreate =
+  components['schemas']['EvaluationDatasetItemCreate'];
+
+export type EvaluationDatasetItemUpdate =
+  components['schemas']['EvaluationDatasetItemUpdate'];
+
+export type EvaluationDatasetItemsAppendRequest =
+  components['schemas']['EvaluationDatasetItemsAppendRequest'];
 
 export type EvaluationRun = components['schemas']['EvaluationRunEnvelope'];
 

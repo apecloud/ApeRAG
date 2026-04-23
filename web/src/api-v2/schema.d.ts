@@ -464,108 +464,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/collections": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Collections View */
-        get: operations["collections_list_collections_view"];
-        put?: never;
-        /** Create Collection View */
-        post: operations["collections_create_collection_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/collections/{collection_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Collection View */
-        get: operations["collections_get_collection_view"];
-        /** Update Collection View */
-        put: operations["collections_update_collection_view"];
-        post?: never;
-        /** Delete Collection View */
-        delete: operations["collections_delete_collection_view"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/collections/{collection_id}/summary/generate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Generate Collection Summary View
-         * @description Trigger collection summary generation as background task
-         */
-        post: operations["collections_generate_collection_summary_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/collections/test-mineru-token": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Test Mineru Token View */
-        post: operations["collections_test_mineru_token_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/collections/{collection_id}/sharing": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Collection Sharing Status
-         * @description Get collection sharing status (owner only)
-         */
-        get: operations["collections_get_collection_sharing_status"];
-        put?: never;
-        /**
-         * Publish Collection To Marketplace
-         * @description Publish collection to marketplace (owner only)
-         */
-        post: operations["collections_publish_collection_to_marketplace"];
-        /**
-         * Unpublish Collection From Marketplace
-         * @description Unpublish collection from marketplace (owner only)
-         */
-        delete: operations["collections_unpublish_collection_from_marketplace"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/collections/{collection_id}/searches": {
         parameters: {
             query?: never;
@@ -601,28 +499,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/collections/{collection_id}/documents": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Documents View
-         * @description List documents with pagination, sorting and search capabilities
-         */
-        get: operations["documents_list_documents_view"];
-        put?: never;
-        /** Create Documents View */
-        post: operations["documents_create_documents_view"];
-        /** Delete Documents View */
-        delete: operations["documents_delete_documents_view"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/collections/{collection_id}/documents/staged": {
         parameters: {
             query?: never;
@@ -637,119 +513,6 @@ export interface paths {
         get: operations["documents_list_staged_documents_view"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/collections/{collection_id}/documents/{document_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Document View */
-        get: operations["documents_get_document_view"];
-        put?: never;
-        post?: never;
-        /** Delete Document View */
-        delete: operations["documents_delete_document_view"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/collections/{collection_id}/documents/{document_id}/download": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Download Document View
-         * @description Download the original document file.
-         *     Returns the file as a streaming response with appropriate headers.
-         */
-        get: operations["documents_download_document_view"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/collections/{collection_id}/documents/{document_id}/preview": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Document Preview */
-        get: operations["get_document_preview"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/collections/{collection_id}/documents/{document_id}/object": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Document Object */
-        get: operations["get_document_object"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/collections/{collection_id}/documents/{document_id}/rebuild_indexes": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Rebuild Document Indexes View
-         * @description Rebuild specified indexes for a document
-         */
-        post: operations["documents_rebuild_document_indexes_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/collections/{collection_id}/rebuild_failed_indexes": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Rebuild Failed Indexes View
-         * @description Rebuild all failed indexes for all documents in a collection
-         */
-        post: operations["documents_rebuild_failed_indexes_view"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1508,80 +1271,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/bots": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Bots View */
-        get: operations["bots_list_bots_view"];
-        put?: never;
-        /** Create Bot View */
-        post: operations["bots_create_bot_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/bots/{bot_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Bot View */
-        get: operations["bots_get_bot_view"];
-        /** Update Bot View */
-        put: operations["bots_update_bot_view"];
-        post?: never;
-        /** Delete Bot View */
-        delete: operations["bots_delete_bot_view"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/bots/{bot_id}/chats": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Chats View */
-        get: operations["chats_list_chats_view"];
-        put?: never;
-        /** Create Chat View */
-        post: operations["chats_create_chat_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/bots/{bot_id}/chats/{chat_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Chat View */
-        get: operations["chats_get_chat_view"];
-        /** Update Chat View */
-        put: operations["chats_update_chat_view"];
-        post?: never;
-        /** Delete Chat View */
-        delete: operations["chats_delete_chat_view"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/chats/{chat_id}/feedback": {
         parameters: {
             query?: never;
@@ -1612,23 +1301,6 @@ export interface paths {
         post: operations["chats_upsert_turn_feedback_view"];
         /** Delete Turn Feedback View */
         delete: operations["chats_delete_turn_feedback_view"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/bots/{bot_id}/chats/{chat_id}/title": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Generate Chat Title View */
-        post: operations["chats_generate_chat_title_view"];
-        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1923,90 +1595,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/benchmark-datasets": {
+    "/api/v2/evaluation-datasets": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List Benchmark Datasets View */
-        get: operations["evaluation_v2_list_benchmark_datasets_view"];
+        /** List Evaluation Datasets View */
+        get: operations["evaluation_v2_list_evaluation_datasets_view"];
         put?: never;
-        /** Create Benchmark Dataset View */
-        post: operations["evaluation_v2_create_benchmark_dataset_view"];
+        /** Create Evaluation Dataset View */
+        post: operations["evaluation_v2_create_evaluation_dataset_view"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v2/benchmark-datasets/{dataset_id}": {
+    "/api/v2/evaluation-datasets/{dataset_id}": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Get Benchmark Dataset View */
-        get: operations["evaluation_v2_get_benchmark_dataset_view"];
-        /** Update Benchmark Dataset View */
-        put: operations["evaluation_v2_update_benchmark_dataset_view"];
+        /** Get Evaluation Dataset View */
+        get: operations["evaluation_v2_get_evaluation_dataset_view"];
+        /** Update Evaluation Dataset View */
+        put: operations["evaluation_v2_update_evaluation_dataset_view"];
         post?: never;
-        /** Delete Benchmark Dataset View */
-        delete: operations["evaluation_v2_delete_benchmark_dataset_view"];
+        /** Delete Evaluation Dataset View */
+        delete: operations["evaluation_v2_delete_evaluation_dataset_view"];
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v2/benchmark-datasets/{dataset_id}/versions": {
+    "/api/v2/evaluation-datasets/{dataset_id}/items": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List Benchmark Dataset Versions View */
-        get: operations["evaluation_v2_list_benchmark_dataset_versions_view"];
+        /** List Evaluation Dataset Items View */
+        get: operations["evaluation_v2_list_evaluation_dataset_items_view"];
         put?: never;
-        /** Create Benchmark Dataset Version View */
-        post: operations["evaluation_v2_create_benchmark_dataset_version_view"];
+        /** Append Evaluation Dataset Items View */
+        post: operations["evaluation_v2_append_evaluation_dataset_items_view"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v2/benchmark-datasets/{dataset_id}/versions/{version_id}": {
+    "/api/v2/evaluation-datasets/{dataset_id}/items/{item_id}": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Get Benchmark Dataset Version View */
-        get: operations["evaluation_v2_get_benchmark_dataset_version_view"];
-        put?: never;
+        get?: never;
+        /** Update Evaluation Dataset Item View */
+        put: operations["evaluation_v2_update_evaluation_dataset_item_view"];
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/benchmark-datasets/{dataset_id}/versions/{version_id}/cases": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Benchmark Cases View */
-        get: operations["evaluation_v2_list_benchmark_cases_view"];
-        put?: never;
-        post?: never;
-        delete?: never;
+        /** Delete Evaluation Dataset Item View */
+        delete: operations["evaluation_v2_delete_evaluation_dataset_item_view"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2815,179 +2471,6 @@ export interface components {
             /** Auth App Id */
             auth_app_id?: string | null;
         };
-        /** BenchmarkCaseCreate */
-        BenchmarkCaseCreate: {
-            /**
-             * Case Key
-             * @description Stable user-facing key. Auto-generated when omitted.
-             */
-            case_key?: string | null;
-            /** Input Message */
-            input_message: string;
-            /** Expected Answer */
-            expected_answer?: string | null;
-            /** Reference Context */
-            reference_context?: string | null;
-            /** Tags */
-            tags?: string[] | null;
-            /** Case Metadata */
-            case_metadata?: {
-                [key: string]: unknown;
-            } | null;
-            /**
-             * Sort Key
-             * @default 0
-             */
-            sort_key: number;
-        };
-        /** BenchmarkCaseEnvelope */
-        BenchmarkCaseEnvelope: {
-            /** Id */
-            id: string;
-            /** Dataset Version Id */
-            dataset_version_id: string;
-            /** Case Key */
-            case_key: string;
-            /** Input Message */
-            input_message: string;
-            /** Expected Answer */
-            expected_answer?: string | null;
-            /** Reference Context */
-            reference_context?: string | null;
-            /** Tags */
-            tags?: string[] | null;
-            /** Case Metadata */
-            case_metadata?: {
-                [key: string]: unknown;
-            } | null;
-            /** Sort Key */
-            sort_key: number;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-        };
-        /** BenchmarkCaseListResponse */
-        BenchmarkCaseListResponse: {
-            /** Items */
-            items?: components["schemas"]["BenchmarkCaseEnvelope"][];
-            pagination?: components["schemas"]["EvaluationPagination"];
-        };
-        /** BenchmarkDatasetCreate */
-        BenchmarkDatasetCreate: {
-            /** Name */
-            name: string;
-            /** Description */
-            description?: string | null;
-            /** Collection Id */
-            collection_id?: string | null;
-            /** @default manual */
-            source_type: components["schemas"]["BenchmarkDatasetSourceType"];
-            /** Schema Hint */
-            schema_hint?: {
-                [key: string]: unknown;
-            } | null;
-        };
-        /** BenchmarkDatasetEnvelope */
-        BenchmarkDatasetEnvelope: {
-            /** Id */
-            id: string;
-            /** User Id */
-            user_id: string;
-            /** Collection Id */
-            collection_id?: string | null;
-            /** Name */
-            name: string;
-            /** Description */
-            description?: string | null;
-            source_type: components["schemas"]["BenchmarkDatasetSourceType"];
-            /** Schema Hint */
-            schema_hint?: {
-                [key: string]: unknown;
-            } | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-            latest_version?: components["schemas"]["BenchmarkDatasetVersionEnvelope"] | null;
-        };
-        /** BenchmarkDatasetListResponse */
-        BenchmarkDatasetListResponse: {
-            /** Items */
-            items?: components["schemas"]["BenchmarkDatasetEnvelope"][];
-            pagination?: components["schemas"]["EvaluationPagination"];
-        };
-        /**
-         * BenchmarkDatasetSourceType
-         * @enum {string}
-         */
-        BenchmarkDatasetSourceType: "manual" | "import" | "migrated_from_question_set";
-        /** BenchmarkDatasetUpdate */
-        BenchmarkDatasetUpdate: {
-            /** Name */
-            name?: string | null;
-            /** Description */
-            description?: string | null;
-        };
-        /** BenchmarkDatasetVersionCreate */
-        BenchmarkDatasetVersionCreate: {
-            /** Version Name */
-            version_name?: string | null;
-            /** Source Snapshot */
-            source_snapshot?: {
-                [key: string]: unknown;
-            } | null;
-            /** Cases */
-            cases?: components["schemas"]["BenchmarkCaseCreate"][];
-        };
-        /** BenchmarkDatasetVersionEnvelope */
-        BenchmarkDatasetVersionEnvelope: {
-            /** Id */
-            id: string;
-            /** Dataset Id */
-            dataset_id: string;
-            /** Version */
-            version: number;
-            /** Version Name */
-            version_name?: string | null;
-            status: components["schemas"]["BenchmarkDatasetVersionStatus"];
-            /** Case Count */
-            case_count: number;
-            /** Source Snapshot */
-            source_snapshot?: {
-                [key: string]: unknown;
-            } | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-            /** Published At */
-            published_at?: string | null;
-        };
-        /** BenchmarkDatasetVersionListResponse */
-        BenchmarkDatasetVersionListResponse: {
-            /** Items */
-            items?: components["schemas"]["BenchmarkDatasetVersionEnvelope"][];
-            pagination?: components["schemas"]["EvaluationPagination"];
-        };
-        /**
-         * BenchmarkDatasetVersionStatus
-         * @enum {string}
-         */
-        BenchmarkDatasetVersionStatus: "draft" | "published" | "archived";
         /** Body_chats_upload_chat_document_view */
         Body_chats_upload_chat_document_view: {
             /**
@@ -2995,11 +2478,6 @@ export interface components {
              * Format: binary
              */
             file: string;
-        };
-        /** Body_documents_create_documents_view */
-        Body_documents_create_documents_view: {
-            /** Files */
-            files: string[];
         };
         /** Body_documents_upload_document_view */
         Body_documents_upload_document_view: {
@@ -3068,16 +2546,6 @@ export interface components {
             /** Items */
             items?: components["schemas"]["Bot"][] | null;
             pageResult?: components["schemas"]["PageResult"] | null;
-        };
-        /** BotUpdate */
-        BotUpdate: {
-            /** Id */
-            id?: string | null;
-            /** Title */
-            title?: string | null;
-            /** Description */
-            description?: string | null;
-            config?: components["schemas"]["BotConfig"] | null;
         };
         /** BotUpdateRequest */
         BotUpdateRequest: {
@@ -3836,6 +3304,172 @@ export interface components {
              */
             total_tokens: number;
         };
+        /** EvaluationDatasetCreate */
+        EvaluationDatasetCreate: {
+            /** Name */
+            name: string;
+            /** Description */
+            description?: string | null;
+            /** Collection Id */
+            collection_id?: string | null;
+            /** @default manual */
+            source_type: components["schemas"]["EvaluationDatasetSourceType"];
+            /** Schema Hint */
+            schema_hint?: {
+                [key: string]: unknown;
+            } | null;
+            /** Items */
+            items?: components["schemas"]["EvaluationDatasetItemCreate"][] | null;
+        };
+        /** EvaluationDatasetEnvelope */
+        EvaluationDatasetEnvelope: {
+            /** Id */
+            id: string;
+            /** User Id */
+            user_id: string;
+            /** Collection Id */
+            collection_id?: string | null;
+            /** Name */
+            name: string;
+            /** Description */
+            description?: string | null;
+            source_type: components["schemas"]["EvaluationDatasetSourceType"];
+            /** Schema Hint */
+            schema_hint?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Item Count
+             * @default 0
+             */
+            item_count: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** EvaluationDatasetItemCreate */
+        EvaluationDatasetItemCreate: {
+            /**
+             * Case Key
+             * @description Stable user-facing key. Auto-generated when omitted.
+             */
+            case_key?: string | null;
+            /** Input Message */
+            input_message: string;
+            /** Expected Answer */
+            expected_answer?: string | null;
+            /** Reference Context */
+            reference_context?: string | null;
+            /** Tags */
+            tags?: string[] | null;
+            /** Case Metadata */
+            case_metadata?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Sort Key
+             * @default 0
+             */
+            sort_key: number;
+        };
+        /** EvaluationDatasetItemEnvelope */
+        EvaluationDatasetItemEnvelope: {
+            /** Id */
+            id: string;
+            /** Dataset Id */
+            dataset_id: string;
+            /** Case Key */
+            case_key: string;
+            /** Input Message */
+            input_message: string;
+            /** Expected Answer */
+            expected_answer?: string | null;
+            /** Reference Context */
+            reference_context?: string | null;
+            /** Tags */
+            tags?: string[] | null;
+            /** Case Metadata */
+            case_metadata?: {
+                [key: string]: unknown;
+            } | null;
+            /** Sort Key */
+            sort_key: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** EvaluationDatasetItemListResponse */
+        EvaluationDatasetItemListResponse: {
+            /** Items */
+            items?: components["schemas"]["EvaluationDatasetItemEnvelope"][];
+            pagination?: components["schemas"]["EvaluationPagination"];
+        };
+        /** EvaluationDatasetItemUpdate */
+        EvaluationDatasetItemUpdate: {
+            /** Case Key */
+            case_key?: string | null;
+            /** Input Message */
+            input_message?: string | null;
+            /** Expected Answer */
+            expected_answer?: string | null;
+            /** Reference Context */
+            reference_context?: string | null;
+            /** Tags */
+            tags?: string[] | null;
+            /** Case Metadata */
+            case_metadata?: {
+                [key: string]: unknown;
+            } | null;
+            /** Sort Key */
+            sort_key?: number | null;
+        };
+        /** EvaluationDatasetItemsAppendRequest */
+        EvaluationDatasetItemsAppendRequest: {
+            /** Items */
+            items?: components["schemas"]["EvaluationDatasetItemCreate"][];
+        };
+        /** EvaluationDatasetItemsAppendResponse */
+        EvaluationDatasetItemsAppendResponse: {
+            /** Items */
+            items?: components["schemas"]["EvaluationDatasetItemEnvelope"][];
+        };
+        /** EvaluationDatasetListResponse */
+        EvaluationDatasetListResponse: {
+            /** Items */
+            items?: components["schemas"]["EvaluationDatasetEnvelope"][];
+            pagination?: components["schemas"]["EvaluationPagination"];
+        };
+        /**
+         * EvaluationDatasetSourceType
+         * @description Origin of an ``EvaluationDataset``.
+         *
+         *     The simplified evaluation model exposes only ``Dataset`` + ``Run`` to
+         *     users. ``source_type`` lets the backend distinguish how the items were
+         *     created (manual entry, file import, LLM-generated).
+         * @enum {string}
+         */
+        EvaluationDatasetSourceType: "manual" | "import" | "generated";
+        /** EvaluationDatasetUpdate */
+        EvaluationDatasetUpdate: {
+            /** Name */
+            name?: string | null;
+            /** Description */
+            description?: string | null;
+        };
         /**
          * EvaluationJudgeMode
          * @enum {string}
@@ -3861,12 +3495,18 @@ export interface components {
         };
         /** EvaluationRunCreate */
         EvaluationRunCreate: {
+            /**
+             * Dataset Id
+             * @description Required dataset id for this run
+             */
+            dataset_id: string;
+            /**
+             * Bot Id
+             * @description Optional explicit bot id. When omitted the service resolves the user's default bot (active bot with title 'Default Agent Bot' first, otherwise oldest active bot).
+             */
+            bot_id?: string | null;
             /** Name */
             name?: string | null;
-            /** Bot Id */
-            bot_id: string;
-            /** Dataset Version Id */
-            dataset_version_id: string;
             judge?: components["schemas"]["JudgeConfig"] | null;
             /** Bot Config Snapshot */
             bot_config_snapshot?: {
@@ -3891,8 +3531,12 @@ export interface components {
             user_id: string;
             /** Bot Id */
             bot_id: string;
-            /** Dataset Version Id */
-            dataset_version_id: string;
+            /** Dataset Id */
+            dataset_id: string;
+            /** Collection Id */
+            collection_id?: string | null;
+            /** Dataset Name */
+            dataset_name?: string | null;
             /** Name */
             name?: string | null;
             status: components["schemas"]["EvaluationRunStatus"];
@@ -3982,10 +3626,24 @@ export interface components {
             id: string;
             /** Run Id */
             run_id: string;
-            /** Case Id */
-            case_id: string;
+            /** Source Dataset Item Id */
+            source_dataset_item_id?: string | null;
             /** Case Key */
             case_key: string;
+            /** Sort Key */
+            sort_key: number;
+            /** Input Message */
+            input_message: string;
+            /** Expected Answer */
+            expected_answer?: string | null;
+            /** Reference Context */
+            reference_context?: string | null;
+            /** Tags */
+            tags?: string[] | null;
+            /** Case Metadata */
+            case_metadata?: {
+                [key: string]: unknown;
+            } | null;
             status: components["schemas"]["EvaluationRunItemStatus"];
             /** Best Score */
             best_score?: string | null;
@@ -7393,349 +7051,6 @@ export interface operations {
             };
         };
     };
-    collections_list_collections_view: {
-        parameters: {
-            query?: {
-                page?: number;
-                page_size?: number;
-                include_subscribed?: boolean;
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CollectionViewList"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    collections_create_collection_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CollectionCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Collection"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    collections_get_collection_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Collection"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    collections_update_collection_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CollectionUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Collection"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    collections_delete_collection_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Collection"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    collections_generate_collection_summary_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    collections_test_mineru_token_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    collections_get_collection_sharing_status: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SharingStatusResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    collections_publish_collection_to_marketplace: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    collections_unpublish_collection_from_marketplace: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     search_list_searches_view: {
         parameters: {
             query?: {
@@ -7840,123 +7155,6 @@ export interface operations {
             };
         };
     };
-    documents_list_documents_view: {
-        parameters: {
-            query?: {
-                /** @description Page number (1-based) */
-                page?: number;
-                /** @description Number of items per page */
-                page_size?: number;
-                /** @description Field to sort by */
-                sort_by?: string;
-                /** @description Sort order */
-                sort_order?: string;
-                /** @description Search documents by name */
-                search?: string;
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    documents_create_documents_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "multipart/form-data": components["schemas"]["Body_documents_create_documents_view"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DocumentList"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    documents_delete_documents_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": string[];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     documents_list_staged_documents_view: {
         parameters: {
             query?: {
@@ -7977,248 +7175,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StagedDocumentsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    documents_get_document_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-                document_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Document"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    documents_delete_document_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-                document_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Document"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    documents_download_document_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-                document_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_document_preview: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-                document_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_document_object: {
-        parameters: {
-            query: {
-                path: string;
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-                document_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    documents_rebuild_document_indexes_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-                document_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RebuildIndexesRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    documents_rebuild_failed_indexes_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -9673,349 +8629,6 @@ export interface operations {
             };
         };
     };
-    bots_list_bots_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BotList"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    bots_create_bot_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BotCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Bot"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    bots_get_bot_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                bot_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Bot"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    bots_update_bot_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                bot_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BotUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Bot"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    bots_delete_bot_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                bot_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    chats_list_chats_view: {
-        parameters: {
-            query?: {
-                page?: number;
-                page_size?: number;
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                bot_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ChatList"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    chats_create_chat_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                bot_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Chat"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    chats_get_chat_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                bot_id: string;
-                chat_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ChatDetails"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    chats_update_chat_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                bot_id: string;
-                chat_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ChatUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Chat"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    chats_delete_chat_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                bot_id: string;
-                chat_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     chats_list_turn_feedback_view: {
         parameters: {
             query?: {
@@ -10108,44 +8721,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    chats_generate_chat_title_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                bot_id: string;
-                chat_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["TitleGenerateRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TitleGenerateResponse"];
                 };
             };
             /** @description Validation Error */
@@ -10879,7 +9454,7 @@ export interface operations {
             };
         };
     };
-    evaluation_v2_list_benchmark_datasets_view: {
+    evaluation_v2_list_evaluation_datasets_view: {
         parameters: {
             query?: {
                 collection_id?: string | null;
@@ -10899,7 +9474,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BenchmarkDatasetListResponse"];
+                    "application/json": components["schemas"]["EvaluationDatasetListResponse"];
                 };
             };
             /** @description Validation Error */
@@ -10913,7 +9488,7 @@ export interface operations {
             };
         };
     };
-    evaluation_v2_create_benchmark_dataset_view: {
+    evaluation_v2_create_evaluation_dataset_view: {
         parameters: {
             query?: {
                 engine?: unknown;
@@ -10924,7 +9499,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["BenchmarkDatasetCreate"];
+                "application/json": components["schemas"]["EvaluationDatasetCreate"];
             };
         };
         responses: {
@@ -10934,7 +9509,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BenchmarkDatasetEnvelope"];
+                    "application/json": components["schemas"]["EvaluationDatasetEnvelope"];
                 };
             };
             /** @description Validation Error */
@@ -10948,7 +9523,7 @@ export interface operations {
             };
         };
     };
-    evaluation_v2_get_benchmark_dataset_view: {
+    evaluation_v2_get_evaluation_dataset_view: {
         parameters: {
             query?: {
                 engine?: unknown;
@@ -10967,7 +9542,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BenchmarkDatasetEnvelope"];
+                    "application/json": components["schemas"]["EvaluationDatasetEnvelope"];
                 };
             };
             /** @description Validation Error */
@@ -10981,7 +9556,7 @@ export interface operations {
             };
         };
     };
-    evaluation_v2_update_benchmark_dataset_view: {
+    evaluation_v2_update_evaluation_dataset_view: {
         parameters: {
             query?: {
                 engine?: unknown;
@@ -10994,7 +9569,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["BenchmarkDatasetUpdate"];
+                "application/json": components["schemas"]["EvaluationDatasetUpdate"];
             };
         };
         responses: {
@@ -11004,7 +9579,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BenchmarkDatasetEnvelope"];
+                    "application/json": components["schemas"]["EvaluationDatasetEnvelope"];
                 };
             };
             /** @description Validation Error */
@@ -11018,7 +9593,7 @@ export interface operations {
             };
         };
     };
-    evaluation_v2_delete_benchmark_dataset_view: {
+    evaluation_v2_delete_evaluation_dataset_view: {
         parameters: {
             query?: {
                 engine?: unknown;
@@ -11049,9 +9624,11 @@ export interface operations {
             };
         };
     };
-    evaluation_v2_list_benchmark_dataset_versions_view: {
+    evaluation_v2_list_evaluation_dataset_items_view: {
         parameters: {
             query?: {
+                page?: number;
+                page_size?: number;
                 engine?: unknown;
             };
             header?: never;
@@ -11068,7 +9645,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BenchmarkDatasetVersionListResponse"];
+                    "application/json": components["schemas"]["EvaluationDatasetItemListResponse"];
                 };
             };
             /** @description Validation Error */
@@ -11082,7 +9659,7 @@ export interface operations {
             };
         };
     };
-    evaluation_v2_create_benchmark_dataset_version_view: {
+    evaluation_v2_append_evaluation_dataset_items_view: {
         parameters: {
             query?: {
                 engine?: unknown;
@@ -11095,7 +9672,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["BenchmarkDatasetVersionCreate"];
+                "application/json": components["schemas"]["EvaluationDatasetItemsAppendRequest"];
             };
         };
         responses: {
@@ -11105,7 +9682,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BenchmarkDatasetVersionEnvelope"];
+                    "application/json": components["schemas"]["EvaluationDatasetItemsAppendResponse"];
                 };
             };
             /** @description Validation Error */
@@ -11119,7 +9696,7 @@ export interface operations {
             };
         };
     };
-    evaluation_v2_get_benchmark_dataset_version_view: {
+    evaluation_v2_update_evaluation_dataset_item_view: {
         parameters: {
             query?: {
                 engine?: unknown;
@@ -11127,11 +9704,15 @@ export interface operations {
             header?: never;
             path: {
                 dataset_id: string;
-                version_id: string;
+                item_id: string;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EvaluationDatasetItemUpdate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -11139,7 +9720,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BenchmarkDatasetVersionEnvelope"];
+                    "application/json": components["schemas"]["EvaluationDatasetItemEnvelope"];
                 };
             };
             /** @description Validation Error */
@@ -11153,30 +9734,26 @@ export interface operations {
             };
         };
     };
-    evaluation_v2_list_benchmark_cases_view: {
+    evaluation_v2_delete_evaluation_dataset_item_view: {
         parameters: {
             query?: {
-                page?: number;
-                page_size?: number;
                 engine?: unknown;
             };
             header?: never;
             path: {
                 dataset_id: string;
-                version_id: string;
+                item_id: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
             /** @description Successful Response */
-            200: {
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["BenchmarkCaseListResponse"];
-                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -11193,6 +9770,8 @@ export interface operations {
         parameters: {
             query?: {
                 bot_id?: string | null;
+                dataset_id?: string | null;
+                collection_id?: string | null;
                 page?: number;
                 page_size?: number;
                 engine?: unknown;
