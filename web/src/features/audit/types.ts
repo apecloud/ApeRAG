@@ -6,6 +6,12 @@
 // `features/audit/client-api.ts` + `server-api.ts` for the matching raw
 // fetch comment). Hand-writing the mirror keeps the FE domain contract
 // explicit without committing the backend to a public API shape.
+//
+// Counting note: this file intentionally does NOT import from
+// `@/api-v2/schema`. When Phase 4 unhides `/api/v1/audit-logs` and this
+// mirror is promoted to schema-derived aliases, the
+// `web_raw_schema_allowlist.txt` target will rise by 1 (current #13
+// canonical is `raw_schema 13 → 16`; Phase 4 takes it to `16 → 17`).
 
 export type AuditLogResourceType =
   | 'collection'
