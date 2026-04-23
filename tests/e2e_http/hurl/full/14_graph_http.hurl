@@ -38,13 +38,13 @@ collection_id: jsonpath "$.id"
 jsonpath "$.id" == "{{collection_id}}"
 jsonpath "$.config.enable_knowledge_graph" == true
 
-GET {{base_url}}/api/v1/collections/{{collection_id}}/graphs/labels
+GET {{base_url}}/api/v2/collections/{{collection_id}}/graphs/labels
 HTTP 200
 [Asserts]
 header "content-type" contains "application/json"
 jsonpath "$.labels" exists
 
-GET {{base_url}}/api/v1/collections/{{collection_id}}/graphs?label=*&max_nodes=50&max_depth=2
+GET {{base_url}}/api/v2/collections/{{collection_id}}/graphs?label=*&max_nodes=50&max_depth=2
 HTTP 200
 [Asserts]
 header "content-type" contains "application/json"
@@ -52,7 +52,7 @@ jsonpath "$.nodes" exists
 jsonpath "$.edges" exists
 jsonpath "$.is_truncated" == false
 
-GET {{base_url}}/api/v1/collections/{{collection_id}}/graphs?label=*&max_nodes=0&max_depth=2
+GET {{base_url}}/api/v2/collections/{{collection_id}}/graphs?label=*&max_nodes=0&max_depth=2
 HTTP 400
 [Asserts]
 header "content-type" contains "application/json"

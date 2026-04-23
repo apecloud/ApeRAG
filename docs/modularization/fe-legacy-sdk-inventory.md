@@ -11,9 +11,9 @@ migration workload stays visible.
 
 | Pattern | Files | Notes |
 | --- | --- | --- |
-| `from '@/api'` (legacy generated SDK) | 49 | Was 52 before #1607 (api-key), 50 before #1609 (prompt). Must reach 0 at Phase 1c. Fixture: `web_legacy_api_allowlist.txt`. |
-| `from '@/api-v2/schema'` | 9 | `features/api-key/types.ts` joined the lock at #1607; `features/prompt/types.ts` joined at #1609 (aliases `PromptsPayload` / `UpdateUserPromptsRequest`). Fixture: `web_raw_schema_allowlist.txt` — exact lock. |
-| `\b(defaultApi|apiClient|browserApiClient|createServerApiClient)\b` in `web/src/app/**` | 24 | Was 28 before #1607, 26 before #1609. Must reach 0 as each domain route switches to its `features/<d>/{server,client}-api`. Fixture: `web_route_data_allowlist.txt`. |
+| `from '@/api'` (legacy generated SDK) | ~~49~~ 47 | Shrinks by 2 in Phase 2 retrieval+knowledge_graph (search-delete.tsx + search-test.tsx reconnected to `@/features/retrieval`). Must reach 0 at Phase 1c. Fixture: `web_legacy_api_allowlist.txt`. |
+| `from '@/api-v2/schema'` | ~~9~~ 11 | Phase 2 adds `features/retrieval/types.ts` + `features/knowledge-graph/types.ts`. Fixture: `web_raw_schema_allowlist.txt` — exact lock. |
+| `\b(defaultApi|apiClient|browserApiClient|createServerApiClient)\b` in `web/src/app/**` | ~~24~~ 21 | Shrinks by 3 in Phase 2 retrieval (search/page.tsx + search-delete + search-test moved to `features/retrieval/{client,server}-api`). Must reach 0 as each domain route switches. Fixture: `web_route_data_allowlist.txt`. |
 
 ## Phase 1a sample — `api-key` (pinned by architect msg=e27e8b52) ✅ done
 
@@ -49,8 +49,8 @@ allowlist entries, not post-migration targets.
 | 3 | `governance` / `quota` | 2 (`quotas/page.tsx`, `quotas/quota-radial-chart.tsx`) | Low caller surface. |
 | 4 | `governance` / `audit` | 4 (`audit-logs/*`, `admin/audit-logs/page.tsx`) | Includes an admin route. |
 | 5 | `model_platform` / `providers` | `components/providers/app-provider.tsx` + `components/providers/bot-provider.tsx` | Shared provider shell; do not touch LLM provider `api_key` field. |
-| 6 | `retrieval` (`search`) | 4 (`search-delete`, `search-result-drawer`, `search-table`, `search-test`) | URL stays under `/collections/{id}/search/*`. |
-| 7 | `knowledge_graph` (`graph`) | 4 (`collection-graph*`, `collection-graph-node-*`, `collection-graph-showcase`) | URL stays under `/collections/{id}/graph*`. |
+| 6 | `retrieval` (`search`) | ~~4~~ 2 (`search-result-drawer`, `search-table`) | Phase 2 retrieval+knowledge_graph PR moved 2 of 4 (`search-delete`, `search-test`) + `search/page.tsx` (route-data) to `@/features/retrieval`. URL moved from `/api/v1/` to `/api/v2/`. |
+| 7 | `knowledge_graph` (`graph`) | 4 (`collection-graph*`, `collection-graph-node-*`, `collection-graph-showcase`) | URL moved from `/api/v1/` to `/api/v2/` by the Phase 2 backend hard-cut. FE callers stay on `@/api` until Phase 1b batch 7 migrates them to `@/features/knowledge-graph`. |
 | 8 | `marketplace` | 5 (`marketplace/page.tsx`, `collection-list`, `collection-header`, `documents-table`, `document-detail`, `document-index-status`) | Consumes public knowledge_base contract only. |
 | 9 | `knowledge_base` / `document` | 5 (`documents/*`, `document-upload`, `url-import`, `document-rebuild-index`, `document-index-status`) | Upload flow stays in scope; follow #30 regression guards. |
 | 10 | `knowledge_base` / `collection` | 6 (`collections/*`, `collection-form`, `collection-header`, `collection-list`, `tools.ts`, `feature-visibility.ts`) | Large surface; may split into multiple PRs. |

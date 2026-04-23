@@ -107,7 +107,7 @@ jsonpath "$.items[0].status" exists
 jsonpath "$.items[0].fulltext_index_status" exists
 jsonpath "$.total" == 1
 
-POST {{base_url}}/api/v1/collections/{{collection_id}}/searches
+POST {{base_url}}/api/v2/collections/{{collection_id}}/searches
 Content-Type: application/json
 {
   "query": "Hurl full document coverage",
@@ -126,14 +126,14 @@ jsonpath "$.fulltext_search.topk" == 3
 jsonpath "$.items" exists
 jsonpath "$.created" exists
 
-GET {{base_url}}/api/v1/collections/{{collection_id}}/searches
+GET {{base_url}}/api/v2/collections/{{collection_id}}/searches
 HTTP 200
 [Asserts]
 jsonpath "$.items[0].id" == "{{search_id}}"
 jsonpath "$.items[0].query" == "Hurl full document coverage"
 jsonpath "$.items[0].items" exists
 
-DELETE {{base_url}}/api/v1/collections/{{collection_id}}/searches/{{search_id}}
+DELETE {{base_url}}/api/v2/collections/{{collection_id}}/searches/{{search_id}}
 HTTP 200
 
 GET {{base_url}}/api/v2/collections/{{collection_id}}/documents/{{document_id}}/download

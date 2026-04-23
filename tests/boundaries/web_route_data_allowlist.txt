@@ -6,10 +6,4 @@ web/src/app/admin/users/page.tsx
 web/src/app/admin/users/user-quota-action.tsx
 web/src/app/auth/signin/page.tsx
 web/src/app/layout.tsx
-web/src/app/workspace/collections/[collectionId]/graph-showcase/collection-graph-showcase.tsx
-web/src/app/workspace/collections/[collectionId]/graph/collection-graph-node-merge.tsx
-web/src/app/workspace/collections/[collectionId]/graph/collection-graph.tsx
-web/src/app/workspace/collections/[collectionId]/search/page.tsx
-web/src/app/workspace/collections/[collectionId]/search/search-delete.tsx
-web/src/app/workspace/collections/[collectionId]/search/search-test.tsx
 web/src/app/workspace/layout.tsx

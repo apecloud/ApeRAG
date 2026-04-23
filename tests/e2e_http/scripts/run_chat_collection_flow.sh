@@ -241,7 +241,7 @@ request_json POST "/api/v2/collections/${collection_id}/documents/confirm" "$(jq
 
 wait_for_document_indexes "${collection_id}" "${document_id}"
 
-search_body="$(request_json POST "/api/v1/collections/${collection_id}/searches" "$(jq -nc '{
+search_body="$(request_json POST "/api/v2/collections/${collection_id}/searches" "$(jq -nc '{
   query: "Hurl",
   fulltext_search: {
     topk: 3

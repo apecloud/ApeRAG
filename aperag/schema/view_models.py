@@ -574,157 +574,6 @@ class StagedDocumentsResponse(BaseModel):
     total: int = Field(..., description="Total number of staged documents")
 
 
-class VectorSearchParams(BaseModel):
-    topk: Optional[int] = Field(None, description="Top K results")
-    similarity: Optional[confloat(ge=0.0, le=1.0)] = Field(None, description="Similarity threshold")
-
-
-class FulltextSearchParams(BaseModel):
-    topk: Optional[int] = Field(None, description="Top K results")
-    keywords: Optional[list[str]] = Field(None, description="Custom keywords to use for fulltext search")
-
-
-class GraphSearchParams(BaseModel):
-    topk: Optional[int] = Field(None, description="Top K results")
-
-
-class SummarySearchParams(BaseModel):
-    topk: Optional[int] = Field(None, description="Top K results")
-    similarity: Optional[confloat(ge=0.0, le=1.0)] = Field(None, description="Similarity threshold")
-
-
-class VisionSearchParams(BaseModel):
-    topk: Optional[int] = Field(None, description="Top K results")
-    similarity: Optional[confloat(ge=0.0, le=1.0)] = Field(None, description="Similarity threshold")
-
-
-class SearchResultMetadata(BaseModel):
-    """
-    Public metadata carried by search result items.
-
-    This intentionally allow-lists fields needed by clients and excludes raw
-    index/storage metadata such as indexer, index_method, chat_id, object_path,
-    and embedded node payloads.
-    """
-
-    model_config = ConfigDict(extra="forbid")
-
-    source: Optional[str] = Field(None, description="Display source for the result")
-    title: Optional[str] = Field(None, description="Human-readable title when available")
-    collection_id: Optional[str] = Field(None, description="Collection identifier for client follow-up actions")
-    document_id: Optional[str] = Field(None, description="Document identifier for client follow-up actions")
-    asset_id: Optional[str] = Field(None, description="Asset identifier for image or binary references")
-    mimetype: Optional[str] = Field(None, description="Asset MIME type when the result references an asset")
-    page_idx: Optional[int] = Field(None, description="Zero-based page index when available")
-    url: Optional[str] = Field(None, description="External source URL when available")
-    modality: Optional[Literal["text", "image"]] = Field(None, description="Public content modality")
-
-    @classmethod
-    def from_raw(cls, metadata: Optional[dict[str, Any]]) -> Optional["SearchResultMetadata"]:
-        if not isinstance(metadata, dict) or not metadata:
-            return None
-
-        def public_str(*keys: str) -> Optional[str]:
-            for key in keys:
-                value = metadata.get(key)
-                if isinstance(value, str) and value:
-                    return value
-            return None
-
-        page_idx = metadata.get("page_idx")
-        if isinstance(page_idx, str) and page_idx.isdigit():
-            page_idx = int(page_idx)
-        if not isinstance(page_idx, int):
-            page_idx = None
-
-        modality = "image" if metadata.get("indexer") == "vision" else None
-        if modality is None and any(metadata.get(key) for key in ("asset_id", "mimetype")):
-            modality = "image"
-
-        data = {
-            "source": public_str("source", "name"),
-            "title": public_str("title"),
-            "collection_id": public_str("collection_id"),
-            "document_id": public_str("document_id"),
-            "asset_id": public_str("asset_id"),
-            "mimetype": public_str("mimetype"),
-            "page_idx": page_idx,
-            "url": public_str("url"),
-            "modality": modality,
-        }
-        public_data = {key: value for key, value in data.items() if value is not None}
-        return cls(**public_data) if public_data else None
-
-
-class SearchResultItem(BaseModel):
-    rank: Optional[int] = Field(None, description="Result rank")
-    score: Optional[float] = Field(None, description="Result score")
-    content: Optional[str] = Field(None, description="Result content")
-    source: Optional[str] = Field(None, description="Source document or metadata")
-    recall_type: Optional[
-        Literal[
-            "vector_search",
-            "graph_search",
-            "fulltext_search",
-            "summary_search",
-            "vision_search",
-        ]
-    ] = Field(None, description="Recall type")
-    metadata: Optional[SearchResultMetadata] = Field(None, description="Public metadata of the result")
-
-    @field_validator("metadata", mode="before")
-    @classmethod
-    def sanitize_metadata(cls, value):
-        if value is None or isinstance(value, SearchResultMetadata):
-            return value
-        if isinstance(value, dict):
-            return SearchResultMetadata.from_raw(value)
-        return value
-
-
-class SearchResult(BaseModel):
-    id: Optional[str] = Field(None, description="The id of the search result")
-    query: Optional[str] = None
-    vector_search: Optional[VectorSearchParams] = None
-    fulltext_search: Optional[FulltextSearchParams] = None
-    graph_search: Optional[GraphSearchParams] = None
-    summary_search: Optional[SummarySearchParams] = None
-    vision_search: Optional[VisionSearchParams] = None
-    items: Optional[list[SearchResultItem]] = None
-    created: Optional[datetime] = Field(None, description="The creation time of the search result")
-
-
-class SearchResultList(BaseModel):
-    """
-    A list of search results
-    """
-
-    items: Optional[list[SearchResult]] = None
-
-
-class SearchRequest(BaseModel):
-    """
-    Search request
-    """
-
-    query: Optional[str] = None
-    vector_search: Optional[VectorSearchParams] = None
-    fulltext_search: Optional[FulltextSearchParams] = None
-    graph_search: Optional[GraphSearchParams] = None
-    summary_search: Optional[SummarySearchParams] = None
-    vision_search: Optional[VisionSearchParams] = None
-    save_to_history: Optional[bool] = Field(
-        False,
-        description="Whether to save search result to database history",
-        examples=[True],
-    )
-    rerank: Optional[bool] = Field(
-        False,
-        description="Whether to enable rerank for search results",
-        examples=[True],
-    )
-
-
 class Settings(BaseModel):
     use_mineru: Optional[bool] = Field(None, description="Whether to use MinerU")
     mineru_api_token: Optional[str] = Field(None, description="API token for MinerU")
@@ -868,111 +717,6 @@ class ValidateResponse(BaseModel):
     warnings: Optional[list[str]] = None
 
 
-class GraphLabelsResponse(BaseModel):
-    """
-    Response containing available graph labels
-    """
-
-    labels: list[str] = Field(
-        ...,
-        description="List of available node labels in the knowledge graph",
-        examples=[["墨香居", "李明华", "林晓雯", "深夜读书会"]],
-    )
-
-
-class GraphNodeProperties(BaseModel):
-    """
-    Public node properties for graph visualization.
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    entity_id: Optional[str] = Field(None, description="Entity identifier", examples=["墨香居"])
-    entity_name: Optional[str] = Field(None, description="Entity display name", examples=["墨香居"])
-    entity_type: Optional[str] = Field(None, description="Type of the entity", examples=["organization"])
-    description: Optional[str] = Field(
-        None,
-        description="Description of the entity",
-        examples=["墨香居是这条老巷子里唯一的旧书店，经营着各种书籍，承载了老板李明华的情怀。"],
-    )
-    source_chunk_count: Optional[conint(ge=0)] = Field(
-        None,
-        description="Number of source chunks supporting this entity; raw chunk IDs are not exposed",
-        examples=[3],
-    )
-
-
-class GraphNode(BaseModel):
-    """
-    Knowledge graph node representing an entity
-    """
-
-    id: str = Field(
-        ...,
-        description="Unique identifier for the node (entity name)",
-        examples=["墨香居"],
-    )
-    labels: list[str] = Field(..., description="Labels associated with the node", examples=[["墨香居"]])
-    properties: GraphNodeProperties = Field(..., description="Public node properties")
-
-
-class GraphEdgeProperties(BaseModel):
-    """
-    Public edge properties for graph visualization.
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    weight: Optional[float] = Field(None, description="Relationship weight/strength", examples=[9])
-    description: Optional[str] = Field(
-        None,
-        description="Description of the relationship",
-        examples=["深夜读书会是墨香居的新活动，旨在提升书店的活力和吸引顾客。"],
-    )
-    keywords: Optional[str] = Field(
-        None,
-        description="Keywords associated with the relationship",
-        examples=["书店活力,活动"],
-    )
-    source_chunk_count: Optional[conint(ge=0)] = Field(
-        None,
-        description="Number of source chunks supporting this relationship; raw chunk IDs are not exposed",
-        examples=[2],
-    )
-
-
-class GraphEdge(BaseModel):
-    """
-    Knowledge graph edge representing a relationship
-    """
-
-    id: str = Field(
-        ...,
-        description="Unique identifier for the edge",
-        examples=["墨香居-深夜读书会"],
-    )
-    type: Optional[str] = Field("DIRECTED", description="Type of the relationship", examples=["DIRECTED"])
-    source: str = Field(..., description="Source node ID", examples=["墨香居"])
-    target: str = Field(..., description="Target node ID", examples=["深夜读书会"])
-    properties: GraphEdgeProperties = Field(..., description="Public edge properties")
-
-
-class KnowledgeGraph(BaseModel):
-    """
-    Knowledge graph containing nodes and edges
-    """
-
-    nodes: list[GraphNode] = Field(..., description="List of nodes in the knowledge graph")
-    edges: list[GraphEdge] = Field(..., description="List of edges in the knowledge graph")
-    is_truncated: bool = Field(
-        ...,
-        description="Whether the graph was truncated due to size limits",
-        examples=[False],
-    )
-
-
 class TargetEntityDataRequest(BaseModel):
     """
     Optional target entity configuration. If not specified, auto-select entity with highest degree.
@@ -1058,210 +802,6 @@ class NodeMergeResponse(BaseModel):
         None,
         description="Suggestion ID if this merge was based on a suggestion",
         examples=["msug123"],
-    )
-
-
-class MergeSuggestionsRequest(BaseModel):
-    """
-    Start a new graph-curation analysis run.
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-
-
-class GraphCurationRunSummary(BaseModel):
-    """
-    Summary of an asynchronous graph-curation run.
-    """
-
-    id: str = Field(..., description="Run ID", examples=["gcr_abcd1234efgh5678"])
-    collection_id: str = Field(..., description="Collection ID", examples=["col123"])
-    status: Literal["PENDING", "RUNNING", "COMPLETED", "FAILED"] = Field(
-        ..., description="Run lifecycle status", examples=["COMPLETED"]
-    )
-    stats: dict[str, Any] = Field(
-        default_factory=dict,
-        description="Best-effort execution stats for the latest run",
-    )
-    error_message: Optional[str] = Field(
-        None,
-        description="Failure message if the run failed",
-        examples=["LLM adjudication timed out"],
-    )
-    created: Optional[datetime] = Field(None, description="Creation timestamp", examples=["2026-04-23T00:00:00Z"])
-    updated: Optional[datetime] = Field(None, description="Last update timestamp", examples=["2026-04-23T00:02:00Z"])
-    started: Optional[datetime] = Field(None, description="Run start timestamp", examples=["2026-04-23T00:00:05Z"])
-    finished: Optional[datetime] = Field(
-        None,
-        description="Run finish timestamp",
-        examples=["2026-04-23T00:02:00Z"],
-    )
-
-
-class GraphMergeSuggestionEntity(BaseModel):
-    """
-    Snapshot of an entity at suggestion-generation time.
-    """
-
-    entity_id: str = Field(..., description="Entity ID", examples=["e_moxiangju"])
-    entity_name: str = Field(..., description="Entity name", examples=["墨香居"])
-    entity_type: str = Field(..., description="Entity type", examples=["ORGANIZATION"])
-    description: str = Field(..., description="Entity description", examples=["这条老巷子里唯一的旧书店"])
-    source_chunk_count: conint(ge=0) = Field(
-        ...,
-        description="Number of source chunks referenced by this entity",
-        examples=[3],
-    )
-
-
-class GraphMergeSuggestionItem(BaseModel):
-    """
-    Persisted merge suggestion produced by graph curation.
-    """
-
-    id: str = Field(..., description="Suggestion ID", examples=["gcs_abcd1234efgh5678"])
-    run_id: str = Field(..., description="Run that produced this suggestion", examples=["gcr_abcd1234efgh5678"])
-    collection_id: str = Field(..., description="Collection ID", examples=["col123"])
-    status: Literal["PENDING", "ACCEPTED", "REJECTED", "EXPIRED", "SUPERSEDED"] = Field(
-        ..., description="Suggestion lifecycle status", examples=["PENDING"]
-    )
-    entity_ids: list[str] = Field(
-        ...,
-        description="Entity IDs in the candidate merge set",
-        examples=[["e_moxiangju", "e_old_bookstore"]],
-    )
-    entities: list[GraphMergeSuggestionEntity] = Field(
-        ...,
-        description="Entity snapshots captured when the suggestion was generated",
-    )
-    target_entity_id: str = Field(
-        ...,
-        description="Recommended surviving entity ID if the suggestion is accepted",
-        examples=["e_moxiangju"],
-    )
-    confidence_score: confloat(ge=0.0, le=1.0) = Field(
-        ...,
-        description="Aggregated confidence score for this suggestion",
-        examples=[0.91],
-    )
-    reason: str = Field(
-        ...,
-        description="Human-readable explanation from pairwise LLM adjudication",
-        examples=["两个实体都在描述同一家旧书店，名称和上下文高度重合。"],
-    )
-    evidence: Optional[dict[str, Any]] = Field(
-        None,
-        description="Structured supporting evidence used to generate the suggestion",
-    )
-    resolution_note: Optional[str] = Field(
-        None,
-        description="System note explaining why the suggestion left pending state",
-        examples=["superseded_by:gcs_other"],
-    )
-    created: Optional[datetime] = Field(None, description="Creation timestamp", examples=["2026-04-23T00:02:00Z"])
-    updated: Optional[datetime] = Field(None, description="Last update timestamp", examples=["2026-04-23T00:05:00Z"])
-    operated_at: Optional[datetime] = Field(
-        None,
-        description="User-operation timestamp for accepted/rejected suggestions",
-        examples=["2026-04-23T00:05:00Z"],
-    )
-
-
-class MergeSuggestionsRunResponse(BaseModel):
-    """
-    Response returned when starting a graph-curation run.
-    """
-
-    run: GraphCurationRunSummary
-    started: bool = Field(..., description="Whether a new run was actually scheduled", examples=[True])
-    message: str = Field(
-        ...,
-        description="Human-readable status message",
-        examples=["Graph curation run started"],
-    )
-
-
-class MergeSuggestionsResponse(BaseModel):
-    """
-    Latest persisted graph-curation run and its suggestions.
-    """
-
-    run: Optional[GraphCurationRunSummary] = Field(
-        None,
-        description="Latest graph-curation run for this collection, if any",
-    )
-    suggestions: list[GraphMergeSuggestionItem] = Field(
-        ...,
-        description="Suggestions from the latest run, ordered by confidence score",
-    )
-
-
-class SuggestionActionRequest(BaseModel):
-    """
-    Request to take action on a merge suggestion
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    action: Literal["accept", "reject"] = Field(
-        ...,
-        description="Action to take on the suggestion (case-insensitive, e.g., 'Accept', 'REJECT', 'accept')",
-        examples=["accept"],
-    )
-
-    @field_validator("action", mode="before")
-    @classmethod
-    def normalize_action(cls, value: Any) -> Any:
-        if isinstance(value, str):
-            return value.strip().lower()
-        return value
-
-
-class SuggestionActionMergeResult(BaseModel):
-    """
-    Merge result returned when accepting a graph-curation suggestion.
-    """
-
-    target_entity_id: str = Field(..., description="Surviving entity ID after merge", examples=["e_moxiangju"])
-    merged_source_ids: list[str] = Field(..., description="Merged-away entity IDs", examples=[["e_old_bookstore"]])
-    description: str = Field(..., description="Merged description of the surviving entity")
-    source_chunk_ids: list[str] = Field(
-        ...,
-        description="Source chunk IDs preserved on the surviving entity",
-        examples=[["chunk_1", "chunk_8"]],
-    )
-    edges_redirected: conint(ge=0) = Field(..., description="Number of redirected edges", examples=[5])
-    edges_collapsed: conint(ge=0) = Field(..., description="Number of duplicate edges collapsed", examples=[2])
-
-
-class SuggestionActionResponse(BaseModel):
-    """
-    Response containing suggestion action results
-    """
-
-    status: Literal["success", "error"] = Field(..., description="Status of the action operation", examples=["success"])
-    message: str = Field(
-        ...,
-        description="Detailed message about the action operation",
-        examples=["Suggestion msug123 has been accepted and merge completed"],
-    )
-    suggestion_id: str = Field(..., description="The suggestion ID that was processed", examples=["msug123"])
-    action: Literal["accept", "reject"] = Field(
-        ...,
-        description="The action that was performed (normalized to lowercase)",
-        examples=["accept"],
-    )
-    suggestion_status: Literal["ACCEPTED", "REJECTED"] = Field(
-        ...,
-        description="Suggestion status after action processing",
-        examples=["ACCEPTED"],
-    )
-    merge_result: Optional[SuggestionActionMergeResult] = Field(
-        None,
-        description="Merge operation result (only present when action is 'accept')",
     )
 
 
@@ -2259,3 +1799,48 @@ class ExportTaskResponse(BaseModel):
         None,
         description="Time when the export file will be automatically deleted (7 days after creation)",
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 compatibility re-exports
+# ---------------------------------------------------------------------------
+#
+# The retrieval + knowledge_graph Pydantic view models were relocated
+# to ``aperag.domains.retrieval.schemas`` and
+# ``aperag.domains.knowledge_graph.schemas`` by the Phase 2 hard-cut.
+# Their class definitions above were deleted. These re-export lines
+# keep legacy consumers working — e.g. ``aperag.schema.view_models.SearchRequest``
+# still imports the canonical class — until the Phase 3 DB-split PR
+# retires ``aperag.schema.view_models`` itself. Domain code must import
+# directly from the canonical modules; consumers outside
+# ``aperag/domains/**`` may continue to use either path during the
+# transition window.
+from aperag.domains.knowledge_graph.schemas import (  # noqa: E402,F401
+    GraphCurationRunSummary,
+    GraphEdge,
+    GraphEdgeProperties,
+    GraphLabelsResponse,
+    GraphMergeSuggestionEntity,
+    GraphMergeSuggestionItem,
+    GraphNode,
+    GraphNodeProperties,
+    KnowledgeGraph,
+    MergeSuggestionsRequest,
+    MergeSuggestionsResponse,
+    MergeSuggestionsRunResponse,
+    SuggestionActionMergeResult,
+    SuggestionActionRequest,
+    SuggestionActionResponse,
+)
+from aperag.domains.retrieval.schemas import (  # noqa: E402,F401
+    FulltextSearchParams,
+    GraphSearchParams,
+    SearchRequest,
+    SearchResult,
+    SearchResultItem,
+    SearchResultList,
+    SearchResultMetadata,
+    SummarySearchParams,
+    VectorSearchParams,
+    VisionSearchParams,
+)

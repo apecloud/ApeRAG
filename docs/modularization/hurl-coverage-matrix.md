@@ -22,6 +22,8 @@ phases must update both the Hurl file and this matrix so nothing drifts.
 | `full/16_evaluation_v2.hurl` | `evaluation` | evaluation v2 dataset + run. |
 | `full/17_chat_collection_flow.hurl` | `conversation` + `knowledge_base` | cross-domain chat over collection. |
 | `full/18_web_access_http.hurl` | `web_access` | deterministic validation-only contract (missing body / bad body / malformed JSON). Provider-independent — never exercises live JINA / DuckDuckGo fetches. |
+| `full/19_retrieval_http.hurl` | `retrieval` | Phase 2 domain hard-cut: validation + typed-empty-shape contract for `/api/v2/collections/{id}/searches*` (create / list / delete + missing query + unknown collection). Provider-independent: no real recall backend is touched because the test collection disables every strategy. |
+| `full/20_knowledge_graph_http.hurl` | `knowledge_graph` | Phase 2 domain hard-cut: validation + typed-empty-shape contract for `/api/v2/collections/{id}/graphs*` (labels / subgraph / nodes-merge / merge-suggestions GET + action 404). Provider-independent: curation-run POST coverage is deferred to provider/full. |
 
 ## Domains → hurl coverage target
 
@@ -30,8 +32,8 @@ phases must update both the Hurl file and this matrix so nothing drifts.
 | `identity` | `01_auth`, `04_api_key` | — | add Phase 4 identity hardening if v1 → v2 path rename. |
 | `knowledge_base` | `02_collection`, `03_document_basic` | `11_document_full`, `17_chat_collection_flow` | Phase 3 rewires if KB / indexing boundaries change. |
 | `indexing` | `03_document_basic` (status) | `11_document_full` | Phase 3 pilot DB model split — keep Alembic + status paths covered. |
-| `retrieval` | *(none yet)* | *(none yet)* | Phase 2 — **add `full/18_retrieval_http.hurl`** for create / list / delete + bad request (smoke gate). |
-| `knowledge_graph` | *(none yet)* | `14_graph_http` | Phase 2 — update `14_graph_http.hurl` when `/collections/{id}/graphs*` moves under `aperag/domains/knowledge_graph/api`. |
+| `retrieval` | *(none yet)* | `19_retrieval_http` | Phase 2 landed: `19_retrieval_http.hurl` covers validation + typed-empty-shape contract for `/api/v2/collections/{id}/searches*`. Provider-dependent live recall coverage must live in provider/full, never in smoke. |
+| `knowledge_graph` | *(none yet)* | `14_graph_http` (legacy v1 — flagged for retirement), `20_knowledge_graph_http` | Phase 2 landed: `20_knowledge_graph_http.hurl` covers labels / subgraph / nodes-merge / merge-suggestions GET + action 404 on `/api/v2/`. Follow-up PR should retire or retarget the legacy `14_graph_http.hurl` once the v1 graph paths are fully decommissioned. |
 | `web_access` | *(none yet)* | `18_web_access_http.hurl` | Phase 2a landed: `18_web_access_http.hurl` covers validation-only contract for `/api/v2/web/search` + `/api/v2/web/read` (missing body / bad body / malformed JSON). Provider-dependent live-fetch Hurl, if any, must live in the provider/full job so it cannot block smoke. |
 | `conversation` | *(none yet)* | `12_bot`, `13_chat_http`, `17_chat_collection_flow` | Phase 5 ownership cleanup. |
 | `agent_runtime` | *(none yet)* | `15_agent_runtime_v3` | Phase 5 — SSE shape unchanged unless explicitly redesigned. |

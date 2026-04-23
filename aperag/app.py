@@ -33,6 +33,8 @@ if settings.otel_enabled:
 
 from fastapi import FastAPI  # noqa: E402
 
+from aperag.domains.knowledge_graph.api.routes import router as knowledge_graph_router
+from aperag.domains.retrieval.api.routes import router as retrieval_router
 from aperag.domains.web_access.api.routes import router as web_access_router
 from aperag.exception_handlers import register_exception_handlers
 from aperag.llm.litellm_track import register_custom_llm_track
@@ -50,7 +52,6 @@ from aperag.views.config import router as config_router
 from aperag.views.documents_v2 import router as documents_v2_router
 from aperag.views.evaluation_v2 import router as evaluation_v2_router
 from aperag.views.export import router as export_router
-from aperag.views.graph import router as graph_router
 from aperag.views.llm import router as llm_router
 from aperag.views.main import router as main_router
 from aperag.views.marketplace import router as marketplace_router
@@ -99,12 +100,15 @@ app.include_router(export_router, prefix="/api/v1")  # Add export router
 app.include_router(api_key_router, prefix="/api/v1")
 app.include_router(audit_router, prefix="/api/v1")  # Add audit router
 app.include_router(llm_router, prefix="/api/v1")
-app.include_router(graph_router, prefix="/api/v1")
 app.include_router(marketplace_router, prefix="/api/v1")  # Add marketplace router
 app.include_router(marketplace_collections_router, prefix="/api/v1")  # Add marketplace collections router
 app.include_router(settings_router, prefix="/api/v1")
 app.include_router(prompts_router, prefix="/api/v1")  # Add prompts router
 app.include_router(web_access_router, prefix="/api/v2", tags=["web_access"])  # Add web_access domain router
+app.include_router(retrieval_router, prefix="/api/v2", tags=["retrieval"])  # Add retrieval domain router
+app.include_router(
+    knowledge_graph_router, prefix="/api/v2", tags=["knowledge_graph"]
+)  # Add knowledge_graph domain router
 app.include_router(chat_router, prefix="/api/v1")
 app.include_router(openai_router, prefix="/v1")
 app.include_router(config_router, prefix="/api/v1/config")

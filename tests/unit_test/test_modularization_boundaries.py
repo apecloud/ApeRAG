@@ -354,3 +354,159 @@ def test_aperag_domains_auth_dependency_is_not_any():
         "just `id`), or import a canonical domain-owned auth context. "
         "Never strip the type:\n  " + "\n  ".join(sorted(offenders))
     )
+
+
+# ---------- Retrieval <-> knowledge_graph one-way bridge ----------
+
+
+_RETRIEVAL_FORBIDDEN_KG_IMPORTS = (
+    # Retrieval must go through `retrieval.ports.GraphSearchContract`;
+    # it is not allowed to static-import the knowledge_graph domain
+    # service or its schemas.
+    "aperag.domains.knowledge_graph.service",
+    "aperag.domains.knowledge_graph.schemas",
+    # Retrieval must not import the graph-curation or graphindex
+    # integration modules directly — those are knowledge_graph
+    # territory. The pipeline uses a narrow local factory helper to
+    # reach graphindex, but only through the `GraphSearchContract`
+    # protocol; explicitly forbid any broader imports here.
+    "aperag.graph_curation",
+    "aperag.graphindex",
+)
+
+_KG_FORBIDDEN_RETRIEVAL_IMPORTS = (
+    # Lesson 9a-quad: the Protocol is owned by the *consumer*. The
+    # provider domain (knowledge_graph) must not static-import the
+    # consumer's ports module because doing so would reintroduce the
+    # circular dependency the one-way bridge was built to avoid.
+    "aperag.domains.retrieval.ports",
+    "aperag.domains.retrieval.schemas",
+    "aperag.domains.retrieval.service",
+    "aperag.domains.retrieval.pipeline",
+)
+
+
+def _iter_domain_py_files_for(domain: str) -> list[Path]:
+    root = REPO_ROOT / "aperag" / "domains" / domain
+    if not root.exists():
+        return []
+    return sorted(
+        path
+        for path in root.rglob("*.py")
+        if path.is_file() and path.name != "__init__.py"
+    )
+
+
+def test_retrieval_kg_protocol_boundary_is_one_way():
+    """Lessons 9a-quad + G3 / G10: the ``retrieval`` and
+    ``knowledge_graph`` domains talk through Protocols owned by the
+    consumer, never through direct static imports.
+
+    * ``retrieval/**`` must not import any ``knowledge_graph`` service
+      / schemas module, nor the ``aperag.graph_curation`` /
+      ``aperag.graphindex`` packages wholesale (the one exception is
+      the narrow local graphindex factory call that still resolves
+      to a ``GraphSearchContract`` Protocol).
+    * ``knowledge_graph/**`` must not import the ``retrieval`` ports
+      or service / schemas (which would re-establish the cycle).
+
+    Scoped to ``aperag/domains/**`` only — infrastructure code (e.g.
+    ``aperag.graphindex.*``) is free to import whatever it needs.
+    """
+    offenders: list[str] = []
+
+    for path in _iter_domain_py_files_for("retrieval"):
+        # Local factory helper import is allowed (it reaches into
+        # graphindex but only returns a ``GraphSearchContract`` typed
+        # reference) — we therefore forbid only the *top-level*
+        # ``aperag.graphindex`` / ``aperag.graph_curation`` names but
+        # allow ``aperag.graphindex.integration`` because the pipeline
+        # needs the singleton factory. Specifically list the forbidden
+        # packages without their submodules.
+        modules = _imported_modules(path.read_text())
+        for forbidden in _RETRIEVAL_FORBIDDEN_KG_IMPORTS:
+            hit = next(
+                (
+                    module
+                    for module in modules
+                    if module == forbidden or module.startswith(forbidden + ".")
+                ),
+                None,
+            )
+            if hit is None:
+                continue
+            # Whitelist the narrow graphindex submodules the pipeline
+            # legitimately uses via the ``GraphSearchContract`` bridge.
+            if forbidden == "aperag.graphindex" and hit in {
+                "aperag.graphindex.integration",
+            }:
+                continue
+            offenders.append(
+                f"{path.relative_to(REPO_ROOT).as_posix()} imports {hit} "
+                f"(forbidden by retrieval ↔ knowledge_graph one-way bridge)"
+            )
+
+    for path in _iter_domain_py_files_for("knowledge_graph"):
+        modules = _imported_modules(path.read_text())
+        for forbidden in _KG_FORBIDDEN_RETRIEVAL_IMPORTS:
+            if any(module == forbidden or module.startswith(forbidden + ".") for module in modules):
+                offenders.append(
+                    f"{path.relative_to(REPO_ROOT).as_posix()} imports {forbidden} "
+                    f"(forbidden by retrieval ↔ knowledge_graph one-way bridge)"
+                )
+
+    assert not offenders, (
+        "retrieval ↔ knowledge_graph cross-domain bridge must stay "
+        "one-way: the Protocol is owned by the consumer, the provider "
+        "structurally satisfies it. Replace the direct import with a "
+        "Protocol-typed dependency or move the call to the owning "
+        "domain. Offenders:\n  " + "\n  ".join(sorted(offenders))
+    )
+
+
+# ---------- Legacy route residue check ----------
+
+
+_LEGACY_ROUTE_PATTERNS = (
+    # Retrieval / KG routes that must not survive under the residual
+    # ``aperag.views.*`` modules after the Phase 2 hard-cut.
+    re.compile(r"""@router\.(?:post|get|delete|put|patch)\(\s*["'][^"']*/collections/\{[^/]+\}/searches"""),
+    re.compile(r"""@router\.(?:post|get|delete|put|patch)\(\s*["'][^"']*/collections/\{[^/]+\}/graphs/labels"""),
+    re.compile(r"""@router\.(?:post|get|delete|put|patch)\(\s*["'][^"']*/collections/\{[^/]+\}/graphs(?!/export/kg-eval)"""),
+    re.compile(r"""@router\.(?:post|get|delete|put|patch)\(\s*["'][^"']*/collections/\{[^/]+\}/graph-curation"""),
+)
+
+
+def test_no_legacy_retrieval_or_graph_routes_remain():
+    """After the Phase 2 hard-cut, ``aperag/views/collections.py`` and
+    ``aperag/views/graph.py`` must not contain any router decorator
+    that still owns a retrieval / knowledge_graph path.
+
+    The only explicitly allowed graph route left in ``views/graph.py``
+    is the ``GET /collections/{id}/graphs/export/kg-eval`` 410-Gone
+    shim (kept for out-of-tree callers hitting the deleted LightRAG
+    endpoint). The regex above carves out that exception with a
+    negative lookahead.
+    """
+    paths = [
+        REPO_ROOT / "aperag" / "views" / "collections.py",
+        REPO_ROOT / "aperag" / "views" / "graph.py",
+    ]
+    offenders: list[str] = []
+    for path in paths:
+        if not path.exists():
+            continue
+        source = path.read_text()
+        for pattern in _LEGACY_ROUTE_PATTERNS:
+            for match in pattern.finditer(source):
+                line = source.count("\n", 0, match.start()) + 1
+                snippet = match.group(0).strip()
+                offenders.append(f"{path.relative_to(REPO_ROOT).as_posix()}:{line}: {snippet}")
+
+    assert not offenders, (
+        "Residual legacy retrieval / knowledge_graph route decorator "
+        "survived the Phase 2 hard-cut. Move the handler into the "
+        "canonical domain (`aperag/domains/retrieval/api/routes.py` "
+        "or `aperag/domains/knowledge_graph/api/routes.py`) and "
+        "delete the legacy entry. Offenders:\n  " + "\n  ".join(offenders)
+    )

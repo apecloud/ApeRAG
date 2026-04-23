@@ -189,8 +189,8 @@ request_json POST "/api/v2/collections/${collection_id}/documents/confirm" "$(jq
 
 wait_for_graph_index "${collection_id}" "${document_id}"
 
-labels_body="$(request_json GET "/api/v1/collections/${collection_id}/graphs/labels")"
-graph_body="$(request_json GET "/api/v1/collections/${collection_id}/graphs?label=*&max_nodes=50&max_depth=2")"
+labels_body="$(request_json GET "/api/v2/collections/${collection_id}/graphs/labels")"
+graph_body="$(request_json GET "/api/v2/collections/${collection_id}/graphs?label=*&max_nodes=50&max_depth=2")"
 
 jq -e '(.labels // []) | length > 0' <<<"${labels_body}" >/dev/null
 jq -e '(.nodes // []) | length > 0' <<<"${graph_body}" >/dev/null

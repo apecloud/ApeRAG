@@ -14,7 +14,7 @@ import pytest
 from aperag.graph_curation.candidate_generation import CandidatePair
 from aperag.graph_curation.service import GraphCurationService, MergeJudgement
 from aperag.graphindex.dto import Entity
-from aperag.schema.view_models import SuggestionActionRequest
+from aperag.domains.knowledge_graph.schemas import SuggestionActionRequest
 
 
 def _entity(entity_id: str, name: str, *, chunk_ids: tuple[str, ...] = ()) -> Entity:

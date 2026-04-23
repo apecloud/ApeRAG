@@ -1,4 +1,3 @@
-import { SearchRequest } from '@/api';
 import { useCollectionContext } from '@/components/providers/collection-provider';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -21,7 +20,8 @@ import {
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
-import { apiClient } from '@/lib/api/client';
+import { createSearch } from '@/features/retrieval/client-api';
+import type { SearchRequest } from '@/features/retrieval/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Slot } from '@radix-ui/react-slot';
 import { useTranslations } from 'next-intl';
@@ -119,10 +119,7 @@ export const SearchTest = ({ children }: { children: ReactNode }) => {
         data.graph_search = values.graph_search;
       }
 
-      await apiClient.defaultApi.collectionsCollectionIdSearchesPost({
-        collectionId: collection.id,
-        searchRequest: data,
-      });
+      await createSearch(collection.id, data);
 
       setVisible(false);
 
