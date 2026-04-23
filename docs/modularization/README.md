@@ -23,6 +23,9 @@ owners can execute against a single reviewable source of truth.
   jobs (`e2e-http-smoke` / provider / EKS full).
 - [`gate-checklist.md`](./gate-checklist.md) — per-phase PR-body
   requirements, local gates, and GitHub CI gates.
+- [`roadmap.md`](./roadmap.md) — execution order, PR slicing,
+  dependencies, and explicit non-goals for Phase 1b remaining through
+  final cleanup.
 - [`breaking-changes/phase-template.md`](./breaking-changes/phase-template.md) —
   the breaking-change table template every destructive phase must fill
   out before merge.
