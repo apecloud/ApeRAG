@@ -46,11 +46,11 @@ const matchesSearch = (dataset: BenchmarkDataset, searchValue: string) => {
     dataset.source_type,
     dataset.latest_version?.version_name,
     dataset.latest_version?.version,
-  ].some((value) => value?.toLowerCase().includes(query));
+  ].some((value) => String(value ?? '').toLowerCase().includes(query));
 };
 
 const getCaseCount = (dataset: BenchmarkDataset) => {
-  return dataset.case_count ?? dataset.latest_version?.case_count ?? 0;
+  return dataset.latest_version?.case_count ?? 0;
 };
 
 const getVersionCount = (dataset?: BenchmarkDataset | null) => {
@@ -155,7 +155,7 @@ export const BenchmarksPanel = ({
       ...defaultVersionForm,
       versionName: getVersionSeed(resolvedDataset),
       caseKey: resolvedDataset?.name
-        ? `${resolvedDataset.name.toLowerCase().replace(/\s+/g, '-')}-001`
+        ? `${String(resolvedDataset.name).toLowerCase().replace(/\s+/g, '-')}-001`
         : '',
     });
     setCreateVersionOpen(true);
@@ -213,6 +213,7 @@ export const BenchmarksPanel = ({
             input_message: versionForm.inputMessage.trim(),
             expected_answer: versionForm.expectedAnswer.trim() || undefined,
             reference_context: versionForm.referenceContext.trim() || undefined,
+            sort_key: 0,
           },
         ],
       });
@@ -229,7 +230,7 @@ export const BenchmarksPanel = ({
         versionName:
           payload.version_name ||
           versionForm.versionName.trim() ||
-          payload.version,
+          String(payload.version),
       });
       setCreateVersionOpen(false);
       setVersionForm(defaultVersionForm);

@@ -46,3 +46,8 @@ def test_evaluation_feature_uses_v2_typed_api_boundary():
     assert "fetch(" not in feature_sources
     assert "/api/v2/benchmark-datasets" in feature_sources
     assert "/api/v2/evaluation-runs" in feature_sources
+
+    benchmarks_panel = (
+        REPO_ROOT / "web/src/components/evaluation/benchmarks-panel.tsx"
+    ).read_text()
+    assert "String(value ?? '').toLowerCase()" in benchmarks_panel
