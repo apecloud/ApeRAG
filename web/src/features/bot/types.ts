@@ -9,6 +9,21 @@ export type Chat = components['schemas']['Chat'];
 export type ChatList = components['schemas']['ChatList'];
 export type ChatDetails = components['schemas']['ChatDetails'];
 export type ChatUpdate = components['schemas']['ChatUpdate'];
+export type ChatMessage = components['schemas']['ChatMessage'];
+
+export type Feedback = components['schemas']['Feedback'];
+export type FeedbackTag = NonNullable<Feedback['tag']>;
+export type FeedbackType = NonNullable<Feedback['type']>;
+
+export const FEEDBACK_TAGS = [
+  'Harmful',
+  'Unsafe',
+  'Fake',
+  'Unhelpful',
+  'Other',
+] as const satisfies readonly FeedbackTag[];
+
+export type Reference = components['schemas']['Reference'];
 
 export type TitleGenerateRequest =
   components['schemas']['TitleGenerateRequest'];

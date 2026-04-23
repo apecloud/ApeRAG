@@ -1,4 +1,4 @@
-import { Reference } from '@/api';
+import type { Reference } from '@/features/bot/types';
 import { Markdown } from '@/components/markdown';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -39,6 +39,15 @@ export const MessageReference = ({
         </DrawerHeader>
         <div className="overflow-auto px-4 pb-4 select-text">
           {references?.map((reference: Reference, index) => {
+            const query =
+              typeof reference.metadata?.query === 'string'
+                ? reference.metadata.query
+                : undefined;
+            const type =
+              typeof reference.metadata?.type === 'string'
+                ? reference.metadata.type
+                : undefined;
+            const text = reference.text ?? '';
             return (
               <MessageCollapseContent
                 defaultOpen={index <= 2}
@@ -47,17 +56,16 @@ export const MessageReference = ({
                   <div className="flex flex-row justify-between">
                     <div>
                       {index + 1}.{' '}
-                      {reference.metadata?.query ||
-                        _.truncate(reference.text, { length: 30 })}
+                      {query || _.truncate(text, { length: 30 })}
                     </div>
                     <div className="text-muted-foreground ml-auto flex flex-row items-center gap-2 text-xs">
-                      <span>{_.startCase(reference.metadata?.type)}</span>
+                      <span>{_.startCase(type)}</span>
                       <span>{(reference.score || 0).toFixed(2)}</span>
                     </div>
                   </div>
                 }
               >
-                <Markdown>{reference.text}</Markdown>
+                <Markdown>{text}</Markdown>
               </MessageCollapseContent>
             );
           })}
