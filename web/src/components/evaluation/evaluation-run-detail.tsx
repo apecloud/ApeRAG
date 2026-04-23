@@ -26,14 +26,19 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
+import {
+  cancelEvaluationRun,
+  retryEvaluationRunItem,
+} from '@/features/evaluation/client-api';
+import type {
+  EvaluationRunDetailResponse,
+  EvaluationRunItem,
+} from '@/features/evaluation/types';
 import { EvaluationApiNotice } from './api-notice';
 import { EvaluationEmptyState } from './empty-state';
 import { EvaluationStatusBadge } from './status-badge';
-import type { EvaluationRunDetailResponse, EvaluationRunItem } from './types';
 
 const NON_TERMINAL_RUN_STATUSES = new Set(['queued', 'running']);
-
-const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
 
 const getRunProgress = (detail?: EvaluationRunDetailResponse | null) => {
   if (typeof detail?.progress?.percent === 'number') {
@@ -50,28 +55,6 @@ const getRunProgress = (detail?: EvaluationRunDetailResponse | null) => {
     (detail.summary.cancelled || 0);
 
   return Math.round((resolved / detail.summary.total) * 100);
-};
-
-const extractErrorMessage = (payload: unknown) => {
-  if (
-    payload &&
-    typeof payload === 'object' &&
-    'detail' in payload &&
-    typeof payload.detail === 'string'
-  ) {
-    return payload.detail;
-  }
-
-  if (
-    payload &&
-    typeof payload === 'object' &&
-    'message' in payload &&
-    typeof payload.message === 'string'
-  ) {
-    return payload.message;
-  }
-
-  return undefined;
 };
 
 const matchesSearch = (item: EvaluationRunItem, searchValue: string) => {
@@ -130,32 +113,11 @@ export const EvaluationRunDetail = ({
     });
   };
 
-  const postAction = async (path: string, body?: unknown) => {
-    const response = await fetch(`${basePath}${path}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: body ? JSON.stringify(body) : undefined,
-    });
-
-    const payload = await response.json().catch(() => undefined);
-
-    if (!response.ok) {
-      throw new Error(
-        extractErrorMessage(payload) ||
-          `Request failed with status ${response.status}`,
-      );
-    }
-
-    return payload;
-  };
-
   const handleCancelRun = async () => {
     if (!run?.id) return;
 
     try {
-      await postAction(`/api/v2/evaluation-runs/${run.id}/cancel`);
+      await cancelEvaluationRun(run.id);
       toast.success(t('cancel_success'));
       refreshPage();
     } catch (actionError) {
@@ -169,10 +131,7 @@ export const EvaluationRunDetail = ({
     if (!run?.id || !itemId) return;
 
     try {
-      await postAction(
-        `/api/v2/evaluation-runs/${run.id}/items/${itemId}/retry`,
-        {},
-      );
+      await retryEvaluationRunItem(run.id, itemId);
       toast.success(t('retry_success'));
       refreshPage();
     } catch (actionError) {
@@ -341,11 +300,7 @@ export const EvaluationRunDetail = ({
                     <TableCell>
                       <EvaluationStatusBadge status={item.status} />
                     </TableCell>
-                    <TableCell>
-                      {typeof item.best_score === 'number'
-                        ? item.best_score.toFixed(2)
-                        : '--'}
-                    </TableCell>
+                    <TableCell>{item.best_score ?? '--'}</TableCell>
                     <TableCell>
                       <div className="space-y-1">
                         <div>

@@ -6,5 +6,5 @@ export default async function Page({
   params: Promise<{ questionSetId: string; collectionId: string }>;
 }) {
   const { collectionId } = await params;
-  redirect(`/workspace/collections/${collectionId}`);
+  redirect(`/workspace/collections/${collectionId}/benchmarks`);
 }

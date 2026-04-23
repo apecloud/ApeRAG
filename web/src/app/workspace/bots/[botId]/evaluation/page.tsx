@@ -1,11 +1,11 @@
 import { BotSectionNav } from '@/components/evaluation/bot-section-nav';
 import { EvaluationRunsPanel } from '@/components/evaluation/evaluation-runs-panel';
-import { listEvaluationRuns } from '@/components/evaluation/server';
 import {
   PageContainer,
   PageContent,
   PageHeader,
 } from '@/components/page-container';
+import { listEvaluationRuns } from '@/features/evaluation/server-api';
 import { getServerApi } from '@/lib/api/server';
 import { toJson } from '@/lib/utils';
 import { getTranslations } from 'next-intl/server';

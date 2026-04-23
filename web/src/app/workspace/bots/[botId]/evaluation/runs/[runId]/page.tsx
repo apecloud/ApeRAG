@@ -1,14 +1,14 @@
+import { BotSectionNav } from '@/components/evaluation/bot-section-nav';
+import { EvaluationRunDetail } from '@/components/evaluation/evaluation-run-detail';
 import {
   PageContainer,
   PageContent,
   PageHeader,
 } from '@/components/page-container';
-import { BotSectionNav } from '@/components/evaluation/bot-section-nav';
-import { EvaluationRunDetail } from '@/components/evaluation/evaluation-run-detail';
 import {
   getEvaluationRunDetail,
   listEvaluationRunItems,
-} from '@/components/evaluation/server';
+} from '@/features/evaluation/server-api';
 import { getServerApi } from '@/lib/api/server';
 import { toJson } from '@/lib/utils';
 import { getTranslations } from 'next-intl/server';
@@ -26,7 +26,10 @@ export default async function Page({
   ]);
   const resolvedBotId = runDetail.payload?.run?.bot_id || botId;
 
-  if (runDetail.payload?.run?.bot_id && runDetail.payload.run.bot_id !== botId) {
+  if (
+    runDetail.payload?.run?.bot_id &&
+    runDetail.payload.run.bot_id !== botId
+  ) {
     notFound();
   }
 

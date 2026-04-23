@@ -23,19 +23,18 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Database,
-  FolderPlus,
-  Sparkles,
-} from 'lucide-react';
+import { Database, FolderPlus, Sparkles } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
-import { postEvaluationAction } from './action-utils';
+import {
+  createBenchmarkDataset,
+  createBenchmarkDatasetVersion,
+} from '@/features/evaluation/client-api';
+import type { BenchmarkDataset } from '@/features/evaluation/types';
 import { EvaluationApiNotice } from './api-notice';
 import { DatasetVersionStatusBadge } from './status-badge';
-import type { BenchmarkDataset, BenchmarkDatasetVersion } from './types';
 
 const matchesSearch = (dataset: BenchmarkDataset, searchValue: string) => {
   const query = searchValue.trim().toLowerCase();
@@ -47,11 +46,18 @@ const matchesSearch = (dataset: BenchmarkDataset, searchValue: string) => {
     dataset.source_type,
     dataset.latest_version?.version_name,
     dataset.latest_version?.version,
-  ].some((value) => value?.toLowerCase().includes(query));
+  ].some((value) => String(value ?? '').toLowerCase().includes(query));
 };
 
 const getCaseCount = (dataset: BenchmarkDataset) => {
-  return dataset.case_count ?? dataset.latest_version?.case_count ?? 0;
+  return dataset.latest_version?.case_count ?? 0;
+};
+
+const getVersionCount = (dataset?: BenchmarkDataset | null) => {
+  const version = dataset?.latest_version?.version;
+  if (!version) return undefined;
+  const match = String(version).match(/(\d+)$/);
+  return match ? Number(match[1]) : undefined;
 };
 
 type DatasetFormState = {
@@ -88,7 +94,7 @@ const defaultVersionForm: VersionFormState = {
 };
 
 const getVersionSeed = (dataset?: BenchmarkDataset | null) => {
-  const nextVersion = (dataset?.version_count ?? 0) + 1;
+  const nextVersion = (getVersionCount(dataset) ?? 0) + 1;
   return `v${nextVersion}`;
 };
 
@@ -149,7 +155,7 @@ export const BenchmarksPanel = ({
       ...defaultVersionForm,
       versionName: getVersionSeed(resolvedDataset),
       caseKey: resolvedDataset?.name
-        ? `${resolvedDataset.name.toLowerCase().replace(/\s+/g, '-')}-001`
+        ? `${String(resolvedDataset.name).toLowerCase().replace(/\s+/g, '-')}-001`
         : '',
     });
     setCreateVersionOpen(true);
@@ -162,24 +168,20 @@ export const BenchmarksPanel = ({
     }
 
     try {
-      const payload = await postEvaluationAction<BenchmarkDataset>(
-        '/api/v2/benchmark-datasets',
-        {
+      const payload = await createBenchmarkDataset({
         name: datasetForm.name.trim(),
         description: datasetForm.description.trim() || undefined,
         collection_id: collectionId,
         source_type: 'manual',
-        },
-      );
+      });
 
-      if (!payload.id) {
+      if (!payload?.id) {
         throw new Error(t('create_dataset_missing_id'));
       }
 
       const nextDataset: BenchmarkDataset = {
         ...payload,
         name: payload.name || datasetForm.name.trim(),
-        version_count: payload.version_count ?? 0,
       };
 
       toast.success(t('create_dataset_success'));
@@ -203,22 +205,20 @@ export const BenchmarksPanel = ({
     }
 
     try {
-      const payload = await postEvaluationAction<BenchmarkDatasetVersion>(
-        `/api/v2/benchmark-datasets/${versionTarget.id}/versions`,
-        {
-          version_name: versionForm.versionName.trim() || undefined,
-          cases: [
-            {
-              case_key: versionForm.caseKey.trim() || undefined,
-              input_message: versionForm.inputMessage.trim(),
-              expected_answer: versionForm.expectedAnswer.trim() || undefined,
-              reference_context: versionForm.referenceContext.trim() || undefined,
-            },
-          ],
-        },
-      );
+      const payload = await createBenchmarkDatasetVersion(versionTarget.id, {
+        version_name: versionForm.versionName.trim() || undefined,
+        cases: [
+          {
+            case_key: versionForm.caseKey.trim() || undefined,
+            input_message: versionForm.inputMessage.trim(),
+            expected_answer: versionForm.expectedAnswer.trim() || undefined,
+            reference_context: versionForm.referenceContext.trim() || undefined,
+            sort_key: 0,
+          },
+        ],
+      });
 
-      if (!payload.id) {
+      if (!payload?.id) {
         throw new Error(t('create_version_missing_id'));
       }
 
@@ -230,7 +230,7 @@ export const BenchmarksPanel = ({
         versionName:
           payload.version_name ||
           versionForm.versionName.trim() ||
-          payload.version,
+          String(payload.version),
       });
       setCreateVersionOpen(false);
       setVersionForm(defaultVersionForm);
@@ -569,7 +569,7 @@ export const BenchmarksPanel = ({
 
                     <div className="flex flex-wrap items-center gap-6 text-sm text-slate-500">
                       <div>
-                        {t('version_count')}: {dataset.version_count ?? '--'}
+                        {t('version_count')}: {getVersionCount(dataset) ?? '--'}
                       </div>
                       <div>
                         {t('created_at')}:{' '}
