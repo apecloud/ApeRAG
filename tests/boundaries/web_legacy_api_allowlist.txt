@@ -38,7 +38,6 @@ web/src/components/chat/message-reference.tsx
 web/src/components/chat/message-timestamp.tsx
 web/src/components/collections/export-dialog.tsx
 web/src/components/providers/app-provider.tsx
-web/src/components/providers/bot-provider.tsx
 web/src/components/user-avatar.tsx
 web/src/lib/api/client.ts
 web/src/lib/api/server.ts
