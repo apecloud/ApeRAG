@@ -31,7 +31,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-import { ApiKey } from '@/api';
+import type { ApiKey } from '@/features/api-key/types';
 import { FormatDate } from '@/components/format-date';
 import {
   ChevronDown,

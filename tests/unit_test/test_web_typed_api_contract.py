@@ -18,6 +18,77 @@ def test_server_typed_client_uses_api_root_not_legacy_v1_base_path():
     assert "if (!response.ok)" in server_source
 
 
+def test_api_key_feature_uses_v2_typed_api_boundary():
+    """#3 Phase 1a FE typed adapter skeleton + api-key sample migration.
+
+    The user-scoped API key pages (`app/workspace/api-keys/**`) and the new
+    `features/api-key/*` adapter must consume the typed OpenAPI client only.
+    Any regression to `@/api` legacy SDK or raw `apiClient.defaultApi.apikeys*`
+    calls inside this scope means the Phase 1a baseline (api-key moved off
+    the FE legacy SDK allowlist) has been unwound.
+
+    Negative assertions are scoped to `app/workspace/api-keys/**` and
+    `features/api-key/**` so legitimate uses of the string "api key" in
+    unrelated places (e.g. `features/providers` where `api_key` is a
+    provider credential field, not a user API key) stay unaffected.
+    """
+    checked_paths = [
+        REPO_ROOT / "web/src/app/workspace/api-keys",
+        REPO_ROOT / "web/src/features/api-key",
+    ]
+
+    sources = {
+        path: path.read_text()
+        for root in checked_paths
+        for path in root.rglob("*")
+        if path.is_file() and path.suffix in {".ts", ".tsx"}
+    }
+    joined = "\n".join(sources.values())
+    feature_sources = "\n".join(
+        source
+        for path, source in sources.items()
+        if "/web/src/features/api-key/" in str(path)
+    )
+
+    # Negative: the domain scope must not reach the old generated SDK or
+    # the v1 ApiKey types imported via `@/api`.
+    assert "from '@/api'" not in joined
+    assert "apiClient.defaultApi.apikeys" not in joined
+    assert "serverApi.defaultApi.apikeys" not in joined
+    assert "defaultApi.apikeysGet" not in joined
+    assert "defaultApi.apikeysPost" not in joined
+    assert "defaultApi.apikeysApikeyIdPut" not in joined
+    assert "defaultApi.apikeysApikeyIdDelete" not in joined
+
+    # Positive: the adapter must only reach the typed v1 api-key paths
+    # through the typed openapi client. Phase 1a does not rename the API
+    # path — that is deferred to a later domain/API phase.
+    assert "from '@/api'" not in feature_sources
+    assert "fetch(" not in feature_sources
+    assert "'/api/v1/apikeys'" in feature_sources
+    assert "'/api/v1/apikeys/{apikey_id}'" in feature_sources
+
+    # Positive: the business caller wiring goes through the feature adapter,
+    # not the old generated SDK.
+    actions_tsx = (
+        REPO_ROOT
+        / "web/src/app/workspace/api-keys/api-key-actions.tsx"
+    ).read_text()
+    assert "from '@/features/api-key/client-api'" in actions_tsx
+    assert "from '@/features/api-key/types'" in actions_tsx
+
+    table_tsx = (
+        REPO_ROOT / "web/src/app/workspace/api-keys/api-key-table.tsx"
+    ).read_text()
+    assert "from '@/features/api-key/types'" in table_tsx
+
+    page_tsx = (
+        REPO_ROOT / "web/src/app/workspace/api-keys/page.tsx"
+    ).read_text()
+    assert "from '@/features/api-key/server-api'" in page_tsx
+    assert "serverApi.defaultApi.apikeysGet" not in page_tsx
+
+
 def test_evaluation_feature_uses_v2_typed_api_boundary():
     """Evaluation v3 simplification: FE must only touch the new
     `/api/v2/evaluation-datasets*` and `/api/v2/evaluation-runs*` surface.
