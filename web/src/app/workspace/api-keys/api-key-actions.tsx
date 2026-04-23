@@ -1,6 +1,11 @@
 'use client';
 
-import { ApiKey } from '@/api';
+import {
+  createApiKey,
+  deleteApiKey,
+  updateApiKey,
+} from '@/features/api-key/client-api';
+import type { ApiKey } from '@/features/api-key/types';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -21,7 +26,6 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { apiClient } from '@/lib/api/client';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Slot } from '@radix-ui/react-slot';
 import copy from 'copy-to-clipboard';
@@ -67,22 +71,17 @@ export const ApiKeyActions = ({
 
   const handleCreateOrUpdate = useCallback(
     async (values: z.infer<typeof apiKeySchema>) => {
-      let res;
       if (action === 'edit' && apiKey?.id) {
-        res = await apiClient.defaultApi.apikeysApikeyIdPut({
-          apikeyId: apiKey.id,
-          apiKeyUpdate: values,
-        });
+        await updateApiKey(apiKey.id, values);
+        setCreateOrUpdateVisible(false);
+        setTimeout(router.refresh, 300);
+        return;
       }
       if (action === 'add') {
-        res = await apiClient.defaultApi.apikeysPost({
-          apiKeyCreate: values,
-        });
-      }
-      if (res?.status === 200) {
+        const created = await createApiKey(values);
         setCreateOrUpdateVisible(false);
-        if (action === 'add' && res.data) {
-          setCreatedApiKey(res.data);
+        if (created) {
+          setCreatedApiKey(created as ApiKey);
           setCreatedKeyVisible(true);
           form.reset({ description: '' });
           return;
@@ -95,13 +94,9 @@ export const ApiKeyActions = ({
 
   const handleDelete = useCallback(async () => {
     if (action === 'delete' && apiKey?.id) {
-      const res = await apiClient.defaultApi.apikeysApikeyIdDelete({
-        apikeyId: apiKey.id,
-      });
-      if (res?.status === 200) {
-        setDeleteVisible(false);
-        setTimeout(router.refresh, 300);
-      }
+      await deleteApiKey(apiKey.id);
+      setDeleteVisible(false);
+      setTimeout(router.refresh, 300);
     }
   }, [action, apiKey?.id, router]);
 
