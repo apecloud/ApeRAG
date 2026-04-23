@@ -336,8 +336,18 @@ class EvaluationRunService:
         return resolved.id
 
     async def launch_run(self, run_id: str) -> None:
-        """Hand the run off to the async worker pipeline (Celery producer seam)."""
-        return None
+        """Hand the run off to the async worker pipeline (Celery producer seam).
+
+        The task implementation lives in :mod:`aperag.evaluation_v2.tasks`
+        and drains ``evaluation_run_items`` through
+        :func:`aperag.evaluation_v2.worker.execute_evaluation_run`. The
+        import is lazy so unit tests for create/list/cancel paths do not
+        have to stand up Celery just to exercise the service.
+        """
+
+        from aperag.evaluation_v2.tasks import run_evaluation_run
+
+        run_evaluation_run.delay(run_id)
 
     async def list_runs(
         self,
