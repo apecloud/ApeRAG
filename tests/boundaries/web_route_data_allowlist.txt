@@ -15,5 +15,4 @@ web/src/app/workspace/collections/[collectionId]/graph/collection-graph.tsx
 web/src/app/workspace/collections/[collectionId]/search/page.tsx
 web/src/app/workspace/collections/[collectionId]/search/search-delete.tsx
 web/src/app/workspace/collections/[collectionId]/search/search-test.tsx
-web/src/app/workspace/collections/collection-form.tsx
 web/src/app/workspace/layout.tsx

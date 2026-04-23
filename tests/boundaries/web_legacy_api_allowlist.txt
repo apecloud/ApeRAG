@@ -9,7 +9,6 @@ web/src/app/marketplace/collections/[collectionId]/documents/documents-table.tsx
 web/src/app/workspace/audit-logs/audit-log-detail.tsx
 web/src/app/workspace/audit-logs/audit-log-table.tsx
 web/src/app/workspace/audit-logs/page.tsx
-web/src/app/workspace/collections/[collectionId]/collection-header.tsx
 web/src/app/workspace/collections/[collectionId]/documents/document-index-status.tsx
 web/src/app/workspace/collections/[collectionId]/documents/document-rebuild-index.tsx
 web/src/app/workspace/collections/[collectionId]/documents/documents-table.tsx
@@ -23,8 +22,6 @@ web/src/app/workspace/collections/[collectionId]/search/search-delete.tsx
 web/src/app/workspace/collections/[collectionId]/search/search-result-drawer.tsx
 web/src/app/workspace/collections/[collectionId]/search/search-table.tsx
 web/src/app/workspace/collections/[collectionId]/search/search-test.tsx
-web/src/app/workspace/collections/collection-form.tsx
-web/src/app/workspace/collections/collection-list.tsx
 web/src/app/workspace/collections/feature-visibility.ts
 web/src/app/workspace/collections/tools.ts
 web/src/components/chat/agent-turn-card.tsx
@@ -36,7 +33,6 @@ web/src/components/chat/message-parts-ai.tsx
 web/src/components/chat/message-parts-user.tsx
 web/src/components/chat/message-reference.tsx
 web/src/components/chat/message-timestamp.tsx
-web/src/components/collections/export-dialog.tsx
 web/src/components/providers/app-provider.tsx
 web/src/components/user-avatar.tsx
 web/src/lib/api/client.ts

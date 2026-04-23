@@ -1,6 +1,10 @@
 'use client';
 
-import { ExportTaskResponse } from '@/api';
+import {
+  createExportTask,
+  getExportTask,
+} from '@/features/collection/client-api';
+import type { ExportTaskResponse } from '@/features/collection/types';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -11,7 +15,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
-import { apiClient } from '@/lib/api/client';
 import { Slot } from '@radix-ui/react-slot';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -51,8 +54,7 @@ export const CollectionExport = ({
       stopPolling();
       pollingRef.current = setInterval(async () => {
         try {
-          const res = await apiClient.defaultApi.getExportTask({ taskId });
-          const data = res.data;
+          const data = await getExportTask(taskId);
           setTaskStatus(data);
 
           if (data.status === 'COMPLETED') {
@@ -88,8 +90,7 @@ export const CollectionExport = ({
 
   const handleStartExport = useCallback(async () => {
     try {
-      const res = await apiClient.defaultApi.createExportTask({ collectionId });
-      const data = res.data;
+      const data = await createExportTask(collectionId);
       setTaskStatus(data);
       setStep('processing');
       startPolling(data.export_task_id);

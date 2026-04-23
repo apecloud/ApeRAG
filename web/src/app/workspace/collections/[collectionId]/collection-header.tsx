@@ -1,5 +1,5 @@
 'use client';
-import { CollectionViewStatusEnum } from '@/api';
+import type { CollectionStatus } from '@/features/collection/types';
 import { FormatDate } from '@/components/format-date';
 import { PageContent } from '@/components/page-container';
 import { Button } from '@/components/ui/button';
@@ -46,9 +46,7 @@ import { toast } from 'sonner';
 import { CollectionDelete } from './collection-delete';
 
 export const CollectionHeader = ({ className }: { className?: string }) => {
-  const badgeColor: {
-    [key in CollectionViewStatusEnum]: string;
-  } = {
+  const badgeColor: Record<CollectionStatus, string> = {
     ACTIVE: 'bg-green-700',
     INACTIVE: 'bg-red-500',
     DELETED: 'bg-gray-500',

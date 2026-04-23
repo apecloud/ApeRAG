@@ -8,6 +8,7 @@ import type {
   CollectionSummaryTriggerResponse,
   CollectionUpdate,
   CollectionViewList,
+  ExportTaskResponse,
   MineruTokenTestRequest,
   MineruTokenTestResponse,
   SharingStatusResponse,
@@ -127,4 +128,40 @@ export async function unpublishCollectionSharing(
       params: { path: { collection_id: collectionId } },
     },
   );
+}
+
+export async function createExportTask(
+  collectionId: string,
+): Promise<ExportTaskResponse> {
+  const { data } = await browserApiClient.POST(
+    '/api/v1/collections/{collection_id}/export',
+    {
+      params: { path: { collection_id: collectionId } },
+    },
+  );
+  // `ExportTaskResponse` has `export_task_id` + `status` as required fields.
+  // An empty body here means the backend broke its contract; fail fast so
+  // the dialog surfaces a real error instead of silently polling a task with
+  // no id.
+  if (!data) {
+    throw new Error('createExportTask: empty response body');
+  }
+  return data;
+}
+
+export async function getExportTask(
+  taskId: string,
+): Promise<ExportTaskResponse> {
+  const { data } = await browserApiClient.GET(
+    '/api/v1/export-tasks/{task_id}',
+    {
+      params: { path: { task_id: taskId } },
+    },
+  );
+  // Same contract: a single-resource GET must return the typed shape or the
+  // backend is broken. Polling "{}" would otherwise loop forever.
+  if (!data) {
+    throw new Error('getExportTask: empty response body');
+  }
+  return data;
 }
