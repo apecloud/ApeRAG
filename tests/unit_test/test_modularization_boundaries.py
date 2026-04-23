@@ -187,7 +187,15 @@ def _iter_domain_py_files() -> list[Path]:
 def _imported_modules(source: str) -> set[str]:
     """Return the fully-qualified module roots referenced by ``import`` /
     ``from ... import`` statements in ``source``. Only top-level imports
-    are considered; relative imports stay local to the domain."""
+    are considered; relative imports stay local to the domain.
+
+    ``if TYPE_CHECKING:`` guarded imports are **not** excluded — the
+    modularization baseline forbids a canonical domain from binding its
+    type contract to a legacy aggregate even if the import is erased at
+    runtime. Domains that need an auth / user context must express it as
+    a narrow local ``Protocol`` (or a domain-owned contract), not as a
+    type-only reference to ``aperag.db.models.User``.
+    """
     try:
         tree = ast.parse(source)
     except SyntaxError:
@@ -236,4 +244,113 @@ def test_aperag_domains_never_import_legacy_aggregate_modules():
         "replace the import with a contract / domain repository "
         "exposed through `aperag/domains/<owner>/contracts` or a "
         "domain-local model. Offenders:\n  " + "\n  ".join(sorted(offenders))
+    )
+
+
+def _iter_domain_api_py_files() -> list[Path]:
+    """Enumerate `aperag/domains/<d>/api/**/*.py` route modules. These
+    are the files whose HTTP handler signatures express the outward
+    auth / dependency-injection contract of a canonical domain."""
+    root = REPO_ROOT / "aperag" / "domains"
+    if not root.exists():
+        return []
+    return sorted(
+        path
+        for path in root.rglob("*.py")
+        if path.is_file()
+        and path.name != "__init__.py"
+        and "api" in path.relative_to(root).parts
+    )
+
+
+def _annotation_is_any(node: ast.expr | None) -> bool:
+    """Return True if ``node`` is the bare ``Any`` annotation (``Any``
+    or ``typing.Any``)."""
+    if node is None:
+        return True  # Missing annotation is as bad as ``Any``.
+    if isinstance(node, ast.Name) and node.id == "Any":
+        return True
+    if (
+        isinstance(node, ast.Attribute)
+        and node.attr == "Any"
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "typing"
+    ):
+        return True
+    return False
+
+
+def _depends_callee_name(default: ast.expr | None) -> str | None:
+    """If ``default`` is ``Depends(<name>)``, return ``<name>``. Else
+    return ``None``. Used to locate auth-style dependency parameters on
+    route handlers."""
+    if not isinstance(default, ast.Call):
+        return None
+    func = default.func
+    if not (isinstance(func, ast.Name) and func.id == "Depends"):
+        return None
+    if not default.args:
+        return None
+    dep = default.args[0]
+    if isinstance(dep, ast.Name):
+        return dep.id
+    if isinstance(dep, ast.Attribute):
+        return dep.attr
+    return None
+
+
+AUTH_DEPENDENCY_NAMES = frozenset(
+    {
+        # Anything that looks like "the current authenticated user"
+        # dependency. Add more names here when Phase 4 identity
+        # introduces a canonical `current_user` contract.
+        "required_user",
+        "current_user",
+    }
+)
+
+
+def test_aperag_domains_auth_dependency_is_not_any():
+    """An ``aperag/domains/<d>/api/**`` HTTP handler that binds
+    ``Depends(required_user)`` (or another auth dependency) must not
+    annotate the parameter as ``Any`` / ``typing.Any`` / missing. The
+    domain is the public contract surface and it must express the
+    capability it relies on — typically a narrow local ``Protocol``
+    (e.g. ``AuthenticatedUser``) until Phase 4 identity promotes the
+    contract to a domain-owned type.
+
+    The Phase 0 strict ban already prevents direct ``aperag.db.models``
+    imports inside ``aperag/domains/**``; this test closes the
+    complementary loophole: strict-ban compliance must not be bought
+    with a type-safety regression to ``Any``.
+    """
+    offenders: list[str] = []
+    for path in _iter_domain_api_py_files():
+        try:
+            tree = ast.parse(path.read_text())
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            args = node.args
+            for arg, default in zip(args.args[-len(args.defaults):], args.defaults):
+                dep_name = _depends_callee_name(default)
+                if dep_name is None or dep_name not in AUTH_DEPENDENCY_NAMES:
+                    continue
+                if _annotation_is_any(arg.annotation):
+                    offenders.append(
+                        f"{path.relative_to(REPO_ROOT).as_posix()}::"
+                        f"{node.name}({arg.arg}) — "
+                        f"Depends({dep_name}) parameter must declare a "
+                        f"typed contract (Protocol / domain type), not "
+                        f"Any / missing"
+                    )
+
+    assert not offenders, (
+        "Canonical domain API handler uses `Any` / missing annotation "
+        "on an auth dependency. Introduce a narrow local `Protocol` "
+        "that expresses the fields the domain actually reads (usually "
+        "just `id`), or import a canonical domain-owned auth context. "
+        "Never strip the type:\n  " + "\n  ".join(sorted(offenders))
     )

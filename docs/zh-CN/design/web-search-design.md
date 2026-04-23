@@ -341,8 +341,8 @@ service = ReaderService(
 ### 6.1 基础搜索示例
 
 ```python
-from aperag.websearch import SearchService
-from aperag.schema.view_models import WebSearchRequest
+from aperag.domains.web_access.search.search_service import SearchService
+from aperag.domains.web_access.schemas import WebSearchRequest
 
 async def basic_search():
     async with SearchService() as search_service:
@@ -365,8 +365,8 @@ async def basic_search():
 ### 6.2 内容读取示例
 
 ```python
-from aperag.websearch import ReaderService
-from aperag.schema.view_models import WebReadRequest
+from aperag.domains.web_access.reader.reader_service import ReaderService
+from aperag.domains.web_access.schemas import WebReadRequest
 
 async def basic_read():
     async with ReaderService() as reader_service:

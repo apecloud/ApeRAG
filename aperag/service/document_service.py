@@ -1364,8 +1364,8 @@ class DocumentService:
         from starlette.datastructures import Headers
 
         from aperag.db.ops import async_db_ops as _db_ops
-        from aperag.schema.view_models import WebReadRequest
-        from aperag.websearch.reader.reader_service import read_with_jina_fallback
+        from aperag.domains.web_access.reader.reader_service import read_with_jina_fallback
+        from aperag.domains.web_access.schemas import WebReadRequest
 
         # Validate URL count
         if len(urls) > 10:

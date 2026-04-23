@@ -15,22 +15,40 @@
 import copy
 import logging
 import time
-from typing import List
+from typing import List, Protocol
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from aperag.db.models import User
 from aperag.db.ops import async_db_ops
-from aperag.schema.view_models import (
+from aperag.domains.web_access.reader.reader_service import ReaderService, read_with_jina_fallback
+from aperag.domains.web_access.schemas import (
     WebReadRequest,
     WebReadResponse,
     WebSearchMeta,
     WebSearchRequest,
     WebSearchResponse,
 )
+from aperag.domains.web_access.search.search_service import SearchService
 from aperag.views.auth import required_user
-from aperag.websearch.reader.reader_service import ReaderService, read_with_jina_fallback
-from aperag.websearch.search.search_service import SearchService
+
+
+class AuthenticatedUser(Protocol):
+    """Minimal auth-context contract the `web_access` domain depends on.
+
+    ``web_access`` only reads the authenticated user's ``id`` (to look up
+    the per-user JINA API key configuration). Expressing the dependency
+    as a narrow ``Protocol`` keeps the module boundary honest: the
+    domain does not import ``aperag.db.models.User`` (forbidden by the
+    Phase 0 strict ban) and also does not collapse to ``Any`` (which
+    would silently erase the auth contract). Phase 4 identity hard-cut
+    will promote this local ``Protocol`` to a canonical auth context
+    owned by ``aperag/domains/identity``; until then the concrete
+    SQLAlchemy ``User`` structurally satisfies this shape, so
+    ``Depends(required_user)`` still plugs in without change.
+    """
+
+    id: object
+
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +84,9 @@ def _merge_search_meta(base: WebSearchMeta, current: WebSearchMeta, *, fallback_
 
 
 @router.post("/web/search", response_model=WebSearchResponse, tags=["websearch"])
-async def web_search_endpoint(request: WebSearchRequest, user: User = Depends(required_user)) -> WebSearchResponse:
+async def web_search_endpoint(
+    request: WebSearchRequest, user: AuthenticatedUser = Depends(required_user)
+) -> WebSearchResponse:
     """
     Perform best-effort web search with domain targeting.
 
@@ -178,7 +198,9 @@ def _merge_and_rank_results(all_results: List, max_results: int) -> List:
 
 
 @router.post("/web/read", response_model=WebReadResponse, tags=["websearch"])
-async def web_read_endpoint(request: WebReadRequest, user: User = Depends(required_user)) -> WebReadResponse:
+async def web_read_endpoint(
+    request: WebReadRequest, user: AuthenticatedUser = Depends(required_user)
+) -> WebReadResponse:
     """
     Read and extract content from web pages.
 
@@ -237,7 +259,7 @@ async def web_read_endpoint(request: WebReadRequest, user: User = Depends(requir
         raise HTTPException(status_code=500, detail=f"Web read failed: {str(e)}")
 
 
-async def _get_user_jina_api_key(user: User) -> str | None:
+async def _get_user_jina_api_key(user: AuthenticatedUser) -> str | None:
     """
     Get JINA API key for the current user.
 
@@ -296,7 +318,7 @@ async def _read_with_trafilatura_only(request: WebReadRequest) -> WebReadRespons
         raise WebReadError(f"Trafilatura reading failed: {str(e)}") from e
 
 
-async def _search_with_jina_fallback(request: WebSearchRequest, user: User) -> WebSearchResponse:
+async def _search_with_jina_fallback(request: WebSearchRequest, user: AuthenticatedUser) -> WebSearchResponse:
     """
     Search with JINA priority and DuckDuckGo fallback.
 

@@ -13,8 +13,8 @@ from urllib.parse import quote, urlparse
 
 import aiohttp
 
-from aperag.schema.view_models import WebReadResultItem
-from aperag.websearch.reader.base_reader import BaseReaderProvider
+from aperag.domains.web_access.reader.base_reader import BaseReaderProvider
+from aperag.domains.web_access.schemas import WebReadResultItem
 
 logger = logging.getLogger(__name__)
 

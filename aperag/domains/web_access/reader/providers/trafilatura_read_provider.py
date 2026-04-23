@@ -20,10 +20,10 @@ try:
 except ImportError:
     HAS_TRAFILATURA = False
 
-from aperag.schema.view_models import WebReadResultItem
-from aperag.websearch.reader.base_reader import BaseReaderProvider
-from aperag.websearch.utils.content_processor import ContentProcessor
-from aperag.websearch.utils.url_validator import URLValidator
+from aperag.domains.web_access.reader.base_reader import BaseReaderProvider
+from aperag.domains.web_access.schemas import WebReadResultItem
+from aperag.domains.web_access.utils.content_processor import ContentProcessor
+from aperag.domains.web_access.utils.url_validator import URLValidator
 
 logger = logging.getLogger(__name__)
 
