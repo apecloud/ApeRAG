@@ -1,6 +1,7 @@
 'use client';
 
-import { SystemDefaultQuotas } from '@/api';
+import { updateSystemDefaultQuotas } from '@/features/admin/client-api';
+import type { SystemDefaultQuotas } from '@/features/admin/types';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -12,7 +13,6 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { apiClient } from '@/lib/api/client';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -35,13 +35,9 @@ export const QuotaSettings = ({
   const common_action = useTranslations('common.action');
   const page_quota = useTranslations('page_quota');
   const handleSave = useCallback(async () => {
-    const res = await apiClient.quotasApi.systemDefaultQuotasPut({
-      systemDefaultQuotasUpdateRequest: {
-        quotas: data,
-      },
-    });
-    if (res.data.success) {
-      toast.success(res.data.message);
+    const res = await updateSystemDefaultQuotas({ quotas: data });
+    if (res.success) {
+      toast.success(res.message);
     }
   }, [data]);
 

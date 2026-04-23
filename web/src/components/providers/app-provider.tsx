@@ -2,8 +2,13 @@
 
 import { toast } from 'sonner';
 
-import { User } from '@/api';
-import { apiClient } from '@/lib/api/client';
+import {
+  login as loginApi,
+  logout as logoutApi,
+  oauthAuthorize,
+  register as registerApi,
+} from '@/features/auth/client-api';
+import type { User } from '@/features/identity/types';
 import { useRouter } from 'next/navigation';
 import { createContext, useCallback, useContext, useState } from 'react';
 
@@ -72,15 +77,10 @@ export const AppProvider = ({
         if (!data) return;
 
         try {
-          const res = await apiClient.defaultApi.loginPost({
-            login: data,
-          });
-
-          if (res.status === 200) {
-            setUser(res.data);
-            const callbackUrl = options.redirectTo || '/workspace';
-            router.push(callbackUrl);
-          }
+          const user = await loginApi(data);
+          setUser(user);
+          const callbackUrl = options.redirectTo || '/workspace';
+          router.push(callbackUrl);
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
         } catch (err) {
           toast.error('Invalid credentials');
@@ -88,12 +88,9 @@ export const AppProvider = ({
       }
 
       // signin with third-party account
-      if (['github', 'google'].includes(options.type)) {
+      if (options.type === 'github' || options.type === 'google') {
         try {
-          const response = await fetch(
-            `${process.env.NEXT_PUBLIC_BASE_PATH || ''}/api/v1/auth/${options.type}/authorize`,
-          );
-          const data = await response.json();
+          const data = await oauthAuthorize(options.type);
           if (data.authorization_url) {
             window.location.href = data.authorization_url;
           }
@@ -109,15 +106,11 @@ export const AppProvider = ({
   const handleSignUp = useCallback(
     async (params: SignUpOptions) => {
       try {
-        const res = await apiClient.defaultApi.registerPost({
-          register: params.data,
-        });
-        if (res.status === 200) {
-          toast.success('Registration successful');
-          router.push(
-            `/auth/signin?callbackUrl=${encodeURIComponent(params.redirectTo || '/')}`,
-          );
-        }
+        await registerApi(params.data);
+        toast.success('Registration successful');
+        router.push(
+          `/auth/signin?callbackUrl=${encodeURIComponent(params.redirectTo || '/')}`,
+        );
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
       } catch (err) {
         toast.error('Invalid credentials');
@@ -127,11 +120,9 @@ export const AppProvider = ({
   );
 
   const handleSignOut = useCallback(async () => {
-    const res = await apiClient.defaultApi.logoutPost();
-    if (res.status === 200) {
-      setUser(undefined);
-      setTimeout(router.refresh, 300);
-    }
+    await logoutApi();
+    setUser(undefined);
+    setTimeout(router.refresh, 300);
   }, [router]);
 
   return (

@@ -1,6 +1,7 @@
 'use client';
 
 import { browserApiClient } from '@/lib/api/typed/browser';
+import type { Document } from '@/features/document/types';
 
 import type {
   Bot,
@@ -188,5 +189,49 @@ export async function generateBotChatTitle(
       body,
     },
   );
+  return data;
+}
+
+// Chat document attachment (for chat-input.tsx). Thin typed wrap of
+// `/api/v1/chats/{chat_id}/documents` (POST multipart upload +
+// GET {document_id} status poll). Lives in bot feature because chats are
+// owned by the bot domain; no separate features/chat/* surface per
+// design-lock msg=5f0a370b decision 2d.
+
+export async function uploadChatDocument(
+  chatId: string,
+  file: File,
+): Promise<Document> {
+  const { data } = await browserApiClient.POST(
+    '/api/v1/chats/{chat_id}/documents',
+    {
+      params: { path: { chat_id: chatId } },
+      body: { file: file as unknown as string },
+      bodySerializer: (body) => {
+        const fd = new FormData();
+        fd.append('file', (body as unknown as { file: File }).file);
+        return fd;
+      },
+    },
+  );
+  if (!data) {
+    throw new Error('uploadChatDocument: empty response body');
+  }
+  return data;
+}
+
+export async function getChatDocument(
+  chatId: string,
+  documentId: string,
+): Promise<Document> {
+  const { data } = await browserApiClient.GET(
+    '/api/v1/chats/{chat_id}/documents/{document_id}',
+    {
+      params: { path: { chat_id: chatId, document_id: documentId } },
+    },
+  );
+  if (!data) {
+    throw new Error('getChatDocument: empty response body');
+  }
   return data;
 }

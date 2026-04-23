@@ -28,7 +28,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-import { User } from '@/api';
+import type { User } from '@/features/identity/types';
 
 import { DataGrid, DataGridPagination } from '@/components/data-grid';
 import { useAppContext } from '@/components/providers/app-provider';
