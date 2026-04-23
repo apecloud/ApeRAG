@@ -244,6 +244,20 @@ class BenchmarkDatasetSourceType(str, Enum):
     MIGRATED_FROM_QUESTION_SET = "migrated_from_question_set"
 
 
+class EvaluationDatasetSourceType(str, Enum):
+    """Source type for an EvaluationDataset (simplified evaluation model).
+
+    Introduced by the evaluation-v3 simplification (Phase 1, additive only):
+    the wire contract drops the Benchmark / Dataset Version distinction and
+    exposes Dataset + Evaluation/Run only. This enum is the source-of-truth
+    equivalent of ``BenchmarkDatasetSourceType`` for the new layer.
+    """
+
+    MANUAL = "manual"
+    IMPORT = "import"
+    GENERATED = "generated"
+
+
 class EvaluationRunStatus(str, Enum):
     QUEUED = "queued"
     RUNNING = "running"
@@ -1207,6 +1221,66 @@ class BenchmarkCase(Base):
     case_metadata = Column(JSON, nullable=True)
     sort_key = Column(Integer, nullable=False, default=0)
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class EvaluationDataset(Base):
+    """Dataset of evaluation QA items owned by a user.
+
+    Phase 1 of the evaluation-v3 simplification (additive only) introduces this
+    model alongside the existing ``BenchmarkDataset`` without touching it.
+    ``user_id`` anchors access control; ``collection_id`` is scope metadata
+    only and does NOT inherit collection sharing ACLs.
+    """
+
+    __tablename__ = "evaluation_datasets"
+    __table_args__ = (
+        Index("idx_evaluation_datasets_user", "user_id"),
+        Index("idx_evaluation_datasets_collection", "collection_id"),
+    )
+
+    id = Column(String(32), primary_key=True, default=lambda: "eds_" + random_id()[:16])
+    user_id = Column(String(256), nullable=False)
+    collection_id = Column(String(24), nullable=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    source_type = Column(
+        EnumColumn(EvaluationDatasetSourceType),
+        nullable=False,
+        default=EvaluationDatasetSourceType.MANUAL,
+    )
+    schema_hint = Column(JSON, nullable=True)
+    item_count = Column(Integer, nullable=False, default=0)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+    gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)
+
+
+class EvaluationDatasetItem(Base):
+    """A single QA item inside an EvaluationDataset.
+
+    Phase 2 of the simplification will value-copy these fields into
+    ``evaluation_run_items`` at run-create time (snapshot-on-run) so that
+    edits to the dataset do not mutate historical run semantics.
+    """
+
+    __tablename__ = "evaluation_dataset_items"
+    __table_args__ = (
+        UniqueConstraint("dataset_id", "case_key", name="uq_evaluation_dataset_item_case_key"),
+        Index("idx_evaluation_dataset_items_dataset", "dataset_id"),
+    )
+
+    id = Column(String(32), primary_key=True, default=lambda: "edi_" + random_id()[:16])
+    dataset_id = Column(String(32), nullable=False)
+    case_key = Column(String(128), nullable=False)
+    input_message = Column(Text, nullable=False)
+    expected_answer = Column(Text, nullable=True)
+    reference_context = Column(Text, nullable=True)
+    tags = Column(JSON, nullable=True)
+    case_metadata = Column(JSON, nullable=True)
+    sort_key = Column(Integer, nullable=False, default=0)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+    gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)
 
 
 class EvaluationRun(Base):
