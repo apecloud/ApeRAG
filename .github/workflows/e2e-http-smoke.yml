@@ -110,8 +110,29 @@ jobs:
           path: tests/e2e_http/bootstrap/.generated
           if-no-files-found: ignore
 
+      - name: Upload provider diagnostic bundle on failure
+        if: failure() && steps.provider-secrets.outputs.available == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-http-provider-diagnostic-artifacts
+          path: tests/e2e_http/.diagnostic-artifacts
+          if-no-files-found: ignore
+
       - name: Dump Compose diagnostics on failure
         if: failure() && steps.provider-secrets.outputs.available == 'true'
+        env:
+          E2E_ALIBABACLOUD_API_KEY: ${{ secrets.E2E_ALIBABACLOUD_API_KEY }}
+          E2E_OPENROUTER_API_KEY: ${{ secrets.E2E_OPENROUTER_API_KEY }}
         run: |
+          # Re-run the diagnostic capture here as a safety net: if the
+          # in-script trap failed to execute ``provider_diagnostic.sh`` (e.g.
+          # because the failure happened before the trap was installed), this
+          # step still produces a bundle while the containers are around —
+          # assuming the compose stack has not already been torn down by the
+          # trap. No-op on an empty stack. See task #11.
           docker compose -f docker-compose.yml ps || true
-          docker compose -f docker-compose.yml logs --no-color api celeryworker celerybeat postgres redis qdrant es || true
+          if docker compose -f docker-compose.yml ps --quiet | grep -q .; then
+            ./tests/e2e_http/scripts/provider_diagnostic.sh || true
+          else
+            echo "No compose services left to diagnose; relying on in-script trap artifacts."
+          fi
