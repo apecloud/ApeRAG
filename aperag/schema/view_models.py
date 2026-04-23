@@ -1513,6 +1513,16 @@ class LlmProviderModelCreate(BaseModel):
     tags: Optional[list[str]] = Field([], description="Tags for model categorization")
 
 
+class LlmProviderModelCreateRequest(BaseModel):
+    api: Literal["completion", "embedding", "rerank"] = Field(..., description="API type for this model")
+    model: str = Field(..., description="Model name/identifier")
+    custom_llm_provider: str = Field(..., description="Custom LLM provider implementation")
+    context_window: Optional[int] = Field(None, description="Context window size (total tokens)", examples=[128000])
+    max_input_tokens: Optional[int] = Field(None, description="Maximum input tokens", examples=[120000])
+    max_output_tokens: Optional[int] = Field(None, description="Maximum output tokens", examples=[8000])
+    tags: Optional[list[str]] = Field([], description="Tags for model categorization")
+
+
 class LlmProviderModelUpdate(BaseModel):
     custom_llm_provider: Optional[str] = Field(None, description="Custom LLM provider implementation")
     context_window: Optional[int] = Field(None, description="Context window size (total tokens)", examples=[128000])

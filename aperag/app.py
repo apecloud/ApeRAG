@@ -55,6 +55,7 @@ from aperag.views.marketplace import router as marketplace_router
 from aperag.views.marketplace_collections import router as marketplace_collections_router
 from aperag.views.openai import router as openai_router
 from aperag.views.prompts import router as prompts_router
+from aperag.views.providers_v2 import router as providers_v2_router
 from aperag.views.settings import router as settings_router
 from aperag.views.web import router as web_router
 
@@ -110,6 +111,7 @@ app.include_router(openai_router, prefix="/v1")
 app.include_router(config_router, prefix="/api/v1/config")
 app.include_router(agent_runtime_router, prefix="/api/v2")
 app.include_router(evaluation_v2_router, prefix="/api/v2")
+app.include_router(providers_v2_router, prefix="/api/v2")
 
 # Only include test router in dev mode
 if os.environ.get("DEPLOYMENT_MODE") == "dev":
