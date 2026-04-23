@@ -1,9 +1,9 @@
 import {
   ChatDetails,
   Collection,
-  ModelSpec,
   UploadDocumentResponseStatusEnum,
 } from '@/api';
+import type { ModelSpec } from '@/features/providers/types';
 import { PageContent } from '@/components/page-container';
 import { useBotContext } from '@/components/providers/bot-provider';
 import { Button } from '@/components/ui/button';
@@ -308,7 +308,7 @@ export const ChatInput = ({
     providerModels?.forEach((provider) => {
       provider.models?.forEach((m) => {
         if (m.tags?.some((t) => t === 'default_for_agent_completion')) {
-          defaultModel = m.model;
+          defaultModel = m.model ?? undefined;
         }
         if (m.model === modelName) {
           includesCurrentModel = true;

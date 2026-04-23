@@ -278,6 +278,78 @@ def test_marketplace_feature_uses_v2_typed_api_boundary():
     assert "from '@/features/marketplace/server-api'" in graph_page_tsx
 
 
+def test_provider_feature_uses_v2_typed_api_boundary():
+    """#4 Phase 1b batch 4 — provider domain.
+
+    Migrates `components/providers/bot-provider.tsx` off the legacy
+    `apiClient.defaultApi.availableModelsPost` + `ModelSpec from '@/api'` and
+    onto the existing `features/providers/*` adapter (`getAvailableModels` +
+    `ModelSpec` from `@/features/providers/types`). The `features/providers`
+    adapter was migrated in an earlier phase to the typed
+    `/api/v2/providers/*` surface, so this batch only swaps the caller and
+    does **not** introduce new feature surface, new v2 routes, or change
+    fallback semantics.
+
+    Scope: `components/providers/bot-provider.tsx` + `features/providers/**`
+    only. Two cross-domain residues are deliberately **deferred** and must
+    stay out of scope:
+
+    1. `app/workspace/collections/collection-form.tsx` also calls
+       `availableModelsPost` + imports `ModelSpec` via `@/api`, but the same
+       file imports `TitleGenerateRequestLanguageEnum` (collection/legacy
+       form concern). A partial file migration would still leave the file
+       on the legacy-api allowlist, masking the "allowlist row = file is
+       legacy-free" invariant. Deferred to the future collection batch.
+    2. `components/providers/app-provider.tsx` is auth domain
+       (`loginPost/registerPost/logoutPost` + `/api/v1/auth/*`), not
+       provider. Deferred to the future identity/auth batch; no
+       `features/auth/*` exists yet.
+    """
+    checked_paths = [
+        REPO_ROOT / "web/src/components/providers/bot-provider.tsx",
+        REPO_ROOT / "web/src/features/providers",
+    ]
+
+    sources: dict[Path, str] = {}
+    for entry in checked_paths:
+        if entry.is_file():
+            sources[entry] = entry.read_text()
+            continue
+        for path in entry.rglob("*"):
+            if path.is_file() and path.suffix in {".ts", ".tsx"}:
+                sources[path] = path.read_text()
+    joined = "\n".join(sources.values())
+    feature_sources = "\n".join(
+        source
+        for path, source in sources.items()
+        if "/web/src/features/providers/" in str(path)
+    )
+
+    # Negative: the two scoped files must not reach the legacy SDK, the
+    # `availableModelsPost` method, or the indirect `getServerApi` route-data
+    # path.
+    assert "from '@/api'" not in joined
+    assert "apiClient.defaultApi.availableModelsPost" not in joined
+    assert "serverApi.defaultApi.availableModelsPost" not in joined
+    assert "defaultApi.availableModelsPost" not in joined
+    assert "getServerApi" not in joined
+
+    # Positive: the feature adapter must only reach v2 provider typed paths
+    # and not fall back to the old `@/api` generated SDK or raw fetch.
+    assert "from '@/api'" not in feature_sources
+    assert "fetch(" not in feature_sources
+    assert "'/api/v2/providers/available-models'" in feature_sources
+
+    # Positive: the migrated caller wires through the feature adapter and
+    # imports the domain-scoped `ModelSpec` alias from `features/providers`.
+    bot_provider = sources[
+        REPO_ROOT / "web/src/components/providers/bot-provider.tsx"
+    ]
+    assert "from '@/features/providers/client-api'" in bot_provider
+    assert "from '@/features/providers/types'" in bot_provider
+    assert "getAvailableModels(" in bot_provider
+
+
 def test_prompt_feature_uses_v2_typed_api_boundary():
     """#4 Phase 1b batch 1 — prompt domain (FE `features/prompt`, backend
     canonical owner stays `model_platform` per v2 map).

@@ -1,9 +1,7 @@
 'use client';
 
-import { apiClient } from '@/lib/api/client';
 import { useCallback, useEffect, useState } from 'react';
 
-import { ModelSpec } from '@/api';
 import {
   createBot,
   createBotChat,
@@ -15,6 +13,8 @@ import {
 import type { Bot, Chat, ChatDetails } from '@/features/bot/types';
 import { listCollections } from '@/features/collection/client-api';
 import type { CollectionView } from '@/features/collection/types';
+import { getAvailableModels } from '@/features/providers/client-api';
+import type { ModelSpec } from '@/features/providers/types';
 import { useLocale } from 'next-intl';
 import { useParams, useRouter } from 'next/navigation';
 import { createContext, useContext } from 'react';
@@ -71,24 +71,18 @@ export const BotProvider = ({
   const botChatsBasePath = workspace ? '/workspace/bots' : '/bots';
 
   const loadData = useCallback(async () => {
-    const [modelRes, collectionsRes] = await Promise.all([
-      apiClient.defaultApi.availableModelsPost({
-        tagFilterRequest: {
-          tag_filters: [{ operation: 'AND', tags: ['enable_for_agent'] }],
-        },
-      }),
+    const [models, collectionsRes] = await Promise.all([
+      getAvailableModels([['enable_for_agent']]),
       listCollections(),
     ]);
 
-    const items = modelRes.data.items?.map((m) => {
-      return {
-        label: m.label,
-        name: m.name,
-        models: m.completion,
-      };
-    });
+    const items: ProviderModels = models.map((m) => ({
+      label: m.label ?? undefined,
+      name: m.name ?? undefined,
+      models: m.completion ?? undefined,
+    }));
     setCollections(collectionsRes?.items ?? []);
-    setProviderModels(items || []);
+    setProviderModels(items);
   }, []);
 
   const botCreate = useCallback(async () => {
