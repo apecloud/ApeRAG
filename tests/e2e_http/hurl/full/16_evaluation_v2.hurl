@@ -6,7 +6,7 @@ Content-Type: application/json
 }
 HTTP 200
 
-POST {{base_url}}/api/v1/collections
+POST {{base_url}}/api/v2/collections
 Content-Type: application/json
 {
   "title": "Evaluation V3 Collection {{run_id}}",
@@ -28,7 +28,7 @@ collection_id: jsonpath "$.id"
 jsonpath "$.id" == "{{collection_id}}"
 jsonpath "$.config.source" == "system"
 
-POST {{base_url}}/api/v1/bots
+POST {{base_url}}/api/v2/bots
 Content-Type: application/json
 {
   "title": "Default Agent Bot",

@@ -33,6 +33,8 @@ from aperag.db.models import (
     EvaluationRun,
     EvaluationRunItem,
     EvaluationRunItemAttempt,
+    EvaluationRunItemAttemptStatus,
+    EvaluationRunItemStatus,
     EvaluationRunStatus,
 )
 from aperag.db.repositories.base import AsyncRepositoryProtocol
@@ -191,8 +193,6 @@ class AsyncEvaluationV2RepositoryMixin(AsyncRepositoryProtocol):
         return await self._execute_query(_query)
 
     async def requeue_run_item(self, run_id: str, item_id: str) -> Optional[EvaluationRunItem]:
-        from aperag.db.models import EvaluationRunItemStatus  # local import to avoid cycle
-
         async def _operation(session: AsyncSession):
             stmt = select(EvaluationRunItem).where(
                 EvaluationRunItem.id == item_id,
@@ -207,6 +207,108 @@ class AsyncEvaluationV2RepositoryMixin(AsyncRepositoryProtocol):
             await session.flush()
             await session.refresh(instance)
             return instance
+
+        return await self.execute_with_transaction(_operation)
+
+    # -- Worker-side helpers (PR-1b) ---------------------------------------
+    #
+    # These helpers intentionally do not filter by ``user_id``: the Celery
+    # worker receives only a ``run_id`` and must read/update run state on
+    # behalf of the run's owner. Authorization stays on the HTTP edge.
+
+    async def get_run_for_worker(self, run_id: str) -> Optional[EvaluationRun]:
+        """Load a run without scoping to a specific user — worker-side use only."""
+
+        async def _query(session: AsyncSession):
+            stmt = select(EvaluationRun).where(EvaluationRun.id == run_id)
+            return (await session.execute(stmt)).scalars().first()
+
+        return await self._execute_query(_query)
+
+    async def mark_run_item_running(self, item_id: str) -> Optional[EvaluationRunItem]:
+        async def _operation(session: AsyncSession):
+            stmt = select(EvaluationRunItem).where(EvaluationRunItem.id == item_id)
+            item = (await session.execute(stmt)).scalars().first()
+            if not item:
+                return None
+            now = utc_now()
+            item.status = EvaluationRunItemStatus.RUNNING
+            item.attempt_count = (item.attempt_count or 0) + 1
+            item.gmt_updated = now
+            await session.flush()
+            await session.refresh(item)
+            return item
+
+        return await self.execute_with_transaction(_operation)
+
+    async def create_run_item_attempt(
+        self,
+        *,
+        run_id: str,
+        run_item_id: str,
+        attempt_no: int,
+        status: EvaluationRunItemAttemptStatus,
+        agent_chat_id: Optional[str] = None,
+        agent_turn_id: Optional[str] = None,
+        answer_text: Optional[str] = None,
+        error_message: Optional[str] = None,
+        latency_ms: Optional[int] = None,
+    ) -> EvaluationRunItemAttempt:
+        """Persist the outcome of a single worker turn dispatch."""
+
+        async def _operation(session: AsyncSession):
+            now = utc_now()
+            finished = (
+                now
+                if status
+                in (
+                    EvaluationRunItemAttemptStatus.COMPLETED,
+                    EvaluationRunItemAttemptStatus.FAILED,
+                    EvaluationRunItemAttemptStatus.CANCELLED,
+                )
+                else None
+            )
+            attempt = EvaluationRunItemAttempt(
+                run_id=run_id,
+                run_item_id=run_item_id,
+                attempt_no=attempt_no,
+                status=status,
+                agent_chat_id=agent_chat_id,
+                agent_turn_id=agent_turn_id,
+                answer_text=answer_text,
+                error_message=error_message,
+                latency_ms=latency_ms,
+                gmt_started=now,
+                gmt_finished=finished,
+            )
+            session.add(attempt)
+            await session.flush()
+            await session.refresh(attempt)
+            return attempt
+
+        return await self.execute_with_transaction(_operation)
+
+    async def finalize_run_item(
+        self,
+        *,
+        item_id: str,
+        status: EvaluationRunItemStatus,
+        latest_attempt_id: Optional[str] = None,
+        error_message: Optional[str] = None,
+    ) -> Optional[EvaluationRunItem]:
+        async def _operation(session: AsyncSession):
+            stmt = select(EvaluationRunItem).where(EvaluationRunItem.id == item_id)
+            item = (await session.execute(stmt)).scalars().first()
+            if not item:
+                return None
+            item.status = status
+            if latest_attempt_id is not None:
+                item.latest_attempt_id = latest_attempt_id
+            item.error_message = error_message
+            item.gmt_updated = utc_now()
+            await session.flush()
+            await session.refresh(item)
+            return item
 
         return await self.execute_with_transaction(_operation)
 

@@ -343,6 +343,80 @@ def test_final_sweep_v1_ghost_paths_are_gone_from_exported_spec():
         )
 
 
+def test_e2e_http_does_not_call_removed_v1_paths():
+    """HTTP e2e assets must not call routes removed by the final v1 sweep.
+
+    Search, graph, and upload-flow v1 routes are intentionally still allowed
+    because they were explicitly preserved in #26. This guard only blocks the
+    deleted bot shell, collection CRUD, and document read-side paths that broke
+    post-merge e2e smoke when Hurl still called `/api/v1/collections`.
+    """
+    e2e_root = REPO_ROOT / "tests/e2e_http"
+    sources = {
+        path: path.read_text()
+        for path in e2e_root.rglob("*")
+        if path.is_file() and path.suffix in {".hurl", ".sh"}
+    }
+
+    removed_route_patterns = {
+        r"/api/v1/bots(?:[/?\"\s]|\$\{)": "bot v1 routes were replaced by /api/v2/bots*",
+        r"/api/v1/collections(?:[?\"\s]|\Z)": "collection list/create must use /api/v2/collections",
+        r"/api/v1/collections/(?:\{\{collection_id\}\}|\$\{collection_id\})(?:[?\"\s]|\Z)": (
+            "collection get/update/delete must use /api/v2/collections/{collection_id}"
+        ),
+        r"/api/v1/collections/(?:\{\{collection_id\}\}|\$\{collection_id\})/documents(?:[?\"\s]|\Z)": (
+            "document list/create must use /api/v2/collections/{collection_id}/documents"
+        ),
+        r"/api/v1/collections/(?:\{\{collection_id\}\}|\$\{collection_id\})/documents/"
+        r"(?:\{\{document_id\}\}|\$\{document_id\})(?:[/?\"\s]|\Z)": (
+            "document detail/delete/download/preview/object/rebuild must use v2 document paths"
+        ),
+        r"/api/v1/collections/(?:\{\{collection_id\}\}|\$\{collection_id\})/rebuild_failed_indexes": (
+            "rebuild_failed_indexes must use /api/v2/collections/{collection_id}/rebuild_failed_indexes"
+        ),
+    }
+
+    offenders: list[str] = []
+    for path, source in sources.items():
+        for pattern, reason in removed_route_patterns.items():
+            if re.search(pattern, source):
+                offenders.append(f"{path.relative_to(REPO_ROOT)}: {reason}")
+
+    assert not offenders, "e2e HTTP assets still call removed v1 route(s):\n" + "\n".join(sorted(offenders))
+
+
+def test_e2e_http_uses_simplified_evaluation_v2_contract():
+    """The full evaluation Hurl suite must follow the post-#1590 API.
+
+    ``/api/v2/benchmark-datasets*``, dataset versions, and
+    ``dataset_version_id`` were removed from the public evaluation contract.
+    Keep this static guard near the e2e assets so a backend contract switch
+    cannot leave provider/full Hurl coverage on dead routes again.
+    """
+    e2e_root = REPO_ROOT / "tests/e2e_http"
+    sources = {
+        path: path.read_text()
+        for path in e2e_root.rglob("*")
+        if path.is_file() and path.suffix in {".hurl", ".sh"}
+    }
+
+    forbidden = {
+        "/api/v2/benchmark-datasets": "use /api/v2/evaluation-datasets instead",
+        "/versions": "dataset version routes were removed from evaluation v2",
+        "dataset_version_id": "runs now use dataset_id and snapshot dataset items on creation",
+    }
+
+    offenders: list[str] = []
+    for path, source in sources.items():
+        for token, reason in forbidden.items():
+            if token in source:
+                offenders.append(f"{path.relative_to(REPO_ROOT)}: {token} ({reason})")
+
+    assert not offenders, "e2e HTTP assets still use retired evaluation v2 contract token(s):\n" + "\n".join(
+        sorted(offenders)
+    )
+
+
 def test_documents_upload_regression_hardening():
     """Stronger #30 regression guards layered on top of the minimal
     `test_documents_upload_regression_guards`. The hotfix in #1580 left

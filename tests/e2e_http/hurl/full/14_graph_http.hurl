@@ -6,7 +6,7 @@ Content-Type: application/json
 }
 HTTP 200
 
-POST {{base_url}}/api/v1/collections
+POST {{base_url}}/api/v2/collections
 Content-Type: application/json
 {
   "title": "Graph Full {{run_id}}",
@@ -58,5 +58,5 @@ HTTP 400
 header "content-type" contains "application/json"
 body contains "max_nodes must be between 1 and 10000"
 
-DELETE {{base_url}}/api/v1/collections/{{collection_id}}
-HTTP 200
+DELETE {{base_url}}/api/v2/collections/{{collection_id}}
+HTTP 204
