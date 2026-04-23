@@ -22,7 +22,6 @@ from fastapi.routing import APIRoute
 HIDDEN_FROM_PUBLIC_PATH_PREFIXES: tuple[str, ...] = (
     "/api/v1/audit-logs",
     "/api/v1/config",
-    "/api/v2",
 )
 
 

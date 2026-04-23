@@ -37,7 +37,7 @@ def test_public_openapi_filters_internal_prefixes():
     assert "/api/v1/audit-logs" not in public_spec["paths"]
     assert "/api/v1/audit-logs/{audit_id}" not in public_spec["paths"]
     assert "/api/v1/config" not in public_spec["paths"]
-    assert "/api/v2/agent/chats/{chat_id}/turns" not in public_spec["paths"]
+    assert "/api/v2/agent/chats/{chat_id}/turns" in public_spec["paths"]
 
 
 def test_build_full_openapi_spec_rejects_duplicate_operation_ids():
