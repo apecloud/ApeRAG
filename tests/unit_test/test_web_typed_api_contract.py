@@ -1,7 +1,6 @@
 import re
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -35,9 +34,7 @@ def test_evaluation_feature_uses_v2_typed_api_boundary():
     }
     joined = "\n".join(sources.values())
     feature_sources = "\n".join(
-        source
-        for path, source in sources.items()
-        if "/web/src/features/evaluation/" in str(path)
+        source for path, source in sources.items() if "/web/src/features/evaluation/" in str(path)
     )
 
     assert "/api/v1/evaluations" not in joined
@@ -48,9 +45,7 @@ def test_evaluation_feature_uses_v2_typed_api_boundary():
     assert "/api/v2/benchmark-datasets" in feature_sources
     assert "/api/v2/evaluation-runs" in feature_sources
 
-    benchmarks_panel = (
-        REPO_ROOT / "web/src/components/evaluation/benchmarks-panel.tsx"
-    ).read_text()
+    benchmarks_panel = (REPO_ROOT / "web/src/components/evaluation/benchmarks-panel.tsx").read_text()
     assert "String(value ?? '').toLowerCase()" in benchmarks_panel
 
 
@@ -72,11 +67,7 @@ def test_bot_feature_uses_v2_typed_api_boundary():
             if path.is_file() and path.suffix in {".ts", ".tsx"}:
                 sources[path] = path.read_text()
     joined = "\n".join(sources.values())
-    feature_sources = "\n".join(
-        source
-        for path, source in sources.items()
-        if "/web/src/features/bot/" in str(path)
-    )
+    feature_sources = "\n".join(source for path, source in sources.items() if "/web/src/features/bot/" in str(path))
 
     # Business code under these paths must not touch the v1 bot surface or the old
     # generated bots SDK directly.
@@ -96,18 +87,13 @@ def test_bot_feature_uses_v2_typed_api_boundary():
     # body would crash backend `chat_title_service.generate_title()` at
     # `max(1, turns)` / `min(max_length, 50)`, so the normaliser must never
     # emit `null` for any of the three required keys.
-    bot_client_api = (
-        REPO_ROOT / "web/src/features/bot/client-api.ts"
-    ).read_text()
+    bot_client_api = (REPO_ROOT / "web/src/features/bot/client-api.ts").read_text()
     assert "buildTitleGenerateRequest" in bot_client_api
     assert "toTitleLanguage" in bot_client_api
     assert "DEFAULT_TITLE_MAX_LENGTH = 20" in bot_client_api
     assert "DEFAULT_TITLE_TURNS = 1" in bot_client_api
     assert "DEFAULT_TITLE_LANGUAGE: TitleLanguage = 'zh-CN'" in bot_client_api
-    assert (
-        "max_length: input.max_length ?? DEFAULT_TITLE_MAX_LENGTH"
-        in bot_client_api
-    )
+    assert "max_length: input.max_length ?? DEFAULT_TITLE_MAX_LENGTH" in bot_client_api
     assert "turns: input.turns ?? DEFAULT_TITLE_TURNS" in bot_client_api
     # Guard the negative case: no `?? null` fallback for any of the three
     # required keys should reappear.
@@ -130,10 +116,8 @@ def test_collection_feature_uses_v2_typed_api_boundary():
         REPO_ROOT / "web/src/app/workspace/collections/page.tsx",
         REPO_ROOT / "web/src/app/workspace/collections/collection-form.tsx",
         REPO_ROOT / "web/src/app/workspace/collections/[collectionId]/layout.tsx",
-        REPO_ROOT
-        / "web/src/app/workspace/collections/[collectionId]/collection-delete.tsx",
-        REPO_ROOT
-        / "web/src/app/workspace/collections/[collectionId]/collection-header.tsx",
+        REPO_ROOT / "web/src/app/workspace/collections/[collectionId]/collection-delete.tsx",
+        REPO_ROOT / "web/src/app/workspace/collections/[collectionId]/collection-header.tsx",
         REPO_ROOT / "web/src/components/providers/collection-provider.tsx",
         REPO_ROOT / "web/src/components/providers/bot-provider.tsx",
         REPO_ROOT / "web/src/features/collection",
@@ -149,9 +133,7 @@ def test_collection_feature_uses_v2_typed_api_boundary():
                 sources[path] = path.read_text()
     joined = "\n".join(sources.values())
     feature_sources = "\n".join(
-        source
-        for path, source in sources.items()
-        if "/web/src/features/collection/" in str(path)
+        source for path, source in sources.items() if "/web/src/features/collection/" in str(path)
     )
 
     # Business code under #24a scope must not reach the old generated
@@ -172,6 +154,67 @@ def test_collection_feature_uses_v2_typed_api_boundary():
     assert "/api/v2/collections" in feature_sources
 
 
+def test_document_feature_uses_v2_typed_api_boundary():
+    """#24b / #28 Document FE typed adapter boundary.
+
+    Document list/detail/delete/rebuild/download/object/preview call sites
+    must not reach the old generated ``defaultApi.collectionsCollectionIdDocuments*``
+    SDK or the v1 document path, and the ``features/document/*`` adapter must
+    only reach ``/api/v2/collections/{collection_id}/documents*`` typed paths
+    (no ``@/api`` fallback, no raw ``fetch(``). Upload/confirm/fetch-url stay
+    out of scope — they remain with the upload-flow hotfix and will be
+    migrated in a later slice.
+    """
+    workspace_documents = REPO_ROOT / "web/src/app/workspace/collections/[collectionId]/documents"
+
+    document_scope_paths = [
+        workspace_documents / "page.tsx",
+        workspace_documents / "documents-table.tsx",
+        workspace_documents / "document-delete.tsx",
+        workspace_documents / "document-rebuild-index.tsx",
+        workspace_documents / "document-rebuild-failed-index.tsx",
+        workspace_documents / "[documentId]",
+        REPO_ROOT / "web/src/features/document",
+    ]
+
+    sources = {}
+    for entry in document_scope_paths:
+        if entry.is_file():
+            sources[entry] = entry.read_text()
+            continue
+        for path in entry.rglob("*"):
+            if path.is_file() and path.suffix in {".ts", ".tsx"}:
+                sources[path] = path.read_text()
+
+    # Upload-flow files under documents/upload/** are intentionally excluded
+    # from the #28 scope; drop any that slipped in via rglob.
+    sources = {path: text for path, text in sources.items() if "/documents/upload/" not in str(path)}
+
+    joined = "\n".join(sources.values())
+    feature_sources = "\n".join(text for path, text in sources.items() if "/web/src/features/document/" in str(path))
+
+    # Business code under #28 scope must not reach the old generated document
+    # SDK calls or the v1 document routes directly.
+    assert "defaultApi.collectionsCollectionIdDocumentsGet" not in joined
+    assert "defaultApi.collectionsCollectionIdDocumentsDocumentIdGet" not in joined
+    assert "defaultApi.collectionsCollectionIdDocumentsDocumentIdDelete" not in joined
+    assert "defaultApi.collectionsCollectionIdDocumentsDocumentIdRebuildIndexesPost" not in joined
+    assert "defaultApi.collectionsCollectionIdRebuildFailedIndexesPost" not in joined
+    assert "serverApi.defaultApi.getDocumentPreview" not in joined
+    assert "/api/v1/collections/" not in joined
+
+    # features/document adapter must only reach v2 typed paths and not fall
+    # back to the old `@/api` generated SDK or raw fetch.
+    assert "from '@/api'" not in feature_sources
+    assert "fetch(" not in feature_sources
+    assert "/api/v2/collections/{collection_id}/documents" in feature_sources
+
+    # The PDF preview viewer must use the v2 object URL helper rather than
+    # hand-building a v1 path.
+    document_detail = (workspace_documents / "[documentId]/document-detail.tsx").read_text()
+    assert "buildDocumentObjectUrl" in document_detail
+
+
 def test_documents_upload_regression_guards():
     """Regression guards for #前端 #16 document upload UX fixes.
 
@@ -186,15 +229,13 @@ def test_documents_upload_regression_guards():
        after a click.
     """
     upload_tsx = (
-        REPO_ROOT
-        / "web/src/app/workspace/collections/[collectionId]/documents/upload/document-upload.tsx"
+        REPO_ROOT / "web/src/app/workspace/collections/[collectionId]/documents/upload/document-upload.tsx"
     ).read_text()
     assert "() => stopUpload()" not in upload_tsx
     assert "() => () => stopUpload" not in upload_tsx
 
     table_tsx = (
-        REPO_ROOT
-        / "web/src/app/workspace/collections/[collectionId]/documents/documents-table.tsx"
+        REPO_ROOT / "web/src/app/workspace/collections/[collectionId]/documents/documents-table.tsx"
     ).read_text()
     assert "@ts-expect-error onPaginationChange" not in table_tsx
     assert "typeof updater === 'function'" in table_tsx

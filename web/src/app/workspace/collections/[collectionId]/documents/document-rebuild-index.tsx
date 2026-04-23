@@ -1,6 +1,6 @@
 'use client';
 
-import { Document, RebuildIndexesRequestIndexTypesEnum } from '@/api';
+import { RebuildIndexesRequestIndexTypesEnum } from '@/api';
 import { useCollectionContext } from '@/components/providers/collection-provider';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -15,7 +15,8 @@ import {
 } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem } from '@/components/ui/form';
 import { Label } from '@/components/ui/label';
-import { apiClient } from '@/lib/api/client';
+import { rebuildDocumentIndexes } from '@/features/document/client-api';
+import type { Document } from '@/features/document/types';
 import { cn, objectKeys } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Slot } from '@radix-ui/react-slot';
@@ -75,29 +76,20 @@ export const DocumentReBuildIndex = ({
       return;
     }
 
-    const res =
-      await apiClient.defaultApi.collectionsCollectionIdDocumentsDocumentIdRebuildIndexesPost(
-        {
-          collectionId: collection.id,
-          documentId: file.id,
-          rebuildIndexesRequest: {
-            index_types: values.index_types,
-          },
-        },
-      );
+    await rebuildDocumentIndexes(collection.id, file.id, {
+      index_types: values.index_types,
+    });
 
-    if (res.status === 200) {
-      toast.success(
-        page_documents('index_rebuild_with', {
-          types: values.index_types
-            .map((type) => page_collections(`index_type_${type}.title`))
-            .join(', '),
-        }),
-      );
+    toast.success(
+      page_documents('index_rebuild_with', {
+        types: values.index_types
+          .map((type) => page_collections(`index_type_${type}.title`))
+          .join(', '),
+      }),
+    );
 
-      setVisible(false);
-      setTimeout(router.refresh, 300);
-    }
+    setVisible(false);
+    setTimeout(router.refresh, 300);
   };
 
   return (

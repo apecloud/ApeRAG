@@ -27,7 +27,9 @@ import {
 import * as React from 'react';
 import { defaultStyles, FileIcon } from 'react-file-icon';
 
-import { Document, RebuildIndexesRequestIndexTypesEnum } from '@/api';
+import { RebuildIndexesRequestIndexTypesEnum } from '@/api';
+
+import type { Document } from '@/features/document/types';
 
 import { DataGrid, DataGridPagination } from '@/components/data-grid';
 import { FormatDate } from '@/components/format-date';
