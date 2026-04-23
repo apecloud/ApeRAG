@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Data-access for the evaluation-v2 product line.
+"""Data-access for the simplified evaluation API.
 
-Tables: benchmark_datasets / benchmark_dataset_versions / benchmark_cases /
-evaluation_runs / evaluation_run_items / evaluation_run_item_attempts.
+Tables: ``evaluation_datasets`` / ``evaluation_dataset_items`` /
+``evaluation_runs`` / ``evaluation_run_items`` / ``evaluation_run_item_attempts``.
+The legacy ``benchmark_*`` tables were removed in the Phase 2 destructive
+migration; there is no Benchmark / Dataset Version concept here any more.
 """
 
 from typing import Optional
@@ -24,10 +26,6 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aperag.db.models import (
-    BenchmarkCase,
-    BenchmarkDataset,
-    BenchmarkDatasetVersion,
-    BenchmarkDatasetVersionStatus,
     Bot,
     BotStatus,
     EvaluationDataset,
@@ -42,208 +40,7 @@ from aperag.utils.utils import utc_now
 
 
 class AsyncEvaluationV2RepositoryMixin(AsyncRepositoryProtocol):
-    """Read/write helpers for evaluation-v2 resources."""
-
-    # -- BenchmarkDataset ---------------------------------------------------
-
-    async def create_benchmark_dataset(self, dataset: BenchmarkDataset) -> BenchmarkDataset:
-        async def _operation(session: AsyncSession):
-            session.add(dataset)
-            await session.flush()
-            await session.refresh(dataset)
-            return dataset
-
-        return await self.execute_with_transaction(_operation)
-
-    async def get_benchmark_dataset(self, user_id: str, dataset_id: str) -> Optional[BenchmarkDataset]:
-        async def _query(session: AsyncSession):
-            stmt = select(BenchmarkDataset).where(
-                BenchmarkDataset.id == dataset_id,
-                BenchmarkDataset.user_id == user_id,
-                BenchmarkDataset.gmt_deleted.is_(None),
-            )
-            result = await session.execute(stmt)
-            return result.scalars().first()
-
-        return await self._execute_query(_query)
-
-    async def list_benchmark_datasets(
-        self,
-        user_id: str,
-        collection_id: Optional[str],
-        page: int,
-        page_size: int,
-    ) -> tuple[list[BenchmarkDataset], int]:
-        async def _query(session: AsyncSession):
-            conditions = [
-                BenchmarkDataset.user_id == user_id,
-                BenchmarkDataset.gmt_deleted.is_(None),
-            ]
-            if collection_id:
-                conditions.append(BenchmarkDataset.collection_id == collection_id)
-            base = select(BenchmarkDataset).where(and_(*conditions))
-
-            total = (await session.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
-            rows = (
-                (
-                    await session.execute(
-                        base.order_by(BenchmarkDataset.gmt_created.desc())
-                        .offset((page - 1) * page_size)
-                        .limit(page_size)
-                    )
-                )
-                .scalars()
-                .all()
-            )
-            return list(rows), total
-
-        return await self._execute_query(_query)
-
-    async def update_benchmark_dataset(
-        self,
-        user_id: str,
-        dataset_id: str,
-        *,
-        name: Optional[str] = None,
-        description: Optional[str] = None,
-    ) -> Optional[BenchmarkDataset]:
-        async def _operation(session: AsyncSession):
-            stmt = select(BenchmarkDataset).where(
-                BenchmarkDataset.id == dataset_id,
-                BenchmarkDataset.user_id == user_id,
-                BenchmarkDataset.gmt_deleted.is_(None),
-            )
-            instance = (await session.execute(stmt)).scalars().first()
-            if not instance:
-                return None
-            if name is not None:
-                instance.name = name
-            if description is not None:
-                instance.description = description
-            instance.gmt_updated = utc_now()
-            await session.flush()
-            await session.refresh(instance)
-            return instance
-
-        return await self.execute_with_transaction(_operation)
-
-    async def soft_delete_benchmark_dataset(self, user_id: str, dataset_id: str) -> bool:
-        async def _operation(session: AsyncSession):
-            stmt = select(BenchmarkDataset).where(
-                BenchmarkDataset.id == dataset_id,
-                BenchmarkDataset.user_id == user_id,
-                BenchmarkDataset.gmt_deleted.is_(None),
-            )
-            instance = (await session.execute(stmt)).scalars().first()
-            if not instance:
-                return False
-            instance.gmt_deleted = utc_now()
-            await session.flush()
-            return True
-
-        return await self.execute_with_transaction(_operation)
-
-    # -- BenchmarkDatasetVersion -------------------------------------------
-
-    async def create_benchmark_dataset_version(
-        self,
-        dataset_id: str,
-        version: BenchmarkDatasetVersion,
-        cases: list[BenchmarkCase],
-    ) -> BenchmarkDatasetVersion:
-        async def _operation(session: AsyncSession):
-            version.dataset_id = dataset_id
-            session.add(version)
-            await session.flush()
-            await session.refresh(version)
-
-            for case in cases:
-                case.dataset_version_id = version.id
-                session.add(case)
-            if cases:
-                await session.flush()
-                version.case_count = len(cases)
-                await session.flush()
-                await session.refresh(version)
-            return version
-
-        return await self.execute_with_transaction(_operation)
-
-    async def next_dataset_version_number(self, dataset_id: str) -> int:
-        async def _query(session: AsyncSession):
-            stmt = select(func.coalesce(func.max(BenchmarkDatasetVersion.version), 0)).where(
-                BenchmarkDatasetVersion.dataset_id == dataset_id
-            )
-            return (await session.execute(stmt)).scalar_one() + 1
-
-        return await self._execute_query(_query)
-
-    async def get_dataset_version(self, version_id: str) -> Optional[BenchmarkDatasetVersion]:
-        async def _query(session: AsyncSession):
-            stmt = select(BenchmarkDatasetVersion).where(BenchmarkDatasetVersion.id == version_id)
-            return (await session.execute(stmt)).scalars().first()
-
-        return await self._execute_query(_query)
-
-    async def list_dataset_versions(self, dataset_id: str) -> list[BenchmarkDatasetVersion]:
-        async def _query(session: AsyncSession):
-            stmt = (
-                select(BenchmarkDatasetVersion)
-                .where(BenchmarkDatasetVersion.dataset_id == dataset_id)
-                .order_by(BenchmarkDatasetVersion.version.desc())
-            )
-            return list((await session.execute(stmt)).scalars().all())
-
-        return await self._execute_query(_query)
-
-    async def latest_published_version(self, dataset_id: str) -> Optional[BenchmarkDatasetVersion]:
-        async def _query(session: AsyncSession):
-            stmt = (
-                select(BenchmarkDatasetVersion)
-                .where(
-                    BenchmarkDatasetVersion.dataset_id == dataset_id,
-                    BenchmarkDatasetVersion.status == BenchmarkDatasetVersionStatus.PUBLISHED,
-                )
-                .order_by(BenchmarkDatasetVersion.version.desc())
-                .limit(1)
-            )
-            return (await session.execute(stmt)).scalars().first()
-
-        return await self._execute_query(_query)
-
-    # -- BenchmarkCase ------------------------------------------------------
-
-    async def list_cases_for_version(
-        self, version_id: str, page: int, page_size: int
-    ) -> tuple[list[BenchmarkCase], int]:
-        async def _query(session: AsyncSession):
-            base = select(BenchmarkCase).where(BenchmarkCase.dataset_version_id == version_id)
-            total = (await session.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
-            rows = (
-                (
-                    await session.execute(
-                        base.order_by(BenchmarkCase.sort_key.asc(), BenchmarkCase.gmt_created.asc())
-                        .offset((page - 1) * page_size)
-                        .limit(page_size)
-                    )
-                )
-                .scalars()
-                .all()
-            )
-            return list(rows), total
-
-        return await self._execute_query(_query)
-
-    async def list_all_cases_for_version(self, version_id: str) -> list[BenchmarkCase]:
-        async def _query(session: AsyncSession):
-            stmt = (
-                select(BenchmarkCase)
-                .where(BenchmarkCase.dataset_version_id == version_id)
-                .order_by(BenchmarkCase.sort_key.asc(), BenchmarkCase.gmt_created.asc())
-            )
-            return list((await session.execute(stmt)).scalars().all())
-
-        return await self._execute_query(_query)
+    """Read/write helpers for evaluation resources."""
 
     # -- EvaluationRun ------------------------------------------------------
 
@@ -278,14 +75,20 @@ class AsyncEvaluationV2RepositoryMixin(AsyncRepositoryProtocol):
     async def list_evaluation_runs(
         self,
         user_id: str,
-        bot_id: Optional[str],
-        page: int,
-        page_size: int,
+        bot_id: Optional[str] = None,
+        dataset_id: Optional[str] = None,
+        collection_id: Optional[str] = None,
+        page: int = 1,
+        page_size: int = 20,
     ) -> tuple[list[EvaluationRun], int]:
         async def _query(session: AsyncSession):
             conditions = [EvaluationRun.user_id == user_id]
             if bot_id:
                 conditions.append(EvaluationRun.bot_id == bot_id)
+            if dataset_id:
+                conditions.append(EvaluationRun.dataset_id == dataset_id)
+            if collection_id:
+                conditions.append(EvaluationRun.collection_id == collection_id)
             base = select(EvaluationRun).where(and_(*conditions))
             total = (await session.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
             rows = (

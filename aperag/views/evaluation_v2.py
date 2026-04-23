@@ -18,16 +18,16 @@ from fastapi import APIRouter, Depends, Query, Response
 
 from aperag.db.models import User
 from aperag.evaluation_v2.schemas import (
-    BenchmarkCaseEnvelope,
-    BenchmarkCaseListResponse,
-    BenchmarkDatasetCreate,
-    BenchmarkDatasetEnvelope,
-    BenchmarkDatasetListResponse,
-    BenchmarkDatasetUpdate,
-    BenchmarkDatasetVersionCreate,
-    BenchmarkDatasetVersionEnvelope,
-    BenchmarkDatasetVersionListResponse,
     CancelRunResponse,
+    EvaluationDatasetCreate,
+    EvaluationDatasetEnvelope,
+    EvaluationDatasetItemEnvelope,
+    EvaluationDatasetItemListResponse,
+    EvaluationDatasetItemsAppendRequest,
+    EvaluationDatasetItemsAppendResponse,
+    EvaluationDatasetItemUpdate,
+    EvaluationDatasetListResponse,
+    EvaluationDatasetUpdate,
     EvaluationPagination,
     EvaluationRunCreate,
     EvaluationRunDetailResponse,
@@ -37,8 +37,7 @@ from aperag.evaluation_v2.schemas import (
     EvaluationRunItemListResponse,
     EvaluationRunListResponse,
 )
-from aperag.evaluation_v2.services import benchmark_dataset_service, evaluation_run_service
-from aperag.exceptions import ResourceNotFoundException
+from aperag.evaluation_v2.services import evaluation_dataset_service, evaluation_run_service
 from aperag.views.auth import required_user
 
 router = APIRouter(tags=["evaluation-v2"])
@@ -70,108 +69,115 @@ async def _enrich_run_items(
     return list(await asyncio.gather(*[_enrich_run_item(user_id, run_id, item) for item in items]))
 
 
-@router.post("/benchmark-datasets", response_model=BenchmarkDatasetEnvelope)
-async def create_benchmark_dataset_view(
-    body: BenchmarkDatasetCreate,
+# ---------------------------------------------------------------------------
+# Evaluation datasets
+# ---------------------------------------------------------------------------
+
+
+@router.post("/evaluation-datasets", response_model=EvaluationDatasetEnvelope)
+async def create_evaluation_dataset_view(
+    body: EvaluationDatasetCreate,
     user: User = Depends(required_user),
-) -> BenchmarkDatasetEnvelope:
-    return await benchmark_dataset_service.create_dataset(str(user.id), body)
+) -> EvaluationDatasetEnvelope:
+    return await evaluation_dataset_service.create_dataset(str(user.id), body)
 
 
-@router.get("/benchmark-datasets", response_model=BenchmarkDatasetListResponse)
-async def list_benchmark_datasets_view(
+@router.get("/evaluation-datasets", response_model=EvaluationDatasetListResponse)
+async def list_evaluation_datasets_view(
     collection_id: str | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     user: User = Depends(required_user),
-) -> BenchmarkDatasetListResponse:
-    items, total = await benchmark_dataset_service.list_datasets(str(user.id), collection_id, page, page_size)
-    return BenchmarkDatasetListResponse(items=items, pagination=_pagination(total, page, page_size))
+) -> EvaluationDatasetListResponse:
+    items, total = await evaluation_dataset_service.list_datasets(str(user.id), collection_id, page, page_size)
+    return EvaluationDatasetListResponse(items=items, pagination=_pagination(total, page, page_size))
 
 
-@router.get("/benchmark-datasets/{dataset_id}", response_model=BenchmarkDatasetEnvelope)
-async def get_benchmark_dataset_view(
+@router.get("/evaluation-datasets/{dataset_id}", response_model=EvaluationDatasetEnvelope)
+async def get_evaluation_dataset_view(
     dataset_id: str,
     user: User = Depends(required_user),
-) -> BenchmarkDatasetEnvelope:
-    return await benchmark_dataset_service.get_dataset(str(user.id), dataset_id)
+) -> EvaluationDatasetEnvelope:
+    return await evaluation_dataset_service.get_dataset(str(user.id), dataset_id)
 
 
-@router.put("/benchmark-datasets/{dataset_id}", response_model=BenchmarkDatasetEnvelope)
-async def update_benchmark_dataset_view(
+@router.put("/evaluation-datasets/{dataset_id}", response_model=EvaluationDatasetEnvelope)
+async def update_evaluation_dataset_view(
     dataset_id: str,
-    body: BenchmarkDatasetUpdate,
+    body: EvaluationDatasetUpdate,
     user: User = Depends(required_user),
-) -> BenchmarkDatasetEnvelope:
-    return await benchmark_dataset_service.update_dataset(str(user.id), dataset_id, body)
+) -> EvaluationDatasetEnvelope:
+    return await evaluation_dataset_service.update_dataset(str(user.id), dataset_id, body)
 
 
-@router.delete("/benchmark-datasets/{dataset_id}", status_code=204)
-async def delete_benchmark_dataset_view(
+@router.delete("/evaluation-datasets/{dataset_id}", status_code=204)
+async def delete_evaluation_dataset_view(
     dataset_id: str,
     user: User = Depends(required_user),
 ) -> Response:
-    await benchmark_dataset_service.delete_dataset(str(user.id), dataset_id)
+    await evaluation_dataset_service.delete_dataset(str(user.id), dataset_id)
     return Response(status_code=204)
 
 
-@router.post(
-    "/benchmark-datasets/{dataset_id}/versions",
-    response_model=BenchmarkDatasetVersionEnvelope,
-)
-async def create_benchmark_dataset_version_view(
-    dataset_id: str,
-    body: BenchmarkDatasetVersionCreate,
-    user: User = Depends(required_user),
-) -> BenchmarkDatasetVersionEnvelope:
-    return await benchmark_dataset_service.create_version(str(user.id), dataset_id, body)
+# Items -------------------------------------------------------------------
 
 
 @router.get(
-    "/benchmark-datasets/{dataset_id}/versions",
-    response_model=BenchmarkDatasetVersionListResponse,
+    "/evaluation-datasets/{dataset_id}/items",
+    response_model=EvaluationDatasetItemListResponse,
 )
-async def list_benchmark_dataset_versions_view(
+async def list_evaluation_dataset_items_view(
     dataset_id: str,
-    user: User = Depends(required_user),
-) -> BenchmarkDatasetVersionListResponse:
-    items = await benchmark_dataset_service.list_versions(str(user.id), dataset_id)
-    return BenchmarkDatasetVersionListResponse(
-        items=items,
-        pagination=EvaluationPagination(total=len(items), offset=0, limit=len(items)),
-    )
-
-
-@router.get(
-    "/benchmark-datasets/{dataset_id}/versions/{version_id}",
-    response_model=BenchmarkDatasetVersionEnvelope,
-)
-async def get_benchmark_dataset_version_view(
-    dataset_id: str,
-    version_id: str,
-    user: User = Depends(required_user),
-) -> BenchmarkDatasetVersionEnvelope:
-    return await benchmark_dataset_service.get_version_envelope(str(user.id), dataset_id, version_id)
-
-
-@router.get(
-    "/benchmark-datasets/{dataset_id}/versions/{version_id}/cases",
-    response_model=BenchmarkCaseListResponse,
-)
-async def list_benchmark_cases_view(
-    dataset_id: str,
-    version_id: str,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=100, ge=1, le=500),
     user: User = Depends(required_user),
-) -> BenchmarkCaseListResponse:
-    version = await benchmark_dataset_service.get_version(str(user.id), version_id)
-    if version.dataset_id != dataset_id:
-        raise ResourceNotFoundException("BenchmarkDatasetVersion", version_id)
+) -> EvaluationDatasetItemListResponse:
+    items, total = await evaluation_dataset_service.list_items(str(user.id), dataset_id, page, page_size)
+    return EvaluationDatasetItemListResponse(items=items, pagination=_pagination(total, page, page_size))
 
-    rows, total = await benchmark_dataset_service.db_ops.list_cases_for_version(version_id, page, page_size)
-    items = [BenchmarkCaseEnvelope.model_validate(row) for row in rows]
-    return BenchmarkCaseListResponse(items=items, pagination=_pagination(total, page, page_size))
+
+@router.post(
+    "/evaluation-datasets/{dataset_id}/items",
+    response_model=EvaluationDatasetItemsAppendResponse,
+)
+async def append_evaluation_dataset_items_view(
+    dataset_id: str,
+    body: EvaluationDatasetItemsAppendRequest,
+    user: User = Depends(required_user),
+) -> EvaluationDatasetItemsAppendResponse:
+    created = await evaluation_dataset_service.append_items(str(user.id), dataset_id, list(body.items))
+    return EvaluationDatasetItemsAppendResponse(items=created)
+
+
+@router.put(
+    "/evaluation-datasets/{dataset_id}/items/{item_id}",
+    response_model=EvaluationDatasetItemEnvelope,
+)
+async def update_evaluation_dataset_item_view(
+    dataset_id: str,
+    item_id: str,
+    body: EvaluationDatasetItemUpdate,
+    user: User = Depends(required_user),
+) -> EvaluationDatasetItemEnvelope:
+    return await evaluation_dataset_service.update_item(str(user.id), dataset_id, item_id, body)
+
+
+@router.delete(
+    "/evaluation-datasets/{dataset_id}/items/{item_id}",
+    status_code=204,
+)
+async def delete_evaluation_dataset_item_view(
+    dataset_id: str,
+    item_id: str,
+    user: User = Depends(required_user),
+) -> Response:
+    await evaluation_dataset_service.delete_item(str(user.id), dataset_id, item_id)
+    return Response(status_code=204)
+
+
+# ---------------------------------------------------------------------------
+# Evaluation runs
+# ---------------------------------------------------------------------------
 
 
 @router.post("/evaluation-runs", response_model=EvaluationRunEnvelope)
@@ -185,11 +191,15 @@ async def create_evaluation_run_view(
 @router.get("/evaluation-runs", response_model=EvaluationRunListResponse)
 async def list_evaluation_runs_view(
     bot_id: str | None = Query(default=None),
+    dataset_id: str | None = Query(default=None),
+    collection_id: str | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     user: User = Depends(required_user),
 ) -> EvaluationRunListResponse:
-    items, total = await evaluation_run_service.list_runs(str(user.id), bot_id, page, page_size)
+    items, total = await evaluation_run_service.list_runs(
+        str(user.id), bot_id, dataset_id, collection_id, page, page_size
+    )
     return EvaluationRunListResponse(items=items, pagination=_pagination(total, page, page_size))
 
 
