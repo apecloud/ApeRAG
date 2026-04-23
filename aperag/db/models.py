@@ -30,8 +30,6 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
-    select,
-    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -68,39 +66,11 @@ def EnumColumn(enum_class, **kwargs):
 
 
 # Enums for choices
-class CollectionStatus(str, Enum):
-    INACTIVE = "INACTIVE"
-    ACTIVE = "ACTIVE"
-    DELETED = "DELETED"
-
-
-class CollectionSummaryStatus(str, Enum):
-    PENDING = "PENDING"
-    GENERATING = "GENERATING"
-    COMPLETE = "COMPLETE"
-    FAILED = "FAILED"
-
-
-class CollectionType(str, Enum):
-    DOCUMENT = "document"
-    CHAT = "CHAT"
-
-
 class CollectionMarketplaceStatusEnum(str, Enum):
     """Collection marketplace sharing status enumeration"""
 
     DRAFT = "DRAFT"  # Not published, only owner can see
     PUBLISHED = "PUBLISHED"  # Published to marketplace, publicly visible
-
-
-class DocumentStatus(str, Enum):
-    UPLOADED = "UPLOADED"  # 新增：已上传但未确认添加到collection
-    EXPIRED = "EXPIRED"  # 新增：已过期的临时上传文档
-    PENDING = "PENDING"
-    RUNNING = "RUNNING"
-    COMPLETE = "COMPLETE"
-    FAILED = "FAILED"
-    DELETED = "DELETED"
 
 
 class BotStatus(str, Enum):
@@ -257,58 +227,6 @@ class EvaluationJudgeMode(str, Enum):
 
 
 # Models
-class Collection(Base):
-    __tablename__ = "collection"
-
-    id = Column(String(24), primary_key=True, default=lambda: "col" + random_id())
-    title = Column(String(256), nullable=False)
-    description = Column(Text, nullable=True)
-    user = Column(String(256), nullable=False, index=True)  # Add index for frequent queries
-    status = Column(EnumColumn(CollectionStatus), nullable=False, index=True)  # Add index for status queries
-    type = Column(EnumColumn(CollectionType), nullable=False)
-    config = Column(Text, nullable=False)
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Add index for soft delete queries
-
-
-class CollectionSummary(Base):
-    __tablename__ = "collection_summary"
-    __table_args__ = (
-        UniqueConstraint("collection_id", name="uq_collection_summary"),
-        Index("idx_collection_summary_status_lease", "status", "lease_expires_at"),
-    )
-
-    id = Column(String(24), primary_key=True, default=lambda: "cs" + random_id())
-    collection_id = Column(String(24), nullable=False, index=True)
-
-    # Reconciliation fields
-    status = Column(
-        EnumColumn(CollectionSummaryStatus), nullable=False, default=CollectionSummaryStatus.PENDING, index=True
-    )
-    version = Column(Integer, nullable=False, default=1)
-    observed_version = Column(Integer, nullable=False, default=0)
-
-    # Summary content and metadata
-    summary = Column(Text, nullable=True)
-    error_message = Column(Text, nullable=True)
-    processing_token = Column(String(64), nullable=True)
-    lease_expires_at = Column(DateTime(timezone=True), nullable=True)
-
-    # Timestamps
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_last_reconciled = Column(DateTime(timezone=True), nullable=True)
-
-    def __repr__(self):
-        return f"<CollectionSummary(id={self.id}, collection_id={self.collection_id}, status={self.status}, version={self.version})>"
-
-    def update_version(self):
-        """Update the version to trigger reconciliation"""
-        self.version += 1
-        self.gmt_updated = utc_now()
-
-
 class CollectionMarketplace(Base):
     """Collection sharing status table"""
 
@@ -362,81 +280,6 @@ class UserCollectionSubscription(Base):
 
     def __repr__(self):
         return f"<UserCollectionSubscription(id={self.id}, user_id={self.user_id}, marketplace_id={self.collection_marketplace_id})>"
-
-
-class Document(Base):
-    __tablename__ = "document"
-    __table_args__ = (
-        # Partial unique index: only enforce uniqueness for active (non-deleted) documents
-        # This prevents duplicate documents while allowing same name for deleted documents
-        # Using partial index with WHERE clause instead of including gmt_deleted in constraint
-        # because in PostgreSQL, NULL != NULL, so constraint with gmt_deleted doesn't work for active docs
-        Index(
-            "uq_document_collection_name_active",
-            "collection_id",
-            "name",
-            unique=True,
-            postgresql_where=text("gmt_deleted IS NULL"),
-        ),
-    )
-
-    id = Column(String(24), primary_key=True, default=lambda: "doc" + random_id())
-    name = Column(String(1024), nullable=False)
-    user = Column(String(256), nullable=False, index=True)  # Add index for user queries
-    collection_id = Column(String(24), nullable=True, index=True)  # Add index for collection queries
-    status = Column(EnumColumn(DocumentStatus), nullable=False, index=True)  # Add index for status queries
-    size = Column(BigInteger, nullable=False)  # Support larger files (up to 9 exabytes)
-    content_hash = Column(
-        String(64), nullable=True, index=True
-    )  # SHA-256 hash of original file content for duplicate detection
-    object_path = Column(Text, nullable=True)
-    doc_metadata = Column(Text, nullable=True)  # Store document metadata as JSON string
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Add index for soft delete queries
-
-    def get_document_indexes(self, session):
-        """Get document indexes from the merged table"""
-
-        stmt = select(DocumentIndex).where(DocumentIndex.document_id == self.id)
-        result = session.execute(stmt)
-        return result.scalars().all()
-
-    def get_overall_index_status(self, session) -> "DocumentStatus":
-        """Calculate overall status based on document indexes"""
-        document_indexes = self.get_document_indexes(session)
-
-        if not document_indexes:
-            return DocumentStatus.PENDING
-
-        statuses = [idx.status for idx in document_indexes]
-
-        if any(status == DocumentIndexStatus.FAILED for status in statuses):
-            return DocumentStatus.FAILED
-        elif any(
-            status in [DocumentIndexStatus.CREATING, DocumentIndexStatus.DELETION_IN_PROGRESS] for status in statuses
-        ):
-            return DocumentStatus.RUNNING
-        elif all(status == DocumentIndexStatus.ACTIVE for status in statuses):
-            return DocumentStatus.COMPLETE
-        else:
-            return DocumentStatus.PENDING
-
-    def object_store_base_path(self) -> str:
-        """Generate the base path for object store"""
-        user = self.user.replace("|", "-")
-        return f"user-{user}/{self.collection_id}/{self.id}"
-
-    async def get_collection(self, session):
-        """Get the associated collection object"""
-        return await session.get(Collection, self.collection_id)
-
-    async def set_collection(self, collection):
-        """Set the collection_id by Collection object or id"""
-        if hasattr(collection, "id"):
-            self.collection_id = collection.id
-        elif isinstance(collection, str):
-            self.collection_id = collection
 
 
 class Bot(Base):
@@ -1179,6 +1022,15 @@ from aperag.domains.indexing.db.models import (  # noqa: E402, F401  re-export f
     DocumentIndex,
     DocumentIndexStatus,
     DocumentIndexType,
+)
+from aperag.domains.knowledge_base.db.models import (  # noqa: E402, F401  re-export for back-compat
+    Collection,
+    CollectionStatus,
+    CollectionSummary,
+    CollectionSummaryStatus,
+    CollectionType,
+    Document,
+    DocumentStatus,
 )
 from aperag.domains.knowledge_graph.db.models import (  # noqa: E402, F401  re-export for back-compat
     GraphCurationRun,
