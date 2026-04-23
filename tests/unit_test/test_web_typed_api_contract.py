@@ -785,19 +785,27 @@ def test_document_feature_uses_v2_typed_api_boundary():
 
     joined = "\n".join(sources.values())
     feature_sources = "\n".join(text for path, text in sources.items() if "/web/src/features/document/" in str(path))
+    business_sources = "\n".join(
+        text for path, text in sources.items() if "/web/src/features/document/" not in str(path)
+    )
 
     # Business code under #28 scope must not reach the old generated document
-    # SDK calls or the v1 document routes directly.
+    # SDK calls or the v1 document routes directly. The `features/document`
+    # adapter itself is allowed to wrap still-v1 paths (upload flow is
+    # Phase 1b typed-wrap of `/api/v1/collections/.../documents/{staged,
+    # upload,confirm,fetch-url}` — #4 batch 8), so the v1-path ban here
+    # targets business code only, not the adapter.
     assert "defaultApi.collectionsCollectionIdDocumentsGet" not in joined
     assert "defaultApi.collectionsCollectionIdDocumentsDocumentIdGet" not in joined
     assert "defaultApi.collectionsCollectionIdDocumentsDocumentIdDelete" not in joined
     assert "defaultApi.collectionsCollectionIdDocumentsDocumentIdRebuildIndexesPost" not in joined
     assert "defaultApi.collectionsCollectionIdRebuildFailedIndexesPost" not in joined
     assert "serverApi.defaultApi.getDocumentPreview" not in joined
-    assert "/api/v1/collections/" not in joined
+    assert "/api/v1/collections/" not in business_sources
 
-    # features/document adapter must only reach v2 typed paths and not fall
-    # back to the old `@/api` generated SDK or raw fetch.
+    # features/document adapter must only reach v2 typed paths (or the
+    # still-v1 upload-flow paths wrapped by batch 8) and not fall back to
+    # the old `@/api` generated SDK or raw fetch.
     assert "from '@/api'" not in feature_sources
     assert "fetch(" not in feature_sources
     assert "/api/v2/collections/{collection_id}/documents" in feature_sources
@@ -868,6 +876,119 @@ def test_document_feature_uses_v2_typed_api_boundary():
     assert "NonNullable<Document['vector_index_status']>" in document_types
     assert "RebuildIndexesRequest['index_types'][number]" in document_types
     assert "satisfies readonly DocumentIndexType[]" in document_types
+
+    # #4 Phase 1b batch 8 — document upload trio. Three upload/import
+    # callers (`document-upload.tsx`, `url-import.tsx`, `text-import.tsx`)
+    # migrate off `apiClient.defaultApi.collectionsCollectionIdDocuments{
+    # StagedGet,UploadPost,ConfirmPost,FetchUrlPost}` onto new
+    # `features/document/client-api` methods (`listStagedDocuments`,
+    # `uploadDocument`, `confirmDocuments`, `fetchUrlDocuments`).
+    # `text-import.tsx` was only on the route-data allowlist (no `@/api`
+    # type imports) but still hits the upload endpoint directly; this
+    # batch removes its raw SDK call so it drops from route-data too.
+    batch8_upload_paths = [
+        REPO_ROOT
+        / "web/src/app/workspace/collections/[collectionId]/documents/upload/document-upload.tsx",
+        REPO_ROOT
+        / "web/src/app/workspace/collections/[collectionId]/documents/upload/import/url-import.tsx",
+        REPO_ROOT
+        / "web/src/app/workspace/collections/[collectionId]/documents/upload/import/text-import.tsx",
+    ]
+    batch8_sources = {path: path.read_text() for path in batch8_upload_paths}
+    batch8_joined = "\n".join(batch8_sources.values())
+
+    # Negative: the three migrated callers must not reach the legacy SDK
+    # or the legacy enum classes that this batch replaces with
+    # schema-derived aliases.
+    assert "from '@/api'" not in batch8_joined
+    assert "apiClient.defaultApi" not in batch8_joined
+    assert "serverApi.defaultApi" not in batch8_joined
+    assert "UploadDocumentResponseStatusEnum" not in batch8_joined
+    assert "FetchUrlResultItemFetchStatusEnum" not in batch8_joined
+    assert (
+        "collectionsCollectionIdDocumentsStagedGet" not in batch8_joined
+    )
+    assert (
+        "collectionsCollectionIdDocumentsUploadPost" not in batch8_joined
+    )
+    assert (
+        "collectionsCollectionIdDocumentsConfirmPost" not in batch8_joined
+    )
+    assert (
+        "collectionsCollectionIdDocumentsFetchUrlPost" not in batch8_joined
+    )
+
+    # Positive: every migrated caller now imports from
+    # `features/document/client-api`; the `document-upload.tsx` caller
+    # additionally uses the `UploadDocumentStatus` type alias instead of
+    # the legacy enum class.
+    for source in batch8_sources.values():
+        assert "from '@/features/document/client-api'" in source
+    document_upload_tsx = batch8_sources[
+        REPO_ROOT
+        / "web/src/app/workspace/collections/[collectionId]/documents/upload/document-upload.tsx"
+    ]
+    assert "UploadDocumentStatus" in document_upload_tsx
+
+    # Positive: `features/document/client-api.ts` exposes the four upload
+    # adapters with empty-body throw guards (lesson 9a: typed components
+    # with required fields must not accept `data ?? {}`). The multipart
+    # upload explicitly uses a `FormData` `bodySerializer` to get the
+    # right `Content-Type: multipart/form-data; boundary=...` header from
+    # `fetch`.
+    document_client_api = (
+        REPO_ROOT / "web/src/features/document/client-api.ts"
+    ).read_text()
+    assert "listStagedDocuments" in document_client_api
+    assert "uploadDocument" in document_client_api
+    assert "confirmDocuments" in document_client_api
+    assert "fetchUrlDocuments" in document_client_api
+    assert (
+        "listStagedDocuments: empty response body" in document_client_api
+    )
+    assert "uploadDocument: empty response body" in document_client_api
+    assert (
+        "confirmDocuments: empty response body" in document_client_api
+    )
+    assert (
+        "fetchUrlDocuments: empty response body" in document_client_api
+    )
+    assert "bodySerializer" in document_client_api
+    assert "new FormData()" in document_client_api
+    assert (
+        "'/api/v1/collections/{collection_id}/documents/staged'"
+        in document_client_api
+    )
+    assert (
+        "'/api/v1/collections/{collection_id}/documents/upload'"
+        in document_client_api
+    )
+    assert (
+        "'/api/v1/collections/{collection_id}/documents/confirm'"
+        in document_client_api
+    )
+    assert (
+        "'/api/v1/collections/{collection_id}/documents/fetch-url'"
+        in document_client_api
+    )
+
+    # Positive: `features/document/types.ts` exposes the upload schema
+    # aliases (required-shape components) + the schema-derived nullable
+    # status unions.
+    assert (
+        "components['schemas']['UploadDocumentResponse']" in document_types
+    )
+    assert (
+        "components['schemas']['StagedDocumentsResponse']" in document_types
+    )
+    assert (
+        "components['schemas']['ConfirmDocumentsRequest']" in document_types
+    )
+    assert (
+        "components['schemas']['FetchUrlResponse']" in document_types
+    )
+    assert "UploadDocumentResponse['status']" in document_types
+    assert "FetchUrlResultItem['fetch_status']" in document_types
 
 
 def test_documents_upload_regression_guards():

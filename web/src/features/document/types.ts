@@ -26,3 +26,20 @@ export type DeleteDocumentsRequest =
   components['schemas']['DeleteDocumentsRequest'];
 export type DeleteDocumentsResponse =
   components['schemas']['DeleteDocumentsResponse'];
+
+export type UploadDocumentResponse =
+  components['schemas']['UploadDocumentResponse'];
+export type UploadDocumentStatus = UploadDocumentResponse['status'];
+
+export type StagedDocumentsResponse =
+  components['schemas']['StagedDocumentsResponse'];
+
+export type ConfirmDocumentsRequest =
+  components['schemas']['ConfirmDocumentsRequest'];
+export type ConfirmDocumentsResponse =
+  components['schemas']['ConfirmDocumentsResponse'];
+
+export type FetchUrlRequest = components['schemas']['FetchUrlRequest'];
+export type FetchUrlResponse = components['schemas']['FetchUrlResponse'];
+export type FetchUrlResultItem = components['schemas']['FetchUrlResultItem'];
+export type FetchUrlStatus = FetchUrlResultItem['fetch_status'];
