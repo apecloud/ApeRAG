@@ -222,6 +222,12 @@ _ITEM_STATUS_BY_ATTEMPT: dict[EvaluationRunItemAttemptStatus, EvaluationRunItemS
     EvaluationRunItemAttemptStatus.CANCELLED: EvaluationRunItemStatus.CANCELLED,
 }
 
+_TERMINAL_RUN_STATUSES = {
+    EvaluationRunStatus.COMPLETED,
+    EvaluationRunStatus.FAILED,
+    EvaluationRunStatus.CANCELLED,
+}
+
 
 async def execute_evaluation_run(
     run_id: str,
@@ -241,7 +247,8 @@ async def execute_evaluation_run(
       * Create one ``evaluation_run_item_attempt`` per dispatch, even when
         the outcome is FAILED/CANCELLED.
       * Run transitions QUEUED → RUNNING → COMPLETED (all items succeeded
-        or at least one completed) or FAILED (all items failed).
+        or at least one completed), FAILED (all items failed), or CANCELLED
+        (external run cancellation or all items cancelled).
       * ``run.summary`` is updated after every item so polling clients see
         incremental progress.
     """
@@ -254,11 +261,7 @@ async def execute_evaluation_run(
         logger.warning("evaluation run %s vanished before worker could pick it up", run_id)
         return EvaluationRunStatus.FAILED
 
-    if run.status in (
-        EvaluationRunStatus.COMPLETED,
-        EvaluationRunStatus.FAILED,
-        EvaluationRunStatus.CANCELLED,
-    ):
+    if run.status in _TERMINAL_RUN_STATUSES:
         logger.info(
             "evaluation run %s already in terminal status %s; worker skipping",
             run_id,
@@ -278,6 +281,19 @@ async def execute_evaluation_run(
     bot_id = run.bot_id
 
     for item in items:
+        current_run = await ops.get_run_for_worker(run_id)
+        if current_run is None:
+            logger.warning("evaluation run %s vanished while worker was processing items", run_id)
+            return EvaluationRunStatus.FAILED
+        if current_run.status in _TERMINAL_RUN_STATUSES:
+            logger.info(
+                "evaluation run %s moved to terminal status %s; worker stops dispatching remaining items",
+                run_id,
+                current_run.status,
+            )
+            run.status = current_run.status
+            break
+
         await _process_run_item(
             run=run,
             item=item,
@@ -288,7 +304,12 @@ async def execute_evaluation_run(
             dispatch=dispatch,
         )
 
-    final_status = _final_run_status(summary)
+    latest_run = await ops.get_run_for_worker(run_id)
+    final_status = (
+        latest_run.status
+        if latest_run is not None and latest_run.status in _TERMINAL_RUN_STATUSES
+        else _final_run_status(summary)
+    )
     await ops.update_run_status(run_id, final_status, summary=summary.model_dump())
     return final_status
 
@@ -355,6 +376,8 @@ async def _process_run_item(
 
 
 def _final_run_status(summary: EvaluationRunSummary) -> EvaluationRunStatus:
+    if summary.completed == 0 and summary.failed == 0 and summary.cancelled > 0:
+        return EvaluationRunStatus.CANCELLED
     if summary.completed == 0 and summary.failed > 0 and summary.cancelled == 0:
         return EvaluationRunStatus.FAILED
     return EvaluationRunStatus.COMPLETED

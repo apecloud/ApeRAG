@@ -7,7 +7,8 @@ Scope (per PR-1b hard points):
 * One attempt is persisted per item, even on failure.
 * Item status transitions: PENDING → RUNNING → COMPLETED/FAILED/CANCELLED.
 * Run status transitions: QUEUED/RUNNING → RUNNING → COMPLETED (any
-  success) or FAILED (all failed).
+  success), FAILED (all failed), or CANCELLED (external cancellation or
+  all items cancelled).
 * ``run.summary`` counters are updated incrementally; final summary
   equals the number of completed/failed/cancelled items.
 * The worker module does not leak legacy Benchmark concepts
@@ -294,6 +295,56 @@ def test_execute_evaluation_run_mixed_outcome_completes_run_and_records_both_att
         EvaluationRunItemStatus.COMPLETED,
         EvaluationRunItemStatus.FAILED,
     ]
+
+
+def test_execute_evaluation_run_stops_mid_flight_when_run_cancelled():
+    run, items = _make_run_and_items(item_count=2)
+    ops = _FakeOps(run, items)
+    captured_inputs: list[str] = []
+
+    async def fake_dispatch(*, input_message, **_):
+        captured_inputs.append(input_message)
+        ops._run.status = EvaluationRunStatus.CANCELLED
+        return TurnDispatchOutcome(
+            status=EvaluationRunItemAttemptStatus.COMPLETED,
+            answer_text="first item completed before cancellation",
+        )
+
+    final = asyncio.run(execute_evaluation_run(run.id, db_ops=ops, dispatch_fn=fake_dispatch))
+
+    assert final is EvaluationRunStatus.CANCELLED
+    assert run.status is EvaluationRunStatus.CANCELLED
+    assert captured_inputs == [items[0].input_message]
+    assert len(ops.attempts) == 1
+    assert items[0].status is EvaluationRunItemStatus.COMPLETED
+    assert items[1].status is EvaluationRunItemStatus.PENDING
+    assert run.summary["completed"] == 1
+    assert run.summary["pending"] == 1
+    assert run.summary["running"] == 0
+
+
+def test_execute_evaluation_run_returns_cancelled_when_all_items_cancelled():
+    run, items = _make_run_and_items(item_count=2)
+    ops = _FakeOps(run, items)
+
+    async def fake_dispatch(**_):
+        return TurnDispatchOutcome(status=EvaluationRunItemAttemptStatus.CANCELLED)
+
+    final = asyncio.run(execute_evaluation_run(run.id, db_ops=ops, dispatch_fn=fake_dispatch))
+
+    assert final is EvaluationRunStatus.CANCELLED
+    assert run.status is EvaluationRunStatus.CANCELLED
+    assert [item.status for item in items] == [
+        EvaluationRunItemStatus.CANCELLED,
+        EvaluationRunItemStatus.CANCELLED,
+    ]
+    assert [attempt["status"] for attempt in ops.attempts] == [
+        EvaluationRunItemAttemptStatus.CANCELLED,
+        EvaluationRunItemAttemptStatus.CANCELLED,
+    ]
+    assert run.summary["cancelled"] == 2
+    assert run.summary["completed"] == 0
+    assert run.summary["failed"] == 0
 
 
 def test_execute_evaluation_run_catches_dispatch_exception_and_records_failed_attempt():
