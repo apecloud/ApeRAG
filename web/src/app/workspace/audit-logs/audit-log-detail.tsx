@@ -1,5 +1,5 @@
 'use client';
-import { AuditLog } from '@/api';
+import type { AuditLog } from '@/features/audit/types';
 import { Markdown } from '@/components/markdown';
 import {
   Drawer,

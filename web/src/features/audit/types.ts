@@ -63,4 +63,11 @@ export type ListAuditLogsParams = {
   statusCode?: number;
   startTime?: number;
   endTime?: number;
+  /** ISO date filters accepted by the backend alongside numeric start/end time. */
+  startDate?: string;
+  endDate?: string;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
 };
+
+export type AuditLogListResponse = AuditLogList;

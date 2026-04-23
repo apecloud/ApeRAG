@@ -39,6 +39,10 @@ function buildAuditLogsUrl(params?: ListAuditLogsParams): string {
     qs.set('status_code', String(params.statusCode));
   if (params?.startTime != null) qs.set('start_time', String(params.startTime));
   if (params?.endTime != null) qs.set('end_time', String(params.endTime));
+  if (params?.startDate) qs.set('start_date', params.startDate);
+  if (params?.endDate) qs.set('end_date', params.endDate);
+  if (params?.sortBy) qs.set('sort_by', params.sortBy);
+  if (params?.sortOrder) qs.set('sort_order', params.sortOrder);
   const query = qs.toString();
   return `${API_SERVER_ENDPOINT}/api/v1/audit-logs${query ? `?${query}` : ''}`;
 }

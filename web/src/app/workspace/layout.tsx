@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/sidebar';
 import { listBotChats, listBots } from '@/features/bot/server-api';
 import type { Chat } from '@/features/bot/types';
-import { getServerApi } from '@/lib/api/server';
+import { getCurrentUser } from '@/features/auth/server-api';
 import { toJson } from '@/lib/utils';
 import { redirect } from 'next/navigation';
 
@@ -22,14 +22,7 @@ export default async function Layout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  let user;
-  const apiServer = await getServerApi();
-
-  try {
-    const res = await apiServer.defaultApi.userGet();
-    user = res.data;
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  } catch (err) {}
+  const user = await getCurrentUser();
 
   if (!user) {
     redirect(`/auth/signin?callbackUrl=${encodeURIComponent('/workspace')}`);

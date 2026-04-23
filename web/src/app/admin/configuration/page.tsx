@@ -5,7 +5,10 @@ import {
   PageHeader,
   PageTitle,
 } from '@/components/page-container';
-import { getServerApi } from '@/lib/api/server';
+import {
+  getSettings,
+  getSystemDefaultQuotas,
+} from '@/features/admin/server-api';
 import { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
 import { ParserSettings } from './parser-settings';
@@ -20,15 +23,12 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function Page() {
-  const serverApi = await getServerApi();
   const admin_config = await getTranslations('admin_config');
 
-  const [resSettings, resSystemDefaultQuotas] = await Promise.all([
-    serverApi.defaultApi.settingsGet(),
-    serverApi.quotasApi.systemDefaultQuotasGet(),
+  const [settings, systemDefaultQuotas] = await Promise.all([
+    getSettings(),
+    getSystemDefaultQuotas(),
   ]);
-
-  const settings = resSettings.data;
 
   return (
     <PageContainer>
@@ -40,8 +40,10 @@ export default async function Page() {
         </PageDescription>
 
         <div className="flex flex-col gap-6">
-          <ParserSettings data={settings} />
-          <QuotaSettings data={resSystemDefaultQuotas.data.quotas} />
+          <ParserSettings data={settings ?? undefined} />
+          {systemDefaultQuotas?.quotas ? (
+            <QuotaSettings data={systemDefaultQuotas.quotas} />
+          ) : null}
         </div>
       </PageContent>
     </PageContainer>
