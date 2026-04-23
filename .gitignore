@@ -165,6 +165,12 @@ magic-pdf.json
 .objects/
 local-storage
 
+# Code-first OpenAPI export artifacts.
+openapi.full.json
+openapi.public.json
+web/src/api/openapi.full.json
+web/src/api/openapi.public.json
+
 cursorplans
 celerybeat-schedule.db
 frontend/node_modules/

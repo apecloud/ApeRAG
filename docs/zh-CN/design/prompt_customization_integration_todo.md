@@ -612,6 +612,6 @@ curl -X PUT http://localhost:8000/api/v1/collections/{collection_id} \
 ## 十一、参考文档
 
 - [设计方案](../../.cursor/plans/自定义prompt模板系统_8a863299.plan.md)
-- [OpenAPI定义](../../aperag/api/components/schemas/prompt.yaml)
+- [API实现](../../aperag/views/prompts.py)
 - [Repository实现](../../aperag/db/repositories/prompt_template.py)
 - [API实现](../../aperag/views/prompts.py)
