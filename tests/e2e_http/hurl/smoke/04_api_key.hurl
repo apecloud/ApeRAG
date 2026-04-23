@@ -27,7 +27,7 @@ HTTP 200
 POST {{base_url}}/api/v1/logout
 HTTP 200
 
-GET {{base_url}}/api/v1/collections
+GET {{base_url}}/api/v2/collections
 Authorization: Bearer {{api_key_value}}
 HTTP 200
 
@@ -55,6 +55,6 @@ HTTP 200
 POST {{base_url}}/api/v1/logout
 HTTP 200
 
-GET {{base_url}}/api/v1/collections
+GET {{base_url}}/api/v2/collections
 Authorization: Bearer {{api_key_value}}
 HTTP 401

@@ -6,7 +6,7 @@ Content-Type: application/json
 }
 HTTP 200
 
-POST {{base_url}}/api/v1/collections
+POST {{base_url}}/api/v2/collections
 Content-Type: application/json
 {
   "title": "Document Smoke {{run_id}}",
@@ -25,7 +25,7 @@ HTTP 200
 [Captures]
 collection_id: jsonpath "$.id"
 
-POST {{base_url}}/api/v1/collections/{{collection_id}}/documents
+POST {{base_url}}/api/v2/collections/{{collection_id}}/documents
 [MultipartFormData]
 files: file,tests/e2e_http/testdata/minimal-document.txt; type=text/plain
 HTTP 200
@@ -37,7 +37,7 @@ jsonpath "$.items[0].id" == "{{document_id}}"
 jsonpath "$.items[0].name" == "tests/e2e_http/testdata/minimal-document.txt"
 jsonpath "$.items[0].graph_index_status" == "SKIPPED"
 
-GET {{base_url}}/api/v1/collections/{{collection_id}}/documents/{{document_id}}
+GET {{base_url}}/api/v2/collections/{{collection_id}}/documents/{{document_id}}
 HTTP 200
 [Asserts]
 jsonpath "$.id" == "{{document_id}}"
@@ -46,11 +46,8 @@ jsonpath "$.graph_index_status" == "SKIPPED"
 jsonpath "$.summary_index_status" == "SKIPPED"
 jsonpath "$.vision_index_status" == "SKIPPED"
 
-DELETE {{base_url}}/api/v1/collections/{{collection_id}}/documents/{{document_id}}
-HTTP 200
-[Asserts]
-jsonpath "$.id" == "{{document_id}}"
-jsonpath "$.status" == "DELETED"
+DELETE {{base_url}}/api/v2/collections/{{collection_id}}/documents/{{document_id}}
+HTTP 204
 
-DELETE {{base_url}}/api/v1/collections/{{collection_id}}
-HTTP 200
+DELETE {{base_url}}/api/v2/collections/{{collection_id}}
+HTTP 204

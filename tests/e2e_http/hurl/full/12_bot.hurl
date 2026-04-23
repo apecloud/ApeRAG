@@ -6,7 +6,7 @@ Content-Type: application/json
 }
 HTTP 200
 
-POST {{base_url}}/api/v1/bots
+POST {{base_url}}/api/v2/bots
 Content-Type: application/json
 {
   "title": "Bot Full {{run_id}}",
@@ -21,18 +21,18 @@ jsonpath "$.id" == "{{bot_id}}"
 jsonpath "$.title" == "Bot Full {{run_id}}"
 jsonpath "$.type" == "agent"
 
-GET {{base_url}}/api/v1/bots
+GET {{base_url}}/api/v2/bots
 HTTP 200
 [Asserts]
 body contains "\"id\":\"{{bot_id}}\""
 
-GET {{base_url}}/api/v1/bots/{{bot_id}}
+GET {{base_url}}/api/v2/bots/{{bot_id}}
 HTTP 200
 [Asserts]
 jsonpath "$.id" == "{{bot_id}}"
 jsonpath "$.description" == "HTTP full bot coverage"
 
-POST {{base_url}}/api/v1/collections
+POST {{base_url}}/api/v2/collections
 Content-Type: application/json
 {
   "title": "Bot Collection {{run_id}}",
@@ -54,7 +54,7 @@ collection_id: jsonpath "$.id"
 jsonpath "$.id" == "{{collection_id}}"
 jsonpath "$.config.source" == "system"
 
-PUT {{base_url}}/api/v1/bots/{{bot_id}}
+PUT {{base_url}}/api/v2/bots/{{bot_id}}
 Content-Type: application/json
 {
   "title": "Bot Full {{run_id}} Updated",
@@ -89,7 +89,7 @@ jsonpath "$.config.agent.system_prompt_template" == "You are Bot Full {{run_id}}
 jsonpath "$.config.agent.query_prompt_template" == "Answer the request: {query}"
 jsonpath "$.config.agent.collections[0].id" == "{{collection_id}}"
 
-GET {{base_url}}/api/v1/bots/{{bot_id}}
+GET {{base_url}}/api/v2/bots/{{bot_id}}
 HTTP 200
 [Asserts]
 jsonpath "$.id" == "{{bot_id}}"
@@ -97,8 +97,8 @@ jsonpath "$.title" == "Bot Full {{run_id}} Updated"
 jsonpath "$.config.agent.completion.model" == "google/gemini-2.5-flash"
 jsonpath "$.config.agent.collections[0].id" == "{{collection_id}}"
 
-DELETE {{base_url}}/api/v1/bots/{{bot_id}}
+DELETE {{base_url}}/api/v2/bots/{{bot_id}}
 HTTP 204
 
-DELETE {{base_url}}/api/v1/collections/{{collection_id}}
-HTTP 200
+DELETE {{base_url}}/api/v2/collections/{{collection_id}}
+HTTP 204
