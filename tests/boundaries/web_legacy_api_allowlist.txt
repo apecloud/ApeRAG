@@ -24,15 +24,7 @@ web/src/app/workspace/collections/[collectionId]/search/search-table.tsx
 web/src/app/workspace/collections/[collectionId]/search/search-test.tsx
 web/src/app/workspace/collections/feature-visibility.ts
 web/src/app/workspace/collections/tools.ts
-web/src/components/chat/agent-turn-card.tsx
 web/src/components/chat/chat-input.tsx
-web/src/components/chat/chat-messages.tsx
-web/src/components/chat/message-feedback.tsx
-web/src/components/chat/message-part-ai.tsx
-web/src/components/chat/message-parts-ai.tsx
-web/src/components/chat/message-parts-user.tsx
-web/src/components/chat/message-reference.tsx
-web/src/components/chat/message-timestamp.tsx
 web/src/components/providers/app-provider.tsx
 web/src/components/user-avatar.tsx
 web/src/lib/api/client.ts

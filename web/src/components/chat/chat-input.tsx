@@ -1,8 +1,8 @@
 import {
-  ChatDetails,
   Collection,
   UploadDocumentResponseStatusEnum,
 } from '@/api';
+import type { ChatDetails } from '@/features/bot/types';
 import type { ModelSpec } from '@/features/providers/types';
 import { PageContent } from '@/components/page-container';
 import { useBotContext } from '@/components/providers/bot-provider';

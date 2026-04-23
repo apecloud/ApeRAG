@@ -1,4 +1,8 @@
-import { Feedback, FeedbackTagEnum, FeedbackTypeEnum } from '@/api';
+import {
+  FEEDBACK_TAGS,
+  type Feedback,
+  type FeedbackType,
+} from '@/features/bot/types';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -19,7 +23,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Textarea } from '@/components/ui/textarea';
-import { cn, objectKeys } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ThumbsDown, ThumbsUp } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -28,7 +32,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 const feedbackSchema = z.object({
-  tag: z.enum(objectKeys(FeedbackTagEnum), {
+  tag: z.enum(FEEDBACK_TAGS, {
     error: 'You need to select a feedback type.',
   }),
   message: z.string().optional(),
@@ -51,11 +55,11 @@ export const MessageFeedback = ({
   const common_action = useTranslations('common.action');
 
   const handleVote = useCallback(
-    (type: FeedbackTypeEnum) => {
+    (type: FeedbackType) => {
       if (!turnId) return;
       if (type === feedback?.type) {
         onFeedback(turnId, {});
-      } else if (type === FeedbackTypeEnum.good) {
+      } else if (type === 'good') {
         onFeedback(turnId, { type });
       } else {
         setVisible(true);
@@ -68,7 +72,7 @@ export const MessageFeedback = ({
     (values: z.infer<typeof feedbackSchema>) => {
       if (!turnId) return;
       onFeedback(turnId, {
-        type: FeedbackTypeEnum.bad,
+        type: 'bad',
         tag: values.tag,
         message: values.message,
       });
@@ -102,7 +106,7 @@ export const MessageFeedback = ({
                           defaultValue={field.value}
                           className="flex flex-col gap-2"
                         >
-                          {objectKeys(FeedbackTagEnum).map((key) => {
+                          {FEEDBACK_TAGS.map((key) => {
                             return (
                               <Label key={key} className="block">
                                 <FormItem
@@ -176,11 +180,11 @@ export const MessageFeedback = ({
         disabled={!turnId}
         className={cn(
           'cursor-pointer',
-          feedback?.type === FeedbackTypeEnum.good
+          feedback?.type === 'good'
             ? 'text-green-500 hover:text-green-600'
             : 'text-muted-foreground',
         )}
-        onClick={() => handleVote(FeedbackTypeEnum.good)}
+        onClick={() => handleVote('good')}
       >
         <ThumbsUp />
       </Button>
@@ -190,11 +194,11 @@ export const MessageFeedback = ({
         disabled={!turnId}
         className={cn(
           'cursor-pointer',
-          feedback?.type === FeedbackTypeEnum.bad
+          feedback?.type === 'bad'
             ? 'text-rose-500 hover:text-rose-600'
             : 'text-muted-foreground',
         )}
-        onClick={() => handleVote(FeedbackTypeEnum.bad)}
+        onClick={() => handleVote('bad')}
       >
         <ThumbsDown />
       </Button>

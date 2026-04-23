@@ -1,4 +1,4 @@
-import { ChatMessage } from '@/api';
+import type { ChatMessage } from '@/features/bot/types';
 import { Markdown } from '@/components/markdown';
 import { useBotContext } from '@/components/providers/bot-provider';
 import { UserRound } from 'lucide-react';

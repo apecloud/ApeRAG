@@ -1,4 +1,4 @@
-import { ChatMessage } from '@/api';
+import type { ChatMessage } from '@/features/bot/types';
 import { cn } from '@/lib/utils';
 import { useFormatter } from 'next-intl';
 

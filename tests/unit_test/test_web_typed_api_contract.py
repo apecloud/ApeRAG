@@ -498,6 +498,19 @@ def test_evaluation_feature_uses_v2_typed_api_boundary():
 
 
 def test_bot_feature_uses_v2_typed_api_boundary():
+    """Bot feature adapter boundary — also covers the #4 Phase 1b batch 6
+    ("chat type shell") 8-file migration.
+
+    Batch 6 migrates eight `components/chat/*` type-only consumers off the
+    legacy `@/api` SDK onto `features/bot/types`. `chat-input.tsx` is
+    deferred (it has `apiClient.chatDocumentsApi.*` call-sites for chat-
+    document attachment, which crosses the chat↔document domain boundary
+    and is out of scope for a pure type-shell migration). `chat-messages.tsx`
+    uses a raw `fetch(` against the agent-runtime streaming/artifact
+    endpoints — that is an intentional non-SDK path, not a Phase 1b
+    regression, so this test does not forbid `fetch(` in the migrated
+    business code (only inside `features/bot/**`).
+    """
     checked_paths = [
         REPO_ROOT / "web/src/app/workspace/bots",
         REPO_ROOT / "web/src/app/workspace/layout.tsx",
@@ -547,6 +560,60 @@ def test_bot_feature_uses_v2_typed_api_boundary():
     # required keys should reappear.
     assert "max_length: input.max_length ?? null" not in bot_client_api
     assert "turns: input.turns ?? null" not in bot_client_api
+
+    # #4 Phase 1b batch 6 — chat type shell migration. The eight type-only
+    # consumers below must only reach `features/bot/types` for chat-domain
+    # types. The legacy `@/api` SDK and `FeedbackTag{Enum,TypeEnum}` enum
+    # classes are banned across this scope. The `chat-input.tsx` caller is
+    # **deliberately out of scope** (deferred to the chat/document boundary
+    # batch).
+    batch6_chat_paths = [
+        REPO_ROOT / "web/src/components/chat/agent-turn-card.tsx",
+        REPO_ROOT / "web/src/components/chat/chat-messages.tsx",
+        REPO_ROOT / "web/src/components/chat/message-feedback.tsx",
+        REPO_ROOT / "web/src/components/chat/message-part-ai.tsx",
+        REPO_ROOT / "web/src/components/chat/message-parts-ai.tsx",
+        REPO_ROOT / "web/src/components/chat/message-parts-user.tsx",
+        REPO_ROOT / "web/src/components/chat/message-reference.tsx",
+        REPO_ROOT / "web/src/components/chat/message-timestamp.tsx",
+    ]
+    batch6_sources = {path: path.read_text() for path in batch6_chat_paths}
+    batch6_joined = "\n".join(batch6_sources.values())
+
+    # Negative: the 8 migrated chat shell files must not reach the legacy
+    # SDK or the legacy enum classes. Note that `fetch(` is allowed here
+    # (chat-messages.tsx uses it for agent-runtime streaming, not for the
+    # legacy SDK).
+    assert "from '@/api'" not in batch6_joined
+    assert "FeedbackTagEnum" not in batch6_joined
+    assert "FeedbackTypeEnum" not in batch6_joined
+    assert "apiClient.defaultApi" not in batch6_joined
+    assert "serverApi.defaultApi" not in batch6_joined
+    assert "apiClient.chatDocumentsApi" not in batch6_joined
+    assert "getServerApi" not in batch6_joined
+
+    # Positive: every migrated chat-shell file now imports from
+    # `features/bot/types`; the feedback form uses the derived
+    # `FEEDBACK_TAGS` const + the `FeedbackType` alias instead of the old
+    # enum classes.
+    for source in batch6_sources.values():
+        assert "from '@/features/bot/types'" in source
+    message_feedback = batch6_sources[
+        REPO_ROOT / "web/src/components/chat/message-feedback.tsx"
+    ]
+    assert "FEEDBACK_TAGS" in message_feedback
+    assert "FeedbackType" in message_feedback
+
+    # Positive: features/bot/types exposes the schema-derived chat shell
+    # aliases + the runtime `FEEDBACK_TAGS` const (constrained by
+    # `satisfies readonly FeedbackTag[]`), matching the locked gate.
+    bot_types = (REPO_ROOT / "web/src/features/bot/types.ts").read_text()
+    assert "components['schemas']['ChatMessage']" in bot_types
+    assert "components['schemas']['Feedback']" in bot_types
+    assert "components['schemas']['Reference']" in bot_types
+    assert "NonNullable<Feedback['tag']>" in bot_types
+    assert "NonNullable<Feedback['type']>" in bot_types
+    assert "satisfies readonly FeedbackTag[]" in bot_types
 
 
 def test_collection_feature_uses_v2_typed_api_boundary():
