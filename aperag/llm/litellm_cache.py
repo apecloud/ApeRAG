@@ -16,7 +16,7 @@
 LiteLLM Cache Configuration
 
 This module configures LiteLLM's built-in caching functionality with:
-- Redis cache storage
+- Local in-memory cache storage
 - Custom cache key generation
 - Cache hit/miss tracking
 - Cache statistics
@@ -44,7 +44,7 @@ _cache_stats = {
 
 # doc: https://docs.litellm.ai/docs/caching/all_caches#enabling-cache
 # All parameters for cache: https://docs.litellm.ai/docs/caching/all_caches#cache-initialization-parameters
-def setup_litellm_cache(default_type=LiteLLMCacheType.DISK):
+def setup_litellm_cache(default_type=LiteLLMCacheType.LOCAL):
     from litellm.caching.caching import CacheMode
 
     from aperag.config import settings
