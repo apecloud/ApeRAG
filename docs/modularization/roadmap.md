@@ -55,7 +55,7 @@ Current baseline: `main @ 6a89865f` after PR #1613.
 | --- | --- | --- | --- |
 | #4 | Phase 1b FE legacy SDK batches. Current next batch: `collection` Option B. | In progress | FE contract, allowlists, typed fallback shape |
 | #5 | Phase 2 PR-2a `web_access` backend/API hard-cut. | In progress | strict-ban imports, OpenAPI v2 path, hurl, MCP |
-| #10 | This roadmap document. | In progress | doc-only source-of-truth |
+| #10 | Roadmap source-of-truth. | Doc-only review | roadmap completeness and accuracy |
 
 ## Phase 1b remaining FE rollout
 
