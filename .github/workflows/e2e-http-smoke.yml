@@ -50,6 +50,10 @@ jobs:
           name: e2e-http-bootstrap-artifacts
           path: tests/e2e_http/bootstrap/.generated
           if-no-files-found: ignore
+          # The bootstrap directory name starts with "." — actions/upload-artifact@v4
+          # treats it as hidden and silently uploads 0 files unless we opt in.
+          # See task #14 (root-cause: task #11 Phase B).
+          include-hidden-files: true
 
       - name: Dump Compose diagnostics on failure
         if: failure()
@@ -115,6 +119,8 @@ jobs:
           name: e2e-http-provider-bootstrap-artifacts
           path: tests/e2e_http/bootstrap/.generated
           if-no-files-found: ignore
+          # ``.generated`` starts with a dot (hidden). v4 default skips it. See #14.
+          include-hidden-files: true
 
       - name: Upload provider diagnostic bundle on failure
         if: failure() && steps.provider-secrets.outputs.available == 'true'
@@ -123,6 +129,10 @@ jobs:
           name: e2e-http-provider-diagnostic-artifacts
           path: tests/e2e_http/.diagnostic-artifacts
           if-no-files-found: ignore
+          # ``.diagnostic-artifacts`` starts with a dot (hidden). v4 default skips
+          # it. The entire bundle produced by ``provider_diagnostic.sh`` ends up
+          # unuploaded without this opt-in. See #14 (root-cause: #11 Phase B).
+          include-hidden-files: true
 
       - name: Dump Compose diagnostics on failure
         if: failure() && steps.provider-secrets.outputs.available == 'true'
