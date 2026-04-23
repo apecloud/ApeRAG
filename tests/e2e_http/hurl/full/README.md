@@ -10,7 +10,7 @@ Current files:
 - `12_bot.hurl`
   bot CRUD plus agent config get/update
 - `13_chat_http.hurl`
-  chat create/list/get/update/delete plus unsupported `/v1/chat/completions` contract pointing callers to Agent Runtime V3 turns
+  chat create/list/get/update/delete plus OpenAI-shaped `/v1/chat/completions` backed by Agent Runtime V3 turns
 - `14_graph_http.hurl`
   graph labels and graph overview endpoints
 - `15_agent_runtime_v3.hurl`

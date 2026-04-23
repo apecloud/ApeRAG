@@ -20,6 +20,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 
 from aperag.agent_runtime import (
+    AgentArtifactEnvelope,
     AgentTurnSnapshot,
     CancelTurnResponse,
     CreateTurnRequest,
@@ -80,11 +81,27 @@ async def cancel_turn_view(chat_id: str, turn_id: str, user: User = Depends(requ
 
 
 @router.get("/agent/artifacts/{artifact_id}")
-async def get_artifact_view(artifact_id: str, user: User = Depends(required_user)):
+async def get_artifact_view(artifact_id: str, user: User = Depends(required_user)) -> AgentArtifactEnvelope:
     return await runtime_manager.artifact_service.get_artifact_for_user(str(user.id), artifact_id)
 
 
-@router.get("/agent/chats/{chat_id}/turns/{turn_id}/events")
+@router.get(
+    "/agent/chats/{chat_id}/turns/{turn_id}/events",
+    response_class=StreamingResponse,
+    responses={
+        200: {
+            "description": "Server-sent timeline events for one agent turn.",
+            "content": {
+                "text/event-stream": {
+                    "schema": {
+                        "type": "string",
+                        "description": "SSE frames whose data payload is AgentTimelineEventEnvelope JSON.",
+                    }
+                }
+            },
+        }
+    },
+)
 async def stream_turn_events_view(
     request: Request,
     chat_id: str,
