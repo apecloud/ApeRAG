@@ -1,0 +1,9 @@
+web/src/features/api-key/types.ts
+web/src/features/bot/types.ts
+web/src/features/collection/types.ts
+web/src/features/document/types.ts
+web/src/features/evaluation/types.ts
+web/src/features/prompt/types.ts
+web/src/features/providers/types.ts
+web/src/lib/api/typed/browser.ts
+web/src/lib/api/typed/server.ts
