@@ -550,22 +550,39 @@ def test_bot_feature_uses_v2_typed_api_boundary():
 
 
 def test_collection_feature_uses_v2_typed_api_boundary():
-    """#24a Collection + Sharing FE typed adapter boundary.
+    """Collection + Sharing FE typed adapter boundary.
+
+    Extended in #4 Phase 1b batch 5 ("Option B — core + export") to also
+    cover the collection-form / collection-list / collection-header /
+    export-dialog callers and the export-task adapter. Two residues are
+    deliberately **deferred** and must stay out of scope:
+
+    - `app/workspace/collections/feature-visibility.ts` imports
+      `RebuildIndexesRequestIndexTypesEnum` / `SearchResultItem*` from
+      `@/api` — indexing/retrieval domain, not collection — deferred to
+      the document/indexing batch.
+    - `app/workspace/collections/tools.ts` imports `DocumentStatusEnum`
+      from `@/api` — document domain — deferred to the document batch.
+    - `[collectionId]/documents/**`, `graph/**`, `graph-showcase/**`,
+      `search/**` subtrees stay in their own domain batches.
 
     Business code under these paths must not call the old generated
     `defaultApi.collections*` / `defaultApi.collectionsCollectionId*` /
-    `defaultApi.collectionsCollectionIdSharing*` SDK directly, and the
-    `features/collection/*` adapter must only reach `/api/v2/collections*`
-    typed paths (no `@/api` fallback, no raw `fetch(`). Document-specific
-    routes (`/documents*`) are deliberately out of scope — they stay with
-    the documents slice and the upload-flow hotfix.
+    `defaultApi.collectionsCollectionIdSharing*` /
+    `defaultApi.availableModelsPost` / `defaultApi.createExportTask` /
+    `defaultApi.getExportTask` SDK directly, and the
+    `features/collection/*` adapter must only reach
+    `/api/v2/collections*` typed paths (plus the still-v1 export-task
+    paths) without a `@/api` fallback or raw `fetch(`.
     """
     checked_paths = [
         REPO_ROOT / "web/src/app/workspace/collections/page.tsx",
         REPO_ROOT / "web/src/app/workspace/collections/collection-form.tsx",
+        REPO_ROOT / "web/src/app/workspace/collections/collection-list.tsx",
         REPO_ROOT / "web/src/app/workspace/collections/[collectionId]/layout.tsx",
         REPO_ROOT / "web/src/app/workspace/collections/[collectionId]/collection-delete.tsx",
         REPO_ROOT / "web/src/app/workspace/collections/[collectionId]/collection-header.tsx",
+        REPO_ROOT / "web/src/components/collections/export-dialog.tsx",
         REPO_ROOT / "web/src/components/providers/collection-provider.tsx",
         REPO_ROOT / "web/src/components/providers/bot-provider.tsx",
         REPO_ROOT / "web/src/features/collection",
@@ -584,7 +601,7 @@ def test_collection_feature_uses_v2_typed_api_boundary():
         source for path, source in sources.items() if "/web/src/features/collection/" in str(path)
     )
 
-    # Business code under #24a scope must not reach the old generated
+    # Business code under scope must not reach the old generated
     # collection SDK or the v1 collections routes directly.
     assert "defaultApi.collectionsGet" not in joined
     assert "defaultApi.collectionsPost" not in joined
@@ -595,11 +612,72 @@ def test_collection_feature_uses_v2_typed_api_boundary():
     assert "defaultApi.collectionsCollectionIdSharingPost" not in joined
     assert "defaultApi.collectionsCollectionIdSharingDelete" not in joined
 
+    # #4 batch 5 additions: the collection-form provider call and the
+    # export-dialog task calls must be gone from the four migrated
+    # callers. `@/api` is banned across the migrated call-sites; the
+    # `features/providers::getAvailableModels` cross-domain adapter call
+    # is allowed and is not what these negative assertions target.
+    form_tsx = sources[
+        REPO_ROOT / "web/src/app/workspace/collections/collection-form.tsx"
+    ]
+    list_tsx = sources[
+        REPO_ROOT / "web/src/app/workspace/collections/collection-list.tsx"
+    ]
+    header_tsx = sources[
+        REPO_ROOT
+        / "web/src/app/workspace/collections/[collectionId]/collection-header.tsx"
+    ]
+    export_dialog_tsx = sources[
+        REPO_ROOT / "web/src/components/collections/export-dialog.tsx"
+    ]
+    migrated_joined = "\n".join(
+        [form_tsx, list_tsx, header_tsx, export_dialog_tsx]
+    )
+    assert "from '@/api'" not in migrated_joined
+    assert "apiClient.defaultApi.availableModelsPost" not in migrated_joined
+    assert "apiClient.defaultApi.createExportTask" not in migrated_joined
+    assert "apiClient.defaultApi.getExportTask" not in migrated_joined
+    assert "defaultApi.createExportTask" not in migrated_joined
+    assert "defaultApi.getExportTask" not in migrated_joined
+
+    # Positive: migrated callers wire through the feature adapter(s).
+    assert "from '@/features/providers/client-api'" in form_tsx
+    assert "from '@/features/collection/types'" in form_tsx
+    assert "from '@/features/collection/types'" in list_tsx
+    assert "from '@/features/collection/types'" in header_tsx
+    assert "from '@/features/collection/client-api'" in export_dialog_tsx
+    assert "from '@/features/collection/types'" in export_dialog_tsx
+
     # features/collection adapter must only reach v2 typed paths and not
-    # fall back to the old `@/api` generated SDK or raw fetch.
+    # fall back to the old `@/api` generated SDK or raw fetch. The still-v1
+    # export-task paths are allowed as Phase 1b typed-wrapping, not a v1→v2
+    # rename.
     assert "from '@/api'" not in feature_sources
     assert "fetch(" not in feature_sources
     assert "/api/v2/collections" in feature_sources
+    assert "'/api/v1/collections/{collection_id}/export'" in feature_sources
+    assert "'/api/v1/export-tasks/{task_id}'" in feature_sources
+
+    # Positive: schema-derived types + fail-fast export-task adapter.
+    types_ts = (REPO_ROOT / "web/src/features/collection/types.ts").read_text()
+    assert "NonNullable<CollectionView['status']>" in types_ts
+    assert (
+        "NonNullable<\n  components['schemas']['TitleGenerateRequest']['language']\n>"
+        in types_ts
+    )
+    assert "satisfies readonly TitleLanguage[]" in types_ts
+    assert "components['schemas']['ExportTaskResponse']" in types_ts
+
+    client_api_ts = (
+        REPO_ROOT / "web/src/features/collection/client-api.ts"
+    ).read_text()
+    # `createExportTask` / `getExportTask` return typed schema components
+    # with `export_task_id` + `status` as required fields; an empty body
+    # means the backend broke its contract, so the adapter must throw
+    # instead of returning a typed-shape-missing `{}` (new server/client
+    # adapter gate, #1612 / #1611 follow-up).
+    assert "createExportTask: empty response body" in client_api_ts
+    assert "getExportTask: empty response body" in client_api_ts
 
 
 def test_document_feature_uses_v2_typed_api_boundary():

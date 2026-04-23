@@ -1,6 +1,10 @@
 'use client';
 
-import { ModelSpec, TitleGenerateRequestLanguageEnum } from '@/api';
+import {
+  TITLE_LANGUAGES,
+  type TitleLanguage,
+} from '@/features/collection/types';
+import type { ModelSpec } from '@/features/providers/types';
 import { useCollectionContext } from '@/components/providers/collection-provider';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -38,7 +42,7 @@ import {
   createCollection,
   updateCollection,
 } from '@/features/collection/client-api';
-import { apiClient } from '@/lib/api/client';
+import { getAvailableModels } from '@/features/providers/client-api';
 import { cn, objectKeys } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
 import _ from 'lodash';
@@ -73,7 +77,7 @@ const collectionSchema = z
       enable_vision: z.boolean(),
       completion: collectionModelSchema,
       embedding: collectionModelSchema,
-      language: z.enum(Object.values(TitleGenerateRequestLanguageEnum)),
+      language: z.enum(TITLE_LANGUAGES),
     }),
   })
   .refine(
@@ -143,7 +147,7 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
         model: '',
         model_service_provider: '',
       },
-      language: locale,
+      language: locale as TitleLanguage,
     },
   };
 
@@ -186,27 +190,21 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
    * set completion、embedding models used in model select component
    */
   const loadModels = useCallback(async () => {
-    const res = await apiClient.defaultApi.availableModelsPost({
-      tagFilterRequest: {
-        tag_filters: [{ operation: 'AND', tags: ['enable_for_collection'] }],
-      },
-    });
-    const completion = res.data.items?.map((m) => {
-      return {
-        label: m.label,
-        name: m.name,
-        models: m.completion,
-      };
-    });
-    const embedding = res.data.items?.map((m) => {
-      return {
-        label: m.label,
-        name: m.name,
-        models: m.embedding,
-      };
-    });
-    setCompletionModels(completion || []);
-    setEmbeddingModels(embedding || []);
+    const models = await getAvailableModels([['enable_for_collection']]);
+    setCompletionModels(
+      models.map((m) => ({
+        label: m.label ?? undefined,
+        name: m.name ?? undefined,
+        models: m.completion ?? undefined,
+      })),
+    );
+    setEmbeddingModels(
+      models.map((m) => ({
+        label: m.label ?? undefined,
+        name: m.name ?? undefined,
+        models: m.embedding ?? undefined,
+      })),
+    );
   }, []);
 
   /**
