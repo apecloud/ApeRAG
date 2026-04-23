@@ -17,11 +17,10 @@ def _json_ref(spec: dict, path: str, method: str, status: str = "200") -> str:
 
 
 REQUIRED_PATHS = (
-    "/api/v2/benchmark-datasets",
-    "/api/v2/benchmark-datasets/{dataset_id}",
-    "/api/v2/benchmark-datasets/{dataset_id}/versions",
-    "/api/v2/benchmark-datasets/{dataset_id}/versions/{version_id}",
-    "/api/v2/benchmark-datasets/{dataset_id}/versions/{version_id}/cases",
+    "/api/v2/evaluation-datasets",
+    "/api/v2/evaluation-datasets/{dataset_id}",
+    "/api/v2/evaluation-datasets/{dataset_id}/items",
+    "/api/v2/evaluation-datasets/{dataset_id}/items/{item_id}",
     "/api/v2/evaluation-runs",
     "/api/v2/evaluation-runs/{run_id}",
     "/api/v2/evaluation-runs/{run_id}/cancel",
@@ -38,11 +37,15 @@ def test_evaluation_v2_routes_are_public_and_typed():
     for p in REQUIRED_PATHS:
         assert p in paths, f"missing public path {p}"
 
-    assert _json_ref(spec, "/api/v2/benchmark-datasets", "post") == "#/components/schemas/BenchmarkDatasetEnvelope"
-    assert _json_ref(spec, "/api/v2/benchmark-datasets", "get") == "#/components/schemas/BenchmarkDatasetListResponse"
+    assert _json_ref(spec, "/api/v2/evaluation-datasets", "post") == "#/components/schemas/EvaluationDatasetEnvelope"
+    assert _json_ref(spec, "/api/v2/evaluation-datasets", "get") == "#/components/schemas/EvaluationDatasetListResponse"
     assert (
-        _json_ref(spec, "/api/v2/benchmark-datasets/{dataset_id}/versions", "post")
-        == "#/components/schemas/BenchmarkDatasetVersionEnvelope"
+        _json_ref(spec, "/api/v2/evaluation-datasets/{dataset_id}/items", "get")
+        == "#/components/schemas/EvaluationDatasetItemListResponse"
+    )
+    assert (
+        _json_ref(spec, "/api/v2/evaluation-datasets/{dataset_id}/items", "post")
+        == "#/components/schemas/EvaluationDatasetItemsAppendResponse"
     )
     assert _json_ref(spec, "/api/v2/evaluation-runs", "post") == "#/components/schemas/EvaluationRunEnvelope"
     assert (
@@ -55,17 +58,6 @@ def test_evaluation_v2_routes_are_public_and_typed():
         _json_ref(spec, "/api/v2/evaluation-runs/{run_id}/items/{item_id}/retry", "post")
         == "#/components/schemas/EvaluationRunItemEnvelope"
     )
-
-
-def test_evaluation_v2_write_request_bodies_omit_path_params():
-    spec = _evaluation_v2_spec()
-    components = spec["components"]["schemas"]
-
-    create_version_ref = spec["paths"]["/api/v2/benchmark-datasets/{dataset_id}/versions"]["post"]["requestBody"][
-        "content"
-    ]["application/json"]["schema"]["$ref"]
-    create_version_schema = components[create_version_ref.removeprefix("#/components/schemas/")]
-    assert "dataset_id" not in create_version_schema.get("properties", {})
 
 
 def test_evaluation_v2_operation_ids_are_unique():
@@ -93,27 +85,61 @@ def test_full_app_spec_has_no_v1_evaluation_or_question_set_paths():
         assert not ghost, f"{spec_name} spec must not expose v1 evaluation/question-set paths; found {ghost}"
 
 
-def test_evaluation_v2_delete_benchmark_dataset_has_no_json_body():
+def test_evaluation_v2_benchmark_and_version_paths_removed():
+    """Negative gate: the simplified evaluation API must not leak the retired
+    ``Benchmark`` / ``Dataset Version`` concepts into the public contract."""
+
     spec = _evaluation_v2_spec()
-    responses = spec["paths"]["/api/v2/benchmark-datasets/{dataset_id}"]["delete"]["responses"]
+    leaked = sorted(
+        path for path in spec["paths"] if path.startswith("/api/v2/benchmark-datasets") or "/versions" in path
+    )
+    assert not leaked, f"evaluation_v2 router must not expose benchmark/version paths; found {leaked}"
 
-    assert "204" in responses, "DELETE /benchmark-datasets/{dataset_id} must expose a 204 response"
-    assert "200" not in responses, "DELETE /benchmark-datasets/{dataset_id} must not declare a 200 response"
+    components = spec.get("components", {}).get("schemas", {}) or {}
+    forbidden_schemas = sorted(name for name in components if name.startswith("Benchmark"))
+    assert not forbidden_schemas, f"evaluation_v2 spec must not export Benchmark* schemas; found {forbidden_schemas}"
 
-    # The success response must be a bare 204 with no body schema.
+
+def test_evaluation_run_create_requires_dataset_id_allows_optional_bot():
+    """``EvaluationRunCreate`` pins the simplified run contract:
+
+    - ``dataset_id`` is required;
+    - ``bot_id`` is optional (service resolves the default bot);
+    - legacy ``dataset_version_id`` must not appear.
+    """
+
+    spec = _evaluation_v2_spec()
+    components = spec["components"]["schemas"]
+    request_ref = spec["paths"]["/api/v2/evaluation-runs"]["post"]["requestBody"]["content"]["application/json"][
+        "schema"
+    ]["$ref"]
+    schema = components[request_ref.removeprefix("#/components/schemas/")]
+    properties = schema.get("properties", {})
+    required = set(schema.get("required", []) or [])
+
+    assert "dataset_id" in properties
+    assert "dataset_id" in required
+    assert "bot_id" in properties
+    assert "bot_id" not in required
+    assert "dataset_version_id" not in properties
+
+
+def test_evaluation_v2_delete_dataset_has_no_json_body():
+    spec = _evaluation_v2_spec()
+    responses = spec["paths"]["/api/v2/evaluation-datasets/{dataset_id}"]["delete"]["responses"]
+
+    assert "204" in responses, "DELETE /evaluation-datasets/{dataset_id} must expose a 204 response"
+    assert "200" not in responses, "DELETE /evaluation-datasets/{dataset_id} must not declare a 200 response"
+
     success_content = (responses["204"] or {}).get("content") or {}
     assert "application/json" not in success_content, (
-        "DELETE /benchmark-datasets/{dataset_id} 204 response must not carry an application/json body"
+        "DELETE /evaluation-datasets/{dataset_id} 204 response must not carry an application/json body"
     )
 
 
 def test_evaluation_v2_all_write_request_bodies_omit_path_params():
-    """Every POST/PUT/PATCH request body under evaluation_v2 must not redeclare path params.
-
-    Generalizes ``test_evaluation_v2_write_request_bodies_omit_path_params`` so new write routes
-    (BenchmarkDatasetCreate / BenchmarkDatasetUpdate / EvaluationRunCreate / future additions)
-    are covered automatically.
-    """
+    """Every POST/PUT/PATCH request body under ``evaluation_v2`` must not
+    redeclare any path parameter as a body property."""
 
     spec = _evaluation_v2_spec()
     components = spec["components"]["schemas"]
