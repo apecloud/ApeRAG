@@ -67,6 +67,15 @@ Hard limits:
   hurl, or migration tests depending on the touched surface.
 - Redesign must stay within the current domain / task scope. Reviewers
   may request a split if the rewrite crosses into another phase.
+- Opportunistic refactors must be directly adjacent to the current
+  migration boundary: the same feature adapter, migrated caller, route
+  shell, or typed error/fallback rule. Broad DRY cleanup across already
+  merged domains must be a separate cleanup PR, not hidden inside a
+  domain migration.
+- Shared helpers should be introduced only after the repeated behavior
+  is stable across endpoints. Do not abstract over distinct semantics
+  such as `throw`, `notFound`, and typed empty-list fallback until the
+  helper can preserve each required response shape.
 - Temporary bridge or shim code must name the phase or PR that deletes
   it. Long-term compatibility shims are not accepted by default.
 - If a behavior shift is intentional and not strictly compatible, it
