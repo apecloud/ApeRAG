@@ -2,6 +2,12 @@ name: E2E HTTP
 
 on:
   workflow_call:
+  # ``workflow_dispatch`` lets a diagnostic task fire the full suite against
+  # the current ref without opening a dummy PR. See task #11: after Phase A
+  # (log preservation) merges, Phase B (causation verdict) may need to
+  # replay the provider-aware suite on demand rather than waiting for a
+  # natural PR failure.
+  workflow_dispatch:
 
 jobs:
   e2e-http-smoke:
