@@ -3,15 +3,9 @@ web/src/app/admin/configuration/parser-settings.tsx
 web/src/app/admin/configuration/quota-settings.tsx
 web/src/app/admin/users/user-quota-action.tsx
 web/src/app/admin/users/users-data-table.tsx
-web/src/app/marketplace/collections/[collectionId]/documents/[documentId]/document-detail.tsx
-web/src/app/marketplace/collections/[collectionId]/documents/document-index-status.tsx
-web/src/app/marketplace/collections/[collectionId]/documents/documents-table.tsx
 web/src/app/workspace/audit-logs/audit-log-detail.tsx
 web/src/app/workspace/audit-logs/audit-log-table.tsx
 web/src/app/workspace/audit-logs/page.tsx
-web/src/app/workspace/collections/[collectionId]/documents/document-index-status.tsx
-web/src/app/workspace/collections/[collectionId]/documents/document-rebuild-index.tsx
-web/src/app/workspace/collections/[collectionId]/documents/documents-table.tsx
 web/src/app/workspace/collections/[collectionId]/documents/upload/document-upload.tsx
 web/src/app/workspace/collections/[collectionId]/documents/upload/import/url-import.tsx
 web/src/app/workspace/collections/[collectionId]/graph-showcase/collection-graph-showcase.tsx
@@ -23,7 +17,6 @@ web/src/app/workspace/collections/[collectionId]/search/search-result-drawer.tsx
 web/src/app/workspace/collections/[collectionId]/search/search-table.tsx
 web/src/app/workspace/collections/[collectionId]/search/search-test.tsx
 web/src/app/workspace/collections/feature-visibility.ts
-web/src/app/workspace/collections/tools.ts
 web/src/components/chat/chat-input.tsx
 web/src/components/providers/app-provider.tsx
 web/src/components/user-avatar.tsx

@@ -1,5 +1,5 @@
 'use client';
-import { DocumentPreview } from '@/api';
+import type { DocumentPreview } from '@/features/document/types';
 import { buildDocumentAssetUrl, Markdown } from '@/components/markdown';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';

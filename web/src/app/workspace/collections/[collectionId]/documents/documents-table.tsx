@@ -27,9 +27,10 @@ import {
 import * as React from 'react';
 import { defaultStyles, FileIcon } from 'react-file-icon';
 
-import { RebuildIndexesRequestIndexTypesEnum } from '@/api';
-
-import type { Document } from '@/features/document/types';
+import {
+  DOCUMENT_INDEX_TYPES,
+  type Document,
+} from '@/features/document/types';
 
 import { DataGrid, DataGridPagination } from '@/components/data-grid';
 import { FormatDate } from '@/components/format-date';
@@ -216,39 +217,37 @@ export function DocumentsTable({
 
   const columns: ColumnDef<Document>[] = React.useMemo(() => {
     const indexCols: ColumnDef<Document>[] = [];
-    objectKeys(RebuildIndexesRequestIndexTypesEnum)
-      .filter(isVisibleDocumentIndexType)
-      .map((key) => {
-        const accessorKey = key.toLowerCase() + '_index_status';
+    DOCUMENT_INDEX_TYPES.filter(isVisibleDocumentIndexType).map((key) => {
+      const accessorKey = key.toLowerCase() + '_index_status';
 
-        const config = collection.config;
-        let enabled: boolean | undefined;
-        switch (key) {
-          case 'FULLTEXT':
-            enabled = config?.enable_fulltext;
-            break;
-          case 'GRAPH':
-            enabled = config?.enable_knowledge_graph;
-            break;
-          case 'VECTOR':
-            enabled = config?.enable_vector;
-            break;
-          default:
-            enabled = false;
-        }
-        if (enabled) {
-          indexCols.push({
-            accessorKey,
-            header: page_collections(`index_type_${key}.title`),
-            cell: ({ row }) => (
-              <DocumentIndexStatus
-                document={row.original}
-                accessorKey={accessorKey}
-              />
-            ),
-          });
-        }
-      });
+      const config = collection.config;
+      let enabled: boolean | undefined;
+      switch (key) {
+        case 'FULLTEXT':
+          enabled = config?.enable_fulltext;
+          break;
+        case 'GRAPH':
+          enabled = config?.enable_knowledge_graph;
+          break;
+        case 'VECTOR':
+          enabled = config?.enable_vector;
+          break;
+        default:
+          enabled = false;
+      }
+      if (enabled) {
+        indexCols.push({
+          accessorKey,
+          header: page_collections(`index_type_${key}.title`),
+          cell: ({ row }) => (
+            <DocumentIndexStatus
+              document={row.original}
+              accessorKey={accessorKey}
+            />
+          ),
+        });
+      }
+    });
 
     const cols: ColumnDef<Document>[] = [
       {
