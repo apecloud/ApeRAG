@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import logging
-from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
@@ -155,7 +154,7 @@ async def get_marketplace_collection_document_object(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/marketplace/collections/{collection_id}/graph", tags=["graph"])
+@router.get("/marketplace/collections/{collection_id}/graph", tags=["graph"], response_model=view_models.KnowledgeGraph)
 async def get_marketplace_collection_graph(
     request: Request,
     collection_id: str,
@@ -163,7 +162,7 @@ async def get_marketplace_collection_graph(
     max_nodes: int = Query(1000, ge=1, le=10000),
     max_depth: int = Query(3, ge=1, le=10),
     user: User = Depends(optional_user),
-) -> Dict[str, Any]:
+) -> view_models.KnowledgeGraph:
     """Get knowledge graph for MarketplaceCollection (read-only)"""
     from aperag.service.graph_service import graph_service
 

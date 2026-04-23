@@ -574,6 +574,64 @@ class VisionSearchParams(BaseModel):
     similarity: Optional[confloat(ge=0.0, le=1.0)] = Field(None, description="Similarity threshold")
 
 
+class SearchResultMetadata(BaseModel):
+    """
+    Public metadata carried by search result items.
+
+    This intentionally allow-lists fields needed by clients and excludes raw
+    index/storage metadata such as indexer, index_method, chat_id, object_path,
+    and embedded node payloads.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    source: Optional[str] = Field(None, description="Display source for the result")
+    title: Optional[str] = Field(None, description="Human-readable title when available")
+    collection_id: Optional[str] = Field(None, description="Collection identifier for client follow-up actions")
+    document_id: Optional[str] = Field(None, description="Document identifier for client follow-up actions")
+    asset_id: Optional[str] = Field(None, description="Asset identifier for image or binary references")
+    mimetype: Optional[str] = Field(None, description="Asset MIME type when the result references an asset")
+    page_idx: Optional[int] = Field(None, description="Zero-based page index when available")
+    url: Optional[str] = Field(None, description="External source URL when available")
+    modality: Optional[Literal["text", "image"]] = Field(None, description="Public content modality")
+
+    @classmethod
+    def from_raw(cls, metadata: Optional[dict[str, Any]]) -> Optional["SearchResultMetadata"]:
+        if not isinstance(metadata, dict) or not metadata:
+            return None
+
+        def public_str(*keys: str) -> Optional[str]:
+            for key in keys:
+                value = metadata.get(key)
+                if isinstance(value, str) and value:
+                    return value
+            return None
+
+        page_idx = metadata.get("page_idx")
+        if isinstance(page_idx, str) and page_idx.isdigit():
+            page_idx = int(page_idx)
+        if not isinstance(page_idx, int):
+            page_idx = None
+
+        modality = "image" if metadata.get("indexer") == "vision" else None
+        if modality is None and any(metadata.get(key) for key in ("asset_id", "mimetype")):
+            modality = "image"
+
+        data = {
+            "source": public_str("source", "name"),
+            "title": public_str("title"),
+            "collection_id": public_str("collection_id"),
+            "document_id": public_str("document_id"),
+            "asset_id": public_str("asset_id"),
+            "mimetype": public_str("mimetype"),
+            "page_idx": page_idx,
+            "url": public_str("url"),
+            "modality": modality,
+        }
+        public_data = {key: value for key, value in data.items() if value is not None}
+        return cls(**public_data) if public_data else None
+
+
 class SearchResultItem(BaseModel):
     rank: Optional[int] = Field(None, description="Result rank")
     score: Optional[float] = Field(None, description="Result score")
@@ -588,7 +646,16 @@ class SearchResultItem(BaseModel):
             "vision_search",
         ]
     ] = Field(None, description="Recall type")
-    metadata: Optional[dict[str, Any]] = Field(None, description="Metadata of the result")
+    metadata: Optional[SearchResultMetadata] = Field(None, description="Public metadata of the result")
+
+    @field_validator("metadata", mode="before")
+    @classmethod
+    def sanitize_metadata(cls, value):
+        if value is None or isinstance(value, SearchResultMetadata):
+            return value
+        if isinstance(value, dict):
+            return SearchResultMetadata.from_raw(value)
+        return value
 
 
 class SearchResult(BaseModel):
@@ -789,28 +856,27 @@ class GraphLabelsResponse(BaseModel):
     )
 
 
-class Properties(BaseModel):
+class GraphNodeProperties(BaseModel):
     """
-    Node properties containing entity metadata
+    Public node properties for graph visualization.
     """
 
     model_config = ConfigDict(
-        extra="allow",
+        extra="forbid",
     )
     entity_id: Optional[str] = Field(None, description="Entity identifier", examples=["墨香居"])
+    entity_name: Optional[str] = Field(None, description="Entity display name", examples=["墨香居"])
     entity_type: Optional[str] = Field(None, description="Type of the entity", examples=["organization"])
     description: Optional[str] = Field(
         None,
         description="Description of the entity",
         examples=["墨香居是这条老巷子里唯一的旧书店，经营着各种书籍，承载了老板李明华的情怀。"],
     )
-    source_id: Optional[str] = Field(
+    source_chunk_count: Optional[conint(ge=0)] = Field(
         None,
-        description="Source chunk ID where entity was extracted",
-        examples=["chunk-88845945407136e9498f5f594c8a00c6"],
+        description="Number of source chunks supporting this entity; raw chunk IDs are not exposed",
+        examples=[3],
     )
-    file_path: Optional[str] = Field(None, description="Source file path", examples=["story.txt"])
-    created_at: Optional[int] = Field(None, description="Creation timestamp", examples=[1751356233])
 
 
 class GraphNode(BaseModel):
@@ -824,16 +890,16 @@ class GraphNode(BaseModel):
         examples=["墨香居"],
     )
     labels: list[str] = Field(..., description="Labels associated with the node", examples=[["墨香居"]])
-    properties: Properties = Field(..., description="Node properties containing entity metadata")
+    properties: GraphNodeProperties = Field(..., description="Public node properties")
 
 
-class Properties1(BaseModel):
+class GraphEdgeProperties(BaseModel):
     """
-    Edge properties containing relationship metadata
+    Public edge properties for graph visualization.
     """
 
     model_config = ConfigDict(
-        extra="allow",
+        extra="forbid",
     )
     weight: Optional[float] = Field(None, description="Relationship weight/strength", examples=[9])
     description: Optional[str] = Field(
@@ -846,13 +912,11 @@ class Properties1(BaseModel):
         description="Keywords associated with the relationship",
         examples=["书店活力,活动"],
     )
-    source_id: Optional[str] = Field(
+    source_chunk_count: Optional[conint(ge=0)] = Field(
         None,
-        description="Source chunk ID where relationship was extracted",
-        examples=["chunk-88845945407136e9498f5f594c8a00c6"],
+        description="Number of source chunks supporting this relationship; raw chunk IDs are not exposed",
+        examples=[2],
     )
-    file_path: Optional[str] = Field(None, description="Source file path", examples=["story.txt"])
-    created_at: Optional[int] = Field(None, description="Creation timestamp", examples=[1751356233])
 
 
 class GraphEdge(BaseModel):
@@ -868,7 +932,7 @@ class GraphEdge(BaseModel):
     type: Optional[str] = Field("DIRECTED", description="Type of the relationship", examples=["DIRECTED"])
     source: str = Field(..., description="Source node ID", examples=["墨香居"])
     target: str = Field(..., description="Target node ID", examples=["深夜读书会"])
-    properties: Properties1 = Field(..., description="Edge properties containing relationship metadata")
+    properties: GraphEdgeProperties = Field(..., description="Public edge properties")
 
 
 class KnowledgeGraph(BaseModel):
