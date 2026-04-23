@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 
@@ -197,3 +198,91 @@ def test_documents_upload_regression_guards():
     ).read_text()
     assert "@ts-expect-error onPaginationChange" not in table_tsx
     assert "typeof updater === 'function'" in table_tsx
+
+
+def test_documents_upload_regression_hardening():
+    """Stronger #30 regression guards layered on top of the minimal
+    `test_documents_upload_regression_guards`. The hotfix in #1580 left
+    two runtime-sensitive choices that a future unrelated edit could
+    quietly flip back:
+
+    1. `document-upload.tsx` must still expose a **manual** stop path for
+       the user (the "Stop" button). The hotfix only removed the *unmount
+       cleanup* auto-abort; it did not remove user-initiated abort. A
+       refactor that collapses the callback would make the uploader
+       unstoppable.
+    2. `documents-table.tsx` must keep the fully normalised
+       `onPaginationChange` handler: read `current`, call
+       `updater(current)` only when `updater` is a function, otherwise
+       use the value directly, and dispatch `next.pageIndex + 1` /
+       `next.pageSize` through the URL search-params helper. Without
+       the normalisation the handler either crashes on value-form
+       updaters (snapping back to page 1) or silently discards pageSize
+       changes.
+
+    Any future edit that drops these guarantees fails these positive
+    assertions, so the reviewer has to consciously update the test
+    baseline — that acknowledgement is the point.
+    """
+
+    upload_tsx = (
+        REPO_ROOT
+        / "web/src/app/workspace/collections/[collectionId]/documents/upload/document-upload.tsx"
+    ).read_text()
+
+    # Manual-stop affordance must remain: a `stopUpload` callback and a
+    # user-facing `onClick={stopUpload}` wiring in the JSX. Combined with
+    # the negative `() => stopUpload()` / `() => () => stopUpload` asserts
+    # above, this pins "user can still stop; component unmount cannot".
+    assert "const stopUpload = useCallback(" in upload_tsx, (
+        "stopUpload callback must remain for the manual Stop button path"
+    )
+    assert "onClick={stopUpload}" in upload_tsx, (
+        "The Stop button must continue to wire up stopUpload so users "
+        "can still abort a bulk upload on intent"
+    )
+    # Defensive: no `useEffect` anywhere in the file may dispatch
+    # `stopUpload` from its cleanup. This catches both the original
+    # one-liner and any refactor that splits the cleanup body across
+    # several lines before calling `stopUpload()`.
+    cleanup_call_pattern = re.compile(
+        r"useEffect\s*\([\s\S]*?=>\s*\(\s*\)\s*=>\s*[\s\S]*?stopUpload\s*\(\s*\)",
+        re.MULTILINE,
+    )
+    assert cleanup_call_pattern.search(upload_tsx) is None, (
+        "document-upload.tsx must not call stopUpload() from any "
+        "useEffect cleanup — same-tab navigation would abort uploads"
+    )
+
+    table_tsx = (
+        REPO_ROOT
+        / "web/src/app/workspace/collections/[collectionId]/documents/documents-table.tsx"
+    ).read_text()
+
+    # Positive: the normalised updater handler body is intact.
+    assert "onPaginationChange: (updater)" in table_tsx, (
+        "onPaginationChange must accept `updater` explicitly so the "
+        "function-vs-value branch is visible at the call site"
+    )
+    assert "typeof updater === 'function' ? updater(current) : updater" in (
+        table_tsx
+    ), (
+        "onPaginationChange must normalise both Updater shapes before "
+        "reading pageIndex/pageSize"
+    )
+    assert "next.pageIndex" in table_tsx and "next.pageSize" in table_tsx, (
+        "pagination click must dispatch the normalised next.pageIndex / "
+        "next.pageSize, not the stale `current` snapshot"
+    )
+
+    # Negative: the old `fn({...}).pageIndex` / `fn({...}).pageSize`
+    # shape must not reappear — that was the broken form that assumed
+    # `updater` was always a function.
+    assert "fn({" not in table_tsx, (
+        "documents-table.tsx must not reuse the old `fn({...})` updater "
+        "pattern; use the normalised `updater(current)` branch instead"
+    )
+    assert "// @ts-expect-error" not in table_tsx, (
+        "documents-table.tsx must not silence TanStack's Updater typing "
+        "with `@ts-expect-error`"
+    )
