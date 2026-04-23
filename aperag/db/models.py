@@ -33,13 +33,15 @@ from sqlalchemy import (
     select,
     text,
 )
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from aperag.db.base import Base
 from aperag.utils.utils import utc_now
 
-# Create the declarative base
-Base = declarative_base()
+# ``Base`` is re-exported from ``aperag.db.base`` so existing call sites
+# (``from aperag.db.models import Base`` — notably ``aperag/graphindex/models.py``
+# and the Alembic ``env.py``) continue to resolve the same declarative base
+# during Phase 3's per-domain DB split. See ``aperag/db/base.py`` for the why.
 
 
 # Helper function for random id generation
@@ -99,27 +101,6 @@ class DocumentStatus(str, Enum):
     COMPLETE = "COMPLETE"
     FAILED = "FAILED"
     DELETED = "DELETED"
-
-
-class DocumentIndexType(str, Enum):
-    """Document index type enumeration"""
-
-    VECTOR = "VECTOR"
-    FULLTEXT = "FULLTEXT"
-    GRAPH = "GRAPH"
-    SUMMARY = "SUMMARY"
-    VISION = "VISION"
-
-
-class DocumentIndexStatus(str, Enum):
-    """Document index lifecycle status"""
-
-    PENDING = "PENDING"  # Awaiting processing (create/update)
-    CREATING = "CREATING"  # Task claimed, creation/update in progress
-    ACTIVE = "ACTIVE"  # Index is up-to-date and ready for use
-    DELETING = "DELETING"  # Deletion has been requested
-    DELETION_IN_PROGRESS = "DELETION_IN_PROGRESS"  # Task claimed, deletion in progress
-    FAILED = "FAILED"  # The last operation failed
 
 
 class BotStatus(str, Enum):
@@ -827,43 +808,6 @@ class SearchHistory(Base):
     gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Add index for soft delete queries
 
 
-class DocumentIndex(Base):
-    """Document index - single status model"""
-
-    __tablename__ = "document_index"
-    __table_args__ = (
-        UniqueConstraint("document_id", "index_type", name="uq_document_index"),
-        Index("idx_document_index_status_lease", "status", "lease_expires_at"),
-    )
-
-    id = Column(Integer, primary_key=True, index=True)
-    document_id = Column(String(24), nullable=False, index=True)
-    index_type = Column(EnumColumn(DocumentIndexType), nullable=False, index=True)
-
-    status = Column(EnumColumn(DocumentIndexStatus), nullable=False, default=DocumentIndexStatus.PENDING, index=True)
-    version = Column(Integer, nullable=False, default=1)  # Incremented on each spec change
-    observed_version = Column(Integer, nullable=False, default=0)  # Last processed spec version
-
-    # Index data and task tracking
-    index_data = Column(Text, nullable=True)  # JSON string for index-specific data
-    error_message = Column(Text, nullable=True)
-    processing_token = Column(String(64), nullable=True)
-    lease_expires_at = Column(DateTime(timezone=True), nullable=True)
-
-    # Timestamps
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_last_reconciled = Column(DateTime(timezone=True), nullable=True)  # Last reconciliation attempt
-
-    def __repr__(self):
-        return f"<DocumentIndex(id={self.id}, document_id={self.document_id}, type={self.index_type}, status={self.status}, version={self.version})>"
-
-    def update_version(self):
-        """Update the version to trigger reconciliation"""
-        self.version += 1
-        self.gmt_updated = utc_now()
-
-
 class AuditResource(str, Enum):
     """Audit resource types"""
 
@@ -1303,3 +1247,22 @@ class EvaluationRunItemAttempt(Base):
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_started = Column(DateTime(timezone=True), nullable=True)
     gmt_finished = Column(DateTime(timezone=True), nullable=True)
+
+
+# ---------------------------------------------------------------------------
+# Phase 3 per-domain DB re-exports (decision D — msg=02acb01a + msg=226b2584)
+#
+# Physical owners of these classes have moved into the new domain DB modules
+# under ``aperag/domains/<domain>/db/models.py``. ``aperag.db.models`` keeps
+# re-exporting them so the 76 pre-Phase-3 callers — plus the Alembic
+# ``env.py`` metadata registration — continue to work without a rename
+# sweep. The full 7 DB + 8 enum = 15 symbol list locks in at the end of
+# Step 4 (see Phase 3 design-lock G11 exact class-name audit). Step 2
+# delivers the first 3 symbols from the ``indexing`` domain.
+# ---------------------------------------------------------------------------
+
+from aperag.domains.indexing.db.models import (  # noqa: E402, F401  re-export for back-compat
+    DocumentIndex,
+    DocumentIndexStatus,
+    DocumentIndexType,
+)

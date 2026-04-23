@@ -28,6 +28,7 @@ from aperag.config import settings
 from aperag.db import models as db_models
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.docparser.doc_parser import DocParser
+from aperag.domains.indexing.manager import document_index_manager
 from aperag.exceptions import (
     CollectionInactiveException,
     DocumentNameConflictException,
@@ -36,7 +37,6 @@ from aperag.exceptions import (
     ResourceNotFoundException,
     invalid_param,
 )
-from aperag.index.manager import document_index_manager
 from aperag.objectstore.base import get_async_object_store
 from aperag.schema import view_models
 from aperag.schema.utils import parseCollectionConfig

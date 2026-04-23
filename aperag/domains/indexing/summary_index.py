@@ -19,7 +19,7 @@ from typing import Any, List
 from aperag.config import get_vector_db_connector
 from aperag.db.ops import db_ops
 from aperag.docparser.base import TextPart
-from aperag.index.base import BaseIndexer, IndexResult, IndexType
+from aperag.domains.indexing.base import BaseIndexer, IndexResult, IndexType
 from aperag.llm.completion.base_completion import get_collection_completion_service_sync
 from aperag.llm.embed.base_embedding import get_collection_embedding_service_sync
 from aperag.llm.embed.embedding_utils import create_embeddings_and_store
@@ -166,7 +166,7 @@ class SummaryIndexer(BaseIndexer):
             from sqlalchemy import and_, select
 
             from aperag.config import get_sync_session
-            from aperag.db.models import DocumentIndex, DocumentIndexType
+            from aperag.domains.indexing.db.models import DocumentIndex, DocumentIndexType
 
             old_summary_ctx_ids = []
             for session in get_sync_session():
@@ -227,7 +227,7 @@ class SummaryIndexer(BaseIndexer):
             from sqlalchemy import and_, select
 
             from aperag.config import get_sync_session
-            from aperag.db.models import DocumentIndex, DocumentIndexType
+            from aperag.domains.indexing.db.models import DocumentIndex, DocumentIndexType
 
             summary_ctx_ids = []
             for session in get_sync_session():
@@ -425,7 +425,7 @@ Final summary:"""
             from sqlalchemy import and_, select
 
             from aperag.config import get_sync_session
-            from aperag.db.models import DocumentIndex, DocumentIndexType
+            from aperag.domains.indexing.db.models import DocumentIndex, DocumentIndexType
 
             for session in get_sync_session():
                 stmt = select(DocumentIndex).where(

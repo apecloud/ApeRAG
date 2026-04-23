@@ -5,7 +5,7 @@ import pytest
 
 from aperag.docparser.base import ParserChainError
 from aperag.docparser.doc_parser import DocParser
-from aperag.index.document_parser import document_parser
+from aperag.domains.indexing.document_parser import document_parser
 
 
 def _write_minimal_pdf(path: Path, text: str = "PDF Diagnostic Smoke") -> None:
@@ -78,9 +78,10 @@ def test_doc_parser_reports_encrypted_pdf_as_diagnostic_failure(tmp_path: Path) 
 
     assert exc_info.value.code == "parser_chain_failed"
     assert exc_info.value.attempts[0].parser_name == "markitdown"
-    assert "password" in (exc_info.value.detail or "").lower() or "pdfpasswordincorrect" in (
-        exc_info.value.detail or ""
-    ).lower()
+    assert (
+        "password" in (exc_info.value.detail or "").lower()
+        or "pdfpasswordincorrect" in (exc_info.value.detail or "").lower()
+    )
 
 
 def test_document_parser_keeps_empty_text_documents_as_empty_content(tmp_path: Path) -> None:

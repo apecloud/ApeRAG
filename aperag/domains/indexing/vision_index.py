@@ -22,8 +22,8 @@ from llama_index.core.schema import TextNode
 from sqlalchemy import and_, select
 
 from aperag.config import get_vector_db_connector
-from aperag.db.models import Collection
-from aperag.index.base import BaseIndexer, IndexResult, IndexType
+from aperag.domains.indexing.base import BaseIndexer, IndexResult, IndexType
+from aperag.domains.indexing.ports import CollectionIndexingView
 from aperag.llm.completion.base_completion import get_collection_completion_service_sync
 from aperag.llm.embed.base_embedding import get_collection_embedding_service_sync
 from aperag.llm.llm_error_types import (
@@ -45,7 +45,7 @@ class VisionIndexer(BaseIndexer):
     def __init__(self):
         super().__init__(IndexType.VISION)
 
-    def is_enabled(self, collection: Collection) -> bool:
+    def is_enabled(self, collection: CollectionIndexingView) -> bool:
         """Check if vision index is enabled for the collection."""
         try:
             config = parseCollectionConfig(collection.config)
@@ -54,7 +54,7 @@ class VisionIndexer(BaseIndexer):
             return False
 
     def create_index(
-        self, document_id: str, content: str, doc_parts: List[Any], collection: Collection, **kwargs
+        self, document_id: str, content: str, doc_parts: List[Any], collection: CollectionIndexingView, **kwargs
     ) -> IndexResult:
         """Create vision index for a document."""
         if not self.is_enabled(collection):
@@ -249,7 +249,7 @@ class VisionIndexer(BaseIndexer):
         )
 
     def update_index(
-        self, document_id: str, content: str, doc_parts: List[Any], collection: Collection, **kwargs
+        self, document_id: str, content: str, doc_parts: List[Any], collection: CollectionIndexingView, **kwargs
     ) -> IndexResult:
         """Update vision index for a document."""
         result = self.delete_index(document_id, collection)
@@ -257,13 +257,13 @@ class VisionIndexer(BaseIndexer):
             return result
         return self.create_index(document_id, content, doc_parts, collection, **kwargs)
 
-    def delete_index(self, document_id: str, collection: Collection, **kwargs) -> IndexResult:
+    def delete_index(self, document_id: str, collection: CollectionIndexingView, **kwargs) -> IndexResult:
         """Delete vision index for a document."""
 
         try:
             # Get existing vector index data from DocumentIndex
             from aperag.config import get_sync_session
-            from aperag.db.models import DocumentIndex, DocumentIndexType
+            from aperag.domains.indexing.db.models import DocumentIndex, DocumentIndexType
 
             ctx_ids = []
             for session in get_sync_session():

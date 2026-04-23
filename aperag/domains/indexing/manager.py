@@ -18,7 +18,8 @@ from typing import List, Optional
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from aperag.db.models import DocumentIndex, DocumentIndexStatus, DocumentIndexType, utc_now
+from aperag.domains.indexing.db.models import DocumentIndex, DocumentIndexStatus, DocumentIndexType
+from aperag.utils.utils import utc_now
 
 logger = logging.getLogger(__name__)
 

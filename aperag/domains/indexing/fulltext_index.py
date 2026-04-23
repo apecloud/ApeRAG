@@ -23,7 +23,7 @@ from elasticsearch import AsyncElasticsearch, Elasticsearch
 from aperag.config import settings
 from aperag.db.ops import db_ops
 from aperag.docparser.chunking import rechunk
-from aperag.index.base import BaseIndexer, IndexResult, IndexType
+from aperag.domains.indexing.base import BaseIndexer, IndexResult, IndexType
 from aperag.llm.completion.completion_service import CompletionService
 from aperag.query.query import DocumentWithScore
 from aperag.schema.utils import parseCollectionConfig

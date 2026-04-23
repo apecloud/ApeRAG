@@ -15,9 +15,8 @@
 import logging
 from typing import Any, Dict, List
 
-from aperag.db.models import CollectionStatus, DocumentStatus
 from aperag.db.ops import db_ops
-from aperag.index.base import AsyncIndexer, IndexResult, IndexType
+from aperag.domains.indexing.base import AsyncIndexer, IndexResult, IndexType
 from aperag.schema.utils import parseCollectionConfig
 
 logger = logging.getLogger(__name__)
@@ -89,14 +88,14 @@ class GraphIndexer(AsyncIndexer):
             if not document:
                 raise Exception(f"Document {document_id} not found")
 
-            if document.status == DocumentStatus.DELETED:
+            if document.status == "DELETED":
                 return IndexResult(
                     success=True,
                     index_type=self.index_type,
                     metadata={"message": "Document deleted, skipping graph indexing", "status": "skipped"},
                 )
 
-            if collection.status == CollectionStatus.DELETED:
+            if collection.status == "DELETED":
                 return IndexResult(
                     success=True,
                     index_type=self.index_type,
