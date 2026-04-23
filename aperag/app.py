@@ -46,6 +46,7 @@ from aperag.views.chat import router as chat_router
 from aperag.views.collections import router as collections_router
 from aperag.views.collections_v2 import router as collections_v2_router
 from aperag.views.config import router as config_router
+from aperag.views.documents_v2 import router as documents_v2_router
 from aperag.views.evaluation_v2 import router as evaluation_v2_router
 from aperag.views.export import router as export_router
 from aperag.views.graph import router as graph_router
@@ -112,6 +113,7 @@ app.include_router(agent_runtime_router, prefix="/api/v2")
 app.include_router(evaluation_v2_router, prefix="/api/v2")
 app.include_router(providers_v2_router, prefix="/api/v2")
 app.include_router(collections_v2_router, prefix="/api/v2")
+app.include_router(documents_v2_router, prefix="/api/v2")
 
 # Only include test router in dev mode
 if os.environ.get("DEPLOYMENT_MODE") == "dev":
