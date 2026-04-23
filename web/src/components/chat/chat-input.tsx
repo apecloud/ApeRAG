@@ -34,7 +34,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { apiClient } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { useInterval } from 'ahooks';
 import { motion } from 'framer-motion';

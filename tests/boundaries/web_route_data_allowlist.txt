@@ -1,9 +1,0 @@
-web/src/app/admin/configuration/page.tsx
-web/src/app/admin/configuration/parser-settings.tsx
-web/src/app/admin/configuration/quota-settings.tsx
-web/src/app/admin/layout.tsx
-web/src/app/admin/users/page.tsx
-web/src/app/admin/users/user-quota-action.tsx
-web/src/app/auth/signin/page.tsx
-web/src/app/layout.tsx
-web/src/app/workspace/layout.tsx

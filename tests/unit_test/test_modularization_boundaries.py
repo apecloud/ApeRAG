@@ -510,3 +510,140 @@ def test_no_legacy_retrieval_or_graph_routes_remain():
         "or `aperag/domains/knowledge_graph/api/routes.py`) and "
         "delete the legacy entry. Offenders:\n  " + "\n  ".join(offenders)
     )
+
+
+# ---------- Phase 1 FE closeout gates (G12-G17) ----------
+
+
+FEATURES_DIR = WEB_SRC / "features"
+
+BROWSER_CLIENT_IMPORT_RE = re.compile(
+    r"""from\s+['"]@/lib/api/typed/browser['"]"""
+)
+SERVER_CLIENT_IMPORT_RE = re.compile(
+    r"""from\s+['"]@/lib/api/typed/server['"]"""
+)
+
+
+def test_features_client_api_imports_browser_only():
+    """G12: ``features/*/client-api.ts`` must consume
+    ``@/lib/api/typed/browser`` exclusively — never the server client
+    (which depends on ``next/headers::cookies()`` and breaks at browser
+    runtime)."""
+    offenders: list[str] = []
+    for path in FEATURES_DIR.glob("*/client-api.ts"):
+        text = path.read_text()
+        if SERVER_CLIENT_IMPORT_RE.search(text):
+            offenders.append(path.relative_to(REPO_ROOT).as_posix())
+    assert not offenders, (
+        "`features/*/client-api.ts` must not import the server typed "
+        "client. Use `@/lib/api/typed/browser` instead:\n  "
+        + "\n  ".join(sorted(offenders))
+    )
+
+
+def test_features_server_api_imports_server_only():
+    """G13: symmetric — ``features/*/server-api.ts`` consumes the
+    server typed client (``next/headers::cookies()`` context), never
+    the browser client."""
+    offenders: list[str] = []
+    for path in FEATURES_DIR.glob("*/server-api.ts"):
+        text = path.read_text()
+        if BROWSER_CLIENT_IMPORT_RE.search(text):
+            offenders.append(path.relative_to(REPO_ROOT).as_posix())
+    assert not offenders, (
+        "`features/*/server-api.ts` must not import the browser typed "
+        "client. Use `@/lib/api/typed/server` instead:\n  "
+        + "\n  ".join(sorted(offenders))
+    )
+
+
+def test_features_types_is_single_source_for_domain_consumers():
+    """G14: domain types must flow through ``features/<d>/types``.
+    Component / route / adapter files outside the
+    ``web_raw_schema_allowlist.txt`` may not import
+    ``@/api-v2/schema`` directly — they read types from the owning
+    feature.
+
+    This anchors the single-source-of-truth rule at the module level
+    and complements ``test_web_raw_schema_import_limited_to_typed_adapters``
+    by making the rationale explicit."""
+    allowed = set(_load_allowlist("web_raw_schema_allowlist.txt"))
+    offenders: list[str] = []
+    for path in _iter_web_source_files():
+        rel = path.relative_to(REPO_ROOT).as_posix()
+        if rel in allowed:
+            continue
+        if RAW_SCHEMA_IMPORT_RE.search(path.read_text()):
+            offenders.append(rel)
+    assert not offenders, (
+        "Domain consumers must read types from `@/features/<d>/types`, "
+        "not `@/api-v2/schema`. Only the typed-adapter allowlist may "
+        "import raw schema directly:\n  " + "\n  ".join(sorted(offenders))
+    )
+
+
+def test_no_legacy_sdk_directory():
+    """G15: Phase 1c deletes ``web/src/api/`` entirely. A reintroduction
+    re-creates the dual-SDK problem the modularization is dismantling."""
+    legacy_dir = WEB_SRC / "api"
+    assert not legacy_dir.exists(), (
+        f"Legacy SDK directory reintroduced at {legacy_dir}. "
+        "Route new callers through `@/features/<domain>/{client,server}-api`."
+    )
+
+
+def test_no_legacy_lib_api_low_level_wrappers():
+    """G16: the low-level ``web/src/lib/api/client.ts`` and
+    ``server.ts`` wrappers are replaced by ``lib/api/typed/{browser,server}.ts``
+    as part of Phase 1c. Callers that still needed the untyped path
+    were the reason the legacy SDK stuck around; deleting these closes
+    the fallback."""
+    for name in ("client.ts", "server.ts"):
+        target = WEB_SRC / "lib" / "api" / name
+        assert not target.exists(), (
+            f"Legacy low-level wrapper reintroduced at {target}. "
+            "Use the typed client from `@/lib/api/typed/{browser,server}` "
+            "via a `features/<domain>/{client,server}-api.ts` adapter."
+        )
+
+
+HIDDEN_API_OWNERS = {
+    # Backend path prefix → allowed owner directory under ``web/src``.
+    # These paths are excluded from the public OpenAPI spec via
+    # ``HIDDEN_FROM_PUBLIC_PATH_PREFIXES`` in ``aperag/openapi_spec.py``
+    # and therefore cannot be typed through ``openapi-fetch``. Raw
+    # ``fetch()`` is a deliberate boundary exception (lesson 9a-ter)
+    # confined to the owning feature adapter. Phase 4 governance
+    # (decisions R + S) unhides both and promotes them to typed
+    # wrappers; at that point this gate's entry for the promoted path
+    # is removed (or the gate is dropped if the set becomes empty).
+    "/api/v1/audit-logs": "features/audit/",
+    "/api/v1/config": "features/auth/",
+}
+
+
+def test_hidden_api_raw_fetch_confined_to_owning_features():
+    """G17 (multi-hidden-path variant per msg=6e0c542f): raw-fetch
+    references to backend paths hidden from the public OpenAPI must be
+    confined to the feature adapter that owns the domain.
+
+    Phase 4 governance (decisions R + S in msg=659a98da) unhides audit
+    + config and promotes them to typed wrappers; when both are
+    unhidden this gate either loses its entries or is dropped."""
+    offenders: list[str] = []
+    for path in _iter_web_source_files():
+        text = path.read_text()
+        rel = path.relative_to(REPO_ROOT).as_posix()
+        web_src_rel = path.relative_to(WEB_SRC).as_posix()
+        for prefix, owner in HIDDEN_API_OWNERS.items():
+            if prefix not in text:
+                continue
+            if not web_src_rel.startswith(owner):
+                offenders.append(f"{rel} references {prefix}")
+    assert not offenders, (
+        "Hidden-path raw fetch reference found outside the owning "
+        "feature adapter. Move the call to the owning feature or wait "
+        "for the Phase 4 typed wrapper promotion. Offenders:\n  "
+        + "\n  ".join(sorted(offenders))
+    )
