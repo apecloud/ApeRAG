@@ -90,14 +90,25 @@ def test_bot_feature_uses_v2_typed_api_boundary():
     assert "fetch(" not in feature_sources
     assert "/api/v2/bots" in feature_sources
 
-    # Title generate must build a fully-typed TitleGenerateRequest body. If a
-    # future edit drops either field or skips the locale normaliser, the
-    # generated TS schema would quietly allow an `{ language }`-only body and
-    # re-introduce the type risk @ApeRAG专家 caught on ff89876.
+    # Title generate must build a fully-typed TitleGenerateRequest body with
+    # runtime-safe concrete defaults. An under-specified `{ language }`-only
+    # body would crash backend `chat_title_service.generate_title()` at
+    # `max(1, turns)` / `min(max_length, 50)`, so the normaliser must never
+    # emit `null` for any of the three required keys.
     bot_client_api = (
         REPO_ROOT / "web/src/features/bot/client-api.ts"
     ).read_text()
     assert "buildTitleGenerateRequest" in bot_client_api
     assert "toTitleLanguage" in bot_client_api
-    assert "max_length: input.max_length ?? null" in bot_client_api
-    assert "turns: input.turns ?? null" in bot_client_api
+    assert "DEFAULT_TITLE_MAX_LENGTH = 20" in bot_client_api
+    assert "DEFAULT_TITLE_TURNS = 1" in bot_client_api
+    assert "DEFAULT_TITLE_LANGUAGE: TitleLanguage = 'zh-CN'" in bot_client_api
+    assert (
+        "max_length: input.max_length ?? DEFAULT_TITLE_MAX_LENGTH"
+        in bot_client_api
+    )
+    assert "turns: input.turns ?? DEFAULT_TITLE_TURNS" in bot_client_api
+    # Guard the negative case: no `?? null` fallback for any of the three
+    # required keys should reappear.
+    assert "max_length: input.max_length ?? null" not in bot_client_api
+    assert "turns: input.turns ?? null" not in bot_client_api
