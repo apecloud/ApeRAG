@@ -89,6 +89,75 @@ def test_api_key_feature_uses_v2_typed_api_boundary():
     assert "serverApi.defaultApi.apikeysGet" not in page_tsx
 
 
+def test_quota_feature_uses_v2_typed_api_boundary():
+    """#4 Phase 1b batch 2 — quota domain (workspace scope only).
+
+    The workspace Quotas page and its server caller must reach the typed
+    `/api/v1/quotas` endpoint through `features/quota/server-api`, not via
+    the legacy `@/api` generated SDK or its indirect `getServerApi` path.
+    The `GET /api/v1/quotas` typed response is a union
+    `UserQuotaInfo | UserQuotaList` because the endpoint is shared with
+    admin list views; the adapter narrows at its boundary so the page
+    never has to `as UserQuotaInfo`.
+
+    Scope: `app/workspace/quotas/**` + `features/quota/**`. Admin-side
+    quota callers (`admin/configuration/quota-settings.tsx`,
+    `admin/users/user-quota-action.tsx`) stay on the legacy SDK until the
+    later `governance` batch — they are out of this PR's scope.
+    """
+    checked_paths = [
+        REPO_ROOT / "web/src/app/workspace/quotas",
+        REPO_ROOT / "web/src/features/quota",
+    ]
+
+    sources = {
+        path: path.read_text()
+        for root in checked_paths
+        for path in root.rglob("*")
+        if path.is_file() and path.suffix in {".ts", ".tsx"}
+    }
+    joined = "\n".join(sources.values())
+    feature_sources = "\n".join(
+        source
+        for path, source in sources.items()
+        if "/web/src/features/quota/" in str(path)
+    )
+
+    # Negative: workspace quota scope must not reach the old generated SDK
+    # (direct `@/api` import or indirect `getServerApi`), and must not
+    # call `serverApi.quotasApi.quotasGet` / `apiClient.quotasApi.*`.
+    assert "from '@/api'" not in joined
+    assert "serverApi.quotasApi.quotasGet" not in joined
+    assert "apiClient.quotasApi" not in joined
+    assert "getServerApi" not in joined
+
+    # Positive: the adapter must only reach the typed v1 quotas path
+    # through the typed openapi client.
+    assert "from '@/api'" not in feature_sources
+    assert "fetch(" not in feature_sources
+    assert "'/api/v1/quotas'" in feature_sources
+
+    # Positive: the adapter narrows the union (UserQuotaInfo | UserQuotaList)
+    # at the boundary so workspace callers never see an admin list.
+    server_api = (
+        REPO_ROOT / "web/src/features/quota/server-api.ts"
+    ).read_text()
+    assert "'items' in data" in server_api
+
+    # Positive: business caller wiring goes through the feature adapter
+    # and the page no longer casts `as UserQuotaInfo`.
+    page_tsx = (
+        REPO_ROOT / "web/src/app/workspace/quotas/page.tsx"
+    ).read_text()
+    assert "from '@/features/quota/server-api'" in page_tsx
+    assert "as UserQuotaInfo" not in page_tsx
+
+    chart_tsx = (
+        REPO_ROOT / "web/src/app/workspace/quotas/quota-radial-chart.tsx"
+    ).read_text()
+    assert "from '@/features/quota/types'" in chart_tsx
+
+
 def test_prompt_feature_uses_v2_typed_api_boundary():
     """#4 Phase 1b batch 1 — prompt domain (FE `features/prompt`, backend
     canonical owner stays `model_platform` per v2 map).
