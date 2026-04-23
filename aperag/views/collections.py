@@ -434,7 +434,7 @@ async def fetch_url_document_view(
     return await document_service.fetch_url_documents(str(user.id), collection_id, fetch_request.urls)
 
 
-@router.get("/collections/{collection_id}/graphs", tags=["graph"])
+@router.get("/collections/{collection_id}/graphs", tags=["graph"], response_model=view_models.KnowledgeGraph)
 async def get_knowledge_graph_view(
     request: Request,
     collection_id: str,
@@ -442,7 +442,7 @@ async def get_knowledge_graph_view(
     max_nodes: int = 1000,
     max_depth: int = 3,
     user: User = Depends(required_user),
-):
+) -> view_models.KnowledgeGraph:
     """Get knowledge graph - overview mode or subgraph mode"""
     from aperag.service.graph_service import graph_service
 

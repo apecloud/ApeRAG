@@ -33,7 +33,7 @@ from aperag.llm.llm_error_types import (
 from aperag.llm.rerank.rerank_service import RerankService
 from aperag.query.query import DocumentWithScore
 from aperag.schema.utils import parseCollectionConfig
-from aperag.schema.view_models import SearchRequest, SearchResultItem
+from aperag.schema.view_models import SearchRequest, SearchResultItem, SearchResultMetadata
 from aperag.service.default_model_service import default_model_service
 from aperag.utils.utils import generate_fulltext_index_name, generate_vector_db_collection_name
 
@@ -167,14 +167,16 @@ class SearchPipelineService:
         items = []
         for idx, doc in enumerate(reranked_docs):
             metadata = doc.metadata or {}
+            public_metadata = SearchResultMetadata.from_raw(metadata)
+            source = public_metadata.source if public_metadata and public_metadata.source else ""
             items.append(
                 SearchResultItem(
                     rank=idx + 1,
                     score=doc.score,
                     content=doc.text,
-                    source=metadata.get("source", ""),
+                    source=source,
                     recall_type=metadata.get("recall_type", ""),
-                    metadata=metadata,
+                    metadata=public_metadata,
                 )
             )
 

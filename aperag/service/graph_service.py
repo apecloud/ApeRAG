@@ -78,7 +78,7 @@ class GraphService:
         label: str = None,
         max_depth: int = 3,
         max_nodes: int = 1000,
-    ) -> Dict[str, Any]:
+    ) -> view_models.KnowledgeGraph:
         """Fetch a knowledge-graph subgraph for visualization.
 
         ``label`` is either a specific entity type or "*" / empty for
@@ -117,13 +117,15 @@ class GraphService:
             optimized_nodes = raw_nodes
             optimized_edges = raw_edges
 
-        result = self._to_ui_dict(optimized_nodes, optimized_edges, is_truncated)
+        result = view_models.KnowledgeGraph.model_validate(
+            self._to_ui_dict(optimized_nodes, optimized_edges, is_truncated)
+        )
         logger.info(
             "Retrieved %s graph for collection %s: %d nodes, %d edges",
             mode_description,
             collection_id,
-            len(result["nodes"]),
-            len(result["edges"]),
+            len(result.nodes),
+            len(result.edges),
         )
         return result
 
@@ -199,27 +201,32 @@ class GraphService:
         return selected_nodes, optimized_edges
 
     def _to_ui_dict(self, nodes, edges, is_truncated: bool) -> Dict[str, Any]:
-        """Convert adapted nodes/edges into the JSON the frontend expects.
+        """Convert adapted nodes/edges into the canonical public graph DTO.
 
-        The schema is preserved exactly as it was under LightRAG so the
-        web UI doesn't need to change: each node carries ``id``,
-        ``labels``, and a flat ``properties`` dict; each edge has
-        ``source``, ``target``, ``type``, and ``properties``.
+        Keep the visualizer shape (id/labels/properties and source/target),
+        but strip storage internals such as source chunk IDs, file paths, and
+        timestamps before the data crosses the API boundary.
         """
         default_node_fields = [
             "entity_id",
             "entity_name",
             "entity_type",
             "description",
-            "source_id",
-            "file_path",
+            "source_chunk_count",
         ]
-        default_edge_fields = ["weight", "description", "keywords", "source_id", "file_path"]
+        default_edge_fields = ["weight", "description", "keywords", "source_chunk_count"]
 
         def extract_properties(obj, fields):
+            raw = {}
             if hasattr(obj, "properties") and obj.properties:
-                return obj.properties
-            return {f: getattr(obj, f, None) for f in fields if hasattr(obj, f)}
+                raw = obj.properties
+                if hasattr(raw, "model_dump"):
+                    raw = raw.model_dump(exclude_none=True)
+                elif not isinstance(raw, dict):
+                    raw = dict(raw)
+            else:
+                raw = {f: getattr(obj, f, None) for f in fields if hasattr(obj, f)}
+            return {f: raw.get(f) for f in fields if raw.get(f) is not None}
 
         def node_to_item(node):
             props = extract_properties(node, default_node_fields)
@@ -289,8 +296,7 @@ def _adapt_nodes(nodes: List[GraphIndexEntity]) -> List[SimpleNamespace]:
             "entity_name": n.name,
             "entity_type": n.type,
             "description": n.description,
-            "source_id": ",".join(n.source_chunk_ids) if n.source_chunk_ids else "",
-            "file_path": "",
+            "source_chunk_count": len(n.source_chunk_ids),
         }
         out.append(
             SimpleNamespace(
@@ -301,8 +307,7 @@ def _adapt_nodes(nodes: List[GraphIndexEntity]) -> List[SimpleNamespace]:
                 entity_name=n.name,
                 entity_type=n.type,
                 description=n.description,
-                source_id=props["source_id"],
-                file_path="",
+                source_chunk_count=props["source_chunk_count"],
             )
         )
     return out
@@ -319,8 +324,7 @@ def _adapt_edges(edges: List[GraphIndexRelation]) -> List[SimpleNamespace]:
             "weight": float(e.weight),
             "description": e.description,
             "keywords": "",
-            "source_id": ",".join(e.source_chunk_ids) if e.source_chunk_ids else "",
-            "file_path": "",
+            "source_chunk_count": len(e.source_chunk_ids),
         }
         out.append(
             SimpleNamespace(
@@ -332,8 +336,7 @@ def _adapt_edges(edges: List[GraphIndexRelation]) -> List[SimpleNamespace]:
                 weight=props["weight"],
                 description=e.description,
                 keywords="",
-                source_id=props["source_id"],
-                file_path="",
+                source_chunk_count=props["source_chunk_count"],
             )
         )
     return out
