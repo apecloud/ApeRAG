@@ -461,9 +461,27 @@ class DocumentList(PaginatedResponse):
     items: Optional[list[Document]] = None
 
 
+class DeleteDocumentsRequest(BaseModel):
+    document_ids: list[str] = Field(..., description="Document IDs to delete", min_length=1)
+
+
+class DeleteDocumentsResponse(BaseModel):
+    deleted_ids: list[str] = Field(..., description="Document IDs accepted for deletion")
+    status: Literal["success"] = Field(..., description="Batch deletion status")
+
+
 class RebuildIndexesRequest(BaseModel):
     index_types: list[Literal["VECTOR", "FULLTEXT", "GRAPH", "SUMMARY", "VISION"]] = Field(
         ..., description="Types of indexes to rebuild", min_length=1
+    )
+
+
+class RebuildIndexesResponse(BaseModel):
+    code: str = Field(..., description="Result code", examples=["200"])
+    message: str = Field(..., description="Human-readable rebuild status")
+    affected_documents: Optional[conint(ge=0)] = Field(
+        None,
+        description="Number of documents affected by a collection-level rebuild",
     )
 
 
