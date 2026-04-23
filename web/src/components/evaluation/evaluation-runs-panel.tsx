@@ -30,16 +30,12 @@ import { useRouter } from 'next/navigation';
 import React from 'react';
 import { toast } from 'sonner';
 
-import { postEvaluationAction } from './action-utils';
+import { createEvaluationRun } from '@/features/evaluation/client-api';
+import type { EvaluationRun } from '@/features/evaluation/types';
 import { EvaluationApiNotice } from './api-notice';
 import { EvaluationStatusBadge } from './status-badge';
-import type { EvaluationRun } from './types';
 
 const getRunProgress = (run: EvaluationRun) => {
-  if (typeof run.progress?.percent === 'number') {
-    return run.progress.percent;
-  }
-
   if (!run.summary?.total || run.summary.total <= 0) {
     return 0;
   }
@@ -130,14 +126,11 @@ export const EvaluationRunsPanel = ({
     }
 
     try {
-      const payload = await postEvaluationAction<{ run?: EvaluationRun }>(
-        '/api/v2/evaluation-runs',
-        {
-          bot_id: bot.id,
-          dataset_version_id: createRunForm.datasetVersionId.trim(),
-          name: createRunForm.name.trim() || undefined,
-        },
-      );
+      const payload = await createEvaluationRun({
+        bot_id: bot.id,
+        dataset_version_id: createRunForm.datasetVersionId.trim(),
+        name: createRunForm.name.trim() || undefined,
+      });
 
       toast.success(t('create_run_success'));
       setCreateRunOpen(false);
@@ -146,10 +139,8 @@ export const EvaluationRunsPanel = ({
         name: '',
       });
 
-      if (payload.run?.id && bot.id) {
-        router.push(
-          `/workspace/bots/${bot.id}/evaluation/runs/${payload.run.id}`,
-        );
+      if (payload?.id && bot.id) {
+        router.push(`/workspace/bots/${bot.id}/evaluation/runs/${payload.id}`);
         return;
       }
 

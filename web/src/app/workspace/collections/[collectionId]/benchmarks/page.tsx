@@ -1,10 +1,10 @@
 import { BenchmarksPanel } from '@/components/evaluation/benchmarks-panel';
-import { listBenchmarkDatasets } from '@/components/evaluation/server';
 import {
   PageContainer,
   PageContent,
   PageHeader,
 } from '@/components/page-container';
+import { listBenchmarkDatasets } from '@/features/evaluation/server-api';
 import { getTranslations } from 'next-intl/server';
 import { CollectionHeader } from '../collection-header';
 
