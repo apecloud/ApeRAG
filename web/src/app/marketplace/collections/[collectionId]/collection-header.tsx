@@ -1,6 +1,10 @@
 'use client';
 
-import { SharedCollection } from '@/api';
+import {
+  subscribeMarketplaceCollection,
+  unsubscribeMarketplaceCollection,
+} from '@/features/marketplace/client-api';
+import type { SharedCollection } from '@/features/marketplace/types';
 import { PageContent } from '@/components/page-container';
 import { useAppContext } from '@/components/providers/app-provider';
 import { Badge } from '@/components/ui/badge';
@@ -20,7 +24,6 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { apiClient } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import _ from 'lodash';
 import { BookOpen, Files, Star, User, VectorSquare } from 'lucide-react';
@@ -63,17 +66,9 @@ export const CollectionHeader = ({
     }
 
     if (isSubscriber) {
-      await apiClient.defaultApi.marketplaceCollectionsCollectionIdSubscribeDelete(
-        {
-          collectionId: collection.id,
-        },
-      );
+      await unsubscribeMarketplaceCollection(collection.id);
     } else {
-      await apiClient.defaultApi.marketplaceCollectionsCollectionIdSubscribePost(
-        {
-          collectionId: collection.id,
-        },
-      );
+      await subscribeMarketplaceCollection(collection.id);
     }
     router.refresh();
   }, [collection.id, isSubscriber, router, signIn, user]);
