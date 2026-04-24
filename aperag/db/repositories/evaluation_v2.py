@@ -137,15 +137,13 @@ class AsyncEvaluationV2RepositoryMixin(AsyncRepositoryProtocol):
         ``service.retry_run_item`` re-queue flow) are still allowed,
         so retries continue to work.
         """
+
         async def _operation(session: AsyncSession):
             stmt = select(EvaluationRun).where(EvaluationRun.id == run_id)
             run = (await session.execute(stmt)).scalars().first()
             if not run:
                 return None
-            if (
-                run.status in _TERMINAL_RUN_STATUSES
-                and status == EvaluationRunStatus.RUNNING
-            ):
+            if run.status in _TERMINAL_RUN_STATUSES and status == EvaluationRunStatus.RUNNING:
                 return run
             now = utc_now()
             run.status = status
