@@ -12,6 +12,7 @@ import {
   FormField,
   FormItem,
   FormLabel,
+  FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
@@ -68,20 +69,28 @@ export function SignInForm({
 
   return (
     <div className={cn('flex flex-col gap-6', className)} {...props}>
-      <Card className="bg-card/50">
-        <CardContent>
-          <div className="mb-8 text-center text-xl font-bold">
-            {page_auth('welcome_back')}
+      <Card className="border-border/80 bg-card/95 shadow-sm">
+        <CardContent className="px-6 py-7 md:px-7">
+          <div className="mb-7">
+            <div className="text-primary font-mono text-xs tracking-[0.18em] uppercase">
+              {page_auth('signin_eyebrow')}
+            </div>
+            <h1 className="mt-3 font-serif text-4xl leading-tight font-normal tracking-[-0.035em]">
+              {page_auth('welcome_back')}
+            </h1>
+            <p className="text-muted-foreground mt-2 text-sm leading-6">
+              {page_auth('signin_description')}
+            </p>
           </div>
           {hasSocialLogin && (
-            <div className="mb-4 grid gap-4">
+            <div className="mb-6 grid gap-3">
               <div className="text-muted-foreground text-center text-sm">
                 {page_auth('login_in_with_a_third_party_account')}
               </div>
               {hasSocialGithubLogin && (
                 <Button
                   variant="outline"
-                  className="w-full"
+                  className="h-10 w-full rounded-lg active:scale-[0.98]"
                   onClick={() => signIn({ type: 'github', redirectTo })}
                 >
                   <FaGithub />
@@ -91,7 +100,7 @@ export function SignInForm({
               {hasSocialGoogleLogin && (
                 <Button
                   variant="outline"
-                  className="w-full"
+                  className="h-10 w-full rounded-lg active:scale-[0.98]"
                   onClick={() => signIn({ type: 'google', redirectTo })}
                 >
                   <FaGoogle />
@@ -100,7 +109,7 @@ export function SignInForm({
               )}
 
               <div className="after:border-border relative text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t">
-                <span className="bg-card text-muted-foreground relative z-10 px-2">
+                <span className="bg-card text-muted-foreground relative z-10 px-3 font-mono text-[11px] tracking-[0.12em] uppercase">
                   {page_auth('or_continue_with')}
                 </span>
               </div>
@@ -109,20 +118,24 @@ export function SignInForm({
           <Form {...form}>
             <form
               onSubmit={form.handleSubmit(handleSignInLocal)}
-              className="grid gap-6"
+              className="grid gap-5"
             >
               <FormField
                 control={form.control}
                 name="username"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{page_auth('username')}</FormLabel>
+                    <FormLabel className="text-foreground text-xs font-medium">
+                      {page_auth('username')}
+                    </FormLabel>
                     <FormControl>
                       <Input
                         {...field}
+                        className="bg-background h-11 rounded-lg"
                         placeholder={page_auth('username_placeholder')}
                       />
                     </FormControl>
+                    <FormMessage />
                   </FormItem>
                 )}
               />
@@ -132,7 +145,9 @@ export function SignInForm({
                 render={({ field }) => (
                   <FormItem>
                     <div className="flex justify-between">
-                      <FormLabel>{page_auth('password')}</FormLabel>
+                      <FormLabel className="text-foreground text-xs font-medium">
+                        {page_auth('password')}
+                      </FormLabel>
                       <Link
                         href="#"
                         className="text-muted-foreground hover:text-primary text-xs underline-offset-4 hover:underline"
@@ -144,22 +159,27 @@ export function SignInForm({
                       <Input
                         type="password"
                         {...field}
+                        className="bg-background h-11 rounded-lg"
                         placeholder={page_auth('password_placeholder')}
                       />
                     </FormControl>
+                    <FormMessage />
                   </FormItem>
                 )}
               />
 
-              <Button type="submit" className="w-full">
+              <Button
+                type="submit"
+                className="h-11 w-full rounded-full active:scale-[0.98]"
+              >
                 {page_auth('signin')}
               </Button>
 
-              <div className="text-center text-sm">
+              <div className="text-muted-foreground text-center text-sm">
                 {page_auth('do_not_have_an_account')}
                 <Link
-                  href={`/auth/signup?callbaclUrl=${encodeURIComponent(redirectTo)}`}
-                  className="underline underline-offset-4"
+                  href={`/auth/signup?callbackUrl=${encodeURIComponent(redirectTo)}`}
+                  className="text-primary font-medium underline-offset-4 hover:underline"
                 >
                   {page_auth('signup')}
                 </Link>

@@ -24,7 +24,9 @@ export default function Page() {
     if (loading) {
       return (
         <>
-          <LoaderCircle className="size-12 animate-spin opacity-50" />
+          <div className="bg-accent-soft text-accent-ink grid size-12 place-items-center rounded-full">
+            <LoaderCircle className="size-6 animate-spin" />
+          </div>
           <div className="text-muted-foreground text-sm">
             {page_auth('processing_oauth_login')}
           </div>
@@ -34,14 +36,18 @@ export default function Page() {
     if (tips) {
       return (
         <>
-          <ShieldAlert className="size-12" />
+          <div className="bg-destructive/10 text-destructive grid size-12 place-items-center rounded-full">
+            <ShieldAlert className="size-6" />
+          </div>
           <div className="text-muted-foreground text-sm">{tips}</div>
         </>
       );
     }
     return (
       <>
-        <ShieldPlus className="size-12" />
+        <div className="bg-accent-soft text-accent-ink grid size-12 place-items-center rounded-full">
+          <ShieldPlus className="size-6" />
+        </div>
         <div className="text-muted-foreground text-sm">
           {page_auth('oauth_successful')}
         </div>
@@ -90,24 +96,33 @@ export default function Page() {
   }, [error, code, state]);
 
   return (
-    <Card className="bg-card/50">
-      <CardContent className="flex flex-col gap-12">
-        <div className="text-center text-xl font-bold">
-          {page_auth('authentication')}
+    <Card className="border-border/80 bg-card/95 shadow-sm">
+      <CardContent className="flex flex-col gap-9 px-6 py-7 md:px-7">
+        <div className="text-center">
+          <div className="text-primary font-mono text-xs tracking-[0.18em] uppercase">
+            {page_auth('oauth_eyebrow')}
+          </div>
+          <h1 className="mt-3 font-serif text-4xl leading-tight font-normal tracking-[-0.035em]">
+            {page_auth('authentication')}
+          </h1>
         </div>
 
-        <div className="flex flex-col items-center justify-center gap-2 text-center">
+        <div className="flex flex-col items-center justify-center gap-3 text-center">
           {content}
         </div>
 
-        <div className="flex items-center justify-center gap-x-6">
+        <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
           <Link href="/">
-            <Button>{page_auth('go_back_home')}</Button>
+            <Button className="rounded-full">
+              {page_auth('go_back_home')}
+            </Button>
           </Link>
-          <Button variant="outline" onClick={() => signIn({ redirectTo: '/' })}>
-            <div className="grid flex-1 text-left text-sm leading-tight">
-              {page_auth('retry')}
-            </div>
+          <Button
+            variant="outline"
+            className="rounded-full"
+            onClick={() => signIn({ redirectTo: '/' })}
+          >
+            {page_auth('retry')}
           </Button>
         </div>
       </CardContent>

@@ -12,6 +12,7 @@ import {
   FormField,
   FormItem,
   FormLabel,
+  FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 
@@ -50,28 +51,40 @@ export function SignUpForm() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Card className="bg-card/50">
-        <CardContent>
-          <div className="mb-8 text-center text-xl font-bold">
-            {page_auth('register_an_account')}
+      <Card className="border-border/80 bg-card/95 shadow-sm">
+        <CardContent className="px-6 py-7 md:px-7">
+          <div className="mb-7">
+            <div className="text-primary font-mono text-xs tracking-[0.18em] uppercase">
+              {page_auth('signup_eyebrow')}
+            </div>
+            <h1 className="mt-3 font-serif text-4xl leading-tight font-normal tracking-[-0.035em]">
+              {page_auth('register_an_account')}
+            </h1>
+            <p className="text-muted-foreground mt-2 text-sm leading-6">
+              {page_auth('signup_description')}
+            </p>
           </div>
           <Form {...form}>
             <form
               onSubmit={form.handleSubmit(handleSignUpLocal)}
-              className="grid gap-6"
+              className="grid gap-5"
             >
               <FormField
                 control={form.control}
                 name="username"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{page_auth('username')}</FormLabel>
+                    <FormLabel className="text-foreground text-xs font-medium">
+                      {page_auth('username')}
+                    </FormLabel>
                     <FormControl>
                       <Input
                         {...field}
+                        className="bg-background h-11 rounded-lg"
                         placeholder={page_auth('username_placeholder')}
                       />
                     </FormControl>
+                    <FormMessage />
                   </FormItem>
                 )}
               />
@@ -80,13 +93,17 @@ export function SignUpForm() {
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{page_auth('email')}</FormLabel>
+                    <FormLabel className="text-foreground text-xs font-medium">
+                      {page_auth('email')}
+                    </FormLabel>
                     <FormControl>
                       <Input
                         {...field}
+                        className="bg-background h-11 rounded-lg"
                         placeholder={page_auth('email_placeholder')}
                       />
                     </FormControl>
+                    <FormMessage />
                   </FormItem>
                 )}
               />
@@ -95,27 +112,34 @@ export function SignUpForm() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{page_auth('password')}</FormLabel>
+                    <FormLabel className="text-foreground text-xs font-medium">
+                      {page_auth('password')}
+                    </FormLabel>
                     <FormControl>
                       <Input
                         type="password"
                         {...field}
+                        className="bg-background h-11 rounded-lg"
                         placeholder={page_auth('password_placeholder')}
                       />
                     </FormControl>
+                    <FormMessage />
                   </FormItem>
                 )}
               />
 
-              <Button type="submit" className="w-full">
+              <Button
+                type="submit"
+                className="h-11 w-full rounded-full active:scale-[0.98]"
+              >
                 {page_auth('signup')}
               </Button>
 
-              <div className="text-center text-sm">
+              <div className="text-muted-foreground text-center text-sm">
                 {page_auth('already_hava_an_account')}
                 <Link
                   href={`/auth/signin?callbackUrl=${encodeURIComponent(callbackUrl)}`}
-                  className="underline underline-offset-4"
+                  className="text-primary font-medium underline-offset-4 hover:underline"
                 >
                   {page_auth('signin')}
                 </Link>
