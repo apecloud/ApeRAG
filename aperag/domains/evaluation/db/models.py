@@ -26,11 +26,10 @@ Semantics worth knowing while editing:
   mutate historical run data, so the item rows carry value-copied
   ``input_message`` / ``expected_answer`` columns rather than joining
   back to the mutable dataset rows.
-* ``EvaluationRunStatus.is_terminal()`` (classmethod) was teased apart
-  in task #23 to close the cancel→running TOCTOU race; Phase 5 step
-  5-S6 will promote the ``_TERMINAL_RUN_STATUSES`` module-level
-  frozenset in ``aperag.db.repositories.evaluation_v2`` into a
-  classmethod on the enum so the check travels with the type.
+* ``EvaluationRunStatus.is_terminal()`` is the canonical terminal-
+  status predicate — task #23 used a module-level ``_TERMINAL_RUN_STATUSES``
+  frozenset to close the cancel→running TOCTOU race; Phase 6 promoted
+  it onto the enum so the check travels with the type.
 
 Legacy v1 tables (``Evaluation`` / ``EvaluationItem`` / ``QuestionSet`` /
 ``Question``) are **not** moved here — they belong to an older
@@ -99,6 +98,14 @@ class EvaluationRunStatus(str, Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
+
+    @classmethod
+    def is_terminal(cls, status) -> bool:
+        # ``EvaluationRun.status`` is persisted as a plain ``String`` column
+        # (see ``_enum_column``) so at read time ``status`` may be either an
+        # enum member or its raw string value — both compare equal to the
+        # enum members because ``EvaluationRunStatus`` inherits from ``str``.
+        return status in (cls.COMPLETED, cls.FAILED, cls.CANCELLED)
 
 
 class EvaluationRunItemStatus(str, Enum):
