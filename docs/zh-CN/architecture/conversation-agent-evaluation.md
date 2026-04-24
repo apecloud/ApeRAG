@@ -1,3 +1,8 @@
+---
+title: Conversation / Agent Runtime / Evaluation
+position: 34
+---
+
 # Conversation / Agent Runtime / Evaluation 三域架构
 
 > 本文是 Post-Phase-6 current-state 架构文档，覆盖 `conversation` / `agent_runtime` / `evaluation` 三个后端 domain。后端跨 domain 的**规则与 invariant**（direct import vs Protocol + DI、G1–G19 gates、两条永久 `CRITICAL_WIRINGS`、User write hierarchy）集中记录在 [`docs/modularization/architecture.md`](../../modularization/architecture.md)，本文引用它的 section anchor 而不重复定义。

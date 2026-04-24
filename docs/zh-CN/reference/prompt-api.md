@@ -1,3 +1,8 @@
+---
+title: Prompt API 参考
+position: 20
+---
+
 # Prompt API 参考
 
 本文提供 `/api/v1/prompts/*` 系列接口的 curl 示例与期望行为说明，便于前端集成、自动化测试以及回归验证。关于 prompt 的三层优先级、Bot 配置交互与管理 UX，见 [`admin-guide/prompt-customization.md`](../admin-guide/prompt-customization.md)。关于 prompt_template_service 在后端架构中的 standalone-infra + Protocol+DI 定位，见 [`architecture/conversation-agent-evaluation.md`](../architecture/conversation-agent-evaluation.md#protocol-promptTemplateOps)。

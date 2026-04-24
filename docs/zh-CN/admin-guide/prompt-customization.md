@@ -1,3 +1,8 @@
+---
+title: Prompt 自定义
+position: 50
+---
+
 # Prompt 自定义管理指南
 
 本文面向"想定制 Agent 回答风格 / 知识图谱抽取规则 / 索引摘要提示"的管理员与高级用户，说明 ApeRAG 的 **Prompt 分层覆盖机制** 与 **用户层 / Bot 层 / Collection 层** 的配置路径。面向前端集成的 API curl 示例见 [`reference/prompt-api.md`](../reference/prompt-api.md)；后端架构面（`PromptTemplateOps` Protocol + DI + `prompt_template_service` 作为 standalone-infra permanent seam）见 [`architecture/conversation-agent-evaluation.md`](../architecture/conversation-agent-evaluation.md#protocol-promptTemplateOps)。

@@ -1,3 +1,8 @@
+---
+title: Evaluation 使用指南
+position: 50
+---
+
 # Evaluation 使用指南（v3 简化版）
 
 本文面向产品、测试、交付和一线支持同学，说明 ApeRAG 当前主线里的 Evaluation 是什么、怎么用、边界在哪。所有内容以当前主线实现为准（`#20` evaluation v3 simplification 合并后）。后端架构视角见 [`architecture/conversation-agent-evaluation.md`](../architecture/conversation-agent-evaluation.md)。
