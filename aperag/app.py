@@ -33,6 +33,7 @@ from fastapi import FastAPI  # noqa: E402
 
 from aperag.domains.agent_runtime.api.routes import router as agent_runtime_router
 from aperag.domains.agent_runtime.runtime import set_prompt_template_ops as _ar_set_prompt_template_ops
+from aperag.domains.conversation.api.openai_routes import router as openai_router
 from aperag.domains.conversation.api.routes import (
     bots_router as bots_v2_router,
 )
@@ -42,6 +43,7 @@ from aperag.domains.conversation.api.routes import (
 from aperag.domains.conversation.service.bot_service import set_quota_ops as _conv_set_quota_ops
 from aperag.domains.evaluation.api.routes import router as evaluation_v2_router
 from aperag.domains.governance.api.routes import router as governance_router
+from aperag.domains.identity.api.config_routes import router as config_router
 from aperag.domains.identity.service.user_manager import (
     set_bot_init_ops as _id_set_bot_init_ops,
 )
@@ -82,8 +84,6 @@ from aperag.mcp import mcp_server
 from aperag.openapi_spec import custom_generate_unique_id
 from aperag.service.quota_service import quota_service as _legacy_quota_service
 from aperag.service.search_pipeline_service import search_pipeline_service as _legacy_search_pipeline_service
-from aperag.domains.identity.api.config_routes import router as config_router
-from aperag.domains.conversation.api.openai_routes import router as openai_router
 from aperag.views.auth import router as auth_router
 from aperag.views.export import router as export_router
 from aperag.views.prompts import router as prompts_router

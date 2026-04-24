@@ -18,8 +18,8 @@ from fastapi import APIRouter, Body, Depends, Response
 from fastapi.responses import JSONResponse
 
 from aperag.docparser.health import ParserHealthReport, get_parser_health_report
-from aperag.schema.view_models import Settings
 from aperag.domains.governance.service.setting_service import setting_service
+from aperag.schema.view_models import Settings
 from aperag.views.auth import required_user
 
 router = APIRouter()
