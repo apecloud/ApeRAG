@@ -47,7 +47,7 @@ position: 40
 | Collection 检索 | Bot 关联了一个或多个 Collection | Bot Collection 绑定（创建/编辑 Bot 时） |
 | 单次 Chat 文件 | 用户在 Chat 里上传了 PDF/Doc/图片 | 上传 button（详见 document-upload.md） |
 | Web 搜索 + 网页阅读 | Bot 开启 Web Access | Bot 配置的 `web_search_enabled` 字段 |
-| MCP 工具 | 接入了 MCP server | 系统级 MCP 集成（`integration/mcp.md`，待 task #17 完成） |
+| MCP 工具 | 接入了 MCP server | 系统级 MCP 集成（[`integration/mcp.md`](../integration/mcp.md)） |
 | 知识图谱查询 | Collection 启用了图谱索引 | Collection 配置 `enable_knowledge_graph` |
 
 Agent 会自动判断什么时候去 Collection 检索、什么时候上 Web、什么时候读 Chat 上传的文件。大多数情况下用户不需要手动选择。
@@ -77,7 +77,7 @@ Agent 会自动判断什么时候去 Collection 检索、什么时候上 Web、�
 
 - 同一 Chat 下的所有 Turn 与消息都会落入 `chats` / `turns` / `artifacts` 等表；刷新或登出再登录都能恢复。
 - 历史消息对应的引用（Artifact）也持久化；回查历史时引用仍可点开。
-- **保留范围**：默认不设 TTL，除非系统管理员在 quota 管理里限制每用户的 chat 保留条数（详见 `admin-guide/quota-system.md`，待 Bryce task #15 完成）。
+- **保留范围**：默认不设 TTL，除非系统管理员在 quota 管理里限制每用户的 chat 保留条数（详见 [`admin-guide/quota-system.md`](../admin-guide/quota-system.md)）。
 
 ## 7. 相关文档
 
