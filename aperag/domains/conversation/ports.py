@@ -15,20 +15,22 @@
 """Cross-domain contracts owned by the ``conversation`` domain.
 
 Lesson 9a-quad (consumer-owned Protocol): the conversation domain
-reads a handful of Collection fields while resolving "what knowledge
-base does this chat attach to?" — title / id / description for the
-UI response shape, and the raw ``config`` blob for downstream pipeline
-wiring. Declaring ``KnowledgeBaseCollectionView`` here means the
-Phase 3 DB split can physically relocate
-``aperag.db.models.Collection`` into
-``aperag.domains.knowledge_base.db.models`` without the legacy
-``chat_collection_service`` having to change its type binding — the
-real Collection row structurally satisfies this Protocol regardless of
-where it lives.
+owns Protocols describing every out-of-domain collaborator it reads or
+calls. ``KnowledgeBaseCollectionView`` was seeded in Phase 3 step 1 so
+``chat_collection_service`` could switch its type bindings before the
+Collection ORM moved. Phase 5 adds:
 
-Phase 5 adds the rest of the conversation Protocols (Chat / Message /
-Bot views); this module is the first drop so Phase 3 step 7 can do the
-Protocol bridge switchover for ``chat_collection_service`` cleanly.
+* ``AuthenticatedUser`` — per-domain auth context (lesson 9a-ter):
+  conversation handlers read ``id`` and occasionally ``role`` without
+  importing the identity domain's concrete User row.
+* ``QuotaOps`` — ``bot_service`` consumer of the legacy
+  ``aperag.service.quota_service.check_and_consume_quota`` /
+  ``release_quota`` pair; Phase 5 canonical Q1 (ruling C,
+  ``msg=4a93c97e``) keeps quota in ``aperag/service/`` through Phase 6
+  cleanup, so the singleton is wired via ``aperag/app.py`` at startup.
+
+All Protocols are ``@runtime_checkable`` so the G18 alt runtime smoke
+can ``isinstance``-probe the injected singletons.
 """
 
 from __future__ import annotations
@@ -64,4 +66,83 @@ class KnowledgeBaseCollectionView(Protocol):
     config: Any
 
 
-__all__ = ["KnowledgeBaseCollectionView"]
+@runtime_checkable
+class AuthenticatedUser(Protocol):
+    """Per-domain auth context (lesson 9a-ter).
+
+    Conversation handlers need ``id`` for ownership checks on chats
+    and bots, and occasionally ``role`` to short-circuit admin-only
+    paths. The identity domain's concrete ``User`` row structurally
+    satisfies this Protocol — declaring it locally means conversation
+    never has to ``from aperag.db.models import User`` and Phase 4's
+    identity move stays invisible to consumers.
+    """
+
+    id: Any
+    role: str
+
+
+@runtime_checkable
+class QuotaOps(Protocol):
+    """``bot_service``'s view of the legacy quota service.
+
+    Only two methods are consumed — bot create calls
+    ``check_and_consume_quota(user, "max_bot_count", 1, session)`` and
+    bot delete calls ``release_quota(user, "max_bot_count", 1, session)``.
+    The Protocol stays narrower than the knowledge_base variant (which
+    also reads ``get_user_quotas``) because conversation has no need
+    for the lookup form.
+
+    ``session`` threads an optional AsyncSession so the call joins the
+    current transaction; the legacy implementation already exposes
+    that keyword argument, so structural satisfaction is free.
+    """
+
+    async def check_and_consume_quota(
+        self,
+        user_id: str,
+        quota_type: str,
+        amount: int = 1,
+        session: Any = None,
+    ) -> None: ...
+
+    async def release_quota(
+        self,
+        user_id: str,
+        quota_type: str,
+        amount: int = 1,
+        session: Any = None,
+    ) -> None: ...
+
+
+@runtime_checkable
+class ChatCollectionServiceOps(Protocol):
+    """``chat_document_service``'s view of ``chat_collection_service``.
+
+    Phase 5 step 5-S4d moves ``chat_document_service`` into the
+    conversation domain before ``chat_collection_service`` itself —
+    ``chat_collection_service.create_user_chat_collection`` reaches
+    ``session.get(User, ...)`` which requires the Phase 4 identity
+    domain merge before it can be rewritten without leaking a G1
+    legacy-aggregate ``User`` import into the domain module.
+
+    Until the sibling service follows (5-S4f after ``#1633`` merges,
+    per PM ``msg=0f9f10c4`` β ruling), the two surfaces
+    ``chat_document_service`` actually calls —
+    ``get_user_chat_collection`` and ``create_user_chat_collection``
+    — are exposed here as a consumer-owned Protocol. ``aperag/app.py``
+    wires the legacy singleton in at startup; the legacy instance
+    structurally satisfies the Protocol verbatim.
+    """
+
+    async def get_user_chat_collection(self, user_id: str) -> Any: ...
+
+    async def create_user_chat_collection(self, user_id: str) -> Any: ...
+
+
+__all__ = [
+    "KnowledgeBaseCollectionView",
+    "AuthenticatedUser",
+    "QuotaOps",
+    "ChatCollectionServiceOps",
+]

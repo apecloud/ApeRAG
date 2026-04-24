@@ -12,148 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime
-from enum import Enum
-from typing import Any, Literal, Optional
+"""Legacy submodule shim — ``aperag/agent_runtime/schemas.py``.
 
-from pydantic import BaseModel, Field
+Re-exports the full schemas surface from the canonical
+``aperag.domains.agent_runtime.schemas`` home so callers that still
+do ``from aperag.agent_runtime.schemas import …`` keep resolving the
+same objects after Phase 5 step 5-S5b.
+"""
 
-from aperag.schema import view_models
-
-AGENT_RUNTIME_SCHEMA_VERSION = "agent-runtime-v3.1"
-
-
-class VisibleAgentState(str, Enum):
-    THINKING = "Thinking"
-    SEARCHING = "Searching"
-    CALLING_TOOL = "Calling Tool"
-    READING_RESULT = "Reading Result"
-    STREAMING_ANSWER = "Streaming Answer"
-    COMPLETED = "Completed"
-    FAILED = "Failed"
-
-
-class UserActivityIntent(str, Enum):
-    THINKING = "thinking"
-    SEARCHING_KNOWLEDGE = "searching_knowledge"
-    READING_SOURCE = "reading_source"
-    COMPARING_RESULTS = "comparing_results"
-    WRITING_ANSWER = "writing_answer"
-    WAITING = "waiting"
-    COMPLETED = "completed"
-    ERROR = "error"
-
-
-class UserActivityContext(BaseModel):
-    source_name: Optional[str] = None
-    keyword: Optional[str] = None
-    count: Optional[int] = None
-    target_type: Optional[Literal["knowledge_base", "document", "web"]] = None
-    scope_label: Optional[str] = None
-
-
-class UserActivityEnvelope(BaseModel):
-    intent: UserActivityIntent
-    title_key: str
-    subtitle_key: str
-    detail_key: Optional[str] = None
-    context: Optional[UserActivityContext] = None
-
-
-class AgentTurnEnvelope(BaseModel):
-    schema_version: str = AGENT_RUNTIME_SCHEMA_VERSION
-    turn_id: str
-    chat_id: str
-    user_id: str
-    bot_id: str
-    request_id: str
-    client_idempotency_key: str
-    status: str
-    input_text: str
-    model_profile: dict[str, Any] = Field(default_factory=dict)
-    error_code: Optional[str] = None
-    error_message: Optional[str] = None
-    answer_artifact_id: Optional[str] = None
-    reference_bundle_artifact_id: Optional[str] = None
-    timeline_cursor: int = 0
-    started_at: Optional[datetime] = None
-    finished_at: Optional[datetime] = None
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-
-
-class AgentTimelineEventEnvelope(BaseModel):
-    schema_version: str = AGENT_RUNTIME_SCHEMA_VERSION
-    event_id: str
-    turn_id: str
-    sequence: int
-    timestamp: datetime
-    type: str
-    technical_type: Optional[str] = None
-    label: Optional[str] = None
-    status: Optional[str] = None
-    actor: Literal["agent", "tool", "system"]
-    data: dict[str, Any] = Field(default_factory=dict)
-    user_activity: Optional[UserActivityEnvelope] = None
-
-
-class AgentArtifactEnvelope(BaseModel):
-    schema_version: str = AGENT_RUNTIME_SCHEMA_VERSION
-    artifact_id: str
-    turn_id: str
-    artifact_type: str
-    summary: Optional[str] = None
-    payload: dict[str, Any] = Field(default_factory=dict)
-    storage_ref: Optional[str] = None
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-
-
-class ReferenceBundleItem(BaseModel):
-    source_type: str
-    source_id: Optional[str] = None
-    title: Optional[str] = None
-    snippet: Optional[str] = None
-    score: Optional[float] = None
-    uri: Optional[str] = None
-    metadata: dict[str, Any] = Field(default_factory=dict)
-
-
-class CreateTurnRequest(BaseModel):
-    query: str
-    completion: Optional[view_models.ModelSpec] = None
-    collections: list[view_models.Collection] = Field(default_factory=list)
-    web_search_enabled: bool = False
-    language: Optional[
-        Literal[
-            "en-US",
-            "zh-CN",
-            "zh-TW",
-            "ja-JP",
-            "ko-KR",
-            "fr-FR",
-            "de-DE",
-            "es-ES",
-            "it-IT",
-            "pt-BR",
-            "ru-RU",
-        ]
-    ] = "en-US"
-    files: list[view_models.File] = Field(default_factory=list)
-    client_idempotency_key: Optional[str] = None
-
-
-class CreateTurnResponse(BaseModel):
-    turn: AgentTurnEnvelope
-    stream_url: str
-
-
-class AgentTurnSnapshot(BaseModel):
-    turn: AgentTurnEnvelope
-    timeline: list[AgentTimelineEventEnvelope] = Field(default_factory=list)
-    artifacts: list[AgentArtifactEnvelope] = Field(default_factory=list)
-
-
-class CancelTurnResponse(BaseModel):
-    turn_id: str
-    status: str
+from aperag.domains.agent_runtime.schemas import (  # noqa: F401
+    AGENT_RUNTIME_SCHEMA_VERSION,
+    AgentArtifactEnvelope,
+    AgentMessage,
+    AgentTimelineEventEnvelope,
+    AgentTurnEnvelope,
+    AgentTurnSnapshot,
+    CancelTurnResponse,
+    CreateTurnRequest,
+    CreateTurnResponse,
+    ReferenceBundleItem,
+    UserActivityContext,
+    UserActivityEnvelope,
+    UserActivityIntent,
+    VisibleAgentState,
+)

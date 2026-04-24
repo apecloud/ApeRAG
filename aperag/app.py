@@ -33,6 +33,19 @@ if settings.otel_enabled:
 
 from fastapi import FastAPI  # noqa: E402
 
+from aperag.domains.agent_runtime.api.routes import router as agent_runtime_router
+from aperag.domains.agent_runtime.runtime import set_prompt_template_ops as _ar_set_prompt_template_ops
+from aperag.domains.conversation.api.routes import (
+    bots_router as bots_v2_router,
+)
+from aperag.domains.conversation.api.routes import (
+    chat_router as chat_router,
+)
+from aperag.domains.conversation.service.bot_service import set_quota_ops as _conv_set_quota_ops
+from aperag.domains.conversation.service.chat_document_service import (
+    set_chat_collection_ops as _conv_set_chat_collection_ops,
+)
+from aperag.domains.evaluation.api.routes import router as evaluation_v2_router
 from aperag.domains.governance.api.routes import router as governance_router
 from aperag.domains.identity.service.user_manager import (
     set_bot_init_ops as _id_set_bot_init_ops,
@@ -72,13 +85,9 @@ from aperag.service.marketplace_collection_service import (
 from aperag.service.marketplace_service import marketplace_service as _legacy_marketplace_service
 from aperag.service.quota_service import quota_service as _legacy_quota_service
 from aperag.service.search_pipeline_service import search_pipeline_service as _legacy_search_pipeline_service
-from aperag.views.agent_runtime import router as agent_runtime_router
 from aperag.views.auth import router as auth_router
-from aperag.views.bots_v2 import router as bots_v2_router
-from aperag.views.chat import router as chat_router
 from aperag.views.collections import router as collections_router
 from aperag.views.config import router as config_router
-from aperag.views.evaluation_v2 import router as evaluation_v2_router
 from aperag.views.export import router as export_router
 from aperag.views.main import router as main_router
 from aperag.views.openai import router as openai_router
@@ -96,6 +105,61 @@ _kb_set_marketplace_ops(_legacy_marketplace_service)
 _kb_set_marketplace_collection_ops(_legacy_marketplace_collection_service)
 _kb_set_search_pipeline_ops(_legacy_search_pipeline_service)
 _kb_set_quota_ops(_legacy_quota_service)
+
+# Wire the conversation domain's consumer-owned QuotaOps DI slot for
+# ``bot_service`` (Phase 5 step 5-S4c, canonical msg=4a93c97e Q1 C).
+# The legacy quota_service structurally satisfies the narrower
+# conversation ``QuotaOps`` Protocol (``check_and_consume_quota`` +
+# ``release_quota``) via the same singleton, so the same legacy
+# instance is plugged in here — Phase 6 cleanup removes the wire-up
+# when quota_service finds its permanent home.
+_conv_set_quota_ops(_legacy_quota_service)
+
+# Wire the ``ChatCollectionServiceOps`` DI slot for ``chat_document_service``
+# (Phase 5 step 5-S4d). ``chat_document_service`` moved into the
+# conversation domain before ``chat_collection_service`` itself — the
+# sibling service still needs a Phase 4 identity-domain rebase for the
+# ``session.get(User, ...)`` rewrite. Until 5-S4f (after ``#1633``
+# merges), the legacy singleton fills the DI slot; it structurally
+# satisfies the Protocol verbatim.
+from aperag.service.chat_collection_service import (  # noqa: E402
+    chat_collection_service as _legacy_chat_collection_service,
+)
+
+_conv_set_chat_collection_ops(_legacy_chat_collection_service)
+
+
+# Wire the agent_runtime domain's consumer-owned PromptTemplateOps DI
+# slot (Phase 5 step 5-S5b). ``prompt_template_service`` stays as a
+# legacy provider through Phase 6 cleanup, so an adapter exposes the
+# three Protocol methods onto the legacy singleton + module-level
+# ``build_agent_query_prompt`` helper.
+from aperag.service.prompt_template_service import (  # noqa: E402
+    build_agent_query_prompt as _legacy_build_agent_query_prompt,
+)
+from aperag.service.prompt_template_service import (  # noqa: E402
+    prompt_template_service as _legacy_prompt_template_service,
+)
+
+
+class _PromptTemplateOpsAdapter:
+    async def resolve_agent_system_prompt(self, *, bot, user_id):
+        return await _legacy_prompt_template_service.resolve_agent_system_prompt(bot=bot, user_id=user_id)
+
+    async def resolve_agent_query_prompt(self, *, bot, user_id):
+        return await _legacy_prompt_template_service.resolve_agent_query_prompt(bot=bot, user_id=user_id)
+
+    def build_agent_query_prompt(self, chat_id, *, agent_message, user, template=None, has_chat_files=False):
+        return _legacy_build_agent_query_prompt(
+            chat_id,
+            agent_message=agent_message,
+            user=user,
+            template=template,
+            has_chat_files=has_chat_files,
+        )
+
+
+_ar_set_prompt_template_ops(_PromptTemplateOpsAdapter())
 
 
 # Wire the identity domain's consumer-owned Protocol DI slots (Phase
