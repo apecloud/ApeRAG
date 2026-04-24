@@ -33,6 +33,12 @@ if settings.otel_enabled:
 
 from fastapi import FastAPI  # noqa: E402
 
+from aperag.domains.conversation.api.routes import (
+    bots_router as bots_v2_router,
+)
+from aperag.domains.conversation.api.routes import (
+    chat_router as chat_router,
+)
 from aperag.domains.conversation.service.bot_service import set_quota_ops as _conv_set_quota_ops
 from aperag.domains.conversation.service.chat_document_service import (
     set_chat_collection_ops as _conv_set_chat_collection_ops,
@@ -78,8 +84,6 @@ from aperag.service.quota_service import quota_service as _legacy_quota_service
 from aperag.service.search_pipeline_service import search_pipeline_service as _legacy_search_pipeline_service
 from aperag.views.agent_runtime import router as agent_runtime_router
 from aperag.views.auth import router as auth_router
-from aperag.views.bots_v2 import router as bots_v2_router
-from aperag.views.chat import router as chat_router
 from aperag.views.collections import router as collections_router
 from aperag.views.config import router as config_router
 from aperag.views.evaluation_v2 import router as evaluation_v2_router
