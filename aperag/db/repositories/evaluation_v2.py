@@ -40,6 +40,14 @@ from aperag.db.models import (
 from aperag.db.repositories.base import AsyncRepositoryProtocol
 from aperag.utils.utils import utc_now
 
+_TERMINAL_RUN_STATUSES = frozenset(
+    {
+        EvaluationRunStatus.COMPLETED,
+        EvaluationRunStatus.FAILED,
+        EvaluationRunStatus.CANCELLED,
+    }
+)
+
 
 class AsyncEvaluationV2RepositoryMixin(AsyncRepositoryProtocol):
     """Read/write helpers for evaluation resources."""
@@ -114,11 +122,29 @@ class AsyncEvaluationV2RepositoryMixin(AsyncRepositoryProtocol):
         error_message: Optional[str] = None,
         summary: Optional[dict] = None,
     ) -> Optional[EvaluationRun]:
+        """Update a run's status with a terminal → running guard.
+
+        If the persisted run is already in a terminal status
+        (COMPLETED / FAILED / CANCELLED) and the requested transition
+        is to ``RUNNING``, this is a no-op and returns the existing
+        row unchanged — preventing a late worker
+        ``update_run_status(RUNNING)`` from overwriting a cancel that
+        raced in between ``get_run_for_worker`` and this call. That
+        race produced the symptom tracked in task #23 where
+        ``gmt_finished`` ended up earlier than ``gmt_started`` and the
+        run flipped back to ``running`` right after cancel returned
+        ``cancelled``. Explicit terminal → QUEUED transitions (the
+        ``service.retry_run_item`` re-queue flow) are still allowed,
+        so retries continue to work.
+        """
+
         async def _operation(session: AsyncSession):
             stmt = select(EvaluationRun).where(EvaluationRun.id == run_id)
             run = (await session.execute(stmt)).scalars().first()
             if not run:
                 return None
+            if run.status in _TERMINAL_RUN_STATUSES and status == EvaluationRunStatus.RUNNING:
+                return run
             now = utc_now()
             run.status = status
             if error_message is not None:
@@ -127,11 +153,7 @@ class AsyncEvaluationV2RepositoryMixin(AsyncRepositoryProtocol):
                 run.summary = summary
             if status == EvaluationRunStatus.RUNNING and run.gmt_started is None:
                 run.gmt_started = now
-            if status in (
-                EvaluationRunStatus.COMPLETED,
-                EvaluationRunStatus.FAILED,
-                EvaluationRunStatus.CANCELLED,
-            ):
+            if status in _TERMINAL_RUN_STATUSES:
                 run.gmt_finished = now
             else:
                 run.gmt_finished = None
