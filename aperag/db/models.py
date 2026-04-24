@@ -68,11 +68,9 @@ def EnumColumn(enum_class, **kwargs):
 
 
 # Enums for choices
-class CollectionMarketplaceStatusEnum(str, Enum):
-    """Collection marketplace sharing status enumeration"""
-
-    DRAFT = "DRAFT"  # Not published, only owner can see
-    PUBLISHED = "PUBLISHED"  # Published to marketplace, publicly visible
+# ``CollectionMarketplaceStatusEnum`` moved to
+# ``aperag.domains.marketplace.db.models`` in Phase 4 Step 4-S2c;
+# re-exported at the bottom of this module.
 
 
 class BotStatus(str, Enum):
@@ -230,59 +228,9 @@ class EvaluationJudgeMode(str, Enum):
 
 
 # Models
-class CollectionMarketplace(Base):
-    """Collection sharing status table"""
-
-    __tablename__ = "collection_marketplace"
-    __table_args__ = (
-        UniqueConstraint("collection_id", name="uq_collection_marketplace_collection"),
-        Index("idx_collection_marketplace_status", "status"),
-        Index("idx_collection_marketplace_gmt_deleted", "gmt_deleted"),
-        Index("idx_collection_marketplace_collection_id", "collection_id"),
-        Index("idx_collection_marketplace_list", "status", "gmt_created"),
-    )
-
-    id = Column(String(24), primary_key=True, default=lambda: "market_" + random_id()[:16])
-    collection_id = Column(String(24), nullable=False)
-
-    # Sharing status: use VARCHAR storage, not database enum type, validated at application layer
-    status = Column(String(20), nullable=False, default=CollectionMarketplaceStatusEnum.DRAFT.value)
-
-    # Timestamp fields
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)  # Updated in code layer
-    gmt_deleted = Column(DateTime(timezone=True), nullable=True)
-
-    def __repr__(self):
-        return f"<CollectionMarketplace(id={self.id}, collection_id={self.collection_id}, status={self.status})>"
-
-
-class UserCollectionSubscription(Base):
-    """User subscription to published collections table"""
-
-    __tablename__ = "user_collection_subscription"
-    __table_args__ = (
-        # Allow multiple history records, but active subscription (gmt_deleted=NULL) must be unique
-        UniqueConstraint(
-            "user_id", "collection_marketplace_id", "gmt_deleted", name="idx_user_marketplace_history_unique"
-        ),
-        Index("idx_user_subscription_marketplace", "collection_marketplace_id"),
-        Index("idx_user_subscription_user", "user_id"),
-        Index("idx_user_subscription_gmt_deleted", "gmt_deleted"),
-    )
-
-    id = Column(String(24), primary_key=True, default=lambda: "sub_" + random_id()[:16])
-    user_id = Column(String(24), nullable=False)  # Related to users table, maintained at application layer
-    collection_marketplace_id = Column(
-        String(24), nullable=False
-    )  # Related to collection_marketplace table, maintained at application layer
-
-    # Timestamp fields
-    gmt_subscribed = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_deleted = Column(DateTime(timezone=True), nullable=True)  # Soft delete: NULL means active subscription
-
-    def __repr__(self):
-        return f"<UserCollectionSubscription(id={self.id}, user_id={self.user_id}, marketplace_id={self.collection_marketplace_id})>"
+# ``CollectionMarketplace`` + ``UserCollectionSubscription`` moved
+# to ``aperag.domains.marketplace.db.models`` in Phase 4 Step 4-S2c;
+# re-exported at the bottom of this module.
 
 
 class Bot(Base):
@@ -941,5 +889,10 @@ from aperag.domains.knowledge_graph.db.models import (  # noqa: E402, F401  re-e
     GraphCurationRunStatus,
     GraphCurationSuggestion,
     GraphCurationSuggestionStatus,
+)
+from aperag.domains.marketplace.db.models import (  # noqa: E402, F401  re-export for back-compat (Phase 4 Step 4-S2c)
+    CollectionMarketplace,
+    CollectionMarketplaceStatusEnum,
+    UserCollectionSubscription,
 )
 from aperag.domains.retrieval.db.models import SearchHistory  # noqa: E402, F401  re-export for back-compat
