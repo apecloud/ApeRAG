@@ -45,6 +45,7 @@ import {
 import { getAvailableModels } from '@/features/providers/client-api';
 import { cn, objectKeys } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { ArrowLeft, Database, Sparkles } from 'lucide-react';
 import _ from 'lodash';
 import { useLocale, useTranslations } from 'next-intl';
 import Link from 'next/link';
@@ -336,14 +337,25 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
       <Form {...form}>
         <form
           onSubmit={form.handleSubmit(handleCreateOrUpdate)}
-          className="flex flex-col gap-4"
+          className="flex flex-col gap-5"
         >
-          <Card>
-            <CardHeader>
-              <CardTitle>{page_collections('general')}</CardTitle>
-              <CardDescription></CardDescription>
+          <Card className="gap-0 overflow-hidden rounded-xl border-border/70 py-0">
+            <CardHeader className="border-border/70 bg-muted/60 border-b px-5 py-4">
+              <div className="flex items-start gap-3">
+                <div className="bg-accent-soft text-accent-ink flex size-10 shrink-0 items-center justify-center rounded-lg">
+                  <Database className="size-5" />
+                </div>
+                <div>
+                  <CardTitle className="text-base font-medium">
+                    {page_collections('general')}
+                  </CardTitle>
+                  <CardDescription className="mt-1">
+                    {page_collections('general_description')}
+                  </CardDescription>
+                </div>
+              </div>
             </CardHeader>
-            <CardContent className="flex flex-col gap-6">
+            <CardContent className="flex flex-col gap-6 px-5 py-5">
               <FormField
                 control={form.control}
                 name="title"
@@ -352,7 +364,7 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
                     <FormLabel>{page_collections('name')}</FormLabel>
                     <FormControl>
                       <Input
-                        className="md:w-6/12"
+                        className="md:w-7/12"
                         placeholder={page_collections('name_placeholder')}
                         {...field}
                         value={field.value || ''}
@@ -369,7 +381,7 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
                     <FormLabel>{page_collections('description')}</FormLabel>
                     <FormControl>
                       <Textarea
-                        className="h-38"
+                        className="h-32 md:w-8/12"
                         placeholder={page_collections(
                           'description_placeholder',
                         )}
@@ -391,7 +403,7 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
                       <RadioGroup
                         value={field.value}
                         onValueChange={field.onChange}
-                        className="mt-2 flex flex-row gap-4 items-center"
+                        className="mt-2 flex flex-row flex-wrap items-center gap-4"
                       >
                         <Label>
                           <RadioGroupItem value="zh-CN" />
@@ -409,69 +421,82 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>{page_collections('index_types')}</CardTitle>
+          <Card className="gap-0 overflow-hidden rounded-xl border-border/70 py-0">
+            <CardHeader className="border-border/70 bg-muted/60 border-b px-5 py-4">
+              <CardTitle className="text-base font-medium">
+                {page_collections('index_types')}
+              </CardTitle>
               <CardDescription>
                 {page_collections('index_types_description')}
               </CardDescription>
             </CardHeader>
-            <CardContent className="flex flex-col gap-4">
+            <CardContent className="grid gap-3 px-5 py-5 md:grid-cols-2">
               {objectKeys(CollectionConfigIndexTypes)
                 .filter(isVisibleCollectionConfigKey)
                 .map((key) => {
-                const item = CollectionConfigIndexTypes[key];
-                return (
-                  <FormField
-                    key={key}
-                    control={form.control}
-                    name={key}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel
-                          className={cn(
-                            'has-[[aria-checked=true]]:bg-accent/50 flex items-center gap-3 rounded-lg border p-3',
-                            item.disabled
-                              ? 'cursor-not-allowed'
-                              : 'hover:bg-accent/30 cursor-pointer',
-                          )}
-                        >
-                          <div className="grid gap-2">
-                            <div className="flex items-center gap-2 leading-none font-medium">
-                              {item.title}
-                              {item.disabled && (
-                                <Badge>{page_collections('required')}</Badge>
-                              )}
+                  const item = CollectionConfigIndexTypes[key];
+                  return (
+                    <FormField
+                      key={key}
+                      control={form.control}
+                      name={key}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel
+                            className={cn(
+                              'has-[[aria-checked=true]]:bg-accent-soft/60 has-[[aria-checked=true]]:border-primary/30 flex h-full items-center gap-3 rounded-xl border p-4 transition-colors',
+                              item.disabled
+                                ? 'cursor-not-allowed'
+                                : 'hover:bg-muted cursor-pointer',
+                            )}
+                          >
+                            <div className="grid gap-2">
+                              <div className="flex items-center gap-2 leading-none font-medium">
+                                {item.title}
+                                {item.disabled && (
+                                  <Badge>
+                                    {page_collections('required')}
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-muted-foreground text-sm font-medium">
+                                {item.description}
+                              </p>
                             </div>
-                            <p className="text-muted-foreground text-sm font-medium">
-                              {item.description}
-                            </p>
-                          </div>
-                          <FormControl className="ml-auto">
-                            <Switch
-                              checked={Boolean(field.value)}
-                              disabled={item.disabled}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                        </FormLabel>
-                      </FormItem>
-                    )}
-                  />
-                );
+                            <FormControl className="ml-auto">
+                              <Switch
+                                checked={Boolean(field.value)}
+                                disabled={item.disabled}
+                                onCheckedChange={field.onChange}
+                              />
+                            </FormControl>
+                          </FormLabel>
+                        </FormItem>
+                      )}
+                    />
+                  );
                 })}
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>{page_collections('model_settings')}</CardTitle>
-              <CardDescription>
-                {page_collections('model_settings_description')}
-              </CardDescription>
+          <Card className="gap-0 overflow-hidden rounded-xl border-border/70 py-0">
+            <CardHeader className="border-border/70 bg-muted/60 border-b px-5 py-4">
+              <div className="flex items-start gap-3">
+                <div className="bg-card text-primary flex size-9 shrink-0 items-center justify-center rounded-lg border">
+                  <Sparkles className="size-4" />
+                </div>
+                <div>
+                  <CardTitle className="text-base font-medium">
+                    {page_collections('model_settings')}
+                  </CardTitle>
+                  <CardDescription>
+                    {page_collections('model_settings_description')}
+                  </CardDescription>
+                </div>
+              </div>
             </CardHeader>
 
-            <CardContent className="flex flex-col gap-6 pt-6">
+            <CardContent className="flex flex-col gap-6 px-5 py-5">
               <FormField
                 control={form.control}
                 name="config.embedding.model"
@@ -496,7 +521,7 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
                         >
                           <SelectTrigger
                             className={cn(
-                              'w-full md:w-6/12',
+                              'w-full md:w-7/12',
                               embeddingLocked
                                 ? 'cursor-not-allowed opacity-70'
                                 : 'cursor-pointer',
@@ -553,7 +578,7 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
                         onValueChange={field.onChange}
                         value={field.value || ''}
                       >
-                        <SelectTrigger className="w-full cursor-pointer md:w-6/12">
+                        <SelectTrigger className="w-full cursor-pointer md:w-7/12">
                           <SelectValue placeholder="Select a model" />
                         </SelectTrigger>
                         <SelectContent>
@@ -588,10 +613,11 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
             </CardContent>
           </Card>
 
-          <div className="flex justify-end gap-4">
+          <div className="flex flex-col-reverse gap-3 border-border/70 bg-background/80 py-2 sm:flex-row sm:justify-end">
             {action === 'add' && (
               <Button variant="outline" asChild>
                 <Link href="/workspace/collections">
+                  <ArrowLeft className="size-4" />
                   {common_action('cancel')}
                 </Link>
               </Button>
