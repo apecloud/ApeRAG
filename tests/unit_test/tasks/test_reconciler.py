@@ -406,7 +406,7 @@ class TestCollectionSummaryTask:
             lambda summary_id, target_version, processing_token: FakeRenewer(),
         )
         monkeypatch.setattr(
-            "aperag.service.collection_summary_service.collection_summary_service.generate_collection_summary_task",
+            "aperag.domains.knowledge_base.service.collection_summary_service.collection_summary_service.generate_collection_summary_task",
             fake_generate,
         )
         monkeypatch.setattr(
@@ -439,7 +439,7 @@ class TestCollectionSummaryTask:
             lambda summary_id, target_version, processing_token: FakeRenewer(ownership_lost=True),
         )
         monkeypatch.setattr(
-            "aperag.service.collection_summary_service.collection_summary_service.generate_collection_summary_task",
+            "aperag.domains.knowledge_base.service.collection_summary_service.collection_summary_service.generate_collection_summary_task",
             fake_generate,
         )
         monkeypatch.setattr(

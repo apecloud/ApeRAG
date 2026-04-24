@@ -43,7 +43,7 @@ from fastapi import APIRouter, Depends, File, Request, UploadFile
 
 from aperag.db.models import User
 from aperag.schema import view_models
-from aperag.service.document_service import document_service
+from aperag.domains.knowledge_base.service.document_service import document_service
 from aperag.utils.audit_decorator import audit
 from aperag.views.auth import required_user
 

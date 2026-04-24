@@ -23,7 +23,7 @@ from aperag.db.models import Question, QuestionSet, User
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.llm.completion.base_completion import get_completion_service
 from aperag.schema import view_models
-from aperag.service.document_service import document_service
+from aperag.domains.knowledge_base.service.document_service import document_service
 from aperag.utils import llm_response
 from aperag.utils.tokenizer import get_default_tokenizer
 

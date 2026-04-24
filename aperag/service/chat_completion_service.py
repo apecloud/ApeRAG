@@ -29,7 +29,7 @@ from aperag.db.models import AgentTurnStatus
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.exceptions import ValidationException
 from aperag.schema import view_models
-from aperag.service.chat_service import chat_service_global
+from aperag.domains.conversation.service.chat_service import chat_service_global
 from aperag.utils.constant import DOC_QA_REFERENCES
 
 logger = logging.getLogger(__name__)

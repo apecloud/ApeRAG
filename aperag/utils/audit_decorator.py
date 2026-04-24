@@ -19,7 +19,7 @@ from typing import Any, Dict, Optional
 
 from fastapi import Request
 
-from aperag.service.audit_service import audit_service
+from aperag.domains.governance.service.audit_service import audit_service
 
 logger = logging.getLogger(__name__)
 

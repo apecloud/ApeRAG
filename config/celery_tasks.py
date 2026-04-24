@@ -1309,7 +1309,7 @@ def collection_summary_task(
     renewer = None
 
     try:
-        from aperag.service.collection_summary_service import collection_summary_service
+        from aperag.domains.knowledge_base.service.collection_summary_service import collection_summary_service
 
         skip_reason = _validate_collection_summary_relevance(summary_id, target_version, processing_token)
         if skip_reason:

@@ -76,10 +76,12 @@ from aperag.exception_handlers import register_exception_handlers
 from aperag.llm.litellm_track import register_custom_llm_track
 from aperag.mcp import mcp_server
 from aperag.openapi_spec import custom_generate_unique_id
-from aperag.service.marketplace_collection_service import (
+from aperag.domains.marketplace.service.marketplace_collection_service import (
     marketplace_collection_service as _legacy_marketplace_collection_service,
 )
-from aperag.service.marketplace_service import marketplace_service as _legacy_marketplace_service
+from aperag.domains.marketplace.service.marketplace_service import (
+    marketplace_service as _legacy_marketplace_service,
+)
 from aperag.service.quota_service import quota_service as _legacy_quota_service
 from aperag.service.search_pipeline_service import search_pipeline_service as _legacy_search_pipeline_service
 from aperag.views.auth import router as auth_router
@@ -164,7 +166,7 @@ class _BotInitOpsAdapter:
         # wiring path before the app is constructed.
         from aperag.db.models import BotType
         from aperag.schema.view_models import BotCreate
-        from aperag.service.bot_service import bot_service
+        from aperag.domains.conversation.service.bot_service import bot_service
 
         bot_create = BotCreate(
             title="Default Agent Bot",
@@ -177,7 +179,7 @@ class _BotInitOpsAdapter:
 
 class _ChatInitOpsAdapter:
     async def create_default_chat_for_user(self, user_id: str) -> None:
-        from aperag.service.chat_collection_service import chat_collection_service
+        from aperag.domains.conversation.service.chat_collection_service import chat_collection_service
 
         await chat_collection_service.initialize_user_chat_collection(user_id)
 

@@ -65,7 +65,7 @@ class MergeJudgement(BaseModel):
 class GraphCurationService(AsyncBaseRepository):
     def __init__(self, session: AsyncSession = None):
         super().__init__(session)
-        from aperag.service.collection_service import collection_service
+        from aperag.domains.knowledge_base.service.collection_service import collection_service
 
         self.collection_service = collection_service
         self.db_ops = async_db_ops if session is None else AsyncDatabaseOps(session)
