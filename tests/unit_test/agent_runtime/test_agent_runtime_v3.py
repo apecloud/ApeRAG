@@ -6,14 +6,14 @@ from sqlalchemy.exc import IntegrityError
 
 import aperag.domains.agent_runtime.services as agent_runtime_services
 import aperag.domains.agent_runtime.storage as agent_runtime_storage
-from aperag.agent_runtime.schemas import (
+from aperag.domains.agent_runtime.schemas import (
     AgentArtifactEnvelope,
     AgentTimelineEventEnvelope,
     AgentTurnSnapshot,
     CreateTurnRequest,
     UserActivityIntent,
 )
-from aperag.agent_runtime.services import EventService, HistoryWriter, TurnService
+from aperag.domains.agent_runtime.services import EventService, HistoryWriter, TurnService
 from aperag.db.models import AgentEventActor, AgentTurnStatus
 from aperag.domains.agent_runtime.api import routes as agent_runtime_view
 
