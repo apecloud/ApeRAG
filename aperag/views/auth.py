@@ -18,7 +18,7 @@ from datetime import timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from fastapi_users import BaseUserManager, FastAPIUsers
+from fastapi_users import FastAPIUsers
 from fastapi_users.authentication import (
     AuthenticationBackend,
     CookieTransport,
@@ -44,103 +44,13 @@ logger = logging.getLogger(__name__)
 COOKIE_MAX_AGE = 86400
 
 
-class UserManager(BaseUserManager[User, str]):
-    reset_password_token_secret = settings.jwt_secret
-    verification_token_secret = settings.jwt_secret
-
-    async def on_after_register(self, user: User, request: Optional[Request] = None):
-        """
-        Set the first registered user as an admin and initialize user resources.
-        This works for both regular and OAuth registration.
-        """
-        user_count = await async_db_ops.query_user_count()
-        if user_count == 1 and user.role != Role.ADMIN:
-            user.role = Role.ADMIN
-            self.user_db.session.add(user)
-            await self.user_db.session.commit()
-            await self.user_db.session.refresh(user)
-
-        # For GitHub OAuth users, fetch username from GitHub API
-        # await self._fetch_github_username_if_needed(user)
-
-        # Initialize user resources for all new users (including OAuth users)
-        try:
-            from aperag.db.models import BotType
-            from aperag.schema.view_models import BotCreate
-            from aperag.service.bot_service import bot_service
-            from aperag.service.chat_collection_service import chat_collection_service
-            from aperag.service.quota_service import quota_service
-
-            # Initialize user quotas first
-            await quota_service.initialize_user_quotas(str(user.id))
-
-            # Create a system API key for the user (not visible to user)
-            await async_db_ops.create_api_key(user=str(user.id), description="system", is_system=True)
-            # Create a normal API key for the user (visible to user)
-            await async_db_ops.create_api_key(user=str(user.id), description="default", is_system=False)
-
-            # Create a default bot for the user (skip quota check for system bot)
-            bot_create = BotCreate(
-                title="Default Agent Bot",
-                type=BotType.AGENT,
-                description="Default agent bot created on registration.",
-                collection_ids=[],
-            )
-            await bot_service.create_bot(user=str(user.id), bot_in=bot_create, skip_quota_check=True)
-
-            # Create user's chat collection
-            await chat_collection_service.initialize_user_chat_collection(str(user.id))
-
-            logger.info(f"Initialized resources for user {user.username or user.email} ({user.id})")
-        except Exception as e:
-            logger.error(f"Failed to initialize resources for user {user.username or user.email} ({user.id}): {e}")
-
-    async def _fetch_github_username_if_needed(self, user: User):
-        """
-        For GitHub OAuth users, fetch username from GitHub API using account_id
-        """
-        try:
-            # Check if user has GitHub OAuth account
-            github_oauth_account = None
-            for oauth_account in user.oauth_accounts:
-                if oauth_account.oauth_name == "github":
-                    github_oauth_account = oauth_account
-                    break
-
-            if not github_oauth_account:
-                return  # Not a GitHub OAuth user
-
-            if user.username:
-                return  # Username already set
-
-            # Fetch username from GitHub API
-            import httpx
-
-            github_user_id = github_oauth_account.account_id
-            github_api_url = f"https://api.github.com/user/{github_user_id}"
-
-            async with httpx.AsyncClient() as client:
-                response = await client.get(github_api_url)
-                if response.status_code == 200:
-                    github_user_data = response.json()
-                    github_username = github_user_data.get("login")
-
-                    if github_username:
-                        user.username = github_username
-                        self.user_db.session.add(user)
-                        await self.user_db.session.commit()
-                        await self.user_db.session.refresh(user)
-                        logger.info(f"Updated GitHub user {user.id} with username: {github_username}")
-                else:
-                    logger.warning(f"Failed to fetch GitHub user data for user {user.id}: HTTP {response.status_code}")
-        except Exception as e:
-            logger.error(f"Failed to fetch GitHub username for user {user.id}: {e}")
-
-    def parse_id(self, value: any) -> str:
-        """Parse ID from any type to str"""
-        if isinstance(value, str):
-            return value
-        return str(value)
+# ``UserManager`` moved to
+# ``aperag.domains.identity.service.user_manager`` in Phase 4 Step
+# 4-S7. It is re-imported below so the remaining legacy-path code in
+# this file (fastapi-users wiring + OAuth routers + invitation /
+# login / logout / user-admin handlers) keeps resolving the same
+# class object without a rename sweep.
+from aperag.domains.identity.service.user_manager import UserManager  # noqa: E402
 
 
 # JWT Strategy
