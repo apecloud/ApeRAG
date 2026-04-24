@@ -144,8 +144,7 @@ def _get_search_pipeline_ops() -> SearchPipelineOps:
 def _get_quota_ops() -> QuotaOps:
     if _quota_ops is None:
         raise RuntimeError(
-            "knowledge_base.collection_service: quota_ops not wired. "
-            "Call set_quota_ops() at app startup (Step 5b2c)."
+            "knowledge_base.collection_service: quota_ops not wired. Call set_quota_ops() at app startup (Step 5b2c)."
         )
     return _quota_ops
 
@@ -364,9 +363,7 @@ class CollectionService:
                 "re-ingest your documents if a different model is required."
             )
 
-    async def update_collection(
-        self, user: str, collection_id: str, collection: CollectionUpdate
-    ) -> Collection:
+    async def update_collection(self, user: str, collection_id: str, collection: CollectionUpdate) -> Collection:
         from aperag.exceptions import CollectionNotFoundException
 
         # First check if collection exists
@@ -417,9 +414,7 @@ class CollectionService:
             from sqlalchemy import select
 
             # Get collection within transaction
-            stmt = select(CollectionRow).where(
-                CollectionRow.id == collection_id, CollectionRow.user == user
-            )
+            stmt = select(CollectionRow).where(CollectionRow.id == collection_id, CollectionRow.user == user)
             result = await session.execute(stmt)
             collection_to_delete = result.scalars().first()
 
@@ -465,9 +460,7 @@ class CollectionService:
             chat_id=chat_id,
         )
 
-    async def create_search(
-        self, user: str, collection_id: str, data: SearchRequest
-    ) -> SearchResult:
+    async def create_search(self, user: str, collection_id: str, data: SearchRequest) -> SearchResult:
         from aperag.exceptions import CollectionNotFoundException
 
         # Try to find collection as owner first
@@ -477,9 +470,7 @@ class CollectionService:
         if not collection:
             # If not found as owner, check if it's a marketplace collection
             try:
-                marketplace_info = await _get_marketplace_collection_ops().check_marketplace_access(
-                    user, collection_id
-                )
+                marketplace_info = await _get_marketplace_collection_ops().check_marketplace_access(user, collection_id)
                 # Use owner's user_id for search operations in marketplace collections
                 search_user_id = marketplace_info["owner_user_id"]
                 collection = await self.db_ops.query_collection(search_user_id, collection_id)
@@ -579,9 +570,7 @@ class CollectionService:
 
         return await self.db_ops.delete_search(user, collection_id, search_id)
 
-    async def validate_collections_batch(
-        self, user: str, collections: list[Any]
-    ) -> tuple[bool, str]:
+    async def validate_collections_batch(self, user: str, collections: list[Any]) -> tuple[bool, str]:
         """
         Validate multiple collections in a single database call.
 
