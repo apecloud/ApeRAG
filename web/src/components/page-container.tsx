@@ -12,7 +12,6 @@ import Link from 'next/link';
 import React, { useMemo } from 'react';
 import {
   AppDocs,
-  AppGithub,
   AppLocaleDropdownMenu,
   AppThemeDropdownMenu,
 } from './app-topbar';
@@ -85,7 +84,6 @@ export const PageHeader = ({
             extra
           ) : (
             <>
-              <AppGithub />
               <AppDocs />
               <AppLocaleDropdownMenu />
               <AppThemeDropdownMenu />

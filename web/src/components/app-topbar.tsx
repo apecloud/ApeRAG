@@ -32,7 +32,6 @@ import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { setLocale } from '@/services/cookies';
 import { useLocale, useTranslations } from 'next-intl';
-import { FaGithub } from 'react-icons/fa6';
 import { NavigationMenu, NavigationMenuList } from './ui/navigation-menu';
 import { UserAvatar, UserAvatarProfile } from './user-avatar';
 
@@ -224,15 +223,6 @@ export const AppDocs = () => (
   </Button>
 );
 
-export const AppGithub = () => (
-  <Button variant="ghost" size="icon" asChild>
-    <Link target="_blank" href="https://github.com/apecloud/ApeRAG">
-      <FaGithub />
-      <span className="sr-only">Github</span>
-    </Link>
-  </Button>
-);
-
 export const AppTopbar = ({ className }: React.ComponentProps<'div'>) => {
   return (
     <>
@@ -255,7 +245,6 @@ export const AppTopbar = ({ className }: React.ComponentProps<'div'>) => {
           </NavigationMenu>
         </div>
         <div className="flex flex-row items-center gap-2">
-          <AppGithub />
           <AppDocs />
           <AppThemeDropdownMenu />
           <AppUserDropdownMenu />

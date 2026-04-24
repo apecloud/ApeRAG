@@ -6,8 +6,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-sans);
+  --font-serif: var(--font-serif);
+  --font-mono: var(--font-mono);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -27,6 +28,8 @@
   --color-destructive: var(--destructive);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-ink: var(--accent-ink);
   --color-muted-foreground: var(--muted-foreground);
   --color-muted: var(--muted);
   --color-secondary-foreground: var(--secondary-foreground);
@@ -44,77 +47,103 @@
 }
 
 :root {
-  /* --radius: 0.625rem; */
-  --radius: 0.5rem;
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  /* --primary: oklch(0.205 0 0); */
-  --primary: #0165ca;
-  /* --primary-foreground: oklch(0.985 0 0); */
-  --primary-foreground: #fff;
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  /* Radius — base 10px; Tailwind calc: sm=6 / md=8 / lg=10 / xl=14 (cards). */
+  --radius: 0.625rem;
+
+  /* Surfaces — warm off-white editorial, per design DNA. */
+  --background: #fcfbf8;
+  --foreground: #0a0a0a;
+  --card: #ffffff;
+  --card-foreground: #0a0a0a;
+  --popover: #ffffff;
+  --popover-foreground: #0a0a0a;
+
+  /* Subtle / hover / chip surfaces. */
+  --secondary: #f5f3ee;
+  --secondary-foreground: #0a0a0a;
+  --muted: #f5f3ee;
+  --muted-foreground: #6b6a65;
+
+  /* shadcn `accent` — reserved for subtle hover surfaces (preserves upstream semantics).
+     Brand amber lives in `--primary` + `--accent-soft` / `--accent-ink` (see below). */
+  --accent: #f0ede5;
+  --accent-foreground: #0a0a0a;
+
+  /* Brand amber — the single warm accent used for CTAs, focus rings, NextTopLoader,
+     inline chips (via `--accent-soft` / `--accent-ink`). No gradients, no second hue. */
+  --primary: #c96442;
+  --primary-foreground: #ffffff;
+  --accent-soft: #fbede4;
+  --accent-ink: #7a3320;
+
+  --destructive: #a83530;
+
+  /* Bone hairline borders, warm. */
+  --border: #edeae2;
+  --input: #edeae2;
+  --ring: #c96442;
+
+  /* Graph entity palette — muted, not saturated. */
+  --chart-1: #8c5a3d; /* person - warm brown */
+  --chart-2: #3f5e4f; /* org - deep sage */
+  --chart-3: #5a4f7a; /* concept - muted violet */
+  --chart-4: #8b5a1e; /* product - ochre */
+  --chart-5: #7a3320; /* event - rust */
+
+  /* Sidebar — same warm surface as page, subtle border. */
+  --sidebar: #fcfbf8;
+  --sidebar-foreground: #0a0a0a;
+  --sidebar-primary: #c96442;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f5f3ee;
+  --sidebar-accent-foreground: #0a0a0a;
+  --sidebar-border: #edeae2;
+  --sidebar-ring: #c96442;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  /* --primary: oklch(0.922 0 0); */
-  --primary: #026ad4;
-  /* --primary-foreground: oklch(0.205 0 0); */
-  --primary-foreground: #fff;
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: #1a1916;
+  --foreground: #f2efe9;
+  --card: #23211d;
+  --card-foreground: #f2efe9;
+  --popover: #23211d;
+  --popover-foreground: #f2efe9;
+
+  --secondary: #2e2c26;
+  --secondary-foreground: #f2efe9;
+  --muted: #2e2c26;
+  --muted-foreground: #b8b6b0;
+
+  /* Dark subtle hover surface (preserves upstream `hover:bg-accent` semantics). */
+  --accent: #2e2c26;
+  --accent-foreground: #f2efe9;
+
+  /* Brand amber in dark — brightened slightly for contrast. */
+  --primary: #d97757;
+  --primary-foreground: #ffffff;
+  --accent-soft: #3a2a22;
+  --accent-ink: #fbede4;
+
+  --destructive: #c96452;
+
+  --border: #35322c;
+  --input: #35322c;
+  --ring: #d97757;
+
+  --chart-1: #b78360;
+  --chart-2: #7aa28e;
+  --chart-3: #9186b8;
+  --chart-4: #b68845;
+  --chart-5: #c96452;
+
+  --sidebar: #23211d;
+  --sidebar-foreground: #f2efe9;
+  --sidebar-primary: #d97757;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #2e2c26;
+  --sidebar-accent-foreground: #f2efe9;
+  --sidebar-border: #35322c;
+  --sidebar-ring: #d97757;
 }
 
 @layer base {
@@ -123,5 +152,15 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-feature-settings:
+      'cv11',
+      'ss01',
+      'ss03';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  ::selection {
+    background-color: var(--accent-soft);
+    color: var(--accent-ink);
   }
 }
