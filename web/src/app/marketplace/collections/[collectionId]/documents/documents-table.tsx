@@ -35,7 +35,7 @@ import { DataGrid, DataGridPagination } from '@/components/data-grid';
 import { FormatDate } from '@/components/format-date';
 import { cn, objectKeys, parsePageParams } from '@/lib/utils';
 import _ from 'lodash';
-import { ChevronDown, Columns3 } from 'lucide-react';
+import { ChevronDown, Columns3, FileText, Search } from 'lucide-react';
 
 import { getDocumentStatusColor } from '@/app/workspace/collections/tools';
 import { useTranslations } from 'next-intl';
@@ -60,6 +60,7 @@ export function DocumentsTable({
   );
   const page_documents = useTranslations('page_documents');
   const page_collections = useTranslations('page_collections');
+  const page_marketplace = useTranslations('page_marketplace');
   const [sorting, setSorting] = React.useState<SortingState>([]);
 
   const [searchValue, setSearchValue] = React.useState<string>('');
@@ -239,28 +240,45 @@ export function DocumentsTable({
   });
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div className="flex flex-row items-center gap-2">
-          <Input
-            placeholder={page_documents('search_document')}
-            value={searchValue}
-            onChange={(e) => setSearchValue(e.currentTarget.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                handleSearch({
-                  search: e.currentTarget.value,
-                });
-              }
-            }}
-          />
+    <div className="border-border/70 bg-card flex flex-col gap-4 rounded-xl border p-4 shadow-sm">
+      <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="bg-accent-soft text-accent-ink flex size-9 shrink-0 items-center justify-center rounded-lg">
+            <FileText className="size-4" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-sm font-medium">
+              {page_documents('metadata.title')}
+            </div>
+            <div className="text-muted-foreground text-xs">
+              {page_marketplace('document_count', {
+                count: data.length,
+              })}
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="relative min-w-64">
+            <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+            <Input
+              className="bg-background/70 h-10 rounded-lg pl-9"
+              placeholder={page_documents('search_document')}
+              value={searchValue}
+              onChange={(e) => setSearchValue(e.currentTarget.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleSearch({
+                    search: e.currentTarget.value,
+                  });
+                }
+              }}
+            />
+          </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline">
-                <Columns3 />
-                <ChevronDown />
+              <Button variant="outline" className="h-10">
+                <Columns3 className="size-4" />
+                <ChevronDown className="size-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
@@ -289,8 +307,8 @@ export function DocumentsTable({
           </DropdownMenu>
         </div>
       </div>
-      <DataGrid table={table} />
-      <DataGridPagination table={table} />
+      <DataGrid table={table} className="rounded-xl border-border/70" />
+      <DataGridPagination table={table} className="px-1" />
     </div>
   );
 }
