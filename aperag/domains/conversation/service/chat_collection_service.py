@@ -12,41 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Chat-collection management service moved to the conversation domain
-in Phase 5 step 5-S4f.
+"""Chat-collection management service in the conversation domain.
 
-Phase 4 ``#1633`` + Phase 3 ``#1629`` are merged on main, so the
-cross-domain ORM imports take the β canonical path from
-``msg=4ed698d8`` — direct domain-to-domain imports of ``User`` /
-``Collection`` + sibling domain services, no stopgap Protocol + DI
-wrapper:
+Cross-domain dependencies are direct imports:
 
-* ``aperag.db.models.User`` → ``aperag.domains.identity.db.models.User``
-* ``aperag.db.models.Collection`` →
-  ``aperag.domains.knowledge_base.db.models.Collection``
-* ``aperag.schema.view_models.CollectionConfig / ModelSpec /
-  TagFilterCondition / TagFilterRequest`` → ``aperag.schema.common``
-  for the first two and
-  ``aperag.domains.model_platform.schemas`` for the tag filters.
-* ``aperag.service.collection_service`` →
-  ``aperag.domains.knowledge_base.service.collection_service``
-* ``aperag.service.llm_available_model_service`` →
-  ``aperag.domains.model_platform.service.llm_available_model_service``
+* ``aperag.domains.identity.db.models.User`` is **not** imported here —
+  ``User.chat_collection_id`` writes travel through the identity-owned
+  ``set_chat_collection`` facade (lesson 9a-sexdec hierarchy-1) so G16
+  stays green without the conversation domain leaking the ``User`` ORM.
+* ``aperag.domains.knowledge_base.db.models.Collection`` is imported
+  directly (domain→domain is legal under G1).
+* ``aperag.domains.knowledge_base.service.collection_service`` + the
+  ``model_platform`` availability service similarly sibling-import.
 
-The pre-move ``KnowledgeBaseCollectionView`` return type (from
-``aperag.domains.conversation.ports``) is kept — the Protocol was
-established in Phase 3 Step 5c for exactly this module, and there is
-no benefit in swapping it for the concrete ``Collection`` class here.
-
-The ``_mark_as_chat_collection`` transaction closure uses
-``session.get(Collection, ...)`` — Collection is now imported from the
-knowledge_base domain, which G1 permits. The ``User.chat_collection_id``
-update is issued via ``sqlalchemy.text`` rather than ``session.get(User,
-...)`` + attribute assignment so the conversation domain does not have
-to import the identity-owned ``User`` ORM class (G16 canonical per
-``msg=6d2ae86a`` forbids ``User`` imports outside the identity domain).
-The raw UPDATE hits the same ``users`` table that the ORM mapper binds
-to, so the transaction semantics are identical.
+The pre-move ``KnowledgeBaseCollectionView`` return type is kept —
+the Protocol was established in Phase 3 Step 5c for exactly this
+module, and there is no benefit in swapping it for the concrete
+``Collection`` class here.
 """
 
 from __future__ import annotations
@@ -54,10 +36,9 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from sqlalchemy import text
-
 from aperag.db.ops import async_db_ops
 from aperag.domains.conversation.ports import KnowledgeBaseCollectionView
+from aperag.domains.identity.service.identity_user_ops import set_chat_collection as identity_set_chat_collection
 from aperag.domains.knowledge_base.db.models import Collection
 from aperag.domains.knowledge_base.schemas import CollectionCreate
 from aperag.domains.knowledge_base.service.collection_service import collection_service
@@ -172,13 +153,7 @@ class ChatCollectionService:
                 session.add(collection_obj)
                 await session.flush()
 
-            # Update User.chat_collection_id via raw SQL so this module
-            # does not have to import the identity-owned ``User`` ORM
-            # class (G16 canonical).
-            await session.execute(
-                text("UPDATE users SET chat_collection_id = :cid WHERE id = :uid"),
-                {"cid": collection_response.id, "uid": user_id},
-            )
+            await identity_set_chat_collection(session, user_id, collection_response.id)
             await session.flush()
 
         await self.db_ops.execute_with_transaction(_mark_as_chat_collection)

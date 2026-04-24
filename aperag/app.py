@@ -42,9 +42,6 @@ from aperag.domains.conversation.api.routes import (
     chat_router as chat_router,
 )
 from aperag.domains.conversation.service.bot_service import set_quota_ops as _conv_set_quota_ops
-from aperag.domains.conversation.service.chat_document_service import (
-    set_chat_collection_ops as _conv_set_chat_collection_ops,
-)
 from aperag.domains.evaluation.api.routes import router as evaluation_v2_router
 from aperag.domains.governance.api.routes import router as governance_router
 from aperag.domains.identity.service.user_manager import (
@@ -107,33 +104,19 @@ _kb_set_search_pipeline_ops(_legacy_search_pipeline_service)
 _kb_set_quota_ops(_legacy_quota_service)
 
 # Wire the conversation domain's consumer-owned QuotaOps DI slot for
-# ``bot_service`` (Phase 5 step 5-S4c, canonical msg=4a93c97e Q1 C).
-# The legacy quota_service structurally satisfies the narrower
-# conversation ``QuotaOps`` Protocol (``check_and_consume_quota`` +
-# ``release_quota``) via the same singleton, so the same legacy
-# instance is plugged in here — Phase 6 cleanup removes the wire-up
-# when quota_service finds its permanent home.
+# ``bot_service``. ``quota_service`` is a standalone-infrastructure
+# module with no natural domain home, so the Protocol + DI seam is
+# the permanent integration point. The singleton structurally
+# satisfies the narrower conversation ``QuotaOps`` Protocol
+# (``check_and_consume_quota`` + ``release_quota``) directly.
 _conv_set_quota_ops(_legacy_quota_service)
 
-# Wire the ``ChatCollectionServiceOps`` DI slot for ``chat_document_service``
-# (Phase 5 step 5-S4d). ``chat_document_service`` moved into the
-# conversation domain before ``chat_collection_service`` itself — the
-# sibling service still needs a Phase 4 identity-domain rebase for the
-# ``session.get(User, ...)`` rewrite. Until 5-S4f (after ``#1633``
-# merges), the legacy singleton fills the DI slot; it structurally
-# satisfies the Protocol verbatim.
-from aperag.service.chat_collection_service import (  # noqa: E402
-    chat_collection_service as _legacy_chat_collection_service,
-)
-
-_conv_set_chat_collection_ops(_legacy_chat_collection_service)
-
-
 # Wire the agent_runtime domain's consumer-owned PromptTemplateOps DI
-# slot (Phase 5 step 5-S5b). ``prompt_template_service`` stays as a
-# legacy provider through Phase 6 cleanup, so an adapter exposes the
-# three Protocol methods onto the legacy singleton + module-level
-# ``build_agent_query_prompt`` helper.
+# slot. ``prompt_template_service`` is a standalone-infrastructure
+# module (no natural domain home), so the Protocol + DI seam is the
+# permanent integration point — an adapter exposes the three Protocol
+# methods onto the singleton + module-level ``build_agent_query_prompt``
+# helper.
 from aperag.service.prompt_template_service import (  # noqa: E402
     build_agent_query_prompt as _legacy_build_agent_query_prompt,
 )

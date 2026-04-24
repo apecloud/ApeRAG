@@ -16,10 +16,9 @@
 ``aperag.domains.evaluation.db.repositories.evaluation_v2`` after
 Phase 5 step 5-S6.
 
-``aperag.db.ops`` pulls in the repository mixin from here (plus the
-``_TERMINAL_RUN_STATUSES`` frozenset if any caller still wants the
-module-level alias), so the existing call sites keep working without
-a rename sweep. Phase 6 cleanup removes the shim.
+``aperag.db.ops`` pulls in the repository mixin from here so the
+existing call sites keep working without a rename sweep. Phase 6
+cleanup removes the shim.
 """
 
 from aperag.domains.evaluation.db.repositories.evaluation_v2 import (  # noqa: F401

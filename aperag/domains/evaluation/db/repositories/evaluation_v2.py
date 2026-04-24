@@ -39,14 +39,6 @@ from aperag.domains.evaluation.db.models import (
 )
 from aperag.utils.utils import utc_now
 
-_TERMINAL_RUN_STATUSES = frozenset(
-    {
-        EvaluationRunStatus.COMPLETED,
-        EvaluationRunStatus.FAILED,
-        EvaluationRunStatus.CANCELLED,
-    }
-)
-
 
 class AsyncEvaluationV2RepositoryMixin(AsyncRepositoryProtocol):
     """Read/write helpers for evaluation resources."""
@@ -142,7 +134,7 @@ class AsyncEvaluationV2RepositoryMixin(AsyncRepositoryProtocol):
             run = (await session.execute(stmt)).scalars().first()
             if not run:
                 return None
-            if run.status in _TERMINAL_RUN_STATUSES and status == EvaluationRunStatus.RUNNING:
+            if EvaluationRunStatus.is_terminal(run.status) and status == EvaluationRunStatus.RUNNING:
                 return run
             now = utc_now()
             run.status = status
@@ -152,7 +144,7 @@ class AsyncEvaluationV2RepositoryMixin(AsyncRepositoryProtocol):
                 run.summary = summary
             if status == EvaluationRunStatus.RUNNING and run.gmt_started is None:
                 run.gmt_started = now
-            if status in _TERMINAL_RUN_STATUSES:
+            if EvaluationRunStatus.is_terminal(status):
                 run.gmt_finished = now
             else:
                 run.gmt_finished = None

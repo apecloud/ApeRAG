@@ -12,26 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Legacy shim for ``chat_document_service`` after Phase 5 step 5-S4d.
+"""Legacy shim — canonical home is
+``aperag.domains.conversation.service.chat_document_service``.
 
-The canonical home is
-``aperag.domains.conversation.service.chat_document_service``; this
-module re-exports the ``ChatDocumentService`` class, the
-``chat_document_service`` singleton, and the ``set_chat_collection_ops``
-DI setter so pre-migration callers (``views/chat.py``,
-``agent_runtime/runtime.py`` lazy import) keep resolving the same
-class objects without a rename sweep. Phase 6 cleanup removes the
-shim after every caller has migrated.
+Re-exports the ``ChatDocumentService`` class and
+``chat_document_service`` singleton so pre-migration callers keep
+resolving the same class objects. Phase 6 cleanup drops this shim
+after every caller has migrated.
 """
 
 from aperag.domains.conversation.service.chat_document_service import (  # noqa: F401
     ChatDocumentService,
     chat_document_service,
-    set_chat_collection_ops,
 )
 
 __all__ = [
     "ChatDocumentService",
     "chat_document_service",
-    "set_chat_collection_ops",
 ]

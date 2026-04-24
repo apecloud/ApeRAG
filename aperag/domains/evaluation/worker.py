@@ -227,12 +227,6 @@ _ITEM_STATUS_BY_ATTEMPT: dict[EvaluationRunItemAttemptStatus, EvaluationRunItemS
     EvaluationRunItemAttemptStatus.CANCELLED: EvaluationRunItemStatus.CANCELLED,
 }
 
-_TERMINAL_RUN_STATUSES = {
-    EvaluationRunStatus.COMPLETED,
-    EvaluationRunStatus.FAILED,
-    EvaluationRunStatus.CANCELLED,
-}
-
 
 async def execute_evaluation_run(
     run_id: str,
@@ -266,7 +260,7 @@ async def execute_evaluation_run(
         logger.warning("evaluation run %s vanished before worker could pick it up", run_id)
         return EvaluationRunStatus.FAILED
 
-    if run.status in _TERMINAL_RUN_STATUSES:
+    if EvaluationRunStatus.is_terminal(run.status):
         logger.info(
             "evaluation run %s already in terminal status %s; worker skipping",
             run_id,
@@ -290,7 +284,7 @@ async def execute_evaluation_run(
         if current_run is None:
             logger.warning("evaluation run %s vanished while worker was processing items", run_id)
             return EvaluationRunStatus.FAILED
-        if current_run.status in _TERMINAL_RUN_STATUSES:
+        if EvaluationRunStatus.is_terminal(current_run.status):
             logger.info(
                 "evaluation run %s moved to terminal status %s; worker stops dispatching remaining items",
                 run_id,
@@ -312,7 +306,7 @@ async def execute_evaluation_run(
     latest_run = await ops.get_run_for_worker(run_id)
     final_status = (
         latest_run.status
-        if latest_run is not None and latest_run.status in _TERMINAL_RUN_STATUSES
+        if latest_run is not None and EvaluationRunStatus.is_terminal(latest_run.status)
         else _final_run_status(summary)
     )
     await ops.update_run_status(run_id, final_status, summary=summary.model_dump())

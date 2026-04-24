@@ -716,34 +716,29 @@ def test_phase4_di_critical_wirings_at_app_startup():
 
 
 def test_phase5_di_critical_wirings_at_app_startup():
-    """G18 alt: Phase 5 extension of G17. ``CRITICAL_WIRINGS`` registry
-    for the three Phase 5 domains — conversation / agent_runtime /
-    evaluation — after ``import aperag.app`` the listed
-    ``_<name>_ops`` slots must resolve to non-``None`` instances.
+    """G18 alt: runtime smoke for the permanent consumer-owned Protocol
+    DI slots — after ``import aperag.app`` the listed ``_<name>_ops``
+    slots must resolve to non-``None`` instances.
 
-    Canonical msg=cc04fa86 (living registry) + msg=6fbf875c (final 3
-    entries locked after direct-import simplifications in 5-S4b /
-    5-S4e / 5-S5b / 5-S6). The ``dispatch_fn`` module-level alias in
-    ``aperag.domains.evaluation.worker`` is intentionally **not**
-    listed: it is a test-injection seam, not a Protocol+DI slot.
+    The registry carries exactly the DI slots whose providers are
+    standalone-infrastructure modules with no natural domain home
+    (``quota_service``, ``prompt_template_service``). Every
+    domain-moved provider is reached via a direct sibling /
+    cross-domain import.
+
+    ``dispatch_fn`` in ``aperag.domains.evaluation.worker`` is
+    intentionally **not** listed — it is a module-level test-injection
+    seam, not a Protocol+DI slot.
     """
     import aperag.app  # noqa: F401 — triggers module-scope wire-up
     from aperag.domains.agent_runtime import runtime as agent_runtime_runtime
     from aperag.domains.conversation.service import bot_service as conversation_bot_service
-    from aperag.domains.conversation.service import chat_document_service as conversation_chat_document_service
 
     PHASE5_CRITICAL_WIRINGS = [
-        # Phase 5 conversation DI slot — bot_service ↔ legacy quota_service
-        # (msg=4a93c97e Q1 C; legacy provider stays through Phase 6).
+        # bot_service ↔ quota_service (standalone-infra, permanent seam).
         (conversation_bot_service, "_quota_ops"),
-        # Phase 5 conversation DI slot — chat_document_service ↔
-        # chat_collection_service. The sibling is now in the conversation
-        # domain (5-S4f) so this seam is a Phase 6 simplification
-        # candidate; keep the wire-up until the Protocol is retired.
-        (conversation_chat_document_service, "_chat_collection_ops"),
-        # Phase 5 agent_runtime DI slot — runtime.py ↔ legacy
-        # prompt_template_service (msg=65a3b27d / 3578aa59; legacy
-        # provider stays through Phase 6).
+        # runtime.py ↔ prompt_template_service (standalone-infra,
+        # permanent seam).
         (agent_runtime_runtime, "_prompt_template_ops"),
     ]
     missing = [
