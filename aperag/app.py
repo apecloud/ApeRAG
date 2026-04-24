@@ -83,9 +83,9 @@ from aperag.openapi_spec import custom_generate_unique_id
 from aperag.service.quota_service import quota_service as _legacy_quota_service
 from aperag.service.search_pipeline_service import search_pipeline_service as _legacy_search_pipeline_service
 from aperag.domains.identity.api.config_routes import router as config_router
+from aperag.domains.conversation.api.openai_routes import router as openai_router
 from aperag.views.auth import router as auth_router
 from aperag.views.export import router as export_router
-from aperag.views.openai import router as openai_router
 from aperag.views.prompts import router as prompts_router
 from aperag.views.settings import router as settings_router
 
