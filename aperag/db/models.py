@@ -151,10 +151,9 @@ class ModelServiceProviderStatus(str, Enum):
 # re-exported at the bottom of this module.
 
 
-class APIType(str, Enum):
-    COMPLETION = "completion"
-    EMBEDDING = "embedding"
-    RERANK = "rerank"
+# ``APIType`` moved to
+# ``aperag.domains.model_platform.db.models`` in Phase 4 Step 4-S2d;
+# re-exported at the bottom of this module.
 
 
 class QuestionType(str, Enum):
@@ -409,91 +408,10 @@ class ModelServiceProvider(Base):
     gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Add index for soft delete queries
 
 
-class LLMProvider(Base):
-    """LLM Provider configuration model
-
-    This model stores the provider-level configuration that was previously
-    stored in model_configs.json file. Each provider has basic information
-    and dialect configurations for different API types.
-    """
-
-    __tablename__ = "llm_provider"
-
-    name = Column(String(128), primary_key=True)  # Unique provider name identifier
-    user_id = Column(String(256), nullable=False, index=True)  # Owner of the provider config, "public" for global
-    label = Column(String(256), nullable=False)  # Human-readable provider display name
-    completion_dialect = Column(String(64), nullable=False)  # API dialect for completion/chat APIs
-    embedding_dialect = Column(String(64), nullable=False)  # API dialect for embedding APIs
-    rerank_dialect = Column(String(64), nullable=False)  # API dialect for rerank APIs
-    allow_custom_base_url = Column(Boolean, default=False, nullable=False)  # Whether custom base URLs are allowed
-    base_url = Column(String(512), nullable=False)  # Default API base URL for this provider
-    extra = Column(Text, nullable=True)  # Additional configuration data in JSON format
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_deleted = Column(DateTime(timezone=True), nullable=True)
-
-    def __str__(self):
-        return f"LLMProvider(name={self.name}, label={self.label}, user_id={self.user_id})"
-
-
-class LLMProviderModel(Base):
-    """LLM Provider Model configuration
-
-    This model stores individual model configurations for each provider.
-    Each model belongs to a provider and has a specific API type (completion, embedding, rerank).
-    """
-
-    __tablename__ = "llm_provider_models"
-
-    provider_name = Column(String(128), primary_key=True)  # Reference to LLMProvider.name
-    api = Column(EnumColumn(APIType), nullable=False, primary_key=True)
-    model = Column(String(256), primary_key=True)  # Model name/identifier
-    custom_llm_provider = Column(String(128), nullable=False)  # Custom LLM provider implementation
-    context_window = Column(Integer, nullable=True)  # Context window size (total tokens)
-    max_input_tokens = Column(Integer, nullable=True)  # Maximum input tokens
-    max_output_tokens = Column(Integer, nullable=True)  # Maximum output tokens
-    tags = Column(JSON, default=lambda: [], nullable=True)  # Tags for model categorization
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_deleted = Column(DateTime(timezone=True), nullable=True)
-
-    def __str__(self):
-        return f"LLMProviderModel(provider={self.provider_name}, api={self.api}, model={self.model})"
-
-    async def get_provider(self, session):
-        """Get the associated provider object"""
-        return await session.get(LLMProvider, self.provider_name)
-
-    async def set_provider(self, provider):
-        """Set the provider_name by LLMProvider object or name"""
-        if hasattr(provider, "name"):
-            self.provider_name = provider.name
-        elif isinstance(provider, str):
-            self.provider_name = provider
-
-    def has_tag(self, tag: str) -> bool:
-        """Check if model has a specific tag"""
-        return tag in (self.tags or [])
-
-    def add_tag(self, tag: str) -> bool:
-        """Add a tag to model. Returns True if tag was added, False if already exists"""
-        if self.tags is None:
-            self.tags = []
-        if tag not in self.tags:
-            self.tags.append(tag)
-            return True
-        return False
-
-    def remove_tag(self, tag: str) -> bool:
-        """Remove a tag from model. Returns True if tag was removed, False if not found"""
-        if self.tags and tag in self.tags:
-            self.tags.remove(tag)
-            return True
-        return False
-
-    def get_tags(self) -> list:
-        """Get all tags for this model"""
-        return self.tags or []
+# ``LLMProvider`` + ``LLMProviderModel`` moved to
+# ``aperag.domains.model_platform.db.models`` in Phase 4 Step 4-S2d;
+# re-exported at the bottom of this module. ``APIType`` moved with
+# them (used only by ``LLMProviderModel.api``).
 
 
 # ``User`` + ``OAuthAccount`` moved to
@@ -894,5 +812,10 @@ from aperag.domains.marketplace.db.models import (  # noqa: E402, F401  re-expor
     CollectionMarketplace,
     CollectionMarketplaceStatusEnum,
     UserCollectionSubscription,
+)
+from aperag.domains.model_platform.db.models import (  # noqa: E402, F401  re-export for back-compat (Phase 4 Step 4-S2d)
+    APIType,
+    LLMProvider,
+    LLMProviderModel,
 )
 from aperag.domains.retrieval.db.models import SearchHistory  # noqa: E402, F401  re-export for back-compat
