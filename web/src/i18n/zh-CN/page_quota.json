@@ -1,8 +1,12 @@
 {
   "metadata": {
+    "label": "用量护栏",
     "title": "配额管理",
     "description": "在此模块管理AI模型使用量、API调用次数等资源的额度限制。配额功能帮助您控制成本、防止过度使用并优化使用体验。"
   },
+  "metric_policies": "策略数",
+  "metric_usage": "当前用量",
+  "metric_limit": "总限额",
   "limit": "限额",
   "usage": "用量",
   "bot_count": {

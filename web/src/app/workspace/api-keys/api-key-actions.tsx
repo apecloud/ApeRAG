@@ -1,11 +1,5 @@
 'use client';
 
-import {
-  createApiKey,
-  deleteApiKey,
-  updateApiKey,
-} from '@/features/api-key/client-api';
-import type { ApiKey } from '@/features/api-key/types';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -26,6 +20,12 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  createApiKey,
+  deleteApiKey,
+  updateApiKey,
+} from '@/features/api-key/client-api';
+import type { ApiKey } from '@/features/api-key/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Slot } from '@radix-ui/react-slot';
 import copy from 'copy-to-clipboard';
@@ -128,7 +128,10 @@ export const ApiKeyActions = ({
             {children}
           </Slot>
         </DialogTrigger>
-        <DialogContent showCloseButton={false}>
+        <DialogContent
+          showCloseButton={false}
+          className="border-border/70 rounded-xl"
+        >
           <DialogHeader>
             <DialogTitle>{common_tips('confirm')}</DialogTitle>
             <DialogDescription>
@@ -164,15 +167,22 @@ export const ApiKeyActions = ({
               {children}
             </Slot>
           </DialogTrigger>
-          <DialogContent showCloseButton={false}>
+          <DialogContent
+            showCloseButton={false}
+            className="border-border/70 max-w-2xl rounded-xl"
+          >
             <Form {...form}>
               <form
                 onSubmit={form.handleSubmit(handleCreateOrUpdate)}
-                className="space-y-8"
+                className="space-y-6"
               >
                 <DialogHeader>
-                  <DialogTitle>API Key</DialogTitle>
-                  <DialogDescription></DialogDescription>
+                  <DialogTitle className="font-serif text-2xl font-normal">
+                    {page_api_keys('dialog_title')}
+                  </DialogTitle>
+                  <DialogDescription>
+                    {page_api_keys('dialog_description')}
+                  </DialogDescription>
                 </DialogHeader>
                 <FormField
                   control={form.control}
@@ -181,6 +191,7 @@ export const ApiKeyActions = ({
                     <FormItem>
                       <FormControl>
                         <Textarea
+                          className="min-h-28 resize-y rounded-xl"
                           placeholder={page_api_keys('api_key_placeholder')}
                           {...field}
                         />
@@ -211,9 +222,12 @@ export const ApiKeyActions = ({
             showCloseButton={false}
             onEscapeKeyDown={(event) => event.preventDefault()}
             onInteractOutside={(event) => event.preventDefault()}
+            className="border-border/70 max-w-2xl rounded-xl"
           >
             <DialogHeader>
-              <DialogTitle>{page_api_keys('created_api_key_title')}</DialogTitle>
+              <DialogTitle className="font-serif text-2xl font-normal">
+                {page_api_keys('created_api_key_title')}
+              </DialogTitle>
               <DialogDescription>
                 {page_api_keys('created_api_key_description')}
               </DialogDescription>
@@ -226,7 +240,7 @@ export const ApiKeyActions = ({
                 <Input
                   readOnly
                   value={createdApiKey?.key || ''}
-                  className="font-mono text-xs"
+                  className="bg-muted font-mono text-xs"
                 />
               </div>
               <p className="text-muted-foreground text-sm">

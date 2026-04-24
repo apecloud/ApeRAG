@@ -1,9 +1,17 @@
 {
   "metadata": {
+    "label": "Access control",
     "title": "User Management",
     "description": "This module enables administrators to centrally control and organize all system users with secure access configurations. Efficiently manage identities, permissions, and authentication policies across your organization."
   },
+  "metric_users": "Users",
+  "metric_active": "Active",
+  "metric_admins": "Admins",
   "search": "Search users",
+  "columns": "Columns",
+  "self_badge": "Me",
+  "status_active": "Active",
+  "status_inactive": "Inactive",
   "user_name": "User",
   "user_role": "Role",
   "user_status": "Status",

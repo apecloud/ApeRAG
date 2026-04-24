@@ -46,9 +46,13 @@
   },
   "admin_config": {
     "metadata": {
+      "label": "系统控制台",
       "title": "系统配置",
       "description": "本模块允许管理员定义和管理适用于整个平台的全局设置。这些全局参数控制系统核心功能、安全策略、性能阈值及其他关键配置项。"
     },
+    "metric_parser_modes": "启用解析器",
+    "metric_quota_policies": "配额字段",
+    "metric_control_sections": "控制面板",
     "mineru_api": "启用 MinerU API",
     "mineru_api_description": "启用后，系统将优先使用 MinerU API 进行文档解析，以提升解析质量与速度",
     "mineru_api_token": "MinerU API 令牌",
@@ -77,10 +81,18 @@
   },
   "admin_users": {
     "metadata": {
+      "label": "访问控制",
       "title": "用户管理",
       "description": "该模块允许管理员通过安全访问配置集中控制和管理系统所有用户，高效管理组织内的身份、权限和认证策略。"
     },
+    "metric_users": "用户",
+    "metric_active": "活跃",
+    "metric_admins": "管理员",
     "search": "搜索用户",
+    "columns": "列设置",
+    "self_badge": "我",
+    "status_active": "活跃",
+    "status_inactive": "停用",
     "user_name": "用户",
     "user_role": "角色",
     "user_status": "状态",
@@ -140,11 +152,16 @@
   },
   "page_api_keys": {
     "metadata": {
+      "label": "程序化访问",
       "title": "API密钥",
       "description": "支持安全存储、更新和管理不同AI服务（如OpenAI、Anthropic、Gemini等）的API密钥。关联密钥既可实现个性化AI交互，又能确保凭证安全。"
     },
+    "metric_total": "密钥数",
+    "metric_used": "已使用",
+    "metric_masked": "已脱敏",
     "description": "描述信息",
     "search_api_keys": "搜索密钥",
+    "columns": "列设置",
     "creation_time": "创建时间",
     "last_used_time": "最后使用时间",
     "api_keys": "API密钥",
@@ -154,6 +171,8 @@
     "edit_api_keys": "编辑",
     "delete_api_key": "删除API密钥",
     "delete_api_key_confirm": "确认删除此API密钥？",
+    "dialog_title": "API 密钥",
+    "dialog_description": "描述该密钥的用途。完整凭证只会在创建后显示一次。",
     "created_api_key_title": "API密钥已创建",
     "created_api_key_description": "完整 API 密钥只会在这里显示一次。请在关闭对话框前复制并安全保存。",
     "created_api_key_label": "生成的 API 密钥",
@@ -165,13 +184,34 @@
   },
   "page_audit_logs": {
     "metadata": {
+      "label": "操作轨迹",
       "title": "审计日志",
       "description": "通过审计日志跟踪和审查所有关键系统活动—、API调用和管理变更，确保透明度、安全性和合规性。"
     },
+    "metric_events": "事件数",
+    "metric_success": "成功",
+    "metric_errors": "错误",
+    "metric_avg_duration": "平均耗时",
     "search_placeholder": "按API名称搜索",
+    "columns": "列设置",
     "status": "状态",
     "duration": "持续时间",
-    "start_time": "开始时间"
+    "start_time": "开始时间",
+    "detail": {
+      "user_agent": "用户代理",
+      "ip": "IP",
+      "user_id": "用户 ID",
+      "request_id": "请求 ID",
+      "api": "API",
+      "path": "路径",
+      "method": "方法",
+      "status_code": "状态码",
+      "resource_type": "资源类型",
+      "request_data": "请求数据",
+      "response_data": "响应数据",
+      "error_messages": "错误信息",
+      "resource_id": "资源 ID"
+    }
   },
   "page_auth": {
     "account": "我的账号",
@@ -1039,9 +1079,13 @@
   },
   "page_quota": {
     "metadata": {
+      "label": "用量护栏",
       "title": "配额管理",
       "description": "在此模块管理AI模型使用量、API调用次数等资源的额度限制。配额功能帮助您控制成本、防止过度使用并优化使用体验。"
     },
+    "metric_policies": "策略数",
+    "metric_usage": "当前用量",
+    "metric_limit": "总限额",
     "limit": "限额",
     "usage": "用量",
     "bot_count": {

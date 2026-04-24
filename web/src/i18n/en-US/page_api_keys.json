@@ -1,10 +1,15 @@
 {
   "metadata": {
+    "label": "Programmatic access",
     "title": "API keys",
     "description": "This section allows you to securely store, update, and manage API keys for different AI services (such as OpenAI, Anthropic, Gemini, etc.). Connecting your keys enables personalized AI interactions while keeping your credentials protected."
   },
+  "metric_total": "Keys",
+  "metric_used": "Used",
+  "metric_masked": "Masked",
   "description": "Description",
   "search_api_keys": "Search",
+  "columns": "Columns",
   "creation_time": "Creation time",
   "last_used_time": "Last used time",
   "api_keys": "API Keys",
@@ -14,13 +19,14 @@
   "edit_api_keys": "Edit",
   "delete_api_key": "Delete Api Key",
   "delete_api_key_confirm": "Confirm deletion of the API key?",
+  "dialog_title": "API key",
+  "dialog_description": "Describe what this key is used for. The full credential is only revealed once after creation.",
   "created_api_key_title": "API key created",
   "created_api_key_description": "This is the only time the full API key will be shown. Copy and store it securely before closing this dialog.",
   "created_api_key_label": "Generated API key",
   "created_api_key_hint": "Anyone with this key can access ApeRAG APIs using the permissions of your account.",
   "copy_created_api_key": "Copy API key",
-  "saved_api_key": "I have stored this key"
-  ,
+  "saved_api_key": "I have stored this key",
   "masked_badge": "Masked",
   "masked_notice": "Only a masked preview of each API key is shown in the table. The full key can only be copied once when it is created."
 }

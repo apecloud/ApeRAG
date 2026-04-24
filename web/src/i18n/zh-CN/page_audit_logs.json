@@ -1,10 +1,31 @@
 {
   "metadata": {
+    "label": "操作轨迹",
     "title": "审计日志",
     "description": "通过审计日志跟踪和审查所有关键系统活动—、API调用和管理变更，确保透明度、安全性和合规性。"
   },
+  "metric_events": "事件数",
+  "metric_success": "成功",
+  "metric_errors": "错误",
+  "metric_avg_duration": "平均耗时",
   "search_placeholder": "按API名称搜索",
+  "columns": "列设置",
   "status": "状态",
   "duration": "持续时间",
-  "start_time": "开始时间"
+  "start_time": "开始时间",
+  "detail": {
+    "user_agent": "用户代理",
+    "ip": "IP",
+    "user_id": "用户 ID",
+    "request_id": "请求 ID",
+    "api": "API",
+    "path": "路径",
+    "method": "方法",
+    "status_code": "状态码",
+    "resource_type": "资源类型",
+    "request_data": "请求数据",
+    "response_data": "响应数据",
+    "error_messages": "错误信息",
+    "resource_id": "资源 ID"
+  }
 }

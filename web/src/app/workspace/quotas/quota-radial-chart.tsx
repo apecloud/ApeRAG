@@ -8,7 +8,6 @@ import {
   RadialBarChart,
 } from 'recharts';
 
-import type { QuotaInfo } from '@/features/quota/types';
 import { Badge } from '@/components/ui/badge';
 import {
   Card,
@@ -19,6 +18,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { ChartConfig, ChartContainer } from '@/components/ui/chart';
+import type { QuotaInfo } from '@/features/quota/types';
 import { useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 
@@ -63,9 +63,11 @@ export const QuotaRadialChart = ({ data }: { data: QuotaInfo }) => {
   }, [data.quota_type, page_quota]);
 
   return (
-    <Card className="flex flex-col gap-0 border-none">
+    <Card className="border-border/70 flex flex-col gap-0 overflow-hidden rounded-xl py-0">
       <CardHeader>
-        <CardTitle>{quota.title}</CardTitle>
+        <CardTitle className="font-serif text-xl font-normal">
+          {quota.title}
+        </CardTitle>
         <CardDescription className="mb-2 h-10 overflow-hidden">
           {quota.description}
         </CardDescription>
@@ -104,7 +106,7 @@ export const QuotaRadialChart = ({ data }: { data: QuotaInfo }) => {
                         <tspan
                           x={viewBox.cx}
                           y={viewBox.cy}
-                          className="fill-foreground text-4xl font-bold"
+                          className="fill-foreground font-mono text-4xl"
                         >
                           {`${percent.toFixed(2)}%`}
                         </tspan>
@@ -124,11 +126,11 @@ export const QuotaRadialChart = ({ data }: { data: QuotaInfo }) => {
           </RadialBarChart>
         </ChartContainer>
       </CardContent>
-      <CardFooter className="text-muted-foreground flex flex-row items-center justify-center gap-2 text-sm">
-        <Badge variant="secondary">
+      <CardFooter className="border-border/70 flex flex-row items-center justify-center gap-2 border-t px-4 py-4 text-sm">
+        <Badge variant="secondary" className="font-mono">
           {page_quota('limit')}: {data.quota_limit}
         </Badge>
-        <Badge variant="secondary">
+        <Badge variant="outline" className="bg-muted font-mono">
           {page_quota('usage')}: {data.current_usage}
         </Badge>
       </CardFooter>

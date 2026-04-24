@@ -31,13 +31,15 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-import type { ApiKey } from '@/features/api-key/types';
 import { FormatDate } from '@/components/format-date';
+import type { ApiKey } from '@/features/api-key/types';
 import {
   ChevronDown,
   Columns3,
   EllipsisVertical,
+  KeyRound,
   Plus,
+  Search,
   SquarePen,
   Trash,
 } from 'lucide-react';
@@ -104,9 +106,21 @@ export function ApiKeyTable({ data }: { data: ApiKey[] }) {
       header: page_api_keys('api_keys'),
       cell: ({ row }) => {
         return (
-          <div className="flex flex-row items-center gap-2">
-            <span className="font-mono text-sm">{row.original.key}</span>
-            <Badge variant="outline">{page_api_keys('masked_badge')}</Badge>
+          <div className="flex items-center gap-3">
+            <div className="bg-accent-soft text-accent-ink flex size-9 shrink-0 items-center justify-center rounded-lg">
+              <KeyRound className="size-4" />
+            </div>
+            <div className="min-w-0">
+              <span className="block truncate font-mono text-sm">
+                {row.original.key}
+              </span>
+              <Badge
+                variant="outline"
+                className="bg-muted mt-1 rounded-full font-mono text-[10px]"
+              >
+                {page_api_keys('masked_badge')}
+              </Badge>
+            </div>
           </div>
         );
       },
@@ -193,19 +207,23 @@ export function ApiKeyTable({ data }: { data: ApiKey[] }) {
   });
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <Input
-            placeholder={page_api_keys('search_api_keys')}
-            value={searchValue}
-            onChange={(e) => setSearchValue(e.currentTarget.value)}
-          />
+    <div className="flex flex-col gap-5">
+      <div className="border-border/70 bg-card grid gap-4 rounded-xl border p-4 shadow-sm lg:grid-cols-[1fr_auto] lg:items-center">
+        <div className="min-w-0">
+          <div className="relative max-w-xl">
+            <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+            <Input
+              className="bg-background/70 h-10 rounded-lg pl-9"
+              placeholder={page_api_keys('search_api_keys')}
+              value={searchValue}
+              onChange={(e) => setSearchValue(e.currentTarget.value)}
+            />
+          </div>
           <p className="text-muted-foreground mt-2 text-xs">
             {page_api_keys('masked_notice')}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 lg:justify-end">
           <ApiKeyActions action="add">
             <Button>
               <Plus />
@@ -218,6 +236,9 @@ export function ApiKeyTable({ data }: { data: ApiKey[] }) {
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
                 <Columns3 />
+                <span className="hidden sm:inline">
+                  {page_api_keys('columns')}
+                </span>
                 <ChevronDown />
               </Button>
             </DropdownMenuTrigger>
@@ -247,7 +268,9 @@ export function ApiKeyTable({ data }: { data: ApiKey[] }) {
           </DropdownMenu>
         </div>
       </div>
-      <DataGrid table={table} />
+      <div className="border-border/70 bg-card rounded-xl border p-3 shadow-sm">
+        <DataGrid table={table} className="border-border/70 rounded-lg" />
+      </div>
       <DataGridPagination table={table} />
     </div>
   );

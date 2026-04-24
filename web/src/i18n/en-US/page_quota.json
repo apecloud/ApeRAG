@@ -1,8 +1,12 @@
 {
   "metadata": {
+    "label": "Usage guardrails",
     "title": "Quotas",
     "description": "Manage your usage limits for AI models, API calls, and other resources in this section. Quotas help you control costs, prevent overuse, and optimize your experience."
   },
+  "metric_policies": "Policies",
+  "metric_usage": "Current usage",
+  "metric_limit": "Total limit",
   "limit": "Limit",
   "usage": "Usage",
   "bot_count": {

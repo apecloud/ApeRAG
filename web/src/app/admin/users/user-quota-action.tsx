@@ -1,16 +1,5 @@
 'use client';
 
-import {
-  getUserQuota as getUserQuotaApi,
-  recalculateUserQuota,
-  updateUserQuota,
-} from '@/features/admin/client-api';
-import type {
-  QuotaUpdateRequest,
-  QuotaUpdateResponse,
-  UserQuotaInfo,
-} from '@/features/admin/types';
-import type { User } from '@/features/identity/types';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -31,9 +20,21 @@ import {
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  getUserQuota as getUserQuotaApi,
+  recalculateUserQuota,
+  updateUserQuota,
+} from '@/features/admin/client-api';
+import type {
+  QuotaUpdateRequest,
+  QuotaUpdateResponse,
+  UserQuotaInfo,
+} from '@/features/admin/types';
+import type { User } from '@/features/identity/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Slot } from '@radix-ui/react-slot';
 import _ from 'lodash';
+import { Gauge } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -141,11 +142,22 @@ export const UserQuotaAction = ({
               // @ts-expect-error i18n error
               const label = page_quota(info.quota_type);
               return (
-                <div>
+                <div className="border-border/70 bg-muted rounded-xl border p-4">
                   <FormItem>
-                    <FormLabel>{label}</FormLabel>
+                    <div className="mb-3 flex items-start justify-between gap-3">
+                      <div>
+                        <FormLabel className="font-medium">{label}</FormLabel>
+                        <div className="text-muted-foreground mt-1 text-xs">
+                          {page_quota('usage')}: {info.current_usage}
+                        </div>
+                      </div>
+                      <div className="bg-accent-soft text-accent-ink flex size-9 shrink-0 items-center justify-center rounded-lg">
+                        <Gauge className="size-4" />
+                      </div>
+                    </div>
                     <FormControl>
                       <Input
+                        className="bg-background/70 rounded-xl font-mono"
                         type="number"
                         {...field}
                         onChange={(e) => {
@@ -155,12 +167,12 @@ export const UserQuotaAction = ({
                       />
                     </FormControl>
                   </FormItem>
-                  <div className="my-1">
-                    <Progress className="h-1" value={percent} />
+                  <div className="my-3">
+                    <Progress className="bg-border h-1.5" value={percent} />
                   </div>
-                  <div className="text-muted-foreground flex flex-row justify-between text-sm">
+                  <div className="text-muted-foreground flex flex-row justify-between font-mono text-xs">
                     <div>
-                      {page_quota('usage')}: {info.current_usage}
+                      {page_quota('limit')}: {info.quota_limit}
                     </div>
                     <div>{percent.toFixed(2)}%</div>
                   </div>
@@ -191,25 +203,29 @@ export const UserQuotaAction = ({
           {children}
         </Slot>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="border-border/70 max-w-3xl rounded-xl p-0">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleUpdateQuota)}>
-            <DialogHeader>
-              <DialogTitle>{admin_users('user_quotas')}</DialogTitle>
+            <DialogHeader className="border-border/70 border-b px-6 py-5">
+              <DialogTitle className="font-serif text-2xl font-normal">
+                {admin_users('user_quotas')}
+              </DialogTitle>
               <DialogDescription asChild>
-                <div className="flex flex-row gap-2">
-                  {user.username && <div>{user.username}</div>}
-                  {user.email && <div>{user.email}</div>}
+                <div className="text-muted-foreground mt-2 flex flex-wrap gap-2 text-sm">
+                  {user.username && <span>{user.username}</span>}
+                  {user.email && (
+                    <span className="font-mono">{user.email}</span>
+                  )}
                 </div>
               </DialogDescription>
             </DialogHeader>
 
-            <div className="flex flex-col gap-6 py-8">{content}</div>
+            <div className="grid gap-4 px-6 py-6 md:grid-cols-2">{content}</div>
 
-            <DialogFooter className="flex flex-col sm:justify-between">
+            <DialogFooter className="border-border/70 flex flex-col border-t px-6 py-4 sm:flex-row sm:justify-between">
               <Button
                 type="button"
-                variant="secondary"
+                variant="outline"
                 onClick={() => handleRecalculate()}
                 disabled={_.isEmpty(quotaInfo)}
               >
