@@ -38,172 +38,19 @@ from aperag.schema.common import (  # noqa: F401  re-export for back-compat
 )
 
 
-class Agent(BaseModel):
-    completion: Optional[ModelSpec] = None
-    system_prompt_template: Optional[str] = None
-    query_prompt_template: Optional[str] = None
-    collections: Optional[list[Collection]] = None
-
-
-class BotConfig(BaseModel):
-    agent: Optional[Agent] = None
-
-
-class Bot(BaseModel):
-    id: Optional[str] = None
-    title: Optional[str] = None
-    description: Optional[str] = None
-    type: Optional[Literal["knowledge", "common", "agent"]] = Field(
-        None, description="The type of bot", examples=["agent"]
-    )
-    config: Optional[BotConfig] = None
-    created: Optional[datetime] = None
-    updated: Optional[datetime] = None
-
-
-class BotList(BaseModel):
-    """
-    A list of bots
-    """
-
-    items: Optional[list[Bot]] = None
-    pageResult: Optional[PageResult] = None
-
-
 class FailResponse(BaseModel):
     code: Optional[str] = Field(None, description="Error code", examples=["400"])
     message: Optional[str] = Field(None, description="Error message", examples=["Invalid request"])
 
 
-class BotCreate(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
-    type: Optional[Literal["agent"]] = Field(None, description="The supported bot type", examples=["agent"])
-    config: Optional[BotConfig] = None
-
-
-class BotUpdate(BaseModel):
-    id: Optional[str] = None
-    title: Optional[str] = None
-    description: Optional[str] = None
-    config: Optional[BotConfig] = None
-
-
-class BotUpdateRequest(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
-    config: Optional[BotConfig] = None
-
-
-class Chat(BaseModel):
-    id: Optional[str] = None
-    title: Optional[str] = None
-    bot_id: Optional[str] = None
-    peer_id: Optional[str] = None
-    peer_type: Optional[Literal["system", "feishu", "weixin", "weixin_official", "web", "dingtalk"]] = None
-    status: Optional[Literal["active", "archived"]] = None
-    created: Optional[datetime] = None
-    updated: Optional[datetime] = None
-
-
-class ChatList(PaginatedResponse):
-    """
-    A list of chats with pagination
-    """
-
-    items: Optional[list[Chat]] = None
-
-
-class ChatCreate(BaseModel):
-    title: Optional[str] = None
-
-
-class Reference(BaseModel):
-    score: Optional[float] = None
-    text: Optional[str] = None
-    image_uri: Optional[str] = None
-    metadata: Optional[dict[str, Any]] = None
-
-
-class File(BaseModel):
-    id: Optional[str] = None
-    name: Optional[str] = None
-
-
-class ChatMessage(BaseModel):
-    id: Optional[str] = None
-    part_id: Optional[str] = None
-    type: Optional[
-        Literal[
-            "welcome",
-            "message",
-            "start",
-            "stop",
-            "error",
-            "tool_call_result",
-            "thinking",
-            "references",
-        ]
-    ] = None
-    timestamp: Optional[float] = None
-    role: Optional[Literal["human", "ai"]] = None
-    data: Optional[str] = None
-    references: Optional[list[Reference]] = None
-    urls: Optional[list[str]] = None
-    files: Optional[list[File]] = None
-
-
-class ChatDetails(BaseModel):
-    id: Optional[str] = None
-    title: Optional[str] = None
-    bot_id: Optional[str] = None
-    peer_id: Optional[str] = None
-    peer_type: Optional[Literal["system", "feishu", "weixin", "weixin_official", "web", "dingtalk"]] = None
-    history: Optional[list[list[ChatMessage]]] = Field(
-        None,
-        description="Array of conversation turns, where each turn is an array of message parts",
-    )
-    status: Optional[Literal["active", "archived"]] = None
-    created: Optional[datetime] = None
-    updated: Optional[datetime] = None
-
-
-class ChatUpdate(BaseModel):
-    title: Optional[str] = None
-
-
-class TitleGenerateRequest(BaseModel):
-    max_length: Optional[conint(ge=6, le=50)] = Field(20, description="Maximum length of the generated title")
-    language: Optional[Literal["zh-CN", "en-US", "ja-JP", "ko-KR"]] = Field(
-        "zh-CN", description="Language for the title generation (IETF BCP 47 tag)"
-    )
-    turns: Optional[conint(ge=1)] = Field(1, description="Number of most recent conversation turns to consider")
-
-
-class TitleGenerateResponse(BaseModel):
-    title: str = Field(..., description="Generated title string")
-
-
-class TurnFeedback(BaseModel):
-    turn_id: str
-    type: Literal["good", "bad"]
-    tag: Optional[Literal["Harmful", "Unsafe", "Fake", "Unhelpful", "Other"]] = None
-    message: Optional[str] = None
-    created: Optional[datetime] = None
-    updated: Optional[datetime] = None
-
-
-class TurnFeedbackList(BaseModel):
-    items: list[TurnFeedback]
-
-
-class Feedback(BaseModel):
-    type: Optional[Literal["good", "bad"]] = None
-    tag: Optional[Literal["Harmful", "Unsafe", "Fake", "Unhelpful", "Other"]] = None
-    message: Optional[str] = None
-
-
-TurnFeedbackWrite = Feedback
+# Bot / BotConfig / BotList / BotCreate / BotUpdate / BotUpdateRequest,
+# Chat / ChatList / ChatCreate / ChatDetails / ChatUpdate / ChatMessage,
+# Reference / File, TitleGenerateRequest / TitleGenerateResponse,
+# TurnFeedback / TurnFeedbackList / Feedback / TurnFeedbackWrite, Agent
+# were carved to ``aperag.domains.conversation.schemas`` in Phase 5 step
+# 5-S3. The end-of-file ``try`` block re-imports them so pre-migration
+# callers (``from aperag.schema.view_models import Bot``) keep
+# resolving the same class objects.
 
 
 # ConfirmDocumentsRequest / FetchUrlRequest / DeleteDocumentsRequest /
@@ -1502,4 +1349,46 @@ except ImportError:
     # imported view_models first will see them bound at module-load
     # completion; callers that imported KB first will see them bound
     # via the KB hook.
+    pass
+
+
+# Phase 5 step 5-S3 back-compat shim (msg=92f5788d / msg=4a93c97e Q2):
+# the 21 conversation-domain schemas below were extracted to
+# ``aperag.domains.conversation.schemas`` and are re-imported here so
+# pre-migration callers (``from aperag.schema.view_models import Bot``)
+# and FastAPI response_model bindings continue to see the canonical
+# class objects from the conversation domain module. Dual-hook pattern
+# mirrors the KB step 4b (cuiwenbo msg=f894cca4): if conversation
+# loads first, its ``_bind_view_models_reexports`` binds these names
+# onto view_models; if view_models loads first this ``try`` block
+# succeeds. Phase 6 cleanup removes the shim once every caller has
+# migrated to the conversation path.
+try:
+    from aperag.domains.conversation.schemas import (  # noqa: E402, F401
+        Agent,
+        Bot,
+        BotConfig,
+        BotCreate,
+        BotList,
+        BotUpdate,
+        BotUpdateRequest,
+        Chat,
+        ChatCreate,
+        ChatDetails,
+        ChatList,
+        ChatMessage,
+        ChatUpdate,
+        Feedback,
+        File,
+        Reference,
+        TitleGenerateRequest,
+        TitleGenerateResponse,
+        TurnFeedback,
+        TurnFeedbackList,
+        TurnFeedbackWrite,
+    )
+except ImportError:
+    # Conversation module is still loading the shared common helpers
+    # above; its own ``_bind_view_models_reexports`` will complete the
+    # binding from the other side.
     pass
