@@ -13,17 +13,20 @@
 # limitations under the License.
 
 """Consumer-owned Protocols the knowledge_base domain needs from the
-Phase 4 marketplace / Phase 2 retrieval peers.
+Phase 4 marketplace / Phase 2 retrieval peers and the infra-level
+quota service.
 
 Lesson 9a-quad (consumer-owned bridge): ``collection_service`` and
 ``document_service`` (the two KB services that land in Step 5b2 /
-Step 5b3) reach across to three services that are not yet inside
+Step 5b3) reach across to four services that are not yet inside
 ``aperag/domains/`` — ``marketplace_service`` / ``marketplace_collection_service``
-(Phase 4 scope) and ``search_pipeline_service`` (pre-domain Phase 2
-leftover). KB declares the Protocols here, at the consumer side, so
-those three service modules can stay where they are this phase. Phase 4
-and the eventual retrieval clean-up only need to have their concrete
-implementations structurally satisfy the shapes below — no code under
+(Phase 4 scope), ``search_pipeline_service`` (pre-domain Phase 2
+leftover), and ``quota_service`` (cross-cutting infra whose permanent
+home Phase 5 decides per msg=896584ee). KB declares the Protocols
+here, at the consumer side, so those four service modules can stay
+where they are this phase. Phase 4 / Phase 5 and the eventual
+retrieval clean-up only need to have their concrete implementations
+structurally satisfy the shapes below — no code under
 ``aperag/service/`` has to import ``aperag.domains.knowledge_base``.
 
 Surface is scoped to the exact method signatures ``collection_service``
@@ -31,13 +34,23 @@ and ``document_service`` call today — grepped from call sites:
 
 - ``marketplace_service.validate_marketplace_collection(collection_id)``
   (collection_service L204; document_service L493 / L592 / L935)
-- ``marketplace_collection_service._check_marketplace_access(user, collection_id)``
-  (collection_service L382)
+- ``marketplace_collection_service.check_marketplace_access(user, collection_id)``
+  (collection_service L382; legacy method name is
+  ``_check_marketplace_access`` — Phase 4 marketplace_collection_service
+  move drops the ``_`` prefix per msg=6ab7d211 Q2. The legacy shim at
+  ``aperag/service/collection_service.py`` wraps the current
+  underscore method through a small adapter so the Protocol surface is
+  already public today.)
 - ``search_pipeline_service.execute_search(data, collection_id, search_user_id, chat_id)``
   (collection_service L363)
+- ``quota_service.check_and_consume_quota(user_id, quota_type, amount, session)``
+  and ``quota_service.release_quota(user_id, quota_type, amount, session)``
+  (collection_service L80 / L336; document_service L173 / L636).
+  Satisfied by ``aperag/service/quota_service.py`` today; Phase 5
+  design-lock decides permanent domain home (msg=896584ee).
 
-Phase 6 cleanup may collapse or rename these once Phase 4 marketplace
-ships; until then the Protocols pin the minimum contract KB depends on.
+Phase 6 cleanup may collapse or rename these once the owning domains
+ship; until then the Protocols pin the minimum contract KB depends on.
 """
 
 from __future__ import annotations
@@ -63,10 +76,14 @@ class MarketplaceCollectionOps(Protocol):
 
     Used by the marketplace-subscriber search fallback in
     ``collection_service.create_search`` to resolve the owner user id
-    when a subscriber searches a published collection.
+    when a subscriber searches a published collection. Method is
+    ``check_marketplace_access`` (public, per msg=6ab7d211 Q2); the
+    pre-Phase-4 concrete service still exposes the method under its
+    original ``_check_marketplace_access`` name, so the legacy shim at
+    ``aperag/service/collection_service.py`` wires a small adapter.
     """
 
-    async def _check_marketplace_access(self, user_id: str, collection_id: str) -> dict: ...
+    async def check_marketplace_access(self, user_id: str, collection_id: str) -> dict: ...
 
 
 @runtime_checkable
@@ -88,8 +105,39 @@ class SearchPipelineOps(Protocol):
     ) -> Any: ...
 
 
+@runtime_checkable
+class QuotaOps(Protocol):
+    """Minimum quota surface KB consumes for per-tenant resource caps.
+
+    ``check_and_consume_quota`` is called inside the KB write-path
+    transactions (collection + document create) to enforce
+    ``max_collection_count`` / ``max_document_count`` atomically with
+    the write. ``release_quota`` mirrors it on delete. ``session`` is
+    the SQLAlchemy async session the KB transaction is already running
+    in; the quota implementation reuses it so the quota decrement joins
+    the same transaction boundary.
+    """
+
+    async def check_and_consume_quota(
+        self,
+        user_id: str,
+        quota_type: str,
+        amount: int = 1,
+        session: Any = None,
+    ) -> None: ...
+
+    async def release_quota(
+        self,
+        user_id: str,
+        quota_type: str,
+        amount: int = 1,
+        session: Any = None,
+    ) -> None: ...
+
+
 __all__ = [
     "MarketplaceCollectionOps",
     "MarketplaceOps",
+    "QuotaOps",
     "SearchPipelineOps",
 ]
