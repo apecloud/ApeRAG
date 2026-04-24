@@ -24,7 +24,7 @@ from aperag.config import get_vector_db_connector
 from aperag.db import models as db_models
 from aperag.db.models import CollectionStatus
 from aperag.db.ops import db_ops
-from aperag.index.fulltext_index import create_index, delete_collection_documents, delete_index
+from aperag.domains.indexing.fulltext_index import create_index, delete_collection_documents, delete_index
 from aperag.llm.embed.base_embedding import get_collection_embedding_service_sync
 from aperag.objectstore.base import get_object_store
 from aperag.schema.utils import parseCollectionConfig
@@ -179,8 +179,8 @@ class CollectionTask:
         if not enable_knowledge_graph:
             return deletion_stats
 
+        from aperag.domains.knowledge_graph.graphindex.integration import run_drop_collection_sync
         from aperag.graph_curation.integration import run_purge_graph_curation_collection_sync
-        from aperag.graphindex.integration import run_drop_collection_sync
 
         try:
             run_drop_collection_sync(str(collection.id))

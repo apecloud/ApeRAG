@@ -14,7 +14,7 @@
 
 """Graph curation workflow.
 
-This module is deliberately separate from ``aperag.graphindex``:
+This module is deliberately separate from ``aperag.domains.knowledge_graph.graphindex``:
 
 - ``graphindex`` owns graph truth and the merge primitive
 - ``graph_curation`` owns suggestion discovery and review state

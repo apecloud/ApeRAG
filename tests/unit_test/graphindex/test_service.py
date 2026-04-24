@@ -18,7 +18,7 @@ from typing import Optional
 
 import pytest
 
-from aperag.graphindex import (
+from aperag.domains.knowledge_graph.graphindex import (
     DeleteDocumentResult,
     Entity,
     GraphContext,
@@ -27,8 +27,8 @@ from aperag.graphindex import (
     KnowledgeGraph,
     Relation,
 )
-from aperag.graphindex.config import GraphIndexConfig
-from aperag.graphindex.dto import DESCRIPTION_SEPARATOR, MergeEntitiesResult
+from aperag.domains.knowledge_graph.graphindex.config import GraphIndexConfig
+from aperag.domains.knowledge_graph.graphindex.dto import DESCRIPTION_SEPARATOR, MergeEntitiesResult
 
 
 class _StubStore:
@@ -95,7 +95,7 @@ class _StubStore:
         return self.subgraph_result
 
     async def get_chunks_by_ids(self, collection_id, chunk_ids):
-        from aperag.graphindex.dto import Chunk
+        from aperag.domains.knowledge_graph.graphindex.dto import Chunk
 
         return [
             Chunk(chunk_id=cid, doc_id="d", collection_id=collection_id, order_in_doc=0, text=f"text of {cid}")
@@ -323,7 +323,7 @@ async def test_index_document_rebuild_deletes_stale_shadow_vectors(monkeypatch):
         ]
         return IndexDocumentResult(doc_id=doc_id, chunks_created=1, entities_extracted=2, relations_extracted=1)
 
-    import aperag.graphindex.service as service_module
+    import aperag.domains.knowledge_graph.graphindex.service as service_module
 
     monkeypatch.setattr(service_module, "index_document", fake_index_document)
 

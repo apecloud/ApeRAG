@@ -18,9 +18,9 @@ import json
 
 import pytest
 
-from aperag.graphindex.config import GraphIndexConfig
-from aperag.graphindex.dto import Chunk
-from aperag.graphindex.engine.extraction import (
+from aperag.domains.knowledge_graph.graphindex.config import GraphIndexConfig
+from aperag.domains.knowledge_graph.graphindex.dto import Chunk
+from aperag.domains.knowledge_graph.graphindex.engine.extraction import (
     extract_from_chunk,
     normalize_entity_id,
 )

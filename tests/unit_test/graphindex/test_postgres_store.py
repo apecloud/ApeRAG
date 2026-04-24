@@ -38,13 +38,13 @@ pytest.importorskip("asyncpg")
 
 from sqlalchemy.ext.asyncio import create_async_engine  # noqa: E402
 
-from aperag.graphindex import (  # noqa: E402
+from aperag.domains.knowledge_graph.graphindex import (  # noqa: E402
     Chunk,
     Entity,
     PostgresGraphStore,
     Relation,
 )
-from aperag.graphindex.models import (  # noqa: E402
+from aperag.domains.knowledge_graph.graphindex.models import (  # noqa: E402
     CHUNKS_TABLE,
     EDGES_TABLE,
     NODES_TABLE,
@@ -347,7 +347,7 @@ async def test_upsert_entity_accumulates_descriptions(store):
     """Each upsert appends its fragment to the stored description with
     the shared separator. Critical: the SQL layer does NOT truncate —
     size bounding is the service layer's job and must remain so."""
-    from aperag.graphindex.dto import DESCRIPTION_SEPARATOR
+    from aperag.domains.knowledge_graph.graphindex.dto import DESCRIPTION_SEPARATOR
 
     cid = "col-desc"
     c = _mk_chunk(cid, "d", 0, "x")
@@ -400,7 +400,7 @@ async def test_upsert_entity_dedupes_identical_fragments(store):
 
 @pytest.mark.asyncio
 async def test_find_oversized_entities_returns_rows_past_threshold(store):
-    from aperag.graphindex.dto import DESCRIPTION_SEPARATOR
+    from aperag.domains.knowledge_graph.graphindex.dto import DESCRIPTION_SEPARATOR
 
     cid = "col-over"
     c = _mk_chunk(cid, "d", 0, "x")

@@ -6,8 +6,8 @@
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 
+from aperag.domains.knowledge_graph.graphindex.dto import Entity
 from aperag.graph_curation.candidate_generation import build_candidate_pairs
-from aperag.graphindex.dto import Entity
 
 
 def _entity(

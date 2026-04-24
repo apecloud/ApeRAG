@@ -117,13 +117,22 @@ def test_collection_v2_write_bodies_do_not_repeat_collection_id():
     assert not offending, f"write bodies must not repeat collection_id: {offending}"
 
 
-def test_collection_v2_does_not_occupy_documents_or_search_or_graph():
-    """#11a scope must leave documents/search/graph routes to #11b / #12 / #13."""
+def test_collection_v2_does_not_occupy_search_or_graph():
+    """Retrieval ``/searches`` and knowledge_graph ``/graphs`` routes
+    live in their own domain routers — the KB router owns collections
+    and documents only.
+
+    Phase 3 Step 5a merged ``collections_v2`` and ``documents_v2`` into
+    a single KB domain router at
+    ``aperag.domains.knowledge_base.api.routes.router`` (imported here
+    through the ``aperag.views.collections_v2`` shim), so ``/documents``
+    paths are now legitimate on this router; the former
+    ``/documents`` exclusion has been dropped accordingly.
+    """
     spec = _collection_v2_spec()
     for path in spec["paths"]:
-        assert "/documents" not in path, f"collections_v2 must not own documents path: {path}"
-        assert "/searches" not in path, f"collections_v2 must not own search path: {path}"
-        assert "/graphs" not in path, f"collections_v2 must not own graph path: {path}"
+        assert "/searches" not in path, f"KB router must not own search path: {path}"
+        assert "/graphs" not in path, f"KB router must not own graph path: {path}"
 
 
 def test_collection_v2_no_duplicate_operation_ids():

@@ -18,11 +18,11 @@ import asyncio
 from typing import Any, Awaitable
 
 from aperag.db.ops import db_ops
-from aperag.graph_curation.service import graph_curation_service
-from aperag.graphindex.integration import (
+from aperag.domains.knowledge_graph.graphindex.integration import (
     build_collection_llm_callable,
     make_service_for_collection,
 )
+from aperag.graph_curation.service import graph_curation_service
 
 
 def run_graph_curation_run_sync(run_id: str, collection_id: str) -> None:

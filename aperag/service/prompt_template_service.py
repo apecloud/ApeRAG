@@ -156,8 +156,8 @@ def get_hardcoded_index_prompt(prompt_type: str) -> Optional[str]:
         # LightRAG's parameterised ``entity_extraction``, this one
         # expects ``{input_text}`` / ``{entity_types}`` / ``{language}``
         # / ``{max_entities}`` / ``{max_relations}`` to be filled by the
-        # caller (see ``aperag.graphindex.prompts.render_extraction_prompt``).
-        from aperag.graphindex.prompts import ENTITY_RELATION_EXTRACTION
+        # caller (see ``aperag.domains.knowledge_graph.graphindex.prompts.render_extraction_prompt``).
+        from aperag.domains.knowledge_graph.graphindex.prompts import ENTITY_RELATION_EXTRACTION
 
         return ENTITY_RELATION_EXTRACTION
     elif prompt_type == "summary":

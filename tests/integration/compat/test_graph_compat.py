@@ -39,7 +39,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from aperag.graphindex.dto import Chunk, Entity, Relation
+from aperag.domains.knowledge_graph.graphindex.dto import Chunk, Entity, Relation
 
 _BASE_COLLECTION_ID = "compat_test_base"
 
@@ -52,7 +52,7 @@ def _make_pg_store():
         return None
     from sqlalchemy.ext.asyncio import create_async_engine
 
-    from aperag.graphindex.storage.postgres import PostgresGraphStore
+    from aperag.domains.knowledge_graph.graphindex.storage.postgres import PostgresGraphStore
 
     engine = create_async_engine(url, future=True)
     return PostgresGraphStore(engine=engine), engine
@@ -62,7 +62,7 @@ def _make_neo4j_store():
     uri = os.environ.get("COMPAT_NEO4J_URI")
     if not uri:
         return None
-    from aperag.graphindex.storage.neo4j import Neo4jGraphStore
+    from aperag.domains.knowledge_graph.graphindex.storage.neo4j import Neo4jGraphStore
 
     return Neo4jGraphStore(
         uri=uri,
@@ -75,7 +75,7 @@ def _make_nebula_store():
     hosts = os.environ.get("COMPAT_NEBULA_HOSTS")
     if not hosts:
         return None
-    from aperag.graphindex.storage.nebula import NebulaGraphStore
+    from aperag.domains.knowledge_graph.graphindex.storage.nebula import NebulaGraphStore
 
     return NebulaGraphStore(
         hosts=hosts,
@@ -127,7 +127,7 @@ async def store(request, collection_id):
     # For PG: ensure tables exist
     if name == "postgresql" and engine is not None:
         from aperag.db.models import Base
-        from aperag.graphindex.models import CHUNKS_TABLE, EDGES_TABLE, NODES_TABLE
+        from aperag.domains.knowledge_graph.graphindex.models import CHUNKS_TABLE, EDGES_TABLE, NODES_TABLE
 
         async with engine.begin() as conn:
             for table in (NODES_TABLE, EDGES_TABLE, CHUNKS_TABLE):

@@ -43,9 +43,9 @@ def test_create_index_ensures_alias_for_shared_index(monkeypatch):
         def __init__(self, *_args, **_kwargs):
             self.indices = FakeIndices()
 
-    monkeypatch.setattr("aperag.index.fulltext_index.Elasticsearch", FakeElasticsearch)
+    monkeypatch.setattr("aperag.domains.indexing.fulltext_index.Elasticsearch", FakeElasticsearch)
 
-    from aperag.index.fulltext_index import create_index
+    from aperag.domains.indexing.fulltext_index import create_index
 
     create_index("aperag-fulltext")
 
@@ -77,11 +77,11 @@ def test_create_index_materializes_explicit_shard_and_replica_settings(monkeypat
         def __init__(self, *_args, **_kwargs):
             self.indices = FakeIndices()
 
-    monkeypatch.setattr("aperag.index.fulltext_index.Elasticsearch", FakeElasticsearch)
-    monkeypatch.setattr("aperag.index.fulltext_index.settings.es_fulltext_number_of_shards", 3)
-    monkeypatch.setattr("aperag.index.fulltext_index.settings.es_fulltext_number_of_replicas", 1)
+    monkeypatch.setattr("aperag.domains.indexing.fulltext_index.Elasticsearch", FakeElasticsearch)
+    monkeypatch.setattr("aperag.domains.indexing.fulltext_index.settings.es_fulltext_number_of_shards", 3)
+    monkeypatch.setattr("aperag.domains.indexing.fulltext_index.settings.es_fulltext_number_of_replicas", 1)
 
-    from aperag.index.fulltext_index import create_index
+    from aperag.domains.indexing.fulltext_index import create_index
 
     create_index("aperag-fulltext")
 
@@ -116,9 +116,9 @@ def test_create_index_preserves_existing_alias_target(monkeypatch):
         def __init__(self, *_args, **_kwargs):
             self.indices = FakeIndices()
 
-    monkeypatch.setattr("aperag.index.fulltext_index.Elasticsearch", FakeElasticsearch)
+    monkeypatch.setattr("aperag.domains.indexing.fulltext_index.Elasticsearch", FakeElasticsearch)
 
-    from aperag.index.fulltext_index import create_index
+    from aperag.domains.indexing.fulltext_index import create_index
 
     result = create_index("aperag-fulltext")
 
@@ -148,7 +148,7 @@ async def test_fulltext_search_filters_on_collection_and_chat_id():
             captured["routing"] = routing
             return SimpleNamespace(body={"hits": {"hits": []}})
 
-    from aperag.index.fulltext_index import FulltextIndexer
+    from aperag.domains.indexing.fulltext_index import FulltextIndexer
 
     indexer = object.__new__(FulltextIndexer)
     indexer.async_es = FakeAsyncEs()
@@ -189,7 +189,7 @@ def test_collection_task_deletes_shared_docs_and_legacy_index(monkeypatch):
 
 
 def test_build_legacy_reindex_body_promotes_contract_fields():
-    from aperag.index.fulltext_index import build_legacy_reindex_body
+    from aperag.domains.indexing.fulltext_index import build_legacy_reindex_body
 
     body = build_legacy_reindex_body("col-1", "col-1")
 
@@ -226,7 +226,7 @@ def test_switch_shared_index_alias_repoints_atomically():
     class FakeEs:
         indices = FakeIndices()
 
-    from aperag.index.fulltext_index import switch_shared_index_alias
+    from aperag.domains.indexing.fulltext_index import switch_shared_index_alias
 
     result = switch_shared_index_alias("aperag-fulltext-v2", es=FakeEs())
 
@@ -257,7 +257,7 @@ def test_delete_collection_documents_filters_and_routes_by_collection():
             captured.update(kwargs)
             return {"deleted": 7}
 
-    from aperag.index.fulltext_index import delete_collection_documents
+    from aperag.domains.indexing.fulltext_index import delete_collection_documents
 
     deleted = delete_collection_documents("col-1", index="aperag-fulltext", es=FakeEs())
 
@@ -285,7 +285,7 @@ def test_remove_document_chunks_filters_by_document_and_collection():
             captured.update(kwargs)
             return {"deleted": 2}
 
-    from aperag.index.fulltext_index import FulltextIndexer
+    from aperag.domains.indexing.fulltext_index import FulltextIndexer
 
     indexer = object.__new__(FulltextIndexer)
     indexer.es = FakeEs()
@@ -327,7 +327,7 @@ def test_insert_chunk_writes_collection_and_chat_fields_with_routing():
         def index(self, **kwargs):
             captured.update(kwargs)
 
-    from aperag.index.fulltext_index import FulltextIndexer
+    from aperag.domains.indexing.fulltext_index import FulltextIndexer
 
     indexer = object.__new__(FulltextIndexer)
     indexer.es = FakeEs()
@@ -370,11 +370,11 @@ def test_migrate_legacy_index_ensures_target_and_reindexes_with_verification_fla
             return {"created": 3}
 
     monkeypatch.setattr(
-        "aperag.index.fulltext_index.ensure_physical_index_exists",
+        "aperag.domains.indexing.fulltext_index.ensure_physical_index_exists",
         lambda physical_index, es: captured["ensured"].append((physical_index, es)),
     )
 
-    from aperag.index.fulltext_index import migrate_legacy_index
+    from aperag.domains.indexing.fulltext_index import migrate_legacy_index
 
     es = FakeEs()
     result = migrate_legacy_index("legacy-col-1", "col-1", dest_index="aperag-fulltext-v2", es=es)

@@ -43,7 +43,7 @@ import aperag.db.models  # noqa: F401
 # against the same Base but lives outside aperag.db.models, so it is not
 # transitively registered above. Import it here so `alembic check` does not
 # flag graphindex_{nodes,edges,chunks} as drift.
-import aperag.graphindex.models  # noqa: F401
+import aperag.domains.knowledge_graph.graphindex.models  # noqa: F401
 
 target_metadata = Base.metadata
 

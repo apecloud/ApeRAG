@@ -20,10 +20,11 @@ import httpx
 from fastmcp import FastMCP
 from fastmcp.server.dependencies import get_http_headers
 
+from aperag.domains.knowledge_base.schemas import CollectionViewList
+
 # Import view models for type safety
 from aperag.domains.retrieval.schemas import SearchResult
 from aperag.domains.web_access.schemas import WebReadResponse, WebSearchResponse
-from aperag.schema.view_models import CollectionViewList
 
 logger = logging.getLogger(__name__)
 

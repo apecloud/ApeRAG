@@ -25,7 +25,7 @@ import ``aperag.domains.knowledge_graph`` directly — doing so would
 re-establish a cross-domain static dependency. Instead the
 ``_graph_search`` method type-binds to the Protocol; the concrete
 graphindex service instance structurally satisfies it at runtime.
-``aperag.graphindex.*`` stays legal here because it is infrastructure,
+``aperag.domains.knowledge_graph.graphindex.*`` stays legal here because it is infrastructure,
 not a forbidden aggregate.
 """
 
@@ -39,10 +39,10 @@ from typing import Any, List, Optional, Protocol, Tuple
 from aperag.config import build_vector_db_context, settings
 from aperag.context.context import ContextManager
 from aperag.db.ops import async_db_ops
+from aperag.domains.indexing.fulltext_index import extract_keywords
 from aperag.domains.retrieval.ports import GraphSearchContract
 from aperag.domains.retrieval.schemas import SearchRequest, SearchResultItem, SearchResultMetadata
 from aperag.exceptions import ValidationException
-from aperag.index.fulltext_index import extract_keywords
 from aperag.llm.embed.base_embedding import get_collection_embedding_service_sync
 from aperag.llm.llm_error_types import (
     EmbeddingError,
@@ -83,7 +83,7 @@ def _graph_search_service_for(collection: CollectionRow) -> GraphSearchContract:
     The return type is annotated as the Protocol so the boundary is
     explicit: the caller only sees ``query_context`` and nothing else.
     """
-    from aperag.graphindex.integration import make_service_for_collection
+    from aperag.domains.knowledge_graph.graphindex.integration import make_service_for_collection
 
     return make_service_for_collection(collection)  # type: ignore[return-value]
 
@@ -279,7 +279,7 @@ class SearchPipelineService:
         user_id: str,
         chat_id: Optional[str] = None,
     ) -> List[DocumentWithScore]:
-        from aperag.index.fulltext_index import FulltextSearchDegradedError, fulltext_indexer
+        from aperag.domains.indexing.fulltext_index import FulltextSearchDegradedError, fulltext_indexer
 
         config = parseCollectionConfig(collection.config)
         if config.enable_fulltext is False:
