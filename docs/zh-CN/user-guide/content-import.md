@@ -115,23 +115,17 @@ ApeRAG 支持三种方式向知识库添加内容:**上传文件** / **网址导
 
 ### 单次 URL 数量硬限 10
 
-这是后端 Pydantic schema 层面的约束:
-
-- `urls` 数组 **必须 ≥ 1 且 ≤ 10**
-- 超过会返回 `422 Unprocessable Entity`
-- 同步执行 → 数量过多会拉长请求时间 → 刻意限制
-
-需要一次性导入大量 URL 时,建议分多批触发。
+- 每次**至多 10 个 URL**,至少 1 个
+- 超过上限会被拒绝
+- 需要一次性导入大量 URL 时,请分多批触发
 
 ### URL 抓取是同步的
 
-当前实现是**同步等待**:请求会 block 到全部 URL 抓取完成(或失败)。前端一般设置 60 秒超时;若 JINA / Trafilatura 响应极慢会触发前端超时,但后端仍会完成当批次的抓取。
+当前抓取是**同步等待**:请求会 block 到全部 URL 抓取完成(或失败)。前端一般设置 60 秒超时;若网络响应极慢触发前端超时,服务端仍会尽力完成当批次的成功项。刷新暂存区可以看到已成功的文档,未完成的 URL 再重试即可。
 
-后续版本可能改为异步任务(提交任务 → 轮询 → 收结果),但 MVP 期间保持同步。
+### 文本导入是本地操作
 
-### 文本导入是纯前端操作
-
-文本导入利用浏览器 `File API` 把字符串封装成 `File` 对象,走现有的 `POST /documents/upload` 接口 —**完全没有新后端代码**,因此:
+文本导入完全在浏览器本地完成:输入的内容会打包成 `.txt` 文件后走普通的文件上传接口。因此:
 
 - 支持的文本大小与文件上传硬限一致(单文件默认几 MB 级别)
 - 中文 / emoji / 特殊字符都 OK(UTF-8 编码)
@@ -194,4 +188,4 @@ Trafilatura 的正文抽取基于 DOM heuristics,对复杂前端会漏抽。JINA
 
 - 文件方式上传:[上传文档](./document-upload.md)
 - 导出知识库内容:[导出知识库](./knowledge-export.md)
-- 后端架构(Web Access / 文档解析 / 索引构建):see `docs/modularization/architecture.md` 的 `web_access` / `knowledge_base` / `indexing` domain sections
+- 后端架构(Web Access / 文档解析 / 索引构建):[模块化 current-state 架构](../../modularization/architecture.md) 的 `web_access` / `knowledge_base` / `indexing` domain sections

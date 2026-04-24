@@ -43,11 +43,11 @@ URL 和文本导入请看[URL 与文本导入](./content-import.md)。
 
 ApeRAG 有三层限制,命中任一都会被拒绝:
 
-1. **单文件大小**:默认几 MB ~ 几十 MB 级别(具体上限由部署方 `config.py` 决定)
-2. **每 Collection 文档数配额**:由 `quota_service` 控制(管理员可配置)
+1. **单文件大小**:默认几 MB ~ 几十 MB 级别(具体上限由部署方决定)
+2. **每 Collection 文档数配额**:由管理员配置
 3. **用户存储配额**:跨所有 Collection 的累计存储上限
 
-超限时后端返回 `413 Payload Too Large` 或 `403 Quota Exceeded`,前端在暂存区显示具体原因。
+超限时前端在暂存区显示具体原因(例如"文件超出大小限制" / "配额已用尽"),你可以删除该文件后换更小的再试,或联系管理员申请扩容。
 
 ## 操作流程
 
@@ -89,13 +89,9 @@ ApeRAG 有三层限制,命中任一都会被拒绝:
 
 ### 4. 确认入库
 
-点击"**保存到知识库**"。后端会:
+点击"**保存到知识库**"。系统会把所有选中文档从 `UPLOADED` 转为 `PENDING`,然后按 Collection 配置的索引类型(向量 / 全文 / 知识图谱 / 摘要 / 视觉)异步开始构建。
 
-1. 将所有选中文档从 `UPLOADED` 转为 `PENDING`
-2. 为每个启用的索引类型(vector / fulltext / graph / summary / vision)创建对应的 `DocumentIndex` 记录
-3. 触发 Celery 异步 worker 开始构建
-
-页面跳转回文档列表,文档状态随 worker 进展更新:`PENDING` → `RUNNING` → `COMPLETE`(或 `FAILED`)。
+页面跳转回文档列表,文档状态随进度更新:`PENDING` → `RUNNING` → `COMPLETE`(或 `FAILED`)。
 
 ### 5. 监听处理进度
 
@@ -132,19 +128,19 @@ ApeRAG 对**每份上传文件计算 SHA-256 哈希**,并和该 Collection 内�
 - **资源预览**:上传仅消耗对象存储写入,不触发 worker;确认前可以先看看哪些成功、哪些失败
 - **延后索引**:想先整理文档再批量入库,不必着急触发 worker
 
-### 暂存期没有索引,但**占用对象存储配额**
+### 暂存期没有索引,但**占用存储配额**
 
-`UPLOADED` 状态不会消耗索引配额,**但原始文件已经写入对象存储**,因此计入用户存储配额。长期不 confirm 的暂存文档建议定期清理 — 后端后续会加上自动过期策略,暂未落地。
+`UPLOADED` 状态不会消耗索引配额,**但原始文件已经写入存储**,因此计入用户存储配额。长期不 confirm 的暂存文档建议定期清理。
 
 ### 索引构建错误不影响其他索引
 
-`DocumentIndex` 是 per-index-type 独立记录:
+每种索引(向量 / 全文 / 知识图谱 / 摘要 / 视觉)各自独立构建:
 
 - 向量索引失败不影响全文索引
 - 知识图谱失败不影响向量索引
 - 系统会**每种都尽力构建**,最后呈现 per-index 状态
 
-文档详情页展示 per-index 状态;单独的 index 构建可以在管理界面或 API 触发**重建**(`POST /documents/{id}/rebuild`)。
+文档详情页展示每种索引的状态;单独索引失败可以在文档详情页或管理界面触发**重建**。
 
 ### Word / PPT 的 PDF 中转
 
@@ -198,7 +194,7 @@ Vision 会显著增加 LLM 调用成本,请按需开启。
 
 ### 上传同一文件到不同 Collection 会重复占用存储吗?
 
-是。对象存储按 `user-{user_id}/{collection_id}/{document_id}/...` 前缀组织,**跨 Collection 的同名文件各自存一份**,不做 cross-collection 去重。
+是。**跨 Collection 的同名文件各自存一份**,不做 cross-collection 去重(SHA-256 去重仅在同一 Collection 内生效)。
 
 如果需要跨 Collection 共享内容,建议用 **Marketplace 分享**(一个 Collection 被多个用户订阅,物理存储只一份)。
 
@@ -206,4 +202,4 @@ Vision 会显著增加 LLM 调用成本,请按需开启。
 
 - URL 与文本导入:[URL 与文本导入](./content-import.md)
 - 导出知识库打包:[导出知识库](./knowledge-export.md)
-- 文档处理后端架构(两阶段 / 对象存储 / 索引构建):see `docs/modularization/architecture.md` 的 `knowledge_base` + `indexing` domain sections
+- 文档处理后端架构(两阶段 / 存储组织 / 索引构建):[模块化 current-state 架构](../../modularization/architecture.md) 的 `knowledge_base` + `indexing` domain sections
