@@ -44,11 +44,14 @@ import {
   BatteryMedium,
   Check,
   ChevronDown,
+  CircleMinus,
   Columns3,
   EllipsisVertical,
   Key,
   ScrollText,
+  Search,
   Trash,
+  UserRound,
 } from 'lucide-react';
 import { useFormatter, useTranslations } from 'next-intl';
 import Link from 'next/link';
@@ -105,14 +108,26 @@ export function UsersDataTable({ data }: { data: User[] }) {
         header: admin_users('user_name'),
         cell: ({ row }) => {
           return (
-            <div className="text-left">
-              <div>
-                {row.original.username}{' '}
-                {user?.id === row.original.id && (
-                  <Badge variant="destructive">Me</Badge>
-                )}
+            <div className="flex items-center gap-3 text-left">
+              <div className="bg-accent-soft text-accent-ink flex size-9 shrink-0 items-center justify-center rounded-lg">
+                <UserRound className="size-4" />
               </div>
-              <div className="text-muted-foreground">{row.original.email}</div>
+              <div className="min-w-0">
+                <div className="truncate font-medium">
+                  {row.original.username}
+                  {user?.id === row.original.id && (
+                    <Badge
+                      variant="outline"
+                      className="bg-accent-soft text-accent-ink ml-2 rounded-full"
+                    >
+                      {admin_users('self_badge')}
+                    </Badge>
+                  )}
+                </div>
+                <div className="text-muted-foreground truncate">
+                  {row.original.email}
+                </div>
+              </div>
             </div>
           );
         },
@@ -127,8 +142,13 @@ export function UsersDataTable({ data }: { data: User[] }) {
         cell: ({ row }) => {
           return (
             <Badge
-              className="w-18"
-              variant={row.original.role === 'admin' ? 'default' : 'secondary'}
+              className={cn(
+                'w-18 rounded-full',
+                row.original.role === 'admin'
+                  ? 'border-primary/20 bg-accent-soft text-accent-ink'
+                  : 'bg-muted text-muted-foreground',
+              )}
+              variant="outline"
             >
               {row.original.role}
             </Badge>
@@ -139,13 +159,24 @@ export function UsersDataTable({ data }: { data: User[] }) {
         accessorKey: 'is_active',
         header: admin_users('user_status'),
         cell: ({ row }) => {
+          const isActive = row.original.is_active;
           return (
-            <Check
+            <Badge
+              variant="outline"
               className={cn(
-                'size-4',
-                row.original.is_active ? 'text-green-500' : 'text-red-500',
+                'gap-1 rounded-full',
+                isActive
+                  ? 'border-primary/20 bg-accent-soft text-accent-ink'
+                  : 'bg-muted text-muted-foreground',
               )}
-            />
+            >
+              {isActive ? (
+                <Check className="size-3" />
+              ) : (
+                <CircleMinus className="size-3" />
+              )}
+              {admin_users(isActive ? 'status_active' : 'status_inactive')}
+            </Badge>
           );
         },
       },
@@ -248,20 +279,25 @@ export function UsersDataTable({ data }: { data: User[] }) {
   });
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div className="flex flex-row items-center gap-2">
+    <div className="flex flex-col gap-5">
+      <div className="border-border/70 bg-card grid gap-4 rounded-xl border p-4 shadow-sm lg:grid-cols-[1fr_auto] lg:items-center">
+        <div className="relative max-w-xl">
+          <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
           <Input
+            className="bg-background/70 h-10 rounded-lg pl-9"
             placeholder={admin_users('search')}
             value={searchValue}
             onChange={(e) => setSearchValue(e.currentTarget.value)}
           />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 lg:justify-end">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
                 <Columns3 />
+                <span className="hidden sm:inline">
+                  {admin_users('columns')}
+                </span>
                 <ChevronDown />
               </Button>
             </DropdownMenuTrigger>
@@ -291,7 +327,9 @@ export function UsersDataTable({ data }: { data: User[] }) {
           </DropdownMenu>
         </div>
       </div>
-      <DataGrid table={table} />
+      <div className="border-border/70 bg-card rounded-xl border p-3 shadow-sm">
+        <DataGrid table={table} className="border-border/70 rounded-lg" />
+      </div>
       <DataGridPagination table={table} />
     </div>
   );

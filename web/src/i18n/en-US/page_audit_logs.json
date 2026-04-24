@@ -1,10 +1,31 @@
 {
   "metadata": {
+    "label": "Operational trace",
     "title": "Audit Logs",
     "description": "Track and review all critical system activities with Audit Logs—a detailed record of user actions, API calls, and administrative changes. Ensure transparency, security, and compliance by monitoring who did what, when, and from where."
   },
+  "metric_events": "Events",
+  "metric_success": "Success",
+  "metric_errors": "Errors",
+  "metric_avg_duration": "Avg duration",
   "search_placeholder": "Search by API Name",
+  "columns": "Columns",
   "status": "Status",
   "duration": "Duration",
-  "start_time": "Start Time"
+  "start_time": "Start Time",
+  "detail": {
+    "user_agent": "User Agent",
+    "ip": "IP",
+    "user_id": "User ID",
+    "request_id": "Request ID",
+    "api": "API",
+    "path": "Path",
+    "method": "Method",
+    "status_code": "Status Code",
+    "resource_type": "Resource Type",
+    "request_data": "Request Data",
+    "response_data": "Response Data",
+    "error_messages": "Error Messages",
+    "resource_id": "Resource ID"
+  }
 }

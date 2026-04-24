@@ -1,10 +1,15 @@
 {
   "metadata": {
+    "label": "程序化访问",
     "title": "API密钥",
     "description": "支持安全存储、更新和管理不同AI服务（如OpenAI、Anthropic、Gemini等）的API密钥。关联密钥既可实现个性化AI交互，又能确保凭证安全。"
   },
+  "metric_total": "密钥数",
+  "metric_used": "已使用",
+  "metric_masked": "已脱敏",
   "description": "描述信息",
   "search_api_keys": "搜索密钥",
+  "columns": "列设置",
   "creation_time": "创建时间",
   "last_used_time": "最后使用时间",
   "api_keys": "API密钥",
@@ -14,6 +19,8 @@
   "edit_api_keys": "编辑",
   "delete_api_key": "删除API密钥",
   "delete_api_key_confirm": "确认删除此API密钥？",
+  "dialog_title": "API 密钥",
+  "dialog_description": "描述该密钥的用途。完整凭证只会在创建后显示一次。",
   "created_api_key_title": "API密钥已创建",
   "created_api_key_description": "完整 API 密钥只会在这里显示一次。请在关闭对话框前复制并安全保存。",
   "created_api_key_label": "生成的 API 密钥",

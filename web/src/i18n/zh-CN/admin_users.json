@@ -1,9 +1,17 @@
 {
   "metadata": {
+    "label": "访问控制",
     "title": "用户管理",
     "description": "该模块允许管理员通过安全访问配置集中控制和管理系统所有用户，高效管理组织内的身份、权限和认证策略。"
   },
+  "metric_users": "用户",
+  "metric_active": "活跃",
+  "metric_admins": "管理员",
   "search": "搜索用户",
+  "columns": "列设置",
+  "self_badge": "我",
+  "status_active": "活跃",
+  "status_inactive": "停用",
   "user_name": "用户",
   "user_role": "角色",
   "user_status": "状态",

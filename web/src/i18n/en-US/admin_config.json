@@ -1,8 +1,12 @@
 {
   "metadata": {
+    "label": "System controls",
     "title": "Configuration",
     "description": "This section allows administrators to define and manage system-wide settings that apply across the entire platform. These global parameters control core functionalities, security policies, performance thresholds, and other critical configurations."
   },
+  "metric_parser_modes": "Active parsers",
+  "metric_quota_policies": "Quota fields",
+  "metric_control_sections": "Control panels",
   "mineru_api": "Use MinerU API",
   "mineru_api_description": "When enabled, the system will prioritize using the MinerU API for document parsing to improve parsing quality and speed.",
   "mineru_api_token": "MinerU API Token",

@@ -1,12 +1,7 @@
 'use client';
 
-import {
-  testMineruToken,
-  updateSettings,
-} from '@/features/admin/client-api';
-import type { Settings } from '@/features/admin/types';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
@@ -17,6 +12,8 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import { testMineruToken, updateSettings } from '@/features/admin/client-api';
+import type { Settings } from '@/features/admin/types';
 import { cn } from '@/lib/utils';
 import { LaptopMinimalCheck, LoaderCircle, RefreshCcw } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -65,20 +62,21 @@ const getHealthBadgeClassName = (status: HealthStatus | SupportStatus) => {
   switch (status) {
     case 'ok':
     case 'available':
-      return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+      return 'border-primary/20 bg-accent-soft text-accent-ink';
     case 'warning':
     case 'limited':
-      return 'border-amber-200 bg-amber-50 text-amber-700';
+      return 'border-border bg-secondary text-muted-foreground';
     case 'error':
     case 'unavailable':
-      return 'border-red-200 bg-red-50 text-red-700';
+      return 'border-destructive/20 bg-destructive/10 text-destructive';
     case 'disabled':
-      return 'border-slate-200 bg-slate-50 text-slate-600';
+      return 'border-border bg-muted text-muted-foreground';
   }
-  return 'border-slate-200 bg-slate-50 text-slate-600';
+  return 'border-border bg-muted text-muted-foreground';
 };
 
-const capitalize = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
+const capitalize = (value: string) =>
+  value.charAt(0).toUpperCase() + value.slice(1);
 
 const StatusBadge = ({ status }: { status: HealthStatus | SupportStatus }) => (
   <Badge variant="outline" className={getHealthBadgeClassName(status)}>
@@ -128,9 +126,9 @@ export const ParserSettings = ({
 
   const handleSave = useCallback(async () => {
     await updateSettings(data);
-    toast.success('Saved successfully');
+    toast.success(common_tips('save_success'));
     await fetchParserHealth();
-  }, [data, fetchParserHealth]);
+  }, [common_tips, data, fetchParserHealth]);
 
   const handleSwitchChange = useCallback(
     async (key: keyof Settings, checked: boolean) => {
@@ -173,11 +171,13 @@ export const ParserSettings = ({
 
   return (
     <>
-      <Card>
-        <CardHeader>
+      <Card className="border-border/70 gap-0 rounded-xl py-0 shadow-sm">
+        <CardHeader className="border-border/70 border-b">
           <div className="flex flex-row items-center justify-between gap-4">
             <div>
-              <CardTitle>{admin_config('parser_health_title')}</CardTitle>
+              <CardTitle className="font-serif text-2xl font-normal">
+                {admin_config('parser_health_title')}
+              </CardTitle>
               <CardDescription>
                 {admin_config('parser_health_description')}
               </CardDescription>
@@ -192,7 +192,7 @@ export const ParserSettings = ({
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-6 p-5">
           {healthLoading && !health ? (
             <div className="text-muted-foreground flex items-center gap-2 text-sm">
               <LoaderCircle className="animate-spin" />
@@ -203,17 +203,20 @@ export const ParserSettings = ({
           {health ? (
             <>
               <div className="grid gap-4 md:grid-cols-2">
-                <div className="rounded-lg border p-4">
+                <div className="border-border/70 bg-muted rounded-xl border p-4">
                   <div className="mb-2 text-sm font-medium">
                     {admin_config('parser_health_default_parser')}
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
+                    <Badge
+                      variant="outline"
+                      className="border-primary/20 bg-accent-soft text-accent-ink"
+                    >
                       {health.default_parser}
                     </Badge>
                   </div>
                 </div>
-                <div className="rounded-lg border p-4">
+                <div className="border-border/70 bg-muted rounded-xl border p-4">
                   <div className="mb-2 text-sm font-medium">
                     {admin_config('parser_health_parser_order')}
                   </div>
@@ -228,7 +231,7 @@ export const ParserSettings = ({
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
-                <div className="rounded-lg border p-4">
+                <div className="border-border/70 bg-muted rounded-xl border p-4">
                   <div className="mb-3 text-sm font-medium">
                     {admin_config('parser_health_dependencies')}
                   </div>
@@ -236,7 +239,9 @@ export const ParserSettings = ({
                     {health.dependencies.map((item) => (
                       <div key={item.key} className="space-y-1">
                         <div className="flex items-center justify-between gap-3">
-                          <div className="text-sm font-medium">{item.label}</div>
+                          <div className="text-sm font-medium">
+                            {item.label}
+                          </div>
                           <StatusBadge status={item.status} />
                         </div>
                         <div className="text-muted-foreground text-sm">
@@ -247,7 +252,7 @@ export const ParserSettings = ({
                   </div>
                 </div>
 
-                <div className="rounded-lg border p-4">
+                <div className="border-border/70 bg-muted rounded-xl border p-4">
                   <div className="mb-3 text-sm font-medium">
                     {admin_config('parser_health_services')}
                   </div>
@@ -255,7 +260,9 @@ export const ParserSettings = ({
                     {health.services.map((item) => (
                       <div key={item.key} className="space-y-1">
                         <div className="flex items-center justify-between gap-3">
-                          <div className="text-sm font-medium">{item.label}</div>
+                          <div className="text-sm font-medium">
+                            {item.label}
+                          </div>
                           <StatusBadge status={item.status} />
                         </div>
                         <div className="text-muted-foreground text-sm">
@@ -267,18 +274,25 @@ export const ParserSettings = ({
                 </div>
               </div>
 
-              <div className="rounded-lg border p-4">
+              <div className="border-border/70 bg-muted rounded-xl border p-4">
                 <div className="mb-3 text-sm font-medium">
                   {admin_config('parser_health_support_matrix')}
                 </div>
                 <div className="space-y-4">
                   {health.support_tiers.map((tier) => (
-                    <div key={tier.key} className="rounded-md border p-3">
+                    <div
+                      key={tier.key}
+                      className="border-border/70 bg-card rounded-xl border p-3"
+                    >
                       <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
                         <div className="flex flex-wrap items-center gap-2">
                           <div className="font-medium">{tier.label}</div>
-                          <Badge variant="outline">{tier.category}</Badge>
-                          <Badge variant="outline">{tier.parser}</Badge>
+                          <Badge variant="outline" className="bg-muted">
+                            {tier.category}
+                          </Badge>
+                          <Badge variant="outline" className="bg-muted">
+                            {tier.parser}
+                          </Badge>
                         </div>
                         <StatusBadge status={tier.status} />
                       </div>
@@ -287,13 +301,16 @@ export const ParserSettings = ({
                       </div>
                       <div className="mb-2 flex flex-wrap gap-2">
                         {tier.formats.map((format) => (
-                          <Badge key={`${tier.key}-${format}`} variant="outline">
+                          <Badge
+                            key={`${tier.key}-${format}`}
+                            variant="outline"
+                          >
                             {format}
                           </Badge>
                         ))}
                       </div>
                       {tier.requirements.length > 0 ? (
-                        <div className="text-xs text-slate-600">
+                        <div className="text-muted-foreground text-xs">
                           {admin_config('parser_health_requirements')}:{' '}
                           {tier.requirements.join(', ')}
                         </div>
@@ -304,7 +321,7 @@ export const ParserSettings = ({
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
-                <div className="rounded-lg border p-4">
+                <div className="border-border/70 bg-muted rounded-xl border p-4">
                   <div className="mb-3 text-sm font-medium">
                     {admin_config('parser_health_warnings')}
                   </div>
@@ -321,7 +338,7 @@ export const ParserSettings = ({
                   )}
                 </div>
 
-                <div className="rounded-lg border p-4">
+                <div className="border-border/70 bg-muted rounded-xl border p-4">
                   <div className="mb-3 text-sm font-medium">
                     {admin_config('parser_health_recommendations')}
                   </div>
@@ -342,11 +359,13 @@ export const ParserSettings = ({
           ) : null}
         </CardContent>
       </Card>
-      <Card>
-        <CardHeader>
-          <div className="flex flex-row items-center justify-between">
+      <Card className="border-border/70 gap-0 rounded-xl py-0 shadow-sm">
+        <CardHeader className="border-border/70 border-b">
+          <div className="flex flex-row items-center justify-between gap-4">
             <div>
-              <CardTitle>{admin_config('mineru_api')}</CardTitle>
+              <CardTitle className="font-serif text-2xl font-normal">
+                {admin_config('mineru_api')}
+              </CardTitle>
               <CardDescription>
                 {admin_config('mineru_api_description')}
               </CardDescription>
@@ -360,9 +379,12 @@ export const ParserSettings = ({
           </div>
         </CardHeader>
 
-        <CardContent className={data.use_mineru ? 'block' : 'hidden'}>
-          <div className="flex flex-row gap-4">
+        <CardContent
+          className={cn('p-5', data.use_mineru ? 'block' : 'hidden')}
+        >
+          <div className="flex flex-col gap-3 md:flex-row">
             <Input
+              className="bg-background/70 rounded-xl"
               placeholder={admin_config('mineru_api_token')}
               value={data.mineru_api_token ?? ''}
               onChange={(e) => {
@@ -388,18 +410,23 @@ export const ParserSettings = ({
         </CardContent>
 
         <CardFooter
-          className={cn('justify-end', data.use_mineru ? 'flex' : 'hidden')}
+          className={cn(
+            'border-border/70 justify-end border-t p-4',
+            data.use_mineru ? 'flex' : 'hidden',
+          )}
         >
           <Button disabled={!checked} onClick={handleSave}>
             {common_action('save')}
           </Button>
         </CardFooter>
       </Card>
-      <Card>
+      <Card className="border-border/70 gap-0 rounded-xl py-0 shadow-sm">
         <CardHeader>
-          <div className="flex flex-row items-center justify-between">
+          <div className="flex flex-row items-center justify-between gap-4">
             <div>
-              <CardTitle>{admin_config('use_markitdown')}</CardTitle>
+              <CardTitle className="font-serif text-2xl font-normal">
+                {admin_config('use_markitdown')}
+              </CardTitle>
               <CardDescription>
                 {admin_config('use_markitdown_description')}
               </CardDescription>

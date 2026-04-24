@@ -28,14 +28,14 @@ import {
 import { Input } from '@/components/ui/input';
 
 import type {
-  AuditLog,
   ListAuditLogsParams as AuditApiListAuditLogsRequest,
+  AuditLog,
 } from '@/features/audit/types';
 
 import { DataGrid, DataGridPagination } from '@/components/data-grid';
 import { DateTimePicker24h } from '@/components/date-time-picker-24h';
 import { cn, objectKeys, parsePageParams } from '@/lib/utils';
-import { ChevronDown, Columns3 } from 'lucide-react';
+import { ChevronDown, Columns3, Search } from 'lucide-react';
 import { useFormatter, useTranslations } from 'next-intl';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { AuditLogDetail } from './audit-log-detail';
@@ -132,11 +132,11 @@ export function AuditLogTable({
           return (
             <>
               <AuditLogDetail auditLog={row.original}>
-                <span className="hover:text-primary cursor-pointer">
+                <span className="hover:text-primary cursor-pointer font-medium">
                   {row.original.api_name}
                 </span>
               </AuditLogDetail>
-              <div className="text-muted-foreground truncate pt-0.5 sm:w-sm md:w-md lg:w-lg">
+              <div className="text-muted-foreground truncate pt-0.5 font-mono text-xs sm:w-sm md:w-md lg:w-lg">
                 {row.original.path}
               </div>
             </>
@@ -150,21 +150,29 @@ export function AuditLogTable({
           let color;
           switch (row.original.status_code) {
             case 200:
-              color = 'text-green-500';
+              color = 'text-accent-ink';
               break;
             case 500:
-              color = 'text-red-500';
+              color = 'text-destructive';
               break;
             default:
           }
-          return <div className={cn(color)}>{row.original.status_code}</div>;
+          return (
+            <div className={cn('font-mono tabular-nums', color)}>
+              {row.original.status_code}
+            </div>
+          );
         },
       },
       {
         accessorKey: 'duration_ms',
         header: page_audit_logs('duration'),
         cell: ({ row }) => {
-          return row.original.duration_ms + 'ms';
+          return (
+            <span className="font-mono tabular-nums">
+              {row.original.duration_ms}ms
+            </span>
+          );
         },
       },
       {
@@ -220,22 +228,26 @@ export function AuditLogTable({
   });
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div className="flex flex-row items-center gap-2">
-          <Input
-            placeholder={page_audit_logs('search_placeholder')}
-            value={apiNameValue}
-            onChange={(e) => setApiNameValue(e.currentTarget.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                handleSearch({
-                  apiName: e.currentTarget.value,
-                });
-              }
-            }}
-          />
-          <div className="flex flex-row items-center gap-0.5">
+    <div className="flex flex-col gap-5">
+      <div className="border-border/70 bg-card grid gap-4 rounded-xl border p-4 shadow-sm lg:grid-cols-[1fr_auto] lg:items-center">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+          <div className="relative min-w-0 flex-1 xl:min-w-80">
+            <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+            <Input
+              className="bg-background/70 h-10 rounded-lg pl-9"
+              placeholder={page_audit_logs('search_placeholder')}
+              value={apiNameValue}
+              onChange={(e) => setApiNameValue(e.currentTarget.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleSearch({
+                    apiName: e.currentTarget.value,
+                  });
+                }
+              }}
+            />
+          </div>
+          <div className="flex flex-col gap-2 md:flex-row md:items-center">
             <DateTimePicker24h
               className="w-48"
               date={query.startDate ? new Date(query.startDate) : undefined}
@@ -257,11 +269,14 @@ export function AuditLogTable({
             />
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 lg:justify-end">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
                 <Columns3 />
+                <span className="hidden sm:inline">
+                  {page_audit_logs('columns')}
+                </span>
                 <ChevronDown />
               </Button>
             </DropdownMenuTrigger>
@@ -291,7 +306,9 @@ export function AuditLogTable({
           </DropdownMenu>
         </div>
       </div>
-      <DataGrid table={table} />
+      <div className="border-border/70 bg-card rounded-xl border p-3 shadow-sm">
+        <DataGrid table={table} className="border-border/70 rounded-lg" />
+      </div>
       <DataGridPagination table={table} />
     </div>
   );

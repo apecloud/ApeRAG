@@ -46,9 +46,13 @@
   },
   "admin_config": {
     "metadata": {
+      "label": "System controls",
       "title": "Configuration",
       "description": "This section allows administrators to define and manage system-wide settings that apply across the entire platform. These global parameters control core functionalities, security policies, performance thresholds, and other critical configurations."
     },
+    "metric_parser_modes": "Active parsers",
+    "metric_quota_policies": "Quota fields",
+    "metric_control_sections": "Control panels",
     "mineru_api": "Use MinerU API",
     "mineru_api_description": "When enabled, the system will prioritize using the MinerU API for document parsing to improve parsing quality and speed.",
     "mineru_api_token": "MinerU API Token",
@@ -77,10 +81,18 @@
   },
   "admin_users": {
     "metadata": {
+      "label": "Access control",
       "title": "User Management",
       "description": "This module enables administrators to centrally control and organize all system users with secure access configurations. Efficiently manage identities, permissions, and authentication policies across your organization."
     },
+    "metric_users": "Users",
+    "metric_active": "Active",
+    "metric_admins": "Admins",
     "search": "Search users",
+    "columns": "Columns",
+    "self_badge": "Me",
+    "status_active": "Active",
+    "status_inactive": "Inactive",
     "user_name": "User",
     "user_role": "Role",
     "user_status": "Status",
@@ -140,11 +152,16 @@
   },
   "page_api_keys": {
     "metadata": {
+      "label": "Programmatic access",
       "title": "API keys",
       "description": "This section allows you to securely store, update, and manage API keys for different AI services (such as OpenAI, Anthropic, Gemini, etc.). Connecting your keys enables personalized AI interactions while keeping your credentials protected."
     },
+    "metric_total": "Keys",
+    "metric_used": "Used",
+    "metric_masked": "Masked",
     "description": "Description",
     "search_api_keys": "Search",
+    "columns": "Columns",
     "creation_time": "Creation time",
     "last_used_time": "Last used time",
     "api_keys": "API Keys",
@@ -154,6 +171,8 @@
     "edit_api_keys": "Edit",
     "delete_api_key": "Delete Api Key",
     "delete_api_key_confirm": "Confirm deletion of the API key?",
+    "dialog_title": "API key",
+    "dialog_description": "Describe what this key is used for. The full credential is only revealed once after creation.",
     "created_api_key_title": "API key created",
     "created_api_key_description": "This is the only time the full API key will be shown. Copy and store it securely before closing this dialog.",
     "created_api_key_label": "Generated API key",
@@ -165,13 +184,34 @@
   },
   "page_audit_logs": {
     "metadata": {
+      "label": "Operational trace",
       "title": "Audit Logs",
       "description": "Track and review all critical system activities with Audit Logs—a detailed record of user actions, API calls, and administrative changes. Ensure transparency, security, and compliance by monitoring who did what, when, and from where."
     },
+    "metric_events": "Events",
+    "metric_success": "Success",
+    "metric_errors": "Errors",
+    "metric_avg_duration": "Avg duration",
     "search_placeholder": "Search by API Name",
+    "columns": "Columns",
     "status": "Status",
     "duration": "Duration",
-    "start_time": "Start Time"
+    "start_time": "Start Time",
+    "detail": {
+      "user_agent": "User Agent",
+      "ip": "IP",
+      "user_id": "User ID",
+      "request_id": "Request ID",
+      "api": "API",
+      "path": "Path",
+      "method": "Method",
+      "status_code": "Status Code",
+      "resource_type": "Resource Type",
+      "request_data": "Request Data",
+      "response_data": "Response Data",
+      "error_messages": "Error Messages",
+      "resource_id": "Resource ID"
+    }
   },
   "page_auth": {
     "account": "Account",
@@ -1035,9 +1075,13 @@
   },
   "page_quota": {
     "metadata": {
+      "label": "Usage guardrails",
       "title": "Quotas",
       "description": "Manage your usage limits for AI models, API calls, and other resources in this section. Quotas help you control costs, prevent overuse, and optimize your experience."
     },
+    "metric_policies": "Policies",
+    "metric_usage": "Current usage",
+    "metric_limit": "Total limit",
     "limit": "Limit",
     "usage": "Usage",
     "bot_count": {

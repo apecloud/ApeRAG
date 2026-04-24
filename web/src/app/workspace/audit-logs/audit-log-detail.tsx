@@ -1,5 +1,4 @@
 'use client';
-import type { AuditLog } from '@/features/audit/types';
 import { Markdown } from '@/components/markdown';
 import {
   Drawer,
@@ -8,7 +7,8 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from '@/components/ui/drawer';
-import { useFormatter } from 'next-intl';
+import type { AuditLog } from '@/features/audit/types';
+import { useFormatter, useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 
 export const AuditLogDetail = ({
@@ -19,6 +19,7 @@ export const AuditLogDetail = ({
   children: React.ReactNode;
 }) => {
   const format = useFormatter();
+  const page_audit_logs = useTranslations('page_audit_logs');
 
   const responseData = useMemo(() => {
     const res = auditLog.response_data || '{}';
@@ -31,79 +32,88 @@ export const AuditLogDetail = ({
     }
     return result;
   }, [auditLog.response_data]);
+  const requestData = useMemo(() => {
+    const request = auditLog.request_data || '{}';
+    let result = request;
+    try {
+      result =
+        '``` json\n' +
+        JSON.stringify(JSON.parse(request), undefined, 2) +
+        '\n```';
+    } catch (err) {
+      console.log(err);
+    }
+    return result;
+  }, [auditLog.request_data]);
 
   return (
     <>
       <Drawer direction="right" handleOnly={true}>
         <DrawerTrigger asChild>{children}</DrawerTrigger>
-        <DrawerContent className="flex sm:min-w-lg md:min-w-xl lg:min-w-2xl">
-          <DrawerHeader>
-            <DrawerTitle className="font-bold">Audit Log</DrawerTitle>
+        <DrawerContent className="border-border/70 bg-card flex border-l sm:min-w-lg md:min-w-xl lg:min-w-2xl">
+          <DrawerHeader className="border-border/70 border-b">
+            <DrawerTitle className="font-serif text-2xl font-normal">
+              {page_audit_logs('metadata.title')}
+            </DrawerTitle>
           </DrawerHeader>
           <div className="flex flex-col gap-4 overflow-auto p-4 text-sm select-text">
-            <div>
-              <div className="text-muted-foreground">User Agent:</div>
-              <div>{auditLog.user_agent}</div>
+            <div className="border-border/70 bg-muted rounded-xl border p-3">
+              <div className="text-muted-foreground font-mono text-[11px] uppercase">
+                {page_audit_logs('detail.user_agent')}
+              </div>
+              <div className="mt-1 break-words">{auditLog.user_agent}</div>
             </div>
 
-            <div>
-              <div className="text-muted-foreground">IP:</div>
-              <div>{auditLog.ip_address}</div>
-            </div>
-
-            <div>
-              <div className="text-muted-foreground">User ID:</div>
-              <div>{auditLog.user_id}</div>
-            </div>
-
-            <div>
-              <div className="text-muted-foreground">Request ID:</div>
-              <div>{auditLog.request_id}</div>
-            </div>
-
-            <div>
-              <div className="text-muted-foreground">API:</div>
-              <div>{auditLog.api_name}</div>
-            </div>
-
-            <div>
-              <div className="text-muted-foreground">Path:</div>
-              <div>{auditLog.path}</div>
-            </div>
-
-            <div>
-              <div className="text-muted-foreground">Method:</div>
-              <div>{auditLog.http_method}</div>
-            </div>
-
-            <div>
-              <div className="text-muted-foreground">Status Code:</div>
-              <div>{auditLog.status_code}</div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <AuditMeta
+                label={page_audit_logs('detail.ip')}
+                value={auditLog.ip_address}
+              />
+              <AuditMeta
+                label={page_audit_logs('detail.user_id')}
+                value={auditLog.user_id}
+              />
+              <AuditMeta
+                label={page_audit_logs('detail.request_id')}
+                value={auditLog.request_id}
+              />
+              <AuditMeta
+                label={page_audit_logs('detail.api')}
+                value={auditLog.api_name}
+              />
+              <AuditMeta
+                label={page_audit_logs('detail.path')}
+                value={auditLog.path}
+              />
+              <AuditMeta
+                label={page_audit_logs('detail.method')}
+                value={auditLog.http_method}
+              />
+              <AuditMeta
+                label={page_audit_logs('detail.status_code')}
+                value={String(auditLog.status_code || '--')}
+              />
+              <AuditMeta
+                label={page_audit_logs('detail.resource_type')}
+                value={auditLog.resource_type}
+              />
             </div>
 
             <div>
               <div className="text-muted-foreground -mb-3 flex justify-between">
-                <div>Request Data:</div>
+                <div>{page_audit_logs('detail.request_data')}</div>
                 <div>
                   {auditLog.start_time
                     ? format.dateTime(new Date(auditLog.start_time), 'long')
                     : ''}
                 </div>
               </div>
-              <Markdown>
-                {'``` json\n' +
-                  JSON.stringify(
-                    JSON.parse(auditLog.request_data || ''),
-                    undefined,
-                    2,
-                  ) +
-                  '\n```'}
-              </Markdown>
+              <Markdown>{requestData}</Markdown>
             </div>
 
             <div>
               <div className="text-muted-foreground -mb-3 flex justify-between">
-                <div>Response Data:</div>
+                <div>{page_audit_logs('detail.response_data')}</div>
                 <div>
                   {auditLog.end_time
                     ? format.dateTime(new Date(auditLog.end_time), 'long')
@@ -113,23 +123,35 @@ export const AuditLogDetail = ({
               <Markdown>{responseData}</Markdown>
             </div>
 
-            <div>
-              <div className="text-muted-foreground">Error Messages:</div>
+            <div className="border-border/70 bg-muted rounded-xl border p-3">
+              <div className="text-muted-foreground font-mono text-[11px] uppercase">
+                {page_audit_logs('detail.error_messages')}
+              </div>
               <div>{auditLog.error_message || '--'}</div>
             </div>
 
-            <div>
-              <div className="text-muted-foreground">Resource ID:</div>
-              <div>{auditLog.resource_id || '--'}</div>
-            </div>
-
-            <div>
-              <div className="text-muted-foreground">Resource Type:</div>
-              <div>{auditLog.resource_type}</div>
-            </div>
+            <AuditMeta
+              label={page_audit_logs('detail.resource_id')}
+              value={auditLog.resource_id}
+            />
           </div>
         </DrawerContent>
       </Drawer>
     </>
   );
 };
+
+const AuditMeta = ({
+  label,
+  value,
+}: {
+  label: string;
+  value?: string | number | null;
+}) => (
+  <div className="border-border/70 bg-muted rounded-xl border p-3">
+    <div className="text-muted-foreground font-mono text-[11px] uppercase">
+      {label}
+    </div>
+    <div className="mt-1 font-mono text-xs break-words">{value || '--'}</div>
+  </div>
+);
