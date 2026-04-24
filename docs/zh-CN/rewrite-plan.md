@@ -126,17 +126,17 @@
 - **MOVE (+ minor)**：3 份 non-design
 - **合计**：38 份处理完
 
-**新文档数预估**：
-- `architecture/` ~8-10 篇（README + indexing / retrieval / knowledge-graph / vector-db / agent-runtime / conversation-chat / evaluation / prompt-templates / identity-auth / vision / web-access / document-ingestion / model-platform 等）
-- `user-guide/` ~4-6 篇（collection-marketplace / knowledge-export / content-import / document-upload / evaluation-guide / chat-interaction 等）
-- `admin-guide/` ~3 篇（quota-system / api-keys / audit-log）— tag-permissions 从 admin-guide 移除（feature 未实装，见 Section 4.1）
+**新文档数预估**（PM msg=c11e57fb + Weston msg=0d2dd88c consolidated lock 口径）：
+- `architecture/` **6 篇**（PM 锁定 consolidated targets）：`overview.md` + `domains.md` + `indexing-retrieval-kg.md` + `conversation-agent-evaluation.md` + `identity-governance-model-platform-marketplace.md` + `web-access.md`
+- `user-guide/` ~6 篇（collection-marketplace / knowledge-export / content-import / document-upload / evaluation-guide / chat-interaction）
+- `admin-guide/` 4 篇（quota-system / api-keys / audit-log / prompt-customization）— tag-permissions 已移除（feature 未实装，见 Section 4.1）
 - `integration/` ~3 篇
 - `deployment/` ~2-3 篇
 - `development/` ~1-2 篇
 - `reference/` ~2-3 篇
 - `getting-started/` ~2 篇（**新增**，原无）
 
-**总文档数从 38 → ~25-30**（PM msg=234f7481 "更小的文档集" 方向兑现）。
+**总文档数从 38 → ~24-28**（PM msg=234f7481 "更小的文档集" 方向兑现）。
 
 ---
 
@@ -150,7 +150,7 @@
 | --- | --- | --- | --- |
 | `architecture/overview.md` | huangheng | 自写（short entry + links to architecture.md / domains.md / 下列 consolidated docs） | task #4 |
 | `architecture/domains.md` | huangheng | 各 SME lanes 补充 domain 一行简介 | task #4 + 各 SME |
-| `architecture/indexing-retrieval-kg.md` | **共同主笔**：cuiwenbo 主笔 KB / schema/common / dual-hook sections（task #5 primary SME per msg=a6dc5daa）+ **Bryce 主笔 indexing / retrieval / KG / vector / vision / graphindex 深水区 sections**（PM msg=9b712260 lock；Phase 3 Step 2/3/5a/6/7/8 landing owner） | task #5 + task #6 |
+| `architecture/indexing-retrieval-kg.md` | **Bryce**（owner per PM msg=48ed233e item 3） | cuiwenbo 为 KB / `schema/common.py` / dual-hook 章节 contributor + consistency reviewer（cross-ref 回 `docs/modularization/architecture.md` Section 2.3 / 3.3，不新开独立 zh-CN doc per msg=9b712260）；Bryce 写 indexing / retrieval / KG / vector / vision / graphindex / LightRAG 深度 sections | task #6 primary + task #5 supporting |
 | `architecture/conversation-agent-evaluation.md` | chenyexuan 主笔 | conversation 6-services topology / agent_runtime PromptTemplateOps seam / evaluation is_terminal + dispatch_fn seam / prompt architecture standalone-infra permanent — 全在 task #7 batch 1 (msg=f4dfe81e) + batch 2 skeleton 覆盖 | task #7 |
 | `architecture/identity-governance-model-platform-marketplace.md` | Bryce 主笔 | identity (User/Role/OAuth/fastapi-users) / governance (ApiKey/Audit/QuotaOps standalone-infra) / marketplace (CollectionMarketplace / Q2 rename) / model_platform (LLM provider + 2-router split) — task #6 Block D 模式 | task #6 |
 | `architecture/web-access.md` | **待 PM 派活** | Phase 2a web_access 独立文档；可派给 Bryce / Weston / 其他 Phase 2a 相关 lane | — |
@@ -217,9 +217,9 @@ task #4 只出 skeleton + 主笔方案，不落正文。**下一轮**（待 PM �
 
 - 一个 batch PR `git rm` 所有 DELETE 类 files + `git mv` 所有 MOVE 类 files。机械改动，任何 lane 可接。CR 简单过。
 
-### Phase C：Final integration + architecture/README.md 主入口
+### Phase C：Final integration + architecture/overview.md 主入口
 
-- 所有 SME lane doc ready 后，huangheng 主笔 `architecture/README.md` 作整体索引 + cross-reference map，link 到各 SME 主笔的 doc。
+- 所有 SME lane doc ready 后，huangheng 主笔 `architecture/overview.md` 作整体索引 + cross-reference map，link 到各 SME 主笔的 doc。
 - 全量 cross-doc consistency check（符炫炜 audit）。
 
 ### Phase D：旧目录清理
@@ -228,13 +228,13 @@ task #4 只出 skeleton + 主笔方案，不落正文。**下一轮**（待 PM �
 
 ---
 
-## 7. 开放问题（等 PM / earayu2 裁决）
+## 7. 开放问题（等 PM / earayu2 派活）
 
-1. **`getting-started/` 2 篇 新增 doc**：无对应旧文档，内容需要从 `README.md` 或实际用户流程提炼；PM 需决定由谁起草（dongdong FE / Weston / 其他）。
-2. **`architecture/README.md` 作为 zh-CN 顶层架构主入口 vs 指向 `docs/modularization/architecture.md`**：前者面向中文读者（user/admin/dev 都可读），后者 canonical 但是 modularization 专题。建议 zh-CN 主入口简短 + link 出去 + 加中文叙事 wrapper。
-3. **`integration/mcp-api.md` 主笔未定** — 建议 PM 派给 ziang（其 Agent / MCP 熟悉度）或 weihong。
-4. **是否开一个 `security/` 或 `operations/` 顶级目录**？Weston task #3 的 8 类未覆盖 SRE / ops audit / security audit 场景。若这是 zh-CN GitHub doc scope 外（由内部 notes 承担），无需处理。
-5. **`docs/modularization/**` 重写后去向**：PM msg=5286eb6a 已锁不改；本 plan 保持这个约束。
+本节只保留尚未派活项；PM 已锁定事项（`architecture/overview.md` short entry + links / 不开 `security/` / `operations/` 顶级 / `docs/modularization/**` 不改）已从 open questions 移除（详见正文对应 section）。
+
+1. **`getting-started/overview.md` + `quickstart.md` 主笔**（2 篇新增 doc，无对应旧 source）— PM 需派活
+2. **`integration/mcp.md` + `integration/dify.md` 主笔**（2 篇 KEEP+update）— PM 需派活
+3. **`architecture/web-access.md` 主笔** — PM 需派活（Phase 2a owner 或其他）
 
 ---
 
@@ -247,4 +247,4 @@ task #4 只出 skeleton + 主笔方案，不落正文。**下一轮**（待 PM �
 
 ---
 
-*本文 baseline: `origin/main @ 28a9f531`. task #4 owner: @huangheng. 上游依赖: task #2 (PM) + task #3 (Weston) + task #5/6/7 SME packs. 本 PR 产出为 skeleton + mapping，不落正文。*
+*本文 baseline: `origin/main @ 28a9f531`（初稿）+ Weston task #3 在 `522610ea` 复核。task #4 owner: @huangheng. 上游依赖: task #2 (PM) + task #3 (Weston) + task #5/6/7 SME packs. 本 PR 产出为 skeleton + mapping，不落正文。*
