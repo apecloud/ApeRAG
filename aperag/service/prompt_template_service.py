@@ -20,7 +20,8 @@ from typing import Any, Dict, List, Optional
 
 from jinja2 import Template, TemplateSyntaxError
 
-from aperag.schema import view_models
+from aperag.domains.agent_runtime.schemas import AgentMessage
+from aperag.domains.conversation.schemas import BotConfig
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +96,7 @@ DEFAULT_AGENT_QUERY_PROMPT = """{% set collection_list = [] %}
 
 def build_agent_query_prompt(
     chat_id: str,
-    agent_message: view_models.AgentMessage,
+    agent_message: AgentMessage,
     user: str,
     template: str,
     has_chat_files: Optional[bool] = None,
@@ -416,7 +417,7 @@ class PromptTemplateService:
             try:
                 config_dict = json.loads(bot.config) if isinstance(bot.config, str) else bot.config
                 if config_dict:
-                    bot_config = view_models.BotConfig(**config_dict)
+                    bot_config = BotConfig(**config_dict)
                     if bot_config.agent and bot_config.agent.system_prompt_template:
                         logger.debug(f"Using bot-level system prompt for bot {bot.id}")
                         return bot_config.agent.system_prompt_template
@@ -460,7 +461,7 @@ class PromptTemplateService:
             try:
                 config_dict = json.loads(bot.config) if isinstance(bot.config, str) else bot.config
                 if config_dict:
-                    bot_config = view_models.BotConfig(**config_dict)
+                    bot_config = BotConfig(**config_dict)
                     if bot_config.agent and bot_config.agent.query_prompt_template:
                         logger.debug(f"Using bot-level query prompt for bot {bot.id}")
                         return bot_config.agent.query_prompt_template

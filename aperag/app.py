@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-
 from aperag.config import settings
 
 # Initialize OpenTelemetry FIRST - before any other imports
@@ -85,10 +83,8 @@ from aperag.openapi_spec import custom_generate_unique_id
 from aperag.service.quota_service import quota_service as _legacy_quota_service
 from aperag.service.search_pipeline_service import search_pipeline_service as _legacy_search_pipeline_service
 from aperag.views.auth import router as auth_router
-from aperag.views.collections import router as collections_router
 from aperag.views.config import router as config_router
 from aperag.views.export import router as export_router
-from aperag.views.main import router as main_router
 from aperag.views.openai import router as openai_router
 from aperag.views.prompts import router as prompts_router
 from aperag.views.settings import router as settings_router
@@ -165,8 +161,8 @@ class _BotInitOpsAdapter:
         # avoid pulling the KB domain services into the identity DI
         # wiring path before the app is constructed.
         from aperag.domains.conversation.db.models import BotType
+        from aperag.domains.conversation.schemas import BotCreate
         from aperag.domains.conversation.service.bot_service import bot_service
-        from aperag.schema.view_models import BotCreate
 
         bot_create = BotCreate(
             title="Default Agent Bot",
@@ -227,8 +223,6 @@ async def health_check():
 
 
 app.include_router(auth_router, prefix="/api/v1")
-app.include_router(main_router, prefix="/api/v1")
-app.include_router(collections_router, prefix="/api/v1")  # Add collections router
 app.include_router(export_router, prefix="/api/v1")  # Add export router
 app.include_router(governance_router, prefix="/api/v1")  # Governance domain router (api_key + audit)
 app.include_router(llm_router, prefix="/api/v1")  # Model platform: embed/rerank (OpenAI-compat)
@@ -250,12 +244,6 @@ app.include_router(bots_v2_router, prefix="/api/v2")
 app.include_router(evaluation_v2_router, prefix="/api/v2")
 app.include_router(providers_v2_router, prefix="/api/v2")  # Model platform: providers CRUD
 app.include_router(knowledge_base_router, prefix="/api/v2")  # KB domain router (collections_v2 + documents_v2)
-
-# Only include test router in dev mode
-if os.environ.get("DEPLOYMENT_MODE") == "dev":
-    from aperag.views.test import router as test_router
-
-    app.include_router(test_router, prefix="/api/v1")
 
 # Mount the MCP server at /mcp path
 app.mount("/mcp", mcp_app)

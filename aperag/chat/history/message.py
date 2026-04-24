@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
-from aperag.schema.view_models import ChatMessage
+from aperag.domains.conversation.schemas import ChatMessage
 
 
 class StoredChatMessagePart(BaseModel):

@@ -16,7 +16,7 @@ import shutil
 from typing import Any, Dict, Iterator
 
 from aperag.objectstore.base import get_object_store
-from aperag.schema.view_models import CollectionConfig
+from aperag.schema.common import CollectionConfig
 from aperag.source.base import LocalDocument, RemoteDocument, Source
 from aperag.source.utils import gen_temporary_file
 

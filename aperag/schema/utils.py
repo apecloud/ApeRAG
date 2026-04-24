@@ -14,7 +14,8 @@
 
 import json
 
-from aperag.schema.view_models import CollectionConfig, SharedCollectionConfig
+from aperag.domains.marketplace.schemas import SharedCollectionConfig
+from aperag.schema.common import CollectionConfig
 
 
 def parseCollectionConfig(config: str) -> CollectionConfig:

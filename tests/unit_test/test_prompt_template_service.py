@@ -1,4 +1,6 @@
-from aperag.schema import view_models
+from aperag.domains.agent_runtime.schemas import AgentMessage
+from aperag.domains.conversation.schemas import File
+from aperag.domains.knowledge_base.schemas import Collection
 from aperag.service import prompt_template_service as pts
 
 
@@ -20,9 +22,9 @@ def test_agent_query_prompt_stays_dynamic_task_layer():
 
 
 def test_build_agent_query_prompt_renders_dynamic_scope_only():
-    agent_message = view_models.AgentMessage(
+    agent_message = AgentMessage(
         query="What knowledge bases can I use?",
-        collections=[view_models.Collection(id="col-1", title="Team Docs")],
+        collections=[Collection(id="col-1", title="Team Docs")],
         web_search_enabled=True,
         language="en-US",
     )
@@ -42,12 +44,12 @@ def test_build_agent_query_prompt_renders_dynamic_scope_only():
 
 
 def test_build_agent_query_prompt_marks_chat_files_available_only_when_uploaded():
-    agent_message = view_models.AgentMessage(
+    agent_message = AgentMessage(
         query="Search the uploaded file",
         collections=[],
         web_search_enabled=False,
         language="en-US",
-        files=[view_models.File(id="file-1", name="notes.pdf")],
+        files=[File(id="file-1", name="notes.pdf")],
     )
 
     prompt = pts.build_agent_query_prompt(
@@ -61,7 +63,7 @@ def test_build_agent_query_prompt_marks_chat_files_available_only_when_uploaded(
 
 
 def test_build_agent_query_prompt_respects_chat_level_file_override():
-    agent_message = view_models.AgentMessage(
+    agent_message = AgentMessage(
         query="Continue using the files from earlier in this chat",
         collections=[],
         web_search_enabled=False,
@@ -81,7 +83,7 @@ def test_build_agent_query_prompt_respects_chat_level_file_override():
 
 
 def test_build_agent_query_prompt_handles_default_scope_and_language_fallback():
-    agent_message = view_models.AgentMessage(
+    agent_message = AgentMessage(
         query="Summarize the available sources",
         collections=[],
         web_search_enabled=False,
