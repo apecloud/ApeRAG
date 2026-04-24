@@ -24,7 +24,7 @@ The modularization re-architected the ApeRAG backend from a monolithic `aperag.s
 
 - **12 backend domains** under `aperag/domains/**`: `identity` · `governance` · `model_platform` · `marketplace` · `knowledge_base` · `indexing` · `retrieval` · `knowledge_graph` · `conversation` · `agent_runtime` · `evaluation` · `web_access`.
 - **20 boundary tests** codified in `tests/unit_test/test_modularization_boundaries.py` covering **G1–G19**.
-- **2 permanent `CRITICAL_WIRINGS`** DI seams (both standalone-infra providers without natural domain homes).
+- **Two separate runtime-wiring registries** (see Section 5): G17 (Phase 3+4) holds **7 entries** covering KB consumer-owned Protocol seams + the three identity `*InitOps` adapters and remains fully active; G18 alt (Phase 5) was collapsed over the Phase 5/6 run to its final **2 permanent entries** — `conversation.bot_service._quota_ops` and `agent_runtime.runtime._prompt_template_ops`, both standalone-infra providers without a natural domain home. Both registries are separately enforced at `import aperag.app` time.
 - **HTTP API byte-stable** throughout: `scripts/export_openapi.py --check` passed every squash-merge boundary.
 - **54 CR review cycles** across Phase 3+4+5+6 (14+17+18+5), all no-blocker.
 
@@ -267,7 +267,9 @@ The `G11` / `G13` labels referenced in some historical docs map to the FE legacy
 
 ## 5. Runtime seams — `CRITICAL_WIRINGS` steady state
 
-### 5.1 The permanent two-entry registry
+Two separate runtime-wiring registries live side by side at `import aperag.app` time. Be precise: the "final 2 permanent" phrase refers to the **Phase 5** G18 alt registry; the Phase 3+4 **G17** registry still holds **7** live entries. Collapsing the two into a single "2-entry" summary is incorrect.
+
+### 5.1 The Phase 5 permanent two-entry registry (G18 alt)
 
 At steady state (post-Phase-6), the `PHASE5_CRITICAL_WIRINGS` registry in `test_phase5_di_critical_wirings_at_app_startup` contains exactly **two** entries:
 
@@ -278,14 +280,21 @@ Both providers are **standalone-infra** (Section 3.2 class B) — they have no n
 
 The Phase 3+4 G17 registry (seven entries: four KB + three identity) remains active and separately verified by `test_phase4_di_critical_wirings_at_app_startup`. Those seven entries bridge legacy concrete providers through DI adapters so that identity's `UserManager.on_after_register` and KB's `collection_service` can be wired at startup without the domains importing the legacy services directly.
 
-### 5.2 Why these two, and only these two
+### 5.2 Why G18 alt collapsed to two (but G17 did not)
 
-During Phase 5 the preliminary registry was projected to hold as many as five consumer-owned seams (`QuotaOps`, `ChatCollectionServiceOps`, `DefaultModelOps`, `ChatDocumentOps`, `PromptTemplateOps`). As each of the collaborators completed a domain move (`default_model_service` in Phase 4, `chat_document_service` in Phase 5 5-S4d, `chat_collection_service` in Phase 5 5-S4f), the rule of Section 3.1 applied: a domain-moved provider is reached via direct import, so the corresponding seam retired. Phase 6 entry 2 retired `ChatCollectionServiceOps` in favor of a sibling direct import after 5-S4f put `chat_collection_service` in the same `conversation` domain. Phase 6 entry 3 classified the remaining two as standalone-infra permanent.
+During Phase 5 the preliminary Phase 5 registry was projected to hold as many as five consumer-owned seams (`QuotaOps`, `ChatCollectionServiceOps`, `DefaultModelOps`, `ChatDocumentOps`, `PromptTemplateOps`). As each of the collaborators completed a domain move (`default_model_service` in Phase 4, `chat_document_service` in Phase 5 5-S4d, `chat_collection_service` in Phase 5 5-S4f), the rule of Section 3.1 applied: a domain-moved provider is reached via direct import, so the corresponding Phase 5 seam retired. Phase 6 entry 2 retired `ChatCollectionServiceOps` in favor of a sibling direct import after 5-S4f put `chat_collection_service` in the same `conversation` domain. Phase 6 entry 3 classified the remaining two as standalone-infra permanent. G18 alt ended at two.
 
-Two patterns that look like seams but are intentionally outside the registry:
+G17 did not collapse in the same way. Its seven entries cover two distinct categories:
+
+- **KB consumer-owned Protocol slots (four entries)** — `_marketplace_ops`, `_marketplace_collection_ops`, `_search_pipeline_ops`, `_quota_ops` on `knowledge_base.collection_service`. Of these, `_quota_ops`, `_marketplace_ops`, and `_search_pipeline_ops` sit on standalone-infra or cross-cutting providers that were never in scope for a domain move, so they remain live in G17. `_marketplace_collection_ops` is provided by `marketplace.marketplace_collection_service` (which did move in Phase 4), but the slot is still wired at startup because the KB collection_service keeps a narrow consumer surface through the Protocol (Phase 6 did not revisit this seam; see Section 8 for the candidate simplification).
+- **Identity `*InitOps` adapters (three entries)** — `_bot_init_ops`, `_chat_init_ops`, `_quota_init_ops` on `identity.user_manager`. These are consumed by `UserManager.on_after_register` to kick off default bot creation, chat collection initialization, and quota seeding when a new user registers. The providers were legacy at Phase 4 time; after Phase 5 the `bot_service` / `chat_collection_service` moved into `conversation` and `quota_service` stayed as standalone-infra. The three `app.py` adapters (`_BotInitOpsAdapter` / `_ChatInitOpsAdapter` / `_QuotaInitOpsAdapter`) still resolve their internals through `aperag.service.bot_service` / `aperag.service.chat_collection_service` / `aperag.service.quota_service` (shim-resolved to the domain singletons where applicable), but the adapters themselves are the identity-side contract and stay wired at startup. Retirement would require collapsing the three Protocols, which is a new design decision — not a sequel to Phase 5's domain-move rule.
+
+So G17 is stable at seven entries and has no collapse pending; G18 alt is stable at two permanent entries by the Phase 6 classification. The phrase "2 permanent" in Section 1 and elsewhere in this document always refers to G18 alt.
+
+Two patterns that look like seams but are intentionally outside both registries:
 
 - **`dispatch_fn` in `aperag.domains.evaluation.worker`** — a module-level function reference used for test injection (tests monkeypatch it to stub out the real turn dispatcher). It is not a `Protocol + DI` slot — it does not follow the slot/setter/accessor shape, does not need app-scope wire-up, and stays functional in test fixtures. Listing it in `CRITICAL_WIRINGS` would falsely signal that the runtime needs it populated at startup (it does not — the default implementation is a proper function, not a `None` slot).
-- **Phase 4 identity adapters** (`_BotInitOpsAdapter` / `_ChatInitOpsAdapter` / `_QuotaInitOpsAdapter` in `aperag/app.py`) — these wrap legacy bot/chat_collection/quota services to expose the `BotInitOps` / `ChatInitOps` / `QuotaInitOps` Protocol surfaces required by `UserManager.on_after_register`. They are verified by the Phase 4 G17 registry, not the Phase 5 G18 alt registry.
+- **Phase 4 identity adapters** (`_BotInitOpsAdapter` / `_ChatInitOpsAdapter` / `_QuotaInitOpsAdapter` in `aperag/app.py`) — these wrap the concrete services to expose the `BotInitOps` / `ChatInitOps` / `QuotaInitOps` Protocol surfaces required by `UserManager.on_after_register`. They are verified by the Phase 4 G17 registry, not the Phase 5 G18 alt registry.
 
 ---
 
