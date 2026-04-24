@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 
 from aperag.db.models import User
-from aperag.service.chat_completion_service import (
+from aperag.domains.conversation.service.chat_completion_service import (
     OpenAIChatCompletionRequest,
     OpenAIChatCompletionResponse,
     OpenAIErrorResponse,
