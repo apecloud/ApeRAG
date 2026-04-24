@@ -14,18 +14,16 @@
 
 """Phase 3 G11 + G13 audit tests.
 
-The Phase 3 design-lock (@符炫炜 msg=226b2584 + Flag 4 resolution
-msg=618c03fc) requires that once the knowledge_base / indexing / graph /
-retrieval DB modules split out of ``aperag.db.models``, the legacy
-aggregate module keeps re-exporting every moved symbol so the 76
-pre-Phase-3 callers see no breakage. This file pins that contract:
+Phase 7 B5 (per ``docs/modularization/cleanup-inventory.md §B5``)
+stripped the legacy ``aperag.db.models`` cross-domain re-export block;
+every Phase 3 symbol now lives at its canonical
+``aperag.domains.<d>.db.models`` path.
 
-* **G11** — ``test_aperag_db_models_reexports_full_phase3_set`` asserts
-  that all 15 Phase 3 symbols (7 DB classes + 8 lifecycle enums) are
-  attribute-accessible on ``aperag.db.models`` AND the matching 7
-  tables are registered on ``Base.metadata``. Re-export drift will
-  surface here long before an alembic ``autogenerate`` turns a missing
-  class into a ``drop_table`` operation on main.
+* **G11 (post-B5)** — ``test_phase3_classes_resolve_on_canonical_domain_paths``
+  imports each of the 15 Phase 3 symbols from its canonical per-domain
+  module AND asserts every matching table is registered on
+  ``Base.metadata``. Registration drift still surfaces here before
+  alembic autogen would turn a missing class into a ``drop_table``.
 
 * **G13** — ``test_phase3_classes_have_single_definition_site`` scans
   every ``aperag/**/*.py`` for class definitions matching the 15
@@ -39,11 +37,27 @@ pre-Phase-3 callers see no breakage. This file pins that contract:
 
 from __future__ import annotations
 
+import importlib
 import re
 from pathlib import Path
 
-import aperag.db.models as legacy_aggregate
 from aperag.db.base import Base
+
+# Ensure every per-domain model module loads so Base.metadata sees them.
+for _domain in (
+    "agent_runtime",
+    "conversation",
+    "evaluation",
+    "governance",
+    "identity",
+    "indexing",
+    "knowledge_base",
+    "knowledge_graph",
+    "marketplace",
+    "model_platform",
+    "retrieval",
+):
+    importlib.import_module(f"aperag.domains.{_domain}.db.models")
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -79,21 +93,46 @@ PHASE3_TABLES = (
 )
 
 
-def test_aperag_db_models_reexports_full_phase3_set():
-    """G11 re-export audit: every Phase 3 DB class + enum + table is
-    still reachable through ``aperag.db.models`` after the physical
-    move into the per-domain DB modules.
+# Each Phase 3 symbol now lives on exactly one canonical domain module
+# (``aperag.domains.<d>.db.models``). Phase 7 B5 dropped the aggregate
+# re-export block at ``aperag.db.models`` that historically carried the
+# same names.
+PHASE3_SYMBOL_TO_MODULE = {
+    "Collection": "aperag.domains.knowledge_base.db.models",
+    "CollectionSummary": "aperag.domains.knowledge_base.db.models",
+    "Document": "aperag.domains.knowledge_base.db.models",
+    "DocumentIndex": "aperag.domains.indexing.db.models",
+    "SearchHistory": "aperag.domains.retrieval.db.models",
+    "GraphCurationRun": "aperag.domains.knowledge_graph.db.models",
+    "GraphCurationSuggestion": "aperag.domains.knowledge_graph.db.models",
+    "CollectionStatus": "aperag.domains.knowledge_base.db.models",
+    "CollectionSummaryStatus": "aperag.domains.knowledge_base.db.models",
+    "CollectionType": "aperag.domains.knowledge_base.db.models",
+    "DocumentStatus": "aperag.domains.knowledge_base.db.models",
+    "DocumentIndexStatus": "aperag.domains.indexing.db.models",
+    "DocumentIndexType": "aperag.domains.indexing.db.models",
+    "GraphCurationRunStatus": "aperag.domains.knowledge_graph.db.models",
+    "GraphCurationSuggestionStatus": "aperag.domains.knowledge_graph.db.models",
+}
 
-    The 15-symbol list matches the exact canonical from Phase 3
+
+def test_phase3_classes_resolve_on_canonical_domain_paths():
+    """G11 (post-Phase-7-B5) audit: every Phase 3 DB class + enum must
+    resolve via its canonical ``aperag.domains.<d>.db.models`` path and
+    every Phase 3 table must be registered on ``Base.metadata`` (so
+    Alembic autogen keeps seeing them).
+
+    The 15-symbol list matches the canonical from the Phase 3
     design-lock Flag 4 (@符炫炜 msg=618c03fc). Changing the list is a
     canonical change that should be done in the design-lock thread,
     not here.
     """
 
     missing_symbols: list[str] = []
-    for name in (*PHASE3_DB_CLASSES, *PHASE3_ENUMS):
-        if not hasattr(legacy_aggregate, name):
-            missing_symbols.append(name)
+    for name, module_path in PHASE3_SYMBOL_TO_MODULE.items():
+        module = importlib.import_module(module_path)
+        if not hasattr(module, name):
+            missing_symbols.append(f"{module_path}.{name}")
 
     missing_tables: list[str] = []
     for table in PHASE3_TABLES:
@@ -101,11 +140,8 @@ def test_aperag_db_models_reexports_full_phase3_set():
             missing_tables.append(table)
 
     assert not missing_symbols and not missing_tables, (
-        "Phase 3 re-export shim in `aperag.db.models` lost one or more "
-        "symbols, or `Base.metadata` lost one or more Phase 3 tables. "
-        "Re-export must mirror the exact 7 DB + 8 enum + 7 table list "
-        "defined by the Phase 3 design-lock (@符炫炜 msg=618c03fc).\n"
-        f"  missing re-export symbols: {missing_symbols}\n"
+        "Phase 3 canonical-location audit failed after Phase 7 B5.\n"
+        f"  missing domain-module symbols: {missing_symbols}\n"
         f"  missing Base.metadata tables: {missing_tables}"
     )
 
