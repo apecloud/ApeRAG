@@ -43,7 +43,7 @@ def run_evaluation_run(self, run_id: str) -> dict:
 
     # Lazy import: keeps this module import-safe when the agent runtime /
     # chat service / DB are not configured (e.g. unit-test collection).
-    from aperag.evaluation_v2.worker import execute_evaluation_run
+    from aperag.domains.evaluation.worker import execute_evaluation_run
 
     logger.info("evaluation worker picking up run %s", run_id)
     final_status = asyncio.run(execute_evaluation_run(run_id))
