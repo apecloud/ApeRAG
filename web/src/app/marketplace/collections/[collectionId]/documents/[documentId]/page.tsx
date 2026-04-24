@@ -25,7 +25,7 @@ export default async function Page({
   return (
     <PageContainer>
       <CollectionHeader collection={collection} />
-      <PageContent className="h-[100%]">
+      <PageContent className="max-w-7xl px-5 py-6 md:px-8">
         <DocumentDetail documentPreview={toJson(documentPreview)} />
       </PageContent>
     </PageContainer>

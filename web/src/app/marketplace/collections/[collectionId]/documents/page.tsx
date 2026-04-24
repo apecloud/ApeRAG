@@ -37,11 +37,11 @@ export default async function Page({
   return (
     <PageContainer>
       <CollectionHeader collection={collectionJson} />
-      <PageContent>
+      <PageContent className="max-w-7xl px-5 py-6 md:px-8">
         <DocumentsTable
           collection={collectionJson}
           data={documentItems}
-          pageCount={documents.total_pages}
+          pageCount={documents.total_pages ?? 0}
         />
       </PageContent>
     </PageContainer>

@@ -6,8 +6,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import _ from 'lodash';
-import { ArrowLeft, LoaderCircle } from 'lucide-react';
+import { ArrowLeft, FileText, ImageIcon, LoaderCircle } from 'lucide-react';
 import dynamic from 'next/dynamic';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
@@ -28,6 +29,7 @@ export const DocumentDetail = ({
 }) => {
   const [numPages, setNumPages] = useState<number>(0);
   const { documentId, collectionId } = useParams();
+  const page_marketplace = useTranslations('page_marketplace');
 
   const isPdf = useMemo(() => {
     return Boolean(documentPreview.doc_filename?.match(/\.pdf/));
@@ -55,38 +57,53 @@ export const DocumentDetail = ({
   return (
     <>
       <Tabs defaultValue={defaultTab} className="gap-4">
-        <div className="flex flex-row items-center justify-between gap-2">
-          <div className="flex flex-row items-center gap-4">
-            <Button asChild variant="ghost" size="icon">
+        <div className="border-border/70 bg-card grid gap-4 rounded-xl border p-4 shadow-sm lg:grid-cols-[1fr_auto] lg:items-center">
+          <div className="flex min-w-0 items-center gap-3">
+            <Button asChild variant="outline" size="icon">
               <Link href={`/marketplace/collections/${collectionId}/documents`}>
-                <ArrowLeft />
+                <ArrowLeft className="size-4" />
               </Link>
             </Button>
-            <div className={cn('max-w-80 truncate')}>
-              {documentPreview.doc_filename}
+            <div className="bg-accent-soft text-accent-ink flex size-10 shrink-0 items-center justify-center rounded-lg">
+              <FileText className="size-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-muted-foreground font-mono text-[11px] tracking-[0.12em] uppercase">
+                {page_marketplace('document_preview_label')}
+              </div>
+              <div className={cn('mt-1 truncate text-base font-medium')}>
+                {documentPreview.doc_filename}
+              </div>
             </div>
           </div>
 
-          <div className="flex flex-row gap-6">
-            <div className="text-muted-foreground flex flex-row items-center gap-4 text-sm"></div>
-            <TabsList>
-              {hasPdfPreview && <TabsTrigger value="pdf">PDF</TabsTrigger>}
-              {hasVisionPreview && (
-                <TabsTrigger value="vision">Images</TabsTrigger>
+          <div className="flex justify-start lg:justify-end">
+            <TabsList className="bg-muted rounded-xl">
+              {hasPdfPreview && (
+                <TabsTrigger value="pdf">
+                  {page_marketplace('preview_pdf')}
+                </TabsTrigger>
               )}
-              <TabsTrigger value="markdown">Markdown</TabsTrigger>
+              {hasVisionPreview && (
+                <TabsTrigger value="vision">
+                  {page_marketplace('preview_images')}
+                </TabsTrigger>
+              )}
+              <TabsTrigger value="markdown">
+                {page_marketplace('preview_markdown')}
+              </TabsTrigger>
             </TabsList>
           </div>
         </div>
 
         <TabsContent value="markdown">
-          <Card>
-            <CardContent>
+          <Card className="rounded-xl border-border/70">
+            <CardContent className="p-5 md:p-6">
               {documentPreview.markdown_content?.trim() ? (
                 <Markdown>{documentPreview.markdown_content}</Markdown>
               ) : (
                 <div className="text-muted-foreground py-6 text-sm">
-                  Markdown preview is unavailable for this document.
+                  {page_marketplace('markdown_unavailable')}
                 </div>
               )}
             </CardContent>
@@ -120,21 +137,34 @@ export const DocumentDetail = ({
                     : undefined;
 
                 return (
-                  <Card key={chunk.id || chunk.asset_id || index}>
-                    <CardContent className="space-y-4">
+                  <Card
+                    key={chunk.id || chunk.asset_id || index}
+                    className="rounded-xl border-border/70"
+                  >
+                    <CardContent className="space-y-4 p-4">
                       {imageUrl ? (
                         <img
                           src={imageUrl}
-                          alt={`Document image ${index + 1}`}
-                          className="w-full rounded-md border"
+                          alt={page_marketplace('image_alt', {
+                            number: String(index + 1),
+                          })}
+                          className="w-full rounded-lg border"
                         />
                       ) : null}
                       <div className="space-y-2">
-                        <div className="text-sm font-medium">
-                          {pageIdx ? `Page ${pageIdx}` : `Image ${index + 1}`}
+                        <div className="flex items-center gap-2 text-sm font-medium">
+                          <ImageIcon className="text-muted-foreground size-4" />
+                          {pageIdx
+                            ? page_marketplace('page_label', {
+                                number: String(pageIdx),
+                              })
+                            : page_marketplace('image_label', {
+                                number: String(index + 1),
+                              })}
                         </div>
                         <div className="text-muted-foreground whitespace-pre-wrap text-sm">
-                          {chunk.text || 'No extracted image summary available.'}
+                          {chunk.text ||
+                            page_marketplace('image_summary_unavailable')}
                         </div>
                       </div>
                     </CardContent>
@@ -154,7 +184,7 @@ export const DocumentDetail = ({
               }}
               loading={
                 <div className="flex flex-col py-8">
-                  <LoaderCircle className="size-10 animate-spin self-center opacity-50" />
+                  <LoaderCircle className="text-muted-foreground size-10 animate-spin self-center opacity-50" />
                 </div>
               }
               className="flex flex-col justify-center gap-1"
@@ -162,8 +192,8 @@ export const DocumentDetail = ({
               {_.times(numPages).map((index) => {
                 return (
                   <div key={index} className="text-center">
-                    <Card className="inline-block overflow-hidden p-0">
-                      <PDFPage pageNumber={index + 1} className="bg-accent" />
+                    <Card className="inline-block overflow-hidden rounded-xl border-border/70 p-0">
+                      <PDFPage pageNumber={index + 1} className="bg-muted" />
                     </Card>
                   </div>
                 );
