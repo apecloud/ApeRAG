@@ -148,9 +148,9 @@ class ModelServiceProviderStatus(str, Enum):
     DELETED = "DELETED"
 
 
-class ApiKeyStatus(str, Enum):
-    ACTIVE = "ACTIVE"
-    DELETED = "DELETED"
+# ``ApiKeyStatus`` moved to
+# ``aperag.domains.governance.db.models`` in Phase 4 Step 4-S2b;
+# re-exported at the bottom of this module.
 
 
 class APIType(str, Enum):
@@ -444,30 +444,8 @@ class TurnFeedback(Base):
             self.chat_id = chat
 
 
-class ApiKey(Base):
-    __tablename__ = "api_key"
-
-    id = Column(String(24), primary_key=True, default=lambda: "key" + random_id())
-    key = Column(String(64), default=lambda: f"sk-{uuid.uuid4().hex}", nullable=False)
-    user = Column(String(256), nullable=False, index=True)  # Add index for user queries
-    description = Column(String(256), nullable=True)
-    status = Column(EnumColumn(ApiKeyStatus), nullable=False, index=True)  # Add index for status queries
-    is_system = Column(Boolean, default=False, nullable=False, index=True)  # Mark system-generated API keys
-    last_used_at = Column(DateTime(timezone=True), nullable=True)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Add index for soft delete queries
-
-    @staticmethod
-    def generate_key() -> str:
-        """Generate a unique API key"""
-        return f"sk-{uuid.uuid4().hex}"
-
-    async def update_last_used(self, session):
-        """Update the last_used_at timestamp"""
-        self.last_used_at = utc_now()
-        session.add(self)
-        await session.commit()
+# ``ApiKey`` moved to ``aperag.domains.governance.db.models`` in
+# Phase 4 Step 4-S2b; re-exported at the bottom of this module.
 
 
 class ModelServiceProvider(Base):
@@ -605,69 +583,9 @@ class Invitation(Base):
         # self.expires_at = utc_now()
 
 
-class AuditResource(str, Enum):
-    """Audit resource types"""
-
-    COLLECTION = "collection"
-    DOCUMENT = "document"
-    BOT = "bot"
-    CHAT = "chat"
-    MESSAGE = "message"
-    API_KEY = "api_key"
-    LLM_PROVIDER = "llm_provider"
-    LLM_PROVIDER_MODEL = "llm_provider_model"
-    MODEL_SERVICE_PROVIDER = "model_service_provider"
-    USER = "user"
-    CONFIG = "config"
-    INVITATION = "invitation"
-    AUTH = "auth"
-    CHAT_COMPLETION = "chat_completion"
-    SEARCH = "search"
-    LLM = "llm"
-    FLOW = "flow"
-    SYSTEM = "system"
-    INDEX = "index"
-
-
-class AuditLog(Base):
-    """Audit log model to track all system operations"""
-
-    __tablename__ = "audit_log"
-
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String(36), nullable=True, comment="User ID")
-    username = Column(String(255), nullable=True, comment="Username")
-    resource_type = Column(EnumColumn(AuditResource), nullable=True, comment="Resource type")
-    resource_id = Column(String(255), nullable=True, comment="Resource ID (extracted at query time)")
-    api_name = Column(String(255), nullable=False, comment="API operation name")
-    http_method = Column(String(10), nullable=False, comment="HTTP method (POST, PUT, DELETE)")
-    path = Column(String(512), nullable=False, comment="API path")
-    status_code = Column(Integer, nullable=True, comment="HTTP status code")
-    request_data = Column(Text, nullable=True, comment="Request data (JSON)")
-    response_data = Column(Text, nullable=True, comment="Response data (JSON)")
-    error_message = Column(Text, nullable=True, comment="Error message if failed")
-    ip_address = Column(String(45), nullable=True, comment="Client IP address")
-    user_agent = Column(String(500), nullable=True, comment="User agent string")
-    request_id = Column(String(255), nullable=False, comment="Request ID for tracking")
-    start_time = Column(BigInteger, nullable=False, comment="Request start time (milliseconds since epoch)")
-    end_time = Column(BigInteger, nullable=True, comment="Request end time (milliseconds since epoch)")
-    gmt_created = Column(DateTime(timezone=True), nullable=False, default=utc_now, comment="Created time")
-
-    # Index for better query performance
-    __table_args__ = (
-        Index("idx_audit_user_id", "user_id"),
-        Index("idx_audit_resource_type", "resource_type"),
-        Index("idx_audit_api_name", "api_name"),
-        Index("idx_audit_http_method", "http_method"),
-        Index("idx_audit_status_code", "status_code"),
-        Index("idx_audit_gmt_created", "gmt_created"),
-        Index("idx_audit_resource_id", "resource_id"),
-        Index("idx_audit_request_id", "request_id"),
-        Index("idx_audit_start_time", "start_time"),
-    )
-
-    def __repr__(self):
-        return f"<AuditLog(id={self.id}, user={self.username}, api={self.api_name}, method={self.http_method}, status={self.status_code})>"
+# ``AuditResource`` + ``AuditLog`` moved to
+# ``aperag.domains.governance.db.models`` in Phase 4 Step 4-S2b;
+# re-exported at the bottom of this module.
 
 
 class QuestionSet(Base):
@@ -998,6 +916,12 @@ class EvaluationRunItemAttempt(Base):
 # (CollectionMarketplace / UserCollectionSubscription), and
 # model_platform (LLMProvider / LLMProviderModel).
 # ---------------------------------------------------------------------------
+from aperag.domains.governance.db.models import (  # noqa: E402, F401  re-export for back-compat (Phase 4 Step 4-S2b)
+    ApiKey,
+    ApiKeyStatus,
+    AuditLog,
+    AuditResource,
+)
 from aperag.domains.indexing.db.models import (  # noqa: E402, F401  re-export for back-compat
     DocumentIndex,
     DocumentIndexStatus,
