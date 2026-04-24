@@ -33,6 +33,7 @@ if settings.otel_enabled:
 
 from fastapi import FastAPI  # noqa: E402
 
+from aperag.domains.governance.api.routes import router as governance_router
 from aperag.domains.knowledge_base.api.routes import router as knowledge_base_router
 from aperag.domains.knowledge_base.service.collection_service import (
     set_marketplace_collection_ops as _kb_set_marketplace_collection_ops,
@@ -61,8 +62,6 @@ from aperag.service.marketplace_service import marketplace_service as _legacy_ma
 from aperag.service.quota_service import quota_service as _legacy_quota_service
 from aperag.service.search_pipeline_service import search_pipeline_service as _legacy_search_pipeline_service
 from aperag.views.agent_runtime import router as agent_runtime_router
-from aperag.views.api_key import router as api_key_router
-from aperag.views.audit import router as audit_router
 from aperag.views.auth import router as auth_router
 from aperag.views.bots_v2 import router as bots_v2_router
 from aperag.views.chat import router as chat_router
@@ -126,8 +125,7 @@ app.include_router(auth_router, prefix="/api/v1")
 app.include_router(main_router, prefix="/api/v1")
 app.include_router(collections_router, prefix="/api/v1")  # Add collections router
 app.include_router(export_router, prefix="/api/v1")  # Add export router
-app.include_router(api_key_router, prefix="/api/v1")
-app.include_router(audit_router, prefix="/api/v1")  # Add audit router
+app.include_router(governance_router, prefix="/api/v1")  # Governance domain router (api_key + audit)
 app.include_router(llm_router, prefix="/api/v1")
 app.include_router(
     marketplace_router, prefix="/api/v1"
