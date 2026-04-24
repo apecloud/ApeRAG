@@ -7,6 +7,7 @@
   "node_search": "Node search",
 
   "no_nodes_found": "No node information found",
+  "no_description": "No description available",
   "merge_infomation": "{count} merge suggestions",
   "merge_suggestions": "Merge suggestions",
 

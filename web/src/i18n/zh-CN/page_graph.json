@@ -7,6 +7,7 @@
   "node_search": "节点查询",
 
   "no_nodes_found": "未找到相关节点",
+  "no_description": "暂无描述",
   "merge_infomation": "{count}个节点节点合并建议.",
   "merge_suggestions": "节点合并",
 
