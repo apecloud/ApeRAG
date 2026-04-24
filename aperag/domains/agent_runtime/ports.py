@@ -14,23 +14,28 @@
 
 """Cross-domain contracts owned by the ``agent_runtime`` domain.
 
-Lesson 9a-quad canonical: the agent runtime reads one datum from
-``conversation`` at request time — whether the current chat has any
-attached documents, so ``build_agent_query_prompt`` can switch between
-the "chat with attachments" and "plain prompt" branches. Phase 5
-canonical (``msg=4a93c97e`` Q2, ruling A) replaces the existing
-``from aperag.service.chat_document_service import chat_document_service``
-hard-import in ``runtime.py`` with a ``ChatDocumentOps`` Protocol DI
-slot wired at ``aperag/app.py`` startup.
+Phase 5 step 5-S5b adds the ``PromptTemplateOps`` Protocol for the
+legacy ``aperag.service.prompt_template_service`` provider —
+``prompt_template_service`` stays in ``aperag/service/`` through
+Phase 6 cleanup, so the agent_runtime domain cannot ``from
+aperag.service.*`` import it directly without tripping G1.
 
-Per ``msg=92f5788d`` Section 3 + ``msg=ce960fbc`` bless, the
-``AuthenticatedUser`` Protocol is per-domain (lesson 9a-ter) and kept
-minimal — ``id`` alone, since agent_runtime never inspects ``role``.
+The ``ChatDocumentOps`` Protocol originally seeded in Phase 5 step 1
+has been **retired** per msg=940bd884 simplification: after
+``chat_document_service`` physically moved into the conversation
+domain (Phase 5 step 5-S4d), ``runtime.py`` can reach it via a
+direct cross-domain import (domain→domain is allowed by G1). The
+Protocol is kept here only in archived form (below the ``__all__``
+for the live surface) so any in-flight branch still referencing it
+resolves the same shape; Phase 6 removes it outright.
+
+``AuthenticatedUser`` stays per-domain (lesson 9a-ter); runtime
+handlers only need ``id`` for turn ownership / lease checks.
 """
 
 from __future__ import annotations
 
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Optional, Protocol, runtime_checkable
 
 
 @runtime_checkable
@@ -47,31 +52,64 @@ class AuthenticatedUser(Protocol):
 
 
 @runtime_checkable
-class ChatDocumentOps(Protocol):
-    """``runtime.py``'s view of the legacy chat-document service.
+class PromptTemplateOps(Protocol):
+    """Consumer-owned view of the legacy
+    ``aperag.service.prompt_template_service``.
 
-    Phase 5 canonical Q2 (``msg=4a93c97e`` ruling A) formalises the
-    single call site at ``aperag.agent_runtime.runtime`` line 262:
+    Exposes the three surfaces ``runtime.py`` actually uses:
 
-        has_chat_files = await chat_document_service.has_documents_in_chat(
-            chat.id, user
-        )
+    * ``resolve_agent_system_prompt(bot, user_id)`` — returns the
+      fully-resolved system prompt for the bot + user combination.
+    * ``resolve_agent_query_prompt(bot, user_id)`` — returns the
+      query prompt template (caller performs the variable
+      substitution via ``build_agent_query_prompt``).
+    * ``build_agent_query_prompt(chat_id, *, agent_message, user,
+      template, has_chat_files)`` — bound through the DI slot for
+      symmetry so the runtime does not have to split its hard-import
+      between a singleton and a module-level helper.
 
-    into a Protocol + DI slot owned by agent_runtime. The legacy
-    ``chat_document_service`` singleton satisfies the Protocol
-    structurally; once conversation physically moves the service
-    (Phase 5 step 4, ``5-S4``) the DI wire-up at ``aperag/app.py``
-    points at the new ``aperag.domains.conversation.service`` path.
+    The concrete ``aperag.service.prompt_template_service`` module
+    exposes the two methods on the ``prompt_template_service``
+    singleton plus the module-level ``build_agent_query_prompt``
+    function, so ``aperag/app.py`` wires an adapter that fans out to
+    both to satisfy the Protocol.
+
+    Phase 6 cleanup will either move ``prompt_template_service`` into
+    a canonical domain home (agent_runtime or model_platform candidate
+    per msg=65a3b27d) or retire the Protocol in favour of a direct
+    cross-domain import.
     """
 
-    async def has_documents_in_chat(
+    async def resolve_agent_system_prompt(self, *, bot: Any, user_id: str) -> str: ...
+
+    async def resolve_agent_query_prompt(self, *, bot: Any, user_id: str) -> str: ...
+
+    def build_agent_query_prompt(
         self,
         chat_id: str,
-        user_id: str,
-    ) -> bool: ...
+        *,
+        agent_message: Any,
+        user: str,
+        template: Optional[str] = None,
+        has_chat_files: bool = False,
+    ) -> str: ...
 
 
 __all__ = [
     "AuthenticatedUser",
-    "ChatDocumentOps",
+    "PromptTemplateOps",
 ]
+
+
+# ``ChatDocumentOps`` retained for any in-flight caller that still
+# imports it. Phase 5 step 5-S5b replaced the runtime's DI seam with a
+# direct cross-domain import of
+# ``aperag.domains.conversation.service.chat_document_service`` now
+# that the conversation domain is merged — the Protocol definition is
+# no longer wired at app startup and is scheduled for removal in
+# Phase 6.
+
+
+@runtime_checkable
+class ChatDocumentOps(Protocol):  # pragma: no cover - retired, Phase 6 deletion candidate
+    async def has_documents_in_chat(self, chat_id: str, user_id: str) -> bool: ...

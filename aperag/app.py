@@ -33,6 +33,8 @@ if settings.otel_enabled:
 
 from fastapi import FastAPI  # noqa: E402
 
+from aperag.domains.agent_runtime.api.routes import router as agent_runtime_router
+from aperag.domains.agent_runtime.runtime import set_prompt_template_ops as _ar_set_prompt_template_ops
 from aperag.domains.conversation.api.routes import (
     bots_router as bots_v2_router,
 )
@@ -82,7 +84,6 @@ from aperag.service.marketplace_collection_service import (
 from aperag.service.marketplace_service import marketplace_service as _legacy_marketplace_service
 from aperag.service.quota_service import quota_service as _legacy_quota_service
 from aperag.service.search_pipeline_service import search_pipeline_service as _legacy_search_pipeline_service
-from aperag.views.agent_runtime import router as agent_runtime_router
 from aperag.views.auth import router as auth_router
 from aperag.views.collections import router as collections_router
 from aperag.views.config import router as config_router
@@ -126,6 +127,39 @@ from aperag.service.chat_collection_service import (  # noqa: E402
 )
 
 _conv_set_chat_collection_ops(_legacy_chat_collection_service)
+
+
+# Wire the agent_runtime domain's consumer-owned PromptTemplateOps DI
+# slot (Phase 5 step 5-S5b). ``prompt_template_service`` stays as a
+# legacy provider through Phase 6 cleanup, so an adapter exposes the
+# three Protocol methods onto the legacy singleton + module-level
+# ``build_agent_query_prompt`` helper.
+from aperag.service.prompt_template_service import (  # noqa: E402
+    build_agent_query_prompt as _legacy_build_agent_query_prompt,
+)
+from aperag.service.prompt_template_service import (  # noqa: E402
+    prompt_template_service as _legacy_prompt_template_service,
+)
+
+
+class _PromptTemplateOpsAdapter:
+    async def resolve_agent_system_prompt(self, *, bot, user_id):
+        return await _legacy_prompt_template_service.resolve_agent_system_prompt(bot=bot, user_id=user_id)
+
+    async def resolve_agent_query_prompt(self, *, bot, user_id):
+        return await _legacy_prompt_template_service.resolve_agent_query_prompt(bot=bot, user_id=user_id)
+
+    def build_agent_query_prompt(self, chat_id, *, agent_message, user, template=None, has_chat_files=False):
+        return _legacy_build_agent_query_prompt(
+            chat_id,
+            agent_message=agent_message,
+            user=user,
+            template=template,
+            has_chat_files=has_chat_files,
+        )
+
+
+_ar_set_prompt_template_ops(_PromptTemplateOpsAdapter())
 
 
 # Wire the identity domain's consumer-owned Protocol DI slots (Phase
