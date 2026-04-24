@@ -54,7 +54,7 @@ Each backend domain lives under `aperag/domains/<domain>/`. The per-domain direc
 | **knowledge_graph** | `GraphCurationRunStatus` · `GraphCurationSuggestionStatus` · `GraphCurationRun` · `GraphCurationSuggestion` | 15 | `service.py` + `graphindex/*` (11 submodules) | `CollectionRow` | `api/routes.py` (+ a 410-Gone legacy shim on `aperag/views/graph.py`) |
 | **conversation** | `BotStatus` · `BotType` · `ChatStatus` · `ChatPeerType` · `TurnFeedbackType` · `TurnFeedbackTag` · `Bot` · `Chat` · `TurnFeedback` | 20 | `bot_service` (consumer), `chat_collection_service`, `chat_document_service`, `chat_service`, `chat_title_service`, `turn_feedback_service` | `KnowledgeBaseCollectionView`, `AuthenticatedUser`, `QuotaOps` | `api/routes.py` |
 | **agent_runtime** | `AgentTurnStatus` · `AgentEventActor` · `AgentArtifactType` · `AgentTurn` · `AgentTimelineEvent` · `AgentArtifact` | 13 | `runtime` (consumer, hosts the `_prompt_template_ops` slot), `services`, `storage` | `AuthenticatedUser`, `PromptTemplateOps` | `api/routes.py` |
-| **evaluation** | `EvaluationDatasetSourceType` · `EvaluationRunStatus` · `EvaluationRunItemStatus` · `EvaluationRunItemAttemptStatus` · `EvaluationJudgeMode` · `EvaluationDataset` · `EvaluationDatasetItem` · `EvaluationRun` · `EvaluationRunItem` · `EvaluationRunItemAttempt` | 24 | `services`, `worker` (hosts `dispatch_fn` test-injection seam — intentionally **not** a DI slot, see Section 5), `tasks`, `judges`, `constants` + `db/repositories/evaluation_v2.py` | `AuthenticatedUser` (only — see footnote) | `api/routes.py` |
+| **evaluation** | `EvaluationDatasetSourceType` · `EvaluationRunStatus` · `EvaluationRunItemStatus` · `EvaluationRunItemAttemptStatus` · `EvaluationJudgeMode` · `EvaluationDataset` · `EvaluationDatasetItem` · `EvaluationRun` · `EvaluationRunItem` · `EvaluationRunItemAttempt` | 24 | `services`, `worker` (hosts `dispatch_fn` test-injection seam — intentionally **not** a DI slot, see Section 5), `tasks`, `judges`, `constants` + `db/repositories/evaluation_v2.py` | `AuthenticatedUser`; `ChatSessionOps` and `AgentTurnDispatchOps` are **dead Protocol literals** (zero runtime callers — see footnote and Section 8 F14) | `api/routes.py` |
 | **web_access** | — (owns no entities) | 7 | — (functional sub-packages: `reader/`, `search/`, `utils/`) | — | `api/routes.py` |
 
 > **Footnote (evaluation).** `aperag/domains/evaluation/ports.py` also carries class definitions for `ChatSessionOps` and `AgentTurnDispatchOps`, but these are **dead Protocol literals** with zero runtime references. They were seeded in Phase 5 5-S1 on the assumption that `chat_service` and `agent_runtime` would stay legacy; after the Phase 5 5-S4b / 5-S5b domain moves plus the `9162ec4` rebase, `evaluation.worker::dispatch_fn` switched to late-import direct cross-domain access and the seams were never wired. Their class bodies remain only because Phase 6 scope (msg=92bbdadb) locked to five specific cleanup entries; they are a candidate for mechanical deletion in a future sweep (Section 8, F14) following the precedent of Phase 6 entry 4 (`ChatDocumentOps` deletion).
@@ -109,7 +109,19 @@ New additions must pass the same criterion. This gate is enforced by CR (not AST
 - **`retrieval`** — search pipeline orchestration + chunk aggregation + reranking. Consumer in the retrieval↔knowledge_graph relationship: retrieval owns `GraphQueryContext` / `GraphSearchContract`, provider-side (knowledge_graph) structurally satisfies them.
 - **`knowledge_graph`** — entity / relation ORM + Nebula Graph client + `graphindex` reconciler. Provider for retrieval's `GraphSearchContract`. Owns `CollectionRow` (an internal port abstracting the legacy `Collection` shape the graphindex integration depends on).
 
-### 2.5 Domain-edge relationship map
+### 2.5 `conversation` intra-domain dependency topology
+
+`conversation` hosts six services; all intra-domain dependencies are sibling direct imports (no Protocol seams needed inside a single domain). The call direction at steady state:
+
+- `bot_service` and `turn_feedback_service` are leaves — they do not consume any other conversation service.
+- `chat_title_service` reads `chat_service` for chat metadata and calls `model_platform.default_model_service` (cross-domain direct) for the default-model lookup.
+- `chat_collection_service` calls `knowledge_base.collection_service` + `knowledge_base.schemas.CollectionCreate` (cross-domain direct), `model_platform.llm_available_model_service` for embedding-model selection, and `identity.service.identity_user_ops.set_chat_collection` for the User write (Section 3.4).
+- `chat_document_service` consumes `chat_collection_service` (sibling direct — Phase 6 entry 2 retired the `ChatCollectionServiceOps` Protocol seam in favor of this import), plus `knowledge_base.service.document_service` + `knowledge_base.schemas.Document` (cross-domain direct).
+- `chat_service` is the top-level CRUD service and exports `chat_service_global` as a module-level singleton plus a `ChatRow` ORM alias so that the ORM row and the Pydantic `Chat` response schema can coexist in the same module without name collision.
+
+Cross-domain consumers of this domain: `agent_runtime.runtime` (late-imports `chat_document_service`) and `evaluation.worker` (late-imports `chat_service_global` inside `dispatch_fn`). Both use late-import to keep module-import-time clean of evaluation → agent_runtime → conversation cycles.
+
+### 2.6 Domain-edge relationship map
 
 The cross-domain read/write relationships at steady state (edges labelled with the mechanism):
 
