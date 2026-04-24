@@ -896,14 +896,22 @@
   },
   "page_models": {
     "metadata": {
+      "provider_label": "模型平台",
       "provider_title": "模型供应商",
       "provider_description": "在此模块连接并定制您偏好的大型语言模型（LLM）供应商和模型。通过设置API密钥、选择模型及调整参数来提升AI使用体验。",
+      "model_label": "供应商模型",
       "model_title": "模型管理",
       "model_description": "本模块支持连接并定制个性化的大型语言模型（LLM）供应商和模型。配置API密钥、选择模型及调整参数以优化AI体验。"
     },
     "provider": {
       "search_placeholder": "搜索模型供应商",
       "add_provider": "添加供应商",
+      "columns": "列设置",
+      "dialog_description": "连接模型供应商的访问地址与 API 类型。API 密钥会在启用供应商时单独配置。",
+      "metric_providers": "供应商",
+      "metric_enabled": "已启用",
+      "metric_public": "公开",
+      "metric_models": "模型",
       "name": "名称",
       "name_placeholder": "供应商显示名称",
       "base_url": "API地址",
@@ -932,11 +940,19 @@
     "model": {
       "search_placeholder": "搜索模型",
       "add_model": "添加模型",
+      "dialog_description": "登记模型端点，并定义它支持的 API 能力。",
+      "metric_total": "模型总数",
+      "metric_completion": "补全",
+      "metric_embedding": "嵌入",
+      "metric_rerank": "重排",
+      "param_context": "上下文",
+      "param_input": "输入",
+      "param_output": "输出",
       "name": "模型名称",
       "name_placeholder": "请输入模型名称",
       "llm_params": "LLM参数",
       "agent": "会话",
-      "collection": "知识库",
+      "collection": "知识集合",
       "api_type": "API类型",
       "creation_time": "创建时间",
       "edit": "编辑",
@@ -953,8 +969,14 @@
   },
   "page_prompts": {
     "metadata": {
+      "label": "提示词控制台",
       "title": "提示词管理",
       "description": "自定义系统默认提示词，调整 AI 助手的行为和对话风格。修改后将覆盖系统默认配置，可随时重置恢复默认。"
+    },
+    "metric": {
+      "templates": "模板",
+      "customized": "已自定义",
+      "defaults": "使用默认"
     },
     "agent_system": {
       "title": "系统提示词",

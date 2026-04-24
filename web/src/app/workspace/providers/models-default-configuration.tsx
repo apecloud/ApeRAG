@@ -138,9 +138,11 @@ export const ModelsDefaultConfiguration = () => {
             return (
               <div
                 key={modelConfig.scenario}
-                className="flex w-full flex-col gap-2"
+                className="flex w-full flex-col gap-2 rounded-xl border border-border/70 bg-muted p-3"
               >
-                <Label>{_.startCase(modelConfig.scenario)}</Label>
+                <Label className="font-mono text-[11px] tracking-[0.08em] uppercase">
+                  {_.startCase(modelConfig.scenario)}
+                </Label>
                 <div className="flex flex-row gap-1">
                   <Select
                     value={
@@ -190,7 +192,7 @@ export const ModelsDefaultConfiguration = () => {
               </div>
             );
           })}
-          <div className="text-muted-foreground text-sm">
+          <div className="text-muted-foreground rounded-xl border border-dashed border-border/70 px-3 py-2 text-sm">
             {page_models('default_model.help')}
           </div>
         </>
@@ -221,11 +223,13 @@ export const ModelsDefaultConfiguration = () => {
         <TooltipContent>{page_models('default_model.config')}</TooltipContent>
       </Tooltip>
       <Dialog open={visible} onOpenChange={() => setVisible(false)}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl rounded-xl border-border/70">
           <DialogHeader>
-            <DialogTitle>{page_models('default_model.config')}</DialogTitle>
+            <DialogTitle className="font-serif text-2xl font-normal">
+              {page_models('default_model.config')}
+            </DialogTitle>
           </DialogHeader>
-          <div className="flex flex-col gap-6 py-8">{content}</div>
+          <div className="flex flex-col gap-4 py-6">{content}</div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setVisible(false)}>
               {common_action('cancel')}
