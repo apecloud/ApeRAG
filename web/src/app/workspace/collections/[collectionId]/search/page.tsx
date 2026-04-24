@@ -33,7 +33,7 @@ export default async function Page({
         ]}
       />
       <CollectionHeader />
-      <PageContent>
+      <PageContent className="pt-4">
         <SearchTable data={searchRes.items ?? []} />
       </PageContent>
     </PageContainer>

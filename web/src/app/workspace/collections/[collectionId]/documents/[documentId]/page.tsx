@@ -9,6 +9,7 @@ import {
 } from '@/features/document/server-api';
 import { toJson } from '@/lib/utils';
 import _ from 'lodash';
+import { notFound } from 'next/navigation';
 import { CollectionHeader } from '../../collection-header';
 import { DocumentDetail } from './document-detail';
 
@@ -23,6 +24,10 @@ export default async function Page({
     getDocument(collectionId, documentId),
     getDocumentPreview(collectionId, documentId),
   ]);
+
+  if (!document || !documentPreview) {
+    notFound();
+  }
 
   return (
     <PageContainer>
@@ -42,7 +47,7 @@ export default async function Page({
         ]}
       />
       <CollectionHeader />
-      <PageContent className="h-[100%]">
+      <PageContent className="h-[100%] pt-4">
         <DocumentDetail
           document={toJson(document)}
           documentPreview={toJson(documentPreview)}

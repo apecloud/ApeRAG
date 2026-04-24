@@ -24,7 +24,7 @@ export default async function Page() {
         ]}
       />
       <CollectionHeader />
-      <PageContent>
+      <PageContent className="pt-4">
         <CollectionForm action="edit" />
       </PageContent>
     </PageContainer>

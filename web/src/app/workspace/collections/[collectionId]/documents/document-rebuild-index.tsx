@@ -1,6 +1,5 @@
 'use client';
 
-import { DOCUMENT_INDEX_TYPES } from '@/features/document/types';
 import { useCollectionContext } from '@/components/providers/collection-provider';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -17,6 +16,7 @@ import { Form, FormControl, FormField, FormItem } from '@/components/ui/form';
 import { Label } from '@/components/ui/label';
 import { rebuildDocumentIndexes } from '@/features/document/client-api';
 import type { Document } from '@/features/document/types';
+import { DOCUMENT_INDEX_TYPES } from '@/features/document/types';
 import { cn } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Slot } from '@radix-ui/react-slot';
@@ -117,13 +117,13 @@ export const DocumentReBuildIndex = ({
                 let enabled: boolean | undefined;
                 switch (key) {
                   case 'FULLTEXT':
-                    enabled = config?.enable_fulltext;
+                    enabled = Boolean(config?.enable_fulltext);
                     break;
                   case 'GRAPH':
-                    enabled = config?.enable_knowledge_graph;
+                    enabled = Boolean(config?.enable_knowledge_graph);
                     break;
                   case 'VECTOR':
-                    enabled = config?.enable_vector;
+                    enabled = Boolean(config?.enable_vector);
                     break;
                   default:
                     enabled = false;
