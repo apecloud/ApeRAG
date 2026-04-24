@@ -950,7 +950,7 @@ export const AgentTurnCard = ({
 
         <Collapsible
           defaultOpen
-          className="group/activity-stream bg-subtle border-border/70 overflow-hidden rounded-xl border"
+          className="group/activity-stream bg-muted border-border/70 overflow-hidden rounded-xl border"
         >
           <CollapsibleTrigger asChild>
             <button
