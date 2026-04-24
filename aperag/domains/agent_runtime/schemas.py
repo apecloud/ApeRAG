@@ -242,5 +242,3 @@ __all__ = [
     "UserActivityIntent",
     "VisibleAgentState",
 ]
-
-
