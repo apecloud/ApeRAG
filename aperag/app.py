@@ -78,22 +78,15 @@ from aperag.views.prompts import router as prompts_router
 from aperag.views.providers_v2 import router as providers_v2_router
 from aperag.views.settings import router as settings_router
 
-
 # Wire the knowledge_base domain's consumer-owned Protocol DI slots
-# (Phase 3 Step 5b2c). The legacy service singletons structurally
-# satisfy ``MarketplaceOps`` / ``SearchPipelineOps`` / ``QuotaOps``
-# directly; ``MarketplaceCollectionOps.check_marketplace_access`` uses
-# the public method name from msg=6ab7d211 Q2 while the legacy service
-# still exposes the underscore-prefixed original, so a thin adapter
-# bridges the two until the Phase 4 marketplace_collection_service move
-# drops the ``_`` at its canonical location.
-class _MarketplaceCollectionOpsAdapter:
-    async def check_marketplace_access(self, user_id: str, collection_id: str) -> dict:
-        return await _legacy_marketplace_collection_service._check_marketplace_access(user_id, collection_id)
-
-
+# (Phase 3 Step 5b2c). All four legacy service singletons now
+# structurally satisfy the KB Protocols directly — Phase 4 Step 4-S4
+# dropped the transitional ``_MarketplaceCollectionOpsAdapter`` once
+# the ``marketplace_collection_service`` move renamed
+# ``_check_marketplace_access`` to the public ``check_marketplace_access``
+# per msg=6ab7d211 Q2.
 _kb_set_marketplace_ops(_legacy_marketplace_service)
-_kb_set_marketplace_collection_ops(_MarketplaceCollectionOpsAdapter())
+_kb_set_marketplace_collection_ops(_legacy_marketplace_collection_service)
 _kb_set_search_pipeline_ops(_legacy_search_pipeline_service)
 _kb_set_quota_ops(_legacy_quota_service)
 
