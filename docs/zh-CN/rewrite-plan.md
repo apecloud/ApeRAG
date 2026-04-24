@@ -150,7 +150,7 @@
 | --- | --- | --- | --- |
 | `architecture/overview.md` | huangheng | 自写（short entry + links to architecture.md / domains.md / 下列 consolidated docs） | task #4 |
 | `architecture/domains.md` | huangheng | 各 SME lanes 补充 domain 一行简介 | task #4 + 各 SME |
-| `architecture/indexing-retrieval-kg.md` | cuiwenbo + Bryce 共同主笔 | KB schemas / common.py / dual-hook (cuiwenbo Primary SME per msg=a6dc5daa) + indexing reconciler / retrieval pipeline / KG graphindex / vector db / LightRAG / vision (Bryce Phase 3 deeper SME per task #27 Block D precedent) | task #5 主 + task #6 补 |
+| `architecture/indexing-retrieval-kg.md` | **共同主笔**：cuiwenbo 主笔 KB / schema/common / dual-hook sections（task #5 primary SME per msg=a6dc5daa）+ **Bryce 主笔 indexing / retrieval / KG / vector / vision / graphindex 深水区 sections**（PM msg=9b712260 lock；Phase 3 Step 2/3/5a/6/7/8 landing owner） | task #5 + task #6 |
 | `architecture/conversation-agent-evaluation.md` | chenyexuan 主笔 | conversation 6-services topology / agent_runtime PromptTemplateOps seam / evaluation is_terminal + dispatch_fn seam / prompt architecture standalone-infra permanent — 全在 task #7 batch 1 (msg=f4dfe81e) + batch 2 skeleton 覆盖 | task #7 |
 | `architecture/identity-governance-model-platform-marketplace.md` | Bryce 主笔 | identity (User/Role/OAuth/fastapi-users) / governance (ApiKey/Audit/QuotaOps standalone-infra) / marketplace (CollectionMarketplace / Q2 rename) / model_platform (LLM provider + 2-router split) — task #6 Block D 模式 | task #6 |
 | `architecture/web-access.md` | **待 PM 派活** | Phase 2a web_access 独立文档；可派给 Bryce / Weston / 其他 Phase 2a 相关 lane | — |
@@ -166,13 +166,14 @@
 | `user-guide/evaluation-guide.md` | chenyexuan | Phase 5/6 evaluation | task #7 |
 | `user-guide/chat-interaction.md` | chenyexuan | Phase 5 conversation | task #7 |
 
-### 5.3 `admin-guide/` (3 docs — tag-permissions 已从 plan 移除因 feature 未实装)
+### 5.3 `admin-guide/` (4 docs — tag-permissions 已从 plan 移除因 feature 未实装)
 
 | 目标 doc | 主笔 | SME | 上游 task |
 | --- | --- | --- | --- |
 | `admin-guide/quota-system.md` | Bryce | Phase 4 governance + quota_service standalone-infra | task #6 |
 | `admin-guide/api-keys.md` | Bryce | Phase 4 governance | task #6 |
 | `admin-guide/audit-log.md` | Bryce | Phase 4 governance | task #6 |
+| `admin-guide/prompt-customization.md` | chenyexuan | prompt_customization admin/管理面（template 管理、三层优先级配置）— per PM msg=6f2fef3d scope split 到 task #7 owner | task #7 |
 
 ### 5.4 `integration/` (3 docs)
 
