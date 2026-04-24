@@ -184,6 +184,8 @@
     "email": "邮箱",
     "email_placeholder": "邮箱",
     "signin": "登录",
+    "signin_eyebrow": "安全工作区",
+    "signin_description": "登录后可以查看 Collection、追踪 Agent 执行，并管理你的 ApeRAG 工作区。",
     "login_in_with_a_third_party_account": "使用第三方账号登录",
     "login_with_google": "Google账号",
     "login_with_github": "GitHub账号",
@@ -192,9 +194,19 @@
     "forgot_your_password": "忘记密码",
     "do_not_have_an_account": "没有账号？ ",
     "signup": "注册",
+    "signup_eyebrow": "创建工作区访问",
+    "signup_description": "创建 ApeRAG 工作区账号，注册规则仍沿用当前后端能力。",
     "register_an_account": "注册账号",
     "already_hava_an_account": "已有账号？ ",
     "signout": "退出",
+    "auth_hero_eyebrow": "ApeRAG",
+    "auth_hero_quote": "十年的工艺文档，变成一个能说明答案路径的助手。",
+    "auth_hero_description": "登录页面保持克制：使用统一暖色品牌层、沿用现有认证方式，不额外承诺未接入的产品能力。",
+    "auth_footer": "访问权限由当前 ApeRAG 已配置的认证方式控制。",
+    "check_email_title": "检查你的邮箱",
+    "check_email_description": "登录链接已经发送到你的邮箱地址。",
+    "signin_again": "重新登录",
+    "oauth_eyebrow": "OAuth 回调",
     "processing_oauth_login": "处理OAuth登录中...",
     "oauth_successful": "OAuth认证成功",
     "the_system_will_automatically_redirect": "系统将自动跳转，请稍后...",
@@ -669,6 +681,7 @@
     "node_group": "节点分组",
     "node_search": "节点查询",
     "no_nodes_found": "未找到相关节点",
+    "no_description": "暂无描述",
     "merge_infomation": "{count}个节点节点合并建议.",
     "merge_suggestions": "节点合并",
     "merge_accept": "接受",
@@ -685,6 +698,136 @@
     "entity_geo": "位置",
     "entity_event": "事件",
     "entity_UNKNOWN": "未知"
+  },
+  "page_landing": {
+    "nav": {
+      "agent": "Agent",
+      "graph": "图谱",
+      "deployment": "部署",
+      "docs": "文档",
+      "signin": "登录",
+      "start": "进入工作区"
+    },
+    "hero": {
+      "badge": "v2",
+      "badge_text": "GraphRAG × Agent 运行时 · 私有化部署",
+      "title": "让企业知识变成",
+      "title_accent": "可追溯的答案。",
+      "description": "ApeRAG 把混合检索、知识图谱和可观测 Agent 执行放在同一条工作流里，让团队能问业务问题，也能看到答案从哪里来。",
+      "primary_cta": "进入工作区",
+      "secondary_cta": "浏览市场",
+      "points": {
+        "private": "私有化部署",
+        "models": "兼容主流模型",
+        "license": "Apache 2.0"
+      }
+    },
+    "hero_trace": {
+      "status": "运行中",
+      "user": "操作员",
+      "prompt": "3 号线 SMT-03 今早报 E-047，帮我判断最可能的原因。",
+      "title": "Agent 轨迹",
+      "meta": "来源已记录",
+      "steps": {
+        "question": {
+          "label": "理解",
+          "text": "先确认设备、错误码和时间范围，再决定要查哪些资料。"
+        },
+        "graph": {
+          "label": "图谱",
+          "text": "搜索知识图谱，找到 SMT-03 和关联故障事件。"
+        },
+        "manual": {
+          "label": "文档",
+          "text": "阅读维修记录和 E-047 排障章节。"
+        },
+        "compare": {
+          "label": "比对",
+          "text": "把近期故障和历史送料器张力问题做对照。"
+        },
+        "answer": {
+          "label": "回答",
+          "text": "输出带引用的诊断结论，并给出下一步检查建议。"
+        }
+      }
+    },
+    "capabilities": {
+      "hybrid": {
+        "title": "混合检索",
+        "description": "向量、全文、图谱和文档证据在同一条查询路径里协同工作。"
+      },
+      "graph": {
+        "title": "知识图谱",
+        "description": "实体、故障、文档和关系可以被查看，而不是被隐藏在切片里。"
+      },
+      "agent": {
+        "title": "可观测 Agent",
+        "description": "思考、检索、阅读、比对和最终回答被清晰分层，便于复盘。"
+      },
+      "deployment": {
+        "title": "生产控制面",
+        "description": "认证、模型供应商、配额、API Key、审计日志和管理员控制都保留在产品里。"
+      }
+    },
+    "agent": {
+      "eyebrow": "01 — Agent",
+      "title": "答案有用，前提是路径可见。",
+      "description": "ApeRAG 默认把 Agent 轨迹做成人能读懂的动作链：它试了什么、读了什么、比较了什么、最终答案由哪些来源支撑。",
+      "features": {
+        "runtime": {
+          "title": "可回放运行时",
+          "description": "流式事件保留为清晰的动作时间线，而不是把原始工具参数暴露给用户。"
+        },
+        "mcp": {
+          "title": "MCP 工具接入",
+          "description": "内部系统可以被封装成受控工具，同时不改变用户侧的对话体验。"
+        },
+        "audit": {
+          "title": "可审阅执行",
+          "description": "引用、反馈和轨迹详情仍然可见，但不会挤占主阅读路径。"
+        }
+      }
+    },
+    "graph": {
+      "eyebrow": "02 — 图谱",
+      "title": "复杂关系，也要克制呈现。",
+      "description": "图谱页保留实体类型、邻居高亮、搜索和合并建议，同时用更安静的暖色体系服务日常使用。",
+      "legend": "实体类型",
+      "nodes": {
+        "center": "SMT",
+        "org": "组织",
+        "product": "设备",
+        "event": "事件",
+        "person": "人员",
+        "concept": "概念"
+      }
+    },
+    "deployment": {
+      "eyebrow": "03 — 部署",
+      "title": "面向可控的企业环境。",
+      "description": "这次视觉升级不会移除运营控制面。现有配置、文档管理、配额、模型供应商和管理员路径会继续纳入同一套设计系统。",
+      "features": {
+        "private": {
+          "title": "私有运行时",
+          "description": "在自己的环境里部署 ApeRAG，数据边界和控制权保持明确。"
+        },
+        "models": {
+          "title": "模型平台",
+          "description": "供应商和模型配置仍是一级能力，不被藏在演示外壳后面。"
+        },
+        "management": {
+          "title": "管理页面",
+          "description": "API Key、配额、审计日志和系统配置都会使用同一套品牌层。"
+        }
+      }
+    },
+    "cta": {
+      "eyebrow": "从现有数据开始",
+      "title": "打开 Collection，问一个问题，再检查答案路径。",
+      "description": "新界面围绕 ApeRAG 已经支持的工作流展开：Collection、文档、图谱可视化、Agent Chat、市场发布和运营控制。",
+      "primary_cta": "进入工作区",
+      "secondary_cta": "联系 ApeCloud"
+    }
   },
   "page_marketplace": {
     "metadata": {

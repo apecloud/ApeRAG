@@ -1,130 +1,507 @@
-import { AppTopbar } from '@/components/app-topbar';
-import { PageContainer, PageContent } from '@/components/page-container';
+import { AppLogo } from '@/components/app-topbar';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, Mail } from 'lucide-react';
+import {
+  ArrowRight,
+  BookOpenText,
+  Boxes,
+  Check,
+  DatabaseZap,
+  GitBranch,
+  Mail,
+  Network,
+  ShieldCheck,
+  Sparkles,
+} from 'lucide-react';
+import { getTranslations } from 'next-intl/server';
 import Link from 'next/link';
 
-const features = [
-  {
-    title: 'Hybrid Retrieval Engine',
-    description:
-      'Combines Graph RAG, vector search, and full-text search for comprehensive document understanding and retrieval.',
-  },
-  {
-    title: 'Graph RAG with LightRAG',
-    description:
-      'Enhanced version of LightRAG for advanced graph-based knowledge extraction, enabling deep relational and contextual queries.',
-  },
-  {
-    title: 'MinerU Integration',
-    description:
-      'Advanced document parsing service providing superior parsing for complex documents, tables, formulas, and scientific content with optional GPU acceleration.',
-  },
-  {
-    title: 'Production-Grade Deployment',
-    description:
-      'Full Kubernetes support with Helm charts and KubeBlocks integration for simplified deployment of production-grade databases.',
-  },
-  {
-    title: 'Multimodal Processing',
-    description:
-      'Supports various document formats (PDF, DOCX, etc.) with intelligent content extraction and structure recognition.',
-  },
-  {
-    title: 'Enterprise Management',
-    description:
-      'Built-in audit logging, LLM model management, graph visualization, and comprehensive document management interface.',
-  },
-];
+const navLinks = [
+  { href: '#agent', key: 'nav.agent' },
+  { href: '#graph', key: 'nav.graph' },
+  { href: '#deployment', key: 'nav.deployment' },
+  { href: '/docs', key: 'nav.docs' },
+] as const;
 
-export default function Home() {
+const capabilityKeys = ['hybrid', 'graph', 'agent', 'deployment'] as const;
+const traceSteps = [
+  'question',
+  'graph',
+  'manual',
+  'compare',
+  'answer',
+] as const;
+const agentFeatureKeys = ['runtime', 'mcp', 'audit'] as const;
+const deploymentFeatureKeys = ['private', 'models', 'management'] as const;
+
+type LandingTranslations = Awaited<ReturnType<typeof getTranslations>>;
+
+export default async function Home() {
+  const t = await getTranslations('page_landing');
+
   return (
-    <>
-      <AppTopbar />
-      <PageContainer className="relative px-6">
+    <main className="bg-background text-foreground min-h-[100dvh] overflow-hidden">
+      <LandingNav t={t} />
+      <section className="relative mx-auto grid max-w-7xl gap-12 px-6 pt-28 pb-20 md:grid-cols-[1.02fr_0.98fr] md:px-10 md:pt-36 lg:gap-16">
         <div
           aria-hidden="true"
-          className="absolute inset-x-0 -top-40 -z-10 transform-gpu overflow-hidden blur-3xl sm:-top-80"
-        >
-          <div
-            style={{
-              clipPath:
-                'polygon(74.1% 44.1%, 100% 61.6%, 97.5% 26.9%, 85.5% 0.1%, 80.7% 2%, 72.5% 32.5%, 60.2% 62.4%, 52.4% 68.1%, 47.5% 58.3%, 45.2% 34.5%, 27.5% 76.7%, 0.1% 64.9%, 17.9% 100%, 27.6% 76.8%, 76.1% 97.7%, 74.1% 44.1%)',
-            }}
-            className="relative left-[calc(50%-11rem)] aspect-1155/678 w-144.5 -translate-x-1/2 rotate-30 bg-linear-to-tr from-[#ff80b5] to-[#9089fc] opacity-30 sm:left-[calc(50%-30rem)] sm:w-288.75"
-          ></div>
-        </div>
-        <PageContent className="mx-auto max-w-300 py-48">
-          <div className="hidden sm:mb-8 sm:flex sm:justify-center">
-            <div className="flex flex-row items-center gap-2 rounded-full border px-4 py-1 text-sm/6">
-              <Mail className="size-4" />
-              For technical questions, contact us by
-              <a href="mailto:sailwebs@apecloud.com" className="underline">
-                Email <span aria-hidden="true">&rarr;</span>
-              </a>
-            </div>
+          className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[44rem] opacity-90"
+          style={{
+            backgroundImage:
+              'radial-gradient(circle at 76% 18%, color-mix(in oklab, var(--primary) 14%, transparent), transparent 32rem), radial-gradient(circle at 12% 32%, color-mix(in oklab, var(--accent-ink) 8%, transparent), transparent 26rem)',
+          }}
+        />
+        <div className="flex flex-col justify-center">
+          <div className="bg-card text-muted-foreground mb-7 inline-flex w-fit items-center gap-2 rounded-full border px-2 py-1 pr-3 text-xs shadow-xs">
+            <span className="bg-primary text-primary-foreground rounded-full px-2 py-0.5 font-mono text-[10px] tracking-[0.16em] uppercase">
+              {t('hero.badge')}
+            </span>
+            <span>{t('hero.badge_text')}</span>
           </div>
-          <div className="text-center">
-            <h1 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
-              Production-Ready RAG Platform with Graph, Vector & Full-Text
-              Search
-            </h1>
-            <p className="text-muted-foreground mt-8 text-lg">
-              ApeRAG is a production-ready RAG (Retrieval-Augmented Generation)
-              platform that combines Graph RAG, vector search, and full-text
-              search. Build sophisticated AI applications with hybrid retrieval,
-              multimodal document processing, and enterprise-grade management
-              features.
-            </p>
-            <div className="mt-10 flex items-center justify-center gap-x-6">
-              <Button asChild>
-                <Link href="/workspace/collections">Get started</Link>
-              </Button>
-              <Button asChild variant="outline">
-                <Link href="/marketplace">
-                  Marketplace <ArrowRight />
-                </Link>
-              </Button>
-            </div>
+          <h1 className="max-w-3xl font-serif text-5xl leading-[1.02] font-normal tracking-[-0.045em] text-balance md:text-6xl lg:text-7xl">
+            {t('hero.title')}{' '}
+            <span className="text-primary">{t('hero.title_accent')}</span>
+          </h1>
+          <p className="text-muted-foreground mt-7 max-w-xl text-base leading-8 md:text-lg">
+            {t('hero.description')}
+          </p>
+          <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+            <Button
+              asChild
+              size="lg"
+              className="h-11 rounded-full px-6 active:scale-[0.98]"
+            >
+              <Link href="/workspace/collections">
+                {t('hero.primary_cta')}
+                <ArrowRight className="size-4" />
+              </Link>
+            </Button>
+            <Button
+              asChild
+              variant="outline"
+              size="lg"
+              className="h-11 rounded-full px-6 active:scale-[0.98]"
+            >
+              <Link href="/marketplace">{t('hero.secondary_cta')}</Link>
+            </Button>
           </div>
-        </PageContent>
-        <div
-          aria-hidden="true"
-          className="absolute inset-x-0 top-[calc(100%-30rem)] -z-10 transform-gpu overflow-hidden blur-3xl sm:top-[calc(100%-40rem)]"
-        >
-          <div
-            style={{
-              clipPath:
-                'polygon(74.1% 44.1%, 100% 61.6%, 97.5% 26.9%, 85.5% 0.1%, 80.7% 2%, 72.5% 32.5%, 60.2% 62.4%, 52.4% 68.1%, 47.5% 58.3%, 45.2% 34.5%, 27.5% 76.7%, 0.1% 64.9%, 17.9% 100%, 27.6% 76.8%, 76.1% 97.7%, 74.1% 44.1%)',
-            }}
-            className="relative left-[calc(50%+3rem)] aspect-1155/678 w-144.5 -translate-x-1/2 bg-linear-to-tr from-[#ff80b5] to-[#9089fc] opacity-30 sm:left-[calc(50%+36rem)] sm:w-288.75"
-          ></div>
+          <div className="text-muted-foreground mt-9 grid gap-3 text-sm sm:grid-cols-3">
+            {['private', 'models', 'license'].map((key) => (
+              <div key={key} className="flex items-center gap-2">
+                <span className="bg-accent-soft text-accent-ink grid size-5 place-items-center rounded-full">
+                  <Check className="size-3" />
+                </span>
+                {t(`hero.points.${key}`)}
+              </div>
+            ))}
+          </div>
         </div>
+        <HeroAgentTrace t={t} />
+      </section>
 
-        <PageContent className="">
-          <div className="mb-12 text-center text-5xl font-bold">
-            Key Features
-          </div>
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2">
-            {features.map((feature, index) => {
-              return (
-                <div
-                  key={index}
-                  className="relative overflow-hidden bg-gray-950/[4%] bg-[image:radial-gradient(var(--pattern-fg)_1px,_transparent_0)] bg-[size:10px_10px] bg-fixed [--pattern-fg:var(--color-gray-950)]/5 after:pointer-events-none after:absolute after:inset-0 after:rounded-lg after:inset-ring after:inset-ring-gray-950/5 dark:[--pattern-fg:var(--color-white)]/10 dark:after:inset-ring-white/10"
-                >
-                  <div className="p-8">
-                    <h3 className="mb-4 text-2xl">{feature.title}</h3>
-                    <div className="text-muted-foreground">
-                      {feature.description}
-                    </div>
-                  </div>
+      <section className="mx-auto max-w-7xl px-6 pb-20 md:px-10">
+        <div className="bg-card grid overflow-hidden rounded-xl border shadow-sm md:grid-cols-4">
+          {capabilityKeys.map((key, index) => (
+            <div
+              key={key}
+              className="border-b p-6 last:border-b-0 md:border-r md:border-b-0 last:md:border-r-0"
+            >
+              <div className="text-primary font-mono text-[11px] tracking-[0.16em] uppercase">
+                0{index + 1}
+              </div>
+              <div className="mt-5 text-lg font-medium tracking-tight">
+                {t(`capabilities.${key}.title`)}
+              </div>
+              <p className="text-muted-foreground mt-2 text-sm leading-6">
+                {t(`capabilities.${key}.description`)}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section
+        id="agent"
+        className="mx-auto grid max-w-7xl gap-12 px-6 py-20 md:grid-cols-[0.88fr_1.12fr] md:px-10 lg:gap-20"
+      >
+        <SectionIntro
+          eyebrow={t('agent.eyebrow')}
+          title={t('agent.title')}
+          description={t('agent.description')}
+        />
+        <div className="grid gap-4 md:grid-cols-2">
+          {agentFeatureKeys.map((key, index) => (
+            <FeaturePanel
+              key={key}
+              index={index + 1}
+              title={t(`agent.features.${key}.title`)}
+              description={t(`agent.features.${key}.description`)}
+            />
+          ))}
+        </div>
+      </section>
+
+      <section
+        id="graph"
+        className="mx-auto grid max-w-7xl gap-12 px-6 py-20 md:grid-cols-[1.12fr_0.88fr] md:px-10 lg:gap-20"
+      >
+        <GraphVisual t={t} />
+        <SectionIntro
+          eyebrow={t('graph.eyebrow')}
+          title={t('graph.title')}
+          description={t('graph.description')}
+          align="right"
+        />
+      </section>
+
+      <section
+        id="deployment"
+        className="mx-auto max-w-7xl px-6 py-20 md:px-10"
+      >
+        <div className="bg-card grid gap-8 rounded-xl border p-6 shadow-sm md:grid-cols-[0.9fr_1.1fr] md:p-10">
+          <SectionIntro
+            eyebrow={t('deployment.eyebrow')}
+            title={t('deployment.title')}
+            description={t('deployment.description')}
+          />
+          <div className="grid gap-4 sm:grid-cols-3">
+            {deploymentFeatureKeys.map((key) => (
+              <div key={key} className="bg-background rounded-xl border p-5">
+                <div className="bg-accent-soft text-accent-ink mb-6 grid size-10 place-items-center rounded-full">
+                  {key === 'private' ? (
+                    <ShieldCheck className="size-5" />
+                  ) : key === 'models' ? (
+                    <DatabaseZap className="size-5" />
+                  ) : (
+                    <Boxes className="size-5" />
+                  )}
                 </div>
-              );
-            })}
+                <div className="font-medium tracking-tight">
+                  {t(`deployment.features.${key}.title`)}
+                </div>
+                <p className="text-muted-foreground mt-2 text-sm leading-6">
+                  {t(`deployment.features.${key}.description`)}
+                </p>
+              </div>
+            ))}
           </div>
-        </PageContent>
-        <PageContent className="py-12"></PageContent>
-      </PageContainer>
-    </>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-6 py-20 md:px-10">
+        <div className="bg-foreground text-background relative overflow-hidden rounded-xl border p-8 shadow-sm md:p-12">
+          <div className="max-w-2xl">
+            <div className="text-background/60 font-mono text-xs tracking-[0.18em] uppercase">
+              {t('cta.eyebrow')}
+            </div>
+            <h2 className="mt-5 font-serif text-4xl leading-tight font-normal tracking-[-0.035em] md:text-5xl">
+              {t('cta.title')}
+            </h2>
+            <p className="text-background/70 mt-5 text-base leading-7">
+              {t('cta.description')}
+            </p>
+          </div>
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <Button
+              asChild
+              size="lg"
+              className="bg-background text-foreground hover:bg-background/90 h-11 rounded-full px-6 active:scale-[0.98]"
+            >
+              <Link href="/workspace/collections">{t('cta.primary_cta')}</Link>
+            </Button>
+            <Button
+              asChild
+              size="lg"
+              variant="outline"
+              className="border-background/20 text-background hover:bg-background/10 hover:text-background h-11 rounded-full bg-transparent px-6 active:scale-[0.98]"
+            >
+              <a href="mailto:sailwebs@apecloud.com">
+                <Mail className="size-4" />
+                {t('cta.secondary_cta')}
+              </a>
+            </Button>
+          </div>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function LandingNav({ t }: { t: LandingTranslations }) {
+  return (
+    <header className="bg-background/85 fixed inset-x-0 top-0 z-40 border-b backdrop-blur-xl">
+      <div className="mx-auto flex h-16 max-w-7xl items-center gap-8 px-6 md:px-10">
+        <AppLogo />
+        <nav className="text-muted-foreground hidden items-center gap-7 text-sm md:flex">
+          {navLinks.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="hover:text-foreground transition-colors"
+            >
+              {t(item.key)}
+            </Link>
+          ))}
+        </nav>
+        <div className="ml-auto flex items-center gap-2">
+          <Button asChild variant="ghost" size="sm" className="rounded-full">
+            <Link href="/auth/signin">{t('nav.signin')}</Link>
+          </Button>
+          <Button asChild size="sm" className="rounded-full">
+            <Link href="/workspace/collections">{t('nav.start')}</Link>
+          </Button>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function HeroAgentTrace({ t }: { t: LandingTranslations }) {
+  return (
+    <div className="relative self-center">
+      <div
+        aria-hidden="true"
+        className="absolute -inset-8 -z-10 rounded-[2rem] opacity-80"
+        style={{
+          backgroundImage:
+            'radial-gradient(circle at 30% 20%, color-mix(in oklab, var(--primary) 12%, transparent), transparent 22rem), radial-gradient(circle at 82% 82%, color-mix(in oklab, var(--accent-ink) 8%, transparent), transparent 18rem)',
+        }}
+      />
+      <div className="bg-card overflow-hidden rounded-xl border shadow-sm">
+        <div className="flex items-center gap-3 border-b px-5 py-4">
+          <div className="flex gap-1.5" aria-hidden="true">
+            <span className="bg-accent-soft size-2.5 rounded-full" />
+            <span className="bg-secondary size-2.5 rounded-full" />
+            <span className="bg-muted size-2.5 rounded-full" />
+          </div>
+          <span className="text-muted-foreground font-mono text-xs">
+            agent · collections/smt-manuals
+          </span>
+          <span className="text-primary ml-auto inline-flex items-center gap-2 font-mono text-[11px] uppercase">
+            <span className="bg-primary size-1.5 rounded-full" />
+            {t('hero_trace.status')}
+          </span>
+        </div>
+        <div className="px-6 py-5">
+          <div className="text-muted-foreground font-mono text-[11px] tracking-[0.14em] uppercase">
+            {t('hero_trace.user')}
+          </div>
+          <p className="mt-2 text-sm leading-6">{t('hero_trace.prompt')}</p>
+        </div>
+        <div className="bg-secondary/55 border-t px-6 py-5">
+          <div className="mb-4 flex items-center gap-2">
+            <Sparkles className="text-primary size-4" />
+            <span className="text-muted-foreground font-mono text-[11px] tracking-[0.16em] uppercase">
+              {t('hero_trace.title')}
+            </span>
+            <span className="text-muted-foreground ml-auto font-mono text-[11px]">
+              {t('hero_trace.meta')}
+            </span>
+          </div>
+          <div className="space-y-4">
+            {traceSteps.map((key, index) => (
+              <div key={key} className="grid grid-cols-[1.5rem_1fr] gap-3">
+                <div className="bg-card text-primary mt-1 grid size-6 place-items-center rounded-full shadow-xs">
+                  {index === 0 ? (
+                    <Sparkles className="size-3.5" />
+                  ) : index === 1 ? (
+                    <Network className="size-3.5" />
+                  ) : index === 2 ? (
+                    <BookOpenText className="size-3.5" />
+                  ) : index === 3 ? (
+                    <GitBranch className="size-3.5" />
+                  ) : (
+                    <Check className="size-3.5" />
+                  )}
+                </div>
+                <div>
+                  <div className="text-muted-foreground font-mono text-[10px] tracking-[0.14em] uppercase">
+                    {t(`hero_trace.steps.${key}.label`)}
+                  </div>
+                  <p className="text-foreground/85 mt-1 text-sm leading-6">
+                    {t(`hero_trace.steps.${key}.text`)}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SectionIntro({
+  eyebrow,
+  title,
+  description,
+  align = 'left',
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+  align?: 'left' | 'right';
+}) {
+  return (
+    <div className={align === 'right' ? 'md:pl-8' : ''}>
+      <div className="text-primary font-mono text-xs tracking-[0.18em] uppercase">
+        {eyebrow}
+      </div>
+      <h2 className="mt-5 max-w-xl font-serif text-4xl leading-[1.08] font-normal tracking-[-0.035em] md:text-5xl">
+        {title}
+      </h2>
+      <p className="text-muted-foreground mt-6 max-w-xl text-base leading-7">
+        {description}
+      </p>
+    </div>
+  );
+}
+
+function FeaturePanel({
+  index,
+  title,
+  description,
+}: {
+  index: number;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div
+      className={
+        index === 1
+          ? 'bg-card rounded-xl border p-6 shadow-sm md:col-span-2'
+          : 'bg-card rounded-xl border p-6 shadow-sm'
+      }
+    >
+      <div className="text-primary font-mono text-[11px] tracking-[0.16em] uppercase">
+        0{index}
+      </div>
+      <div className="mt-8 text-lg font-medium tracking-tight">{title}</div>
+      <p className="text-muted-foreground mt-2 max-w-xl text-sm leading-6">
+        {description}
+      </p>
+    </div>
+  );
+}
+
+function GraphVisual({ t }: { t: LandingTranslations }) {
+  const nodes = [
+    [
+      '50%',
+      '48%',
+      'h-18 w-18 bg-primary text-primary-foreground',
+      t('graph.nodes.center'),
+    ],
+    ['24%', '22%', 'h-8 w-8 bg-chart-2 text-background', t('graph.nodes.org')],
+    [
+      '76%',
+      '25%',
+      'h-10 w-10 bg-chart-4 text-background',
+      t('graph.nodes.product'),
+    ],
+    [
+      '20%',
+      '72%',
+      'h-9 w-9 bg-chart-5 text-background',
+      t('graph.nodes.event'),
+    ],
+    [
+      '76%',
+      '76%',
+      'h-8 w-8 bg-chart-1 text-background',
+      t('graph.nodes.person'),
+    ],
+    [
+      '48%',
+      '16%',
+      'h-7 w-7 bg-chart-3 text-background',
+      t('graph.nodes.concept'),
+    ],
+  ] as const;
+
+  return (
+    <div className="bg-card relative min-h-[25rem] rounded-xl border p-5 shadow-sm">
+      <svg
+        className="absolute inset-5 h-[calc(100%-2.5rem)] w-[calc(100%-2.5rem)]"
+        aria-hidden="true"
+      >
+        <line
+          x1="50%"
+          y1="48%"
+          x2="24%"
+          y2="22%"
+          className="stroke-border"
+          strokeWidth="1"
+        />
+        <line
+          x1="50%"
+          y1="48%"
+          x2="76%"
+          y2="25%"
+          className="stroke-border"
+          strokeWidth="1"
+        />
+        <line
+          x1="50%"
+          y1="48%"
+          x2="20%"
+          y2="72%"
+          className="stroke-border"
+          strokeWidth="1"
+        />
+        <line
+          x1="50%"
+          y1="48%"
+          x2="76%"
+          y2="76%"
+          className="stroke-border"
+          strokeWidth="1"
+        />
+        <line
+          x1="50%"
+          y1="48%"
+          x2="48%"
+          y2="16%"
+          className="stroke-border"
+          strokeWidth="1"
+        />
+      </svg>
+      {nodes.map(([left, top, className, label]) => (
+        <div
+          key={label}
+          className="absolute -translate-x-1/2 -translate-y-1/2"
+          style={{ left, top }}
+        >
+          <div
+            className={`${className} border-card grid place-items-center rounded-full border-4 font-mono text-[10px] shadow-sm`}
+          >
+            {label}
+          </div>
+        </div>
+      ))}
+      <div className="bg-background/90 absolute bottom-5 left-5 rounded-xl border p-4 shadow-sm backdrop-blur">
+        <div className="text-muted-foreground font-mono text-[11px] tracking-[0.16em] uppercase">
+          {t('graph.legend')}
+        </div>
+        <div className="text-muted-foreground mt-3 grid grid-cols-2 gap-x-5 gap-y-2 text-xs">
+          {['Person', 'Org', 'Product', 'Event'].map((item, index) => (
+            <div key={item} className="flex items-center gap-2">
+              <span
+                className={`size-2 rounded-full ${
+                  index === 0
+                    ? 'bg-chart-1'
+                    : index === 1
+                      ? 'bg-chart-2'
+                      : index === 2
+                        ? 'bg-chart-4'
+                        : 'bg-chart-5'
+                }`}
+              />
+              {item}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }

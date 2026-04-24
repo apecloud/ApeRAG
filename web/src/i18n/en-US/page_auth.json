@@ -11,6 +11,8 @@
   "email_placeholder": "邮箱",
 
   "signin": "Sign In",
+  "signin_eyebrow": "Secure workspace",
+  "signin_description": "Sign in to review collections, trace agent work, and manage your ApeRAG workspace.",
   "login_in_with_a_third_party_account": "Login with a third-party account",
   "login_with_google": "Login with Google",
   "login_with_github": "Login with GitHub",
@@ -20,10 +22,20 @@
   "do_not_have_an_account": "Don't have an account? ",
 
   "signup": "Sign Up",
+  "signup_eyebrow": "Create workspace access",
+  "signup_description": "Create an account for your ApeRAG workspace. Existing backend registration rules stay unchanged.",
   "register_an_account": "Register an account",
   "already_hava_an_account": "Already have an account? ",
 
   "signout": "Sign Out",
+  "auth_hero_eyebrow": "ApeRAG",
+  "auth_hero_quote": "Ten years of operational documents become an assistant that can explain its path.",
+  "auth_hero_description": "The login surface is quiet by design: one warm brand system, existing authentication methods, and no extra product promises.",
+  "auth_footer": "Access is controlled by your configured ApeRAG authentication methods.",
+  "check_email_title": "Check your email",
+  "check_email_description": "A sign in link has been sent to your email address.",
+  "signin_again": "Sign in again",
+  "oauth_eyebrow": "OAuth callback",
 
   "processing_oauth_login": "Processing OAuth login...",
   "oauth_successful": "OAuth successful",

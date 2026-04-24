@@ -184,6 +184,8 @@
     "email": "邮箱",
     "email_placeholder": "邮箱",
     "signin": "Sign In",
+    "signin_eyebrow": "Secure workspace",
+    "signin_description": "Sign in to review collections, trace agent work, and manage your ApeRAG workspace.",
     "login_in_with_a_third_party_account": "Login with a third-party account",
     "login_with_google": "Login with Google",
     "login_with_github": "Login with GitHub",
@@ -192,9 +194,19 @@
     "forgot_your_password": "Forgot your password",
     "do_not_have_an_account": "Don't have an account? ",
     "signup": "Sign Up",
+    "signup_eyebrow": "Create workspace access",
+    "signup_description": "Create an account for your ApeRAG workspace. Existing backend registration rules stay unchanged.",
     "register_an_account": "Register an account",
     "already_hava_an_account": "Already have an account? ",
     "signout": "Sign Out",
+    "auth_hero_eyebrow": "ApeRAG",
+    "auth_hero_quote": "Ten years of operational documents become an assistant that can explain its path.",
+    "auth_hero_description": "The login surface is quiet by design: one warm brand system, existing authentication methods, and no extra product promises.",
+    "auth_footer": "Access is controlled by your configured ApeRAG authentication methods.",
+    "check_email_title": "Check your email",
+    "check_email_description": "A sign in link has been sent to your email address.",
+    "signin_again": "Sign in again",
+    "oauth_eyebrow": "OAuth callback",
     "processing_oauth_login": "Processing OAuth login...",
     "oauth_successful": "OAuth successful",
     "the_system_will_automatically_redirect": "the system will automatically redirect",
@@ -666,6 +678,7 @@
     "node_group": "Node Group",
     "node_search": "Node search",
     "no_nodes_found": "No node information found",
+    "no_description": "No description available",
     "merge_infomation": "{count} merge suggestions",
     "merge_suggestions": "Merge suggestions",
     "merge_accept": "Accept",
@@ -682,6 +695,136 @@
     "entity_geo": "GEO",
     "entity_event": "Event",
     "entity_UNKNOWN": "UNKNOWN"
+  },
+  "page_landing": {
+    "nav": {
+      "agent": "Agent",
+      "graph": "Graph",
+      "deployment": "Deployment",
+      "docs": "Docs",
+      "signin": "Sign in",
+      "start": "Open workspace"
+    },
+    "hero": {
+      "badge": "v2",
+      "badge_text": "GraphRAG x Agent runtime · private deployment",
+      "title": "Turn enterprise knowledge into",
+      "title_accent": "traceable answers.",
+      "description": "ApeRAG combines hybrid retrieval, knowledge graphs, and observable agent execution so operators can ask operational questions without losing provenance.",
+      "primary_cta": "Open workspace",
+      "secondary_cta": "Browse marketplace",
+      "points": {
+        "private": "Private deployment",
+        "models": "Works with mainstream models",
+        "license": "Apache 2.0"
+      }
+    },
+    "hero_trace": {
+      "status": "running",
+      "user": "Operator",
+      "prompt": "SMT-03 on line 3 reported E-047 this morning. Help me narrow down the likely cause.",
+      "title": "Agent trace",
+      "meta": "sources tracked",
+      "steps": {
+        "question": {
+          "label": "Understand",
+          "text": "Clarifies the equipment, error code, and time window before touching tools."
+        },
+        "graph": {
+          "label": "Graph",
+          "text": "Searches the knowledge graph for SMT-03 and related failure events."
+        },
+        "manual": {
+          "label": "Documents",
+          "text": "Reads maintenance notes and the E-047 troubleshooting section."
+        },
+        "compare": {
+          "label": "Compare",
+          "text": "Matches the recent incidents with historical feeder tension symptoms."
+        },
+        "answer": {
+          "label": "Answer",
+          "text": "Returns a concise diagnosis with citations and the next inspection steps."
+        }
+      }
+    },
+    "capabilities": {
+      "hybrid": {
+        "title": "Hybrid retrieval",
+        "description": "Vector, full-text, graph, and document evidence stay available in one query path."
+      },
+      "graph": {
+        "title": "Knowledge graph",
+        "description": "Entities, incidents, documents, and relationships become inspectable instead of hidden in chunks."
+      },
+      "agent": {
+        "title": "Observable agents",
+        "description": "Reasoning steps, searches, readings, and final answers are separated for review."
+      },
+      "deployment": {
+        "title": "Production controls",
+        "description": "Authentication, model providers, quota, API keys, audit logs, and admin controls remain part of the product."
+      }
+    },
+    "agent": {
+      "eyebrow": "01 — Agent",
+      "title": "The answer is only useful when the path is visible.",
+      "description": "ApeRAG keeps the agent trace readable by default: what it tried, what it read, what it compared, and which sources support the final answer.",
+      "features": {
+        "runtime": {
+          "title": "Replayable runtime",
+          "description": "Streaming events are preserved as a clear action timeline rather than raw tool payloads."
+        },
+        "mcp": {
+          "title": "MCP-ready tools",
+          "description": "Internal systems can be exposed as controlled tools without changing the user-facing conversation model."
+        },
+        "audit": {
+          "title": "Reviewable execution",
+          "description": "Citations, feedback, and trace details stay available without cluttering the primary reading path."
+        }
+      }
+    },
+    "graph": {
+      "eyebrow": "02 — Graph",
+      "title": "Dense relationships, rendered with restraint.",
+      "description": "The graph view keeps entity types, neighbors, search, and merge suggestions available while using a quieter warm palette for daily work.",
+      "legend": "Entity types",
+      "nodes": {
+        "center": "SMT",
+        "org": "ORG",
+        "product": "EQP",
+        "event": "EVT",
+        "person": "OPS",
+        "concept": "RAG"
+      }
+    },
+    "deployment": {
+      "eyebrow": "03 — Deployment",
+      "title": "Built for controlled enterprise environments.",
+      "description": "The design upgrade does not remove operational surfaces. Existing configuration, document management, quota, providers, and admin paths continue under the same visual system.",
+      "features": {
+        "private": {
+          "title": "Private runtime",
+          "description": "Deploy ApeRAG in your own environment and keep data controls explicit."
+        },
+        "models": {
+          "title": "Model platform",
+          "description": "Provider and model configuration remains first-class, not hidden behind a demo shell."
+        },
+        "management": {
+          "title": "Admin surfaces",
+          "description": "API keys, quota, audit logs, and system configuration will use the same brand layer."
+        }
+      }
+    },
+    "cta": {
+      "eyebrow": "Start with existing data",
+      "title": "Open a collection, ask a question, inspect the path.",
+      "description": "The new interface focuses on the workflows ApeRAG already supports: collections, documents, graph visualization, agent chat, marketplace publishing, and operational controls.",
+      "primary_cta": "Open workspace",
+      "secondary_cta": "Contact ApeCloud"
+    }
   },
   "page_marketplace": {
     "metadata": {

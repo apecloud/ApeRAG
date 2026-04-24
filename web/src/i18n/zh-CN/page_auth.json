@@ -11,6 +11,8 @@
   "email_placeholder": "邮箱",
 
   "signin": "登录",
+  "signin_eyebrow": "安全工作区",
+  "signin_description": "登录后可以查看 Collection、追踪 Agent 执行，并管理你的 ApeRAG 工作区。",
   "login_in_with_a_third_party_account": "使用第三方账号登录",
   "login_with_google": "Google账号",
   "login_with_github": "GitHub账号",
@@ -20,10 +22,20 @@
   "do_not_have_an_account": "没有账号？ ",
 
   "signup": "注册",
+  "signup_eyebrow": "创建工作区访问",
+  "signup_description": "创建 ApeRAG 工作区账号，注册规则仍沿用当前后端能力。",
   "register_an_account": "注册账号",
   "already_hava_an_account": "已有账号？ ",
 
   "signout": "退出",
+  "auth_hero_eyebrow": "ApeRAG",
+  "auth_hero_quote": "十年的工艺文档，变成一个能说明答案路径的助手。",
+  "auth_hero_description": "登录页面保持克制：使用统一暖色品牌层、沿用现有认证方式，不额外承诺未接入的产品能力。",
+  "auth_footer": "访问权限由当前 ApeRAG 已配置的认证方式控制。",
+  "check_email_title": "检查你的邮箱",
+  "check_email_description": "登录链接已经发送到你的邮箱地址。",
+  "signin_again": "重新登录",
+  "oauth_eyebrow": "OAuth 回调",
 
   "processing_oauth_login": "处理OAuth登录中...",
   "oauth_successful": "OAuth认证成功",
