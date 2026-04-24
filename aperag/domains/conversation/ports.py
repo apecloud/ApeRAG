@@ -115,34 +115,8 @@ class QuotaOps(Protocol):
     ) -> None: ...
 
 
-@runtime_checkable
-class ChatCollectionServiceOps(Protocol):
-    """``chat_document_service``'s view of ``chat_collection_service``.
-
-    Phase 5 step 5-S4d moves ``chat_document_service`` into the
-    conversation domain before ``chat_collection_service`` itself —
-    ``chat_collection_service.create_user_chat_collection`` reaches
-    ``session.get(User, ...)`` which requires the Phase 4 identity
-    domain merge before it can be rewritten without leaking a G1
-    legacy-aggregate ``User`` import into the domain module.
-
-    Until the sibling service follows (5-S4f after ``#1633`` merges,
-    per PM ``msg=0f9f10c4`` β ruling), the two surfaces
-    ``chat_document_service`` actually calls —
-    ``get_user_chat_collection`` and ``create_user_chat_collection``
-    — are exposed here as a consumer-owned Protocol. ``aperag/app.py``
-    wires the legacy singleton in at startup; the legacy instance
-    structurally satisfies the Protocol verbatim.
-    """
-
-    async def get_user_chat_collection(self, user_id: str) -> Any: ...
-
-    async def create_user_chat_collection(self, user_id: str) -> Any: ...
-
-
 __all__ = [
     "KnowledgeBaseCollectionView",
     "AuthenticatedUser",
     "QuotaOps",
-    "ChatCollectionServiceOps",
 ]

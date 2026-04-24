@@ -25,8 +25,16 @@ required.
   one in the agent_runtime domain (`PromptTemplateOps`). The
   `ChatDocumentOps` Protocol seeded in 5-S1 was retired in 5-S5b
   (direct cross-domain import after the conversation domain landed).
+  Phase 6 subsequently retired `ChatCollectionServiceOps` as well
+  — `chat_document_service` now sibling-imports
+  `chat_collection_service` directly (both live in the conversation
+  domain after 5-S4f).
 - One new runtime smoke test: `test_phase5_di_critical_wirings_at_app_startup`
-  (G18 alt) assert three DI slots are non-`None` after `import aperag.app`.
+  (G18 alt) asserts the consumer-owned Protocol DI slots are
+  non-`None` after `import aperag.app`. Phase 6 shrunk the
+  registry from three slots to two once `ChatCollectionServiceOps`
+  was retired; the two remaining entries are
+  `conversation._quota_ops` and `agent_runtime._prompt_template_ops`.
 - Lesson 9a-quatuordec codified as a gate:
   `test_phase5_domain_routes_never_use_pep_563_future_annotations`
   enforces that no `aperag/domains/**/api/routes.py` file declares
@@ -99,7 +107,7 @@ required.
 | `AuthenticatedUser` | conversation / agent_runtime / evaluation (three separate per-domain copies) | implicit (FastAPI `Depends(required_user)`) — identity `User` row satisfies each Protocol structurally | — |
 | `KnowledgeBaseCollectionView` | conversation | structural — KB `Collection` ORM satisfies it | Phase 3 knowledge_base.db.models.Collection |
 | `QuotaOps` | conversation | `aperag/app.py` `_conv_set_quota_ops(_legacy_quota_service)` | `aperag.service.quota_service` (legacy, Phase 6 candidate) |
-| `ChatCollectionServiceOps` | conversation | `aperag/app.py` `_conv_set_chat_collection_ops(_legacy_chat_collection_service)` | `aperag.service.chat_collection_service` (shim — canonical domain home is live; Phase 6 simplifies) |
+| `ChatCollectionServiceOps` (**retired** in Phase 6) | conversation | — | replaced by sibling direct import (same domain) |
 | `PromptTemplateOps` | agent_runtime | `aperag/app.py` `_ar_set_prompt_template_ops(_PromptTemplateOpsAdapter())` | `aperag.service.prompt_template_service` (legacy, Phase 6 candidate) |
 | `ChatDocumentOps` (**retired** in 5-S5b) | agent_runtime | — | replaced by direct cross-domain import |
 

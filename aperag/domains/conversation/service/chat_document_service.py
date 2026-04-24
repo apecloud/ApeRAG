@@ -12,30 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Chat-document service moved to the ``conversation`` domain in
-Phase 5 step 5-S4d.
+"""Chat-document service for the ``conversation`` domain.
 
-Two cross-service hookups were rewritten for the move:
+Cross-service hookups are direct sibling / cross-domain imports:
 
-* ``aperag.service.chat_collection_service`` (G1 banned) is reached
-  via the new consumer-owned ``ChatCollectionServiceOps`` Protocol
-  (see ``aperag.domains.conversation.ports``). The legacy singleton
-  is wired in by ``aperag/app.py`` at startup; the Protocol only
-  surfaces the two methods this module actually calls
-  (``get_user_chat_collection`` / ``create_user_chat_collection``),
-  matching the narrower-than-upstream pattern Phase 3 established
-  for ``QuotaOps``.
-* ``aperag.service.document_service`` (G1 banned) is replaced with a
-  direct cross-domain import of
-  ``aperag.domains.knowledge_base.service.document_service`` (Phase
-  3 merged). Cross-domain direct imports are legal under G1 — the
-  strict ban only covers the three legacy aggregate modules.
+* ``chat_collection_service`` is a sibling inside this domain
+  (Phase 5 step 5-S4f moved it here) — direct import, no Protocol seam.
+* ``aperag.domains.knowledge_base.service.document_service`` is a
+  cross-domain direct import (legal under G1 — the strict ban only
+  covers the three legacy aggregate modules).
 
-``aperag.schema.view_models.Document`` is reached via
-``aperag.domains.knowledge_base.schemas.Document`` (the canonical
-location after Phase 3 step 5b3). Keeping the type annotation on
-``upload_chat_document`` means the OpenAPI response_model stays
-byte-stable when 5-S4g eventually merges the chat routes.
+``aperag.domains.knowledge_base.schemas.Document`` is the canonical
+response type after Phase 3 step 5b3; keeping the annotation on
+``upload_chat_document`` preserves the OpenAPI response_model.
 """
 
 from __future__ import annotations
@@ -47,37 +36,12 @@ from typing import Any, Dict, List, Optional
 from fastapi import HTTPException, UploadFile
 
 from aperag.db.ops import async_db_ops
-from aperag.domains.conversation.ports import ChatCollectionServiceOps
+from aperag.domains.conversation.service.chat_collection_service import chat_collection_service
 from aperag.domains.knowledge_base.schemas import Document
 from aperag.domains.knowledge_base.service.document_service import document_service
 from aperag.utils.utils import utc_now
 
 logger = logging.getLogger(__name__)
-
-_chat_collection_ops: Optional[ChatCollectionServiceOps] = None
-
-
-def set_chat_collection_ops(ops: ChatCollectionServiceOps) -> None:
-    """Wire the ``ChatCollectionServiceOps`` singleton at app startup.
-
-    ``aperag/app.py`` calls this once with the legacy
-    ``aperag.service.chat_collection_service.chat_collection_service``
-    instance (structurally satisfies the Protocol) until 5-S4f moves
-    ``chat_collection_service`` into the conversation domain and the
-    adapter is dropped.
-    """
-    global _chat_collection_ops
-    _chat_collection_ops = ops
-
-
-def _get_chat_collection_ops() -> ChatCollectionServiceOps:
-    if _chat_collection_ops is None:
-        raise RuntimeError(
-            "ChatCollectionServiceOps not wired — call aperag.domains.conversation.service."
-            "chat_document_service.set_chat_collection_ops() in aperag/app.py startup before"
-            " serving requests."
-        )
-    return _chat_collection_ops
 
 
 class ChatDocumentService:
@@ -90,11 +54,10 @@ class ChatDocumentService:
 
     async def upload_chat_document(self, chat_id: str, user_id: str, file: UploadFile) -> Document:
         """Upload chat document to user's chat collection"""
-        ops = _get_chat_collection_ops()
-        collection = await ops.get_user_chat_collection(user_id)
+        collection = await chat_collection_service.get_user_chat_collection(user_id)
         if not collection:
             # Create if missing (fallback)
-            collection = await ops.create_user_chat_collection(user_id)
+            collection = await chat_collection_service.create_user_chat_collection(user_id)
 
         # Prepare document metadata (without message_id initially)
         doc_metadata = {
@@ -113,7 +76,7 @@ class ChatDocumentService:
 
     async def get_chat_document_by_id(self, chat_id: str, document_id: str, user_id: str) -> Optional[Document]:
         """Get chat document by ID with chat ownership validation"""
-        collection = await _get_chat_collection_ops().get_user_chat_collection(user_id)
+        collection = await chat_collection_service.get_user_chat_collection(user_id)
         if not collection:
             return None
 
@@ -128,7 +91,7 @@ class ChatDocumentService:
         if not document_ids:
             return []
 
-        collection = await _get_chat_collection_ops().get_user_chat_collection(user_id)
+        collection = await chat_collection_service.get_user_chat_collection(user_id)
         if not collection:
             return []
 
@@ -158,7 +121,7 @@ class ChatDocumentService:
 
     async def has_documents_in_chat(self, chat_id: str, user_id: str) -> bool:
         """Return whether the current chat already has searchable uploaded files."""
-        collection = await _get_chat_collection_ops().get_user_chat_collection(user_id)
+        collection = await chat_collection_service.get_user_chat_collection(user_id)
         if not collection:
             return False
 
@@ -198,7 +161,7 @@ class ChatDocumentService:
         self, chat_id: str, message_id: str, document_ids: List[str], user_id: str
     ) -> None:
         """Associate uploaded documents with a message when user sends the message"""
-        collection = await _get_chat_collection_ops().get_user_chat_collection(user_id)
+        collection = await chat_collection_service.get_user_chat_collection(user_id)
         if not collection:
             return
 
