@@ -48,9 +48,7 @@ RAW_SCHEMA_IMPORT_RE = re.compile(r"""from\s+['"]@/api-v2/schema['"]""")
 # Direct construction or consumption of the low-level HTTP client in the
 # Next.js ``app/`` tree. Only identifiers with explicit module semantics
 # are matched so we do not trip on prose / comments / unrelated names.
-DIRECT_CLIENT_RE = re.compile(
-    r"""\b(?:defaultApi|apiClient|browserApiClient|createServerApiClient)\b"""
-)
+DIRECT_CLIENT_RE = re.compile(r"""\b(?:defaultApi|apiClient|browserApiClient|createServerApiClient)\b""")
 
 LEGACY_AGGREGATE_MODULES = (
     "aperag.service",
@@ -90,8 +88,7 @@ def test_web_no_legacy_api_import_outside_allowlist():
         "New files import the legacy `@/api` SDK outside the allowlist. "
         "Migrate them to `@/features/<domain>/{client,server}-api` or "
         "update `tests/boundaries/web_legacy_api_allowlist.txt` with a "
-        "deliberate entry + PR-body justification:\n  "
-        + "\n  ".join(sorted(offenders))
+        "deliberate entry + PR-body justification:\n  " + "\n  ".join(sorted(offenders))
     )
     assert not missing, (
         "Allowlist entries no longer exist in the tree — remove them "
@@ -125,8 +122,7 @@ def test_web_raw_schema_import_limited_to_typed_adapters():
     )
     assert not missing, (
         "Allowlist entries no longer exist in the tree — remove them "
-        "from `tests/boundaries/web_raw_schema_allowlist.txt`:\n  "
-        + "\n  ".join(missing)
+        "from `tests/boundaries/web_raw_schema_allowlist.txt`:\n  " + "\n  ".join(missing)
     )
 
 
@@ -160,13 +156,11 @@ def test_web_app_routes_use_feature_adapters_only():
         "through `features/<domain>/{server,client}-api` rather than "
         "construct the low-level HTTP client directly. Either migrate "
         "the caller or update "
-        "`tests/boundaries/web_route_data_allowlist.txt`:\n  "
-        + "\n  ".join(sorted(offenders))
+        "`tests/boundaries/web_route_data_allowlist.txt`:\n  " + "\n  ".join(sorted(offenders))
     )
     assert not missing, (
         "Allowlist entries no longer exist — remove them from "
-        "`tests/boundaries/web_route_data_allowlist.txt`:\n  "
-        + "\n  ".join(missing)
+        "`tests/boundaries/web_route_data_allowlist.txt`:\n  " + "\n  ".join(missing)
     )
 
 
@@ -177,11 +171,7 @@ def _iter_domain_py_files() -> list[Path]:
     root = REPO_ROOT / "aperag" / "domains"
     if not root.exists():
         return []
-    return sorted(
-        path
-        for path in root.rglob("*.py")
-        if path.is_file() and path.name != "__init__.py"
-    )
+    return sorted(path for path in root.rglob("*.py") if path.is_file() and path.name != "__init__.py")
 
 
 def _imported_modules(source: str) -> set[str]:
@@ -234,10 +224,7 @@ def test_aperag_domains_never_import_legacy_aggregate_modules():
         modules = _imported_modules(path.read_text())
         for legacy in LEGACY_AGGREGATE_MODULES:
             if any(module == legacy or module.startswith(legacy + ".") for module in modules):
-                offenders.append(
-                    f"{path.relative_to(REPO_ROOT).as_posix()} imports "
-                    f"{legacy}.*"
-                )
+                offenders.append(f"{path.relative_to(REPO_ROOT).as_posix()} imports {legacy}.*")
 
     assert not offenders, (
         "Canonical domain code imports a legacy aggregate module — "
@@ -257,9 +244,7 @@ def _iter_domain_api_py_files() -> list[Path]:
     return sorted(
         path
         for path in root.rglob("*.py")
-        if path.is_file()
-        and path.name != "__init__.py"
-        and "api" in path.relative_to(root).parts
+        if path.is_file() and path.name != "__init__.py" and "api" in path.relative_to(root).parts
     )
 
 
@@ -334,7 +319,7 @@ def test_aperag_domains_auth_dependency_is_not_any():
             if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue
             args = node.args
-            for arg, default in zip(args.args[-len(args.defaults):], args.defaults):
+            for arg, default in zip(args.args[-len(args.defaults) :], args.defaults):
                 dep_name = _depends_callee_name(default)
                 if dep_name is None or dep_name not in AUTH_DEPENDENCY_NAMES:
                     continue
@@ -390,11 +375,7 @@ def _iter_domain_py_files_for(domain: str) -> list[Path]:
     root = REPO_ROOT / "aperag" / "domains" / domain
     if not root.exists():
         return []
-    return sorted(
-        path
-        for path in root.rglob("*.py")
-        if path.is_file() and path.name != "__init__.py"
-    )
+    return sorted(path for path in root.rglob("*.py") if path.is_file() and path.name != "__init__.py")
 
 
 def test_retrieval_kg_protocol_boundary_is_one_way():
@@ -426,11 +407,7 @@ def test_retrieval_kg_protocol_boundary_is_one_way():
         modules = _imported_modules(path.read_text())
         for forbidden in _RETRIEVAL_FORBIDDEN_KG_IMPORTS:
             hit = next(
-                (
-                    module
-                    for module in modules
-                    if module == forbidden or module.startswith(forbidden + ".")
-                ),
+                (module for module in modules if module == forbidden or module.startswith(forbidden + ".")),
                 None,
             )
             if hit is None:
@@ -472,7 +449,9 @@ _LEGACY_ROUTE_PATTERNS = (
     # ``aperag.views.*`` modules after the Phase 2 hard-cut.
     re.compile(r"""@router\.(?:post|get|delete|put|patch)\(\s*["'][^"']*/collections/\{[^/]+\}/searches"""),
     re.compile(r"""@router\.(?:post|get|delete|put|patch)\(\s*["'][^"']*/collections/\{[^/]+\}/graphs/labels"""),
-    re.compile(r"""@router\.(?:post|get|delete|put|patch)\(\s*["'][^"']*/collections/\{[^/]+\}/graphs(?!/export/kg-eval)"""),
+    re.compile(
+        r"""@router\.(?:post|get|delete|put|patch)\(\s*["'][^"']*/collections/\{[^/]+\}/graphs(?!/export/kg-eval)"""
+    ),
     re.compile(r"""@router\.(?:post|get|delete|put|patch)\(\s*["'][^"']*/collections/\{[^/]+\}/graph-curation"""),
 )
 
@@ -591,7 +570,6 @@ def test_knowledge_base_di_wire_up_populated_after_app_import():
     # (subsequent imports are a no-op because Python caches the
     # loaded module in ``sys.modules``).
     import aperag.app  # noqa: F401
-
     import aperag.domains.knowledge_base.service.collection_service as kb_cs
 
     missing = [
@@ -607,8 +585,7 @@ def test_knowledge_base_di_wire_up_populated_after_app_import():
     assert not missing, (
         "Knowledge-base consumer-owned Protocol DI slot(s) unwired "
         "after ``import aperag.app``. Check the startup section of "
-        "``aperag/app.py`` (Phase 3 Step 5b2c). Missing: "
-        + ", ".join(missing)
+        "``aperag/app.py`` (Phase 3 Step 5b2c). Missing: " + ", ".join(missing)
     )
 
 
@@ -675,9 +652,8 @@ def test_phase4_consumer_domains_never_import_role_enum():
                     offenders.append(f"{path.relative_to(REPO_ROOT).as_posix()} imports Role from {node.module}")
     assert not offenders, (
         "Non-identity domain imports the ``Role`` enum. Use literal "
-        "compare (``user.role == \"admin\"``) against the per-domain "
-        "Protocol's ``role: str`` attribute instead.\n  "
-        + "\n  ".join(sorted(offenders))
+        'compare (``user.role == "admin"``) against the per-domain '
+        "Protocol's ``role: str`` attribute instead.\n  " + "\n  ".join(sorted(offenders))
     )
 
 
@@ -705,8 +681,7 @@ def test_phase4_consumer_domains_never_import_user_orm_class():
     assert not offenders, (
         "Non-identity domain imports the ``User`` ORM class. Use "
         "the per-domain ``AuthenticatedUser(Protocol)`` or a narrow "
-        "``UserView(Protocol)`` contract instead (lesson 9a-ter).\n  "
-        + "\n  ".join(sorted(offenders))
+        "``UserView(Protocol)`` contract instead (lesson 9a-ter).\n  " + "\n  ".join(sorted(offenders))
     )
 
 
@@ -719,7 +694,6 @@ def test_phase4_di_critical_wirings_at_app_startup():
     naming scan (fragile) — runtime state is what actually matters.
     """
     import aperag.app  # noqa: F401 — triggers module-scope wire-up
-
     from aperag.domains.identity.service import user_manager as identity_user_manager
     from aperag.domains.knowledge_base.service import collection_service as kb_collection_service
 
@@ -734,15 +708,95 @@ def test_phase4_di_critical_wirings_at_app_startup():
         (identity_user_manager, "_chat_init_ops"),
         (identity_user_manager, "_quota_init_ops"),
     ]
-    missing = [
-        f"{module.__name__}.{attr}"
-        for module, attr in CRITICAL_WIRINGS
-        if getattr(module, attr, None) is None
-    ]
+    missing = [f"{module.__name__}.{attr}" for module, attr in CRITICAL_WIRINGS if getattr(module, attr, None) is None]
     assert not missing, (
         "Critical DI wire-up missing after ``import aperag.app`` — "
-        "check the startup section of ``aperag/app.py``. Missing: "
-        + ", ".join(missing)
+        "check the startup section of ``aperag/app.py``. Missing: " + ", ".join(missing)
+    )
+
+
+def test_phase5_di_critical_wirings_at_app_startup():
+    """G18 alt: Phase 5 extension of G17. ``CRITICAL_WIRINGS`` registry
+    for the three Phase 5 domains — conversation / agent_runtime /
+    evaluation — after ``import aperag.app`` the listed
+    ``_<name>_ops`` slots must resolve to non-``None`` instances.
+
+    Canonical msg=cc04fa86 (living registry) + msg=6fbf875c (final 3
+    entries locked after direct-import simplifications in 5-S4b /
+    5-S4e / 5-S5b / 5-S6). The ``dispatch_fn`` module-level alias in
+    ``aperag.domains.evaluation.worker`` is intentionally **not**
+    listed: it is a test-injection seam, not a Protocol+DI slot.
+    """
+    import aperag.app  # noqa: F401 — triggers module-scope wire-up
+    from aperag.domains.agent_runtime import runtime as agent_runtime_runtime
+    from aperag.domains.conversation.service import bot_service as conversation_bot_service
+    from aperag.domains.conversation.service import chat_document_service as conversation_chat_document_service
+
+    PHASE5_CRITICAL_WIRINGS = [
+        # Phase 5 conversation DI slot — bot_service ↔ legacy quota_service
+        # (msg=4a93c97e Q1 C; legacy provider stays through Phase 6).
+        (conversation_bot_service, "_quota_ops"),
+        # Phase 5 conversation DI slot — chat_document_service ↔
+        # chat_collection_service. The sibling is now in the conversation
+        # domain (5-S4f) so this seam is a Phase 6 simplification
+        # candidate; keep the wire-up until the Protocol is retired.
+        (conversation_chat_document_service, "_chat_collection_ops"),
+        # Phase 5 agent_runtime DI slot — runtime.py ↔ legacy
+        # prompt_template_service (msg=65a3b27d / 3578aa59; legacy
+        # provider stays through Phase 6).
+        (agent_runtime_runtime, "_prompt_template_ops"),
+    ]
+    missing = [
+        f"{module.__name__}.{attr}" for module, attr in PHASE5_CRITICAL_WIRINGS if getattr(module, attr, None) is None
+    ]
+    assert not missing, (
+        "Phase 5 critical DI wire-up missing after ``import aperag.app`` — "
+        "check the startup section of ``aperag/app.py``. Missing: " + ", ".join(missing)
+    )
+
+
+def test_phase5_domain_routes_never_use_pep_563_future_annotations():
+    """Lesson 9a-quatuordec codification: FastAPI route modules must
+    not use ``from __future__ import annotations``. PEP 563
+    stringifies the ``-> Response`` return annotation, and the
+    FastAPI ``is_body_allowed_for_status_code(204)`` check at route
+    registration dereferences the annotation by value — stringified
+    annotations trip the assertion and the route fails to register.
+
+    Phase 3 step 5a discovered the interaction and
+    ``docs/modularization/breaking-changes/phase3-knowledge_base.md``
+    lesson 9a-quatuordec recorded it. This test enforces the
+    discipline across **every** ``aperag/domains/**/api/routes.py``
+    module and the two-router conversation module it pulls in.
+    """
+
+    def _has_future_annotations(path: Path) -> bool:
+        """AST-based check — ignores docstring / comment mentions."""
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except SyntaxError:
+            return False
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module == "__future__":
+                if any(alias.name == "annotations" for alias in node.names):
+                    return True
+        return False
+
+    offenders: list[str] = []
+    for route_file in (REPO_ROOT / "aperag" / "domains").rglob("api/routes.py"):
+        if _has_future_annotations(route_file):
+            offenders.append(route_file.relative_to(REPO_ROOT).as_posix())
+    # Phase 4 model_platform splits into two router modules — include both.
+    for extra in (
+        REPO_ROOT / "aperag" / "domains" / "model_platform" / "api" / "llm_routes.py",
+        REPO_ROOT / "aperag" / "domains" / "model_platform" / "api" / "providers_v2_routes.py",
+    ):
+        if extra.exists() and _has_future_annotations(extra):
+            offenders.append(extra.relative_to(REPO_ROOT).as_posix())
+    assert not offenders, (
+        "FastAPI route modules must not declare ``from __future__ import "
+        "annotations`` — PEP 563 breaks ``is_body_allowed_for_status_code`` "
+        "for 204 handlers (lesson 9a-quatuordec). Offenders:\n  " + "\n  ".join(sorted(offenders))
     )
 
 
@@ -751,12 +805,8 @@ def test_phase4_di_critical_wirings_at_app_startup():
 
 FEATURES_DIR = WEB_SRC / "features"
 
-BROWSER_CLIENT_IMPORT_RE = re.compile(
-    r"""from\s+['"]@/lib/api/typed/browser['"]"""
-)
-SERVER_CLIENT_IMPORT_RE = re.compile(
-    r"""from\s+['"]@/lib/api/typed/server['"]"""
-)
+BROWSER_CLIENT_IMPORT_RE = re.compile(r"""from\s+['"]@/lib/api/typed/browser['"]""")
+SERVER_CLIENT_IMPORT_RE = re.compile(r"""from\s+['"]@/lib/api/typed/server['"]""")
 
 
 def test_features_client_api_imports_browser_only():
@@ -771,8 +821,7 @@ def test_features_client_api_imports_browser_only():
             offenders.append(path.relative_to(REPO_ROOT).as_posix())
     assert not offenders, (
         "`features/*/client-api.ts` must not import the server typed "
-        "client. Use `@/lib/api/typed/browser` instead:\n  "
-        + "\n  ".join(sorted(offenders))
+        "client. Use `@/lib/api/typed/browser` instead:\n  " + "\n  ".join(sorted(offenders))
     )
 
 
@@ -787,8 +836,7 @@ def test_features_server_api_imports_server_only():
             offenders.append(path.relative_to(REPO_ROOT).as_posix())
     assert not offenders, (
         "`features/*/server-api.ts` must not import the browser typed "
-        "client. Use `@/lib/api/typed/server` instead:\n  "
-        + "\n  ".join(sorted(offenders))
+        "client. Use `@/lib/api/typed/server` instead:\n  " + "\n  ".join(sorted(offenders))
     )
 
 
@@ -878,6 +926,5 @@ def test_hidden_api_raw_fetch_confined_to_owning_features():
     assert not offenders, (
         "Hidden-path raw fetch reference found outside the owning "
         "feature adapter. Move the call to the owning feature or wait "
-        "for the Phase 4 typed wrapper promotion. Offenders:\n  "
-        + "\n  ".join(sorted(offenders))
+        "for the Phase 4 typed wrapper promotion. Offenders:\n  " + "\n  ".join(sorted(offenders))
     )
