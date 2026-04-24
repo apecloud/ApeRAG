@@ -1,14 +1,28 @@
 {
   "metadata": {
     "title": "Collections",
-    "description": "By importing and systematically organizing your data sources into a structured dataset, you can significantly improve the contextual understanding and response accuracy of large language models (LLMs)"
+    "description": "Organize company knowledge into curated collections for retrieval, graph exploration, and agent answers. Published collections can be discovered by other users in Marketplace."
   },
-  "search": "Search",
-  "no_collections_found": "No collections found",
+  "workspace_label": "Workspace",
+  "collection_flow_title": "Collections stay connected to chat and graph workflows",
+  "collection_flow_description": "Create a collection, tune its indexing capabilities, then upload documents from the collection detail page.",
+  "search": "Search collections",
+  "no_collections_found": "No collections yet",
+  "empty_description": "Create your first collection to organize documents, build retrieval indexes, and prepare knowledge for agents.",
+  "no_filter_results": "No matching collections",
+  "no_filter_results_description": "Try another search term or switch filters to view more collections.",
+  "new_collection_card_description": "Set up retrieval and graph capabilities before uploading documents.",
+  "filter_all": "All",
+  "filter_published": "Published",
+  "collection_count": "{count, plural, one {# collection} other {# collections}}",
+  "no_date": "No date",
+  "untitled_collection": "Untitled collection",
+  "import_documents": "Import documents",
 
   "settings": "Settings",
 
   "general": "General",
+  "general_description": "Name the collection and set the language used for generated titles and document processing.",
 
   "private": "Private",
   "public": "Public",
@@ -41,7 +55,7 @@
   "description_placeholder": "Please describe the general meaning of a collection.",
 
   "index_types": "Index Types",
-  "index_types_description": "Select the AI capabilities you need, we will build corresponding indexes for your documents",
+  "index_types_description": "Select the AI capabilities you need. ApeRAG will build the corresponding indexes when documents are uploaded.",
 
   "index_type_VECTOR": {
     "title": "Vector",
@@ -49,15 +63,15 @@
   },
   "index_type_FULLTEXT": {
     "title": "Fulltext",
-    "description": "Indexes keywords within text using techniques like inverted indexing for exact or fuzzy"
+    "description": "Indexes keywords within text using techniques like inverted indexing for exact or fuzzy search."
   },
   "index_type_GRAPH": {
     "title": "Graph",
-    "description": "Stores data as nodes (entities) and edges (relationships), enabling complex relational"
+    "description": "Stores data as entities and relationships, enabling graph exploration and relational retrieval."
   },
   "index_type_SUMMARY": {
     "title": "Summary",
-    "description": "Indexes summaries or metadata of long documents instead of raw content for faster"
+    "description": "Indexes summaries or metadata of long documents instead of raw content for faster review."
   },
   "index_type_VISION": {
     "title": "Vision",
@@ -67,7 +81,7 @@
   "required": "Required",
 
   "model_settings": "Model Settings",
-  "model_settings_description": "Select AI models for document processing. Different index types require different model support",
+  "model_settings_description": "Select AI models for document processing. Different index types require different model support.",
 
   "embedding_model": "Embedding Model",
   "embedding_model_description": "An embedding model translates data into numerical vectors that capture their semantic meaning and relationships.",
