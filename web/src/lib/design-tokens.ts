@@ -83,6 +83,59 @@ export const ENTITY_LABELS_EN: Record<EntityType, string> = {
 };
 
 /**
+ * Backend entity_type enum → canonical `EntityType` palette key.
+ *
+ * The backend emits a wider set of raw enum strings than the 6-tone
+ * design palette. This map collapses the wider set onto the 6 canonical
+ * keys so that callers never leak raw enum strings into the UI and
+ * never have to re-implement the mapping per lane.
+ *
+ * Unknown / missing types fall back to `doc` (neutral ink gray).
+ */
+const ENTITY_TYPE_TO_PALETTE: Record<string, EntityType> = {
+  person: 'person',
+  organization: 'org',
+  geo: 'org',
+  product: 'product',
+  technology: 'product',
+  category: 'concept',
+  date: 'event',
+  event: 'event',
+  UNKNOWN: 'doc',
+};
+
+/**
+ * Resolve a backend `entity_type` string to the canonical palette key.
+ * Safe for `null | undefined` input (returns `'doc'`).
+ *
+ * Usage:
+ *   const color = ENTITY_PALETTE[entityTypeToPaletteKey(node.entity_type)];
+ *   const label = ENTITY_LABELS_ZH[entityTypeToPaletteKey(node.entity_type)];
+ */
+export function entityTypeToPaletteKey(
+  rawType: string | null | undefined,
+): EntityType {
+  if (!rawType) return 'doc';
+  return ENTITY_TYPE_TO_PALETTE[rawType] ?? 'doc';
+}
+
+/**
+ * Dark-mode canvas overlays. These mirror token values for imperative
+ * drawing contexts (HTML canvas, inline SVG) where Tailwind classes
+ * and CSS vars aren't reachable.
+ *
+ * Pair with the light-mode equivalents from `COLORS`:
+ *   stroke: light → `COLORS.bg`     / dark → `CANVAS_DARK.nodeStroke`
+ *   link normal:    light → `COLORS.border`       / dark → `CANVAS_DARK.linkNormal`
+ *   link highlight: light → `COLORS.borderStrong` / dark → `CANVAS_DARK.linkHighlight`
+ */
+export const CANVAS_DARK = {
+  nodeStroke: '#1A1A18',
+  linkNormal: '#3A3A38',
+  linkHighlight: '#5A5A58',
+} as const;
+
+/**
  * Radius scale (px). Maps to the Tailwind `rounded-*` utilities via
  * the `--radius*` CSS vars in `globals.css`:
  *   rounded-sm → 6px / rounded-md → 8px / rounded-lg → 10px / rounded-xl → 14px
