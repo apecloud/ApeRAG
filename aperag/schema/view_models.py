@@ -206,32 +206,15 @@ class Feedback(BaseModel):
 TurnFeedbackWrite = Feedback
 
 
-class DeleteDocumentsRequest(BaseModel):
-    document_ids: list[str] = Field(..., description="Document IDs to delete", min_length=1)
-
-
-class DeleteDocumentsResponse(BaseModel):
-    deleted_ids: list[str] = Field(..., description="Document IDs accepted for deletion")
-    status: Literal["success"] = Field(..., description="Batch deletion status")
-
-
-class ConfirmDocumentsRequest(BaseModel):
-    document_ids: list[str] = Field(..., description="List of document IDs to confirm", min_length=1)
-
-
-class FetchUrlRequest(BaseModel):
-    urls: list[AnyUrl] = Field(
-        ...,
-        description="List of URLs to fetch and import (max 10)",
-        examples=[["https://example.com/article1", "https://example.com/article2"]],
-    )
-
-
-# UploadDocumentResponse / FailedDocument / ConfirmDocumentsResponse /
+# ConfirmDocumentsRequest / FetchUrlRequest / DeleteDocumentsRequest /
+# DeleteDocumentsResponse were carved to
+# ``aperag.domains.knowledge_base.schemas`` in Phase 3 Step 5a
+# alongside the KB route move; the end-of-file try block re-imports
+# them. UploadDocumentResponse / FailedDocument / ConfirmDocumentsResponse /
 # FetchUrlResultItem / FetchUrlResponse / StagedDocumentsResponse were
-# carved out to ``aperag.domains.knowledge_base.schemas`` in Phase 3
-# Step 5b3. The end-of-file try block re-imports them so pre-migration
-# callers (``from aperag.schema.view_models import UploadDocumentResponse``)
+# carved out in Phase 3 Step 5b3. The end-of-file try block re-imports
+# them so pre-migration callers (``from aperag.schema.view_models
+# import UploadDocumentResponse``)
 # keep resolving the same class objects.
 
 
@@ -466,33 +449,10 @@ class NodeMergeResponse(BaseModel):
     )
 
 
-class SharingStatusResponse(BaseModel):
-    """
-    Simple sharing status response
-    """
-
-    is_published: bool = Field(..., description="Whether published to marketplace")
-    published_at: Optional[datetime] = Field(None, description="Publication time, null when not published")
-
-
-class MineruTokenTestRequest(BaseModel):
-    """Request body for POST /collections/test-mineru-token."""
-
-    token: str = Field(..., description="MinerU API token to validate")
-
-
-class MineruTokenTestResponse(BaseModel):
-    """Response envelope for POST /collections/test-mineru-token.
-
-    `status_code` is the HTTP status returned by MinerU's upstream test endpoint;
-    `data` is the passthrough body echoed to the caller.
-    """
-
-    status_code: int = Field(..., description="HTTP status code returned by MinerU upstream")
-    data: dict[str, Any] = Field(
-        default_factory=dict,
-        description="Passthrough body from MinerU upstream",
-    )
+# SharingStatusResponse, MineruTokenTestRequest, MineruTokenTestResponse
+# were carved to ``aperag.domains.knowledge_base.schemas`` in Phase 3
+# Step 5a. They remain importable from here through the end-of-file
+# try block re-export.
 
 
 class SharedCollectionConfig(BaseModel):
@@ -1515,15 +1475,22 @@ try:
         CollectionUpdate,
         CollectionView,
         CollectionViewList,
+        ConfirmDocumentsRequest,
         ConfirmDocumentsResponse,
+        DeleteDocumentsRequest,
+        DeleteDocumentsResponse,
         Document,
         DocumentList,
         DocumentPreview,
         FailedDocument,
+        FetchUrlRequest,
         FetchUrlResponse,
         FetchUrlResultItem,
+        MineruTokenTestRequest,
+        MineruTokenTestResponse,
         RebuildIndexesRequest,
         RebuildIndexesResponse,
+        SharingStatusResponse,
         StagedDocumentsResponse,
         UploadDocumentResponse,
     )

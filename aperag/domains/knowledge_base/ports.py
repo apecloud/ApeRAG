@@ -59,15 +59,42 @@ from typing import Any, Protocol, runtime_checkable
 
 
 @runtime_checkable
+class AuthenticatedUser(Protocol):
+    """Per-domain auth context (lesson 9a-ter canonical).
+
+    KB route handlers receive ``Depends(required_user)`` typed as this
+    Protocol so they do not bind to ``aperag.db.models.User``. Only the
+    attributes KB routes actually read — the user ``id`` — are pinned
+    here. Phase 4 identity domain may promote a shared
+    ``AuthenticatedUser`` once a cross-domain canonical is needed; KB's
+    own Protocol stays until then.
+    """
+
+    id: Any
+
+
+@runtime_checkable
 class MarketplaceOps(Protocol):
     """Minimum marketplace access the KB domain calls into.
 
-    Today the only method is ``validate_marketplace_collection``, which
-    raises when the caller (an un-authenticated public-read path) tries
-    to touch a collection that is not published on the marketplace.
+    - ``validate_marketplace_collection`` raises when the caller (an
+      un-authenticated public-read path) tries to touch a collection
+      that is not published on the marketplace.
+    - ``get_sharing_status`` / ``publish_collection`` /
+      ``unpublish_collection`` back the KB ``/sharing`` routes that
+      moved to the KB domain in Step 5a; the concrete
+      ``marketplace_service`` already provides these methods today, so
+      the Protocol simply pins the surface KB reads without
+      structurally importing the service.
     """
 
     async def validate_marketplace_collection(self, collection_id: str) -> Any: ...
+
+    async def get_sharing_status(self, user_id: Any, collection_id: str) -> tuple[bool, Any]: ...
+
+    async def publish_collection(self, user_id: Any, collection_id: str) -> Any: ...
+
+    async def unpublish_collection(self, user_id: Any, collection_id: str) -> Any: ...
 
 
 @runtime_checkable
@@ -146,6 +173,7 @@ class QuotaOps(Protocol):
 
 
 __all__ = [
+    "AuthenticatedUser",
     "MarketplaceCollectionOps",
     "MarketplaceOps",
     "QuotaOps",

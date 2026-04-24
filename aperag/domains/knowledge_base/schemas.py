@@ -35,9 +35,9 @@ it here is a legitimate shared-schema dependency.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, Field, conint
+from pydantic import AnyUrl, BaseModel, Field, conint
 
 from aperag.schema.common import (
     Chunk,
@@ -68,6 +68,15 @@ __all__ = [
     "FetchUrlResultItem",
     "FetchUrlResponse",
     "StagedDocumentsResponse",
+    # Step 5a: request bodies + sharing + mineru token schemas consumed
+    # by the KB routes that move to ``aperag.domains.knowledge_base.api``.
+    "ConfirmDocumentsRequest",
+    "FetchUrlRequest",
+    "DeleteDocumentsRequest",
+    "DeleteDocumentsResponse",
+    "SharingStatusResponse",
+    "MineruTokenTestRequest",
+    "MineruTokenTestResponse",
 ]
 
 
@@ -316,6 +325,62 @@ class StagedDocumentsResponse(BaseModel):
         ..., description="List of staged (UPLOADED) documents awaiting confirmation"
     )
     total: int = Field(..., description="Total number of staged documents")
+
+
+# ---------- Step 5a: KB route request-bodies + sharing + mineru ---------- #
+
+
+class ConfirmDocumentsRequest(BaseModel):
+    document_ids: list[str] = Field(..., description="List of document IDs to confirm", min_length=1)
+
+
+class FetchUrlRequest(BaseModel):
+    urls: list[AnyUrl] = Field(
+        ...,
+        description="List of URLs to fetch and import (max 10)",
+        examples=[["https://example.com/article1", "https://example.com/article2"]],
+    )
+
+
+class DeleteDocumentsRequest(BaseModel):
+    document_ids: list[str] = Field(..., description="Document IDs to delete", min_length=1)
+
+
+class DeleteDocumentsResponse(BaseModel):
+    deleted_ids: list[str] = Field(..., description="Document IDs accepted for deletion")
+    status: Literal["success"] = Field(..., description="Batch deletion status")
+
+
+class SharingStatusResponse(BaseModel):
+    """Marketplace sharing status envelope for a KB collection.
+
+    Phase 4 may re-home this class to a marketplace schemas module when
+    that domain materializes; for now it lives in KB because the owning
+    route (``GET /collections/{id}/sharing``) is a KB route.
+    """
+
+    is_published: bool = Field(..., description="Whether published to marketplace")
+    published_at: Optional[datetime] = Field(None, description="Publication time, null when not published")
+
+
+class MineruTokenTestRequest(BaseModel):
+    """Request body for POST /collections/test-mineru-token."""
+
+    token: str = Field(..., description="MinerU API token to validate")
+
+
+class MineruTokenTestResponse(BaseModel):
+    """Response envelope for POST /collections/test-mineru-token.
+
+    `status_code` is the HTTP status returned by MinerU's upstream test endpoint;
+    `data` is the passthrough body echoed to the caller.
+    """
+
+    status_code: int = Field(..., description="HTTP status code returned by MinerU upstream")
+    data: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Passthrough body from MinerU upstream",
+    )
 
 
 # Re-bind the KB schemas onto ``aperag.schema.view_models`` so that

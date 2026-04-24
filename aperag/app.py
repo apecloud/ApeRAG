@@ -33,6 +33,7 @@ if settings.otel_enabled:
 
 from fastapi import FastAPI  # noqa: E402
 
+from aperag.domains.knowledge_base.api.routes import router as knowledge_base_router
 from aperag.domains.knowledge_base.service.collection_service import (
     set_marketplace_collection_ops as _kb_set_marketplace_collection_ops,
 )
@@ -65,9 +66,7 @@ from aperag.views.auth import router as auth_router
 from aperag.views.bots_v2 import router as bots_v2_router
 from aperag.views.chat import router as chat_router
 from aperag.views.collections import router as collections_router
-from aperag.views.collections_v2 import router as collections_v2_router
 from aperag.views.config import router as config_router
-from aperag.views.documents_v2 import router as documents_v2_router
 from aperag.views.evaluation_v2 import router as evaluation_v2_router
 from aperag.views.export import router as export_router
 from aperag.views.llm import router as llm_router
@@ -154,8 +153,7 @@ app.include_router(agent_runtime_router, prefix="/api/v2")
 app.include_router(bots_v2_router, prefix="/api/v2")
 app.include_router(evaluation_v2_router, prefix="/api/v2")
 app.include_router(providers_v2_router, prefix="/api/v2")
-app.include_router(collections_v2_router, prefix="/api/v2")
-app.include_router(documents_v2_router, prefix="/api/v2")
+app.include_router(knowledge_base_router, prefix="/api/v2")  # KB domain router (collections_v2 + documents_v2)
 
 # Only include test router in dev mode
 if os.environ.get("DEPLOYMENT_MODE") == "dev":
