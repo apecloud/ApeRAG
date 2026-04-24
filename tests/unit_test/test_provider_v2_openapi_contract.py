@@ -3,7 +3,7 @@ import re
 from fastapi import FastAPI
 
 from aperag.openapi_spec import build_full_openapi_spec, custom_generate_unique_id, filter_public_openapi
-from aperag.views.providers_v2 import router
+from aperag.domains.model_platform.api.providers_v2_routes import router
 
 
 def _provider_v2_spec():
