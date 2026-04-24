@@ -455,46 +455,9 @@ class NodeMergeResponse(BaseModel):
 # try block re-export.
 
 
-class SharedCollectionConfig(BaseModel):
-    """
-    Configuration settings for shared collection features
-    """
-
-    enable_vector: bool = Field(..., description="Whether vector search is enabled")
-    enable_fulltext: bool = Field(..., description="Whether fulltext search is enabled")
-    enable_knowledge_graph: bool = Field(..., description="Whether knowledge graph is enabled")
-    enable_summary: bool = Field(..., description="Whether summary generation is enabled")
-    enable_vision: bool = Field(..., description="Whether vision processing is enabled")
-
-
-class SharedCollection(BaseModel):
-    """
-    Shared Collection information for marketplace users
-    """
-
-    id: str = Field(..., description="Collection ID")
-    title: str = Field(..., description="Collection title")
-    description: Optional[str] = Field(None, description="Collection description")
-    owner_user_id: str = Field(..., description="Original owner user ID")
-    owner_username: Optional[str] = Field(None, description="Original owner username")
-    subscription_id: Optional[str] = Field(
-        None,
-        description="Subscription record ID (has value if subscribed, null if not subscribed)",
-    )
-    gmt_subscribed: Optional[datetime] = Field(None, description="Subscription time (only has value when subscribed)")
-    subscription_count: int = Field(..., description="Total number of subscriptions")
-    config: SharedCollectionConfig = Field(..., description="Collection configuration settings")
-
-
-class SharedCollectionList(BaseModel):
-    """
-    Shared Collection list response
-    """
-
-    items: list[SharedCollection] = Field(..., description="List of shared Collections")
-    total: int = Field(..., description="Total count (for pagination)")
-    page: int = Field(..., description="Current page number")
-    page_size: int = Field(..., description="Page size")
+# SharedCollectionConfig / SharedCollection / SharedCollectionList
+# moved to ``aperag.domains.marketplace.schemas`` in Phase 4 Step
+# 4-S3c; end-of-file try block re-imports them.
 
 
 # ApiKey / ApiKeyList / ApiKeyCreate / ApiKeyUpdate moved to
@@ -1376,6 +1339,16 @@ try:
         ApiKeyUpdate,
         AuditLog,
         AuditLogList,
+    )
+except ImportError:
+    pass
+
+# Phase 4 Step 4-S3c marketplace domain schemas dual-hook re-export.
+try:
+    from aperag.domains.marketplace.schemas import (  # noqa: E402, F401
+        SharedCollection,
+        SharedCollectionConfig,
+        SharedCollectionList,
     )
 except ImportError:
     pass
