@@ -179,5 +179,5 @@ Dify 会自动拉取 ApeRAG MCP Server 暴露的工具清单。配置成功后�
 
 - [MCP 集成指南](./mcp.md) — ApeRAG MCP Server 架构、认证和通用客户端接入
 - [MCP API 参考](./mcp-api.md) — 5 个工具的完整参数/返回 schema
-- `docs/zh-CN/integration/openai-compat.md` — 另一条可用于 Dify 自定义模型接入的路径（Bryce lane 起草中，merge 后即为站内链接）
+- [OpenAI 兼容 API](./openai-compat.md) — 另一条可用于 Dify 自定义模型接入的路径
 - **GitHub**：[apecloud/ApeRAG](https://github.com/apecloud/ApeRAG)
