@@ -392,43 +392,28 @@ Those three roadmap docs are authoritative for *history* and *plan*; for *curren
 
 ## 8. Future candidates
 
-Items that are known work but are deliberately **not** part of the current state. None of these are scheduled as a commitment; each would be a separate `Phase 7+` task with its own PM dispatch. Listing them here prevents rediscovery and keeps the current-state / future-work boundary clean.
+Items that are known work but are deliberately **not** part of the current state. None of these are scheduled as a commitment; each would be a separate `Phase 7+` task with its own PM dispatch. Listing them here prevents rediscovery and keeps the current-state / future-work boundary clean. Presentation follows the architect audit (task #27 thread): the three high-value candidates get a paragraph each; the rest are compressed into a short catalog.
 
-### 8.1 Legacy shim hard-delete audit
+### 8.1 High-value candidates
 
-When every caller of the 19 `aperag/service/*.py` shims, 13 `aperag/views/*.py` router shims, `aperag/db/models.py` re-export blocks, the `aperag/schema/view_models.py` dual-hook blocks, `aperag/agent_runtime/*.py`, `aperag/evaluation_v2/*.py`, and `aperag/db/repositories/evaluation_v2.py` has been migrated to the domain-canonical import path, the shim files become deletable in a single sweep. Before deletion, each shim needs:
+**F1. Cross-domain integration test coverage.** Boundary tests today catch static import + DI-wire-up drift, but nothing verifies cross-domain runtime flows end-to-end (identity → conversation → agent_runtime → evaluation, or knowledge_base → retrieval → knowledge_graph). A focused Phase 7+ task could add three to four integration tests exercising the canonical flows against live domain services (no mocks), serving as regression coverage for the Section 3 canonical rules.
 
-- A grep audit across the codebase to confirm zero non-shim callers.
-- A check against third-party integrations (hurl fixtures, alembic migrations, docs examples).
-- A per-domain decision about whether the shim is worth keeping as an ergonomic alias even after the last internal caller is gone.
+**F2. `aperag/service/*.py` legacy shim hard-delete audit.** 19 of the 22 files under `aperag/service/` are re-export shims whose canonical implementation now lives under `aperag/domains/<d>/service/`. Three (`quota_service`, `prompt_template_service`, `search_pipeline_service`) are standalone-infra canonical and stay. After a caller-by-caller audit (including `aperag/app.py` wiring, legacy views, tests, hurl fixtures, alembic migrations), a single batch-delete PR can drop the remainders; Section 6 documents the full map.
 
-### 8.2 `_enum_column` helper consolidation
+**F3. `aperag/views/*.py` migration or retirement map.** 26 files / ~2200 LOC remain. 13 are router re-export shims (Section 6.2); the others are mixes of still-active non-domain endpoints (`auth.py`, `config.py`, `main.py`, `openai.py`, `prompts.py`, `quota.py`, `settings.py`), retained 410-Gone compatibility (`collections.py`, `graph.py`), and legacy views with no domain home assigned yet (`chat_documents.py`, `export.py`, `test.py`). A Phase 8+ task should produce a migration map (which views stay as infrastructure-only, which migrate to a domain, which retire) before any hard-delete pass.
 
-Each per-domain `db/models.py` currently duplicates a small `_enum_column` helper that maps an `Enum` class to a `String` column sized to the longest value. The current copies are byte-identical and are known duplicates (flagged in Phase 3 Step 2); consolidating them into `aperag/db/common.py` (or similar infra module) is a drop-in refactor with no semantic change.
+### 8.2 Compressed catalog
 
-### 8.3 Per-domain `AuthenticatedUser(Protocol)` consolidation
-
-`AuthenticatedUser(Protocol)` is declared locally in conversation, agent_runtime, evaluation, identity, governance, marketplace, and model_platform ports. The shapes are near-identical (at minimum `id: str`, `role: str`). If Phase 7+ deems the duplication a drag on readability, the Protocol could live in a shared non-domain module (e.g., `aperag/schema/auth.py`) that domains import. The trade-off is that a shared Protocol weakens the "consumer-owned" principle (Section 3.1) — each domain loses the ability to narrow the surface to what it actually reads. Requires a judgement call.
-
-### 8.4 Residual legacy service extraction
-
-`aperag/service/` still contains six non-shim, legacy-only services: `chat_completion_service.py`, `evaluation_service.py`, `export_service.py`, `question_set_service.py`, `setting_service.py`, and the test helper `test_mcp_agent.py`. Each is a Phase 7+ extraction candidate, but none has an assigned domain home in the current canonical; each would need a mini-design (which domain, what Protocol surface if any) before extraction.
-
-### 8.5 Residual legacy view extraction
-
-`aperag/views/` holds eleven non-shim legacy views (`chat_documents.py`, `collections.py`, `config.py`, `export.py`, `graph.py`, `main.py`, `openai.py`, `prompts.py`, `quota.py`, `settings.py`, `test.py`). `collections.py` and `graph.py` contain 410-Gone compatibility shims from the Phase 2 hard-cut and are stable; the others are Phase 7+ extraction candidates.
-
-### 8.6 `web_access` deeper consolidation
-
-`web_access` today has schemas and routes but no domain-owned entities or service layer — it is a thin functional domain. A future phase could decide whether its `reader/` and `search/` sub-packages warrant the full domain contract or stay as functional modules.
-
-### 8.7 `/api/v1` vs `/api/v2` URL prefix unification
-
-The `model_platform` and `conversation` domains each expose a two-router split because their endpoints straddle both prefixes; this mirrors the pre-migration URL layout and was kept to preserve OpenAPI byte-stability. A future cleanup could collapse to a single router per domain once the `/api/v1` side is fully deprecated.
-
-### 8.8 Deeper SME write-up of `indexing` / `retrieval` / `knowledge_graph`
-
-Section 2.4 is a high-level structural summary only. A future pass from the Phase 3 landing owner (or a deep-dive SME) should backfill Protocol method signatures, DI wire-up timing, the graphindex reconcile loop, Nebula space lifecycle, and indexing reconciler state machine into a dedicated per-domain write-up.
+- **F4. `_enum_column` helper consolidation** (effort S, value L-M). Nine byte-identical copies across per-domain `db/models.py` → consolidate into `aperag/db/common.py` (flagged in Phase 3 Step 2).
+- **F5. Per-domain `AuthenticatedUser(Protocol)` consolidation** (effort M, value M). 10+ local declarations; collapsing into a shared `aperag/domains/identity/contracts/` Protocol weakens the consumer-owned principle (Section 3.1) — judgement call.
+- **F6. `aperag/app.py` DI wire-up extraction** (effort L, value M). 43+ imports, 4 inline adapter classes, 18+ setter calls; extracting into a dedicated `aperag/wiring.py` or `aperag/di/setup.py` reduces `app.py` complexity.
+- **F7. `aperag/schema/view_models.py` residual legacy re-exports** (effort M, value M). 15 Phase 3/5 re-export symbols plus call sites in `aperag/app.py` + legacy views + migrations; would be batched with F3.
+- **F8. G-gate-to-test mapping doc** (effort S, value M). Explicit table tying G1–G19 to the 20 boundary tests; useful if F1 lands so integration coverage can slot in beside gate enforcement. G3 / G10 currently lack dedicated integration tests.
+- **F9. `aperag/agent_runtime/` + `aperag/evaluation_v2/` top-level shim hard-delete** (effort S, value M). Residual legacy packages are only imported by a handful of internal call sites; verify + batch delete.
+- **F10. `aperag/platform/` layering** (effort S, value L). Shared-infra modules today live scattered under `aperag/{db,llm,objectstore,vectorstore,docparser,trace,mcp,context,concurrent_control,query}`; a future organizational pass could collect them under a canonical `aperag/platform/` subtree without any semantic change.
+- **F11. `web_access` domain depth** (effort TBD, value L). `web_access` today has schemas and routes but no entities or service layer. A future phase could decide whether `reader/` and `search/` warrant the full domain contract or stay as functional modules.
+- **F12. `/api/v1` vs `/api/v2` prefix unification** (effort M, value L). `model_platform` and `conversation` both carry a two-router split for prefix coexistence; a future cleanup could collapse once `/api/v1` is deprecated.
+- **F13. Deeper SME write-up for `indexing` / `retrieval` / `knowledge_graph`** (effort M, value M). Section 2.4 is high-level; the Phase 3 landing owner or a future deep-dive SME could backfill Protocol method signatures, DI wire-up timing, the `graphindex` reconcile loop, Nebula space lifecycle, and the indexing reconciler state machine.
 
 ---
 
