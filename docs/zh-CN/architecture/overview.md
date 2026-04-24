@@ -28,10 +28,10 @@ description: ApeRAG 后端架构入口 — 从哪开始读、去哪找什么
 | 你想了解 | 去这里 |
 | --- | --- |
 | 12 个 domain 各自做什么？domain 之间什么关系？ | [`architecture/domains.md`](./domains.md) |
-| identity / governance / model_platform / marketplace 这 4 个 domain 的内部结构 | [`architecture/identity-governance-model-platform-marketplace.md`](./identity-governance-model-platform-marketplace.md) |
-| knowledge_base / indexing / retrieval / knowledge_graph 的内部结构与 ingestion / retrieval pipeline | [`architecture/indexing-retrieval-kg.md`](./indexing-retrieval-kg.md) |
-| conversation / agent_runtime / evaluation 与 prompt 架构 | [`architecture/conversation-agent-evaluation.md`](./conversation-agent-evaluation.md) |
-| 爬虫抓取 / URL 阅读相关的 `web_access` 子包 | [`architecture/web-access.md`](./web-access.md) |
+| identity / governance / model_platform / marketplace 这 4 个 domain 的内部结构 | `architecture/identity-governance-model-platform-marketplace.md`（起稿中） |
+| knowledge_base / indexing / retrieval / knowledge_graph 的内部结构与 ingestion / retrieval pipeline | `architecture/indexing-retrieval-kg.md`（起稿中） |
+| conversation / agent_runtime / evaluation 与 prompt 架构 | `architecture/conversation-agent-evaluation.md`（起稿中） |
+| 爬虫抓取 / URL 阅读相关的 `web_access` 子包 | `architecture/web-access.md`（起稿中） |
 | 英文的 canonical 全景（20 个 boundary 测试、permanent seam、shim lifecycle、future 候选） | [`docs/modularization/architecture.md`](../../modularization/architecture.md) |
 | 我想在本地把 ApeRAG 跑起来 / 贡献代码 | [`development/development-guide.md`](../development/development-guide.md) |
 | 我想部署 ApeRAG / 配置 LLM provider | `deployment/` 目录 |
@@ -40,33 +40,31 @@ description: ApeRAG 后端架构入口 — 从哪开始读、去哪找什么
 | 我是第三方接入方（OpenAI 兼容 / MCP / Dify） | `integration/` 目录 |
 | API 测试手册、调试指令、示例配置 | `reference/` 目录 |
 
+> 标注「起稿中」的 consolidated 架构文档正在并行起草，落 main 后本表会把 code path 升级为 Markdown 链接。
+
 ---
 
-## 为什么要模块化？
+## 当前架构为什么这样组织
 
-重构之前，所有业务代码散落在 `aperag/service/*.py`、`aperag/db/models.py`、`aperag/schema/view_models.py` 三个大聚合层里。随着业务膨胀：
+三条约束决定了现在的布局：
 
-- 单个文件超过千行，新人找一个功能的调用链需要跨十几个文件。
-- 跨 domain 调用随手 import，导致 DB 迁移牵一发动全身。
-- 重构任何一处都要跑全量测试。
+- **业务职责清晰可定位**：把代码按业务 domain 聚类（`aperag/domains/<d>/`），而不是按层（`service/` / `models/` / `views/`）。新人看到一个 endpoint 能在一个目录里找齐 DB / schema / 业务 / 路由。
+- **跨 domain 依赖显式且可测**：`aperag/domains/**` 内禁止 import 旧聚合层（G1）；跨 domain 访问只有两种形态——provider-in-domain 直接 import、或 consumer-owned Protocol + DI 槽。`tests/unit_test/test_modularization_boundaries.py` 里 20 条 pytest 锁住全部边界规则（G1–G19 + CRITICAL_WIRINGS），跟 `make test-unit` 一起跑，违反 import 会红在 CI。
+- **永久性的跨切面基础设施有独立接入点**：跨 domain 的基础设施（配额、prompt template）不塞进某个 domain，也不偷偷下沉到共享层，而是用 **permanent DI seam**（`QuotaOps` / `PromptTemplateOps`）显式注入。两条 seam 的启动时 wiring 由 `aperag/app.py` 负责、同样受 boundary 测试保护。
 
-Phase 0→6 的目标是把这些聚合层拆成 domain-local 的代码，并用 **强制可测的边界规则** 锁住再次聚合的趋势。重构的关键产出：
+外部契约零漂移是硬要求：HTTP API（OpenAPI）、前端 typed client、数据库迁移历史在整个重构过程保持字节级稳定。
 
-- **12 个独立 domain**，各自拥有 `db/` · `schemas.py` · `ports.py` · `service/` · `api/routes.py`。
-- **20 条 boundary 测试**（G1–G19 + CRITICAL_WIRINGS），跑在 `make test-unit` 里，任何违反边界的 import 都会红。
-- **2 条永久 DI seam**（`QuotaOps` / `PromptTemplateOps`），用来接入跨切面的共享基础设施而不破坏 domain 独立性。
-- **HTTP API 零漂移**：重构全程 OpenAPI 字节级稳定，前端/下游无需适配。
-- **54 次 CR，零 blocker**：按 phase 分批合并（PR #1629 / #1633 / #1634 / #1635），每次 squash 都保持主干可运行。
+历史过程（分 phase 的变更、每一步为什么这样拆、lesson-learned）都在 [`docs/modularization/`](../../modularization/) 目录：
 
-更详细的 phase 拆分、每个 phase 的 breaking-changes、lesson-learned，见 `docs/modularization/` 目录下的其他文件。
+- `docs/modularization/architecture.md` — 当前稳态的 canonical 文档（英文）。
+- `docs/modularization/breaking-changes/phase*.md` — 每个 phase 的变更说明，改老代码前可读。
+- `docs/modularization/roadmap.md` / `target-domain-map.md` / `README.md` — 重构启动前的设计稿，仅历史参考。
 
 ---
 
 ## 与其他文档的分工
 
-- `docs/modularization/architecture.md` — **英文 canonical SSoT**，描述「重构结束后的稳态」。所有结构性不变式（12 domain 清单 / G1-G19 定义 / dual-hook 模式 / permanent seam 清单 / legacy shim 清单 / 新代码落位规则）只在这里有一份，本目录的中文文档通过 cross-reference 引用，不复制粘贴，避免随时间漂移。
-- `docs/modularization/breaking-changes/phase*.md` — 分 phase 的变更说明（为什么这样拆、删了什么、加了什么），主要给「重构期间改动过老代码」的读者。
-- `docs/modularization/roadmap.md` / `target-domain-map.md` — 重构启动前的设计稿，**仅作历史参考**，不代表当前状态。
+- [`docs/modularization/architecture.md`](../../modularization/architecture.md) — **英文 canonical SSoT**，描述「当前稳态」。所有结构性不变式（12 domain 清单 / G1-G19 定义 / dual-hook 模式 / permanent seam 清单 / legacy shim 清单 / 新代码落位规则）只在这里有一份，本目录的中文文档通过 cross-reference 引用，不复制粘贴，避免随时间漂移。
 - 本目录（`docs/zh-CN/architecture/`） — 用中文讲「每个 domain 内部怎么回事」，粒度比 canonical SSoT 细，给需要读具体实现的中文读者。
 
 ## 读者原则

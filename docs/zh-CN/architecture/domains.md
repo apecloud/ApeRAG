@@ -36,20 +36,22 @@ description: ApeRAG 后端 12 个业务 domain 的职责、目录契约、跨 do
 
 | Domain | DB 实体 / Enum | Service 模块 | 自持 Port（对外依赖声明） | 主 API 路由 | 细节文档 |
 | --- | --- | --- | --- | --- | --- |
-| **identity** | `Role` · `User` · `OAuthAccount` | `user_manager`、`identity_user_ops` | `AuthenticatedUser` · `BotInitOps` · `ChatInitOps` · `QuotaInitOps` | 走 `aperag/views/auth.py`（fastapi-users + OAuth） | [identity-governance-model-platform-marketplace.md](./identity-governance-model-platform-marketplace.md) |
+| **identity** | `Role` · `User` · `OAuthAccount` | `user_manager`、`identity_user_ops` | `AuthenticatedUser` · `BotInitOps` · `ChatInitOps` · `QuotaInitOps` | 走 `aperag/views/auth.py`（fastapi-users + OAuth） | `architecture/identity-governance-model-platform-marketplace.md`（起稿中） |
 | **governance** | `ApiKey` · `AuditLog`（+ `ApiKeyStatus` · `AuditResource`） | `api_key_service`、`audit_service` | `AuthenticatedUser` · `UserView` | `api/routes.py`（合并 api-key + audit-log） | 同上 |
 | **model_platform** | `LLMProvider` · `LLMProviderModel`（+ `APIType`） | `default_model_service`、`llm_available_model_service`、`llm_provider_service` | `AuthenticatedUser` | `api/llm_routes.py` + `api/providers_v2_routes.py`（2-router split，见下文） | 同上 |
 | **marketplace** | `CollectionMarketplace` · `UserCollectionSubscription`（+ `CollectionMarketplaceStatusEnum`） | `marketplace_service`、`marketplace_collection_service` | `AuthenticatedUser` | `api/routes.py` | 同上 |
-| **knowledge_base** | `Collection` · `CollectionSummary` · `Document`（4 个 Enum） | `collection_service`、`collection_summary_service`、`document_service` | `AuthenticatedUser` · `MarketplaceOps` · `MarketplaceCollectionOps` · `SearchPipelineOps` · `QuotaOps` | `api/routes.py` | [indexing-retrieval-kg.md](./indexing-retrieval-kg.md) |
+| **knowledge_base** | `Collection` · `CollectionSummary` · `Document`（4 个 Enum） | `collection_service`、`collection_summary_service`、`document_service` | `AuthenticatedUser` · `MarketplaceOps` · `MarketplaceCollectionOps` · `SearchPipelineOps` · `QuotaOps` | `api/routes.py` | `architecture/indexing-retrieval-kg.md`（起稿中） |
 | **indexing** | `DocumentIndex`（+ `DocumentIndexType` · `DocumentIndexStatus`） | `manager`、`document_parser`、`vector_index`、`fulltext_index`、`graph_index`、`summary_index`、`vision_index` 等功能模块 | `CollectionIndexingView` · `IndexingTrigger` | — | 同上 |
 | **retrieval** | `SearchHistory` | `service.py` + `pipeline.py` | `GraphQueryContext` · `GraphSearchContract` | `api/routes.py` | 同上 |
 | **knowledge_graph** | `GraphCurationRun` · `GraphCurationSuggestion`（+ 2 个 Enum） | `service.py` + `graphindex/` 11 个子模块 | `CollectionRow` | `api/routes.py`（加 `aperag/views/graph.py` 上的 410-Gone shim） | 同上 |
-| **conversation** | `Bot` · `Chat` · `TurnFeedback`（+ 5 个 Enum） | `bot_service`、`chat_service`、`chat_collection_service`、`chat_document_service`、`chat_title_service`、`turn_feedback_service` | `KnowledgeBaseCollectionView` · `AuthenticatedUser` · `QuotaOps` | `api/routes.py`（内部按前缀拆 `chat_router` + `bots_router`） | [conversation-agent-evaluation.md](./conversation-agent-evaluation.md) |
+| **conversation** | `Bot` · `Chat` · `TurnFeedback`（+ 5 个 Enum） | `bot_service`、`chat_service`、`chat_collection_service`、`chat_document_service`、`chat_title_service`、`turn_feedback_service` | `KnowledgeBaseCollectionView` · `AuthenticatedUser` · `QuotaOps` | `api/routes.py`（内部按前缀拆 `chat_router` + `bots_router`） | `architecture/conversation-agent-evaluation.md`（起稿中） |
 | **agent_runtime** | `AgentTurn` · `AgentTimelineEvent` · `AgentArtifact`（+ 3 个 Enum） | `runtime`、`services`、`storage` | `AuthenticatedUser` · `PromptTemplateOps` | `api/routes.py` | 同上 |
 | **evaluation** | `EvaluationDataset` · `EvaluationDatasetItem` · `EvaluationRun` · `EvaluationRunItem` · `EvaluationRunItemAttempt`（+ 5 个 Enum） | `services`、`worker`（`dispatch_fn` 测试注入 seam）、`tasks`、`judges`、`constants` + `db/repositories/evaluation_v2.py` | `AuthenticatedUser`；`ChatSessionOps` / `AgentTurnDispatchOps` 是 **dead Protocol 字面量**（零运行时调用，见 SSoT Section 2.1 脚注和 Section 8 F14） | `api/routes.py` | 同上 |
-| **web_access** | —（无实体） | — （功能子包：`reader/`、`search/`、`utils/`） | — | `api/routes.py` | [web-access.md](./web-access.md) |
+| **web_access** | —（无实体） | — （功能子包：`reader/`、`search/`、`utils/`） | — | `api/routes.py` | `architecture/web-access.md`（起稿中） |
 
 详细的实体 schema 数量、service 模块责任、每个 port 的方法签名都在 SSoT Section 2.1 以及每个 domain 对应的 consolidated 文档里；本表只做定位用。
+
+> 标注「起稿中」的 consolidated 架构文档正在其他 lane 并行起草，落 main 后本表与下文 §3 的「去哪读」会把 code path 升级为 Markdown 链接。
 
 ---
 
@@ -62,54 +64,54 @@ description: ApeRAG 后端 12 个业务 domain 的职责、目录契约、跨 do
 - **做什么**：用户账号、角色（`Role`）、OAuth 绑定、`fastapi-users` 接入。
 - **canonical 点**：它是整个系统里唯一能 `import User` / `import Role` 的地方（G15/G16 禁止其他 domain 这么做）。别的 domain 想读 user 只能通过 `AuthenticatedUser(Protocol)`；想写 user（目前只有 `conversation.chat_collection_service` 更新 `User.chat_collection_id`）必须走 `identity_user_ops.set_chat_collection` 这类 facade（lesson 9a-sexdec 三层优先级）。
 - **3 个 `*InitOps` adapter**：`BotInitOps` / `ChatInitOps` / `QuotaInitOps` 在 `aperag/app.py` 启动时注入，用于 `UserManager.on_after_register` —— 新用户注册时自动创建默认 Bot、默认 ChatCollection、默认配额。
-- **去哪读**：[`identity-governance-model-platform-marketplace.md`](./identity-governance-model-platform-marketplace.md)
+- **去哪读**：`architecture/identity-governance-model-platform-marketplace.md`（起稿中）
 
 ### 3.2 governance
 
 - **做什么**：API Key 管理 + 审计日志（`AuditLog` / `ApiKey`）。
 - **注意**：它**不**负责配额（`quota_service`）— 配额是 standalone-infra permanent seam，通过 `QuotaOps` Protocol 注入给 `knowledge_base` 和 `conversation` 两个消费方（SSoT Section 5.1）。
 - **路由**：`aperag/views/api_key.py` 和 `aperag/views/audit.py` 是 shim，真实 router 是 `aperag/domains/governance/api/routes.py`。
-- **去哪读**：[`identity-governance-model-platform-marketplace.md`](./identity-governance-model-platform-marketplace.md)
+- **去哪读**：`architecture/identity-governance-model-platform-marketplace.md`（起稿中）
 
 ### 3.3 model_platform
 
 - **做什么**：LLM provider / 模型配置 / 默认模型（`LLMProvider` · `LLMProviderModel`）。
 - **2-router split**：`/api/v1/llm_configurations` 在 `llm_routes.py`，`/api/v2/providers` 在 `providers_v2_routes.py`；两个 router 同时挂在 `aperag/app.py`，便于前端在 v1/v2 共存期平滑过渡（SSoT 8.2 F12 记录了未来合并候选）。
 - **跨 domain 消费**：`conversation.chat_title_service` 直接 import `default_model_service`；`conversation.chat_collection_service` 直接 import `llm_available_model_service`（都是 provider-in-domain 的直接 import）。
-- **去哪读**：[`identity-governance-model-platform-marketplace.md`](./identity-governance-model-platform-marketplace.md)
+- **去哪读**：`architecture/identity-governance-model-platform-marketplace.md`（起稿中）
 
 ### 3.4 marketplace
 
 - **做什么**：公开 collection 发布 / 订阅（`CollectionMarketplace` · `UserCollectionSubscription`）。
 - **与 KB 的关系**：`knowledge_base.collection_service` 通过自持的 `MarketplaceOps` / `MarketplaceCollectionOps` Protocol 消费；marketplace 结构性满足，不反向 import KB 的 `ports.py`（consumer-owned 原则）。
-- **用户操作面**：发布 / 订阅流程见 [`user-guide/collection-marketplace.md`](../user-guide/collection-marketplace.md)；架构内部细节在 Phase 4 consolidated doc。
+- **用户操作面**：发布 / 订阅流程见 `user-guide/collection-marketplace.md`（起稿中）；架构内部细节由 `architecture/identity-governance-model-platform-marketplace.md`（起稿中）覆盖。
 
 ### 3.5 knowledge_base
 
 - **做什么**：collection / document / collection-summary —— 知识库领域的主体。
 - **消费的 5 个 port**：`AuthenticatedUser` · `MarketplaceOps` · `MarketplaceCollectionOps` · `SearchPipelineOps` · `QuotaOps`。5 个里 1 个是 standalone-infra permanent（`_quota_ops`）、3 个 provider 已搬进 domain（走 `aperag/app.py` adapter）、1 个（`_search_pipeline_ops`）分类未定（SSoT 8.2 F15 记录）。
 - **schema**：跨 domain 共享的 `CollectionConfig` / `KnowledgeGraphConfig` / `IndexPrompts` / `Chunk` / `VisionChunk` 等 primitives 落在 `aperag/schema/common.py`（SSoT Section 2.3 严格准入规则）；KB 自己的 `Collection` / `Document` / `CollectionView` 等 Pydantic schema 在 `aperag/domains/knowledge_base/schemas.py`。
-- **去哪读**：[`indexing-retrieval-kg.md`](./indexing-retrieval-kg.md)（KB 与 indexing / retrieval / knowledge_graph 深度耦合，放在同一篇 consolidated doc 里）
+- **去哪读**：`architecture/indexing-retrieval-kg.md`（起稿中）（KB 与 indexing / retrieval / knowledge_graph 深度耦合，放在同一篇 consolidated doc 里）
 
 ### 3.6 indexing
 
 - **做什么**：索引 reconciler + 每种索引类型的 worker（vector / fulltext / graph / summary / vision）。
 - **谁驱动它**：`knowledge_base.collection_service` 通过自持的 `SearchPipelineOps`；indexing 对外暴露 `CollectionIndexingView` / `IndexingTrigger` 给 retrieval / KB 用。
 - **注意**：indexing 没有 `api/routes.py` —— 它是内部重建任务的后端，不对外提供 HTTP。
-- **去哪读**：[`indexing-retrieval-kg.md`](./indexing-retrieval-kg.md)
+- **去哪读**：`architecture/indexing-retrieval-kg.md`（起稿中）
 
 ### 3.7 retrieval
 
 - **做什么**：检索 pipeline 编排 + chunk 聚合 + reranking。
 - **与 knowledge_graph 的关系**：retrieval 自持 `GraphQueryContext` · `GraphSearchContract`，knowledge_graph 结构性满足 —— **单向** Protocol（lesson 9a-quad）。G10/G3 禁止 knowledge_graph 反向 import retrieval。
-- **去哪读**：[`indexing-retrieval-kg.md`](./indexing-retrieval-kg.md)
+- **去哪读**：`architecture/indexing-retrieval-kg.md`（起稿中）
 
 ### 3.8 knowledge_graph
 
 - **做什么**：实体 / 关系 ORM + Nebula Graph 客户端 + `graphindex` reconciler。
 - **自持 port**：`CollectionRow` —— 内部抽象，封装 `graphindex` 旧代码对 KB `Collection` 形状的依赖。
 - **路由**：`aperag/views/graph.py` 保留一条 410-Gone legacy route（`/collections/{id}/graphs/export/kg-eval`，Phase 2 hard-cut 的 tombstone），其他都在 `aperag/domains/knowledge_graph/api/routes.py`。
-- **去哪读**：[`indexing-retrieval-kg.md`](./indexing-retrieval-kg.md)
+- **去哪读**：`architecture/indexing-retrieval-kg.md`（起稿中）
 
 ### 3.9 conversation
 
@@ -122,14 +124,14 @@ description: ApeRAG 后端 12 个业务 domain 的职责、目录契约、跨 do
 - **消费的 port**：`KnowledgeBaseCollectionView` · `AuthenticatedUser` · `QuotaOps`（`_quota_ops` 是 standalone-infra permanent 的两条永久 seam 之一）。
 - **跨 domain 被谁消费**：`agent_runtime.runtime`（late-import `chat_document_service`）、`evaluation.worker`（late-import `chat_service_global`，在 `dispatch_fn` 内）。late-import 是故意的，为了避免 module-import-time 的 `evaluation → agent_runtime → conversation` 环。
 - **路由拆分**：`api/routes.py` 同时导出 `chat_router`（挂 `/chats`）和 `bots_router`（挂 `/bots`）两个 router，app.py 分开挂（前缀不同，便于 OpenAPI 聚合）。
-- **去哪读**：[`conversation-agent-evaluation.md`](./conversation-agent-evaluation.md)
+- **去哪读**：`architecture/conversation-agent-evaluation.md`（起稿中）
 
 ### 3.10 agent_runtime
 
 - **做什么**：agent turn 编排 / SSE 流式 / artifact 存储（`AgentTurn` · `AgentTimelineEvent` · `AgentArtifact`）。
 - **`PromptTemplateOps` seam**：`runtime._prompt_template_ops` 是第 2 条 standalone-infra permanent DI 槽（SSoT Section 5.1 的两条之一），provider 是 `aperag.service.prompt_template_service`（跨切面，跨 `agent_runtime` 执行 / `conversation` bot-config / indexing prompt / 用户面 `/prompts` CRUD 四个地方，无法归入某个 domain）。
 - **与 evaluation 的关系**：`evaluation.worker.dispatch_fn` late-import `agent_runtime.runtime` 和 `agent_runtime.services` 做 turn 分派。
-- **去哪读**：[`conversation-agent-evaluation.md`](./conversation-agent-evaluation.md)
+- **去哪读**：`architecture/conversation-agent-evaluation.md`（起稿中）
 
 ### 3.11 evaluation
 
@@ -137,13 +139,13 @@ description: ApeRAG 后端 12 个业务 domain 的职责、目录契约、跨 do
 - **重要细节**：`worker.dispatch_fn` 是 **测试注入用的模块级函数引用**，**不是** `Protocol + DI` 槽 —— 测试 monkeypatch 它来替换真实 turn 分派器。G18 alt 注册表不包括 `dispatch_fn`，因为默认实现是一个正常函数而不是 `None` 槽（SSoT Section 5.2 明确列出这个区别）。
 - **dead Protocol 字面量**：`ports.py` 里仍写着 `ChatSessionOps` / `AgentTurnDispatchOps` 两个 Protocol class，但零运行时调用（rebase 过程中被搁置，SSoT Section 2.1 脚注 + Section 8 F14 说明）。将来会机械删除，按 Phase 6 entry 4 删 `ChatDocumentOps` 的先例。
 - **terminal 状态判断**：`EvaluationRunStatus.is_terminal()` classmethod（Phase 6 从 `_TERMINAL_RUN_STATUSES` 常量升格），任何消费方都走这个 API。
-- **去哪读**：[`conversation-agent-evaluation.md`](./conversation-agent-evaluation.md)
+- **去哪读**：`architecture/conversation-agent-evaluation.md`（起稿中）
 
 ### 3.12 web_access
 
 - **做什么**：爬虫抓取 / 网络搜索 / URL 阅读 —— 提供给 `knowledge_base` 的 document ingestion 用。
 - **当前形态**：**没有实体**、没有 service，只有 schemas、路由、三个功能子包（`reader/` · `search/` · `utils/`）。SSoT 8.2 F11 把「是否给 web_access 补 entity + service」列为未来候选。
-- **去哪读**：[`web-access.md`](./web-access.md)
+- **去哪读**：`architecture/web-access.md`（起稿中）
 
 ---
 
