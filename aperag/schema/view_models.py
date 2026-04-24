@@ -497,30 +497,9 @@ class SharedCollectionList(BaseModel):
     page_size: int = Field(..., description="Page size")
 
 
-class ApiKey(BaseModel):
-    id: Optional[str] = None
-    key: Optional[str] = None
-    description: Optional[str] = None
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-    last_used_at: Optional[datetime] = None
-
-
-class ApiKeyList(BaseModel):
-    """
-    A list of API keys
-    """
-
-    items: Optional[list[ApiKey]] = None
-    pageResult: Optional[PageResult] = None
-
-
-class ApiKeyCreate(BaseModel):
-    description: Optional[str] = None
-
-
-class ApiKeyUpdate(BaseModel):
-    description: Optional[str] = None
+# ApiKey / ApiKeyList / ApiKeyCreate / ApiKeyUpdate moved to
+# ``aperag.domains.governance.schemas`` in Phase 4 Step 4-S3b;
+# end-of-file try block re-imports them.
 
 
 class TagFilterCondition(BaseModel):
@@ -910,55 +889,9 @@ class RerankResponse(BaseModel):
 # (auth routes, OpenAPI spec builders) keep working.
 
 
-class AuditLog(BaseModel):
-    """
-    Audit log entry
-    """
-
-    id: Optional[str] = Field(None, description="Audit log ID")
-    user_id: Optional[str] = Field(None, description="User ID who performed the action")
-    username: Optional[str] = Field(None, description="Username for display")
-    resource_type: Optional[
-        Literal[
-            "collection",
-            "document",
-            "bot",
-            "chat",
-            "message",
-            "api_key",
-            "llm",
-            "llm_provider",
-            "llm_provider_model",
-            "model_service_provider",
-            "user",
-            "flow",
-            "search",
-            "index",
-        ]
-    ] = Field(None, description="Type of resource")
-    resource_id: Optional[str] = Field(None, description="ID of the resource (extracted at query time)")
-    api_name: Optional[str] = Field(None, description="API operation name")
-    http_method: Optional[str] = Field(None, description="HTTP method (POST, PUT, DELETE)")
-    path: Optional[str] = Field(None, description="API path")
-    status_code: Optional[int] = Field(None, description="HTTP status code")
-    start_time: Optional[int] = Field(None, description="Request start time (milliseconds since epoch)")
-    end_time: Optional[int] = Field(None, description="Request end time (milliseconds since epoch)")
-    duration_ms: Optional[int] = Field(None, description="Request duration in milliseconds (calculated)")
-    request_data: Optional[str] = Field(None, description="Request data (JSON string)")
-    response_data: Optional[str] = Field(None, description="Response data (JSON string)")
-    error_message: Optional[str] = Field(None, description="Error message if failed")
-    ip_address: Optional[str] = Field(None, description="Client IP address")
-    user_agent: Optional[str] = Field(None, description="User agent string")
-    request_id: Optional[str] = Field(None, description="Request ID for tracking")
-    created: Optional[datetime] = Field(None, description="Created timestamp")
-
-
-class AuditLogList(PaginatedResponse):
-    """
-    List of audit logs with pagination
-    """
-
-    items: Optional[list[AuditLog]] = Field(None, description="Audit log entries")
+# AuditLog / AuditLogList moved to
+# ``aperag.domains.governance.schemas`` in Phase 4 Step 4-S3b;
+# end-of-file try block re-imports them.
 
 
 # InvitationCreate / Invitation / InvitationList / Register / User /
@@ -1430,6 +1363,19 @@ try:
         Register,
         User,
         UserList,
+    )
+except ImportError:
+    pass
+
+# Phase 4 Step 4-S3b governance domain schemas dual-hook re-export.
+try:
+    from aperag.domains.governance.schemas import (  # noqa: E402, F401
+        ApiKey,
+        ApiKeyCreate,
+        ApiKeyList,
+        ApiKeyUpdate,
+        AuditLog,
+        AuditLogList,
     )
 except ImportError:
     pass
