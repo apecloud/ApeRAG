@@ -45,6 +45,7 @@ from aperag.domains.conversation.service.bot_service import set_quota_ops as _co
 from aperag.domains.conversation.service.chat_document_service import (
     set_chat_collection_ops as _conv_set_chat_collection_ops,
 )
+from aperag.domains.evaluation.api.routes import router as evaluation_v2_router
 from aperag.domains.governance.api.routes import router as governance_router
 from aperag.domains.identity.service.user_manager import (
     set_bot_init_ops as _id_set_bot_init_ops,
@@ -87,7 +88,6 @@ from aperag.service.search_pipeline_service import search_pipeline_service as _l
 from aperag.views.auth import router as auth_router
 from aperag.views.collections import router as collections_router
 from aperag.views.config import router as config_router
-from aperag.views.evaluation_v2 import router as evaluation_v2_router
 from aperag.views.export import router as export_router
 from aperag.views.main import router as main_router
 from aperag.views.openai import router as openai_router

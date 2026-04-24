@@ -12,17 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Constants for the simplified evaluation module.
+"""Legacy submodule shim — ``aperag/evaluation_v2/constants.py``."""
 
-Centralising these strings keeps default-resolution behaviour testable and
-prevents magic strings from scattering across service / repository / view
-layers. See ``resolve_default_evaluation_bot`` in
-``aperag.db.repositories.evaluation_v2``.
-"""
-
-# Title that identifies the system default Agent bot when a user does not
-# pass an explicit ``bot_id`` on evaluation-run creation. The resolver prefers
-# the user's active bot with this exact title; otherwise falls back to the
-# oldest active bot (``gmt_created ASC``); if none exists the service raises
-# a user-actionable ``ValidationException``.
-DEFAULT_AGENT_BOT_TITLE = "Default Agent Bot"
+from aperag.domains.evaluation.constants import *  # noqa: F401,F403
