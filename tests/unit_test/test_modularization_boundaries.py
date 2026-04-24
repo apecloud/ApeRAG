@@ -612,6 +612,140 @@ def test_knowledge_base_di_wire_up_populated_after_app_import():
     )
 
 
+# ---------- Phase 4 identity/governance/model_platform/marketplace gates (G15/G16/G17) ----------
+
+
+# Phase 4 G15 — non-identity domains must never import the identity
+# Role enum; use string-literal compare (``user.role == "admin"``)
+# instead. The canonical is explicit about AST-level import ban with
+# no literal allowlist (msg=6d2ae86a + msg=896584ee).
+_G15_G16_BANNED_ROLE_USER_SOURCES = (
+    "aperag.db.models",
+    "aperag.domains.identity.db.models",
+)
+
+_G15_G16_SCOPE_DOMAINS = (
+    "marketplace",
+    "governance",
+    "model_platform",
+    "knowledge_base",
+    "retrieval",
+    "indexing",
+    "knowledge_graph",
+    "conversation",
+    "agent_runtime",
+    "evaluation",
+    "web_access",
+)
+
+
+def _iter_domain_files_for_g15_g16() -> list[Path]:
+    files: list[Path] = []
+    for domain in _G15_G16_SCOPE_DOMAINS:
+        root = REPO_ROOT / "aperag" / "domains" / domain
+        if not root.exists():
+            continue
+        for path in root.rglob("*.py"):
+            if path.is_file() and path.name != "__init__.py":
+                files.append(path)
+    return sorted(files)
+
+
+def test_phase4_consumer_domains_never_import_role_enum():
+    """G15: non-identity domains must never ``from aperag.db.models
+    import Role`` or ``from aperag.domains.identity.db.models import
+    Role``. Consumers compare ``user.role == "admin"`` by literal
+    string against per-domain ``AuthenticatedUser`` / ``UserView``
+    Protocols whose ``role`` attribute is typed ``str``.
+
+    Identity domain itself is exempt — internal ``Role`` usage is
+    canonical. Literal-value allowlist is a soft convention enforced
+    by reviewer CR, not by this test (msg=6d2ae86a canonical).
+    """
+    offenders: list[str] = []
+    for path in _iter_domain_files_for_g15_g16():
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module in _G15_G16_BANNED_ROLE_USER_SOURCES:
+                imported = {alias.name for alias in node.names}
+                if "Role" in imported:
+                    offenders.append(f"{path.relative_to(REPO_ROOT).as_posix()} imports Role from {node.module}")
+    assert not offenders, (
+        "Non-identity domain imports the ``Role`` enum. Use literal "
+        "compare (``user.role == \"admin\"``) against the per-domain "
+        "Protocol's ``role: str`` attribute instead.\n  "
+        + "\n  ".join(sorted(offenders))
+    )
+
+
+def test_phase4_consumer_domains_never_import_user_orm_class():
+    """G16: non-identity domains must never ``from
+    aperag.db.models import User`` or ``from
+    aperag.domains.identity.db.models import User``. Route handlers
+    and services should depend on the per-domain
+    ``AuthenticatedUser(Protocol)`` (lesson 9a-ter) instead.
+
+    Identity domain is exempt — it owns ``User`` and its own
+    ``UserManager`` needs the ORM class.
+    """
+    offenders: list[str] = []
+    for path in _iter_domain_files_for_g15_g16():
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module in _G15_G16_BANNED_ROLE_USER_SOURCES:
+                imported = {alias.name for alias in node.names}
+                if "User" in imported:
+                    offenders.append(f"{path.relative_to(REPO_ROOT).as_posix()} imports User from {node.module}")
+    assert not offenders, (
+        "Non-identity domain imports the ``User`` ORM class. Use "
+        "the per-domain ``AuthenticatedUser(Protocol)`` or a narrow "
+        "``UserView(Protocol)`` contract instead (lesson 9a-ter).\n  "
+        + "\n  ".join(sorted(offenders))
+    )
+
+
+def test_phase4_di_critical_wirings_at_app_startup():
+    """G17: runtime smoke — after ``import aperag.app`` the
+    ``CRITICAL_WIRINGS`` registry of (module, attribute) pairs must
+    all resolve to non-``None`` Protocol instances. This catches
+    forgotten / re-ordered startup wire-up at CI time instead of at
+    first request. msg=896584ee canonical: do not rely on AST setter
+    naming scan (fragile) — runtime state is what actually matters.
+    """
+    import aperag.app  # noqa: F401 — triggers module-scope wire-up
+
+    from aperag.domains.identity.service import user_manager as identity_user_manager
+    from aperag.domains.knowledge_base.service import collection_service as kb_collection_service
+
+    CRITICAL_WIRINGS = [
+        # Phase 3 knowledge_base DI slots (Step 5b2c).
+        (kb_collection_service, "_marketplace_ops"),
+        (kb_collection_service, "_marketplace_collection_ops"),
+        (kb_collection_service, "_search_pipeline_ops"),
+        (kb_collection_service, "_quota_ops"),
+        # Phase 4 identity DI slots (Step 4-S7d).
+        (identity_user_manager, "_bot_init_ops"),
+        (identity_user_manager, "_chat_init_ops"),
+        (identity_user_manager, "_quota_init_ops"),
+    ]
+    missing = [
+        f"{module.__name__}.{attr}"
+        for module, attr in CRITICAL_WIRINGS
+        if getattr(module, attr, None) is None
+    ]
+    assert not missing, (
+        "Critical DI wire-up missing after ``import aperag.app`` — "
+        "check the startup section of ``aperag/app.py``. Missing: "
+        + ", ".join(missing)
+    )
+
+
 # ---------- Phase 1 FE closeout gates (G12-G17) ----------
 
 
