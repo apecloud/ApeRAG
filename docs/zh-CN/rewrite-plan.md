@@ -26,7 +26,7 @@
 | task #2 | 燧木（PM） | 逐文件 keep/delete/rewrite matrix | 本文 Section 4 现用本地 triage 作初版；PM #2 output 出后合并校对 |
 | task #3 | Weston | 新 IA + 保留/删除判据 | PM msg=234f7481 已锁定 IA 8 类；本文 Section 3 直接引用 |
 | task #5 | cuiwenbo | Phase 3 SME source pack（KB / dual-hook / schema/common.py + indexing/retrieval/KG structural） | 填 architecture/indexing / architecture/retrieval / architecture/knowledge-graph / architecture/vector-db-abstraction / user-guide/content-import 等 |
-| task #6 | Bryce | Phase 4 SME source pack（identity / governance / model_platform / marketplace） | 填 architecture/identity-auth / architecture/model-platform / user-guide/collection-marketplace / admin-guide/quota-system / admin-guide/tag-permissions 等 |
+| task #6 | Bryce | Phase 4 SME source pack（identity / governance / model_platform / marketplace） | 填 `architecture/identity-governance-model-platform-marketplace.md`（consolidated 4-domain 单篇）+ `user-guide/collection-marketplace.md` + `admin-guide/{quota-system,api-keys,audit-log}.md` + `integration/openai-compat.md` |
 | task #7 batch 1 | chenyexuan | Phase 5/6 SME source pack 已出（msg=f4dfe81e） | 填 architecture/agent-runtime / architecture/conversation-chat-history / architecture/evaluation / architecture/prompt-templates |
 
 **本文不等所有上游 task 齐全才起稿**（PM msg=d1f81953）。当前 batch 1 输入已足起 skeleton；task #5 / #6 / batch 2 到达后 append / revise。
@@ -84,7 +84,7 @@
 | prompt_customization_api_test.md | 163 | **KEEP + MINOR** | `reference/prompt-api.md` | SK 改占位 |
 | prompt_customization_integration_todo.md | 617 | **DELETE** | — | TODO 已完成，过时 |
 | collection_marketplace_design.md | 1303 | **REWRITE → split** | `user-guide/collection-marketplace.md`（用户流程）+ `architecture/identity-governance-model-platform-marketplace.md`（架构 sections：marketplace 章节） | user-facing 分享/订阅 → user-guide；marketplace 域技术实现 → architecture consolidated |
-| tag_based_permission_design.md | 477 | **REWRITE** | `admin-guide/tag-permissions.md` | batch-authorization |
+| tag_based_permission_design.md | 477 | **DELETE** | — | Feature 未实装（per msg=8f67ce65 + PM msg=4a73b5a4 lock）；不保留文档避免描述与现实不符 |
 | quota-system-design.md | 482 | **REWRITE → split** | `admin-guide/quota-system.md`（admin）+ `architecture/identity-governance-model-platform-marketplace.md`（架构 section：quota standalone-infra + QuotaOps Protocol） | — |
 | collection_knowledge_export_design.md | 322 | **REWRITE** | `user-guide/knowledge-export.md` | user-facing export |
 | url_and_text_import_design.md | 590 | **REWRITE** | `user-guide/content-import.md` | user-facing URL / 文本导入 |
@@ -129,7 +129,7 @@
 **新文档数预估**：
 - `architecture/` ~8-10 篇（README + indexing / retrieval / knowledge-graph / vector-db / agent-runtime / conversation-chat / evaluation / prompt-templates / identity-auth / vision / web-access / document-ingestion / model-platform 等）
 - `user-guide/` ~4-6 篇（collection-marketplace / knowledge-export / content-import / document-upload / evaluation-guide / chat-interaction 等）
-- `admin-guide/` ~3-4 篇（quota-system / tag-permissions / api-keys / audit-log）
+- `admin-guide/` ~3 篇（quota-system / api-keys / audit-log）— tag-permissions 从 admin-guide 移除（feature 未实装，见 Section 4.1）
 - `integration/` ~3 篇
 - `deployment/` ~2-3 篇
 - `development/` ~1-2 篇
@@ -166,12 +166,11 @@
 | `user-guide/evaluation-guide.md` | chenyexuan | Phase 5/6 evaluation | task #7 |
 | `user-guide/chat-interaction.md` | chenyexuan | Phase 5 conversation | task #7 |
 
-### 5.3 `admin-guide/` (4 docs)
+### 5.3 `admin-guide/` (3 docs — tag-permissions 已从 plan 移除因 feature 未实装)
 
 | 目标 doc | 主笔 | SME | 上游 task |
 | --- | --- | --- | --- |
 | `admin-guide/quota-system.md` | Bryce | Phase 4 governance + quota_service standalone-infra | task #6 |
-| `admin-guide/tag-permissions.md` | Bryce | Phase 4 tag-based permission | task #6 |
 | `admin-guide/api-keys.md` | Bryce | Phase 4 governance | task #6 |
 | `admin-guide/audit-log.md` | Bryce | Phase 4 governance | task #6 |
 
