@@ -589,7 +589,7 @@ lesson 9a-quatuordec：PEP 563 延迟 annotation 求值会让 FastAPI `response_
   - [`architecture/overview.md`](./overview.md) — 入口
   - [`architecture/domains.md`](./domains.md) — 12 域通览
   - [`architecture/conversation-agent-evaluation.md`](./conversation-agent-evaluation.md) — Phase 5/6 三域架构
-  - [`architecture/indexing-retrieval-kg.md`](./indexing-retrieval-kg.md) — Phase 3 四域架构（起稿中）
+  - `architecture/indexing-retrieval-kg.md` — Phase 3 四域架构（起稿中）
   - [`architecture/web-access.md`](./web-access.md) — web_access 域
 
 - **历史 / 决策**：
