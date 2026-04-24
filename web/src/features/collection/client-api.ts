@@ -5,7 +5,6 @@ import { browserApiClient } from '@/lib/api/typed/browser';
 import type {
   Collection,
   CollectionCreate,
-  CollectionSummaryTriggerResponse,
   CollectionUpdate,
   CollectionViewList,
   ExportTaskResponse,
@@ -70,18 +69,6 @@ export async function deleteCollection(collectionId: string): Promise<void> {
   await browserApiClient.DELETE('/api/v2/collections/{collection_id}', {
     params: { path: { collection_id: collectionId } },
   });
-}
-
-export async function triggerCollectionSummary(
-  collectionId: string,
-): Promise<CollectionSummaryTriggerResponse | undefined> {
-  const { data } = await browserApiClient.POST(
-    '/api/v2/collections/{collection_id}/summary/generate',
-    {
-      params: { path: { collection_id: collectionId } },
-    },
-  );
-  return data;
 }
 
 export async function testMineruToken(

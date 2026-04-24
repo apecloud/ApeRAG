@@ -32,7 +32,6 @@ import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { setLocale } from '@/services/cookies';
 import { useLocale, useTranslations } from 'next-intl';
-import { NavigationMenu, NavigationMenuList } from './ui/navigation-menu';
 import { UserAvatar, UserAvatarProfile } from './user-avatar';
 
 export const AppLogo = () => {
@@ -234,15 +233,6 @@ export const AppTopbar = ({ className }: React.ComponentProps<'div'>) => {
       >
         <div className="flex items-center gap-8">
           <AppLogo />
-          <NavigationMenu>
-            <NavigationMenuList>
-              {/* <NavigationMenuItem>
-                <NavigationMenuLink asChild className="hover:bg-accent/30 px-4">
-                  <Link href="/marketplace">Marketplace</Link>
-                </NavigationMenuLink>
-              </NavigationMenuItem> */}
-            </NavigationMenuList>
-          </NavigationMenu>
         </div>
         <div className="flex flex-row items-center gap-2">
           <AppDocs />
