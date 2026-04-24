@@ -12,49 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Legacy router-import shim — api_key + audit handlers merged into
+governance domain router in Phase 4 Step 4-S5. See
+``aperag/views/audit.py`` shim for the full context.
+"""
 
-from fastapi import APIRouter, Depends, Request
+from __future__ import annotations
 
-from aperag.db.models import User
-from aperag.schema.view_models import ApiKeyCreate, ApiKeyList, ApiKeyUpdate
-from aperag.service.api_key_service import api_key_service
-from aperag.utils.audit_decorator import audit
-from aperag.views.auth import required_user
-
-router = APIRouter()
-
-
-@router.get("/apikeys", tags=["api_keys"])
-async def list_api_keys_view(request: Request, user: User = Depends(required_user)) -> ApiKeyList:
-    """List all API keys for the current user"""
-    return await api_key_service.list_api_keys(str(user.id))
-
-
-@router.post("/apikeys", tags=["api_keys"])
-@audit(resource_type="api_key", api_name="CreateApiKey")
-async def create_api_key_view(
-    request: Request,
-    api_key_create: ApiKeyCreate,
-    user: User = Depends(required_user),
-):
-    """Create a new API key"""
-    return await api_key_service.create_api_key(str(user.id), api_key_create)
-
-
-@router.delete("/apikeys/{apikey_id}", tags=["api_keys"])
-@audit(resource_type="api_key", api_name="DeleteApiKey")
-async def delete_api_key_view(request: Request, apikey_id: str, user: User = Depends(required_user)):
-    """Delete an API key"""
-    return await api_key_service.delete_api_key(str(user.id), apikey_id)
-
-
-@router.put("/apikeys/{apikey_id}", tags=["api_keys"])
-@audit(resource_type="api_key", api_name="UpdateApiKey")
-async def update_api_key_view(
-    request: Request,
-    apikey_id: str,
-    api_key_update: ApiKeyUpdate,
-    user: User = Depends(required_user),
-):
-    """Update an API key"""
-    return await api_key_service.update_api_key(str(user.id), apikey_id, api_key_update)
+from aperag.domains.governance.api.routes import router  # noqa: F401
