@@ -153,7 +153,7 @@
 | `architecture/indexing-retrieval-kg.md` | **Bryce**（owner per PM msg=48ed233e item 3） | cuiwenbo 为 KB / `schema/common.py` / dual-hook 章节 contributor + consistency reviewer（cross-ref 回 `docs/modularization/architecture.md` Section 2.3 / 3.3，不新开独立 zh-CN doc per msg=9b712260）；Bryce 写 indexing / retrieval / KG / vector / vision / graphindex / LightRAG 深度 sections | task #6 primary + task #5 supporting |
 | `architecture/conversation-agent-evaluation.md` | chenyexuan 主笔 | conversation 6-services topology / agent_runtime PromptTemplateOps seam / evaluation is_terminal + dispatch_fn seam / prompt architecture standalone-infra permanent — 全在 task #7 batch 1 (msg=f4dfe81e) + batch 2 skeleton 覆盖 | task #7 |
 | `architecture/identity-governance-model-platform-marketplace.md` | Bryce 主笔 | identity (User/Role/OAuth/fastapi-users) / governance (ApiKey/Audit/QuotaOps standalone-infra) / marketplace (CollectionMarketplace / Q2 rename) / model_platform (LLM provider + 2-router split) — task #6 Block D 模式 | task #6 |
-| `architecture/web-access.md` | **待 PM 派活** | Phase 2a web_access 独立文档；可派给 Bryce / Weston / 其他 Phase 2a 相关 lane | — |
+| `architecture/web-access.md` | **Bryce**（PM msg=4689919d lock） | Phase 2a web_access 独立文档（reader / search / utils sub-packages） | — |
 
 ### 5.2 `user-guide/` (6 docs)
 
@@ -198,7 +198,6 @@
 **未决 assignment**（open items，PR 不 block on 它们 per PM msg=1cf82997 tail）：
 - `getting-started/overview.md` + `quickstart.md`（2 篇新增）— PM 需派活
 - `integration/mcp.md` + `integration/dify.md`（2 篇 KEEP+update）— PM 需派活
-- `architecture/web-access.md` 主笔 — PM 需派活
 
 ---
 
@@ -234,7 +233,6 @@ task #4 只出 skeleton + 主笔方案，不落正文。**下一轮**（待 PM �
 
 1. **`getting-started/overview.md` + `quickstart.md` 主笔**（2 篇新增 doc，无对应旧 source）— PM 需派活
 2. **`integration/mcp.md` + `integration/dify.md` 主笔**（2 篇 KEEP+update）— PM 需派活
-3. **`architecture/web-access.md` 主笔** — PM 需派活（Phase 2a owner 或其他）
 
 ---
 
