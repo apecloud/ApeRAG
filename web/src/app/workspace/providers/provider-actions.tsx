@@ -151,7 +151,7 @@ export const ProviderActions = ({
             {children}
           </Slot>
         </AlertDialogTrigger>
-        <AlertDialogContent>
+        <AlertDialogContent className="rounded-xl border-border/70">
           <AlertDialogHeader>
             <AlertDialogTitle>{common_tips('confirm')}</AlertDialogTitle>
             <AlertDialogDescription>
@@ -186,7 +186,7 @@ export const ProviderActions = ({
             {children}
           </Slot>
         </AlertDialogTrigger>
-        <AlertDialogContent>
+        <AlertDialogContent className="rounded-xl border-border/70">
           <AlertDialogHeader>
             <AlertDialogTitle>{common_tips('confirm')}</AlertDialogTitle>
             <AlertDialogDescription>
@@ -220,59 +220,65 @@ export const ProviderActions = ({
             {children}
           </Slot>
         </DialogTrigger>
-        <DialogContent>
+        <DialogContent className="max-w-3xl rounded-xl border-border/70">
           <Form {...form}>
             <form
               onSubmit={form.handleSubmit(handleCreateOrUpdate)}
-              className="space-y-8"
+              className="space-y-6"
             >
               <DialogHeader>
-                <DialogTitle>
+                <DialogTitle className="font-serif text-2xl font-normal">
                   {action === 'add' && page_models('provider.add_provider')}
                   {action === 'edit' && page_models('provider.edit_provider')}
                 </DialogTitle>
-                <DialogDescription></DialogDescription>
+                <DialogDescription>
+                  {page_models('provider.dialog_description')}
+                </DialogDescription>
               </DialogHeader>
-              <FormField
-                control={form.control}
-                name="label"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{page_models('provider.name')}</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder={page_models('provider.name_placeholder')}
-                        {...field}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="base_url"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{page_models('provider.base_url')}</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder={page_models(
-                          'provider.base_url_placeholder',
-                        )}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      {page_models('provider.base_url_description')}
-                    </FormDescription>
-                  </FormItem>
-                )}
-              />
-              <div>
-                <FormLabel className="text-muted-foreground mb-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="label"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{page_models('provider.name')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={page_models(
+                            'provider.name_placeholder',
+                          )}
+                          {...field}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="base_url"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{page_models('provider.base_url')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={page_models(
+                            'provider.base_url_placeholder',
+                          )}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {page_models('provider.base_url_description')}
+                      </FormDescription>
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <div className="rounded-xl border border-border/70 bg-muted p-4">
+                <FormLabel className="mb-4 block text-sm font-medium">
                   {page_models('provider.api_dialect')}
                 </FormLabel>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid gap-4 md:grid-cols-3">
                   <FormField
                     control={form.control}
                     name="completion_dialect"
@@ -310,11 +316,7 @@ export const ProviderActions = ({
                       <FormItem>
                         <FormLabel>Rerank</FormLabel>
                         <FormControl>
-                          <Input
-                            placeholder="Rerank API Dialect
-"
-                            {...field}
-                          />
+                          <Input placeholder="Rerank API Dialect" {...field} />
                         </FormControl>
                       </FormItem>
                     )}

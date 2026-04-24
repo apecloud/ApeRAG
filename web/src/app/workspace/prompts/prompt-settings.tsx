@@ -29,14 +29,20 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { cn } from '@/lib/utils';
+import { MessageSquareText, ShieldCheck } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { type ElementType, useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 type PromptType = 'agent_system' | 'agent_query';
 
 const PROMPT_TYPES: PromptType[] = ['agent_system', 'agent_query'];
+const PROMPT_ICON: Record<PromptType, ElementType> = {
+  agent_system: ShieldCheck,
+  agent_query: MessageSquareText,
+};
 
 interface PromptCardProps {
   promptType: PromptType;
@@ -76,33 +82,51 @@ const PromptCard = ({ promptType, detail, onSaved }: PromptCardProps) => {
   }, [promptType, page_prompts, onSaved]);
 
   const isCustomized = detail?.customized === true;
+  const Icon = PROMPT_ICON[promptType];
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between gap-2">
-          <CardTitle>{page_prompts(`${promptType}.title` as never)}</CardTitle>
-          <Badge variant={isCustomized ? 'default' : 'secondary'}>
+    <Card className="gap-0 overflow-hidden rounded-xl border-border/70 py-0">
+      <CardHeader className="border-b border-border/70 px-5 py-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="bg-accent-soft text-accent-ink flex size-10 shrink-0 items-center justify-center rounded-lg">
+              <Icon className="size-5" />
+            </div>
+            <div className="min-w-0">
+              <CardTitle className="font-serif text-xl font-normal">
+                {page_prompts(`${promptType}.title` as never)}
+              </CardTitle>
+              <CardDescription className="mt-1 leading-6">
+                {page_prompts(`${promptType}.description` as never)}
+              </CardDescription>
+            </div>
+          </div>
+          <Badge
+            variant="outline"
+            className={cn(
+              'rounded-full',
+              isCustomized
+                ? 'border-primary/20 bg-accent-soft text-accent-ink'
+                : 'bg-muted text-muted-foreground',
+            )}
+          >
             {isCustomized
               ? page_prompts('status.customized')
               : page_prompts('status.default')}
           </Badge>
         </div>
-        <CardDescription>
-          {page_prompts(`${promptType}.description` as never)}
-        </CardDescription>
       </CardHeader>
 
-      <CardContent>
+      <CardContent className="bg-muted/60 px-5 py-5">
         <Textarea
-          className="min-h-[160px] max-h-[360px] font-mono text-sm resize-y"
+          className="bg-card min-h-[220px] max-h-[460px] resize-y rounded-xl border-border/70 font-mono text-sm leading-6"
           value={content}
           onChange={(e) => setContent(e.target.value)}
           placeholder={detail?.content ?? ''}
         />
       </CardContent>
 
-      <CardFooter className="justify-end gap-2">
+      <CardFooter className="justify-end gap-2 border-t border-border/70 px-5 py-4">
         {isCustomized && (
           <Dialog open={resetOpen} onOpenChange={setResetOpen}>
             <DialogTrigger asChild>
@@ -110,9 +134,11 @@ const PromptCard = ({ promptType, detail, onSaved }: PromptCardProps) => {
                 {page_prompts('action.reset')}
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="rounded-xl border-border/70">
               <DialogHeader>
-                <DialogTitle>{page_prompts('action.reset_confirm')}</DialogTitle>
+                <DialogTitle className="font-serif text-2xl font-normal">
+                  {page_prompts('action.reset_confirm')}
+                </DialogTitle>
                 <DialogDescription>
                   {page_prompts('action.reset_confirm_description')}
                 </DialogDescription>
@@ -144,7 +170,7 @@ export const PromptSettings = ({ data }: { data: UserPromptsResponse }) => {
   }, [router]);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="grid gap-5 xl:grid-cols-2">
       {PROMPT_TYPES.map((promptType) => (
         <PromptCard
           key={promptType}

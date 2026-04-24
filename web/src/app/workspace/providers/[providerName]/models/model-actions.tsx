@@ -190,7 +190,10 @@ export const ModelActions = ({
             {children}
           </Slot>
         </DialogTrigger>
-        <DialogContent showCloseButton={false}>
+        <DialogContent
+          showCloseButton={false}
+          className="rounded-xl border-border/70"
+        >
           <DialogHeader>
             <DialogTitle>{common_tips('confirm')}</DialogTitle>
             <DialogDescription>
@@ -225,18 +228,20 @@ export const ModelActions = ({
             {children}
           </Slot>
         </DialogTrigger>
-        <DialogContent>
+        <DialogContent className="max-w-3xl rounded-xl border-border/70">
           <Form {...form}>
             <form
               onSubmit={form.handleSubmit(handleCreateOrUpdate)}
-              className="space-y-8"
+              className="space-y-6"
             >
               <DialogHeader>
-                <DialogTitle>
+                <DialogTitle className="font-serif text-2xl font-normal">
                   {action === 'add' && page_models('model.add_model')}
                   {action === 'edit' && page_models('model.edit_model')}
                 </DialogTitle>
-                <DialogDescription></DialogDescription>
+                <DialogDescription>
+                  {page_models('model.dialog_description')}
+                </DialogDescription>
               </DialogHeader>
               <FormField
                 control={form.control}
@@ -262,12 +267,12 @@ export const ModelActions = ({
                     <FormLabel>{page_models('model.api_type')}</FormLabel>
                     <FormControl>
                       <RadioGroup
-                        className="grid grid-cols-3 gap-4"
+                        className="grid gap-3 md:grid-cols-3"
                         onValueChange={field.onChange}
                         disabled={model !== undefined}
                         {...field}
                       >
-                        <div className="bg-card flex h-9 items-center gap-3 rounded-md border px-3">
+                        <div className="bg-muted flex h-10 items-center gap-3 rounded-lg border border-border/70 px-3">
                           <RadioGroupItem
                             value="completion"
                             id="completion"
@@ -281,7 +286,7 @@ export const ModelActions = ({
                             Completion
                           </Label>
                         </div>
-                        <div className="bg-card flex h-9 items-center gap-3 rounded-md border px-3">
+                        <div className="bg-muted flex h-10 items-center gap-3 rounded-lg border border-border/70 px-3">
                           <RadioGroupItem
                             value="embedding"
                             id="embedding"
@@ -295,7 +300,7 @@ export const ModelActions = ({
                             Embedding
                           </Label>
                         </div>
-                        <div className="bg-card flex h-9 items-center gap-3 rounded-md border px-3">
+                        <div className="bg-muted flex h-10 items-center gap-3 rounded-lg border border-border/70 px-3">
                           <RadioGroupItem
                             value="rerank"
                             id="rerank"
@@ -361,11 +366,11 @@ export const ModelActions = ({
                   </FormItem>
                 )}
               />
-              <div>
-                <FormLabel className="text-muted-foreground mb-4">
+              <div className="rounded-xl border border-border/70 bg-muted p-4">
+                <FormLabel className="mb-4 block text-sm font-medium">
                   {page_models('model.llm_params')}
                 </FormLabel>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid gap-4 md:grid-cols-3">
                   <FormField
                     control={form.control}
                     name="context_window"

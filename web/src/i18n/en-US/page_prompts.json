@@ -1,7 +1,13 @@
 {
   "metadata": {
+    "label": "Prompt controls",
     "title": "Prompt Management",
     "description": "Customize system prompts to adjust the AI assistant's behavior and conversation style. Changes override system defaults and can be reset at any time."
+  },
+  "metric": {
+    "templates": "Templates",
+    "customized": "Customized",
+    "defaults": "Using defaults"
   },
   "agent_system": {
     "title": "System Prompt",

@@ -893,14 +893,22 @@
   },
   "page_models": {
     "metadata": {
+      "provider_label": "Model platform",
       "provider_title": "Model Provider",
       "provider_description": "This section allows you to connect and customize your preferred Large Language Model (LLM) providers and models for personal use. Set up API keys, choose models, and adjust settings to enhance your AI experience.",
+      "model_label": "Provider models",
       "model_title": "Models",
       "model_description": "This section allows you to connect and customize your preferred Large Language Model (LLM) providers and models for personal use. Set up API keys, choose models, and adjust settings to enhance your AI experience."
     },
     "provider": {
       "search_placeholder": "Search model provider",
       "add_provider": "Add Provider",
+      "columns": "Columns",
+      "dialog_description": "Connect a model provider with its endpoint and API dialects. API keys are handled separately when the provider is enabled.",
+      "metric_providers": "Providers",
+      "metric_enabled": "Enabled",
+      "metric_public": "Public",
+      "metric_models": "Models",
       "name": "Name",
       "name_placeholder": "Provider display name.",
       "base_url": "Base Url",
@@ -929,6 +937,14 @@
     "model": {
       "search_placeholder": "Search Models",
       "add_model": "Add Model",
+      "dialog_description": "Register a model endpoint and define the API capability it supports.",
+      "metric_total": "Total models",
+      "metric_completion": "Completion",
+      "metric_embedding": "Embedding",
+      "metric_rerank": "Rerank",
+      "param_context": "Context",
+      "param_input": "Input",
+      "param_output": "Output",
       "name": "Model Name",
       "name_placeholder": "Enter the model name",
       "llm_params": "LLM params",
@@ -950,8 +966,14 @@
   },
   "page_prompts": {
     "metadata": {
+      "label": "Prompt controls",
       "title": "Prompt Management",
       "description": "Customize system prompts to adjust the AI assistant's behavior and conversation style. Changes override system defaults and can be reset at any time."
+    },
+    "metric": {
+      "templates": "Templates",
+      "customized": "Customized",
+      "defaults": "Using defaults"
     },
     "agent_system": {
       "title": "System Prompt",

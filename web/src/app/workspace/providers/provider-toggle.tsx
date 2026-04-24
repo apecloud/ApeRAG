@@ -77,16 +77,18 @@ export const ProviderToggle = ({ provider }: { provider: Provider }) => {
         open={enabledVisible}
         onOpenChange={() => setEnabledVisible(false)}
       >
-        <DialogContent>
+        <DialogContent className="max-w-2xl rounded-xl border-border/70">
           <DialogHeader>
-            <DialogTitle>{page_models('provider.api_key')}</DialogTitle>
+            <DialogTitle className="font-serif text-2xl font-normal">
+              {page_models('provider.api_key')}
+            </DialogTitle>
           </DialogHeader>
           <div>
             <Textarea
               value={apiKey}
               onChange={(e) => setApiKey(e.currentTarget.value)}
               placeholder={page_models('provider.api_key_placeholder')}
-              className="w-115 resize-none"
+              className="min-h-32 resize-y font-mono text-sm"
             />
 
             <div className="text-muted-foreground mt-2 text-sm">
@@ -106,7 +108,7 @@ export const ProviderToggle = ({ provider }: { provider: Provider }) => {
         open={disabledVisible}
         onOpenChange={() => setDisabledVisible(false)}
       >
-        <DialogContent>
+        <DialogContent className="rounded-xl border-border/70">
           <DialogHeader>
             <DialogTitle>{common_tips('confirm')}</DialogTitle>
             <DialogDescription>

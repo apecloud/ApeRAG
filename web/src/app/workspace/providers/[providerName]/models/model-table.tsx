@@ -149,14 +149,29 @@ export function ModelTable({
         header: page_models('model.name'),
         cell: ({ row }) => {
           return (
-            <div className="flex flex-col gap-2">
-              <div className="text-left">{row.original.model}</div>
-              <div className="flex gap-1">
-                {row.original.tags
-                  ?.filter((tag) => tag !== '__autogen__')
-                  .map((tag) => {
-                    return <Badge key={tag}>{tag}</Badge>;
-                  })}
+            <div className="flex items-center gap-3">
+              <div className="bg-accent-soft text-accent-ink flex size-9 shrink-0 items-center justify-center rounded-lg">
+                <MessageSquareCode className="size-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="truncate text-left font-medium">
+                  {row.original.model}
+                </div>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {row.original.tags
+                    ?.filter((tag) => tag !== '__autogen__')
+                    .map((tag) => {
+                      return (
+                        <Badge
+                          key={tag}
+                          variant="secondary"
+                          className="rounded-full font-mono text-[10px]"
+                        >
+                          {tag}
+                        </Badge>
+                      );
+                    })}
+                  </div>
               </div>
             </div>
           );
@@ -167,22 +182,28 @@ export function ModelTable({
         header: page_models('model.llm_params'),
         cell: ({ row }) => {
           return (
-            <div className="flex items-center gap-6">
-              <div className="text-center">
-                <div className="text-muted-foreground text-sm">Context</div>
-                <div className="w-25 truncate">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="bg-muted rounded-lg px-3 py-2">
+                <div className="text-muted-foreground font-mono text-[10px] uppercase">
+                  {page_models('model.param_context')}
+                </div>
+                <div className="mt-1 max-w-24 truncate font-mono text-xs">
                   {row.original.context_window || '-'}
                 </div>
               </div>
-              <div className="text-center">
-                <div className="text-muted-foreground text-sm">Max Input</div>
-                <div className="w-25 truncate">
+              <div className="bg-muted rounded-lg px-3 py-2">
+                <div className="text-muted-foreground font-mono text-[10px] uppercase">
+                  {page_models('model.param_input')}
+                </div>
+                <div className="mt-1 max-w-24 truncate font-mono text-xs">
                   {row.original.max_input_tokens || '-'}
                 </div>
               </div>
-              <div className="text-center">
-                <div className="text-muted-foreground text-sm">Max Output</div>
-                <div className="w-25 truncate">
+              <div className="bg-muted rounded-lg px-3 py-2">
+                <div className="text-muted-foreground font-mono text-[10px] uppercase">
+                  {page_models('model.param_output')}
+                </div>
+                <div className="mt-1 max-w-24 truncate font-mono text-xs">
                   {row.original.max_output_tokens || '-'}
                 </div>
               </div>
@@ -233,7 +254,10 @@ export function ModelTable({
               break;
           }
           return (
-            <Badge variant="outline">
+            <Badge
+              variant="outline"
+              className="rounded-full bg-muted font-mono uppercase"
+            >
               {icon} {row.original.api}
             </Badge>
           );
@@ -319,12 +343,15 @@ export function ModelTable({
   });
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div className="flex flex-row items-center gap-2">
+    <div className="flex flex-col gap-5">
+      <div className="border-border/70 bg-card grid gap-4 rounded-xl border p-4 shadow-sm lg:grid-cols-[1fr_auto] lg:items-center">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center">
           <Button asChild variant="outline">
             <Link href={`${pathnamePrefix}/providers`}>
               <ArrowLeft />
+              <span className="hidden sm:inline">
+                {page_models('metadata.provider_title')}
+              </span>
             </Link>
           </Button>
           <Select
@@ -338,7 +365,7 @@ export function ModelTable({
             }}
             value={currentApiFilter}
           >
-            <SelectTrigger className="w-full max-w-32">
+            <SelectTrigger className="w-full max-w-40">
               <SelectValue placeholder={page_models('model.api_type')} />
             </SelectTrigger>
             <SelectContent>
@@ -347,13 +374,17 @@ export function ModelTable({
               <SelectItem value="rerank">Rerank</SelectItem>
             </SelectContent>
           </Select>
-          <Input
-            placeholder={page_models('model.search_placeholder')}
-            value={searchValue}
-            onChange={(e) => setSearchValue(e.currentTarget.value)}
-          />
+          <div className="relative min-w-0 flex-1 md:min-w-80">
+            <Input
+              className="bg-background/70 h-10 rounded-lg pl-9"
+              placeholder={page_models('model.search_placeholder')}
+              value={searchValue}
+              onChange={(e) => setSearchValue(e.currentTarget.value)}
+            />
+            <MessageSquareCode className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 lg:justify-end">
           <ModelActions action="add" provider={provider}>
             <Button>
               <Plus />
@@ -367,6 +398,9 @@ export function ModelTable({
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
                 <Columns3 />
+                <span className="hidden sm:inline">
+                  {page_models('provider.columns')}
+                </span>
                 <ChevronDown />
               </Button>
             </DropdownMenuTrigger>
@@ -396,7 +430,13 @@ export function ModelTable({
           </DropdownMenu>
         </div>
       </div>
-      <DataGrid table={table} />
+      <div className="border-border/70 bg-card rounded-xl border p-3 shadow-sm">
+        <DataGrid
+          table={table}
+          idKey="model"
+          className="rounded-lg border-border/70"
+        />
+      </div>
       <DataGridPagination table={table} />
     </div>
   );

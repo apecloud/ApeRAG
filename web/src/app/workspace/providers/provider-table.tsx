@@ -34,6 +34,7 @@ import { useAppContext } from '@/components/providers/app-provider';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import type { Provider, ProviderModel } from '@/features/providers/types';
+import { cn } from '@/lib/utils';
 import {
   ChevronDown,
   Columns3,
@@ -41,6 +42,7 @@ import {
   FolderCog,
   Globe,
   Plus,
+  Search,
   SquarePen,
   Trash,
 } from 'lucide-react';
@@ -84,6 +86,15 @@ export const ProviderTable = ({
     pageSize: 20,
   });
   const [searchValue, setSearchValue] = React.useState<string>('');
+  const modelCounts = React.useMemo(() => {
+    const counts = new Map<string, number>();
+    models.forEach((model) => {
+      if (model.provider_name) {
+        counts.set(model.provider_name, (counts.get(model.provider_name) || 0) + 1);
+      }
+    });
+    return counts;
+  }, [models]);
 
   const columns: ColumnDef<Provider>[] = React.useMemo(() => {
     const cols: ColumnDef<Provider>[] = [
@@ -119,10 +130,20 @@ export const ProviderTable = ({
         cell: ({ row }) => {
           return (
             <Link
-              className="hover:text-primary underline"
+              className="group flex items-center gap-3"
               href={`${urlPrefix}/providers/${row.original.name}/models`}
             >
-              {row.original.label || row.original.name}
+              <div className="bg-accent-soft text-accent-ink flex size-9 shrink-0 items-center justify-center rounded-lg">
+                <FolderCog className="size-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="group-hover:text-primary truncate font-medium transition-colors">
+                  {row.original.label || row.original.name}
+                </div>
+                <div className="text-muted-foreground font-mono text-[11px]">
+                  {row.original.name}
+                </div>
+              </div>
             </Link>
           );
         },
@@ -130,15 +151,21 @@ export const ProviderTable = ({
       {
         accessorKey: 'base_url',
         header: page_models('provider.base_url'),
+        cell: ({ row }) => (
+          <div className="text-muted-foreground max-w-[260px] truncate font-mono text-xs">
+            {row.original.base_url || '-'}
+          </div>
+        ),
       },
       {
         accessorKey: 'name',
         header: page_models('provider.models_count'),
         cell: ({ row }) => {
-          const providerModels = models.filter(
-            (m) => m.provider_name === row.original.name,
+          return (
+            <Badge variant="secondary" className="font-mono tabular-nums">
+              {modelCounts.get(row.original.name) || 0}
+            </Badge>
           );
-          return <div>{providerModels.length}</div>;
         },
       },
       {
@@ -149,9 +176,20 @@ export const ProviderTable = ({
             row.original.user_id === 'public'
               ? page_models('provider.public')
               : page_models('provider.private');
-          const variant =
-            row.original.user_id === 'public' ? 'default' : 'destructive';
-          return <Badge variant={variant}>{text}</Badge>;
+          const isPublic = row.original.user_id === 'public';
+          return (
+            <Badge
+              variant="outline"
+              className={cn(
+                'rounded-full',
+                isPublic
+                  ? 'border-primary/20 bg-accent-soft text-accent-ink'
+                  : 'bg-muted text-muted-foreground',
+              )}
+            >
+              {text}
+            </Badge>
+          );
         },
       },
       {
@@ -219,7 +257,7 @@ export const ProviderTable = ({
       },
     ];
     return cols;
-  }, [models, page_models, urlPrefix, user?.role]);
+  }, [modelCounts, page_models, urlPrefix, user?.role]);
 
   const table = useReactTable({
     data,
@@ -248,16 +286,18 @@ export const ProviderTable = ({
   });
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div className="flex flex-row items-center gap-2">
+    <div className="flex flex-col gap-5">
+      <div className="border-border/70 bg-card grid gap-4 rounded-xl border p-4 shadow-sm lg:grid-cols-[1fr_auto] lg:items-center">
+        <div className="relative max-w-xl">
+          <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
           <Input
+            className="bg-background/70 h-10 rounded-lg pl-9"
             placeholder={page_models('provider.search_placeholder')}
             value={searchValue}
             onChange={(e) => setSearchValue(e.currentTarget.value)}
           />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 lg:justify-end">
           {user?.role === 'admin' && <ModelsDefaultConfiguration />}
 
           <ProviderActions action="add">
@@ -273,6 +313,9 @@ export const ProviderTable = ({
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
                 <Columns3 />
+                <span className="hidden sm:inline">
+                  {page_models('provider.columns')}
+                </span>
                 <ChevronDown />
               </Button>
             </DropdownMenuTrigger>
@@ -302,7 +345,9 @@ export const ProviderTable = ({
           </DropdownMenu>
         </div>
       </div>
-      <DataGrid table={table} />
+      <div className="border-border/70 bg-card rounded-xl border p-3 shadow-sm">
+        <DataGrid table={table} idKey="name" className="rounded-lg border-border/70" />
+      </div>
       <DataGridPagination table={table} />
     </div>
   );

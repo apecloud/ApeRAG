@@ -1,7 +1,13 @@
 {
   "metadata": {
+    "label": "提示词控制台",
     "title": "提示词管理",
     "description": "自定义系统默认提示词，调整 AI 助手的行为和对话风格。修改后将覆盖系统默认配置，可随时重置恢复默认。"
+  },
+  "metric": {
+    "templates": "模板",
+    "customized": "已自定义",
+    "defaults": "使用默认"
   },
   "agent_system": {
     "title": "系统提示词",
