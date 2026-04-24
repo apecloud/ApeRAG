@@ -22,7 +22,6 @@ const fontSans = Manrope({
 const fontSerif = Fraunces({
   variable: '--font-serif',
   subsets: ['latin'],
-  weight: ['400', '500', '600'],
   axes: ['opsz'],
   display: 'swap',
 });
