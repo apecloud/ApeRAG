@@ -116,6 +116,14 @@ class QuotaOps(Protocol):
     the SQLAlchemy async session the KB transaction is already running
     in; the quota implementation reuses it so the quota decrement joins
     the same transaction boundary.
+
+    ``get_user_quotas`` returns the full user-quota dictionary (keyed
+    by quota_type with ``quota_limit`` / ``current_usage`` / ``remaining``
+    sub-fields). Used by ``document_service`` to enforce the
+    ``max_document_count_per_collection`` cap — a read-only limit
+    lookup that pairs with an in-transaction ``COUNT(*)`` over
+    ``Document``. Limits are admin-controlled and rarely mutate, so a
+    separate read session is acceptable here.
     """
 
     async def check_and_consume_quota(
@@ -133,6 +141,8 @@ class QuotaOps(Protocol):
         amount: int = 1,
         session: Any = None,
     ) -> None: ...
+
+    async def get_user_quotas(self, user_id: str) -> dict: ...
 
 
 __all__ = [

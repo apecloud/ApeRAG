@@ -59,6 +59,15 @@ __all__ = [
     "RebuildIndexesRequest",
     "RebuildIndexesResponse",
     "CollectionSummaryTriggerResponse",
+    # Step 5b3: document-upload / confirm / fetch-url envelope schemas
+    # moved from ``aperag.schema.view_models`` so the KB
+    # ``document_service`` does not have to bind to the aggregate.
+    "UploadDocumentResponse",
+    "FailedDocument",
+    "ConfirmDocumentsResponse",
+    "FetchUrlResultItem",
+    "FetchUrlResponse",
+    "StagedDocumentsResponse",
 ]
 
 
@@ -249,7 +258,67 @@ class CollectionSummaryTriggerResponse(BaseModel):
     )
 
 
-# Re-bind the 11 KB schemas onto ``aperag.schema.view_models`` so that
+# ---------- Document upload / confirm / fetch-url envelopes (Step 5b3) ---------- #
+#
+# The six schemas below were carved out of ``aperag.schema.view_models``
+# in Phase 3 Step 5b3 so that the KB ``document_service`` can build its
+# response envelopes without binding to the banned aggregate.
+# ``ConfirmDocumentsRequest`` and ``FetchUrlRequest`` stay in
+# ``view_models`` for now — they are consumed by FastAPI route handlers
+# (``aperag.views.documents_v2``) and will migrate in Step 5a when
+# routes move to ``aperag/domains/knowledge_base/api/routes.py``.
+
+
+class UploadDocumentResponse(BaseModel):
+    document_id: str = Field(..., description="ID of the uploaded document")
+    filename: str = Field(..., description="Name of the uploaded file")
+    size: int = Field(..., description="Size of the uploaded file in bytes")
+    status: Literal["UPLOADED", "PENDING", "RUNNING", "COMPLETE", "FAILED", "DELETED", "EXPIRED"] = Field(
+        ...,
+        description="Status of the document (UPLOADED for new uploads, or existing status for duplicate files)",
+    )
+
+
+class FailedDocument(BaseModel):
+    document_id: Optional[str] = None
+    name: Optional[str] = Field(None, description="Name of the document")
+    error: Optional[str] = None
+
+
+class ConfirmDocumentsResponse(BaseModel):
+    confirmed_count: int = Field(..., description="Number of documents successfully confirmed")
+    failed_count: int = Field(..., description="Number of documents that failed to confirm")
+    failed_documents: Optional[list[FailedDocument]] = Field(None, description="Details of failed confirmations")
+
+
+class FetchUrlResultItem(BaseModel):
+    url: str = Field(..., description="The source URL")
+    fetch_status: Literal["success", "error"] = Field(..., description="Whether the URL was fetched successfully")
+    document_id: Optional[str] = Field(None, description="ID of the created document (only present on success)")
+    filename: Optional[str] = Field(None, description="Filename of the created document (only present on success)")
+    size: Optional[int] = Field(
+        None,
+        description="Size of the created document in bytes (only present on success)",
+    )
+    status: Optional[str] = Field(None, description="Document status (only present on success)")
+    error: Optional[str] = Field(None, description="Error message (only present on failure)")
+
+
+class FetchUrlResponse(BaseModel):
+    results: list[FetchUrlResultItem] = Field(..., description="Results for each URL")
+    total: int = Field(..., description="Total number of URLs processed")
+    succeeded: int = Field(..., description="Number of URLs successfully fetched")
+    failed: int = Field(..., description="Number of URLs that failed")
+
+
+class StagedDocumentsResponse(BaseModel):
+    documents: list[UploadDocumentResponse] = Field(
+        ..., description="List of staged (UPLOADED) documents awaiting confirmation"
+    )
+    total: int = Field(..., description="Total number of staged documents")
+
+
+# Re-bind the KB schemas onto ``aperag.schema.view_models`` so that
 # pre-migration callers (``from aperag.schema.view_models import
 # Collection`` / ``view_models.Document(...)``) and Pydantic forward-ref
 # resolution in view_models' own classes (``Agent.collections:

@@ -215,30 +215,8 @@ class DeleteDocumentsResponse(BaseModel):
     status: Literal["success"] = Field(..., description="Batch deletion status")
 
 
-class UploadDocumentResponse(BaseModel):
-    document_id: str = Field(..., description="ID of the uploaded document")
-    filename: str = Field(..., description="Name of the uploaded file")
-    size: int = Field(..., description="Size of the uploaded file in bytes")
-    status: Literal["UPLOADED", "PENDING", "RUNNING", "COMPLETE", "FAILED", "DELETED", "EXPIRED"] = Field(
-        ...,
-        description="Status of the document (UPLOADED for new uploads, or existing status for duplicate files)",
-    )
-
-
 class ConfirmDocumentsRequest(BaseModel):
     document_ids: list[str] = Field(..., description="List of document IDs to confirm", min_length=1)
-
-
-class FailedDocument(BaseModel):
-    document_id: Optional[str] = None
-    name: Optional[str] = Field(None, description="Name of the document")
-    error: Optional[str] = None
-
-
-class ConfirmDocumentsResponse(BaseModel):
-    confirmed_count: int = Field(..., description="Number of documents successfully confirmed")
-    failed_count: int = Field(..., description="Number of documents that failed to confirm")
-    failed_documents: Optional[list[FailedDocument]] = Field(None, description="Details of failed confirmations")
 
 
 class FetchUrlRequest(BaseModel):
@@ -249,31 +227,12 @@ class FetchUrlRequest(BaseModel):
     )
 
 
-class FetchUrlResultItem(BaseModel):
-    url: str = Field(..., description="The source URL")
-    fetch_status: Literal["success", "error"] = Field(..., description="Whether the URL was fetched successfully")
-    document_id: Optional[str] = Field(None, description="ID of the created document (only present on success)")
-    filename: Optional[str] = Field(None, description="Filename of the created document (only present on success)")
-    size: Optional[int] = Field(
-        None,
-        description="Size of the created document in bytes (only present on success)",
-    )
-    status: Optional[str] = Field(None, description="Document status (only present on success)")
-    error: Optional[str] = Field(None, description="Error message (only present on failure)")
-
-
-class FetchUrlResponse(BaseModel):
-    results: list[FetchUrlResultItem] = Field(..., description="Results for each URL")
-    total: int = Field(..., description="Total number of URLs processed")
-    succeeded: int = Field(..., description="Number of URLs successfully fetched")
-    failed: int = Field(..., description="Number of URLs that failed")
-
-
-class StagedDocumentsResponse(BaseModel):
-    documents: list[UploadDocumentResponse] = Field(
-        ..., description="List of staged (UPLOADED) documents awaiting confirmation"
-    )
-    total: int = Field(..., description="Total number of staged documents")
+# UploadDocumentResponse / FailedDocument / ConfirmDocumentsResponse /
+# FetchUrlResultItem / FetchUrlResponse / StagedDocumentsResponse were
+# carved out to ``aperag.domains.knowledge_base.schemas`` in Phase 3
+# Step 5b3. The end-of-file try block re-imports them so pre-migration
+# callers (``from aperag.schema.view_models import UploadDocumentResponse``)
+# keep resolving the same class objects.
 
 
 class Settings(BaseModel):
@@ -1556,11 +1515,17 @@ try:
         CollectionUpdate,
         CollectionView,
         CollectionViewList,
+        ConfirmDocumentsResponse,
         Document,
         DocumentList,
         DocumentPreview,
+        FailedDocument,
+        FetchUrlResponse,
+        FetchUrlResultItem,
         RebuildIndexesRequest,
         RebuildIndexesResponse,
+        StagedDocumentsResponse,
+        UploadDocumentResponse,
     )
 except ImportError:
     # Circular import window: KB schemas module is still loading the
