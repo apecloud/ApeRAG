@@ -62,7 +62,15 @@ _ENTITY_TAG = "entity"
 _CHUNK_TAG = "chunk"
 _EDGE_TYPE = "relates_to"
 _SCHEMA_VISIBILITY_ERROR = "No schema found for"
-_SCHEMA_VISIBILITY_RETRIES = 10
+# Nebula metad accepts ``CREATE SPACE`` before the schema finishes
+# propagating to every storaged node, so a follow-up ``USE <space>``
+# (or a tag/edge ``CREATE`` inside the new space) can briefly raise
+# ``SpaceNotFound`` / ``No schema found for`` while the heartbeat
+# catches up. Nebula's default ``heartbeat_interval_secs`` is 10s and
+# storaged typically picks up changes within 2× that window, so 30
+# retries at 1s is intentionally comfortable for a shared CI runner.
+# The happy path short-circuits well before the budget.
+_SCHEMA_VISIBILITY_RETRIES = 30
 _SCHEMA_VISIBILITY_DELAY_SECONDS = 1.0
 
 
