@@ -296,11 +296,6 @@ class PydanticAIRuntime(AgentRuntime):
             )
 
             history_context = await self.history_writer.build_history_context(user, chat.id)
-            # Direct cross-domain import of the sibling conversation service
-            # (Phase 5 step 5-S4d moved it into the conversation domain) —
-            # G1 allows domain→domain. msg=940bd884 simplification avoids a
-            # ``ChatDocumentOps`` Protocol seam now that the provider has
-            # moved out of the legacy ``aperag.service.*`` ban target.
             from aperag.domains.conversation.service.chat_document_service import chat_document_service
 
             has_chat_files = await chat_document_service.has_documents_in_chat(chat.id, user)

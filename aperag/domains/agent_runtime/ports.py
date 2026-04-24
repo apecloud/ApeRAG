@@ -14,20 +14,10 @@
 
 """Cross-domain contracts owned by the ``agent_runtime`` domain.
 
-Phase 5 step 5-S5b adds the ``PromptTemplateOps`` Protocol for the
-legacy ``aperag.service.prompt_template_service`` provider —
-``prompt_template_service`` stays in ``aperag/service/`` through
-Phase 6 cleanup, so the agent_runtime domain cannot ``from
+``PromptTemplateOps`` is the consumer-owned Protocol for the legacy
+``aperag.service.prompt_template_service`` provider, which stays in
+``aperag/service/`` so the agent_runtime domain cannot ``from
 aperag.service.*`` import it directly without tripping G1.
-
-The ``ChatDocumentOps`` Protocol originally seeded in Phase 5 step 1
-has been **retired** per msg=940bd884 simplification: after
-``chat_document_service`` physically moved into the conversation
-domain (Phase 5 step 5-S4d), ``runtime.py`` can reach it via a
-direct cross-domain import (domain→domain is allowed by G1). The
-Protocol is kept here only in archived form (below the ``__all__``
-for the live surface) so any in-flight branch still referencing it
-resolves the same shape; Phase 6 removes it outright.
 
 ``AuthenticatedUser`` stays per-domain (lesson 9a-ter); runtime
 handlers only need ``id`` for turn ownership / lease checks.
@@ -99,17 +89,3 @@ __all__ = [
     "AuthenticatedUser",
     "PromptTemplateOps",
 ]
-
-
-# ``ChatDocumentOps`` retained for any in-flight caller that still
-# imports it. Phase 5 step 5-S5b replaced the runtime's DI seam with a
-# direct cross-domain import of
-# ``aperag.domains.conversation.service.chat_document_service`` now
-# that the conversation domain is merged — the Protocol definition is
-# no longer wired at app startup and is scheduled for removal in
-# Phase 6.
-
-
-@runtime_checkable
-class ChatDocumentOps(Protocol):  # pragma: no cover - retired, Phase 6 deletion candidate
-    async def has_documents_in_chat(self, chat_id: str, user_id: str) -> bool: ...
