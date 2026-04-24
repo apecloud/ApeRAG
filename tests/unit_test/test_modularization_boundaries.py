@@ -512,6 +512,106 @@ def test_no_legacy_retrieval_or_graph_routes_remain():
     )
 
 
+# ---------- Phase 3 knowledge_base ↔ legacy services one-way bridge ----------
+
+
+_KB_CONSUMER_OWNED_PROTOCOL_MODULES = (
+    # KB owns the Protocol surfaces that marketplace / search_pipeline /
+    # quota legacy services structurally satisfy. Provider-side import
+    # of the consumer's ports.py would re-introduce the circular
+    # dependency the DI pattern was built to avoid (lesson 9a-quad).
+    "aperag.domains.knowledge_base.ports",
+)
+
+# The legacy provider services that Phase 3 Step 5b2c / 5a wire into KB's
+# consumer-owned Protocol slots. They satisfy ``MarketplaceOps`` /
+# ``MarketplaceCollectionOps`` / ``SearchPipelineOps`` / ``QuotaOps``
+# structurally; they must never import KB's ports.py.
+_KB_LEGACY_PROVIDER_SERVICES = (
+    "aperag/service/marketplace_service.py",
+    "aperag/service/marketplace_collection_service.py",
+    "aperag/service/search_pipeline_service.py",
+    "aperag/service/quota_service.py",
+)
+
+
+def test_knowledge_base_protocol_boundary_is_consumer_owned():
+    """Lesson 9a-quad applied to Phase 3 KB domain: the KB domain owns
+    the Protocols (``MarketplaceOps`` / ``MarketplaceCollectionOps`` /
+    ``SearchPipelineOps`` / ``QuotaOps`` / ``AuthenticatedUser`` in
+    ``aperag/domains/knowledge_base/ports.py``); the legacy provider
+    services at ``aperag/service/`` structurally satisfy them. The
+    providers must never import the consumer's ports module — doing so
+    would re-establish the cycle the consumer-owned Protocol pattern
+    was built to break.
+
+    Scope is intentionally scoped to the four known provider modules.
+    If Phase 4 marketplace / Phase 5 quota move the implementation
+    under ``aperag/domains/`` the list shrinks; the domain G1 ban
+    already covers the ``aperag/domains/**`` side.
+    """
+    offenders: list[str] = []
+    for rel_path in _KB_LEGACY_PROVIDER_SERVICES:
+        path = REPO_ROOT / rel_path
+        if not path.exists():
+            continue
+        modules = _imported_modules(path.read_text())
+        for forbidden in _KB_CONSUMER_OWNED_PROTOCOL_MODULES:
+            if any(module == forbidden or module.startswith(forbidden + ".") for module in modules):
+                offenders.append(
+                    f"{rel_path} imports {forbidden} (forbidden by lesson 9a-quad: "
+                    "consumer owns the Protocol, provider structurally satisfies it)"
+                )
+
+    assert not offenders, (
+        "A legacy provider service imported the KB consumer-owned "
+        "Protocol module. Drop the import; structural satisfaction is "
+        "all that's required (the concrete class just needs matching "
+        "method signatures). Offenders:\n  " + "\n  ".join(sorted(offenders))
+    )
+
+
+def test_knowledge_base_di_wire_up_populated_after_app_import():
+    """Phase 3 Step 5b2c canonical: ``aperag/app.py`` module-scope
+    wire-up must populate all four KB consumer-owned Protocol DI slots
+    before any FastAPI handler runs.
+
+    The four getters (``_get_marketplace_ops`` /
+    ``_get_marketplace_collection_ops`` / ``_get_search_pipeline_ops``
+    / ``_get_quota_ops``) raise ``RuntimeError`` on unwired state, so
+    a forgotten or re-ordered startup wire-up would fail loudly —
+    this test makes it fail at CI time instead of at first request.
+
+    The sibling-import pattern (``document_service`` reuses
+    ``collection_service``'s accessors) means a single wire-up also
+    covers document_service; asserting the four module-level globals
+    here is therefore sufficient.
+    """
+    # Import ``aperag.app`` fresh so the module-scope wire-up fires
+    # (subsequent imports are a no-op because Python caches the
+    # loaded module in ``sys.modules``).
+    import aperag.app  # noqa: F401
+
+    import aperag.domains.knowledge_base.service.collection_service as kb_cs
+
+    missing = [
+        name
+        for name in (
+            "_marketplace_ops",
+            "_marketplace_collection_ops",
+            "_search_pipeline_ops",
+            "_quota_ops",
+        )
+        if getattr(kb_cs, name, None) is None
+    ]
+    assert not missing, (
+        "Knowledge-base consumer-owned Protocol DI slot(s) unwired "
+        "after ``import aperag.app``. Check the startup section of "
+        "``aperag/app.py`` (Phase 3 Step 5b2c). Missing: "
+        + ", ".join(missing)
+    )
+
+
 # ---------- Phase 1 FE closeout gates (G12-G17) ----------
 
 
