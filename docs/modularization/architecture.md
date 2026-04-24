@@ -1,0 +1,426 @@
+# ApeRAG Backend Architecture — Post-Phase-6 Current State
+
+> **Baseline**: `origin/main @ 28a9f531` (Phase 6 / PR #1635 merged, task #20 Done).
+> **Status**: Authoritative source-of-truth for the modularization end-state. Replaces historical roadmap docs as the current-state reference.
+> **Scope**: Documents **what exists today** — current domain layout, canonical rules, boundary gates, runtime seams, shim lifecycle. Historical plan/roadmap content lives in `README.md` / `roadmap.md` / `target-domain-map.md` for reference only. Future candidates are listed in Section 8 and must not be read as current state.
+
+---
+
+## 1. Executive summary
+
+The modularization re-architected the ApeRAG backend from a monolithic `aperag.service.*` / `aperag.db.models` / `aperag.schema.view_models` layout into a per-domain layout under `aperag/domains/**` with enforced boundary gates and permanent DI seams for shared infrastructure.
+
+### Phase 0→6 delivery
+
+| Phase | PR | Merge | Scope |
+| --- | --- | --- | --- |
+| 0–2 | (multiple) | merged | Design-lock + retrieval / knowledge_graph / web_access hard-cut |
+| 3 (#16) | #1629 | `3b208d80` | `knowledge_base` + `indexing` pilot split + DB layer base + boundary gates G1/G11/G13/G14 |
+| 4 (#25) | #1633 | `023fffd7` | `identity` + `governance` + `model_platform` + `marketplace` split + G15/G16/G17 gates + identity DI adapters |
+| 5 (#26) | #1634 | `c0a60d48` | `conversation` + `agent_runtime` + `evaluation` split + G18 alt + G19 gates + consumer-owned Protocol `QuotaOps` / `ChatCollectionServiceOps` / `PromptTemplateOps` |
+| 6 (#20) | #1635 | `28a9f531` | Final cleanup: retire dead `ChatDocumentOps` Protocol, retire `ChatCollectionServiceOps` seam (sibling direct import), promote `_TERMINAL_RUN_STATUSES` to `EvaluationRunStatus.is_terminal()` classmethod, introduce `identity_user_ops.set_chat_collection` facade, fix `PromptTemplateOps` / `QuotaOps` as **standalone-infra permanent seams** |
+
+### Steady-state facts (at `28a9f531`)
+
+- **12 backend domains** under `aperag/domains/**`: `identity` · `governance` · `model_platform` · `marketplace` · `knowledge_base` · `indexing` · `retrieval` · `knowledge_graph` · `conversation` · `agent_runtime` · `evaluation` · `web_access`.
+- **20 boundary tests** codified in `tests/unit_test/test_modularization_boundaries.py` covering **G1–G19**.
+- **2 permanent `CRITICAL_WIRINGS`** DI seams (both standalone-infra providers without natural domain homes).
+- **HTTP API byte-stable** throughout: `scripts/export_openapi.py --check` passed every squash-merge boundary.
+- **54 CR review cycles** across Phase 3+4+5+6 (14+17+18+5), all no-blocker.
+
+---
+
+## 2. Domain map
+
+Each backend domain lives under `aperag/domains/<domain>/`. The per-domain directory contract (not every domain uses every slot):
+
+- `db/models.py` — SQLAlchemy ORM classes + Enum types owned by this domain.
+- `schemas.py` — Pydantic schemas owned by this domain; bound onto `aperag.schema.view_models` through the dual-hook pattern (see Section 3).
+- `ports.py` — consumer-owned `Protocol` classes declaring the shape this domain needs from its cross-domain collaborators; implementations live elsewhere and are wired at startup.
+- `service/` or `service.py` — service-layer business logic; imports only this domain's own DB/schemas and cross-domain deps via ports or direct imports (see Section 3).
+- `api/routes.py` (and any sibling `*_routes.py` for prefix-split cases) — FastAPI route module. Router var name is domain-specific; `aperag/views/*.py` holds router-re-export shims.
+
+### 2.1 Domain inventory
+
+| Domain | DB (Enum + ORM) | Schemas | Service modules | Consumer ports (own) | API routes |
+| --- | --- | --- | --- | --- | --- |
+| **identity** | `Role` · `User` · `OAuthAccount` | 13 | `user_manager`, `identity_user_ops` | `AuthenticatedUser`, `BotInitOps`, `ChatInitOps`, `QuotaInitOps` | — (auth wiring in `aperag/views/auth.py` + shim re-exports) |
+| **governance** | `ApiKeyStatus` · `AuditResource` · `ApiKey` · `AuditLog` | 6 | `api_key_service`, `audit_service` | `AuthenticatedUser`, `UserView` | `api/routes.py` |
+| **model_platform** | `APIType` · `LLMProvider` · `LLMProviderModel` | 26 | `default_model_service`, `llm_available_model_service`, `llm_provider_service` | `AuthenticatedUser` | `api/llm_routes.py` + `api/providers_v2_routes.py` (2-router split because `/api/v1` and `/api/v2` prefixes coexist) |
+| **marketplace** | `CollectionMarketplaceStatusEnum` · `CollectionMarketplace` · `UserCollectionSubscription` | 3 | `marketplace_service`, `marketplace_collection_service` | `AuthenticatedUser` | `api/routes.py` |
+| **knowledge_base** | `CollectionStatus` · `CollectionSummaryStatus` · `CollectionType` · `DocumentStatus` · `Collection` · `CollectionSummary` · `Document` | 24 | `collection_service` (consumer), `collection_summary_service`, `document_service` | `AuthenticatedUser`, `MarketplaceOps`, `MarketplaceCollectionOps`, `SearchPipelineOps`, `QuotaOps` | `api/routes.py` |
+| **indexing** | `DocumentIndexType` · `DocumentIndexStatus` · `DocumentIndex` | 0 | functional modules (`manager`, `document_parser`, `vector_index`, `fulltext_index`, `graph_index`, `summary_index`, `vision_index`) | `CollectionIndexingView`, `IndexingTrigger` | — |
+| **retrieval** | `SearchHistory` | 10 | `service.py` (monolithic) + `pipeline.py` | `GraphQueryContext`, `GraphSearchContract` | `api/routes.py` |
+| **knowledge_graph** | `GraphCurationRunStatus` · `GraphCurationSuggestionStatus` · `GraphCurationRun` · `GraphCurationSuggestion` | 15 | `service.py` + `graphindex/*` (11 submodules) | `CollectionRow` | `api/routes.py` (+ a 410-Gone legacy shim on `aperag/views/graph.py`) |
+| **conversation** | `BotStatus` · `BotType` · `ChatStatus` · `ChatPeerType` · `TurnFeedbackType` · `TurnFeedbackTag` · `Bot` · `Chat` · `TurnFeedback` | 20 | `bot_service` (consumer), `chat_collection_service`, `chat_document_service`, `chat_service`, `chat_title_service`, `turn_feedback_service` | `KnowledgeBaseCollectionView`, `AuthenticatedUser`, `QuotaOps` | `api/routes.py` |
+| **agent_runtime** | `AgentTurnStatus` · `AgentEventActor` · `AgentArtifactType` · `AgentTurn` · `AgentTimelineEvent` · `AgentArtifact` | 13 | `runtime` (consumer, hosts the `_prompt_template_ops` slot), `services`, `storage` | `AuthenticatedUser`, `PromptTemplateOps` | `api/routes.py` |
+| **evaluation** | `EvaluationDatasetSourceType` · `EvaluationRunStatus` · `EvaluationRunItemStatus` · `EvaluationRunItemAttemptStatus` · `EvaluationJudgeMode` · `EvaluationDataset` · `EvaluationDatasetItem` · `EvaluationRun` · `EvaluationRunItem` · `EvaluationRunItemAttempt` | 24 | `services`, `worker` (hosts `dispatch_fn` test-injection seam — intentionally **not** a DI slot, see Section 5), `tasks`, `judges`, `constants` + `db/repositories/evaluation_v2.py` | `AuthenticatedUser`, `ChatSessionOps`, `AgentTurnDispatchOps` | `api/routes.py` |
+| **web_access** | — (owns no entities) | 7 | — (functional sub-packages: `reader/`, `search/`, `utils/`) | — | `api/routes.py` |
+
+### 2.2 Top-level infrastructure modules (not domain-owned)
+
+| File / Dir | Role |
+| --- | --- |
+| `aperag/app.py` | FastAPI app factory; module-scope DI wire-up for all seams — 7 Phase 3+4 slots + 2 Phase 5+6 permanent slots (Section 5) |
+| `aperag/config.py` | Settings / environment / database URL |
+| `aperag/exception_handlers.py`, `aperag/exceptions.py` | FastAPI exception integration |
+| `aperag/openapi_spec.py` | OpenAPI schema generation + `HIDDEN_FROM_PUBLIC_PATH_PREFIXES` registry |
+| `aperag/db/base.py` | SQLAlchemy declarative `Base`; shared across all per-domain `db/models.py` so alembic autogenerate sees one metadata registry (see lesson in Phase 3 breaking-changes doc) |
+| `aperag/db/ops.py` | Async DB query helpers |
+| `aperag/db/models.py` | **Re-export shim** for pre-migration callers (see Section 6) |
+| `aperag/db/repositories/*.py` | Repository layer — mix of domain-owned and legacy aggregate repos |
+| `aperag/schema/common.py` | **Shared primitive module** — pure Pydantic value objects consumed by ≥2 domains. See Section 3.2 for the strict admission criteria. |
+| `aperag/schema/view_models.py` | **Re-export shim with dual-hook blocks** for pre-migration callers (see Section 3.3 + Section 6) |
+| `aperag/schema/utils.py` | Schema utilities |
+| `aperag/llm/` | LiteLLM integration (completion / embedding / rerank / caching / tracking). Shared infrastructure, not a domain. |
+| `aperag/utils/` | `audit_decorator`, constants, date/pagination helpers, spider, LLM response handling |
+| `aperag/service/*.py` | **Re-export shims** for pre-migration callers + a handful of legacy-only services (Section 6) |
+| `aperag/views/*.py` | Router re-export shims + a handful of non-domain legacy views (Section 6) |
+| `aperag/agent_runtime/`, `aperag/evaluation_v2/` | **Legacy top-level packages** retained as re-export shims to keep pre-migration imports alive (Section 6) |
+
+### 2.3 Shared primitive module — `aperag/schema/common.py`
+
+`aperag/schema/common.py` is a **shared primitive module**, **not another aggregation layer**.
+
+Admission criterion — a type lives in `common.py` if and only if:
+
+1. It is a **primitive Pydantic shape** — pure value object: pagination envelope, chunk payload, model spec, a config subtree. No domain-specific semantics, no ORM dependency, no service-facing facade.
+2. It is **consumed by ≥2 domains** with semantics that do not belong to any single one.
+
+If a type is consumed by exactly one domain, it belongs in that domain's `schemas.py` — never in `common.py`.
+
+Current `common.py` entries (8) and their cross-domain justification:
+
+- `ModelSpec` — shared by knowledge_base (embedding/completion config), model_platform, conversation (bot config).
+- `KnowledgeGraphConfig` / `IndexPrompts` — shared by knowledge_base (collection config) + indexing (reconciler prompts).
+- `CollectionConfig` — KB's public config shape, consumed by knowledge_base + source ingestion + bots + retrieval.
+- `PageResult` / `PaginatedResponse` — pagination envelope, reused by list endpoints across 6+ domains.
+- `Chunk` / `VisionChunk` — search/chunking primitives, shared by knowledge_base + retrieval + indexing + vision.
+
+New additions must pass the same criterion. This gate is enforced by CR (not AST automation) to prevent `common.py` from drifting back into a `view_models.py`-style catch-all.
+
+### 2.4 `indexing` / `retrieval` / `knowledge_graph` (high-level structure — deeper SME input still needed)
+
+**Note**: the following is a **high-level structural summary only**. Phase 3 Step 2/3/5a/6/7/8 landed the depth of these domains, and implement-level detail (Protocol method signatures, DI wire-up timing, `graphindex/*` reconcile loop, Nebula space lifecycle, indexing reconciler state machine) should be backfilled by the landing owner or a future deep-dive SME. The entries here cover architecture-level relationships only.
+
+- **`indexing`** — reconciler + per-index-type workers (vector / fulltext / graph / summary / vision). Owns `DocumentIndex` ORM + `DocumentIndexType` / `DocumentIndexStatus` enums. Consumers (like `knowledge_base.collection_service`) drive it through `SearchPipelineOps` (consumer-owned) and indexing exposes `CollectionIndexingView` / `IndexingTrigger` for retrieval/KB wiring.
+- **`retrieval`** — search pipeline orchestration + chunk aggregation + reranking. Consumer in the retrieval↔knowledge_graph relationship: retrieval owns `GraphQueryContext` / `GraphSearchContract`, provider-side (knowledge_graph) structurally satisfies them.
+- **`knowledge_graph`** — entity / relation ORM + Nebula Graph client + `graphindex` reconciler. Provider for retrieval's `GraphSearchContract`. Owns `CollectionRow` (an internal port abstracting the legacy `Collection` shape the graphindex integration depends on).
+
+### 2.5 Domain-edge relationship map
+
+The cross-domain read/write relationships at steady state (edges labelled with the mechanism):
+
+```
+identity ←── (AuthenticatedUser Protocol, read-only)      ← every other domain
+identity ─── (identity_user_ops.set_chat_collection facade)→ called by conversation.chat_collection_service
+
+governance ─── (audit/api_key endpoints)                  (no cross-domain inbound; consumed by admin UI)
+governance.quota_service (legacy standalone-infra)        ─── (QuotaOps Protocol)→ knowledge_base.collection_service, conversation.bot_service
+
+model_platform ─── (default_model_service direct import)  ← conversation.chat_title_service
+model_platform ─── (llm_available_model_service direct)   ← conversation.chat_collection_service
+
+marketplace ─── (MarketplaceOps / MarketplaceCollectionOps Protocols, structurally satisfied)
+                                                           → knowledge_base.collection_service
+
+knowledge_base ─── (Collection / Document direct cross-domain imports)
+                → consumed by conversation.chat_collection_service, retrieval.pipeline, agent_runtime.runtime, web_access routes
+
+indexing ─── (CollectionIndexingView / IndexingTrigger)    ↔ knowledge_base / retrieval
+
+retrieval ─── (one-way Protocol bridge, lesson 9a-quad)    → knowledge_graph
+knowledge_graph: must never import retrieval.ports / retrieval.service / retrieval.schemas (G10/G3 enforced)
+
+conversation.chat_service_global ─── direct cross-domain   ← evaluation.worker
+conversation.chat_document_service ─── direct cross-domain ← agent_runtime.runtime
+
+agent_runtime.runtime ─── (_prompt_template_ops DI slot)   ← standalone infra: aperag.service.prompt_template_service
+agent_runtime (runtime/services/schemas) ─── direct        ← evaluation.worker
+
+evaluation ─── (no cross-domain provider role; consumed by admin UI; worker has test-injection dispatch_fn seam)
+
+web_access ─── (no entities; consumes KB Collection for web-search enriched queries)
+```
+
+---
+
+## 3. Canonical rules
+
+Four rules governed every cross-domain seam across Phase 0→6. Future work must uphold them.
+
+### 3.1 Direct import vs `Protocol + DI`
+
+Every cross-domain data access takes **one** of two forms:
+
+**(a) Direct cross-domain import** — when the provider has been moved into `aperag/domains/**`:
+
+```python
+# consumer in agent_runtime.runtime:
+from aperag.domains.conversation.service.chat_document_service import chat_document_service
+await chat_document_service.has_documents_in_chat(chat_id, user)
+```
+
+G1 bans `aperag.service.*`, `aperag.db.models`, `aperag.schema.view_models`; it does **not** ban `aperag.domains.<other>.*`. Sibling (same-domain) imports are always direct.
+
+**(b) Consumer-owned `Protocol` + module-scope DI slot** — when the provider has **not** moved into `aperag/domains/**`:
+
+- Consumer declares a narrow `Protocol` in its own `ports.py`.
+- Consumer provides a module-level slot, setter, and accessor: `_ops: Optional[XOps] = None`, `set_x_ops(ops) -> None`, `_get_x_ops() -> XOps` (the accessor raises `RuntimeError` with an actionable message if unwired, to fail at startup rather than during the first request).
+- Concrete provider structurally satisfies the Protocol (no provider-side import of the consumer's `ports.py`).
+- `aperag/app.py` wires the legacy singleton (or an adapter when signature shapes differ) into the slot at module scope, before routes start serving.
+
+This is **consumer-owned Protocol** (lesson 9a-quad): consumer declares what it needs; the provider is decoupled from the contract; the test_modularization_boundaries `test_knowledge_base_protocol_boundary_is_consumer_owned` enforces that legacy providers never `import` the consumer's ports.
+
+### 3.2 The two subclasses of `Protocol + DI`
+
+The `Protocol + DI` seams in the code today fall into exactly two subclasses, with different meanings:
+
+**(A) legacy-not-moved-yet** — transitional. A provider that is expected to relocate in a future phase; the seam exists to decouple the consumer from the legacy `aperag.service.*` location in the meantime. Example (historical): Phase 5's `ChatCollectionServiceOps` seam existed because `chat_collection_service` had not yet moved; when it did (Phase 5 5-S4f), the seam was retired in Phase 6 entry 2 in favor of a sibling direct import.
+
+**(B) standalone-infra permanent** — the provider has no natural domain home (cross-cutting, primarily infrastructure), and the `Protocol + DI` seam is its canonical, permanent integration point. Two seams live here today (the only two active `CRITICAL_WIRINGS`; Section 5):
+
+- `QuotaOps` — consumers: `knowledge_base.collection_service`, `conversation.bot_service`. Provider: `aperag.service.quota_service` (governance-adjacent infra, consumed cross-cuttingly).
+- `PromptTemplateOps` — consumer: `agent_runtime.runtime`. Provider: `aperag.service.prompt_template_service` (cross-cutting across agent_runtime runtime execution, conversation bot-config resolution, indexing prompt resolution, and the user-facing `/prompts` REST surface).
+
+A new `Protocol + DI` seam is created **only** for legacy-not-moved-yet (class A) or standalone-infra (class B). Any other cross-domain consumption uses direct import.
+
+### 3.3 Dual-hook Scenario A — view_models re-export without triggering G1
+
+The Pydantic schema migration had to preserve `from aperag.schema.view_models import <DomainSchema>` for pre-migration callers while moving the canonical definition into `aperag/domains/<d>/schemas.py`. G1 forbids domain code from importing `aperag.schema.view_models`, which rules out a naive `import`-based re-export from the domain side. The two-way binding below is the solution ("Scenario A"), first used in Phase 3 Step 4b for knowledge_base and then reused as the canonical dual-hook template for Phase 4 (4 domains), Phase 5 (conversation + agent_runtime carve), and Phase 6 cleanup:
+
+```python
+# aperag/schema/view_models.py — end of file
+try:
+    from aperag.domains.knowledge_base.schemas import (  # noqa: E402, F401
+        Collection, CollectionView, ..., MineruTokenTestResponse,
+    )
+except ImportError:
+    pass
+```
+
+```python
+# aperag/domains/knowledge_base/schemas.py — end of file
+def _bind_view_models_reexports() -> None:
+    import sys
+    _vm = sys.modules.get("aperag.schema.view_models")
+    if _vm is None:
+        return
+    for _name in __all__:
+        setattr(_vm, _name, globals()[_name])
+
+_bind_view_models_reexports()
+```
+
+The key trick is `sys.modules.get("aperag.schema.view_models")` — a runtime string lookup, not an `import` statement — so AST-based G1 scanning does not trip. At runtime, the pattern converges regardless of load order:
+
+- If `view_models` loads first, its `try:` block imports from the domain module; the domain's `_bind_view_models_reexports` then sees `view_models` already in `sys.modules` and `setattr`s the canonical class objects back.
+- If the domain module loads first, `_bind_view_models_reexports` finds `view_models` not yet in `sys.modules` and early-returns; when `view_models` loads later, its `try:` block imports from the now-loaded domain module.
+
+In both orders the invariant `view_models.X is aperag.domains.<d>.schemas.X` holds (single class-object identity).
+
+As of `28a9f531`, `aperag/schema/view_models.py` ends with 6 dual-hook `try:` blocks (knowledge_base, identity, governance, marketplace, model_platform, conversation), plus a 7th block for Phase 5 agent_runtime's `AgentMessage` carve.
+
+### 3.4 Per-domain `AuthenticatedUser(Protocol)` vs the `User` ORM (lesson 9a-ter and 9a-sexdec)
+
+Domain route handlers and service functions must not bind to the concrete `User` ORM class — they depend on a per-domain `AuthenticatedUser(Protocol)` that only exposes the fields that handler actually reads (at minimum `id: str`, optionally `role: str`). G16 enforces this: an AST import ban for `User` outside the identity domain. `required_user` at FastAPI dependency time returns a concrete `User` row, which structurally satisfies each domain's local `AuthenticatedUser`.
+
+For **write** access to the `User` row from another domain (the single case that exists today is `conversation.chat_collection_service` updating `User.chat_collection_id` when a chat is promoted to a collection), the hierarchy is:
+
+1. **Terminal canonical** — an identity-owned facade. `aperag/domains/identity/service/identity_user_ops.py` exposes narrow async functions like `set_chat_collection(session, user_id, collection_id)` that wrap `session.get(User, …)` + attribute assignment inside the caller's transaction. Consumers import the facade by name, never the ORM class. This is what Phase 6 entry 1 delivered.
+2. **Acceptable fallback** — inline `sqlalchemy.text("UPDATE users SET … WHERE id = :uid")` with explicit parameter binding, single call site, same-transaction semantics. Accepted as a transitional workaround (Phase 5 5-S4f did this before the facade existed) but non-canonical for the final state.
+3. **Forbidden** — `session.get(User, …)` or `session.query(User)` in any non-identity domain.
+
+This hierarchy is codified as lesson 9a-sexdec.
+
+---
+
+## 4. Boundary gates
+
+Every boundary gate is codified as a pytest test in `tests/unit_test/test_modularization_boundaries.py` (backend scope — the FE G1–G6/G12–G17 gates in the same file cover `web/` and are outside this document's scope). The pytest run is part of `make test-unit`, which is a required CI check; every gate also corresponds to a `noqa`-hostile error message so that CR catches violations at review time, not at deploy time.
+
+### 4.1 Backend gate catalog
+
+| Gate | Test function | Purpose | Mechanism |
+| --- | --- | --- | --- |
+| **G1** | `test_aperag_domains_never_import_legacy_aggregate_modules` | Strict ban: `aperag/domains/**` must not import `aperag.service.*`, `aperag.schema.view_models`, or `aperag.db.models`. Enforces the domain-owned canonical path. | AST `ast.walk` + `ast.ImportFrom` scan over every `aperag/domains/**/*.py` non-`__init__` file; matches against `LEGACY_AGGREGATE_MODULES` tuple. |
+| **G4** | `test_aperag_domains_auth_dependency_is_not_any` | Auth-dependency parameters (`required_user` / `current_user`) in domain API handlers must not be typed `Any` / untyped; they must bind to a `Protocol` (typically `AuthenticatedUser`). | AST annotation scan over handler function defs under `aperag/domains/**/api/**/*.py`. |
+| **G10 / G3** | `test_retrieval_kg_protocol_boundary_is_one_way` | `retrieval` may consume narrow slices of `knowledge_graph` via the `graphindex.integration` port, but must not import `knowledge_graph.service` / `knowledge_graph.schemas` / `aperag.graph_curation` / `aperag.graphindex`. `knowledge_graph` must never import `retrieval.ports` / `retrieval.schemas` / `retrieval.service` / `retrieval.pipeline`. | AST import scan over `aperag/domains/retrieval/**` + `aperag/domains/knowledge_graph/**`. |
+| **G14** | `test_no_legacy_retrieval_or_graph_routes_remain` | After Phase 2 hard-cut, no retrieval or kg route decorators may live in `aperag/views/collections.py` or `aperag/views/graph.py` (except the single 410-Gone shim on `/collections/{id}/graphs/export/kg-eval`). | Regex match on `_LEGACY_ROUTE_PATTERNS` over the two legacy view files. |
+| **KB consumer-owned** | `test_knowledge_base_protocol_boundary_is_consumer_owned` | KB's `ports.py` is consumer-owned: legacy providers (`marketplace_service`, `marketplace_collection_service`, `search_pipeline_service`, `quota_service`) must **not** import `aperag.domains.knowledge_base.ports`. Enforces that Protocols travel in the direction consumer → contract → structurally-satisfying provider, never the reverse. | AST import scan on the four legacy provider files. |
+| **KB DI smoke** | `test_knowledge_base_di_wire_up_populated_after_app_import` | After `import aperag.app`, the four KB DI slots on `collection_service` (`_marketplace_ops`, `_marketplace_collection_ops`, `_search_pipeline_ops`, `_quota_ops`) must resolve non-`None`. | Runtime `getattr` on module globals. |
+| **G15** | `test_phase4_consumer_domains_never_import_role_enum` | Non-identity domains must not `from aperag.db.models import Role` or `from aperag.domains.identity.db.models import Role`. Role remains identity-internal; consumers compare against the string literal (`user.role == "admin"`) via the per-domain `AuthenticatedUser.role: str`. | AST `ImportFrom` scan over all domains except `identity`. |
+| **G16** | `test_phase4_consumer_domains_never_import_user_orm_class` | Non-identity domains must not import the `User` ORM class. Reads go through `AuthenticatedUser(Protocol)` / `UserView(Protocol)`; writes go through the identity-owned facade (lesson 9a-sexdec). | AST `ImportFrom` scan over all domains except `identity`. |
+| **G17** | `test_phase4_di_critical_wirings_at_app_startup` | Runtime smoke: after `import aperag.app`, seven Phase 3+4 DI slots must resolve non-`None` — four KB slots (`_marketplace_ops`, `_marketplace_collection_ops`, `_search_pipeline_ops`, `_quota_ops`) and three identity slots (`_bot_init_ops`, `_chat_init_ops`, `_quota_init_ops`). Catches forgotten or re-ordered startup wire-up at CI time. Runtime-state check, not AST setter-naming scan. | Runtime `getattr` on module globals. |
+| **G18 alt** | `test_phase5_di_critical_wirings_at_app_startup` | Runtime smoke for the permanent consumer-owned Protocol DI slots: `conversation.bot_service._quota_ops` and `agent_runtime.runtime._prompt_template_ops`. These are the standalone-infra seams (Section 3.2 class B). `dispatch_fn` in `evaluation.worker` is intentionally **not** listed — it is a module-level test-injection seam, not a Protocol + DI slot. | Runtime `getattr` on module globals. |
+| **G19** | `test_phase5_domain_routes_never_use_pep_563_future_annotations` | `aperag/domains/**/api/routes.py` and the two `model_platform` split router modules must not declare `from __future__ import annotations`. FastAPI response-model handling at `status_code=204` combined with PEP 563 string-form annotations produced a silent drift in Phase 3 Step 5a (lesson 9a-quatuordec); codifying the ban ensures the trap stays closed. | AST `ImportFrom` scan for `__future__` with `annotations` name over every route module under `aperag/domains/**/api/`. |
+
+The `G11` / `G13` labels referenced in some historical docs map to the FE legacy-SDK and FE server-api / client-api split checks earlier in the same file; they guard the frontend boundary, not the backend domain boundary.
+
+### 4.2 Gate lineage
+
+- Phase 3 introduced G1 / G4 / G10 / G14 / KB consumer-owned / KB DI smoke.
+- Phase 4 introduced G15 / G16 / G17, driven by the decision to move `identity` without exposing `User` or `Role` to any consumer domain.
+- Phase 5 introduced G18 alt / G19. G18 alt specifically generalized G17's "runtime wiring must be populated" pattern to the Phase 5 consumer-owned seams. G19 codified lesson 9a-quatuordec after the PEP-563 regression.
+
+---
+
+## 5. Runtime seams — `CRITICAL_WIRINGS` steady state
+
+### 5.1 The permanent two-entry registry
+
+At steady state (post-Phase-6), the `PHASE5_CRITICAL_WIRINGS` registry in `test_phase5_di_critical_wirings_at_app_startup` contains exactly **two** entries:
+
+1. `(aperag.domains.conversation.service.bot_service, "_quota_ops")` — structurally satisfied by `aperag.service.quota_service.quota_service`. Wired in `aperag/app.py` at startup.
+2. `(aperag.domains.agent_runtime.runtime, "_prompt_template_ops")` — satisfied by `_PromptTemplateOpsAdapter(...)` wrapping `aperag.service.prompt_template_service.prompt_template_service`. Wired in `aperag/app.py` at startup.
+
+Both providers are **standalone-infra** (Section 3.2 class B) — they have no natural domain home because their consumers span multiple domains and their semantics do not belong to any single one. Their `Protocol + DI` seam is canonical, not transitional; no future phase is expected to retire them.
+
+The Phase 3+4 G17 registry (seven entries: four KB + three identity) remains active and separately verified by `test_phase4_di_critical_wirings_at_app_startup`. Those seven entries bridge legacy concrete providers through DI adapters so that identity's `UserManager.on_after_register` and KB's `collection_service` can be wired at startup without the domains importing the legacy services directly.
+
+### 5.2 Why these two, and only these two
+
+During Phase 5 the preliminary registry was projected to hold as many as five consumer-owned seams (`QuotaOps`, `ChatCollectionServiceOps`, `DefaultModelOps`, `ChatDocumentOps`, `PromptTemplateOps`). As each of the collaborators completed a domain move (`default_model_service` in Phase 4, `chat_document_service` in Phase 5 5-S4d, `chat_collection_service` in Phase 5 5-S4f), the rule of Section 3.1 applied: a domain-moved provider is reached via direct import, so the corresponding seam retired. Phase 6 entry 2 retired `ChatCollectionServiceOps` in favor of a sibling direct import after 5-S4f put `chat_collection_service` in the same `conversation` domain. Phase 6 entry 3 classified the remaining two as standalone-infra permanent.
+
+Two patterns that look like seams but are intentionally outside the registry:
+
+- **`dispatch_fn` in `aperag.domains.evaluation.worker`** — a module-level function reference used for test injection (tests monkeypatch it to stub out the real turn dispatcher). It is not a `Protocol + DI` slot — it does not follow the slot/setter/accessor shape, does not need app-scope wire-up, and stays functional in test fixtures. Listing it in `CRITICAL_WIRINGS` would falsely signal that the runtime needs it populated at startup (it does not — the default implementation is a proper function, not a `None` slot).
+- **Phase 4 identity adapters** (`_BotInitOpsAdapter` / `_ChatInitOpsAdapter` / `_QuotaInitOpsAdapter` in `aperag/app.py`) — these wrap legacy bot/chat_collection/quota services to expose the `BotInitOps` / `ChatInitOps` / `QuotaInitOps` Protocol surfaces required by `UserManager.on_after_register`. They are verified by the Phase 4 G17 registry, not the Phase 5 G18 alt registry.
+
+---
+
+## 6. Legacy shim lifecycle
+
+To keep pre-migration callers (tests, third-party code, in-flight branches) working, every moved symbol keeps a re-export shim at its legacy import path. The shims fall into four categories; none of them are removed at Phase 6 — they remain to preserve API compatibility and are candidates for a future `Phase 7+` hard-delete sweep (Section 8). This section documents the current state so the shim map can be re-audited before that sweep.
+
+### 6.1 `aperag/service/*.py` — service-layer shims
+
+19 files re-export the class and singleton from `aperag/domains/<d>/service/<s>.py`:
+
+```
+aperag/service/api_key_service.py              → aperag.domains.governance.service.api_key_service
+aperag/service/audit_service.py                → aperag.domains.governance.service.audit_service
+aperag/service/bot_service.py                  → aperag.domains.conversation.service.bot_service
+aperag/service/chat_collection_service.py      → aperag.domains.conversation.service.chat_collection_service
+aperag/service/chat_document_service.py        → aperag.domains.conversation.service.chat_document_service
+aperag/service/chat_service.py                 → aperag.domains.conversation.service.chat_service
+aperag/service/chat_title_service.py           → aperag.domains.conversation.service.chat_title_service
+aperag/service/collection_service.py           → aperag.domains.knowledge_base.service.collection_service
+aperag/service/collection_summary_service.py   → aperag.domains.knowledge_base.service.collection_summary_service
+aperag/service/default_model_service.py        → aperag.domains.model_platform.service.default_model_service
+aperag/service/document_service.py             → aperag.domains.knowledge_base.service.document_service
+aperag/service/graph_service.py                → aperag.domains.knowledge_graph.service
+aperag/service/llm_available_model_service.py  → aperag.domains.model_platform.service.llm_available_model_service
+aperag/service/llm_provider_service.py         → aperag.domains.model_platform.service.llm_provider_service
+aperag/service/marketplace_collection_service.py → aperag.domains.marketplace.service.marketplace_collection_service
+aperag/service/marketplace_service.py          → aperag.domains.marketplace.service.marketplace_service
+aperag/service/prompt_template_service.py      ← standalone infra, no domain home (canonical location, not a shim)
+aperag/service/quota_service.py                ← standalone infra, no domain home (canonical location, not a shim)
+aperag/service/search_pipeline_service.py      ← standalone infra, no domain home (canonical location, not a shim)
+aperag/service/turn_feedback_service.py        → aperag.domains.conversation.service.turn_feedback_service
+```
+
+And the following `aperag/service/*.py` files are legacy-only (no domain extraction has happened): `chat_completion_service.py`, `evaluation_service.py`, `export_service.py`, `question_set_service.py`, `setting_service.py`, `test_mcp_agent.py`. Whether any of these become Phase 7+ extraction candidates is in Section 8.
+
+### 6.2 `aperag/views/*.py` — router re-export shims
+
+13 view files re-export a domain router under the pre-migration name:
+
+```
+aperag/views/agent_runtime.py              → aperag.domains.agent_runtime.api.routes.router
+aperag/views/api_key.py                    → aperag.domains.governance.api.routes.router
+aperag/views/audit.py                      → aperag.domains.governance.api.routes.router
+aperag/views/bots_v2.py                    → aperag.domains.conversation.api.routes.bots_router
+aperag/views/chat.py                       → aperag.domains.conversation.api.routes.chat_router
+aperag/views/collections_v2.py             → aperag.domains.knowledge_base.api.routes.router
+aperag/views/documents_v2.py               → aperag.domains.knowledge_base.api.routes.router
+aperag/views/evaluation_v2.py              → aperag.domains.evaluation.api.routes.router
+aperag/views/llm.py                        → aperag.domains.model_platform.api.llm_routes.router
+aperag/views/marketplace_collections.py    → aperag.domains.marketplace.api.routes.router
+aperag/views/marketplace.py                → aperag.domains.marketplace.api.routes.router
+aperag/views/providers_v2.py               → aperag.domains.model_platform.api.providers_v2_routes.router
+```
+
+Plus `aperag/views/auth.py` (legacy fastapi-users wiring + OAuth routers; not yet a domain — the `UserManager` and `required_user` / `optional_user` helpers live here by design). And the legacy views retained for non-domain endpoints: `chat_documents.py`, `collections.py` (hosts a 410-Gone shim), `config.py`, `export.py`, `graph.py` (hosts a 410-Gone shim), `main.py`, `openai.py`, `prompts.py`, `quota.py`, `settings.py`, `test.py`, `utils.py`.
+
+### 6.3 `aperag/db/models.py` + `aperag/schema/view_models.py`
+
+`aperag/db/models.py` re-exports every Phase 3/4/5-moved symbol through per-domain import blocks; the `identity` block is special-cased to be module-top because `Invitation.role` binds `Role` at class-body evaluation time, whereas governance / marketplace / model_platform / knowledge_base / indexing / retrieval / knowledge_graph / conversation / agent_runtime / evaluation are all end-of-file blocks. This yields 53 re-exported symbols (15 Phase 3 + 13 Phase 4 + 25 Phase 5) plus the pre-existing non-migrated classes (the legacy v1 evaluation classes, `Invitation`, etc.).
+
+`aperag/schema/view_models.py` uses the dual-hook pattern (Section 3.3) via 6 end-of-file `try:` blocks (knowledge_base, identity, governance, marketplace, model_platform, conversation) plus a 7th block for `AgentMessage`. Pre-migration imports (`from aperag.schema.view_models import <SchemaName>`) keep working unchanged.
+
+### 6.4 Legacy top-level packages
+
+- `aperag/agent_runtime/` retains `__init__.py`, `runtime.py`, `schemas.py`, `services.py`, `storage.py` as re-export shims so imports like `aperag.agent_runtime.runtime.agent_runtime_manager` still resolve. The canonical implementation lives in `aperag/domains/agent_runtime/`.
+- `aperag/evaluation_v2/` retains `__init__.py`, `constants.py`, `judges.py`, `schemas.py`, `services.py`, `tasks.py`, `worker.py` as re-export shims. The canonical implementation lives in `aperag/domains/evaluation/`.
+- `aperag/db/repositories/evaluation_v2.py` retains a shim for the evaluation repo mixin whose canonical home is now under `aperag/domains/evaluation/db/repositories/`.
+
+---
+
+## 7. Historical index
+
+For the full rationale of each phase's hard-cuts and the decisions that produced today's layout, see the per-phase breaking-changes documents; this architecture doc deliberately does not repeat their tables.
+
+- `docs/modularization/breaking-changes/phase-template.md` — template for new breaking-changes docs.
+- `docs/modularization/breaking-changes/phase2-retrieval-knowledge_graph.md` — Phase 2 hard-cut of retrieval + knowledge_graph.
+- `docs/modularization/breaking-changes/phase2-web_access.md` — Phase 2a hard-cut of web_access.
+- `docs/modularization/breaking-changes/phase3-knowledge_base.md` — Phase 3 knowledge_base pilot + indexing split + the original G1 / G11 / G13 / G14 gates + the dual-hook Scenario A origin.
+- `docs/modularization/breaking-changes/phase4-identity-governance-model_platform-marketplace.md` — Phase 4 identity + governance + model_platform + marketplace + the introduction of G15 / G16 / G17.
+- `docs/modularization/breaking-changes/phase5-conversation-agent-eval.md` — Phase 5 conversation + agent_runtime + evaluation + G18 alt + G19 + the `ChatDocumentOps` retirement rationale.
+
+The earlier modularization roadmap and the pre-Phase-2 target domain map live in:
+
+- `docs/modularization/README.md` — historical overview + phase timeline.
+- `docs/modularization/roadmap.md` — original phase plan.
+- `docs/modularization/target-domain-map.md` — pre-Phase-2 canonical target domain structure.
+- `docs/modularization/gate-checklist.md` — gate status tracker, updated phase-by-phase.
+- `docs/modularization/hurl-coverage-matrix.md` — HTTP endpoint coverage.
+- `docs/modularization/fe-legacy-sdk-inventory.md` — frontend legacy SDK deprecation status.
+
+Those three roadmap docs are authoritative for *history* and *plan*; for *current state*, prefer this document.
+
+---
+
+## 8. Future candidates
+
+Items that are known work but are deliberately **not** part of the current state. None of these are scheduled as a commitment; each would be a separate `Phase 7+` task with its own PM dispatch. Listing them here prevents rediscovery and keeps the current-state / future-work boundary clean.
+
+### 8.1 Legacy shim hard-delete audit
+
+When every caller of the 19 `aperag/service/*.py` shims, 13 `aperag/views/*.py` router shims, `aperag/db/models.py` re-export blocks, the `aperag/schema/view_models.py` dual-hook blocks, `aperag/agent_runtime/*.py`, `aperag/evaluation_v2/*.py`, and `aperag/db/repositories/evaluation_v2.py` has been migrated to the domain-canonical import path, the shim files become deletable in a single sweep. Before deletion, each shim needs:
+
+- A grep audit across the codebase to confirm zero non-shim callers.
+- A check against third-party integrations (hurl fixtures, alembic migrations, docs examples).
+- A per-domain decision about whether the shim is worth keeping as an ergonomic alias even after the last internal caller is gone.
+
+### 8.2 `_enum_column` helper consolidation
+
+Each per-domain `db/models.py` currently duplicates a small `_enum_column` helper that maps an `Enum` class to a `String` column sized to the longest value. The current copies are byte-identical and are known duplicates (flagged in Phase 3 Step 2); consolidating them into `aperag/db/common.py` (or similar infra module) is a drop-in refactor with no semantic change.
+
+### 8.3 Per-domain `AuthenticatedUser(Protocol)` consolidation
+
+`AuthenticatedUser(Protocol)` is declared locally in conversation, agent_runtime, evaluation, identity, governance, marketplace, and model_platform ports. The shapes are near-identical (at minimum `id: str`, `role: str`). If Phase 7+ deems the duplication a drag on readability, the Protocol could live in a shared non-domain module (e.g., `aperag/schema/auth.py`) that domains import. The trade-off is that a shared Protocol weakens the "consumer-owned" principle (Section 3.1) — each domain loses the ability to narrow the surface to what it actually reads. Requires a judgement call.
+
+### 8.4 Residual legacy service extraction
+
+`aperag/service/` still contains six non-shim, legacy-only services: `chat_completion_service.py`, `evaluation_service.py`, `export_service.py`, `question_set_service.py`, `setting_service.py`, and the test helper `test_mcp_agent.py`. Each is a Phase 7+ extraction candidate, but none has an assigned domain home in the current canonical; each would need a mini-design (which domain, what Protocol surface if any) before extraction.
+
+### 8.5 Residual legacy view extraction
+
+`aperag/views/` holds eleven non-shim legacy views (`chat_documents.py`, `collections.py`, `config.py`, `export.py`, `graph.py`, `main.py`, `openai.py`, `prompts.py`, `quota.py`, `settings.py`, `test.py`). `collections.py` and `graph.py` contain 410-Gone compatibility shims from the Phase 2 hard-cut and are stable; the others are Phase 7+ extraction candidates.
+
+### 8.6 `web_access` deeper consolidation
+
+`web_access` today has schemas and routes but no domain-owned entities or service layer — it is a thin functional domain. A future phase could decide whether its `reader/` and `search/` sub-packages warrant the full domain contract or stay as functional modules.
+
+### 8.7 `/api/v1` vs `/api/v2` URL prefix unification
+
+The `model_platform` and `conversation` domains each expose a two-router split because their endpoints straddle both prefixes; this mirrors the pre-migration URL layout and was kept to preserve OpenAPI byte-stability. A future cleanup could collapse to a single router per domain once the `/api/v1` side is fully deprecated.
+
+### 8.8 Deeper SME write-up of `indexing` / `retrieval` / `knowledge_graph`
+
+Section 2.4 is a high-level structural summary only. A future pass from the Phase 3 landing owner (or a deep-dive SME) should backfill Protocol method signatures, DI wire-up timing, the graphindex reconcile loop, Nebula space lifecycle, and indexing reconciler state machine into a dedicated per-domain write-up.
+
+---
+
+*Document baseline: `origin/main @ 28a9f531`. Last reviewed: post-Phase-6 merge (2026-04-24). If the repo state diverges from the sections above, either this document or the repo is out of date — fix whichever is easier to fix and do not rely on a stale copy.*
