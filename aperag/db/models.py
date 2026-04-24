@@ -16,14 +16,12 @@ import random
 import uuid
 from enum import Enum
 
-from fastapi_users.db import SQLAlchemyBaseOAuthAccountTable
 from sqlalchemy import (
     JSON,
     BigInteger,
     Boolean,
     Column,
     DateTime,
-    ForeignKey,
     Index,
     Integer,
     Numeric,
@@ -31,9 +29,13 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from aperag.db.base import Base
+from aperag.domains.identity.db.models import (  # noqa: F401  Phase 4 Step 4-S2a per-domain re-export
+    OAuthAccount,
+    Role,
+    User,
+)
 from aperag.utils.utils import utc_now
 
 # ``Base`` is re-exported from ``aperag.db.base`` so existing call sites
@@ -84,10 +86,11 @@ class BotType(str, Enum):
     AGENT = "agent"
 
 
-class Role(str, Enum):
-    ADMIN = "admin"
-    RW = "rw"
-    RO = "ro"
+# ``Role`` moved to ``aperag.domains.identity.db.models`` in Phase 4
+# Step 4-S2a; re-exported via the shim block at the bottom of this
+# module so pre-migration callers continue to resolve it here.
+# Phase 4 G15 canonical forbids cross-domain imports of the enum —
+# consumers compare ``user.role == "admin"`` by literal instead.
 
 
 class ChatStatus(str, Enum):
@@ -567,42 +570,10 @@ class LLMProviderModel(Base):
         return self.tags or []
 
 
-class User(Base):
-    __tablename__ = "user"
-
-    id = Column(String(24), primary_key=True, default=lambda: "user" + random_id())
-    username = Column(String(256), unique=True, nullable=True)  # Unified with other user fields
-    email = Column(String(254), unique=True, nullable=True)
-    role = Column(EnumColumn(Role), nullable=False, default=Role.RO)
-    hashed_password = Column(String(128), nullable=False)  # fastapi-users expects hashed_password
-    is_active = Column(Boolean, default=True, nullable=False)
-    is_superuser = Column(Boolean, default=False, nullable=False)
-    is_verified = Column(Boolean, default=True, nullable=False)  # fastapi-users requires is_verified
-    is_staff = Column(Boolean, default=False, nullable=False)
-    chat_collection_id = Column(String(24), nullable=True, index=True)  # Chat collection for user
-    date_joined = Column(
-        DateTime(timezone=True), default=utc_now, nullable=False
-    )  # Unified naming with other time fields
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_deleted = Column(DateTime(timezone=True), nullable=True)
-    oauth_accounts: Mapped[list["OAuthAccount"]] = relationship("OAuthAccount", lazy="joined", back_populates="user")
-
-    @property
-    def password(self):
-        raise AttributeError("password is not a readable attribute")
-
-    @password.setter
-    def password(self, value):
-        self.hashed_password = value
-
-
-class OAuthAccount(SQLAlchemyBaseOAuthAccountTable[str], Base):
-    __tablename__ = "oauth_account"
-
-    id = Column(String(24), primary_key=True, default=lambda: "oauth" + random_id())
-    user_id: Mapped[str] = mapped_column(String, ForeignKey("user.id", ondelete="cascade"), nullable=False)
-    user: Mapped["User"] = relationship("User", back_populates="oauth_accounts")
+# ``User`` + ``OAuthAccount`` moved to
+# ``aperag.domains.identity.db.models`` in Phase 4 Step 4-S2a; the
+# re-export shim at the bottom of this module keeps pre-migration
+# ``from aperag.db.models import User`` callers working.
 
 
 class Invitation(Base):
@@ -1018,6 +989,15 @@ class EvaluationRunItemAttempt(Base):
 # delivers the first 3 symbols from the ``indexing`` domain.
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Phase 4 per-domain DB re-exports (canonical @符炫炜 msg=d47fa490
+# Section 1 4-S2 + msg=896584ee). G11 extends from Phase 3 15 symbols
+# toward the Phase 4 ~28-symbol final. Step 4-S2a adds the three
+# identity-domain symbols; subsequent sub-commits add governance
+# (ApiKey / AuditLog / AuditResource), marketplace
+# (CollectionMarketplace / UserCollectionSubscription), and
+# model_platform (LLMProvider / LLMProviderModel).
+# ---------------------------------------------------------------------------
 from aperag.domains.indexing.db.models import (  # noqa: E402, F401  re-export for back-compat
     DocumentIndex,
     DocumentIndexStatus,
