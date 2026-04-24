@@ -73,35 +73,10 @@ class CollectionMarketplaceStatusEnum(str, Enum):
     PUBLISHED = "PUBLISHED"  # Published to marketplace, publicly visible
 
 
-class BotStatus(str, Enum):
-    ACTIVE = "ACTIVE"
-    DELETED = "DELETED"
-
-
-class BotType(str, Enum):
-    KNOWLEDGE = "knowledge"
-    COMMON = "common"
-    AGENT = "agent"
-
-
 class Role(str, Enum):
     ADMIN = "admin"
     RW = "rw"
     RO = "ro"
-
-
-class ChatStatus(str, Enum):
-    ACTIVE = "ACTIVE"
-    DELETED = "DELETED"
-
-
-class ChatPeerType(str, Enum):
-    SYSTEM = "system"
-    FEISHU = "feishu"
-    WEIXIN = "weixin"
-    WEIXIN_OFFICIAL = "weixin_official"
-    WEB = "web"
-    DINGTALK = "dingtalk"
 
 
 class AgentTurnStatus(str, Enum):
@@ -124,19 +99,6 @@ class AgentArtifactType(str, Enum):
     TOOL_RESULT_SUMMARY = "tool_result_summary"
     SEARCH_RESULT_SUMMARY = "search_result_summary"
     ERROR_SUMMARY = "error_summary"
-
-
-class TurnFeedbackType(str, Enum):
-    GOOD = "good"
-    BAD = "bad"
-
-
-class TurnFeedbackTag(str, Enum):
-    HARMFUL = "Harmful"
-    UNSAFE = "Unsafe"
-    FAKE = "Fake"
-    UNHELPFUL = "Unhelpful"
-    OTHER = "Other"
 
 
 class ModelServiceProviderStatus(str, Enum):
@@ -282,21 +244,6 @@ class UserCollectionSubscription(Base):
         return f"<UserCollectionSubscription(id={self.id}, user_id={self.user_id}, marketplace_id={self.collection_marketplace_id})>"
 
 
-class Bot(Base):
-    __tablename__ = "bot"
-
-    id = Column(String(24), primary_key=True, default=lambda: "bot" + random_id())
-    user = Column(String(256), nullable=False, index=True)  # Add index for user queries
-    title = Column(String(256), nullable=True)
-    type = Column(EnumColumn(BotType), nullable=False, default=BotType.KNOWLEDGE)
-    description = Column(Text, nullable=True)
-    status = Column(EnumColumn(BotStatus), nullable=False, index=True)  # Add index for status queries
-    config = Column(Text, nullable=False)
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Add index for soft delete queries
-
-
 class ConfigModel(Base):
     __tablename__ = "config"
 
@@ -325,35 +272,6 @@ class UserQuota(Base):
     def can_consume(self, amount: int = 1) -> bool:
         """Check if the specified amount can be consumed without exceeding quota"""
         return not self.is_quota_exceeded(amount)
-
-
-class Chat(Base):
-    __tablename__ = "chat"
-    __table_args__ = (
-        UniqueConstraint("bot_id", "peer_type", "peer_id", "gmt_deleted", name="uq_chat_bot_peer_deleted"),
-    )
-
-    id = Column(String(24), primary_key=True, default=lambda: "chat" + random_id())
-    user = Column(String(256), nullable=False, index=True)  # Add index for user queries
-    peer_type = Column(EnumColumn(ChatPeerType), nullable=False, default=ChatPeerType.SYSTEM)
-    peer_id = Column(String(256), nullable=True)
-    status = Column(EnumColumn(ChatStatus), nullable=False, index=True)  # Add index for status queries
-    bot_id = Column(String(24), nullable=False, index=True)  # Add index for bot queries
-    title = Column(String(256), nullable=True)
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Add index for soft delete queries
-
-    async def get_bot(self, session):
-        """Get the associated bot object"""
-        return await session.get(Bot, self.bot_id)
-
-    async def set_bot(self, bot):
-        """Set the bot_id by Bot object or id"""
-        if hasattr(bot, "id"):
-            self.bot_id = bot.id
-        elif isinstance(bot, str):
-            self.bot_id = bot
 
 
 class AgentTurn(Base):
@@ -415,30 +333,6 @@ class AgentArtifact(Base):
     storage_ref = Column(Text, nullable=True)
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-
-
-class TurnFeedback(Base):
-    __tablename__ = "turn_feedback"
-
-    user = Column(String(256), nullable=False, index=True)
-    chat_id = Column(String(24), primary_key=True)
-    turn_id = Column(String(256), primary_key=True)
-    type = Column(EnumColumn(TurnFeedbackType), nullable=False)
-    tag = Column(EnumColumn(TurnFeedbackTag), nullable=True)
-    message = Column(Text, nullable=True)
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-
-    async def get_chat(self, session):
-        """Get the associated chat object"""
-        return await session.get(Chat, self.chat_id)
-
-    async def set_chat(self, chat):
-        """Set the chat_id by Chat object or id"""
-        if hasattr(chat, "id"):
-            self.chat_id = chat.id
-        elif isinstance(chat, str):
-            self.chat_id = chat
 
 
 class ApiKey(Base):
@@ -1007,17 +901,31 @@ class EvaluationRunItemAttempt(Base):
 
 
 # ---------------------------------------------------------------------------
-# Phase 3 per-domain DB re-exports (decision D — msg=02acb01a + msg=226b2584)
+# Per-domain DB re-exports (Phase 3 decision D / msg=02acb01a +
+# msg=226b2584; extended by Phase 5 step 5-S2 into the conversation /
+# agent_runtime / evaluation domains).
 #
-# Physical owners of these classes have moved into the new domain DB modules
-# under ``aperag/domains/<domain>/db/models.py``. ``aperag.db.models`` keeps
-# re-exporting them so the 76 pre-Phase-3 callers — plus the Alembic
-# ``env.py`` metadata registration — continue to work without a rename
-# sweep. The full 7 DB + 8 enum = 15 symbol list locks in at the end of
-# Step 4 (see Phase 3 design-lock G11 exact class-name audit). Step 2
-# delivers the first 3 symbols from the ``indexing`` domain.
+# Physical owners of these classes have moved into
+# ``aperag/domains/<domain>/db/models.py``. The aggregate module keeps
+# re-exporting them so the pre-refactor caller base — plus the Alembic
+# ``env.py`` metadata registration — works without a rename sweep. The
+# full symbol list locks in at G11 (Phase 3 end-of-step-4: 15 symbols;
+# Phase 5 extends it with the Phase 5 DB split: conversation adds 9 in
+# 5-S2a). Phase 6 cleanup deletes this block once every remaining
+# import site has migrated to the canonical per-domain path.
 # ---------------------------------------------------------------------------
 
+from aperag.domains.conversation.db.models import (  # noqa: E402, F401  re-export for back-compat
+    Bot,
+    BotStatus,
+    BotType,
+    Chat,
+    ChatPeerType,
+    ChatStatus,
+    TurnFeedback,
+    TurnFeedbackTag,
+    TurnFeedbackType,
+)
 from aperag.domains.indexing.db.models import (  # noqa: E402, F401  re-export for back-compat
     DocumentIndex,
     DocumentIndexStatus,
