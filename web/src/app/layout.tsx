@@ -2,7 +2,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { getCurrentUser } from '@/features/auth/server-api';
 import type { Metadata } from 'next';
 import { NextIntlClientProvider } from 'next-intl';
-import { Geist, Geist_Mono } from 'next/font/google';
+import { Fraunces, JetBrains_Mono, Manrope } from 'next/font/google';
 import NextTopLoader from 'nextjs-toploader';
 
 import { AppProvider } from '@/components/providers/app-provider';
@@ -12,14 +12,26 @@ import './globals.css';
 
 import { getTranslations } from 'next-intl/server';
 
-const geistSans = Geist({
-  variable: '--font-geist-sans',
+const fontSans = Manrope({
+  variable: '--font-sans',
   subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  display: 'swap',
 });
 
-const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
+const fontSerif = Fraunces({
+  variable: '--font-serif',
   subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  axes: ['opsz'],
+  display: 'swap',
+});
+
+const fontMono = JetBrains_Mono({
+  variable: '--font-mono',
+  subsets: ['latin'],
+  weight: ['400', '500'],
+  display: 'swap',
 });
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -49,7 +61,7 @@ export default async function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${fontSans.variable} ${fontSerif.variable} ${fontMono.variable} font-sans antialiased`}
       >
         <NextTopLoader
           // color="color-mix(in oklab, var(--primary), transparent)"
@@ -60,7 +72,7 @@ export default async function RootLayout({
         <NextIntlClientProvider>
           <ThemeProvider
             attribute="class"
-            defaultTheme={process.env.NEXT_PUBLIC_DEFAULT_THEME || 'system'}
+            defaultTheme={process.env.NEXT_PUBLIC_DEFAULT_THEME || 'light'}
             enableSystem
             disableTransitionOnChange
           >

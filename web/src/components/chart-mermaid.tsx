@@ -29,8 +29,6 @@ export const ChartMermaid = ({ children }: { children: string }) => {
         theme: isDark ? 'dark' : 'neutral',
         securityLevel: 'loose',
         themeVariables: {
-          // primaryColor: '#0165ca',
-          // primaryTextColor: '#fff',
           fontSize: 'inherit',
           labelBkg: 'transparent',
           lineColor: 'var(--input)',
