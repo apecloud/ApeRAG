@@ -75,17 +75,17 @@ const SuggestionItem = ({
   );
 
   return (
-    <div className="bg-card hover:bg-accent/70 flex flex-col gap-2 rounded-lg border px-4 py-2">
+    <div className="bg-card hover:bg-accent/70 flex flex-col gap-2 rounded-xl border px-4 py-3">
       <div className="flex flex-row items-center justify-between">
         <div
-          className="hover:text-primary cursor-pointer font-bold"
+          className="hover:text-primary cursor-pointer font-serif text-base font-normal tracking-tight"
           onClick={() => onSelectNode(item.suggested_target_entity.entity_name)}
         >
           {item.suggested_target_entity.entity_name}
         </div>
         <div className="flex flex-row items-center gap-2">
-          <div className="flex flex-row items-center gap-1 text-sm">
-            <Sparkles className="text-muted-foreground size-4" />
+          <div className="text-muted-foreground flex flex-row items-center gap-1 font-mono text-xs tabular-nums">
+            <Sparkles className="size-3.5" />
             {item.confidence_score}
           </div>
           {item.status === 'PENDING' && (
@@ -170,7 +170,9 @@ export const CollectionGraphNodeMerge = ({
     >
       <DrawerContent className="sm:lg lg:min-w-2lg flex md:min-w-xl">
         <DrawerHeader className="flex flex-row items-center justify-between border-b">
-          <DrawerTitle>{page_graph('merge_suggestions')}</DrawerTitle>
+          <DrawerTitle className="font-serif text-xl font-normal tracking-tight">
+            {page_graph('merge_suggestions')}
+          </DrawerTitle>
           <Tabs
             defaultValue={activeStatus}
             onValueChange={(v: string) =>

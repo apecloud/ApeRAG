@@ -7,7 +7,21 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from '@/components/ui/drawer';
+import { ENTITY_PALETTE, type EntityType } from '@/lib/design-tokens';
 import type { GraphNode } from '@/features/knowledge-graph/types';
+import { useTranslations } from 'next-intl';
+
+const ENTITY_TYPE_TO_PALETTE: Record<string, EntityType> = {
+  person: 'person',
+  organization: 'org',
+  geo: 'org',
+  product: 'product',
+  technology: 'product',
+  category: 'concept',
+  date: 'event',
+  event: 'event',
+  UNKNOWN: 'doc',
+};
 
 export const CollectionGraphNodeDetail = ({
   open,
@@ -18,6 +32,15 @@ export const CollectionGraphNodeDetail = ({
   node?: GraphNode;
   onClose: () => void;
 }) => {
+  const page_graph = useTranslations('page_graph');
+  const entityType = node?.properties.entity_type || 'UNKNOWN';
+  const paletteKey = ENTITY_TYPE_TO_PALETTE[entityType] || 'doc';
+  const entityColor = ENTITY_PALETTE[paletteKey];
+  const entityLabel = node
+    ? // @ts-expect-error dynamic i18n key
+      page_graph(`entity_${entityType}`)
+    : '';
+
   return (
     <Drawer
       direction="right"
@@ -26,11 +49,28 @@ export const CollectionGraphNodeDetail = ({
       handleOnly={true}
     >
       <DrawerContent className="flex sm:min-w-sm md:min-w-md lg:min-w-lg">
-        <DrawerHeader>
-          <DrawerTitle>{node?.id}</DrawerTitle>
+        <DrawerHeader className="gap-2 border-b">
+          <div className="flex items-center gap-2">
+            <span
+              className="size-2 shrink-0 rounded-full"
+              style={{ backgroundColor: entityColor }}
+            />
+            <span className="text-muted-foreground font-mono text-[10px] uppercase tracking-wider">
+              {entityLabel}
+            </span>
+          </div>
+          <DrawerTitle className="font-serif text-xl font-normal leading-tight tracking-tight">
+            {node?.id}
+          </DrawerTitle>
         </DrawerHeader>
-        <div className="flex-1 overflow-auto p-4 select-text">
-          <Markdown>{node?.properties.description ?? undefined}</Markdown>
+        <div className="flex-1 overflow-auto p-4 text-sm leading-relaxed select-text">
+          {node?.properties.description ? (
+            <Markdown>{node.properties.description}</Markdown>
+          ) : (
+            <p className="text-muted-foreground italic">
+              {page_graph('no_description')}
+            </p>
+          )}
         </div>
       </DrawerContent>
     </Drawer>

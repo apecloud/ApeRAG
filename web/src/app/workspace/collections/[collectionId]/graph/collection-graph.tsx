@@ -30,8 +30,6 @@ import {
 } from '@/components/ui/popover';
 import { Tooltip, TooltipContent } from '@/components/ui/tooltip';
 import { TooltipTrigger } from '@radix-ui/react-tooltip';
-import Color from 'color';
-import * as d3 from 'd3';
 import _ from 'lodash';
 import {
   Check,
@@ -45,6 +43,7 @@ import { useTheme } from 'next-themes';
 import dynamic from 'next/dynamic';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { COLORS, ENTITY_PALETTE, type EntityType } from '@/lib/design-tokens';
 import { CollectionGraphNodeDetail } from './collection-graph-node-detail';
 import { CollectionGraphNodeMerge } from './collection-graph-node-merge';
 
@@ -54,6 +53,33 @@ const ForceGraph2D = dynamic(
     ssr: false,
   },
 );
+
+// Backend entity_type enum → 6-tone ENTITY_PALETTE mapping.
+// L3 Graph gate #5 (符炫炜 msg=30a3ec9e): never expose raw enum strings;
+// route every entity color / label through this map.
+const ENTITY_TYPE_TO_PALETTE: Record<string, EntityType> = {
+  person: 'person',
+  organization: 'org',
+  geo: 'org',
+  product: 'product',
+  technology: 'product',
+  category: 'concept',
+  date: 'event',
+  event: 'event',
+  UNKNOWN: 'doc',
+};
+
+const resolveEntityColor = (entityType: string | null | undefined): string => {
+  const key = (entityType && ENTITY_TYPE_TO_PALETTE[entityType]) || 'doc';
+  return ENTITY_PALETTE[key];
+};
+
+// Light / dark tier for hairline strokes + link overlays (not yet CSS-var-backed
+// in a canvas context — these mirror token values for imperative drawing).
+const NODE_STROKE_LIGHT = COLORS.bg;
+const NODE_STROKE_DARK = '#1A1A18';
+const LINK_COLOR_NORMAL_DARK = '#3A3A38';
+const LINK_COLOR_HIGHLIGHT_DARK = '#5A5A58';
 
 export const CollectionGraph = ({
   marketplace = false,
@@ -89,14 +115,11 @@ export const CollectionGraph = ({
   const [highlightLinks, setHighlightLinks] = useState(new Set());
   const [hoverNode, setHoverNode] = useState<GraphNode>();
   const [activeNode, setActiveNode] = useState<GraphNode>();
-  const color = useMemo(() => d3.scaleOrdinal(d3.schemeCategory10), []);
 
   const { NODE_MIN, NODE_MAX } = useMemo(
     () => ({
       NODE_MIN: 7,
       NODE_MAX: 24,
-      LINK_MIN: 18,
-      LINK_MAX: 36,
     }),
     [],
   );
@@ -202,23 +225,18 @@ export const CollectionGraph = ({
   useEffect(() => {
     getGraphData();
     getMergeSuggestions();
-    // init the graph config
-    // graphRef.current
-    //   ?.d3Force(
-    //     'link',
-    //     d3.forceLink().distance((link) => {
-    //       console.log(link)
-    //       return Math.min(
-    //         Math.max(link.source.value, link.target.value, LINK_MIN),
-    //         LINK_MAX,
-    //       );
-    //     }),
-    //   )
-    //   .d3Force('collision', d3.forceCollide().radius(NODE_MIN))
-    //   .d3Force('charge', d3.forceManyBody().strength(-40))
-    //   .d3Force('x', d3.forceX())
-    //   .d3Force('y', d3.forceY());
   }, [getGraphData, getMergeSuggestions]);
+
+  const isDark = resolvedTheme === 'dark';
+  const nodeStroke = isDark ? NODE_STROKE_DARK : NODE_STROKE_LIGHT;
+  const linkNormal = isDark ? LINK_COLOR_NORMAL_DARK : COLORS.border;
+  const linkHighlight = isDark
+    ? LINK_COLOR_HIGHLIGHT_DARK
+    : COLORS.borderStrong;
+  const labelFill = isDark ? COLORS.bg : COLORS.fg;
+
+  const totalNodes = graphData?.nodes.length ?? 0;
+  const totalEdges = graphData?.links.length ?? 0;
 
   return (
     <div
@@ -234,52 +252,71 @@ export const CollectionGraph = ({
           'pt-2': fullscreen,
         })}
       >
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" className="w-40 justify-between">
-              {page_graph('node_search')}
-              <ChevronDown />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-[200px] p-0" align="start">
-            <Command>
-              <CommandInput placeholder="Search node..." className="h-9" />
-              <CommandList className="max-h-60">
-                <CommandEmpty>No node found.</CommandEmpty>
-                <CommandGroup>
-                  {_.map(graphData?.nodes, (node, key) => {
-                    const isActive = activeNode?.id === node.id;
-                    return (
-                      <CommandItem
-                        key={key}
-                        className={cn('capitalize')}
-                        value={node.id}
-                        onSelect={() => {
-                          setActiveNode(isActive ? undefined : node);
-                        }}
-                      >
-                        <div className="truncate">{node.id}</div>
-                        <Check
-                          className={cn(
-                            'ml-auto',
-                            isActive ? 'opacity-100' : 'opacity-0',
-                          )}
-                        />
-                      </CommandItem>
-                    );
-                  })}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
+        <div className="flex min-w-0 flex-row items-baseline gap-3">
+          <h1
+            className="truncate font-serif text-xl font-normal"
+            style={{ letterSpacing: '-0.018em' }}
+          >
+            {page_graph('metadata.title')}
+          </h1>
+          {graphData && (
+            <span className="text-muted-foreground font-mono text-xs tabular-nums">
+              {totalNodes.toLocaleString()} · {totalEdges.toLocaleString()}
+            </span>
+          )}
+        </div>
         <div className="flex flex-row items-center gap-2">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="w-40 justify-between">
+                {page_graph('node_search')}
+                <ChevronDown />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[240px] p-0" align="end">
+              <Command>
+                <CommandInput placeholder="Search node..." className="h-9" />
+                <CommandList className="max-h-60">
+                  <CommandEmpty>{page_graph('no_nodes_found')}</CommandEmpty>
+                  <CommandGroup>
+                    {_.map(graphData?.nodes, (node, key) => {
+                      const isActive = activeNode?.id === node.id;
+                      return (
+                        <CommandItem
+                          key={key}
+                          className={cn('capitalize')}
+                          value={node.id}
+                          onSelect={() => {
+                            setActiveNode(isActive ? undefined : node);
+                          }}
+                        >
+                          <div className="truncate">{node.id}</div>
+                          <Check
+                            className={cn(
+                              'ml-auto',
+                              isActive ? 'opacity-100' : 'opacity-0',
+                            )}
+                          />
+                        </CommandItem>
+                      );
+                    })}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+
           {!marketplace && !_.isEmpty(mergeSuggestion?.suggestions) && (
             <Tooltip>
-              <TooltipTrigger>
+              <TooltipTrigger asChild>
                 <Badge
-                  variant="destructive"
-                  className="mr-4 h-5 min-w-5 cursor-pointer rounded-full px-1 font-mono tabular-nums"
+                  variant="outline"
+                  className="h-6 min-w-6 cursor-pointer rounded-full px-1.5 font-mono tabular-nums"
+                  style={{
+                    backgroundColor: COLORS.accentSoft,
+                    color: COLORS.accentInk,
+                    borderColor: COLORS.subtleStrong,
+                  }}
                   onClick={() => setMergeSuggestionOpen(true)}
                 >
                   {mergeSuggestion?.suggestions?.length &&
@@ -323,7 +360,7 @@ export const CollectionGraph = ({
 
       <Card
         ref={containerRef}
-        className="bg-card/0 relative flex flex-1 gap-0 py-0"
+        className="bg-card/0 relative flex flex-1 gap-0 overflow-hidden py-0"
       >
         {graphData === undefined && (
           <div className="absolute top-4/12 left-6/12">
@@ -343,44 +380,13 @@ export const CollectionGraph = ({
           </div>
         )}
 
-        <div className="bg-background absolute top-0 right-0 left-0 z-10 flex flex-row flex-wrap gap-1 rounded-xl p-2">
-          {_.map(allEntities, (item, key) => {
-            const isActive = activeEntities.includes(key);
-            //@ts-expect-error entity error
-            const title = page_graph(`entity_${key}`);
-            return (
-              <Badge
-                key={key}
-                className={cn(
-                  'cursor-pointer capitalize',
-                  isActive ? '' : 'border-transparent',
-                )}
-                style={{
-                  backgroundColor: color(key),
-                  opacity: isActive ? 1 : 0.7,
-                }}
-                onClick={() =>
-                  setActiveEntities((items) => {
-                    if (isActive) {
-                      return _.reject(items, (item) => item === key);
-                    } else {
-                      return _.uniq(items.concat(key));
-                    }
-                  })
-                }
-              >
-                {title} ({item.length})
-              </Badge>
-            );
-          })}
-        </div>
-
         <ForceGraph2D
           graphData={graphData}
           width={dimensions.width}
           height={dimensions.height}
           nodeLabel={(nod) => String(nod.id)}
           ref={graphRef}
+          backgroundColor="transparent"
           nodeVisibility={(node) => {
             return (
               !node.properties.entity_type ||
@@ -436,50 +442,69 @@ export const CollectionGraph = ({
 
             let size = Math.min(node.value, NODE_MAX);
             if (node === hoverNode) size += 1;
+
+            const entityColor = resolveEntityColor(node.properties.entity_type);
+            const isDim =
+              highlightNodes.size > 0 && !highlightNodes.has(node);
+            const isActive = activeNode?.id === node.id;
+
+            // soft halo under large / active nodes
+            if (size >= 14 || isActive) {
+              ctx.beginPath();
+              ctx.arc(x, y, size + 3, 0, 2 * Math.PI, false);
+              ctx.fillStyle = entityColor;
+              ctx.globalAlpha = isDim ? 0.06 : 0.18;
+              ctx.fill();
+              ctx.globalAlpha = 1;
+            }
+
+            // main fill
             ctx.beginPath();
             ctx.arc(x, y, size, 0, 2 * Math.PI, false);
-
-            const colorNormal = color(node.properties.entity_type || '');
-            const colorSecondary =
-              resolvedTheme === 'dark'
-                ? Color(colorNormal).grayscale().darken(0.3)
-                : Color(colorNormal).grayscale().lighten(0.6);
-            ctx.fillStyle =
-              highlightNodes.size === 0 || highlightNodes.has(node)
-                ? colorNormal
-                : colorSecondary.string();
+            ctx.fillStyle = entityColor;
+            ctx.globalAlpha = isDim ? 0.35 : 1;
             ctx.fill();
+            ctx.globalAlpha = 1;
 
-            // node circle
+            // hairline stroke (bg-colored, blends into surface)
             ctx.beginPath();
             ctx.arc(x, y, size, 0, 2 * Math.PI, false);
-            ctx.lineWidth = 0.5;
-            ctx.strokeStyle = highlightNodes.has(node)
-              ? Color('#FFF').grayscale().string()
-              : '#FFF';
+            ctx.lineWidth = 0.6;
+            ctx.strokeStyle = nodeStroke;
             ctx.stroke();
 
-            // node label
-            let fontSize = 16;
+            // active node: dashed accent ring
+            if (isActive) {
+              ctx.beginPath();
+              ctx.setLineDash([3, 3]);
+              ctx.arc(x, y, size + 6, 0, 2 * Math.PI, false);
+              ctx.lineWidth = 1.2;
+              ctx.strokeStyle = COLORS.accent;
+              ctx.globalAlpha = 0.55;
+              ctx.stroke();
+              ctx.setLineDash([]);
+              ctx.globalAlpha = 1;
+            }
+
+            // adaptive label
+            let fontSize = 13;
             const offset = 2;
-            ctx.font = `${fontSize}px Arial`;
+            const fontFamily = 'var(--font-sans), Manrope, system-ui, sans-serif';
+            ctx.font = `500 ${fontSize}px ${fontFamily}`;
             let textWidth = ctx.measureText(String(node.id)).width - offset;
-            do {
+            while (textWidth > size * 1.6 && fontSize > 1) {
               fontSize -= 1;
-              ctx.font = `${fontSize}px Arial`;
-              textWidth = ctx.measureText(String(node.id)).width - offset;
-            } while (textWidth > size && fontSize > 0);
-            ctx.fillStyle = '#fff';
-            if (fontSize <= 0) {
-              fontSize = 1;
-              ctx.font = `${fontSize}px Arial`;
+              ctx.font = `500 ${fontSize}px ${fontFamily}`;
               textWidth = ctx.measureText(String(node.id)).width - offset;
             }
+            ctx.fillStyle = labelFill;
+            ctx.globalAlpha = isDim ? 0.4 : 1;
             ctx.fillText(
               String(node.id),
               x - (textWidth + offset) / 2,
-              y + fontSize / 2,
+              y + size + fontSize + 2,
             );
+            ctx.globalAlpha = 1;
           }}
           nodePointerAreaPaint={(node, color, ctx) => {
             const x = node.x || 0;
@@ -492,17 +517,13 @@ export const CollectionGraph = ({
           }}
           linkLabel="id"
           linkColor={(link) => {
-            if (resolvedTheme === 'dark') {
-              return highlightLinks.has(link) ? '#585858' : '#383838';
-            } else {
-              return highlightLinks.has(link) ? '#BBB' : '#DDD';
-            }
+            return highlightLinks.has(link) ? linkHighlight : linkNormal;
           }}
           linkWidth={(link) => {
-            return highlightLinks.has(link) ? 2 : 1;
+            return highlightLinks.has(link) ? 1.6 : 0.8;
           }}
           linkDirectionalParticleWidth={(link) => {
-            return highlightLinks.has(link) ? 3 : 0;
+            return highlightLinks.has(link) ? 2.5 : 0;
           }}
           linkDirectionalParticles={2}
           linkVisibility={(link) => {
@@ -517,6 +538,52 @@ export const CollectionGraph = ({
             );
           }}
         />
+
+        {/* Legend — floating card (bottom-left), entity filter */}
+        {!_.isEmpty(allEntities) && (
+          <div
+            className="bg-card absolute bottom-4 left-4 z-10 rounded-xl border p-3 shadow-sm"
+            style={{ minWidth: 180 }}
+          >
+            <div className="text-muted-foreground mb-2 font-mono text-[10px] uppercase tracking-wider">
+              {page_graph('node_group')}
+            </div>
+            <div className="grid grid-cols-1 gap-1.5">
+              {_.map(allEntities, (item, key) => {
+                const isActive = activeEntities.includes(key);
+                //@ts-expect-error entity i18n key constructed dynamically
+                const title = page_graph(`entity_${key}`);
+                return (
+                  <button
+                    key={key}
+                    className={cn(
+                      'flex items-center gap-2 rounded-md px-1.5 py-1 text-left text-xs transition-opacity',
+                      !isActive && 'opacity-50',
+                    )}
+                    onClick={() =>
+                      setActiveEntities((items) => {
+                        if (isActive) {
+                          return _.reject(items, (i) => i === key);
+                        } else {
+                          return _.uniq(items.concat(key));
+                        }
+                      })
+                    }
+                  >
+                    <span
+                      className="size-2.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: resolveEntityColor(key) }}
+                    />
+                    <span className="text-foreground/80 truncate">{title}</span>
+                    <span className="text-muted-foreground ml-auto font-mono text-[10px] tabular-nums">
+                      {item.length}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <CollectionGraphNodeDetail
           open={!mergeSuggestionOpen && Boolean(activeNode)}
