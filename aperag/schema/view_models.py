@@ -22,128 +22,20 @@ from typing import Any, Literal, Optional, Union
 
 from pydantic import AnyUrl, BaseModel, ConfigDict, Field, RootModel, confloat, conint, field_validator
 
-
-class ModelSpec(BaseModel):
-    model: Optional[str] = Field(
-        None,
-        description="The name of the language model to use",
-        examples=["gpt-4o-mini"],
-    )
-    model_service_provider: Optional[str] = Field(
-        None,
-        description="Used for querying auth information (api_key/api_base/...) for a model service provider.",
-        examples=["openai"],
-    )
-    custom_llm_provider: Optional[str] = Field(
-        None,
-        description="Used for Non-OpenAI LLMs (e.g. 'bedrock' for amazon.titan-tg1-large)",
-        examples=["openai"],
-    )
-    temperature: Optional[confloat(ge=0.0, le=2.0)] = Field(
-        0.1,
-        description="Controls randomness in the output. Values between 0 and 2. Lower values make output more focused and deterministic",
-        examples=[0.1],
-    )
-    max_tokens: Optional[conint(ge=1)] = Field(
-        None, description="Maximum number of tokens to generate", examples=[4096]
-    )
-    max_completion_tokens: Optional[conint(ge=1)] = Field(
-        None,
-        description="Upper bound for generated completion tokens, including visible and reasoning tokens",
-        examples=[4096],
-    )
-    timeout: Optional[conint(ge=1)] = Field(None, description="Maximum execution time in seconds for the API request")
-    top_n: Optional[conint(ge=1)] = Field(None, description="Number of top results to return when reranking documents")
-    tags: Optional[list[str]] = Field(
-        [],
-        description="Tags for model categorization",
-        examples=[["free", "recommend"]],
-    )
-
-
-class KnowledgeGraphConfig(BaseModel):
-    """
-    Configuration for knowledge graph generation
-    """
-
-    entity_types: Optional[list[str]] = Field(
-        [
-            "organization",
-            "person",
-            "geo",
-            "event",
-            "product",
-            "technology",
-            "date",
-            "category",
-        ],
-        description="List of entity types to extract during graph indexing",
-        examples=[["organization", "person", "geo", "event"]],
-    )
-
-
-class IndexPrompts(BaseModel):
-    """
-    Custom prompts for various index types
-    """
-
-    graph: Optional[str] = Field(None, description="Custom prompt for graph/entity extraction")
-    summary: Optional[str] = Field(None, description="Custom prompt for document summarization")
-    vision: Optional[str] = Field(None, description="Custom prompt for image analysis")
-
-
-class CollectionConfig(BaseModel):
-    source: Optional[str] = Field(
-        "system",
-        description="Source system identifier. Only `system` is supported.",
-        examples=["system"],
-    )
-    enable_vector: Optional[bool] = Field(True, description="Whether to enable vector index")
-    enable_fulltext: Optional[bool] = Field(True, description="Whether to enable fulltext index")
-    enable_knowledge_graph: Optional[bool] = Field(True, description="Whether to enable knowledge graph index")
-    enable_summary: Optional[bool] = Field(False, description="Whether to enable summary index")
-    enable_vision: Optional[bool] = Field(False, description="Whether to enable vision index")
-    knowledge_graph_config: Optional[KnowledgeGraphConfig] = Field(
-        default_factory=lambda: KnowledgeGraphConfig.model_validate(
-            {
-                "entity_types": [
-                    "organization",
-                    "person",
-                    "geo",
-                    "event",
-                    "product",
-                    "technology",
-                    "date",
-                    "category",
-                ]
-            }
-        )
-    )
-    index_prompts: Optional[IndexPrompts] = None
-    language: Optional[Literal["zh-CN", "en-US", "ja-JP", "ko-KR"]] = Field(
-        "zh-CN",
-        description="Language for the collection content and processing",
-        examples=["zh-CN"],
-    )
-    embedding: Optional[ModelSpec] = None
-    completion: Optional[ModelSpec] = None
-
-
-class Collection(BaseModel):
-    """
-    Collection is a collection of documents
-    """
-
-    id: Optional[str] = None
-    title: Optional[str] = None
-    type: Optional[str] = None
-    description: Optional[str] = None
-    config: Optional[CollectionConfig] = None
-    status: Optional[Literal["ACTIVE", "INACTIVE", "DELETED"]] = None
-    created: Optional[datetime] = None
-    updated: Optional[datetime] = None
-    is_published: Optional[bool] = Field(False, description="Whether the collection is published to marketplace")
-    published_at: Optional[datetime] = Field(None, description="Publication time, null when not published")
+# Phase 3 Step 4b (msg=1505044c): shared primitives moved to
+# `aperag.schema.common` so the `knowledge_base` domain can depend on
+# them without tripping Phase 3 G1 (``aperag.schema.view_models`` is on
+# the legacy-aggregate ban list, ``aperag.schema.common`` is not).
+from aperag.schema.common import (  # noqa: F401  re-export for back-compat
+    Chunk,
+    CollectionConfig,
+    IndexPrompts,
+    KnowledgeGraphConfig,
+    ModelSpec,
+    PageResult,
+    PaginatedResponse,
+    VisionChunk,
+)
 
 
 class Agent(BaseModel):
@@ -167,16 +59,6 @@ class Bot(BaseModel):
     config: Optional[BotConfig] = None
     created: Optional[datetime] = None
     updated: Optional[datetime] = None
-
-
-class PageResult(BaseModel):
-    """
-    PageResult info (deprecated, use paginatedResponse instead)
-    """
-
-    page_number: Optional[int] = Field(None, description="The page number")
-    page_size: Optional[int] = Field(None, description="The page size")
-    count: Optional[int] = Field(None, description="The total count of items")
 
 
 class BotList(BaseModel):
@@ -222,15 +104,6 @@ class Chat(BaseModel):
     status: Optional[Literal["active", "archived"]] = None
     created: Optional[datetime] = None
     updated: Optional[datetime] = None
-
-
-class PaginatedResponse(BaseModel):
-    total: Optional[conint(ge=0)] = Field(None, description="Total number of items", examples=[100])
-    page: Optional[conint(ge=1)] = Field(None, description="Current page number", examples=[1])
-    page_size: Optional[conint(ge=1)] = Field(None, description="Number of items per page", examples=[10])
-    total_pages: Optional[conint(ge=1)] = Field(None, description="Total number of pages", examples=[10])
-    has_next: Optional[bool] = Field(None, description="Whether there is a next page", examples=[True])
-    has_prev: Optional[bool] = Field(None, description="Whether there is a previous page", examples=[False])
 
 
 class ChatList(PaginatedResponse):
@@ -333,140 +206,6 @@ class Feedback(BaseModel):
 TurnFeedbackWrite = Feedback
 
 
-class Document(BaseModel):
-    id: Optional[str] = None
-    name: Optional[str] = None
-    status: Optional[
-        Literal[
-            "UPLOADED",
-            "EXPIRED",
-            "PENDING",
-            "RUNNING",
-            "COMPLETE",
-            "FAILED",
-            "DELETING",
-            "DELETED",
-        ]
-    ] = None
-    vector_index_status: Optional[
-        Literal[
-            "PENDING",
-            "CREATING",
-            "ACTIVE",
-            "DELETING",
-            "DELETION_IN_PROGRESS",
-            "FAILED",
-            "SKIPPED",
-        ]
-    ] = None
-    fulltext_index_status: Optional[
-        Literal[
-            "PENDING",
-            "CREATING",
-            "ACTIVE",
-            "DELETING",
-            "DELETION_IN_PROGRESS",
-            "FAILED",
-            "SKIPPED",
-        ]
-    ] = None
-    graph_index_status: Optional[
-        Literal[
-            "PENDING",
-            "CREATING",
-            "ACTIVE",
-            "DELETING",
-            "DELETION_IN_PROGRESS",
-            "FAILED",
-            "SKIPPED",
-        ]
-    ] = None
-    summary_index_status: Optional[
-        Literal[
-            "PENDING",
-            "CREATING",
-            "ACTIVE",
-            "DELETING",
-            "DELETION_IN_PROGRESS",
-            "FAILED",
-            "SKIPPED",
-        ]
-    ] = None
-    vision_index_status: Optional[
-        Literal[
-            "PENDING",
-            "CREATING",
-            "ACTIVE",
-            "DELETING",
-            "DELETION_IN_PROGRESS",
-            "FAILED",
-            "SKIPPED",
-        ]
-    ] = None
-    vector_index_updated: Optional[datetime] = Field(None, description="Vector index last updated time")
-    fulltext_index_updated: Optional[datetime] = Field(None, description="Fulltext index last updated time")
-    graph_index_updated: Optional[datetime] = Field(None, description="Graph index last updated time")
-    summary_index_updated: Optional[datetime] = Field(None, description="Summary index last updated time")
-    vision_index_updated: Optional[datetime] = Field(None, description="Vision index last updated time")
-    summary: Optional[str] = Field(None, description="Summary of the document")
-    size: Optional[float] = None
-    created: Optional[datetime] = None
-    updated: Optional[datetime] = None
-
-
-class CollectionView(BaseModel):
-    """
-    Lightweight collection information for lists, MCP and agents
-    """
-
-    id: Optional[str] = None
-    title: Optional[str] = None
-    description: Optional[str] = None
-    type: Optional[str] = None
-    status: Optional[Literal["ACTIVE", "INACTIVE", "DELETED"]] = None
-    created: Optional[datetime] = None
-    updated: Optional[datetime] = None
-    is_published: Optional[bool] = False
-    published_at: Optional[datetime] = Field(None, description="Publication time, null when not published")
-    owner_user_id: Optional[str] = Field(None, description="Collection owner user ID")
-    owner_username: Optional[str] = Field(None, description="Collection owner username")
-    subscription_id: Optional[str] = Field(
-        None,
-        description="Subscription ID if this is a subscribed collection, null for owned collections",
-    )
-    subscribed_at: Optional[datetime] = Field(None, description="Subscription time, null for owned collections")
-
-
-class CollectionViewList(BaseModel):
-    """
-    A list of collection views
-    """
-
-    items: Optional[list[CollectionView]] = None
-    pageResult: Optional[PageResult] = None
-
-
-class CollectionCreate(BaseModel):
-    title: Optional[str] = None
-    config: Optional[CollectionConfig] = None
-    type: Optional[str] = None
-    description: Optional[str] = None
-
-
-class CollectionUpdate(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
-    config: Optional[CollectionConfig] = None
-
-
-class DocumentList(PaginatedResponse):
-    """
-    A list of documents with pagination
-    """
-
-    items: Optional[list[Document]] = None
-
-
 class DeleteDocumentsRequest(BaseModel):
     document_ids: list[str] = Field(..., description="Document IDs to delete", min_length=1)
 
@@ -474,43 +213,6 @@ class DeleteDocumentsRequest(BaseModel):
 class DeleteDocumentsResponse(BaseModel):
     deleted_ids: list[str] = Field(..., description="Document IDs accepted for deletion")
     status: Literal["success"] = Field(..., description="Batch deletion status")
-
-
-class RebuildIndexesRequest(BaseModel):
-    index_types: list[Literal["VECTOR", "FULLTEXT", "GRAPH", "SUMMARY", "VISION"]] = Field(
-        ..., description="Types of indexes to rebuild", min_length=1
-    )
-
-
-class RebuildIndexesResponse(BaseModel):
-    code: str = Field(..., description="Result code", examples=["200"])
-    message: str = Field(..., description="Human-readable rebuild status")
-    affected_documents: Optional[conint(ge=0)] = Field(
-        None,
-        description="Number of documents affected by a collection-level rebuild",
-    )
-
-
-class VisionChunk(BaseModel):
-    id: Optional[str] = None
-    asset_id: Optional[str] = None
-    text: Optional[str] = None
-    metadata: Optional[dict[str, Any]] = None
-
-
-class Chunk(BaseModel):
-    id: Optional[str] = None
-    text: Optional[str] = None
-    metadata: Optional[dict[str, Any]] = None
-
-
-class DocumentPreview(BaseModel):
-    doc_object_path: Optional[str] = Field(None, description="The path to the document object.")
-    doc_filename: Optional[str] = Field(None, description="The name of the document.")
-    converted_pdf_object_path: Optional[str] = Field(None, description="The path to the converted PDF object.")
-    markdown_content: Optional[str] = Field(None, description="The markdown content of the document.")
-    chunks: Optional[list[Chunk]] = None
-    vision_chunks: Optional[list[VisionChunk]] = None
 
 
 class UploadDocumentResponse(BaseModel):
@@ -812,18 +514,6 @@ class SharingStatusResponse(BaseModel):
 
     is_published: bool = Field(..., description="Whether published to marketplace")
     published_at: Optional[datetime] = Field(None, description="Publication time, null when not published")
-
-
-class CollectionSummaryTriggerResponse(BaseModel):
-    """Trigger-response envelope for POST /collections/{collection_id}/summary/generate."""
-
-    collection_id: str = Field(..., description="Collection id whose summary generation was triggered")
-    success: bool = Field(..., description="Whether the background job was scheduled")
-    message: str = Field(..., description="Human-readable status message")
-    summary_status: Literal["PENDING", "GENERATING"] = Field(
-        ...,
-        description="Server-side summary state after the trigger call",
-    )
 
 
 class MineruTokenTestRequest(BaseModel):
@@ -1844,3 +1534,40 @@ from aperag.domains.retrieval.schemas import (  # noqa: E402,F401
     VectorSearchParams,
     VisionSearchParams,
 )
+
+
+# Phase 3 Step 4b back-compat shim (msg=1505044c): the 11 KB-domain
+# schemas below were extracted to ``aperag.domains.knowledge_base.schemas``
+# and are re-imported here so pre-migration callers
+# (``from aperag.schema.view_models import Collection``), Pydantic
+# forward-ref resolution in ``Agent.collections`` etc., and FastAPI
+# response_model bindings continue to see the canonical class objects
+# from the KB domain module. When this module loads first the import
+# below succeeds; when ``aperag.domains.knowledge_base.schemas`` loads
+# first, the import raises ``ImportError`` (circular) and the KB
+# module's end-of-file ``_bind_view_models_reexports`` hook completes
+# the binding. Phase 6 cleanup will remove this shim after every caller
+# is rewritten to use the KB path.
+try:
+    from aperag.domains.knowledge_base.schemas import (  # noqa: E402, F401
+        Collection,
+        CollectionCreate,
+        CollectionSummaryTriggerResponse,
+        CollectionUpdate,
+        CollectionView,
+        CollectionViewList,
+        Document,
+        DocumentList,
+        DocumentPreview,
+        RebuildIndexesRequest,
+        RebuildIndexesResponse,
+    )
+except ImportError:
+    # Circular import window: KB schemas module is still loading the
+    # shared helpers above (CollectionConfig / PageResult / etc.). The
+    # KB module's ``_bind_view_models_reexports`` hook will set the
+    # same attributes on this module once it finishes. Callers that
+    # imported view_models first will see them bound at module-load
+    # completion; callers that imported KB first will see them bound
+    # via the KB hook.
+    pass

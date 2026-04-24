@@ -17,9 +17,9 @@ from typing import Optional
 
 from aperag.db.models import Collection, CollectionStatus, CollectionType, User
 from aperag.db.ops import async_db_ops
+from aperag.domains.knowledge_base.schemas import CollectionCreate
 from aperag.schema.view_models import (
     CollectionConfig,
-    CollectionCreate,
     ModelSpec,
     TagFilterCondition,
     TagFilterRequest,

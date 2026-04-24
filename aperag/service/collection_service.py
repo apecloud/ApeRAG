@@ -20,11 +20,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from aperag.db import models as db_models
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
+from aperag.domains.knowledge_base.schemas import Collection
 from aperag.exceptions import ValidationException
 from aperag.schema import view_models
 from aperag.schema.utils import dumpCollectionConfig, parseCollectionConfig
 from aperag.schema.view_models import (
-    Collection,
     SearchResult,
     SearchResultItem,
     SearchResultList,

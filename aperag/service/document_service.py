@@ -29,6 +29,7 @@ from aperag.db import models as db_models
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.docparser.doc_parser import DocParser
 from aperag.domains.indexing.manager import document_index_manager
+from aperag.domains.knowledge_base.schemas import DocumentList, DocumentPreview
 from aperag.exceptions import (
     CollectionInactiveException,
     DocumentNameConflictException,
@@ -40,7 +41,7 @@ from aperag.exceptions import (
 from aperag.objectstore.base import get_async_object_store
 from aperag.schema import view_models
 from aperag.schema.utils import parseCollectionConfig
-from aperag.schema.view_models import Chunk, DocumentList, DocumentPreview, VisionChunk
+from aperag.schema.view_models import Chunk, VisionChunk
 from aperag.service.marketplace_service import marketplace_service
 from aperag.utils.pagination import (
     ListParams,
