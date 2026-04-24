@@ -20,7 +20,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal, Optional, Union
 
-from pydantic import AnyUrl, BaseModel, ConfigDict, Field, RootModel, confloat, conint, field_validator
+from pydantic import BaseModel, ConfigDict, Field, RootModel, confloat, conint
 
 # Phase 3 Step 4b (msg=1505044c): shared primitives moved to
 # `aperag.schema.common` so the `knowledge_base` domain can depend on
@@ -904,36 +904,10 @@ class RerankResponse(BaseModel):
     usage: RerankUsage
 
 
-class Auth0(BaseModel):
-    auth_domain: Optional[str] = None
-    auth_app_id: Optional[str] = None
-
-
-class Authing(BaseModel):
-    auth_domain: Optional[str] = None
-    auth_app_id: Optional[str] = None
-
-
-class Logto(BaseModel):
-    auth_domain: Optional[str] = None
-    auth_app_id: Optional[str] = None
-
-
-class Auth(BaseModel):
-    type: Optional[Literal["none", "auth0", "authing", "logto", "cookie"]] = None
-    auth0: Optional[Auth0] = None
-    authing: Optional[Authing] = None
-    logto: Optional[Logto] = None
-
-
-class Config(BaseModel):
-    admin_user_exists: Optional[bool] = Field(None, description="Whether the admin user exists")
-    auth: Optional[Auth] = None
-    login_methods: Optional[list[str]] = Field(
-        None,
-        description="Available login methods",
-        examples=[["local", "google", "github"]],
-    )
+# Auth0 / Authing / Logto / Auth / Config moved to
+# ``aperag.domains.identity.schemas`` in Phase 4 Step 4-S3a; the
+# end-of-file try block re-imports them so pre-migration callers
+# (auth routes, OpenAPI spec builders) keep working.
 
 
 class AuditLog(BaseModel):
@@ -987,74 +961,10 @@ class AuditLogList(PaginatedResponse):
     items: Optional[list[AuditLog]] = Field(None, description="Audit log entries")
 
 
-class InvitationCreate(BaseModel):
-    username: Optional[str] = Field(None, description="The username of the user")
-    email: Optional[str] = Field(None, description="The email of the user")
-    role: Optional[Literal["admin", "rw", "ro"]] = Field(None, description="The role of the user (admin, rw, ro)")
-
-
-class Invitation(BaseModel):
-    email: Optional[str] = Field(None, description="The email of the user")
-    token: Optional[str] = Field(None, description="The token of the invitation")
-    created_by: Optional[str] = Field(None, description="The ID of the user who created the invitation")
-    created_at: Optional[str] = Field(None, description="The date and time the invitation was created")
-    is_valid: Optional[bool] = Field(None, description="Whether the invitation is valid")
-    used_at: Optional[str] = Field(None, description="The date and time the invitation was used")
-    role: Optional[Literal["admin", "rw", "ro"]] = Field(None, description="The role of the user (admin, rw, ro)")
-    expires_at: Optional[str] = Field(None, description="The date and time the invitation will expire")
-
-
-class InvitationList(BaseModel):
-    """
-    A list of invitations
-    """
-
-    items: Optional[list[Invitation]] = None
-    pageResult: Optional[PageResult] = None
-
-
-class Register(BaseModel):
-    """
-    The email of the user
-    """
-
-    token: Optional[str] = Field(None, description="The invitation token")
-    email: Optional[str] = Field(None, description="The email of the user")
-    username: Optional[str] = Field(None, description="The username of the user")
-    password: Optional[str] = Field(None, description="The password of the user")
-
-
-class User(BaseModel):
-    id: Optional[str] = Field(None, description="The ID of the user")
-    username: Optional[str] = Field(None, description="The username of the user")
-    email: Optional[str] = Field(None, description="The email of the user")
-    role: Optional[str] = Field(None, description="The role of the user")
-    is_active: Optional[bool] = Field(None, description="Whether the user is active")
-    date_joined: Optional[str] = Field(None, description="The date and time the user joined the system")
-    registration_source: Optional[str] = Field(
-        None,
-        description="The registration source of the user (local, google, github, etc.)",
-    )
-
-
-class Login(BaseModel):
-    username: Optional[str] = Field(None, description="The username of the user")
-    password: Optional[str] = Field(None, description="The password of the user")
-
-
-class UserList(BaseModel):
-    """
-    A list of users
-    """
-
-    items: Optional[list[User]] = None
-    pageResult: Optional[PageResult] = None
-
-
-class ChangePassword(BaseModel):
-    username: Optional[str] = Field(None, description="The username of the user")
-    old_password: Optional[str] = Field(None, description="The old password of the user")
-    new_password: Optional[str] = Field(None, description="The new password of the user")
+# InvitationCreate / Invitation / InvitationList / Register / User /
+# Login / UserList / ChangePassword moved to
+# ``aperag.domains.identity.schemas`` in Phase 4 Step 4-S3a; the
+# end-of-file try block re-imports them.
 
 
 class QuotaInfo(BaseModel):
@@ -1454,7 +1364,6 @@ from aperag.domains.retrieval.schemas import (  # noqa: E402,F401
     VisionSearchParams,
 )
 
-
 # Phase 3 Step 4b back-compat shim (msg=1505044c): the 11 KB-domain
 # schemas below were extracted to ``aperag.domains.knowledge_base.schemas``
 # and are re-imported here so pre-migration callers
@@ -1502,4 +1411,25 @@ except ImportError:
     # imported view_models first will see them bound at module-load
     # completion; callers that imported KB first will see them bound
     # via the KB hook.
+    pass
+
+# Phase 4 Step 4-S3a identity domain schemas dual-hook re-export.
+# Same symmetric pattern as the KB block above.
+try:
+    from aperag.domains.identity.schemas import (  # noqa: E402, F401
+        Auth,
+        Auth0,
+        Authing,
+        ChangePassword,
+        Config,
+        Invitation,
+        InvitationCreate,
+        InvitationList,
+        Login,
+        Logto,
+        Register,
+        User,
+        UserList,
+    )
+except ImportError:
     pass
