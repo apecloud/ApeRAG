@@ -34,6 +34,15 @@ if settings.otel_enabled:
 from fastapi import FastAPI  # noqa: E402
 
 from aperag.domains.governance.api.routes import router as governance_router
+from aperag.domains.identity.service.user_manager import (
+    set_bot_init_ops as _id_set_bot_init_ops,
+)
+from aperag.domains.identity.service.user_manager import (
+    set_chat_init_ops as _id_set_chat_init_ops,
+)
+from aperag.domains.identity.service.user_manager import (
+    set_quota_init_ops as _id_set_quota_init_ops,
+)
 from aperag.domains.knowledge_base.api.routes import router as knowledge_base_router
 from aperag.domains.knowledge_base.service.collection_service import (
     set_marketplace_collection_ops as _kb_set_marketplace_collection_ops,
@@ -87,6 +96,53 @@ _kb_set_marketplace_ops(_legacy_marketplace_service)
 _kb_set_marketplace_collection_ops(_legacy_marketplace_collection_service)
 _kb_set_search_pipeline_ops(_legacy_search_pipeline_service)
 _kb_set_quota_ops(_legacy_quota_service)
+
+
+# Wire the identity domain's consumer-owned Protocol DI slots (Phase
+# 4 Step 4-S7d). ``UserManager.on_after_register`` invokes three
+# side effects — default bot + default chat collection + per-user
+# quota seed — through ``BotInitOps`` / ``ChatInitOps`` /
+# ``QuotaInitOps``. The three concrete providers live in legacy
+# ``aperag/service/`` today; Phase 5 moves bot_service and
+# chat_collection_service into the conversation domain while quota
+# stays legacy per msg=896584ee. Thin adapters below expose the
+# public Protocol surface (e.g. ``create_default_bot_for_user``)
+# onto the concrete services' existing method names; the adapters
+# collapse when Phase 5 conversation services land at the canonical
+# location.
+class _BotInitOpsAdapter:
+    async def create_default_bot_for_user(self, user_id: str) -> None:
+        # Lazy imports keep ``aperag/app.py`` start-up cost low and
+        # avoid pulling the KB domain services into the identity DI
+        # wiring path before the app is constructed.
+        from aperag.db.models import BotType
+        from aperag.schema.view_models import BotCreate
+        from aperag.service.bot_service import bot_service
+
+        bot_create = BotCreate(
+            title="Default Agent Bot",
+            type=BotType.AGENT,
+            description="Default agent bot created on registration.",
+            collection_ids=[],
+        )
+        await bot_service.create_bot(user=user_id, bot_in=bot_create, skip_quota_check=True)
+
+
+class _ChatInitOpsAdapter:
+    async def create_default_chat_for_user(self, user_id: str) -> None:
+        from aperag.service.chat_collection_service import chat_collection_service
+
+        await chat_collection_service.initialize_user_chat_collection(user_id)
+
+
+class _QuotaInitOpsAdapter:
+    async def initialize_user_quota(self, user_id: str) -> None:
+        await _legacy_quota_service.initialize_user_quotas(user_id)
+
+
+_id_set_bot_init_ops(_BotInitOpsAdapter())
+_id_set_chat_init_ops(_ChatInitOpsAdapter())
+_id_set_quota_init_ops(_QuotaInitOpsAdapter())
 
 
 # Initialize MCP server integration with stateless HTTP to fix OpenAI tool call sequence issues
