@@ -2,16 +2,17 @@
 import { getDocumentStatusColor } from '@/app/workspace/collections/tools';
 import { FormatDate } from '@/components/format-date';
 import { buildDocumentAssetUrl, Markdown } from '@/components/markdown';
-import { buildDocumentObjectUrl } from '@/features/document/client-api';
-import type { Document, DocumentPreview } from '@/features/document/types';
 import { useCollectionContext } from '@/components/providers/collection-provider';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { buildDocumentObjectUrl } from '@/features/document/client-api';
+import type { Document, DocumentPreview } from '@/features/document/types';
 import { cn } from '@/lib/utils';
 import _ from 'lodash';
-import { ArrowLeft, LoaderCircle } from 'lucide-react';
+import { ArrowLeft, FileText, ImageIcon, LoaderCircle } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
@@ -24,6 +25,12 @@ const PDFDocument = dynamic(() => import('react-pdf').then((r) => r.Document), {
 const PDFPage = dynamic(() => import('react-pdf').then((r) => r.Page), {
   ssr: false,
 });
+
+const formatFileSize = (size?: number | null) => {
+  const kb = Number(size || 0) / 1000;
+  if (kb < 1000) return `${kb.toFixed(2)} KB`;
+  return `${(kb / 1000).toFixed(2)} MB`;
+};
 
 export const DocumentDetail = ({
   document,
@@ -61,58 +68,72 @@ export const DocumentDetail = ({
 
   return (
     <>
-      <Tabs defaultValue={defaultTab} className="gap-4">
-        <div className="flex flex-row items-center justify-between gap-2">
-          <div className="flex flex-row items-center gap-4">
-            <Button asChild variant="ghost" size="icon">
+      <Tabs
+        defaultValue={defaultTab}
+        className="border-border/70 bg-card gap-0 overflow-hidden rounded-xl border shadow-sm"
+      >
+        <div className="grid gap-4 border-b p-4 lg:grid-cols-[1fr_auto] lg:items-center">
+          <div className="flex min-w-0 flex-row items-start gap-3">
+            <Button asChild variant="outline" size="icon" className="shrink-0">
               <Link href={`/workspace/collections/${collection.id}/documents`}>
-                <ArrowLeft />
+                <ArrowLeft className="size-4" />
               </Link>
             </Button>
-            <div className={cn('max-w-80 truncate')}>
-              {documentPreview.doc_filename}
-            </div>
-          </div>
-
-          <div className="flex flex-row gap-6">
-            <div className="text-muted-foreground flex flex-row items-center gap-4 text-sm">
-              <div>{(Number(document.size || 0) / 1000).toFixed(2)} KB</div>
-              <Separator
-                orientation="vertical"
-                className="data-[orientation=vertical]:h-6"
-              />
-              {document.updated ? (
-                <>
-                  <div>
+            <div className="min-w-0">
+              <div className={cn('truncate text-base font-medium')}>
+                {documentPreview.doc_filename}
+              </div>
+              <div className="text-muted-foreground mt-2 flex flex-wrap items-center gap-2 text-xs">
+                <span className="font-mono tabular-nums">
+                  {formatFileSize(document.size)}
+                </span>
+                {document.updated ? (
+                  <>
+                    <Separator
+                      orientation="vertical"
+                      className="data-[orientation=vertical]:h-3"
+                    />
                     <FormatDate datetime={new Date(document.updated)} />
-                  </div>
-                  <Separator
-                    orientation="vertical"
-                    className="data-[orientation=vertical]:h-6"
-                  />
-                </>
-              ) : null}
-              <div className={getDocumentStatusColor(document.status)}>
-                {_.capitalize(document.status)}
+                  </>
+                ) : null}
+                {document.status ? (
+                  <>
+                    <Separator
+                      orientation="vertical"
+                      className="data-[orientation=vertical]:h-3"
+                    />
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        'bg-secondary rounded-sm border-transparent font-mono text-[10px] uppercase',
+                        getDocumentStatusColor(document.status),
+                      )}
+                    >
+                      {_.capitalize(document.status)}
+                    </Badge>
+                  </>
+                ) : null}
               </div>
             </div>
-            <TabsList>
-              {hasPdfPreview && <TabsTrigger value="pdf">PDF</TabsTrigger>}
-              {hasVisionPreview && (
-                <TabsTrigger value="vision">Images</TabsTrigger>
-              )}
-              <TabsTrigger value="markdown">Markdown</TabsTrigger>
-            </TabsList>
           </div>
+
+          <TabsList className="w-fit justify-start">
+            {hasPdfPreview && <TabsTrigger value="pdf">PDF</TabsTrigger>}
+            {hasVisionPreview && (
+              <TabsTrigger value="vision">Images</TabsTrigger>
+            )}
+            <TabsTrigger value="markdown">Markdown</TabsTrigger>
+          </TabsList>
         </div>
 
-        <TabsContent value="markdown">
-          <Card>
-            <CardContent>
+        <TabsContent value="markdown" className="bg-background/50 m-0 p-4">
+          <Card className="border-border/70 py-0 shadow-sm">
+            <CardContent className="p-5">
               {documentPreview.markdown_content?.trim() ? (
                 <Markdown>{documentPreview.markdown_content}</Markdown>
               ) : (
-                <div className="text-muted-foreground py-6 text-sm">
+                <div className="text-muted-foreground flex min-h-56 flex-col items-center justify-center gap-3 py-6 text-center text-sm">
+                  <FileText className="size-8" />
                   Markdown preview is unavailable for this document.
                 </div>
               )}
@@ -121,15 +142,15 @@ export const DocumentDetail = ({
         </TabsContent>
 
         {hasVisionPreview && (
-          <TabsContent value="vision">
+          <TabsContent value="vision" className="bg-background/50 m-0 p-4">
             <div className="grid gap-4 lg:grid-cols-2">
               {visionChunks.map((chunk, index) => {
                 const imageUrl = chunk.asset_id
                   ? buildDocumentAssetUrl(
                       `asset://${chunk.asset_id}?collection_id=${collection.id}&document_id=${document.id}`,
                       {
-                        collectionId: collection.id,
-                        documentId: document.id,
+                        collectionId: collection.id ?? '',
+                        documentId: document.id ?? '',
                         mode: 'workspace',
                       },
                     )
@@ -142,21 +163,29 @@ export const DocumentDetail = ({
                     : undefined;
 
                 return (
-                  <Card key={chunk.id || chunk.asset_id || index}>
-                    <CardContent className="space-y-4">
+                  <Card
+                    key={chunk.id || chunk.asset_id || index}
+                    className="border-border/70 gap-0 overflow-hidden py-0 shadow-sm"
+                  >
+                    <CardContent className="space-y-4 p-4">
                       {imageUrl ? (
                         <img
                           src={imageUrl}
                           alt={`Document image ${index + 1}`}
-                          className="w-full rounded-md border"
+                          className="border-border/70 bg-background w-full rounded-lg border"
                         />
-                      ) : null}
+                      ) : (
+                        <div className="text-muted-foreground bg-muted flex min-h-48 items-center justify-center rounded-lg">
+                          <ImageIcon className="size-8" />
+                        </div>
+                      )}
                       <div className="space-y-2">
                         <div className="text-sm font-medium">
                           {pageIdx ? `Page ${pageIdx}` : `Image ${index + 1}`}
                         </div>
-                        <div className="text-muted-foreground whitespace-pre-wrap text-sm">
-                          {chunk.text || 'No extracted image summary available.'}
+                        <div className="text-muted-foreground text-sm whitespace-pre-wrap">
+                          {chunk.text ||
+                            'No extracted image summary available.'}
                         </div>
                       </div>
                     </CardContent>
@@ -168,7 +197,7 @@ export const DocumentDetail = ({
         )}
 
         {hasPdfPreview && (
-          <TabsContent value="pdf">
+          <TabsContent value="pdf" className="bg-background/50 m-0 p-4">
             <PDFDocument
               file={buildDocumentObjectUrl(
                 collection.id ?? '',
@@ -179,7 +208,7 @@ export const DocumentDetail = ({
                 setNumPages(numPages);
               }}
               loading={
-                <div className="flex flex-col py-8">
+                <div className="flex flex-col py-12">
                   <LoaderCircle className="size-10 animate-spin self-center opacity-50" />
                 </div>
               }
@@ -188,8 +217,8 @@ export const DocumentDetail = ({
               {_.times(numPages).map((index) => {
                 return (
                   <div key={index} className="text-center">
-                    <Card className="inline-block overflow-hidden p-0">
-                      <PDFPage pageNumber={index + 1} className="bg-accent" />
+                    <Card className="border-border/70 inline-block overflow-hidden p-0 shadow-sm">
+                      <PDFPage pageNumber={index + 1} className="bg-muted" />
                     </Card>
                   </div>
                 );

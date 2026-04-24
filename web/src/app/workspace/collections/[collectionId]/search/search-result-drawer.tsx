@@ -1,4 +1,5 @@
 import { Markdown } from '@/components/markdown';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Collapsible,
@@ -52,13 +53,13 @@ export const SearchResultDrawer = ({
           {children}
         </Slot>
       </DrawerTrigger>
-      <DrawerContent className="flex sm:min-w-xl md:min-w-2xl">
-        <DrawerHeader>
-          <DrawerTitle className="font-bold">
+      <DrawerContent className="bg-background flex sm:min-w-xl md:min-w-2xl">
+        <DrawerHeader className="border-b">
+          <DrawerTitle className="font-medium">
             {page_search('search_result')}
           </DrawerTitle>
         </DrawerHeader>
-        <div className="overflow-auto px-4 pb-4 select-text">
+        <div className="overflow-auto px-4 py-4 select-text">
           {visibleItems.map((item, index) => {
             return (
               <Collapsible
@@ -68,26 +69,30 @@ export const SearchResultDrawer = ({
               >
                 <CollapsibleTrigger asChild>
                   <Button
-                    variant="secondary"
-                    className="w-full cursor-pointer justify-between"
+                    variant="outline"
+                    className="bg-card hover:bg-muted/60 h-auto w-full cursor-pointer justify-between rounded-xl px-3 py-3"
                   >
                     <div className="flex flex-1 flex-row items-center gap-2">
                       <ChevronRight className="transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
                       <div className="block flex-1 text-left">
                         {item.rank}.{' '}
                         {item.source ||
-                          _.truncate(item.content, { length: 30 })}
+                          _.truncate(item.content ?? '', { length: 30 })}
                       </div>
                     </div>
                     <div className="text-muted-foreground flex flex-row items-center gap-4 text-xs">
-                      <span>{_.startCase(item.recall_type)}</span>
-                      <span>{(item.score || 0).toFixed(2)}</span>
+                      <Badge variant="secondary" className="rounded-sm">
+                        {_.startCase(item.recall_type || '')}
+                      </Badge>
+                      <span className="font-mono tabular-nums">
+                        {(item.score || 0).toFixed(2)}
+                      </span>
                     </div>
                   </Button>
                 </CollapsibleTrigger>
 
-                <CollapsibleContent className="mt-2 rounded-md border p-4">
-                  <Markdown>{item.content}</Markdown>
+                <CollapsibleContent className="border-border/70 bg-card mt-2 rounded-xl border p-4 shadow-sm">
+                  <Markdown>{item.content ?? ''}</Markdown>
                 </CollapsibleContent>
               </Collapsible>
             );

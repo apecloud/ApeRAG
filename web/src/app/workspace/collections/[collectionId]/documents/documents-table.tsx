@@ -27,13 +27,11 @@ import {
 import * as React from 'react';
 import { defaultStyles, FileIcon } from 'react-file-icon';
 
-import {
-  DOCUMENT_INDEX_TYPES,
-  type Document,
-} from '@/features/document/types';
+import { DOCUMENT_INDEX_TYPES, type Document } from '@/features/document/types';
 
 import { DataGrid, DataGridPagination } from '@/components/data-grid';
 import { FormatDate } from '@/components/format-date';
+import { Badge } from '@/components/ui/badge';
 import { cn, objectKeys, parsePageParams } from '@/lib/utils';
 import _ from 'lodash';
 import {
@@ -42,6 +40,7 @@ import {
   EllipsisVertical,
   FolderSync,
   Plus,
+  Search,
   Trash,
 } from 'lucide-react';
 
@@ -75,11 +74,47 @@ const NON_TERMINAL_INDEX_STATUSES = new Set([
   'DELETION_IN_PROGRESS',
 ]);
 
-const getEnabledIndexStatusKeys = (config?: {
-  enable_fulltext?: boolean;
-  enable_knowledge_graph?: boolean;
-  enable_vector?: boolean;
-}) => {
+const DOCUMENT_STATUS_CLASS: Record<string, string> = {
+  COMPLETE: 'bg-accent-soft text-accent-ink border-accent-soft',
+  RUNNING: 'bg-secondary text-foreground border-transparent',
+  PENDING: 'bg-secondary text-muted-foreground border-transparent',
+  UPLOADED: 'bg-secondary text-muted-foreground border-transparent',
+  FAILED: 'bg-destructive/10 text-destructive border-destructive/20',
+  EXPIRED: 'bg-secondary text-muted-foreground border-transparent line-through',
+  DELETED: 'bg-secondary text-muted-foreground border-transparent line-through',
+  DELETING:
+    'bg-secondary text-muted-foreground border-transparent line-through',
+};
+
+const formatFileSize = (size?: number | null) => {
+  const kb = Number(size || 0) / 1000;
+  if (kb < 1000) return `${kb.toFixed(2)} KB`;
+  return `${(kb / 1000).toFixed(2)} MB`;
+};
+
+const DocumentStatusBadge = ({ status }: { status?: string | null }) => {
+  if (!status) return null;
+  return (
+    <Badge
+      variant="outline"
+      className={cn(
+        'rounded-sm border font-mono text-[10px] tracking-normal uppercase',
+        DOCUMENT_STATUS_CLASS[status] ||
+          'bg-secondary text-muted-foreground border-transparent',
+      )}
+    >
+      {_.capitalize(status)}
+    </Badge>
+  );
+};
+
+const getEnabledIndexStatusKeys = (
+  config?: {
+    enable_fulltext?: boolean | null;
+    enable_knowledge_graph?: boolean | null;
+    enable_vector?: boolean | null;
+  } | null,
+) => {
   const keys: Array<keyof Document> = [];
   if (config?.enable_fulltext) keys.push('fulltext_index_status');
   if (config?.enable_knowledge_graph) keys.push('graph_index_status');
@@ -91,10 +126,7 @@ const hasNonTerminalDocumentState = (
   document: Document,
   enabledIndexStatusKeys: Array<keyof Document>,
 ) => {
-  if (
-    document.status &&
-    NON_TERMINAL_DOCUMENT_STATUSES.has(document.status)
-  ) {
+  if (document.status && NON_TERMINAL_DOCUMENT_STATUSES.has(document.status)) {
     return true;
   }
 
@@ -129,8 +161,7 @@ export function DocumentsTable({
   const router = useRouter();
   const [isPageVisible, setIsPageVisible] = React.useState(
     () =>
-      typeof document === 'undefined' ||
-      document.visibilityState === 'visible',
+      typeof document === 'undefined' || document.visibilityState === 'visible',
   );
 
   const query = React.useMemo(() => {
@@ -198,7 +229,9 @@ export function DocumentsTable({
         : FAST_BACKGROUND_POLL_INTERVAL_MS;
     }
 
-    return isPageVisible ? SLOW_POLL_INTERVAL_MS : SLOW_BACKGROUND_POLL_INTERVAL_MS;
+    return isPageVisible
+      ? SLOW_POLL_INTERVAL_MS
+      : SLOW_BACKGROUND_POLL_INTERVAL_MS;
   }, [hasDirtySearchInput, hasNonTerminalRows, isPageVisible]);
 
   React.useEffect(() => {
@@ -224,13 +257,13 @@ export function DocumentsTable({
       let enabled: boolean | undefined;
       switch (key) {
         case 'FULLTEXT':
-          enabled = config?.enable_fulltext;
+          enabled = Boolean(config?.enable_fulltext);
           break;
         case 'GRAPH':
-          enabled = config?.enable_knowledge_graph;
+          enabled = Boolean(config?.enable_knowledge_graph);
           break;
         case 'VECTOR':
-          enabled = config?.enable_vector;
+          enabled = Boolean(config?.enable_vector);
           break;
         default:
           enabled = false;
@@ -292,14 +325,16 @@ export function DocumentsTable({
             />
           );
           return (
-            <div className="flex flex-row items-center gap-2">
-              <div className="h-8 w-6">{icon}</div>
-              <div>
-                <div className="max-w-60 truncate">
+            <div className="flex min-w-0 flex-row items-center gap-3">
+              <div className="bg-muted flex h-10 w-9 shrink-0 items-center justify-center rounded-lg p-1.5">
+                {icon}
+              </div>
+              <div className="min-w-0">
+                <div className="max-w-80 truncate text-sm font-medium">
                   {row.original.vector_index_status === 'ACTIVE' ? (
                     <Link
                       href={`/workspace/collections/${collection.id}/documents/${row.original.id}`}
-                      className={cn('hover:text-primary')}
+                      className={cn('hover:text-primary transition-colors')}
                     >
                       {row.original.name}
                     </Link>
@@ -312,12 +347,17 @@ export function DocumentsTable({
                   )}
                 </div>
                 <div className="text-muted-foreground text-xs">
-                  {(Number(row.original.size || 0) / 1000).toFixed(2)} KB
+                  {formatFileSize(row.original.size)}
                 </div>
               </div>
             </div>
           );
         },
+      },
+      {
+        accessorKey: 'status',
+        header: page_documents('upload_progress'),
+        cell: ({ row }) => <DocumentStatusBadge status={row.original.status} />,
       },
       ...indexCols,
       {
@@ -325,7 +365,9 @@ export function DocumentsTable({
         header: page_documents('last_updated'),
         cell: ({ row }) => {
           return row.original.updated ? (
-            <FormatDate datetime={new Date(row.original.updated)} />
+            <span className="text-muted-foreground text-xs">
+              <FormatDate datetime={new Date(row.original.updated)} />
+            </span>
           ) : (
             ''
           );
@@ -398,8 +440,7 @@ export function DocumentsTable({
         pageIndex: query.page - 1,
         pageSize: query.pageSize,
       };
-      const next =
-        typeof updater === 'function' ? updater(current) : updater;
+      const next = typeof updater === 'function' ? updater(current) : updater;
       handleSearch({
         page: next.pageIndex + 1,
         pageSize: next.pageSize,
@@ -415,22 +456,25 @@ export function DocumentsTable({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div className="flex flex-row items-center gap-2">
+      <div className="border-border/70 bg-card grid gap-3 rounded-xl border p-4 shadow-sm lg:grid-cols-[1fr_auto] lg:items-center">
+        <div className="relative max-w-xl">
+          <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
           <Input
+            className="bg-background/70 h-10 rounded-lg pl-9"
             placeholder={page_documents('search_document')}
             value={searchValue}
             onChange={(e) => setSearchValue(e.currentTarget.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 handleSearch({
+                  page: 1,
                   search: e.currentTarget.value,
                 });
               }
             }}
           />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 lg:justify-end">
           <Button asChild className="cursor-pointer">
             <Link
               href={`/workspace/collections/${collection.id}/documents/upload`}
@@ -488,7 +532,7 @@ export function DocumentsTable({
           </DropdownMenu>
         </div>
       </div>
-      <DataGrid table={table} />
+      <DataGrid table={table} className="border-border/70 bg-card shadow-sm" />
       <DataGridPagination table={table} />
     </div>
   );

@@ -17,6 +17,7 @@ import * as React from 'react';
 
 import { Button } from '@/components/ui/button';
 
+import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 
 import {
@@ -38,6 +39,7 @@ import {
   Columns3,
   EllipsisVertical,
   FlaskConical,
+  Search,
   Trash,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -45,6 +47,21 @@ import { filterVisibleSearchItems } from '../../feature-visibility';
 import { SearchDelete } from './search-delete';
 import { SearchResultDrawer } from './search-result-drawer';
 import { SearchTest } from './search-test';
+
+const SearchParamBadge = ({
+  label,
+  value,
+}: {
+  label: string;
+  value?: number | string | null;
+}) => {
+  if (value === null || value === undefined || value === '') return null;
+  return (
+    <Badge variant="secondary" className="rounded-sm font-mono text-[10px]">
+      {label} {value}
+    </Badge>
+  );
+};
 
 export const SearchTable = ({ data }: { data: SearchResult[] }) => {
   const { collection } = useCollectionContext();
@@ -78,9 +95,15 @@ export const SearchTable = ({ data }: { data: SearchResult[] }) => {
         header: page_search('vector_search'),
         cell: ({ row }) => {
           return (
-            <div>
-              <div>topk: {row.original.vector_search?.topk}</div>
-              <div>similarity: {row.original.vector_search?.similarity}</div>
+            <div className="flex flex-wrap gap-1.5">
+              <SearchParamBadge
+                label="top"
+                value={row.original.vector_search?.topk}
+              />
+              <SearchParamBadge
+                label="sim"
+                value={row.original.vector_search?.similarity}
+              />
             </div>
           );
         },
@@ -93,11 +116,20 @@ export const SearchTable = ({ data }: { data: SearchResult[] }) => {
         header: page_search('fulltext_search'),
         cell: ({ row }) => {
           return (
-            <div>
-              <div>topk: {row.original.fulltext_search?.topk}</div>
-              <div>
-                keywords: {row.original.fulltext_search?.keywords?.join(',')}
-              </div>
+            <div className="flex flex-wrap gap-1.5">
+              <SearchParamBadge
+                label="top"
+                value={row.original.fulltext_search?.topk}
+              />
+              {row.original.fulltext_search?.keywords?.map((keyword) => (
+                <Badge
+                  key={keyword}
+                  variant="outline"
+                  className="rounded-sm text-[10px]"
+                >
+                  {keyword}
+                </Badge>
+              ))}
             </div>
           );
         },
@@ -109,7 +141,14 @@ export const SearchTable = ({ data }: { data: SearchResult[] }) => {
         accessorKey: 'graph_search',
         header: page_search('graph_search'),
         cell: ({ row }) => {
-          return <div>topk: {row.original.fulltext_search?.topk}</div>;
+          return (
+            <div className="flex flex-wrap gap-1.5">
+              <SearchParamBadge
+                label="top"
+                value={row.original.graph_search?.topk}
+              />
+            </div>
+          );
         },
       });
     }
@@ -153,12 +192,12 @@ export const SearchTable = ({ data }: { data: SearchResult[] }) => {
               <SearchResultDrawer result={row.original}>
                 <div
                   data-result={!_.isEmpty(visibleItems)}
-                  className="data-[result=true]:hover:text-primary max-w-md truncate data-[result=true]:cursor-pointer"
+                  className="data-[result=true]:hover:text-primary max-w-md truncate text-sm font-medium transition-colors data-[result=true]:cursor-pointer"
                 >
                   {row.original.query}
                 </div>
               </SearchResultDrawer>
-              <div className="text-muted-foreground flex flex-row items-center gap-4">
+              <div className="text-muted-foreground mt-1 flex flex-row items-center gap-4 text-xs">
                 {visibleItems.length} results
               </div>
             </div>
@@ -171,7 +210,9 @@ export const SearchTable = ({ data }: { data: SearchResult[] }) => {
         header: page_search('creation_time'),
         cell: ({ row }) => {
           return row.original.created ? (
-            <FormatDate datetime={new Date(row.original.created)} />
+            <span className="text-muted-foreground text-xs">
+              <FormatDate datetime={new Date(row.original.created)} />
+            </span>
           ) : undefined;
         },
       },
@@ -237,15 +278,17 @@ export const SearchTable = ({ data }: { data: SearchResult[] }) => {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div className="flex flex-row items-center gap-2">
+      <div className="border-border/70 bg-card grid gap-3 rounded-xl border p-4 shadow-sm lg:grid-cols-[1fr_auto] lg:items-center">
+        <div className="relative max-w-xl">
+          <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
           <Input
+            className="bg-background/70 h-10 rounded-lg pl-9"
             placeholder={page_search('search')}
             value={searchValue}
             onChange={(e) => setSearchValue(e.currentTarget.value)}
           />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 lg:justify-end">
           <SearchTest>
             <Button>
               <FlaskConical />{' '}
@@ -285,7 +328,7 @@ export const SearchTable = ({ data }: { data: SearchResult[] }) => {
           </DropdownMenu>
         </div>
       </div>
-      <DataGrid table={table} />
+      <DataGrid table={table} className="border-border/70 bg-card shadow-sm" />
       <DataGridPagination table={table} />
     </div>
   );

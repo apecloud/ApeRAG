@@ -146,7 +146,7 @@ export const SearchTest = ({ children }: { children: ReactNode }) => {
           {children}
         </Slot>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="sm:max-w-2xl">
         <Form {...form}>
           <form
             onSubmit={form.handleSubmit(handleSubmit)}
@@ -154,7 +154,9 @@ export const SearchTest = ({ children }: { children: ReactNode }) => {
           >
             <DialogHeader>
               <DialogTitle>{page_search('metadata.title')}</DialogTitle>
-              <DialogDescription></DialogDescription>
+              <DialogDescription>
+                {page_search('questions_placeholder')}
+              </DialogDescription>
             </DialogHeader>
 
             <div className="flex flex-col gap-4">
@@ -175,7 +177,7 @@ export const SearchTest = ({ children }: { children: ReactNode }) => {
               />
 
               {indexTypes.vector.available && (
-                <div className="bg-accent/40 hover:bg-accent/50 flex flex-row gap-4 rounded-md border p-4">
+                <div className="border-border/70 bg-muted/40 flex flex-col gap-4 rounded-xl border p-4 sm:flex-row">
                   <Label className="h-8 flex-1">
                     <Checkbox
                       checked={indexTypes.vector.checked}
@@ -189,7 +191,7 @@ export const SearchTest = ({ children }: { children: ReactNode }) => {
                     {page_search('vector_search')}
                   </Label>
 
-                  <div className="flex w-[65%] flex-col gap-2">
+                  <div className="flex flex-1 flex-col gap-2 sm:w-[65%]">
                     <FormField
                       control={form.control}
                       name="vector_search.topk"
@@ -239,7 +241,7 @@ export const SearchTest = ({ children }: { children: ReactNode }) => {
               )}
 
               {indexTypes.fulltext.available && (
-                <div className="bg-accent/40 hover:bg-accent/50 flex flex-row gap-4 rounded-md border p-4">
+                <div className="border-border/70 bg-muted/40 flex flex-col gap-4 rounded-xl border p-4 sm:flex-row">
                   <Label className="h-8 flex-1">
                     <Checkbox
                       checked={indexTypes.fulltext.checked}
@@ -253,7 +255,7 @@ export const SearchTest = ({ children }: { children: ReactNode }) => {
                     {page_search('fulltext_search')}
                   </Label>
 
-                  <div className="flex w-[65%] flex-col gap-2">
+                  <div className="flex flex-1 flex-col gap-2 sm:w-[65%]">
                     <FormField
                       control={form.control}
                       name="fulltext_search.topk"
@@ -281,7 +283,7 @@ export const SearchTest = ({ children }: { children: ReactNode }) => {
               )}
 
               {indexTypes.graph.available && (
-                <div className="bg-accent/40 hover:bg-accent/50 flex flex-row gap-4 rounded-md border p-4">
+                <div className="border-border/70 bg-muted/40 flex flex-col gap-4 rounded-xl border p-4 sm:flex-row">
                   <Label className="h-8 flex-1">
                     <Checkbox
                       checked={indexTypes.graph.checked}
@@ -294,7 +296,7 @@ export const SearchTest = ({ children }: { children: ReactNode }) => {
                     />
                     {page_search('graph_search')}
                   </Label>
-                  <div className="flex w-[65%] flex-col gap-2">
+                  <div className="flex flex-1 flex-col gap-2 sm:w-[65%]">
                     <FormField
                       control={form.control}
                       name="graph_search.topk"
