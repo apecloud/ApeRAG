@@ -49,6 +49,8 @@ from aperag.domains.knowledge_base.service.collection_service import (
 )
 from aperag.domains.knowledge_graph.api.routes import router as knowledge_graph_router
 from aperag.domains.marketplace.api.routes import router as marketplace_router
+from aperag.domains.model_platform.api.llm_routes import router as llm_router
+from aperag.domains.model_platform.api.providers_v2_routes import router as providers_v2_router
 from aperag.domains.retrieval.api.routes import router as retrieval_router
 from aperag.domains.web_access.api.routes import router as web_access_router
 from aperag.exception_handlers import register_exception_handlers
@@ -69,11 +71,9 @@ from aperag.views.collections import router as collections_router
 from aperag.views.config import router as config_router
 from aperag.views.evaluation_v2 import router as evaluation_v2_router
 from aperag.views.export import router as export_router
-from aperag.views.llm import router as llm_router
 from aperag.views.main import router as main_router
 from aperag.views.openai import router as openai_router
 from aperag.views.prompts import router as prompts_router
-from aperag.views.providers_v2 import router as providers_v2_router
 from aperag.views.settings import router as settings_router
 
 # Wire the knowledge_base domain's consumer-owned Protocol DI slots
@@ -126,7 +126,7 @@ app.include_router(main_router, prefix="/api/v1")
 app.include_router(collections_router, prefix="/api/v1")  # Add collections router
 app.include_router(export_router, prefix="/api/v1")  # Add export router
 app.include_router(governance_router, prefix="/api/v1")  # Governance domain router (api_key + audit)
-app.include_router(llm_router, prefix="/api/v1")
+app.include_router(llm_router, prefix="/api/v1")  # Model platform: embed/rerank (OpenAI-compat)
 app.include_router(
     marketplace_router, prefix="/api/v1"
 )  # Marketplace domain router (marketplace + marketplace_collections)
@@ -143,7 +143,7 @@ app.include_router(config_router, prefix="/api/v1/config")
 app.include_router(agent_runtime_router, prefix="/api/v2")
 app.include_router(bots_v2_router, prefix="/api/v2")
 app.include_router(evaluation_v2_router, prefix="/api/v2")
-app.include_router(providers_v2_router, prefix="/api/v2")
+app.include_router(providers_v2_router, prefix="/api/v2")  # Model platform: providers CRUD
 app.include_router(knowledge_base_router, prefix="/api/v2")  # KB domain router (collections_v2 + documents_v2)
 
 # Only include test router in dev mode
