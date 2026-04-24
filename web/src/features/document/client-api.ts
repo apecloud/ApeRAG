@@ -4,8 +4,6 @@ import { browserApiClient } from '@/lib/api/typed/browser';
 
 import type {
   ConfirmDocumentsResponse,
-  DeleteDocumentsRequest,
-  DeleteDocumentsResponse,
   Document,
   DocumentList,
   DocumentPreview,
@@ -16,7 +14,7 @@ import type {
   UploadDocumentResponse,
 } from './types';
 
-export type ListDocumentsOptions = {
+type ListDocumentsOptions = {
   page?: number;
   pageSize?: number;
   sortBy?: 'name' | 'created' | 'updated' | 'size' | 'status';
@@ -88,20 +86,6 @@ export async function deleteDocument(
       },
     },
   );
-}
-
-export async function deleteDocuments(
-  collectionId: string,
-  input: DeleteDocumentsRequest,
-): Promise<DeleteDocumentsResponse | undefined> {
-  const { data } = await browserApiClient.DELETE(
-    '/api/v2/collections/{collection_id}/documents',
-    {
-      params: { path: { collection_id: collectionId } },
-      body: input,
-    },
-  );
-  return data;
 }
 
 export async function rebuildDocumentIndexes(
@@ -231,13 +215,6 @@ export async function fetchUrlDocuments(
 // on the v2 path and the `path` query param on /object.
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
-
-export function buildDocumentDownloadUrl(
-  collectionId: string,
-  documentId: string,
-): string {
-  return `${BASE_PATH}/api/v2/collections/${collectionId}/documents/${documentId}/download`;
-}
 
 export function buildDocumentObjectUrl(
   collectionId: string,

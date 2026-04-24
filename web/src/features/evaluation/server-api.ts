@@ -7,7 +7,6 @@ import type {
   EvaluationRun,
   EvaluationRunDetailResponse,
   EvaluationRunItem,
-  EvaluationRunItemAttempt,
   FetchState,
   ListState,
 } from './types';
@@ -157,26 +156,3 @@ export async function listEvaluationRunItems(
   };
 }
 
-export async function listEvaluationRunItemAttempts(
-  runId: string,
-  itemId: string,
-): Promise<ListState<EvaluationRunItemAttempt>> {
-  const client = await createServerApiClient();
-  const result = await fetchState(async () => {
-    const { data } = await client.GET(
-      '/api/v2/evaluation-runs/{run_id}/items/{item_id}/attempts',
-      {
-        params: {
-          path: { run_id: runId, item_id: itemId },
-        },
-      },
-    );
-    return data;
-  });
-
-  return {
-    ...result,
-    items: result.payload?.items ?? [],
-    page: undefined,
-  };
-}

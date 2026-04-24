@@ -11,7 +11,6 @@ import type {
   SystemDefaultQuotasUpdateRequest,
   SystemDefaultQuotasUpdateResponse,
   UserQuotaInfo,
-  UserQuotaList,
 } from './types';
 
 // Single canonical surface for admin control-plane client calls: settings,
@@ -71,24 +70,6 @@ export async function getSystemDefaultQuotas(): Promise<SystemDefaultQuotasRespo
   );
   if (!data) {
     throw new Error('getSystemDefaultQuotas: empty response body');
-  }
-  return data;
-}
-
-// `GET /api/v1/quotas` returns `UserQuotaInfo | UserQuotaList` depending on
-// caller role (workspace user sees own quota, admin sees full list). Admin
-// adapter narrows to the list shape; if the backend returns a single user
-// info (caller is not admin), that is a contract violation for this adapter
-// and we surface an error rather than silently treat it as an empty list.
-export async function listUserQuotas(): Promise<UserQuotaList> {
-  const { data } = await browserApiClient.GET('/api/v1/quotas', {});
-  if (!data) {
-    throw new Error('listUserQuotas: empty response body');
-  }
-  if (!('items' in data)) {
-    throw new Error(
-      'listUserQuotas: expected UserQuotaList shape, got UserQuotaInfo',
-    );
   }
   return data;
 }

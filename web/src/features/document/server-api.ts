@@ -2,7 +2,7 @@ import { createServerApiClient } from '@/lib/api/typed/server';
 
 import type { Document, DocumentList, DocumentPreview } from './types';
 
-export type ListDocumentsServerOptions = {
+type ListDocumentsServerOptions = {
   page?: number;
   pageSize?: number;
   sortBy?: 'name' | 'created' | 'updated' | 'size' | 'status';

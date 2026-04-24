@@ -5,8 +5,6 @@ import { browserApiClient } from '@/lib/api/typed/browser';
 import type {
   EvaluationDatasetCreate,
   EvaluationDatasetItemCreate,
-  EvaluationDatasetItemUpdate,
-  EvaluationDatasetUpdate,
   EvaluationRunCreate,
 } from './types';
 
@@ -14,22 +12,6 @@ export async function createEvaluationDataset(input: EvaluationDatasetCreate) {
   const { data } = await browserApiClient.POST('/api/v2/evaluation-datasets', {
     body: input,
   });
-  return data;
-}
-
-export async function updateEvaluationDataset(
-  datasetId: string,
-  input: EvaluationDatasetUpdate,
-) {
-  const { data } = await browserApiClient.PUT(
-    '/api/v2/evaluation-datasets/{dataset_id}',
-    {
-      params: {
-        path: { dataset_id: datasetId },
-      },
-      body: input,
-    },
-  );
   return data;
 }
 
@@ -52,23 +34,6 @@ export async function appendEvaluationDatasetItems(
         path: { dataset_id: datasetId },
       },
       body: { items },
-    },
-  );
-  return data;
-}
-
-export async function updateEvaluationDatasetItem(
-  datasetId: string,
-  itemId: string,
-  input: EvaluationDatasetItemUpdate,
-) {
-  const { data } = await browserApiClient.PUT(
-    '/api/v2/evaluation-datasets/{dataset_id}/items/{item_id}',
-    {
-      params: {
-        path: { dataset_id: datasetId, item_id: itemId },
-      },
-      body: input,
     },
   );
   return data;

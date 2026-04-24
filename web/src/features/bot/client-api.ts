@@ -7,7 +7,6 @@ import type {
   Bot,
   BotCreate,
   BotList,
-  BotUpdateRequest,
   Chat,
   ChatDetails,
   ChatList,
@@ -43,9 +42,7 @@ const DEFAULT_TITLE_LANGUAGE: TitleLanguage = 'zh-CN';
  * (`zh-CN`) instead of `null`, because the backend service would forward a
  * `null` straight into `generate_title()` and crash.
  */
-export function toTitleLanguage(
-  value: string | null | undefined,
-): TitleLanguage {
+function toTitleLanguage(value: string | null | undefined): TitleLanguage {
   if (value == null) {
     return DEFAULT_TITLE_LANGUAGE;
   }
@@ -54,7 +51,7 @@ export function toTitleLanguage(
     : DEFAULT_TITLE_LANGUAGE;
 }
 
-export type TitleGenerateInput = {
+type TitleGenerateInput = {
   language?: string | null;
   max_length?: number | null;
   turns?: number | null;
@@ -67,7 +64,7 @@ export type TitleGenerateInput = {
  * `null`, because the backend does not apply Pydantic defaults when the
  * FastAPI route has already parsed an explicit value.
  */
-export function buildTitleGenerateRequest(
+function buildTitleGenerateRequest(
   input: TitleGenerateInput = {},
 ): TitleGenerateRequest {
   return {
@@ -94,23 +91,6 @@ export async function getBot(botId: string): Promise<Bot | undefined> {
     params: { path: { bot_id: botId } },
   });
   return data;
-}
-
-export async function updateBot(
-  botId: string,
-  input: BotUpdateRequest,
-): Promise<Bot | undefined> {
-  const { data } = await browserApiClient.PUT('/api/v2/bots/{bot_id}', {
-    params: { path: { bot_id: botId } },
-    body: input,
-  });
-  return data;
-}
-
-export async function deleteBot(botId: string): Promise<void> {
-  await browserApiClient.DELETE('/api/v2/bots/{bot_id}', {
-    params: { path: { bot_id: botId } },
-  });
 }
 
 export async function listBotChats(
