@@ -33,6 +33,7 @@ if settings.otel_enabled:
 
 from fastapi import FastAPI  # noqa: E402
 
+from aperag.domains.conversation.service.bot_service import set_quota_ops as _conv_set_quota_ops
 from aperag.domains.knowledge_base.api.routes import router as knowledge_base_router
 from aperag.domains.knowledge_base.service.collection_service import (
     set_marketplace_collection_ops as _kb_set_marketplace_collection_ops,
@@ -96,6 +97,15 @@ _kb_set_marketplace_ops(_legacy_marketplace_service)
 _kb_set_marketplace_collection_ops(_MarketplaceCollectionOpsAdapter())
 _kb_set_search_pipeline_ops(_legacy_search_pipeline_service)
 _kb_set_quota_ops(_legacy_quota_service)
+
+# Wire the conversation domain's consumer-owned QuotaOps DI slot for
+# ``bot_service`` (Phase 5 step 5-S4c, canonical msg=4a93c97e Q1 C).
+# The legacy quota_service structurally satisfies the narrower
+# conversation ``QuotaOps`` Protocol (``check_and_consume_quota`` +
+# ``release_quota``) via the same singleton, so the same legacy
+# instance is plugged in here — Phase 6 cleanup removes the wire-up
+# when quota_service finds its permanent home.
+_conv_set_quota_ops(_legacy_quota_service)
 
 
 # Initialize MCP server integration with stateless HTTP to fix OpenAI tool call sequence issues
