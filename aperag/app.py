@@ -37,9 +37,6 @@ from aperag.domains.conversation.service.bot_service import set_quota_ops as _co
 from aperag.domains.conversation.service.chat_document_service import (
     set_chat_collection_ops as _conv_set_chat_collection_ops,
 )
-from aperag.domains.conversation.service.chat_title_service import (
-    set_default_model_ops as _conv_set_default_model_ops,
-)
 from aperag.domains.governance.api.routes import router as governance_router
 from aperag.domains.identity.service.user_manager import (
     set_bot_init_ops as _id_set_bot_init_ops,
@@ -125,19 +122,6 @@ from aperag.service.chat_collection_service import (  # noqa: E402
 )
 
 _conv_set_chat_collection_ops(_legacy_chat_collection_service)
-
-# Wire the ``DefaultModelOps`` DI slot for ``chat_title_service``
-# (Phase 5 step 5-S4e, canonical msg=b93904b6). Phase 4 has moved the
-# concrete ``default_model_service`` into the ``model_platform`` domain,
-# so the wire-up points at the canonical home directly — the legacy
-# ``aperag.service.default_model_service`` shim also resolves to the
-# same object via its re-export, but using the domain path here makes
-# the wire-up survive the Phase 6 cleanup that removes the shim.
-from aperag.domains.model_platform.service.default_model_service import (  # noqa: E402
-    default_model_service as _mp_default_model_service,
-)
-
-_conv_set_default_model_ops(_mp_default_model_service)
 
 
 # Wire the identity domain's consumer-owned Protocol DI slots (Phase

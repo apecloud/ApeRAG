@@ -116,29 +116,6 @@ class QuotaOps(Protocol):
 
 
 @runtime_checkable
-class DefaultModelOps(Protocol):
-    """``chat_title_service``'s view of ``default_model_service``.
-
-    Phase 5 step 5-S4e canonical (``msg=b93904b6`` Q-extension): even
-    though Phase 4 has moved ``default_model_service`` into the
-    ``model_platform`` domain where a direct cross-domain import is
-    G1-legal, the Phase 5 system canonical stays consistent —
-    ``chat_title_service`` reaches its single call site through a
-    consumer-owned Protocol + DI slot, matching ``QuotaOps`` /
-    ``ChatCollectionServiceOps`` / Q2 ``ChatDocumentOps`` patterns.
-
-    The Protocol exposes only the one method the service actually
-    uses. ``aperag/app.py`` wires the concrete
-    ``aperag.domains.model_platform.service.default_model_service``
-    singleton in at startup; Phase 6 cleanup may collapse the
-    Protocol + DI seam into a direct import as part of the broader
-    "simplify narrow DI with stable provider" sweep.
-    """
-
-    async def get_default_background_task_config(self, user_id: str) -> Any: ...
-
-
-@runtime_checkable
 class ChatCollectionServiceOps(Protocol):
     """``chat_document_service``'s view of ``chat_collection_service``.
 
@@ -167,6 +144,5 @@ __all__ = [
     "KnowledgeBaseCollectionView",
     "AuthenticatedUser",
     "QuotaOps",
-    "DefaultModelOps",
     "ChatCollectionServiceOps",
 ]

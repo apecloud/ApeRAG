@@ -26,11 +26,9 @@ caller has migrated.
 from aperag.domains.conversation.service.chat_title_service import (  # noqa: F401
     ChatTitleService,
     chat_title_service,
-    set_default_model_ops,
 )
 
 __all__ = [
     "ChatTitleService",
     "chat_title_service",
-    "set_default_model_ops",
 ]

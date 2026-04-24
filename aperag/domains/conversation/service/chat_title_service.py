@@ -15,16 +15,14 @@
 """Chat-title generation service moved to the conversation domain in
 Phase 5 step 5-S4e.
 
-``default_model_service`` is reached via the ``DefaultModelOps`` DI
-slot instead of a direct import — canonical ``msg=b93904b6`` Q-extension
-and ``msg=3ca9dea3`` confirmation. Even though Phase 4 placed
-``default_model_service`` at
-``aperag.domains.model_platform.service.default_model_service`` (a
-direct cross-domain import would be G1-legal), the consumer-owned
-Protocol + DI pattern stays consistent with ``QuotaOps`` /
-``ChatCollectionServiceOps`` / ``ChatDocumentOps`` — bulk Phase 6
-cleanup can then evaluate whether to collapse the whole class of
-narrow-DI slots that point at stable providers.
+``default_model_service`` is reached via a direct cross-domain import
+of ``aperag.domains.model_platform.service.default_model_service`` —
+canonical ``msg=940bd884`` simplification. Phase 4 has placed the
+concrete provider in the model_platform domain, so the cross-domain
+import is G1-legal and does not require a ``DefaultModelOps`` Protocol
++ DI slot. The earlier intermediate ``DefaultModelOps`` + DI wiring
+was removed in the same commit that introduced it after PM
+``msg=940bd884`` reversed the Protocol ruling.
 """
 
 from __future__ import annotations
@@ -35,32 +33,9 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
-from aperag.domains.conversation.ports import DefaultModelOps
+from aperag.domains.model_platform.service.default_model_service import default_model_service
 from aperag.exceptions import BusinessException, ErrorCode
 from aperag.utils.history import RedisChatMessageHistory, get_async_redis_client
-
-_default_model_ops: Optional[DefaultModelOps] = None
-
-
-def set_default_model_ops(ops: DefaultModelOps) -> None:
-    """Wire the ``DefaultModelOps`` singleton at app startup.
-
-    ``aperag/app.py`` calls this once with the concrete model_platform
-    ``default_model_service`` instance (structurally satisfies the
-    Protocol verbatim).
-    """
-    global _default_model_ops
-    _default_model_ops = ops
-
-
-def _get_default_model_ops() -> DefaultModelOps:
-    if _default_model_ops is None:
-        raise RuntimeError(
-            "DefaultModelOps not wired — call aperag.domains.conversation.service."
-            "chat_title_service.set_default_model_ops() in aperag/app.py startup before"
-            " serving requests."
-        )
-    return _default_model_ops
 
 
 class ChatTitleService:
@@ -99,10 +74,9 @@ class ChatTitleService:
             current_title = getattr(chat, "title", None)
             return current_title.strip() if current_title and current_title.strip() else "Untitled"
 
-        # Load default model configuration via DI Protocol (canonical msg=b93904b6).
-        model, provider_name, custom_provider = await _get_default_model_ops().get_default_background_task_config(
-            user_id
-        )
+        # Load default model configuration via direct cross-domain import
+        # (canonical msg=940bd884). G1 does not ban domain→domain imports.
+        model, provider_name, custom_provider = await default_model_service.get_default_background_task_config(user_id)
         if not (model and provider_name and custom_provider):
             raise BusinessException(ErrorCode.LLM_MODEL_NOT_FOUND, "Background task default model not configured")
 
