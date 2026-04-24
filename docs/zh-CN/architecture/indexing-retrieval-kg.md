@@ -107,9 +107,24 @@ canonical 位置：`aperag/domains/knowledge_base/`。
 - `agent_runtime.runtime` — late-import `knowledge_base` 的 `Collection` schema 作 turn 上下文。
 - `web_access.api.routes` — 跨 domain 直接 import KB `Collection` 做带网页增强的查询。
 
-### 2.5 [@cuiwenbo 供稿位] KB domain 深度细节
+### 2.5 KB 作为全域 consumer-owned Protocol 的首个落地
 
-*（cuiwenbo 将通过 PR #? 的 thread inline block 补齐：3 实体的完整字段映射、`collection_service._search_pipeline_ops` / `_quota_ops` wire 顺序、Document `upload` → `confirm` 两阶段流的事务边界、`CollectionConfig` JSON 配置 hydration 的字段层次、collection_summary 的异步触发与错误重试策略、`max_document_count_per_collection` 的 in-transaction count 策略。）*
+KB 是整个后端 consumer-owned Protocol 模式（lesson 9a-quad）的 **首个完整落地 domain**：
+
+- `collection_service` 持 4 个 module-level DI 槽（`_marketplace_ops` / `_marketplace_collection_ops` / `_search_pipeline_ops` / `_quota_ops`），全部由 `aperag/app.py` 启动时注入。G17 `test_phase4_di_critical_wirings_at_app_startup` 守住 runtime smoke：`import aperag.app` 后任一槽为 `None` 则 CI 红。
+- `test_knowledge_base_protocol_boundary_is_consumer_owned` 进一步守住 **Protocol 方向** —— AST 扫描 `marketplace_service.py` / `marketplace_collection_service.py` / `search_pipeline_service.py` / `quota_service.py` 4 个 legacy provider file，禁止任一反向 `import aperag.domains.knowledge_base.ports`；provider 只能结构性满足，不能反向依赖 consumer 契约。
+- KB 的 `QuotaOps` 与 `conversation.bot_service` 的 `QuotaOps` 是两份**独立**的 consumer-owned Protocol，声明文件不同但 provider 都是 `aperag.service.quota_service`（standalone-infra permanent）— 这是 lesson 9a-quad 的典型示范，消费方彼此互不引用，各自声明最小契约。
+
+完整 G17 / KB consumer-owned boundary test 的 runtime smoke 与 AST 扫描语义见 [`architecture.md §4.1 Backend gate catalog`](../../modularization/architecture.md#41-backend-gate-catalog)。
+
+### 2.6 Collection / CollectionSummary / Document 状态机速览
+
+供稿 by @cuiwenbo (thread msg=f58f4310 精简后)：
+
+- **`CollectionStatus`**: `ACTIVE` / `INACTIVE` / `DELETED` —— 软删除语义，由 `collection_service.delete_collection` 推进。
+- **`CollectionSummaryStatus`**: `PENDING` / `RUNNING` / `COMPLETE` / `FAILED` —— 异步 LLM 摘要任务状态；由 `collection_summary_service` 触发与重试。
+- **`DocumentStatus`**: `UPLOADED` / `PENDING` / `RUNNING` / `COMPLETE` / `FAILED` / `DELETED` —— 两阶段提交的用户可见状态：`upload` API 落 `UPLOADED` 暂存；`confirm` API → `PENDING` → indexing worker 驱动至 `COMPLETE` / `FAILED`。
+- **User write cross-ref**: `Collection.id` 在用户首次使用时通过 `identity.service.identity_user_ops.set_chat_collection(session, user_id, collection_id)` facade 写回 `User.chat_collection_id` —— 非 identity domain 对 User 写操作的**唯一合法路径**（lesson 9a-sexdec hierarchy-1，详见 [`architecture.md §3.4`](../../modularization/architecture.md#34-user-write-hierarchy-lesson-9a-sexdec)）。
 
 ---
 
@@ -318,7 +333,14 @@ knowledge_graph 的 `service.py` + `graphindex/integration.py` 只读 Collection
 
 任何只被 1 个 domain 用的类型必须留在该 domain 的 `schemas.py`，禁止进 `common.py`。本 gate 由 CR 人审，**没有 AST 自动检查** —— 这是刻意设计，避免 `common.py` 退化回 `view_models.py`-style 的 catch-all。
 
-> *（cuiwenbo 供稿位，可补充：8 个 entry 的跨 domain 消费场景实例、从 `view_models` 迁入 `common.py` 的历史清单、Phase 3 / 4 / 5 分别新增了哪些 entry。）*
+反例（绝**不**能进 `common.py`）：
+
+- `Collection` / `CollectionView` — 仅 KB 语义，留 `aperag/domains/knowledge_base/schemas.py`。
+- `ChatMessage` / `TurnFeedback` — 仅 conversation 语义。
+- `AgentMessage` — 仅 agent_runtime 语义（Phase 5 5-S5a 单独 carve）。
+- `User` / `Role` ORM — identity 所有权，由 G15 / G16 硬禁。
+
+与其他 3 类 legacy 聚合层（`view_models.py` / `db/models.py` / `service/*.py`）的关键区别：后三者是"大杂烩"容器，domain 若 import 就会把一切未搬 symbol 暴露出来；`common.py` 靠严格准入防止 catch-all 漂移，G1 因此**刻意不**把它列入禁令清单，`aperag/domains/<d>/schemas.py` 可以直接 import。
 
 ### 6.2 Dual-hook Scenario A — view_models 兼容层 [@cuiwenbo 供稿位]
 
@@ -353,7 +375,12 @@ _bind_view_models_reexports()
 
 `aperag/schema/view_models.py` 当前尾部有 **6 个 dual-hook `try:` block**（knowledge_base / identity / governance / marketplace / model_platform / conversation）+ 1 个 agent_runtime `AgentMessage` 单独 block，共 7 条。
 
-> *（cuiwenbo 供稿位，可补充：为什么 `sys.modules.get` 比 `importlib.import_module` 更合适、Phase 3 首次遇到这个问题时原本设想的 Scenario B 是什么 + 为什么废弃、pre-migration identity 为什么要特殊处理 module-top 而非 end-of-file。）*
+**两种加载顺序都 converge**（cuiwenbo thread msg=179d4a3e 精简）：
+
+- 若 `view_models` 先加载 → 末尾 try-block 触发 `import aperag.domains.<d>.schemas` → domain 模块运行 `_bind_view_models_reexports()`，`sys.modules.get("aperag.schema.view_models")` 命中 in-progress module → `setattr` 把 class 对象写回。
+- 若 domain schemas 先加载 → hook 里 `sys.modules.get(...)` 返回 `None`，early-return noop → 稍后 `view_models` 加载，末尾 try-block `import aperag.domains.<d>.schemas` → domain 已在 `sys.modules`，Python import 机制直接复用，try-block 拿到同一 class 对象。
+
+两条路径的终态都是 `aperag.schema.view_models.X is aperag.domains.<d>.schemas.X`（单一 class identity），与加载顺序无关。
 
 ---
 
