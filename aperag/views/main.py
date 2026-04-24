@@ -18,7 +18,6 @@ from typing import Optional
 from fastapi import APIRouter, Body, Depends, Path, Request
 
 from aperag.db.models import User
-from aperag.schema import view_models
 from aperag.domains.model_platform.service.default_model_service import default_model_service
 from aperag.domains.model_platform.service.llm_available_model_service import llm_available_model_service
 from aperag.domains.model_platform.service.llm_provider_service import (
@@ -33,6 +32,7 @@ from aperag.domains.model_platform.service.llm_provider_service import (
     update_llm_provider,
     update_llm_provider_model,
 )
+from aperag.schema import view_models
 from aperag.utils.audit_decorator import audit
 
 # Import authentication dependencies

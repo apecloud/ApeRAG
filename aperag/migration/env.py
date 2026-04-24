@@ -34,15 +34,27 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 from aperag.db.models import Base
 
-# Import the models module to automatically register all SQLAlchemy tables
-# When you add new SQLAlchemy classes to aperag/db/models.py, they will be
-# automatically discovered - no need to modify this file!
-import aperag.db.models  # noqa: F401
+# Import the models modules to register all SQLAlchemy tables. Phase 7 B5
+# stripped the aggregate re-export block from ``aperag.db.models`` — the
+# per-domain model modules must now be imported explicitly here so their
+# mapper classes register against ``Base.metadata`` before autogen runs.
+import aperag.db.models  # noqa: F401  (local models: Invitation/UserQuota/etc.)
+import aperag.domains.agent_runtime.db.models  # noqa: F401
+import aperag.domains.conversation.db.models  # noqa: F401
+import aperag.domains.evaluation.db.models  # noqa: F401
+import aperag.domains.governance.db.models  # noqa: F401
+import aperag.domains.identity.db.models  # noqa: F401
+import aperag.domains.indexing.db.models  # noqa: F401
+import aperag.domains.knowledge_base.db.models  # noqa: F401
+import aperag.domains.knowledge_graph.db.models  # noqa: F401
+import aperag.domains.marketplace.db.models  # noqa: F401
+import aperag.domains.model_platform.db.models  # noqa: F401
+import aperag.domains.retrieval.db.models  # noqa: F401
 
 # graphindex declares GraphIndexNode / GraphIndexEdge / GraphIndexChunk
-# against the same Base but lives outside aperag.db.models, so it is not
-# transitively registered above. Import it here so `alembic check` does not
-# flag graphindex_{nodes,edges,chunks} as drift.
+# against the same Base but lives outside any domain ``db/models``, so it
+# needs its own explicit import. Keep until Alembic autogen would pick it
+# up transitively.
 import aperag.domains.knowledge_graph.graphindex.models  # noqa: F401
 
 target_metadata = Base.metadata

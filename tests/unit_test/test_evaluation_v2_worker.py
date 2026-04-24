@@ -28,14 +28,14 @@ import asyncio
 import types
 from pathlib import Path
 
-from aperag.db.models import (
+from aperag.domains.evaluation import worker
+from aperag.domains.evaluation.db.models import (
     EvaluationRun,
     EvaluationRunItem,
     EvaluationRunItemAttemptStatus,
     EvaluationRunItemStatus,
     EvaluationRunStatus,
 )
-from aperag.domains.evaluation import worker
 from aperag.domains.evaluation.worker import (
     TurnDispatchOutcome,
     execute_evaluation_run,

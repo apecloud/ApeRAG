@@ -68,6 +68,12 @@ from aperag.domains.knowledge_base.service.collection_service import (
 )
 from aperag.domains.knowledge_graph.api.routes import router as knowledge_graph_router
 from aperag.domains.marketplace.api.routes import router as marketplace_router
+from aperag.domains.marketplace.service.marketplace_collection_service import (
+    marketplace_collection_service as _legacy_marketplace_collection_service,
+)
+from aperag.domains.marketplace.service.marketplace_service import (
+    marketplace_service as _legacy_marketplace_service,
+)
 from aperag.domains.model_platform.api.llm_routes import router as llm_router
 from aperag.domains.model_platform.api.providers_v2_routes import router as providers_v2_router
 from aperag.domains.retrieval.api.routes import router as retrieval_router
@@ -76,12 +82,6 @@ from aperag.exception_handlers import register_exception_handlers
 from aperag.llm.litellm_track import register_custom_llm_track
 from aperag.mcp import mcp_server
 from aperag.openapi_spec import custom_generate_unique_id
-from aperag.domains.marketplace.service.marketplace_collection_service import (
-    marketplace_collection_service as _legacy_marketplace_collection_service,
-)
-from aperag.domains.marketplace.service.marketplace_service import (
-    marketplace_service as _legacy_marketplace_service,
-)
 from aperag.service.quota_service import quota_service as _legacy_quota_service
 from aperag.service.search_pipeline_service import search_pipeline_service as _legacy_search_pipeline_service
 from aperag.views.auth import router as auth_router
@@ -164,9 +164,9 @@ class _BotInitOpsAdapter:
         # Lazy imports keep ``aperag/app.py`` start-up cost low and
         # avoid pulling the KB domain services into the identity DI
         # wiring path before the app is constructed.
-        from aperag.db.models import BotType
-        from aperag.schema.view_models import BotCreate
+        from aperag.domains.conversation.db.models import BotType
         from aperag.domains.conversation.service.bot_service import bot_service
+        from aperag.schema.view_models import BotCreate
 
         bot_create = BotCreate(
             title="Default Agent Bot",

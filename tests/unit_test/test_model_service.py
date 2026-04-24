@@ -14,11 +14,11 @@
 
 from unittest.mock import MagicMock
 
-from aperag.schema import view_models
 from aperag.domains.model_platform.service.llm_available_model_service import (
     filter_models_by_tags,
     filter_providers_by_tags,
 )
+from aperag.schema import view_models
 
 
 class TestFilterModelsByTags:

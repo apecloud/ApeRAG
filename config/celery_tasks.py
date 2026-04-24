@@ -156,7 +156,14 @@ def _validate_task_relevance(
     from sqlalchemy import and_, select
 
     from aperag.config import get_sync_session
-    from aperag.db.models import Document, DocumentIndex, DocumentIndexType, DocumentStatus
+    from aperag.domains.indexing.db.models import (
+        DocumentIndex,
+        DocumentIndexType,
+    )
+    from aperag.domains.knowledge_base.db.models import (
+        Document,
+        DocumentStatus,
+    )
 
     for session in get_sync_session():
         # Check document index status
@@ -280,7 +287,7 @@ def _renew_document_index_leases(targets: List[dict]) -> bool:
     from sqlalchemy import and_, update
 
     from aperag.config import get_sync_session
-    from aperag.db.models import DocumentIndex
+    from aperag.domains.indexing.db.models import DocumentIndex
 
     if not targets:
         return False
@@ -320,7 +327,10 @@ def _renew_collection_summary_lease(summary_id: str, target_version: int, proces
     from sqlalchemy import and_, update
 
     from aperag.config import get_sync_session
-    from aperag.db.models import CollectionSummary, CollectionSummaryStatus
+    from aperag.domains.knowledge_base.db.models import (
+        CollectionSummary,
+        CollectionSummaryStatus,
+    )
 
     current_time = utc_now()
     next_expiry = build_lease_expires_at(DEFAULT_PROCESSING_LEASE_TTL_SECONDS)
@@ -381,7 +391,10 @@ def _validate_collection_summary_relevance(summary_id: str, target_version: int,
     from sqlalchemy import select
 
     from aperag.config import get_sync_session
-    from aperag.db.models import CollectionSummary, CollectionSummaryStatus
+    from aperag.domains.knowledge_base.db.models import (
+        CollectionSummary,
+        CollectionSummaryStatus,
+    )
 
     for session in get_sync_session():
         stmt = select(CollectionSummary).where(CollectionSummary.id == summary_id)
@@ -493,7 +506,7 @@ class BaseIndexTask(Task):
         expected_status=None,
     ):
         try:
-            from aperag.db.models import DocumentIndexStatus
+            from aperag.domains.indexing.db.models import DocumentIndexStatus
             from aperag.tasks.reconciler import index_task_callbacks
 
             expected_status = expected_status or DocumentIndexStatus.CREATING
@@ -532,7 +545,7 @@ def parse_document_task(self, document_id: str, index_types: List[str], context:
     Returns:
         Serialized ParsedDocumentData
     """
-    from aperag.db.models import DocumentIndexStatus
+    from aperag.domains.indexing.db.models import DocumentIndexStatus
 
     context = context or {}
     renewer = None
@@ -614,7 +627,7 @@ def create_index_task(self, document_id: str, index_type: str, parsed_data_dict:
     Returns:
         Serialized IndexTaskResult
     """
-    from aperag.db.models import DocumentIndexStatus
+    from aperag.domains.indexing.db.models import DocumentIndexStatus
 
     context = context or {}
     target_context = _require_index_processing_context(index_type, context)
@@ -706,7 +719,7 @@ def delete_index_task(self, document_id: str, index_type: str, context: dict = N
     Returns:
         Serialized IndexTaskResult
     """
-    from aperag.db.models import DocumentIndexStatus
+    from aperag.domains.indexing.db.models import DocumentIndexStatus
 
     context = context or {}
     target_context = _require_index_processing_context(index_type, context, require_version=False)
@@ -801,7 +814,7 @@ def update_index_task(self, document_id: str, index_type: str, parsed_data_dict:
     Returns:
         Serialized IndexTaskResult
     """
-    from aperag.db.models import DocumentIndexStatus
+    from aperag.domains.indexing.db.models import DocumentIndexStatus
 
     context = context or {}
     target_context = _require_index_processing_context(index_type, context)

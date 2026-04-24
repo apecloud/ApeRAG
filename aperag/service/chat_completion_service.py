@@ -22,14 +22,14 @@ from typing import Any, AsyncGenerator, Dict, List, Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from aperag.db.ops import AsyncDatabaseOps, async_db_ops
+from aperag.domains.agent_runtime.db.models import AgentTurnStatus
 from aperag.domains.agent_runtime.runtime import agent_runtime_manager as runtime_manager
 from aperag.domains.agent_runtime.schemas import CreateTurnRequest
 from aperag.domains.agent_runtime.services import _parse_bot_config
-from aperag.db.models import AgentTurnStatus
-from aperag.db.ops import AsyncDatabaseOps, async_db_ops
+from aperag.domains.conversation.service.chat_service import chat_service_global
 from aperag.exceptions import ValidationException
 from aperag.schema import view_models
-from aperag.domains.conversation.service.chat_service import chat_service_global
 from aperag.utils.constant import DOC_QA_REFERENCES
 
 logger = logging.getLogger(__name__)

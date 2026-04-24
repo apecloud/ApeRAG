@@ -17,8 +17,16 @@ from typing import List, Optional
 
 from sqlalchemy import and_, func, select
 
-from aperag.db.models import Document, DocumentIndex, DocumentIndexStatus, DocumentIndexType, DocumentStatus
 from aperag.db.repositories.base import AsyncRepositoryProtocol
+from aperag.domains.indexing.db.models import (
+    DocumentIndex,
+    DocumentIndexStatus,
+    DocumentIndexType,
+)
+from aperag.domains.knowledge_base.db.models import (
+    Document,
+    DocumentStatus,
+)
 
 
 class AsyncDocumentIndexRepositoryMixin(AsyncRepositoryProtocol):

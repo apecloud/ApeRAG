@@ -6,12 +6,14 @@ import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
-from aperag.db.models import (
-    CollectionSummary,
-    CollectionSummaryStatus,
+from aperag.domains.indexing.db.models import (
     DocumentIndex,
     DocumentIndexStatus,
     DocumentIndexType,
+)
+from aperag.domains.knowledge_base.db.models import (
+    CollectionSummary,
+    CollectionSummaryStatus,
 )
 from aperag.tasks import reconciler as reconciler_module
 from aperag.tasks.models import LocalDocumentInfo, ParsedDocumentData

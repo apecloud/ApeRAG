@@ -4,9 +4,9 @@ from unittest.mock import AsyncMock
 import pytest
 from fastapi import HTTPException
 
+from aperag.domains.knowledge_base.service.document_service import DocumentService
 from aperag.domains.web_access import schemas as web_access_schemas
 from aperag.schema import view_models
-from aperag.domains.knowledge_base.service.document_service import DocumentService
 
 
 class _FakeReaderService:

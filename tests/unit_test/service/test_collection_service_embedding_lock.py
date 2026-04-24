@@ -18,10 +18,10 @@ from types import SimpleNamespace
 
 import pytest
 
+from aperag.domains.knowledge_base.service.collection_service import CollectionService
 from aperag.exceptions import ValidationException
 from aperag.schema import view_models
 from aperag.schema.view_models import CollectionConfig, ModelSpec
-from aperag.domains.knowledge_base.service.collection_service import CollectionService
 
 
 def _cfg(model: str | None, msp: str | None = "openai", clp: str | None = "openai") -> CollectionConfig:

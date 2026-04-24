@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from aperag.db.models import AgentTurnStatus
+from aperag.domains.agent_runtime.db.models import AgentTurnStatus
 from aperag.domains.conversation.service.chat_service import ChatService
 
 

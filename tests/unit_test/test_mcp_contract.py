@@ -28,7 +28,6 @@ from pathlib import Path
 from aperag.domains.retrieval import schemas as retrieval_schemas
 from aperag.mcp import server as mcp_server
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MCP_SERVER_PATH = REPO_ROOT / "aperag" / "mcp" / "server.py"
 

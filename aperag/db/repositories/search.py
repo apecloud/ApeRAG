@@ -16,8 +16,8 @@ from typing import List
 
 from sqlalchemy import desc, select
 
-from aperag.db.models import SearchHistory
 from aperag.db.repositories.base import AsyncRepositoryProtocol
+from aperag.domains.retrieval.db.models import SearchHistory
 
 
 class AsyncSearchRepositoryMixin(AsyncRepositoryProtocol):

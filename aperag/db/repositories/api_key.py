@@ -16,8 +16,11 @@ from typing import Optional
 
 from sqlalchemy import select
 
-from aperag.db.models import ApiKey, ApiKeyStatus
 from aperag.db.repositories.base import AsyncRepositoryProtocol
+from aperag.domains.governance.db.models import (
+    ApiKey,
+    ApiKeyStatus,
+)
 
 
 class AsyncApiKeyRepositoryMixin(AsyncRepositoryProtocol):

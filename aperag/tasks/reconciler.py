@@ -19,15 +19,17 @@ from sqlalchemy import and_, or_, select, update
 from sqlalchemy.orm import Session
 
 from aperag.config import get_sync_session
-from aperag.db.models import (
+from aperag.domains.indexing.db.models import (
+    DocumentIndex,
+    DocumentIndexStatus,
+    DocumentIndexType,
+)
+from aperag.domains.knowledge_base.db.models import (
     Collection,
     CollectionStatus,
     CollectionSummary,
     CollectionSummaryStatus,
     Document,
-    DocumentIndex,
-    DocumentIndexStatus,
-    DocumentIndexType,
     DocumentStatus,
 )
 from aperag.schema.utils import parseCollectionConfig

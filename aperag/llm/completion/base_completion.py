@@ -15,8 +15,8 @@
 import logging
 from threading import Lock
 
-from aperag.db.models import APIType
 from aperag.db.ops import db_ops
+from aperag.domains.model_platform.db.models import APIType
 from aperag.llm.completion.completion_service import CompletionService
 from aperag.llm.llm_error_types import (
     CompletionError,
