@@ -716,15 +716,15 @@ def test_phase4_di_critical_wirings_at_app_startup():
 
 
 def test_phase5_di_critical_wirings_at_app_startup():
-    """G18 alt: runtime smoke for the remaining Phase 5 consumer-owned
-    Protocol DI slots — after ``import aperag.app`` the listed
-    ``_<name>_ops`` slots must resolve to non-``None`` instances.
+    """G18 alt: runtime smoke for the permanent consumer-owned Protocol
+    DI slots — after ``import aperag.app`` the listed ``_<name>_ops``
+    slots must resolve to non-``None`` instances.
 
-    The registry carries exactly the DI slots whose providers still
-    live in ``aperag/service/*`` (legacy-not-moved-yet). Every other
-    cross-domain collaborator uses a direct sibling / cross-domain
-    import per the canonical rule ``direct import = domain-moved
-    provider``.
+    The registry carries exactly the DI slots whose providers are
+    standalone-infrastructure modules with no natural domain home
+    (``quota_service``, ``prompt_template_service``). Every
+    domain-moved provider is reached via a direct sibling /
+    cross-domain import.
 
     ``dispatch_fn`` in ``aperag.domains.evaluation.worker`` is
     intentionally **not** listed — it is a module-level test-injection
@@ -735,12 +735,10 @@ def test_phase5_di_critical_wirings_at_app_startup():
     from aperag.domains.conversation.service import bot_service as conversation_bot_service
 
     PHASE5_CRITICAL_WIRINGS = [
-        # Phase 5 conversation DI slot — bot_service ↔ legacy quota_service
-        # (msg=4a93c97e Q1 C; legacy provider stays through Phase 6).
+        # bot_service ↔ quota_service (standalone-infra, permanent seam).
         (conversation_bot_service, "_quota_ops"),
-        # Phase 5 agent_runtime DI slot — runtime.py ↔ legacy
-        # prompt_template_service (msg=65a3b27d / 3578aa59; legacy
-        # provider stays through Phase 6).
+        # runtime.py ↔ prompt_template_service (standalone-infra,
+        # permanent seam).
         (agent_runtime_runtime, "_prompt_template_ops"),
     ]
     missing = [

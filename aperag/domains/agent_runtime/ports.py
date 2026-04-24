@@ -14,10 +14,13 @@
 
 """Cross-domain contracts owned by the ``agent_runtime`` domain.
 
-``PromptTemplateOps`` is the consumer-owned Protocol for the legacy
-``aperag.service.prompt_template_service`` provider, which stays in
-``aperag/service/`` so the agent_runtime domain cannot ``from
-aperag.service.*`` import it directly without tripping G1.
+``PromptTemplateOps`` is the consumer-owned Protocol seam for
+``aperag.service.prompt_template_service``. The service is a
+standalone-infrastructure module (cross-cutting across agent_runtime
+runtime calls, conversation bot-config resolution, indexing prompt
+resolution, and a user-facing ``/prompts`` REST surface) with no
+natural domain home — the Protocol + DI seam is its permanent
+integration point under G1.
 
 ``AuthenticatedUser`` stays per-domain (lesson 9a-ter); runtime
 handlers only need ``id`` for turn ownership / lease checks.
@@ -43,8 +46,7 @@ class AuthenticatedUser(Protocol):
 
 @runtime_checkable
 class PromptTemplateOps(Protocol):
-    """Consumer-owned view of the legacy
-    ``aperag.service.prompt_template_service``.
+    """Consumer-owned view of ``aperag.service.prompt_template_service``.
 
     Exposes the three surfaces ``runtime.py`` actually uses:
 
@@ -63,11 +65,6 @@ class PromptTemplateOps(Protocol):
     singleton plus the module-level ``build_agent_query_prompt``
     function, so ``aperag/app.py`` wires an adapter that fans out to
     both to satisfy the Protocol.
-
-    Phase 6 cleanup will either move ``prompt_template_service`` into
-    a canonical domain home (agent_runtime or model_platform candidate
-    per msg=65a3b27d) or retire the Protocol in favour of a direct
-    cross-domain import.
     """
 
     async def resolve_agent_system_prompt(self, *, bot: Any, user_id: str) -> str: ...

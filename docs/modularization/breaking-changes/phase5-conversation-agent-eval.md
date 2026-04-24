@@ -106,9 +106,9 @@ required.
 |---|---|---|---|
 | `AuthenticatedUser` | conversation / agent_runtime / evaluation (three separate per-domain copies) | implicit (FastAPI `Depends(required_user)`) — identity `User` row satisfies each Protocol structurally | — |
 | `KnowledgeBaseCollectionView` | conversation | structural — KB `Collection` ORM satisfies it | Phase 3 knowledge_base.db.models.Collection |
-| `QuotaOps` | conversation | `aperag/app.py` `_conv_set_quota_ops(_legacy_quota_service)` | `aperag.service.quota_service` (legacy, Phase 6 candidate) |
+| `QuotaOps` | conversation | `aperag/app.py` `_conv_set_quota_ops(_legacy_quota_service)` | `aperag.service.quota_service` (standalone-infra, permanent seam) |
 | `ChatCollectionServiceOps` (**retired** in Phase 6) | conversation | — | replaced by sibling direct import (same domain) |
-| `PromptTemplateOps` | agent_runtime | `aperag/app.py` `_ar_set_prompt_template_ops(_PromptTemplateOpsAdapter())` | `aperag.service.prompt_template_service` (legacy, Phase 6 candidate) |
+| `PromptTemplateOps` | agent_runtime | `aperag/app.py` `_ar_set_prompt_template_ops(_PromptTemplateOpsAdapter())` | `aperag.service.prompt_template_service` (standalone-infra, permanent seam) |
 | `ChatDocumentOps` (**retired** in 5-S5b) | agent_runtime | — | replaced by direct cross-domain import |
 
 ## Lesson 9a-quatuordec (codified as a gate)
@@ -133,20 +133,25 @@ the move is pure file relocation. Promotion to
 `EvaluationRunStatus.is_terminal()` classmethod was deferred — Phase 6
 cleanup will evaluate whether to retire the module-level alias.
 
-## Phase 6 cleanup candidates
+## Phase 6 cleanup outcome
 
-1. `identity_user_ops.set_chat_collection` facade to retire the 5-S4f
-   `text("UPDATE users SET …")` pragma in
-   `aperag.domains.conversation.service.chat_collection_service`.
-2. `ChatCollectionServiceOps` Protocol seam simplification —
-   `chat_document_service` can direct-import the sibling service now
-   that 5-S4f moved it into the conversation domain.
-3. `PromptTemplateOps` Protocol seam evaluation —
-   `prompt_template_service` either moves into a canonical domain
-   home (agent_runtime or model_platform candidate) or the Protocol
-   is retired in favour of a direct cross-domain import.
-4. `_TERMINAL_RUN_STATUSES` module-level alias retirement /
-   `EvaluationRunStatus.is_terminal()` classmethod promotion.
-5. Legacy shim package deletion (the shim layer has no runtime value
-   once every caller has migrated to the canonical per-domain
-   imports).
+1. **Done** — `identity_user_ops.set_chat_collection` facade replaced
+   the 5-S4f raw `UPDATE users …` in
+   `aperag.domains.conversation.service.chat_collection_service`
+   (9a-sexdec hierarchy-1 terminal state).
+2. **Done** — `ChatCollectionServiceOps` Protocol seam retired;
+   `chat_document_service` now sibling-imports
+   `chat_collection_service` directly.
+3. **Resolved as no-op** — `PromptTemplateOps` is the permanent seam
+   for `aperag.service.prompt_template_service`. The service is a
+   standalone-infrastructure module (cross-cutting across runtime
+   execution, conversation bot-config resolution, indexing, and a
+   user-facing `/prompts` REST surface) with no natural domain home;
+   the Protocol + DI seam is its canonical long-term integration
+   point.
+4. **Done** — `_TERMINAL_RUN_STATUSES` promoted to
+   `EvaluationRunStatus.is_terminal()` classmethod; the #23 race-fix
+   guard is byte-identical with PR #1631 `54cd86b`.
+5. **Out of scope for this PR** — blanket legacy shim package
+   deletion is a separate initiative and was deliberately not
+   combined with the 5-entry cleanup sweep.
