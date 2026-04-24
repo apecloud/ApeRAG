@@ -163,7 +163,7 @@ Authorization: Bearer sk-<your-key>
 
 ## 知识图谱（KG）视角
 
-如果 owner 在自己的 collection 里启用了 Knowledge Graph（详见 `architecture/indexing-retrieval-kg.md`），订阅者可以通过 `GET /api/v1/marketplace/collections/{id}/graph?label=*&max_nodes=1000&max_depth=3` 只读查询：
+如果 owner 在自己的 collection 里启用了 Knowledge Graph（详见 [`architecture/indexing-retrieval-kg.md`](../architecture/indexing-retrieval-kg.md)），订阅者可以通过 `GET /api/v1/marketplace/collections/{id}/graph?label=*&max_nodes=1000&max_depth=3` 只读查询：
 
 - `label`：过滤节点 label（`*` 表示全部）
 - `max_nodes`：返回节点数上限（默认 1000，上限 10000）

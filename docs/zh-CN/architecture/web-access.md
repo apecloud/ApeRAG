@@ -238,7 +238,7 @@ API key 按 user 粒度配置，单个用户 key 泄露只影响该用户的搜�
 
 - `docs/modularization/architecture.md` Section 2.12 — canonical SSoT 的 `web_access` domain 定义
 - [`architecture/domains.md`](./domains.md) — 12 domain 通览
-- `architecture/indexing-retrieval-kg.md` — knowledge_base URL 导入消费链路（起稿中）
+- [`architecture/indexing-retrieval-kg.md`](./indexing-retrieval-kg.md) — knowledge_base URL 导入消费链路
 - [`architecture/conversation-agent-evaluation.md`](./conversation-agent-evaluation.md) — Agent Runtime tool 层
 - [`integration/openai-compat.md`](../integration/openai-compat.md) — 相关集成接口
 - [`user-guide/content-import.md`](../user-guide/content-import.md) — URL 导入的用户面流程
