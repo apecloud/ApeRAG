@@ -634,43 +634,12 @@ class EvaluationChatWithAgentResponse(RootModel[Union[ChatSuccessResponse, Agent
     root: Union[ChatSuccessResponse, AgentErrorResponse]
 
 
-class AgentMessage(BaseModel):
-    """
-    Message format for agent-type bots with additional capabilities
-    """
-
-    query: str = Field(..., description="User query", examples=["Tell me about ApeRAG features"])
-    collections: list[Collection] = Field(
-        ...,
-        description="List of collection objects to search in",
-        examples=[
-            [
-                {"id": "col_123", "title": "Example Collection"},
-                {"id": "col_456", "title": "Another Collection"},
-            ]
-        ],
-    )
-    completion: Optional[ModelSpec] = Field(
-        None,
-        description="Model specification for completion including provider and model details",
-    )
-    web_search_enabled: Optional[bool] = Field(False, description="Whether to enable web search", examples=[True])
-    language: Optional[
-        Literal[
-            "en-US",
-            "zh-CN",
-            "zh-TW",
-            "ja-JP",
-            "ko-KR",
-            "fr-FR",
-            "de-DE",
-            "es-ES",
-            "it-IT",
-            "pt-BR",
-            "ru-RU",
-        ]
-    ] = Field("en-US", description="Language preference for the response", examples=["en-US"])
-    files: Optional[list[File]] = None
+# ``AgentMessage`` was carved to
+# ``aperag.domains.agent_runtime.schemas`` in Phase 5 step 5-S5a in
+# preparation for the ``aperag.agent_runtime`` top-level rename landing
+# in 5-S5b. The end-of-file ``try`` block re-imports it so
+# pre-migration callers (``from aperag.schema.view_models import
+# AgentMessage``) keep resolving the same class object.
 
 
 class ExportTaskResponse(BaseModel):
@@ -903,4 +872,18 @@ except ImportError:
     # Conversation module is still loading the shared common helpers
     # above; its own ``_bind_view_models_reexports`` will complete the
     # binding from the other side.
+    pass
+
+
+# Phase 5 step 5-S5a dual-hook back-compat for ``AgentMessage``; the
+# agent_runtime domain schema module re-binds the class on this
+# namespace via its own ``_bind_view_models_reexports`` hook in the
+# reverse load order. Same pattern as the Phase 3 / Phase 5 blocks
+# above.
+try:
+    from aperag.domains.agent_runtime.schemas import AgentMessage  # noqa: E402, F401
+except ImportError:
+    # agent_runtime schema module is still loading the shared common
+    # helpers above; its own ``_bind_view_models_reexports`` will
+    # complete the binding from the other side.
     pass
