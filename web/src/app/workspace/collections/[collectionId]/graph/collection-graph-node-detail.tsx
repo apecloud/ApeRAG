@@ -7,21 +7,9 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from '@/components/ui/drawer';
-import { ENTITY_PALETTE, type EntityType } from '@/lib/design-tokens';
+import { ENTITY_PALETTE, entityTypeToPaletteKey } from '@/lib/design-tokens';
 import type { GraphNode } from '@/features/knowledge-graph/types';
 import { useTranslations } from 'next-intl';
-
-const ENTITY_TYPE_TO_PALETTE: Record<string, EntityType> = {
-  person: 'person',
-  organization: 'org',
-  geo: 'org',
-  product: 'product',
-  technology: 'product',
-  category: 'concept',
-  date: 'event',
-  event: 'event',
-  UNKNOWN: 'doc',
-};
 
 export const CollectionGraphNodeDetail = ({
   open,
@@ -34,8 +22,7 @@ export const CollectionGraphNodeDetail = ({
 }) => {
   const page_graph = useTranslations('page_graph');
   const entityType = node?.properties.entity_type || 'UNKNOWN';
-  const paletteKey = ENTITY_TYPE_TO_PALETTE[entityType] || 'doc';
-  const entityColor = ENTITY_PALETTE[paletteKey];
+  const entityColor = ENTITY_PALETTE[entityTypeToPaletteKey(entityType)];
   const entityLabel = node
     ? // @ts-expect-error dynamic i18n key
       page_graph(`entity_${entityType}`)

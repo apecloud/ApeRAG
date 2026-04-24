@@ -43,7 +43,12 @@ import { useTheme } from 'next-themes';
 import dynamic from 'next/dynamic';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { COLORS, ENTITY_PALETTE, type EntityType } from '@/lib/design-tokens';
+import {
+  CANVAS_DARK,
+  COLORS,
+  ENTITY_PALETTE,
+  entityTypeToPaletteKey,
+} from '@/lib/design-tokens';
 import { CollectionGraphNodeDetail } from './collection-graph-node-detail';
 import { CollectionGraphNodeMerge } from './collection-graph-node-merge';
 
@@ -54,32 +59,8 @@ const ForceGraph2D = dynamic(
   },
 );
 
-// Backend entity_type enum → 6-tone ENTITY_PALETTE mapping.
-// L3 Graph gate #5 (符炫炜 msg=30a3ec9e): never expose raw enum strings;
-// route every entity color / label through this map.
-const ENTITY_TYPE_TO_PALETTE: Record<string, EntityType> = {
-  person: 'person',
-  organization: 'org',
-  geo: 'org',
-  product: 'product',
-  technology: 'product',
-  category: 'concept',
-  date: 'event',
-  event: 'event',
-  UNKNOWN: 'doc',
-};
-
-const resolveEntityColor = (entityType: string | null | undefined): string => {
-  const key = (entityType && ENTITY_TYPE_TO_PALETTE[entityType]) || 'doc';
-  return ENTITY_PALETTE[key];
-};
-
-// Light / dark tier for hairline strokes + link overlays (not yet CSS-var-backed
-// in a canvas context — these mirror token values for imperative drawing).
-const NODE_STROKE_LIGHT = COLORS.bg;
-const NODE_STROKE_DARK = '#1A1A18';
-const LINK_COLOR_NORMAL_DARK = '#3A3A38';
-const LINK_COLOR_HIGHLIGHT_DARK = '#5A5A58';
+const resolveEntityColor = (entityType: string | null | undefined): string =>
+  ENTITY_PALETTE[entityTypeToPaletteKey(entityType)];
 
 export const CollectionGraph = ({
   marketplace = false,
@@ -228,10 +209,10 @@ export const CollectionGraph = ({
   }, [getGraphData, getMergeSuggestions]);
 
   const isDark = resolvedTheme === 'dark';
-  const nodeStroke = isDark ? NODE_STROKE_DARK : NODE_STROKE_LIGHT;
-  const linkNormal = isDark ? LINK_COLOR_NORMAL_DARK : COLORS.border;
+  const nodeStroke = isDark ? CANVAS_DARK.nodeStroke : COLORS.bg;
+  const linkNormal = isDark ? CANVAS_DARK.linkNormal : COLORS.border;
   const linkHighlight = isDark
-    ? LINK_COLOR_HIGHLIGHT_DARK
+    ? CANVAS_DARK.linkHighlight
     : COLORS.borderStrong;
   const labelFill = isDark ? COLORS.bg : COLORS.fg;
 
