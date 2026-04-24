@@ -15,8 +15,9 @@
 import logging
 from typing import Optional
 
-from aperag.db.models import Collection, CollectionStatus, CollectionType, User
+from aperag.db.models import Collection, User
 from aperag.db.ops import async_db_ops
+from aperag.domains.conversation.ports import KnowledgeBaseCollectionView
 from aperag.domains.knowledge_base.schemas import CollectionCreate
 from aperag.schema.view_models import (
     CollectionConfig,
@@ -39,14 +40,14 @@ class ChatCollectionService:
     def __init__(self):
         self.db_ops = async_db_ops
 
-    async def get_user_chat_collection(self, user_id: str) -> Optional[Collection]:
+    async def get_user_chat_collection(self, user_id: str) -> Optional[KnowledgeBaseCollectionView]:
         """Get user's chat collection"""
         user = await self.db_ops.query_user_by_id(user_id)
         if not user or not user.chat_collection_id:
             return None
 
         collection = await self.db_ops.query_collection_by_id(user.chat_collection_id)
-        if collection and collection.status != CollectionStatus.DELETED:
+        if collection and collection.status != "DELETED":
             return collection
 
         return None
@@ -91,7 +92,7 @@ class ChatCollectionService:
             logger.error(f"Failed to get default embedding model for user {user_id}: {e}")
             return None
 
-    async def create_user_chat_collection(self, user_id: str) -> Collection:
+    async def create_user_chat_collection(self, user_id: str) -> KnowledgeBaseCollectionView:
         """Create chat collection for user"""
         # Get default embedding model
         embedding_model = await self._get_default_embedding_model(user_id)
@@ -128,7 +129,7 @@ class ChatCollectionService:
             # Update collection to mark as chat collection
             collection_obj = await session.get(Collection, collection_response.id)
             if collection_obj:
-                collection_obj.type = CollectionType.CHAT
+                collection_obj.type = "CHAT"
                 session.add(collection_obj)
                 await session.flush()
 
@@ -147,7 +148,7 @@ class ChatCollectionService:
         logger.info(f"Created chat collection {collection.id} for user {user_id}")
         return collection
 
-    async def initialize_user_chat_collection(self, user_id: str) -> Collection:
+    async def initialize_user_chat_collection(self, user_id: str) -> KnowledgeBaseCollectionView:
         """Initialize chat collection for user during registration"""
         existing_collection = await self.get_user_chat_collection(user_id)
         if existing_collection:
