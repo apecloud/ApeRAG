@@ -31,9 +31,9 @@ def parse_document_content(document, collection) -> Tuple[str, List[Any], Any]:
     import asyncio
 
     from aperag.docparser.preflight import run_document_parse_preflight
+    from aperag.domains.governance.service.setting_service import setting_service
     from aperag.domains.indexing.document_parser import document_parser
     from aperag.schema.utils import parseCollectionConfig
-    from aperag.service.setting_service import setting_service
     from aperag.source.base import get_source
 
     # Get document source and prepare local file

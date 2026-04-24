@@ -16,11 +16,11 @@ from typing import List, Optional
 
 from sqlalchemy import desc, select
 
-from aperag.db.models import (
+from aperag.db.repositories.base import AsyncRepositoryProtocol
+from aperag.domains.conversation.db.models import (
     Bot,
     BotStatus,
 )
-from aperag.db.repositories.base import AsyncRepositoryProtocol
 from aperag.utils.utils import utc_now
 
 

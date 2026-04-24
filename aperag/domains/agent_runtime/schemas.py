@@ -242,22 +242,3 @@ __all__ = [
     "UserActivityIntent",
     "VisibleAgentState",
 ]
-
-
-# Dual-hook back-compat: write ``AgentMessage`` onto the legacy
-# ``aperag.schema.view_models`` namespace if this module loads before
-# view_models. Symmetric with the ``try:`` block in view_models that
-# imports AgentMessage from here. Write-only per lesson 9a-quad.
-
-
-def _bind_view_models_reexports() -> None:
-    import sys
-
-    _vm = sys.modules.get("aperag.schema.view_models")
-    if _vm is None:  # pragma: no cover - ordering-dependent
-        return
-    for name in ("AgentMessage",):
-        setattr(_vm, name, globals()[name])
-
-
-_bind_view_models_reexports()

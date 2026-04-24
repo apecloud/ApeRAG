@@ -18,8 +18,8 @@ import logging
 from threading import Lock
 
 from aperag.config import settings
-from aperag.db.models import APIType
 from aperag.db.ops import db_ops
+from aperag.domains.model_platform.db.models import APIType
 from aperag.llm.embed.embedding_service import EmbeddingService
 from aperag.llm.llm_error_types import (
     EmbeddingError,

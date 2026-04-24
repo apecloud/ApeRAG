@@ -16,15 +16,17 @@ from typing import List, Optional, Tuple
 
 from sqlalchemy import and_, desc, func, select
 
-from aperag.db.models import (
+from aperag.db.models import User
+from aperag.db.repositories.base import AsyncRepositoryProtocol
+from aperag.domains.knowledge_base.db.models import (
     Collection,
+    CollectionStatus,
+)
+from aperag.domains.marketplace.db.models import (
     CollectionMarketplace,
     CollectionMarketplaceStatusEnum,
-    CollectionStatus,
-    User,
     UserCollectionSubscription,
 )
-from aperag.db.repositories.base import AsyncRepositoryProtocol
 from aperag.utils.utils import utc_now
 
 

@@ -18,10 +18,10 @@ from types import SimpleNamespace
 
 import pytest
 
+from aperag.domains.knowledge_base.schemas import CollectionUpdate
+from aperag.domains.knowledge_base.service.collection_service import CollectionService
 from aperag.exceptions import ValidationException
-from aperag.schema import view_models
-from aperag.schema.view_models import CollectionConfig, ModelSpec
-from aperag.service.collection_service import CollectionService
+from aperag.schema.common import CollectionConfig, ModelSpec
 
 
 def _cfg(model: str | None, msp: str | None = "openai", clp: str | None = "openai") -> CollectionConfig:
@@ -63,8 +63,8 @@ def test_embedding_identity_is_tuple():
 # ---------------------------------------------------------------------------
 
 
-def _update(cfg: CollectionConfig | None) -> view_models.CollectionUpdate:
-    return view_models.CollectionUpdate(config=cfg)
+def _update(cfg: CollectionConfig | None) -> CollectionUpdate:
+    return CollectionUpdate(config=cfg)
 
 
 @pytest.fixture
@@ -92,7 +92,7 @@ def test_reject_allows_update_without_config_field(svc):
     """Partial updates (``config=None``) must not trigger the guardrail;
     otherwise every title-only edit would fail validation."""
     instance = _instance_with(_cfg("bge-m3"))
-    svc._reject_embedding_change(instance, view_models.CollectionUpdate(config=None))
+    svc._reject_embedding_change(instance, CollectionUpdate(config=None))
 
 
 def test_reject_blocks_model_change(svc):

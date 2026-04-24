@@ -242,34 +242,3 @@ __all__ = [
     "TurnFeedbackList",
     "TurnFeedbackWrite",
 ]
-
-
-# ---------------------------------------------------------------------------
-# Phase 3 step 4b dual-hook pattern applied to Phase 5 5-S3 schemas.
-# Keeps ``aperag.schema.view_models`` resolvable for pre-migration
-# callers regardless of which module finished loading first. Write-only
-# per lesson 9a-quad — this module never reads back from view_models.
-# ---------------------------------------------------------------------------
-
-
-def _bind_view_models_reexports() -> None:
-    """Write Phase 5 conversation schemas onto the ``view_models``
-    namespace.
-
-    This hook covers the circular-import window: if
-    ``aperag.schema.view_models`` is loaded first it resolves these
-    names via its ``try`` block at the end of the file; if this module
-    is loaded first the ``try`` block there raises ``ImportError`` and
-    we finish the binding here.
-    """
-
-    import sys
-
-    _vm = sys.modules.get("aperag.schema.view_models")
-    if _vm is None:  # pragma: no cover - ordering-dependent
-        return
-    for name in __all__:
-        setattr(_vm, name, globals()[name])
-
-
-_bind_view_models_reexports()

@@ -24,15 +24,15 @@ from pydantic import BaseModel, Field
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from aperag.db.models import (
-    Collection,
+from aperag.db.ops import AsyncDatabaseOps, async_db_ops
+from aperag.db.repositories.base import AsyncBaseRepository
+from aperag.domains.knowledge_base.db.models import Collection
+from aperag.domains.knowledge_graph.db.models import (
     GraphCurationRun,
     GraphCurationRunStatus,
     GraphCurationSuggestion,
     GraphCurationSuggestionStatus,
 )
-from aperag.db.ops import AsyncDatabaseOps, async_db_ops
-from aperag.db.repositories.base import AsyncBaseRepository
 from aperag.domains.knowledge_graph.graphindex.dto import Entity
 from aperag.domains.knowledge_graph.graphindex.service import GraphIndexService, LLMCall
 from aperag.exceptions import CollectionNotFoundException
@@ -65,7 +65,7 @@ class MergeJudgement(BaseModel):
 class GraphCurationService(AsyncBaseRepository):
     def __init__(self, session: AsyncSession = None):
         super().__init__(session)
-        from aperag.service.collection_service import collection_service
+        from aperag.domains.knowledge_base.service.collection_service import collection_service
 
         self.collection_service = collection_service
         self.db_ops = async_db_ops if session is None else AsyncDatabaseOps(session)

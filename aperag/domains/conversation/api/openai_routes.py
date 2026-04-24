@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Protocol
+
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 
-from aperag.db.models import User
-from aperag.service.chat_completion_service import (
+from aperag.domains.conversation.service.chat_completion_service import (
     OpenAIChatCompletionRequest,
     OpenAIChatCompletionResponse,
     OpenAIErrorResponse,
@@ -24,6 +25,16 @@ from aperag.service.chat_completion_service import (
     chat_completion_service,
 )
 from aperag.views.auth import required_user
+
+
+class AuthenticatedUser(Protocol):
+    """Minimal auth-context contract — see lesson 9a-ter and the
+    `knowledge_graph` domain's ``routes.py`` for the canonical
+    ``Protocol`` pattern. Only ``id`` is read; the concrete fastapi-users
+    ``User`` row structurally satisfies this."""
+
+    id: object
+
 
 router = APIRouter(tags=["openai"])
 
@@ -60,7 +71,7 @@ async def openai_chat_completions_view(
     bot_id: str | None = Query(default=None, description="Agent bot id that backs this OpenAI-compatible call"),
     chat_id: str | None = Query(default=None, description="Existing chat id. Omit to create an ephemeral chat"),
     language: str = Query(default="en-US", description="Response language passed through to Agent Runtime"),
-    user: User = Depends(required_user),
+    user: AuthenticatedUser = Depends(required_user),
 ):
     """OpenAI-compatible chat completions endpoint backed by Agent Runtime V3."""
     try:

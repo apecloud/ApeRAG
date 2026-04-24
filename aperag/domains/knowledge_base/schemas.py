@@ -381,37 +381,3 @@ class MineruTokenTestResponse(BaseModel):
         default_factory=dict,
         description="Passthrough body from MinerU upstream",
     )
-
-
-# Re-bind the KB schemas onto ``aperag.schema.view_models`` so that
-# pre-migration callers (``from aperag.schema.view_models import
-# Collection`` / ``view_models.Document(...)``) and Pydantic forward-ref
-# resolution in view_models' own classes (``Agent.collections:
-# list[Collection]``, etc.) continue to see the same class objects this
-# module defines.
-#
-# The two load orders are handled symmetrically:
-#   * view_models.py loaded first → its end-of-file ``try`` block
-#     imports these names from knowledge_base.schemas and binds them
-#     directly via normal import machinery (the hook below is a no-op
-#     because view_models is already in ``sys.modules`` when this hook
-#     runs inside that chain).
-#   * knowledge_base.schemas loaded first → view_models.py has not yet
-#     been loaded, so the hook leaves it alone; when something later
-#     triggers view_models.py to load, its end-of-file import binds
-#     these names.
-#
-# ``sys.modules`` is consulted via a string lookup so Phase 3 G1 AST
-# scans do not flag a (pointless) runtime import of
-# ``aperag.schema.view_models`` from inside this KB-domain module.
-def _bind_view_models_reexports() -> None:
-    import sys
-
-    _vm = sys.modules.get("aperag.schema.view_models")
-    if _vm is None:
-        return
-    for _name in __all__:
-        setattr(_vm, _name, globals()[_name])
-
-
-_bind_view_models_reexports()

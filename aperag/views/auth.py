@@ -30,9 +30,18 @@ from httpx_oauth.clients.github import GitHubOAuth2
 from httpx_oauth.clients.google import GoogleOAuth2
 
 from aperag.config import AsyncSessionDep, settings
-from aperag.db.models import ApiKey, ApiKeyStatus, Invitation, OAuthAccount, Role, User
+from aperag.db.models import (
+    Invitation,
+    OAuthAccount,
+    Role,
+    User,
+)
 from aperag.db.ops import async_db_ops
-from aperag.schema import view_models
+from aperag.domains.governance.db.models import (
+    ApiKey,
+    ApiKeyStatus,
+)
+from aperag.domains.identity import schemas as identity_schemas
 from aperag.utils.audit_decorator import audit
 from aperag.utils.utils import utc_now
 from aperag.views.utils import is_github_oauth_enabled, is_google_oauth_enabled
@@ -191,10 +200,10 @@ if is_github_oauth_enabled():
 @audit(resource_type="invitation", api_name="CreateInvitation")
 async def create_invitation_view(
     request: Request,
-    data: view_models.InvitationCreate,
+    data: identity_schemas.InvitationCreate,
     session: AsyncSessionDep,
     user: User = Depends(get_current_admin),
-) -> view_models.Invitation:
+) -> identity_schemas.Invitation:
     from sqlalchemy import select
 
     result = await session.execute(select(User).where((User.username == data.username) | (User.email == data.email)))
@@ -213,7 +222,7 @@ async def create_invitation_view(
     )
     session.add(invitation)
     await session.commit()
-    return view_models.Invitation(
+    return identity_schemas.Invitation(
         email=invitation.email,
         token=token,
         created_by=user.id,
@@ -227,7 +236,7 @@ async def create_invitation_view(
 @router.get("/invitations", tags=["invitations"])
 async def list_invitations_view(
     session: AsyncSessionDep, user: User = Depends(required_user)
-) -> view_models.InvitationList:
+) -> identity_schemas.InvitationList:
     from sqlalchemy import select
 
     if user.role != Role.ADMIN:
@@ -237,7 +246,7 @@ async def list_invitations_view(
     invitations = []
     for invitation in result.unique().scalars():
         invitations.append(
-            view_models.Invitation(
+            identity_schemas.Invitation(
                 email=invitation.email,
                 token=invitation.token,
                 created_by=invitation.created_by,
@@ -248,17 +257,17 @@ async def list_invitations_view(
                 expires_at=invitation.expires_at.isoformat() if invitation.expires_at else None,
             )
         )
-    return view_models.InvitationList(items=invitations)
+    return identity_schemas.InvitationList(items=invitations)
 
 
 @router.post("/register", tags=["auth"])
 @audit(resource_type="user", api_name="RegisterUser")
 async def register_view(
     request: Request,
-    data: view_models.Register,
+    data: identity_schemas.Register,
     session: AsyncSessionDep,
     user_manager: UserManager = Depends(get_user_manager),
-) -> view_models.User:
+) -> identity_schemas.User:
     from sqlalchemy import select
 
     is_first_user = not await async_db_ops.query_first_user_exists()
@@ -321,7 +330,7 @@ async def register_view(
         # If user has OAuth accounts, use the first one's provider name
         registration_source = user.oauth_accounts[0].oauth_name
 
-    return view_models.User(
+    return identity_schemas.User(
         id=str(user.id),
         username=user.username,
         email=user.email,
@@ -336,10 +345,10 @@ async def register_view(
 async def login_view(
     request: Request,
     response: Response,
-    data: view_models.Login,
+    data: identity_schemas.Login,
     session: AsyncSessionDep,
     user_manager: UserManager = Depends(get_user_manager),
-) -> view_models.User:
+) -> identity_schemas.User:
     from sqlalchemy import select
 
     result = await session.execute(select(User).where(User.username == data.username))
@@ -365,7 +374,7 @@ async def login_view(
     # Set cookie
     response.set_cookie(key="session", value=token, max_age=COOKIE_MAX_AGE, httponly=True, samesite="lax")
 
-    return view_models.User(
+    return identity_schemas.User(
         id=str(user.id),
         username=user.username,
         email=user.email,
@@ -401,7 +410,7 @@ async def get_user_view(request: Request, session: AsyncSessionDep, user: Option
         # If user has OAuth accounts, use the first one's provider name
         registration_source = user_with_oauth.oauth_accounts[0].oauth_name
 
-    return view_models.User(
+    return identity_schemas.User(
         id=str(user.id),
         username=user.username,
         email=user.email,
@@ -415,7 +424,7 @@ async def get_user_view(request: Request, session: AsyncSessionDep, user: Option
 @router.get("/users", tags=["users"])
 async def list_users_view(
     session: AsyncSessionDep, user: Optional[User] = Depends(required_user)
-) -> view_models.UserList:
+) -> identity_schemas.UserList:
     from sqlalchemy import select
     from sqlalchemy.orm import selectinload
 
@@ -435,7 +444,7 @@ async def list_users_view(
             registration_source = u.oauth_accounts[0].oauth_name
 
         users.append(
-            view_models.User(
+            identity_schemas.User(
                 id=str(u.id),
                 username=u.username,
                 email=u.email,
@@ -445,14 +454,14 @@ async def list_users_view(
                 registration_source=registration_source,
             )
         )
-    return view_models.UserList(items=users)
+    return identity_schemas.UserList(items=users)
 
 
 @router.post("/change-password", tags=["auth"])
 @audit(resource_type="user", api_name="ChangePassword")
 async def change_password_view(
     request: Request,
-    data: view_models.ChangePassword,
+    data: identity_schemas.ChangePassword,
     session: AsyncSessionDep,
     user_manager: UserManager = Depends(get_user_manager),
 ):
@@ -470,7 +479,7 @@ async def change_password_view(
     session.add(user)
     await session.commit()
 
-    return view_models.User(
+    return identity_schemas.User(
         id=str(user.id),
         username=user.username,
         email=user.email,

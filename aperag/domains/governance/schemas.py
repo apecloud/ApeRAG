@@ -113,19 +113,3 @@ class AuditLogList(PaginatedResponse):
     """
 
     items: Optional[list[AuditLog]] = Field(None, description="Audit log entries")
-
-
-def _bind_view_models_reexports() -> None:
-    """Phase 3 / Phase 4 dual-hook pattern — see identity/schemas.py
-    for the full symmetric-load-order explanation."""
-
-    import sys
-
-    _vm = sys.modules.get("aperag.schema.view_models")
-    if _vm is None:
-        return
-    for _name in __all__:
-        setattr(_vm, _name, globals()[_name])
-
-
-_bind_view_models_reexports()

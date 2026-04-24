@@ -16,11 +16,17 @@ from typing import List, Optional
 
 from sqlalchemy import and_, desc, func, select
 
-from aperag.db.models import Collection, CollectionMarketplace, CollectionStatus, CollectionType, User
+from aperag.db.models import User
 from aperag.db.repositories.base import (
     AsyncRepositoryProtocol,
     SyncRepositoryProtocol,
 )
+from aperag.domains.knowledge_base.db.models import (
+    Collection,
+    CollectionStatus,
+    CollectionType,
+)
+from aperag.domains.marketplace.db.models import CollectionMarketplace
 from aperag.utils.utils import utc_now
 
 

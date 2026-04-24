@@ -16,8 +16,12 @@ from typing import Optional
 
 from sqlalchemy import select
 
-from aperag.db.models import AgentArtifact, AgentTimelineEvent, AgentTurn
 from aperag.db.repositories.base import AsyncRepositoryProtocol
+from aperag.domains.agent_runtime.db.models import (
+    AgentArtifact,
+    AgentTimelineEvent,
+    AgentTurn,
+)
 from aperag.utils.utils import utc_now
 
 

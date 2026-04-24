@@ -17,14 +17,16 @@ from typing import List, Optional
 from sqlalchemy import select
 
 from aperag.db.models import (
-    LLMProvider,
-    LLMProviderModel,
     ModelServiceProvider,
     ModelServiceProviderStatus,
 )
 from aperag.db.repositories.base import (
     AsyncRepositoryProtocol,
     SyncRepositoryProtocol,
+)
+from aperag.domains.model_platform.db.models import (
+    LLMProvider,
+    LLMProviderModel,
 )
 from aperag.utils.utils import utc_now
 
@@ -548,7 +550,7 @@ class AsyncLlmProviderRepositoryMixin(AsyncRepositoryProtocol):
         """Create a new LLM provider model"""
 
         async def _operation(session):
-            from aperag.db.models import APIType
+            from aperag.domains.model_platform.db.models import APIType
 
             # Convert enum to string if needed
             api_value = api.value if isinstance(api, APIType) else api

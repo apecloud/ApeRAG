@@ -16,8 +16,12 @@ from typing import Optional
 
 from sqlalchemy import desc, select
 
-from aperag.db.models import Chat, ChatStatus, TurnFeedback
 from aperag.db.repositories.base import AsyncRepositoryProtocol
+from aperag.domains.conversation.db.models import (
+    Chat,
+    ChatStatus,
+    TurnFeedback,
+)
 from aperag.utils.utils import utc_now
 
 
@@ -101,7 +105,7 @@ class AsyncChatRepositoryMixin(AsyncRepositoryProtocol):
         self, user: str, bot_id: str, title: str = "New Chat", peer_type=None, peer_id: str = None
     ) -> Chat:
         """Create a new chat in database with optional peer information"""
-        from aperag.db.models import ChatPeerType
+        from aperag.domains.conversation.db.models import ChatPeerType
 
         async def _operation(session):
             instance = Chat(

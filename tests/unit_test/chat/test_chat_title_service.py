@@ -2,7 +2,7 @@ import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
-from aperag.service.chat_title_service import ChatTitleService
+from aperag.domains.conversation.service.chat_title_service import ChatTitleService
 
 
 class _EmptyHistory:

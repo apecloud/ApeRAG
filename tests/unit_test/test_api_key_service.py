@@ -16,7 +16,7 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
-from aperag.service.api_key_service import ApiKeyService
+from aperag.domains.governance.service.api_key_service import ApiKeyService
 from aperag.views.utils import mask_api_key
 
 

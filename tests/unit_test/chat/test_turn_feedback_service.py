@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from aperag.service.turn_feedback_service import TurnFeedbackService
+from aperag.domains.conversation.service.turn_feedback_service import TurnFeedbackService
 
 
 def _now():

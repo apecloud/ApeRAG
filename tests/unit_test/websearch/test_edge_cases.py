@@ -13,13 +13,13 @@ from datetime import datetime
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from duckduckgo_search.exceptions import DuckDuckGoSearchException
 
 from aperag.domains.web_access.schemas import WebSearchRequest, WebSearchResultItem
 from aperag.domains.web_access.search.providers.duckduckgo_search_provider import DuckDuckGoProvider
 from aperag.domains.web_access.search.providers.jina_search_provider import JinaSearchProvider
 from aperag.domains.web_access.search.search_service import SearchService
 from aperag.domains.web_access.utils.url_validator import URLValidator
-from duckduckgo_search.exceptions import DuckDuckGoSearchException
 
 
 class TestParameterValidation:

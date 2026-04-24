@@ -4,10 +4,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from aperag.db.models import CollectionStatus, DocumentIndexType
+from aperag.domains.indexing.db.models import DocumentIndexType
+from aperag.domains.knowledge_base.db.models import CollectionStatus
+from aperag.domains.knowledge_base.service.document_service import DocumentService
 from aperag.domains.retrieval.pipeline import SearchPipelineService
 from aperag.query.query import DocumentWithScore
-from aperag.service.document_service import DocumentService
 from aperag.tasks.collection import CollectionTask
 from aperag.tasks.document import DocumentIndexTask
 

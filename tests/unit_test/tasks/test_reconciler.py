@@ -6,12 +6,14 @@ import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
-from aperag.db.models import (
-    CollectionSummary,
-    CollectionSummaryStatus,
+from aperag.domains.indexing.db.models import (
     DocumentIndex,
     DocumentIndexStatus,
     DocumentIndexType,
+)
+from aperag.domains.knowledge_base.db.models import (
+    CollectionSummary,
+    CollectionSummaryStatus,
 )
 from aperag.tasks import reconciler as reconciler_module
 from aperag.tasks.models import LocalDocumentInfo, ParsedDocumentData
@@ -406,7 +408,7 @@ class TestCollectionSummaryTask:
             lambda summary_id, target_version, processing_token: FakeRenewer(),
         )
         monkeypatch.setattr(
-            "aperag.service.collection_summary_service.collection_summary_service.generate_collection_summary_task",
+            "aperag.domains.knowledge_base.service.collection_summary_service.collection_summary_service.generate_collection_summary_task",
             fake_generate,
         )
         monkeypatch.setattr(
@@ -439,7 +441,7 @@ class TestCollectionSummaryTask:
             lambda summary_id, target_version, processing_token: FakeRenewer(ownership_lost=True),
         )
         monkeypatch.setattr(
-            "aperag.service.collection_summary_service.collection_summary_service.generate_collection_summary_task",
+            "aperag.domains.knowledge_base.service.collection_summary_service.collection_summary_service.generate_collection_summary_task",
             fake_generate,
         )
         monkeypatch.setattr(

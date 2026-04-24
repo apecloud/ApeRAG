@@ -4,9 +4,9 @@ from unittest.mock import AsyncMock
 import pytest
 from fastapi import HTTPException
 
+from aperag.domains.knowledge_base.schemas import UploadDocumentResponse
+from aperag.domains.knowledge_base.service.document_service import DocumentService
 from aperag.domains.web_access import schemas as web_access_schemas
-from aperag.schema import view_models
-from aperag.service.document_service import DocumentService
 
 
 class _FakeReaderService:
@@ -43,7 +43,7 @@ def _web_read_response(*results: web_access_schemas.WebReadResultItem) -> web_ac
 def test_fetch_url_documents_imports_markdown_via_trafilatura_when_no_jina_key(monkeypatch):
     service = DocumentService()
     service.upload_document = AsyncMock(
-        return_value=view_models.UploadDocumentResponse(
+        return_value=UploadDocumentResponse(
             document_id="doc-fetch-1",
             filename="ACME Report.md",
             size=18,
@@ -85,7 +85,7 @@ def test_fetch_url_documents_imports_markdown_via_trafilatura_when_no_jina_key(m
 def test_fetch_url_documents_falls_back_when_jina_returns_no_successes(monkeypatch):
     service = DocumentService()
     service.upload_document = AsyncMock(
-        return_value=view_models.UploadDocumentResponse(
+        return_value=UploadDocumentResponse(
             document_id="doc-fetch-2",
             filename="Fallback Title.md",
             size=12,
@@ -127,13 +127,13 @@ def test_fetch_url_documents_falls_back_per_failed_url_when_jina_partially_succe
     service = DocumentService()
     service.upload_document = AsyncMock(
         side_effect=[
-            view_models.UploadDocumentResponse(
+            UploadDocumentResponse(
                 document_id="doc-fetch-3a",
                 filename="Primary Title.md",
                 size=14,
                 status="UPLOADED",
             ),
-            view_models.UploadDocumentResponse(
+            UploadDocumentResponse(
                 document_id="doc-fetch-3b",
                 filename="Fallback Title.md",
                 size=16,

@@ -14,8 +14,11 @@
 
 from unittest.mock import MagicMock
 
-from aperag.schema import view_models
-from aperag.service.llm_available_model_service import filter_models_by_tags, filter_providers_by_tags
+from aperag.domains.model_platform.schemas import ModelConfig, TagFilterCondition
+from aperag.domains.model_platform.service.llm_available_model_service import (
+    filter_models_by_tags,
+    filter_providers_by_tags,
+)
 
 
 class TestFilterModelsByTags:
@@ -42,7 +45,7 @@ class TestFilterModelsByTags:
             {"name": "model4", "tags": ["free", "recommend", "premium"]},
         ]
 
-        tag_filter = view_models.TagFilterCondition(operation="AND", tags=["free", "recommend"])
+        tag_filter = TagFilterCondition(operation="AND", tags=["free", "recommend"])
         result = filter_models_by_tags(models, [tag_filter])
 
         # Should return models that have both "free" and "recommend" tags
@@ -58,7 +61,7 @@ class TestFilterModelsByTags:
             {"name": "model4", "tags": ["free", "recommend"]},
         ]
 
-        tag_filter = view_models.TagFilterCondition(operation="OR", tags=["free", "recommend"])
+        tag_filter = TagFilterCondition(operation="OR", tags=["free", "recommend"])
         result = filter_models_by_tags(models, [tag_filter])
 
         # Should return models that have either "free" or "recommend" tags
@@ -75,8 +78,8 @@ class TestFilterModelsByTags:
         ]
 
         filters = [
-            view_models.TagFilterCondition(operation="AND", tags=["free", "recommend"]),
-            view_models.TagFilterCondition(operation="OR", tags=["openai"]),
+            TagFilterCondition(operation="AND", tags=["free", "recommend"]),
+            TagFilterCondition(operation="OR", tags=["openai"]),
         ]
         result = filter_models_by_tags(models, filters)
 
@@ -92,7 +95,7 @@ class TestFilterModelsByTags:
             {"name": "model3", "tags": None},  # None tags
         ]
 
-        tag_filter = view_models.TagFilterCondition(operation="OR", tags=["free"])
+        tag_filter = TagFilterCondition(operation="OR", tags=["free"])
         result = filter_models_by_tags(models, [tag_filter])
 
         # Should only return model2
@@ -106,7 +109,7 @@ class TestFilterModelsByTags:
             {"name": "model2", "tags": ["recommend"]},
         ]
 
-        tag_filter = view_models.TagFilterCondition(operation="OR", tags=[])
+        tag_filter = TagFilterCondition(operation="OR", tags=[])
         result = filter_models_by_tags(models, [tag_filter])
 
         # Should return empty list since no tags to match
@@ -119,7 +122,7 @@ class TestFilterModelsByTags:
             {"name": "model2", "tags": ["free"]},
         ]
 
-        tag_filter = view_models.TagFilterCondition(operation="OR", tags=["free"])
+        tag_filter = TagFilterCondition(operation="OR", tags=["free"])
         result = filter_models_by_tags(models, [tag_filter])
 
         # Should only return model2 (case sensitive match)
@@ -140,7 +143,7 @@ class TestFilterProvidersByTags:
         if rerank_models:
             provider_data["rerank"] = rerank_models
 
-        mock_provider = MagicMock(spec=view_models.ModelConfig)
+        mock_provider = MagicMock(spec=ModelConfig)
         mock_provider.model_dump.return_value = provider_data
         return mock_provider
 
@@ -153,7 +156,7 @@ class TestFilterProvidersByTags:
 
         provider = self.create_mock_provider("openai", completion_models=completion_models)
 
-        tag_filter = view_models.TagFilterCondition(operation="OR", tags=["recommend"])
+        tag_filter = TagFilterCondition(operation="OR", tags=["recommend"])
         result = filter_providers_by_tags([provider], [tag_filter])
 
         # Should return provider with only the models that match the filter
@@ -161,7 +164,7 @@ class TestFilterProvidersByTags:
         provider_result = result[0]
 
         # Verify the provider was reconstructed correctly
-        assert isinstance(provider_result, view_models.ModelConfig)
+        assert isinstance(provider_result, ModelConfig)
 
         # Verify that provider.model_dump was called to get the original data
         provider.model_dump.assert_called_once()
@@ -175,7 +178,7 @@ class TestFilterProvidersByTags:
 
         provider = self.create_mock_provider("provider1", completion_models=completion_models)
 
-        tag_filter = view_models.TagFilterCondition(operation="OR", tags=["free"])
+        tag_filter = TagFilterCondition(operation="OR", tags=["free"])
         result = filter_providers_by_tags([provider], [tag_filter])
 
         # Should return empty list since no models match
@@ -191,7 +194,7 @@ class TestFilterProvidersByTags:
 
         provider = self.create_mock_provider("provider1", completion_models=completion_models)
 
-        tag_filter = view_models.TagFilterCondition(operation="OR", tags=["recommend"])
+        tag_filter = TagFilterCondition(operation="OR", tags=["recommend"])
         result = filter_providers_by_tags([provider], [tag_filter])
 
         # Should return provider but verify it was processed
@@ -214,7 +217,7 @@ class TestFilterProvidersByTags:
             rerank_models=rerank_models,
         )
 
-        tag_filter = view_models.TagFilterCondition(operation="OR", tags=["recommend"])
+        tag_filter = TagFilterCondition(operation="OR", tags=["recommend"])
         result = filter_providers_by_tags([provider], [tag_filter])
 
         # Should return the provider since one embedding model has "recommend" tag
@@ -222,7 +225,7 @@ class TestFilterProvidersByTags:
 
     def test_filter_providers_by_tags_empty_providers(self):
         """Test filtering with empty provider list"""
-        tag_filter = view_models.TagFilterCondition(operation="OR", tags=["recommend"])
+        tag_filter = TagFilterCondition(operation="OR", tags=["recommend"])
         result = filter_providers_by_tags([], [tag_filter])
 
         assert result == []
@@ -236,7 +239,7 @@ class TestFilterProvidersByTags:
 
         provider = self.create_mock_provider("provider1", completion_models=completion_models)
 
-        tag_filter = view_models.TagFilterCondition(operation="OR", tags=["recommend"])
+        tag_filter = TagFilterCondition(operation="OR", tags=["recommend"])
         result = filter_providers_by_tags([provider], [tag_filter])
 
         # Should still work and return provider (with model2 matching)
@@ -256,7 +259,7 @@ class TestFilterProvidersByTags:
             "provider1", completion_models=completion_models, embedding_models=embedding_models
         )
 
-        tag_filter = view_models.TagFilterCondition(operation="OR", tags=["free"])
+        tag_filter = TagFilterCondition(operation="OR", tags=["free"])
         result = filter_providers_by_tags([provider], [tag_filter])
 
         # Should return empty list since no models match the filter

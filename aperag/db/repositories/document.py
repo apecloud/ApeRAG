@@ -16,10 +16,13 @@ from typing import List, Optional
 
 from sqlalchemy import desc, select
 
-from aperag.db.models import Document, DocumentStatus
 from aperag.db.repositories.base import (
     AsyncRepositoryProtocol,
     SyncRepositoryProtocol,
+)
+from aperag.domains.knowledge_base.db.models import (
+    Document,
+    DocumentStatus,
 )
 
 
@@ -111,7 +114,7 @@ class AsyncDocumentRepositoryMixin(AsyncRepositoryProtocol):
 
     async def delete_document_by_id(self, user: str, collection_id: str, document_id: str) -> Optional[Document]:
         """Soft delete document by ID"""
-        from aperag.db.models import DocumentStatus
+        from aperag.domains.knowledge_base.db.models import DocumentStatus
 
         async def _operation(session):
             stmt = select(Document).where(
@@ -138,7 +141,7 @@ class AsyncDocumentRepositoryMixin(AsyncRepositoryProtocol):
 
     async def delete_documents_by_ids(self, user: str, collection_id: str, document_ids: List[str]) -> tuple:
         """Bulk soft delete documents by IDs"""
-        from aperag.db.models import DocumentStatus
+        from aperag.domains.knowledge_base.db.models import DocumentStatus
 
         async def _operation(session):
             stmt = select(Document).where(

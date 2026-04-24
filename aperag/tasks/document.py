@@ -14,7 +14,7 @@
 
 import logging
 
-from aperag.db.models import DocumentIndexType
+from aperag.domains.indexing.db.models import DocumentIndexType
 from aperag.tasks.models import IndexTaskResult, LocalDocumentInfo, ParsedDocumentData
 from aperag.tasks.utils import parse_document_content
 

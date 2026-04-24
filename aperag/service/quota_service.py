@@ -159,7 +159,12 @@ class QuotaService:
         async def _operation(session):
             from sqlalchemy import func, select
 
-            from aperag.db.models import Bot, Collection, Document, UserQuota
+            from aperag.db.models import UserQuota
+            from aperag.domains.conversation.db.models import Bot
+            from aperag.domains.knowledge_base.db.models import (
+                Collection,
+                Document,
+            )
             from aperag.utils.utils import utc_now
 
             # Calculate actual usage

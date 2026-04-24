@@ -28,15 +28,15 @@ import asyncio
 import types
 from pathlib import Path
 
-from aperag.db.models import (
+from aperag.domains.evaluation import worker
+from aperag.domains.evaluation.db.models import (
     EvaluationRun,
     EvaluationRunItem,
     EvaluationRunItemAttemptStatus,
     EvaluationRunItemStatus,
     EvaluationRunStatus,
 )
-from aperag.evaluation_v2 import worker
-from aperag.evaluation_v2.worker import (
+from aperag.domains.evaluation.worker import (
     TurnDispatchOutcome,
     execute_evaluation_run,
 )
@@ -443,8 +443,8 @@ def test_worker_module_source_has_no_benchmark_or_dataset_version_references():
 
 
 def test_evaluation_run_service_launch_run_dispatches_celery_task(monkeypatch):
-    from aperag.evaluation_v2 import services as services_module
-    from aperag.evaluation_v2 import tasks as tasks_module
+    from aperag.domains.evaluation import services as services_module
+    from aperag.domains.evaluation import tasks as tasks_module
 
     calls: list[str] = []
 

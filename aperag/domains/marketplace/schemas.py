@@ -73,19 +73,3 @@ class SharedCollectionList(BaseModel):
     total: int = Field(..., description="Total count (for pagination)")
     page: int = Field(..., description="Current page number")
     page_size: int = Field(..., description="Page size")
-
-
-def _bind_view_models_reexports() -> None:
-    """Phase 3 / Phase 4 dual-hook pattern — see identity/schemas.py
-    for the full symmetric-load-order explanation."""
-
-    import sys
-
-    _vm = sys.modules.get("aperag.schema.view_models")
-    if _vm is None:
-        return
-    for _name in __all__:
-        setattr(_vm, _name, globals()[_name])
-
-
-_bind_view_models_reexports()

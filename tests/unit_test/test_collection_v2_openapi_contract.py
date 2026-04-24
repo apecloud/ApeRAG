@@ -2,8 +2,8 @@ import re
 
 from fastapi import FastAPI
 
+from aperag.domains.knowledge_base.api.routes import router
 from aperag.openapi_spec import build_full_openapi_spec, custom_generate_unique_id, filter_public_openapi
-from aperag.views.collections_v2 import router
 
 
 def _collection_v2_spec():

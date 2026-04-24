@@ -1,6 +1,6 @@
+from aperag.domains.model_platform.api.llm_routes import _build_rerank_response_items
 from aperag.llm.rerank.rerank_service import RerankResult
 from aperag.query.query import DocumentWithScore
-from aperag.views.llm import _build_rerank_response_items
 
 
 def test_build_rerank_response_items_preserves_original_indices_for_duplicate_texts():

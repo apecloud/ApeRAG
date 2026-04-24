@@ -3,8 +3,8 @@ from types import SimpleNamespace
 
 import pytest
 
-import aperag.service.chat_completion_service as completion_module
-from aperag.db.models import AgentTurnStatus
+import aperag.domains.conversation.service.chat_completion_service as completion_module
+from aperag.domains.agent_runtime.db.models import AgentTurnStatus
 from aperag.utils.constant import DOC_QA_REFERENCES
 
 

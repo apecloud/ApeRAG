@@ -345,7 +345,7 @@ class EvaluationRunService:
         have to stand up Celery just to exercise the service.
         """
 
-        from aperag.evaluation_v2.tasks import run_evaluation_run
+        from aperag.domains.evaluation.tasks import run_evaluation_run
 
         run_evaluation_run.delay(run_id)
 

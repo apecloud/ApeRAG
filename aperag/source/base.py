@@ -18,7 +18,7 @@ from typing import Any, Dict, Iterator, Optional
 
 from pydantic import BaseModel
 
-from aperag.schema.view_models import CollectionConfig
+from aperag.schema.common import CollectionConfig
 
 
 class RemoteDocument(BaseModel):

@@ -32,11 +32,19 @@ MAX_DOWNLOAD_WORKERS = 5
 @app.task(bind=True, soft_time_limit=55 * 60, time_limit=60 * 60)
 def export_collection_task(self, export_task_id: str):
     """Celery task: package all object-store files under a collection prefix into a ZIP."""
+    from sqlalchemy import select
+
     from aperag.config import get_sync_session
-    from aperag.db.models import Collection, Document, ExportTask, ExportTaskStatus
+    from aperag.db.models import (
+        ExportTask,
+        ExportTaskStatus,
+    )
+    from aperag.domains.knowledge_base.db.models import (
+        Collection,
+        Document,
+    )
     from aperag.objectstore.base import get_object_store
     from aperag.utils.utils import utc_now
-    from sqlalchemy import and_, select
 
     store = get_object_store()
 
@@ -171,9 +179,13 @@ def export_collection_task(self, export_task_id: str):
 
 
 def _build_manifest(collection_id: str, user_id: str, get_sync_session, Collection, Document) -> dict:
-    from aperag.db.models import CollectionStatus, DocumentStatus
-    from aperag.utils.utils import utc_now
     from sqlalchemy import and_, select
+
+    from aperag.domains.knowledge_base.db.models import (
+        CollectionStatus,
+        DocumentStatus,
+    )
+    from aperag.utils.utils import utc_now
 
     collection_title = collection_id
     collection_description = ""
