@@ -309,9 +309,13 @@
     "web_search_is_disabled": "Web search is disabled",
     "references": "References",
     "activity_stream": {
-      "label": "Activity stream",
-      "empty": "Waiting for activity events...",
+      "label": "Agent trace",
+      "empty": "Thinking…",
       "repeated": "Repeated {count} times while this step stayed active.",
+      "meta": {
+        "steps": "{count, plural, one {# step} other {# steps}}",
+        "sources": "{count, plural, one {# source} other {# sources}}"
+      },
       "status": {
         "queued": "Queued",
         "running": "Running",

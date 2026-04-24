@@ -309,9 +309,13 @@
     "web_search_is_disabled": "网络检索已禁用",
     "references": "参考文献",
     "activity_stream": {
-      "label": "活动进度",
-      "empty": "正在等待活动事件...",
+      "label": "推理过程",
+      "empty": "正在思考…",
       "repeated": "该步骤保持激活期间重复了 {count} 次。",
+      "meta": {
+        "steps": "{count} 步",
+        "sources": "{count} 处引用"
+      },
       "status": {
         "queued": "排队中",
         "running": "进行中",

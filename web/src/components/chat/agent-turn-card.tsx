@@ -24,7 +24,6 @@ import {
 import { cn } from '@/lib/utils';
 import {
   AlertTriangle,
-  Bot,
   BookOpen,
   Brain,
   BrainCircuit,
@@ -34,6 +33,7 @@ import {
   LoaderCircle,
   PencilLine,
   Search,
+  Sparkles,
 } from 'lucide-react';
 import { useFormatter, useTranslations } from 'next-intl';
 import { useMemo } from 'react';
@@ -725,37 +725,35 @@ function describeEmptyAnswerState(status: string) {
 function getTimelineItemStyles(item: OrderedTimelineItem) {
   if (item.userActivity.intent === 'error' || item.status === 'failed') {
     return {
-      iconWrapper: 'border-destructive/25 bg-destructive/10 text-destructive',
-      card: 'border-destructive/20 bg-destructive/5 shadow-sm',
-      badge:
-        'border-destructive/20 bg-destructive/10 text-destructive',
+      icon: 'text-destructive',
+      title: 'text-destructive',
+      subtitle: 'text-destructive/75',
+      badge: 'border-destructive/25 bg-destructive/10 text-destructive',
     };
   }
 
   if (item.userActivity.intent === 'completed' || item.status === 'completed') {
     return {
-      iconWrapper:
-        'border-emerald-500/15 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400',
-      card: 'border-border/50 bg-background/70 opacity-85',
-      badge:
-        'border-emerald-500/15 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400',
+      icon: 'text-muted-foreground/70',
+      title: 'text-foreground/70',
+      subtitle: 'text-muted-foreground',
+      badge: 'border-border/60 bg-background text-muted-foreground',
     };
   }
 
   if (item.status === 'running') {
     return {
-      iconWrapper:
-        'border-emerald-500/25 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-      card:
-        'border-emerald-500/20 bg-emerald-500/8 shadow-sm shadow-emerald-500/10 ring-1 ring-emerald-500/10',
-      badge:
-        'border-emerald-500/20 bg-emerald-500/12 text-emerald-700 dark:text-emerald-300',
+      icon: 'text-primary',
+      title: 'text-foreground',
+      subtitle: 'text-muted-foreground',
+      badge: 'border-primary/25 bg-accent-soft text-accent-ink',
     };
   }
 
   return {
-    iconWrapper: 'border-border/70 bg-background text-foreground',
-    card: 'border-border/60 bg-background/70',
+    icon: 'text-muted-foreground',
+    title: 'text-foreground/90',
+    subtitle: 'text-muted-foreground',
     badge: 'border-border/60 bg-background text-muted-foreground',
   };
 }
@@ -844,19 +842,6 @@ export const AgentTurnCard = ({
       : message;
   };
 
-  const getItemStatusLabel = (status: string) => {
-    return (
-      translatePageChat(`activity_stream.item_status.${status}`) ||
-      {
-        waiting: 'Waiting',
-        running: 'In progress',
-        completed: 'Completed',
-        failed: 'Issue',
-      }[status] ||
-      'Waiting'
-    );
-  };
-
   const getTurnStatusLabel = (statusKey: string) => {
     return (
       translatePageChat(`activity_stream.status.${statusKey}`) ||
@@ -918,233 +903,227 @@ export const AgentTurnCard = ({
     references.length > 0 &&
     !(displayStatus === 'COMPLETED' && Boolean(answerText));
 
+  const showHeaderStatus = displayStatus !== 'COMPLETED';
+  const traceMetaParts: string[] = [];
+  if (timelineItems.length > 0) {
+    traceMetaParts.push(
+      pageChat('activity_stream.meta.steps', {
+        count: timelineItems.length,
+      }),
+    );
+  }
+  if (references.length > 0) {
+    traceMetaParts.push(
+      pageChat('activity_stream.meta.sources', {
+        count: references.length,
+      }),
+    );
+  }
+  const traceMeta = traceMetaParts.join(' · ');
+
   return (
-    <div className="flex w-full flex-row gap-3">
+    <div className="flex w-full flex-row gap-3.5">
       <div>
-        <div className="bg-muted text-muted-foreground relative flex size-10 flex-col justify-center rounded-full">
+        <div className="bg-accent-soft text-accent-ink relative flex size-7 items-center justify-center rounded-full">
           {pending && (
-            <LoaderCircle className="absolute -left-1 size-12 animate-spin opacity-20" />
+            <LoaderCircle className="absolute -inset-1 size-9 animate-spin opacity-20" />
           )}
-          <Bot className="size-5 self-center" />
+          <Sparkles className="size-3.5" />
         </div>
       </div>
-      <div className="flex min-w-0 max-w-sm flex-1 flex-col gap-2.5 sm:max-w-lg md:max-w-2xl lg:max-w-3xl xl:max-w-4xl">
-        <div className="flex flex-row items-center gap-2">
-          <Badge
-            variant={getStatusTone(displayStatus)}
-            className="h-5 px-2 text-[10px]"
-          >
-            {getTurnStatusLabel(displayStatusKey)}
-          </Badge>
-          {timestamp && (
-            <div className="text-muted-foreground text-xs">
-              {format.dateTime(new Date(timestamp), 'medium')}
-            </div>
-          )}
-        </div>
+      <div className="flex min-w-0 max-w-sm flex-1 flex-col gap-3 sm:max-w-lg md:max-w-2xl lg:max-w-3xl xl:max-w-4xl">
+        {showHeaderStatus && (
+          <div className="flex flex-row items-center gap-2">
+            <Badge
+              variant={getStatusTone(displayStatus)}
+              className="h-5 px-2 text-[10px]"
+            >
+              {getTurnStatusLabel(displayStatusKey)}
+            </Badge>
+            {timestamp && (
+              <div className="text-muted-foreground font-mono text-[11px]">
+                {format.dateTime(new Date(timestamp), 'medium')}
+              </div>
+            )}
+          </div>
+        )}
 
-        <div className="flex flex-col gap-3">
-          <Collapsible
-            defaultOpen={pending}
-            className="group/activity-stream"
-          >
-            <div className="pl-3">
-              <CollapsibleTrigger asChild>
-                <button
-                  type="button"
-                  className="text-muted-foreground hover:text-foreground mb-2 flex w-full items-center gap-2 text-left transition-colors"
-                >
-                  <ChevronRight className="size-3.5 transition-transform group-data-[state=open]/activity-stream:rotate-90" />
-                  <span className="text-[11px] font-medium tracking-[0.12em] uppercase">
-                    {pageChat('activity_stream.label')}
-                  </span>
-                  <span className="text-[11px]">
-                    {timelineItems.length}
-                  </span>
-                </button>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <div className="flex flex-col gap-0">
-                  {timelineItems.length === 0 ? (
-                    <div className="text-muted-foreground rounded-lg border border-dashed px-3 py-2 text-sm">
-                      {pageChat('activity_stream.empty')}
-                    </div>
-                  ) : (
-                    timelineItems.map((item, index) => {
-                      const Icon = getTimelineItemIcon(item);
-                      const styles = getTimelineItemStyles(item);
-                      const targetTypeLabel =
-                        item.userActivity.context?.target_type
-                          ? pageChat(
-                              `activity_stream.target_type.${item.userActivity.context.target_type}`,
-                            )
-                          : undefined;
-                      const translationValues = getActivityTranslationValues(
-                        item.userActivity.context,
-                        targetTypeLabel,
-                      );
-                      const title = translateActivityText(
-                        item.userActivity.title_key,
-                        translationValues,
-                      );
-                      const subtitle = translateActivityText(
-                        item.userActivity.subtitle_key,
-                        translationValues,
-                      );
-                      const detail = translateActivityText(
-                        item.userActivity.detail_key,
-                        translationValues,
-                      );
-                      const hasDebugContent =
-                        !!item.argsPreview ||
-                        !!item.resultPreview ||
-                        !!item.technicalType;
+        <Collapsible
+          defaultOpen
+          className="group/activity-stream bg-subtle border-border/70 overflow-hidden rounded-xl border"
+        >
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              className="text-muted-foreground hover:text-foreground flex w-full items-center gap-2 px-3.5 py-2.5 text-left transition-colors"
+            >
+              <Sparkles className="text-primary size-3" />
+              <span className="font-mono text-[10.5px] tracking-[0.08em] uppercase">
+                {pageChat('activity_stream.label')}
+              </span>
+              {traceMeta && (
+                <span className="text-muted-foreground/80 ml-2 truncate text-[11px]">
+                  {traceMeta}
+                </span>
+              )}
+              <ChevronRight className="ml-auto size-3.5 transition-transform group-data-[state=open]/activity-stream:rotate-90" />
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="border-border/70 flex flex-col gap-2.5 border-t px-4 py-3.5">
+              {timelineItems.length === 0 ? (
+                <div className="text-muted-foreground py-1 text-[13px]">
+                  {pending
+                    ? pageChat('activity_stream.empty')
+                    : t(describeEmptyAnswerState(displayStatus))}
+                </div>
+              ) : (
+                timelineItems.map((item) => {
+                  const Icon = getTimelineItemIcon(item);
+                  const styles = getTimelineItemStyles(item);
+                  const targetTypeLabel =
+                    item.userActivity.context?.target_type
+                      ? pageChat(
+                          `activity_stream.target_type.${item.userActivity.context.target_type}`,
+                        )
+                      : undefined;
+                  const translationValues = getActivityTranslationValues(
+                    item.userActivity.context,
+                    targetTypeLabel,
+                  );
+                  const title = translateActivityText(
+                    item.userActivity.title_key,
+                    translationValues,
+                  );
+                  const subtitle = translateActivityText(
+                    item.userActivity.subtitle_key,
+                    translationValues,
+                  );
+                  const detail = translateActivityText(
+                    item.userActivity.detail_key,
+                    translationValues,
+                  );
+                  const hasDebugContent =
+                    !!item.argsPreview ||
+                    !!item.resultPreview ||
+                    !!item.technicalType;
+                  const isRunning = item.status === 'running';
 
-                      const cardBody = (
-                        <>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <div className="text-sm font-medium leading-5">
-                              {title}
-                            </div>
-                            <Badge
-                              variant="outline"
-                              className={cn(
-                                'h-5 rounded-full px-1.5 text-[9px]',
-                                styles.badge,
-                              )}
-                            >
-                              {getItemStatusLabel(item.status)}
-                            </Badge>
-                            {item.timestamp && (
-                              <div className="text-muted-foreground text-[10px]">
-                                {format.dateTime(
-                                  new Date(item.timestamp),
-                                  'short',
-                                )}
-                              </div>
+                  return (
+                    <div key={item.key} className="flex gap-2.5">
+                      <div className="flex pt-[3px]">
+                        <Icon
+                          className={cn('size-3.5 flex-none', styles.icon)}
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[13px] leading-snug">
+                          <span
+                            className={cn(
+                              'font-medium',
+                              styles.title,
+                              isRunning && 'animate-pulse',
                             )}
-                          </div>
+                          >
+                            {title}
+                          </span>
                           {subtitle && (
-                            <div className="text-muted-foreground mt-1 text-xs">
-                              {subtitle}
-                            </div>
+                            <span className={cn('break-words', styles.subtitle)}>
+                              — {subtitle}
+                            </span>
                           )}
-                          {detail && (
-                            <div className="text-foreground/85 mt-1.5 text-xs">
-                              {detail}
-                            </div>
-                          )}
-                        </>
-                      );
-
-                      return (
-                        <div key={item.key} className="flex gap-2.5">
-                          <div className="flex flex-col items-center">
-                            <div
-                              className={cn(
-                                'mt-0.5 flex size-6 items-center justify-center rounded-full border',
-                                styles.iconWrapper,
-                              )}
-                            >
-                              <Icon className="size-3.5" />
-                            </div>
-                            {index + 1 < timelineItems.length && (
-                              <div className="bg-border mt-1.5 min-h-6 w-px flex-1" />
-                            )}
+                        </div>
+                        {detail && (
+                          <div className="text-muted-foreground mt-0.5 text-[12px] leading-snug">
+                            {detail}
                           </div>
-
-                          <div className="min-w-0 flex-1 pb-3">
-                            <div className="space-y-2">
-                              <div
-                                className={cn(
-                                  'rounded-xl border px-3 py-2.5 transition-colors',
-                                  styles.card,
-                                )}
+                        )}
+                        {hasDebugContent && (
+                          <Collapsible className="group/timeline-debug mt-1.5">
+                            <CollapsibleTrigger asChild>
+                              <button
+                                type="button"
+                                className="text-muted-foreground/80 hover:text-foreground flex items-center gap-1 text-[10.5px] transition-colors"
                               >
-                                {cardBody}
-                              </div>
-
-                              {hasDebugContent && (
-                                <Collapsible className="group/timeline-debug">
-                                  <CollapsibleTrigger asChild>
-                                    <button
-                                      type="button"
-                                      className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-[11px] transition-colors"
-                                    >
-                                      <ChevronRight className="size-3 transition-transform group-data-[state=open]/timeline-debug:rotate-90" />
-                                      <span>
-                                        {pageChat(
-                                          'activity_stream.debug.title',
-                                        )}
-                                      </span>
-                                    </button>
-                                  </CollapsibleTrigger>
-                                  <CollapsibleContent className="pt-1">
-                                    <div className="bg-muted/20 grid gap-2 rounded-xl border border-dashed px-3 py-2 text-xs">
-                                      {item.technicalType && (
-                                        <div className="grid gap-1">
-                                          <div className="text-muted-foreground">
-                                            {pageChat(
-                                              'activity_stream.debug.technical_type',
-                                            )}
-                                          </div>
-                                          <div className="font-mono break-all">
-                                            {item.technicalType}
-                                          </div>
-                                        </div>
-                                      )}
-                                      {item.argsPreview && (
-                                        <div className="grid gap-1">
-                                          <div className="text-muted-foreground">
-                                            {pageChat(
-                                              'activity_stream.debug.command_input',
-                                            )}
-                                          </div>
-                                          <pre className="bg-background overflow-x-auto rounded-md border p-2 whitespace-pre-wrap break-all">
-                                            {item.argsPreview}
-                                          </pre>
-                                        </div>
-                                      )}
-                                      {item.resultPreview && (
-                                        <div className="grid gap-1">
-                                          <div className="text-muted-foreground">
-                                            {pageChat(
-                                              'activity_stream.debug.result_summary',
-                                            )}
-                                          </div>
-                                          <pre className="bg-background overflow-x-auto rounded-md border p-2 whitespace-pre-wrap break-all">
-                                            {item.resultPreview}
-                                          </pre>
-                                        </div>
+                                <ChevronRight className="size-3 transition-transform group-data-[state=open]/timeline-debug:rotate-90" />
+                                <span>
+                                  {pageChat('activity_stream.debug.title')}
+                                </span>
+                              </button>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent className="pt-1.5">
+                              <div className="border-border/60 bg-background/60 grid gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px]">
+                                {item.technicalType && (
+                                  <div className="grid gap-0.5">
+                                    <div className="text-muted-foreground/80">
+                                      {pageChat(
+                                        'activity_stream.debug.technical_type',
                                       )}
                                     </div>
-                                  </CollapsibleContent>
-                                </Collapsible>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </CollapsibleContent>
+                                    <div className="font-mono break-all">
+                                      {item.technicalType}
+                                    </div>
+                                  </div>
+                                )}
+                                {item.argsPreview && (
+                                  <div className="grid gap-0.5">
+                                    <div className="text-muted-foreground/80">
+                                      {pageChat(
+                                        'activity_stream.debug.command_input',
+                                      )}
+                                    </div>
+                                    <pre className="bg-background/80 border-border/40 overflow-x-auto rounded border px-2 py-1 whitespace-pre-wrap break-all">
+                                      {item.argsPreview}
+                                    </pre>
+                                  </div>
+                                )}
+                                {item.resultPreview && (
+                                  <div className="grid gap-0.5">
+                                    <div className="text-muted-foreground/80">
+                                      {pageChat(
+                                        'activity_stream.debug.result_summary',
+                                      )}
+                                    </div>
+                                    <pre className="bg-background/80 border-border/40 overflow-x-auto rounded border px-2 py-1 whitespace-pre-wrap break-all">
+                                      {item.resultPreview}
+                                    </pre>
+                                  </div>
+                                )}
+                              </div>
+                            </CollapsibleContent>
+                          </Collapsible>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
-          </Collapsible>
+          </CollapsibleContent>
+        </Collapsible>
 
-          {showAnswerSection && (
+        {showAnswerSection &&
+          (displayStatus === 'COMPLETED' ? (
+            <div className="text-[15px] leading-[1.65] tracking-[-0.003em]">
+              {answerText ? (
+                <Markdown>{answerText}</Markdown>
+              ) : (
+                <div className="text-muted-foreground text-sm">
+                  {t(describeEmptyAnswerState(displayStatus))}
+                </div>
+              )}
+            </div>
+          ) : (
             <Card
               className={cn(
-                'gap-0 overflow-hidden py-0',
-                displayStatus === 'COMPLETED'
-                  ? 'border-primary/20 bg-background shadow-sm'
-                  : displayStatus === 'FAILED'
-                    ? 'border-border/50 bg-muted/20 shadow-none'
-                    : 'border-border/60 bg-background/80',
+                'gap-0 overflow-hidden rounded-xl py-0',
+                displayStatus === 'FAILED' || displayStatus === 'CANCELLED'
+                  ? 'border-destructive/20 bg-destructive/5 shadow-none'
+                  : 'border-border/60 bg-background/80',
               )}
             >
               <CardContent className="px-4 py-4 text-sm">
-                <div className="text-muted-foreground mb-2 text-[11px] font-medium tracking-[0.12em] uppercase">
+                <div className="text-muted-foreground font-mono mb-2 text-[10.5px] tracking-[0.08em] uppercase">
                   {t(getAnswerSectionTitle(displayStatus, Boolean(answerText)))}
                 </div>
                 {answerText ? (
@@ -1167,73 +1146,74 @@ export const AgentTurnCard = ({
                 )}
               </CardContent>
             </Card>
-          )}
+          ))}
 
-          <Collapsible className="group/details pl-4">
-            <CollapsibleTrigger asChild>
-              <button
-                type="button"
-                className="text-muted-foreground hover:text-foreground flex items-center gap-2 text-left text-xs transition-colors"
-              >
-                <ChevronRight className="size-3 transition-transform group-data-[state=open]/details:rotate-90" />
-                <span>{pageChat('activity_stream.debug.title')}</span>
-              </button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="mt-2">
-              <div className="bg-muted/20 grid gap-3 rounded-xl border border-dashed px-4 py-3 text-xs">
-                <div className="grid gap-1">
-                  <div className="text-muted-foreground">
-                    {pageChat('activity_stream.debug.turn_id')}
-                  </div>
-                  <div className="font-mono break-all">
-                    {snapshot.turn.turn_id}
-                  </div>
+        <Collapsible className="group/details">
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              className="text-muted-foreground/80 hover:text-foreground flex items-center gap-1.5 text-left text-[11px] transition-colors"
+            >
+              <ChevronRight className="size-3 transition-transform group-data-[state=open]/details:rotate-90" />
+              <span>{pageChat('activity_stream.debug.title')}</span>
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-1.5">
+            <div className="border-border/60 bg-background/60 grid gap-2 rounded-md border px-3 py-2 text-[11px]">
+              <div className="grid gap-0.5">
+                <div className="text-muted-foreground/80">
+                  {pageChat('activity_stream.debug.turn_id')}
                 </div>
-                <div className="grid gap-1">
-                  <div className="text-muted-foreground">
-                    {pageChat('activity_stream.debug.request_id')}
-                  </div>
-                  <div className="font-mono break-all">
-                    {snapshot.turn.request_id}
-                  </div>
+                <div className="font-mono break-all">
+                  {snapshot.turn.turn_id}
                 </div>
-                <div className="grid gap-1">
-                  <div className="text-muted-foreground">
-                    {pageChat('activity_stream.debug.status')}
-                  </div>
-                  <div>{getTurnStatusLabel(displayStatusKey)}</div>
-                </div>
-                {snapshot.turn.error_code && (
-                  <div className="grid gap-1">
-                    <div className="text-muted-foreground">
-                      {pageChat('activity_stream.debug.error_code')}
-                    </div>
-                    <div className="font-mono">{snapshot.turn.error_code}</div>
-                  </div>
-                )}
-                {snapshot.turn.error_message && (
-                  <div className="grid gap-1">
-                    <div className="text-muted-foreground">
-                      {pageChat('activity_stream.debug.error_message')}
-                    </div>
-                    <div className="break-all">
-                      {snapshot.turn.error_message}
-                    </div>
-                  </div>
-                )}
               </div>
-            </CollapsibleContent>
-          </Collapsible>
-        </div>
+              <div className="grid gap-0.5">
+                <div className="text-muted-foreground/80">
+                  {pageChat('activity_stream.debug.request_id')}
+                </div>
+                <div className="font-mono break-all">
+                  {snapshot.turn.request_id}
+                </div>
+              </div>
+              <div className="grid gap-0.5">
+                <div className="text-muted-foreground/80">
+                  {pageChat('activity_stream.debug.status')}
+                </div>
+                <div>{getTurnStatusLabel(displayStatusKey)}</div>
+              </div>
+              {snapshot.turn.error_code && (
+                <div className="grid gap-0.5">
+                  <div className="text-muted-foreground/80">
+                    {pageChat('activity_stream.debug.error_code')}
+                  </div>
+                  <div className="font-mono">{snapshot.turn.error_code}</div>
+                </div>
+              )}
+              {snapshot.turn.error_message && (
+                <div className="grid gap-0.5">
+                  <div className="text-muted-foreground/80">
+                    {pageChat('activity_stream.debug.error_message')}
+                  </div>
+                  <div className="break-all">{snapshot.turn.error_message}</div>
+                </div>
+              )}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
 
-        <div className="flex flex-row items-center gap-2">
+        <div className="flex flex-row items-center gap-1">
           {showReferencesTrigger && (
             <Sheet>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="sm" className="cursor-pointer">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground hover:text-foreground h-7 cursor-pointer px-2 text-[12px]"
+                >
                   <Badge
-                    className="mr-2 h-5 min-w-5 rounded-full px-1 font-mono tabular-nums"
-                    variant="destructive"
+                    className="bg-accent-soft text-accent-ink mr-1.5 h-4 min-w-4 rounded-sm px-1 font-mono text-[10px] tabular-nums"
+                    variant="outline"
                   >
                     {references.length}
                   </Badge>
@@ -1264,7 +1244,7 @@ export const AgentTurnCard = ({
                             )}
                           </div>
                           {typeof reference.score === 'number' && (
-                            <div className="text-muted-foreground text-xs">
+                            <div className="text-muted-foreground font-mono text-xs tabular-nums">
                               {reference.score.toFixed(2)}
                             </div>
                           )}
@@ -1288,7 +1268,7 @@ export const AgentTurnCard = ({
           {answerText && (
             <CopyToClipboard
               variant="ghost"
-              className="text-muted-foreground"
+              className="text-muted-foreground hover:text-foreground h-7 px-2"
               text={answerText}
             />
           )}
