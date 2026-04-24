@@ -28,10 +28,10 @@ description: ApeRAG 后端架构入口 — 从哪开始读、去哪找什么
 | 你想了解 | 去这里 |
 | --- | --- |
 | 12 个 domain 各自做什么？domain 之间什么关系？ | [`architecture/domains.md`](./domains.md) |
-| identity / governance / model_platform / marketplace 这 4 个 domain 的内部结构 | `architecture/identity-governance-model-platform-marketplace.md`（起稿中） |
-| knowledge_base / indexing / retrieval / knowledge_graph 的内部结构与 ingestion / retrieval pipeline | `architecture/indexing-retrieval-kg.md`（起稿中） |
-| conversation / agent_runtime / evaluation 与 prompt 架构 | `architecture/conversation-agent-evaluation.md`（起稿中） |
-| 爬虫抓取 / URL 阅读相关的 `web_access` 子包 | `architecture/web-access.md`（起稿中） |
+| identity / governance / model_platform / marketplace 这 4 个 domain 的内部结构 | [`architecture/identity-governance-model-platform-marketplace.md`](./identity-governance-model-platform-marketplace.md) |
+| knowledge_base / indexing / retrieval / knowledge_graph 的内部结构与 ingestion / retrieval pipeline | [`architecture/indexing-retrieval-kg.md`](./indexing-retrieval-kg.md) |
+| conversation / agent_runtime / evaluation 与 prompt 架构 | [`architecture/conversation-agent-evaluation.md`](./conversation-agent-evaluation.md) |
+| 爬虫抓取 / URL 阅读相关的 `web_access` 子包 | [`architecture/web-access.md`](./web-access.md) |
 | 英文的 canonical 全景（20 个 boundary 测试、permanent seam、shim lifecycle、future 候选） | [`docs/modularization/architecture.md`](../../modularization/architecture.md) |
 | 我想在本地把 ApeRAG 跑起来 / 贡献代码 | [`development/development-guide.md`](../development/development-guide.md) |
 | 我想部署 ApeRAG / 配置 LLM provider | `deployment/` 目录 |
@@ -39,8 +39,6 @@ description: ApeRAG 后端架构入口 — 从哪开始读、去哪找什么
 | 我是系统管理员，想配额 / 审计 / API Key / prompt 定制 | `admin-guide/` 目录 |
 | 我是第三方接入方（OpenAI 兼容 / MCP / Dify） | `integration/` 目录 |
 | API 测试手册、调试指令、示例配置 | `reference/` 目录 |
-
-> 标注「起稿中」的 consolidated 架构文档正在并行起草，落 main 后本表会把 code path 升级为 Markdown 链接。
 
 ---
 
