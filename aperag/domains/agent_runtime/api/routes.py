@@ -32,6 +32,7 @@ routes, which is G1-legal cross-domain.
 
 import asyncio
 import json
+import logging
 from typing import AsyncIterator, Protocol
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -46,7 +47,23 @@ from aperag.domains.agent_runtime.schemas import (
     CreateTurnRequest,
     CreateTurnResponse,
 )
+from aperag.domains.agent_runtime.wire import (
+    StreamPart,
+    TranslatorState,
+    dump_part,
+    translate_envelope,
+)
 from aperag.domains.identity.service.auth_dependencies import required_user
+
+logger = logging.getLogger(__name__)
+
+# AI SDK v5 ``UI Message Stream Protocol`` advertises itself via this
+# response header. The FE ``@ai-sdk/react`` consumer (#76 dongdong)
+# refuses to parse a stream that lacks the marker — landed here in
+# Phase 8 D8.1 (#73) as part of the hard-cut from the legacy envelope
+# wire to the v5 part wire.
+AI_SDK_V5_HEADER = "x-vercel-ai-ui-message-stream"
+AI_SDK_V5_HEADER_VALUE = "v1"
 
 
 class AuthenticatedUser(Protocol):
@@ -58,16 +75,31 @@ class AuthenticatedUser(Protocol):
 router = APIRouter(tags=["agent-runtime"])
 
 
-def _format_sse(event: str, data: dict, event_id: int | None = None) -> str:
-    lines: list[str] = []
+def _format_part_frame(part: StreamPart, *, event_id: int | None = None) -> str:
+    """Format a single AI SDK v5 stream part as one SSE frame.
+
+    Wire shape:
+        ``id: <sequence>\\ndata: <single-line JSON>\\n\\n``
+
+    Notes:
+    * No SSE ``event:`` field — AI SDK v5 carries the part type
+      inside the JSON ``type`` discriminator, not in the SSE event
+      name. The FE consumer keys on ``data`` only.
+    * Single-line JSON only. The spec forbids multi-line ``data:``
+      splitting because the consumer concatenates frames, so we keep
+      ``ensure_ascii=False`` (UTF-8 wire) but never inject ``\\n``.
+    * ``event_id`` is optional: only the LAST part of a fan-out
+      group (multiple parts mapping to the same envelope sequence)
+      gets the SSE ``id:`` line; intermediate parts are emitted as
+      continuation frames so ``Last-Event-ID`` resume still points
+      at the next envelope. See the translator module docstring for
+      the rationale.
+    """
+
+    payload = json.dumps(dump_part(part), ensure_ascii=False, default=str, separators=(",", ":"))
     if event_id is not None:
-        lines.append(f"id: {event_id}")
-    lines.append(f"event: {event}")
-    payload = json.dumps(data, ensure_ascii=False, default=str)
-    for line in payload.splitlines():
-        lines.append(f"data: {line}")
-    lines.append("")
-    return "\n".join(lines)
+        return f"id: {event_id}\ndata: {payload}\n\n"
+    return f"data: {payload}\n\n"
 
 
 @router.post("/agent/chats/{chat_id}/turns")
@@ -126,7 +158,12 @@ async def get_artifact_view(
                 "text/event-stream": {
                     "schema": {
                         "type": "string",
-                        "description": "SSE frames whose data payload is AgentTimelineEventEnvelope JSON.",
+                        "description": (
+                            "AI SDK v5 UI Message Stream Protocol frames "
+                            "(see https://sdk.vercel.ai/docs). The response "
+                            "header `x-vercel-ai-ui-message-stream: v1` "
+                            "advertises the protocol version."
+                        ),
                     }
                 }
             },
@@ -153,37 +190,69 @@ async def stream_turn_events_view(
 
         heartbeat_interval = 5.0
         last_heartbeat = asyncio.get_event_loop().time()
+        translator_state = TranslatorState()
 
-        while True:
-            if await request.is_disconnected():
-                break
-
-            events = await runtime_manager.event_service.get_events_after(
-                turn_id, after_sequence=current_after_sequence, limit=500
-            )
-            if events:
-                for event in events:
-                    current_after_sequence = event.sequence
-                    yield _format_sse(event.type, event.model_dump(mode="json"), event.sequence)
-                last_heartbeat = asyncio.get_event_loop().time()
-            else:
-                turn = await runtime_manager.turn_service.db_ops.query_agent_turn(str(user.id), chat_id, turn_id)
-                if (
-                    turn
-                    and turn.status
-                    in {
-                        AgentTurnStatus.COMPLETED,
-                        AgentTurnStatus.FAILED,
-                        AgentTurnStatus.CANCELLED,
-                    }
-                    and current_after_sequence >= (turn.timeline_cursor or 0)
-                ):
+        try:
+            while True:
+                if await request.is_disconnected():
                     break
 
-                now = asyncio.get_event_loop().time()
-                if now - last_heartbeat >= heartbeat_interval:
-                    yield _format_sse("heartbeat", {"turn_id": turn_id})
-                    last_heartbeat = now
-                await asyncio.sleep(0.5)
+                events = await runtime_manager.event_service.get_events_after(
+                    turn_id, after_sequence=current_after_sequence, limit=500
+                )
+                if events:
+                    for event in events:
+                        current_after_sequence = event.sequence
+                        parts = translate_envelope(event, translator_state)
+                        if not parts:
+                            # No FE-visible parts for this envelope.
+                            # Cursor still advanced so resume keeps
+                            # moving past the no-op envelope.
+                            continue
+                        # Only the LAST part of the fan-out gets the
+                        # SSE id: line — see translator module
+                        # docstring for the resume invariant.
+                        last_index = len(parts) - 1
+                        for index, part in enumerate(parts):
+                            event_id = event.sequence if index == last_index else None
+                            yield _format_part_frame(part, event_id=event_id)
+                    last_heartbeat = asyncio.get_event_loop().time()
+                else:
+                    turn = await runtime_manager.turn_service.db_ops.query_agent_turn(str(user.id), chat_id, turn_id)
+                    if (
+                        turn
+                        and turn.status
+                        in {
+                            AgentTurnStatus.COMPLETED,
+                            AgentTurnStatus.FAILED,
+                            AgentTurnStatus.CANCELLED,
+                        }
+                        and current_after_sequence >= (turn.timeline_cursor or 0)
+                    ):
+                        break
 
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+                    now = asyncio.get_event_loop().time()
+                    if now - last_heartbeat >= heartbeat_interval:
+                        # SSE comment heartbeat — invisible to the
+                        # AI SDK v5 consumer (which keys on
+                        # ``data:`` only) but keeps proxies awake.
+                        yield ": heartbeat\n\n"
+                        last_heartbeat = now
+                    await asyncio.sleep(0.5)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.exception("agent SSE stream crashed for turn=%s", turn_id)
+            error_payload = json.dumps(
+                {"type": "error", "errorText": f"stream failed: {exc.__class__.__name__}"},
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+            yield f"data: {error_payload}\n\n"
+            raise
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={AI_SDK_V5_HEADER: AI_SDK_V5_HEADER_VALUE},
+    )
