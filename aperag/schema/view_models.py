@@ -649,25 +649,13 @@ class EvaluationChatWithAgentResponse(RootModel[Union[ChatSuccessResponse, Agent
 # AgentMessage``) keep resolving the same class object.
 
 
-class ExportTaskResponse(BaseModel):
-    export_task_id: str = Field(..., description="Unique ID of the export task")
-    status: Literal["PENDING", "PROCESSING", "COMPLETED", "FAILED", "EXPIRED"] = Field(
-        ..., description="Current status of the export task"
-    )
-    progress: Optional[conint(ge=0, le=100)] = Field(None, description="Progress percentage (0-100)")
-    message: Optional[str] = Field(None, description="Human-readable status message")
-    error_message: Optional[str] = Field(None, description="Error detail when status is FAILED")
-    download_url: Optional[str] = Field(
-        None,
-        description="URL to download the ZIP file (only set when status is COMPLETED)",
-    )
-    file_size: Optional[int] = Field(None, description="Size of the ZIP file in bytes")
-    gmt_created: Optional[datetime] = None
-    gmt_completed: Optional[datetime] = None
-    gmt_expires: Optional[datetime] = Field(
-        None,
-        description="Time when the export file will be automatically deleted (7 days after creation)",
-    )
+# ``ExportTaskResponse`` was carved to
+# ``aperag.domains.knowledge_base.schemas`` in Phase 8 #47 G1 so the
+# KB domain owns its export envelope. The end-of-file
+# ``from aperag.domains.knowledge_base.schemas import (...)`` re-export
+# block keeps pre-migration callers
+# (``from aperag.schema.view_models import ExportTaskResponse``)
+# resolving the same class object.
 
 
 # ---------------------------------------------------------------------------
@@ -684,6 +672,9 @@ class ExportTaskResponse(BaseModel):
 # directly from the canonical modules; consumers outside
 # ``aperag/domains/**`` may continue to use either path during the
 # transition window.
+from aperag.domains.knowledge_base.schemas import (  # noqa: E402,F401
+    ExportTaskResponse,
+)
 from aperag.domains.knowledge_graph.schemas import (  # noqa: E402,F401
     GraphCurationRunSummary,
     GraphEdge,

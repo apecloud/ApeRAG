@@ -77,6 +77,7 @@ __all__ = [
     "SharingStatusResponse",
     "MineruTokenTestRequest",
     "MineruTokenTestResponse",
+    "ExportTaskResponse",
 ]
 
 
@@ -380,4 +381,34 @@ class MineruTokenTestResponse(BaseModel):
     data: dict[str, Any] = Field(
         default_factory=dict,
         description="Passthrough body from MinerU upstream",
+    )
+
+
+# ---------- Phase 8 #47 G1: export envelope ---------- #
+#
+# Carved from ``aperag.schema.view_models.ExportTaskResponse`` so the
+# KB domain owns the response shape used by its export routes
+# (``POST /collections/{id}/export`` + ``GET /export-tasks/*``).
+# ``aperag.schema.view_models`` continues to re-export this name during
+# the cleanup window.
+
+
+class ExportTaskResponse(BaseModel):
+    export_task_id: str = Field(..., description="Unique ID of the export task")
+    status: Literal["PENDING", "PROCESSING", "COMPLETED", "FAILED", "EXPIRED"] = Field(
+        ..., description="Current status of the export task"
+    )
+    progress: Optional[conint(ge=0, le=100)] = Field(None, description="Progress percentage (0-100)")
+    message: Optional[str] = Field(None, description="Human-readable status message")
+    error_message: Optional[str] = Field(None, description="Error detail when status is FAILED")
+    download_url: Optional[str] = Field(
+        None,
+        description="URL to download the ZIP file (only set when status is COMPLETED)",
+    )
+    file_size: Optional[int] = Field(None, description="Size of the ZIP file in bytes")
+    gmt_created: Optional[datetime] = None
+    gmt_completed: Optional[datetime] = None
+    gmt_expires: Optional[datetime] = Field(
+        None,
+        description="Time when the export file will be automatically deleted (7 days after creation)",
     )
