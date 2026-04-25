@@ -105,7 +105,7 @@ export const ParserSettings = ({
     setHealthLoading(true);
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_BASE_PATH || ''}/api/v1/settings/parser_health`,
+        `${process.env.NEXT_PUBLIC_BASE_PATH || ''}/api/v2/settings/parser_health`,
         {
           credentials: 'include',
           cache: 'no-store',

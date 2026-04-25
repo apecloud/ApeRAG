@@ -19,7 +19,7 @@ import type {
 // kept separate per design-lock msg=5f0a370b decision 2e.
 
 export async function updateSettings(input: Settings): Promise<Settings> {
-  const { data } = await browserApiClient.PUT('/api/v1/settings', {
+  const { data } = await browserApiClient.PUT('/api/v2/settings', {
     body: input,
   });
   if (!data) {
@@ -37,7 +37,7 @@ export async function testMineruToken(
   token: string,
 ): Promise<MineruTokenTestResponse> {
   const { data } = await browserApiClient.POST(
-    '/api/v1/settings/test_mineru_token',
+    '/api/v2/settings/test_mineru_token',
     {
       body: { token },
     },

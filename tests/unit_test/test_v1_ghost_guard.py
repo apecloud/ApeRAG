@@ -7,8 +7,8 @@ The end-state allowlist (canonical D7-1 / msg=8b6b4bc3) is:
 
 Phase 8 task #44 (H3) cleaned the provider-aware Hurl suite to use
 ``/api/v2/providers/*`` so it no longer hits dead v1 provider CRUD routes.
-A few other domains (apikeys, audit, marketplace, settings, prompts, chat
-ops, export, document upload variants) still legitimately live at
+A few other domains (apikeys, audit, marketplace, prompts, chat ops, export,
+document upload variants) still legitimately live at
 ``/api/v1`` until tasks #50–#52 / #47–#49 land. Those paths are listed
 in ``TRANSITIONAL_V1_PREFIXES`` below and each follow-up PR is expected
 to shrink the set as it migrates the corresponding domain to ``/api/v2``.
@@ -36,7 +36,7 @@ OPENAI_COMPAT_V1_ALLOWLIST: frozenset[str] = frozenset(
 # Transitional prefixes — these v1 routes are still mounted in main and used
 # by e2e Hurl as long as the corresponding G* migration tasks have not landed.
 # Each follow-up PR (G4a audit / G4b apikeys / G4c marketplace / G3 prompts /
-# G1 export / G2 settings / G4d chat ops) is expected to remove the matching
+# G1 export / G4d chat ops) is expected to remove the matching
 # entry from this set together with its Hurl rewrite.
 #
 # Anything outside both sets is an unrecognised v1 reference and must be
@@ -47,7 +47,6 @@ TRANSITIONAL_V1_PREFIXES: frozenset[str] = frozenset(
         "/api/v1/audit-logs",  # G4a → /api/v2/audit-logs
         "/api/v1/marketplace",  # G4c → /api/v2/marketplace
         "/api/v1/prompts",  # G3  → /api/v2/prompts
-        "/api/v1/settings",  # G2  → /api/v2/settings
         "/api/v1/collections",  # G1 (export) + G5 (document upload variants)
         "/api/v1/export-tasks",  # G1  → /api/v2/export-tasks
         "/api/v1/chats",  # G4d → /api/v2/chats

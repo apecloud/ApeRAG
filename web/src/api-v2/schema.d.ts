@@ -863,7 +863,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/settings": {
+    "/api/v2/settings": {
         parameters: {
             query?: never;
             header?: never;
@@ -881,7 +881,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/settings/parser_health": {
+    "/api/v2/settings/parser_health": {
         parameters: {
             query?: never;
             header?: never;
@@ -898,7 +898,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/settings/test_mineru_token": {
+    "/api/v2/settings/test_mineru_token": {
         parameters: {
             query?: never;
             header?: never;
