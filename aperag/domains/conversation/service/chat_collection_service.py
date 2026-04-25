@@ -42,8 +42,6 @@ from aperag.domains.identity.service.identity_user_ops import set_chat_collectio
 from aperag.domains.knowledge_base.db.models import Collection
 from aperag.domains.knowledge_base.schemas import CollectionCreate
 from aperag.domains.knowledge_base.service.collection_service import collection_service
-from aperag.domains.model_platform.schemas import TagFilterCondition, TagFilterRequest
-from aperag.domains.model_platform.service.llm_available_model_service import llm_available_model_service
 from aperag.schema.common import CollectionConfig, ModelSpec
 
 logger = logging.getLogger(__name__)
@@ -75,37 +73,11 @@ class ChatCollectionService:
     async def _get_default_embedding_model(self, user_id: str) -> Optional[ModelSpec]:
         """Get default embedding model for chat collection"""
         try:
-            # First, try to get models with default_for_embedding tag
-            tag_filter_request = TagFilterRequest(
-                tag_filters=[TagFilterCondition(operation="AND", tags=["default_for_embedding"])]
-            )
-            models = await llm_available_model_service.get_available_models(user_id, tag_filter_request)
+            for item in await self.db_ops.query_model_uses(user_id):
+                if item.scenario == "collection_embedding" and item.primary_model_id:
+                    return ModelSpec(model_id=item.primary_model_id)
 
-            # Find first embedding model with default_for_embedding tag
-            for provider in models.items or []:
-                for embedding_model in provider.embedding or []:
-                    return ModelSpec(
-                        model=embedding_model.model,
-                        model_service_provider=provider.name,
-                        custom_llm_provider=embedding_model.custom_llm_provider,
-                    )
-
-            # If no default_for_embedding models found, try enable_for_collection tag
-            tag_filter_request = TagFilterRequest(
-                tag_filters=[TagFilterCondition(operation="AND", tags=["enable_for_collection"])]
-            )
-            models = await llm_available_model_service.get_available_models(user_id, tag_filter_request)
-
-            # Find first embedding model with enable_for_collection tag
-            for provider in models.items or []:
-                for embedding_model in provider.embedding or []:
-                    return ModelSpec(
-                        model=embedding_model.model,
-                        model_service_provider=provider.name,
-                        custom_llm_provider=embedding_model.custom_llm_provider,
-                    )
-
-            logger.warning(f"No suitable embedding model found for user {user_id}")
+            logger.warning("No default embedding model found for user %s", user_id)
             return None
 
         except Exception as e:

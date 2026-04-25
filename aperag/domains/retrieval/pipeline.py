@@ -50,7 +50,6 @@ from aperag.llm.llm_error_types import (
     ProviderNotFoundError,
     RerankError,
 )
-from aperag.llm.rerank.rerank_service import RerankService
 from aperag.observability import start_span
 from aperag.platform.query.query import DocumentWithScore
 from aperag.schema.utils import parseCollectionConfig
@@ -468,39 +467,26 @@ class SearchPipelineService:
         if not use_rerank:
             return self._apply_fallback_strategy(docs)
 
-        # Lazy import: ``default_model_service`` lives under the legacy
-        # ``aperag.service.*`` aggregate which the Phase 0 strict ban
-        # forbids for *domain* code. We inline the piece of behavior
-        # this module needs (default rerank config lookup) directly
-        # against ``async_db_ops`` here to stay inside the domain.
-        model, model_service_provider, custom_llm_provider = await self._resolve_default_rerank_config(user_id)
-        if not all([model, model_service_provider, custom_llm_provider]):
+        model_id = await self._resolve_default_rerank_model_id(user_id)
+        if not model_id:
             return self._apply_fallback_strategy(docs)
 
         try:
-            api_key = await async_db_ops.query_provider_api_key(model_service_provider, user_id)
-            if not api_key:
-                raise InvalidConfigurationError(
-                    "api_key", api_key, f"API KEY not found for LLM Provider:{model_service_provider}"
-                )
+            from aperag.llm.runtime.invocation_service import model_invocation_service
 
-            llm_provider = await async_db_ops.query_llm_provider_by_name(model_service_provider)
-            if not llm_provider:
-                raise ProviderNotFoundError(model_service_provider, "Rerank")
-            base_url = llm_provider.base_url
-            if not base_url:
-                raise InvalidConfigurationError(
-                    "base_url", base_url, f"Base URL not configured for provider '{model_service_provider}'"
-                )
-
-            rerank_service = RerankService(
-                rerank_provider=custom_llm_provider,
-                rerank_model=model,
-                rerank_service_url=base_url,
-                rerank_service_api_key=api_key,
-            )
-            rerank_service.validate_configuration()
-            return await rerank_service.async_rerank(query, docs)
+            ranked = await model_invocation_service.rerank(model_id, user_id, query, [doc.text for doc in docs])
+            reranked_docs = []
+            for item in ranked:
+                idx = item["index"]
+                if 0 <= idx < len(docs):
+                    reranked_docs.append(
+                        DocumentWithScore(
+                            text=docs[idx].text,
+                            score=float(item.get("relevance_score", item.get("score", 0.0))),
+                            metadata=docs[idx].metadata,
+                        )
+                    )
+            return reranked_docs
         except (InvalidConfigurationError, ProviderNotFoundError, RerankError) as e:
             logger.warning(f"Rerank configuration/runtime issue, using fallback strategy: {str(e)}")
             return self._apply_fallback_strategy(docs)
@@ -508,41 +494,18 @@ class SearchPipelineService:
             logger.error(f"Unexpected rerank failure, using fallback strategy: {str(e)}")
             return self._apply_fallback_strategy(docs)
 
-    async def _resolve_default_rerank_config(self, user_id: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
-        """Resolve ``(model, model_service_provider, custom_llm_provider)``
-        for the user's default rerank model.
-
-        Mirrors the behaviour of the legacy
-        ``aperag.service.default_model_service.get_default_rerank_config``
-        helper without importing the forbidden ``aperag.service.*``
-        aggregate. Uses the "default_for_rerank" model tag the legacy
-        service writes to; when no tagged model has a configured API
-        key, every field is returned as ``None`` and the caller
-        degrades to the non-rerank fallback strategy.
-        """
+    async def _resolve_default_rerank_model_id(self, user_id: str) -> Optional[str]:
+        """Resolve the user's configured retrieval rerank model id."""
         try:
-            models = await async_db_ops.find_models_by_tag(user_id, "default_for_rerank")
+            model_uses = await async_db_ops.query_model_uses(user_id)
         except Exception:
             logger.warning("retrieval: default rerank lookup failed; using fallback strategy", exc_info=True)
-            return None, None, None
+            return None
 
-        selected = None
-        for model in models or []:
-            try:
-                api_key = await async_db_ops.query_provider_api_key(model.provider_name, user_id, True)
-            except Exception:
-                continue
-            if api_key:
-                selected = model
-                break
-
-        if selected is None:
-            return None, None, None
-        return (
-            getattr(selected, "model", None),
-            getattr(selected, "provider_name", None),
-            getattr(selected, "custom_llm_provider", None),
-        )
+        for item in model_uses or []:
+            if item.scenario == "retrieval_rerank" and item.primary_model_id:
+                return item.primary_model_id
+        return None
 
     def _apply_fallback_strategy(self, docs: List[DocumentWithScore]) -> List[DocumentWithScore]:
         graph_results = []

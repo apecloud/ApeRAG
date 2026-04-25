@@ -6,6 +6,34 @@ Content-Type: application/json
 }
 HTTP 200
 
+# v3 model-platform setup — ``ModelSpec`` only accepts ``model_id``
+# now, so the bot config below references a freshly-seeded chat model.
+POST {{base_url}}/api/v3/model-accounts
+Content-Type: application/json
+{
+  "provider_type": "openai_compatible",
+  "name": "openrouter-chat-{{run_id}}",
+  "display_name": "OpenRouter (E2E chat {{run_id}})",
+  "base_url": "https://openrouter.ai/api/v1",
+  "api_key": "{{openrouter_api_key}}"
+}
+HTTP 200
+[Captures]
+openrouter_account_id: jsonpath "$.id"
+
+POST {{base_url}}/api/v3/models
+Content-Type: application/json
+{
+  "account_id": "{{openrouter_account_id}}",
+  "provider_model_id": "google/gemini-2.5-flash",
+  "display_name": "OpenRouter Gemini 2.5 Flash",
+  "capability": "chat",
+  "context_window": 8192
+}
+HTTP 200
+[Captures]
+completion_model_id: jsonpath "$.id"
+
 POST {{base_url}}/api/v2/bots
 Content-Type: application/json
 {
@@ -15,9 +43,7 @@ Content-Type: application/json
   "config": {
     "agent": {
       "completion": {
-        "model_service_provider": "openrouter",
-        "model": "google/gemini-2.5-flash",
-        "custom_llm_provider": "openrouter",
+        "model_id": "{{completion_model_id}}",
         "temperature": 0.2
       },
       "system_prompt_template": "You are Chat Bot {{run_id}}.",
@@ -30,7 +56,7 @@ HTTP 200
 bot_id: jsonpath "$.id"
 [Asserts]
 jsonpath "$.id" == "{{bot_id}}"
-jsonpath "$.config.agent.completion.model" == "google/gemini-2.5-flash"
+jsonpath "$.config.agent.completion.model_id" == "{{completion_model_id}}"
 
 POST {{base_url}}/api/v2/bots/{{bot_id}}/chats
 HTTP 200

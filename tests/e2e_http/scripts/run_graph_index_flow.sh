@@ -8,6 +8,8 @@ required_vars=(
   E2E_USERNAME
   E2E_PASSWORD
   E2E_RUN_ID
+  E2E_ALIBABACLOUD_API_KEY
+  E2E_OPENROUTER_API_KEY
 )
 
 for var_name in "${required_vars[@]}"; do
@@ -151,8 +153,58 @@ request_json POST "/api/v2/auth/login" "$(jq -nc \
   --arg password "${E2E_PASSWORD}" \
   '{username: $username, password: $password}')"
 
+# v3 model-platform setup — ``ModelSpec`` only accepts ``model_id`` now,
+# so the collection config below references freshly-seeded models.
+dashscope_account_body="$(request_json POST "/api/v3/model-accounts" "$(jq -nc \
+  --arg run_id "${E2E_RUN_ID}" \
+  --arg api_key "${E2E_ALIBABACLOUD_API_KEY}" \
+  '{
+    provider_type: "dashscope",
+    name: ("alibabacloud-graph-flow-" + $run_id),
+    display_name: ("DashScope (E2E graph flow " + $run_id + ")"),
+    base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    api_key: $api_key
+  }')")"
+dashscope_account_id="$(jq -r '.id' <<<"${dashscope_account_body}")"
+
+openrouter_account_body="$(request_json POST "/api/v3/model-accounts" "$(jq -nc \
+  --arg run_id "${E2E_RUN_ID}" \
+  --arg api_key "${E2E_OPENROUTER_API_KEY}" \
+  '{
+    provider_type: "openai_compatible",
+    name: ("openrouter-graph-flow-" + $run_id),
+    display_name: ("OpenRouter (E2E graph flow " + $run_id + ")"),
+    base_url: "https://openrouter.ai/api/v1",
+    api_key: $api_key
+  }')")"
+openrouter_account_id="$(jq -r '.id' <<<"${openrouter_account_body}")"
+
+embedding_model_body="$(request_json POST "/api/v3/models" "$(jq -nc \
+  --arg account_id "${dashscope_account_id}" \
+  '{
+    account_id: $account_id,
+    provider_model_id: "text-embedding-v3",
+    display_name: "DashScope text-embedding-v3",
+    capability: "embedding",
+    embedding_dimensions: 1024
+  }')")"
+embedding_model_id="$(jq -r '.id' <<<"${embedding_model_body}")"
+
+completion_model_body="$(request_json POST "/api/v3/models" "$(jq -nc \
+  --arg account_id "${openrouter_account_id}" \
+  '{
+    account_id: $account_id,
+    provider_model_id: "google/gemini-2.5-flash",
+    display_name: "OpenRouter Gemini 2.5 Flash",
+    capability: "chat",
+    context_window: 8192
+  }')")"
+completion_model_id="$(jq -r '.id' <<<"${completion_model_body}")"
+
 collection_body="$(request_json POST "/api/v2/collections" "$(jq -nc \
   --arg run_id "${E2E_RUN_ID}" \
+  --arg embedding_model_id "${embedding_model_id}" \
+  --arg completion_model_id "${completion_model_id}" \
   '{
     title: ("Graph Index Flow Script " + $run_id),
     description: "Business-flow graph validation with real graph index completion",
@@ -165,14 +217,10 @@ collection_body="$(request_json POST "/api/v2/collections" "$(jq -nc \
       enable_summary: false,
       enable_vision: false,
       embedding: {
-        model: "text-embedding-v3",
-        model_service_provider: "alibabacloud",
-        custom_llm_provider: "openai"
+        model_id: $embedding_model_id
       },
       completion: {
-        model: "google/gemini-2.5-flash",
-        model_service_provider: "openrouter",
-        custom_llm_provider: "openrouter"
+        model_id: $completion_model_id
       }
     }
   }')")"

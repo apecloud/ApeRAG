@@ -1,460 +1,310 @@
-# Copyright 2025 ApeCloud, Inc.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
-"""Canonical Pydantic view models for the ``model_platform`` domain.
-
-Phase 4 Step 4-S3d (largest sub-step of 4-S3) carves the LLM-provider
-and embedding / rerank API-shape schemas out of
-``aperag.schema.view_models``. Dual-hook symmetric re-export keeps
-pre-migration callers working.
-
-26 schemas grouped by concern:
-
-* Model filtering (``TagFilterCondition`` / ``TagFilterRequest``)
-* Provider-aggregate views (``ModelConfig`` / ``ModelConfigList``)
-* Per-scenario defaults (``DefaultModelConfig`` / ``DefaultModelsResponse``
-  / ``DefaultModelsUpdateRequest``)
-* Provider + provider-model CRUD (``LlmProvider`` / ``LlmProviderModel``
-  / ``LlmConfigurationResponse`` / ``LlmProviderCreateWithApiKey`` /
-  ``LlmProviderUpdateWithApiKey`` / ``LlmProviderModelList`` /
-  ``LlmProviderModelCreate`` / ``LlmProviderModelCreateRequest`` /
-  ``LlmProviderModelUpdate``)
-* Embedding API shapes (``EmbeddingRequest`` / ``EmbeddingData`` /
-  ``EmbeddingUsage`` / ``EmbeddingResponse``)
-* Rerank API shapes (``Document1`` / ``RerankRequest`` / ``Document2``
-  / ``RerankDocument`` / ``RerankUsage`` / ``RerankResponse``)
-
-``aperag.llm.*`` stays as shared infrastructure (Phase 4 canonical
-msg=d47fa490 Section 7); the embedding / rerank schemas here are the
-HTTP-public contract shape, not the ``aperag.llm.*`` runtime wrappers.
-"""
+"""Pydantic schemas for the model platform product model."""
 
 from __future__ import annotations
 
 from datetime import datetime
+from enum import Enum
 from typing import Any, Literal, Optional, Union
 
 from pydantic import BaseModel, Field, confloat, conint
 
-from aperag.schema.common import ModelSpec, PageResult
-
-__all__ = [
-    "TagFilterCondition",
-    "TagFilterRequest",
-    "ModelConfig",
-    "ModelConfigList",
-    "DefaultModelConfig",
-    "DefaultModelsResponse",
-    "DefaultModelsUpdateRequest",
-    "LlmProvider",
-    "LlmProviderModel",
-    "LlmConfigurationResponse",
-    "LlmProviderCreateWithApiKey",
-    "LlmProviderUpdateWithApiKey",
-    "LlmProviderModelList",
-    "LlmProviderModelCreate",
-    "LlmProviderModelCreateRequest",
-    "LlmProviderModelUpdate",
-    "EmbeddingRequest",
-    "EmbeddingData",
-    "EmbeddingUsage",
-    "EmbeddingResponse",
-    "Document1",
-    "RerankRequest",
-    "Document2",
-    "RerankDocument",
-    "RerankUsage",
-    "RerankResponse",
-]
+from aperag.schema.common import PageResult
 
 
-class TagFilterCondition(BaseModel):
-    operation: Literal["AND", "OR"] = Field(
-        ...,
-        description="Logical operation for tags in this condition",
-        examples=["AND"],
-    )
-    tags: list[str] = Field(
-        ...,
-        description="List of tags for this condition",
-        examples=[["free", "recommend"]],
-    )
+class ModelCapability(str, Enum):
+    CHAT = "chat"
+    COMPLETION = "completion"
+    EMBEDDING = "embedding"
+    RERANK = "rerank"
 
 
-class TagFilterRequest(BaseModel):
-    """
-    Tag filtering request. Empty request body or empty tag_filters returns recommend models by default.
-    """
-
-    tag_filters: Optional[list[TagFilterCondition]] = Field(
-        None,
-        description='List of tag filter conditions (OR relationship between conditions). If not provided or empty, returns models with "recommend" tag by default.',
-        examples=[
-            [
-                {"operation": "AND", "tags": ["free", "recommend"]},
-                {"operation": "OR", "tags": ["openai", "gpt"]},
-            ]
-        ],
-    )
+class ModelUseScenario(str, Enum):
+    AGENT_CHAT = "agent_chat"
+    COLLECTION_COMPLETION = "collection_completion"
+    COLLECTION_EMBEDDING = "collection_embedding"
+    RETRIEVAL_RERANK = "retrieval_rerank"
+    BACKGROUND_TASK = "background_task"
 
 
-class ModelConfig(BaseModel):
+class ModelUseStrategy(str, Enum):
+    SINGLE = "single"
+    FALLBACK = "fallback"
+
+
+class ModelProvider(BaseModel):
+    id: Optional[str] = None
+    provider_type: str
+    display_name: str
+    description: Optional[str] = None
+    supported_capabilities: list[ModelCapability] = Field(default_factory=list)
+    account_schema: dict[str, Any] = Field(default_factory=dict)
+    default_base_url: Optional[str] = None
+    enabled: bool = True
+    sort_order: int = 0
+    extra: dict[str, Any] = Field(default_factory=dict)
+    created: Optional[datetime] = None
+    updated: Optional[datetime] = None
+
+
+class ModelProviderList(BaseModel):
+    items: list[ModelProvider] = Field(default_factory=list)
+    pageResult: Optional[PageResult] = None
+
+
+class ModelAccount(BaseModel):
+    id: Optional[str] = None
+    user_id: Optional[str] = None
+    provider_type: str
+    name: str
+    display_name: str
+    base_url: str
+    status: Literal["ACTIVE", "INACTIVE"] = "ACTIVE"
+    auth_config: dict[str, Any] = Field(default_factory=dict)
+    last_validated_at: Optional[datetime] = None
+    validation_error: Optional[str] = None
+    extra: dict[str, Any] = Field(default_factory=dict)
+    created: Optional[datetime] = None
+    updated: Optional[datetime] = None
+
+
+class ModelAccountCreate(BaseModel):
+    provider_type: str
+    name: str
+    display_name: str
+    base_url: str
+    api_key: str
+    auth_config: dict[str, Any] = Field(default_factory=dict)
+    extra: dict[str, Any] = Field(default_factory=dict)
+
+
+class ModelAccountUpdate(BaseModel):
     name: Optional[str] = None
-    completion_dialect: Optional[str] = None
-    embedding_dialect: Optional[str] = None
-    rerank_dialect: Optional[str] = None
-    label: Optional[str] = None
-    allow_custom_base_url: Optional[bool] = None
+    display_name: Optional[str] = None
     base_url: Optional[str] = None
-    embedding: Optional[list[ModelSpec]] = None
-    completion: Optional[list[ModelSpec]] = None
-    rerank: Optional[list[ModelSpec]] = None
+    api_key: Optional[str] = None
+    auth_config: Optional[dict[str, Any]] = None
+    status: Optional[Literal["ACTIVE", "INACTIVE"]] = None
+    extra: Optional[dict[str, Any]] = None
 
 
-class ModelConfigList(BaseModel):
-    items: Optional[list[ModelConfig]] = None
+class ModelAccountList(BaseModel):
+    items: list[ModelAccount] = Field(default_factory=list)
     pageResult: Optional[PageResult] = None
 
 
-class DefaultModelConfig(BaseModel):
-    scenario: Literal[
-        "default_for_collection_completion",
-        "default_for_agent_completion",
-        "default_for_embedding",
-        "default_for_rerank",
-        "default_for_background_task",
-    ] = Field(
-        ...,
-        description="The scenario for which this default model is configured",
-        examples=["default_for_embedding"],
-    )
-    custom_llm_provider: Optional[str] = None
-    provider_name: Optional[str] = Field(None, description="The name of the model provider", examples=["openai"])
-    model: Optional[str] = Field(None, description="The name of the model", examples=["text-embedding-3-small"])
+class Model(BaseModel):
+    id: Optional[str] = None
+    account_id: str
+    provider_model_id: str
+    display_name: str
+    capability: ModelCapability
+    runner_type: str
+    runner_config: dict[str, Any] = Field(default_factory=dict)
+    context_window: Optional[int] = None
+    max_input_tokens: Optional[int] = None
+    max_output_tokens: Optional[int] = None
+    embedding_dimensions: Optional[int] = None
+    supports_vision: bool = False
+    supports_tool_calling: bool = False
+    status: Literal["ACTIVE", "INACTIVE"] = "ACTIVE"
+    extra: dict[str, Any] = Field(default_factory=dict)
+    created: Optional[datetime] = None
+    updated: Optional[datetime] = None
 
 
-class DefaultModelsResponse(BaseModel):
-    items: list[DefaultModelConfig] = Field(
-        ..., description="List of default model configurations for different scenarios"
-    )
+class ModelCreate(BaseModel):
+    account_id: str
+    provider_model_id: str
+    display_name: str
+    capability: ModelCapability
+    runner_type: Optional[str] = None
+    runner_config: dict[str, Any] = Field(default_factory=dict)
+    context_window: Optional[int] = None
+    max_input_tokens: Optional[int] = None
+    max_output_tokens: Optional[int] = None
+    embedding_dimensions: Optional[int] = None
+    supports_vision: bool = False
+    supports_tool_calling: bool = False
+    extra: dict[str, Any] = Field(default_factory=dict)
 
 
-class DefaultModelsUpdateRequest(BaseModel):
-    defaults: list[DefaultModelConfig] = Field(
-        ...,
-        description="List of default model configurations to update",
-        examples=[
-            [
-                {
-                    "scenario": "default_for_embedding",
-                    "provider_name": "openai",
-                    "model": "text-embedding-3-small",
-                },
-                {
-                    "scenario": "default_for_collection_completion",
-                    "provider_name": "openai",
-                    "model": "gpt-4o-mini",
-                },
-            ]
-        ],
-    )
+class ModelUpdate(BaseModel):
+    display_name: Optional[str] = None
+    capability: Optional[ModelCapability] = None
+    runner_type: Optional[str] = None
+    runner_config: Optional[dict[str, Any]] = None
+    context_window: Optional[int] = None
+    max_input_tokens: Optional[int] = None
+    max_output_tokens: Optional[int] = None
+    embedding_dimensions: Optional[int] = None
+    supports_vision: Optional[bool] = None
+    supports_tool_calling: Optional[bool] = None
+    status: Optional[Literal["ACTIVE", "INACTIVE"]] = None
+    extra: Optional[dict[str, Any]] = None
 
 
-class LlmProvider(BaseModel):
-    name: str = Field(..., description="Unique provider name identifier", examples=["openai"])
-    user_id: str = Field(
-        ...,
-        description='User ID of the provider owner, "public" for system providers',
-        examples=["public"],
-    )
-    label: str = Field(..., description="Human-readable provider display name", examples=["OpenAI"])
-    completion_dialect: Optional[str] = Field(
-        "openai",
-        description="API dialect for completion/chat APIs",
-        examples=["openai"],
-    )
-    embedding_dialect: Optional[str] = Field(
-        "openai", description="API dialect for embedding APIs", examples=["openai"]
-    )
-    rerank_dialect: Optional[str] = Field("jina_ai", description="API dialect for rerank APIs", examples=["jina_ai"])
-    allow_custom_base_url: Optional[bool] = Field(False, description="Whether custom base URLs are allowed")
-    base_url: str = Field(
-        ...,
-        description="Default API base URL for this provider",
-        examples=["https://api.openai.com/v1"],
-    )
-    extra: Optional[str] = Field(None, description="Additional configuration data in JSON format")
-    api_key: Optional[str] = Field(None, description="API key for this provider (if configured by user)")
-    created: Optional[datetime] = Field(None, description="Creation timestamp")
-    updated: Optional[datetime] = Field(None, description="Last update timestamp")
-
-
-class LlmProviderModel(BaseModel):
-    provider_name: str = Field(..., description="Reference to LLMProvider.name", examples=["openai"])
-    api: Literal["completion", "embedding", "rerank"] = Field(
-        ..., description="API type for this model", examples=["completion"]
-    )
-    model: str = Field(..., description="Model name/identifier", examples=["gpt-4o-mini"])
-    custom_llm_provider: str = Field(..., description="Custom LLM provider implementation", examples=["openai"])
-    context_window: Optional[int] = Field(None, description="Context window size (total tokens)", examples=[128000])
-    max_input_tokens: Optional[int] = Field(None, description="Maximum input tokens", examples=[120000])
-    max_output_tokens: Optional[int] = Field(None, description="Maximum output tokens", examples=[8000])
-    tags: Optional[list[str]] = Field(
-        [],
-        description="Tags for model categorization",
-        examples=[["free", "recommend"]],
-    )
-    created: Optional[datetime] = Field(None, description="Creation timestamp")
-    updated: Optional[datetime] = Field(None, description="Last update timestamp")
-
-
-class LlmConfigurationResponse(BaseModel):
-    providers: list[LlmProvider] = Field(..., description="List of LLM providers")
-    models: list[LlmProviderModel] = Field(..., description="List of LLM provider models")
-
-
-class LlmProviderCreateWithApiKey(BaseModel):
-    name: Optional[str] = Field(
-        None,
-        description="Unique provider name identifier (auto-generated if not provided)",
-    )
-    label: str = Field(..., description="Human-readable provider display name")
-    completion_dialect: Optional[str] = Field("openai", description="API dialect for completion/chat APIs")
-    embedding_dialect: Optional[str] = Field("openai", description="API dialect for embedding APIs")
-    rerank_dialect: Optional[str] = Field("jina_ai", description="API dialect for rerank APIs")
-    allow_custom_base_url: Optional[bool] = Field(False, description="Whether custom base URLs are allowed")
-    base_url: str = Field(..., description="Default API base URL for this provider")
-    extra: Optional[str] = Field(None, description="Additional configuration data in JSON format")
-    api_key: Optional[str] = Field(None, description="Optional API key for this provider")
-    status: Optional[Literal["enable", "disable"]] = Field(
-        None,
-        description="Provider status - enable to create/update API key, disable to remove API key",
-    )
-
-
-class LlmProviderUpdateWithApiKey(BaseModel):
-    label: Optional[str] = Field(None, description="Human-readable provider display name")
-    completion_dialect: Optional[str] = Field(None, description="API dialect for completion/chat APIs")
-    embedding_dialect: Optional[str] = Field(None, description="API dialect for embedding APIs")
-    rerank_dialect: Optional[str] = Field(None, description="API dialect for rerank APIs")
-    allow_custom_base_url: Optional[bool] = Field(None, description="Whether custom base URLs are allowed")
-    base_url: Optional[str] = Field(None, description="Default API base URL for this provider")
-    extra: Optional[str] = Field(None, description="Additional configuration data in JSON format")
-    api_key: Optional[str] = Field(None, description="Optional API key for this provider")
-    status: Optional[Literal["enable", "disable"]] = Field(
-        None,
-        description="Provider status - enable to create/update API key, disable to remove API key",
-    )
-
-
-class LlmProviderModelList(BaseModel):
-    items: Optional[list[LlmProviderModel]] = None
+class ModelList(BaseModel):
+    items: list[Model] = Field(default_factory=list)
     pageResult: Optional[PageResult] = None
 
 
-class LlmProviderModelCreate(BaseModel):
-    provider_name: str = Field(..., description="Reference to LLMProvider.name")
-    api: Literal["completion", "embedding", "rerank"] = Field(..., description="API type for this model")
-    model: str = Field(..., description="Model name/identifier")
-    custom_llm_provider: str = Field(..., description="Custom LLM provider implementation")
-    context_window: Optional[int] = Field(None, description="Context window size (total tokens)", examples=[128000])
-    max_input_tokens: Optional[int] = Field(None, description="Maximum input tokens", examples=[120000])
-    max_output_tokens: Optional[int] = Field(None, description="Maximum output tokens", examples=[8000])
-    tags: Optional[list[str]] = Field([], description="Tags for model categorization")
+class ModelUse(BaseModel):
+    id: Optional[str] = None
+    user_id: Optional[str] = None
+    scenario: ModelUseScenario
+    capability: ModelCapability
+    strategy: ModelUseStrategy = ModelUseStrategy.SINGLE
+    primary_model_id: Optional[str] = None
+    fallback_model_ids: list[str] = Field(default_factory=list)
+    enabled: bool = True
+    extra: dict[str, Any] = Field(default_factory=dict)
+    created: Optional[datetime] = None
+    updated: Optional[datetime] = None
 
 
-class LlmProviderModelCreateRequest(BaseModel):
-    api: Literal["completion", "embedding", "rerank"] = Field(..., description="API type for this model")
-    model: str = Field(..., description="Model name/identifier")
-    custom_llm_provider: str = Field(..., description="Custom LLM provider implementation")
-    context_window: Optional[int] = Field(None, description="Context window size (total tokens)", examples=[128000])
-    max_input_tokens: Optional[int] = Field(None, description="Maximum input tokens", examples=[120000])
-    max_output_tokens: Optional[int] = Field(None, description="Maximum output tokens", examples=[8000])
-    tags: Optional[list[str]] = Field([], description="Tags for model categorization")
+class ModelUseUpdate(BaseModel):
+    primary_model_id: Optional[str] = None
+    fallback_model_ids: list[str] = Field(default_factory=list)
+    strategy: ModelUseStrategy = ModelUseStrategy.SINGLE
+    enabled: bool = True
+    extra: dict[str, Any] = Field(default_factory=dict)
 
 
-class LlmProviderModelUpdate(BaseModel):
-    custom_llm_provider: Optional[str] = Field(None, description="Custom LLM provider implementation")
-    context_window: Optional[int] = Field(None, description="Context window size (total tokens)", examples=[128000])
-    max_input_tokens: Optional[int] = Field(None, description="Maximum input tokens", examples=[120000])
-    max_output_tokens: Optional[int] = Field(None, description="Maximum output tokens", examples=[8000])
-    tags: Optional[list[str]] = Field(None, description="Tags for model categorization")
+class ModelUseList(BaseModel):
+    items: list[ModelUse] = Field(default_factory=list)
+    pageResult: Optional[PageResult] = None
+
+
+class ModelValidationResponse(BaseModel):
+    ok: bool
+    message: Optional[str] = None
 
 
 class EmbeddingRequest(BaseModel):
-    """
-    Request to generate embeddings for text inputs
+    """OpenAI-compatible embedding request.
+
+    Accepts either the new ``{model_id}`` shape *or* the legacy
+    ``{model, model_service_provider, custom_llm_provider}`` triple
+    that pre-#1697 callers (provider hurl, external clients) still
+    send. ``/api/v1/embeddings`` is permanent OpenAI-compat allowlist
+    surface — see Weston msg=80e873c1 / PR #1697 Blocker A. The
+    triple is resolved to a ``model_id`` server-side via
+    ``resolve_legacy_model_id`` before the runtime lookup runs.
+    Routes that are post-#1697-only (``/api/v3/...``) require
+    ``model_id`` and never accept the triple.
     """
 
-    provider: str = Field(
-        ...,
-        description="LLM provider name (e.g., openai, anthropic)",
-        examples=["openai"],
-    )
-    model: str = Field(
-        ...,
-        description="Model name for embedding generation",
-        examples=["text-embedding-3-small"],
-    )
+    model_id: Optional[str] = Field(None, description="ApeRAG model id")
     input: Union[str, list[str]]
+    model: Optional[str] = Field(
+        None,
+        description="Legacy provider-model name (pre-#1697 compat). Resolved to ``model_id`` server-side.",
+    )
+    model_service_provider: Optional[str] = Field(
+        None,
+        description="Legacy provider name (pre-#1697 compat). Resolved to ``model_id`` server-side.",
+    )
+    custom_llm_provider: Optional[str] = Field(
+        None,
+        description="Legacy provider dialect (pre-#1697 compat). Ignored once ``model_id`` is resolved.",
+    )
 
 
 class EmbeddingData(BaseModel):
-    """
-    Individual embedding result
-    """
-
-    object: str = Field(..., description="Object type identifier", examples=["embedding"])
-    embedding: list[float] = Field(
-        ...,
-        description="The embedding vector as a list of floats",
-        examples=[[0.0023064255, -0.009327292, 0.015797421, 0.0012345678]],
-    )
-    index: int = Field(
-        ...,
-        description="Index of the input text corresponding to this embedding",
-        examples=[0],
-    )
+    object: str = Field(..., examples=["embedding"])
+    embedding: list[float]
+    index: int
 
 
 class EmbeddingUsage(BaseModel):
-    """
-    Token usage information for the embedding request
-    """
-
-    prompt_tokens: int = Field(..., description="Number of tokens in the input text(s)", examples=[16])
-    total_tokens: int = Field(
-        ...,
-        description="Total number of tokens used (same as prompt_tokens for embeddings)",
-        examples=[16],
-    )
+    prompt_tokens: int
+    total_tokens: int
 
 
 class EmbeddingResponse(BaseModel):
-    """
-    Response containing generated embeddings in OpenAI-compatible format
-    """
-
-    object: str = Field(..., description="Object type identifier", examples=["list"])
-    data: list[EmbeddingData] = Field(..., description="List of embedding results")
-    model: str = Field(
-        ...,
-        description="Model used for embedding generation",
-        examples=["text-embedding-3-small"],
-    )
+    object: str
+    data: list[EmbeddingData]
+    model: str
     usage: EmbeddingUsage
 
 
 class Document1(BaseModel):
-    text: str = Field(
-        ...,
-        description="Document text content",
-        examples=["Paris is the capital of France."],
-    )
-    metadata: Optional[dict[str, Any]] = Field(
-        None,
-        description="Optional document metadata",
-        examples=[{"id": "doc_123", "source": "wikipedia"}],
-    )
+    text: str
+    metadata: Optional[dict[str, Any]] = None
 
 
 class RerankRequest(BaseModel):
-    """
-    Request to rerank documents based on query relevance
+    """OpenAI-compatible rerank request — same legacy/new shape duality
+    as :class:`EmbeddingRequest`. See its docstring for the rationale.
     """
 
-    provider: str = Field(
-        ...,
-        description="LLM provider name (e.g., cohere, jina_ai)",
-        examples=["cohere"],
-    )
-    model: str = Field(..., description="Model name for reranking", examples=["rerank-english-v3.0"])
-    query: str = Field(
-        ...,
-        description="Search query to rank documents against",
-        examples=["What is the capital of France?"],
-    )
+    model_id: Optional[str] = Field(None, description="ApeRAG rerank model id")
+    query: str
     documents: Union[list[str], list[Document1]]
-    top_k: Optional[conint(ge=1, le=1000)] = Field(
-        10, description="Maximum number of top-ranked documents to return", examples=[3]
+    top_k: Optional[conint(ge=1, le=1000)] = 10
+    return_documents: Optional[bool] = True
+    model: Optional[str] = Field(
+        None,
+        description="Legacy provider-model name (pre-#1697 compat). Resolved to ``model_id`` server-side.",
     )
-    return_documents: Optional[bool] = Field(
-        True,
-        description="Whether to return document content in response",
-        examples=[True],
+    model_service_provider: Optional[str] = Field(
+        None,
+        description="Legacy provider name (pre-#1697 compat). Resolved to ``model_id`` server-side.",
+    )
+    custom_llm_provider: Optional[str] = Field(
+        None,
+        description="Legacy provider dialect (pre-#1697 compat). Ignored once ``model_id`` is resolved.",
     )
 
 
 class Document2(BaseModel):
-    """
-    Document content and metadata (only present if return_documents=true)
-    """
-
-    text: str = Field(
-        ...,
-        description="Document text content",
-        examples=["Paris is the capital of France."],
-    )
-    metadata: Optional[dict[str, Any]] = Field(
-        None,
-        description="Document metadata if provided in the request",
-        examples=[{"id": "doc_123", "source": "wikipedia"}],
-    )
+    text: str
+    metadata: Optional[dict[str, Any]] = None
 
 
 class RerankDocument(BaseModel):
-    """
-    Individual reranked document result
-    """
-
-    index: int = Field(
-        ...,
-        description="Original index of the document in the input array",
-        examples=[0],
-    )
-    relevance_score: confloat(ge=0.0, le=1.0) = Field(
-        ...,
-        description="Relevance score between 0 and 1 (higher is more relevant)",
-        examples=[0.95],
-    )
-    document: Optional[Document2] = Field(
-        None,
-        description="Document content and metadata (only present if return_documents=true)",
-    )
+    index: int
+    relevance_score: confloat(ge=0.0, le=1.0)
+    document: Optional[Document2] = None
 
 
 class RerankUsage(BaseModel):
-    """
-    Token usage information for the rerank request
-    """
-
-    total_tokens: int = Field(
-        ...,
-        description="Total number of tokens processed (query + all documents)",
-        examples=[156],
-    )
+    total_tokens: int
 
 
 class RerankResponse(BaseModel):
-    """
-    Response containing reranked documents in industry-standard format
-    """
-
-    object: str = Field(..., description="Object type identifier", examples=["list"])
-    data: list[RerankDocument] = Field(
-        ...,
-        description="List of reranked documents ordered by relevance (highest first)",
-    )
-    model: str = Field(..., description="Model used for reranking", examples=["rerank-english-v3.0"])
+    object: str
+    data: list[RerankDocument]
+    model: str
     usage: RerankUsage
+
+
+__all__ = [
+    "Document1",
+    "Document2",
+    "EmbeddingData",
+    "EmbeddingRequest",
+    "EmbeddingResponse",
+    "EmbeddingUsage",
+    "Model",
+    "ModelAccount",
+    "ModelAccountCreate",
+    "ModelAccountList",
+    "ModelAccountUpdate",
+    "ModelCapability",
+    "ModelCreate",
+    "ModelList",
+    "ModelProvider",
+    "ModelProviderList",
+    "ModelUpdate",
+    "ModelUse",
+    "ModelUseList",
+    "ModelUseScenario",
+    "ModelUseStrategy",
+    "ModelUseUpdate",
+    "ModelValidationResponse",
+    "RerankDocument",
+    "RerankRequest",
+    "RerankResponse",
+    "RerankUsage",
+]

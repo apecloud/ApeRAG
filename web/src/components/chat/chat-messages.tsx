@@ -1,6 +1,15 @@
 'use client';
 
 import type { ChatDetails, ChatMessage, Feedback } from '@/features/bot/types';
+import {
+  cancelAgentTurn,
+  createAgentTurn,
+  getAgentTurnSnapshot,
+  projectToLegacySnapshot,
+  useAgentTurnStream,
+  type AgentTurnEnvelope,
+  type AgentTurnSnapshotEnvelope,
+} from '@/features/agent-runtime';
 import { useBotContext } from '@/components/providers/bot-provider';
 import _ from 'lodash';
 import { useParams } from 'next/navigation';
@@ -13,45 +22,18 @@ import {
 } from 'react';
 import { animateScroll as scroll } from 'react-scroll';
 import { toast } from 'sonner';
-import {
-  AgentArtifactEnvelope,
-  AgentTimelineEventEnvelope,
-  AgentTurnCard,
-  AgentTurnEnvelope,
-  AgentTurnSnapshot,
-} from './agent-turn-card';
+import { AgentTurnCard } from './agent-turn-card';
 import { ChatInput, ChatInputSubmitParams } from './chat-input';
 import { MessagePartsAi } from './message-parts-ai';
 import { MessagePartsUser } from './message-parts-user';
 
 const API_BASE_PATH = `${process.env.NEXT_PUBLIC_BASE_PATH || ''}/api/v2`;
-const AGENT_RUNTIME_BASE_PATH = `${process.env.NEXT_PUBLIC_BASE_PATH || ''}/api/v2/agent`;
 const ACTIVE_TURN_STORAGE_PREFIX = 'agent-runtime-v3:active-turn:';
 
-const TURN_EVENT_TYPES = [
-  'turn.started',
-  'agent.state.changed',
-  'tool.started',
-  'tool.progress',
-  'tool.finished',
-  'external_action.started',
-  'external_action.finished',
-  'text.delta',
-  'artifact.created',
-  'turn.completed',
-  'turn.failed',
-  'turn.cancelled',
-  'heartbeat',
-] as const;
-
-type AgentTurnCreateResponse = {
-  turn: AgentTurnEnvelope;
-  stream_url: string;
-};
-
-type AgentTurnState = {
-  snapshot: AgentTurnSnapshot;
-  streamingAnswer: string;
+type LiveTurn = {
+  envelope: AgentTurnEnvelope;
+  baselineSnapshot?: AgentTurnSnapshotEnvelope;
+  streamUrl: string | null; // null = no live connection (terminal / paused)
   pending: boolean;
 };
 
@@ -64,24 +46,12 @@ type TurnFeedbackListResponse = {
 };
 
 function isTerminalStatus(status?: string) {
-  return (
-    status === 'COMPLETED' || status === 'FAILED' || status === 'CANCELLED'
-  );
+  const upper = String(status ?? '').toUpperCase();
+  return upper === 'COMPLETED' || upper === 'FAILED' || upper === 'CANCELLED';
 }
 
 function getActiveTurnStorageKey(chatId?: string) {
   return `${ACTIVE_TURN_STORAGE_PREFIX}${chatId || 'unknown'}`;
-}
-
-function createAiPlaceholder(turnId: string): ChatMessage[] {
-  return [
-    {
-      id: turnId,
-      type: 'start',
-      role: 'ai',
-      data: '',
-    },
-  ];
 }
 
 function createUserParts(query: string): ChatMessage[] {
@@ -91,6 +61,17 @@ function createUserParts(query: string): ChatMessage[] {
       role: 'human',
       data: query,
       timestamp: Math.floor(Date.now() / 1000),
+    },
+  ];
+}
+
+function createAiPlaceholder(turnId: string): ChatMessage[] {
+  return [
+    {
+      id: turnId,
+      type: 'start',
+      role: 'ai',
+      data: '',
     },
   ];
 }
@@ -106,16 +87,8 @@ function getAiGroupId(parts: ChatMessage[]) {
   return aiIds.length === 1 ? aiIds[0] : undefined;
 }
 
-function getErrorMessage(detail: unknown, fallback: string) {
-  if (typeof detail === 'string') return detail;
-  if (
-    typeof detail === 'object' &&
-    detail &&
-    'detail' in detail &&
-    typeof (detail as { detail?: unknown }).detail === 'string'
-  ) {
-    return (detail as { detail: string }).detail;
-  }
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) return error.message;
   return fallback;
 }
 
@@ -123,55 +96,32 @@ function cloneMessages(messages: ChatMessage[][]) {
   return messages.map((parts) => [...parts]);
 }
 
-function hasAnswerArtifact(snapshot: AgentTurnSnapshot) {
-  return snapshot.artifacts.some((artifact) => artifact.artifact_type === 'answer');
-}
-
-function getStreamingAnswerFromSnapshot(snapshot: AgentTurnSnapshot) {
-  if (hasAnswerArtifact(snapshot)) return '';
-  return snapshot.timeline
-    .filter(
-      (event) =>
-        event.type === 'text.delta' && typeof event.data.delta === 'string',
-    )
-    .map((event) => event.data.delta as string)
-    .join('');
-}
-
 export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
   const { chatRename } = useBotContext();
   const { chatId } = useParams<{ chatId: string }>();
   const [messages, setMessages] = useState<ChatMessage[][]>(chat.history || []);
-  const [turnStates, setTurnStates] = useState<Record<string, AgentTurnState>>(
-    {},
-  );
+  const [liveTurns, setLiveTurns] = useState<Record<string, LiveTurn>>({});
   const [feedbackByTurnId, setFeedbackByTurnId] = useState<
     Record<string, Feedback>
   >({});
   const [activeTurnId, setActiveTurnId] = useState<string | null>(null);
 
-  const streamsRef = useRef<Record<string, EventSource>>({});
-  const reconnectTimersRef = useRef<
-    Record<string, ReturnType<typeof setTimeout>>
-  >({});
-
-  const loading = useMemo(() => {
-    return Object.values(turnStates).some((turnState) => turnState.pending);
-  }, [turnStates]);
+  const liveTurnsRef = useRef(liveTurns);
+  liveTurnsRef.current = liveTurns;
 
   const activeTurnStorageKey = useMemo(
     () => getActiveTurnStorageKey(chat.id ?? undefined),
     [chat.id],
   );
 
-  const setTurnState = useCallback(
-    (
-      turnId: string,
-      updater: (
-        previous: AgentTurnState | undefined,
-      ) => AgentTurnState | undefined,
-    ) => {
-      setTurnStates((previous) => {
+  const loading = useMemo(
+    () => Object.values(liveTurns).some((turn) => turn.pending),
+    [liveTurns],
+  );
+
+  const updateLiveTurn = useCallback(
+    (turnId: string, updater: (previous: LiveTurn | undefined) => LiveTurn | undefined) => {
+      setLiveTurns((previous) => {
         const next = updater(previous[turnId]);
         if (!next) {
           if (!(turnId in previous)) return previous;
@@ -179,27 +129,11 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
           delete rest[turnId];
           return rest;
         }
-        return {
-          ...previous,
-          [turnId]: next,
-        };
+        return { ...previous, [turnId]: next };
       });
     },
     [],
   );
-
-  const closeStream = useCallback((turnId: string) => {
-    const stream = streamsRef.current[turnId];
-    if (stream) {
-      stream.close();
-      delete streamsRef.current[turnId];
-    }
-    const timer = reconnectTimersRef.current[turnId];
-    if (timer) {
-      clearTimeout(timer);
-      delete reconnectTimersRef.current[turnId];
-    }
-  }, []);
 
   const updateActiveTurn = useCallback(
     (turnId: string | null) => {
@@ -246,280 +180,36 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
     [],
   );
 
-  const fetchJson = useCallback(
-    async <T,>(url: string, init?: RequestInit): Promise<T> => {
-      const response = await fetch(url, {
-        credentials: 'same-origin',
-        ...init,
-        headers: {
-          'Content-Type': 'application/json',
-          ...(init?.headers || {}),
-        },
-      });
-
-      if (!response.ok) {
-        let body: unknown = undefined;
-        try {
-          body = await response.json();
-        } catch {
-          body = undefined;
-        }
-        throw new Error(
-          getErrorMessage(
-            body,
-            `Request failed with status ${response.status}`,
-          ),
-        );
+  const seedFromSnapshot = useCallback(
+    (snapshot: AgentTurnSnapshotEnvelope) => {
+      const turnId = snapshot.turn.turn_id;
+      const terminal = isTerminalStatus(snapshot.turn.status);
+      updateLiveTurn(turnId, () => ({
+        envelope: snapshot.turn,
+        baselineSnapshot: snapshot,
+        streamUrl: terminal ? null : buildStreamUrl(chatId, turnId),
+        pending: !terminal,
+      }));
+      ensureTurnGroups(snapshot.turn, false);
+      if (terminal && activeTurnId === turnId) {
+        updateActiveTurn(null);
       }
-
-      if (response.status === 204) {
-        return undefined as T;
-      }
-
-      return (await response.json()) as T;
     },
-    [],
+    [activeTurnId, chatId, ensureTurnGroups, updateActiveTurn, updateLiveTurn],
   );
 
   const fetchTurnFeedbacks = useCallback(
     async () =>
-      fetchJson<TurnFeedbackListResponse>(`${API_BASE_PATH}/chats/${chatId}/feedback`, {
+      fetch(`${API_BASE_PATH}/chats/${chatId}/feedback`, {
         method: 'GET',
+        credentials: 'same-origin',
+      }).then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`Request failed with status ${response.status}`);
+        }
+        return (await response.json()) as TurnFeedbackListResponse;
       }),
-    [chatId, fetchJson],
-  );
-
-  const fetchArtifact = useCallback(
-    async (artifactId: string) => {
-      return fetchJson<AgentArtifactEnvelope>(
-        `${AGENT_RUNTIME_BASE_PATH}/artifacts/${artifactId}`,
-        {
-          method: 'GET',
-        },
-      );
-    },
-    [fetchJson],
-  );
-
-  const fetchSnapshot = useCallback(
-    async (turnId: string) => {
-      return fetchJson<AgentTurnSnapshot>(
-        `${AGENT_RUNTIME_BASE_PATH}/chats/${chatId}/turns/${turnId}`,
-        {
-          method: 'GET',
-        },
-      );
-    },
-    [chatId, fetchJson],
-  );
-
-  const mergeSnapshot = useCallback(
-    (snapshot: AgentTurnSnapshot) => {
-      const streamingAnswer = getStreamingAnswerFromSnapshot(snapshot);
-      setTurnState(snapshot.turn.turn_id, () => ({
-        snapshot: {
-          turn: snapshot.turn,
-          timeline: snapshot.timeline,
-          artifacts: snapshot.artifacts,
-        },
-        streamingAnswer,
-        pending: !isTerminalStatus(snapshot.turn.status),
-      }));
-      ensureTurnGroups(snapshot.turn, false);
-      if (isTerminalStatus(snapshot.turn.status)) {
-        closeStream(snapshot.turn.turn_id);
-        if (activeTurnId === snapshot.turn.turn_id) {
-          updateActiveTurn(null);
-        }
-      }
-    },
-    [
-      activeTurnId,
-      closeStream,
-      ensureTurnGroups,
-      setTurnState,
-      updateActiveTurn,
-    ],
-  );
-
-  const fetchAndMergeSnapshot = useCallback(
-    async (turnId: string) => {
-      const snapshot = await fetchSnapshot(turnId);
-      mergeSnapshot(snapshot);
-      return snapshot;
-    },
-    [fetchSnapshot, mergeSnapshot],
-  );
-
-  const onStreamEvent = useCallback(
-    async (turnId: string, event: AgentTimelineEventEnvelope) => {
-      setTurnState(turnId, (previous) => {
-        if (!previous) return previous;
-        const timeline = previous.snapshot.timeline.some(
-          (item) => item.sequence === event.sequence,
-        )
-          ? previous.snapshot.timeline
-          : [...previous.snapshot.timeline, event];
-        const nextSnapshot: AgentTurnSnapshot = {
-          turn: {
-            ...previous.snapshot.turn,
-            timeline_cursor: Math.max(
-              previous.snapshot.turn.timeline_cursor || 0,
-              event.sequence,
-            ),
-          },
-          timeline,
-          artifacts: previous.snapshot.artifacts,
-        };
-
-        let nextStreamingAnswer = previous.streamingAnswer;
-        let nextPending = previous.pending;
-
-        if (
-          event.type === 'text.delta' &&
-          typeof event.data.delta === 'string'
-        ) {
-          nextStreamingAnswer += event.data.delta;
-        }
-
-        if (event.type === 'turn.completed') {
-          nextSnapshot.turn = { ...nextSnapshot.turn, status: 'COMPLETED' };
-          nextPending = false;
-        } else if (event.type === 'turn.failed') {
-          nextSnapshot.turn = {
-            ...nextSnapshot.turn,
-            status: 'FAILED',
-            error_message:
-              typeof event.data.error === 'string'
-                ? event.data.error
-                : previous.snapshot.turn.error_message,
-          };
-          nextPending = false;
-        } else if (event.type === 'turn.cancelled') {
-          nextSnapshot.turn = { ...nextSnapshot.turn, status: 'CANCELLED' };
-          nextPending = false;
-        }
-
-        return {
-          snapshot: nextSnapshot,
-          streamingAnswer: nextStreamingAnswer,
-          pending: nextPending,
-        };
-      });
-
-      if (event.type === 'artifact.created') {
-        const artifactId = String(event.data.artifact_id || '');
-        if (artifactId) {
-          try {
-            const artifact = await fetchArtifact(artifactId);
-            setTurnState(turnId, (previous) => {
-              if (!previous) return previous;
-              const artifacts = previous.snapshot.artifacts.some(
-                (item) => item.artifact_id === artifact.artifact_id,
-              )
-                ? previous.snapshot.artifacts.map((item) =>
-                    item.artifact_id === artifact.artifact_id ? artifact : item,
-                  )
-                : [...previous.snapshot.artifacts, artifact];
-
-              const turn = {
-                ...previous.snapshot.turn,
-                answer_artifact_id:
-                  artifact.artifact_type === 'answer'
-                    ? artifact.artifact_id
-                    : previous.snapshot.turn.answer_artifact_id,
-                reference_bundle_artifact_id:
-                  artifact.artifact_type === 'reference_bundle'
-                    ? artifact.artifact_id
-                    : previous.snapshot.turn.reference_bundle_artifact_id,
-              };
-
-              return {
-                ...previous,
-                snapshot: {
-                  ...previous.snapshot,
-                  turn,
-                  artifacts,
-                },
-              };
-            });
-          } catch (error) {
-            console.error('Failed to fetch artifact for turn', turnId, error);
-          }
-        }
-      }
-
-      if (
-        event.type === 'turn.completed' ||
-        event.type === 'turn.failed' ||
-        event.type === 'turn.cancelled'
-      ) {
-        try {
-          await fetchAndMergeSnapshot(turnId);
-        } catch (error) {
-          console.error(
-            'Failed to refresh terminal turn snapshot',
-            turnId,
-            error,
-          );
-        }
-        if (event.type === 'turn.completed' && chatRename && chat.id) {
-          chatRename(chat);
-        }
-      }
-    },
-    [chat, chatRename, fetchAndMergeSnapshot, fetchArtifact, setTurnState],
-  );
-
-  const connectTurnStream = useCallback(
-    (turnId: string, afterSequence: number, streamUrl?: string) => {
-      closeStream(turnId);
-
-      const url = new URL(
-        streamUrl ||
-          `${AGENT_RUNTIME_BASE_PATH}/chats/${chatId}/turns/${turnId}/events`,
-        window.location.origin,
-      );
-      url.searchParams.set('after_sequence', String(afterSequence));
-
-      const stream = new EventSource(url.toString(), { withCredentials: true });
-      streamsRef.current[turnId] = stream;
-
-      const handleReconnect = async () => {
-        closeStream(turnId);
-        try {
-          const snapshot = await fetchSnapshot(turnId);
-          mergeSnapshot(snapshot);
-          if (!isTerminalStatus(snapshot.turn.status)) {
-            reconnectTimersRef.current[turnId] = setTimeout(() => {
-              connectTurnStream(turnId, snapshot.turn.timeline_cursor || 0);
-            }, 1000);
-          }
-        } catch (error) {
-          console.error('Failed to reconnect turn stream', turnId, error);
-        }
-      };
-
-      TURN_EVENT_TYPES.forEach((eventType) => {
-        stream.addEventListener(eventType, (rawEvent) => {
-          if (eventType === 'heartbeat') return;
-          const messageEvent = rawEvent as MessageEvent<string>;
-          try {
-            const payload = JSON.parse(
-              messageEvent.data,
-            ) as AgentTimelineEventEnvelope;
-            void onStreamEvent(turnId, payload);
-          } catch (error) {
-            console.error('Failed to parse turn event', eventType, error);
-          }
-        });
-      });
-
-      stream.onerror = () => {
-        void handleReconnect();
-      };
-    },
-    [chatId, closeStream, fetchSnapshot, mergeSnapshot, onStreamEvent],
+    [chatId],
   );
 
   const handleSendMessage = useCallback(
@@ -532,108 +222,93 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
       ]);
 
       try {
-        const response = await fetchJson<AgentTurnCreateResponse>(
-          `${AGENT_RUNTIME_BASE_PATH}/chats/${chatId}/turns`,
-          {
-            method: 'POST',
-            body: JSON.stringify({
-              ...params,
-              client_idempotency_key: crypto.randomUUID(),
-            }),
-          },
-        );
-
+        const response = await createAgentTurn(chatId, {
+          ...params,
+        });
         const turnId = response.turn.turn_id;
         ensureTurnGroups(response.turn, false);
-        setTurnState(turnId, () => ({
-          snapshot: {
-            turn: response.turn,
-            timeline: [],
-            artifacts: [],
-          },
-          streamingAnswer: '',
-          pending: !isTerminalStatus(response.turn.status),
+        const terminal = isTerminalStatus(response.turn.status);
+        updateLiveTurn(turnId, () => ({
+          envelope: response.turn,
+          streamUrl: terminal ? null : response.stream_url,
+          pending: !terminal,
         }));
-        updateActiveTurn(turnId);
-        connectTurnStream(turnId, 0, response.stream_url);
+        updateActiveTurn(terminal ? null : turnId);
       } catch (error) {
         console.error('Failed to create agent turn', error);
-        toast.error(
-          error instanceof Error
-            ? error.message
-            : 'Failed to create a new agent turn.',
-        );
+        toast.error(getErrorMessage(error, 'Failed to create a new agent turn.'));
       }
     },
-    [
-      chatId,
-      connectTurnStream,
-      ensureTurnGroups,
-      fetchJson,
-      setTurnState,
-      updateActiveTurn,
-    ],
+    [chatId, ensureTurnGroups, updateActiveTurn, updateLiveTurn],
   );
 
   const handleCancel = useCallback(async () => {
-    if (!activeTurnId) return;
-
+    if (!activeTurnId || !chatId) return;
     try {
-      await fetchJson(
-        `${AGENT_RUNTIME_BASE_PATH}/chats/${chatId}/turns/${activeTurnId}/cancel`,
-        {
-          method: 'POST',
-          body: JSON.stringify({}),
-        },
-      );
+      await cancelAgentTurn(chatId, activeTurnId);
     } catch (error) {
       console.error('Failed to cancel turn', error);
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : 'Failed to cancel the running turn.',
-      );
+      toast.error(getErrorMessage(error, 'Failed to cancel the running turn.'));
     }
-  }, [activeTurnId, chatId, fetchJson]);
+  }, [activeTurnId, chatId]);
+
+  const handleStreamTerminal = useCallback(
+    (turnId: string, finalEnvelope: AgentTurnEnvelope) => {
+      updateLiveTurn(turnId, (previous) => {
+        if (!previous) return previous;
+        return {
+          ...previous,
+          envelope: finalEnvelope,
+          streamUrl: null,
+          pending: false,
+        };
+      });
+      if (activeTurnId === turnId) {
+        updateActiveTurn(null);
+      }
+      if (chatRename && chat.id) {
+        chatRename(chat);
+      }
+    },
+    [activeTurnId, chat, chatRename, updateActiveTurn, updateLiveTurn],
+  );
 
   const handleMessageFeedback = useCallback(
     async (turnId: string, feedback: Feedback) => {
       if (!chatId || !turnId) return;
 
-      if (feedback.type) {
-        await fetchJson(
-          `${API_BASE_PATH}/chats/${chatId}/turns/${turnId}/feedback`,
-          {
-            method: 'POST',
-            body: JSON.stringify(feedback),
-          },
-        );
-        setFeedbackByTurnId((previous) => ({
-          ...previous,
-          [turnId]: feedback,
-        }));
-        return;
+      const init: RequestInit = {
+        method: feedback.type ? 'POST' : 'DELETE',
+        credentials: 'same-origin',
+        headers: feedback.type ? { 'Content-Type': 'application/json' } : undefined,
+        body: feedback.type ? JSON.stringify(feedback) : undefined,
+      };
+
+      const response = await fetch(
+        `${API_BASE_PATH}/chats/${chatId}/turns/${turnId}/feedback`,
+        init,
+      );
+      if (!response.ok) {
+        throw new Error(`Request failed with status ${response.status}`);
       }
 
-      await fetchJson(
-        `${API_BASE_PATH}/chats/${chatId}/turns/${turnId}/feedback`,
-        {
-          method: 'DELETE',
-        },
-      );
-      setFeedbackByTurnId((previous) => {
-        const next = { ...previous };
-        delete next[turnId];
-        return next;
-      });
+      if (feedback.type) {
+        setFeedbackByTurnId((previous) => ({ ...previous, [turnId]: feedback }));
+      } else {
+        setFeedbackByTurnId((previous) => {
+          const next = { ...previous };
+          delete next[turnId];
+          return next;
+        });
+      }
     },
-    [chatId, fetchJson],
+    [chatId],
   );
 
   useEffect(() => {
-    if (!messages.length && !Object.keys(turnStates).length) return;
+    if (!messages.length && !Object.keys(liveTurns).length) return;
     scroll.scrollToBottom({ duration: 0 });
-  }, [messages, turnStates]);
+  }, [messages, liveTurns]);
 
   useEffect(() => {
     scroll.scrollToBottom({ duration: 0 });
@@ -671,17 +346,19 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
     };
 
     void loadTurnFeedbacks();
-
     return () => {
       cancelled = true;
     };
   }, [chatId, fetchTurnFeedbacks]);
 
   useEffect(() => {
+    if (!chatId) return;
+
     const storedActiveTurnId =
       typeof window === 'undefined'
         ? null
         : window.sessionStorage.getItem(activeTurnStorageKey);
+
     const potentialTurnIds = [
       ...new Set(
         (chat.history || [])
@@ -696,103 +373,75 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
     if (!potentialTurnIds.length) return;
 
     let cancelled = false;
-
     const loadSnapshots = async () => {
       for (const turnId of potentialTurnIds) {
-        if (cancelled || turnStates[turnId]) continue;
+        if (cancelled || liveTurnsRef.current[turnId]) continue;
         try {
-          const snapshot = await fetchSnapshot(turnId);
-          if (!cancelled) {
-            mergeSnapshot(snapshot);
-          }
+          const snapshot = await getAgentTurnSnapshot(chatId, turnId);
+          if (!cancelled) seedFromSnapshot(snapshot);
         } catch (error) {
           console.error('Failed to load historical turn snapshot', turnId, error);
         }
       }
     };
-
     void loadSnapshots();
-
     return () => {
       cancelled = true;
     };
-  }, [
-    activeTurnStorageKey,
-    chat.history,
-    fetchSnapshot,
-    mergeSnapshot,
-    turnStates,
-  ]);
+  }, [activeTurnStorageKey, chat.history, chatId, seedFromSnapshot]);
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !chat.id) return;
+    if (typeof window === 'undefined' || !chat.id || !chatId) return;
 
     const storedTurnId = window.sessionStorage.getItem(activeTurnStorageKey);
     if (!storedTurnId) return;
 
     let cancelled = false;
-
     const recoverActiveTurn = async () => {
       try {
-        const snapshot = await fetchSnapshot(storedTurnId);
+        const snapshot = await getAgentTurnSnapshot(chatId, storedTurnId);
         if (cancelled) return;
         ensureTurnGroups(snapshot.turn, true);
-        mergeSnapshot(snapshot);
+        seedFromSnapshot(snapshot);
         if (!isTerminalStatus(snapshot.turn.status)) {
           updateActiveTurn(snapshot.turn.turn_id);
-          connectTurnStream(
-            snapshot.turn.turn_id,
-            snapshot.turn.timeline_cursor || 0,
-          );
         } else {
           updateActiveTurn(null);
         }
       } catch {
-        if (!cancelled) {
-          updateActiveTurn(null);
-        }
+        if (!cancelled) updateActiveTurn(null);
       }
     };
-
     void recoverActiveTurn();
-
     return () => {
       cancelled = true;
     };
   }, [
     activeTurnStorageKey,
     chat.id,
-    connectTurnStream,
+    chatId,
     ensureTurnGroups,
-    fetchSnapshot,
-    mergeSnapshot,
+    seedFromSnapshot,
     updateActiveTurn,
   ]);
-
-  useEffect(() => {
-    const activeStreams = streamsRef.current;
-    return () => {
-      Object.keys(activeStreams).forEach((turnId) => closeStream(turnId));
-    };
-  }, [closeStream]);
 
   return (
     <div className="flex flex-col gap-6 pb-70">
       {messages.map((parts, index) => {
         const isAI = parts.some((part) => part.role === 'ai');
         const turnId = isAI ? getAiGroupId(parts) : undefined;
-        const turnState = turnId ? turnStates[turnId] : undefined;
+        const liveTurn = turnId ? liveTurns[turnId] : undefined;
 
         return (
           <div key={`${turnId || parts[0]?.timestamp || index}-${index}`}>
             {isAI ? (
-              turnState ? (
-                <AgentTurnCard
-                  snapshot={turnState.snapshot}
-                  pending={turnState.pending}
-                  streamingAnswer={turnState.streamingAnswer}
+              liveTurn ? (
+                <AgentTurnStreamCard
+                  chatId={chatId || ''}
+                  liveTurn={liveTurn}
                   feedback={turnId ? feedbackByTurnId[turnId] : undefined}
                   onFeedback={handleMessageFeedback}
+                  onTerminal={handleStreamTerminal}
                 />
               ) : (
                 <MessagePartsAi
@@ -820,3 +469,77 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
     </div>
   );
 };
+
+function buildStreamUrl(chatId: string | undefined, turnId: string): string | null {
+  if (!chatId) return null;
+  const base = `${process.env.NEXT_PUBLIC_BASE_PATH || ''}/api/v2/agent`;
+  return `${base}/chats/${chatId}/turns/${turnId}/events`;
+}
+
+// ---------------------------------------------------------------------------
+// AgentTurnStreamCard — child component that owns one live `useAgentTurnStream`
+// hook per turn and projects it back into the legacy `AgentTurnSnapshot` shape
+// the existing `AgentTurnCard` renders. The shim lives in
+// `features/agent-runtime/legacy-snapshot-shim.ts` and is scheduled for deletion
+// as part of #77 (parts renderer).
+// ---------------------------------------------------------------------------
+
+function AgentTurnStreamCard({
+  chatId,
+  liveTurn,
+  feedback,
+  onFeedback,
+  onTerminal,
+}: {
+  chatId: string;
+  liveTurn: LiveTurn;
+  feedback?: Feedback;
+  onFeedback: (turnId: string, feedback: Feedback) => Promise<void>;
+  onTerminal: (turnId: string, finalEnvelope: AgentTurnEnvelope) => void;
+}) {
+  const { envelope, baselineSnapshot, streamUrl } = liveTurn;
+  const initialSequence = baselineSnapshot?.turn.timeline_cursor || envelope.timeline_cursor || 0;
+
+  const stream = useAgentTurnStream({
+    chatId,
+    turnId: envelope.turn_id,
+    streamUrl,
+    initialSequence,
+  });
+
+  const projection = projectToLegacySnapshot({
+    turn: envelope,
+    parts: stream.parts,
+    status: stream.status,
+    errorText: stream.errorText,
+    lastSequence: stream.lastSequence,
+    baselineSnapshot,
+  });
+
+  const onTerminalRef = useRef(onTerminal);
+  onTerminalRef.current = onTerminal;
+
+  useEffect(() => {
+    if (
+      stream.status === 'completed' ||
+      stream.status === 'failed' ||
+      stream.status === 'cancelled' ||
+      stream.status === 'aborted'
+    ) {
+      onTerminalRef.current(envelope.turn_id, projection.legacySnapshot.turn);
+    }
+    // Only fire when status transitions; consumers track the latest envelope
+    // via projection on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stream.status, envelope.turn_id]);
+
+  return (
+    <AgentTurnCard
+      snapshot={projection.legacySnapshot}
+      pending={projection.pending}
+      streamingAnswer={projection.streamingAnswer}
+      feedback={feedback}
+      onFeedback={onFeedback}
+    />
+  );
+}

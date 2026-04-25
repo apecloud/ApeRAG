@@ -1394,7 +1394,7 @@ class DocumentService:
         from fastapi import UploadFile
         from starlette.datastructures import Headers
 
-        from aperag.db.ops import async_db_ops as _db_ops
+        from aperag.domains.model_platform.service.model_service import model_platform_service
         from aperag.domains.web_access.reader.reader_service import read_with_jina_fallback
         from aperag.domains.web_access.schemas import WebReadRequest
 
@@ -1405,7 +1405,9 @@ class DocumentService:
         url_strings = [str(u) for u in urls]
 
         # Determine which reader to use based on user's JINA API key
-        jina_api_key = await _db_ops.query_provider_api_key("jina", user_id=user_id, need_public=True)
+        jina_api_key = await model_platform_service.get_user_provider_api_key(
+            user_id=user_id, provider_type="jina", fallback_to_public=True
+        )
         logger.info(
             "Starting fetch-url import collection_id=%s urls=%s jina_configured=%s",
             collection_id,
