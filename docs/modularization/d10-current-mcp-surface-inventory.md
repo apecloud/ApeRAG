@@ -482,3 +482,70 @@ When task #75 (D8.3 backend citations + tool lifecycle + consent/elicitation con
 - SafeToolName resolver impl + collision registry (closes `TODO(#75 chenyexuan)` at translator.py:120)
 
 When that merge lands I'll re-pin to the new HEAD and write a second `## Delta from e290488b → <new HEAD>` block here.
+
+---
+
+## Delta from `e290488b` → `bd4052d5` (#75 D8.3 merge)
+
+> Trigger: per the watch list above. #75 merged at `bd4052d5` (PR #1696, 2026-04-25 21:58). PM @架构师 explicitly triggered this second delta pass at msg=4b13bd46. This pass closes the watch-list items above; no third delta is currently scheduled.
+
+### Diff scope
+
+`git diff --stat e290488b..bd4052d5` reports 20 files / 4449 insertions / 18 deletions. Excluding the prior delta's own doc PR (which landed in between as `38616050`, the D10.a inventory itself), the actual code surface added by #75 is:
+
+| Path | Lines | Purpose |
+|------|-------|---------|
+| `aperag/domains/agent_runtime/tools/__init__.py` | +83 | Subpackage exports |
+| `aperag/domains/agent_runtime/tools/safe_name.py` | +225 | `sanitize_tool_name`, `SafeToolNameResult`, `SafeNameRegistry` — full D9 §A1+§A6 resolver impl with collision detection + sha256 hash suffix |
+| `aperag/domains/agent_runtime/tools/registry.py` | +352 | `RegistryScope` (Enum: system/bot/user), `MCPServerEntry`, `MCPServerRegistry` — 3-tier registry impl with `(scope_ref, name)` composite key + `RegistryConflictError` for system-namespace protection |
+| `aperag/domains/agent_runtime/tools/authorization.py` | +278 | `ToolRiskClassification`, `Principal`, `ToolAuthorizationPolicy`, `default_policy()` — D9 §2 three-level authorization (visibility / invocation / consent) with B4 default-deny on unknown risk |
+| `aperag/domains/agent_runtime/tools/consent.py` | +378 | `ConsentService`, `ConsentBinding`, `ConsentRequestResult`, `ConsentDecisionResult`, `ConsentOwnershipError` — D9 §A7 consent lifecycle with chat-scoped ownership defense |
+| `aperag/domains/agent_runtime/tools/elicitation.py` | +389 | `ElicitationService`, `ElicitationBinding`, `ElicitationSubmitResult`, `_required_fields_validator` — D9 §5 elicitation lifecycle |
+| `aperag/domains/agent_runtime/tools/lifecycle.py` | +288 | `translate_lifecycle_envelope()`, `LifecycleEmitter`, `ConsentEnvelopeEmission`, `ElicitationEnvelopeEmission` — tool execution state machine |
+| `aperag/domains/agent_runtime/tools/citations.py` | +162 | `build_citation()`, `transform_reference_bundle_items()` — D8.3 backend citations |
+| `aperag/domains/agent_runtime/tools/args_cache.py` | +145 | `RawArgsCache` (Protocol), `InMemoryRawArgsCache` — A7 raw args backend-private store keyed by `argsHash` |
+| `aperag/domains/agent_runtime/api/routes.py` | +214 / -... | New chat-scoped REST endpoints `POST /agent/chats/{chat_id}/turns/{turn_id}/consent/{tool_call_id}` + `/elicit/{eid}` with HTTP-layer ownership pre-check + service-layer defense-in-depth |
+| `aperag/domains/agent_runtime/wire/parts.py` | +50 / -... | `DataToolConsentPart` / `DataElicitationPart` placeholder cleanup; wrapped typed data aligned with #74 `uimessage.py` SSoT |
+| 8 test files under `tests/unit_test/agent_runtime/test_tools_*.py` | ~1419 | 95 contract tests pinning all 7 D9 §A4 points + B1/B2/B3/B4 fixes |
+
+No file in `aperag/mcp/`, `aperag/domains/retrieval/`, `aperag/domains/knowledge_base/`, `aperag/domains/web_access/`, `aperag/domains/knowledge_graph/`, `aperag/domains/indexing/`, or `aperag/docparser/` is touched by #75.
+
+### Effect on this document
+
+| Section | Affected? | Notes |
+|---------|-----------|-------|
+| §A MCP server (current state) | **No** | `aperag/mcp/server.py` unchanged. |
+| §B 6 retrieval interfaces | **No** | Retrieval pipeline / schemas / tenancy gates unchanged. |
+| §C HTTP-only / internal-only gaps | **No new MCP/HTTP surface from #75** | The new chat-scoped consent / elicit REST endpoints are agent-runtime concerns (out of D10 lower-layer scope per Lock #6). |
+| §D Document storage / parsing | **No** | docparser, indexers, object store layout unchanged. |
+| **Appendix A (D9 base reuse matrix)** | **Yes — major flip** | See A-delta-2 below. |
+| Appendix B (open-question impact) | **No** | Q1/Q2/Q3 unaffected by D8.3 tool-lifecycle merge. |
+
+### A-delta-2 — D9 base reuse matrix updates
+
+These rows in **Appendix A** flip from "design only" / partial-impl to fully on-disk:
+
+| Primitive | Before (`e290488b`) | After (`bd4052d5`) | Citation at HEAD `bd4052d5` |
+|-----------|---------------------|---------------------|------------------------------|
+| **SafeToolName resolver impl + collision registry** (D9 §A1 + §A6) | type alias + plumbing only; `TODO(#75 chenyexuan)` at translator.py:120 | **on-disk + tested** | `aperag/domains/agent_runtime/tools/safe_name.py:68` (`sanitize_tool_name`), `:80` (`_hash_suffix`), `:93` (`SafeToolNameResult`), `:109` (`SafeNameRegistry`); 12 contract tests in `tests/unit_test/agent_runtime/test_tools_safe_name.py` |
+| **3-tier `MCPServer` registry** (D9 §1.1 + §A5) | designed only — no DB tables, no in-memory impl | **on-disk + tested as in-memory data structure** (NOT yet a DB table — registry is in-process; persistence layer would be a separate concern) | `aperag/domains/agent_runtime/tools/registry.py:67` (`RegistryScope` Enum), `:76` (`MCPServerEntry`), `:103` (`RegistryConflictError`), `:119` (`_ScopeIndex`), `:133` (`MCPServerRegistry`), `:318` (`_tier_key`); 22 contract tests in `tests/unit_test/agent_runtime/test_tools_registry.py` |
+| **`data-tool-consent` lifecycle** (7-point contract item ②) | part schema only (post-#74); no service / endpoint | **on-disk + tested with full lifecycle** | `aperag/domains/agent_runtime/tools/consent.py:78` (`ConsentRequestResult`), `:91` (`ConsentBinding`), `:106` (`ConsentOwnershipError`), `:111` (`ConsentDecisionResult`), `:119` (`ConsentService`); REST `POST /agent/chats/{chat_id}/turns/{turn_id}/consent/{tool_call_id}` in `aperag/domains/agent_runtime/api/routes.py`; 25 contract tests in `tests/unit_test/agent_runtime/test_tools_consent.py` |
+| **`argsPreview` + `argsHash` raw-args-backend-private cache** (7-point contract item ③) | part field schema only (post-#74) | **on-disk + tested** | `aperag/domains/agent_runtime/tools/args_cache.py:58` (`RawArgsCache` Protocol), `:74` (`InMemoryRawArgsCache`); 12 contract tests in `tests/unit_test/agent_runtime/test_tools_args_cache.py` |
+| **`data-elicitation` lifecycle** (7-point contract item ⑤) | part schema only (post-#74); no service / endpoint | **on-disk + tested with full lifecycle** | `aperag/domains/agent_runtime/tools/elicitation.py:68` (`ElicitationRequestResult`), `:74` (`ElicitationBinding`), `:83` (`ElicitationOwnershipError`), `:88` (`ElicitationSubmitResult`), `:103` (`_required_fields_validator`), `:120` (`ElicitationService`); REST `POST /agent/chats/{chat_id}/turns/{turn_id}/elicit/{eid}`; 25 contract tests in `tests/unit_test/agent_runtime/test_tools_elicitation.py` |
+| **Three-level authorization** (7-point contract item ⑥) | tenancy gate at `RetrievalService` only | **on-disk + tested with formal policy + B4 default-deny** | `aperag/domains/agent_runtime/tools/authorization.py:42` (`ToolRiskClassification`), `:83` (`AuthorizationDecision`), `:114` (`Principal`), `:130` (`ToolAuthorizationPolicy`), `:259` (`default_policy`); 14 contract tests in `tests/unit_test/agent_runtime/test_tools_authorization.py` |
+| **Tool lifecycle state machine + lifecycle envelope translator** | scattered (no canonical home) | **on-disk + tested** | `aperag/domains/agent_runtime/tools/lifecycle.py:90` (`translate_lifecycle_envelope`), `:123` (`ConsentEnvelopeEmission`), `:139` (`ElicitationEnvelopeEmission`), `:147` (`LifecycleEmitter`); 19 contract tests in `tests/unit_test/agent_runtime/test_tools_lifecycle.py` |
+| **D8.3 backend citations** (Anthropic-shape `data-citation`) | designed only | **on-disk + tested** | `aperag/domains/agent_runtime/tools/citations.py:65` (`build_citation`), `:88` (`transform_reference_bundle_items`), `:117` (`_detect_location`); 11 contract tests in `tests/unit_test/agent_runtime/test_tools_citations.py` |
+
+### Nuance — `translator.py:120` TODO not closed by #75
+
+The TODO comment `TODO(#75 chenyexuan): plug SafeToolName resolver to populate` at `aperag/domains/agent_runtime/wire/translator.py:120` is **still present** at `bd4052d5` — translator.py was not modified by #75. The resolver impl now lives in `tools/safe_name.py` (`SafeNameRegistry`), and `tools/lifecycle.py:LifecycleEmitter` is the canonical wire-emission path that consumes it. The `safe_tool_name_resolver` parameter in `translator.py:107, 341` therefore remains a designed-but-unwired hook on the legacy translator path; the new tool lifecycle path does NOT route through it. D10 design pack §F can treat `SafeNameRegistry` as the canonical resolver and the translator hook as a separate (possibly retired) integration point — not a blocker for D10 read-only surface compliance.
+
+### Effect on conclusions (verified unchanged)
+
+- **D10 read-only surface compliance lower bound = 7-point contract items ①④⑥⑦** — **unchanged**. With #75 merged, all four anchor points now have canonical on-disk impls (safe_name + registry conflict-error + authorization + AI-SDK-v5 stream emitter), so D10's compliance burden becomes "use these primitives correctly" rather than "wait for design-to-code". Items ②③⑤ are now also on-disk but remain write/runtime concerns; D10 read-only tools still do not invoke them.
+- **D10 will need new persistence for outline / chunk / section reads** (per §C.3 + §D) — **unchanged**. #75 added agent-runtime tool lifecycle, not document-substrate persistence.
+- **Body §B + §C inventories and tagging** — **unchanged**.
+
+### Watch list closed
+
+All three watch-list items from the previous delta block (#75 7-point items ②③, item ⑤, SafeToolName resolver impl) are now on disk. No third delta is currently scheduled. Future deltas would be triggered if D10.f / D10.g / D10.c-h implementation lanes (per @符炫炜's design pack §G in task #84) materially change the D9 base reuse matrix.
