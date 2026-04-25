@@ -242,9 +242,6 @@ api:
     OTEL_FASTAPI_ENABLED: "True"
     OTEL_SQLALCHEMY_ENABLED: "True"
     OTEL_MCP_ENABLED: "True"
-    # Deprecated dev-only compatibility flags. Prefer OTLP for new deployments.
-    JAEGER_ENABLED: "False"
-    JAEGER_ENDPOINT: ""
 
     # Evaluation concurrency
     MAX_CONCURRENT_EVALUATIONS: "5"

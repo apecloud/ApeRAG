@@ -210,11 +210,6 @@ class Config(BaseSettings):
     otel_exporter_otlp_headers: Optional[str] = Field(None, alias="OTEL_EXPORTER_OTLP_HEADERS")
     otel_exporter_otlp_protocol: str = Field("http/protobuf", alias="OTEL_EXPORTER_OTLP_PROTOCOL")
 
-    # Deprecated legacy Jaeger/OpenTelemetry flags. Keep parsing them so old
-    # deployments do not fail at startup, but new code should use
-    # APERAG_OBSERVABILITY_MODE and OTLP settings above.
-    jaeger_enabled: bool = Field(False, alias="JAEGER_ENABLED")
-    jaeger_endpoint: Optional[str] = Field(None, alias="JAEGER_ENDPOINT")
     otel_console_enabled: bool = Field(False, alias="OTEL_CONSOLE_ENABLED")
     otel_fastapi_enabled: bool = Field(True, alias="OTEL_FASTAPI_ENABLED")
     otel_sqlalchemy_enabled: bool = Field(True, alias="OTEL_SQLALCHEMY_ENABLED")

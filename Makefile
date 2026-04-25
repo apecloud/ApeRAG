@@ -123,11 +123,8 @@ db-check:
 #   make stack-up                                # Full application
 #   make stack-up WITH_NEO4J=1                   # Full application + Neo4j
 #   make stack-up WITH_NEBULA=1                  # Full application + Nebula Graph
-#   make stack-up WITH_JAEGER=1                  # Full application + Jaeger
-#   make stack-up WITH_JAEGER=1 WITH_NEO4J=1     # Full application + Jaeger + Neo4j
 #   make infra-up                                # Infrastructure only (databases)
 #   make infra-up WITH_NEO4J=1                   # Infrastructure + Neo4j
-#   make infra-up WITH_JAEGER=1                  # Infrastructure + Jaeger
 #   make stack-down                              # Stop all services
 #   make stack-down REMOVE_VOLUMES=1             # Stop and remove volumes
 _PROFILES_TO_ACTIVATE :=
@@ -143,10 +140,6 @@ ifeq ($(WITH_NEBULA),1)
     _PROFILES_TO_ACTIVATE += --profile nebula
 endif
 
-ifeq ($(WITH_JAEGER),1)
-    _PROFILES_TO_ACTIVATE += --profile jaeger
-endif
-
 # Determine flags for 'compose-down'
 ifeq ($(REMOVE_VOLUMES),1)
     _COMPOSE_DOWN_FLAGS += -v
@@ -158,18 +151,17 @@ stack-up:
 	$(_EXTRA_ENVS) docker-compose $(_PROFILES_TO_ACTIVATE) -f docker-compose.yml up -d
 
 # Infrastructure only (databases + supporting services)
-# Optional services like Neo4j, Nebula, and Jaeger will ONLY start if explicitly enabled:
+# Optional services like Neo4j and Nebula will ONLY start if explicitly enabled:
 #   make infra-up WITH_NEO4J=1    # adds Neo4j
 #   make infra-up WITH_NEBULA=1   # adds Nebula Graph
-#   make infra-up WITH_JAEGER=1   # adds Jaeger
 infra-up:
 	docker-compose $(_PROFILES_TO_ACTIVATE) -f docker-compose.yml up -d \
-		postgres redis qdrant es jaeger \
+		postgres redis qdrant es \
 		$(if $(filter 1,$(WITH_NEO4J)),neo4j,) \
 		$(if $(filter 1,$(WITH_NEBULA)),nebula-metad nebula-storaged nebula-graphd nebula-storage-activator,)
 
 stack-down:
-	docker-compose --profile neo4j --profile nebula --profile jaeger -f docker-compose.yml down $(_COMPOSE_DOWN_FLAGS)
+	docker-compose --profile neo4j --profile nebula -f docker-compose.yml down $(_COMPOSE_DOWN_FLAGS)
 
 stack-logs:
 	docker-compose -f docker-compose.yml logs -f

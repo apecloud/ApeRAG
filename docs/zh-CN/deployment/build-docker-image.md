@@ -133,9 +133,8 @@ Entrypoint 是 [`scripts/entrypoint.sh`](https://github.com/apecloud/ApeRAG/blob
 
 打完镜像后，根目录的 [`docker-compose.yml`](https://github.com/apecloud/ApeRAG/blob/main/docker-compose.yml) 是最常用的 orchestration 入口。除了 `api` / `celeryworker` / `celerybeat` / `flower` / `frontend`，还包含所有必需的基础设施服务：`postgres`（含 pgvector）、`redis`、`qdrant`、`es`（Elasticsearch 带 IK 分词器）。
 
-三个可选服务通过 Docker Compose profile 控制，默认不启动：
+两个可选图数据库服务通过 Docker Compose profile 控制，默认不启动：
 
-- `--profile jaeger`：启动 Jaeger all-in-one 用于分布式追踪
 - `--profile neo4j`：启动 Neo4j 5.26 enterprise 作为 Graph 后端（可选，默认用 PostgreSQL 存储图数据）
 - `--profile nebula`：启动 Nebula Graph 3.8 作为 Graph 后端（与 `neo4j` profile 互斥）
 

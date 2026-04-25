@@ -6,16 +6,15 @@ position: 2
 
 # 可观测性设计
 
-本文描述 ApeRAG 未来可观测性的目标架构和落地原则。它不是对当前实现的背书；当前仓库中的
-`aperag/trace`、`JAEGER_*`、Docker Compose Jaeger profile 等只能作为迁移参考，不能作为新设计的约束。
+本文描述 ApeRAG 可观测性的目标架构和落地原则。它不是对旧实现的背书；历史 `aperag/trace`、旧后端专用追踪变量、Docker Compose 专用追踪后端 profile 已经退出推荐路径，新设计以 `aperag.observability` 和 OTLP 为准。
 
 目标是让 ApeRAG 在默认部署下尽量“零答疑”和“免维护”：不要求用户额外部署观测系统，也能通过标准日志、健康状态和诊断信息完成大多数问题定位；当用户需要集中查询、告警或多租户治理时，再平滑接入托管后端或 OpenTelemetry Collector。
 
 ## 设计目标
 
-1. **默认不新增常驻基础设施**：不默认部署 Collector、Jaeger、Prometheus、Grafana、Loki、Tempo 等组件。
+1. **默认不新增常驻基础设施**：不默认部署 Collector、Prometheus、Grafana、Loki、Tempo 等组件。
 2. **一个操作模型**：API、Celery worker、Celery beat、前端 Node 进程遵循同一套日志、trace id、健康检查和诊断约定。
-3. **标准优先**：进程内使用 OpenTelemetry API/SDK，外部出口使用 OTLP；不要在应用代码里绑定 Jaeger、Logfire、Datadog 等具体后端。
+3. **标准优先**：进程内使用 OpenTelemetry API/SDK，外部出口使用 OTLP；不要在应用代码里绑定 Logfire、Datadog 等具体后端。
 4. **自助排障优先**：任何线上问题都应该能先通过 `trace_id`、结构化日志、任务状态和诊断包定位到大致子系统。
 5. **安全默认**：prompt、文档正文、密钥、Authorization、Cookie、LLM 原始响应默认不得进入日志、span 或 metric。
 6. **面向重构稳定根**：只依赖相对稳定的根：`aperag/app.py`、`config/celery.py`、`aperag/domains/**`、`web/`、`deploy/aperag/**`。不要围绕短期 shim 或历史模块做长期设计。
@@ -24,7 +23,7 @@ position: 2
 
 - 不建设自研 APM。
 - 不把业务审计日志当作技术可观测性的替代品。
-- 不为兼容历史 Jaeger exporter、历史环境变量或 monkey patch 方式牺牲未来模型。
+- 不为兼容历史 exporter、历史环境变量或 monkey patch 方式牺牲未来模型。
 
 ## 当前系统 review 结论
 
@@ -35,7 +34,7 @@ position: 2
 - `aperag/domains/**` 已经成为业务所有权边界。span、metric、日志字段应该显式带 `domain`，但不能让 domain 反向依赖某个观测后端。
 - `aperag/app.py` 是 API 进程装配点。FastAPI instrumentation 应在 `app = FastAPI(...)` 之后显式绑定 app，而不是依赖全局 monkey patch 时机。
 - `config/celery.py` 是 worker/beat 的进程根。Celery 必须和 API 使用同一套观测初始化、日志格式和 trace context propagation。
-- 当前 Jaeger 专用 exporter、`JAEGER_*` 配置、No-op exporter、MCP monkey patch 和重复 trace 工具函数都是历史实现细节。未来应收敛为标准 OTLP 出口和明确的 integration seam。
+- 历史专用 exporter、No-op exporter、MCP monkey patch 和重复 trace 工具函数都是历史实现细节。未来应收敛为标准 OTLP 出口和明确的 integration seam。
 - 默认 `OTEL_ENABLED=True` 但没有有效 exporter 会造成“看似开启、实际无输出”的答疑成本。未来配置必须让默认行为可解释。
 
 ## 推荐架构
@@ -138,9 +137,9 @@ OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
 
 历史变量处理：
 
-- 新设计不再推荐 `JAEGER_ENABLED` / `JAEGER_ENDPOINT`。
-- Jaeger 如需保留，只能作为 dev-only 后端，通过 OTLP 接收数据，而不是应用内 Jaeger exporter。
-- 文档和 Helm values 应逐步把 Jaeger 专用配置迁移为 OTLP 配置。
+- 新设计不再提供后端专用追踪开关。
+- 如果某个部署环境仍想使用兼容 OTLP 的 trace 后端，应通过 `OTEL_EXPORTER_OTLP_ENDPOINT` 接入，而不是在应用内添加后端专用 exporter。
+- 文档、Docker Compose 和 Helm values 只维护 OTLP 配置。
 
 ## 日志契约
 
@@ -364,7 +363,7 @@ Logfire 可以作为可选托管后端，尤其适合 Python、FastAPI、Pydanti
 3. 统一 API、worker、beat 的 JSON 日志格式和 trace/span 注入。
 4. 在 FastAPI app 创建后显式 instrument app。
 5. 为 Celery task headers 实现 W3C trace context 传播。
-6. 将 Jaeger 专用 exporter 改为 dev-only 或移除，主出口改为 OTLP。
+6. 移除后端专用 exporter，主出口统一为 OTLP。
 7. 为 indexing、retrieval、LLM、agent_runtime 增加业务 span 和低基数 metric。
 8. 增加脱敏工具和测试，确保敏感字段不会进入日志/span。
 9. 增加诊断包或诊断接口，形成支持闭环。
@@ -392,6 +391,5 @@ Logfire 可以作为可选托管后端，尤其适合 Python、FastAPI、Pydanti
 
 - 冻结 `aperag/trace`：只保留兼容 re-export，不再增加新能力。
 - 新代码只 import `aperag.observability`。
-- `JAEGER_*` 标记为 deprecated，并在文档中说明改用 OTLP。
-- Docker Compose 中的 Jaeger profile 保留为开发调试样例，但不进入生产推荐路径。
+- 删除后端专用追踪配置和 Docker Compose 专用追踪后端 profile，改用 OTLP endpoint。
 - MCP trace 注入目标保留，实现方式从 monkey patch 迁移到显式 adapter 或上游支持。
