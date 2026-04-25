@@ -2,163 +2,79 @@
 
 import { browserApiClient } from '@/lib/api/typed/browser';
 import type {
-  DefaultModelConfig,
-  ModelConfig,
-  ProviderModel,
-  ProviderModelApi,
-  ProviderModelFormInput,
-  ProviderModelUpdateInput,
-  ProviderFormInput,
+  Model,
+  ModelAccount,
+  ModelAccountCreateInput,
+  ModelCapability,
+  ModelCreateInput,
+  ModelProvider,
+  ModelUse,
+  ModelUseScenario,
 } from './types';
 
-function providerCreatePayload(input: ProviderFormInput) {
-  return {
-    allow_custom_base_url: false,
-    ...input,
-  };
-}
+const api = browserApiClient as any;
 
-export async function createProvider(input: ProviderFormInput) {
-  const { data } = await browserApiClient.POST('/api/v2/providers', {
-    body: providerCreatePayload(input),
-  });
-  return data;
-}
-
-export async function updateProvider(
-  providerName: string,
-  input: ProviderFormInput,
-) {
-  const { data } = await browserApiClient.PUT(
-    '/api/v2/providers/{provider_name}',
-    {
-      params: { path: { provider_name: providerName } },
-      body: input,
-    },
-  );
-  return data;
-}
-
-export async function deleteProvider(providerName: string) {
-  await browserApiClient.DELETE('/api/v2/providers/{provider_name}', {
-    params: { path: { provider_name: providerName } },
-  });
-}
-
-export async function publishProvider(providerName: string) {
-  const { data } = await browserApiClient.POST(
-    '/api/v2/providers/{provider_name}/publish',
-    {
-      params: { path: { provider_name: providerName } },
-    },
-  );
-  return data;
-}
-
-export async function getProvider(providerName: string) {
-  const { data } = await browserApiClient.GET(
-    '/api/v2/providers/{provider_name}',
-    {
-      params: { path: { provider_name: providerName } },
-    },
-  );
-  return data;
-}
-
-export async function getProviderModels(providerName: string) {
-  const { data } = await browserApiClient.GET(
-    '/api/v2/providers/{provider_name}/models',
-    {
-      params: { path: { provider_name: providerName } },
-    },
-  );
+export async function getModelProviders(): Promise<ModelProvider[]> {
+  const { data } = await api.GET('/api/v3/model-providers');
   return data?.items ?? [];
 }
 
-export async function createProviderModel(
-  providerName: string,
-  input: ProviderModelFormInput,
-) {
-  const { data } = await browserApiClient.POST(
-    '/api/v2/providers/{provider_name}/models',
-    {
-      params: { path: { provider_name: providerName } },
-      body: input,
-    },
-  );
-  return data;
-}
-
-export async function updateProviderModel(
-  providerName: string,
-  api: ProviderModelApi,
-  model: string,
-  input: ProviderModelUpdateInput,
-) {
-  const { data } = await browserApiClient.PUT(
-    '/api/v2/providers/{provider_name}/models/{api}/{model}',
-    {
-      params: {
-        path: { provider_name: providerName, api, model },
-      },
-      body: input,
-    },
-  );
-  return data;
-}
-
-export async function deleteProviderModel(
-  providerName: string,
-  api: ProviderModelApi,
-  model: string,
-) {
-  await browserApiClient.DELETE(
-    '/api/v2/providers/{provider_name}/models/{api}/{model}',
-    {
-      params: {
-        path: { provider_name: providerName, api, model },
-      },
-    },
-  );
-}
-
-export async function updateProviderModelTags(
-  providerName: string,
-  model: ProviderModel,
-  tags: string[],
-) {
-  return updateProviderModel(providerName, model.api, model.model, {
-    custom_llm_provider: model.custom_llm_provider,
-    context_window: model.context_window,
-    max_input_tokens: model.max_input_tokens,
-    max_output_tokens: model.max_output_tokens,
-    tags,
-  });
-}
-
-export async function getDefaultModels() {
-  const { data } = await browserApiClient.GET('/api/v2/default-models', {});
+export async function getModelAccounts(): Promise<ModelAccount[]> {
+  const { data } = await api.GET('/api/v3/model-accounts');
   return data?.items ?? [];
 }
 
-export async function updateDefaultModels(defaults: DefaultModelConfig[]) {
-  const { data } = await browserApiClient.PUT('/api/v2/default-models', {
-    body: { defaults },
+export async function createModelAccount(input: ModelAccountCreateInput) {
+  const { data } = await api.POST('/api/v3/model-accounts', { body: input });
+  return data;
+}
+
+export async function validateModelAccount(accountId: string) {
+  const { data } = await api.POST('/api/v3/model-accounts/{account_id}/validate', {
+    params: { path: { account_id: accountId } },
   });
+  return data;
+}
+
+export async function getModels(): Promise<Model[]> {
+  const { data } = await api.GET('/api/v3/models');
   return data?.items ?? [];
 }
 
-export async function getAvailableModels(tagFilters: string[][]) {
-  const { data } = await browserApiClient.POST(
-    '/api/v2/providers/available-models',
-    {
-      body: {
-        tag_filters: tagFilters.map((tags) => ({
-          operation: 'AND' as const,
-          tags,
-        })),
-      },
+export async function createModel(input: ModelCreateInput) {
+  const { data } = await api.POST('/api/v3/models', { body: input });
+  return data;
+}
+
+export async function getModelUses(): Promise<ModelUse[]> {
+  const { data } = await api.GET('/api/v3/model-uses');
+  return data?.items ?? [];
+}
+
+export async function updateModelUse(
+  scenario: ModelUseScenario,
+  input: {
+    capability: ModelCapability;
+    primary_model_id?: string | null;
+    fallback_model_ids?: string[];
+    enabled?: boolean;
+  },
+) {
+  const { data } = await api.PUT('/api/v3/model-uses/{scenario}', {
+    params: { path: { scenario } },
+    body: {
+      strategy: 'single',
+      enabled: input.enabled ?? true,
+      primary_model_id: input.primary_model_id,
+      fallback_model_ids: input.fallback_model_ids ?? [],
+      capability: input.capability,
     },
-  );
-  return (data?.items ?? []) as ModelConfig[];
+  });
+  return data;
+}
+
+export async function getAvailableModels(capabilities: ModelCapability[] = []) {
+  const models = await getModels();
+  if (!capabilities.length) return models;
+  return models.filter((model) => capabilities.includes(model.capability));
 }

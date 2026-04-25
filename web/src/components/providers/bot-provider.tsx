@@ -72,14 +72,14 @@ export const BotProvider = ({
 
   const loadData = useCallback(async () => {
     const [models, collectionsRes] = await Promise.all([
-      getAvailableModels([['enable_for_agent']]),
+      getAvailableModels(['chat']),
       listCollections(),
     ]);
 
     const items: ProviderModels = models.map((m) => ({
-      label: m.label ?? undefined,
-      name: m.name ?? undefined,
-      models: m.completion ?? undefined,
+      label: 'Chat Models',
+      name: 'chat',
+      models: [{ model_id: m.id, temperature: 0.1, tags: [] }],
     }));
     setCollections(collectionsRes?.items ?? []);
     setProviderModels(items);

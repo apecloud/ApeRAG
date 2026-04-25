@@ -11,10 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# Export all LLM error types for easy access
-# Export services
-from aperag.llm.completion.completion_service import CompletionService
-from aperag.llm.embed.embedding_service import EmbeddingService
+"""LLM runtime package.
+
+Keep package import side effects minimal. Individual runners import the
+legacy LiteLLM-backed services only when that runner is selected.
+"""
+
 from aperag.llm.llm_error_types import (
     # API errors
     AuthenticationError,
@@ -48,7 +50,6 @@ from aperag.llm.llm_error_types import (
     # Utility functions
     wrap_litellm_error,
 )
-from aperag.llm.rerank.rerank_service import RerankService
 
 __all__ = [
     # Error classes
@@ -78,14 +79,4 @@ __all__ = [
     "ScoreOutOfRangeError",
     "wrap_litellm_error",
     "is_retryable_error",
-    # Services
-    "CompletionService",
-    "EmbeddingService",
-    "RerankService",
 ]
-
-# Initialize cache when module is imported
-from aperag.llm import litellm_cache, litellm_logging
-
-litellm_cache.setup_litellm_cache()
-litellm_logging.setup_litellm_logging()

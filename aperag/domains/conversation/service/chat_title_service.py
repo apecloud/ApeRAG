@@ -15,14 +15,8 @@
 """Chat-title generation service moved to the conversation domain in
 Phase 5 step 5-S4e.
 
-``default_model_service`` is reached via a direct cross-domain import
-of ``aperag.domains.model_platform.service.default_model_service`` —
-canonical ``msg=940bd884`` simplification. Phase 4 has placed the
-concrete provider in the model_platform domain, so the cross-domain
-import is G1-legal and does not require a ``DefaultModelOps`` Protocol
-+ DI slot. The earlier intermediate ``DefaultModelOps`` + DI wiring
-was removed in the same commit that introduced it after PM
-``msg=940bd884`` reversed the Protocol ruling.
+Title generation now reads the background-task ``ModelUse`` and calls
+the shared model invocation service.
 """
 
 from __future__ import annotations
@@ -33,8 +27,8 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
-from aperag.domains.model_platform.service.default_model_service import default_model_service
 from aperag.exceptions import BusinessException, ErrorCode
+from aperag.llm.runtime.invocation_service import model_invocation_service
 from aperag.utils.history import RedisChatMessageHistory, get_async_redis_client
 
 
@@ -74,22 +68,13 @@ class ChatTitleService:
             current_title = getattr(chat, "title", None)
             return current_title.strip() if current_title and current_title.strip() else "Untitled"
 
-        # Load default model configuration via direct cross-domain import
-        # (canonical msg=940bd884). G1 does not ban domain→domain imports.
-        model, provider_name, custom_provider = await default_model_service.get_default_background_task_config(user_id)
-        if not (model and provider_name and custom_provider):
-            raise BusinessException(ErrorCode.LLM_MODEL_NOT_FOUND, "Background task default model not configured")
-
-        # Resolve provider base_url and api_key
-        provider = await self.db_ops.query_llm_provider_by_name(provider_name)
-        if not provider:
-            raise BusinessException(ErrorCode.LLM_MODEL_NOT_FOUND, f"Provider '{provider_name}' not found")
-        base_url = provider.base_url
-        api_key = await self.db_ops.query_provider_api_key(provider_name, user_id, True)
-        if not api_key:
-            raise BusinessException(
-                ErrorCode.API_KEY_NOT_FOUND, f"API key for provider '{provider_name}' not configured"
-            )
+        model_id = None
+        for item in await self.db_ops.query_model_uses(user_id):
+            if item.scenario == "background_task" and item.primary_model_id:
+                model_id = item.primary_model_id
+                break
+        if not model_id:
+            raise BusinessException(ErrorCode.LLM_MODEL_NOT_FOUND, "Background task model is not configured")
 
         # Take most recent N turns
         recent_turns = stored_messages[-turns:] if turns < len(stored_messages) else stored_messages
@@ -101,21 +86,15 @@ class ChatTitleService:
         # Build prompt
         prompt = self._build_prompt(language=language, max_length=max_length)
 
-        # Call completion service
-        from aperag.llm.completion.completion_service import CompletionService
-
-        completion_service = CompletionService(
-            provider=custom_provider,
-            model=model,
-            base_url=base_url,
-            api_key=api_key,
+        messages = openai_messages + [{"role": "user", "content": prompt}]
+        response = await model_invocation_service.chat(
+            model_id,
+            user_id,
+            messages,
             temperature=0.2,
             max_tokens=64,
         )
-
-        response = await completion_service.agenerate(
-            history=openai_messages, prompt=prompt, images=[], memory=bool(openai_messages)
-        )
+        response = response.choices[0].message.content
         title = self._postprocess_title(response, max_length=max_length)
         return title
 

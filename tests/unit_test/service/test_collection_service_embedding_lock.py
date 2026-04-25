@@ -24,9 +24,9 @@ from aperag.exceptions import ValidationException
 from aperag.schema.common import CollectionConfig, ModelSpec
 
 
-def _cfg(model: str | None, msp: str | None = "openai", clp: str | None = "openai") -> CollectionConfig:
+def _cfg(model: str | None) -> CollectionConfig:
     return CollectionConfig(
-        embedding=ModelSpec(model=model, model_service_provider=msp, custom_llm_provider=clp),
+        embedding=ModelSpec(model_id=model),
     )
 
 
@@ -50,12 +50,12 @@ def test_embedding_identity_none_when_embedding_missing():
 
 def test_embedding_identity_none_when_all_embedding_fields_empty():
     # Empty ModelSpec should not count as "bound" — lets first-time binding happen.
-    assert CollectionService._embedding_identity(_cfg(None, None, None)) is None
+    assert CollectionService._embedding_identity(_cfg(None)) is None
 
 
 def test_embedding_identity_is_tuple():
-    ident = CollectionService._embedding_identity(_cfg("bge-m3", "openai", "openai"))
-    assert ident == ("bge-m3", "openai", "openai")
+    ident = CollectionService._embedding_identity(_cfg("mdl-bge-m3"))
+    assert ident == ("mdl-bge-m3",)
 
 
 # ---------------------------------------------------------------------------
@@ -83,7 +83,7 @@ def test_reject_allows_first_time_binding(svc):
 
 def test_reject_allows_identical_embedding(svc):
     """Saving the same embedding block (e.g. title/description edits) is fine."""
-    cfg = _cfg("bge-m3", "openai", "openai")
+    cfg = _cfg("mdl-bge-m3")
     instance = _instance_with(cfg)
     svc._reject_embedding_change(instance, _update(cfg))  # no raise
 
@@ -91,30 +91,21 @@ def test_reject_allows_identical_embedding(svc):
 def test_reject_allows_update_without_config_field(svc):
     """Partial updates (``config=None``) must not trigger the guardrail;
     otherwise every title-only edit would fail validation."""
-    instance = _instance_with(_cfg("bge-m3"))
+    instance = _instance_with(_cfg("mdl-bge-m3"))
     svc._reject_embedding_change(instance, CollectionUpdate(config=None))
 
 
 def test_reject_blocks_model_change(svc):
     """Switching the embedding model itself is the headline offense."""
-    instance = _instance_with(_cfg("bge-m3"))
+    instance = _instance_with(_cfg("mdl-bge-m3"))
     with pytest.raises(ValidationException, match="cannot be changed"):
         svc._reject_embedding_change(instance, _update(_cfg("text-embedding-3-large")))
-
-
-def test_reject_blocks_provider_change(svc):
-    """Even keeping the model name but changing provider is blocked — different
-    providers can route to different physical models (bedrock vs openai) and
-    therefore different vector spaces."""
-    instance = _instance_with(_cfg("bge-m3", msp="openai"))
-    with pytest.raises(ValidationException, match="cannot be changed"):
-        svc._reject_embedding_change(instance, _update(_cfg("bge-m3", msp="bedrock")))
 
 
 def test_reject_blocks_clearing_existing_binding(svc):
     """Once bound, the embedding block cannot be wiped clean — doing so would
     leave existing Qdrant points stranded with no way to refresh them."""
-    instance = _instance_with(_cfg("bge-m3"))
+    instance = _instance_with(_cfg("mdl-bge-m3"))
     empty = CollectionConfig()  # embedding=None
     with pytest.raises(ValidationException, match="cannot be cleared"):
         svc._reject_embedding_change(instance, _update(empty))
@@ -126,15 +117,15 @@ def test_reject_handles_malformed_stored_config_as_unbound(svc):
     so the user can set one via the normal edit flow."""
     instance = SimpleNamespace(config="{not valid json")
     # No raise — treated as first-time binding.
-    svc._reject_embedding_change(instance, _update(_cfg("bge-m3")))
+    svc._reject_embedding_change(instance, _update(_cfg("mdl-bge-m3")))
 
 
 def test_reject_accepts_future_schema_additions_identically(svc):
-    """The identity tuple is based solely on (model, msp, clp); unrelated
+    """The identity tuple is based solely on model_id; unrelated
     ModelSpec fields (temperature etc.) must not trigger the guardrail.
     Otherwise users can't tune retrieval params post-hoc."""
-    before = ModelSpec(model="bge-m3", model_service_provider="openai", custom_llm_provider="openai", temperature=0.0)
-    after = ModelSpec(model="bge-m3", model_service_provider="openai", custom_llm_provider="openai", temperature=0.5)
+    before = ModelSpec(model_id="mdl-bge-m3", temperature=0.0)
+    after = ModelSpec(model_id="mdl-bge-m3", temperature=0.5)
     instance = _instance_with(CollectionConfig(embedding=before))
     svc._reject_embedding_change(instance, _update(CollectionConfig(embedding=after)))  # no raise
 
@@ -142,7 +133,7 @@ def test_reject_accepts_future_schema_additions_identically(svc):
 def test_reject_parses_stored_config_correctly(svc):
     """Sanity: the guardrail really reads embedding from the serialized JSON
     in ``instance.config`` rather than assuming a richer in-memory shape."""
-    stored = json.loads(_cfg("bge-m3").model_dump_json())
+    stored = json.loads(_cfg("mdl-bge-m3").model_dump_json())
     instance = SimpleNamespace(config=json.dumps(stored))
     with pytest.raises(ValidationException):
         svc._reject_embedding_change(instance, _update(_cfg("text-embedding-3-large")))

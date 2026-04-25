@@ -390,9 +390,7 @@ class QuestionSetCreate(BaseModel):
 
 
 class LLMConfig(BaseModel):
-    model_name: Optional[str] = None
-    model_service_provider: Optional[str] = None
-    custom_llm_provider: Optional[str] = None
+    model_id: Optional[str] = None
 
 
 class QuestionSetGenerate(BaseModel):

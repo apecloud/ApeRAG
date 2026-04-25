@@ -1,36 +1,92 @@
-import type { components } from '@/api-v2/schema';
+export type ModelCapability = 'chat' | 'completion' | 'embedding' | 'rerank';
 
-export type Provider = components['schemas']['LlmProvider'];
-export type ProviderModel = components['schemas']['LlmProviderModel'];
-export type ProviderModelApi = ProviderModel['api'];
-export type ModelConfig = components['schemas']['ModelConfig'];
-export type ModelSpec = components['schemas']['ModelSpec'];
-export type DefaultModelConfig = components['schemas']['DefaultModelConfig'];
-export type DefaultModelScenario = DefaultModelConfig['scenario'];
-export type ProviderModelFormInput =
-  components['schemas']['LlmProviderModelCreateRequest'];
-export type ProviderModelUpdateInput =
-  components['schemas']['LlmProviderModelUpdate'];
-
-export type ProviderFormInput = Omit<
-  components['schemas']['LlmProviderCreateWithApiKey'],
-  'allow_custom_base_url'
-> & {
-  allow_custom_base_url?: boolean | null;
+export type ModelProvider = {
+  id?: string | null;
+  provider_type: string;
+  display_name: string;
+  description?: string | null;
+  supported_capabilities: ModelCapability[];
+  default_base_url?: string | null;
+  enabled?: boolean;
 };
 
-export type ProviderCatalogViewModel = {
-  providers: Provider[];
-  models: ProviderModel[];
+export type ModelAccount = {
+  id?: string | null;
+  user_id?: string | null;
+  provider_type: string;
+  name: string;
+  display_name: string;
+  base_url: string;
+  status: 'ACTIVE' | 'INACTIVE';
+  validation_error?: string | null;
 };
 
-export type ScenarioModelGroup = {
-  label?: string | null;
-  name?: string | null;
-  models?: ModelSpec[] | null;
+export type Model = {
+  id?: string | null;
+  account_id: string;
+  provider_model_id: string;
+  display_name: string;
+  capability: ModelCapability;
+  runner_type: string;
+  context_window?: number | null;
+  max_input_tokens?: number | null;
+  max_output_tokens?: number | null;
+  embedding_dimensions?: number | null;
+  supports_vision?: boolean;
+  supports_tool_calling?: boolean;
+  status?: 'ACTIVE' | 'INACTIVE';
 };
 
-export type ScenarioModelsViewModel = Record<
-  DefaultModelScenario,
-  ScenarioModelGroup[]
->;
+export type ModelUseScenario =
+  | 'agent_chat'
+  | 'collection_completion'
+  | 'collection_embedding'
+  | 'retrieval_rerank'
+  | 'background_task';
+
+export type ModelUse = {
+  id?: string | null;
+  scenario: ModelUseScenario;
+  capability: ModelCapability;
+  primary_model_id?: string | null;
+  fallback_model_ids?: string[];
+  enabled: boolean;
+};
+
+export type ModelAccountCreateInput = {
+  provider_type: string;
+  name: string;
+  display_name: string;
+  base_url: string;
+  api_key: string;
+};
+
+export type ModelCreateInput = {
+  account_id: string;
+  provider_model_id: string;
+  display_name: string;
+  capability: ModelCapability;
+  runner_type?: string | null;
+  context_window?: number | null;
+  max_input_tokens?: number | null;
+  max_output_tokens?: number | null;
+  embedding_dimensions?: number | null;
+  supports_vision?: boolean;
+  supports_tool_calling?: boolean;
+};
+
+export type ModelPlatformViewModel = {
+  providers: ModelProvider[];
+  accounts: ModelAccount[];
+  models: Model[];
+  uses: ModelUse[];
+};
+
+export type ModelSpec = {
+  model_id?: string | null;
+  temperature?: number | null;
+  max_tokens?: number | null;
+  max_completion_tokens?: number | null;
+  timeout?: number | null;
+  top_n?: number | null;
+};

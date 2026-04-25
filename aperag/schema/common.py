@@ -34,24 +34,16 @@ from __future__ import annotations
 
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, Field, confloat, conint
+from pydantic import BaseModel, ConfigDict, Field, confloat, conint
 
 
 class ModelSpec(BaseModel):
-    model: Optional[str] = Field(
+    model_config = ConfigDict(protected_namespaces=())
+
+    model_id: Optional[str] = Field(
         None,
-        description="The name of the language model to use",
-        examples=["gpt-4o-mini"],
-    )
-    model_service_provider: Optional[str] = Field(
-        None,
-        description="Used for querying auth information (api_key/api_base/...) for a model service provider.",
-        examples=["openai"],
-    )
-    custom_llm_provider: Optional[str] = Field(
-        None,
-        description="Used for Non-OpenAI LLMs (e.g. 'bedrock' for amazon.titan-tg1-large)",
-        examples=["openai"],
+        description="ApeRAG model id to use",
+        examples=["mdl_default_chat"],
     )
     temperature: Optional[confloat(ge=0.0, le=2.0)] = Field(
         0.1,
@@ -73,6 +65,10 @@ class ModelSpec(BaseModel):
         description="Tags for model categorization",
         examples=[["free", "recommend"]],
     )
+
+    @property
+    def model(self) -> Optional[str]:
+        return self.model_id
 
 
 class KnowledgeGraphConfig(BaseModel):
