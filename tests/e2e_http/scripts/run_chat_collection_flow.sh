@@ -343,17 +343,12 @@ reference_count="${completion_signals[1]:-0}"
 
 # Phase 8 D8.4d (#90): the snapshot endpoint returns the answer text
 # directly as ``TextPart`` and reference items as ``DataCitationPart``;
-# the assertion budget is the same (answer non-empty + at least one
-# reference when present) but reads off ``.parts`` rather than the
-# legacy artifact endpoint.
+# the assertion budget mirrors the pre-#90 contract — answer is
+# required, references are optional (the agent may legitimately reply
+# without citing sources, e.g. a clarification turn).
 if [[ -z "${answer_text}" ]]; then
   echo "Snapshot returned empty answer text" >&2
   exit 1
 fi
 
-if (( reference_count == 0 )); then
-  echo "Snapshot returned no data-citation parts" >&2
-  exit 1
-fi
-
-echo "Business chat collection flow passed"
+echo "Business chat collection flow passed (answer ${#answer_text} chars, ${reference_count} reference(s))"
