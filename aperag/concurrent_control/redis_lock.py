@@ -227,7 +227,7 @@ class RedisLock(LockProtocol):
                     logger.debug(f"Redis lock '{self._key}' released successfully")
                 else:
                     logger.warning(
-                        f"Redis lock '{self._key}' was not released " f"(may have expired or been released already)"
+                        f"Redis lock '{self._key}' was not released (may have expired or been released already)"
                     )
 
             except Exception as e:
