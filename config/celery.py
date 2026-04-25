@@ -37,7 +37,6 @@ app.conf.update(
     task_track_started=settings.celery_task_track_started,
     # Auto-discover tasks in the aperag.tasks package
     include=[
-        'config.celery_tasks',  # legacy evaluation tasks (scheduled for deletion in #39)
         'config.export_tasks',  # ExportTask ORM still in legacy aggregate (carve in #39)
         'aperag.domains.indexing.tasks',
         'aperag.domains.knowledge_base.tasks',
@@ -63,10 +62,6 @@ app.conf.beat_schedule = {
     'collection-gc': {
         'task': 'config.celery_tasks.cleanup_expired_documents_task',
         'schedule': 600.0,
-    },
-    'reconcile-evaluations': {
-        'task': 'config.celery_tasks.reconcile_evaluations_task',
-        'schedule': 300.0,  # Run every 5 minute
     },
 }
 
