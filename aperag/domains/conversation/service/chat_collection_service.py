@@ -112,13 +112,27 @@ class ChatCollectionService:
             logger.error(f"Failed to get default embedding model for user {user_id}: {e}")
             return None
 
-    async def create_user_chat_collection(self, user_id: str) -> KnowledgeBaseCollectionView:
-        """Create chat collection for user"""
+    async def create_user_chat_collection(self, user_id: str) -> Optional[KnowledgeBaseCollectionView]:
+        """Create chat collection for user.
+
+        Returns ``None`` when no embedding model is configured for the user
+        (graceful skip — the user can configure a provider later and create
+        a chat collection on demand). This keeps registration / first-login
+        flows free of provider-required failures and avoids Celery retry
+        spam in provider-independent smoke environments.
+        """
         # Get default embedding model
         embedding_model = await self._get_default_embedding_model(user_id)
 
         if not embedding_model:
-            raise ValueError("No suitable embedding model found for chat collection")
+            logger.info(
+                "Skipping default chat collection creation for user %s: "
+                "no embedding model configured. Configure an LLM provider "
+                "with default_for_embedding or enable_for_collection tag to "
+                "enable default chat collection.",
+                user_id,
+            )
+            return None
 
         # Create collection config
         config = CollectionConfig(
@@ -164,8 +178,12 @@ class ChatCollectionService:
         logger.info(f"Created chat collection {collection.id} for user {user_id}")
         return collection
 
-    async def initialize_user_chat_collection(self, user_id: str) -> KnowledgeBaseCollectionView:
-        """Initialize chat collection for user during registration"""
+    async def initialize_user_chat_collection(self, user_id: str) -> Optional[KnowledgeBaseCollectionView]:
+        """Initialize chat collection for user during registration.
+
+        Returns ``None`` when no embedding model is configured (graceful
+        skip — see ``create_user_chat_collection`` for rationale).
+        """
         existing_collection = await self.get_user_chat_collection(user_id)
         if existing_collection:
             logger.info(f"User {user_id} already has chat collection {existing_collection.id}")
