@@ -299,8 +299,11 @@ class UIMessage(BaseModel):
 # ---------------------------------------------------------------------
 
 
+RuntimeKind = Literal["agent_runtime", "direct_chat", "rag_chat"]
+
+
 class AgentTurnSnapshot(BaseModel):
-    """Canonical UIMessage at-rest snapshot for an agent turn (Phase 8 D8.4d / #90).
+    """Canonical UIMessage at-rest snapshot for an agent turn (Phase 8 D8.4d / #90, D8.5-BE / #92).
 
     Replaces the legacy ``{turn, timeline, artifacts}`` snapshot shape
     with the ``UIMessage``-aligned canonical that the FE renderer
@@ -309,6 +312,11 @@ class AgentTurnSnapshot(BaseModel):
     no client-side converter is required: a snapshot reload
     deserializes through the same ``UIMessagePart`` discriminated
     union the wire emits.
+
+    ``runtime_kind`` (D8.5-BE) tags the runtime that produced the
+    turn — ``agent_runtime`` for the agent reasoning loop,
+    ``direct_chat`` / ``rag_chat`` reserved for future paths. ``role``
+    keeps speaker semantics independent of runtime kind.
 
     ``parts`` is the persistable subset (transient ``data-activity``
     is stripped before write per :func:`persistable_parts`);
@@ -327,6 +335,8 @@ class AgentTurnSnapshot(BaseModel):
     schema_version: str = AGENT_RUNTIME_SCHEMA_VERSION
     turn_id: str
     chat_id: str
+    runtime_kind: RuntimeKind = "agent_runtime"
+    input_text: Optional[str] = None
     role: Literal["assistant"] = "assistant"
     status: str
     parts: list[UIMessagePart] = Field(default_factory=list)

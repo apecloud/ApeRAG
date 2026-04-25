@@ -40,10 +40,15 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
-from aperag.domains.agent_runtime.db.models import AgentArtifactType, AgentTurnStatus
+from aperag.domains.agent_runtime.db.models import AgentTurnStatus
+from aperag.domains.agent_runtime.snapshot_assembler import (
+    assemble_parts_from_artifacts,
+    extract_error_text,
+)
+from aperag.domains.agent_runtime.uimessage import AgentTurnSnapshot
 from aperag.domains.conversation.db.models import BotType, ChatStatus
 from aperag.domains.conversation.db.models import Chat as ChatRow
-from aperag.domains.conversation.schemas import Chat, ChatDetails, ChatMessage, ChatUpdate, Reference
+from aperag.domains.conversation.schemas import Chat, ChatDetails, ChatUpdate
 from aperag.exceptions import ChatNotFoundException, ResourceNotFoundException, ValidationException
 from aperag.utils.history import (
     RedisChatMessageHistory,
@@ -51,46 +56,6 @@ from aperag.utils.history import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-def _artifact_type_value(artifact) -> Optional[str]:
-    if not artifact:
-        return None
-    artifact_type = getattr(artifact, "artifact_type", None)
-    return artifact_type.value if hasattr(artifact_type, "value") else artifact_type
-
-
-def _extract_artifact_text(artifact) -> str:
-    if not artifact or not isinstance(getattr(artifact, "payload", None), dict):
-        return ""
-    return artifact.payload.get("text") or artifact.payload.get("content") or artifact.payload.get("message") or ""
-
-
-def _coerce_timestamp(value) -> Optional[float]:
-    return value.timestamp() if value else None
-
-
-def _map_reference_item(item: dict) -> Reference:
-    return Reference(
-        score=item.get("score"),
-        text=item.get("snippet") or "",
-        metadata={
-            **(item.get("metadata") or {}),
-            "title": item.get("title"),
-            "source_type": item.get("source_type"),
-            "source_id": item.get("source_id"),
-            "uri": item.get("uri"),
-        },
-    )
-
-
-def _extract_references(artifact) -> list[Reference]:
-    if not artifact or not isinstance(getattr(artifact, "payload", None), dict):
-        return []
-    items = artifact.payload.get("items")
-    if not isinstance(items, list):
-        return []
-    return [_map_reference_item(item) for item in items if isinstance(item, dict)]
 
 
 class ChatService:
@@ -114,97 +79,66 @@ class ChatService:
             updated=chat.gmt_updated.isoformat(),
         )
 
-    async def _build_v3_chat_history(self, user: str, chat_id: str) -> list[list[ChatMessage]]:
+    async def _build_v3_chat_history(self, user: str, chat_id: str) -> list[AgentTurnSnapshot]:
+        """Build the chat history as canonical ``AgentTurnSnapshot`` envelopes.
+
+        Phase 8 D8.5-BE (#92) flips this from the legacy
+        ``list[list[ChatMessage]]`` shape to one ``AgentTurnSnapshot``
+        per assistant turn. Each snapshot carries the same
+        ``UIMessagePart[]`` shape the FE consumes from the live SSE
+        stream, so historical and live turns render through a single
+        canonical path (D8 §2 wire/at-rest byte-equal).
+
+        The user query is exposed at ``input_text`` on the snapshot
+        envelope rather than as a separate ``role=human`` ChatMessage
+        entry; the FE renders it from there. The assistant turn's
+        ``answer`` / ``reference_bundle`` / ``error_summary``
+        artifacts are projected into ``parts`` via
+        :func:`assemble_parts_from_artifacts`, mirroring the snapshot
+        endpoint (#90 / D8.4d). FAILED / CANCELLED turns surface their
+        message via ``error_text`` (preferring an ``error_summary``
+        artifact, falling back to ``turn.error_message``), again
+        mirroring the snapshot endpoint contract.
+
+        Once the wire emitter starts populating ``agent_message.parts``
+        directly (D8.6 / #80), this method can short-circuit to
+        :meth:`UIMessageStore.read` per-turn; until then the artifact
+        projection is the single source. ``runtime_kind`` is hardcoded
+        to ``agent_runtime`` here — non-agent runtimes will write
+        ``direct_chat`` / ``rag_chat`` rows directly via the future
+        non-agent write path and this method only needs to surface
+        them when they exist (a no-op until then per architect lock
+        msg=01918929).
+        """
+
         turns = await self.db_ops.query_agent_turns(user, chat_id)
 
-        history: list[list[ChatMessage]] = []
+        history: list[AgentTurnSnapshot] = []
         for turn in turns:
-            history.append(
-                [
-                    ChatMessage(
-                        id=turn.id,
-                        type="message",
-                        role="human",
-                        data=turn.input_text,
-                        timestamp=_coerce_timestamp(turn.gmt_created),
-                    )
-                ]
-            )
-
             artifacts = await self.db_ops.query_agent_artifacts_by_turn(turn.id)
-            answer_artifact = (
-                next((artifact for artifact in artifacts if artifact.id == turn.answer_artifact_id), None)
-                if turn.answer_artifact_id
-                else None
+            parts = list(assemble_parts_from_artifacts(artifacts))
+
+            error_text: Optional[str] = None
+            if turn.status in {AgentTurnStatus.FAILED, AgentTurnStatus.CANCELLED}:
+                error_text = extract_error_text(artifacts) or turn.error_message
+
+            status_value = turn.status.value if hasattr(turn.status, "value") else str(turn.status)
+            history.append(
+                AgentTurnSnapshot(
+                    turn_id=turn.id,
+                    chat_id=turn.chat_id,
+                    runtime_kind="agent_runtime",
+                    status=status_value,
+                    parts=parts,
+                    error_text=error_text,
+                    timeline_cursor=turn.timeline_cursor or 0,
+                    started_at=turn.gmt_started,
+                    finished_at=turn.gmt_finished,
+                    created_at=turn.gmt_created,
+                    updated_at=turn.gmt_updated,
+                    input_text=turn.input_text,
+                )
             )
-            if not answer_artifact:
-                answer_artifact = next(
-                    (
-                        artifact
-                        for artifact in artifacts
-                        if _artifact_type_value(artifact) == AgentArtifactType.ANSWER.value
-                    ),
-                    None,
-                )
-
-            reference_artifact = (
-                next((artifact for artifact in artifacts if artifact.id == turn.reference_bundle_artifact_id), None)
-                if turn.reference_bundle_artifact_id
-                else None
-            )
-            if not reference_artifact:
-                reference_artifact = next(
-                    (
-                        artifact
-                        for artifact in artifacts
-                        if _artifact_type_value(artifact) == AgentArtifactType.REFERENCE_BUNDLE.value
-                    ),
-                    None,
-                )
-
-            answer_text = _extract_artifact_text(answer_artifact)
-            if not answer_text and turn.status in {
-                AgentTurnStatus.FAILED,
-                AgentTurnStatus.CANCELLED,
-            }:
-                answer_text = turn.error_message or ""
-
-            ai_parts: list[ChatMessage] = []
-            if answer_text:
-                ai_parts.append(
-                    ChatMessage(
-                        id=turn.id,
-                        type="message",
-                        role="ai",
-                        data=answer_text,
-                        timestamp=_coerce_timestamp(turn.gmt_finished) or _coerce_timestamp(turn.gmt_created),
-                    )
-                )
-            else:
-                ai_parts.append(
-                    ChatMessage(
-                        id=turn.id,
-                        type="start",
-                        role="ai",
-                        data="",
-                        timestamp=_coerce_timestamp(turn.gmt_created),
-                    )
-                )
-
-            references = _extract_references(reference_artifact)
-            if references:
-                ai_parts.append(
-                    ChatMessage(
-                        id=turn.id,
-                        type="references",
-                        role="ai",
-                        data="",
-                        references=references,
-                        timestamp=_coerce_timestamp(turn.gmt_finished) or _coerce_timestamp(turn.gmt_created),
-                    )
-                )
-
-            history.append(ai_parts)
 
         return history
 
