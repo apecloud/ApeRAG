@@ -107,6 +107,24 @@ class TestRedisLockWithConnectionManager:
         assert lock._lock_value is None
 
     @pytest.mark.asyncio
+    async def test_same_key_instances_are_mutually_exclusive(self):
+        """Test two RedisLock instances with the same key rely on Redis NX mutual exclusion."""
+        mock_client = AsyncMock()
+        mock_client.set = AsyncMock(side_effect=[True, False])
+        mock_client.eval = AsyncMock(return_value=1)
+
+        first = RedisLock(key="shared_key", retry_times=0, redis_client=mock_client)
+        second = RedisLock(key="shared_key", retry_times=0, redis_client=mock_client)
+
+        assert await first.acquire() is True
+        assert await second.acquire() is False
+        assert first.is_locked() is True
+        assert second.is_locked() is False
+        assert mock_client.set.call_count == 2
+
+        await first.release()
+
+    @pytest.mark.asyncio
     async def test_context_manager(self, mock_connection_manager):
         """Test using RedisLock as async context manager."""
         mock_manager, mock_client = mock_connection_manager
@@ -138,12 +156,14 @@ class TestRedisLockWithConnectionManager:
         mock_manager, mock_client = mock_connection_manager
         # First two calls fail, third succeeds
         mock_client.set.side_effect = [False, False, True]
+        mock_client.eval.return_value = 1
 
         lock = RedisLock(key="test_retry", retry_times=3, retry_delay=0.01)
 
         success = await lock.acquire()
         assert success is True
         assert mock_client.set.call_count == 3
+        await lock.release()
 
     @pytest.mark.asyncio
     async def test_timeout_respected(self, mock_connection_manager):
@@ -176,6 +196,27 @@ class TestRedisLockWithConnectionManager:
         lock._is_locked = True
         lock._lock_value = None
         await lock.release()  # Should log error but not crash
+
+    @pytest.mark.asyncio
+    async def test_release_uses_captured_owner_value(self):
+        """Test release does not race against later local _lock_value changes."""
+        mock_client = AsyncMock()
+        mock_client.eval = AsyncMock(return_value=1)
+        lock = RedisLock(key="test_release_owner", redis_client=mock_client)
+        lock._is_locked = True
+        lock._lock_value = "owner-before-await"
+
+        async def get_client_with_racy_state_change():
+            lock._lock_value = "owner-after-await"
+            return mock_client
+
+        lock._get_redis_client = get_client_with_racy_state_change
+
+        await lock.release()
+
+        assert mock_client.eval.call_args[0][3] == "owner-before-await"
+        assert lock._lock_value is None
+        assert lock.is_locked() is False
 
     @pytest.mark.asyncio
     async def test_connection_manager_integration(self):

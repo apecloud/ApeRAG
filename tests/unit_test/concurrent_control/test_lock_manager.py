@@ -7,7 +7,14 @@ management, and lifecycle operations.
 
 import pytest
 
-from aperag.concurrent_control import LockManager, RedisLock, ThreadingLock, get_default_lock_manager
+from aperag.concurrent_control import (
+    LockManager,
+    RedisLock,
+    ThreadingLock,
+    create_distributed_lock,
+    get_default_lock_manager,
+    get_or_create_lock,
+)
 
 
 class TestLockManager:
@@ -91,6 +98,62 @@ class TestLockManager:
         lock3 = manager.get_or_create_lock("redis_lock_2", "redis")
         assert isinstance(lock3, RedisLock)
         assert lock3._key == "redis_lock_2"  # Uses lock_id as key
+
+    def test_get_or_create_lock_defaults_to_redis(self, monkeypatch):
+        """Test default lock type is Redis-backed for production safety."""
+        monkeypatch.delenv("APERAG_LOCK_TYPE", raising=False)
+        manager = LockManager()
+
+        lock = manager.get_or_create_lock("default_distributed_lock")
+
+        assert isinstance(lock, RedisLock)
+        assert lock._key == "default_distributed_lock"
+
+    def test_get_or_create_lock_env_threading_opt_in(self, monkeypatch):
+        """Test threading default requires explicit process-wide opt-in."""
+        monkeypatch.setenv("APERAG_LOCK_TYPE", "threading")
+        manager = LockManager()
+
+        lock = manager.get_or_create_lock("local_only_lock")
+
+        assert isinstance(lock, ThreadingLock)
+
+    def test_get_or_create_lock_invalid_env_type(self, monkeypatch):
+        """Test invalid APERAG_LOCK_TYPE fails closed."""
+        monkeypatch.setenv("APERAG_LOCK_TYPE", "process")
+        manager = LockManager()
+
+        with pytest.raises(ValueError, match="Unknown lock type: process"):
+            manager.get_or_create_lock("test")
+
+    def test_create_distributed_lock(self):
+        """Test public Redis-first production lock helper."""
+        redis_client = object()
+
+        lock = create_distributed_lock(
+            "distributed_operation",
+            ttl=45,
+            redis_client=redis_client,
+            retry_times=7,
+            retry_delay=0.25,
+        )
+
+        assert isinstance(lock, RedisLock)
+        assert lock._key == "distributed_operation"
+        assert lock._name == "distributed_operation"
+        assert lock._expire_time == 45
+        assert lock._retry_times == 7
+        assert lock._retry_delay == 0.25
+        assert lock._redis_client is redis_client
+
+    def test_module_get_or_create_defaults_to_redis(self, monkeypatch):
+        """Test module-level helper also defaults to Redis."""
+        monkeypatch.delenv("APERAG_LOCK_TYPE", raising=False)
+
+        lock = get_or_create_lock("module_default_distributed_lock")
+
+        assert isinstance(lock, RedisLock)
+        assert lock._key == "module_default_distributed_lock"
 
     def test_get_or_create_lock_invalid_type(self):
         """Test get_or_create_lock with invalid lock type."""
