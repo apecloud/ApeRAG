@@ -134,7 +134,7 @@ class ToolPart(BaseModel):
     """
 
     type: str = Field(pattern=_TOOL_TYPE_PATTERN)
-    tool_call_id: str
+    tool_call_id: str = Field(alias="toolCallId")
     state: Literal[
         "input-streaming",
         "input-available",
@@ -143,22 +143,28 @@ class ToolPart(BaseModel):
     ]
     input: Optional[Any] = None
     output: Optional[Any] = None
-    error_text: Optional[str] = None
+    error_text: Optional[str] = Field(default=None, alias="errorText")
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class SourceUrlPart(BaseModel):
     type: Literal["source-url"] = "source-url"
-    source_id: str
+    source_id: str = Field(alias="sourceId")
     url: str
     title: Optional[str] = None
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class SourceDocumentPart(BaseModel):
     type: Literal["source-document"] = "source-document"
-    source_id: str
-    media_type: str
+    source_id: str = Field(alias="sourceId")
+    media_type: str = Field(alias="mediaType")
     title: str
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class CitationData(BaseModel):
@@ -202,19 +208,21 @@ class DataActivityPart(BaseModel):
 
 
 class ToolConsentData(BaseModel):
-    tool_call_id: str
-    tool_name: str
+    tool_call_id: str = Field(alias="toolCallId")
+    tool_name: str = Field(alias="toolName")
     metadata: dict[str, Any] = Field(default_factory=dict)
-    args_preview: str
-    args_hash: str
+    args_preview: str = Field(alias="argsPreview")
+    args_hash: str = Field(alias="argsHash")
     risk: Literal[
         "writes_user_data",
         "calls_external_api",
         "modifies_system",
         "admin_only",
     ]
-    requested_at: str
+    requested_at: str = Field(alias="requestedAt")
     state: Literal["pending", "approved", "denied", "expired"]
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class DataToolConsentPart(BaseModel):
@@ -231,7 +239,7 @@ class DataToolConsentPart(BaseModel):
 
 
 class ElicitationData(BaseModel):
-    elicitation_id: str
+    elicitation_id: str = Field(alias="elicitationId")
     prompt: str
     schema_: dict[str, Any] = Field(default_factory=dict, alias="schema")
     response: Optional[dict[str, Any]] = None
