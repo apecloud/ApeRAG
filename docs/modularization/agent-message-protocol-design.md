@@ -72,6 +72,12 @@ type UIMessagePart =
 - Wire format 用 AI SDK v5 tool-call lifecycle（MCP-ready）
 - Future（D9 独立任务）: tool layer 升级为 MCP server interface — 不影响 wire protocol 层
 
+### §2.4 Tool naming convention (MCP-namespace ready)
+
+`tool-<name>` parts 中的 `<name>` 必须采纳 MCP server's tool name namespace 形式（e.g., `tool-aperag-knowledge-base.search_collection`、`tool-aperag-web.search`），而非 internal Python function name。这保证 D9 把 RAG tools 升级为 MCP server interface 时，wire schema 无需 rename — backend agent 直接把 MCP `tools/list` 返回的 namespace tool name 透传到 wire。
+
+落地时机：D8.3 (citations + tools) 实施时按此命名规则展开。
+
 ## Field-Level Disposition Table
 
 ### Current → Final-state mapping
