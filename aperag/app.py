@@ -67,6 +67,7 @@ from aperag.domains.knowledge_base.service.collection_service import (
 from aperag.domains.knowledge_base.service.collection_service import (
     set_search_pipeline_ops as _kb_set_search_pipeline_ops,
 )
+from aperag.domains.knowledge_base.api.export_routes import router as export_router
 from aperag.domains.knowledge_graph.api.routes import router as knowledge_graph_router
 from aperag.domains.marketplace.api.routes import router as marketplace_router
 from aperag.domains.marketplace.service.marketplace_collection_service import (
@@ -85,7 +86,6 @@ from aperag.mcp import mcp_server
 from aperag.openapi_spec import custom_generate_unique_id
 from aperag.service.quota_service import quota_service as _legacy_quota_service
 from aperag.service.search_pipeline_service import search_pipeline_service as _legacy_search_pipeline_service
-from aperag.views.export import router as export_router
 from aperag.views.prompts import router as prompts_router
 from aperag.views.settings import router as settings_router
 
@@ -223,7 +223,7 @@ async def health_check():
 
 
 app.include_router(auth_router, prefix="/api/v2/auth")
-app.include_router(export_router, prefix="/api/v1")  # Add export router
+app.include_router(export_router, prefix="/api/v2")  # KB-domain export router (Phase 8 #47 G1, D7 v2 hard-cut)
 app.include_router(governance_router, prefix="/api/v1")  # Governance domain router (api_key + audit)
 app.include_router(llm_router, prefix="/api/v1")  # Model platform: embed/rerank (OpenAI-compat)
 app.include_router(

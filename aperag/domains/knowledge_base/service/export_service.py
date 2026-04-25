@@ -26,9 +26,9 @@ from aperag.domains.knowledge_base.db.models import (
     ExportTask,
     ExportTaskStatus,
 )
+from aperag.domains.knowledge_base.schemas import ExportTaskResponse
 from aperag.exceptions import CollectionNotFoundException, PermissionDeniedError
 from aperag.objectstore.base import get_async_object_store
-from aperag.schema import view_models
 from aperag.utils.utils import utc_now
 
 logger = logging.getLogger(__name__)
@@ -40,7 +40,7 @@ class ExportService:
     def __init__(self):
         self.db_ops = async_db_ops
 
-    async def create_export_task(self, user_id: str, collection_id: str) -> view_models.ExportTaskResponse:
+    async def create_export_task(self, user_id: str, collection_id: str) -> ExportTaskResponse:
         async def _create(session):
             # Verify collection exists and user is owner
             result = await session.execute(
@@ -103,14 +103,14 @@ class ExportService:
 
         export_collection_task.delay(task.id)
 
-        return view_models.ExportTaskResponse(
+        return ExportTaskResponse(
             export_task_id=task.id,
             status=task.status,
             progress=task.progress,
             message=task.message,
         )
 
-    async def get_export_task(self, user_id: str, task_id: str) -> view_models.ExportTaskResponse:
+    async def get_export_task(self, user_id: str, task_id: str) -> ExportTaskResponse:
         async def _get(session):
             result = await session.execute(
                 select(ExportTask).where(and_(ExportTask.id == task_id, ExportTask.user == user_id))
@@ -123,9 +123,9 @@ class ExportService:
 
         download_url = None
         if task.status == ExportTaskStatus.COMPLETED:
-            download_url = f"/api/v1/export-tasks/{task_id}/download"
+            download_url = f"/api/v2/export-tasks/{task_id}/download"
 
-        return view_models.ExportTaskResponse(
+        return ExportTaskResponse(
             export_task_id=task.id,
             status=task.status,
             progress=task.progress,

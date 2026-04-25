@@ -639,14 +639,13 @@ def test_collection_feature_uses_v2_typed_api_boundary():
     assert "from '@/features/collection/types'" in export_dialog_tsx
 
     # features/collection adapter must only reach v2 typed paths and not
-    # fall back to the old `@/api` generated SDK or raw fetch. The still-v1
-    # export-task paths are allowed as Phase 1b typed-wrapping, not a v1→v2
-    # rename.
+    # fall back to the old `@/api` generated SDK or raw fetch. Export
+    # endpoints were migrated v1→v2 by Phase 8 #47 G1 (D7 hard-cut).
     assert "from '@/api'" not in feature_sources
     assert "fetch(" not in feature_sources
     assert "/api/v2/collections" in feature_sources
-    assert "'/api/v1/collections/{collection_id}/export'" in feature_sources
-    assert "'/api/v1/export-tasks/{task_id}'" in feature_sources
+    assert "'/api/v2/collections/{collection_id}/export'" in feature_sources
+    assert "'/api/v2/export-tasks/{task_id}'" in feature_sources
 
     # Positive: schema-derived types + fail-fast export-task adapter.
     types_ts = (REPO_ROOT / "web/src/features/collection/types.ts").read_text()

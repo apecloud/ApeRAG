@@ -549,7 +549,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/collections/{collection_id}/export": {
+    "/api/v2/collections/{collection_id}/export": {
         parameters: {
             query?: never;
             header?: never;
@@ -569,7 +569,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/export-tasks/{task_id}": {
+    "/api/v2/export-tasks/{task_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -589,7 +589,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/export-tasks/{task_id}/download": {
+    "/api/v2/export-tasks/{task_id}/download": {
         parameters: {
             query?: never;
             header?: never;

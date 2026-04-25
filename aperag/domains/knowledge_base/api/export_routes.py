@@ -12,14 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Export operations HTTP router (Phase 8 #47 G1 carve, D7 v2 hard-cut).
+
+Carved from legacy ``aperag/views/export.py``. URLs migrated to v2
+(``/api/v2/collections/{id}/export`` + ``/api/v2/export-tasks/*``);
+mounted at ``/api/v2`` in ``aperag/app.py`` per D7 canonical
+(uniform ``/api/v2`` for all backend routes; OpenAI-compat
+``/api/v1/embeddings`` + ``/api/v1/rerank`` are the only remaining
+v1 allowlist).
+"""
+
 import logging
 
 from fastapi import APIRouter, Depends, Request
 
-from aperag.domains.identity.db.models import User
 from aperag.domains.identity.service.auth_dependencies import required_user
-from aperag.schema import view_models
-from aperag.service.export_service import export_service
+from aperag.domains.knowledge_base.ports import AuthenticatedUser
+from aperag.domains.knowledge_base.schemas import ExportTaskResponse
+from aperag.domains.knowledge_base.service.export_service import export_service
 
 logger = logging.getLogger(__name__)
 
@@ -35,8 +45,8 @@ router = APIRouter()
 async def create_export_task_view(
     request: Request,
     collection_id: str,
-    user: User = Depends(required_user),
-) -> view_models.ExportTaskResponse:
+    user: AuthenticatedUser = Depends(required_user),
+) -> ExportTaskResponse:
     """Create an async export task to package all object-store files under the collection."""
     return await export_service.create_export_task(str(user.id), collection_id)
 
@@ -49,8 +59,8 @@ async def create_export_task_view(
 async def get_export_task_view(
     request: Request,
     task_id: str,
-    user: User = Depends(required_user),
-) -> view_models.ExportTaskResponse:
+    user: AuthenticatedUser = Depends(required_user),
+) -> ExportTaskResponse:
     """Query the status and progress of an export task."""
     return await export_service.get_export_task(str(user.id), task_id)
 
@@ -63,7 +73,7 @@ async def get_export_task_view(
 async def download_export_view(
     request: Request,
     task_id: str,
-    user: User = Depends(required_user),
+    user: AuthenticatedUser = Depends(required_user),
 ):
     """Stream the completed export ZIP file to the client."""
     return await export_service.download_export(str(user.id), task_id)
