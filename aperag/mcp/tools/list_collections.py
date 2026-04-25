@@ -43,19 +43,28 @@ from aperag.mcp.tools.schemas import CollectionList, CollectionMetadata
 def _decode_cursor(cursor: Optional[str]) -> int:
     """Decode the placeholder D10.c offset cursor.
 
-    Bryce's D10.e cursor codec replaces this. Returns 0 for missing /
-    malformed cursors so the primitive degrades to a fresh first page
-    rather than 500ing.
+    Returns 0 only when ``cursor`` is ``None`` or empty; raises
+    ``ValueError`` on malformed cursor per §C explicit-not-silent. Bryce's
+    D10.e cursor codec replaces this placeholder.
+
+    # TODO(D10.e #97): replace with canonical CursorError after #97 integration
     """
 
-    if not cursor:
+    if cursor is None or cursor == "":
         return 0
     try:
-        payload = json.loads(base64.urlsafe_b64decode(cursor.encode("ascii")).decode("utf-8"))
-        offset = int(payload.get("offset", 0))
-        return max(offset, 0)
-    except Exception:
-        return 0
+        decoded = base64.urlsafe_b64decode(cursor.encode("ascii")).decode("utf-8")
+        payload = json.loads(decoded)
+    except Exception as exc:
+        raise ValueError(f"cursor decode failed: {exc}") from exc
+    if not isinstance(payload, dict) or "offset" not in payload:
+        raise ValueError("cursor decode failed: missing 'offset' key")
+    raw_offset = payload["offset"]
+    if isinstance(raw_offset, bool) or not isinstance(raw_offset, int):
+        raise ValueError("cursor decode failed: 'offset' must be a non-negative int")
+    if raw_offset < 0:
+        raise ValueError("cursor decode failed: 'offset' must be non-negative")
+    return raw_offset
 
 
 def _encode_cursor(offset: int) -> str:

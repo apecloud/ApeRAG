@@ -742,3 +742,197 @@ def test_call_sequence_witness_for_all_parse_version_keyed_primitives():
             f"{primitive.__name__} D9 base call order violated (got resolve@{idx_resolve} "
             f"tenancy@{idx_tenancy} authz@{idx_authz})"
         )
+
+
+# --- §C explicit-not-silent: cursor decode ----------------------------------
+
+
+def _b64(payload_obj: Any) -> str:
+    import base64 as _b
+    import json as _j
+
+    return _b.urlsafe_b64encode(_j.dumps(payload_obj).encode("utf-8")).decode("ascii")
+
+
+def test_list_collections_decode_cursor_none_and_empty_return_zero():
+    """``cursor=None`` and ``cursor=""`` are NOT malformed — they mean
+    "start from the beginning" and must yield offset 0 (no exception).
+    """
+    from aperag.mcp.tools.list_collections import _decode_cursor as _dc_collections
+
+    assert _dc_collections(None) == 0
+    assert _dc_collections("") == 0
+    # well-formed positive cursor still works
+    assert _dc_collections(_b64({"offset": 50})) == 50
+
+
+def test_list_documents_decode_cursor_none_and_empty_return_zero():
+    from aperag.mcp.tools.list_documents import _decode_cursor as _dc_documents
+
+    assert _dc_documents(None) == 0
+    assert _dc_documents("") == 0
+    assert _dc_documents(_b64({"offset": 50})) == 50
+
+
+def test_list_collections_malformed_cursor_raises():
+    """§C explicit-not-silent: a non-empty malformed cursor MUST raise
+    ValueError instead of silently degrading to offset 0."""
+    from aperag.mcp.tools.list_collections import _decode_cursor as _dc_collections
+
+    # garbage that is not valid base64
+    with pytest.raises(ValueError, match="cursor decode failed"):
+        _dc_collections("!!!not-valid-base64!!!")
+    # valid base64 but not JSON
+    import base64 as _b
+
+    not_json = _b.urlsafe_b64encode(b"not json at all").decode("ascii")
+    with pytest.raises(ValueError, match="cursor decode failed"):
+        _dc_collections(not_json)
+    # JSON but not a dict / missing offset
+    with pytest.raises(ValueError, match="cursor decode failed"):
+        _dc_collections(_b64([1, 2, 3]))
+    with pytest.raises(ValueError, match="cursor decode failed"):
+        _dc_collections(_b64({"page": 1}))
+    # offset is not an int
+    with pytest.raises(ValueError, match="cursor decode failed"):
+        _dc_collections(_b64({"offset": "ten"}))
+
+
+def test_list_collections_negative_offset_cursor_raises():
+    """Negative offsets are explicit corruption, not "first page"."""
+    from aperag.mcp.tools.list_collections import _decode_cursor as _dc_collections
+
+    with pytest.raises(ValueError, match="cursor decode failed"):
+        _dc_collections(_b64({"offset": -1}))
+
+
+def test_list_documents_malformed_cursor_raises():
+    from aperag.mcp.tools.list_documents import _decode_cursor as _dc_documents
+
+    with pytest.raises(ValueError, match="cursor decode failed"):
+        _dc_documents("!!!not-valid-base64!!!")
+    import base64 as _b
+
+    not_json = _b.urlsafe_b64encode(b"not json at all").decode("ascii")
+    with pytest.raises(ValueError, match="cursor decode failed"):
+        _dc_documents(not_json)
+    with pytest.raises(ValueError, match="cursor decode failed"):
+        _dc_documents(_b64([1, 2, 3]))
+    with pytest.raises(ValueError, match="cursor decode failed"):
+        _dc_documents(_b64({"page": 1}))
+    with pytest.raises(ValueError, match="cursor decode failed"):
+        _dc_documents(_b64({"offset": "ten"}))
+
+
+def test_list_documents_negative_offset_cursor_raises():
+    from aperag.mcp.tools.list_documents import _decode_cursor as _dc_documents
+
+    with pytest.raises(ValueError, match="cursor decode failed"):
+        _dc_documents(_b64({"offset": -1}))
+
+
+# --- type_filter applied BEFORE pagination (Weston msg=246c84d3) ------------
+
+
+def _make_doc(doc_id: str, name: str, *, size: int = 100, days_offset: int = 0):
+    """Helper: build a minimal Document-like SimpleNamespace for the page."""
+    DocumentStatus = __import__("aperag.domains.knowledge_base.db.models", fromlist=["DocumentStatus"]).DocumentStatus
+    return SimpleNamespace(
+        id=doc_id,
+        collection_id="col-1",
+        name=name,
+        size=size,
+        status=DocumentStatus.COMPLETE,
+        gmt_created=datetime(2025, 1, 1 + days_offset, tzinfo=timezone.utc),
+        gmt_updated=datetime(2025, 1, 2 + days_offset, tzinfo=timezone.utc),
+    )
+
+
+def test_list_documents_type_filter_finds_match_beyond_first_page():
+    """Bug guard for Weston msg=246c84d3: when the matching markdown doc
+    sits at position >= limit in the sort order, the old code sliced
+    BEFORE filtering and returned []. The fix must still find it.
+    """
+
+    call_log: list[str] = []
+    patches = _patch_d9_base(call_log)
+
+    # 5 PDFs sort first, then 1 markdown — limit=3 means in the OLD code
+    # the markdown never enters the page slice. Order must be deterministic
+    # — we feed them already-sorted to the fake session.
+    docs = [
+        _make_doc("doc-pdf-1", "a.pdf", days_offset=0),
+        _make_doc("doc-pdf-2", "b.pdf", days_offset=1),
+        _make_doc("doc-pdf-3", "c.pdf", days_offset=2),
+        _make_doc("doc-pdf-4", "d.pdf", days_offset=3),
+        _make_doc("doc-pdf-5", "e.pdf", days_offset=4),
+        _make_doc("doc-md-1", "report.md", days_offset=5),
+    ]
+
+    # Only the full unbounded fetch is issued in the type_filter branch
+    # (no count_stmt, no separate page_stmt). Then idx lookup runs once
+    # if the page is non-empty.
+    full_result = _execute_returning(scalars_all=docs)
+    idx_result = _execute_returning(scalars_all=[])
+    fake_session = MagicMock()
+    fake_session.execute = AsyncMock(side_effect=[full_result, idx_result])
+    patches.append(
+        patch(
+            "aperag.mcp.tools.list_documents.get_async_session",
+            new=_async_session_iter(fake_session),
+        )
+    )
+
+    _enter_all(patches)
+    try:
+        result = asyncio.run(
+            list_documents("col-1", limit=3, type_filter=["text/markdown"]),
+        )
+    finally:
+        _exit_all(patches)
+
+    assert isinstance(result, DocumentList)
+    assert len(result.items) == 1, (
+        "type_filter must apply BEFORE pagination — markdown doc at position 5 must still surface when limit=3"
+    )
+    assert result.items[0].document_id == "doc-md-1"
+    assert result.items[0].media_type == "text/markdown"
+    assert result.total_count == 1, "total_count must reflect the post-filter count, not the pre-filter count"
+    assert result.next_cursor is None
+
+
+def test_list_documents_type_filter_total_count_reflects_post_filter():
+    """With 10 PDFs + 2 markdowns, type_filter=["text/markdown"] must
+    yield total_count=2 (not 12)."""
+
+    call_log: list[str] = []
+    patches = _patch_d9_base(call_log)
+
+    docs = [_make_doc(f"doc-pdf-{i}", f"f{i}.pdf", days_offset=i) for i in range(10)]
+    docs.extend(
+        [
+            _make_doc("doc-md-1", "alpha.md", days_offset=10),
+            _make_doc("doc-md-2", "beta.md", days_offset=11),
+        ]
+    )
+
+    full_result = _execute_returning(scalars_all=docs)
+    idx_result = _execute_returning(scalars_all=[])
+    fake_session = MagicMock()
+    fake_session.execute = AsyncMock(side_effect=[full_result, idx_result])
+    patches.append(
+        patch(
+            "aperag.mcp.tools.list_documents.get_async_session",
+            new=_async_session_iter(fake_session),
+        )
+    )
+
+    _enter_all(patches)
+    try:
+        result = asyncio.run(list_documents("col-1", type_filter=["text/markdown"]))
+    finally:
+        _exit_all(patches)
+
+    assert result.total_count == 2
+    assert {d.document_id for d in result.items} == {"doc-md-1", "doc-md-2"}
+    assert result.next_cursor is None

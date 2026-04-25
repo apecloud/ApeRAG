@@ -52,13 +52,30 @@ from aperag.mcp.tools.schemas import DocumentList, DocumentMetadata
 
 
 def _decode_cursor(cursor: Optional[str]) -> int:
-    if not cursor:
+    """Decode the placeholder D10.c offset cursor.
+
+    Returns 0 only when ``cursor`` is ``None`` or empty; raises
+    ``ValueError`` on malformed cursor per §C explicit-not-silent. Bryce's
+    D10.e cursor codec replaces this placeholder.
+
+    # TODO(D10.e #97): replace with canonical CursorError after #97 integration
+    """
+
+    if cursor is None or cursor == "":
         return 0
     try:
-        payload = json.loads(base64.urlsafe_b64decode(cursor.encode("ascii")).decode("utf-8"))
-        return max(int(payload.get("offset", 0)), 0)
-    except Exception:
-        return 0
+        decoded = base64.urlsafe_b64decode(cursor.encode("ascii")).decode("utf-8")
+        payload = json.loads(decoded)
+    except Exception as exc:
+        raise ValueError(f"cursor decode failed: {exc}") from exc
+    if not isinstance(payload, dict) or "offset" not in payload:
+        raise ValueError("cursor decode failed: missing 'offset' key")
+    raw_offset = payload["offset"]
+    if isinstance(raw_offset, bool) or not isinstance(raw_offset, int):
+        raise ValueError("cursor decode failed: 'offset' must be a non-negative int")
+    if raw_offset < 0:
+        raise ValueError("cursor decode failed: 'offset' must be non-negative")
+    return raw_offset
 
 
 def _encode_cursor(offset: int) -> str:
@@ -135,17 +152,25 @@ async def list_documents(
         base_filters.append(Document.status == DocumentStatus.COMPLETE)
 
     async for session in get_async_session():
-        # Count
-        count_stmt = select(func.count()).select_from(Document).where(and_(*base_filters))
-        total = int((await session.execute(count_stmt)).scalar() or 0)
-
-        page_stmt = select(Document).where(and_(*base_filters)).order_by(sort_clause).offset(offset).limit(limit)
-        documents = list((await session.execute(page_stmt)).scalars().all())
-
-        # Apply type_filter post-fetch (mimetypes guesswork, not DB-indexed).
         if type_filter:
+            # media_type is computed from filename via mimetypes.guess_type
+            # — there is no Document.mimetype column to push the filter to
+            # SQL. Fetch the whole filtered+sorted result set, apply the
+            # mimetype filter in Python, THEN count / slice. This keeps
+            # total_count, offset/limit, and next_cursor coherent (Weston
+            # msg=246c84d3 二线 sanity).
+            full_stmt = select(Document).where(and_(*base_filters)).order_by(sort_clause)
+            all_rows = list((await session.execute(full_stmt)).scalars().all())
             allowed = {t.lower() for t in type_filter}
-            documents = [d for d in documents if _media_type_for(d.name).lower() in allowed]
+            filtered = [d for d in all_rows if _media_type_for(d.name).lower() in allowed]
+            total = len(filtered)
+            documents = filtered[offset : offset + limit]
+        else:
+            count_stmt = select(func.count()).select_from(Document).where(and_(*base_filters))
+            total = int((await session.execute(count_stmt)).scalar() or 0)
+
+            page_stmt = select(Document).where(and_(*base_filters)).order_by(sort_clause).offset(offset).limit(limit)
+            documents = list((await session.execute(page_stmt)).scalars().all())
 
         # Batch-fetch indexed chunk counts for the page.
         chunk_counts: dict[str, int] = {}
