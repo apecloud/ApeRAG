@@ -16,23 +16,16 @@ def _json_ref(spec: dict, path: str, method: str, status: str = "200") -> str:
     return spec["paths"][path][method]["responses"][status]["content"]["application/json"]["schema"]["$ref"]
 
 
-# Known v1 ghost paths in the provider domain. v1 LLM provider / default-models /
-# available-models routes are still wired in main pending the #26 final sweep;
-# this baseline pins the current inventory so we catch unexpected regrowth but
-# allow the #26 sweep to shrink it (subset semantics).
-PROVIDER_V1_GHOST_PATHS = frozenset(
-    {
-        "/api/v1/available_models",
-        "/api/v1/default_models",
-        "/api/v1/llm_configuration",
-        "/api/v1/llm_provider_models",
-        "/api/v1/llm_providers",
-        "/api/v1/llm_providers/{provider_name}",
-        "/api/v1/llm_providers/{provider_name}/models",
-        "/api/v1/llm_providers/{provider_name}/models/{api}/{model}",
-        "/api/v1/llm_providers/{provider_name}/publish",
-    }
-)
+# v1 LLM provider / default-models / available-models routes are no longer mounted on main —
+# the #26 final sweep is complete and only OpenAI-compat ``/api/v1/embeddings`` + ``/api/v1/rerank``
+# remain under ``/api/v1`` (those live in ``llm_routes.py`` and are intentionally outside this
+# baseline because they are the OpenAI-compat permanent allowlist, not v1 ghosts).
+#
+# Baseline is empty: the test now strictly forbids regrowth of any internal v1 LLM/provider
+# CRUD paths (the OpenAI-compat allowlist is excluded by the path filter in
+# ``_provider_v1_ghosts`` below — it only matches ``/api/v1/llm_*`` plus the two specific
+# legacy default/available-models paths).
+PROVIDER_V1_GHOST_PATHS: frozenset[str] = frozenset()
 
 
 def _provider_v1_ghosts(spec: dict) -> set[str]:
