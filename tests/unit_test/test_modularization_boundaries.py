@@ -413,8 +413,7 @@ def test_no_module_imports_legacy_views_prompts():
                 offenders.append(path.relative_to(REPO_ROOT).as_posix())
     assert not offenders, (
         "aperag/views/prompts is removed; the canonical location is "
-        "aperag/domains/model_platform/api/prompts_routes. Offenders:\n  "
-        + "\n  ".join(sorted(offenders))
+        "aperag/domains/model_platform/api/prompts_routes. Offenders:\n  " + "\n  ".join(sorted(offenders))
     )
 
 
