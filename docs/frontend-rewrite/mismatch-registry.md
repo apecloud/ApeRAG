@@ -86,7 +86,7 @@ Existing `web/` is largely complete; rewrite revises tokens + composition + copy
 
 These features exist in the API and stay in product; the rewrite covers them in the `tokens.jsx` visual language per earayu2 principle #1.
 
-- Prompt template CRUD (`GET/PUT /api/v1/prompts/user`)
+- Prompt template CRUD (`GET/PUT /api/v2/prompts/user`)
 - API keys (`GET/POST/PUT/DELETE /api/v1/apikeys`)
 - Quotas page (`GET /api/v1/quotas`) — numeric only, no budget framing
 - Audit logs (`GET /api/v1/audit-logs`)

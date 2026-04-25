@@ -5,11 +5,11 @@ position: 20
 
 # Prompt API 参考
 
-本文提供 `/api/v1/prompts/*` 系列接口的 curl 示例与期望行为说明，便于前端集成、自动化测试以及回归验证。关于 prompt 的三层优先级、Bot 配置交互与管理 UX，见 [`admin-guide/prompt-customization.md`](../admin-guide/prompt-customization.md)。关于 prompt_template_service 在后端架构中的 standalone-infra + Protocol+DI 定位，见 [`architecture/conversation-agent-evaluation.md`](../architecture/conversation-agent-evaluation.md#protocol-promptTemplateOps)。
+本文提供 `/api/v2/prompts/*` 系列接口的 curl 示例与期望行为说明，便于前端集成、自动化测试以及回归验证。关于 prompt 的三层优先级、Bot 配置交互与管理 UX，见 [`admin-guide/prompt-customization.md`](../admin-guide/prompt-customization.md)。关于 prompt_template_service 在后端架构中的 standalone-infra + Protocol+DI 定位，见 [`architecture/conversation-agent-evaluation.md`](../architecture/conversation-agent-evaluation.md#protocol-promptTemplateOps)。
 
-- **Base URL**：`http://localhost:8000/api/v1`
+- **Base URL**：`http://localhost:8000/api/v2`
 - **Auth**：`Authorization: Bearer sk-<your-api-key>`
-- **Route host**：当前仍落在 `aperag/views/prompts.py`（standalone-infra legacy view）；调用的服务是 `aperag.service.prompt_template_service` 单例。
+- **Route host**：Phase 8 #49 G3 已碎入 `aperag/domains/model_platform/api/prompts_routes.py`（D7 v2 hard-cut）；底层 user-CRUD 服务仍是 `aperag.service.prompt_template_service` 单例（Layer A 永久 seam，agent_runtime 共享），通过 `PromptCRUDOps` Protocol + `set_prompt_crud_ops()` 在 `aperag/app.py` 启动时 wire。
 
 所有示例把 Bearer token 写成占位符 `sk-<your-api-key>`，请在本地自行替换。接口的返回值以 JSON 表示，为了简洁本文只列出关键字段。
 
@@ -20,7 +20,7 @@ position: 20
 返回当前用户 5 种 prompt 的**有效内容**（合并过三层优先级后的结果），并在每一项上标注来源。
 
 ```bash
-curl -X GET 'http://localhost:8000/api/v1/prompts/user' \
+curl -X GET 'http://localhost:8000/api/v2/prompts/user' \
   -H 'Authorization: Bearer sk-<your-api-key>'
 ```
 
@@ -39,7 +39,7 @@ curl -X GET 'http://localhost:8000/api/v1/prompts/user' \
 只更新请求体里给出的字段，未出现的字段保持不变。
 
 ```bash
-curl -X PUT 'http://localhost:8000/api/v1/prompts/user' \
+curl -X PUT 'http://localhost:8000/api/v2/prompts/user' \
   -H 'Content-Type: application/json' \
   -H 'Authorization: Bearer sk-<your-api-key>' \
   -d '{
@@ -58,11 +58,11 @@ curl -X PUT 'http://localhost:8000/api/v1/prompts/user' \
 
 ```bash
 # 获取所有系统默认
-curl -X GET 'http://localhost:8000/api/v1/prompts/system' \
+curl -X GET 'http://localhost:8000/api/v2/prompts/system' \
   -H 'Authorization: Bearer sk-<your-api-key>'
 
 # 仅获取 agent_system 一项
-curl -X GET 'http://localhost:8000/api/v1/prompts/system?type=agent_system' \
+curl -X GET 'http://localhost:8000/api/v2/prompts/system?type=agent_system' \
   -H 'Authorization: Bearer sk-<your-api-key>'
 ```
 
@@ -72,7 +72,7 @@ curl -X GET 'http://localhost:8000/api/v1/prompts/system?type=agent_system' \
 
 ```bash
 # 正常重置
-curl -X DELETE 'http://localhost:8000/api/v1/prompts/user/agent_system' \
+curl -X DELETE 'http://localhost:8000/api/v2/prompts/user/agent_system' \
   -H 'Authorization: Bearer sk-<your-api-key>'
 ```
 
@@ -88,13 +88,13 @@ curl -X DELETE 'http://localhost:8000/api/v1/prompts/user/agent_system' \
 
 ```bash
 # 重置指定类型
-curl -X POST 'http://localhost:8000/api/v1/prompts/user/reset' \
+curl -X POST 'http://localhost:8000/api/v2/prompts/user/reset' \
   -H 'Content-Type: application/json' \
   -H 'Authorization: Bearer sk-<your-api-key>' \
   -d '{"types": ["agent_system", "index_graph"]}'
 
 # 省略 types：重置所有已自定义项
-curl -X POST 'http://localhost:8000/api/v1/prompts/user/reset' \
+curl -X POST 'http://localhost:8000/api/v2/prompts/user/reset' \
   -H 'Content-Type: application/json' \
   -H 'Authorization: Bearer sk-<your-api-key>' \
   -d '{}'
@@ -107,7 +107,7 @@ curl -X POST 'http://localhost:8000/api/v1/prompts/user/reset' \
 前端在"编辑 prompt"页可以用该接口预览变量替换后的效果。
 
 ```bash
-curl -X POST 'http://localhost:8000/api/v1/prompts/preview' \
+curl -X POST 'http://localhost:8000/api/v2/prompts/preview' \
   -H 'Content-Type: application/json' \
   -H 'Authorization: Bearer sk-<your-api-key>' \
   -d '{
@@ -122,13 +122,13 @@ curl -X POST 'http://localhost:8000/api/v1/prompts/preview' \
 
 ```bash
 # 合法模板：可能会返回 warnings（提示缺少建议变量）
-curl -X POST 'http://localhost:8000/api/v1/prompts/validate' \
+curl -X POST 'http://localhost:8000/api/v2/prompts/validate' \
   -H 'Content-Type: application/json' \
   -H 'Authorization: Bearer sk-<your-api-key>' \
   -d '{"type": "agent_query", "template": "{{ query }} {{ collections }}"}'
 
 # 非法 Jinja2 语法：valid=false + errors
-curl -X POST 'http://localhost:8000/api/v1/prompts/validate' \
+curl -X POST 'http://localhost:8000/api/v2/prompts/validate' \
   -H 'Content-Type: application/json' \
   -H 'Authorization: Bearer sk-<your-api-key>' \
   -d '{"type": "agent_query", "template": "{% for x in %}broken{% endfor %}"}'

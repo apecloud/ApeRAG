@@ -127,7 +127,7 @@ class PromptTemplateOps(Protocol):
     def build_agent_query_prompt(self, chat_id, *, agent_message, user, template=None, has_chat_files=False) -> str: ...
 ```
 
-provider 是 `aperag.service.prompt_template_service`（standalone-infra — prompts 的解析逻辑跨 agent_runtime / conversation / indexing / `/api/v1/prompts` REST 四处共享，没有自然 domain 归属）。`aperag/app.py` 在启动时用 `_PromptTemplateOpsAdapter` 把具体服务 wire 进 runtime 的 `_prompt_template_ops` slot，详见 [`architecture.md §5.1`](../../modularization/architecture.md#51-the-phase-5-permanent-two-entry-registry-g18-alt)。
+provider 是 `aperag.service.prompt_template_service`（standalone-infra — prompts 的解析逻辑跨 agent_runtime / conversation / indexing / `/api/v2/prompts` REST 四处共享，没有自然 domain 归属。Phase 8 #49 G3 起 REST 路由碎入 `aperag/domains/model_platform/api/prompts_routes.py`，通过 model_platform 的 `PromptCRUDOps` Protocol wire 同一单例；底层服务文件不动）。`aperag/app.py` 在启动时用 `_PromptTemplateOpsAdapter` 把具体服务 wire 进 runtime 的 `_prompt_template_ops` slot，详见 [`architecture.md §5.1`](../../modularization/architecture.md#51-the-phase-5-permanent-two-entry-registry-g18-alt)。
 
 `_prompt_template_ops` 是 G18 alt 永久 `CRITICAL_WIRINGS` 的两条之一；`test_phase5_di_critical_wirings_at_app_startup` 在 CI 上守住 "import aperag.app 后 slot 必须非 None"。
 

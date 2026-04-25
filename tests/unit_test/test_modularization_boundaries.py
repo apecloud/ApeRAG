@@ -381,6 +381,43 @@ def test_no_module_imports_legacy_views_settings():
     )
 
 
+def test_no_module_imports_legacy_views_prompts():
+    """Phase 8 #49 G3: ``aperag/views/prompts.py`` was carved to
+    ``aperag/domains/model_platform/api/prompts_routes.py`` and the
+    URL prefix hard-cut from ``/api/v1/prompts*`` to
+    ``/api/v2/prompts*`` per D7 canonical. Any new ``aperag.views.prompts``
+    import is forbidden — the canonical location is the model_platform
+    domain.
+
+    The scan parses each ``.py`` file under ``aperag/`` + ``tests/`` +
+    ``config/`` with ``ast`` and only flags genuine ``import`` /
+    ``from ... import`` statements (so this test's own docstring /
+    error-message string literals are not self-detected).
+    """
+    offenders: list[str] = []
+    scan_roots = [REPO_ROOT / "aperag", REPO_ROOT / "tests", REPO_ROOT / "config"]
+    for root in scan_roots:
+        if not root.exists():
+            continue
+        for path in root.rglob("*.py"):
+            if "__pycache__" in path.parts:
+                continue
+            if not path.is_file():
+                continue
+            try:
+                text = path.read_text(encoding="utf-8")
+            except Exception:
+                continue
+            modules = _imported_modules(text)
+            if "aperag.views.prompts" in modules:
+                offenders.append(path.relative_to(REPO_ROOT).as_posix())
+    assert not offenders, (
+        "aperag/views/prompts is removed; the canonical location is "
+        "aperag/domains/model_platform/api/prompts_routes. Offenders:\n  "
+        + "\n  ".join(sorted(offenders))
+    )
+
+
 # ---------- Retrieval <-> knowledge_graph one-way bridge ----------
 
 

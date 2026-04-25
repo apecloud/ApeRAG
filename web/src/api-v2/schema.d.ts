@@ -915,7 +915,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/prompts/user": {
+    "/api/v2/prompts/user": {
         parameters: {
             query?: never;
             header?: never;
@@ -948,7 +948,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/prompts/user/{prompt_type}": {
+    "/api/v2/prompts/user/{prompt_type}": {
         parameters: {
             query?: never;
             header?: never;
@@ -970,7 +970,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/prompts/user/reset": {
+    "/api/v2/prompts/user/reset": {
         parameters: {
             query?: never;
             header?: never;
@@ -992,7 +992,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/prompts/system": {
+    "/api/v2/prompts/system": {
         parameters: {
             query?: never;
             header?: never;
@@ -1014,7 +1014,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/prompts/preview": {
+    "/api/v2/prompts/preview": {
         parameters: {
             query?: never;
             header?: never;
@@ -1034,7 +1034,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/prompts/validate": {
+    "/api/v2/prompts/validate": {
         parameters: {
             query?: never;
             header?: never;

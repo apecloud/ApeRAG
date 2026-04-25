@@ -304,11 +304,12 @@ def test_prompt_feature_uses_v2_typed_api_boundary():
 
     Same pattern as `test_api_key_feature_uses_v2_typed_api_boundary`:
     the Prompt Settings page and its client/server callers must only reach
-    `/api/v1/prompts/user` + `/api/v1/prompts/user/{prompt_type}` through the
-    typed openapi-fetch client behind `features/prompt/*`. Phase 1b does not
-    rename the API path or touch the OpenAPI shape — the `prompt_type` enum
-    and richer response component are known gaps tracked for the later
-    `model_platform` API hard-cut phase.
+    `/api/v2/prompts/user` + `/api/v2/prompts/user/{prompt_type}` through the
+    typed openapi-fetch client behind `features/prompt/*`. Phase 8 #49 G3
+    carved the route into the `model_platform` domain and hard-cut
+    `/api/v1/prompts*` → `/api/v2/prompts*` per D7 canonical; the
+    `prompt_type` enum and richer response component remain known gaps
+    tracked under the `model_platform` breaking-changes table.
 
     Negative assertions are scoped to `app/workspace/prompts/**` and
     `features/prompt/**` so legitimate uses of "prompt" vocabulary in
@@ -346,8 +347,8 @@ def test_prompt_feature_uses_v2_typed_api_boundary():
     # path — the v1→v2 hard-cut is deferred to the `model_platform` phase.
     assert "from '@/api'" not in feature_sources
     assert "fetch(" not in feature_sources
-    assert "'/api/v1/prompts/user'" in feature_sources
-    assert "'/api/v1/prompts/user/{prompt_type}'" in feature_sources
+    assert "'/api/v2/prompts/user'" in feature_sources
+    assert "'/api/v2/prompts/user/{prompt_type}'" in feature_sources
 
     # Positive: the business caller wiring goes through the feature adapter.
     settings_tsx = (REPO_ROOT / "web/src/app/workspace/prompts/prompt-settings.tsx").read_text()
