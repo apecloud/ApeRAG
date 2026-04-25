@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Optional
 
+import sqlalchemy as sa
 from sqlalchemy import select
 
 from aperag.db.repositories.base import AsyncRepositoryProtocol, SyncRepositoryProtocol
@@ -112,7 +113,14 @@ class AsyncLlmProviderRepositoryMixin(AsyncRepositoryProtocol):
                     ModelAccount.status == "ACTIVE",
                     user_filter,
                 )
-                .order_by(ModelAccount.gmt_updated.desc())
+                # The user's personal account ALWAYS wins over a ``public`` row,
+                # even when ``public`` was updated more recently — otherwise a
+                # later admin edit on the shared key would silently shadow the
+                # caller's own credential.
+                .order_by(
+                    sa.case((ModelAccount.user_id == user_id, 0), else_=1),
+                    ModelAccount.gmt_updated.desc(),
+                )
             )
             result = await session.execute(stmt)
             account = result.scalars().first()
