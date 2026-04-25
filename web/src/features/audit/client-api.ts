@@ -24,7 +24,7 @@ function buildAuditLogsUrl(params?: ListAuditLogsParams): string {
   if (params?.startTime != null) qs.set('start_time', String(params.startTime));
   if (params?.endTime != null) qs.set('end_time', String(params.endTime));
   const query = qs.toString();
-  return `${BASE_PATH}/api/v1/audit-logs${query ? `?${query}` : ''}`;
+  return `${BASE_PATH}/api/v2/audit-logs${query ? `?${query}` : ''}`;
 }
 
 export async function listAuditLogs(
@@ -41,7 +41,7 @@ export async function listAuditLogs(
 
 export async function getAuditLog(id: string): Promise<AuditLog> {
   const response = await fetch(
-    `${BASE_PATH}/api/v1/audit-logs/${encodeURIComponent(id)}`,
+    `${BASE_PATH}/api/v2/audit-logs/${encodeURIComponent(id)}`,
     { credentials: 'same-origin' },
   );
   if (!response.ok) {

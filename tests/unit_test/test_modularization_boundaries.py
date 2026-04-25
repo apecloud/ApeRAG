@@ -996,7 +996,7 @@ HIDDEN_API_OWNERS = {
     # (decisions R + S) unhides both and promotes them to typed
     # wrappers; at that point this gate's entry for the promoted path
     # is removed (or the gate is dropped if the set becomes empty).
-    "/api/v1/audit-logs": "features/audit/",
+    "/api/v2/audit-logs": "features/audit/",
     "/api/v2/config": "features/auth/",
 }
 
