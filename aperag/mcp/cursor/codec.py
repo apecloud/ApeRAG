@@ -31,10 +31,13 @@ that is intentional (§C.0 idempotent + restart-stable).
 from __future__ import annotations
 
 import base64
+import binascii
 import json
 import time
 from dataclasses import asdict, dataclass, field
 from typing import Any
+
+from aperag.mcp.cursor.errors import CursorError
 
 # CURSOR_SCHEMA_VERSION bumps when the on-wire payload shape changes
 # in an incompatible way. Decoders treat any `schema_version` they
@@ -81,26 +84,76 @@ def _b64url_decode(token: str) -> bytes:
     return base64.urlsafe_b64decode(token + pad)
 
 
-def decode_cursor(token: str) -> CursorPayload:
-    """Decode a wire cursor string back to a CursorPayload.
+def decode_cursor(token: str, *, now: int | None = None) -> CursorPayload:
+    """Decode a wire cursor string and enforce the §C.3 contract.
 
-    On malformed / unsupported / expired input the caller is
-    responsible for raising the canonical CursorError code
-    (``cursor_invalid`` / ``cursor_schema_unsupported`` / etc) —
-    this codec only surfaces structural issues via ValueError /
-    KeyError; the canonical error mapping lives in
-    :mod:`aperag.mcp.cursor.errors` (pending spec amendment lock).
+    The decoder is the single chokepoint where every caller-facing
+    cursor failure becomes one of the six canonical
+    :class:`CursorError` codes — pushing the mapping out to each
+    tool would invite silent-reset drift (Weston msg=cc4a3ab0).
+
+    Raises:
+        CursorError: with code ``cursor_invalid`` (malformed wire /
+            base64 / JSON / missing field), ``cursor_schema_unsupported``
+            (unrecognised ``schema_version``), or ``cursor_expired``
+            (past ``issued_at + ttl_seconds`` clock).
+
+    Tool-boundary callers that need the raw structural decode
+    without the schema/expiry checks (typically only the test
+    surface) should use :func:`_decode_cursor_payload` directly.
     """
 
-    raw = _b64url_decode(token)
-    obj = json.loads(raw)
-    return CursorPayload(
-        schema_version=obj["schema_version"],
-        sort_key=obj["sort_key"],
-        last_position=obj["last_position"],
-        invariant_hash=obj["invariant_hash"],
-        issued_at=obj["issued_at"],
-        ttl_seconds=obj.get("ttl_seconds", DEFAULT_TTL_SECONDS),
-        server_id=obj["server_id"],
-        extra=obj.get("extra", {}),
-    )
+    payload = _decode_cursor_payload(token)
+
+    if payload.schema_version != CURSOR_SCHEMA_VERSION:
+        raise CursorError(
+            "cursor_schema_unsupported",
+            f"cursor schema_version {payload.schema_version} not supported by this server",
+            details={
+                "received_schema_version": payload.schema_version,
+                "supported_schema_version": CURSOR_SCHEMA_VERSION,
+            },
+        )
+
+    if payload.is_expired(now=now):
+        raise CursorError(
+            "cursor_expired",
+            "cursor has passed its TTL window",
+            details={
+                "issued_at": payload.issued_at,
+                "ttl_seconds": payload.ttl_seconds,
+            },
+        )
+
+    return payload
+
+
+def _decode_cursor_payload(token: str) -> CursorPayload:
+    """Structural decode without §C.3 schema/expiry checks.
+
+    Internal helper — public callers should always go through
+    :func:`decode_cursor` so the explicit-not-silent contract is
+    enforced uniformly. This raw form exists so the test suite can
+    construct expired or wrong-schema payloads to exercise the
+    canonical error paths.
+    """
+
+    try:
+        raw = _b64url_decode(token)
+        obj = json.loads(raw)
+        return CursorPayload(
+            schema_version=obj["schema_version"],
+            sort_key=obj["sort_key"],
+            last_position=obj["last_position"],
+            invariant_hash=obj["invariant_hash"],
+            issued_at=obj["issued_at"],
+            ttl_seconds=obj.get("ttl_seconds", DEFAULT_TTL_SECONDS),
+            server_id=obj["server_id"],
+            extra=obj.get("extra", {}),
+        )
+    except (binascii.Error, ValueError, KeyError, TypeError) as exc:
+        raise CursorError(
+            "cursor_invalid",
+            "cursor wire payload could not be decoded",
+            details={"reason": str(exc) or exc.__class__.__name__},
+        ) from exc

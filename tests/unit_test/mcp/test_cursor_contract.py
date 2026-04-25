@@ -33,7 +33,11 @@ from aperag.mcp.cursor import (
     decode_cursor,
     encode_cursor,
 )
-from aperag.mcp.cursor.codec import CURSOR_SCHEMA_VERSION, DEFAULT_TTL_SECONDS
+from aperag.mcp.cursor.codec import (
+    CURSOR_SCHEMA_VERSION,
+    DEFAULT_TTL_SECONDS,
+    _decode_cursor_payload,
+)
 from aperag.mcp.cursor.errors import (
     SILENT_RESET_FORBIDDEN,
     CursorError,
@@ -42,11 +46,17 @@ from aperag.mcp.cursor.errors import (
 
 
 def _payload(**overrides) -> CursorPayload:
+    # ``issued_at`` defaults to "now" so round-trip tests don't trip
+    # the §C.4 TTL window when the test is run far from the fixture's
+    # original drafting date. Tests that need a frozen / expired
+    # payload override ``issued_at`` explicitly.
+    import time as _time
+
     base = dict(
         sort_key="created_at",
         last_position={"created_at": "2026-04-26T03:00:00Z", "id": "doc-42"},
         invariant_hash="a" * 64,
-        issued_at=1761465600,
+        issued_at=int(_time.time()),
         server_id="srv-test",
     )
     base.update(overrides)
@@ -71,18 +81,39 @@ class TestCodec:
         assert payload.schema_version == CURSOR_SCHEMA_VERSION == 1
         assert payload.ttl_seconds == DEFAULT_TTL_SECONDS == 3600
 
-    def test_decode_rejects_garbage_via_value_error(self):
-        # codec layer surfaces structural failures as ValueError /
-        # JSONDecodeError; the canonical wire mapping into
-        # `cursor_invalid` happens at the tool boundary so the codec
-        # itself stays insulated from the error code naming.
-        with pytest.raises((ValueError, KeyError)):
+    def test_decode_garbage_raises_canonical_cursor_invalid(self):
+        # The decoder is the single chokepoint — every caller
+        # downstream sees `cursor_invalid` for a malformed wire
+        # without each tool reinventing the mapping.
+        with pytest.raises(CursorError) as excinfo:
             decode_cursor("not~~base64??")
+        assert excinfo.value.code == "cursor_invalid"
+
+    def test_decode_unknown_schema_version_raises_cursor_schema_unsupported(self):
+        future_token = encode_cursor(_payload(schema_version=CURSOR_SCHEMA_VERSION + 1))
+        with pytest.raises(CursorError) as excinfo:
+            decode_cursor(future_token)
+        assert excinfo.value.code == "cursor_schema_unsupported"
+        assert excinfo.value.details["received_schema_version"] == CURSOR_SCHEMA_VERSION + 1
+
+    def test_decode_past_ttl_raises_cursor_expired(self):
+        token = encode_cursor(_payload(issued_at=1000, ttl_seconds=60))
+        with pytest.raises(CursorError) as excinfo:
+            decode_cursor(token, now=2000)
+        assert excinfo.value.code == "cursor_expired"
 
     def test_is_expired_at_exact_ttl_boundary(self):
         payload = _payload(issued_at=1000, ttl_seconds=60)
         assert payload.is_expired(now=1059) is False
         assert payload.is_expired(now=1060) is True
+
+    def test_internal_decode_skips_schema_and_expiry_checks(self):
+        # _decode_cursor_payload is the test/debug escape hatch — it
+        # MUST NOT be called from production code, only from tests
+        # that need to craft wrong-schema or expired payloads.
+        future_token = encode_cursor(_payload(schema_version=999))
+        payload = _decode_cursor_payload(future_token)
+        assert payload.schema_version == 999
 
 
 class TestInvariantHash:
