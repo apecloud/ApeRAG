@@ -180,6 +180,7 @@ def _every_part_message() -> UIMessage:
             DataElicitationPart(
                 data=ElicitationData(
                     elicitation_id="el-1",
+                    server_name="aperag-knowledge-base",
                     prompt="Please confirm the date range",
                     schema={"type": "object", "properties": {"from": {"type": "string"}}},
                     response=None,
@@ -362,7 +363,7 @@ async def test_data_parts_use_wrapped_data_shape():
     assert {"toolCallId", "toolName", "argsPreview", "argsHash", "requestedAt", "risk", "state"} <= consent.keys()
 
     elicitation = persisted["data-elicitation"]["data"]
-    assert {"elicitationId", "prompt", "schema", "state"} <= elicitation.keys()
+    assert {"elicitationId", "serverName", "prompt", "schema", "state"} <= elicitation.keys()
 
 
 @pytest.mark.asyncio
@@ -404,6 +405,49 @@ async def test_persisted_keys_use_canonical_camelcase():
 
     elicitation = by_type["data-elicitation"]["data"]
     assert "elicitationId" in elicitation and "elicitation_id" not in elicitation
+    assert "serverName" in elicitation and "server_name" not in elicitation
+    assert elicitation["state"] in {"pending", "answered", "cancelled"}, (
+        f"data-elicitation.state must be canonical per D9 §5.1, got {elicitation['state']!r}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_data_elicitation_answered_state_round_trip():
+    """``DataElicitationPart`` must accept the canonical ``answered`` state per D9 §5.1.
+
+    Architect lock 2026-04-25 (Weston msg=51dffdc9 / PM msg=042b0a7b):
+    state literal is ``pending | answered | cancelled`` — the previous
+    ``submitted`` value was non-canonical and would have forced #75 to
+    rewrite state on emit.
+    """
+
+    db = _FakeDbOps()
+    redis = _FakeRedisStore()
+    store = UIMessageStore(db_ops=db, redis_store=redis)
+
+    answered = UIMessage(
+        id="msg-elicit",
+        role="assistant",
+        parts=[
+            DataElicitationPart(
+                data=ElicitationData(
+                    elicitation_id="el-2",
+                    server_name="aperag-knowledge-base",
+                    prompt="Pick a date",
+                    schema={"type": "object"},
+                    response={"value": "2026-04-25"},
+                    state="answered",
+                ),
+            ),
+        ],
+    )
+    await store.write(turn_id="turn-elicit", chat_id="chat-elicit", message=answered)
+    reloaded = await store.read("turn-elicit")
+
+    assert reloaded is not None
+    assert isinstance(reloaded.parts[0], DataElicitationPart)
+    assert reloaded.parts[0].data.state == "answered"
+    assert reloaded.parts[0].data.server_name == "aperag-knowledge-base"
 
 
 def test_persistable_parts_helper_strips_only_transient():

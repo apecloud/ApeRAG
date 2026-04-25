@@ -240,10 +240,11 @@ class DataToolConsentPart(BaseModel):
 
 class ElicitationData(BaseModel):
     elicitation_id: str = Field(alias="elicitationId")
+    server_name: str = Field(alias="serverName")
     prompt: str
     schema_: dict[str, Any] = Field(default_factory=dict, alias="schema")
     response: Optional[dict[str, Any]] = None
-    state: Literal["pending", "submitted", "cancelled"]
+    state: Literal["pending", "answered", "cancelled"]
 
     model_config = ConfigDict(populate_by_name=True)
 
