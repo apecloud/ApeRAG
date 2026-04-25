@@ -23,10 +23,24 @@ Wire shape: returns the existing ``SearchResult`` dict shape from the
 ``aperag/api/v2/collections/{id}/searches`` backend (``recall_type =
 "vector_search"`` for produced items). The §B canonical
 ``SearchResult`` / ``SearchResultItem`` with ``chunk_id`` /
-``section_path`` / ``heading_anchor`` is deferred to a D10.d follow-up
-PR after the chunk_id propagation question is resolved via a
-``[D10 spec amendment]`` thread (current backend does not surface
-``chunk_id`` in the public response shape — see PR description).
+``section_path`` / ``heading_anchor`` exposure was settled by the
+``[D10 spec amendment]`` thread (msg=b9b7072a) — Drift #1 resolution
+(c): defer the canonical shape to the D10.h cutover lane (one-shot
+``aperag/domains/retrieval/`` upgrade) so this lane stays focused on
+the split surface + omnibus deprecation.
+
+The ``cursor`` parameter is a placeholder per the same amendment
+thread (Drift #4 resolution (c)): the signature is published now so
+external MCP clients see the canonical shape, but the body explicitly
+raises ``NotImplementedError("search pagination is not yet
+implemented")`` on any **non-empty** value. The architect sign-off
+(msg=ebfcdabe) plus Weston's blocker review (msg=177a1dd8) explicitly
+forbid reusing the canonical ``CursorError("cursor_invalid", ...)``
+malformed-wire semantic for this "feature not implemented" case —
+that would camouflage missing capability as a client-side cursor bug.
+``cursor=None`` and ``cursor=""`` both keep the existing single-page
+``top_k`` behavior (Weston msg=177a1dd8 lock); only truthy /
+non-empty cursor values trigger the loud-fail.
 """
 
 from __future__ import annotations
@@ -46,9 +60,11 @@ logger = logging.getLogger(__name__)
 async def vector_search(
     collection_id: str,
     query: str,
+    *,
     top_k: int = 5,
     similarity_threshold: float | None = None,
     rerank: bool = True,
+    cursor: str | None = None,
 ) -> Dict[str, Any]:
     """Vector similarity search within a collection (§B.1).
 
@@ -83,11 +99,26 @@ async def vector_search(
         similarity_threshold: Minimum similarity score [0, 1]; ``None``
             uses the collection's default threshold.
         rerank: Whether to apply reranker on returned candidates (default: True).
+        cursor: Pagination cursor placeholder (§B.1). ``None`` and
+            ``""`` both return the first page (current behavior); any
+            non-empty value raises ``NotImplementedError`` with a
+            ``"search pagination is not yet implemented"`` message per
+            the ``[D10 spec amendment]`` (msg=b9b7072a + sign-off
+            msg=ebfcdabe + Weston msg=177a1dd8). Real search
+            pagination requires a backend capability that is not yet
+            available and will land in a dedicated D11+ upgrade.
 
     Returns:
         Search results with ``items`` ranked by vector similarity. Each
         item carries ``recall_type = "vector_search"``.
     """
+    if cursor:
+        # ``cursor`` is truthy iff non-None and non-empty (Weston
+        # msg=177a1dd8 lock: ``None`` and ``""`` both preserve
+        # single-page ``top_k`` behavior).
+        raise NotImplementedError(
+            "search pagination is not yet implemented (tool=vector_search, reason=search_not_paginated)"
+        )
     try:
         api_key = get_api_key()
 

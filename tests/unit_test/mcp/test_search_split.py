@@ -39,6 +39,8 @@ import ast
 import inspect
 from pathlib import Path
 
+import pytest
+
 # Importing ``aperag.mcp.server`` triggers the bottom-of-module
 # registration block which loads ``aperag.mcp.tools.search_*`` and
 # triggers ``@mcp_server.tool`` decorators. The tool functions are
@@ -88,41 +90,68 @@ def _params(func) -> dict[str, inspect.Parameter]:
     return dict(inspect.signature(func).parameters)
 
 
+def _kw_only_params(func) -> set[str]:
+    return {
+        name
+        for name, param in inspect.signature(func).parameters.items()
+        if param.kind is inspect.Parameter.KEYWORD_ONLY
+    }
+
+
 def test_vector_search_signature_matches_b1_lock():
-    """``vector_search`` signature follows §B.1: collection_id + query
-    positional, then keyword-tunable top_k / similarity_threshold /
-    rerank.
+    """``vector_search`` signature follows §B.1: ``collection_id`` +
+    ``query`` positional, then a ``*,`` kw-only barrier with
+    ``top_k`` / ``similarity_threshold`` / ``rerank`` / ``cursor``.
+    The kw-only enforcement aligns with the D10.c precedent (per
+    `[D10 spec amendment]` msg=b9b7072a Drift #5 resolution).
     """
     params = _params(vector_search)
     assert list(params)[:2] == ["collection_id", "query"]
-    for name in ("top_k", "similarity_threshold", "rerank"):
-        assert name in params, f"§B.1 requires `{name}` parameter"
+    assert _kw_only_params(vector_search) == {
+        "top_k",
+        "similarity_threshold",
+        "rerank",
+        "cursor",
+    }, "§B.1 requires kw-only `top_k / similarity_threshold / rerank / cursor`."
     assert params["top_k"].default == 5
     # similarity_threshold defaults to None to mean "use collection default".
     assert params["similarity_threshold"].default is None
     assert params["rerank"].default is True
+    # cursor placeholder per amendment msg=b9b7072a Drift #4 (c).
+    assert params["cursor"].default is None
 
 
 def test_graph_search_signature_matches_b2_lock():
-    """``graph_search`` signature follows §B.2: collection_id + query +
-    top_k. The §B.2 spec mentions ``depth`` / ``entity_types`` as
+    """``graph_search`` signature follows §B.2 + amendment msg=b9b7072a:
+    collection_id + query positional then kw-only top_k + cursor.
+    The §B.2 spec mentions ``depth`` / ``entity_types`` as
     forward-looking knobs; first-cut keeps them out until the backend
     surface for graph traversal is wired (deferred to D10.d follow-up).
     """
     params = _params(graph_search)
     assert list(params)[:2] == ["collection_id", "query"]
-    assert "top_k" in params
+    assert _kw_only_params(graph_search) == {"top_k", "cursor"}, "§B.2 requires kw-only `top_k / cursor`."
     assert params["top_k"].default == 5
+    assert params["cursor"].default is None
 
 
 def test_fulltext_search_signature_matches_b3_lock():
-    """``fulltext_search`` signature follows §B.3: collection_id +
-    query + top_k + optional keyword override.
+    """``fulltext_search`` signature follows §B.3 + amendment
+    msg=b9b7072a: collection_id + query positional then kw-only
+    top_k + keywords + rerank + cursor.
     """
     params = _params(fulltext_search)
     assert list(params)[:2] == ["collection_id", "query"]
-    assert "top_k" in params and params["top_k"].default == 5
-    assert "keywords" in params and params["keywords"].default is None
+    assert _kw_only_params(fulltext_search) == {
+        "top_k",
+        "keywords",
+        "rerank",
+        "cursor",
+    }, "§B.3 requires kw-only `top_k / keywords / rerank / cursor`."
+    assert params["top_k"].default == 5
+    assert params["keywords"].default is None
+    assert params["rerank"].default is True
+    assert params["cursor"].default is None
 
 
 def test_web_search_signature_preserves_existing_wire_for_b4():
@@ -137,6 +166,128 @@ def test_web_search_signature_preserves_existing_wire_for_b4():
     assert "timeout" in params and params["timeout"].default == 30
     assert "locale" in params and params["locale"].default == "en-US"
     assert "source" in params and params["source"].default == ""
+
+
+# --- 2b. Cursor placeholder explicit-not-silent (§B / amendment Drift #4) ---
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "tool",
+    [vector_search, graph_search, fulltext_search],
+    ids=["vector_search", "graph_search", "fulltext_search"],
+)
+@pytest.mark.parametrize(
+    "bad_cursor",
+    ["garbage", "AAAA", "{}", "0"],
+    ids=["garbage", "base64_no_payload", "empty_json", "single_zero"],
+)
+async def test_collection_scoped_split_tools_reject_non_empty_cursor(tool, bad_cursor):
+    """Per `[D10 spec amendment]` msg=b9b7072a Drift #4 (c) +
+    architect sign-off msg=ebfcdabe + Weston blocker msg=177a1dd8:
+    any non-empty cursor must loud-fail with ``NotImplementedError``
+    bearing a "search pagination is not yet implemented" message.
+
+    The sign-off explicitly forbids reusing
+    ``CursorError("cursor_invalid", ...)`` for this case — the canonical
+    cursor codes describe wire-level malformed / expired / drifted
+    cursors, and the "feature not implemented yet" semantic must not
+    be camouflaged as a malformed-cursor error.
+
+    ``cursor=None`` and ``cursor=""`` are covered by the
+    happy-path-passthrough test below; this case only exercises the
+    truthy-cursor loud-fail path.
+    """
+
+    with pytest.raises(NotImplementedError) as excinfo:
+        await tool("collection-id", "query", cursor=bad_cursor)
+
+    message = str(excinfo.value)
+    assert "search pagination is not yet implemented" in message, (
+        f"{tool.__name__} loud-fail message must clearly state that "
+        f"search pagination is not implemented (got {message!r})."
+    )
+    assert tool.__name__ in message, (
+        "Loud-fail message must identify the originating tool so logs can attribute the rejection."
+    )
+    assert "search_not_paginated" in message, (
+        "Loud-fail message must surface the deferred-pagination reason so clients understand they should not retry."
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "tool",
+    [vector_search, graph_search, fulltext_search],
+    ids=["vector_search", "graph_search", "fulltext_search"],
+)
+@pytest.mark.parametrize(
+    "noop_cursor",
+    [None, ""],
+    ids=["none", "empty_string"],
+)
+async def test_collection_scoped_split_tools_treat_none_and_empty_cursor_as_first_page(tool, noop_cursor, monkeypatch):
+    """Weston blocker msg=177a1dd8 lock: ``None`` *and* ``""`` cursor
+    must both preserve the existing single-page ``top_k`` behavior
+    (``""`` is **not** a malformed cursor; it is the canonical
+    "no pagination requested" wire value).
+
+    We stub ``get_api_key()`` and the outbound httpx call so the test
+    only validates that the cursor guard does **not** raise — it does
+    not exercise the backend search path itself.
+    """
+
+    import aperag.mcp.tools.search_fulltext as sft
+    import aperag.mcp.tools.search_graph as sg
+    import aperag.mcp.tools.search_vector as sv
+
+    monkeypatch.setattr(sv, "get_api_key", lambda: "test-token")
+    monkeypatch.setattr(sg, "get_api_key", lambda: "test-token")
+    monkeypatch.setattr(sft, "get_api_key", lambda: "test-token")
+
+    class _FakeResponse:
+        status_code = 200
+
+        def json(self):
+            return {"items": []}
+
+    class _FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(self, url, headers=None, json=None):
+            return _FakeResponse()
+
+    import httpx
+
+    monkeypatch.setattr(httpx, "AsyncClient", _FakeAsyncClient)
+
+    # No exception expected — the cursor guard must not raise on
+    # ``None`` or ``""``.
+    result = await tool("collection-id", "query", cursor=noop_cursor)
+    assert isinstance(result, dict), (
+        f"{tool.__name__} must return the SearchResult dict for None/empty cursor (got {type(result).__name__})."
+    )
+
+
+@pytest.mark.asyncio
+async def test_web_search_does_not_carry_cursor_param():
+    """``web_search`` is intentionally cursor-less — its provider
+    chain (Jina / DDG) is provider-bounded, not paginated, per §B.4.
+    The amendment thread (msg=b9b7072a Drift #4) only added cursor
+    placeholders to the 3 collection-scoped split tools.
+    """
+
+    params = _params(web_search)
+    assert "cursor" not in params, (
+        "web_search must not carry a cursor parameter — its scope is provider-bounded per §B.4 (no pagination)."
+    )
 
 
 # --- 3. Deprecation banner on omnibus aliases ------------------------
