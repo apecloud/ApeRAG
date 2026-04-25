@@ -49,3 +49,9 @@ export {
   type UseAgentTurnStreamInput,
   type UseAgentTurnStreamResult,
 } from './use-agent-turn-stream';
+
+export {
+  isTerminalBackendStatus,
+  mapBackendTurnStatus,
+  synthesizePartsFromSnapshot,
+} from './snapshot-fallback';

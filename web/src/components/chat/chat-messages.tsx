@@ -5,7 +5,11 @@ import {
   cancelAgentTurn,
   createAgentTurn,
   getAgentTurnSnapshot,
+  mapBackendTurnStatus,
+  synthesizePartsFromSnapshot,
   useAgentTurnStream,
+  type AgentMessagePart,
+  type AgentStreamStatus,
   type AgentTurnEnvelope,
   type AgentTurnSnapshotEnvelope,
 } from '@/features/agent-runtime';
@@ -507,6 +511,30 @@ function AgentTurnStreamCard({
     initialSequence,
   });
 
+  // dongdong msg=97336fb9 — when the hook is dormant for a terminal
+  // historical turn (`streamUrl: null`, no live frames), synthesize
+  // parts + status from the snapshot's legacy artifacts so the
+  // renderer shows the completed answer + references instead of an
+  // empty `idle` state. Read-only fallback; deletes when the BE
+  // snapshot endpoint returns UIMessages.
+  const useFallback =
+    streamUrl == null && stream.parts.length === 0 && Boolean(baselineSnapshot);
+  const fallbackParts = useMemo<AgentMessagePart[]>(
+    () =>
+      useFallback && baselineSnapshot
+        ? synthesizePartsFromSnapshot(baselineSnapshot)
+        : [],
+    [useFallback, baselineSnapshot],
+  );
+  const displayParts = useFallback ? fallbackParts : stream.parts;
+  const displayStatus: AgentStreamStatus = useFallback
+    ? mapBackendTurnStatus(envelope.status)
+    : stream.status;
+  const displayErrorText =
+    displayStatus === 'failed'
+      ? (stream.errorText ?? envelope.error_message ?? null)
+      : stream.errorText;
+
   const onTerminalRef = useRef(onTerminal);
   onTerminalRef.current = onTerminal;
 
@@ -526,10 +554,10 @@ function AgentTurnStreamCard({
     <AgentTurnRenderer
       chatId={chatId}
       turn={envelope}
-      parts={stream.parts}
+      parts={displayParts}
       transientActivity={stream.transientActivity}
-      status={stream.status}
-      errorText={stream.errorText}
+      status={displayStatus}
+      errorText={displayErrorText}
       feedback={feedback}
       onFeedback={onFeedback}
     />
