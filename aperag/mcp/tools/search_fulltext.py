@@ -21,8 +21,12 @@ split). ``search_collection`` itself remains as a deprecated alias
 
 Wire shape: returns the existing ``SearchResult`` dict shape with
 ``recall_type = "fulltext_search"`` for produced items. §B canonical
-shape follow-up gated on the chunk_id propagation amendment thread —
-see ``search_vector.py`` module docstring.
+shape follow-up settled by the ``[D10 spec amendment]`` thread
+(msg=b9b7072a) — defer canonical SearchResultItem to D10.h cutover.
+
+The ``cursor`` parameter is a placeholder per the same thread (Drift
+#4 (c)): signature lands now, body raises ``CursorError`` on any
+non-null value until real search pagination ships.
 """
 
 from __future__ import annotations
@@ -33,6 +37,7 @@ from typing import Any, Dict
 import httpx
 
 from aperag.domains.retrieval.schemas import SearchResult
+from aperag.mcp.cursor.errors import CursorError
 from aperag.mcp.server import API_BASE_URL, get_api_key, mcp_server
 
 logger = logging.getLogger(__name__)
@@ -42,8 +47,11 @@ logger = logging.getLogger(__name__)
 async def fulltext_search(
     collection_id: str,
     query: str,
+    *,
     top_k: int = 5,
     keywords: list[str] | None = None,
+    rerank: bool = True,
+    cursor: str | None = None,
 ) -> Dict[str, Any]:
     """Full-text keyword search within a collection (§B.3).
 
@@ -76,12 +84,24 @@ async def fulltext_search(
         top_k: Maximum number of results to return (default: 5).
         keywords: Optional explicit keyword list overriding the
             auto-extracted keywords from the query.
+        rerank: Whether to apply reranker on returned candidates
+            (default: True).
+        cursor: Pagination cursor placeholder (§B.3 / amendment
+            msg=b9b7072a Drift #4 (c)). ``None`` returns first page;
+            non-null raises ``CursorError("cursor_invalid")`` until
+            real search pagination ships.
 
     Returns:
         Search results with ``items`` carrying ``recall_type =
         "fulltext_search"``. Highlight snippets / matched terms are
         surfaced via ``items[*].metadata``.
     """
+    if cursor is not None:
+        raise CursorError(
+            "cursor_invalid",
+            "search pagination cursor is not yet implemented",
+            details={"reason": "search_not_paginated", "tool": "fulltext_search"},
+        )
     try:
         api_key = get_api_key()
 
@@ -91,6 +111,7 @@ async def fulltext_search(
 
         search_data: Dict[str, Any] = {
             "query": query,
+            "rerank": rerank,
             "fulltext_search": fulltext_payload,
         }
 

@@ -20,9 +20,13 @@ per ``docs/modularization/d10-design-pack.md`` §B.2 (Lock #5 split).
 until the D10.h cutover.
 
 Wire shape: returns the existing ``SearchResult`` dict shape with
-``recall_type = "graph_search"`` for produced items. §B canonical shape
-follow-up gated on the chunk_id propagation amendment thread — see
-``search_vector.py`` module docstring.
+``recall_type = "graph_search"`` for produced items. §B canonical
+shape follow-up settled by the ``[D10 spec amendment]`` thread
+(msg=b9b7072a) — defer canonical SearchResultItem to D10.h cutover.
+
+The ``cursor`` parameter is a placeholder per the same thread (Drift
+#4 (c)): signature lands now, body raises ``CursorError`` on any
+non-null value until real search pagination ships.
 """
 
 from __future__ import annotations
@@ -33,6 +37,7 @@ from typing import Any, Dict
 import httpx
 
 from aperag.domains.retrieval.schemas import SearchResult
+from aperag.mcp.cursor.errors import CursorError
 from aperag.mcp.server import API_BASE_URL, get_api_key, mcp_server
 
 logger = logging.getLogger(__name__)
@@ -42,7 +47,9 @@ logger = logging.getLogger(__name__)
 async def graph_search(
     collection_id: str,
     query: str,
+    *,
     top_k: int = 5,
+    cursor: str | None = None,
 ) -> Dict[str, Any]:
     """Knowledge-graph search within a collection (§B.2).
 
@@ -74,12 +81,22 @@ async def graph_search(
         collection_id: The ID of the collection to search.
         query: The natural-language search query.
         top_k: Maximum number of results to return (default: 5).
+        cursor: Pagination cursor placeholder (§B.2 / amendment
+            msg=b9b7072a Drift #4 (c)). ``None`` returns first page;
+            non-null raises ``CursorError("cursor_invalid")`` until
+            real search pagination ships.
 
     Returns:
         Search results with ``items`` carrying ``recall_type =
         "graph_search"``. Graph-specific fields (entity / relation / path)
         are surfaced via ``items[*].metadata``.
     """
+    if cursor is not None:
+        raise CursorError(
+            "cursor_invalid",
+            "search pagination cursor is not yet implemented",
+            details={"reason": "search_not_paginated", "tool": "graph_search"},
+        )
     try:
         api_key = get_api_key()
 

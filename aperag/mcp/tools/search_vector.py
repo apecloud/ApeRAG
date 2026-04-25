@@ -23,10 +23,18 @@ Wire shape: returns the existing ``SearchResult`` dict shape from the
 ``aperag/api/v2/collections/{id}/searches`` backend (``recall_type =
 "vector_search"`` for produced items). The §B canonical
 ``SearchResult`` / ``SearchResultItem`` with ``chunk_id`` /
-``section_path`` / ``heading_anchor`` is deferred to a D10.d follow-up
-PR after the chunk_id propagation question is resolved via a
-``[D10 spec amendment]`` thread (current backend does not surface
-``chunk_id`` in the public response shape — see PR description).
+``section_path`` / ``heading_anchor`` exposure was settled by the
+``[D10 spec amendment]`` thread (msg=b9b7072a) — Drift #1 resolution
+(c): defer the canonical shape to the D10.h cutover lane (one-shot
+``aperag/domains/retrieval/`` upgrade) so this lane stays focused on
+the split surface + omnibus deprecation.
+
+The ``cursor`` parameter is a placeholder per the same amendment
+thread (Drift #4 resolution (c)): the signature is published now so
+external MCP clients see the canonical shape, but the body explicitly
+fails with ``CursorError("cursor_invalid", ...)`` on any non-null
+input until real search pagination lands. ``None`` continues to mean
+"first page" (current behavior).
 """
 
 from __future__ import annotations
@@ -37,6 +45,7 @@ from typing import Any, Dict
 import httpx
 
 from aperag.domains.retrieval.schemas import SearchResult
+from aperag.mcp.cursor.errors import CursorError
 from aperag.mcp.server import API_BASE_URL, get_api_key, mcp_server
 
 logger = logging.getLogger(__name__)
@@ -46,9 +55,11 @@ logger = logging.getLogger(__name__)
 async def vector_search(
     collection_id: str,
     query: str,
+    *,
     top_k: int = 5,
     similarity_threshold: float | None = None,
     rerank: bool = True,
+    cursor: str | None = None,
 ) -> Dict[str, Any]:
     """Vector similarity search within a collection (§B.1).
 
@@ -83,11 +94,24 @@ async def vector_search(
         similarity_threshold: Minimum similarity score [0, 1]; ``None``
             uses the collection's default threshold.
         rerank: Whether to apply reranker on returned candidates (default: True).
+        cursor: Pagination cursor placeholder (§B.1). ``None`` returns
+            the first page (current behavior). Any non-null value
+            raises ``CursorError("cursor_invalid")`` per the
+            ``[D10 spec amendment]`` (msg=b9b7072a) Drift #4 (c)
+            resolution — real search pagination requires a backend
+            capability that is not yet available and will land in a
+            dedicated D11+ upgrade.
 
     Returns:
         Search results with ``items`` ranked by vector similarity. Each
         item carries ``recall_type = "vector_search"``.
     """
+    if cursor is not None:
+        raise CursorError(
+            "cursor_invalid",
+            "search pagination cursor is not yet implemented",
+            details={"reason": "search_not_paginated", "tool": "vector_search"},
+        )
     try:
         api_key = get_api_key()
 
