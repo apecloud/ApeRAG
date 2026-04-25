@@ -30,13 +30,17 @@ from aperag.domains.agent_runtime.schemas import (
     UserActivityIntent,
 )
 from aperag.domains.agent_runtime.uimessage import (
+    ActivityData,
+    CitationData,
     DataActivityPart,
     DataCitationPart,
     DataElicitationPart,
     DataToolConsentPart,
+    ElicitationData,
     SourceDocumentPart,
     SourceUrlPart,
     TextPart,
+    ToolConsentData,
     ToolPart,
     UIMessage,
     UrlCitationLocation,
@@ -149,31 +153,39 @@ def _every_part_message() -> UIMessage:
             SourceUrlPart(source_id="src-1", url="https://example.com/a", title="Example A"),
             SourceDocumentPart(source_id="doc-1", media_type="application/pdf", title="ApeRAG paper"),
             DataCitationPart(
-                cited_text="ApeRAG is a retrieval augmented generation platform.",
-                location=UrlCitationLocation(url="https://example.com/a", title="Example A"),
+                data=CitationData(
+                    cited_text="ApeRAG is a retrieval augmented generation platform.",
+                    location=UrlCitationLocation(url="https://example.com/a", title="Example A"),
+                ),
             ),
             DataActivityPart(
-                activity=UserActivityEnvelope(
-                    intent=UserActivityIntent.SEARCHING_KNOWLEDGE,
-                    title_key="searching.title",
-                    subtitle_key="searching.subtitle",
+                data=ActivityData(
+                    activity=UserActivityEnvelope(
+                        intent=UserActivityIntent.SEARCHING_KNOWLEDGE,
+                        title_key="searching.title",
+                        subtitle_key="searching.subtitle",
+                    ),
                 ),
             ),
             DataToolConsentPart(
-                tool_call_id="tc-2",
-                tool_name="aperag_admin_modify_system",
-                args_preview="{...}",
-                args_hash="0" * 64,
-                risk="modifies_system",
-                requested_at="2026-04-25T00:00:00Z",
-                state="pending",
+                data=ToolConsentData(
+                    tool_call_id="tc-2",
+                    tool_name="aperag_admin_modify_system",
+                    args_preview="{...}",
+                    args_hash="0" * 64,
+                    risk="modifies_system",
+                    requested_at="2026-04-25T00:00:00Z",
+                    state="pending",
+                ),
             ),
             DataElicitationPart(
-                elicitation_id="el-1",
-                prompt="Please confirm the date range",
-                schema={"type": "object", "properties": {"from": {"type": "string"}}},
-                response=None,
-                state="pending",
+                data=ElicitationData(
+                    elicitation_id="el-1",
+                    prompt="Please confirm the date range",
+                    schema={"type": "object", "properties": {"from": {"type": "string"}}},
+                    response=None,
+                    state="pending",
+                ),
             ),
         ],
     )
@@ -290,6 +302,38 @@ def test_args_hash_is_stable_canonical_sha256():
     assert args_hash(a) == args_hash(b)
     assert len(args_hash(a)) == 64
     assert all(ch in "0123456789abcdef" for ch in args_hash(a))
+
+
+@pytest.mark.asyncio
+async def test_data_parts_use_wrapped_data_shape():
+    """``data-*`` parts persist as ``{type, data: {...}}`` per D8 §2 same-schema canonical.
+
+    Architect lock 2026-04-25 (msg=ad6168e7 / msg=1ff7ed9e): wire (cuiwenbo
+    #73) and at-rest (this PR) must round-trip byte-for-byte with no
+    converter layer. FE renderer (huangheng #76/#77) consumes the same
+    discriminated-union shape from both sources.
+    """
+
+    db = _FakeDbOps()
+    redis = _FakeRedisStore()
+    store = UIMessageStore(db_ops=db, redis_store=redis)
+
+    await store.write(turn_id="turn-shape", chat_id="chat-shape", message=_every_part_message())
+
+    persisted = {part["type"]: part for part in db.rows["turn-shape"]["parts"]}
+    for wrapped_type in ("data-citation", "data-tool-consent", "data-elicitation"):
+        part = persisted[wrapped_type]
+        assert set(part.keys()) == {"type", "data"}, f"{wrapped_type} must be wrapped, got keys {part.keys()}"
+        assert isinstance(part["data"], dict) and part["data"], f"{wrapped_type}.data must be a non-empty object"
+
+    citation = persisted["data-citation"]["data"]
+    assert "cited_text" in citation and "location" in citation
+
+    consent = persisted["data-tool-consent"]["data"]
+    assert {"tool_call_id", "tool_name", "args_preview", "args_hash", "risk", "state"} <= consent.keys()
+
+    elicitation = persisted["data-elicitation"]["data"]
+    assert {"elicitation_id", "prompt", "schema", "state"} <= elicitation.keys()
 
 
 def test_persistable_parts_helper_strips_only_transient():
