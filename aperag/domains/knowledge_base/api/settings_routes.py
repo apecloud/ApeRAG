@@ -12,15 +12,43 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""System settings routes for the knowledge_base domain.
+
+Hosts ``/settings`` endpoints related to document parser configuration
+(MinerU token, parser health). Carved here from ``aperag/views/settings.py``
+in Phase 8 task #48 (G2) per canonical D7-2: ``/api/v1/settings*`` is
+hard-cut to ``/api/v2/settings*`` (see cleanup-inventory.md §3.2.2).
+
+Backing service is ``aperag.domains.governance.service.setting_service``
+because the underlying ``Setting`` ORM lives in the governance domain;
+this module is a thin api layer that the knowledge_base domain owns
+because the settings exposed here are doc-parser configuration that
+the KB ingest pipeline consumes.
+"""
+
 from typing import Optional
 
 from fastapi import APIRouter, Body, Depends, Response
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 
 from aperag.docparser.health import ParserHealthReport, get_parser_health_report
 from aperag.domains.governance.service.setting_service import setting_service
 from aperag.domains.identity.service.auth_dependencies import required_user
-from aperag.schema.view_models import Settings
+
+
+class Settings(BaseModel):
+    """Knowledge-base parser settings request/response schema.
+
+    Carved here from ``aperag.schema.view_models.Settings`` in #48 (G2)
+    so the knowledge_base domain owns the shape directly and does not
+    depend on the legacy aggregate ``aperag.schema.view_models``.
+    """
+
+    use_mineru: Optional[bool] = Field(None, description="Whether to use MinerU")
+    mineru_api_token: Optional[str] = Field(None, description="API token for MinerU")
+    use_markitdown: Optional[bool] = Field(None, description="Whether to use MarkItDown")
+
 
 router = APIRouter()
 

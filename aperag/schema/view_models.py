@@ -72,12 +72,6 @@ class FailResponse(BaseModel):
 # keep resolving the same class objects.
 
 
-class Settings(BaseModel):
-    use_mineru: Optional[bool] = Field(None, description="Whether to use MinerU")
-    mineru_api_token: Optional[str] = Field(None, description="API token for MinerU")
-    use_markitdown: Optional[bool] = Field(None, description="Whether to use MarkItDown")
-
-
 class ParserHealthItem(BaseModel):
     key: str
     label: str

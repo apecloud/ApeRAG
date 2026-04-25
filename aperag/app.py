@@ -55,6 +55,7 @@ from aperag.domains.identity.service.user_manager import (
     set_quota_init_ops as _id_set_quota_init_ops,
 )
 from aperag.domains.knowledge_base.api.routes import router as knowledge_base_router
+from aperag.domains.knowledge_base.api.settings_routes import router as settings_router
 from aperag.domains.knowledge_base.service.collection_service import (
     set_marketplace_collection_ops as _kb_set_marketplace_collection_ops,
 )
@@ -87,7 +88,6 @@ from aperag.openapi_spec import custom_generate_unique_id
 from aperag.service.quota_service import quota_service as _legacy_quota_service
 from aperag.service.search_pipeline_service import search_pipeline_service as _legacy_search_pipeline_service
 from aperag.views.prompts import router as prompts_router
-from aperag.views.settings import router as settings_router
 
 # Wire the knowledge_base domain's consumer-owned Protocol DI slots
 # (Phase 3 Step 5b2c). All four legacy service singletons now
@@ -229,7 +229,7 @@ app.include_router(llm_router, prefix="/api/v1")  # Model platform: embed/rerank
 app.include_router(
     marketplace_router, prefix="/api/v1"
 )  # Marketplace domain router (marketplace + marketplace_collections)
-app.include_router(settings_router, prefix="/api/v1")
+app.include_router(settings_router, prefix="/api/v2")  # KB domain settings (carved from views/ in #48)
 app.include_router(prompts_router, prefix="/api/v1")  # Add prompts router
 app.include_router(web_access_router, prefix="/api/v2", tags=["web_access"])  # Add web_access domain router
 app.include_router(retrieval_router, prefix="/api/v2", tags=["retrieval"])  # Add retrieval domain router
