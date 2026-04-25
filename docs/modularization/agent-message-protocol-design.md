@@ -74,27 +74,96 @@ type UIMessagePart =
 - Wire format 用 AI SDK v5 tool-call lifecycle（MCP-ready）
 - Future（D9 独立任务）: tool layer 升级为 MCP server interface — 不影响 wire protocol 层
 
-### §2.4 Tool naming convention (MCP-namespace ready)
+### §2.4 Tool naming convention (provider-safe + MCP traceability)
 
-`tool-<name>` parts 中的 `<name>` 必须采纳 MCP server's tool name namespace 形式（e.g., `tool-aperag-knowledge-base.search_collection`、`tool-aperag-web.search`），而非 internal Python function name。这保证 D9 把 RAG tools 升级为 MCP server interface 时，wire schema 无需 rename — backend agent 直接把 MCP `tools/list` 返回的 namespace tool name 透传到 wire。
+> **Updated by D9 final canonical (A1 + A6)** — supersedes the earlier proposal that the wire `tool-<name>` directly carry MCP dotted namespace. Many model providers require tool/function names in `[a-zA-Z0-9_-]`, so the wire name must be a **provider-safe canonical name**, while MCP server/tool identity is preserved as separate metadata.
 
-落地时机：D8.3 (citations + tools) 实施时按此命名规则展开。
+`tool-<name>` parts 中的 `<name>` 必须是 **provider-safe `SafeToolName`**（仅 `[a-zA-Z0-9_-]`），而非 MCP dotted namespace 或 internal Python function name。MCP server / tool identity 通过 metadata 字段保留，保证 D9 把 RAG tools 升级为 MCP server interface 时 wire schema 无需 rename。
+
+```typescript
+// Wire / at-rest UIMessagePart shape (per D8 §2 + D9 A1)
+{ type: `tool-${SafeToolName}`,
+  toolCallId: string,
+  metadata?: {
+    mcpServer?: string,    // raw MCP server name (e.g. "aperag-knowledge-base")
+    mcpToolName?: string,  // raw MCP tool name (e.g. "search_collection")
+  },
+  state: ToolState,
+  input: Json,
+  output?: Json,
+  errorText?: string,
+}
+```
+
+**SafeToolName generation rule (D9 A6)** — stable, unique, collision-resistant:
+
+```typescript
+function safeToolName(mcpServer: string, mcpToolName: string): string {
+  const naive = sanitize(`${mcpServer}_${mcpToolName}`);
+  if (registry.hasNoCollisionWith(naive, currentEntity)) {
+    return naive;
+  }
+  // collision → append stable hash suffix
+  const suffix = sha256(`${mcpServer}|${mcpToolName}`).slice(0, 6);
+  return `${naive}__${suffix}`; // double underscore separator marks hash suffix
+}
+
+function sanitize(s: string): string {
+  return s.replace(/[^a-zA-Z0-9_-]/g, "_");
+}
+```
+
+Properties:
+- **Stable**: same `(mcpServer, mcpToolName)` 始终生成同一 safe name
+- **Unique**: collision via stable `sha256` hash suffix
+- **Inspectable**: double underscore `__` 是明显的 collision marker
+- **Provider-safe**: 仅 `[a-zA-Z0-9_-]`
+
+Registry 必须存 `(mcpServer, mcpToolName, safeName)` 三元组以支持 reverse lookup（safeName → MCP identity）。
+
+**Examples**:
+- ApeRAG built-in (system): `tool-aperag_knowledge_base_search_collection` + `metadata: { mcpServer: "aperag-knowledge-base", mcpToolName: "search_collection" }`
+- 用户 personal MCP server: `tool-user_notes_create_note` + `metadata: { mcpServer: "user-notes", mcpToolName: "create_note" }`
+- collision case: `tool-foo_bar__a1b2c3` + `metadata: { mcpServer: "foo.bar", mcpToolName: "..." }`
+
+落地时机：D8.3 (citations + tools) 实施时按此命名规则展开。详见 [`agent-runtime-mcp-design.md`](./agent-runtime-mcp-design.md) §A1 + §A6（D9 canonical）。
 
 ### §2.5 Web-backend MCP-capable agent target architecture (out of D8 implementation scope; D9 design-only)
 
+> **Updated by D9 final canonical (A5 + A7)** — D9 design has now closed; this section cross-references the locked D9 deliverables. Full canonical detail lives in [`agent-runtime-mcp-design.md`](./agent-runtime-mcp-design.md).
+
 为避免 D8.3 tool lifecycle 实施时出现 "looks MCP-ready 但命名 / 权限 / consent 不到位" 的 retrofitting 成本，本节明确 web-backend MCP-capable agent 的目标边界（actual implementation 走 D9 lane）：
 
-- **FE protocol layer**: 只认 UIMessage stream / UIMessage storage，**不感知 MCP**。Wire schema 的 `tool-<name>` parts 与 MCP `tools/list` namespace 一致即可，不直接表达 MCP `resources/read` / `prompts/get` / `sampling/createMessage` / `elicitation` RPCs。
-- **Backend agent runtime layer (D9 territory)**: 负责 orchestrate agent loop（pydantic_ai / 自建 MCP host / OpenAI Agents 实现皆可）；将 MCP RPC 内部事件投影成 UIMessage parts 透传给 FE。
-- **Tool boundary**: 当前 RAG tools (search_collection / web_search / read_document) 是 Python internal calls；未来 D9 切到 MCP client/server interface 时，对 FE 仍表现为同一套 `tool-<name>` parts（per §2.4 namespace ready）。
+- **FE protocol layer**: 只认 UIMessage stream / UIMessage storage，**不感知 MCP**。Wire schema 的 `tool-<SafeToolName>` parts (per §2.4) 与 MCP server/tool identity 解耦，不直接表达 MCP `resources/read` / `prompts/get` / `sampling/createMessage` / `elicitation` RPCs。
+- **Backend agent runtime layer (D9 territory)**: 负责 orchestrate agent loop（D9 §A3 推荐 default backbone = **PydanticAI**，per Weston PydanticAI 调研 + UIAdapter 兼容性）；将 MCP RPC 内部事件投影成 UIMessage parts 透传给 FE。
+- **Tool boundary**: 当前 RAG tools (search_collection / web_search / read_document) 是 Python internal calls；未来 D9 切到 MCP client/server interface 时，对 FE 仍表现为同一套 `tool-<SafeToolName>` parts（per §2.4 + D9 §A1/§A6）。
 - **MCP auth / registry / consent / sampling / elicitation 边界**: 属于 D9 design scope，**必须在 D8.3 tool lifecycle 实施前完成 D9 design**（design-only 不 block D8.0 doc landing 也不 block D8.1/D8.2 stream/storage implementation）。
 
-### D9 design 输出 deliverables（design-only，不实施）
-- per-user / per-bot 的 MCP server registry 边界
-- tool authorization scope（哪些工具用户可见 / 可调用 / 需 consent）
-- tool consent UI 在 UIMessage parts 中的表达（建议用 `data-tool-consent` custom transient part）
-- `sampling/createMessage` recursive LLM call 是否 surface 到 wire（建议 NO — backend-internal 即可）
-- `elicitation` user-input request 是否 surface 到 wire（建议 YES — 用 `data-elicitation` custom part 表达）
+### D9 design canonical deliverables（locked per architect msg=2dcae724 + Weston msg=f56b2ae1 final ack）
+
+| § | Topic | Status |
+|---|---|---|
+| §1 + A5 | MCP server registry — three-tier (system/bot/user) + **no silent override on system namespace**（admin alias/disable 必须 explicit + audit-logged）| ✅ locked |
+| §2 | Three-level authorization (visibility / invocation / consent) | ✅ locked |
+| §3 + A7 | `data-tool-consent` part with **`argsPreview` + `argsHash` (raw args backend-private)** — wire 不暴露 raw args，避免 token / secret 进 persisted UIMessage history | ✅ locked |
+| §4 | Sampling — backend-internal, NOT surfaced to wire | ✅ locked |
+| §5 | `data-elicitation` part — surfaced with schema-validated input | ✅ locked |
+| §6 | D8.3 tool lifecycle interface contract (含 consent + elicitation lifecycle) | ✅ locked |
+| §7 + A3 | PydanticAI evaluation — runtime candidate (default backbone) | ✅ locked |
+| A1 + A6 | SafeToolName naming with collision-resistant hash suffix (per §2.4) | ✅ locked |
+| A2 | AI SDK v5 + 自定义 consent (lock v5, NOT v6) | ✅ locked |
+| A4 | D8.3 前置 7 decisions checklist | ✅ locked |
+
+详见 [`agent-runtime-mcp-design.md`](./agent-runtime-mcp-design.md) — D9 canonical SSoT（landed by Phase 8 #72 / D9.0）。
+
+D8.3 implementation owner 必须在 PR description 显式 confirm 以下 7 项 D9 contract 全部 enforce：
+1. SafeToolName + MCP metadata (A1 + A6)
+2. AI SDK v5 + 自定义 `data-tool-consent` (A2)
+3. `data-tool-consent` `argsPreview + argsHash` — raw args backend-private (A7)
+4. Registry no silent system override (A5)
+5. `data-elicitation` schema-validated input (§5)
+6. Three-level authorization (§2)
+7. PydanticAI as default runtime backbone (A3)
 
 ## Field-Level Disposition Table
 
@@ -149,4 +218,4 @@ D8.1-D8.7 各为独立 implementation task，可分 milestone 安排：
 
 ## Future scope (out of #68)
 
-- **D9** (独立任务): MCP server interface for RAG tools
+- **D9** (independent design lane): web-backend MCP-capable agent runtime boundaries — see [`agent-runtime-mcp-design.md`](./agent-runtime-mcp-design.md) (canonical landed by Phase 8 #72).
