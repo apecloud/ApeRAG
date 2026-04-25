@@ -43,6 +43,7 @@ from aperag.domains.conversation.api.routes import (
 from aperag.domains.conversation.service.bot_service import set_quota_ops as _conv_set_quota_ops
 from aperag.domains.evaluation.api.routes import router as evaluation_v2_router
 from aperag.domains.governance.api.routes import router as governance_router
+from aperag.domains.identity.api.auth_routes import router as auth_router
 from aperag.domains.identity.api.config_routes import router as config_router
 from aperag.domains.identity.service.user_manager import (
     set_bot_init_ops as _id_set_bot_init_ops,
@@ -84,7 +85,6 @@ from aperag.mcp import mcp_server
 from aperag.openapi_spec import custom_generate_unique_id
 from aperag.service.quota_service import quota_service as _legacy_quota_service
 from aperag.service.search_pipeline_service import search_pipeline_service as _legacy_search_pipeline_service
-from aperag.views.auth import router as auth_router
 from aperag.views.export import router as export_router
 from aperag.views.prompts import router as prompts_router
 from aperag.views.settings import router as settings_router
@@ -222,7 +222,7 @@ async def health_check():
     return {"status": "healthy", "service": "aperag-api"}
 
 
-app.include_router(auth_router, prefix="/api/v1")
+app.include_router(auth_router, prefix="/api/v2/auth")
 app.include_router(export_router, prefix="/api/v1")  # Add export router
 app.include_router(governance_router, prefix="/api/v1")  # Governance domain router (api_key + audit)
 app.include_router(llm_router, prefix="/api/v1")  # Model platform: embed/rerank (OpenAI-compat)
@@ -238,7 +238,7 @@ app.include_router(
 )  # Add knowledge_graph domain router
 app.include_router(chat_router, prefix="/api/v1")
 app.include_router(openai_router, prefix="/v1")
-app.include_router(config_router, prefix="/api/v1/config")
+app.include_router(config_router, prefix="/api/v2/config")
 app.include_router(agent_runtime_router, prefix="/api/v2")
 app.include_router(bots_v2_router, prefix="/api/v2")
 app.include_router(evaluation_v2_router, prefix="/api/v2")

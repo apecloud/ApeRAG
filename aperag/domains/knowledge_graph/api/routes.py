@@ -30,6 +30,7 @@ from typing import Protocol
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
 
+from aperag.domains.identity.service.auth_dependencies import required_user
 from aperag.domains.knowledge_graph.schemas import (
     GraphLabelsResponse,
     KnowledgeGraph,
@@ -38,7 +39,6 @@ from aperag.domains.knowledge_graph.schemas import (
 )
 from aperag.domains.knowledge_graph.service import graph_service
 from aperag.exceptions import CollectionNotFoundException
-from aperag.views.auth import required_user
 
 
 class AuthenticatedUser(Protocol):

@@ -23,7 +23,7 @@ The current bootstrap script reads these environment variables:
 
 - `E2E_BOOTSTRAP_MODE`
   Supported values:
-  - `public-register` (default): register the first user through `/api/v1/register`
+  - `public-register` (default): register the first user through `/api/v2/auth/register`
   - `dev-api`: create an admin user through `/api/v1/test/register_admin`
 
 - `E2E_RUN_ID`

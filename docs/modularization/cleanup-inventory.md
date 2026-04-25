@@ -187,9 +187,9 @@ marketplace.py / marketplace_collections.py / providers_v2.py / __init__.py → 
 | `aperag/service/question_set_service.py` | 197 | **迁到** `aperag/domains/evaluation/service/question_set_service.py`，然后 rm |
 | `aperag/service/setting_service.py` | 86 | **迁到** `aperag/domains/governance/service/setting_service.py`（与 quota / audit 同域），然后 rm |
 | `aperag/service/test_mcp_agent.py` | 332 | **迁到** `tests/fixtures/mcp_agent.py`（本来是 test util），然后 rm |
-| `aperag/views/auth.py` | 500 | **迁到** `aperag/domains/identity/api/auth_routes.py`（OAuth + fastapi-users 归 identity 域的新 sub-router），挂 `/api/v1/auth` 保留路径；rm 老 view |
+| `aperag/views/auth.py` | 500 | **迁到** `aperag/domains/identity/api/auth_routes.py`（OAuth + fastapi-users 归 identity 域的新 sub-router），挂 `/api/v2/auth`；rm 老 view |
 | `aperag/views/collections.py` (v1 upload) | 108 | v2 已覆盖 (`POST /api/v2/collections/{id}/documents/upload`)；**直接 rm**，FE 确认没再消费 v1 |
-| `aperag/views/config.py` | 55 | **迁到** `aperag/domains/identity/api/config_routes.py`，挂 `/api/v1/config` 保留 |
+| `aperag/views/config.py` | 55 | **迁到** `aperag/domains/identity/api/config_routes.py`，挂 `/api/v2/config`；rm 老 view |
 | `aperag/views/export.py` | 69 | **迁到** `aperag/domains/knowledge_base/api/export_routes.py`，挂 `/api/v1/export` 保留 |
 | `aperag/views/graph.py` | 155 | **迁到** `aperag/domains/knowledge_graph/api/curation_routes.py`，挂 `/api/v1/graph` 保留 |
 | `aperag/views/main.py` | 219 | bot / chat / feedback v1 CRUD — v2 已覆盖 (`/api/v2/bots`, `/api/v2/chats`, `/api/v2/feedback`)；**直接 rm** 老路径；FE 若消费 v1 需要同批迁到 v2 |

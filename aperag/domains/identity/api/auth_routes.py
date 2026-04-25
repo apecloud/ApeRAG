@@ -18,151 +18,32 @@ from datetime import timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from fastapi_users import FastAPIUsers
-from fastapi_users.authentication import (
-    AuthenticationBackend,
-    CookieTransport,
-    JWTStrategy,
-)
-from fastapi_users.db import SQLAlchemyUserDatabase
 from fastapi_users.router.oauth import get_oauth_router
 from httpx_oauth.clients.github import GitHubOAuth2
 from httpx_oauth.clients.google import GoogleOAuth2
 
 from aperag.config import AsyncSessionDep, settings
 from aperag.db.ops import async_db_ops
-from aperag.domains.governance.db.models import (
-    ApiKey,
-    ApiKeyStatus,
-)
 from aperag.domains.identity import schemas as identity_schemas
 from aperag.domains.identity.db.models import (
     Invitation,
-    OAuthAccount,
     Role,
     User,
 )
+from aperag.domains.identity.service.auth_dependencies import (
+    COOKIE_MAX_AGE,
+    auth_backend,
+    get_current_admin,
+    get_jwt_strategy,
+    get_user_manager,
+    required_user,
+)
+from aperag.domains.identity.service.login_methods import is_github_oauth_enabled, is_google_oauth_enabled
+from aperag.domains.identity.service.user_manager import UserManager
 from aperag.utils.audit_decorator import audit
 from aperag.utils.utils import utc_now
-from aperag.views.utils import is_github_oauth_enabled, is_google_oauth_enabled
 
 logger = logging.getLogger(__name__)
-
-# --- fastapi-users Implementation ---
-
-COOKIE_MAX_AGE = 86400
-
-
-# ``UserManager`` moved to
-# ``aperag.domains.identity.service.user_manager`` in Phase 4 Step
-# 4-S7. It is re-imported below so the remaining legacy-path code in
-# this file (fastapi-users wiring + OAuth routers + invitation /
-# login / logout / user-admin handlers) keeps resolving the same
-# class object without a rename sweep.
-from aperag.domains.identity.service.user_manager import UserManager  # noqa: E402
-
-
-# JWT Strategy
-def get_jwt_strategy() -> JWTStrategy:
-    return JWTStrategy(secret=settings.jwt_secret, lifetime_seconds=COOKIE_MAX_AGE)
-
-
-# Transport methods
-cookie_transport = CookieTransport(
-    cookie_name="session",
-    cookie_max_age=COOKIE_MAX_AGE,
-    cookie_secure=False,  # Set to False for HTTP development environment
-    cookie_httponly=True,
-    cookie_samesite="lax",
-)
-
-# Authentication backend
-auth_backend = AuthenticationBackend(
-    name="cookie",
-    transport=cookie_transport,
-    get_strategy=get_jwt_strategy,
-)
-
-
-# --- User Database and Manager Dependencies ---
-async def get_user_db(session: AsyncSessionDep):
-    yield SQLAlchemyUserDatabase(session, User, OAuthAccount)
-
-
-async def get_user_manager(user_db: SQLAlchemyUserDatabase = Depends(get_user_db)):
-    yield UserManager(user_db)
-
-
-# --- FastAPI Users Instance ---
-fastapi_users = FastAPIUsers[User, str](
-    get_user_manager,
-    [auth_backend],
-)
-
-
-# --- API Key Authentication ---
-async def authenticate_api_key(request: Request, session: AsyncSessionDep) -> Optional[User]:
-    """Authenticate using API Key from Authorization header"""
-    from sqlalchemy import select
-
-    authorization: str = request.headers.get("Authorization")
-    if not authorization:
-        return None
-    try:
-        scheme, credentials = authorization.split()
-        if scheme.lower() != "bearer":
-            return None
-    except ValueError:
-        return None
-    result = await session.execute(
-        select(ApiKey).where(
-            ApiKey.key == credentials, ApiKey.status == ApiKeyStatus.ACTIVE, ApiKey.gmt_deleted.is_(None)
-        )
-    )
-    api_key = result.scalars().first()
-    if not api_key:
-        return None  # Don't raise, just return None to allow other auth methods
-    result = await session.execute(
-        select(User).where(User.id == api_key.user, User.is_active.is_(True), User.gmt_deleted.is_(None))
-    )
-    user = result.scalars().first()
-    if user:
-        await api_key.update_last_used(session)
-        user._auth_method = "api_key"
-        user._api_key_id = api_key.id
-    return user
-
-
-# --- Current User Dependency ---
-async def optional_user(
-    request: Request, session: AsyncSessionDep, user: User = Depends(fastapi_users.current_user(optional=True))
-) -> Optional[User]:
-    """Get current user from JWT/Cookie, OAuth, or API Key."""
-    if user:
-        request.state.user_id = user.id
-        request.state.username = user.username
-        return user
-    api_user = await authenticate_api_key(request, session)
-    if api_user:
-        request.state.user_id = api_user.id
-        request.state.username = api_user.username
-        return api_user
-    return None
-
-
-async def required_user(user: Optional[User] = Depends(optional_user)) -> User:
-    """Get current active user, raise 401 if not authenticated."""
-    if not user:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    return user
-
-
-async def get_current_admin(user: User = Depends(required_user)) -> User:
-    """Get current admin user."""
-    if user.role != Role.ADMIN:
-        raise HTTPException(status_code=403, detail="Only admin members can perform this action")
-    return user
-
 
 # --- Router Setup ---
 router = APIRouter()
@@ -180,7 +61,7 @@ if is_google_oauth_enabled():
         associate_by_email=True,
         is_verified_by_default=True,
     )
-    router.include_router(google_oauth_router, prefix="/auth/google", tags=["auth"])
+    router.include_router(google_oauth_router, prefix="/google", tags=["auth"])
 
 if is_github_oauth_enabled():
     github_oauth_client = GitHubOAuth2(settings.github_oauth_client_id, settings.github_oauth_client_secret)
@@ -193,7 +74,7 @@ if is_github_oauth_enabled():
         associate_by_email=True,
         is_verified_by_default=True,
     )
-    router.include_router(github_oauth_router, prefix="/auth/github", tags=["auth"])
+    router.include_router(github_oauth_router, prefix="/github", tags=["auth"])
 
 
 @router.post("/invite", tags=["invitations"])

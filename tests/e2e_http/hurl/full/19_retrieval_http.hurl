@@ -6,7 +6,7 @@
 # lives elsewhere; this file must never depend on external LLM provider
 # availability.
 
-POST {{base_url}}/api/v1/login
+POST {{base_url}}/api/v2/auth/login
 Content-Type: application/json
 {
   "username": "{{username}}",
@@ -104,7 +104,7 @@ HTTP 204
 
 # 7. Unauthenticated POST — fresh hurl run without cookie should 401.
 # We assert this by explicitly logging out and re-firing.
-POST {{base_url}}/api/v1/logout
+POST {{base_url}}/api/v2/auth/logout
 HTTP 200
 
 GET {{base_url}}/api/v2/collections/{{collection_id}}/searches

@@ -341,6 +341,23 @@ def test_aperag_domains_auth_dependency_is_not_any():
     )
 
 
+def test_aperag_domains_never_import_legacy_auth_view_dependencies():
+    """Phase 8 #36: domain routes must import authentication
+    dependencies from the identity domain, not from the legacy
+    ``aperag.views.auth`` route module."""
+    offenders: list[str] = []
+    for path in _iter_domain_py_files():
+        modules = _imported_modules(path.read_text())
+        if "aperag.views.auth" in modules:
+            offenders.append(f"{path.relative_to(REPO_ROOT).as_posix()} imports aperag.views.auth")
+
+    assert not offenders, (
+        "Canonical domain code must import auth dependencies from "
+        "`aperag.domains.identity.service.auth_dependencies`, not "
+        "`aperag.views.auth`. Offenders:\n  " + "\n  ".join(sorted(offenders))
+    )
+
+
 # ---------- Retrieval <-> knowledge_graph one-way bridge ----------
 
 
@@ -896,7 +913,7 @@ HIDDEN_API_OWNERS = {
     # wrappers; at that point this gate's entry for the promoted path
     # is removed (or the gate is dropped if the set becomes empty).
     "/api/v1/audit-logs": "features/audit/",
-    "/api/v1/config": "features/auth/",
+    "/api/v2/config": "features/auth/",
 }
 
 

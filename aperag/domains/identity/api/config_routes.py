@@ -17,7 +17,7 @@ from fastapi import APIRouter
 from aperag.config import settings
 from aperag.db.ops import async_db_ops
 from aperag.domains.identity.schemas import Auth, Auth0, Authing, Config, Logto
-from aperag.views.utils import get_available_login_methods
+from aperag.domains.identity.service.login_methods import get_available_login_methods
 
 router = APIRouter()
 

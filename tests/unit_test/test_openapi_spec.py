@@ -26,7 +26,7 @@ def test_public_openapi_filters_internal_prefixes():
             "/api/v1/collections": {},
             "/api/v1/audit-logs": {},
             "/api/v1/audit-logs/{audit_id}": {},
-            "/api/v1/config": {},
+            "/api/v2/config": {},
             "/api/v2/agent/chats/{chat_id}/turns": {},
         },
     }
@@ -36,7 +36,7 @@ def test_public_openapi_filters_internal_prefixes():
     assert "/api/v1/collections" in public_spec["paths"]
     assert "/api/v1/audit-logs" not in public_spec["paths"]
     assert "/api/v1/audit-logs/{audit_id}" not in public_spec["paths"]
-    assert "/api/v1/config" not in public_spec["paths"]
+    assert "/api/v2/config" not in public_spec["paths"]
     assert "/api/v2/agent/chats/{chat_id}/turns" in public_spec["paths"]
 
 

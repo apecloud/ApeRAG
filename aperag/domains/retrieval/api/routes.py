@@ -29,10 +29,10 @@ from typing import Protocol
 
 from fastapi import APIRouter, Depends, Request
 
+from aperag.domains.identity.service.auth_dependencies import required_user
 from aperag.domains.retrieval.schemas import SearchRequest, SearchResult, SearchResultList
 from aperag.domains.retrieval.service import retrieval_service
 from aperag.utils.audit_decorator import audit
-from aperag.views.auth import required_user
 
 
 class AuthenticatedUser(Protocol):

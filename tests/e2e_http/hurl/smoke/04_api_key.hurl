@@ -1,4 +1,4 @@
-POST {{base_url}}/api/v1/login
+POST {{base_url}}/api/v2/auth/login
 Content-Type: application/json
 {
   "username": "{{username}}",
@@ -24,14 +24,14 @@ jsonpath "$.description" == "smoke key {{run_id}}"
 GET {{base_url}}/api/v1/apikeys
 HTTP 200
 
-POST {{base_url}}/api/v1/logout
+POST {{base_url}}/api/v2/auth/logout
 HTTP 200
 
 GET {{base_url}}/api/v2/collections
 Authorization: Bearer {{api_key_value}}
 HTTP 200
 
-POST {{base_url}}/api/v1/login
+POST {{base_url}}/api/v2/auth/login
 Content-Type: application/json
 {
   "username": "{{username}}",
@@ -52,7 +52,7 @@ jsonpath "$.description" == "smoke key {{run_id}} updated"
 DELETE {{base_url}}/api/v1/apikeys/{{api_key_id}}
 HTTP 200
 
-POST {{base_url}}/api/v1/logout
+POST {{base_url}}/api/v2/auth/logout
 HTTP 200
 
 GET {{base_url}}/api/v2/collections

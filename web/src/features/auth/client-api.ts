@@ -6,7 +6,7 @@ import type { User } from '@/features/identity/types';
 import type { Login, OAuthAuthorizeResponse, OAuthProvider, Register } from './types';
 
 export async function login(input: Login): Promise<User> {
-  const { data } = await browserApiClient.POST('/api/v1/login', {
+  const { data } = await browserApiClient.POST('/api/v2/auth/login', {
     body: input,
   });
   if (!data) {
@@ -16,7 +16,7 @@ export async function login(input: Login): Promise<User> {
 }
 
 export async function register(input: Register): Promise<User> {
-  const { data } = await browserApiClient.POST('/api/v1/register', {
+  const { data } = await browserApiClient.POST('/api/v2/auth/register', {
     body: input,
   });
   if (!data) {
@@ -26,12 +26,12 @@ export async function register(input: Register): Promise<User> {
 }
 
 export async function logout(): Promise<void> {
-  await browserApiClient.POST('/api/v1/logout', {});
+  await browserApiClient.POST('/api/v2/auth/logout', {});
 }
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || '';
 
-// Raw fetch: `/api/v1/auth/{provider}/authorize` returns a 302 redirect to the
+// Raw fetch: `/api/v2/auth/{provider}/authorize` returns a 302 redirect to the
 // external OAuth provider; the redirect URL itself is not a typed API data
 // contract (it's an upstream-controlled URL), so there is no value in wrapping
 // it through the typed openapi-fetch client. Kept inside the adapter boundary
@@ -40,7 +40,7 @@ export async function oauthAuthorize(
   provider: OAuthProvider,
 ): Promise<OAuthAuthorizeResponse> {
   const response = await fetch(
-    `${BASE_PATH}/api/v1/auth/${provider}/authorize`,
+    `${BASE_PATH}/api/v2/auth/${provider}/authorize`,
   );
   const data = (await response.json()) as OAuthAuthorizeResponse;
   return data;

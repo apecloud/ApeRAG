@@ -90,7 +90,7 @@ These features exist in the API and stay in product; the rewrite covers them in 
 - API keys (`GET/POST/PUT/DELETE /api/v1/apikeys`)
 - Quotas page (`GET /api/v1/quotas`) — numeric only, no budget framing
 - Audit logs (`GET /api/v1/audit-logs`)
-- Admin users / invitations (`GET /api/v1/users`, `POST /api/v1/invite`)
+- Admin users / invitations (`GET /api/v2/auth/users`, `POST /api/v2/auth/invite`)
 - Provider & model configuration (`/api/v2/providers*`)
 - Evaluation dataset / run CRUD (`/api/v2/evaluation-datasets*`, `/api/v2/evaluation-runs*`)
 - OpenAI-compat chat (`POST /v1/chat/completions`) — dev reference; no product-facing UI change planned

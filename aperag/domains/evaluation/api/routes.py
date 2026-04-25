@@ -38,7 +38,7 @@ from aperag.domains.evaluation.schemas import (
     EvaluationRunListResponse,
 )
 from aperag.domains.evaluation.services import evaluation_dataset_service, evaluation_run_service
-from aperag.views.auth import required_user
+from aperag.domains.identity.service.auth_dependencies import required_user
 
 
 class AuthenticatedUser(Protocol):

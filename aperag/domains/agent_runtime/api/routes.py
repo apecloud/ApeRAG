@@ -46,7 +46,7 @@ from aperag.domains.agent_runtime.schemas import (
     CreateTurnRequest,
     CreateTurnResponse,
 )
-from aperag.views.auth import required_user
+from aperag.domains.identity.service.auth_dependencies import required_user
 
 
 class AuthenticatedUser(Protocol):

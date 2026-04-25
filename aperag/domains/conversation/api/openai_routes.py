@@ -24,7 +24,7 @@ from aperag.domains.conversation.service.chat_completion_service import (
     OpenAIFormatter,
     chat_completion_service,
 )
-from aperag.views.auth import required_user
+from aperag.domains.identity.service.auth_dependencies import required_user
 
 
 class AuthenticatedUser(Protocol):

@@ -20,6 +20,7 @@ from typing import List, Protocol
 from fastapi import APIRouter, Depends, HTTPException
 
 from aperag.db.ops import async_db_ops
+from aperag.domains.identity.service.auth_dependencies import required_user
 from aperag.domains.web_access.reader.reader_service import ReaderService, read_with_jina_fallback
 from aperag.domains.web_access.schemas import (
     WebReadRequest,
@@ -29,7 +30,6 @@ from aperag.domains.web_access.schemas import (
     WebSearchResponse,
 )
 from aperag.domains.web_access.search.search_service import SearchService
-from aperag.views.auth import required_user
 
 
 class AuthenticatedUser(Protocol):

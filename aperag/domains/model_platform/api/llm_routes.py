@@ -17,6 +17,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from aperag.db.ops import async_db_ops
+from aperag.domains.identity.service.auth_dependencies import required_user
 from aperag.domains.model_platform.ports import AuthenticatedUser
 from aperag.domains.model_platform.schemas import (
     EmbeddingData,
@@ -41,7 +42,6 @@ from aperag.llm.llm_error_types import (
 from aperag.llm.rerank.rerank_service import RerankService
 from aperag.platform.query.query import DocumentWithScore
 from aperag.utils.audit_decorator import audit
-from aperag.views.auth import required_user
 
 logger = logging.getLogger(__name__)
 
