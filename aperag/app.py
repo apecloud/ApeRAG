@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 # Copyright 2025 ApeCloud, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,23 +14,22 @@
 # limitations under the License.
 
 from aperag.config import settings
+from aperag.observability import (
+    bind_observability_context,
+    build_observability_config,
+    configure_fastapi,
+    configure_logging,
+    configure_process_observability,
+    reset_observability_context,
+)
+from aperag.observability.tracing import inject_carrier
 
-# Initialize OpenTelemetry FIRST - before any other imports
-from aperag.trace import init_tracing
-
-# Initialize tracing with configuration
-if settings.otel_enabled:
-    init_tracing(
-        service_name=settings.otel_service_name,
-        service_version=settings.otel_service_version,
-        jaeger_endpoint=settings.jaeger_endpoint if settings.jaeger_enabled else None,
-        enable_console=settings.otel_console_enabled,
-        enable_fastapi=settings.otel_fastapi_enabled,
-        enable_sqlalchemy=settings.otel_sqlalchemy_enabled,
-        enable_mcp=settings.otel_mcp_enabled,
-    )
+observability_config = build_observability_config(settings)
+configure_logging(observability_config)
+configure_process_observability(observability_config)
 
 from fastapi import FastAPI  # noqa: E402
+from starlette.middleware.base import BaseHTTPMiddleware  # noqa: E402
 
 from aperag.domains.agent_runtime.api.routes import router as agent_runtime_router
 from aperag.domains.agent_runtime.runtime import set_prompt_template_ops as _ar_set_prompt_template_ops
@@ -218,6 +218,26 @@ app = FastAPI(
     lifespan=combined_lifespan,  # Combined lifecycle management
     generate_unique_id_function=custom_generate_unique_id,
 )
+
+
+class ObservabilityContextMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        request_id = request.headers.get("x-request-id") or request.headers.get("x-correlation-id")
+        tokens = bind_observability_context(request_id=request_id)
+        try:
+            response = await call_next(request)
+            if request_id:
+                response.headers["x-request-id"] = request_id
+            trace_headers = inject_carrier({})
+            if "traceparent" in trace_headers:
+                response.headers["traceparent"] = trace_headers["traceparent"]
+            return response
+        finally:
+            reset_observability_context(tokens)
+
+
+app.add_middleware(ObservabilityContextMiddleware)
+configure_fastapi(app, observability_config)
 
 # Register global exception handlers
 register_exception_handlers(app)

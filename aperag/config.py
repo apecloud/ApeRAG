@@ -196,12 +196,20 @@ class Config(BaseSettings):
     cache_enabled: bool = Field(True, alias="CACHE_ENABLED")
     cache_ttl: int = Field(86400, alias="CACHE_TTL")
 
-    # OpenTelemetry/Jaeger Tracing
-    otel_enabled: bool = Field(True, alias="OTEL_ENABLED")
+    # Observability
+    aperag_observability_mode: str = Field("local", alias="APERAG_OBSERVABILITY_MODE")
+    aperag_observability_log_format: str = Field("json", alias="APERAG_OBSERVABILITY_LOG_FORMAT")
+    aperag_observability_capture_content: bool = Field(False, alias="APERAG_OBSERVABILITY_CAPTURE_CONTENT")
+    aperag_observability_sample_ratio: float = Field(1.0, alias="APERAG_OBSERVABILITY_SAMPLE_RATIO")
+    otel_enabled: Optional[str] = Field(None, alias="OTEL_ENABLED")
     otel_service_name: str = Field("aperag", alias="OTEL_SERVICE_NAME")
     otel_service_version: str = Field("1.0.0", alias="OTEL_SERVICE_VERSION")
-    jaeger_enabled: bool = Field(False, alias="JAEGER_ENABLED")
-    jaeger_endpoint: Optional[str] = Field(None, alias="JAEGER_ENDPOINT")
+    otel_environment: str = Field("development", alias="OTEL_ENVIRONMENT")
+    otel_resource_attributes: Optional[str] = Field(None, alias="OTEL_RESOURCE_ATTRIBUTES")
+    otel_exporter_otlp_endpoint: Optional[str] = Field(None, alias="OTEL_EXPORTER_OTLP_ENDPOINT")
+    otel_exporter_otlp_headers: Optional[str] = Field(None, alias="OTEL_EXPORTER_OTLP_HEADERS")
+    otel_exporter_otlp_protocol: str = Field("http/protobuf", alias="OTEL_EXPORTER_OTLP_PROTOCOL")
+
     otel_console_enabled: bool = Field(False, alias="OTEL_CONSOLE_ENABLED")
     otel_fastapi_enabled: bool = Field(True, alias="OTEL_FASTAPI_ENABLED")
     otel_sqlalchemy_enabled: bool = Field(True, alias="OTEL_SQLALCHEMY_ENABLED")

@@ -15,6 +15,7 @@ ApeRAG 是你构建自己的知识图谱、进行上下文工程以及部署能�
 - [Kubernetes 部署（推荐生产环境）](#kubernetes-部署推荐生产环境)
 - [开发指南](./docs/zh-CN/development-guide.md)
 - [构建 Docker 镜像](./docs/zh-CN/build-docker-image.md)
+- [可观测性设计](./docs/zh-CN/deployment/observability.md)
 - [致谢](#致谢)
 - [许可证](#许可证)
 

@@ -50,6 +50,7 @@ from aperag.llm.llm_error_types import (
     ProviderNotFoundError,
     RerankError,
 )
+from aperag.observability import start_span
 from aperag.platform.query.query import DocumentWithScore
 from aperag.schema.utils import parseCollectionConfig
 from aperag.utils.utils import generate_fulltext_index_name, generate_vector_db_collection_name
@@ -142,92 +143,103 @@ class SearchPipelineService:
         search_user_id: str,
         chat_id: Optional[str] = None,
     ) -> Tuple[List[SearchResultItem], str]:
-        query = (data.query or "").strip()
-        if not query:
-            raise ValidationException("query is required")
+        with start_span(
+            "retrieval.search",
+            tracer_name=__name__,
+            **{
+                "aperag.domain": "retrieval",
+                "aperag.operation": "retrieval.search",
+                "aperag.collection.id": collection_id,
+                "aperag.user.id": search_user_id,
+                "aperag.chat.id": chat_id,
+            },
+        ):
+            query = (data.query or "").strip()
+            if not query:
+                raise ValidationException("query is required")
 
-        recall_tasks = []
-        collection = await async_db_ops.query_collection(search_user_id, collection_id)
-        if not collection:
-            raise ValidationException(f"collection not found: {collection_id}")
+            recall_tasks = []
+            collection = await async_db_ops.query_collection(search_user_id, collection_id)
+            if not collection:
+                raise ValidationException(f"collection not found: {collection_id}")
 
-        if data.vector_search:
-            recall_tasks.append(
-                self._vector_search(
-                    collection=collection,
-                    query=query,
-                    top_k=data.vector_search.topk,
-                    similarity_threshold=data.vector_search.similarity,
-                    chat_id=chat_id,
+            if data.vector_search:
+                recall_tasks.append(
+                    self._vector_search(
+                        collection=collection,
+                        query=query,
+                        top_k=data.vector_search.topk,
+                        similarity_threshold=data.vector_search.similarity,
+                        chat_id=chat_id,
+                    )
                 )
-            )
-        if data.fulltext_search:
-            recall_tasks.append(
-                self._fulltext_search(
-                    collection=collection,
-                    query=query,
-                    top_k=data.fulltext_search.topk,
-                    keywords=data.fulltext_search.keywords,
-                    user_id=search_user_id,
-                    chat_id=chat_id,
+            if data.fulltext_search:
+                recall_tasks.append(
+                    self._fulltext_search(
+                        collection=collection,
+                        query=query,
+                        top_k=data.fulltext_search.topk,
+                        keywords=data.fulltext_search.keywords,
+                        user_id=search_user_id,
+                        chat_id=chat_id,
+                    )
                 )
-            )
-        if data.graph_search:
-            recall_tasks.append(
-                self._graph_search(
-                    collection=collection,
-                    query=query,
-                    top_k=data.graph_search.topk,
+            if data.graph_search:
+                recall_tasks.append(
+                    self._graph_search(
+                        collection=collection,
+                        query=query,
+                        top_k=data.graph_search.topk,
+                    )
                 )
-            )
-        if data.summary_search:
-            recall_tasks.append(
-                self._summary_search(
-                    collection=collection,
-                    query=query,
-                    top_k=data.summary_search.topk,
-                    similarity_threshold=data.summary_search.similarity,
+            if data.summary_search:
+                recall_tasks.append(
+                    self._summary_search(
+                        collection=collection,
+                        query=query,
+                        top_k=data.summary_search.topk,
+                        similarity_threshold=data.summary_search.similarity,
+                    )
                 )
-            )
-        if data.vision_search:
-            recall_tasks.append(
-                self._vision_search(
-                    collection=collection,
-                    query=query,
-                    top_k=data.vision_search.topk,
-                    similarity_threshold=data.vision_search.similarity,
+            if data.vision_search:
+                recall_tasks.append(
+                    self._vision_search(
+                        collection=collection,
+                        query=query,
+                        top_k=data.vision_search.topk,
+                        similarity_threshold=data.vision_search.similarity,
+                    )
                 )
-            )
 
-        if not recall_tasks:
-            raise ValidationException("At least one search strategy must be enabled")
+            if not recall_tasks:
+                raise ValidationException("At least one search strategy must be enabled")
 
-        recall_results = await asyncio.gather(*recall_tasks)
-        merged_docs = self._merge_results(recall_results)
-        reranked_docs = await self._rerank(
-            query=query,
-            docs=merged_docs,
-            user_id=search_user_id,
-            use_rerank=bool(data.rerank),
-        )
-
-        items = []
-        for idx, doc in enumerate(reranked_docs):
-            metadata = doc.metadata or {}
-            public_metadata = SearchResultMetadata.from_raw(metadata)
-            source = public_metadata.source if public_metadata and public_metadata.source else ""
-            items.append(
-                SearchResultItem(
-                    rank=idx + 1,
-                    score=doc.score,
-                    content=doc.text,
-                    source=source,
-                    recall_type=metadata.get("recall_type", ""),
-                    metadata=public_metadata,
-                )
+            recall_results = await asyncio.gather(*recall_tasks)
+            merged_docs = self._merge_results(recall_results)
+            reranked_docs = await self._rerank(
+                query=query,
+                docs=merged_docs,
+                user_id=search_user_id,
+                use_rerank=bool(data.rerank),
             )
 
-        return items, "rerank"
+            items = []
+            for idx, doc in enumerate(reranked_docs):
+                metadata = doc.metadata or {}
+                public_metadata = SearchResultMetadata.from_raw(metadata)
+                source = public_metadata.source if public_metadata and public_metadata.source else ""
+                items.append(
+                    SearchResultItem(
+                        rank=idx + 1,
+                        score=doc.score,
+                        content=doc.text,
+                        source=source,
+                        recall_type=metadata.get("recall_type", ""),
+                        metadata=public_metadata,
+                    )
+                )
+
+            return items, "rerank"
 
     async def _vector_search(
         self,
