@@ -1112,7 +1112,7 @@ Lane-to-§ mapping is one-to-one with the design pack so reviewers can locate sp
 
 #### D10.e — Pagination + cursor contract (§C)
 
-- **Deliverable**: opaque base64 cursor + `invariant_hash` field + 6 explicit error codes (`CURSOR_EXPIRED` / `CURSOR_INVARIANT_MISMATCH` / `CURSOR_MALFORMED` / `CURSOR_FOREIGN` / `CURSOR_PAGE_OUT_OF_RANGE` / `CURSOR_VERSION_MISMATCH`); cursor is **never silently reset** — explicit error always.
+- **Deliverable**: opaque base64 cursor + `invariant_hash` field + 6 explicit error codes per §C.3 canonical (`cursor_invalid` / `cursor_expired` / `cursor_filter_mismatch` / `cursor_tenant_mismatch` / `cursor_index_changed` / `cursor_schema_unsupported`); cursor is **never silently reset** — explicit error always. Wire-format casing is **snake_case** to match the rest of the API surface; client-recovery path mapping is in §C.3 body (line 567-571), not duplicated here.
 - **Owner candidate**: @Bryce (canonical caller-migration discipline from #90 round-4 fix-forward; pagination semantics are caller-sensitive) — fallback @cuiwenbo.
 - **Write-set boundary**:
   - `aperag/mcp/cursor/codec.py` + `cursor/invariants.py` + `cursor/errors.py` (new package)
