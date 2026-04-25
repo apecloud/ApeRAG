@@ -65,38 +65,6 @@ EOF
   return 1
 }
 
-register_via_dev_api() {
-  local payload response body status
-  payload="$(cat <<EOF
-{"username":"${E2E_USERNAME}","email":"${E2E_EMAIL}","password":"${E2E_PASSWORD}"}
-EOF
-)"
-
-  response="$(
-    curl --silent --show-error \
-      --write-out $'\n%{http_code}' \
-      --header 'Content-Type: application/json' \
-      --request POST \
-      --data "${payload}" \
-      "${E2E_BASE_URL}/api/v1/test/register_admin"
-  )"
-  status="$(printf '%s' "${response}" | tail -n 1)"
-  body="$(printf '%s' "${response}" | sed '$d')"
-
-  if [[ "${status}" == "200" ]]; then
-    echo "Registered ${E2E_USERNAME} via dev API"
-    return 0
-  fi
-
-  if [[ "${status}" == "400" && "${body}" == *"already exists"* ]]; then
-    echo "User ${E2E_USERNAME} already exists, continuing with login"
-    return 0
-  fi
-
-  echo "Dev bootstrap failed with status ${status}: ${body}" >&2
-  return 1
-}
-
 verify_login() {
   local payload cookie_file
   payload="$(cat <<EOF
@@ -133,11 +101,8 @@ main() {
     public-register)
       register_via_public_api
       ;;
-    dev-api)
-      register_via_dev_api
-      ;;
     *)
-      echo "Unsupported E2E_BOOTSTRAP_MODE=${E2E_BOOTSTRAP_MODE}" >&2
+      echo "Unsupported E2E_BOOTSTRAP_MODE=${E2E_BOOTSTRAP_MODE} (only 'public-register' is supported after Phase 8 task #65)" >&2
       exit 1
       ;;
   esac

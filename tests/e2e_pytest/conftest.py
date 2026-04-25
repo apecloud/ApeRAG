@@ -170,7 +170,14 @@ def bot(client, document, collection):
 
 @pytest.fixture(scope="module")
 def register_user():
-    """Register a new user and return user info and password"""
+    """Register a new user via the canonical public ``/api/v2/auth/register``
+    endpoint. On a fresh database the first user is automatically promoted to
+    admin by ``aperag.domains.identity.api.auth_routes.register_view`` /
+    ``user_manager.on_after_register`` — so test runs that target a freshly
+    seeded DB get an admin user without any dev-only API surface.
+
+    See ``tests/e2e_http/bootstrap/PROTOCOL.md`` for the bootstrap contract.
+    """
     import random
     import string
 
@@ -179,7 +186,7 @@ def register_user():
     password = f"TestPwd!{random.randint(1000, 9999)}"
     data = {"username": username, "email": email, "password": password}
     resp = httpx.post(
-        f"{API_BASE_URL}/api/v1/test/register_admin",
+        f"{API_BASE_URL}/api/v2/auth/register",
         json=data,
     )
     assert resp.status_code == HTTPStatus.OK, f"register failed: {resp.text}"
