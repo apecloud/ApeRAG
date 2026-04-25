@@ -28,6 +28,7 @@ export {
 
 export type {
   AgentArtifactEnvelope,
+  AgentRuntimeKind,
   AgentTimelineEventEnvelope,
   AgentTurnCreateInput,
   AgentTurnCreateResponse,
