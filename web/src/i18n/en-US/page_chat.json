@@ -68,10 +68,41 @@
     },
     "consent": {
       "placeholder_title": "Tool authorization request: {name}",
-      "placeholder_state": "State: {state} (awaiting #78 interactive UI)"
+      "placeholder_state": "State: {state} (awaiting #78 interactive UI)",
+      "approve": "Approve",
+      "deny": "Deny",
+      "approving": "Approving…",
+      "denying": "Denying…",
+      "args_fingerprint": "args fingerprint",
+      "decision_failed": "consent decision failed",
+      "resolved_status": "consent {state}",
+      "risk": {
+        "writes_user_data": "Writes user data",
+        "calls_external_api": "Calls external API",
+        "modifies_system": "Modifies system",
+        "admin_only": "Admin-only action"
+      },
+      "state_label": {
+        "approved": "approved",
+        "denied": "denied",
+        "expired": "expired"
+      }
     },
     "elicitation": {
-      "placeholder_state": "State: {state} (awaiting #78 interactive UI)"
+      "placeholder_state": "State: {state} (awaiting #78 interactive UI)",
+      "submit": "Submit",
+      "submitting": "Submitting…",
+      "submit_failed": "elicitation submit failed",
+      "from_server": "from {name}",
+      "no_schema_fields": "no schema fields declared; submit empty response",
+      "missing_required": "Missing required fields: {fields}",
+      "invalid_value": "Invalid value for: {fields}",
+      "select_placeholder": "Select…",
+      "resolved_status": "elicitation {state}",
+      "state_label": {
+        "answered": "answered",
+        "cancelled": "cancelled"
+      }
     },
     "debug": {
       "title": "Debug details",

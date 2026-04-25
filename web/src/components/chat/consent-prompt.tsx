@@ -7,8 +7,7 @@
 // `/agent/chats/{chat_id}/turns/{turn_id}/consent/{tool_call_id}`)
 // from the AI SDK-compatible client API landed by #76. The
 // `<ConsentSlot>` placeholder shape is owned by the renderer (#77,
-// PR #1703 head `b532abcd`) and we plug into it without changing
-// the slot props.
+// PR #1703) and we plug into it without changing the slot props.
 //
 // D9 §3 + §A7 contract surface (renderer-side):
 // * Show only `toolName + argsPreview + risk` -- raw args never reach
@@ -20,9 +19,13 @@
 //   `data-tool-consent` part (state="approved"/"denied") to flip the
 //   UI; local "submitting" state is just to disable the buttons
 //   between click + server ack.
+// * All visible text + toast strings go through `useTranslations`
+//   (zh-CN / en-US catalogs) per #77 i18n baseline; only dynamic
+//   identifiers (toolName, argsPreview, argsHash) stay verbatim.
 
 import { useCallback, useState } from 'react';
 import { CheckCircle2, HandCoins, ShieldAlert, XCircle } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
@@ -34,35 +37,31 @@ import type {
 } from '@/features/agent-runtime/types';
 import type { ConsentSlotProps } from './agent-turn-renderer';
 
-// Risk -> badge tone mapping. We default to destructive for anything
-// system-modifying / admin so the prompt never under-sells the
-// consequences of a side-effecting tool call.
+// Risk -> badge tone mapping. The user-facing label comes from i18n
+// catalog (`activity_stream.consent.risk.<key>`); we default to
+// destructive for system-modifying / admin so the prompt never
+// under-sells the consequences of a side-effecting tool call.
 const RISK_TONE: Record<
   ToolConsentRisk,
-  { label: string; tone: 'default' | 'secondary' | 'destructive' }
+  'default' | 'secondary' | 'destructive'
 > = {
-  writes_user_data: { label: 'Writes user data', tone: 'default' },
-  calls_external_api: { label: 'Calls external API', tone: 'default' },
-  modifies_system: { label: 'Modifies system', tone: 'destructive' },
-  admin_only: { label: 'Admin-only action', tone: 'destructive' },
+  writes_user_data: 'default',
+  calls_external_api: 'default',
+  modifies_system: 'destructive',
+  admin_only: 'destructive',
 };
 
 type Decision = 'approved' | 'denied';
 
-function describeError(error: unknown): string {
-  if (error instanceof Error && error.message) return error.message;
-  return 'consent decision failed';
-}
-
 export function ConsentPrompt({ chatId, turnId, part }: ConsentSlotProps) {
+  const pageChat = useTranslations('page_chat');
   const [submitting, setSubmitting] = useState<Decision | null>(null);
 
   const data = part.data;
   const state = data.state;
-  const risk = RISK_TONE[data.risk] ?? {
-    label: data.risk,
-    tone: 'default' as const,
-  };
+  const tone = RISK_TONE[data.risk] ?? 'default';
+  const riskLabel =
+    pageChat(`activity_stream.consent.risk.${data.risk}` as const) || data.risk;
 
   const onDecide = useCallback(
     async (decision: Decision) => {
@@ -73,11 +72,15 @@ export function ConsentPrompt({ chatId, turnId, part }: ConsentSlotProps) {
         // Server will emit a follow-up `data-tool-consent` part with
         // the resolved state; we don't optimistically mutate here.
       } catch (err) {
-        toast.error(describeError(err));
+        toast.error(
+          err instanceof Error && err.message
+            ? err.message
+            : pageChat('activity_stream.consent.decision_failed'),
+        );
         setSubmitting(null);
       }
     },
-    [chatId, turnId, data.toolCallId, state, submitting],
+    [chatId, turnId, data.toolCallId, state, submitting, pageChat],
   );
 
   if (state !== 'pending') {
@@ -91,9 +94,9 @@ export function ConsentPrompt({ chatId, turnId, part }: ConsentSlotProps) {
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-medium">{data.toolName}</span>
-            <Badge variant={risk.tone} className="text-[11px]">
+            <Badge variant={tone} className="text-[11px]">
               <ShieldAlert className="mr-1 size-3" />
-              {risk.label}
+              {riskLabel}
             </Badge>
           </div>
           {data.argsPreview ? (
@@ -102,7 +105,7 @@ export function ConsentPrompt({ chatId, turnId, part }: ConsentSlotProps) {
             </pre>
           ) : null}
           <div className="text-accent-ink/70 text-[11px]">
-            args fingerprint:{' '}
+            {pageChat('activity_stream.consent.args_fingerprint')}:{' '}
             <span className="font-mono">{data.argsHash.slice(0, 12)}…</span>
           </div>
           <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -112,7 +115,9 @@ export function ConsentPrompt({ chatId, turnId, part }: ConsentSlotProps) {
               disabled={submitting !== null}
             >
               <CheckCircle2 className="mr-1 size-4" />
-              {submitting === 'approved' ? 'Approving…' : 'Approve'}
+              {submitting === 'approved'
+                ? pageChat('activity_stream.consent.approving')
+                : pageChat('activity_stream.consent.approve')}
             </Button>
             <Button
               size="sm"
@@ -121,7 +126,9 @@ export function ConsentPrompt({ chatId, turnId, part }: ConsentSlotProps) {
               disabled={submitting !== null}
             >
               <XCircle className="mr-1 size-4" />
-              {submitting === 'denied' ? 'Denying…' : 'Deny'}
+              {submitting === 'denied'
+                ? pageChat('activity_stream.consent.denying')
+                : pageChat('activity_stream.consent.deny')}
             </Button>
           </div>
         </div>
@@ -131,6 +138,7 @@ export function ConsentPrompt({ chatId, turnId, part }: ConsentSlotProps) {
 }
 
 function ConsentResolvedRow({ part }: { part: AgentToolConsentPart }) {
+  const pageChat = useTranslations('page_chat');
   const data = part.data;
   const state = data.state;
   const tone =
@@ -141,13 +149,25 @@ function ConsentResolvedRow({ part }: { part: AgentToolConsentPart }) {
         : 'text-muted-foreground';
   const Icon =
     state === 'approved' ? CheckCircle2 : state === 'denied' ? XCircle : HandCoins;
+  // `state` is narrowed to non-'pending' by the caller (the parent
+  // component returns this row only when state !== 'pending'), so the
+  // catalog lookup below is always valid -- but TS can't see that
+  // narrowing across the function boundary, so we fall back to the
+  // raw state literal for any future state additions the catalog
+  // doesn't yet cover.
+  const stateLabel =
+    state === 'approved' || state === 'denied' || state === 'expired'
+      ? pageChat(`activity_stream.consent.state_label.${state}` as const)
+      : state;
   return (
     <div className="border-border/60 bg-background/60 flex items-start gap-2 rounded-md border px-3 py-2 text-[12px]">
       <Icon className={`mt-0.5 size-3.5 flex-none ${tone}`} />
       <div className="min-w-0 flex-1">
         <div className="font-medium">{data.toolName}</div>
         <div className={`mt-0.5 break-all ${tone}`}>
-          consent {state}
+          {pageChat('activity_stream.consent.resolved_status', {
+            state: stateLabel,
+          })}
         </div>
       </div>
     </div>

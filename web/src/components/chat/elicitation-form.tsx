@@ -8,8 +8,8 @@
 // the response to `submitElicitation()` (POST
 // `/agent/chats/{chat_id}/turns/{turn_id}/elicit/{elicitation_id}`)
 // from the AI SDK-compatible client API landed by #76. Plugs into
-// the renderer's `<ElicitationSlot>` shape (#77 PR #1703 head
-// `b532abcd`) without changing slot props.
+// the renderer's `<ElicitationSlot>` shape (#77 PR #1703) without
+// changing slot props.
 //
 // D9 §5.1 contract surface (renderer-side):
 // * `data.schema` is a JSON Schema; we render a minimal field set
@@ -21,9 +21,14 @@
 //   input). On 422 we leave the form populated so the user can
 //   correct + retry; on 403/404/409 we surface a toast and disable
 //   the form.
+// * All visible text + toast strings go through `useTranslations`
+//   (zh-CN / en-US catalogs) per #77 i18n baseline; only dynamic
+//   identifiers (prompt, schema field names, server name) stay
+//   verbatim.
 
 import { useCallback, useMemo, useState } from 'react';
 import { CheckCircle2, HelpCircle, XCircle } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -54,11 +59,6 @@ type JsonSchemaObject = {
   required?: string[];
   properties?: Record<string, JsonSchemaProperty>;
 };
-
-function describeError(error: unknown): string {
-  if (error instanceof Error && error.message) return error.message;
-  return 'elicitation submit failed';
-}
 
 function coerceFieldValue(
   prop: JsonSchemaProperty,
@@ -123,6 +123,7 @@ function buildResponse(
 }
 
 export function ElicitationForm({ chatId, turnId, part }: ElicitationSlotProps) {
+  const pageChat = useTranslations('page_chat');
   const data = part.data;
   const state = data.state;
   const schema = (data.schema ?? {}) as JsonSchemaObject;
@@ -156,23 +157,35 @@ export function ElicitationForm({ chatId, turnId, part }: ElicitationSlotProps) 
       if (state !== 'pending' || submitting) return;
       const { response, missing, invalid } = buildResponse(schema, formState);
       if (invalid.length > 0) {
-        toast.error(`Invalid value for: ${invalid.join(', ')}`);
+        toast.error(
+          pageChat('activity_stream.elicitation.invalid_value', {
+            fields: invalid.join(', '),
+          }),
+        );
         return;
       }
       if (missing.length > 0) {
-        toast.error(`Missing required fields: ${missing.join(', ')}`);
+        toast.error(
+          pageChat('activity_stream.elicitation.missing_required', {
+            fields: missing.join(', '),
+          }),
+        );
         return;
       }
       setSubmitting(true);
       try {
         await submitElicitation(chatId, turnId, data.elicitationId, response);
       } catch (err) {
-        toast.error(describeError(err));
+        toast.error(
+          err instanceof Error && err.message
+            ? err.message
+            : pageChat('activity_stream.elicitation.submit_failed'),
+        );
       } finally {
         setSubmitting(false);
       }
     },
-    [chatId, turnId, data.elicitationId, schema, formState, state, submitting],
+    [chatId, turnId, data.elicitationId, schema, formState, state, submitting, pageChat],
   );
 
   if (state !== 'pending') {
@@ -192,7 +205,9 @@ export function ElicitationForm({ chatId, turnId, part }: ElicitationSlotProps) 
           <div className="font-medium">{data.prompt}</div>
           {data.serverName ? (
             <div className="text-accent-ink/70 text-[11px]">
-              from {data.serverName}
+              {pageChat('activity_stream.elicitation.from_server', {
+                name: data.serverName,
+              })}
             </div>
           ) : null}
         </div>
@@ -200,7 +215,7 @@ export function ElicitationForm({ chatId, turnId, part }: ElicitationSlotProps) 
 
       {fieldEntries.length === 0 ? (
         <div className="text-accent-ink/70 text-[12px]">
-          no schema fields declared; submit empty response
+          {pageChat('activity_stream.elicitation.no_schema_fields')}
         </div>
       ) : (
         <div className="space-y-2">
@@ -221,7 +236,9 @@ export function ElicitationForm({ chatId, turnId, part }: ElicitationSlotProps) 
       <div className="flex items-center gap-2 pt-1">
         <Button size="sm" type="submit" disabled={submitting}>
           <CheckCircle2 className="mr-1 size-4" />
-          {submitting ? 'Submitting…' : 'Submit'}
+          {submitting
+            ? pageChat('activity_stream.elicitation.submitting')
+            : pageChat('activity_stream.elicitation.submit')}
         </Button>
       </div>
     </form>
@@ -245,6 +262,9 @@ function ElicitationField({
   disabled,
   onChange,
 }: ElicitationFieldProps) {
+  const pageChat = useTranslations('page_chat');
+  // Field labels use the schema's `title` / `description` / property
+  // name verbatim — these are dynamic identifiers the BE controls.
   const label = prop.title ?? name;
   const id = `elicit-${name}`;
 
@@ -258,7 +278,9 @@ function ElicitationField({
           disabled={disabled}
         >
           <SelectTrigger id={id} className="w-full">
-            <SelectValue placeholder="Select…" />
+            <SelectValue
+              placeholder={pageChat('activity_stream.elicitation.select_placeholder')}
+            />
           </SelectTrigger>
           <SelectContent>
             {prop.enum.map((opt) => (
@@ -345,6 +367,7 @@ function FieldLabel({
 }
 
 function ElicitationResolvedRow({ part }: { part: AgentElicitationPart }) {
+  const pageChat = useTranslations('page_chat');
   const data = part.data;
   const state = data.state;
   const tone =
@@ -352,12 +375,22 @@ function ElicitationResolvedRow({ part }: { part: AgentElicitationPart }) {
       ? 'text-emerald-600 dark:text-emerald-400'
       : 'text-muted-foreground';
   const Icon = state === 'answered' ? CheckCircle2 : XCircle;
+  // `state` is narrowed to non-'pending' by the caller; explicit
+  // guards below let TS validate the catalog key literal.
+  const stateLabel =
+    state === 'answered' || state === 'cancelled'
+      ? pageChat(`activity_stream.elicitation.state_label.${state}` as const)
+      : state;
   return (
     <div className="border-border/60 bg-background/60 flex items-start gap-2 rounded-md border px-3 py-2 text-[12px]">
       <Icon className={`mt-0.5 size-3.5 flex-none ${tone}`} />
       <div className="min-w-0 flex-1">
         <div className="font-medium">{data.prompt}</div>
-        <div className={`mt-0.5 break-all ${tone}`}>elicitation {state}</div>
+        <div className={`mt-0.5 break-all ${tone}`}>
+          {pageChat('activity_stream.elicitation.resolved_status', {
+            state: stateLabel,
+          })}
+        </div>
       </div>
     </div>
   );
