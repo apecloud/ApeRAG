@@ -93,11 +93,14 @@ jsonpath "$.turn.client_idempotency_key" == "agent-runtime-v3-{{run_id}}"
 GET {{base_url}}/api/v2/agent/chats/{{chat_id}}/turns/{{turn_id}}
 HTTP 200
 [Asserts]
-jsonpath "$.turn.turn_id" == "{{turn_id}}"
-jsonpath "$.turn.chat_id" == "{{chat_id}}"
-jsonpath "$.turn.schema_version" exists
-jsonpath "$.timeline" exists
-jsonpath "$.artifacts" exists
+# Phase 8 D8.4d (#90): snapshot endpoint returns canonical UIMessage parts.
+# Legacy {turn, timeline, artifacts} keys are gone per D8 §2 wire/at-rest byte-equal.
+jsonpath "$.turn_id" == "{{turn_id}}"
+jsonpath "$.chat_id" == "{{chat_id}}"
+jsonpath "$.role" == "assistant"
+jsonpath "$.schema_version" exists
+jsonpath "$.status" exists
+jsonpath "$.parts" exists
 
 POST {{base_url}}/api/v2/agent/chats/{{chat_id}}/turns/{{turn_id}}/cancel
 HTTP 200

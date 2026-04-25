@@ -172,8 +172,12 @@ async def dispatch_evaluation_turn(
     latency_ms = int((time.monotonic() - start) * 1000)
 
     if final_status == AgentTurnStatus.COMPLETED.value:
-        snapshot = await agent_runtime_manager.turn_service.get_turn_snapshot(user_id, chat_id, turn.id)
-        answer_text = _extract_answer_text(snapshot)
+        # Phase 8 D8.4d (#90): the snapshot endpoint now returns canonical
+        # UIMessage parts; legacy ``snapshot.artifacts`` is gone. Pull
+        # artifacts straight from the DB instead of rebuilding the answer
+        # from the at-rest UIMessage parts (which is the FE concern).
+        artifacts = await agent_runtime_manager.turn_service.db_ops.query_agent_artifacts_by_turn(turn.id)
+        answer_text = _extract_answer_text(artifacts)
         return TurnDispatchOutcome(
             status=EvaluationRunItemAttemptStatus.COMPLETED,
             agent_chat_id=chat_id,
@@ -207,10 +211,15 @@ async def dispatch_evaluation_turn(
     )
 
 
-def _extract_answer_text(snapshot) -> str:
-    for artifact in snapshot.artifacts:
-        if artifact.artifact_id == snapshot.turn.answer_artifact_id or artifact.artifact_type == "answer":
-            text = (artifact.payload or {}).get("text") or (artifact.payload or {}).get("content")
+def _extract_answer_text(artifacts) -> str:
+    for artifact in artifacts:
+        artifact_type = getattr(artifact, "artifact_type", None)
+        # AgentArtifactType is a str-Enum; compare by string value to
+        # avoid pulling the enum into this module just for one branch.
+        type_value = getattr(artifact_type, "value", artifact_type)
+        if type_value == "answer":
+            payload = getattr(artifact, "payload", None) or {}
+            text = payload.get("text") or payload.get("content")
             if text:
                 return text
     return ""

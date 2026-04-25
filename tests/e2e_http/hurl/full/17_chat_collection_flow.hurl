@@ -169,11 +169,16 @@ jsonpath "$.stream_url" contains "/api/v2/agent/chats/{{chat_id}}/turns/{{turn_i
 GET {{base_url}}/api/v2/agent/chats/{{chat_id}}/turns/{{turn_id}}
 HTTP 200
 [Asserts]
-jsonpath "$.turn.turn_id" == "{{turn_id}}"
-jsonpath "$.turn.chat_id" == "{{chat_id}}"
-jsonpath "$.turn.bot_id" == "{{bot_id}}"
-jsonpath "$.timeline" exists
-jsonpath "$.artifacts" exists
+# Phase 8 D8.4d (#90): snapshot endpoint returns canonical UIMessage parts.
+# Legacy {turn, timeline, artifacts} keys are gone; bot_id is no longer in
+# the snapshot envelope (it lives on the turn-create response which is
+# already asserted above).
+jsonpath "$.turn_id" == "{{turn_id}}"
+jsonpath "$.chat_id" == "{{chat_id}}"
+jsonpath "$.role" == "assistant"
+jsonpath "$.schema_version" exists
+jsonpath "$.status" exists
+jsonpath "$.parts" exists
 
 DELETE {{base_url}}/api/v2/bots/{{bot_id}}/chats/{{chat_id}}
 HTTP 204

@@ -176,10 +176,14 @@ class CreateTurnResponse(BaseModel):
     stream_url: str
 
 
-class AgentTurnSnapshot(BaseModel):
-    turn: AgentTurnEnvelope
-    timeline: list[AgentTimelineEventEnvelope] = Field(default_factory=list)
-    artifacts: list[AgentArtifactEnvelope] = Field(default_factory=list)
+# ``AgentTurnSnapshot`` is the canonical UIMessage at-rest envelope and
+# lives in :mod:`aperag.domains.agent_runtime.uimessage` next to the
+# other UIMessage classes. It is re-exported here so the existing
+# ``from aperag.domains.agent_runtime.schemas import AgentTurnSnapshot``
+# import sites continue to work without a domain-internal hop.
+from aperag.domains.agent_runtime.uimessage import (  # noqa: E402, F401
+    AgentTurnSnapshot,
+)
 
 
 class CancelTurnResponse(BaseModel):

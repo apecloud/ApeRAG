@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 import aperag.domains.agent_runtime.storage as agent_runtime_storage
 from aperag.domains.agent_runtime.api import routes as agent_runtime_view
 from aperag.domains.agent_runtime.db.models import (
+    AgentArtifactType,
     AgentEventActor,
     AgentTurnStatus,
 )
@@ -187,47 +188,143 @@ class _FakeRequest:
 
 
 @pytest.mark.asyncio
-async def test_turn_snapshot_merges_persisted_events_cached_events_and_runtime_state():
-    turn = _build_turn(answer_artifact_id="artifact-db", timeline_cursor=0)
-    persisted_event = _build_event(1, "turn.started", status="running")
-    cached_event = AgentTimelineEventEnvelope(
-        event_id="event-2",
+async def test_turn_snapshot_returns_canonical_uimessage_parts_for_completed_turn():
+    """D8.4d (#90): snapshot endpoint returns ``parts: UIMessagePart[]``
+    instead of the legacy ``{turn, timeline, artifacts}`` shape.
+
+    A completed turn with both ``answer`` and ``reference_bundle``
+    artifacts should project into a ``TextPart`` followed by
+    ``SourceUrlPart`` / ``DataCitationPart`` pairs, with the canonical
+    ``status`` and ``timeline_cursor`` mirrored from the runtime
+    state. Per D8 §2 wire/at-rest byte-equal canonical, the FE
+    consumes the same discriminated union from snapshot and live SSE.
+    """
+
+    turn = _build_turn(
+        status=AgentTurnStatus.COMPLETED,
+        answer_artifact_id="artifact-1",
+        reference_bundle_artifact_id="bundle-1",
+        timeline_cursor=2,
+    )
+    answer_artifact = SimpleNamespace(
+        id="artifact-1",
         turn_id="turn-1",
-        sequence=2,
-        timestamp=_now(),
-        type="text.delta",
-        label="Streaming Answer",
-        status="streaming",
-        actor="agent",
-        data={"delta": "hello"},
-    ).model_dump(mode="json")
-    artifact = _build_artifact()
+        artifact_type=AgentArtifactType.ANSWER,
+        summary="answer",
+        payload={"text": "Hello world"},
+        storage_ref=None,
+        gmt_created=_now(),
+        gmt_updated=_now(),
+    )
+    reference_artifact = SimpleNamespace(
+        id="bundle-1",
+        turn_id="turn-1",
+        artifact_type=AgentArtifactType.REFERENCE_BUNDLE,
+        summary="1 references",
+        payload={
+            "items": [
+                {
+                    "source_type": "web_page",
+                    "source_id": "src-1",
+                    "title": "Example",
+                    "snippet": "ApeRAG is great",
+                    "uri": "https://example.com/a",
+                    "metadata": {},
+                }
+            ]
+        },
+        storage_ref=None,
+        gmt_created=_now(),
+        gmt_updated=_now(),
+    )
 
     service = TurnService(
         db_ops=_FakeDbOps(
             turn=turn,
-            persisted_events=[persisted_event],
-            artifacts=[artifact],
+            artifacts=[answer_artifact, reference_artifact],
         ),
         redis_store=_FakeRedisStore(
-            events=[cached_event],
             runtime_state={
-                "status": "RUNNING",
-                "timeline_cursor": 1,
-                "answer_artifact_id": None,
-                "reference_bundle_artifact_id": "bundle-1",
+                "status": "COMPLETED",
+                "timeline_cursor": 2,
             },
         ),
     )
 
     snapshot = await service.get_turn_snapshot("user-1", "chat-1", "turn-1")
 
-    assert snapshot.turn.status == "RUNNING"
-    assert snapshot.turn.timeline_cursor == 2
-    assert snapshot.turn.answer_artifact_id == "artifact-db"
-    assert snapshot.turn.reference_bundle_artifact_id == "bundle-1"
-    assert [event.sequence for event in snapshot.timeline] == [1, 2]
-    assert snapshot.artifacts[0].artifact_id == "artifact-1"
+    assert snapshot.turn_id == "turn-1"
+    assert snapshot.chat_id == "chat-1"
+    assert snapshot.role == "assistant"
+    assert snapshot.status == "COMPLETED"
+    assert snapshot.timeline_cursor == 2
+    assert snapshot.error_text is None
+
+    types = [getattr(part, "type", None) for part in snapshot.parts]
+    assert types == ["text", "source-url", "data-citation"]
+    assert snapshot.parts[0].text == "Hello world"
+    assert snapshot.parts[1].source_id == "src-1"
+    assert snapshot.parts[2].data.cited_text == "ApeRAG is great"
+    assert snapshot.parts[2].data.location.url == "https://example.com/a"
+
+
+@pytest.mark.asyncio
+async def test_turn_snapshot_surfaces_error_text_for_failed_turn():
+    """D8.4d (#90): a FAILED turn's ``error_summary`` artifact surfaces
+    via the ``error_text`` field, not as a part. Mirrors the FE
+    transitional adapter (#77 huangheng ``snapshot-fallback.ts``) so
+    the BE can replace it cleanly post-merge.
+    """
+
+    turn = _build_turn(
+        status=AgentTurnStatus.FAILED,
+        error_code="agent.tool_failure",
+        error_message="upstream timeout",
+        timeline_cursor=3,
+    )
+    error_artifact = SimpleNamespace(
+        id="error-1",
+        turn_id="turn-1",
+        artifact_type=AgentArtifactType.ERROR_SUMMARY,
+        summary="upstream timeout",
+        payload={"message": "Detailed: upstream timeout after 30s"},
+        storage_ref=None,
+        gmt_created=_now(),
+        gmt_updated=_now(),
+    )
+
+    service = TurnService(
+        db_ops=_FakeDbOps(turn=turn, artifacts=[error_artifact]),
+        redis_store=_FakeRedisStore(runtime_state={"status": "FAILED"}),
+    )
+
+    snapshot = await service.get_turn_snapshot("user-1", "chat-1", "turn-1")
+
+    assert snapshot.status == "FAILED"
+    assert snapshot.error_text == "Detailed: upstream timeout after 30s"
+    # No assistant text was produced; error is not modelled as a part.
+    assert snapshot.parts == []
+
+
+@pytest.mark.asyncio
+async def test_turn_snapshot_does_not_expose_legacy_keys():
+    """Regression-guard: legacy ``{turn, timeline, artifacts}`` must
+    never reappear on the new ``AgentTurnSnapshot`` shape (D8 §2
+    wire/at-rest byte-equal canonical).
+    """
+
+    service = TurnService(
+        db_ops=_FakeDbOps(turn=_build_turn(status=AgentTurnStatus.QUEUED)),
+        redis_store=_FakeRedisStore(),
+    )
+
+    snapshot = await service.get_turn_snapshot("user-1", "chat-1", "turn-1")
+    serialised = snapshot.model_dump(mode="json")
+
+    forbidden = {"turn", "timeline", "artifacts"}
+    assert forbidden.isdisjoint(serialised.keys()), (
+        f"legacy keys leaked into AgentTurnSnapshot serialization: {forbidden & serialised.keys()}"
+    )
 
 
 @pytest.mark.asyncio
@@ -261,42 +358,30 @@ async def test_event_service_to_event_envelope_adds_user_activity_contract():
 
 
 @pytest.mark.asyncio
-async def test_turn_snapshot_backfills_user_activity_for_legacy_cached_events():
-    turn = _build_turn()
-    legacy_cached_event = {
-        "event_id": "event-3",
-        "turn_id": "turn-1",
-        "sequence": 3,
-        "timestamp": _now().isoformat(),
-        "type": "tool.finished",
-        "label": "search_collection",
-        "status": "success",
-        "actor": "tool",
-        "data": {
-            "tool_name": "search_collection",
-            "result": {
-                "items": [{"id": "doc-1"}, {"id": "doc-2"}],
-                "collection_name": "Product Docs",
-            },
-        },
-    }
+async def test_turn_snapshot_user_activity_inference_runs_via_event_service():
+    """``TurnService.get_turn_snapshot`` no longer projects timeline
+    events (D8.4d / #90 dropped the legacy timeline shape). The user
+    activity inference contract still belongs to ``EventService`` and
+    is exercised directly by
+    ``test_event_service_to_event_envelope_adds_user_activity_contract``.
 
+    This test pins the empty-timeline guarantee: snapshots no longer
+    include timeline / artifacts arrays, so the FE renderer is the
+    sole consumer of activity hints (via the live SSE
+    ``data-activity`` part).
+    """
+
+    turn = _build_turn()
     service = TurnService(
         db_ops=_FakeDbOps(turn=turn),
-        redis_store=_FakeRedisStore(events=[legacy_cached_event], runtime_state=None),
+        redis_store=_FakeRedisStore(runtime_state=None),
     )
 
     snapshot = await service.get_turn_snapshot("user-1", "chat-1", "turn-1")
 
-    assert len(snapshot.timeline) == 1
-    event = snapshot.timeline[0]
-    assert event.technical_type == "tool.finished"
-    assert event.user_activity is not None
-    assert event.user_activity.intent == UserActivityIntent.SEARCHING_KNOWLEDGE
-    assert event.user_activity.detail_key == "activity.searching_knowledge.detail.source_name"
-    assert event.user_activity.context is not None
-    assert event.user_activity.context.source_name == "Product Docs"
-    assert event.user_activity.context.count == 2
+    # Legacy timeline / artifacts fields are gone (D8.4d canonical lock).
+    assert not hasattr(snapshot, "timeline")
+    assert not hasattr(snapshot, "artifacts")
 
 
 @pytest.mark.asyncio
@@ -384,22 +469,29 @@ async def test_history_writer_builds_context_from_v3_turns_only():
 async def test_agent_runtime_views_create_stream_snapshot_cancel_and_artifact(monkeypatch):
     turn = _build_turn(status=AgentTurnStatus.RUNNING, timeline_cursor=1)
     snapshot = AgentTurnSnapshot(
-        turn=TurnService.to_turn_envelope(turn),
-        timeline=[
-            AgentTimelineEventEnvelope(
-                event_id="event-1",
-                turn_id="turn-1",
-                sequence=1,
-                timestamp=_now(),
-                type="turn.started",
-                label="Thinking",
-                status="running",
-                actor="system",
-                data={"chat_id": "chat-1"},
-            )
-        ],
-        artifacts=[],
+        turn_id="turn-1",
+        chat_id="chat-1",
+        status=AgentTurnStatus.RUNNING.value,
+        parts=[],
+        timeline_cursor=1,
+        started_at=_now(),
+        finished_at=None,
+        created_at=_now(),
+        updated_at=_now(),
     )
+    timeline_for_stream = [
+        AgentTimelineEventEnvelope(
+            event_id="event-1",
+            turn_id="turn-1",
+            sequence=1,
+            timestamp=_now(),
+            type="turn.started",
+            label="Thinking",
+            status="running",
+            actor="system",
+            data={"chat_id": "chat-1"},
+        )
+    ]
     artifact = AgentArtifactEnvelope(
         artifact_id="artifact-1",
         turn_id="turn-1",
@@ -433,11 +525,11 @@ async def test_agent_runtime_views_create_stream_snapshot_cancel_and_artifact(mo
             return snapshot
 
         def to_turn_envelope(self, _turn):
-            return snapshot.turn
+            return TurnService.to_turn_envelope(turn)
 
     class _FakeEventService:
         async def get_events_after(self, _turn_id, after_sequence=0, limit=500):
-            return snapshot.timeline if after_sequence == 0 else []
+            return timeline_for_stream if after_sequence == 0 else []
 
     class _FakeArtifactService:
         async def get_artifact_for_user(self, _user, _artifact_id):
@@ -488,7 +580,8 @@ async def test_agent_runtime_views_create_stream_snapshot_cancel_and_artifact(mo
         "turn-1",
         user=user,
     )
-    assert snapshot_response.turn.turn_id == "turn-1"
+    assert snapshot_response.turn_id == "turn-1"
+    assert snapshot_response.role == "assistant"
 
     artifact_response = await agent_runtime_view.get_artifact_view(
         "artifact-1",

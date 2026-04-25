@@ -6,7 +6,7 @@
 // only covers the JSON request/response endpoints the chat UI calls
 // alongside the stream.
 
-import type { ToolConsentData, ElicitationData } from './types';
+import type { AgentMessagePart, ToolConsentData, ElicitationData } from './types';
 
 const DEFAULT_BASE = `${process.env.NEXT_PUBLIC_BASE_PATH || ''}/api/v2/agent`;
 
@@ -58,10 +58,24 @@ export type AgentArtifactEnvelope = {
   updated_at?: string | null;
 };
 
+// Phase 8 D8.4d (#90): the snapshot endpoint now returns the canonical
+// UIMessage at-rest envelope (matches `aperag.domains.agent_runtime.uimessage.AgentTurnSnapshot`).
+// Per D8 §2 wire / at-rest are byte-equal, so the FE consumes the same
+// `AgentMessagePart` discriminated union from both the live SSE stream
+// and this reload payload — no client-side converter is required.
 export type AgentTurnSnapshotEnvelope = {
-  turn: AgentTurnEnvelope;
-  timeline: AgentTimelineEventEnvelope[];
-  artifacts: AgentArtifactEnvelope[];
+  schema_version: string;
+  turn_id: string;
+  chat_id: string;
+  role: 'assistant';
+  status: string;
+  parts: AgentMessagePart[];
+  error_text?: string | null;
+  timeline_cursor: number;
+  started_at?: string | null;
+  finished_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 export type AgentTurnCreateInput = {

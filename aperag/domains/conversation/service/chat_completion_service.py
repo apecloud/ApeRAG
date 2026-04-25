@@ -366,8 +366,14 @@ class ChatCompletionService:
             if self._status_value(turn.status) != AgentTurnStatus.COMPLETED.value:
                 return OpenAIFormatter.format_error(turn.error_message or "Chat completion failed")
 
-            snapshot = await runtime_manager.turn_service.get_turn_snapshot(user, chat_id, turn_id)
-            content = self._build_completion_content(snapshot)
+            # Phase 8 D8.4d (#90): the snapshot endpoint now returns
+            # canonical UIMessage parts; legacy ``snapshot.artifacts``
+            # is gone. Pull artifacts directly from the DB so the
+            # OpenAI-compat completion content keeps its existing
+            # answer + references shape (which is independent of the
+            # FE-facing UIMessage protocol).
+            artifacts = await runtime_manager.turn_service.db_ops.query_agent_artifacts_by_turn(turn_id)
+            content = self._build_completion_content(artifacts)
             return OpenAIFormatter.format_complete_response(turn_id, content)
         finally:
             if ephemeral_chat:
@@ -438,19 +444,27 @@ class ChatCompletionService:
         return status.value if hasattr(status, "value") else str(status)
 
     @staticmethod
-    def _build_completion_content(snapshot) -> str:
+    def _build_completion_content(artifacts) -> str:
+        """Build OpenAI-compat completion content from raw agent artifacts.
+
+        Phase 8 D8.4d (#90) flipped the snapshot endpoint to canonical
+        UIMessage parts; this OpenAI-compat path stays artifact-shaped
+        because the response format is independent of the FE-facing
+        UIMessage protocol. Callers pass the raw artifact list from
+        ``db_ops.query_agent_artifacts_by_turn``.
+        """
         answer_text = ""
         references_payload: list[dict[str, Any]] = []
 
-        for artifact in snapshot.artifacts:
-            if artifact.artifact_id == snapshot.turn.answer_artifact_id or artifact.artifact_type == "answer":
+        for artifact in artifacts:
+            artifact_type = getattr(artifact, "artifact_type", None)
+            type_value = getattr(artifact_type, "value", artifact_type)
+            payload = getattr(artifact, "payload", None) or {}
+            if type_value == "answer":
                 if not answer_text:
-                    answer_text = artifact.payload.get("text") or artifact.payload.get("content") or ""
-            if (
-                artifact.artifact_id == snapshot.turn.reference_bundle_artifact_id
-                or artifact.artifact_type == "reference_bundle"
-            ):
-                items = artifact.payload.get("items")
+                    answer_text = payload.get("text") or payload.get("content") or ""
+            elif type_value == "reference_bundle":
+                items = payload.get("items")
                 if isinstance(items, list):
                     references_payload = [item for item in items if isinstance(item, dict)]
 

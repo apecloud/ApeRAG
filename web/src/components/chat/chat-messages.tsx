@@ -4,12 +4,9 @@ import type { ChatDetails, ChatMessage, Feedback } from '@/features/bot/types';
 import {
   cancelAgentTurn,
   createAgentTurn,
-  extractErrorTextFromSnapshot,
   getAgentTurnSnapshot,
   mapBackendTurnStatus,
-  synthesizePartsFromSnapshot,
   useAgentTurnStream,
-  type AgentMessagePart,
   type AgentStreamStatus,
   type AgentTurnEnvelope,
   type AgentTurnSnapshotEnvelope,
@@ -188,15 +185,43 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
 
   const seedFromSnapshot = useCallback(
     (snapshot: AgentTurnSnapshotEnvelope) => {
-      const turnId = snapshot.turn.turn_id;
-      const terminal = isTerminalStatus(snapshot.turn.status);
+      const turnId = snapshot.turn_id;
+      const terminal = isTerminalStatus(snapshot.status);
+      // Phase 8 D8.4d (#90): the snapshot endpoint now returns the flat
+      // canonical UIMessage at-rest envelope. ``AgentTurnEnvelope`` is
+      // synthesized here from the same fields so the rest of the FE
+      // can keep using its existing turn-shape contract; full
+      // ``AgentTurnEnvelope`` (including bot_id / user_id / etc.) is
+      // already provided by the ``createAgentTurn`` response on fresh
+      // turns and is not needed for reload rendering.
+      const envelope: AgentTurnEnvelope = {
+        schema_version: snapshot.schema_version,
+        turn_id: snapshot.turn_id,
+        chat_id: snapshot.chat_id,
+        user_id: '',
+        bot_id: '',
+        request_id: '',
+        client_idempotency_key: '',
+        status: snapshot.status,
+        input_text: '',
+        model_profile: {},
+        error_code: null,
+        error_message: snapshot.error_text ?? null,
+        answer_artifact_id: null,
+        reference_bundle_artifact_id: null,
+        timeline_cursor: snapshot.timeline_cursor,
+        started_at: snapshot.started_at,
+        finished_at: snapshot.finished_at,
+        created_at: snapshot.created_at,
+        updated_at: snapshot.updated_at,
+      };
       updateLiveTurn(turnId, () => ({
-        envelope: snapshot.turn,
+        envelope,
         baselineSnapshot: snapshot,
         streamUrl: terminal ? null : buildStreamUrl(chatId, turnId),
         pending: !terminal,
       }));
-      ensureTurnGroups(snapshot.turn, false);
+      ensureTurnGroups(envelope, false);
       if (terminal && activeTurnId === turnId) {
         updateActiveTurn(null);
       }
@@ -407,10 +432,9 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
       try {
         const snapshot = await getAgentTurnSnapshot(chatId, storedTurnId);
         if (cancelled) return;
-        ensureTurnGroups(snapshot.turn, true);
         seedFromSnapshot(snapshot);
-        if (!isTerminalStatus(snapshot.turn.status)) {
-          updateActiveTurn(snapshot.turn.turn_id);
+        if (!isTerminalStatus(snapshot.status)) {
+          updateActiveTurn(snapshot.turn_id);
         } else {
           updateActiveTurn(null);
         }
@@ -505,7 +529,7 @@ function AgentTurnStreamCard({
 }) {
   const { envelope, baselineSnapshot, streamUrl } = liveTurn;
   const initialSequence =
-    baselineSnapshot?.turn.timeline_cursor || envelope.timeline_cursor || 0;
+    baselineSnapshot?.timeline_cursor || envelope.timeline_cursor || 0;
 
   const stream = useAgentTurnStream({
     chatId,
@@ -514,36 +538,21 @@ function AgentTurnStreamCard({
     initialSequence,
   });
 
-  // dongdong msg=97336fb9 — when the hook is dormant for a terminal
-  // historical turn (`streamUrl: null`, no live frames), synthesize
-  // parts + status from the snapshot's legacy artifacts so the
-  // renderer shows the completed answer + references instead of an
-  // empty `idle` state. Read-only fallback; deletes when the BE
-  // snapshot endpoint returns UIMessages.
+  // Phase 8 D8.4d (#90): the snapshot endpoint now returns canonical
+  // UIMessage parts directly, so reload rendering for terminal
+  // historical turns reads ``baselineSnapshot.parts`` + ``error_text``
+  // without a client-side synthesizer. The previous transitional
+  // ``snapshot-fallback.ts`` adapter is gone.
   const useFallback =
     streamUrl == null && stream.parts.length === 0 && Boolean(baselineSnapshot);
-  const fallbackParts = useMemo<AgentMessagePart[]>(
-    () =>
-      useFallback && baselineSnapshot
-        ? synthesizePartsFromSnapshot(baselineSnapshot)
-        : [],
-    [useFallback, baselineSnapshot],
-  );
-  const displayParts = useFallback ? fallbackParts : stream.parts;
+  const displayParts = useFallback && baselineSnapshot ? baselineSnapshot.parts : stream.parts;
   const displayStatus: AgentStreamStatus = useFallback
     ? mapBackendTurnStatus(envelope.status)
     : stream.status;
-  const fallbackErrorText = useMemo(
-    () =>
-      useFallback && baselineSnapshot
-        ? extractErrorTextFromSnapshot(baselineSnapshot)
-        : null,
-    [useFallback, baselineSnapshot],
-  );
   const displayErrorText =
     displayStatus === 'failed'
       ? (stream.errorText ??
-        fallbackErrorText ??
+        (useFallback && baselineSnapshot ? baselineSnapshot.error_text ?? null : null) ??
         envelope.error_message ??
         null)
       : stream.errorText;
