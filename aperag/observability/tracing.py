@@ -42,6 +42,8 @@ except ImportError:  # pragma: no cover - depends on runtime package availabilit
 
 
 _initialized = False
+_sqlalchemy_instrumented = False
+_fastapi_apps_instrumented: set[int] = set()
 
 
 def is_available() -> bool:
@@ -105,13 +107,22 @@ def init_tracing(config: ObservabilityConfig) -> bool:
 
 def configure_process_observability(config: ObservabilityConfig) -> bool:
     """Configure process-wide tracing and metrics."""
+    global _sqlalchemy_instrumented
+
     configure_metrics(config)
     initialized = init_tracing(config)
-    if initialized and OTEL_AVAILABLE and config.enable_sqlalchemy and config.mode != "off":
+    if (
+        initialized
+        and OTEL_AVAILABLE
+        and config.enable_sqlalchemy
+        and config.mode != "off"
+        and not _sqlalchemy_instrumented
+    ):
         try:
             from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 
             SQLAlchemyInstrumentor().instrument()
+            _sqlalchemy_instrumented = True
         except Exception:
             logger.exception(
                 "failed to instrument SQLAlchemy",
@@ -124,10 +135,14 @@ def configure_fastapi(app: Any, config: ObservabilityConfig) -> bool:
     """Instrument one FastAPI app instance explicitly."""
     if not OTEL_AVAILABLE or config.mode == "off" or not config.enable_fastapi:
         return False
+    app_id = id(app)
+    if app_id in _fastapi_apps_instrumented:
+        return True
     try:
         from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
         FastAPIInstrumentor.instrument_app(app)
+        _fastapi_apps_instrumented.add(app_id)
         return True
     except Exception:
         logger.exception(
