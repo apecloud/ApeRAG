@@ -48,6 +48,29 @@ def get_embedding_service(model_id: str, user_id: str) -> tuple[EmbeddingService
 
 def get_collection_embedding_service_sync(collection) -> tuple[EmbeddingService, int]:
     config = parseCollectionConfig(collection.config)
-    if not config.embedding or not config.embedding.model_id:
+    if not config.embedding:
         raise InvalidConfigurationError("collection.config.embedding.model_id", None, "Embedding model is required")
-    return get_embedding_service(config.embedding.model_id, collection.user)
+    spec = config.embedding
+    model_id = spec.model_id
+    if not model_id and spec.has_legacy_triple():
+        # Pre-#1697 collections wrote ``{model, model_service_provider,
+        # custom_llm_provider}`` instead of ``{model_id}``. Resolve via
+        # the sync repository helper so existing rows continue to work
+        # after the model-platform refactor (Weston msg=80e873c1).
+        from aperag.domains.model_platform.service.model_service import _normalise_provider_type
+
+        provider_type = _normalise_provider_type(spec.legacy_provider) or _normalise_provider_type(
+            spec.legacy_custom_llm_provider
+        )
+        if provider_type and spec.legacy_model:
+            model_id = db_ops.resolve_legacy_model_id(
+                user_id=collection.user,
+                provider_type=provider_type,
+                provider_model_id=spec.legacy_model,
+                capability="embedding",
+            )
+            if model_id:
+                spec.model_id = model_id
+    if not model_id:
+        raise InvalidConfigurationError("collection.config.embedding.model_id", None, "Embedding model is required")
+    return get_embedding_service(model_id, collection.user)

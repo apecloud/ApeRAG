@@ -126,10 +126,82 @@ def _model_use_to_schema(model_use) -> ModelUse:
     )
 
 
+# Mapping from legacy provider names (used by the pre-#1697
+# ``model_service_provider`` / ``custom_llm_provider`` fields) to the
+# new ``model_provider.provider_type`` values. Same set the migration
+# helper uses; kept duplicated here so neither file imports the other.
+_LEGACY_PROVIDER_TO_TYPE = {
+    "openai": "openai",
+    "openrouter": "openai_compatible",
+    "alibabacloud": "dashscope",
+    "dashscope": "dashscope",
+    "jina": "jina",
+    "jina_ai": "jina",
+    "openai_compatible": "openai_compatible",
+}
+
+
+def _normalise_provider_type(value: str | None) -> str | None:
+    if not value:
+        return None
+    lowered = value.strip().lower()
+    return _LEGACY_PROVIDER_TO_TYPE.get(lowered, lowered)
+
+
 class ModelPlatformService:
     async def list_providers(self) -> ModelProviderList:
         providers = await async_db_ops.query_model_providers()
         return ModelProviderList(items=[_provider_to_schema(provider) for provider in providers] or BUILTIN_PROVIDERS)
+
+    async def resolve_legacy_model_id(
+        self,
+        user_id: str,
+        *,
+        provider_name: str | None,
+        provider_model_name: str | None,
+        custom_llm_provider: str | None = None,
+        capability: ModelCapability | None = None,
+    ) -> str | None:
+        """Look up the new-schema ``model_id`` for a legacy
+        ``{provider, model, custom_llm_provider}`` triple.
+
+        Returns ``None`` when no matching ``Model`` row exists for the
+        user (or for ``user_id="public"`` system models). Used by the
+        permanent OpenAI-compat ``/api/v1/embeddings`` + ``/api/v1/rerank``
+        routes (Weston msg=80e873c1 / Blocker A) to keep pre-#1697
+        callers working after the model-platform refactor without
+        touching v3.
+
+        ``custom_llm_provider`` is treated as a tiebreak hint when the
+        ``provider_name`` itself is empty / unknown; its primary role
+        in the legacy schema was to disambiguate dialect within a
+        single ``llm_provider`` row.
+        """
+        provider_type = _normalise_provider_type(provider_name) or _normalise_provider_type(custom_llm_provider)
+        if not provider_type or not provider_model_name:
+            return None
+        models = await async_db_ops.query_models(user_id=user_id)
+        candidates = [model for model in models if model.provider_model_id == provider_model_name]
+        if not candidates:
+            return None
+        # Filter by provider_type via the joined ModelAccount row.
+        # Prefer user-owned over public when both match.
+        matched_user: list = []
+        matched_public: list = []
+        for model in candidates:
+            if capability is not None and model.capability != capability.value:
+                continue
+            account = await async_db_ops.query_model_account(model.account_id, user_id)
+            if account is None:
+                continue
+            if account.provider_type != provider_type:
+                continue
+            if account.user_id == user_id:
+                matched_user.append(model)
+            else:
+                matched_public.append(model)
+        chosen = matched_user or matched_public
+        return chosen[0].id if chosen else None
 
     async def list_accounts(self, user_id: str) -> ModelAccountList:
         accounts = await async_db_ops.query_model_accounts(user_id)

@@ -181,8 +181,33 @@ class ModelValidationResponse(BaseModel):
 
 
 class EmbeddingRequest(BaseModel):
-    model_id: str = Field(..., description="ApeRAG model id")
+    """OpenAI-compatible embedding request.
+
+    Accepts either the new ``{model_id}`` shape *or* the legacy
+    ``{model, model_service_provider, custom_llm_provider}`` triple
+    that pre-#1697 callers (provider hurl, external clients) still
+    send. ``/api/v1/embeddings`` is permanent OpenAI-compat allowlist
+    surface — see Weston msg=80e873c1 / PR #1697 Blocker A. The
+    triple is resolved to a ``model_id`` server-side via
+    ``resolve_legacy_model_id`` before the runtime lookup runs.
+    Routes that are post-#1697-only (``/api/v3/...``) require
+    ``model_id`` and never accept the triple.
+    """
+
+    model_id: Optional[str] = Field(None, description="ApeRAG model id")
     input: Union[str, list[str]]
+    model: Optional[str] = Field(
+        None,
+        description="Legacy provider-model name (pre-#1697 compat). Resolved to ``model_id`` server-side.",
+    )
+    model_service_provider: Optional[str] = Field(
+        None,
+        description="Legacy provider name (pre-#1697 compat). Resolved to ``model_id`` server-side.",
+    )
+    custom_llm_provider: Optional[str] = Field(
+        None,
+        description="Legacy provider dialect (pre-#1697 compat). Ignored once ``model_id`` is resolved.",
+    )
 
 
 class EmbeddingData(BaseModel):
@@ -209,11 +234,27 @@ class Document1(BaseModel):
 
 
 class RerankRequest(BaseModel):
-    model_id: str = Field(..., description="ApeRAG rerank model id")
+    """OpenAI-compatible rerank request — same legacy/new shape duality
+    as :class:`EmbeddingRequest`. See its docstring for the rationale.
+    """
+
+    model_id: Optional[str] = Field(None, description="ApeRAG rerank model id")
     query: str
     documents: Union[list[str], list[Document1]]
     top_k: Optional[conint(ge=1, le=1000)] = 10
     return_documents: Optional[bool] = True
+    model: Optional[str] = Field(
+        None,
+        description="Legacy provider-model name (pre-#1697 compat). Resolved to ``model_id`` server-side.",
+    )
+    model_service_provider: Optional[str] = Field(
+        None,
+        description="Legacy provider name (pre-#1697 compat). Resolved to ``model_id`` server-side.",
+    )
+    custom_llm_provider: Optional[str] = Field(
+        None,
+        description="Legacy provider dialect (pre-#1697 compat). Ignored once ``model_id`` is resolved.",
+    )
 
 
 class Document2(BaseModel):

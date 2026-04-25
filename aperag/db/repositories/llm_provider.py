@@ -27,6 +27,48 @@ class LlmProviderRepositoryMixin(SyncRepositoryProtocol):
 
         return self._execute_query(_query)
 
+    def resolve_legacy_model_id(
+        self,
+        user_id: str,
+        *,
+        provider_type: str,
+        provider_model_id: str,
+        capability: str | None = None,
+    ) -> Optional[str]:
+        """Sync companion to the async resolver in
+        :class:`AsyncLlmProviderRepositoryMixin`. Used by sync collection
+        config callers (``base_embedding``, ``base_completion``) that
+        need to map the legacy ``{model, provider}`` triple to a
+        new-schema ``model.id`` without an event loop.
+        """
+
+        def _query(session):
+            stmt = (
+                select(Model, ModelAccount)
+                .join(ModelAccount, Model.account_id == ModelAccount.id)
+                .where(
+                    Model.gmt_deleted.is_(None),
+                    Model.status == "ACTIVE",
+                    Model.provider_model_id == provider_model_id,
+                    ModelAccount.gmt_deleted.is_(None),
+                    ModelAccount.status == "ACTIVE",
+                    ModelAccount.provider_type == provider_type,
+                    (ModelAccount.user_id == user_id) | (ModelAccount.user_id == "public"),
+                )
+            )
+            if capability:
+                stmt = stmt.where(Model.capability == capability)
+            result = session.execute(stmt)
+            rows = result.all()
+            if not rows:
+                return None
+            # Prefer user-owned over public.
+            user_rows = [(model, account) for model, account in rows if account.user_id == user_id]
+            chosen = user_rows[0] if user_rows else rows[0]
+            return chosen[0].id
+
+        return self._execute_query(_query)
+
 
 class AsyncLlmProviderRepositoryMixin(AsyncRepositoryProtocol):
     async def query_model_providers(self):

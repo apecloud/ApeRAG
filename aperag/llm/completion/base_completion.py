@@ -32,7 +32,29 @@ def get_completion_service(model_id: str, user_id: str, temperature: float = 0.1
 
 def get_collection_completion_service_sync(collection) -> CompletionService:
     config = parseCollectionConfig(collection.config)
-    if not config.completion or not config.completion.model_id:
+    if not config.completion:
         raise InvalidConfigurationError("collection.config.completion.model_id", None, "Completion model is required")
-    temperature = config.completion.temperature or 0.1
-    return get_completion_service(config.completion.model_id, collection.user, temperature=temperature)
+    spec = config.completion
+    model_id = spec.model_id
+    if not model_id and spec.has_legacy_triple():
+        # Pre-#1697 back-compat: resolve the legacy
+        # ``{model, model_service_provider}`` triple via the sync
+        # repository helper (Weston msg=80e873c1 / Blocker C).
+        from aperag.domains.model_platform.service.model_service import _normalise_provider_type
+
+        provider_type = _normalise_provider_type(spec.legacy_provider) or _normalise_provider_type(
+            spec.legacy_custom_llm_provider
+        )
+        if provider_type and spec.legacy_model:
+            model_id = db_ops.resolve_legacy_model_id(
+                user_id=collection.user,
+                provider_type=provider_type,
+                provider_model_id=spec.legacy_model,
+                capability="chat",
+            )
+            if model_id:
+                spec.model_id = model_id
+    if not model_id:
+        raise InvalidConfigurationError("collection.config.completion.model_id", None, "Completion model is required")
+    temperature = spec.temperature or 0.1
+    return get_completion_service(model_id, collection.user, temperature=temperature)

@@ -44,6 +44,7 @@ from aperag.domains.agent_runtime.services import (
 )
 from aperag.domains.agent_runtime.storage import DEFAULT_AGENT_TURN_LEASE_TTL_SECONDS
 from aperag.domains.knowledge_base.schemas import Collection as KBCollectionSchema
+from aperag.domains.model_platform.schemas import ModelCapability
 from aperag.exceptions import ResourceNotFoundException, ValidationException
 from aperag.llm.runtime.resolver import resolve_model_invocation_from_records
 from aperag.tasks.processing_lease import generate_processing_token
@@ -569,7 +570,19 @@ class PydanticAIRuntime(AgentRuntime):
         final_completion = request.completion or (
             bot_config.agent.completion if bot_config and bot_config.agent else None
         )
-        if not final_completion or not final_completion.model_id:
+        if final_completion is None:
+            raise ValidationException("Model specification is required for agent runtime v3")
+        if not final_completion.model_id and final_completion.has_legacy_triple():
+            # Pre-#1697 back-compat: resolve the stashed legacy triple
+            # via the model-platform service (Weston msg=80e873c1).
+            from aperag.schema.utils import resolve_model_spec_legacy
+
+            await resolve_model_spec_legacy(
+                final_completion,
+                user_id=user,
+                capability=ModelCapability.CHAT,
+            )
+        if not final_completion.model_id:
             raise ValidationException("Model specification is required for agent runtime v3")
 
         final_collections = request.collections
