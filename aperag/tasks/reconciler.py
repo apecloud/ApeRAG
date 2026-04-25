@@ -756,7 +756,7 @@ class CollectionSummaryReconciler:
         Schedule summary generation task
         """
         try:
-            from config.celery_tasks import collection_summary_task
+            from aperag.domains.knowledge_base.tasks import collection_summary_task
 
             task_result = collection_summary_task.delay(summary_id, collection_id, target_version, processing_token)
             logger.info(

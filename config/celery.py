@@ -36,7 +36,14 @@ app.conf.update(
     task_send_sent_event=settings.celery_task_send_sent_event,
     task_track_started=settings.celery_task_track_started,
     # Auto-discover tasks in the aperag.tasks package
-    include=['config.celery_tasks', 'config.export_tasks', 'aperag.domains.evaluation.tasks'],
+    include=[
+        'config.celery_tasks',  # legacy evaluation tasks (scheduled for deletion in #39)
+        'config.export_tasks',  # ExportTask ORM still in legacy aggregate (carve in #39)
+        'aperag.domains.indexing.tasks',
+        'aperag.domains.knowledge_base.tasks',
+        'aperag.domains.knowledge_graph.tasks',
+        'aperag.domains.evaluation.tasks',
+    ],
     # Enable detailed logging for celery workers - let our custom config handle formatting
     worker_log_format='[%(asctime)s: %(levelname)s/%(processName)s] %(name)s - %(message)s',
     worker_task_log_format='[%(asctime)s: %(levelname)s/%(processName)s] %(name)s - %(message)s',

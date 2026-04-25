@@ -135,7 +135,7 @@ class CeleryTaskScheduler(TaskScheduler):
 
     def schedule_create_index(self, document_id: str, index_types: List[str], context: dict = None, **kwargs) -> str:
         """Schedule index creation workflow"""
-        from config.celery_tasks import create_document_indexes_workflow
+        from aperag.domains.indexing.tasks import create_document_indexes_workflow
 
         try:
             # Execute workflow and return AsyncResult ID (not calling .get())
@@ -151,7 +151,7 @@ class CeleryTaskScheduler(TaskScheduler):
 
     def schedule_update_index(self, document_id: str, index_types: List[str], context: dict = None, **kwargs) -> str:
         """Schedule index update workflow"""
-        from config.celery_tasks import update_document_indexes_workflow
+        from aperag.domains.indexing.tasks import update_document_indexes_workflow
 
         try:
             # Execute workflow and return AsyncResult ID (not calling .get())
@@ -167,7 +167,7 @@ class CeleryTaskScheduler(TaskScheduler):
 
     def schedule_delete_index(self, document_id: str, index_types: List[str], context: dict = None, **kwargs) -> str:
         """Schedule index deletion workflow"""
-        from config.celery_tasks import delete_document_indexes_workflow
+        from aperag.domains.indexing.tasks import delete_document_indexes_workflow
 
         try:
             # Execute workflow and return AsyncResult ID

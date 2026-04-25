@@ -123,7 +123,7 @@ async def test_start_run_marks_failed_when_enqueue_raises(monkeypatch):
         def delay(_run_id, _collection_id):
             raise RuntimeError("broker unavailable")
 
-    monkeypatch.setattr("config.celery_tasks.generate_graph_curation_run_task", _FakeTask)
+    monkeypatch.setattr("aperag.domains.knowledge_graph.tasks.generate_graph_curation_run_task", _FakeTask)
 
     with pytest.raises(RuntimeError, match="Failed to schedule graph curation run"):
         await service.start_run("user1", "col1")
