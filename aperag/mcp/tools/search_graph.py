@@ -39,12 +39,24 @@ from typing import Any, Dict
 import httpx
 
 from aperag.domains.retrieval.schemas import SearchResult
+from aperag.mcp.capabilities import ToolAnnotation
 from aperag.mcp.server import API_BASE_URL, get_api_key, mcp_server
+from aperag.mcp.tools._annotations import register as _register_tool_annotation
 
 logger = logging.getLogger(__name__)
 
 
-@mcp_server.tool
+@mcp_server.tool(
+    annotations=_register_tool_annotation(
+        "graph_search",
+        ToolAnnotation(
+            requires=("collection_access",),
+            # graph_search returns nothing useful unless the collection
+            # has a graph index built — explicit-not-silent per §D.3.
+            capabilities={"long_context": False, "graph_index": True},
+        ),
+    ),
+)
 async def graph_search(
     collection_id: str,
     query: str,

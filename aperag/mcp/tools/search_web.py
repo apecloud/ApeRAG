@@ -36,12 +36,24 @@ from typing import Any, Dict
 import httpx
 
 from aperag.domains.web_access.schemas import WebSearchResponse
+from aperag.mcp.capabilities import ToolAnnotation
 from aperag.mcp.server import API_BASE_URL, get_api_key, mcp_server
+from aperag.mcp.tools._annotations import register as _register_tool_annotation
 
 logger = logging.getLogger(__name__)
 
 
-@mcp_server.tool
+@mcp_server.tool(
+    annotations=_register_tool_annotation(
+        "web_search",
+        ToolAnnotation(
+            requires=("web_access",),
+            # web_search reaches the public internet — explicit-not-silent
+            # per §D.3 if the caller's environment denies web egress.
+            capabilities={"long_context": False, "web_access": True},
+        ),
+    ),
+)
 async def web_search(
     query: str = "",
     max_results: int = 5,
