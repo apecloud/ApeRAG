@@ -51,9 +51,7 @@ export type ChatInputSubmitParams = {
   query: string;
   collections: Collection[];
   completion: {
-    model: string;
-    model_service_provider: string;
-    custom_llm_provider: string;
+    model_id: string;
   };
   web_search_enabled: boolean;
   language: string;
@@ -113,7 +111,7 @@ export const ChatInput = ({
   const [modelName, setModelName] = useLocalStorageState<string | undefined>(
     'local-agent-completion-model',
     {
-      defaultValue: bot?.config?.agent?.completion?.model,
+      defaultValue: bot?.config?.agent?.completion?.model_id ?? undefined,
     },
   );
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -239,12 +237,12 @@ export const ChatInput = ({
 
     let model: ModelSpec | undefined;
     const provider = providerModels?.find((p) =>
-      p.models?.some((m) => m.model === modelName),
+      p.models?.some((m) => m.model_id === modelName),
     );
 
     providerModels?.forEach((provider) => {
       provider.models?.forEach((m) => {
-        if (m.model === modelName) {
+        if (m.model_id === modelName) {
           model = m;
         }
       });
@@ -261,9 +259,7 @@ export const ChatInput = ({
         selectedCollections.some((id) => c.id === id),
       ),
       completion: {
-        model: modelName,
-        model_service_provider: provider?.name || '',
-        custom_llm_provider: model.custom_llm_provider || '',
+        model_id: modelName,
       },
       web_search_enabled: webSearchEnabled,
       language: locale,
@@ -301,10 +297,10 @@ export const ChatInput = ({
     let includesCurrentModel = false;
     providerModels?.forEach((provider) => {
       provider.models?.forEach((m) => {
-        if (m.tags?.some((t) => t === 'default_for_agent_completion')) {
-          defaultModel = m.model ?? undefined;
+        if (!defaultModel) {
+          defaultModel = m.model_id ?? undefined;
         }
-        if (m.model === modelName) {
+        if (m.model_id === modelName) {
           includesCurrentModel = true;
         }
       });
@@ -557,10 +553,10 @@ export const ChatInput = ({
                             {item.models?.map((model) => {
                               return (
                                 <SelectItem
-                                  key={model.model}
-                                  value={model.model || ''}
+                                  key={model.model_id}
+                                  value={model.model_id || ''}
                                 >
-                                  {model.model}
+                                  {model.model_id}
                                 </SelectItem>
                               );
                             })}

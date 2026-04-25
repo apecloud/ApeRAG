@@ -44,7 +44,9 @@ from aperag.domains.agent_runtime.services import (
 )
 from aperag.domains.agent_runtime.storage import DEFAULT_AGENT_TURN_LEASE_TTL_SECONDS
 from aperag.domains.knowledge_base.schemas import Collection as KBCollectionSchema
+from aperag.domains.model_platform.schemas import ModelCapability
 from aperag.exceptions import ResourceNotFoundException, ValidationException
+from aperag.llm.runtime.resolver import resolve_model_invocation_from_records
 from aperag.tasks.processing_lease import generate_processing_token
 
 # ``prompt_template_service`` is reached via a ``PromptTemplateOps`` DI
@@ -85,6 +87,7 @@ class ResolvedAgentRequest:
     agent_message: AgentMessage
     system_prompt: str
     query_prompt_template: str
+    provider_model_id: str
     provider_base_url: str
     provider_api_key: str
     aperag_api_key: str
@@ -310,7 +313,7 @@ class PydanticAIRuntime(AgentRuntime):
                 prompt = f"{history_context}\n\nCurrent turn:\n{prompt}"
 
             model = OpenAIChatModel(
-                resolved_request.agent_message.completion.model,
+                resolved_request.provider_model_id,
                 provider=OpenAIProvider(
                     base_url=resolved_request.provider_base_url,
                     api_key=resolved_request.provider_api_key,
@@ -567,7 +570,19 @@ class PydanticAIRuntime(AgentRuntime):
         final_completion = request.completion or (
             bot_config.agent.completion if bot_config and bot_config.agent else None
         )
-        if not final_completion or not final_completion.model or not final_completion.model_service_provider:
+        if final_completion is None:
+            raise ValidationException("Model specification is required for agent runtime v3")
+        if not final_completion.model_id and final_completion.has_legacy_triple():
+            # Pre-#1697 back-compat: resolve the stashed legacy triple
+            # via the model-platform service (Weston msg=80e873c1).
+            from aperag.schema.utils import resolve_model_spec_legacy
+
+            await resolve_model_spec_legacy(
+                final_completion,
+                user_id=user,
+                capability=ModelCapability.CHAT,
+            )
+        if not final_completion.model_id:
             raise ValidationException("Model specification is required for agent runtime v3")
 
         final_collections = request.collections
@@ -587,14 +602,11 @@ class PydanticAIRuntime(AgentRuntime):
                 for item in db_collections
             ]
 
-        provider = await async_db_ops.query_llm_provider_by_name(final_completion.model_service_provider)
-        if not provider:
-            raise ResourceNotFoundException("Provider", final_completion.model_service_provider)
-        api_key = await async_db_ops.query_provider_api_key(
-            final_completion.model_service_provider, user_id=user, need_public=True
-        )
-        if not api_key:
-            raise ValidationException(f"No API key available for provider '{final_completion.model_service_provider}'")
+        runtime_row = await async_db_ops.query_model_runtime(final_completion.model_id, user)
+        if not runtime_row:
+            raise ResourceNotFoundException("Model", final_completion.model_id)
+        model_record, account_record = runtime_row
+        invocation = resolve_model_invocation_from_records(model=model_record, account=account_record)
 
         system_api_keys = await async_db_ops.query_api_keys(user, is_system=True)
         aperag_api_key = next((item.key for item in system_api_keys if item.key), None)
@@ -617,8 +629,9 @@ class PydanticAIRuntime(AgentRuntime):
             ),
             system_prompt=system_prompt,
             query_prompt_template=query_prompt_template,
-            provider_base_url=provider.base_url,
-            provider_api_key=api_key,
+            provider_model_id=invocation.provider_model_id,
+            provider_base_url=invocation.base_url,
+            provider_api_key=invocation.api_key,
             aperag_api_key=aperag_api_key,
         )
 

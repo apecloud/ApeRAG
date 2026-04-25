@@ -19,8 +19,8 @@ from typing import List, Protocol
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from aperag.db.ops import async_db_ops
 from aperag.domains.identity.service.auth_dependencies import required_user
+from aperag.domains.model_platform.service.model_service import model_platform_service
 from aperag.domains.web_access.reader.reader_service import ReaderService, read_with_jina_fallback
 from aperag.domains.web_access.schemas import (
     WebReadRequest,
@@ -270,7 +270,9 @@ async def _get_user_jina_api_key(user: AuthenticatedUser) -> str | None:
         JINA API key if found, None otherwise
     """
     try:
-        jina_api_key = await async_db_ops.query_provider_api_key("jina", user_id=str(user.id), need_public=True)
+        jina_api_key = await model_platform_service.get_user_provider_api_key(
+            user_id=str(user.id), provider_type="jina", fallback_to_public=True
+        )
         logger.debug(f"JINA API key query result for user {user.id}: {'found' if jina_api_key else 'not found'}")
         return jina_api_key
     except Exception as e:

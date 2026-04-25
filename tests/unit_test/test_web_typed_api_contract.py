@@ -285,7 +285,8 @@ def test_provider_feature_uses_v2_typed_api_boundary():
     # and not fall back to the old `@/api` generated SDK or raw fetch.
     assert "from '@/api'" not in feature_sources
     assert "fetch(" not in feature_sources
-    assert "'/api/v2/providers/available-models'" in feature_sources
+    assert "'/api/v3/models'" in feature_sources
+    assert "'/api/v3/model-providers'" in feature_sources
 
     # Positive: the migrated caller wires through the feature adapter and
     # imports the domain-scoped `ModelSpec` alias from `features/providers`.
@@ -501,8 +502,10 @@ def test_bot_feature_uses_v2_typed_api_boundary():
     # classes are banned across this scope. The `chat-input.tsx` caller is
     # **deliberately out of scope** (deferred to the chat/document boundary
     # batch).
+    # Phase 8 D8.4b (#77) replaced `agent-turn-card.tsx` with
+    # `agent-turn-renderer.tsx`; the contract guard moves with it.
     batch6_chat_paths = [
-        REPO_ROOT / "web/src/components/chat/agent-turn-card.tsx",
+        REPO_ROOT / "web/src/components/chat/agent-turn-renderer.tsx",
         REPO_ROOT / "web/src/components/chat/chat-messages.tsx",
         REPO_ROOT / "web/src/components/chat/message-feedback.tsx",
         REPO_ROOT / "web/src/components/chat/message-part-ai.tsx",

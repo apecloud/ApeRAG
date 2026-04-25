@@ -294,11 +294,9 @@ class ChatCompletionService:
         completion = None
         if override_requested:
             completion = ModelSpec(
-                model=payload.model
+                model_id=payload.model
                 if payload.model not in (None, "", "aperag")
-                else getattr(default_completion, "model", None),
-                model_service_provider=getattr(default_completion, "model_service_provider", None),
-                custom_llm_provider=getattr(default_completion, "custom_llm_provider", None),
+                else getattr(default_completion, "model_id", None),
                 temperature=payload.temperature
                 if payload.temperature is not None
                 else getattr(default_completion, "temperature", None),
@@ -312,10 +310,8 @@ class ChatCompletionService:
                 if payload.timeout is not None
                 else getattr(default_completion, "timeout", None),
             )
-            if not completion.model or not completion.model_service_provider:
-                raise ValidationException(
-                    "Custom model overrides require the bot to define a default completion provider and model"
-                )
+            if not completion.model_id:
+                raise ValidationException("Custom model overrides require a model id")
 
         return CreateTurnRequest(
             query=query,

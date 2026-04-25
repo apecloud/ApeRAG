@@ -145,7 +145,7 @@ class CollectionTask:
         embedding lookup, so we short-circuit before resolving the
         embedding provider. Without this guard, provider-independent
         collections (smoke tests, KG-only tenants) trigger a NoneType
-        ``model_service_provider`` access in ``base_embedding`` and a
+        model lookup in ``base_embedding`` and a
         Celery retry storm.
         """
         config = parseCollectionConfig(collection.config)

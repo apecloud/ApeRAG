@@ -106,22 +106,28 @@ def build_collection_llm_callable(collection: CollectionRow):
     session, etc.) — a meaningful overhead on high-chunk documents.
     """
     config = parseCollectionConfig(collection.config)
-    provider_name = config.completion.model_service_provider
-    api_key = db_ops.query_provider_api_key(provider_name, collection.user)
-    if not api_key:
-        raise RuntimeError(f"graphindex: API key not found for provider {provider_name!r} (collection {collection.id})")
-    provider = db_ops.query_llm_provider_by_name(provider_name)
-    base_url = provider.base_url
+    if not config.completion or not config.completion.model_id:
+        raise RuntimeError(f"graphindex: completion model not configured (collection {collection.id})")
+    row = db_ops.query_model_runtime(config.completion.model_id, collection.user)
+    if not row:
+        raise RuntimeError(f"graphindex: model not found {config.completion.model_id!r} (collection {collection.id})")
+    model, account = row
 
     # Local import: CompletionService pulls in litellm which is heavy at
     # import time and we don't want to pay it just for ``import aperag.domains.knowledge_graph.graphindex``.
     from aperag.llm.completion.completion_service import CompletionService
+    from aperag.llm.runtime.resolver import resolve_model_invocation_from_records
+
+    invocation = resolve_model_invocation_from_records(model=model, account=account)
+    provider = invocation.runner_config.get("provider")
+    if not provider:
+        provider = "openai" if invocation.runner_type == "openai_compatible" else invocation.provider_type
 
     svc = CompletionService(
-        provider=config.completion.custom_llm_provider,
-        model=config.completion.model,
-        base_url=base_url,
-        api_key=api_key,
+        provider=provider,
+        model=invocation.provider_model_id,
+        base_url=invocation.base_url,
+        api_key=invocation.api_key,
         temperature=0.0,  # deterministic output for extraction
         max_tokens=None,
         caching=False,
