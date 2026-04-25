@@ -139,7 +139,23 @@ class CollectionTask:
         the connector). We still call through so new deployments get their
         global collection primed at cluster-creation time rather than on the
         first user upload.
+
+        Mirrors ``_initialize_fulltext_index``'s ``enable_fulltext`` skip:
+        a collection with ``enable_vector=False`` does not require any
+        embedding lookup, so we short-circuit before resolving the
+        embedding provider. Without this guard, provider-independent
+        collections (smoke tests, KG-only tenants) trigger a NoneType
+        ``model_service_provider`` access in ``base_embedding`` and a
+        Celery retry storm.
         """
+        config = parseCollectionConfig(collection.config)
+        if not config.enable_vector:
+            logger.info(
+                "Skipping vector database initialization for collection %s because enable_vector=false",
+                collection_id,
+            )
+            return
+
         # Get embedding service
         _, vector_size = get_collection_embedding_service_sync(collection)
 

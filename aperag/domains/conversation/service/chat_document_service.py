@@ -58,6 +58,20 @@ class ChatDocumentService:
         if not collection:
             # Create if missing (fallback)
             collection = await chat_collection_service.create_user_chat_collection(user_id)
+            if collection is None:
+                # Graceful skip path: user has no embedding model configured,
+                # so we cannot create / use a default chat collection. Surface
+                # a 400 to the caller — chat document upload genuinely
+                # requires an embedding model, unlike registration.
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "No embedding model is configured. Configure an LLM "
+                        "provider with the default_for_embedding or "
+                        "enable_for_collection tag before uploading chat "
+                        "documents."
+                    ),
+                )
 
         # Prepare document metadata (without message_id initially)
         doc_metadata = {
