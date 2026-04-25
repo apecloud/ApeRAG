@@ -234,7 +234,7 @@ async def health_check():
 app.include_router(auth_router, prefix="/api/v2/auth")
 app.include_router(export_router, prefix="/api/v2")  # KB-domain export router (Phase 8 #47 G1, D7 v2 hard-cut)
 app.include_router(audit_router, prefix="/api/v2")  # Governance: audit-logs (hard-cut to v2 in #50)
-app.include_router(apikeys_router, prefix="/api/v1")  # Governance: api_keys (#51 G4b will flip to /api/v2)
+app.include_router(apikeys_router, prefix="/api/v2")  # Governance: api_keys (hard-cut to v2 in #51)
 app.include_router(llm_router, prefix="/api/v1")  # Model platform: embed/rerank (OpenAI-compat)
 app.include_router(marketplace_router, prefix="/api/v2")  # Marketplace domain router (Phase 8 #52 G4c, D7 v2 hard-cut)
 app.include_router(settings_router, prefix="/api/v2")  # KB domain settings (carved from views/ in #48)

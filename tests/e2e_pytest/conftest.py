@@ -23,11 +23,11 @@ from tests.e2e_pytest.utils import assert_dict_subset
 @pytest.fixture(scope="module")
 def api_key(cookie_client):
     """Dynamically create an API key for testing and yield its value, then delete it after tests."""
-    resp = cookie_client.post("/api/v1/apikeys", json={"description": "e2e dynamic key"})
+    resp = cookie_client.post("/api/v2/apikeys", json={"description": "e2e dynamic key"})
     assert resp.status_code == HTTPStatus.OK, f"Failed to create API key: {resp.text}"
     api_key = resp.json()["key"]
     yield api_key
-    resp = cookie_client.delete(f"/api/v1/apikeys/{resp.json()['id']}")
+    resp = cookie_client.delete(f"/api/v2/apikeys/{resp.json()['id']}")
     assert resp.status_code == HTTPStatus.OK, f"Failed to delete API key: {resp.text}"
 
 
