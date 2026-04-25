@@ -64,9 +64,7 @@ make env-dev
 
 - 如果还没装，下载 `uv`
 - 创建 Python 3.11 虚拟环境（位置 `.venv/`）
-- 安装后端依赖 + repo git hooks
-- 安装 pre-commit hooks（lint / format 自动跑）
-- 安装 `addlicense` 工具（license 管理）
+- 安装后端依赖
 
 **激活虚拟环境**：
 

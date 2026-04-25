@@ -85,8 +85,7 @@ env-install: venv
 	uv sync --all-groups --all-extras
 
 # Development environment setup
-.PHONY: install-hooks
-env-dev: env-install install-addlicense install-hooks
+env-dev: env-install
 	@echo "Installing development tools..."
 	@echo ""
 	@echo "✅ Development environment ready!"
@@ -95,10 +94,6 @@ env-dev: env-install install-addlicense install-hooks
 	@echo "   2. Start databases: make infra-up"
 	@echo "   3. Apply migrations: make db-migrate"
 	@echo "   4. Run services: make serve-api, make serve-worker"
-
-install-hooks:
-	@echo "Installing git hooks..."
-	@./scripts/install-hooks.sh
 
 # Environment cleanup
 env-clean:
@@ -415,45 +410,3 @@ info:
 	@echo "REGISTRY: $(REGISTRY)"
 	@echo "HOST ARCH: $(UNAME_M)"
 
-# License management
-.PHONY: add-license check-license install-addlicense
-add-license: install-addlicense
-	./downloads/addlicense -c "ApeCloud, Inc." -y 2025 -l apache \
-		-ignore "aperag/readers/**" \
-		-ignore "aperag/vectorstore/**" \
-		aperag/**/*.py
-
-check-license: install-addlicense
-	./downloads/addlicense -check \
-		-c "ApeCloud, Inc." -y 2025 -l apache \
-		-ignore "aperag/readers/**" \
-		-ignore "aperag/vectorstore/**" \
-		aperag/**/*.py
-
-install-addlicense:
-	@mkdir -p ./downloads
-	@if [ ! -f ./downloads/addlicense ]; then \
-		echo "Installing addlicense..."; \
-		OS=$$(uname -s); \
-		ARCH=$$(uname -m); \
-		case $$OS in \
-			Darwin) OS=macOS ;; \
-			Linux) OS=Linux ;; \
-			MINGW*|CYGWIN*) OS=Windows ;; \
-		esac; \
-		case $$ARCH in \
-			x86_64) ARCH=x86_64 ;; \
-			aarch64) ARCH=arm64 ;; \
-			arm64) ARCH=arm64 ;; \
-		esac; \
-		echo "Detected platform: $$OS/$$ARCH"; \
-		if [ "$$OS" = "Windows" ]; then \
-			curl -L https://github.com/google/addlicense/releases/download/v1.1.1/addlicense_1.1.1_$${OS}_$${ARCH}.zip -o /tmp/addlicense.zip; \
-			unzip -j /tmp/addlicense.zip -d ./downloads; \
-			rm /tmp/addlicense.zip; \
-		else \
-			curl -L https://github.com/google/addlicense/releases/download/v1.1.1/addlicense_1.1.1_$${OS}_$${ARCH}.tar.gz | tar -xz -C ./downloads; \
-		fi; \
-		chmod +x ./downloads/addlicense; \
-		echo "addlicense installed to ./downloads/addlicense"; \
-	fi
