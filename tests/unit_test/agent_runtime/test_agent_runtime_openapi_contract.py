@@ -28,7 +28,9 @@ def test_agent_runtime_v2_openapi_contract_exposes_turn_event_and_artifact_model
     events = _operation("/api/v2/agent/chats/{chat_id}/turns/{turn_id}/events", "get")
     event_stream = events["responses"]["200"]["content"]["text/event-stream"]["schema"]
     assert event_stream["type"] == "string"
-    assert "AgentTimelineEventEnvelope" in event_stream["description"]
+    # Phase 8 D8.1 hard-cut: SSE wire is AI SDK v5 stream parts.
+    assert "AI SDK v5" in event_stream["description"]
+    assert "x-vercel-ai-ui-message-stream" in event_stream["description"]
 
 
 def test_openai_compatible_chat_completions_openapi_contract_is_explicit():

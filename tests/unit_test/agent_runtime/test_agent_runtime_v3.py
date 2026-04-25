@@ -516,8 +516,13 @@ async def test_agent_runtime_views_create_stream_snapshot_cancel_and_artifact(mo
         chunks.append(chunk)
 
     joined = "".join(chunks)
-    assert "event: turn.started" in joined
-    assert '"turn_id": "turn-1"' in joined
+    # Phase 8 D8.1 hard-cut: SSE wire is now AI SDK v5 stream parts
+    # (no SSE ``event:`` field, JSON ``type`` discriminator only).
+    # ``turn.started`` envelope fans out to ``[start, start-step]``.
+    assert '"type":"start"' in joined
+    assert '"type":"start-step"' in joined
+    assert "event: turn.started" not in joined
+    assert stream_response.headers["x-vercel-ai-ui-message-stream"] == "v1"
 
 
 @pytest.mark.asyncio
