@@ -15,13 +15,13 @@
 
 from sqlalchemy import desc, func, select
 
-from aperag.db.models import (
+from aperag.db.repositories.base import AsyncRepositoryProtocol
+from aperag.domains.governance.db.models import UserQuota
+from aperag.domains.identity.db.models import (
     Invitation,
     Role,
     User,
-    UserQuota,
 )
-from aperag.db.repositories.base import AsyncRepositoryProtocol
 
 
 class AsyncUserRepositoryMixin(AsyncRepositoryProtocol):

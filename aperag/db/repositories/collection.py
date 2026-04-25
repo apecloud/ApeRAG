@@ -16,11 +16,11 @@ from typing import List, Optional
 
 from sqlalchemy import and_, desc, func, select
 
-from aperag.db.models import User
 from aperag.db.repositories.base import (
     AsyncRepositoryProtocol,
     SyncRepositoryProtocol,
 )
+from aperag.domains.identity.db.models import User
 from aperag.domains.knowledge_base.db.models import (
     Collection,
     CollectionStatus,

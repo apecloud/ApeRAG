@@ -14,17 +14,19 @@
 
 """Governance-domain SQLAlchemy models.
 
-Owns the two entities the governance domain is responsible for:
+Owns the entities the governance domain is responsible for:
 
 * ``ApiKey`` — per-user API access tokens.
 * ``AuditLog`` — immutable audit trail of mutating HTTP operations.
+* ``ConfigModel`` — system-wide config key/value store.
+* ``Setting`` — feature-toggle / runtime setting key/value store.
+* ``UserQuota`` — per-user resource consumption limits.
 
 Plus their classification enums (``ApiKeyStatus`` /
-``AuditResource``). Moved here from ``aperag.db.models`` in Phase 4
-Step 4-S2b; the legacy aggregate module retains a re-export shim so
-pre-migration callers (audit decorator / api_key_service / fastapi
-handlers) continue to resolve the same class objects until Phase 6
-cleanup.
+``AuditResource``). ``ApiKey`` / ``AuditLog`` moved here from
+``aperag.db.models`` in Phase 4 Step 4-S2b. ``ConfigModel`` /
+``Setting`` / ``UserQuota`` joined in Phase 8 Task #39 (legacy ORM
+carve).
 """
 
 from __future__ import annotations
@@ -151,9 +153,52 @@ class AuditLog(Base):
         return f"<AuditLog(id={self.id}, user={self.username}, api={self.api_name}, method={self.http_method}, status={self.status_code})>"
 
 
+class ConfigModel(Base):
+    __tablename__ = "config"
+
+    key = Column(String(256), primary_key=True)
+    value = Column(Text, nullable=False)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_deleted = Column(DateTime(timezone=True), nullable=True)
+
+
+class Setting(Base):
+    __tablename__ = "setting"
+
+    key = Column(String(256), primary_key=True)
+    value = Column(Text, nullable=True)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_deleted = Column(DateTime(timezone=True), nullable=True)
+
+
+class UserQuota(Base):
+    __tablename__ = "user_quota"
+
+    user = Column(String(256), primary_key=True)
+    key = Column(String(256), primary_key=True)
+    quota_limit = Column(Integer, default=0, nullable=False)  # Renamed from 'value' for clarity
+    current_usage = Column(Integer, default=0, nullable=False)  # New field to track current usage
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_deleted = Column(DateTime(timezone=True), nullable=True)
+
+    def is_quota_exceeded(self, additional_usage: int = 1) -> bool:
+        """Check if adding additional usage would exceed the quota limit"""
+        return (self.current_usage + additional_usage) > self.quota_limit
+
+    def can_consume(self, amount: int = 1) -> bool:
+        """Check if the specified amount can be consumed without exceeding quota"""
+        return not self.is_quota_exceeded(amount)
+
+
 __all__ = [
     "ApiKey",
     "ApiKeyStatus",
     "AuditLog",
     "AuditResource",
+    "ConfigModel",
+    "Setting",
+    "UserQuota",
 ]

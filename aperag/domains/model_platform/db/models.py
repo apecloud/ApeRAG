@@ -14,24 +14,27 @@
 
 """Model-platform-domain SQLAlchemy models.
 
-Owns the two provider-metadata tables the model_platform domain is
+Owns the provider-metadata tables the model_platform domain is
 responsible for:
 
 * ``LLMProvider`` — per-provider (OpenAI / Anthropic / etc.)
   configuration (dialects, base URL, per-user overrides).
 * ``LLMProviderModel`` — per-model metadata rows scoped to a
   provider (name, API type, context window, tags).
+* ``ModelServiceProvider`` — soft-deletable per-name provider API
+  key store (legacy table fed by ``llm_provider_service``).
+* ``PromptTemplate`` — system / per-user prompt template store
+  consumed by ``prompt_template_service`` (standalone-infra DI seam).
 
-Plus ``APIType`` enum (completion / embedding / rerank) used by
-``LLMProviderModel.api``. Moved here from ``aperag.db.models`` in
-Phase 4 Step 4-S2d.
+Plus their classification enums (``APIType`` /
+``ModelServiceProviderStatus``). ``LLMProvider`` / ``LLMProviderModel``
+/ ``APIType`` moved here from ``aperag.db.models`` in Phase 4
+Step 4-S2d; ``ModelServiceProvider`` / ``ModelServiceProviderStatus``
+/ ``PromptTemplate`` joined in Phase 8 Task #39 (legacy ORM carve).
 
 ``aperag.llm.*`` (embedding / rerank / completion runtime wrappers
 over HTTP APIs) is **not** part of this domain — it stays as shared
 infrastructure per Phase 4 canonical msg=d47fa490 Section 7.
-
-``ModelServiceProvider`` is a separate legacy table that remains in
-``aperag.db.models`` for now; Phase 6 cleanup decides its fate.
 """
 
 from __future__ import annotations
@@ -40,7 +43,7 @@ import random
 import uuid
 from enum import Enum
 
-from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, String, Text
+from sqlalchemy import JSON, Boolean, Column, DateTime, Index, Integer, String, Text, text
 
 from aperag.db.base import Base
 from aperag.utils.utils import utc_now
@@ -66,6 +69,12 @@ class APIType(str, Enum):
     COMPLETION = "completion"
     EMBEDDING = "embedding"
     RERANK = "rerank"
+
+
+class ModelServiceProviderStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
+    DELETED = "DELETED"
 
 
 class LLMProvider(Base):
@@ -155,8 +164,51 @@ class LLMProviderModel(Base):
         return self.tags or []
 
 
+class ModelServiceProvider(Base):
+    __tablename__ = "model_service_provider"
+    __table_args__ = (
+        # Partial unique index: enforce uniqueness only over active
+        # (``gmt_deleted IS NULL``) rows. Phase 8 Task #39 Part D
+        # converts the legacy ``UniqueConstraint("name", "gmt_deleted")``
+        # which Postgres did not actually enforce because NULL != NULL.
+        Index(
+            "uq_model_service_provider_name_active",
+            "name",
+            unique=True,
+            postgresql_where=text("gmt_deleted IS NULL"),
+        ),
+    )
+
+    id = Column(String(24), primary_key=True, default=lambda: "msp" + _random_id())
+    name = Column(String(256), nullable=False, index=True)  # Reference to LLMProvider.name
+    status = Column(
+        _enum_column(ModelServiceProviderStatus), nullable=False, index=True
+    )  # Add index for status queries
+    api_key = Column(String(256), nullable=False)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Add index for soft delete queries
+
+
+class PromptTemplate(Base):
+    __tablename__ = "prompt_template"
+
+    id = Column(String(24), primary_key=True, default=lambda: "pt" + _random_id())
+    prompt_type = Column(String(50), nullable=False, index=True)
+    scope = Column(String(20), nullable=False, index=True)
+    user_id = Column(String(256), nullable=True, index=True)
+    content = Column(Text, nullable=False)
+    description = Column(Text, nullable=True)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)
+
+
 __all__ = [
     "APIType",
     "LLMProvider",
     "LLMProviderModel",
+    "ModelServiceProvider",
+    "ModelServiceProviderStatus",
+    "PromptTemplate",
 ]

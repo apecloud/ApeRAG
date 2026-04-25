@@ -14,8 +14,8 @@
 
 from sqlalchemy import select
 
-from aperag.db.models import ConfigModel
 from aperag.db.repositories.base import AsyncRepositoryProtocol
+from aperag.domains.governance.db.models import ConfigModel
 
 
 class AsyncSystemRepositoryMixin(AsyncRepositoryProtocol):

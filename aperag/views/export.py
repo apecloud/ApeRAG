@@ -16,7 +16,7 @@ import logging
 
 from fastapi import APIRouter, Depends, Request
 
-from aperag.db.models import User
+from aperag.domains.identity.db.models import User
 from aperag.schema import view_models
 from aperag.service.export_service import export_service
 from aperag.views.auth import required_user

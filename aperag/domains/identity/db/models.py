@@ -14,16 +14,20 @@
 
 """Identity-domain SQLAlchemy models.
 
-Owns the three entities the identity domain is responsible for:
+Owns the four entities the identity domain is responsible for:
 
 * ``User`` — the authenticated principal (fastapi-users-backed).
 * ``OAuthAccount`` — OAuth provider link rows owned by ``User``.
 * ``Role`` — the per-user authorization level enum
   (``admin`` / ``rw`` / ``ro``).
+* ``Invitation`` — email-based onboarding token (carries a ``Role``
+  column so it lives natively in the identity domain).
 
-Moved here from ``aperag.db.models`` in Phase 4 Step 4-S2a; the
-legacy aggregate module retains a re-export shim with the full
-Phase 3 + Phase 4 symbol list until Phase 6 cleanup.
+``User`` / ``OAuthAccount`` / ``Role`` moved here from ``aperag.db.models``
+in Phase 4 Step 4-S2a; ``Invitation`` followed in Phase 8 Task #39
+(legacy ORM carve), at which point the ``aperag/db/models.py`` Layer C
+``Role`` re-export naturally dissolved (the only class that needed
+``Role`` at module-import time was ``Invitation``).
 
 G15 canonical note: cross-domain consumers (governance /
 model_platform / marketplace / Phase 3 KB / Phase 5 conversation)
@@ -113,7 +117,37 @@ class OAuthAccount(SQLAlchemyBaseOAuthAccountTable[str], Base):
     user: Mapped["User"] = relationship("User", back_populates="oauth_accounts")
 
 
+class Invitation(Base):
+    __tablename__ = "invitation"
+
+    id = Column(String(24), primary_key=True, default=lambda: "invite" + _random_id())
+    email = Column(String(254), nullable=False)
+    token = Column(String(64), unique=True, nullable=False)
+    created_by = Column(String(256), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    is_used = Column(Boolean, default=False, nullable=False)
+    used_at = Column(DateTime(timezone=True), nullable=True)
+    role = Column(_enum_column(Role), nullable=False, default=Role.RO)
+
+    def is_valid(self) -> bool:
+        """Check if invitation is still valid"""
+        now = utc_now()
+        return not self.is_used and now < self.expires_at
+
+    async def use(self, session):
+        """Mark invitation as used"""
+        self.is_used = True
+        self.used_at = utc_now()
+        session.add(self)
+        await session.commit()
+
+        # Auto-expire after use (optional)
+        # self.expires_at = utc_now()
+
+
 __all__ = [
+    "Invitation",
     "OAuthAccount",
     "Role",
     "User",
