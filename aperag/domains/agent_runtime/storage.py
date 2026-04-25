@@ -53,6 +53,31 @@ class AgentRuntimeRedisStore:
     def _lease_key(self, turn_id: str) -> str:
         return f"{self.prefix}:turn:{turn_id}:lease"
 
+    def _message_key(self, turn_id: str) -> str:
+        """At-rest UIMessage snapshot key (Phase 8 D8.2).
+
+        Stores the JSON-serialised ``UIMessage`` for the assistant
+        turn. Same TTL as the live event buffer so a still-running
+        turn keeps its message reachable from Redis without an extra
+        DB round-trip; the DB-side ``agent_message`` row is the
+        authoritative durable copy.
+        """
+        return f"{self.prefix}:turn:{turn_id}:message"
+
+    async def write_message_snapshot(self, turn_id: str, payload: dict[str, Any]) -> None:
+        """Persist the UIMessage at-rest snapshot for a turn."""
+        client = await RedisConnectionManager.get_async_client()
+        await client.set(self._message_key(turn_id), json.dumps(payload), ex=self.ttl_seconds)
+
+    async def read_message_snapshot(self, turn_id: str) -> dict[str, Any] | None:
+        client = await RedisConnectionManager.get_async_client()
+        raw = await client.get(self._message_key(turn_id))
+        return json.loads(raw) if raw else None
+
+    async def delete_message_snapshot(self, turn_id: str) -> None:
+        client = await RedisConnectionManager.get_async_client()
+        await client.delete(self._message_key(turn_id))
+
     async def append_event(self, event: AgentTimelineEventEnvelope) -> None:
         client = await RedisConnectionManager.get_async_client()
         await client.rpush(self._events_key(event.turn_id), event.model_dump_json())
