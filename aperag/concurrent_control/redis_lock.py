@@ -105,6 +105,7 @@ class RedisLock(LockProtocol):
         self._lock_value: Optional[str] = None
         self._is_locked = False
         self._redis_client = redis_client
+        self._operation_lock = asyncio.Lock()
 
     async def _get_redis_client(self):
         """Get Redis client from shared connection manager."""
@@ -129,67 +130,69 @@ class RedisLock(LockProtocol):
         Returns:
             True if lock was acquired successfully, False if timeout/retry exhausted.
         """
-        if self._is_locked:
-            logger.warning(f"Redis lock '{self._key}' is already held by this instance")
-            return True
+        async with self._operation_lock:
+            if self._is_locked:
+                logger.warning(f"Redis lock '{self._key}' is already held by this instance")
+                return True
 
-        # Generate unique lock value (UUID) to ensure only holder can release
-        lock_value = str(uuid.uuid4())
-        redis_client = await self._get_redis_client()
+            # Generate unique lock value (UUID) to ensure only holder can release
+            lock_value = str(uuid.uuid4())
+            redis_client = await self._get_redis_client()
 
-        start_time = time.time()
-        attempt = 0
-        max_attempts = self._retry_times + 1
+            start_time = time.time()
+            attempt = 0
+            max_attempts = self._retry_times + 1
 
-        while attempt < max_attempts:
-            # Check timeout
-            if timeout is not None:
-                elapsed = time.time() - start_time
-                if elapsed >= timeout:
-                    logger.debug(f"Redis lock '{self._key}' acquisition timed out after {elapsed:.3f}s")
-                    return False
-
-            try:
-                # Attempt to acquire lock using SET NX EX
-                result = await redis_client.set(
-                    self._key,
-                    lock_value,
-                    nx=True,  # Only set if key doesn't exist
-                    ex=self._expire_time,  # Set expiration time
-                )
-
-                if result:
-                    # Lock acquired successfully
-                    self._lock_value = lock_value
-                    self._is_locked = True
+            while attempt < max_attempts:
+                # Check timeout
+                if timeout is not None:
                     elapsed = time.time() - start_time
-                    logger.debug(
-                        f"Redis lock '{self._key}' acquired after {elapsed:.3f}s (attempt {attempt + 1}/{max_attempts})"
+                    if elapsed >= timeout:
+                        logger.debug(f"Redis lock '{self._key}' acquisition timed out after {elapsed:.3f}s")
+                        return False
+
+                try:
+                    # Attempt to acquire lock using SET NX EX
+                    result = await redis_client.set(
+                        self._key,
+                        lock_value,
+                        nx=True,  # Only set if key doesn't exist
+                        ex=self._expire_time,  # Set expiration time
                     )
-                    return True
 
-                # Lock not available, wait before retry
-                attempt += 1
-                if attempt < max_attempts:
-                    # Calculate remaining timeout for sleep
-                    sleep_time = self._retry_delay
-                    if timeout is not None:
-                        remaining_timeout = timeout - (time.time() - start_time)
-                        sleep_time = min(sleep_time, remaining_timeout)
-                        if sleep_time <= 0:
-                            break
+                    if result:
+                        # Lock acquired successfully
+                        self._lock_value = lock_value
+                        self._is_locked = True
+                        elapsed = time.time() - start_time
+                        logger.debug(
+                            f"Redis lock '{self._key}' acquired after {elapsed:.3f}s "
+                            f"(attempt {attempt + 1}/{max_attempts})"
+                        )
+                        return True
 
-                    await asyncio.sleep(sleep_time)
+                    # Lock not available, wait before retry
+                    attempt += 1
+                    if attempt < max_attempts:
+                        # Calculate remaining timeout for sleep
+                        sleep_time = self._retry_delay
+                        if timeout is not None:
+                            remaining_timeout = timeout - (time.time() - start_time)
+                            sleep_time = min(sleep_time, remaining_timeout)
+                            if sleep_time <= 0:
+                                break
 
-            except Exception as e:
-                logger.error(f"Error acquiring Redis lock '{self._key}' on attempt {attempt + 1}: {e}")
-                attempt += 1
-                if attempt < max_attempts:
-                    await asyncio.sleep(self._retry_delay)
+                        await asyncio.sleep(sleep_time)
 
-        elapsed = time.time() - start_time
-        logger.debug(f"Redis lock '{self._key}' acquisition failed after {elapsed:.3f}s ({attempt} attempts)")
-        return False
+                except Exception as e:
+                    logger.error(f"Error acquiring Redis lock '{self._key}' on attempt {attempt + 1}: {e}")
+                    attempt += 1
+                    if attempt < max_attempts:
+                        await asyncio.sleep(self._retry_delay)
+
+            elapsed = time.time() - start_time
+            logger.debug(f"Redis lock '{self._key}' acquisition failed after {elapsed:.3f}s ({attempt} attempts)")
+            return False
 
     async def release(self) -> None:
         """
@@ -198,36 +201,41 @@ class RedisLock(LockProtocol):
         Uses Lua script for atomic check-and-delete to ensure only
         the lock holder can release the lock.
         """
-        if not self._is_locked:
-            logger.warning(f"Redis lock '{self._key}' is not held by this instance")
-            return
+        async with self._operation_lock:
+            if not self._is_locked:
+                logger.warning(f"Redis lock '{self._key}' is not held by this instance")
+                return
 
-        if not self._lock_value:
-            logger.error(f"Redis lock '{self._key}' has no lock value, cannot release safely")
-            return
+            lock_value = self._lock_value
+            if not lock_value:
+                logger.error(f"Redis lock '{self._key}' has no lock value, cannot release safely")
+                self._is_locked = False
+                return
 
-        try:
-            redis_client = await self._get_redis_client()
+            try:
+                redis_client = await self._get_redis_client()
 
-            # Use Lua script for atomic release - simplified to always use eval
-            result = await redis_client.eval(
-                self.RELEASE_SCRIPT,
-                1,  # Number of keys
-                self._key,  # KEYS[1]
-                self._lock_value,  # ARGV[1]
-            )
+                # Use Lua script for atomic release - simplified to always use eval
+                result = await redis_client.eval(
+                    self.RELEASE_SCRIPT,
+                    1,  # Number of keys
+                    self._key,  # KEYS[1]
+                    lock_value,  # ARGV[1]
+                )
 
-            if result == 1:
-                logger.debug(f"Redis lock '{self._key}' released successfully")
-            else:
-                logger.warning(f"Redis lock '{self._key}' was not released (may have expired or been released already)")
+                if result == 1:
+                    logger.debug(f"Redis lock '{self._key}' released successfully")
+                else:
+                    logger.warning(
+                        f"Redis lock '{self._key}' was not released (may have expired or been released already)"
+                    )
 
-        except Exception as e:
-            logger.error(f"Error releasing Redis lock '{self._key}': {e}")
-        finally:
-            # Clear local state regardless of Redis operation result
-            self._lock_value = None
-            self._is_locked = False
+            except Exception as e:
+                logger.error(f"Error releasing Redis lock '{self._key}': {e}")
+            finally:
+                # Clear local state regardless of Redis operation result
+                self._lock_value = None
+                self._is_locked = False
 
     def is_locked(self) -> bool:
         """

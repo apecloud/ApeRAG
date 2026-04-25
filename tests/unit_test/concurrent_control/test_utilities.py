@@ -13,6 +13,7 @@ import pytest
 from aperag.concurrent_control import (
     RedisLock,
     ThreadingLock,
+    create_distributed_lock,
     create_lock,
     get_default_lock_manager,
     lock_context,
@@ -58,10 +59,36 @@ class TestCreateLockFactory:
         with pytest.raises(ValueError, match="Unknown lock type: invalid"):
             create_lock("invalid")
 
-    def test_create_lock_default_type(self):
-        """Test create_lock with default type."""
-        lock = create_lock()  # Should default to "threading"
+    def test_create_lock_default_type_requires_distributed_key(self, monkeypatch):
+        """Test create_lock defaults to Redis and therefore requires a key or name."""
+        monkeypatch.delenv("APERAG_LOCK_TYPE", raising=False)
+
+        with pytest.raises(TypeError):
+            create_lock()
+
+        lock = create_lock(name="default_distributed")
+        assert isinstance(lock, RedisLock)
+        assert lock._key == "default_distributed"
+
+    def test_create_lock_env_threading_opt_in(self, monkeypatch):
+        """Test APERAG_LOCK_TYPE can opt into local threading locks explicitly."""
+        monkeypatch.setenv("APERAG_LOCK_TYPE", "threading")
+
+        lock = create_lock()
+
         assert isinstance(lock, ThreadingLock)
+
+    def test_create_distributed_lock_public_api(self):
+        """Test public distributed-lock helper."""
+        redis_client = object()
+
+        lock = create_distributed_lock("public_api_lock", ttl=30, redis_client=redis_client)
+
+        assert isinstance(lock, RedisLock)
+        assert lock._key == "public_api_lock"
+        assert lock._name == "public_api_lock"
+        assert lock._expire_time == 30
+        assert lock._redis_client is redis_client
 
     def test_create_redis_lock_missing_key(self):
         """Test creating Redis lock without required key."""
