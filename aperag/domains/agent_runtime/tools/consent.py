@@ -31,8 +31,8 @@ Sequence (per D9 §3.2):
    (``state="expired"``).
 4. On approval, the runtime fetches raw args via
    :meth:`ConsentService.consume_raw_args` and dispatches the tool.
-   On denial / expiry, the runtime emits
-   ``tool-output-available {errorText}`` to surface the rejection.
+   On denial / expiry, the runtime emits a ``tool-output-error``
+   wire part (per AI SDK v5 strict spec) to surface the rejection.
 
 Design points:
 

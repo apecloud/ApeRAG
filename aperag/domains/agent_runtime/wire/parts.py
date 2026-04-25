@@ -28,7 +28,8 @@ actually emits today plus the placeholders needed by adjacent lanes:
   / ``abort`` / ``error``
 * text: ``text-start`` / ``text-delta`` / ``text-end``
 * tool lifecycle: ``tool-input-start`` / ``tool-input-delta`` /
-  ``tool-input-available`` / ``tool-output-available``
+  ``tool-input-available`` / ``tool-output-available`` /
+  ``tool-output-error``
 * sources: ``source-url`` / ``source-document``
 * ApeRAG custom: ``data-citation`` / ``data-activity``
 * placeholders for #75 chenyexuan: ``data-tool-consent`` /
@@ -178,15 +179,47 @@ class ToolInputAvailablePart(BaseModel):
 
 
 class ToolOutputAvailablePart(BaseModel):
-    """Tool finished. ``error_text`` set ⇒ tool failure (output may
-    still carry a partial error payload depending on the tool)."""
+    """Tool finished successfully — carries the tool's ``output`` payload.
+
+    Per AI SDK v5 strict spec, success and failure are split onto two
+    distinct wire events: ``tool-output-available`` (this class) for the
+    success path and :class:`ToolOutputErrorPart` for the failure path.
+    A failed tool call must NOT be emitted as ``tool-output-available``
+    with a populated ``errorText``; the FE reducer collapses both events
+    into the consolidated at-rest :class:`ToolPart` state machine
+    (``state ∈ output-available | output-error``).
+
+    ``extra="forbid"`` actively rejects the legacy
+    ``ToolOutputAvailablePart(errorText=...)`` shape so that residual
+    callers from before the D8.0c+ #89 split surface as a clean
+    ``ValidationError`` instead of silently masquerading as success.
+    """
 
     type: Literal["tool-output-available"] = "tool-output-available"
     tool_call_id: str = Field(alias="toolCallId")
     output: Any = None
-    error_text: Optional[str] = Field(default=None, alias="errorText")
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+
+class ToolOutputErrorPart(BaseModel):
+    """Tool finished with a failure — carries the ``error_text``.
+
+    Per AI SDK v5 strict spec the error path is a separate wire event
+    type; ``error_text`` is required (the FE always has something to
+    render) and there is no ``output`` field — partial failure outputs
+    are flattened into the textual error_text by the runtime emitter.
+
+    ``extra="forbid"`` mirrors the success-path discipline so an
+    accidental ``output=...`` kwarg here surfaces as a
+    ``ValidationError`` rather than silently flowing through.
+    """
+
+    type: Literal["tool-output-error"] = "tool-output-error"
+    tool_call_id: str = Field(alias="toolCallId")
+    error_text: str = Field(alias="errorText")
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
 
 # ---------------------------------------------------------------------------
@@ -359,6 +392,7 @@ StreamPart = Annotated[
         ToolInputDeltaPart,
         ToolInputAvailablePart,
         ToolOutputAvailablePart,
+        ToolOutputErrorPart,
         SourceUrlPart,
         SourceDocumentPart,
         DataCitationPart,
@@ -428,6 +462,7 @@ __all__ = [
     "ToolInputDeltaPart",
     "ToolInputStartPart",
     "ToolOutputAvailablePart",
+    "ToolOutputErrorPart",
     "dump_part",
     "parse_part",
 ]

@@ -37,7 +37,7 @@ Stream parts (AI SDK v5):
 - Lifecycle: `start` / `start-step` / `finish-step` / `finish` / `abort` / `error`
 - Text: `text-start {id}` → `text-delta {id, delta}` → `text-end {id}`
 - Reasoning: `reasoning-start/-delta/-end`
-- Tools: `tool-input-start {toolCallId, toolName}` → `tool-input-delta` → `tool-input-available` → `tool-output-available`
+- Tools: `tool-input-start {toolCallId, toolName}` → `tool-input-delta` → `tool-input-available` → `tool-output-available` *(success)* | `tool-output-error {errorText}` *(failure, AI SDK v5 strict spec — D8.0c+ #89)*
 - Sources: `source-url {sourceId, url, title?}` / `source-document {sourceId, mediaType, title}`
 - Custom (ApeRAG 扩展):
   - `data-citation {cited_text, location: char_location | page_location | content_block_location | url_citation}`（Anthropic-shape）

@@ -77,6 +77,7 @@ from aperag.domains.agent_runtime.wire.parts import (
     ToolInputAvailablePart,
     ToolInputStartPart,
     ToolOutputAvailablePart,
+    ToolOutputErrorPart,
 )
 
 SafeToolNameResolver = Callable[[str], tuple[str, dict[str, Any]]]
@@ -300,23 +301,29 @@ def _translate_tool_started(envelope: AgentTimelineEventEnvelope, state: Transla
 
 
 def _translate_tool_finished(envelope: AgentTimelineEventEnvelope) -> list[StreamPart]:
-    output = _extract_tool_output(envelope)
-    error_text: Optional[str] = None
     if _is_failure_status(envelope.status):
-        # Best-effort error text — fall back to the envelope label so
-        # the FE always has something to render even when the tool
-        # didn't surface an explicit error message.
+        # Per AI SDK v5 strict spec the failure path emits a separate
+        # ``tool-output-error`` event, not ``tool-output-available`` with
+        # an embedded ``errorText``. Best-effort error text — fall back
+        # to the envelope label so the FE always has something to
+        # render even when the tool didn't surface an explicit error
+        # message.
         data = envelope.data or {}
         error_text = (
             str(data.get("error"))
             if data.get("error")
             else f"tool {envelope.label or 'unknown'} failed with status={envelope.status}"
         )
+        return [
+            ToolOutputErrorPart(
+                tool_call_id=envelope.event_id,
+                error_text=error_text,
+            )
+        ]
     return [
         ToolOutputAvailablePart(
             tool_call_id=envelope.event_id,
-            output=output,
-            error_text=error_text,
+            output=_extract_tool_output(envelope),
         )
     ]
 
