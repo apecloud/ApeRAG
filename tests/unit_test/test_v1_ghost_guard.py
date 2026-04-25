@@ -38,25 +38,23 @@ OPENAI_COMPAT_V1_ALLOWLIST: frozenset[str] = frozenset(
 
 # Transitional prefixes — residual ``/api/v1`` references awaiting an
 # explicit disposition. After Phase 8 #63 G5a flipped the confirmed
-# dead-caller set (collections / export-tasks / chats / bots), only
-# three transitional entries remain — all tied to follow-up tasks that
-# require backend or product decisions before any caller can be flipped:
+# dead-caller set (collections / export-tasks / chats / bots) and #65
+# (G5c) retired the dev-only test bootstrap shortcut (callers now go
+# through the canonical ``/api/v2/auth/register`` flow, whose existing
+# first-user-promote logic gives the bootstrap user admin role on a
+# fresh DB), only the ``quotas / system`` pair remains:
 #
 #   - ``/api/v1/quotas`` + ``/api/v1/system``: router defined in
 #     ``aperag/views/quota.py`` but **not mounted in main**; FE callers
-#     are live but currently 404. ``#64`` (G5b) decides router truthing
-#     vs. v2 carve.
-#   - ``/api/v1/test``: ``register_admin`` bootstrap path with **no
-#     backend definition**. ``#65`` (G5c) decides cleanup vs.
-#     replacement.
+#     are live but currently 404. ``#66`` (G5b-impl) decides router
+#     carve to governance domain + ``/api/v2`` contract restore.
 #
 # Anything outside both sets is an unrecognised v1 reference and must be
 # either migrated or moved into one of these sets in the same PR.
 TRANSITIONAL_V1_PREFIXES: frozenset[str] = frozenset(
     {
-        "/api/v1/quotas",  # G5b (#64) — router truthing pending
-        "/api/v1/system",  # G5b (#64) — same router as quotas
-        "/api/v1/test",  # G5c (#65) — register_admin bootstrap
+        "/api/v1/quotas",  # G5b-impl (#66) — router carve + /api/v2 restore pending
+        "/api/v1/system",  # G5b-impl (#66) — same router as quotas
     }
 )
 

@@ -23,8 +23,16 @@ The current bootstrap script reads these environment variables:
 
 - `E2E_BOOTSTRAP_MODE`
   Supported values:
-  - `public-register` (default): register the first user through `/api/v2/auth/register`
-  - `dev-api`: create an admin user through `/api/v1/test/register_admin`
+  - `public-register` (default and only mode): register the first user through
+    `/api/v2/auth/register`. On a fresh database the first registered user is
+    automatically promoted to admin by the canonical register flow (see
+    `aperag/domains/identity/api/auth_routes.py::register_view` and
+    `aperag/domains/identity/service/user_manager.py::on_after_register`),
+    so no dev-only API surface is needed.
+
+  Phase 8 task #65 (G5c) removed the historical `dev-api` shortcut: it
+  bypassed `on_after_register` and skipped per-user resource initialisation,
+  so the canonical flow is strictly better even for tests.
 
 - `E2E_RUN_ID`
   Optional explicit run identifier. If omitted, bootstrap generates one.
