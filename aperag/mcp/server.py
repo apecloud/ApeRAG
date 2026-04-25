@@ -23,6 +23,7 @@ from fastmcp.server.dependencies import get_http_headers
 # Import view models for type safety
 from aperag.domains.retrieval.schemas import SearchResult
 from aperag.domains.web_access.schemas import WebReadResponse
+from aperag.mcp.capabilities import ToolAnnotation
 from aperag.mcp.tools import (
     ByteRange,
 )
@@ -50,6 +51,7 @@ from aperag.mcp.tools import (
 from aperag.mcp.tools import (
     read_document_section as _d10c_read_document_section,
 )
+from aperag.mcp.tools._annotations import register as _register_tool_annotation
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +80,15 @@ API_BASE_URL = "http://localhost:8000"
 # this block — append below the marker, no merge churn expected.
 
 
-@mcp_server.tool
+@mcp_server.tool(
+    annotations=_register_tool_annotation(
+        "list_collections",
+        ToolAnnotation(
+            requires=("collection_access",),
+            capabilities={"long_context": False},
+        ),
+    ),
+)
 async def list_collections(
     cursor: Optional[str] = None,
     limit: int = 50,
@@ -124,7 +134,15 @@ async def list_collections(
     return result.model_dump()
 
 
-@mcp_server.tool
+@mcp_server.tool(
+    annotations=_register_tool_annotation(
+        "list_documents",
+        ToolAnnotation(
+            requires=("collection_access",),
+            capabilities={"long_context": False},
+        ),
+    ),
+)
 async def list_documents(
     collection_id: str,
     cursor: Optional[str] = None,
@@ -149,21 +167,48 @@ async def list_documents(
     return result.model_dump()
 
 
-@mcp_server.tool
+@mcp_server.tool(
+    annotations=_register_tool_annotation(
+        "get_collection_metadata",
+        ToolAnnotation(
+            requires=("collection_access",),
+            capabilities={"long_context": False},
+        ),
+    ),
+)
 async def get_collection_metadata(collection_id: str) -> Dict[str, Any]:
     """Get full metadata for a specific collection. D10 §A.4."""
     result = await _d10c_get_collection_metadata(collection_id)
     return result.model_dump()
 
 
-@mcp_server.tool
+@mcp_server.tool(
+    annotations=_register_tool_annotation(
+        "get_document_metadata",
+        ToolAnnotation(
+            requires=("collection_access",),
+            capabilities={"long_context": False},
+        ),
+    ),
+)
 async def get_document_metadata(collection_id: str, document_id: str) -> Dict[str, Any]:
     """Get metadata for a specific document. D10 §A.3."""
     result = await _d10c_get_document_metadata(collection_id, document_id)
     return result.model_dump()
 
 
-@mcp_server.tool
+@mcp_server.tool(
+    annotations=_register_tool_annotation(
+        "read_document",
+        ToolAnnotation(
+            requires=("collection_access",),
+            # read_document streams the full parsed markdown body —
+            # callers without long-context tolerance should prefer
+            # read_document_section / read_document_chunk.
+            capabilities={"long_context": True},
+        ),
+    ),
+)
 async def read_document(
     collection_id: str,
     document_id: str,
@@ -181,7 +226,15 @@ async def read_document(
     return result.model_dump()
 
 
-@mcp_server.tool
+@mcp_server.tool(
+    annotations=_register_tool_annotation(
+        "read_document_outline",
+        ToolAnnotation(
+            requires=("collection_access",),
+            capabilities={"long_context": False},
+        ),
+    ),
+)
 async def read_document_outline(
     collection_id: str,
     document_id: str,
@@ -192,7 +245,15 @@ async def read_document_outline(
     return result.model_dump()
 
 
-@mcp_server.tool
+@mcp_server.tool(
+    annotations=_register_tool_annotation(
+        "read_document_section",
+        ToolAnnotation(
+            requires=("collection_access",),
+            capabilities={"long_context": False},
+        ),
+    ),
+)
 async def read_document_section(
     collection_id: str,
     document_id: str,
@@ -209,7 +270,15 @@ async def read_document_section(
     return result.model_dump()
 
 
-@mcp_server.tool
+@mcp_server.tool(
+    annotations=_register_tool_annotation(
+        "read_document_chunk",
+        ToolAnnotation(
+            requires=("collection_access",),
+            capabilities={"long_context": False},
+        ),
+    ),
+)
 async def read_document_chunk(
     collection_id: str,
     document_id: str,

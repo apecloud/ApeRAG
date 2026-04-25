@@ -51,12 +51,22 @@ from typing import Any, Dict
 import httpx
 
 from aperag.domains.retrieval.schemas import SearchResult
+from aperag.mcp.capabilities import ToolAnnotation
 from aperag.mcp.server import API_BASE_URL, get_api_key, mcp_server
+from aperag.mcp.tools._annotations import register as _register_tool_annotation
 
 logger = logging.getLogger(__name__)
 
 
-@mcp_server.tool
+@mcp_server.tool(
+    annotations=_register_tool_annotation(
+        "vector_search",
+        ToolAnnotation(
+            requires=("collection_access",),
+            capabilities={"long_context": False},
+        ),
+    ),
+)
 async def vector_search(
     collection_id: str,
     query: str,

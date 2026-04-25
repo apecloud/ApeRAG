@@ -39,12 +39,24 @@ from typing import Any, Dict
 import httpx
 
 from aperag.domains.retrieval.schemas import SearchResult
+from aperag.mcp.capabilities import ToolAnnotation
 from aperag.mcp.server import API_BASE_URL, get_api_key, mcp_server
+from aperag.mcp.tools._annotations import register as _register_tool_annotation
 
 logger = logging.getLogger(__name__)
 
 
-@mcp_server.tool
+@mcp_server.tool(
+    annotations=_register_tool_annotation(
+        "fulltext_search",
+        ToolAnnotation(
+            requires=("collection_access",),
+            # fulltext_search needs the inverted index — explicit-not-silent
+            # per §D.3 if the collection has no fulltext index.
+            capabilities={"long_context": False, "fulltext_index": True},
+        ),
+    ),
+)
 async def fulltext_search(
     collection_id: str,
     query: str,
