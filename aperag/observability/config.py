@@ -103,6 +103,19 @@ def parse_resource_attributes(value: str | None) -> dict[str, str]:
     return parse_otlp_headers(value)
 
 
+def parse_legacy_bool(value) -> Optional[bool]:
+    if value is None or value == "":
+        return None
+    if isinstance(value, bool):
+        return value
+    normalized = str(value).strip().lower()
+    if normalized in {"1", "true", "yes", "on", "enabled"}:
+        return True
+    if normalized in {"0", "false", "no", "off", "disabled"}:
+        return False
+    return None
+
+
 def build_observability_config(settings=None) -> ObservabilityConfig:
     if settings is None:
         from aperag.config import settings as app_settings
@@ -111,7 +124,7 @@ def build_observability_config(settings=None) -> ObservabilityConfig:
 
     explicit_mode = getattr(settings, "aperag_observability_mode", None)
     mode = normalize_mode(explicit_mode)
-    legacy_otel_enabled = getattr(settings, "otel_enabled", None)
+    legacy_otel_enabled = parse_legacy_bool(getattr(settings, "otel_enabled", None))
     if explicit_mode in (None, "") and legacy_otel_enabled is False:
         mode = "off"
 

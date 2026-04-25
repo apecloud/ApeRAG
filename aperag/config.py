@@ -201,7 +201,7 @@ class Config(BaseSettings):
     aperag_observability_log_format: str = Field("json", alias="APERAG_OBSERVABILITY_LOG_FORMAT")
     aperag_observability_capture_content: bool = Field(False, alias="APERAG_OBSERVABILITY_CAPTURE_CONTENT")
     aperag_observability_sample_ratio: float = Field(1.0, alias="APERAG_OBSERVABILITY_SAMPLE_RATIO")
-    otel_enabled: Optional[bool] = Field(None, alias="OTEL_ENABLED")
+    otel_enabled: Optional[str] = Field(None, alias="OTEL_ENABLED")
     otel_service_name: str = Field("aperag", alias="OTEL_SERVICE_NAME")
     otel_service_version: str = Field("1.0.0", alias="OTEL_SERVICE_VERSION")
     otel_environment: str = Field("development", alias="OTEL_ENVIRONMENT")

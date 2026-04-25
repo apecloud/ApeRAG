@@ -243,7 +243,6 @@ api:
     OTEL_SQLALCHEMY_ENABLED: "True"
     OTEL_MCP_ENABLED: "True"
     # Deprecated dev-only compatibility flags. Prefer OTLP for new deployments.
-    OTEL_ENABLED: ""
     JAEGER_ENABLED: "False"
     JAEGER_ENDPOINT: ""
 
