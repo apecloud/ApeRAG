@@ -1,6 +1,6 @@
-from aperag.schema.common import CollectionConfig
 from aperag.platform.source.base import CustomSourceInitializationError, get_source
 from aperag.platform.source.upload import UploadSource
+from aperag.schema.common import CollectionConfig
 from aperag.views.utils import validate_source_connect_config
 
 

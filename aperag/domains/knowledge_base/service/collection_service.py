@@ -62,6 +62,7 @@ from aperag.domains.knowledge_base.schemas import (
 from aperag.domains.knowledge_base.service.collection_summary_service import (
     collection_summary_service,
 )
+from aperag.domains.knowledge_base.tasks import collection_delete_task, collection_init_task
 from aperag.domains.retrieval.schemas import (
     SearchRequest,
     SearchResult,
@@ -74,7 +75,6 @@ from aperag.schema.utils import dumpCollectionConfig, parseCollectionConfig
 from aperag.utils.constant import QuotaType
 from aperag.utils.utils import utc_now
 from aperag.views.utils import validate_source_connect_config
-from aperag.domains.knowledge_base.tasks import collection_delete_task, collection_init_task
 
 logger = logging.getLogger(__name__)
 

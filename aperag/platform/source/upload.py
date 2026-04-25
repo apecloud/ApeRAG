@@ -16,9 +16,9 @@ import shutil
 from typing import Any, Dict, Iterator
 
 from aperag.objectstore.base import get_object_store
-from aperag.schema.common import CollectionConfig
 from aperag.platform.source.base import LocalDocument, RemoteDocument, Source
 from aperag.platform.source.utils import gen_temporary_file
+from aperag.schema.common import CollectionConfig
 
 
 class UploadSource(Source):

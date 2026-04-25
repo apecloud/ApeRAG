@@ -11,10 +11,12 @@ from aperag.domains.indexing.db.models import (
     DocumentIndexStatus,
     DocumentIndexType,
 )
+from aperag.domains.indexing.tasks import create_index_task
 from aperag.domains.knowledge_base.db.models import (
     CollectionSummary,
     CollectionSummaryStatus,
 )
+from aperag.domains.knowledge_base.tasks import collection_summary_task
 from aperag.tasks import reconciler as reconciler_module
 from aperag.tasks.models import LocalDocumentInfo, ParsedDocumentData
 from aperag.tasks.reconciler import (
@@ -25,8 +27,6 @@ from aperag.tasks.reconciler import (
 )
 from aperag.utils.constant import IndexAction
 from aperag.utils.utils import utc_now
-from aperag.domains.indexing.tasks import create_index_task
-from aperag.domains.knowledge_base.tasks import collection_summary_task
 
 
 class FakeSession:
