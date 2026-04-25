@@ -3,7 +3,7 @@ import litellm
 import pytest
 
 from aperag.llm.rerank.rerank_service import RerankService
-from aperag.query.query import DocumentWithScore
+from aperag.platform.query.query import DocumentWithScore
 
 
 @pytest.mark.asyncio

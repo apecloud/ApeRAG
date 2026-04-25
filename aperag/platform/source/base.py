@@ -82,6 +82,6 @@ def get_source(collectionConfig: CollectionConfig) -> Source:
     if collectionConfig.source != "system":
         raise CustomSourceInitializationError(f"unsupported collection source: {collectionConfig.source}")
 
-    from aperag.source.upload import UploadSource
+    from aperag.platform.source.upload import UploadSource
 
     return UploadSource(collectionConfig)

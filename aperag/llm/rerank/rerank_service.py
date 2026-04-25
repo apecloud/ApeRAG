@@ -26,7 +26,7 @@ from aperag.llm.llm_error_types import (
     TooManyDocumentsError,
     wrap_litellm_error,
 )
-from aperag.query.query import DocumentWithScore
+from aperag.platform.query.query import DocumentWithScore
 
 logger = logging.getLogger(__name__)
 

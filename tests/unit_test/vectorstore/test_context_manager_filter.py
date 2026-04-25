@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from aperag.context.context import ContextManager
+from aperag.domains.retrieval.context.context import ContextManager
 from aperag.vectorstore.filters import And, Eq, In, IsEmpty, Or
 
 

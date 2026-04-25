@@ -17,7 +17,7 @@ import uuid
 from typing import Tuple
 
 from aperag.schema.common import CollectionConfig
-from aperag.source.base import CustomSourceInitializationError, get_source
+from aperag.platform.source.base import CustomSourceInitializationError, get_source
 from aperag.utils.utils import AVAILABLE_SOURCE
 
 logger = logging.getLogger(__name__)
