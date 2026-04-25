@@ -54,6 +54,7 @@ from aperag.domains.identity.service.user_manager import (
 from aperag.domains.identity.service.user_manager import (
     set_quota_init_ops as _id_set_quota_init_ops,
 )
+from aperag.domains.knowledge_base.api.export_routes import router as export_router
 from aperag.domains.knowledge_base.api.routes import router as knowledge_base_router
 from aperag.domains.knowledge_base.api.settings_routes import router as settings_router
 from aperag.domains.knowledge_base.service.collection_service import (
@@ -68,7 +69,6 @@ from aperag.domains.knowledge_base.service.collection_service import (
 from aperag.domains.knowledge_base.service.collection_service import (
     set_search_pipeline_ops as _kb_set_search_pipeline_ops,
 )
-from aperag.domains.knowledge_base.api.export_routes import router as export_router
 from aperag.domains.knowledge_graph.api.routes import router as knowledge_graph_router
 from aperag.domains.marketplace.api.routes import router as marketplace_router
 from aperag.domains.marketplace.service.marketplace_collection_service import (
