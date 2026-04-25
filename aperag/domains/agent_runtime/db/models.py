@@ -150,3 +150,36 @@ class AgentArtifact(Base):
     storage_ref = Column(Text, nullable=True)
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class AgentMessage(Base):
+    """At-rest UIMessage envelope (Phase 8 D8.2 first-cut).
+
+    One row per assistant turn (1:1 with ``AgentTurn`` for now via
+    ``turn_id``). ``parts`` holds the JSON-serialised
+    ``UIMessagePart`` array per the canonical schema in
+    ``aperag.domains.agent_runtime.uimessage``; ``role`` follows
+    ChatML (``user`` / ``assistant`` / ``system``); ``schema_version``
+    is the runtime contract version tag so future renderer updates
+    can branch without a separate negotiation.
+
+    The legacy ``AgentArtifact`` / ``AgentTimelineEvent`` tables are
+    retained alongside this table during D8.x rollout — they will be
+    dropped in D8.6 (#80) once D8.4 FE renderer is consuming
+    ``AgentMessage`` exclusively.
+    """
+
+    __tablename__ = "agent_message"
+    __table_args__ = (
+        UniqueConstraint("turn_id", name="uq_agent_message_turn"),
+        Index("idx_agent_message_chat_created", "chat_id", "gmt_created"),
+    )
+
+    id = Column(String(24), primary_key=True, default=lambda: "msg" + _random_id())
+    turn_id = Column(String(24), nullable=False, index=True)
+    chat_id = Column(String(24), nullable=False, index=True)
+    role = Column(String(16), nullable=False)
+    schema_version = Column(String(64), nullable=False)
+    parts = Column(JSON, default=lambda: [], nullable=False)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
