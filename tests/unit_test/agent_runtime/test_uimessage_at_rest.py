@@ -142,11 +142,10 @@ def _every_part_message() -> UIMessage:
         parts=[
             TextPart(text="Here is what I found:"),
             ToolPart(
-                tool_name="aperag_knowledge_base_search_collection",
+                type="tool-aperag_knowledge_base_search_collection",
                 tool_call_id="tc-1",
                 state="output-available",
-                args_preview=args_preview(raw_args),
-                args_hash=args_hash(raw_args),
+                input=raw_args,
                 output={"results": [{"id": "doc-1", "score": 0.92}]},
                 metadata={"mcpServer": "aperag", "mcpToolName": "knowledge-base.search_collection"},
             ),
@@ -211,7 +210,7 @@ async def test_uimessage_round_trip_preserves_persistable_parts():
     assert reloaded is not None
     expected_types = [
         "text",
-        "tool",
+        "tool-aperag_knowledge_base_search_collection",
         "source-url",
         "source-document",
         "data-citation",
@@ -302,6 +301,35 @@ def test_args_hash_is_stable_canonical_sha256():
     assert args_hash(a) == args_hash(b)
     assert len(args_hash(a)) == 64
     assert all(ch in "0123456789abcdef" for ch in args_hash(a))
+
+
+@pytest.mark.asyncio
+async def test_tool_part_type_uses_safe_tool_name_form():
+    """``ToolPart.type`` must be ``tool-<SafeToolName>`` per D8 §2.4 / D9 §A1+A6.
+
+    Architect lock 2026-04-25 (msg=8412dce5): the at-rest tool part
+    encodes the SafeToolName in its ``type`` discriminator (matching
+    the AI SDK v5 consolidated form) — there is no separate
+    ``tool_name`` field, and the wire emitter (#73) plus the FE
+    consumer (#76/#77) must round-trip against the same shape.
+    """
+
+    db = _FakeDbOps()
+    redis = _FakeRedisStore()
+    store = UIMessageStore(db_ops=db, redis_store=redis)
+
+    await store.write(turn_id="turn-tool", chat_id="chat-tool", message=_every_part_message())
+
+    tool_parts = [part for part in db.rows["turn-tool"]["parts"] if part["type"].startswith("tool-")]
+    assert len(tool_parts) == 1
+    tool = tool_parts[0]
+    assert tool["type"] == "tool-aperag_knowledge_base_search_collection"
+    assert "tool_name" not in tool, "tool_name must not be a top-level field; SafeToolName is encoded in 'type'"
+    assert tool["state"] == "output-available"
+    assert tool["metadata"] == {
+        "mcpServer": "aperag",
+        "mcpToolName": "knowledge-base.search_collection",
+    }
 
 
 @pytest.mark.asyncio

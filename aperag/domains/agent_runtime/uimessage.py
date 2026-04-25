@@ -113,19 +113,27 @@ class TextPart(BaseModel):
     text: str
 
 
-class ToolPart(BaseModel):
-    """AI SDK v5 tool-call lifecycle part.
+_TOOL_TYPE_PATTERN = r"^tool-[A-Za-z0-9_-]+$"
 
-    The ``type`` literal is ``tool-<safeToolName>`` per D8 §2.4 (e.g.
-    ``tool-aperag_knowledge_base_search_collection``). At-rest we store
-    the prefix-less convention via ``tool_name`` and the FE/wire emit
-    handles the prefix join — this avoids embedding the ``-<name>``
-    fragment in pydantic discriminator literals while keeping the AI
-    SDK part identity intact.
+
+class ToolPart(BaseModel):
+    """AI SDK v5 consolidated tool-call part (D8 §2.4 / D9 §A1+§A6).
+
+    The ``type`` discriminator carries the ``SafeToolName`` directly
+    (e.g. ``tool-aperag_knowledge_base_search_collection``); MCP server /
+    tool identity lives in ``metadata``. This matches the AI SDK v5
+    *at-rest* shape (one consolidated tool part per call, lifecycle
+    captured in ``state``) — not the *wire* shape, which is a sequence
+    of ``tool-input-*`` / ``tool-output-*`` events emitted by #73 and
+    collapsed by the FE consumer into this consolidated form.
+
+    SafeToolName resolution (raw MCP name → ``tool-<safeName>``) is
+    #75's responsibility (``aperag.domains.agent_runtime.tools``);
+    storage only enforces that the caller has already produced a
+    canonical ``type`` string.
     """
 
-    type: Literal["tool"] = "tool"
-    tool_name: str
+    type: str = Field(pattern=_TOOL_TYPE_PATTERN)
     tool_call_id: str
     state: Literal[
         "input-streaming",
@@ -133,8 +141,7 @@ class ToolPart(BaseModel):
         "output-available",
         "output-error",
     ]
-    args_preview: Optional[str] = None
-    args_hash: Optional[str] = None
+    input: Optional[Any] = None
     output: Optional[Any] = None
     error_text: Optional[str] = None
     metadata: dict[str, Any] = Field(default_factory=dict)
