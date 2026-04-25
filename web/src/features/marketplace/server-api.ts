@@ -14,7 +14,7 @@ export async function listMarketplaceCollections(options?: {
   const client = await createServerApiClient();
   const page = options?.page ?? 1;
   const pageSize = options?.pageSize ?? 100;
-  const { data } = await client.GET('/api/v1/marketplace/collections', {
+  const { data } = await client.GET('/api/v2/marketplace/collections', {
     params: {
       query: {
         page,
@@ -41,7 +41,7 @@ export async function getMarketplaceCollection(
 ): Promise<SharedCollection | null> {
   const client = await createServerApiClient();
   const { data } = await client.GET(
-    '/api/v1/marketplace/collections/{collection_id}',
+    '/api/v2/marketplace/collections/{collection_id}',
     {
       params: {
         path: { collection_id: collectionId },
@@ -65,7 +65,7 @@ export async function listMarketplaceCollectionDocuments(
   const page = options?.page ?? 1;
   const pageSize = options?.pageSize ?? 20;
   const { data } = await client.GET(
-    '/api/v1/marketplace/collections/{collection_id}/documents',
+    '/api/v2/marketplace/collections/{collection_id}/documents',
     {
       params: {
         path: { collection_id: collectionId },
@@ -100,7 +100,7 @@ export async function getMarketplaceCollectionDocumentPreview(
 ): Promise<MarketplaceDocumentPreview | null> {
   const client = await createServerApiClient();
   const { data } = await client.GET(
-    '/api/v1/marketplace/collections/{collection_id}/documents/{document_id}/preview',
+    '/api/v2/marketplace/collections/{collection_id}/documents/{document_id}/preview',
     {
       params: {
         path: {

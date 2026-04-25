@@ -699,7 +699,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/marketplace/collections": {
+    "/api/v2/marketplace/collections": {
         parameters: {
             query?: never;
             header?: never;
@@ -719,7 +719,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/marketplace/collections/subscriptions": {
+    "/api/v2/marketplace/collections/subscriptions": {
         parameters: {
             query?: never;
             header?: never;
@@ -739,7 +739,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/marketplace/collections/{collection_id}/subscribe": {
+    "/api/v2/marketplace/collections/{collection_id}/subscribe": {
         parameters: {
             query?: never;
             header?: never;
@@ -763,7 +763,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/marketplace/collections/{collection_id}": {
+    "/api/v2/marketplace/collections/{collection_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -783,7 +783,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/marketplace/collections/{collection_id}/documents": {
+    "/api/v2/marketplace/collections/{collection_id}/documents": {
         parameters: {
             query?: never;
             header?: never;
@@ -803,7 +803,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/marketplace/collections/{collection_id}/documents/{document_id}/preview": {
+    "/api/v2/marketplace/collections/{collection_id}/documents/{document_id}/preview": {
         parameters: {
             query?: never;
             header?: never;
@@ -823,7 +823,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/marketplace/collections/{collection_id}/documents/{document_id}/object": {
+    "/api/v2/marketplace/collections/{collection_id}/documents/{document_id}/object": {
         parameters: {
             query?: never;
             header?: never;
@@ -843,7 +843,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/marketplace/collections/{collection_id}/graph": {
+    "/api/v2/marketplace/collections/{collection_id}/graph": {
         parameters: {
             query?: never;
             header?: never;

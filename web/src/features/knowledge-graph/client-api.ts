@@ -58,7 +58,7 @@ export async function getMarketplaceKnowledgeGraph(
   },
 ): Promise<KnowledgeGraph | undefined> {
   const { data } = await browserApiClient.GET(
-    '/api/v1/marketplace/collections/{collection_id}/graph',
+    '/api/v2/marketplace/collections/{collection_id}/graph',
     {
       params: {
         path: { collection_id: collectionId },

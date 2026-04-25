@@ -195,11 +195,11 @@ def test_marketplace_feature_uses_v2_typed_api_boundary():
 
     # Positive: adapter only reaches the typed v1 marketplace paths.
     assert "fetch(" not in feature_sources
-    assert "'/api/v1/marketplace/collections'" in feature_sources
-    assert "'/api/v1/marketplace/collections/{collection_id}'" in feature_sources
-    assert "'/api/v1/marketplace/collections/{collection_id}/documents'" in feature_sources
-    assert "'/api/v1/marketplace/collections/{collection_id}/documents/{document_id}/preview'" in feature_sources
-    assert "'/api/v1/marketplace/collections/{collection_id}/subscribe'" in feature_sources
+    assert "'/api/v2/marketplace/collections'" in feature_sources
+    assert "'/api/v2/marketplace/collections/{collection_id}'" in feature_sources
+    assert "'/api/v2/marketplace/collections/{collection_id}/documents'" in feature_sources
+    assert "'/api/v2/marketplace/collections/{collection_id}/documents/{document_id}/preview'" in feature_sources
+    assert "'/api/v2/marketplace/collections/{collection_id}/subscribe'" in feature_sources
 
     # Positive: callers wire through the feature adapter.
     page_tsx = migrated_sources_by_path[REPO_ROOT / "web/src/app/marketplace/page.tsx"]

@@ -237,8 +237,8 @@ app.include_router(audit_router, prefix="/api/v2")  # Governance: audit-logs (ha
 app.include_router(apikeys_router, prefix="/api/v1")  # Governance: api_keys (#51 G4b will flip to /api/v2)
 app.include_router(llm_router, prefix="/api/v1")  # Model platform: embed/rerank (OpenAI-compat)
 app.include_router(
-    marketplace_router, prefix="/api/v1"
-)  # Marketplace domain router (marketplace + marketplace_collections)
+    marketplace_router, prefix="/api/v2"
+)  # Marketplace domain router (Phase 8 #52 G4c, D7 v2 hard-cut)
 app.include_router(settings_router, prefix="/api/v2")  # KB domain settings (carved from views/ in #48)
 app.include_router(prompts_router, prefix="/api/v2")  # Phase 8 #49 G3, D7 v2 hard-cut
 app.include_router(web_access_router, prefix="/api/v2", tags=["web_access"])  # Add web_access domain router
