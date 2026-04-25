@@ -63,7 +63,10 @@ def test_fetch_url_documents_imports_markdown_via_trafilatura_when_no_jina_key(m
         )
     ]
 
-    monkeypatch.setattr("aperag.db.ops.async_db_ops.query_provider_api_key", AsyncMock(return_value=None))
+    monkeypatch.setattr(
+        "aperag.domains.model_platform.service.model_service.model_platform_service.get_user_provider_api_key",
+        AsyncMock(return_value=None),
+    )
     monkeypatch.setattr("aperag.domains.web_access.reader.reader_service.ReaderService", _FakeReaderService)
 
     response = asyncio.run(service.fetch_url_documents("user-1", "col-1", ["https://example.com/report"]))
@@ -113,7 +116,10 @@ def test_fetch_url_documents_falls_back_when_jina_returns_no_successes(monkeypat
         ),
     ]
 
-    monkeypatch.setattr("aperag.db.ops.async_db_ops.query_provider_api_key", AsyncMock(return_value="jina-key"))
+    monkeypatch.setattr(
+        "aperag.domains.model_platform.service.model_service.model_platform_service.get_user_provider_api_key",
+        AsyncMock(return_value="jina-key"),
+    )
     monkeypatch.setattr("aperag.domains.web_access.reader.reader_service.ReaderService", _FakeReaderService)
 
     response = asyncio.run(service.fetch_url_documents("user-1", "col-1", ["https://example.com/fallback"]))
@@ -168,7 +174,10 @@ def test_fetch_url_documents_falls_back_per_failed_url_when_jina_partially_succe
         ),
     ]
 
-    monkeypatch.setattr("aperag.db.ops.async_db_ops.query_provider_api_key", AsyncMock(return_value="jina-key"))
+    monkeypatch.setattr(
+        "aperag.domains.model_platform.service.model_service.model_platform_service.get_user_provider_api_key",
+        AsyncMock(return_value="jina-key"),
+    )
     monkeypatch.setattr("aperag.domains.web_access.reader.reader_service.ReaderService", _FakeReaderService)
 
     response = asyncio.run(
@@ -205,7 +214,10 @@ def test_fetch_url_documents_reports_upload_failures_per_url(monkeypatch):
         )
     ]
 
-    monkeypatch.setattr("aperag.db.ops.async_db_ops.query_provider_api_key", AsyncMock(return_value=None))
+    monkeypatch.setattr(
+        "aperag.domains.model_platform.service.model_service.model_platform_service.get_user_provider_api_key",
+        AsyncMock(return_value=None),
+    )
     monkeypatch.setattr("aperag.domains.web_access.reader.reader_service.ReaderService", _FakeReaderService)
 
     response = asyncio.run(service.fetch_url_documents("user-1", "col-1", ["https://example.com/quota"]))

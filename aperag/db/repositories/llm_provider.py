@@ -41,27 +41,26 @@ class AsyncLlmProviderRepositoryMixin(AsyncRepositoryProtocol):
 
         return await self._execute_query(_query)
 
-    async def query_provider_api_key(
-        self, provider_type: str, user_id: str, need_public: bool = False
+    async def query_model_account_api_key(
+        self, provider_type: str, user_id: str, fallback_to_public: bool = False
     ) -> Optional[str]:
-        """Compatibility shim used by callers that only need the raw api key
-        for a given provider_type (e.g. Jina web reading, web search).
-
-        Returns the ``encrypted_api_key`` from the most recently-updated
+        """Resolve the encrypted API key for the most recently-updated
         ACTIVE ``ModelAccount`` for ``provider_type`` owned by ``user_id``.
-        When ``need_public`` is true, fall back to any ACTIVE ``public``
-        account if the user has no personal account configured. Returns
-        ``None`` when no account is configured.
 
-        This replaces the legacy ``llm_provider.api_key`` lookup that the
-        model-platform refactor removed; the semantics are intentionally
-        narrow so that the call sites in ``web_access`` / ``knowledge_base``
-        do not need to be aware of ``ModelAccount`` IDs.
+        When ``fallback_to_public`` is true, fall back to any ACTIVE
+        ``public`` account when the user has no personal account configured.
+        Returns ``None`` when no account is configured.
+
+        Primitive for callers that need the raw provider api key without
+        having to know the ``ModelAccount`` id (e.g. Jina web reading /
+        web search). This is consumed by
+        ``ModelPlatformService.get_user_provider_api_key``; cross-domain
+        callers go through the service, not the repository.
         """
 
         async def _query(session):
             user_filter = ModelAccount.user_id == user_id
-            if need_public:
+            if fallback_to_public:
                 user_filter = user_filter | (ModelAccount.user_id == "public")
             stmt = (
                 select(ModelAccount)
