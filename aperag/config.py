@@ -196,6 +196,15 @@ class Config(BaseSettings):
     cache_enabled: bool = Field(True, alias="CACHE_ENABLED")
     cache_ttl: int = Field(86400, alias="CACHE_TTL")
 
+    # D10.g read-primitive cache (task #99): L1 in-process LRU + L2 Redis
+    # parse_version-keyed cache for §A read primitives. Per architect
+    # msg=a67974b3 Q2 lock these are operator-tunable knobs (`maxsize=256`
+    # is the §E.4 starting default; L2 TTL `3600s` matches §C.4 cursor
+    # default 1h). The cache layer never bypasses tenancy/authorization
+    # gates (§E.7 hard lock).
+    d10_cache_l1_size: int = Field(256, alias="D10_CACHE_L1_SIZE")
+    d10_cache_l2_ttl_seconds: int = Field(3600, alias="D10_CACHE_L2_TTL_SECONDS")
+
     # Observability
     aperag_observability_mode: str = Field("local", alias="APERAG_OBSERVABILITY_MODE")
     aperag_observability_log_format: str = Field("json", alias="APERAG_OBSERVABILITY_LOG_FORMAT")
