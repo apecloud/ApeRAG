@@ -21,8 +21,6 @@ Create Date: 2026-04-25 17:27:00.000000
 
 from typing import Sequence, Union
 
-from aperag.migration.utils import execute_sql_file
-
 # revision identifiers, used by Alembic.
 revision: str = "7c4e9e1f8b21"
 down_revision: Union[str, None] = "a639b0e5515f"
@@ -31,8 +29,8 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    """Seed (or refresh, via ON CONFLICT) the system providers + default models."""
-    execute_sql_file("model_configs_init.sql")
+    """Legacy provider seed retired by the model-system refactor."""
+    pass
 
 
 def downgrade() -> None:

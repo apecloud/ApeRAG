@@ -180,375 +180,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/quotas": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Quotas
-         * @description Get quota information for the current user or specific user (admin only)
-         */
-        get: operations["quotas_get_quotas"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/quotas/{user_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /**
-         * Update Quota
-         * @description Update quota limits for a specific user (admin only) - supports both single and batch updates
-         */
-        put: operations["quotas_update_quota"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/quotas/{user_id}/recalculate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Recalculate Quota Usage
-         * @description Recalculate and update current usage for all quota types for a user (admin only)
-         */
-        post: operations["quotas_recalculate_quota_usage"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/system/default-quotas": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get System Default Quotas
-         * @description Get system default quota configuration (admin only)
-         */
-        get: operations["quotas_get_system_default_quotas"];
-        /**
-         * Update System Default Quotas
-         * @description Update system default quota configuration (admin only)
-         */
-        put: operations["quotas_update_system_default_quotas"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/available_models": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Get Available Models View
-         * @description Get available models with optional tag filtering
-         */
-        post: operations["llm_models_get_available_models_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/default_models": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Default Models View
-         * @description Get default model configurations for different scenarios
-         */
-        get: operations["default_models_get_default_models_view"];
-        /**
-         * Update Default Models View
-         * @description Update default model configurations for different scenarios
-         */
-        put: operations["default_models_update_default_models_view"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/llm_configuration": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Llm Configuration View
-         * @description Get complete LLM configuration including providers and models
-         */
-        get: operations["llm_providers_get_llm_configuration_view"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/llm_providers": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Create Llm Provider View
-         * @description Create a new LLM provider with optional API key
-         */
-        post: operations["llm_providers_create_llm_provider_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/llm_providers/{provider_name}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Llm Provider View
-         * @description Get a specific LLM provider
-         */
-        get: operations["llm_providers_get_llm_provider_view"];
-        /**
-         * Update Llm Provider View
-         * @description Update an existing LLM provider with optional API key
-         */
-        put: operations["llm_providers_update_llm_provider_view"];
-        post?: never;
-        /**
-         * Delete Llm Provider View
-         * @description Delete an LLM provider
-         */
-        delete: operations["llm_providers_delete_llm_provider_view"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/llm_providers/{provider_name}/publish": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Publish Llm Provider View
-         * @description Publish a private provider to public (admin only, irreversible)
-         */
-        post: operations["llm_providers_publish_llm_provider_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/llm_provider_models": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Llm Provider Models View
-         * @description List LLM provider models, optionally filtered by provider
-         */
-        get: operations["llm_models_list_llm_provider_models_view"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/llm_providers/{provider_name}/models": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Provider Models View
-         * @description Get all models for a specific provider
-         */
-        get: operations["llm_models_get_provider_models_view"];
-        put?: never;
-        /**
-         * Create Provider Model View
-         * @description Create a new model for a specific provider
-         */
-        post: operations["llm_models_create_provider_model_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/llm_providers/{provider_name}/models/{api}/{model}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /**
-         * Update Provider Model View
-         * @description Update a specific model
-         */
-        put: operations["llm_models_update_provider_model_view"];
-        post?: never;
-        /**
-         * Delete Provider Model View
-         * @description Delete a specific model
-         */
-        delete: operations["llm_models_delete_provider_model_view"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/collections/{collection_id}/documents/staged": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Staged Documents View
-         * @description Return all UPLOADED (staged) documents awaiting confirmation.
-         */
-        get: operations["documents_list_staged_documents_view"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/collections/{collection_id}/documents/upload": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Upload Document View
-         * @description Upload a single document file to temporary storage
-         */
-        post: operations["documents_upload_document_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/collections/{collection_id}/documents/confirm": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Confirm Documents View
-         * @description Confirm uploaded documents and add them to the collection
-         */
-        post: operations["documents_confirm_documents_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/collections/{collection_id}/documents/fetch-url": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Fetch Url Document View
-         * @description Fetch web page content from URLs and create UPLOADED documents.
-         *
-         *     Each URL is fetched via the web read service (JINA with Trafilatura fallback).
-         *     Successful results are wrapped as virtual UploadFile objects and passed to
-         *     upload_document(), producing UPLOADED documents identical to file uploads.
-         *     Use POST /documents/confirm to move them to PENDING and start indexing.
-         */
-        post: operations["documents_fetch_url_document_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v2/collections/{collection_id}/export": {
         parameters: {
             query?: never;
@@ -657,7 +288,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/embeddings": {
+    "/api/v2/quotas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Quotas
+         * @description Get quota information for the current user or specific user (admin only)
+         */
+        get: operations["quotas_get_quotas"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/quotas/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Quota
+         * @description Update quota limits for a specific user (admin only) - supports both single and batch updates
+         */
+        put: operations["quotas_update_quota"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/quotas/{user_id}/recalculate": {
         parameters: {
             query?: never;
             header?: never;
@@ -667,10 +338,50 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Create Embeddings
-         * @description Create embeddings for the given input text(s).
-         *     Compatible with OpenAI embeddings API format.
+         * Recalculate Quota Usage
+         * @description Recalculate and update current usage for all quota types for a user (admin only)
          */
+        post: operations["quotas_recalculate_quota_usage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/system/default-quotas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get System Default Quotas
+         * @description Get system default quota configuration (admin only)
+         */
+        get: operations["quotas_get_system_default_quotas"];
+        /**
+         * Update System Default Quotas
+         * @description Update system default quota configuration (admin only)
+         */
+        put: operations["quotas_update_system_default_quotas"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/embeddings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Embeddings */
         post: operations["llm_create_embeddings"];
         delete?: never;
         options?: never;
@@ -687,11 +398,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /**
-         * Create Rerank
-         * @description Rerank documents based on relevance to a query.
-         *     Compatible with industry-standard rerank API format used by Cohere, Jina AI, etc.
-         */
+        /** Create Rerank */
         post: operations["llm_create_rerank"];
         delete?: never;
         options?: never;
@@ -774,7 +481,7 @@ export interface paths {
          * Get Marketplace Collection
          * @description Get MarketplaceCollection details (read-only)
          */
-        get: operations["marketplace_collections_get_marketplace_collection"];
+        get: operations["marketplace_get_marketplace_collection"];
         put?: never;
         post?: never;
         delete?: never;
@@ -794,7 +501,7 @@ export interface paths {
          * List Marketplace Collection Documents
          * @description List documents in MarketplaceCollection (read-only) with pagination, sorting and search capabilities
          */
-        get: operations["marketplace_collections_list_marketplace_collection_documents"];
+        get: operations["marketplace_list_marketplace_collection_documents"];
         put?: never;
         post?: never;
         delete?: never;
@@ -854,7 +561,7 @@ export interface paths {
          * Get Marketplace Collection Graph
          * @description Get knowledge graph for MarketplaceCollection (read-only)
          */
-        get: operations["marketplace_collections_get_marketplace_collection_graph"];
+        get: operations["marketplace_get_marketplace_collection_graph"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1788,18 +1495,15 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/providers/configuration": {
+    "/api/v3/model-providers": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /**
-         * Get Provider Configuration View
-         * @description Return providers and configured models visible to the current user.
-         */
-        get: operations["providers_v2_get_provider_configuration_view"];
+        /** List Model Providers View */
+        get: operations["model_platform_list_model_providers_view"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1808,7 +1512,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/providers/available-models": {
+    "/api/v3/model-accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Model Accounts View */
+        get: operations["model_platform_list_model_accounts_view"];
+        put?: never;
+        /** Create Model Account View */
+        post: operations["model_platform_create_model_account_view"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v3/model-accounts/{account_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update Model Account View */
+        put: operations["model_platform_update_model_account_view"];
+        post?: never;
+        /** Delete Model Account View */
+        delete: operations["model_platform_delete_model_account_view"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v3/model-accounts/{account_id}/validate": {
         parameters: {
             query?: never;
             header?: never;
@@ -1817,34 +1557,24 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /**
-         * Get Available Provider Models View
-         * @description Return provider catalog models, optionally filtered by tags.
-         */
-        post: operations["providers_v2_get_available_provider_models_view"];
+        /** Validate Model Account View */
+        post: operations["model_platform_validate_model_account_view"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v2/default-models": {
+    "/api/v3/model-accounts/{account_id}/models": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /**
-         * Get Default Models View
-         * @description Return default model selections for each product scenario.
-         */
-        get: operations["providers_v2_get_default_models_view"];
-        /**
-         * Update Default Models View
-         * @description Update default model selections for each product scenario.
-         */
-        put: operations["providers_v2_update_default_models_view"];
+        /** List Model Account Models View */
+        get: operations["model_platform_list_model_account_models_view"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -1852,7 +1582,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/providers": {
+    "/api/v3/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Models View */
+        get: operations["model_platform_list_models_view"];
+        put?: never;
+        /** Create Model View */
+        post: operations["model_platform_create_model_view"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v3/models/{model_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update Model View */
+        put: operations["model_platform_update_model_view"];
+        post?: never;
+        /** Delete Model View */
+        delete: operations["model_platform_delete_model_view"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v3/models/{model_id}/validate": {
         parameters: {
             query?: never;
             header?: never;
@@ -1861,46 +1627,32 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /**
-         * Create Provider View
-         * @description Create a provider owned by the current user.
-         */
-        post: operations["providers_v2_create_provider_view"];
+        /** Validate Model View */
+        post: operations["model_platform_validate_model_view"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v2/providers/{provider_name}": {
+    "/api/v3/model-uses": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /**
-         * Get Provider View
-         * @description Return one provider visible to the current user.
-         */
-        get: operations["providers_v2_get_provider_view"];
-        /**
-         * Update Provider View
-         * @description Update a provider owned by the current user.
-         */
-        put: operations["providers_v2_update_provider_view"];
+        /** List Model Uses View */
+        get: operations["model_platform_list_model_uses_view"];
+        put?: never;
         post?: never;
-        /**
-         * Delete Provider View
-         * @description Delete a provider owned by the current user.
-         */
-        delete: operations["providers_v2_delete_provider_view"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v2/providers/{provider_name}/publish": {
+    "/api/v3/model-uses/{scenario}": {
         parameters: {
             query?: never;
             header?: never;
@@ -1908,81 +1660,10 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put?: never;
-        /**
-         * Publish Provider View
-         * @description Publish a private provider to the public catalog. Admin only.
-         */
-        post: operations["providers_v2_publish_provider_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/provider-models": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Provider Models View
-         * @description Return models for all visible providers, optionally filtered by provider.
-         */
-        get: operations["providers_v2_list_provider_models_view"];
-        put?: never;
+        /** Update Model Use View */
+        put: operations["model_platform_update_model_use_view"];
         post?: never;
         delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/providers/{provider_name}/models": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Provider Models By Provider View
-         * @description Return models for one provider visible to the current user.
-         */
-        get: operations["providers_v2_list_provider_models_by_provider_view"];
-        put?: never;
-        /**
-         * Create Provider Model View
-         * @description Create a model under a provider owned by the current user.
-         */
-        post: operations["providers_v2_create_provider_model_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/providers/{provider_name}/models/{api}/{model}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /**
-         * Update Provider Model View
-         * @description Update a model under a provider owned by the current user.
-         */
-        put: operations["providers_v2_update_provider_model_view"];
-        post?: never;
-        /**
-         * Delete Provider Model View
-         * @description Delete a model under a provider owned by the current user.
-         */
-        delete: operations["providers_v2_delete_provider_model_view"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2116,12 +1797,12 @@ export interface paths {
             cookie?: never;
         };
         /** List Documents V2 View */
-        get: operations["documents_v2_list_documents_v2_view"];
+        get: operations["collections_v2_list_documents_v2_view"];
         put?: never;
         /** Create Documents V2 View */
-        post: operations["documents_v2_create_documents_v2_view"];
+        post: operations["collections_v2_create_documents_v2_view"];
         /** Delete Documents V2 View */
-        delete: operations["documents_v2_delete_documents_v2_view"];
+        delete: operations["collections_v2_delete_documents_v2_view"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2135,7 +1816,7 @@ export interface paths {
             cookie?: never;
         };
         /** List Staged Documents V2 View */
-        get: operations["documents_v2_list_staged_documents_v2_view"];
+        get: operations["collections_v2_list_staged_documents_v2_view"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2152,11 +1833,11 @@ export interface paths {
             cookie?: never;
         };
         /** Get Document V2 View */
-        get: operations["documents_v2_get_document_v2_view"];
+        get: operations["collections_v2_get_document_v2_view"];
         put?: never;
         post?: never;
         /** Delete Document V2 View */
-        delete: operations["documents_v2_delete_document_v2_view"];
+        delete: operations["collections_v2_delete_document_v2_view"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2170,7 +1851,7 @@ export interface paths {
             cookie?: never;
         };
         /** Download Document V2 View */
-        get: operations["documents_v2_download_document_v2_view"];
+        get: operations["collections_v2_download_document_v2_view"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2187,7 +1868,7 @@ export interface paths {
             cookie?: never;
         };
         /** Get Document Preview V2 View */
-        get: operations["documents_v2_get_document_preview_v2_view"];
+        get: operations["collections_v2_get_document_preview_v2_view"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2204,7 +1885,7 @@ export interface paths {
             cookie?: never;
         };
         /** Get Document Object V2 View */
-        get: operations["documents_v2_get_document_object_v2_view"];
+        get: operations["collections_v2_get_document_object_v2_view"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2223,7 +1904,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Rebuild Document Indexes V2 View */
-        post: operations["documents_v2_rebuild_document_indexes_v2_view"];
+        post: operations["collections_v2_rebuild_document_indexes_v2_view"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2240,7 +1921,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Rebuild Failed Indexes V2 View */
-        post: operations["documents_v2_rebuild_failed_indexes_v2_view"];
+        post: operations["collections_v2_rebuild_failed_indexes_v2_view"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2257,7 +1938,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Upload Document V2 View */
-        post: operations["documents_v2_upload_document_v2_view"];
+        post: operations["collections_v2_upload_document_v2_view"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2274,7 +1955,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Confirm Documents V2 View */
-        post: operations["documents_v2_confirm_documents_v2_view"];
+        post: operations["collections_v2_confirm_documents_v2_view"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2291,7 +1972,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Fetch Url Document V2 View */
-        post: operations["documents_v2_fetch_url_document_v2_view"];
+        post: operations["collections_v2_fetch_url_document_v2_view"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2496,21 +2177,13 @@ export interface components {
              */
             file: string;
         };
-        /** Body_documents_upload_document_view */
-        Body_documents_upload_document_view: {
-            /**
-             * File
-             * Format: binary
-             */
-            file: string;
-        };
-        /** Body_documents_v2_create_documents_v2_view */
-        Body_documents_v2_create_documents_v2_view: {
+        /** Body_collections_v2_create_documents_v2_view */
+        Body_collections_v2_create_documents_v2_view: {
             /** Files */
             files: string[];
         };
-        /** Body_documents_v2_upload_document_v2_view */
-        Body_documents_v2_upload_document_v2_view: {
+        /** Body_collections_v2_upload_document_v2_view */
+        Body_collections_v2_upload_document_v2_view: {
             /**
              * File
              * Format: binary
@@ -2987,58 +2660,6 @@ export interface components {
             /** Stream Url */
             stream_url: string;
         };
-        /** DefaultModelConfig */
-        DefaultModelConfig: {
-            /**
-             * Scenario
-             * @description The scenario for which this default model is configured
-             * @example default_for_embedding
-             * @enum {string}
-             */
-            scenario: "default_for_collection_completion" | "default_for_agent_completion" | "default_for_embedding" | "default_for_rerank" | "default_for_background_task";
-            /** Custom Llm Provider */
-            custom_llm_provider?: string | null;
-            /**
-             * Provider Name
-             * @description The name of the model provider
-             * @example openai
-             */
-            provider_name?: string | null;
-            /**
-             * Model
-             * @description The name of the model
-             * @example text-embedding-3-small
-             */
-            model?: string | null;
-        };
-        /** DefaultModelsResponse */
-        DefaultModelsResponse: {
-            /**
-             * Items
-             * @description List of default model configurations for different scenarios
-             */
-            items: components["schemas"]["DefaultModelConfig"][];
-        };
-        /** DefaultModelsUpdateRequest */
-        DefaultModelsUpdateRequest: {
-            /**
-             * Defaults
-             * @description List of default model configurations to update
-             * @example [
-             *       {
-             *         "model": "text-embedding-3-small",
-             *         "provider_name": "openai",
-             *         "scenario": "default_for_embedding"
-             *       },
-             *       {
-             *         "model": "gpt-4o-mini",
-             *         "provider_name": "openai",
-             *         "scenario": "default_for_collection_completion"
-             *       }
-             *     ]
-             */
-            defaults: components["schemas"]["DefaultModelConfig"][];
-        };
         /** DeleteDocumentsRequest */
         DeleteDocumentsRequest: {
             /**
@@ -3118,43 +2739,18 @@ export interface components {
         };
         /** Document1 */
         Document1: {
-            /**
-             * Text
-             * @description Document text content
-             * @example Paris is the capital of France.
-             */
+            /** Text */
             text: string;
-            /**
-             * Metadata
-             * @description Optional document metadata
-             * @example {
-             *       "id": "doc_123",
-             *       "source": "wikipedia"
-             *     }
-             */
+            /** Metadata */
             metadata?: {
                 [key: string]: unknown;
             } | null;
         };
-        /**
-         * Document2
-         * @description Document content and metadata (only present if return_documents=true)
-         */
+        /** Document2 */
         Document2: {
-            /**
-             * Text
-             * @description Document text content
-             * @example Paris is the capital of France.
-             */
+            /** Text */
             text: string;
-            /**
-             * Metadata
-             * @description Document metadata if provided in the request
-             * @example {
-             *       "id": "doc_123",
-             *       "source": "wikipedia"
-             *     }
-             */
+            /** Metadata */
             metadata?: {
                 [key: string]: unknown;
             } | null;
@@ -3230,95 +2826,43 @@ export interface components {
             /** Vision Chunks */
             vision_chunks?: components["schemas"]["VisionChunk"][] | null;
         };
-        /**
-         * EmbeddingData
-         * @description Individual embedding result
-         */
+        /** EmbeddingData */
         EmbeddingData: {
             /**
              * Object
-             * @description Object type identifier
              * @example embedding
              */
             object: string;
-            /**
-             * Embedding
-             * @description The embedding vector as a list of floats
-             * @example [
-             *       0.0023064255,
-             *       -0.009327292,
-             *       0.015797421,
-             *       0.0012345678
-             *     ]
-             */
+            /** Embedding */
             embedding: number[];
-            /**
-             * Index
-             * @description Index of the input text corresponding to this embedding
-             * @example 0
-             */
+            /** Index */
             index: number;
         };
-        /**
-         * EmbeddingRequest
-         * @description Request to generate embeddings for text inputs
-         */
+        /** EmbeddingRequest */
         EmbeddingRequest: {
             /**
-             * Provider
-             * @description LLM provider name (e.g., openai, anthropic)
-             * @example openai
+             * Model Id
+             * @description ApeRAG model id
              */
-            provider: string;
-            /**
-             * Model
-             * @description Model name for embedding generation
-             * @example text-embedding-3-small
-             */
-            model: string;
+            model_id: string;
             /** Input */
             input: string | string[];
         };
-        /**
-         * EmbeddingResponse
-         * @description Response containing generated embeddings in OpenAI-compatible format
-         */
+        /** EmbeddingResponse */
         EmbeddingResponse: {
-            /**
-             * Object
-             * @description Object type identifier
-             * @example list
-             */
+            /** Object */
             object: string;
-            /**
-             * Data
-             * @description List of embedding results
-             */
+            /** Data */
             data: components["schemas"]["EmbeddingData"][];
-            /**
-             * Model
-             * @description Model used for embedding generation
-             * @example text-embedding-3-small
-             */
+            /** Model */
             model: string;
             usage: components["schemas"]["EmbeddingUsage"];
         };
-        /**
-         * EmbeddingUsage
-         * @description Token usage information for the embedding request
-         */
+        /** EmbeddingUsage */
         EmbeddingUsage: {
-            /**
-             * Prompt Tokens
-             * @description Number of tokens in the input text(s)
-             * @example 16
-             */
+            /** Prompt Tokens */
             prompt_tokens: number;
-            /**
-             * Total Tokens
-             * @description Total number of tokens used (same as prompt_tokens for embeddings)
-             * @example 16
-             */
+            /** Total Tokens */
             total_tokens: number;
         };
         /** EvaluationDatasetCreate */
@@ -4157,10 +3701,8 @@ export interface components {
         JudgeConfig: {
             /** @default exact_match */
             mode: components["schemas"]["EvaluationJudgeMode"];
-            /** Model */
-            model?: string | null;
-            /** Model Service Provider */
-            model_service_provider?: string | null;
+            /** Model Id */
+            model_id?: string | null;
             /** Prompt Template */
             prompt_template?: string | null;
             /** Score Threshold */
@@ -4219,344 +3761,6 @@ export interface components {
              */
             entity_types: string[] | null;
         };
-        /** LlmConfigurationResponse */
-        LlmConfigurationResponse: {
-            /**
-             * Providers
-             * @description List of LLM providers
-             */
-            providers: components["schemas"]["LlmProvider"][];
-            /**
-             * Models
-             * @description List of LLM provider models
-             */
-            models: components["schemas"]["LlmProviderModel"][];
-        };
-        /** LlmProvider */
-        LlmProvider: {
-            /**
-             * Name
-             * @description Unique provider name identifier
-             * @example openai
-             */
-            name: string;
-            /**
-             * User Id
-             * @description User ID of the provider owner, "public" for system providers
-             * @example public
-             */
-            user_id: string;
-            /**
-             * Label
-             * @description Human-readable provider display name
-             * @example OpenAI
-             */
-            label: string;
-            /**
-             * Completion Dialect
-             * @description API dialect for completion/chat APIs
-             * @default openai
-             * @example openai
-             */
-            completion_dialect: string | null;
-            /**
-             * Embedding Dialect
-             * @description API dialect for embedding APIs
-             * @default openai
-             * @example openai
-             */
-            embedding_dialect: string | null;
-            /**
-             * Rerank Dialect
-             * @description API dialect for rerank APIs
-             * @default jina_ai
-             * @example jina_ai
-             */
-            rerank_dialect: string | null;
-            /**
-             * Allow Custom Base Url
-             * @description Whether custom base URLs are allowed
-             * @default false
-             */
-            allow_custom_base_url: boolean | null;
-            /**
-             * Base Url
-             * @description Default API base URL for this provider
-             * @example https://api.openai.com/v1
-             */
-            base_url: string;
-            /**
-             * Extra
-             * @description Additional configuration data in JSON format
-             */
-            extra?: string | null;
-            /**
-             * Api Key
-             * @description API key for this provider (if configured by user)
-             */
-            api_key?: string | null;
-            /**
-             * Created
-             * @description Creation timestamp
-             */
-            created?: string | null;
-            /**
-             * Updated
-             * @description Last update timestamp
-             */
-            updated?: string | null;
-        };
-        /** LlmProviderCreateWithApiKey */
-        LlmProviderCreateWithApiKey: {
-            /**
-             * Name
-             * @description Unique provider name identifier (auto-generated if not provided)
-             */
-            name?: string | null;
-            /**
-             * Label
-             * @description Human-readable provider display name
-             */
-            label: string;
-            /**
-             * Completion Dialect
-             * @description API dialect for completion/chat APIs
-             * @default openai
-             */
-            completion_dialect: string | null;
-            /**
-             * Embedding Dialect
-             * @description API dialect for embedding APIs
-             * @default openai
-             */
-            embedding_dialect: string | null;
-            /**
-             * Rerank Dialect
-             * @description API dialect for rerank APIs
-             * @default jina_ai
-             */
-            rerank_dialect: string | null;
-            /**
-             * Allow Custom Base Url
-             * @description Whether custom base URLs are allowed
-             * @default false
-             */
-            allow_custom_base_url: boolean | null;
-            /**
-             * Base Url
-             * @description Default API base URL for this provider
-             */
-            base_url: string;
-            /**
-             * Extra
-             * @description Additional configuration data in JSON format
-             */
-            extra?: string | null;
-            /**
-             * Api Key
-             * @description Optional API key for this provider
-             */
-            api_key?: string | null;
-            /**
-             * Status
-             * @description Provider status - enable to create/update API key, disable to remove API key
-             */
-            status?: ("enable" | "disable") | null;
-        };
-        /** LlmProviderModel */
-        LlmProviderModel: {
-            /**
-             * Provider Name
-             * @description Reference to LLMProvider.name
-             * @example openai
-             */
-            provider_name: string;
-            /**
-             * Api
-             * @description API type for this model
-             * @example completion
-             * @enum {string}
-             */
-            api: "completion" | "embedding" | "rerank";
-            /**
-             * Model
-             * @description Model name/identifier
-             * @example gpt-4o-mini
-             */
-            model: string;
-            /**
-             * Custom Llm Provider
-             * @description Custom LLM provider implementation
-             * @example openai
-             */
-            custom_llm_provider: string;
-            /**
-             * Context Window
-             * @description Context window size (total tokens)
-             * @example 128000
-             */
-            context_window?: number | null;
-            /**
-             * Max Input Tokens
-             * @description Maximum input tokens
-             * @example 120000
-             */
-            max_input_tokens?: number | null;
-            /**
-             * Max Output Tokens
-             * @description Maximum output tokens
-             * @example 8000
-             */
-            max_output_tokens?: number | null;
-            /**
-             * Tags
-             * @description Tags for model categorization
-             * @default []
-             * @example [
-             *       "free",
-             *       "recommend"
-             *     ]
-             */
-            tags: string[] | null;
-            /**
-             * Created
-             * @description Creation timestamp
-             */
-            created?: string | null;
-            /**
-             * Updated
-             * @description Last update timestamp
-             */
-            updated?: string | null;
-        };
-        /** LlmProviderModelCreateRequest */
-        LlmProviderModelCreateRequest: {
-            /**
-             * Api
-             * @description API type for this model
-             * @enum {string}
-             */
-            api: "completion" | "embedding" | "rerank";
-            /**
-             * Model
-             * @description Model name/identifier
-             */
-            model: string;
-            /**
-             * Custom Llm Provider
-             * @description Custom LLM provider implementation
-             */
-            custom_llm_provider: string;
-            /**
-             * Context Window
-             * @description Context window size (total tokens)
-             * @example 128000
-             */
-            context_window?: number | null;
-            /**
-             * Max Input Tokens
-             * @description Maximum input tokens
-             * @example 120000
-             */
-            max_input_tokens?: number | null;
-            /**
-             * Max Output Tokens
-             * @description Maximum output tokens
-             * @example 8000
-             */
-            max_output_tokens?: number | null;
-            /**
-             * Tags
-             * @description Tags for model categorization
-             * @default []
-             */
-            tags: string[] | null;
-        };
-        /** LlmProviderModelList */
-        LlmProviderModelList: {
-            /** Items */
-            items?: components["schemas"]["LlmProviderModel"][] | null;
-            pageResult?: components["schemas"]["PageResult"] | null;
-        };
-        /** LlmProviderModelUpdate */
-        LlmProviderModelUpdate: {
-            /**
-             * Custom Llm Provider
-             * @description Custom LLM provider implementation
-             */
-            custom_llm_provider?: string | null;
-            /**
-             * Context Window
-             * @description Context window size (total tokens)
-             * @example 128000
-             */
-            context_window?: number | null;
-            /**
-             * Max Input Tokens
-             * @description Maximum input tokens
-             * @example 120000
-             */
-            max_input_tokens?: number | null;
-            /**
-             * Max Output Tokens
-             * @description Maximum output tokens
-             * @example 8000
-             */
-            max_output_tokens?: number | null;
-            /**
-             * Tags
-             * @description Tags for model categorization
-             */
-            tags?: string[] | null;
-        };
-        /** LlmProviderUpdateWithApiKey */
-        LlmProviderUpdateWithApiKey: {
-            /**
-             * Label
-             * @description Human-readable provider display name
-             */
-            label?: string | null;
-            /**
-             * Completion Dialect
-             * @description API dialect for completion/chat APIs
-             */
-            completion_dialect?: string | null;
-            /**
-             * Embedding Dialect
-             * @description API dialect for embedding APIs
-             */
-            embedding_dialect?: string | null;
-            /**
-             * Rerank Dialect
-             * @description API dialect for rerank APIs
-             */
-            rerank_dialect?: string | null;
-            /**
-             * Allow Custom Base Url
-             * @description Whether custom base URLs are allowed
-             */
-            allow_custom_base_url?: boolean | null;
-            /**
-             * Base Url
-             * @description Default API base URL for this provider
-             */
-            base_url?: string | null;
-            /**
-             * Extra
-             * @description Additional configuration data in JSON format
-             */
-            extra?: string | null;
-            /**
-             * Api Key
-             * @description Optional API key for this provider
-             */
-            api_key?: string | null;
-            /**
-             * Status
-             * @description Provider status - enable to create/update API key, disable to remove API key
-             */
-            status?: ("enable" | "disable") | null;
-        };
         /** Login */
         Login: {
             /**
@@ -4614,55 +3818,241 @@ export interface components {
                 [key: string]: unknown;
             };
         };
-        /** ModelConfig */
-        ModelConfig: {
+        /** Model */
+        Model: {
+            /** Id */
+            id?: string | null;
+            /** Account Id */
+            account_id: string;
+            /** Provider Model Id */
+            provider_model_id: string;
+            /** Display Name */
+            display_name: string;
+            capability: components["schemas"]["ModelCapability"];
+            /** Runner Type */
+            runner_type: string;
+            /** Runner Config */
+            runner_config?: {
+                [key: string]: unknown;
+            };
+            /** Context Window */
+            context_window?: number | null;
+            /** Max Input Tokens */
+            max_input_tokens?: number | null;
+            /** Max Output Tokens */
+            max_output_tokens?: number | null;
+            /** Embedding Dimensions */
+            embedding_dimensions?: number | null;
+            /**
+             * Supports Vision
+             * @default false
+             */
+            supports_vision: boolean;
+            /**
+             * Supports Tool Calling
+             * @default false
+             */
+            supports_tool_calling: boolean;
+            /**
+             * Status
+             * @default ACTIVE
+             * @enum {string}
+             */
+            status: "ACTIVE" | "INACTIVE";
+            /** Extra */
+            extra?: {
+                [key: string]: unknown;
+            };
+            /** Created */
+            created?: string | null;
+            /** Updated */
+            updated?: string | null;
+        };
+        /** ModelAccount */
+        ModelAccount: {
+            /** Id */
+            id?: string | null;
+            /** User Id */
+            user_id?: string | null;
+            /** Provider Type */
+            provider_type: string;
+            /** Name */
+            name: string;
+            /** Display Name */
+            display_name: string;
+            /** Base Url */
+            base_url: string;
+            /**
+             * Status
+             * @default ACTIVE
+             * @enum {string}
+             */
+            status: "ACTIVE" | "INACTIVE";
+            /** Auth Config */
+            auth_config?: {
+                [key: string]: unknown;
+            };
+            /** Last Validated At */
+            last_validated_at?: string | null;
+            /** Validation Error */
+            validation_error?: string | null;
+            /** Extra */
+            extra?: {
+                [key: string]: unknown;
+            };
+            /** Created */
+            created?: string | null;
+            /** Updated */
+            updated?: string | null;
+        };
+        /** ModelAccountCreate */
+        ModelAccountCreate: {
+            /** Provider Type */
+            provider_type: string;
+            /** Name */
+            name: string;
+            /** Display Name */
+            display_name: string;
+            /** Base Url */
+            base_url: string;
+            /** Api Key */
+            api_key: string;
+            /** Auth Config */
+            auth_config?: {
+                [key: string]: unknown;
+            };
+            /** Extra */
+            extra?: {
+                [key: string]: unknown;
+            };
+        };
+        /** ModelAccountList */
+        ModelAccountList: {
+            /** Items */
+            items?: components["schemas"]["ModelAccount"][];
+            pageResult?: components["schemas"]["PageResult"] | null;
+        };
+        /** ModelAccountUpdate */
+        ModelAccountUpdate: {
             /** Name */
             name?: string | null;
-            /** Completion Dialect */
-            completion_dialect?: string | null;
-            /** Embedding Dialect */
-            embedding_dialect?: string | null;
-            /** Rerank Dialect */
-            rerank_dialect?: string | null;
-            /** Label */
-            label?: string | null;
-            /** Allow Custom Base Url */
-            allow_custom_base_url?: boolean | null;
+            /** Display Name */
+            display_name?: string | null;
             /** Base Url */
             base_url?: string | null;
-            /** Embedding */
-            embedding?: components["schemas"]["ModelSpec"][] | null;
-            /** Completion */
-            completion?: components["schemas"]["ModelSpec"][] | null;
-            /** Rerank */
-            rerank?: components["schemas"]["ModelSpec"][] | null;
+            /** Api Key */
+            api_key?: string | null;
+            /** Auth Config */
+            auth_config?: {
+                [key: string]: unknown;
+            } | null;
+            /** Status */
+            status?: ("ACTIVE" | "INACTIVE") | null;
+            /** Extra */
+            extra?: {
+                [key: string]: unknown;
+            } | null;
         };
-        /** ModelConfigList */
-        ModelConfigList: {
+        /**
+         * ModelCapability
+         * @enum {string}
+         */
+        ModelCapability: "chat" | "completion" | "embedding" | "rerank";
+        /** ModelCreate */
+        ModelCreate: {
+            /** Account Id */
+            account_id: string;
+            /** Provider Model Id */
+            provider_model_id: string;
+            /** Display Name */
+            display_name: string;
+            capability: components["schemas"]["ModelCapability"];
+            /** Runner Type */
+            runner_type?: string | null;
+            /** Runner Config */
+            runner_config?: {
+                [key: string]: unknown;
+            };
+            /** Context Window */
+            context_window?: number | null;
+            /** Max Input Tokens */
+            max_input_tokens?: number | null;
+            /** Max Output Tokens */
+            max_output_tokens?: number | null;
+            /** Embedding Dimensions */
+            embedding_dimensions?: number | null;
+            /**
+             * Supports Vision
+             * @default false
+             */
+            supports_vision: boolean;
+            /**
+             * Supports Tool Calling
+             * @default false
+             */
+            supports_tool_calling: boolean;
+            /** Extra */
+            extra?: {
+                [key: string]: unknown;
+            };
+        };
+        /** ModelList */
+        ModelList: {
             /** Items */
-            items?: components["schemas"]["ModelConfig"][] | null;
+            items?: components["schemas"]["Model"][];
+            pageResult?: components["schemas"]["PageResult"] | null;
+        };
+        /** ModelProvider */
+        ModelProvider: {
+            /** Id */
+            id?: string | null;
+            /** Provider Type */
+            provider_type: string;
+            /** Display Name */
+            display_name: string;
+            /** Description */
+            description?: string | null;
+            /** Supported Capabilities */
+            supported_capabilities?: components["schemas"]["ModelCapability"][];
+            /** Account Schema */
+            account_schema?: {
+                [key: string]: unknown;
+            };
+            /** Default Base Url */
+            default_base_url?: string | null;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Sort Order
+             * @default 0
+             */
+            sort_order: number;
+            /** Extra */
+            extra?: {
+                [key: string]: unknown;
+            };
+            /** Created */
+            created?: string | null;
+            /** Updated */
+            updated?: string | null;
+        };
+        /** ModelProviderList */
+        ModelProviderList: {
+            /** Items */
+            items?: components["schemas"]["ModelProvider"][];
             pageResult?: components["schemas"]["PageResult"] | null;
         };
         /** ModelSpec */
         ModelSpec: {
             /**
-             * Model
-             * @description The name of the language model to use
-             * @example gpt-4o-mini
+             * Model Id
+             * @description ApeRAG model id to use
+             * @example mdl_default_chat
              */
-            model?: string | null;
-            /**
-             * Model Service Provider
-             * @description Used for querying auth information (api_key/api_base/...) for a model service provider.
-             * @example openai
-             */
-            model_service_provider?: string | null;
-            /**
-             * Custom Llm Provider
-             * @description Used for Non-OpenAI LLMs (e.g. 'bedrock' for amazon.titan-tg1-large)
-             * @example openai
-             */
-            custom_llm_provider?: string | null;
+            model_id?: string | null;
             /**
              * Temperature
              * @description Controls randomness in the output. Values between 0 and 2. Lower values make output more focused and deterministic
@@ -4702,6 +4092,105 @@ export interface components {
              *     ]
              */
             tags: string[] | null;
+        };
+        /** ModelUpdate */
+        ModelUpdate: {
+            /** Display Name */
+            display_name?: string | null;
+            capability?: components["schemas"]["ModelCapability"] | null;
+            /** Runner Type */
+            runner_type?: string | null;
+            /** Runner Config */
+            runner_config?: {
+                [key: string]: unknown;
+            } | null;
+            /** Context Window */
+            context_window?: number | null;
+            /** Max Input Tokens */
+            max_input_tokens?: number | null;
+            /** Max Output Tokens */
+            max_output_tokens?: number | null;
+            /** Embedding Dimensions */
+            embedding_dimensions?: number | null;
+            /** Supports Vision */
+            supports_vision?: boolean | null;
+            /** Supports Tool Calling */
+            supports_tool_calling?: boolean | null;
+            /** Status */
+            status?: ("ACTIVE" | "INACTIVE") | null;
+            /** Extra */
+            extra?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** ModelUse */
+        ModelUse: {
+            /** Id */
+            id?: string | null;
+            /** User Id */
+            user_id?: string | null;
+            scenario: components["schemas"]["ModelUseScenario"];
+            capability: components["schemas"]["ModelCapability"];
+            /** @default single */
+            strategy: components["schemas"]["ModelUseStrategy"];
+            /** Primary Model Id */
+            primary_model_id?: string | null;
+            /** Fallback Model Ids */
+            fallback_model_ids?: string[];
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /** Extra */
+            extra?: {
+                [key: string]: unknown;
+            };
+            /** Created */
+            created?: string | null;
+            /** Updated */
+            updated?: string | null;
+        };
+        /** ModelUseList */
+        ModelUseList: {
+            /** Items */
+            items?: components["schemas"]["ModelUse"][];
+            pageResult?: components["schemas"]["PageResult"] | null;
+        };
+        /**
+         * ModelUseScenario
+         * @enum {string}
+         */
+        ModelUseScenario: "agent_chat" | "collection_completion" | "collection_embedding" | "retrieval_rerank" | "background_task";
+        /**
+         * ModelUseStrategy
+         * @enum {string}
+         */
+        ModelUseStrategy: "single" | "fallback";
+        /** ModelUseUpdate */
+        ModelUseUpdate: {
+            /** Primary Model Id */
+            primary_model_id?: string | null;
+            /** Fallback Model Ids */
+            fallback_model_ids?: string[];
+            /** @default single */
+            strategy: components["schemas"]["ModelUseStrategy"];
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /** Extra */
+            extra?: {
+                [key: string]: unknown;
+            };
+        };
+        /** ModelValidationResponse */
+        ModelValidationResponse: {
+            /** Ok */
+            ok: boolean;
+            /** Message */
+            message?: string | null;
         };
         /** OpenAIChatCompletionChoice */
         OpenAIChatCompletionChoice: {
@@ -5027,100 +4516,49 @@ export interface components {
              */
             password?: string | null;
         };
-        /**
-         * RerankDocument
-         * @description Individual reranked document result
-         */
+        /** RerankDocument */
         RerankDocument: {
-            /**
-             * Index
-             * @description Original index of the document in the input array
-             * @example 0
-             */
+            /** Index */
             index: number;
-            /**
-             * Relevance Score
-             * @description Relevance score between 0 and 1 (higher is more relevant)
-             * @example 0.95
-             */
+            /** Relevance Score */
             relevance_score: number;
-            /** @description Document content and metadata (only present if return_documents=true) */
             document?: components["schemas"]["Document2"] | null;
         };
-        /**
-         * RerankRequest
-         * @description Request to rerank documents based on query relevance
-         */
+        /** RerankRequest */
         RerankRequest: {
             /**
-             * Provider
-             * @description LLM provider name (e.g., cohere, jina_ai)
-             * @example cohere
+             * Model Id
+             * @description ApeRAG rerank model id
              */
-            provider: string;
-            /**
-             * Model
-             * @description Model name for reranking
-             * @example rerank-english-v3.0
-             */
-            model: string;
-            /**
-             * Query
-             * @description Search query to rank documents against
-             * @example What is the capital of France?
-             */
+            model_id: string;
+            /** Query */
             query: string;
             /** Documents */
             documents: string[] | components["schemas"]["Document1"][];
             /**
              * Top K
-             * @description Maximum number of top-ranked documents to return
              * @default 10
-             * @example 3
              */
             top_k: number | null;
             /**
              * Return Documents
-             * @description Whether to return document content in response
              * @default true
-             * @example true
              */
             return_documents: boolean | null;
         };
-        /**
-         * RerankResponse
-         * @description Response containing reranked documents in industry-standard format
-         */
+        /** RerankResponse */
         RerankResponse: {
-            /**
-             * Object
-             * @description Object type identifier
-             * @example list
-             */
+            /** Object */
             object: string;
-            /**
-             * Data
-             * @description List of reranked documents ordered by relevance (highest first)
-             */
+            /** Data */
             data: components["schemas"]["RerankDocument"][];
-            /**
-             * Model
-             * @description Model used for reranking
-             * @example rerank-english-v3.0
-             */
+            /** Model */
             model: string;
             usage: components["schemas"]["RerankUsage"];
         };
-        /**
-         * RerankUsage
-         * @description Token usage information for the rerank request
-         */
+        /** RerankUsage */
         RerankUsage: {
-            /**
-             * Total Tokens
-             * @description Total number of tokens processed (query + all documents)
-             * @example 156
-             */
+            /** Total Tokens */
             total_tokens: number;
         };
         /** ResetPromptsRequest */
@@ -5273,7 +4711,14 @@ export interface components {
              */
             modality?: ("text" | "image") | null;
         };
-        /** Settings */
+        /**
+         * Settings
+         * @description Knowledge-base parser settings request/response schema.
+         *
+         *     Carved here from ``aperag.schema.view_models.Settings`` in #48 (G2)
+         *     so the knowledge_base domain owns the shape directly and does not
+         *     depend on the legacy aggregate ``aperag.schema.view_models``.
+         */
         Settings: {
             /**
              * Use Mineru
@@ -5398,7 +4843,11 @@ export interface components {
         };
         /**
          * SharingStatusResponse
-         * @description Simple sharing status response
+         * @description Marketplace sharing status envelope for a KB collection.
+         *
+         *     Phase 4 may re-home this class to a marketplace schemas module when
+         *     that domain materializes; for now it lives in KB because the owning
+         *     route (``GET /collections/{id}/sharing``) is a KB route.
          */
         SharingStatusResponse: {
             /**
@@ -5513,52 +4962,6 @@ export interface components {
              */
             message: string;
             quotas: components["schemas"]["SystemDefaultQuotas"];
-        };
-        /** TagFilterCondition */
-        TagFilterCondition: {
-            /**
-             * Operation
-             * @description Logical operation for tags in this condition
-             * @example AND
-             * @enum {string}
-             */
-            operation: "AND" | "OR";
-            /**
-             * Tags
-             * @description List of tags for this condition
-             * @example [
-             *       "free",
-             *       "recommend"
-             *     ]
-             */
-            tags: string[];
-        };
-        /**
-         * TagFilterRequest
-         * @description Tag filtering request. Empty request body or empty tag_filters returns recommend models by default.
-         */
-        TagFilterRequest: {
-            /**
-             * Tag Filters
-             * @description List of tag filter conditions (OR relationship between conditions). If not provided or empty, returns models with "recommend" tag by default.
-             * @example [
-             *       {
-             *         "operation": "AND",
-             *         "tags": [
-             *           "free",
-             *           "recommend"
-             *         ]
-             *       },
-             *       {
-             *         "operation": "OR",
-             *         "tags": [
-             *           "openai",
-             *           "gpt"
-             *         ]
-             *       }
-             *     ]
-             */
-            tag_filters?: components["schemas"]["TagFilterCondition"][] | null;
         };
         /** TitleGenerateRequest */
         TitleGenerateRequest: {
@@ -6424,794 +5827,6 @@ export interface operations {
             };
         };
     };
-    quotas_get_quotas: {
-        parameters: {
-            query?: {
-                /** @description User ID to get quotas for (admin only, defaults to current user) */
-                user_id?: string;
-                /** @description Search term for username, email, or user ID (admin only) */
-                search?: string;
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UserQuotaInfo"] | components["schemas"]["UserQuotaList"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    quotas_update_quota: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                user_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["QuotaUpdateRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["QuotaUpdateResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    quotas_recalculate_quota_usage: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                user_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    quotas_get_system_default_quotas: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SystemDefaultQuotasResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    quotas_update_system_default_quotas: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SystemDefaultQuotasUpdateRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SystemDefaultQuotasUpdateResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    llm_models_get_available_models_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["TagFilterRequest"] | null;
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ModelConfigList"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    default_models_get_default_models_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DefaultModelsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    default_models_update_default_models_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DefaultModelsUpdateRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DefaultModelsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    llm_providers_get_llm_configuration_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    llm_providers_create_llm_provider_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LlmProviderCreateWithApiKey"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    llm_providers_get_llm_provider_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                provider_name: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    llm_providers_update_llm_provider_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                provider_name: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LlmProviderUpdateWithApiKey"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    llm_providers_delete_llm_provider_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                provider_name: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    llm_providers_publish_llm_provider_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                provider_name: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    llm_models_list_llm_provider_models_view: {
-        parameters: {
-            query?: {
-                provider_name?: string;
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    llm_models_get_provider_models_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                provider_name: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    llm_models_create_provider_model_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                provider_name: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    llm_models_update_provider_model_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                provider_name: string;
-                api: string;
-                /** @description Model name (supports names with slashes) */
-                model: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    llm_models_delete_provider_model_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                provider_name: string;
-                api: string;
-                /** @description Model name (supports names with slashes) */
-                model: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    documents_list_staged_documents_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StagedDocumentsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    documents_upload_document_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "multipart/form-data": components["schemas"]["Body_documents_upload_document_view"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UploadDocumentResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    documents_confirm_documents_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ConfirmDocumentsRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ConfirmDocumentsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    documents_fetch_url_document_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                collection_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["FetchUrlRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FetchUrlResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     create_export_task: {
         parameters: {
             query?: {
@@ -7447,6 +6062,177 @@ export interface operations {
             };
         };
     };
+    quotas_get_quotas: {
+        parameters: {
+            query?: {
+                /** @description User ID to get quotas for (admin only, defaults to current user) */
+                user_id?: string;
+                /** @description Search term for username, email, or user ID (admin only) */
+                search?: string;
+                engine?: unknown;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserQuotaInfo"] | components["schemas"]["UserQuotaList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    quotas_update_quota: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuotaUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuotaUpdateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    quotas_recalculate_quota_usage: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    quotas_get_system_default_quotas: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemDefaultQuotasResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    quotas_update_system_default_quotas: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SystemDefaultQuotasUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemDefaultQuotasUpdateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     llm_create_embeddings: {
         parameters: {
             query?: {
@@ -7651,7 +6437,7 @@ export interface operations {
             };
         };
     };
-    marketplace_collections_get_marketplace_collection: {
+    marketplace_get_marketplace_collection: {
         parameters: {
             query?: {
                 engine?: unknown;
@@ -7684,7 +6470,7 @@ export interface operations {
             };
         };
     };
-    marketplace_collections_list_marketplace_collection_documents: {
+    marketplace_list_marketplace_collection_documents: {
         parameters: {
             query?: {
                 /** @description Page number (1-based) */
@@ -7797,7 +6583,7 @@ export interface operations {
             };
         };
     };
-    marketplace_collections_get_marketplace_collection_graph: {
+    marketplace_get_marketplace_collection_graph: {
         parameters: {
             query?: {
                 label?: string;
@@ -9990,7 +8776,27 @@ export interface operations {
             };
         };
     };
-    providers_v2_get_provider_configuration_view: {
+    model_platform_list_model_providers_view: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelProviderList"];
+                };
+            };
+        };
+    };
+    model_platform_list_model_accounts_view: {
         parameters: {
             query?: {
                 engine?: unknown;
@@ -10007,7 +8813,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["LlmConfigurationResponse"];
+                    "application/json": components["schemas"]["ModelAccountList"];
                 };
             };
             /** @description Validation Error */
@@ -10021,73 +8827,7 @@ export interface operations {
             };
         };
     };
-    providers_v2_get_available_provider_models_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["TagFilterRequest"] | null;
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ModelConfigList"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    providers_v2_get_default_models_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DefaultModelsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    providers_v2_update_default_models_view: {
+    model_platform_create_model_account_view: {
         parameters: {
             query?: {
                 engine?: unknown;
@@ -10098,7 +8838,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["DefaultModelsUpdateRequest"];
+                "application/json": components["schemas"]["ModelAccountCreate"];
             };
         };
         responses: {
@@ -10108,7 +8848,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DefaultModelsResponse"];
+                    "application/json": components["schemas"]["ModelAccount"];
                 };
             };
             /** @description Validation Error */
@@ -10122,88 +8862,20 @@ export interface operations {
             };
         };
     };
-    providers_v2_create_provider_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LlmProviderCreateWithApiKey"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LlmProvider"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    providers_v2_get_provider_view: {
+    model_platform_update_model_account_view: {
         parameters: {
             query?: {
                 engine?: unknown;
             };
             header?: never;
             path: {
-                provider_name: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LlmProvider"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    providers_v2_update_provider_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                provider_name: string;
+                account_id: string;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["LlmProviderUpdateWithApiKey"];
+                "application/json": components["schemas"]["ModelAccountUpdate"];
             };
         };
         responses: {
@@ -10213,7 +8885,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["LlmProvider"];
+                    "application/json": components["schemas"]["ModelAccount"];
                 };
             };
             /** @description Validation Error */
@@ -10227,14 +8899,14 @@ export interface operations {
             };
         };
     };
-    providers_v2_delete_provider_view: {
+    model_platform_delete_model_account_view: {
         parameters: {
             query?: {
                 engine?: unknown;
             };
             header?: never;
             path: {
-                provider_name: string;
+                account_id: string;
             };
             cookie?: never;
         };
@@ -10258,14 +8930,14 @@ export interface operations {
             };
         };
     };
-    providers_v2_publish_provider_view: {
+    model_platform_validate_model_account_view: {
         parameters: {
             query?: {
                 engine?: unknown;
             };
             header?: never;
             path: {
-                provider_name: string;
+                account_id: string;
             };
             cookie?: never;
         };
@@ -10277,7 +8949,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["LlmProvider"];
+                    "application/json": components["schemas"]["ModelValidationResponse"];
                 };
             };
             /** @description Validation Error */
@@ -10291,10 +8963,42 @@ export interface operations {
             };
         };
     };
-    providers_v2_list_provider_models_view: {
+    model_platform_list_model_account_models_view: {
         parameters: {
             query?: {
-                provider_name?: string | null;
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    model_platform_list_models_view: {
+        parameters: {
+            query?: {
                 engine?: unknown;
             };
             header?: never;
@@ -10309,7 +9013,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["LlmProviderModelList"];
+                    "application/json": components["schemas"]["ModelList"];
                 };
             };
             /** @description Validation Error */
@@ -10323,18 +9027,20 @@ export interface operations {
             };
         };
     };
-    providers_v2_list_provider_models_by_provider_view: {
+    model_platform_create_model_view: {
         parameters: {
             query?: {
                 engine?: unknown;
             };
             header?: never;
-            path: {
-                provider_name: string;
-            };
+            path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModelCreate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -10342,7 +9048,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["LlmProviderModelList"];
+                    "application/json": components["schemas"]["Model"];
                 };
             };
             /** @description Validation Error */
@@ -10356,20 +9062,20 @@ export interface operations {
             };
         };
     };
-    providers_v2_create_provider_model_view: {
+    model_platform_update_model_view: {
         parameters: {
             query?: {
                 engine?: unknown;
             };
             header?: never;
             path: {
-                provider_name: string;
+                model_id: string;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["LlmProviderModelCreateRequest"];
+                "application/json": components["schemas"]["ModelUpdate"];
             };
         };
         responses: {
@@ -10379,7 +9085,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["LlmProviderModel"];
+                    "application/json": components["schemas"]["Model"];
                 };
             };
             /** @description Validation Error */
@@ -10393,57 +9099,14 @@ export interface operations {
             };
         };
     };
-    providers_v2_update_provider_model_view: {
+    model_platform_delete_model_view: {
         parameters: {
             query?: {
                 engine?: unknown;
             };
             header?: never;
             path: {
-                provider_name: string;
-                api: string;
-                /** @description Model name. Supports names with slashes. */
-                model: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LlmProviderModelUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LlmProviderModel"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    providers_v2_delete_provider_model_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                provider_name: string;
-                api: string;
-                /** @description Model name. Supports names with slashes. */
-                model: string;
+                model_id: string;
             };
             cookie?: never;
         };
@@ -10455,6 +9118,107 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    model_platform_validate_model_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                model_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelValidationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    model_platform_list_model_uses_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelUseList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    model_platform_update_model_use_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                scenario: components["schemas"]["ModelUseScenario"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModelUseUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelUse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -10800,7 +9564,7 @@ export interface operations {
             };
         };
     };
-    documents_v2_list_documents_v2_view: {
+    collections_v2_list_documents_v2_view: {
         parameters: {
             query?: {
                 /** @description Page number (1-based) */
@@ -10843,7 +9607,7 @@ export interface operations {
             };
         };
     };
-    documents_v2_create_documents_v2_view: {
+    collections_v2_create_documents_v2_view: {
         parameters: {
             query?: {
                 engine?: unknown;
@@ -10856,7 +9620,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "multipart/form-data": components["schemas"]["Body_documents_v2_create_documents_v2_view"];
+                "multipart/form-data": components["schemas"]["Body_collections_v2_create_documents_v2_view"];
             };
         };
         responses: {
@@ -10880,7 +9644,7 @@ export interface operations {
             };
         };
     };
-    documents_v2_delete_documents_v2_view: {
+    collections_v2_delete_documents_v2_view: {
         parameters: {
             query?: {
                 engine?: unknown;
@@ -10917,7 +9681,7 @@ export interface operations {
             };
         };
     };
-    documents_v2_list_staged_documents_v2_view: {
+    collections_v2_list_staged_documents_v2_view: {
         parameters: {
             query?: {
                 engine?: unknown;
@@ -10950,7 +9714,7 @@ export interface operations {
             };
         };
     };
-    documents_v2_get_document_v2_view: {
+    collections_v2_get_document_v2_view: {
         parameters: {
             query?: {
                 engine?: unknown;
@@ -10984,7 +9748,7 @@ export interface operations {
             };
         };
     };
-    documents_v2_delete_document_v2_view: {
+    collections_v2_delete_document_v2_view: {
         parameters: {
             query?: {
                 engine?: unknown;
@@ -11016,7 +9780,7 @@ export interface operations {
             };
         };
     };
-    documents_v2_download_document_v2_view: {
+    collections_v2_download_document_v2_view: {
         parameters: {
             query?: {
                 engine?: unknown;
@@ -11050,7 +9814,7 @@ export interface operations {
             };
         };
     };
-    documents_v2_get_document_preview_v2_view: {
+    collections_v2_get_document_preview_v2_view: {
         parameters: {
             query?: {
                 engine?: unknown;
@@ -11084,7 +9848,7 @@ export interface operations {
             };
         };
     };
-    documents_v2_get_document_object_v2_view: {
+    collections_v2_get_document_object_v2_view: {
         parameters: {
             query: {
                 path: string;
@@ -11128,7 +9892,7 @@ export interface operations {
             };
         };
     };
-    documents_v2_rebuild_document_indexes_v2_view: {
+    collections_v2_rebuild_document_indexes_v2_view: {
         parameters: {
             query?: {
                 engine?: unknown;
@@ -11166,7 +9930,7 @@ export interface operations {
             };
         };
     };
-    documents_v2_rebuild_failed_indexes_v2_view: {
+    collections_v2_rebuild_failed_indexes_v2_view: {
         parameters: {
             query?: {
                 engine?: unknown;
@@ -11199,7 +9963,7 @@ export interface operations {
             };
         };
     };
-    documents_v2_upload_document_v2_view: {
+    collections_v2_upload_document_v2_view: {
         parameters: {
             query?: {
                 engine?: unknown;
@@ -11212,7 +9976,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "multipart/form-data": components["schemas"]["Body_documents_v2_upload_document_v2_view"];
+                "multipart/form-data": components["schemas"]["Body_collections_v2_upload_document_v2_view"];
             };
         };
         responses: {
@@ -11236,7 +10000,7 @@ export interface operations {
             };
         };
     };
-    documents_v2_confirm_documents_v2_view: {
+    collections_v2_confirm_documents_v2_view: {
         parameters: {
             query?: {
                 engine?: unknown;
@@ -11273,7 +10037,7 @@ export interface operations {
             };
         };
     };
-    documents_v2_fetch_url_document_v2_view: {
+    collections_v2_fetch_url_document_v2_view: {
         parameters: {
             query?: {
                 engine?: unknown;

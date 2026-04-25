@@ -645,34 +645,31 @@ class LLMKeywordExtractor(KeywordExtractor):
     def _create_completion_service(self) -> Optional[CompletionService]:
         """Create LLM completion service if configured"""
         try:
-            # Check if LLM keyword extraction is configured
-            if not settings.llm_keyword_extraction_provider or not settings.llm_keyword_extraction_model:
+            # Check if LLM keyword extraction is configured. The setting stores an ApeRAG model id.
+            if not settings.llm_keyword_extraction_model:
                 return None
 
-            # Get provider information from database
-            llm_provider = db_ops.query_llm_provider_by_name(settings.llm_keyword_extraction_provider)
-            if not llm_provider:
-                logger.warning(f"LLM provider '{settings.llm_keyword_extraction_provider}' not found")
-                return None
-
-            # Get API key from context
             user_id = self.ctx.get("user_id")
             if not user_id:
                 logger.warning("User ID not available in context for LLM keyword extraction")
                 return None
-            api_key = db_ops.query_provider_api_key(
-                settings.llm_keyword_extraction_provider, user_id=user_id, need_public=True
-            )
-            if not api_key:
-                logger.warning(f"API key not found for provider '{settings.llm_keyword_extraction_provider}'")
+            row = db_ops.query_model_runtime(settings.llm_keyword_extraction_model, user_id)
+            if not row:
+                logger.warning("LLM keyword extraction model '%s' not found", settings.llm_keyword_extraction_model)
                 return None
+            model, account = row
+            from aperag.llm.runtime.resolver import resolve_model_invocation_from_records
 
-            # Create completion service
+            invocation = resolve_model_invocation_from_records(model=model, account=account)
+            provider = invocation.runner_config.get("provider")
+            if not provider:
+                provider = "openai" if invocation.runner_type == "openai_compatible" else invocation.provider_type
+
             return CompletionService(
-                provider=llm_provider.completion_dialect or "openai",
-                model=settings.llm_keyword_extraction_model,
-                base_url=llm_provider.base_url,
-                api_key=api_key,
+                provider=provider,
+                model=invocation.provider_model_id,
+                base_url=invocation.base_url,
+                api_key=invocation.api_key,
             )
 
         except Exception as e:

@@ -324,12 +324,10 @@ class CollectionService:
         emb = getattr(cfg, "embedding", None)
         if emb is None:
             return None
-        model = getattr(emb, "model", None)
-        msp = getattr(emb, "model_service_provider", None)
-        clp = getattr(emb, "custom_llm_provider", None)
-        if not model and not msp and not clp:
+        model = getattr(emb, "model_id", None)
+        if not model:
             return None
-        return (model, msp, clp)
+        return (model,)
 
     def _reject_embedding_change(self, instance: CollectionRow, update: CollectionUpdate) -> None:
         """Raise ValidationException if the update tries to change the embedding binding."""
@@ -352,8 +350,8 @@ class CollectionService:
                 "Keep the original embedding configuration or create a new collection."
             )
         if old_id != new_id:
-            old_model, _old_msp, _old_clp = old_id
-            new_model, _new_msp, _new_clp = new_id
+            old_model = old_id[0]
+            new_model = new_id[0]
             raise ValidationException(
                 "Embedding model of an existing collection cannot be changed "
                 f"(current: {old_model!r}, requested: {new_model!r}). "

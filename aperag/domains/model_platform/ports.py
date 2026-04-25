@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """Consumer-owned Protocols + per-domain auth context for the
-model_platform domain (LLMProvider + LLMProviderModel metadata).
+model_platform domain.
 
 Model_platform route handlers accept ``Depends(required_user)`` typed
 as ``AuthenticatedUser`` so they do not bind to ``aperag.db.models.User``.

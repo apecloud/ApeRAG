@@ -1,39 +1,25 @@
 import { createServerApiClient } from '@/lib/api/typed/server';
 import type {
-  Provider,
-  ProviderCatalogViewModel,
+  Model,
+  ModelAccount,
+  ModelPlatformViewModel,
+  ModelProvider,
+  ModelUse,
 } from './types';
 
-export async function getProviderCatalog(): Promise<ProviderCatalogViewModel> {
-  const client = await createServerApiClient();
-  const { data } = await client.GET(
-    '/api/v2/providers/configuration',
-  );
+export async function getModelPlatform(): Promise<ModelPlatformViewModel> {
+  const client = (await createServerApiClient()) as any;
+  const [providers, accounts, models, uses] = await Promise.all([
+    client.GET('/api/v3/model-providers'),
+    client.GET('/api/v3/model-accounts'),
+    client.GET('/api/v3/models'),
+    client.GET('/api/v3/model-uses'),
+  ]);
 
   return {
-    providers: data?.providers ?? [],
-    models: data?.models ?? [],
+    providers: (providers.data?.items ?? []) as ModelProvider[],
+    accounts: (accounts.data?.items ?? []) as ModelAccount[],
+    models: (models.data?.items ?? []) as Model[],
+    uses: (uses.data?.items ?? []) as ModelUse[],
   };
-}
-
-export async function getProvider(providerName: string) {
-  const client = await createServerApiClient();
-  const { data } = await client.GET(
-    '/api/v2/providers/{provider_name}',
-    {
-      params: { path: { provider_name: providerName } },
-    },
-  );
-  return data as Provider;
-}
-
-export async function getProviderModels(providerName: string) {
-  const client = await createServerApiClient();
-  const { data } = await client.GET(
-    '/api/v2/providers/{provider_name}/models',
-    {
-      params: { path: { provider_name: providerName } },
-    },
-  );
-  return data?.items ?? [];
 }
