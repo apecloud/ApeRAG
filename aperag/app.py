@@ -236,7 +236,7 @@ app.include_router(retrieval_router, prefix="/api/v2", tags=["retrieval"])  # Ad
 app.include_router(
     knowledge_graph_router, prefix="/api/v2", tags=["knowledge_graph"]
 )  # Add knowledge_graph domain router
-app.include_router(chat_router, prefix="/api/v1")
+app.include_router(chat_router, prefix="/api/v2")
 app.include_router(openai_router, prefix="/v1")
 app.include_router(config_router, prefix="/api/v2/config")
 app.include_router(agent_runtime_router, prefix="/api/v2")
