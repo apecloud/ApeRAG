@@ -211,8 +211,8 @@ format:
 	uvx ruff format ./aperag ./tests
 
 lint:
-	uvx ruff check --no-fix ./aperag
-	uvx ruff format --check ./aperag
+	uvx ruff check --no-fix ./aperag ./tests
+	uvx ruff format --check ./aperag ./tests
 
 static-check:
 	uvx mypy ./aperag

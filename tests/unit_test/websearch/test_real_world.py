@@ -178,6 +178,7 @@ class TestRealWorldReading:
         finally:
             await service.close()
 
+
 @pytest.mark.integration
 class TestRealWorldPerformance:
     """Real world performance tests."""

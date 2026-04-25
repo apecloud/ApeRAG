@@ -45,9 +45,7 @@ def _write_long_markdown(path: Path) -> None:
 def _write_long_html(path: Path) -> None:
     sections = []
     for idx, region in enumerate(["Alpha", "Beta", "Gamma", "Delta"], start=1):
-        sections.append(
-            f"<section><h2>HTML Section {idx}</h2><p>{region} html parser section body</p></section>"
-        )
+        sections.append(f"<section><h2>HTML Section {idx}</h2><p>{region} html parser section body</p></section>")
     content = """
 <html>
   <body>
@@ -361,7 +359,7 @@ def test_doc_parser_smoke_for_common_document_formats(
             "rich.eml",
             lambda path: _write_text(
                 path,
-                "From: parser@example.com\nTo: team@example.com\nSubject: EML Smoke\nMIME-Version: 1.0\nContent-Type: text/plain; charset=\"utf-8\"\n\neml parser smoke body\n",
+                'From: parser@example.com\nTo: team@example.com\nSubject: EML Smoke\nMIME-Version: 1.0\nContent-Type: text/plain; charset="utf-8"\n\neml parser smoke body\n',
             ),
             ["Subject: EML Smoke", "eml parser smoke body"],
         ),

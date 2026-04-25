@@ -423,7 +423,7 @@ def parse_document_task(self, document_id: str, index_types: List[str], context:
             return _handle_ownership_lost(
                 payload_factory=lambda: _build_skipped_payload("ownership_lost", document_id=document_id),
                 log_message=(
-                    f"Processing ownership lost while parsing document {document_id}; " "dropping downstream callbacks"
+                    f"Processing ownership lost while parsing document {document_id}; dropping downstream callbacks"
                 ),
             )
 
@@ -784,9 +784,7 @@ def trigger_create_indexes_workflow(
             per_index_signature_factory=lambda index_type: create_index_task.s(
                 document_id, index_type, parsed_data_dict, context
             ),
-            completion_callback_signature=notify_workflow_complete.s(
-                document_id, IndexAction.CREATE, index_types
-            ),
+            completion_callback_signature=notify_workflow_complete.s(document_id, IndexAction.CREATE, index_types),
         )
         chord_async_result = workflow_chord.apply_async()
         return build_dispatched_workflow_result(chord_async_result)
@@ -809,12 +807,8 @@ def trigger_delete_indexes_workflow(self, document_id: str, index_types: List[st
         workflow_chord = build_index_workflow_chord(
             document_id=document_id,
             index_types=index_types,
-            per_index_signature_factory=lambda index_type: delete_index_task.s(
-                document_id, index_type, context
-            ),
-            completion_callback_signature=notify_workflow_complete.s(
-                document_id, IndexAction.DELETE, index_types
-            ),
+            per_index_signature_factory=lambda index_type: delete_index_task.s(document_id, index_type, context),
+            completion_callback_signature=notify_workflow_complete.s(document_id, IndexAction.DELETE, index_types),
         )
         chord_async_result = workflow_chord.apply_async()
         return build_dispatched_workflow_result(chord_async_result)
@@ -850,9 +844,7 @@ def trigger_update_indexes_workflow(
             per_index_signature_factory=lambda index_type: update_index_task.s(
                 document_id, index_type, parsed_data_dict, context
             ),
-            completion_callback_signature=notify_workflow_complete.s(
-                document_id, IndexAction.UPDATE, index_types
-            ),
+            completion_callback_signature=notify_workflow_complete.s(document_id, IndexAction.UPDATE, index_types),
         )
         chord_async_result = workflow_chord.apply_async()
         return build_dispatched_workflow_result(chord_async_result)

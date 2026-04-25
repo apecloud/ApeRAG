@@ -23,7 +23,9 @@ def test_parser_health_report_explicitly_marks_mineru_as_enhancement(monkeypatch
     monkeypatch.setattr("aperag.docparser.health._package_status", lambda _name: ("ok", "Installed (test)"))
     monkeypatch.setattr("aperag.docparser.health.get_soffice_cmd", lambda: "/usr/bin/soffice")
     monkeypatch.setattr("aperag.docparser.health.get_object_store", lambda: object())
-    monkeypatch.setattr("aperag.docparser.health._probe_mineru", lambda _token: asyncio.sleep(0, result=("ok", "Reachable")))
+    monkeypatch.setattr(
+        "aperag.docparser.health._probe_mineru", lambda _token: asyncio.sleep(0, result=("ok", "Reachable"))
+    )
     monkeypatch.setattr(
         "aperag.docparser.health._probe_paddleocr",
         lambda _host: asyncio.sleep(0, result=("disabled", "Not configured.")),

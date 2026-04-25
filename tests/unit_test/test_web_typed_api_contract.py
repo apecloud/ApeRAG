@@ -44,11 +44,7 @@ def test_api_key_feature_uses_v2_typed_api_boundary():
         if path.is_file() and path.suffix in {".ts", ".tsx"}
     }
     joined = "\n".join(sources.values())
-    feature_sources = "\n".join(
-        source
-        for path, source in sources.items()
-        if "/web/src/features/api-key/" in str(path)
-    )
+    feature_sources = "\n".join(source for path, source in sources.items() if "/web/src/features/api-key/" in str(path))
 
     # Negative: the domain scope must not reach the old generated SDK or
     # the v1 ApiKey types imported via `@/api`.
@@ -70,21 +66,14 @@ def test_api_key_feature_uses_v2_typed_api_boundary():
 
     # Positive: the business caller wiring goes through the feature adapter,
     # not the old generated SDK.
-    actions_tsx = (
-        REPO_ROOT
-        / "web/src/app/workspace/api-keys/api-key-actions.tsx"
-    ).read_text()
+    actions_tsx = (REPO_ROOT / "web/src/app/workspace/api-keys/api-key-actions.tsx").read_text()
     assert "from '@/features/api-key/client-api'" in actions_tsx
     assert "from '@/features/api-key/types'" in actions_tsx
 
-    table_tsx = (
-        REPO_ROOT / "web/src/app/workspace/api-keys/api-key-table.tsx"
-    ).read_text()
+    table_tsx = (REPO_ROOT / "web/src/app/workspace/api-keys/api-key-table.tsx").read_text()
     assert "from '@/features/api-key/types'" in table_tsx
 
-    page_tsx = (
-        REPO_ROOT / "web/src/app/workspace/api-keys/page.tsx"
-    ).read_text()
+    page_tsx = (REPO_ROOT / "web/src/app/workspace/api-keys/page.tsx").read_text()
     assert "from '@/features/api-key/server-api'" in page_tsx
     assert "serverApi.defaultApi.apikeysGet" not in page_tsx
 
@@ -117,11 +106,7 @@ def test_quota_feature_uses_v2_typed_api_boundary():
         if path.is_file() and path.suffix in {".ts", ".tsx"}
     }
     joined = "\n".join(sources.values())
-    feature_sources = "\n".join(
-        source
-        for path, source in sources.items()
-        if "/web/src/features/quota/" in str(path)
-    )
+    feature_sources = "\n".join(source for path, source in sources.items() if "/web/src/features/quota/" in str(path))
 
     # Negative: workspace quota scope must not reach the old generated SDK
     # (direct `@/api` import or indirect `getServerApi`), and must not
@@ -139,22 +124,16 @@ def test_quota_feature_uses_v2_typed_api_boundary():
 
     # Positive: the adapter narrows the union (UserQuotaInfo | UserQuotaList)
     # at the boundary so workspace callers never see an admin list.
-    server_api = (
-        REPO_ROOT / "web/src/features/quota/server-api.ts"
-    ).read_text()
+    server_api = (REPO_ROOT / "web/src/features/quota/server-api.ts").read_text()
     assert "'items' in data" in server_api
 
     # Positive: business caller wiring goes through the feature adapter
     # and the page no longer casts `as UserQuotaInfo`.
-    page_tsx = (
-        REPO_ROOT / "web/src/app/workspace/quotas/page.tsx"
-    ).read_text()
+    page_tsx = (REPO_ROOT / "web/src/app/workspace/quotas/page.tsx").read_text()
     assert "from '@/features/quota/server-api'" in page_tsx
     assert "as UserQuotaInfo" not in page_tsx
 
-    chart_tsx = (
-        REPO_ROOT / "web/src/app/workspace/quotas/quota-radial-chart.tsx"
-    ).read_text()
+    chart_tsx = (REPO_ROOT / "web/src/app/workspace/quotas/quota-radial-chart.tsx").read_text()
     assert "from '@/features/quota/types'" in chart_tsx
 
 
@@ -188,14 +167,10 @@ def test_marketplace_feature_uses_v2_typed_api_boundary():
     migrated_callers = [
         REPO_ROOT / "web/src/app/marketplace/page.tsx",
         REPO_ROOT / "web/src/app/marketplace/collection-list.tsx",
-        REPO_ROOT
-        / "web/src/app/marketplace/collections/[collectionId]/collection-header.tsx",
-        REPO_ROOT
-        / "web/src/app/marketplace/collections/[collectionId]/documents/page.tsx",
-        REPO_ROOT
-        / "web/src/app/marketplace/collections/[collectionId]/documents/[documentId]/page.tsx",
-        REPO_ROOT
-        / "web/src/app/marketplace/collections/[collectionId]/graph/page.tsx",
+        REPO_ROOT / "web/src/app/marketplace/collections/[collectionId]/collection-header.tsx",
+        REPO_ROOT / "web/src/app/marketplace/collections/[collectionId]/documents/page.tsx",
+        REPO_ROOT / "web/src/app/marketplace/collections/[collectionId]/documents/[documentId]/page.tsx",
+        REPO_ROOT / "web/src/app/marketplace/collections/[collectionId]/graph/page.tsx",
     ]
 
     feature_paths = [REPO_ROOT / "web/src/features/marketplace"]
@@ -205,12 +180,8 @@ def test_marketplace_feature_uses_v2_typed_api_boundary():
             if path.is_file() and path.suffix in {".ts", ".tsx"}:
                 feature_sources_by_path[path] = path.read_text()
 
-    migrated_sources_by_path = {
-        path: path.read_text() for path in migrated_callers
-    }
-    scoped_joined = "\n".join(
-        [*migrated_sources_by_path.values(), *feature_sources_by_path.values()]
-    )
+    migrated_sources_by_path = {path: path.read_text() for path in migrated_callers}
+    scoped_joined = "\n".join([*migrated_sources_by_path.values(), *feature_sources_by_path.values()])
     feature_sources = "\n".join(feature_sources_by_path.values())
 
     # Negative: the six migrated callers + features/marketplace/** must not
@@ -225,55 +196,36 @@ def test_marketplace_feature_uses_v2_typed_api_boundary():
     # Positive: adapter only reaches the typed v1 marketplace paths.
     assert "fetch(" not in feature_sources
     assert "'/api/v1/marketplace/collections'" in feature_sources
-    assert (
-        "'/api/v1/marketplace/collections/{collection_id}'" in feature_sources
-    )
-    assert (
-        "'/api/v1/marketplace/collections/{collection_id}/documents'"
-        in feature_sources
-    )
-    assert (
-        "'/api/v1/marketplace/collections/{collection_id}/documents/{document_id}/preview'"
-        in feature_sources
-    )
-    assert (
-        "'/api/v1/marketplace/collections/{collection_id}/subscribe'"
-        in feature_sources
-    )
+    assert "'/api/v1/marketplace/collections/{collection_id}'" in feature_sources
+    assert "'/api/v1/marketplace/collections/{collection_id}/documents'" in feature_sources
+    assert "'/api/v1/marketplace/collections/{collection_id}/documents/{document_id}/preview'" in feature_sources
+    assert "'/api/v1/marketplace/collections/{collection_id}/subscribe'" in feature_sources
 
     # Positive: callers wire through the feature adapter.
-    page_tsx = migrated_sources_by_path[
-        REPO_ROOT / "web/src/app/marketplace/page.tsx"
-    ]
+    page_tsx = migrated_sources_by_path[REPO_ROOT / "web/src/app/marketplace/page.tsx"]
     assert "from '@/features/marketplace/server-api'" in page_tsx
 
-    list_tsx = migrated_sources_by_path[
-        REPO_ROOT / "web/src/app/marketplace/collection-list.tsx"
-    ]
+    list_tsx = migrated_sources_by_path[REPO_ROOT / "web/src/app/marketplace/collection-list.tsx"]
     assert "from '@/features/marketplace/types'" in list_tsx
 
     header_tsx = migrated_sources_by_path[
-        REPO_ROOT
-        / "web/src/app/marketplace/collections/[collectionId]/collection-header.tsx"
+        REPO_ROOT / "web/src/app/marketplace/collections/[collectionId]/collection-header.tsx"
     ]
     assert "from '@/features/marketplace/client-api'" in header_tsx
     assert "from '@/features/marketplace/types'" in header_tsx
 
     docs_page_tsx = migrated_sources_by_path[
-        REPO_ROOT
-        / "web/src/app/marketplace/collections/[collectionId]/documents/page.tsx"
+        REPO_ROOT / "web/src/app/marketplace/collections/[collectionId]/documents/page.tsx"
     ]
     assert "from '@/features/marketplace/server-api'" in docs_page_tsx
 
     doc_detail_page_tsx = migrated_sources_by_path[
-        REPO_ROOT
-        / "web/src/app/marketplace/collections/[collectionId]/documents/[documentId]/page.tsx"
+        REPO_ROOT / "web/src/app/marketplace/collections/[collectionId]/documents/[documentId]/page.tsx"
     ]
     assert "from '@/features/marketplace/server-api'" in doc_detail_page_tsx
 
     graph_page_tsx = migrated_sources_by_path[
-        REPO_ROOT
-        / "web/src/app/marketplace/collections/[collectionId]/graph/page.tsx"
+        REPO_ROOT / "web/src/app/marketplace/collections/[collectionId]/graph/page.tsx"
     ]
     assert "from '@/features/marketplace/server-api'" in graph_page_tsx
 
@@ -320,9 +272,7 @@ def test_provider_feature_uses_v2_typed_api_boundary():
                 sources[path] = path.read_text()
     joined = "\n".join(sources.values())
     feature_sources = "\n".join(
-        source
-        for path, source in sources.items()
-        if "/web/src/features/providers/" in str(path)
+        source for path, source in sources.items() if "/web/src/features/providers/" in str(path)
     )
 
     # Negative: the two scoped files must not reach the legacy SDK, the
@@ -342,9 +292,7 @@ def test_provider_feature_uses_v2_typed_api_boundary():
 
     # Positive: the migrated caller wires through the feature adapter and
     # imports the domain-scoped `ModelSpec` alias from `features/providers`.
-    bot_provider = sources[
-        REPO_ROOT / "web/src/components/providers/bot-provider.tsx"
-    ]
+    bot_provider = sources[REPO_ROOT / "web/src/components/providers/bot-provider.tsx"]
     assert "from '@/features/providers/client-api'" in bot_provider
     assert "from '@/features/providers/types'" in bot_provider
     assert "getAvailableModels(" in bot_provider
@@ -380,11 +328,7 @@ def test_prompt_feature_uses_v2_typed_api_boundary():
         if path.is_file() and path.suffix in {".ts", ".tsx"}
     }
     joined = "\n".join(sources.values())
-    feature_sources = "\n".join(
-        source
-        for path, source in sources.items()
-        if "/web/src/features/prompt/" in str(path)
-    )
+    feature_sources = "\n".join(source for path, source in sources.items() if "/web/src/features/prompt/" in str(path))
 
     # Negative: the domain scope must not reach the old generated SDK,
     # its indirect `getServerApi` path, or the v1 prompt types imported
@@ -406,15 +350,11 @@ def test_prompt_feature_uses_v2_typed_api_boundary():
     assert "'/api/v1/prompts/user/{prompt_type}'" in feature_sources
 
     # Positive: the business caller wiring goes through the feature adapter.
-    settings_tsx = (
-        REPO_ROOT / "web/src/app/workspace/prompts/prompt-settings.tsx"
-    ).read_text()
+    settings_tsx = (REPO_ROOT / "web/src/app/workspace/prompts/prompt-settings.tsx").read_text()
     assert "from '@/features/prompt/client-api'" in settings_tsx
     assert "from '@/features/prompt/types'" in settings_tsx
 
-    page_tsx = (
-        REPO_ROOT / "web/src/app/workspace/prompts/page.tsx"
-    ).read_text()
+    page_tsx = (REPO_ROOT / "web/src/app/workspace/prompts/page.tsx").read_text()
     assert "from '@/features/prompt/server-api'" in page_tsx
 
 
@@ -472,17 +412,13 @@ def test_evaluation_feature_uses_v2_typed_api_boundary():
 
     # Positive: the new datasets panel search predicate keeps the null-safe
     # cast so `undefined` description or source_type values do not throw.
-    datasets_panel = (
-        REPO_ROOT / "web/src/components/evaluation/evaluation-datasets-panel.tsx"
-    ).read_text()
+    datasets_panel = (REPO_ROOT / "web/src/components/evaluation/evaluation-datasets-panel.tsx").read_text()
     assert "String(value ?? '').toLowerCase()" in datasets_panel
 
     # Positive: Start Evaluation is gated on `dataset.item_count > 0` so a
     # freshly-created empty dataset cannot be run, matching msg=38d7e74d
     # UX patch F.
-    collection_runs_panel = (
-        REPO_ROOT / "web/src/components/evaluation/collection-runs-panel.tsx"
-    ).read_text()
+    collection_runs_panel = (REPO_ROOT / "web/src/components/evaluation/collection-runs-panel.tsx").read_text()
     assert "(dataset.item_count ?? 0) > 0" in collection_runs_panel
     assert "start_run_empty_dataset" in collection_runs_panel
     # Product flow must not expose a bot override in the Collection
@@ -598,9 +534,7 @@ def test_bot_feature_uses_v2_typed_api_boundary():
     # enum classes.
     for source in batch6_sources.values():
         assert "from '@/features/bot/types'" in source
-    message_feedback = batch6_sources[
-        REPO_ROOT / "web/src/components/chat/message-feedback.tsx"
-    ]
+    message_feedback = batch6_sources[REPO_ROOT / "web/src/components/chat/message-feedback.tsx"]
     assert "FEEDBACK_TAGS" in message_feedback
     assert "FeedbackType" in message_feedback
 
@@ -684,22 +618,11 @@ def test_collection_feature_uses_v2_typed_api_boundary():
     # callers. `@/api` is banned across the migrated call-sites; the
     # `features/providers::getAvailableModels` cross-domain adapter call
     # is allowed and is not what these negative assertions target.
-    form_tsx = sources[
-        REPO_ROOT / "web/src/app/workspace/collections/collection-form.tsx"
-    ]
-    list_tsx = sources[
-        REPO_ROOT / "web/src/app/workspace/collections/collection-list.tsx"
-    ]
-    header_tsx = sources[
-        REPO_ROOT
-        / "web/src/app/workspace/collections/[collectionId]/collection-header.tsx"
-    ]
-    export_dialog_tsx = sources[
-        REPO_ROOT / "web/src/components/collections/export-dialog.tsx"
-    ]
-    migrated_joined = "\n".join(
-        [form_tsx, list_tsx, header_tsx, export_dialog_tsx]
-    )
+    form_tsx = sources[REPO_ROOT / "web/src/app/workspace/collections/collection-form.tsx"]
+    list_tsx = sources[REPO_ROOT / "web/src/app/workspace/collections/collection-list.tsx"]
+    header_tsx = sources[REPO_ROOT / "web/src/app/workspace/collections/[collectionId]/collection-header.tsx"]
+    export_dialog_tsx = sources[REPO_ROOT / "web/src/components/collections/export-dialog.tsx"]
+    migrated_joined = "\n".join([form_tsx, list_tsx, header_tsx, export_dialog_tsx])
     assert "from '@/api'" not in migrated_joined
     assert "apiClient.defaultApi.availableModelsPost" not in migrated_joined
     assert "apiClient.defaultApi.createExportTask" not in migrated_joined
@@ -728,16 +651,11 @@ def test_collection_feature_uses_v2_typed_api_boundary():
     # Positive: schema-derived types + fail-fast export-task adapter.
     types_ts = (REPO_ROOT / "web/src/features/collection/types.ts").read_text()
     assert "NonNullable<CollectionView['status']>" in types_ts
-    assert (
-        "NonNullable<\n  components['schemas']['TitleGenerateRequest']['language']\n>"
-        in types_ts
-    )
+    assert "NonNullable<\n  components['schemas']['TitleGenerateRequest']['language']\n>" in types_ts
     assert "satisfies readonly TitleLanguage[]" in types_ts
     assert "components['schemas']['ExportTaskResponse']" in types_ts
 
-    client_api_ts = (
-        REPO_ROOT / "web/src/features/collection/client-api.ts"
-    ).read_text()
+    client_api_ts = (REPO_ROOT / "web/src/features/collection/client-api.ts").read_text()
     # `createExportTask` / `getExportTask` return typed schema components
     # with `export_task_id` + `status` as required fields; an empty body
     # means the backend broke its contract, so the adapter must throw
@@ -824,18 +742,12 @@ def test_document_feature_uses_v2_typed_api_boundary():
     # trio (`document-upload.tsx`, `url-import.tsx`, `text-import.tsx`)
     # remains with the future upload batch.
     batch7_document_paths = [
-        REPO_ROOT
-        / "web/src/app/marketplace/collections/[collectionId]/documents/[documentId]/document-detail.tsx",
-        REPO_ROOT
-        / "web/src/app/marketplace/collections/[collectionId]/documents/document-index-status.tsx",
-        REPO_ROOT
-        / "web/src/app/marketplace/collections/[collectionId]/documents/documents-table.tsx",
-        REPO_ROOT
-        / "web/src/app/workspace/collections/[collectionId]/documents/document-index-status.tsx",
-        REPO_ROOT
-        / "web/src/app/workspace/collections/[collectionId]/documents/document-rebuild-index.tsx",
-        REPO_ROOT
-        / "web/src/app/workspace/collections/[collectionId]/documents/documents-table.tsx",
+        REPO_ROOT / "web/src/app/marketplace/collections/[collectionId]/documents/[documentId]/document-detail.tsx",
+        REPO_ROOT / "web/src/app/marketplace/collections/[collectionId]/documents/document-index-status.tsx",
+        REPO_ROOT / "web/src/app/marketplace/collections/[collectionId]/documents/documents-table.tsx",
+        REPO_ROOT / "web/src/app/workspace/collections/[collectionId]/documents/document-index-status.tsx",
+        REPO_ROOT / "web/src/app/workspace/collections/[collectionId]/documents/document-rebuild-index.tsx",
+        REPO_ROOT / "web/src/app/workspace/collections/[collectionId]/documents/documents-table.tsx",
         REPO_ROOT / "web/src/app/workspace/collections/tools.ts",
     ]
     batch7_sources = {path: path.read_text() for path in batch7_document_paths}
@@ -857,21 +769,16 @@ def test_document_feature_uses_v2_typed_api_boundary():
     for source in batch7_sources.values():
         assert "from '@/features/document/types'" in source
     marketplace_documents_table = batch7_sources[
-        REPO_ROOT
-        / "web/src/app/marketplace/collections/[collectionId]/documents/documents-table.tsx"
+        REPO_ROOT / "web/src/app/marketplace/collections/[collectionId]/documents/documents-table.tsx"
     ]
-    assert (
-        "from '@/features/marketplace/types'" in marketplace_documents_table
-    )
+    assert "from '@/features/marketplace/types'" in marketplace_documents_table
 
     # Positive: `features/document/types.ts` exposes the schema-derived
     # aliases + the runtime `DOCUMENT_INDEX_TYPES` const (constrained by
     # `satisfies readonly DocumentIndexType[]`). This is the locked gate
     # for batch 7; a regression here would mean a handwritten enum or
     # union slipped back in.
-    document_types = (
-        REPO_ROOT / "web/src/features/document/types.ts"
-    ).read_text()
+    document_types = (REPO_ROOT / "web/src/features/document/types.ts").read_text()
     assert "NonNullable<Document['status']>" in document_types
     assert "NonNullable<Document['vector_index_status']>" in document_types
     assert "RebuildIndexesRequest['index_types'][number]" in document_types
@@ -887,12 +794,9 @@ def test_document_feature_uses_v2_typed_api_boundary():
     # type imports) but still hits the upload endpoint directly; this
     # batch removes its raw SDK call so it drops from route-data too.
     batch8_upload_paths = [
-        REPO_ROOT
-        / "web/src/app/workspace/collections/[collectionId]/documents/upload/document-upload.tsx",
-        REPO_ROOT
-        / "web/src/app/workspace/collections/[collectionId]/documents/upload/import/url-import.tsx",
-        REPO_ROOT
-        / "web/src/app/workspace/collections/[collectionId]/documents/upload/import/text-import.tsx",
+        REPO_ROOT / "web/src/app/workspace/collections/[collectionId]/documents/upload/document-upload.tsx",
+        REPO_ROOT / "web/src/app/workspace/collections/[collectionId]/documents/upload/import/url-import.tsx",
+        REPO_ROOT / "web/src/app/workspace/collections/[collectionId]/documents/upload/import/text-import.tsx",
     ]
     batch8_sources = {path: path.read_text() for path in batch8_upload_paths}
     batch8_joined = "\n".join(batch8_sources.values())
@@ -905,18 +809,10 @@ def test_document_feature_uses_v2_typed_api_boundary():
     assert "serverApi.defaultApi" not in batch8_joined
     assert "UploadDocumentResponseStatusEnum" not in batch8_joined
     assert "FetchUrlResultItemFetchStatusEnum" not in batch8_joined
-    assert (
-        "collectionsCollectionIdDocumentsStagedGet" not in batch8_joined
-    )
-    assert (
-        "collectionsCollectionIdDocumentsUploadPost" not in batch8_joined
-    )
-    assert (
-        "collectionsCollectionIdDocumentsConfirmPost" not in batch8_joined
-    )
-    assert (
-        "collectionsCollectionIdDocumentsFetchUrlPost" not in batch8_joined
-    )
+    assert "collectionsCollectionIdDocumentsStagedGet" not in batch8_joined
+    assert "collectionsCollectionIdDocumentsUploadPost" not in batch8_joined
+    assert "collectionsCollectionIdDocumentsConfirmPost" not in batch8_joined
+    assert "collectionsCollectionIdDocumentsFetchUrlPost" not in batch8_joined
 
     # Positive: every migrated caller now imports from
     # `features/document/client-api`; the `document-upload.tsx` caller
@@ -925,8 +821,7 @@ def test_document_feature_uses_v2_typed_api_boundary():
     for source in batch8_sources.values():
         assert "from '@/features/document/client-api'" in source
     document_upload_tsx = batch8_sources[
-        REPO_ROOT
-        / "web/src/app/workspace/collections/[collectionId]/documents/upload/document-upload.tsx"
+        REPO_ROOT / "web/src/app/workspace/collections/[collectionId]/documents/upload/document-upload.tsx"
     ]
     assert "UploadDocumentStatus" in document_upload_tsx
 
@@ -936,57 +831,29 @@ def test_document_feature_uses_v2_typed_api_boundary():
     # upload explicitly uses a `FormData` `bodySerializer` to get the
     # right `Content-Type: multipart/form-data; boundary=...` header from
     # `fetch`.
-    document_client_api = (
-        REPO_ROOT / "web/src/features/document/client-api.ts"
-    ).read_text()
+    document_client_api = (REPO_ROOT / "web/src/features/document/client-api.ts").read_text()
     assert "listStagedDocuments" in document_client_api
     assert "uploadDocument" in document_client_api
     assert "confirmDocuments" in document_client_api
     assert "fetchUrlDocuments" in document_client_api
-    assert (
-        "listStagedDocuments: empty response body" in document_client_api
-    )
+    assert "listStagedDocuments: empty response body" in document_client_api
     assert "uploadDocument: empty response body" in document_client_api
-    assert (
-        "confirmDocuments: empty response body" in document_client_api
-    )
-    assert (
-        "fetchUrlDocuments: empty response body" in document_client_api
-    )
+    assert "confirmDocuments: empty response body" in document_client_api
+    assert "fetchUrlDocuments: empty response body" in document_client_api
     assert "bodySerializer" in document_client_api
     assert "new FormData()" in document_client_api
-    assert (
-        "'/api/v1/collections/{collection_id}/documents/staged'"
-        in document_client_api
-    )
-    assert (
-        "'/api/v1/collections/{collection_id}/documents/upload'"
-        in document_client_api
-    )
-    assert (
-        "'/api/v1/collections/{collection_id}/documents/confirm'"
-        in document_client_api
-    )
-    assert (
-        "'/api/v1/collections/{collection_id}/documents/fetch-url'"
-        in document_client_api
-    )
+    assert "'/api/v1/collections/{collection_id}/documents/staged'" in document_client_api
+    assert "'/api/v1/collections/{collection_id}/documents/upload'" in document_client_api
+    assert "'/api/v1/collections/{collection_id}/documents/confirm'" in document_client_api
+    assert "'/api/v1/collections/{collection_id}/documents/fetch-url'" in document_client_api
 
     # Positive: `features/document/types.ts` exposes the upload schema
     # aliases (required-shape components) + the schema-derived nullable
     # status unions.
-    assert (
-        "components['schemas']['UploadDocumentResponse']" in document_types
-    )
-    assert (
-        "components['schemas']['StagedDocumentsResponse']" in document_types
-    )
-    assert (
-        "components['schemas']['ConfirmDocumentsRequest']" in document_types
-    )
-    assert (
-        "components['schemas']['FetchUrlResponse']" in document_types
-    )
+    assert "components['schemas']['UploadDocumentResponse']" in document_types
+    assert "components['schemas']['StagedDocumentsResponse']" in document_types
+    assert "components['schemas']['ConfirmDocumentsRequest']" in document_types
+    assert "components['schemas']['FetchUrlResponse']" in document_types
     assert "UploadDocumentResponse['status']" in document_types
     assert "FetchUrlResultItem['fetch_status']" in document_types
 
@@ -1086,9 +953,7 @@ def test_e2e_http_does_not_call_removed_v1_paths():
     """
     e2e_root = REPO_ROOT / "tests/e2e_http"
     sources = {
-        path: path.read_text()
-        for path in e2e_root.rglob("*")
-        if path.is_file() and path.suffix in {".hurl", ".sh"}
+        path: path.read_text() for path in e2e_root.rglob("*") if path.is_file() and path.suffix in {".hurl", ".sh"}
     }
 
     removed_route_patterns = {
@@ -1128,9 +993,7 @@ def test_e2e_http_uses_simplified_evaluation_v2_contract():
     """
     e2e_root = REPO_ROOT / "tests/e2e_http"
     sources = {
-        path: path.read_text()
-        for path in e2e_root.rglob("*")
-        if path.is_file() and path.suffix in {".hurl", ".sh"}
+        path: path.read_text() for path in e2e_root.rglob("*") if path.is_file() and path.suffix in {".hurl", ".sh"}
     }
 
     forbidden = {
@@ -1176,8 +1039,7 @@ def test_documents_upload_regression_hardening():
     """
 
     upload_tsx = (
-        REPO_ROOT
-        / "web/src/app/workspace/collections/[collectionId]/documents/upload/document-upload.tsx"
+        REPO_ROOT / "web/src/app/workspace/collections/[collectionId]/documents/upload/document-upload.tsx"
     ).read_text()
 
     # Manual-stop affordance must remain: a `stopUpload` callback and a
@@ -1188,8 +1050,7 @@ def test_documents_upload_regression_hardening():
         "stopUpload callback must remain for the manual Stop button path"
     )
     assert "onClick={stopUpload}" in upload_tsx, (
-        "The Stop button must continue to wire up stopUpload so users "
-        "can still abort a bulk upload on intent"
+        "The Stop button must continue to wire up stopUpload so users can still abort a bulk upload on intent"
     )
     # Defensive: no `useEffect` anywhere in the file may dispatch
     # `stopUpload` from its cleanup. This catches both the original
@@ -1205,8 +1066,7 @@ def test_documents_upload_regression_hardening():
     )
 
     table_tsx = (
-        REPO_ROOT
-        / "web/src/app/workspace/collections/[collectionId]/documents/documents-table.tsx"
+        REPO_ROOT / "web/src/app/workspace/collections/[collectionId]/documents/documents-table.tsx"
     ).read_text()
 
     # Positive: the normalised updater handler body is intact.
@@ -1214,15 +1074,11 @@ def test_documents_upload_regression_hardening():
         "onPaginationChange must accept `updater` explicitly so the "
         "function-vs-value branch is visible at the call site"
     )
-    assert "typeof updater === 'function' ? updater(current) : updater" in (
-        table_tsx
-    ), (
-        "onPaginationChange must normalise both Updater shapes before "
-        "reading pageIndex/pageSize"
+    assert "typeof updater === 'function' ? updater(current) : updater" in (table_tsx), (
+        "onPaginationChange must normalise both Updater shapes before reading pageIndex/pageSize"
     )
     assert "next.pageIndex" in table_tsx and "next.pageSize" in table_tsx, (
-        "pagination click must dispatch the normalised next.pageIndex / "
-        "next.pageSize, not the stale `current` snapshot"
+        "pagination click must dispatch the normalised next.pageIndex / next.pageSize, not the stale `current` snapshot"
     )
 
     # Negative: the old `fn({...}).pageIndex` / `fn({...}).pageSize`
@@ -1233,8 +1089,7 @@ def test_documents_upload_regression_hardening():
         "pattern; use the normalised `updater(current)` branch instead"
     )
     assert "// @ts-expect-error" not in table_tsx, (
-        "documents-table.tsx must not silence TanStack's Updater typing "
-        "with `@ts-expect-error`"
+        "documents-table.tsx must not silence TanStack's Updater typing with `@ts-expect-error`"
     )
 
 
@@ -1255,21 +1110,15 @@ def test_phase1_fe_complete_identity_auth_admin_audit_adapter_boundary():
     both to typed wrappers.
     """
     # identity — User canonical source is `features/identity/types`.
-    identity_types = (
-        REPO_ROOT / "web/src/features/identity/types.ts"
-    ).read_text()
+    identity_types = (REPO_ROOT / "web/src/features/identity/types.ts").read_text()
     assert "components['schemas']['User']" in identity_types
     assert "from '@/api-v2/schema'" in identity_types
 
     # auth — typed `login` / `register` / `logout` + raw-fetch OAuth
     # authorize (redirect, no typed body) + raw-fetch `/api/v2/config`
     # (hidden from public OpenAPI; lesson 9a-ter boundary exception).
-    auth_client_api = (
-        REPO_ROOT / "web/src/features/auth/client-api.ts"
-    ).read_text()
-    auth_server_api = (
-        REPO_ROOT / "web/src/features/auth/server-api.ts"
-    ).read_text()
+    auth_client_api = (REPO_ROOT / "web/src/features/auth/client-api.ts").read_text()
+    auth_server_api = (REPO_ROOT / "web/src/features/auth/server-api.ts").read_text()
     assert "from '@/lib/api/typed/browser'" in auth_client_api
     assert "from '@/lib/api/typed/server'" in auth_server_api
     assert "oauthAuthorize" in auth_client_api
@@ -1278,12 +1127,8 @@ def test_phase1_fe_complete_identity_auth_admin_audit_adapter_boundary():
 
     # admin — umbrella adapter for settings / system default quotas /
     # per-user quota / admin user list (msg=5f0a370b decision L).
-    admin_client_api = (
-        REPO_ROOT / "web/src/features/admin/client-api.ts"
-    ).read_text()
-    admin_server_api = (
-        REPO_ROOT / "web/src/features/admin/server-api.ts"
-    ).read_text()
+    admin_client_api = (REPO_ROOT / "web/src/features/admin/client-api.ts").read_text()
+    admin_server_api = (REPO_ROOT / "web/src/features/admin/server-api.ts").read_text()
     for method in (
         "testMineruToken",
         "updateSettings",
@@ -1293,27 +1138,17 @@ def test_phase1_fe_complete_identity_auth_admin_audit_adapter_boundary():
         "updateUserQuota",
         "recalculateUserQuota",
     ):
-        assert method in admin_client_api, (
-            f"features/admin/client-api.ts missing `{method}`"
-        )
+        assert method in admin_client_api, f"features/admin/client-api.ts missing `{method}`"
     for method in ("getSettings", "getSystemDefaultQuotas", "listUsers"):
-        assert method in admin_server_api, (
-            f"features/admin/server-api.ts missing `{method}`"
-        )
+        assert method in admin_server_api, f"features/admin/server-api.ts missing `{method}`"
 
     # audit — hand-written mirror + raw fetch (hidden path
     # `/api/v1/audit-logs`). `features/audit/types.ts` must NOT import
     # raw schema; its header must self-document the Phase 4 +1
     # raw_schema impact so future readers don't hunt for history.
-    audit_types = (
-        REPO_ROOT / "web/src/features/audit/types.ts"
-    ).read_text()
-    audit_client_api = (
-        REPO_ROOT / "web/src/features/audit/client-api.ts"
-    ).read_text()
-    audit_server_api = (
-        REPO_ROOT / "web/src/features/audit/server-api.ts"
-    ).read_text()
+    audit_types = (REPO_ROOT / "web/src/features/audit/types.ts").read_text()
+    audit_client_api = (REPO_ROOT / "web/src/features/audit/client-api.ts").read_text()
+    audit_server_api = (REPO_ROOT / "web/src/features/audit/server-api.ts").read_text()
     assert "from '@/api-v2/schema'" not in audit_types
     assert "raw_schema 13 → 16" in audit_types
     assert "/api/v1/audit-logs" in audit_client_api
@@ -1325,18 +1160,14 @@ def test_phase1_fe_complete_identity_auth_admin_audit_adapter_boundary():
     assert "from '@/api'" not in chat_input
     assert "apiClient.chatDocumentsApi" not in chat_input
     assert "from '@/features/bot/client-api'" in chat_input
-    bot_client_api = (
-        REPO_ROOT / "web/src/features/bot/client-api.ts"
-    ).read_text()
+    bot_client_api = (REPO_ROOT / "web/src/features/bot/client-api.ts").read_text()
     assert "uploadChatDocument" in bot_client_api
     assert "getChatDocument" in bot_client_api
     assert "'/api/v1/chats/{chat_id}/documents'" in bot_client_api
 
     # feature-visibility.ts — document residual swaps
     # `RebuildIndexesRequestIndexTypesEnum` → `DOCUMENT_INDEX_TYPES`.
-    feature_visibility = (
-        REPO_ROOT / "web/src/app/workspace/collections/feature-visibility.ts"
-    ).read_text()
+    feature_visibility = (REPO_ROOT / "web/src/app/workspace/collections/feature-visibility.ts").read_text()
     assert "from '@/api'" not in feature_visibility
     assert "RebuildIndexesRequestIndexTypesEnum" not in feature_visibility
     assert "from '@/features/document/types'" in feature_visibility
@@ -1350,12 +1181,9 @@ def test_phase1_fe_complete_identity_auth_admin_audit_adapter_boundary():
         REPO_ROOT / "web/src/app/admin/layout.tsx",
     ):
         layout_source = layout_path.read_text()
-        assert "from '@/api'" not in layout_source, (
-            f"{layout_path} still imports legacy @/api"
-        )
+        assert "from '@/api'" not in layout_source, f"{layout_path} still imports legacy @/api"
         assert "getCurrentUser" in layout_source, (
-            f"{layout_path} must resolve the user via "
-            "features/auth/server-api::getCurrentUser"
+            f"{layout_path} must resolve the user via features/auth/server-api::getCurrentUser"
         )
 
     # Phase 1c deletion — legacy SDK tree + low-level wrappers are gone.

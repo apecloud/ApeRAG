@@ -73,8 +73,7 @@ def test_search_collection_targets_v2_path():
         if isinstance(node, ast.AsyncFunctionDef) and node.name == "search_collection":
             body_source = ast.get_source_segment(source, node) or ""
             assert "/api/v2/collections/" in body_source, (
-                "search_collection must hit the v2 collections path; "
-                "did the MCP wrapper regress to /api/v1/?"
+                "search_collection must hit the v2 collections path; did the MCP wrapper regress to /api/v1/?"
             )
             assert "/api/v1/collections/" not in body_source, (
                 "search_collection still references the legacy v1 "
