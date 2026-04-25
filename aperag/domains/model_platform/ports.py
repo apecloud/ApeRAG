@@ -32,7 +32,7 @@ additive extension.
 
 from __future__ import annotations
 
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Dict, List, Optional, Protocol, runtime_checkable
 
 
 @runtime_checkable
@@ -47,6 +47,43 @@ class AuthenticatedUser(Protocol):
     role: str
 
 
+@runtime_checkable
+class PromptCRUDOps(Protocol):
+    """User-CRUD ops for prompt templates (Phase 8 #49 G3).
+
+    The model_platform domain owns the ``PromptTemplate`` ORM but the
+    user-CRUD service still lives in the legacy
+    ``aperag/service/prompt_template_service.py`` (Layer A permanent
+    seam shared with agent_runtime). This Protocol is the
+    consumer-owned interface that the prompts route depends on; the
+    legacy service singleton is wired in at app startup via
+    ``set_prompt_crud_ops()``.
+
+    The methods mirror the public surface of
+    ``PromptTemplateService`` that the route module needs — the
+    legacy singleton structurally satisfies them 1:1.
+    """
+
+    PROMPT_TYPES: List[str]
+
+    async def get_user_prompts(self, user_id: str) -> Dict[str, Dict[str, Any]]: ...
+
+    async def update_user_prompts(self, user_id: str, prompts: Dict[str, str]) -> List[str]: ...
+
+    async def delete_user_prompt(self, user_id: str, prompt_type: str) -> Dict[str, Any]: ...
+
+    async def reset_user_prompts(
+        self, user_id: str, types: Optional[List[str]] = None
+    ) -> List[str]: ...
+
+    async def get_system_prompts(self, prompt_type: Optional[str] = None) -> Dict[str, Any]: ...
+
+    def preview_prompt(self, template: str, variables: Dict[str, Any]) -> str: ...
+
+    def validate_prompt(self, prompt_type: str, template: str) -> Dict[str, Any]: ...
+
+
 __all__ = [
     "AuthenticatedUser",
+    "PromptCRUDOps",
 ]

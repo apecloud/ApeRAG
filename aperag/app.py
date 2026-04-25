@@ -78,6 +78,8 @@ from aperag.domains.marketplace.service.marketplace_service import (
     marketplace_service as _legacy_marketplace_service,
 )
 from aperag.domains.model_platform.api.llm_routes import router as llm_router
+from aperag.domains.model_platform.api.prompts_routes import router as prompts_router
+from aperag.domains.model_platform.api.prompts_routes import set_prompt_crud_ops as _set_prompt_crud_ops
 from aperag.domains.model_platform.api.providers_v2_routes import router as providers_v2_router
 from aperag.domains.retrieval.api.routes import router as retrieval_router
 from aperag.domains.web_access.api.routes import router as web_access_router
@@ -87,7 +89,6 @@ from aperag.mcp import mcp_server
 from aperag.openapi_spec import custom_generate_unique_id
 from aperag.service.quota_service import quota_service as _legacy_quota_service
 from aperag.service.search_pipeline_service import search_pipeline_service as _legacy_search_pipeline_service
-from aperag.views.prompts import router as prompts_router
 
 # Wire the knowledge_base domain's consumer-owned Protocol DI slots
 # (Phase 3 Step 5b2c). All four legacy service singletons now
@@ -141,6 +142,13 @@ class _PromptTemplateOpsAdapter:
 
 
 _ar_set_prompt_template_ops(_PromptTemplateOpsAdapter())
+
+# Wire the model_platform domain's prompt user-CRUD Protocol seam
+# (Phase 8 #49 G3, D7 v2 hard-cut). The same ``prompt_template_service``
+# singleton already wired into agent_runtime structurally satisfies
+# the model_platform ``PromptCRUDOps`` Protocol — the user-CRUD method
+# names map 1:1, so no adapter is needed.
+_set_prompt_crud_ops(_legacy_prompt_template_service)
 
 
 # Wire the identity domain's consumer-owned Protocol DI slots (Phase
@@ -230,7 +238,7 @@ app.include_router(
     marketplace_router, prefix="/api/v1"
 )  # Marketplace domain router (marketplace + marketplace_collections)
 app.include_router(settings_router, prefix="/api/v2")  # KB domain settings (carved from views/ in #48)
-app.include_router(prompts_router, prefix="/api/v1")  # Add prompts router
+app.include_router(prompts_router, prefix="/api/v2")  # Phase 8 #49 G3, D7 v2 hard-cut
 app.include_router(web_access_router, prefix="/api/v2", tags=["web_access"])  # Add web_access domain router
 app.include_router(retrieval_router, prefix="/api/v2", tags=["retrieval"])  # Add retrieval domain router
 app.include_router(

@@ -60,7 +60,7 @@ Prompt 的生效顺序是典型的"越靠近这次调用的配置，越先赢"�
 
 ## 3. 用户层自定义（推荐的常用入口）
 
-用户层是介于"全局默认"和"单个 Bot/Collection 覆盖"之间的中间层，`/api/v1/prompts/*` 完整支持：
+用户层是介于"全局默认"和"单个 Bot/Collection 覆盖"之间的中间层，`/api/v2/prompts/*` 完整支持：
 
 | 动作 | 接口 | 说明 |
 | --- | --- | --- |
@@ -133,4 +133,4 @@ Prompt 的生效顺序是典型的"越靠近这次调用的配置，越先赢"�
 
 ## 7. 服务归属说明
 
-Prompt 相关的所有逻辑集中在 standalone-infra 模块 `aperag.service.prompt_template_service`：该模块跨 agent_runtime（运行时调用）/ conversation（bot-config 解析）/ indexing（reconciler）/ `/api/v1/prompts` REST 四个场景共享，没有自然的 domain 归属。agent_runtime 通过 `aperag.domains.agent_runtime.ports.PromptTemplateOps` Protocol + `aperag/app.py::_PromptTemplateOpsAdapter` wire-up 访问它（这是系统仅有的两条永久 `CRITICAL_WIRINGS` 之一）。具体架构背景见 [`architecture/conversation-agent-evaluation.md`](../architecture/conversation-agent-evaluation.md#protocol-promptTemplateOps)。
+Prompt 相关的所有逻辑集中在 standalone-infra 模块 `aperag.service.prompt_template_service`：该模块跨 agent_runtime（运行时调用）/ conversation（bot-config 解析）/ indexing（reconciler）/ `/api/v2/prompts` REST 四个场景共享，没有自然的 domain 归属。Phase 8 #49 G3 起，REST 路由本身已碎入 `aperag/domains/model_platform/api/prompts_routes.py`，通过 `model_platform.ports.PromptCRUDOps` Protocol + `aperag/app.py::set_prompt_crud_ops()` wire 同一个单例；agent_runtime 仍通过 `aperag.domains.agent_runtime.ports.PromptTemplateOps` Protocol + `aperag/app.py::_PromptTemplateOpsAdapter` wire-up 访问它。具体架构背景见 [`architecture/conversation-agent-evaluation.md`](../architecture/conversation-agent-evaluation.md#protocol-promptTemplateOps)。
