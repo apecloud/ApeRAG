@@ -60,7 +60,7 @@ canonical 位置：`aperag/domains/conversation/`。
 
 Router 文件：`aperag/domains/conversation/api/routes.py`。**导出两个 router object**：
 
-- `chat_router` → `/api/v1/bots/{bot_id}/chats/*`（与 pre-migration 保持 byte-stable）
+- `chat_router` → `/api/v2/bots/{bot_id}/chats/*`（与 pre-migration 保持 byte-stable）
 - `bots_router` → `/api/v2/bots/*`（新的统一 CRUD）
 
 这是 Phase 4 在 `model_platform` 引入的"同域 v1+v2 并存必须 2-router split"模式的第二个使用者，详见 [`architecture.md §2.1 model_platform`](../../modularization/architecture.md#21-domain-inventory)。

@@ -193,7 +193,7 @@ curl -X POST "https://<your-aperag-host>/api/v1/chat/completions?bot_id=bot-xxx"
 
 ### 与原生 ApeRAG 接口的区别
 
-ApeRAG 自身的对话接口是 `/api/v1/bots/{bot_id}/chats/{chat_id}/messages`（见 [`reference/prompt-api.md`](../reference/prompt-api.md)），返回更丰富的结构（turn_id / timeline events / artifacts / references）。OpenAI 兼容接口把这些都**摊平成纯文本**，丢失结构化能力。
+ApeRAG 自身的对话接口是 `/api/v2/bots/{bot_id}/chats/{chat_id}/messages`（见 [`reference/prompt-api.md`](../reference/prompt-api.md)），返回更丰富的结构（turn_id / timeline events / artifacts / references）。OpenAI 兼容接口把这些都**摊平成纯文本**，丢失结构化能力。
 
 **什么时候用 OpenAI 兼容接口**：
 

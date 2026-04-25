@@ -464,7 +464,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/collections/{collection_id}/documents/staged": {
+    "/api/v2/collections/{collection_id}/documents/staged": {
         parameters: {
             query?: never;
             header?: never;
@@ -484,7 +484,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/collections/{collection_id}/documents/upload": {
+    "/api/v2/collections/{collection_id}/documents/upload": {
         parameters: {
             query?: never;
             header?: never;
@@ -504,7 +504,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/collections/{collection_id}/documents/confirm": {
+    "/api/v2/collections/{collection_id}/documents/confirm": {
         parameters: {
             query?: never;
             header?: never;
@@ -524,7 +524,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/collections/{collection_id}/documents/fetch-url": {
+    "/api/v2/collections/{collection_id}/documents/fetch-url": {
         parameters: {
             query?: never;
             header?: never;

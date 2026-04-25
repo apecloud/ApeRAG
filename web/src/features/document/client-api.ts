@@ -129,7 +129,7 @@ export async function listStagedDocuments(
   signal?: AbortSignal,
 ): Promise<StagedDocumentsResponse> {
   const { data } = await browserApiClient.GET(
-    '/api/v1/collections/{collection_id}/documents/staged',
+    '/api/v2/collections/{collection_id}/documents/staged',
     {
       params: { path: { collection_id: collectionId } },
       signal,
@@ -155,7 +155,7 @@ export async function uploadDocument(
   options?: { signal?: AbortSignal; timeout?: number },
 ): Promise<UploadDocumentResponse> {
   const { data } = await browserApiClient.POST(
-    '/api/v1/collections/{collection_id}/documents/upload',
+    '/api/v2/collections/{collection_id}/documents/upload',
     {
       params: { path: { collection_id: collectionId } },
       body: { file: file as unknown as string },
@@ -178,7 +178,7 @@ export async function confirmDocuments(
   documentIds: string[],
 ): Promise<ConfirmDocumentsResponse> {
   const { data } = await browserApiClient.POST(
-    '/api/v1/collections/{collection_id}/documents/confirm',
+    '/api/v2/collections/{collection_id}/documents/confirm',
     {
       params: { path: { collection_id: collectionId } },
       body: { document_ids: documentIds },
@@ -196,7 +196,7 @@ export async function fetchUrlDocuments(
   options?: { signal?: AbortSignal },
 ): Promise<FetchUrlResponse> {
   const { data } = await browserApiClient.POST(
-    '/api/v1/collections/{collection_id}/documents/fetch-url',
+    '/api/v2/collections/{collection_id}/documents/fetch-url',
     {
       params: { path: { collection_id: collectionId } },
       body: { urls },

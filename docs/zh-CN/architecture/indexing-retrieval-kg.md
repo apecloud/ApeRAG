@@ -223,9 +223,9 @@ class GraphSearchContract(Protocol):
 
 ### 4.4 API
 
-- `POST /api/v1/collections/{id}/search` — 同步检索（pipeline 执行完返回全部结果）
-- `GET /api/v1/collections/{id}/search_history` — 历史记录分页
-- `DELETE /api/v1/collections/{id}/search_history/{sid}` — 历史删除
+- `POST /api/v2/collections/{id}/search` — 同步检索（pipeline 执行完返回全部结果）
+- `GET /api/v2/collections/{id}/search_history` — 历史记录分页
+- `DELETE /api/v2/collections/{id}/search_history/{sid}` — 历史删除
 
 所有 handler 使用 local-decl `AuthenticatedUser(Protocol)`（G4 + G16 要求）。
 
@@ -391,7 +391,7 @@ _bind_view_models_reexports()
 ### 7.1 Document ingestion flow（KB → indexing → KG）
 
 ```
-1. 用户 POST /api/v1/collections/{id}/documents (knowledge_base.api.routes)
+1. 用户 POST /api/v2/collections/{id}/documents (knowledge_base.api.routes)
 2. document_service.create_document:
    - _quota_ops.check_and_consume_quota(max_document_count)
    - Document ORM insert (status=UPLOADED)
@@ -423,7 +423,7 @@ _bind_view_models_reexports()
 ### 7.2 Retrieval flow（retrieval 聚合四路召回）
 
 ```
-1. 用户 / Agent POST /api/v1/collections/{id}/search
+1. 用户 / Agent POST /api/v2/collections/{id}/search
 2. retrieval.api.routes → SearchPipeline.run:
    - 构造 embedding (llm/embed)
    - 并发执行：

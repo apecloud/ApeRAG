@@ -74,7 +74,7 @@ async def list_collections() -> Dict[str, Any]:
         api_key = get_api_key()
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.get(
-                f"{API_BASE_URL}/api/v1/collections", headers={"Authorization": f"Bearer {api_key}"}
+                f"{API_BASE_URL}/api/v2/collections", headers={"Authorization": f"Bearer {api_key}"}
             )
             if response.status_code == 200:
                 try:

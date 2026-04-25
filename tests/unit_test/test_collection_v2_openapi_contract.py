@@ -21,11 +21,11 @@ def _json_ref(spec: dict, path: str, method: str, status: str = "200") -> str:
 # those belong to other domain contract tests).
 COLLECTION_V1_GHOST_PATHS = frozenset(
     {
-        "/api/v1/collections",
-        "/api/v1/collections/test-mineru-token",
-        "/api/v1/collections/{collection_id}",
-        "/api/v1/collections/{collection_id}/sharing",
-        "/api/v1/collections/{collection_id}/summary/generate",
+        "/api/v2/collections",
+        "/api/v2/collections/test-mineru-token",
+        "/api/v2/collections/{collection_id}",
+        "/api/v2/collections/{collection_id}/sharing",
+        "/api/v2/collections/{collection_id}/summary/generate",
     }
 )
 

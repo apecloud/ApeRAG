@@ -6,15 +6,15 @@ The end-state allowlist (canonical D7-1 / msg=8b6b4bc3) is:
 - ``/api/v1/rerank``     — OpenAI-compatible public endpoint, permanent ``/api/v1`` mount
 
 Phase 8 task #44 (H3) cleaned the provider-aware Hurl suite to use
-``/api/v2/providers/*`` so it no longer hits dead v1 provider CRUD routes.
-A few other domains (apikeys, audit, marketplace, chat ops, export,
-document upload variants) still legitimately live at
-``/api/v1`` until tasks #50–#52 / G4d / G5 land. Those paths are listed
-in ``TRANSITIONAL_V1_PREFIXES`` below and each follow-up PR is expected
-to shrink the set as it migrates the corresponding domain to ``/api/v2``.
-Phase 8 #49 G3 already removed ``/api/v1/prompts`` (carved to
-``aperag/domains/model_platform/api/prompts_routes.py`` at
-``/api/v2/prompts*``).
+``/api/v2/providers/*``. The G* hard-cut series (#1 G1 export, #2 G2
+settings, #3 G3 prompts, #50 G4a audit-logs, #51 G4b apikeys, #52 G4c
+marketplace, G4d chat ops, and Phase 8 #63 G5a) shrunk the
+``TRANSITIONAL_V1_PREFIXES`` ledger from its original 12 entries down
+to the residual set below. The remaining entries are tracked in
+``#64`` (G5b: ``quotas / system`` router truthing) and ``#65``
+(G5c: ``test/register_admin`` bootstrap path); they are NOT
+unmigrated dead callers — each is awaiting an explicit live-contract
+disposition decision per PM msg=023a2fa7.
 
 This test scans every ``.hurl`` file under ``tests/e2e_http/`` and asserts
 each ``/api/v1/...`` literal matches either the permanent allowlist or a
@@ -36,27 +36,27 @@ OPENAI_COMPAT_V1_ALLOWLIST: frozenset[str] = frozenset(
     }
 )
 
-# Transitional prefixes — these v1 routes are still mounted in main and used
-# by e2e Hurl as long as the corresponding G* migration tasks have not landed.
-# Each follow-up PR (G4d chat ops) is expected to remove the matching
-# entry from this set together with its Hurl rewrite. Phase 8 #1 (G1
-# export, #47), #2 (G2 settings, #48), #3 (G3 prompts, #49), #50 (G4a
-# audit-logs), #52 (G4c marketplace), and #51 (G4b apikeys) have
-# already shrunk this set to remove ``/api/v1/export*``,
-# ``/api/v1/settings*``, ``/api/v1/prompts*``, ``/api/v1/audit-logs``,
-# ``/api/v1/marketplace``, and ``/api/v1/apikeys``.
+# Transitional prefixes — residual ``/api/v1`` references awaiting an
+# explicit disposition. After Phase 8 #63 G5a flipped the confirmed
+# dead-caller set (collections / export-tasks / chats / bots), only
+# three transitional entries remain — all tied to follow-up tasks that
+# require backend or product decisions before any caller can be flipped:
+#
+#   - ``/api/v1/quotas`` + ``/api/v1/system``: router defined in
+#     ``aperag/views/quota.py`` but **not mounted in main**; FE callers
+#     are live but currently 404. ``#64`` (G5b) decides router truthing
+#     vs. v2 carve.
+#   - ``/api/v1/test``: ``register_admin`` bootstrap path with **no
+#     backend definition**. ``#65`` (G5c) decides cleanup vs.
+#     replacement.
 #
 # Anything outside both sets is an unrecognised v1 reference and must be
 # either migrated or moved into one of these sets in the same PR.
 TRANSITIONAL_V1_PREFIXES: frozenset[str] = frozenset(
     {
-        "/api/v1/collections",  # G1 (export) + G5 (document upload variants)
-        "/api/v1/export-tasks",  # G1  → /api/v2/export-tasks
-        "/api/v1/chats",  # G4d → /api/v2/chats
-        "/api/v1/quotas",  # G5 caller cleanup (FE references only)
-        "/api/v1/system",  # G5 caller cleanup (admin default-quotas)
-        "/api/v1/bots",  # G5 caller cleanup (pytest fixtures)
-        "/api/v1/test",  # G5 caller cleanup (test fixtures)
+        "/api/v1/quotas",  # G5b (#64) — router truthing pending
+        "/api/v1/system",  # G5b (#64) — same router as quotas
+        "/api/v1/test",  # G5c (#65) — register_admin bootstrap
     }
 )
 
