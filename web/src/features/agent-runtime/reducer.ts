@@ -136,6 +136,10 @@ export function applyPart(
         lastSequence: maxSeq(state.lastSequence, eventId),
       };
     case 'tool-output-available': {
+      // BE today (#73) emits failures here too with `errorText` set;
+      // task #89 splits failures onto `tool-output-error`. We accept
+      // both shapes so the FE rolls forward without coupling to BE
+      // timing.
       const failed =
         typeof part.errorText === 'string' && part.errorText.length > 0;
       return {
@@ -148,6 +152,16 @@ export function applyPart(
         lastSequence: maxSeq(state.lastSequence, eventId),
       };
     }
+    case 'tool-output-error':
+      // Strict AI SDK v5 failure shape (task #89 fix-forward target).
+      return {
+        ...state,
+        parts: upsertTool(state.parts, part.toolCallId, {
+          errorText: part.errorText,
+          state: 'output-error',
+        }),
+        lastSequence: maxSeq(state.lastSequence, eventId),
+      };
 
     case 'source-url':
       return {
