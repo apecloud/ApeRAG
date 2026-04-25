@@ -37,7 +37,6 @@ app.conf.update(
     task_track_started=settings.celery_task_track_started,
     # Auto-discover tasks in the aperag.tasks package
     include=[
-        'config.export_tasks',  # ExportTask ORM still in legacy aggregate (carve in #39)
         'aperag.domains.indexing.tasks',
         'aperag.domains.knowledge_base.tasks',
         'aperag.domains.knowledge_graph.tasks',
