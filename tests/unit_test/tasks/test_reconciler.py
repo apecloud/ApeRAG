@@ -25,7 +25,8 @@ from aperag.tasks.reconciler import (
 )
 from aperag.utils.constant import IndexAction
 from aperag.utils.utils import utc_now
-from config.celery_tasks import collection_summary_task, create_index_task
+from aperag.domains.indexing.tasks import create_index_task
+from aperag.domains.knowledge_base.tasks import collection_summary_task
 
 
 class FakeSession:
@@ -400,11 +401,11 @@ class TestCollectionSummaryTask:
             callback_calls.append((summary_id, error_message, target_version, processing_token))
 
         monkeypatch.setattr(
-            "config.celery_tasks._validate_collection_summary_relevance",
+            "aperag.domains.knowledge_base.tasks._validate_collection_summary_relevance",
             lambda summary_id, target_version, processing_token: None,
         )
         monkeypatch.setattr(
-            "config.celery_tasks._make_collection_summary_lease_renewer",
+            "aperag.domains.knowledge_base.tasks._make_collection_summary_lease_renewer",
             lambda summary_id, target_version, processing_token: FakeRenewer(),
         )
         monkeypatch.setattr(
@@ -433,11 +434,11 @@ class TestCollectionSummaryTask:
             raise RuntimeError("summary failed after owner lost")
 
         monkeypatch.setattr(
-            "config.celery_tasks._validate_collection_summary_relevance",
+            "aperag.domains.knowledge_base.tasks._validate_collection_summary_relevance",
             lambda summary_id, target_version, processing_token: None,
         )
         monkeypatch.setattr(
-            "config.celery_tasks._make_collection_summary_lease_renewer",
+            "aperag.domains.knowledge_base.tasks._make_collection_summary_lease_renewer",
             lambda summary_id, target_version, processing_token: FakeRenewer(ownership_lost=True),
         )
         monkeypatch.setattr(
@@ -477,11 +478,11 @@ class TestIndexTaskOwnership:
         )
 
         monkeypatch.setattr(
-            "config.celery_tasks._validate_task_relevance",
+            "aperag.domains.indexing.tasks._validate_task_relevance",
             lambda *args, **kwargs: None,
         )
         monkeypatch.setattr(
-            "config.celery_tasks._make_document_index_lease_renewer",
+            "aperag.domains.indexing.tasks._make_document_index_lease_renewer",
             lambda targets, description: FakeRenewer(ownership_lost=True),
         )
         monkeypatch.setattr(

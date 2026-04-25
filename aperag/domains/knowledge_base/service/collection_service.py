@@ -74,7 +74,7 @@ from aperag.schema.utils import dumpCollectionConfig, parseCollectionConfig
 from aperag.utils.constant import QuotaType
 from aperag.utils.utils import utc_now
 from aperag.views.utils import validate_source_connect_config
-from config.celery_tasks import collection_delete_task, collection_init_task
+from aperag.domains.knowledge_base.tasks import collection_delete_task, collection_init_task
 
 logger = logging.getLogger(__name__)
 

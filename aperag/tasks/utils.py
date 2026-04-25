@@ -34,7 +34,7 @@ def parse_document_content(document, collection) -> Tuple[str, List[Any], Any]:
     from aperag.domains.governance.service.setting_service import setting_service
     from aperag.domains.indexing.document_parser import document_parser
     from aperag.schema.utils import parseCollectionConfig
-    from aperag.source.base import get_source
+    from aperag.platform.source.base import get_source
 
     # Get document source and prepare local file
     source = get_source(parseCollectionConfig(collection.config))
@@ -95,7 +95,7 @@ def parse_document_content(document, collection) -> Tuple[str, List[Any], Any]:
 def cleanup_local_document(local_doc, collection):
     """Cleanup local document after processing"""
     from aperag.schema.utils import parseCollectionConfig
-    from aperag.source.base import get_source
+    from aperag.platform.source.base import get_source
 
     source = get_source(parseCollectionConfig(collection.config))
     source.cleanup_document(local_doc.path)

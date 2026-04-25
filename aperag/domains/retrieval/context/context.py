@@ -31,7 +31,7 @@ backend-ignorance is the whole point of the DSL + DTO layer.
 from abc import ABC
 from typing import Any, Dict, List, Optional
 
-from aperag.query.query import DocumentWithScore
+from aperag.platform.query.query import DocumentWithScore
 from aperag.vectorstore.connector import VectorStoreConnectorAdaptor
 from aperag.vectorstore.dto import QueryRequest, SearchHit, flatten_node_payload
 from aperag.vectorstore.filters import Eq, In, IsEmpty, VectorFilter, all_of, any_of

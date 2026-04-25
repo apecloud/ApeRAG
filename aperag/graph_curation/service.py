@@ -101,7 +101,7 @@ class GraphCurationService(AsyncBaseRepository):
         run, created = await self.execute_with_transaction(_op)
 
         if created:
-            from config.celery_tasks import generate_graph_curation_run_task
+            from aperag.domains.knowledge_graph.tasks import generate_graph_curation_run_task
 
             try:
                 generate_graph_curation_run_task.delay(run.id, collection_id)

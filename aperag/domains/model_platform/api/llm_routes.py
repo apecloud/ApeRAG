@@ -39,7 +39,7 @@ from aperag.llm.llm_error_types import (
     TooManyDocumentsError,
 )
 from aperag.llm.rerank.rerank_service import RerankService
-from aperag.query.query import DocumentWithScore
+from aperag.platform.query.query import DocumentWithScore
 from aperag.utils.audit_decorator import audit
 from aperag.views.auth import required_user
 

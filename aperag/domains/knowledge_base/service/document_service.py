@@ -113,7 +113,7 @@ def _trigger_index_reconciliation():
     """
     try:
         # Import here to avoid circular dependencies and handle missing celery gracefully
-        from config.celery_tasks import reconcile_indexes_task
+        from aperag.domains.indexing.tasks import reconcile_indexes_task
 
         # Trigger the reconciliation task asynchronously
         reconcile_indexes_task.delay()

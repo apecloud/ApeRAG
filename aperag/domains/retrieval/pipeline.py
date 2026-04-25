@@ -37,7 +37,7 @@ from functools import partial
 from typing import Any, List, Optional, Protocol, Tuple
 
 from aperag.config import build_vector_db_context, settings
-from aperag.context.context import ContextManager
+from aperag.domains.retrieval.context.context import ContextManager
 from aperag.db.ops import async_db_ops
 from aperag.domains.indexing.fulltext_index import extract_keywords
 from aperag.domains.retrieval.ports import GraphSearchContract
@@ -51,7 +51,7 @@ from aperag.llm.llm_error_types import (
     RerankError,
 )
 from aperag.llm.rerank.rerank_service import RerankService
-from aperag.query.query import DocumentWithScore
+from aperag.platform.query.query import DocumentWithScore
 from aperag.schema.utils import parseCollectionConfig
 from aperag.utils.utils import generate_fulltext_index_name, generate_vector_db_collection_name
 

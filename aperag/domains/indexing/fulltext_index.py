@@ -25,7 +25,7 @@ from aperag.db.ops import db_ops
 from aperag.docparser.chunking import rechunk
 from aperag.domains.indexing.base import BaseIndexer, IndexResult, IndexType
 from aperag.llm.completion.completion_service import CompletionService
-from aperag.query.query import DocumentWithScore
+from aperag.platform.query.query import DocumentWithScore
 from aperag.schema.utils import parseCollectionConfig
 from aperag.utils.tokenizer import get_default_tokenizer
 from aperag.utils.utils import (
