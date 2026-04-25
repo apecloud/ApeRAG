@@ -28,9 +28,10 @@ Public surface (D10.c read primitives import from here):
   bindings (filters / collection_id / tenant_id)
 * :class:`PaginationParams` / :class:`PaginationResult` — typed
   request / response generic over the paginated item type
-* :class:`CursorError` + the 6 canonical error codes (pending
-  spec amendment double-sign per architect msg=669db73c — error
-  module loaded after canonical lock)
+* :class:`CursorError` + the 6 canonical error codes per §C.3
+  (``cursor_invalid`` / ``cursor_expired`` / ``cursor_filter_mismatch``
+  / ``cursor_tenant_mismatch`` / ``cursor_index_changed`` /
+  ``cursor_schema_unsupported``)
 
 Search-rank cursor (vector / fulltext score-based) is intentionally
 NOT shared with this module — D10.d carries its own cursor type

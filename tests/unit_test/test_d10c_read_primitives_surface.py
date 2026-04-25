@@ -744,91 +744,16 @@ def test_call_sequence_witness_for_all_parse_version_keyed_primitives():
         )
 
 
-# --- §C explicit-not-silent: cursor decode ----------------------------------
-
-
-def _b64(payload_obj: Any) -> str:
-    import base64 as _b
-    import json as _j
-
-    return _b.urlsafe_b64encode(_j.dumps(payload_obj).encode("utf-8")).decode("ascii")
-
-
-def test_list_collections_decode_cursor_none_and_empty_return_zero():
-    """``cursor=None`` and ``cursor=""`` are NOT malformed — they mean
-    "start from the beginning" and must yield offset 0 (no exception).
-    """
-    from aperag.mcp.tools.list_collections import _decode_cursor as _dc_collections
-
-    assert _dc_collections(None) == 0
-    assert _dc_collections("") == 0
-    # well-formed positive cursor still works
-    assert _dc_collections(_b64({"offset": 50})) == 50
-
-
-def test_list_documents_decode_cursor_none_and_empty_return_zero():
-    from aperag.mcp.tools.list_documents import _decode_cursor as _dc_documents
-
-    assert _dc_documents(None) == 0
-    assert _dc_documents("") == 0
-    assert _dc_documents(_b64({"offset": 50})) == 50
-
-
-def test_list_collections_malformed_cursor_raises():
-    """§C explicit-not-silent: a non-empty malformed cursor MUST raise
-    ValueError instead of silently degrading to offset 0."""
-    from aperag.mcp.tools.list_collections import _decode_cursor as _dc_collections
-
-    # garbage that is not valid base64
-    with pytest.raises(ValueError, match="cursor decode failed"):
-        _dc_collections("!!!not-valid-base64!!!")
-    # valid base64 but not JSON
-    import base64 as _b
-
-    not_json = _b.urlsafe_b64encode(b"not json at all").decode("ascii")
-    with pytest.raises(ValueError, match="cursor decode failed"):
-        _dc_collections(not_json)
-    # JSON but not a dict / missing offset
-    with pytest.raises(ValueError, match="cursor decode failed"):
-        _dc_collections(_b64([1, 2, 3]))
-    with pytest.raises(ValueError, match="cursor decode failed"):
-        _dc_collections(_b64({"page": 1}))
-    # offset is not an int
-    with pytest.raises(ValueError, match="cursor decode failed"):
-        _dc_collections(_b64({"offset": "ten"}))
-
-
-def test_list_collections_negative_offset_cursor_raises():
-    """Negative offsets are explicit corruption, not "first page"."""
-    from aperag.mcp.tools.list_collections import _decode_cursor as _dc_collections
-
-    with pytest.raises(ValueError, match="cursor decode failed"):
-        _dc_collections(_b64({"offset": -1}))
-
-
-def test_list_documents_malformed_cursor_raises():
-    from aperag.mcp.tools.list_documents import _decode_cursor as _dc_documents
-
-    with pytest.raises(ValueError, match="cursor decode failed"):
-        _dc_documents("!!!not-valid-base64!!!")
-    import base64 as _b
-
-    not_json = _b.urlsafe_b64encode(b"not json at all").decode("ascii")
-    with pytest.raises(ValueError, match="cursor decode failed"):
-        _dc_documents(not_json)
-    with pytest.raises(ValueError, match="cursor decode failed"):
-        _dc_documents(_b64([1, 2, 3]))
-    with pytest.raises(ValueError, match="cursor decode failed"):
-        _dc_documents(_b64({"page": 1}))
-    with pytest.raises(ValueError, match="cursor decode failed"):
-        _dc_documents(_b64({"offset": "ten"}))
-
-
-def test_list_documents_negative_offset_cursor_raises():
-    from aperag.mcp.tools.list_documents import _decode_cursor as _dc_documents
-
-    with pytest.raises(ValueError, match="cursor decode failed"):
-        _dc_documents(_b64({"offset": -1}))
+# --- §C explicit-not-silent: cursor decode (D10.e helper coverage) ----------
+#
+# The cursor decode behaviour previously lived in private
+# ``_decode_cursor`` helpers inside ``list_collections.py`` and
+# ``list_documents.py``. D10.e (#97) lifted that logic into the
+# canonical helper at :mod:`aperag.service.pagination`, which raises
+# canonical :class:`CursorError` (``cursor_invalid`` /
+# ``cursor_filter_mismatch`` / ``cursor_tenant_mismatch`` / ...) instead
+# of bare ``ValueError``. Those tests now live in
+# :mod:`tests.unit_test.service.test_pagination_helper`.
 
 
 # --- type_filter applied BEFORE pagination (Weston msg=246c84d3) ------------

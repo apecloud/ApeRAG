@@ -24,53 +24,21 @@ No tenancy gate here because the primitive is naturally tenant-scoped:
 ``async_db_ops.query_collections([user_id])`` only returns the caller's
 own collections (§F.4 lock — server ignores any client-asserted scope).
 
-Cursor / total_count: opaque base64 ``{"offset": int}`` for the first
-cut. Bryce's D10.e follow-up (#97) replaces this with the proper cursor
-codec — DO NOT reach into ``aperag/mcp/cursor/`` here (§G Forbidden).
+Cursor / total_count: opaque base64 cursor produced by
+:mod:`aperag.service.pagination`, which wraps the canonical
+:mod:`aperag.mcp.cursor` codec around the offset bookkeeping below.
+Malformed / expired / scope-mismatched cursors surface as canonical
+``CursorError`` per §C.3.
 """
 
 from __future__ import annotations
 
-import base64
-import json
 from typing import Literal, Optional
 
 from aperag.db.ops import async_db_ops
 from aperag.mcp.tools._d9_base import authorization_gate, resolve_authenticated_user
 from aperag.mcp.tools.schemas import CollectionList, CollectionMetadata
-
-
-def _decode_cursor(cursor: Optional[str]) -> int:
-    """Decode the placeholder D10.c offset cursor.
-
-    Returns 0 only when ``cursor`` is ``None`` or empty; raises
-    ``ValueError`` on malformed cursor per §C explicit-not-silent. Bryce's
-    D10.e cursor codec replaces this placeholder.
-
-    # TODO(D10.e #97): replace with canonical CursorError after #97 integration
-    """
-
-    if cursor is None or cursor == "":
-        return 0
-    try:
-        decoded = base64.urlsafe_b64decode(cursor.encode("ascii")).decode("utf-8")
-        payload = json.loads(decoded)
-    except Exception as exc:
-        raise ValueError(f"cursor decode failed: {exc}") from exc
-    if not isinstance(payload, dict) or "offset" not in payload:
-        raise ValueError("cursor decode failed: missing 'offset' key")
-    raw_offset = payload["offset"]
-    if isinstance(raw_offset, bool) or not isinstance(raw_offset, int):
-        raise ValueError("cursor decode failed: 'offset' must be a non-negative int")
-    if raw_offset < 0:
-        raise ValueError("cursor decode failed: 'offset' must be non-negative")
-    return raw_offset
-
-
-def _encode_cursor(offset: int) -> str:
-    return base64.urlsafe_b64encode(json.dumps({"offset": offset}, separators=(",", ":")).encode("utf-8")).decode(
-        "ascii"
-    )
+from aperag.service.pagination import decode_offset_cursor, encode_offset_cursor
 
 
 def _sort_key(c, sort_by: str):
@@ -113,8 +81,19 @@ async def list_collections(
     rows.sort(key=lambda c: _sort_key(c, sort_by) or 0, reverse=(sort_order == "desc"))
 
     total = len(rows)
-    offset = _decode_cursor(cursor)
     limit = max(1, min(int(limit), 200))
+
+    cursor_filters = {
+        "title_filter": title_filter,
+        "sort_order": sort_order,
+    }
+    cursor_kwargs = dict(
+        sort_key=sort_by,
+        filters=cursor_filters,
+        collection_id=None,
+        tenant_id=str(user.id),
+    )
+    offset = decode_offset_cursor(cursor, **cursor_kwargs)
     page = rows[offset : offset + limit]
 
     items = [
@@ -128,7 +107,8 @@ async def list_collections(
         for c in page
     ]
 
-    next_cursor = _encode_cursor(offset + limit) if (offset + limit) < total else None
+    next_offset = offset + len(items)
+    next_cursor = encode_offset_cursor(offset=next_offset, **cursor_kwargs) if next_offset < total else None
     return CollectionList(items=items, next_cursor=next_cursor, total_count=total)
 
 
