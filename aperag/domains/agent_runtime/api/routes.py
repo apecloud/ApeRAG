@@ -43,7 +43,6 @@ from aperag.domains.agent_runtime.db.models import AgentEventActor, AgentTurnSta
 from aperag.domains.agent_runtime.runtime import agent_runtime_manager as runtime_manager
 from aperag.domains.agent_runtime.schemas import (
     AgentArtifactEnvelope,
-    AgentTurnSnapshot,
     CancelTurnResponse,
     CreateTurnRequest,
     CreateTurnResponse,
@@ -51,6 +50,7 @@ from aperag.domains.agent_runtime.schemas import (
 from aperag.domains.agent_runtime.tools.consent import ConsentOwnershipError, ConsentService
 from aperag.domains.agent_runtime.tools.elicitation import ElicitationOwnershipError, ElicitationService
 from aperag.domains.agent_runtime.tools.lifecycle import translate_lifecycle_envelope
+from aperag.domains.agent_runtime.uimessage import AgentTurnSnapshot
 from aperag.domains.agent_runtime.wire import (
     StreamPart,
     TranslatorState,

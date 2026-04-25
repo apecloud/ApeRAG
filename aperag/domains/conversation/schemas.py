@@ -45,9 +45,18 @@ Cross-domain references kept narrow:
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Literal, Optional
+from typing import TYPE_CHECKING, Any, Literal, Optional
 
 from pydantic import BaseModel, Field, conint
+
+if TYPE_CHECKING:
+    # Type-only import to keep the OpenAPI schema for ``ChatDetails.history``
+    # populated without forming a runtime cycle: ``agent_runtime.uimessage``
+    # imports ``AGENT_RUNTIME_SCHEMA_VERSION`` / ``UserActivityEnvelope`` from
+    # ``agent_runtime.schemas``, which in turn imports ``File`` from this
+    # module. Pydantic resolves the forward reference via
+    # :func:`ChatDetails.model_rebuild` at the bottom of this file.
+    from aperag.domains.agent_runtime.uimessage import AgentTurnSnapshot
 
 from aperag.domains.knowledge_base.schemas import Collection as KBCollectionSchema
 from aperag.schema.common import ModelSpec, PageResult, PaginatedResponse
@@ -169,9 +178,16 @@ class ChatDetails(BaseModel):
     bot_id: Optional[str] = None
     peer_id: Optional[str] = None
     peer_type: Optional[Literal["system", "feishu", "weixin", "weixin_official", "web", "dingtalk"]] = None
-    history: Optional[list[list[ChatMessage]]] = Field(
+    history: Optional[list[AgentTurnSnapshot]] = Field(
         None,
-        description="Array of conversation turns, where each turn is an array of message parts",
+        description=(
+            "Phase 8 D8.5-BE (#92): historical conversation turns as canonical "
+            "``AgentTurnSnapshot`` envelopes — each turn carries the same "
+            "``UIMessagePart[]`` shape the FE consumes from the live SSE stream "
+            "(D8 §2 wire/at-rest byte-equal). Replaces the legacy "
+            "``list[list[ChatMessage]]`` shape; FE renders historical turns with "
+            "the same renderer used for live turns."
+        ),
     )
     status: Optional[Literal["active", "archived"]] = None
     created: Optional[datetime] = None
@@ -217,6 +233,21 @@ class Feedback(BaseModel):
 # names pointing at the same class; keep the alias here so the dual-hook
 # shim still resolves ``TurnFeedbackWrite``.
 TurnFeedbackWrite = Feedback
+
+
+# Phase 8 D8.5-BE (#92): resolve the forward reference to
+# ``AgentTurnSnapshot`` after ``conversation.schemas`` finishes loading.
+# A direct top-level import would form a cycle through
+# ``agent_runtime.uimessage`` → ``agent_runtime.schemas`` → this module.
+# The TYPE_CHECKING block at the top declares the import for static
+# checkers / OpenAPI; this rebuild wires it up at runtime.
+def _rebuild_chat_details() -> None:
+    from aperag.domains.agent_runtime.uimessage import AgentTurnSnapshot  # noqa: F401
+
+    ChatDetails.model_rebuild()
+
+
+_rebuild_chat_details()
 
 
 __all__ = [

@@ -14,11 +14,11 @@ from aperag.domains.agent_runtime.db.models import (
 from aperag.domains.agent_runtime.schemas import (
     AgentArtifactEnvelope,
     AgentTimelineEventEnvelope,
-    AgentTurnSnapshot,
     CreateTurnRequest,
     UserActivityIntent,
 )
 from aperag.domains.agent_runtime.services import EventService, HistoryWriter, TurnService
+from aperag.domains.agent_runtime.uimessage import AgentTurnSnapshot
 
 
 def _now():

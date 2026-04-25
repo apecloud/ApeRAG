@@ -24,7 +24,6 @@ from aperag.domains.agent_runtime.schemas import (
     AgentArtifactEnvelope,
     AgentTimelineEventEnvelope,
     AgentTurnEnvelope,
-    AgentTurnSnapshot,
     CreateTurnRequest,
     ReferenceBundleItem,
     UserActivityContext,
@@ -36,6 +35,7 @@ from aperag.domains.agent_runtime.snapshot_assembler import (
     extract_error_text,
 )
 from aperag.domains.agent_runtime.storage import AgentRuntimeRedisStore
+from aperag.domains.agent_runtime.uimessage import AgentTurnSnapshot
 from aperag.domains.agent_runtime.uimessage_store import UIMessageStore
 from aperag.domains.conversation.db.models import BotType
 from aperag.domains.conversation.schemas import BotConfig
@@ -489,6 +489,7 @@ class TurnService:
         return AgentTurnSnapshot(
             turn_id=turn.id,
             chat_id=turn.chat_id,
+            runtime_kind="agent_runtime",
             status=status_str,
             parts=parts,
             error_text=error_text,
@@ -497,6 +498,7 @@ class TurnService:
             finished_at=turn.gmt_finished,
             created_at=turn.gmt_created,
             updated_at=turn.gmt_updated,
+            input_text=turn.input_text,
         )
 
     @staticmethod

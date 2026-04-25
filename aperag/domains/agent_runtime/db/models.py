@@ -153,7 +153,7 @@ class AgentArtifact(Base):
 
 
 class AgentMessage(Base):
-    """At-rest UIMessage envelope (Phase 8 D8.2 first-cut).
+    """At-rest UIMessage envelope (Phase 8 D8.2 first-cut, D8.5-BE refined).
 
     One row per assistant turn (1:1 with ``AgentTurn`` for now via
     ``turn_id``). ``parts`` holds the JSON-serialised
@@ -162,6 +162,13 @@ class AgentMessage(Base):
     ChatML (``user`` / ``assistant`` / ``system``); ``schema_version``
     is the runtime contract version tag so future renderer updates
     can branch without a separate negotiation.
+
+    ``runtime_kind`` (D8.5-BE / #92) tags the runtime that produced the
+    message — ``agent_runtime`` for the agent reasoning loop (D8.x
+    Phase A), and a forward-compat enum for direct LLM (``direct_chat``)
+    or RAG-only (``rag_chat``) paths. ``role`` retains its speaker
+    semantics independent of runtime origin per Weston msg=94dac98a /
+    architect canonical lock msg=e01e9b4b.
 
     The legacy ``AgentArtifact`` / ``AgentTimelineEvent`` tables are
     retained alongside this table during D8.x rollout — they will be
@@ -179,6 +186,7 @@ class AgentMessage(Base):
     turn_id = Column(String(24), nullable=False, index=True)
     chat_id = Column(String(24), nullable=False, index=True)
     role = Column(String(16), nullable=False)
+    runtime_kind = Column(String(24), nullable=False, default="agent_runtime", server_default="agent_runtime")
     schema_version = Column(String(64), nullable=False)
     parts = Column(JSON, default=lambda: [], nullable=False)
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)

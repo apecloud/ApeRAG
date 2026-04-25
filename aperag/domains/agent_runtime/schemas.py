@@ -44,7 +44,6 @@ from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
-from aperag.domains.conversation.schemas import File
 from aperag.domains.knowledge_base.schemas import Collection
 from aperag.schema.common import ModelSpec
 
@@ -86,6 +85,18 @@ class UserActivityEnvelope(BaseModel):
     subtitle_key: str
     detail_key: Optional[str] = None
     context: Optional[UserActivityContext] = None
+
+
+# ``File`` is imported lazily here to break the cycle introduced by D8.5-BE
+# (#92): ``conversation.schemas.ChatDetails.history`` now references
+# ``AgentTurnSnapshot`` from :mod:`aperag.domains.agent_runtime.uimessage`,
+# and ``uimessage`` in turn imports ``AGENT_RUNTIME_SCHEMA_VERSION`` and
+# ``UserActivityEnvelope`` from this module. Importing ``File`` at the
+# module top would close that cycle. By this point both symbols
+# ``uimessage`` needs are already defined, so importing ``File`` here is
+# safe and only the classes below (``CreateTurnRequest`` /
+# ``AgentMessage``) actually depend on it.
+from aperag.domains.conversation.schemas import File  # noqa: E402
 
 
 class AgentTurnEnvelope(BaseModel):
@@ -176,14 +187,14 @@ class CreateTurnResponse(BaseModel):
     stream_url: str
 
 
-# ``AgentTurnSnapshot`` is the canonical UIMessage at-rest envelope and
-# lives in :mod:`aperag.domains.agent_runtime.uimessage` next to the
-# other UIMessage classes. It is re-exported here so the existing
-# ``from aperag.domains.agent_runtime.schemas import AgentTurnSnapshot``
-# import sites continue to work without a domain-internal hop.
-from aperag.domains.agent_runtime.uimessage import (  # noqa: E402, F401
-    AgentTurnSnapshot,
-)
+# ``AgentTurnSnapshot`` lives in :mod:`aperag.domains.agent_runtime.uimessage`
+# next to the rest of the ``UIMessage`` family. The previous deferred
+# re-export from this module was retired in D8.5-BE (#92) because it
+# would close a fresh cycle between ``conversation.schemas`` (which
+# now imports ``AgentTurnSnapshot`` directly to type ``ChatDetails.history``)
+# and ``agent_runtime.schemas``. Existing call sites that still import
+# from this module are migrated to import from
+# ``aperag.domains.agent_runtime.uimessage`` directly.
 
 
 class CancelTurnResponse(BaseModel):
@@ -236,7 +247,6 @@ __all__ = [
     "AgentMessage",
     "AgentTimelineEventEnvelope",
     "AgentTurnEnvelope",
-    "AgentTurnSnapshot",
     "CancelTurnResponse",
     "CreateTurnRequest",
     "CreateTurnResponse",
