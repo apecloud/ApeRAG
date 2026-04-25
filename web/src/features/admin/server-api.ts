@@ -9,7 +9,7 @@ import type { Settings, SystemDefaultQuotasResponse } from './types';
 
 export async function getSettings(): Promise<Settings | null> {
   const client = await createServerApiClient();
-  const { data } = await client.GET('/api/v1/settings', {});
+  const { data } = await client.GET('/api/v2/settings', {});
   return data ?? null;
 }
 
