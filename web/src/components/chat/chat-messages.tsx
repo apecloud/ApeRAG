@@ -27,6 +27,8 @@ import {
 import { animateScroll as scroll } from 'react-scroll';
 import { toast } from 'sonner';
 import { AgentTurnRenderer } from './agent-turn-renderer';
+import { ConsentPrompt } from './consent-prompt';
+import { ElicitationForm } from './elicitation-form';
 import { ChatInput, ChatInputSubmitParams } from './chat-input';
 import { MessagePartsAi } from './message-parts-ai';
 import { MessagePartsUser } from './message-parts-user';
@@ -571,6 +573,8 @@ function AgentTurnStreamCard({
       errorText={displayErrorText}
       feedback={feedback}
       onFeedback={onFeedback}
+      ConsentSlot={ConsentPrompt}
+      ElicitationSlot={ElicitationForm}
     />
   );
 }

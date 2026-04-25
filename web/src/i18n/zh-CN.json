@@ -410,10 +410,41 @@
       },
       "consent": {
         "placeholder_title": "工具授权请求：{name}",
-        "placeholder_state": "状态：{state}（等待 #78 交互组件接入）"
+        "placeholder_state": "状态：{state}（等待 #78 交互组件接入）",
+        "approve": "批准",
+        "deny": "拒绝",
+        "approving": "批准中…",
+        "denying": "拒绝中…",
+        "args_fingerprint": "参数指纹",
+        "decision_failed": "授权决定失败",
+        "resolved_status": "授权 {state}",
+        "risk": {
+          "writes_user_data": "写入用户数据",
+          "calls_external_api": "调用外部 API",
+          "modifies_system": "修改系统",
+          "admin_only": "管理员操作"
+        },
+        "state_label": {
+          "approved": "已批准",
+          "denied": "已拒绝",
+          "expired": "已过期"
+        }
       },
       "elicitation": {
-        "placeholder_state": "状态：{state}（等待 #78 交互组件接入）"
+        "placeholder_state": "状态：{state}（等待 #78 交互组件接入）",
+        "submit": "提交",
+        "submitting": "提交中…",
+        "submit_failed": "提交失败",
+        "from_server": "来自 {name}",
+        "no_schema_fields": "未声明 schema 字段；提交空响应",
+        "missing_required": "缺少必填字段：{fields}",
+        "invalid_value": "字段值无效：{fields}",
+        "select_placeholder": "请选择…",
+        "resolved_status": "请求 {state}",
+        "state_label": {
+          "answered": "已回答",
+          "cancelled": "已取消"
+        }
       },
       "debug": {
         "title": "调试详情",
