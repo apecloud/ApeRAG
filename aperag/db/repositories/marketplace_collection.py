@@ -16,8 +16,8 @@ from typing import Optional, Tuple
 
 from sqlalchemy import select
 
-from aperag.db.models import User
 from aperag.db.repositories.base import AsyncRepositoryProtocol
+from aperag.domains.identity.db.models import User
 from aperag.domains.knowledge_base.db.models import (
     Collection,
     CollectionStatus,

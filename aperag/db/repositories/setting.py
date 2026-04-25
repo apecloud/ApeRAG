@@ -15,14 +15,14 @@
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 
-from aperag.db import models as db_models
 from aperag.db.repositories.base import AsyncRepositoryProtocol, SyncRepositoryProtocol
+from aperag.domains.governance.db.models import Setting
 
 
 class SettingRepositoryMixin(SyncRepositoryProtocol):
-    def query_all_settings(self) -> list[db_models.Setting]:
+    def query_all_settings(self) -> list[Setting]:
         def _query(session):
-            stmt = select(db_models.Setting)
+            stmt = select(Setting)
             result = session.execute(stmt)
             return result.scalars().all()
 
@@ -30,17 +30,17 @@ class SettingRepositoryMixin(SyncRepositoryProtocol):
 
 
 class AsyncSettingRepositoryMixin(AsyncRepositoryProtocol):
-    async def query_setting(self, key: str) -> db_models.Setting | None:
+    async def query_setting(self, key: str) -> Setting | None:
         async def _query(session):
-            stmt = select(db_models.Setting).where(db_models.Setting.key == key)
+            stmt = select(Setting).where(Setting.key == key)
             result = await session.execute(stmt)
             return result.scalars().first()
 
         return await self._execute_query(_query)
 
-    async def query_all_settings(self) -> list[db_models.Setting]:
+    async def query_all_settings(self) -> list[Setting]:
         async def _query(session):
-            stmt = select(db_models.Setting)
+            stmt = select(Setting)
             result = await session.execute(stmt)
             return result.scalars().all()
 
@@ -49,7 +49,7 @@ class AsyncSettingRepositoryMixin(AsyncRepositoryProtocol):
     async def update_setting(self, key: str, value: str):
         async def _operation(session):
             stmt = (
-                insert(db_models.Setting)
+                insert(Setting)
                 .values(key=key, value=value)
                 .on_conflict_do_update(
                     index_elements=["key"],

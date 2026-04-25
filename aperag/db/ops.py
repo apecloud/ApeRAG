@@ -28,7 +28,6 @@ from aperag.db.repositories.document import (
     DocumentRepositoryMixin,
 )
 from aperag.db.repositories.document_index import AsyncDocumentIndexRepositoryMixin
-from aperag.db.repositories.evaluation import AsyncEvaluationRepositoryMixin
 from aperag.db.repositories.evaluation_v2 import AsyncEvaluationV2RepositoryMixin
 from aperag.db.repositories.llm_provider import (
     AsyncLlmProviderRepositoryMixin,
@@ -37,7 +36,6 @@ from aperag.db.repositories.llm_provider import (
 from aperag.db.repositories.marketplace import AsyncMarketplaceRepositoryMixin
 from aperag.db.repositories.marketplace_collection import AsyncMarketplaceCollectionRepositoryMixin
 from aperag.db.repositories.prompt_template import AsyncPromptTemplateRepositoryMixin
-from aperag.db.repositories.question_set import AsyncQuestionSetRepositoryMixin
 from aperag.db.repositories.search import AsyncSearchRepositoryMixin
 from aperag.db.repositories.setting import (
     AsyncSettingRepositoryMixin,
@@ -76,9 +74,7 @@ class AsyncDatabaseOps(
     AsyncDocumentIndexRepositoryMixin,
     AsyncSettingRepositoryMixin,
     AsyncPromptTemplateRepositoryMixin,
-    AsyncEvaluationRepositoryMixin,
     AsyncEvaluationV2RepositoryMixin,
-    AsyncQuestionSetRepositoryMixin,
 ):
     pass
 

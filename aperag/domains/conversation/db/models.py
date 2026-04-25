@@ -42,9 +42,10 @@ from enum import Enum
 from sqlalchemy import (
     Column,
     DateTime,
+    Index,
     String,
     Text,
-    UniqueConstraint,
+    text,
 )
 
 from aperag.db.base import Base
@@ -128,7 +129,18 @@ class Bot(Base):
 class Chat(Base):
     __tablename__ = "chat"
     __table_args__ = (
-        UniqueConstraint("bot_id", "peer_type", "peer_id", "gmt_deleted", name="uq_chat_bot_peer_deleted"),
+        # Partial unique index: enforce uniqueness only over active
+        # (``gmt_deleted IS NULL``) rows. Phase 8 Task #39 Part D
+        # converts the legacy ``UniqueConstraint(..., "gmt_deleted")``
+        # which Postgres did not actually enforce because NULL != NULL.
+        Index(
+            "uq_chat_bot_peer_active",
+            "bot_id",
+            "peer_type",
+            "peer_id",
+            unique=True,
+            postgresql_where=text("gmt_deleted IS NULL"),
+        ),
     )
 
     id = Column(String(24), primary_key=True, default=lambda: "chat" + _random_id())

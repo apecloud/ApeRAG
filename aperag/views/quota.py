@@ -18,7 +18,7 @@ from typing import List, Union
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.security import HTTPBearer
 
-from aperag.db.models import Role, User
+from aperag.domains.identity.db.models import Role, User
 from aperag.schema.view_models import (
     QuotaInfo,
     QuotaUpdateRequest,

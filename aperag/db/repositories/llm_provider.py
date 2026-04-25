@@ -16,10 +16,6 @@ from typing import List, Optional
 
 from sqlalchemy import select
 
-from aperag.db.models import (
-    ModelServiceProvider,
-    ModelServiceProviderStatus,
-)
 from aperag.db.repositories.base import (
     AsyncRepositoryProtocol,
     SyncRepositoryProtocol,
@@ -27,6 +23,8 @@ from aperag.db.repositories.base import (
 from aperag.domains.model_platform.db.models import (
     LLMProvider,
     LLMProviderModel,
+    ModelServiceProvider,
+    ModelServiceProviderStatus,
 )
 from aperag.utils.utils import utc_now
 
@@ -193,8 +191,6 @@ class AsyncLlmProviderRepositoryMixin(AsyncRepositoryProtocol):
                 session.add(msp)
             else:
                 # Create new
-                from aperag.db.models import ModelServiceProviderStatus
-
                 msp = ModelServiceProvider(name=name, status=ModelServiceProviderStatus.ACTIVE, api_key=api_key)
                 session.add(msp)
 

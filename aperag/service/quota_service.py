@@ -37,7 +37,7 @@ class QuotaService:
         async def _query(session):
             from sqlalchemy import select
 
-            from aperag.db.models import UserQuota
+            from aperag.domains.governance.db.models import UserQuota
 
             stmt = select(UserQuota).where(UserQuota.user == user_id)
             result = await session.execute(stmt)
@@ -61,7 +61,8 @@ class QuotaService:
         async def _query(session):
             from sqlalchemy import or_, select
 
-            from aperag.db.models import User, UserQuota
+            from aperag.domains.governance.db.models import UserQuota
+            from aperag.domains.identity.db.models import User
 
             # Build query for users
             stmt = select(User).where(User.gmt_deleted.is_(None))
@@ -111,7 +112,7 @@ class QuotaService:
         async def _operation(session):
             from sqlalchemy import select
 
-            from aperag.db.models import UserQuota
+            from aperag.domains.governance.db.models import UserQuota
             from aperag.utils.utils import utc_now
 
             updated_quotas = []
@@ -159,8 +160,8 @@ class QuotaService:
         async def _operation(session):
             from sqlalchemy import func, select
 
-            from aperag.db.models import UserQuota
             from aperag.domains.conversation.db.models import Bot
+            from aperag.domains.governance.db.models import UserQuota
             from aperag.domains.knowledge_base.db.models import (
                 Collection,
                 Document,
@@ -232,7 +233,7 @@ class QuotaService:
         async def _operation(session):
             from sqlalchemy import select
 
-            from aperag.db.models import UserQuota
+            from aperag.domains.governance.db.models import UserQuota
             from aperag.utils.utils import utc_now
 
             # Use SELECT FOR UPDATE to prevent race conditions
@@ -279,7 +280,7 @@ class QuotaService:
         async def _operation(session):
             from sqlalchemy import select
 
-            from aperag.db.models import UserQuota
+            from aperag.domains.governance.db.models import UserQuota
             from aperag.utils.utils import utc_now
 
             stmt = select(UserQuota).where(UserQuota.user == user_id, UserQuota.key == quota_type).with_for_update()
@@ -308,7 +309,7 @@ class QuotaService:
 
             from sqlalchemy import select
 
-            from aperag.db.models import ConfigModel
+            from aperag.domains.governance.db.models import ConfigModel
 
             stmt = select(ConfigModel).where(ConfigModel.key == "system_default_quotas")
             result = await session.execute(stmt)
@@ -338,7 +339,7 @@ class QuotaService:
 
             from sqlalchemy import select
 
-            from aperag.db.models import ConfigModel
+            from aperag.domains.governance.db.models import ConfigModel
             from aperag.utils.utils import utc_now
 
             stmt = select(ConfigModel).where(ConfigModel.key == "system_default_quotas")
@@ -365,7 +366,7 @@ class QuotaService:
         async def _operation(session):
             from sqlalchemy import select
 
-            from aperag.db.models import UserQuota
+            from aperag.domains.governance.db.models import UserQuota
             from aperag.utils.utils import utc_now
 
             # Get default quotas from system config

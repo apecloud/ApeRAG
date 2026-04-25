@@ -19,7 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from jinja2 import TemplateSyntaxError
 from pydantic import BaseModel, Field
 
-from aperag.db.models import User
+from aperag.domains.identity.db.models import User
 from aperag.service.prompt_template_service import PromptTemplateService, prompt_template_service
 from aperag.views.auth import required_user
 

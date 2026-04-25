@@ -127,7 +127,7 @@ class AsyncDocumentRepositoryMixin(AsyncRepositoryProtocol):
             instance = result.scalars().first()
 
             if instance:
-                from aperag.db.models import utc_now
+                from aperag.utils.utils import utc_now
 
                 instance.status = DocumentStatus.DELETED
                 instance.gmt_deleted = utc_now()
@@ -156,7 +156,7 @@ class AsyncDocumentRepositoryMixin(AsyncRepositoryProtocol):
             if not instances:
                 return [], []
 
-            from aperag.db.models import utc_now
+            from aperag.utils.utils import utc_now
 
             deleted_instances = []
             for instance in instances:

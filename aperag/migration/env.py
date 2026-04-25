@@ -34,11 +34,12 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 from aperag.db.models import Base
 
-# Import the models modules to register all SQLAlchemy tables. Phase 7 B5
-# stripped the aggregate re-export block from ``aperag.db.models`` — the
-# per-domain model modules must now be imported explicitly here so their
-# mapper classes register against ``Base.metadata`` before autogen runs.
-import aperag.db.models  # noqa: F401  (local models: Invitation/UserQuota/etc.)
+# Import the models modules to register all SQLAlchemy tables. Phase 8
+# Task #39 carved/deleted the last local ORMs from ``aperag.db.models``,
+# which now only re-exports ``Base`` and ``random_id``/``EnumColumn``
+# helpers — the per-domain model modules must now be imported explicitly
+# here so their mapper classes register against ``Base.metadata`` before
+# autogen runs.
 import aperag.domains.agent_runtime.db.models  # noqa: F401
 import aperag.domains.conversation.db.models  # noqa: F401
 import aperag.domains.evaluation.db.models  # noqa: F401

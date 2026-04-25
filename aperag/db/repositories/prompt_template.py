@@ -16,8 +16,8 @@ from typing import List, Optional
 
 from sqlalchemy import select
 
-from aperag.db.models import PromptTemplate
 from aperag.db.repositories.base import AsyncRepositoryProtocol
+from aperag.domains.model_platform.db.models import PromptTemplate
 from aperag.utils.utils import utc_now
 
 

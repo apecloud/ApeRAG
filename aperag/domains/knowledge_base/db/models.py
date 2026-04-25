@@ -18,10 +18,11 @@ Owns ``Collection`` + ``CollectionSummary`` + ``Document`` — the three
 entities the knowledge_base domain is responsible for — plus their
 lifecycle / classification enums (``CollectionStatus`` /
 ``CollectionSummaryStatus`` / ``CollectionType`` / ``DocumentStatus``).
+Phase 8 Task #39 carved ``ExportTask`` (+ ``ExportTaskStatus`` enum)
+here too — ``export_collection_task`` packages files inside a
+collection prefix, so the table is naturally KB-owned.
 Moved here from ``aperag.db.models`` in Phase 3 step 4 as the final
-piece of the Phase 3 DB split; the legacy aggregate module retains a
-re-export shim with the full 15-symbol Phase 3 list until Phase 6
-cleanup.
+piece of the Phase 3 DB split.
 
 ``Document`` carries two helper methods (``get_document_indexes`` /
 ``get_overall_index_status``) that query the ``DocumentIndex`` table.
@@ -218,6 +219,39 @@ class Document(Base):
             self.collection_id = collection
 
 
+class ExportTaskStatus(str, Enum):
+    PENDING = "PENDING"
+    PROCESSING = "PROCESSING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    EXPIRED = "EXPIRED"
+
+
+class ExportTask(Base):
+    __tablename__ = "export_task"
+    __table_args__ = (
+        Index("idx_export_task_user_status", "user", "status"),
+        Index("idx_export_task_expires", "status", "gmt_expires"),
+    )
+
+    id = Column(String(24), primary_key=True, default=lambda: "export" + _random_id()[:16])
+    user = Column(String(256), nullable=False, index=True)
+    collection_id = Column(String(24), nullable=False, index=True)
+
+    status = Column(_enum_column(ExportTaskStatus), nullable=False, default=ExportTaskStatus.PENDING)
+    progress = Column(Integer, default=0)
+    message = Column(Text, nullable=True)
+    error_message = Column(Text, nullable=True)
+
+    object_store_path = Column(Text, nullable=True)
+    file_size = Column(BigInteger, nullable=True)
+
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_completed = Column(DateTime(timezone=True), nullable=True)
+    gmt_expires = Column(DateTime(timezone=True), nullable=True)
+
+
 __all__ = [
     "Collection",
     "CollectionStatus",
@@ -226,4 +260,6 @@ __all__ = [
     "CollectionType",
     "Document",
     "DocumentStatus",
+    "ExportTask",
+    "ExportTaskStatus",
 ]

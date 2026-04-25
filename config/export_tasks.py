@@ -35,13 +35,11 @@ def export_collection_task(self, export_task_id: str):
     from sqlalchemy import select
 
     from aperag.config import get_sync_session
-    from aperag.db.models import (
-        ExportTask,
-        ExportTaskStatus,
-    )
     from aperag.domains.knowledge_base.db.models import (
         Collection,
         Document,
+        ExportTask,
+        ExportTaskStatus,
     )
     from aperag.objectstore.base import get_object_store
     from aperag.utils.utils import utc_now
