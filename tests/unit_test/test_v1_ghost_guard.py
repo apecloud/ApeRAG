@@ -8,13 +8,10 @@ The end-state allowlist (canonical D7-1 / msg=8b6b4bc3) is:
 Phase 8 task #44 (H3) cleaned the provider-aware Hurl suite to use
 ``/api/v2/providers/*``. The G* hard-cut series (#1 G1 export, #2 G2
 settings, #3 G3 prompts, #50 G4a audit-logs, #51 G4b apikeys, #52 G4c
-marketplace, G4d chat ops, and Phase 8 #63 G5a) shrunk the
-``TRANSITIONAL_V1_PREFIXES`` ledger from its original 12 entries down
-to the residual set below. The remaining entries are tracked in
-``#64`` (G5b: ``quotas / system`` router truthing) and ``#65``
-(G5c: ``test/register_admin`` bootstrap path); they are NOT
-unmigrated dead callers — each is awaiting an explicit live-contract
-disposition decision per PM msg=023a2fa7.
+marketplace, G4d chat ops, #63 G5a, #65 G5c, and #66 G5b) retired the
+temporary ``TRANSITIONAL_V1_PREFIXES`` ledger. No internal ``/api/v1``
+Hurl references may remain after #66; only the OpenAI-compatible public
+allowlist below is permanent.
 
 This test scans every ``.hurl`` file under ``tests/e2e_http/`` and asserts
 each ``/api/v1/...`` literal matches either the permanent allowlist or a
@@ -36,27 +33,10 @@ OPENAI_COMPAT_V1_ALLOWLIST: frozenset[str] = frozenset(
     }
 )
 
-# Transitional prefixes — residual ``/api/v1`` references awaiting an
-# explicit disposition. After Phase 8 #63 G5a flipped the confirmed
-# dead-caller set (collections / export-tasks / chats / bots) and #65
-# (G5c) retired the dev-only test bootstrap shortcut (callers now go
-# through the canonical ``/api/v2/auth/register`` flow, whose existing
-# first-user-promote logic gives the bootstrap user admin role on a
-# fresh DB), only the ``quotas / system`` pair remains:
-#
-#   - ``/api/v1/quotas`` + ``/api/v1/system``: router defined in
-#     ``aperag/views/quota.py`` but **not mounted in main**; FE callers
-#     are live but currently 404. ``#66`` (G5b-impl) decides router
-#     carve to governance domain + ``/api/v2`` contract restore.
-#
-# Anything outside both sets is an unrecognised v1 reference and must be
-# either migrated or moved into one of these sets in the same PR.
-TRANSITIONAL_V1_PREFIXES: frozenset[str] = frozenset(
-    {
-        "/api/v1/quotas",  # G5b-impl (#66) — router carve + /api/v2 restore pending
-        "/api/v1/system",  # G5b-impl (#66) — same router as quotas
-    }
-)
+# Transitional prefixes — after #66 there are no temporary internal v1
+# prefixes left. Any new item here must come with a new canonical decision
+# explaining why it is not migrated to ``/api/v2`` in the same PR.
+TRANSITIONAL_V1_PREFIXES: frozenset[str] = frozenset()
 
 V1_PATH_RE = re.compile(r"/api/v1/[A-Za-z0-9_\-/{}.%]+")
 

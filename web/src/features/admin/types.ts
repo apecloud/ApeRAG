@@ -18,7 +18,7 @@ export type QuotaUpdateRequest = components['schemas']['QuotaUpdateRequest'];
 export type QuotaUpdateResponse = components['schemas']['QuotaUpdateResponse'];
 
 // Admin-side per-user quota read shape (reused from workspace quota domain
-// because the `/api/v1/quotas` endpoint returns the same `UserQuotaInfo`
+// because the `/api/v2/quotas` endpoint returns the same `UserQuotaInfo`
 // shape regardless of caller). Re-exported here so `features/admin/*` is the
 // single canonical surface for admin control-plane types.
 export type UserQuotaInfo = components['schemas']['UserQuotaInfo'];

@@ -15,7 +15,7 @@ export async function getSettings(): Promise<Settings | null> {
 
 export async function getSystemDefaultQuotas(): Promise<SystemDefaultQuotasResponse | null> {
   const client = await createServerApiClient();
-  const { data } = await client.GET('/api/v1/system/default-quotas', {});
+  const { data } = await client.GET('/api/v2/system/default-quotas', {});
   return data ?? null;
 }
 

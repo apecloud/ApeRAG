@@ -52,7 +52,7 @@ export async function updateSystemDefaultQuotas(
   input: SystemDefaultQuotasUpdateRequest,
 ): Promise<SystemDefaultQuotasUpdateResponse> {
   const { data } = await browserApiClient.PUT(
-    '/api/v1/system/default-quotas',
+    '/api/v2/system/default-quotas',
     {
       body: input,
     },
@@ -65,7 +65,7 @@ export async function updateSystemDefaultQuotas(
 
 export async function getSystemDefaultQuotas(): Promise<SystemDefaultQuotasResponse> {
   const { data } = await browserApiClient.GET(
-    '/api/v1/system/default-quotas',
+    '/api/v2/system/default-quotas',
     {},
   );
   if (!data) {
@@ -75,7 +75,7 @@ export async function getSystemDefaultQuotas(): Promise<SystemDefaultQuotasRespo
 }
 
 export async function getUserQuota(userId: string): Promise<UserQuotaInfo> {
-  const { data } = await browserApiClient.GET('/api/v1/quotas', {
+  const { data } = await browserApiClient.GET('/api/v2/quotas', {
     params: { query: { user_id: userId } },
   });
   if (!data) {
@@ -94,7 +94,7 @@ export async function updateUserQuota(
   input: QuotaUpdateRequest,
 ): Promise<QuotaUpdateResponse> {
   const { data } = await browserApiClient.PUT(
-    '/api/v1/quotas/{user_id}',
+    '/api/v2/quotas/{user_id}',
     {
       params: { path: { user_id: userId } },
       body: input,
@@ -112,7 +112,7 @@ export async function updateUserQuota(
 // the return type.
 export async function recalculateUserQuota(userId: string): Promise<unknown> {
   const { data } = await browserApiClient.POST(
-    '/api/v1/quotas/{user_id}/recalculate',
+    '/api/v2/quotas/{user_id}/recalculate',
     {
       params: { path: { user_id: userId } },
     },

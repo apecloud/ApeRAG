@@ -24,7 +24,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, conint
 
 from aperag.schema.common import PageResult, PaginatedResponse
 
@@ -35,6 +35,16 @@ __all__ = [
     "ApiKeyUpdate",
     "AuditLog",
     "AuditLogList",
+    "QuotaInfo",
+    "QuotaUpdateRequest",
+    "QuotaUpdateResponse",
+    "SystemDefaultQuotas",
+    "SystemDefaultQuotasResponse",
+    "SystemDefaultQuotasUpdateRequest",
+    "SystemDefaultQuotasUpdateResponse",
+    "UpdatedQuota",
+    "UserQuotaInfo",
+    "UserQuotaList",
 ]
 
 
@@ -62,6 +72,114 @@ class ApiKeyCreate(BaseModel):
 
 class ApiKeyUpdate(BaseModel):
     description: Optional[str] = None
+
+
+class QuotaInfo(BaseModel):
+    """
+    Quota information for a specific quota type
+    """
+
+    quota_type: str = Field(..., description="Type of quota", examples=["max_collection_count"])
+    quota_limit: int = Field(..., description="Maximum allowed usage", examples=[10])
+    current_usage: int = Field(..., description="Current usage count", examples=[3])
+    remaining: int = Field(..., description="Remaining quota available", examples=[7])
+
+
+class UserQuotaInfo(BaseModel):
+    """
+    Complete quota information for a user
+    """
+
+    user_id: str = Field(..., description="User ID", examples=["user123"])
+    username: Optional[str] = Field(None, description="Username", examples=["john_doe"])
+    email: Optional[str] = Field(None, description="User email", examples=["john@example.com"])
+    role: str = Field(..., description="User role", examples=["rw"])
+    quotas: list[QuotaInfo] = Field(..., description="List of quota information")
+
+
+class UserQuotaList(BaseModel):
+    """
+    List of user quota information (admin view)
+    """
+
+    items: list[UserQuotaInfo] = Field(..., description="List of user quota information")
+
+
+class QuotaUpdateRequest(BaseModel):
+    """
+    Request to update user quotas (supports both single and batch updates)
+    """
+
+    max_collection_count: Optional[conint(ge=0)] = Field(None, description="New limit for collection count")
+    max_document_count: Optional[conint(ge=0)] = Field(None, description="New limit for document count")
+    max_document_count_per_collection: Optional[conint(ge=0)] = Field(
+        None, description="New limit for documents per collection"
+    )
+    max_bot_count: Optional[conint(ge=0)] = Field(None, description="New limit for bot count")
+
+
+class UpdatedQuota(BaseModel):
+    quota_type: str = Field(
+        ...,
+        description="Type of quota that was updated",
+        examples=["max_collection_count"],
+    )
+    old_limit: int = Field(..., description="Previous quota limit", examples=[10])
+    new_limit: int = Field(..., description="New quota limit", examples=[20])
+
+
+class QuotaUpdateResponse(BaseModel):
+    """
+    Response after updating user quotas (supports both single and batch updates)
+    """
+
+    success: bool = Field(..., description="Whether the update was successful", examples=[True])
+    message: str = Field(..., description="Status message", examples=["Quotas updated successfully"])
+    user_id: str = Field(..., description="User ID that was updated", examples=["user123"])
+    updated_quotas: list[UpdatedQuota] = Field(..., description="List of updated quotas")
+
+
+class SystemDefaultQuotas(BaseModel):
+    """
+    System default quota configuration
+    """
+
+    max_collection_count: conint(ge=0) = Field(..., description="Default maximum collection count", examples=[10])
+    max_document_count: conint(ge=0) = Field(..., description="Default maximum document count", examples=[1000])
+    max_document_count_per_collection: conint(ge=0) = Field(
+        ..., description="Default maximum documents per collection", examples=[100]
+    )
+    max_bot_count: conint(ge=0) = Field(..., description="Default maximum bot count", examples=[5])
+
+
+class SystemDefaultQuotasResponse(BaseModel):
+    """
+    Response containing system default quotas
+    """
+
+    quotas: SystemDefaultQuotas
+
+
+class SystemDefaultQuotasUpdateRequest(BaseModel):
+    """
+    Request to update system default quotas
+    """
+
+    quotas: SystemDefaultQuotas
+
+
+class SystemDefaultQuotasUpdateResponse(BaseModel):
+    """
+    Response after updating system default quotas
+    """
+
+    success: bool = Field(..., description="Whether the update was successful", examples=[True])
+    message: str = Field(
+        ...,
+        description="Status message",
+        examples=["System default quotas updated successfully"],
+    )
+    quotas: SystemDefaultQuotas
 
 
 class AuditLog(BaseModel):

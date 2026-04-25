@@ -180,7 +180,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/quotas": {
+    "/api/v2/quotas": {
         parameters: {
             query?: never;
             header?: never;
@@ -200,7 +200,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/quotas/{user_id}": {
+    "/api/v2/quotas/{user_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -220,7 +220,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/quotas/{user_id}/recalculate": {
+    "/api/v2/quotas/{user_id}/recalculate": {
         parameters: {
             query?: never;
             header?: never;
@@ -240,7 +240,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/system/default-quotas": {
+    "/api/v2/system/default-quotas": {
         parameters: {
             query?: never;
             header?: never;

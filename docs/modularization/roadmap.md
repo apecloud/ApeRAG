@@ -137,7 +137,7 @@ each merge because allowlists are exact fixtures.
 | Domain | Scope | FE mirrors | Key breaking decisions |
 | --- | --- | --- | --- |
 | `identity` | Auth, user, invitation, API key ownership. | `features/identity`, existing `features/api-key` | Auth public/internal paths; admin user surface; `app-provider.tsx` auth debt. |
-| `governance` | Quota, audit, settings, config. | `features/quota`, `features/audit`, `features/settings` | Split `/api/v1/quotas` into user/admin surfaces; decide audit public/internal OpenAPI. |
+| `governance` | Quota, audit, settings, config. | `features/quota`, `features/audit`, `features/settings` | Quota/system-default routes restored under `/api/v2`; audit hidden/public OpenAPI boundary is explicit. |
 | `model_platform` | Providers, default models, prompt templates. | `features/providers`, `features/prompt` | Provider credential/admin semantics; prompt response component and enum debt. |
 | `marketplace` | Collection marketplace ownership and subscriptions. | `features/marketplace` | Marketplace document/preview concrete response typing and knowledge-base contract. |
 

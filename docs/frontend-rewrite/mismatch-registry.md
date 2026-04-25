@@ -88,7 +88,7 @@ These features exist in the API and stay in product; the rewrite covers them in 
 
 - Prompt template CRUD (`GET/PUT /api/v2/prompts/user`)
 - API keys (`GET/POST/PUT/DELETE /api/v1/apikeys`)
-- Quotas page (`GET /api/v1/quotas`) — numeric only, no budget framing
+- Quotas page (`GET /api/v2/quotas`) — numeric only, no budget framing
 - Audit logs (`GET /api/v1/audit-logs`)
 - Admin users / invitations (`GET /api/v2/auth/users`, `POST /api/v2/auth/invite`)
 - Provider & model configuration (`/api/v2/providers*`)

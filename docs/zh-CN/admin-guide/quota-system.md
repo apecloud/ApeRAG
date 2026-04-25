@@ -59,7 +59,7 @@ ApeRAG 使用**每用户配额**来限制可创建的核心资源数量。配额
 ### 当前用户的配额
 
 ```http
-GET /api/v1/quotas
+GET /api/v2/quotas
 Authorization: Bearer sk-<user-key>
 ```
 
@@ -79,14 +79,14 @@ Authorization: Bearer sk-<user-key>
 ### admin 查某个用户
 
 ```http
-GET /api/v1/quotas?user_id=<uid>
+GET /api/v2/quotas?user_id=<uid>
 Authorization: Bearer sk-<admin-key>
 ```
 
 ### admin 按用户名 / 邮箱 / ID 搜索
 
 ```http
-GET /api/v1/quotas?search=<term>
+GET /api/v2/quotas?search=<term>
 ```
 
 `search` 是精确匹配 username / email / user.id 之一（注意不是模糊搜索），返回 `UserQuotaList`。当查询结果为 0 时返回 404；其他情况返回 list（即便只有一条结果）。
@@ -96,7 +96,7 @@ GET /api/v1/quotas?search=<term>
 ### 调整单个用户的配额
 
 ```http
-PUT /api/v1/quotas/{user_id}
+PUT /api/v2/quotas/{user_id}
 Content-Type: application/json
 Authorization: Bearer sk-<admin-key>
 
@@ -127,7 +127,7 @@ Authorization: Bearer sk-<admin-key>
 ### 重算当前用量
 
 ```http
-POST /api/v1/quotas/{user_id}/recalculate
+POST /api/v2/quotas/{user_id}/recalculate
 Authorization: Bearer sk-<admin-key>
 ```
 
@@ -144,8 +144,8 @@ Authorization: Bearer sk-<admin-key>
 ### 调整系统默认配额
 
 ```http
-GET /api/v1/system/default-quotas
-PUT /api/v1/system/default-quotas
+GET /api/v2/system/default-quotas
+PUT /api/v2/system/default-quotas
 Content-Type: application/json
 
 {
@@ -159,7 +159,7 @@ Content-Type: application/json
 ```
 
 - 新注册用户会按当前 system default 初始化自己的 UserQuota 行（由 identity 域的 `on_after_register` 钩子调用 `quota_service.initialize_user_quotas`）。
-- **改系统默认值不会影响已存在用户**。已存在用户若要跟上新默认，走 `PUT /api/v1/quotas/{user_id}` 单个改。
+- **改系统默认值不会影响已存在用户**。已存在用户若要跟上新默认，走 `PUT /api/v2/quotas/{user_id}` 单个改。
 
 ## 运行时行为
 
@@ -186,33 +186,33 @@ Content-Type: application/json
 
 ## 权限模型
 
-- **普通用户**：只能 `GET /api/v1/quotas`（本人）。所有其他 quota 接口返回 403。
+- **普通用户**：只能 `GET /api/v2/quotas`（本人）。所有其他 quota 接口返回 403。
 - **admin（`role == "admin"`）**：
   - 查任意用户 / 搜索
   - 改任意用户 limit
   - 触发任意用户 recalculate
   - 读 / 写 system default
 
-`role` 的 admin 判定在 quota 接口层仍走 `current_user.role != Role.ADMIN` 枚举比较（`quota_service` 保留在 `aperag/service/` 标准基础设施位置，不受 G15 governance literal compare 规则约束）。这与 audit-log / api-key 接口（governance 域内用 `user.role != "admin"` 字面量）口径**不同**，是 historical artifact，未来 quota_service 若收编进 identity 域会一并收口。
+quota 接口层现在与 governance 其他接口对齐，使用 `AuthenticatedUser` port 读取当前用户，并以 `current_user.role != "admin"` 做 admin 判定。`quota_service` 的 canonical implementation 已收编到 `aperag/domains/governance/service/quota_service.py`；`aperag/service/quota_service.py` 仅保留兼容 shim，供现有 Protocol/DI consumer 继续导入。
 
 ## 常见运维场景
 
 ### 给某用户临时放宽
 
 ```http
-PUT /api/v1/quotas/<uid>
+PUT /api/v2/quotas/<uid>
 {"max_document_count": 5000}
 ```
 
 ### 排查"为什么创建 collection 失败 403"
 
-1. `GET /api/v1/quotas?user_id=<uid>` 看 `max_collection_count` 的 `current_usage` vs `quota_limit`。
-2. 若 `current_usage` 大于实际 collection 数（漂移），`POST /api/v1/quotas/<uid>/recalculate` 修正。
-3. 若 `quota_limit` 太小，`PUT /api/v1/quotas/<uid>` 提高上限。
+1. `GET /api/v2/quotas?user_id=<uid>` 看 `max_collection_count` 的 `current_usage` vs `quota_limit`。
+2. 若 `current_usage` 大于实际 collection 数（漂移），`POST /api/v2/quotas/<uid>/recalculate` 修正。
+3. 若 `quota_limit` 太小，`PUT /api/v2/quotas/<uid>` 提高上限。
 
 ### 批量提高所有新用户默认
 
-`PUT /api/v1/system/default-quotas` — 改完只影响此后注册的用户，老用户不变。
+`PUT /api/v2/system/default-quotas` — 改完只影响此后注册的用户，老用户不变。
 
 ### 统计各配额的饱和度
 
@@ -232,7 +232,7 @@ GROUP BY key;
 
 `quota_service` 是 **2 条 permanent Protocol+DI seam** 之一（另一条是 `prompt_template_service`），在 `aperag/app.py` 启动时注入到 `conversation.bot_service._quota_ops`（G18 alt CRITICAL_WIRINGS registry）。
 
-设计原因：`quota_service` 是标准基础设施（不属于任何业务域的主干），被 knowledge_base / conversation / agent_runtime 多个域交叉消费；为了不把 quota 绑到任一业务域，把它留在 `aperag/service/` 并通过消费方的 `ports.py` 显式声明为 Protocol。
+设计原因：quota 能力由 governance 域拥有，但被 knowledge_base / conversation / agent_runtime 多个域交叉消费；跨域调用仍通过消费方的 `ports.py` 显式声明为 Protocol，并由启动 wiring 注入。旧的 `aperag/service/quota_service.py` 只作为 shim 指向 governance canonical implementation，避免跨域代码直接依赖治理域内部实现。
 
 详见 `docs/modularization/architecture.md` Section 4（canonical rules：direct import / Protocol+DI transitional / standalone-infra permanent）和 Section 5（Runtime seams）。
 

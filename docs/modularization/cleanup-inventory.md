@@ -195,7 +195,7 @@ marketplace.py / marketplace_collections.py / providers_v2.py / __init__.py → 
 | `aperag/views/main.py` | 219 | bot / chat / feedback v1 CRUD — v2 已覆盖 (`/api/v2/bots`, `/api/v2/chats`, `/api/v2/feedback`)；**直接 rm** 老路径；FE 若消费 v1 需要同批迁到 v2 |
 | `aperag/views/openai.py` | 83 | **迁到** `aperag/domains/conversation/api/openai_routes.py`（OpenAI-compat 归 conversation），挂 `/v1/chat/completions` 保留 |
 | `aperag/views/prompts.py` | 205 | **迁到** `aperag/domains/model_platform/api/prompt_routes.py`，挂 `/api/v1/user-prompts` 保留 |
-| `aperag/views/quota.py` | 234 | **迁到** `aperag/domains/governance/api/quota_routes.py`，挂 `/api/v1/quota` 保留 |
+| ~~`aperag/views/quota.py`~~ | ~~234~~ | ✅ Phase 8 #66 (G5b) **DONE** — carved to `aperag/domains/governance/api/quota_routes.py`, restored the previously unmounted quota/system-default contract at `/api/v2/quotas*` + `/api/v2/system/default-quotas`, and deleted the legacy view. |
 | ~~`aperag/views/settings.py`~~ | ~~67~~ | ✅ Phase 8 #48 (G2) **DONE** — carved to `aperag/domains/knowledge_base/api/settings_routes.py`, hard-cut prefix `/api/v1/settings` → `/api/v2/settings` per D7-2 (msg=94f663f2 §3.2.2). Legacy file deleted. |
 | `aperag/views/test.py` | 60 | **dev-only**；**直接 rm** 或迁 `tests/fixtures/`（PM 决定） |
 | `aperag/views/utils.py` | 134 | `auth.py` + `config.py` 依赖；**随它们迁到 identity 域 `_utils.py`**，然后 rm |
