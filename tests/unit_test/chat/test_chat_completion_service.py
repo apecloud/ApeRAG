@@ -33,26 +33,24 @@ def _turn(*, turn_id="turn-1", chat_id="chat-1", status=AgentTurnStatus.COMPLETE
     )
 
 
-def _snapshot(*, turn_id="turn-1", answer_text="done", references=None):
+def _artifacts(*, answer_text="done", references=None):
+    """Phase 8 D8.4d (#90): the OpenAI-compat completion path now reads
+    raw ``AgentArtifact`` rows directly from the DB instead of through
+    ``get_turn_snapshot`` (which now returns canonical UIMessage parts
+    for the FE)."""
     references = references or [{"title": "Doc 1", "snippet": "hello"}]
-    return SimpleNamespace(
-        turn=SimpleNamespace(
-            answer_artifact_id="artifact-answer",
-            reference_bundle_artifact_id="artifact-refs",
+    return [
+        SimpleNamespace(
+            artifact_id="artifact-answer",
+            artifact_type="answer",
+            payload={"text": answer_text},
         ),
-        artifacts=[
-            SimpleNamespace(
-                artifact_id="artifact-answer",
-                artifact_type="answer",
-                payload={"text": answer_text},
-            ),
-            SimpleNamespace(
-                artifact_id="artifact-refs",
-                artifact_type="reference_bundle",
-                payload={"items": references},
-            ),
-        ],
-    )
+        SimpleNamespace(
+            artifact_id="artifact-refs",
+            artifact_type="reference_bundle",
+            payload={"items": references},
+        ),
+    ]
 
 
 class _FakeEventService:
@@ -69,14 +67,17 @@ class _FakeEventService:
 
 
 class _FakeTurnService:
-    def __init__(self, *, chat, bot, turn, snapshot, query_turns=None):
+    def __init__(self, *, chat, bot, turn, artifacts, query_turns=None):
         self.chat = chat
         self.bot = bot
         self.turn = turn
-        self.snapshot = snapshot
+        self.artifacts = list(artifacts or [])
         self.query_turns = list(query_turns or [turn])
         self.created_requests = []
-        self.db_ops = SimpleNamespace(query_agent_turn=self._query_agent_turn)
+        self.db_ops = SimpleNamespace(
+            query_agent_turn=self._query_agent_turn,
+            query_agent_artifacts_by_turn=self._query_agent_artifacts_by_turn,
+        )
 
     async def get_chat_and_bot(self, _user, _chat_id):
         return self.chat, self.bot
@@ -85,13 +86,13 @@ class _FakeTurnService:
         self.created_requests.append(request)
         return self.chat, self.bot, self.turn, True
 
-    async def get_turn_snapshot(self, _user, _chat_id, _turn_id):
-        return self.snapshot
-
     async def _query_agent_turn(self, _user, _chat_id, _turn_id):
         if len(self.query_turns) > 1:
             return self.query_turns.pop(0)
         return self.query_turns[0]
+
+    async def _query_agent_artifacts_by_turn(self, _turn_id):
+        return list(self.artifacts)
 
 
 class _FakeRuntimeManager:
@@ -133,8 +134,8 @@ async def test_openai_chat_completions_returns_openai_response_and_maps_override
     chat = SimpleNamespace(id="chat-1")
     bot = _bot()
     turn = _turn()
-    snapshot = _snapshot(answer_text="final answer")
-    fake_turn_service = _FakeTurnService(chat=chat, bot=bot, turn=turn, snapshot=snapshot)
+    artifacts = _artifacts(answer_text="final answer")
+    fake_turn_service = _FakeTurnService(chat=chat, bot=bot, turn=turn, artifacts=artifacts)
     fake_runtime_manager = _FakeRuntimeManager(turn_service=fake_turn_service, event_service=_FakeEventService())
 
     monkeypatch.setattr(completion_module, "runtime_manager", fake_runtime_manager)
@@ -172,8 +173,8 @@ async def test_openai_chat_completions_creates_and_cleans_up_ephemeral_chat(monk
     chat = SimpleNamespace(id="chat-ephemeral")
     bot = _bot()
     turn = _turn(chat_id="chat-ephemeral")
-    snapshot = _snapshot(turn_id="turn-ephemeral", answer_text="ephemeral answer")
-    fake_turn_service = _FakeTurnService(chat=chat, bot=bot, turn=turn, snapshot=snapshot)
+    artifacts = _artifacts(answer_text="ephemeral answer")
+    fake_turn_service = _FakeTurnService(chat=chat, bot=bot, turn=turn, artifacts=artifacts)
     fake_runtime_manager = _FakeRuntimeManager(turn_service=fake_turn_service, event_service=_FakeEventService())
     fake_chat_service = _FakeChatService(created_chat_id="chat-ephemeral")
 
@@ -199,12 +200,12 @@ async def test_openai_chat_completions_streams_sse_from_runtime_events(monkeypat
     bot = _bot()
     running_turn = _turn(status=AgentTurnStatus.RUNNING)
     completed_turn = _turn(status=AgentTurnStatus.COMPLETED)
-    snapshot = _snapshot(answer_text="streamed answer")
+    artifacts = _artifacts(answer_text="streamed answer")
     fake_turn_service = _FakeTurnService(
         chat=chat,
         bot=bot,
         turn=running_turn,
-        snapshot=snapshot,
+        artifacts=artifacts,
         query_turns=[running_turn, completed_turn],
     )
     fake_event_service = _FakeEventService(
