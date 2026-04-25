@@ -66,6 +66,10 @@ from aperag.cache.read_primitive_cache import (
     ReadPrimitiveCache,
     build_read_primitive_cache,
 )
+from aperag.cache.runtime import (
+    get_read_primitive_cache,
+    reset_read_primitive_cache,
+)
 
 __all__ = [
     "L1Cache",
@@ -73,6 +77,8 @@ __all__ = [
     "NoopL2Cache",
     "ReadPrimitiveCache",
     "build_read_primitive_cache",
+    "get_read_primitive_cache",
     "invalidate_collection",
     "invalidate_document",
+    "reset_read_primitive_cache",
 ]

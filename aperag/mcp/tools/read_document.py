@@ -29,6 +29,7 @@ from typing import Optional
 
 from sqlalchemy import select
 
+from aperag.cache import get_read_primitive_cache
 from aperag.config import get_async_session
 from aperag.domains.knowledge_base.db.models import (
     Document,
@@ -83,32 +84,53 @@ async def read_document(
 
     parse_version = resolve_parse_version(document, collection)
 
-    # 5. Fetch authoritative parsed markdown — un-cached body work.
-    parsed_markdown = await read_parsed_markdown(document)
+    # 5. Fetch authoritative parsed markdown — D10.g cache-wrapped.
+    # The cache is keyed by (document_id, parse_version) and holds the
+    # full (un-ranged) DocumentContent; byte-range slicing is a cheap
+    # transformation applied AFTER cache lookup so the cache remains
+    # shared across different range requests for the same document
+    # version. Tenancy/auth above are NEVER skipped (§E.7 hard lock).
+    cache = await get_read_primitive_cache()
 
-    truncated = False
-    truncation_reason: Optional[str] = None
-    if range is not None:
-        encoded = parsed_markdown.encode("utf-8")
-        start = max(0, int(range.start))
-        end = min(len(encoded), int(range.end))
-        if end < start:
-            end = start
-        try:
-            sliced = encoded[start:end].decode("utf-8")
-        except UnicodeDecodeError:
-            # Best-effort: byte boundaries may split a multi-byte char.
-            sliced = encoded[start:end].decode("utf-8", errors="replace")
-        if start != 0 or end != len(encoded):
-            truncated = True
-            truncation_reason = f"byte_range[{start}:{end}]"
-        parsed_markdown = sliced
+    async def _compute() -> DocumentContent:
+        parsed_markdown = await read_parsed_markdown(document)
+        return DocumentContent(
+            document_id=document.id,
+            collection_id=document.collection_id,
+            parsed_markdown=parsed_markdown,
+            parse_version=parse_version,
+            truncated=False,
+            truncation_reason=None,
+        )
+
+    full = await cache.get_or_compute_content(
+        document_id=document.id,
+        parse_version=parse_version,
+        compute=_compute,
+        model_cls=DocumentContent,
+    )
+
+    if range is None:
+        return full
+
+    encoded = full.parsed_markdown.encode("utf-8")
+    start = max(0, int(range.start))
+    end = min(len(encoded), int(range.end))
+    if end < start:
+        end = start
+    try:
+        sliced = encoded[start:end].decode("utf-8")
+    except UnicodeDecodeError:
+        # Best-effort: byte boundaries may split a multi-byte char.
+        sliced = encoded[start:end].decode("utf-8", errors="replace")
+    truncated = start != 0 or end != len(encoded)
+    truncation_reason = f"byte_range[{start}:{end}]" if truncated else None
 
     return DocumentContent(
-        document_id=document.id,
-        collection_id=document.collection_id,
-        parsed_markdown=parsed_markdown,
-        parse_version=parse_version,
+        document_id=full.document_id,
+        collection_id=full.collection_id,
+        parsed_markdown=sliced,
+        parse_version=full.parse_version,
         truncated=truncated,
         truncation_reason=truncation_reason,
     )
