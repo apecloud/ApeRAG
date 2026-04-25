@@ -31,7 +31,7 @@ import random
 import uuid
 from enum import Enum
 
-from sqlalchemy import Column, DateTime, Index, String, UniqueConstraint
+from sqlalchemy import Column, DateTime, Index, String, UniqueConstraint, text
 
 from aperag.db.base import Base
 from aperag.utils.utils import utc_now
@@ -83,9 +83,17 @@ class UserCollectionSubscription(Base):
 
     __tablename__ = "user_collection_subscription"
     __table_args__ = (
-        # Allow multiple history records, but active subscription (gmt_deleted=NULL) must be unique
-        UniqueConstraint(
-            "user_id", "collection_marketplace_id", "gmt_deleted", name="idx_user_marketplace_history_unique"
+        # Partial unique index: enforce uniqueness only over active
+        # (``gmt_deleted IS NULL``) rows. Phase 8 Task #39 Part D
+        # converts the legacy ``UniqueConstraint(..., "gmt_deleted")``
+        # which Postgres did not actually enforce because NULL != NULL,
+        # so multiple "active" subscription rows could slip through.
+        Index(
+            "uq_user_subscription_marketplace_active",
+            "user_id",
+            "collection_marketplace_id",
+            unique=True,
+            postgresql_where=text("gmt_deleted IS NULL"),
         ),
         Index("idx_user_subscription_marketplace", "collection_marketplace_id"),
         Index("idx_user_subscription_user", "user_id"),
