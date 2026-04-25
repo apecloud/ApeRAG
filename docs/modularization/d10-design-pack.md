@@ -1078,7 +1078,115 @@ per earayu2 msg=0642be5b + PM msg=c65f75df:
 
 **Application**: each PR architect quick-check should include explicit verification of one or more of {spec line-by-line diff, contract shape grep sweep, caller path enumeration, hurl/pytest assertion verification}. "Structural only" quick-checks must explicitly say so and defer deep verification (in case of complex PRs that warrant it).
 
+### D10.c-h implementation lane decomposition
+
+Per Weston msg=71d8d605 + PM msg=db923645 — implementation phase decomposed into 6 parallel-friendly lanes. Each lane lists name, deliverable scope, owner candidate (final claim happens via `slock task claim` on the corresponding task #), write-set boundary (which directories/files each lane is allowed to touch), and dependency graph.
+
+Lane-to-§ mapping is one-to-one with the design pack so reviewers can locate spec text by lane name.
+
+#### D10.c — Read primitives BE implementation (§A)
+
+- **Deliverable**: 8 read primitive MCP tools (`list_collections` / `list_documents` / `get_document_metadata` / `get_collection_metadata` / `read_document` / `read_document_outline` / `read_document_section` / `read_document_chunk`) backed by stable-handle invariants (§A.9).
+- **Owner candidate**: @cuiwenbo (BE depth, prior #1697 / #88 ownership) — fallback @明书.
+- **Write-set boundary**:
+  - `aperag/mcp/tools/read_*.py` (new files; one file per primitive or grouped by collection/document axis)
+  - `aperag/service/document_service.py` (extension methods only — additive; no shape change to existing callers)
+  - `aperag/service/collection_service.py` (extension methods only — additive)
+  - `tests/unit_test/mcp/test_read_primitives.py` + `tests/e2e_http/hurl/<NN>_d10_read_primitives.hurl`
+  - **Forbidden**: any change to `aperag/mcp/tools/search_*.py` (that's D10.d), any change to `aperag/cache/` (that's D10.g), any change to existing `search_collection` tool (that's D10.h).
+- **Depends-on**: D9 base (`SafeNameRegistry`, `ToolRegistry`) — ✅ already merged; F.2 4-point compliance lower bound.
+- **Blocks**: D10.d (search primitives need stable handles from read primitives), D10.e (pagination cursors are produced by list_* read primitives), D10.g (cache layer wraps read primitives).
+
+#### D10.d — Search primitives split + omnibus deprecation (§B)
+
+- **Deliverable**: 4 split search MCP tools (`vector_search` / `graph_search` / `fulltext_search` / `web_search`) + `search_collection` omnibus marked deprecated with banner + R3 SDK type guards (B.7).
+- **Owner candidate**: @chenyexuan (search/retrieval domain familiarity from prior chunk-handle work) — fallback @huangheng.
+- **Write-set boundary**:
+  - `aperag/mcp/tools/search_vector.py` / `search_graph.py` / `search_fulltext.py` / `search_web.py` (new files)
+  - `aperag/mcp/tools/search_collection.py` (deprecation banner only — implementation untouched until D10.h)
+  - `aperag/service/search_service.py` refactor split (preserve existing callers via thin compatibility layer; do NOT delete the layer in this lane — see D10.h)
+  - `tests/unit_test/mcp/test_search_split.py` + `tests/e2e_http/hurl/<NN>_d10_search_split.hurl`
+  - **Forbidden**: deleting `search_collection`'s implementation (that's D10.h), changing read primitive tool surface (that's D10.c).
+- **Depends-on**: D10.c stable handles (search results contain collection_handle / document_handle for follow-up read).
+- **Blocks**: D10.h (cutover requires both split tools and deprecation banner present).
+
+#### D10.e — Pagination + cursor contract (§C)
+
+- **Deliverable**: opaque base64 cursor + `invariant_hash` field + 6 explicit error codes (`CURSOR_EXPIRED` / `CURSOR_INVARIANT_MISMATCH` / `CURSOR_MALFORMED` / `CURSOR_FOREIGN` / `CURSOR_PAGE_OUT_OF_RANGE` / `CURSOR_VERSION_MISMATCH`); cursor is **never silently reset** — explicit error always.
+- **Owner candidate**: @Bryce (canonical caller-migration discipline from #90 round-4 fix-forward; pagination semantics are caller-sensitive) — fallback @cuiwenbo.
+- **Write-set boundary**:
+  - `aperag/mcp/cursor/codec.py` + `cursor/invariants.py` + `cursor/errors.py` (new package)
+  - `aperag/service/pagination.py` (new helper; do NOT modify existing `aperag/db/pagination.py` ORM layer — design pack uses ORM `id`-based seek pagination internally but exposes only opaque cursor externally)
+  - Integration call sites: only the read primitives produced in D10.c (`list_collections` / `list_documents` / `read_document_chunk`) — no other caller in this lane.
+  - `tests/unit_test/mcp/test_cursor_contract.py` + `tests/e2e_http/hurl/<NN>_d10_pagination.hurl`
+  - **Forbidden**: changing search primitive pagination (search uses score-rank cursor with different invariants — covered in D10.d's own cursor type, NOT shared with this lane).
+- **Depends-on**: D10.c (pagination is plumbed into list_* read primitives at integration time).
+- **Blocks**: D10.h migration (legacy callers using offset/limit need cursor migration).
+
+#### D10.f — Capability negotiation (§D Option A canonical)
+
+- **Deliverable**: per-tool annotation schema (D.1) + client-side filter pattern (D.2 Option A) + degradation explicit-not-silent (D.3) + annotation registry (D.5). Option B server-side session filter is escape hatch only — NOT implemented in D10.f.
+- **Owner candidate**: @huangheng (FE/SDK + capability metadata familiarity from D9 §A4 7-point contract review work) — fallback @符炫炜 if capacity slot opens.
+- **Write-set boundary**:
+  - `aperag/mcp/capabilities.py` (new annotation schema)
+  - `aperag/mcp/tools/_annotations.py` (new registry — populated by each tool's own decorator)
+  - Tool annotation decorators applied to all D10.c + D10.d tool files (additive only; no logic change in those files)
+  - SDK type guards: `aperag/sdk/capability_filter.py` (new — client-side filter helper)
+  - `tests/unit_test/mcp/test_capability_negotiation.py` + `tests/e2e_http/hurl/<NN>_d10_capabilities.hurl`
+  - **Forbidden**: implementing Option B server-side session filter (escape hatch only — out of scope until needed).
+- **Depends-on**: D10.c + D10.d both merged (need full tool surface to annotate).
+- **Blocks**: D10.h migration (external client migration guides reference annotation schema).
+
+#### D10.g — Read primitive persistence (§E Lock #7 LRU + parse_version L1+L2)
+
+- **Deliverable**: L1 in-process LRU cache + L2 parse_version-keyed Redis cache; cache invalidation explicit triggers (E.5); `read_document_chunk` special-case handling (E.6); cache only accelerates, never changes semantics (E.7 Weston hard lock).
+- **Owner candidate**: @明书 (caching domain familiarity + #1698 / #1699 inventory ownership) — fallback @cuiwenbo.
+- **Write-set boundary**:
+  - `aperag/cache/read_primitive_cache.py` (new — L1 LRU implementation)
+  - `aperag/cache/parse_version_cache.py` (new — L2 Redis adapter, keyed on `parse_version` watermark)
+  - `aperag/cache/invalidation.py` (new — explicit trigger helpers)
+  - Integration call sites: only D10.c read primitive files (wrap their service-layer calls)
+  - `tests/unit_test/cache/test_read_primitive_cache.py` + cache-miss-budget regression test
+  - **Forbidden**: changing read primitive return shape (cache must be transparent — E.7 hard lock); applying caching to search primitives (search has its own cache path — out of scope).
+- **Depends-on**: D10.c (cache wraps read primitives; primitives must be stable first).
+- **Blocks**: D10.h (cache invalidation triggers are part of the cutover hard-cut sequence).
+
+#### D10.h — Migration & cutover (§H hard-cut, per earayu2 msg=f20d5034)
+
+- **Deliverable**: execute §H.1 `search_collection` deprecation timeline → removal; §H.2 existing 5 MCP tools migration matrix execution; §H.3 new D10 tools enabled; §H.4 external client migration guide published; §H.5 ApeRAG own-Agent (#75 D8.3) backward-compat path; §H.6 fresh-DB / migration considerations.
+- **Owner candidate**: @符炫炜 (architect — cutover is destructive + cross-stack, requires architect-level scope/gate/risk judgment; matches "总架构师 canonical 定型 + scope/gate/risk" role per memory feedback_role_architecture_only.md). Code-execution co-owner: @Bryce (caller-migration depth).
+- **Write-set boundary**:
+  - **Destructive deletions**: `aperag/mcp/tools/search_collection.py` body (after deprecation window ends); legacy compatibility layer in `aperag/service/search_service.py` (introduced by D10.d)
+  - Caller migration sweep: all callers of legacy 5 MCP tools across `aperag/`, `tests/`, `scripts/`, `web/` — comprehensive grep per §G hard gate #1 (3-root sweep + 5-category classification)
+  - External client migration guide: `docs/modularization/d10-migration-guide.md` (new doc)
+  - `tests/e2e_http/hurl/<NN>_d10_cutover.hurl` (validates legacy tools gone + new tools live)
+  - **Forbidden**: introducing new feature surface in this lane (D10.c-g must already cover all surface; D10.h is destruction + cutover only).
+- **Depends-on**: D10.c + D10.d + D10.e + D10.f + D10.g **all merged**; soak window per #80-style 4 hard prerequisites; comprehensive grep sweep complete.
+- **Blocks**: nothing (D10 program closure).
+
+#### Dependency graph summary
+
+```
+D9 base (merged) ──┐
+                   ▼
+                D10.c ─┬─→ D10.d ──┐
+                       ├─→ D10.e ──┤
+                       ├─→ D10.g ──┤
+                       │           │
+                D10.c + D10.d ─→ D10.f
+                       │           │
+                       ▼           ▼
+            (all 5 above merged) → D10.h (cutover)
+```
+
+Parallel-friendly windows:
+- **Window 1** (after D10.c merge): D10.d / D10.e / D10.g can run concurrently
+- **Window 2** (after D10.c + D10.d merge): D10.f can join the parallel set
+- **Window 3** (after all 5 merged + soak): D10.h cutover (single-lane, architect-led)
+
+Tasks #95-#99 (or whatever PM assigns post-merge of #1708) map 1:1 to D10.c-h. Owner-candidate is a suggestion only — final claim happens via `slock task claim`; if claim conflicts with capacity, pool fallback applies (RR2 routing).
+
 ---
 
-(§B-§F + §H still to be drafted in subsequent sessions; §G may evolve as new lessons emerge from D10.c-h implementation)
+End of design pack. §G remains an open ledger — new lessons that emerge during D10.c-h implementation should be appended here as additional "Hard gate" subsections, not in a separate doc.
 
