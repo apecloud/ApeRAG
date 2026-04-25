@@ -20,7 +20,7 @@ from fastapi.routing import APIRoute
 # Paths under these prefixes stay available in the full internal spec but are
 # intentionally removed from the public SDK/API spec.
 HIDDEN_FROM_PUBLIC_PATH_PREFIXES: tuple[str, ...] = (
-    "/api/v1/audit-logs",
+    "/api/v2/audit-logs",
     "/api/v2/config",
 )
 
