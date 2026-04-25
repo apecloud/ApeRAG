@@ -6,12 +6,12 @@ Content-Type: application/json
 }
 HTTP 200
 
-GET {{base_url}}/api/v1/llm_configuration
+GET {{base_url}}/api/v2/providers/configuration
 HTTP 200
 [Asserts]
 header "content-type" contains "application/json"
 
-PUT {{base_url}}/api/v1/llm_providers/alibabacloud
+PUT {{base_url}}/api/v2/providers/alibabacloud
 Content-Type: application/json
 {
   "api_key": "{{alibabacloud_api_key}}"
@@ -20,7 +20,7 @@ HTTP 200
 [Asserts]
 jsonpath "$.name" == "alibabacloud"
 
-PUT {{base_url}}/api/v1/llm_providers/openrouter
+PUT {{base_url}}/api/v2/providers/openrouter
 Content-Type: application/json
 {
   "api_key": "{{openrouter_api_key}}"
@@ -29,14 +29,14 @@ HTTP 200
 [Asserts]
 jsonpath "$.name" == "openrouter"
 
-POST {{base_url}}/api/v1/available_models
+POST {{base_url}}/api/v2/providers/available-models
 Content-Type: application/json
 {}
 HTTP 200
 [Asserts]
 header "content-type" contains "application/json"
 
-POST {{base_url}}/api/v1/available_models
+POST {{base_url}}/api/v2/providers/available-models
 Content-Type: application/json
 {
   "tag_filters": [
@@ -50,15 +50,14 @@ HTTP 200
 [Asserts]
 header "content-type" contains "application/json"
 
-GET {{base_url}}/api/v1/llm_providers/openrouter/models
+GET {{base_url}}/api/v2/providers/openrouter/models
 HTTP 200
 [Asserts]
 header "content-type" contains "application/json"
 
-POST {{base_url}}/api/v1/llm_providers/openrouter/models
+POST {{base_url}}/api/v2/providers/openrouter/models
 Content-Type: application/json
 {
-  "provider_name": "openrouter",
   "api": "completion",
   "model": "test-org/test-model-{{run_id}}",
   "custom_llm_provider": "openrouter",
@@ -70,7 +69,7 @@ HTTP 200
 jsonpath "$.provider_name" == "openrouter"
 jsonpath "$.model" == "test-org/test-model-{{run_id}}"
 
-PUT {{base_url}}/api/v1/llm_providers/openrouter/models/completion/test-org%2Ftest-model-{{run_id}}
+PUT {{base_url}}/api/v2/providers/openrouter/models/completion/test-org%2Ftest-model-{{run_id}}
 Content-Type: application/json
 {
   "context_window": 8192,
@@ -81,10 +80,10 @@ HTTP 200
 jsonpath "$.model" == "test-org/test-model-{{run_id}}"
 jsonpath "$.context_window" == 8192
 
-DELETE {{base_url}}/api/v1/llm_providers/openrouter/models/completion/test-org%2Ftest-model-{{run_id}}
-HTTP 200
+DELETE {{base_url}}/api/v2/providers/openrouter/models/completion/test-org%2Ftest-model-{{run_id}}
+HTTP 204
 
-PUT {{base_url}}/api/v1/default_models
+PUT {{base_url}}/api/v2/default-models
 Content-Type: application/json
 {
   "defaults": [
