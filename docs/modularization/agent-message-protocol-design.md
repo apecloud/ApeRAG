@@ -23,6 +23,8 @@ ApeRAG 当前有两套并行 message storage 设计：
 | MCP | 不是 chat 协议（仅 tool RPC），与 chat 设计正交 |
 | AG-UI | 多 framework adopted 但无 first-class citations |
 
+> **Implementation note**: Pydantic AI already supports Vercel AI Data Stream Protocol via UIAdapter, so this wire choice remains compatible with a future PydanticAI-backed backend agent runtime.
+
 ## Canonical Decision
 
 **采纳 AI SDK v5 UI Message Stream Protocol + Anthropic-style typed citations + MCP-ready tool lifecycle**
