@@ -146,7 +146,7 @@ wait_for_graph_index() {
 
 echo "Running graph index business flow"
 
-request_json POST "/api/v1/login" "$(jq -nc \
+request_json POST "/api/v2/auth/login" "$(jq -nc \
   --arg username "${E2E_USERNAME}" \
   --arg password "${E2E_PASSWORD}" \
   '{username: $username, password: $password}')"

@@ -20,8 +20,8 @@ from jinja2 import TemplateSyntaxError
 from pydantic import BaseModel, Field
 
 from aperag.domains.identity.db.models import User
+from aperag.domains.identity.service.auth_dependencies import required_user
 from aperag.service.prompt_template_service import PromptTemplateService, prompt_template_service
-from aperag.views.auth import required_user
 
 logger = logging.getLogger(__name__)
 

@@ -21,7 +21,7 @@ export async function getSystemDefaultQuotas(): Promise<SystemDefaultQuotasRespo
 
 export async function listUsers(): Promise<UserList> {
   const client = await createServerApiClient();
-  const { data } = await client.GET('/api/v1/users', {});
+  const { data } = await client.GET('/api/v2/auth/users', {});
   return (
     data ?? {
       items: [],

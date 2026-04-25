@@ -192,7 +192,7 @@ def login_user(register_user):
     """Login with the registered user and return cookies and user info"""
     data = {"username": register_user["username"], "password": register_user["password"]}
     with httpx.Client(base_url=API_BASE_URL) as c:
-        resp = c.post("/api/v1/login", json=data)
+        resp = c.post("/api/v2/auth/login", json=data)
         assert resp.status_code == HTTPStatus.OK, f"login failed: {resp.text}"
         cookies = c.cookies  # use httpx.Cookies directly
         user = resp.json()

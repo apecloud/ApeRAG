@@ -80,12 +80,12 @@ from aperag.domains.conversation.service.chat_document_service import chat_docum
 from aperag.domains.conversation.service.chat_service import chat_service_global
 from aperag.domains.conversation.service.chat_title_service import chat_title_service
 from aperag.domains.conversation.service.turn_feedback_service import turn_feedback_service_global
+from aperag.domains.identity.service.auth_dependencies import required_user
 from aperag.domains.knowledge_base.schemas import Document
 from aperag.domains.knowledge_base.service.collection_service import collection_service
 from aperag.domains.retrieval.schemas import SearchRequest, SearchResult
 from aperag.exceptions import BusinessException
 from aperag.utils.audit_decorator import audit
-from aperag.views.auth import required_user
 
 logger = logging.getLogger(__name__)
 

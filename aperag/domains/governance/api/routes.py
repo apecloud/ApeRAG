@@ -41,8 +41,8 @@ from aperag.domains.governance.schemas import ApiKeyCreate, ApiKeyList, ApiKeyUp
 from aperag.domains.governance.schemas import AuditLog as AuditLogView
 from aperag.domains.governance.service.api_key_service import api_key_service
 from aperag.domains.governance.service.audit_service import audit_service
+from aperag.domains.identity.service.auth_dependencies import required_user
 from aperag.utils.audit_decorator import audit
-from aperag.views.auth import required_user
 
 router = APIRouter()
 

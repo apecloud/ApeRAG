@@ -1,4 +1,4 @@
-POST {{base_url}}/api/v1/login
+POST {{base_url}}/api/v2/auth/login
 Content-Type: application/json
 {
   "username": "{{username}}",
@@ -10,12 +10,12 @@ header "content-type" contains "application/json"
 jsonpath "$.username" == "{{username}}"
 jsonpath "$.is_active" == true
 
-GET {{base_url}}/api/v1/user
+GET {{base_url}}/api/v2/auth/user
 HTTP 200
 [Asserts]
 header "content-type" contains "application/json"
 jsonpath "$.username" == "{{username}}"
 jsonpath "$.is_active" == true
 
-POST {{base_url}}/api/v1/logout
+POST {{base_url}}/api/v2/auth/logout
 HTTP 200

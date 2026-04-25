@@ -36,6 +36,7 @@ from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
+from aperag.domains.identity.service.auth_dependencies import optional_user, required_user
 from aperag.domains.knowledge_graph.schemas import KnowledgeGraph
 from aperag.domains.knowledge_graph.service import graph_service
 from aperag.domains.marketplace.ports import AuthenticatedUser
@@ -48,7 +49,6 @@ from aperag.exceptions import (
     CollectionNotPublishedError,
     SelfSubscriptionError,
 )
-from aperag.views.auth import optional_user, required_user
 
 logger = logging.getLogger(__name__)
 

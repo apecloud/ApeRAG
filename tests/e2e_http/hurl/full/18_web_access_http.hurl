@@ -5,7 +5,7 @@
 # coverage (JINA / DuckDuckGo success paths) must live elsewhere and is out
 # of scope here.
 
-POST {{base_url}}/api/v1/login
+POST {{base_url}}/api/v2/auth/login
 Content-Type: application/json
 {
   "username": "{{username}}",
@@ -43,5 +43,5 @@ not json
 ```
 HTTP 422
 
-POST {{base_url}}/api/v1/logout
+POST {{base_url}}/api/v2/auth/logout
 HTTP 200

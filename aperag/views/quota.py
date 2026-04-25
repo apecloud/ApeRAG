@@ -19,6 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.security import HTTPBearer
 
 from aperag.domains.identity.db.models import Role, User
+from aperag.domains.identity.service.auth_dependencies import required_user
 from aperag.schema.view_models import (
     QuotaInfo,
     QuotaUpdateRequest,
@@ -31,7 +32,6 @@ from aperag.schema.view_models import (
     UserQuotaList,
 )
 from aperag.service.quota_service import quota_service
-from aperag.views.auth import required_user
 
 logger = logging.getLogger(__name__)
 

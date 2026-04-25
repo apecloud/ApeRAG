@@ -46,7 +46,7 @@ EOF
       --header 'Content-Type: application/json' \
       --request POST \
       --data "${payload}" \
-      "${E2E_BASE_URL}/api/v1/register"
+      "${E2E_BASE_URL}/api/v2/auth/register"
   )"
   status="$(printf '%s' "${response}" | tail -n 1)"
   body="$(printf '%s' "${response}" | sed '$d')"
@@ -110,7 +110,7 @@ EOF
     --header 'Content-Type: application/json' \
     --request POST \
     --data "${payload}" \
-    "${E2E_BASE_URL}/api/v1/login" >/dev/null
+    "${E2E_BASE_URL}/api/v2/auth/login" >/dev/null
 }
 
 write_env_file() {

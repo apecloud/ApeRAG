@@ -40,6 +40,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile
 from starlette.responses import StreamingResponse
 
+from aperag.domains.identity.service.auth_dependencies import required_user
 from aperag.domains.knowledge_base.ports import AuthenticatedUser
 from aperag.domains.knowledge_base.schemas import (
     Collection,
@@ -74,7 +75,6 @@ from aperag.domains.knowledge_base.service.collection_summary_service import (
 from aperag.domains.knowledge_base.service.document_service import document_service
 from aperag.exceptions import CollectionNotFoundException, PermissionDeniedError
 from aperag.utils.audit_decorator import audit
-from aperag.views.auth import required_user
 
 logger = logging.getLogger(__name__)
 

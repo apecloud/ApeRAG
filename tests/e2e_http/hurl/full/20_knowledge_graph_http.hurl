@@ -8,7 +8,7 @@
 # a run + asserting suggestions) depends on an LLM provider and is
 # deferred to Phase 3 provider/full coverage.
 
-POST {{base_url}}/api/v1/login
+POST {{base_url}}/api/v2/auth/login
 Content-Type: application/json
 {
   "username": "{{username}}",
@@ -110,5 +110,5 @@ HTTP 404
 DELETE {{base_url}}/api/v2/collections/{{collection_id}}
 HTTP 204
 
-POST {{base_url}}/api/v1/logout
+POST {{base_url}}/api/v2/auth/logout
 HTTP 200

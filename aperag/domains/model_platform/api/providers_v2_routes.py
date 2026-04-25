@@ -14,6 +14,7 @@
 
 from fastapi import APIRouter, Body, Depends, Path, Query, Response
 
+from aperag.domains.identity.service.auth_dependencies import required_user
 from aperag.domains.model_platform.ports import AuthenticatedUser
 from aperag.domains.model_platform.schemas import (
     DefaultModelsResponse,
@@ -45,7 +46,6 @@ from aperag.domains.model_platform.service.llm_provider_service import (
 )
 from aperag.exceptions import PermissionDeniedError
 from aperag.utils.audit_decorator import audit
-from aperag.views.auth import required_user
 
 router = APIRouter(tags=["providers-v2"])
 

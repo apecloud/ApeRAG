@@ -4,7 +4,7 @@ import { getLocale } from '@/services/cookies';
 import { createServerApiClient } from '@/lib/api/typed/server';
 import type { User } from '@/features/identity/types';
 
-// `/api/v1/user` is the authenticated "me" endpoint. Used by root / workspace
+// `/api/v2/auth/user` is the authenticated "me" endpoint. Used by root / workspace
 // / admin layouts to resolve the current user and redirect to signin when
 // unauthenticated. `createServerApiClient` throws on non-2xx, so we swallow
 // the error and return `null` to preserve the layout's redirect-on-unauth
@@ -12,14 +12,14 @@ import type { User } from '@/features/identity/types';
 export async function getCurrentUser(): Promise<User | null> {
   const client = await createServerApiClient();
   try {
-    const { data } = await client.GET('/api/v1/user', {});
+    const { data } = await client.GET('/api/v2/auth/user', {});
     return data ?? null;
   } catch {
     return null;
   }
 }
 
-// Raw fetch: `/api/v1/config` is hidden from public OpenAPI per Phase 4
+// Raw fetch: `/api/v2/config` is hidden from public OpenAPI per Phase 4
 // governance (see `aperag/openapi_spec.py::HIDDEN_FROM_PUBLIC_PATH_PREFIXES`
 // — the same exception as audit). Phase 4 will promote to typed contract.
 // Used by `auth/signin/page.tsx` to fetch the server-side login_methods
@@ -40,7 +40,7 @@ export async function getAuthConfig(): Promise<AuthConfig> {
     .join('; ');
 
   try {
-    const response = await fetch(`${API_SERVER_ENDPOINT}/api/v1/config`, {
+    const response = await fetch(`${API_SERVER_ENDPOINT}/api/v2/config`, {
       cache: 'no-store',
       headers: {
         Cookie: cookieHeader,

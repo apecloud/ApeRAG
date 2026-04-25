@@ -1,4 +1,4 @@
-POST {{base_url}}/api/v1/login
+POST {{base_url}}/api/v2/auth/login
 Content-Type: application/json
 {
   "username": "{{username}}",

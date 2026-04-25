@@ -301,7 +301,7 @@ def test_provider_feature_uses_v2_typed_api_boundary():
        on the legacy-api allowlist, masking the "allowlist row = file is
        legacy-free" invariant. Deferred to the future collection batch.
     2. `components/providers/app-provider.tsx` is auth domain
-       (`loginPost/registerPost/logoutPost` + `/api/v1/auth/*`), not
+       (`loginPost/registerPost/logoutPost` + `/api/v2/auth/*`), not
        provider. Deferred to the future identity/auth batch; no
        `features/auth/*` exists yet.
     """
@@ -1262,7 +1262,7 @@ def test_phase1_fe_complete_identity_auth_admin_audit_adapter_boundary():
     assert "from '@/api-v2/schema'" in identity_types
 
     # auth — typed `login` / `register` / `logout` + raw-fetch OAuth
-    # authorize (redirect, no typed body) + raw-fetch `/api/v1/config`
+    # authorize (redirect, no typed body) + raw-fetch `/api/v2/config`
     # (hidden from public OpenAPI; lesson 9a-ter boundary exception).
     auth_client_api = (
         REPO_ROOT / "web/src/features/auth/client-api.ts"
@@ -1274,7 +1274,7 @@ def test_phase1_fe_complete_identity_auth_admin_audit_adapter_boundary():
     assert "from '@/lib/api/typed/server'" in auth_server_api
     assert "oauthAuthorize" in auth_client_api
     assert "getAuthConfig" in auth_server_api
-    assert "/api/v1/config" in auth_server_api
+    assert "/api/v2/config" in auth_server_api
 
     # admin — umbrella adapter for settings / system default quotas /
     # per-user quota / admin user list (msg=5f0a370b decision L).
@@ -1289,9 +1289,9 @@ def test_phase1_fe_complete_identity_auth_admin_audit_adapter_boundary():
         "updateSettings",
         "getSystemDefaultQuotas",
         "updateSystemDefaultQuotas",
+        "getUserQuota",
         "updateUserQuota",
         "recalculateUserQuota",
-        "listUserQuotas",
     ):
         assert method in admin_client_api, (
             f"features/admin/client-api.ts missing `{method}`"
