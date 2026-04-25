@@ -22,7 +22,7 @@ from fastmcp.server.dependencies import get_http_headers
 
 # Import view models for type safety
 from aperag.domains.retrieval.schemas import SearchResult
-from aperag.domains.web_access.schemas import WebReadResponse, WebSearchResponse
+from aperag.domains.web_access.schemas import WebReadResponse
 from aperag.mcp.tools import (
     ByteRange,
 )
@@ -236,7 +236,15 @@ async def search_collection(
     topk: int = 5,
     query_keywords: list[str] = None,
 ) -> Dict[str, Any]:
-    """Search a persistent knowledge base for evidence relevant to the current request.
+    """[DEPRECATED] Search a persistent knowledge base for evidence relevant to the current request.
+
+    [DEPRECATED] Phase 9 D10.d (#96, ``docs/modularization/d10-design-pack.md``
+    §B.5 / §H.1): use the discrete split tools instead —
+    ``vector_search`` / ``graph_search`` / ``fulltext_search``. This
+    omnibus tool is preserved as a deprecated alias for backward
+    compatibility during the D10 migration window and will be removed in
+    D11 once telemetry confirms no remaining external callers (D10.h
+    cutover lane). Implementation is intentionally untouched.
 
     Use this when:
     - You already know which collection should be searched.
@@ -397,7 +405,14 @@ async def search_chat_files(
     rerank: bool = True,
     topk: int = 5,
 ) -> Dict[str, Any]:
-    """Search files uploaded in the current chat for evidence relevant to this turn.
+    """[DEPRECATED] Search files uploaded in the current chat for evidence relevant to this turn.
+
+    [DEPRECATED] Phase 9 D10.d (#96, ``docs/modularization/d10-design-pack.md``
+    §H.2): chat-scoped omnibus search shares the deprecation timeline of
+    ``search_collection``. The split tool surface (``vector_search`` /
+    ``graph_search`` / ``fulltext_search``) is collection-scoped today;
+    a chat-scoped equivalent will be sequenced in the D10.h cutover
+    lane. Implementation is intentionally untouched.
 
     Use this when:
     - The user refers to files shared in this chat session.
@@ -499,116 +514,12 @@ async def search_chat_files(
         return {"error": str(e)}
 
 
-@mcp_server.tool
-async def web_search(
-    query: str = "",
-    max_results: int = 5,
-    timeout: int = 30,
-    locale: str = "en-US",
-    source: str = "",
-) -> Dict[str, Any]:
-    """Search the web for current or missing information.
-
-    Use this when:
-    - The current turn allows web access.
-    - You need current information, external verification, or gap-filling beyond ApeRAG collections.
-
-    Do not use this when:
-    - The current turn disables web access.
-    - Collection or chat-file evidence is already sufficient for the requested step.
-
-    What success means:
-    - You received candidate web results with titles, snippets, and URLs.
-
-    What an empty result means:
-    - No strong web results were found for this query and scope.
-    - Use `meta.search_status` to distinguish a genuine empty result from `unavailable` or `disabled`.
-
-    What failure may mean:
-    - network / timeout: external search could not complete.
-    - upstream search provider issue: the search backend could not return usable results.
-
-    How to explain this step to the user:
-    - While running: "Searching the web for current or missing information."
-    - After completion: "Checked web sources for supporting information."
-
-    Args:
-        query: Search query for web search. Optional when using source-only site browsing.
-        max_results: Maximum number of results to return (default: 5)
-        timeout: Request timeout in seconds (default: 30)
-        locale: Browser locale (default: en-US)
-        source: Optional domain or URL for site-specific filtering. When provided with query,
-                limits search results to this domain (e.g., 'site:vercel.com query').
-
-    Returns:
-        Web search results with URLs, titles, snippets, and metadata
-
-    Note:
-        Uses JINA first when configured, otherwise falls back to DuckDuckGo.
-        Search failures are soft-failed into empty result sets with lightweight `meta` diagnostics so
-        downstream workflows stay stable while still distinguishing `ok`, `empty`, `unavailable`, and `disabled`.
-    """
-    try:
-        api_key = get_api_key()
-        logger.info(
-            "MCP web_search request query=%s source=%s max_results=%s timeout=%s locale=%s",
-            query.strip() if query else "",
-            source.strip() if source else "",
-            max_results,
-            timeout,
-            locale,
-        )
-
-        # Build search request
-        search_data = {
-            "max_results": max_results,
-            "timeout": timeout,
-            "locale": locale,
-        }
-
-        # Only include non-empty optional parameters
-        if query and query.strip():
-            search_data["query"] = query.strip()
-
-        if source and source.strip():
-            search_data["source"] = source.strip()
-
-        # Use longer timeout for web search operations
-        async with httpx.AsyncClient(timeout=90.0) as client:
-            response = await client.post(
-                f"{API_BASE_URL}/api/v2/web/search",
-                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                json=search_data,
-            )
-            if response.status_code == 200:
-                try:
-                    # Parse response using view model for type safety
-                    search_response = WebSearchResponse.model_validate(response.json())
-                    logger.info(
-                        "MCP web_search completed query=%s source=%s status=%s results=%s providers=%s backends=%s fallback=%s",
-                        query.strip() if query else "",
-                        source.strip() if source else "",
-                        search_response.meta.search_status if search_response.meta else "unknown",
-                        len(search_response.results),
-                        search_response.meta.provider_used if search_response.meta else [],
-                        search_response.meta.backend_used if search_response.meta else [],
-                        search_response.meta.fallback_used if search_response.meta else False,
-                    )
-                    return search_response.model_dump()
-                except Exception as e:
-                    logger.error(f"Failed to parse web search response: {e}")
-                    return {"error": "Failed to parse web search response", "details": str(e)}
-            else:
-                logger.warning(
-                    "MCP web_search failed status=%s query=%s source=%s body=%s",
-                    response.status_code,
-                    query.strip() if query else "",
-                    source.strip() if source else "",
-                    response.text,
-                )
-                return {"error": f"Web search failed: {response.status_code}", "details": response.text}
-    except ValueError as e:
-        return {"error": str(e)}
+# NOTE(D10.d #96 §B.4): the ``web_search`` tool implementation moved to
+# ``aperag.mcp.tools.search_web`` so all D10 search tools live in the
+# ``aperag/mcp/tools/`` subpackage. Wire signature is preserved (no
+# breaking change for external MCP callers); §B.4 spec parameter
+# canonicalization (``top_k`` / kw-only / ``source: str | None``) is
+# deferred to the D10.h cutover lane.
 
 
 @mcp_server.tool
@@ -975,6 +886,24 @@ def get_api_key() -> str:
         "2. APERAG_API_KEY environment variable"
     )
 
+
+# Phase 9 D10.d (#96, ``docs/modularization/d10-design-pack.md`` §B):
+# import the split search tool functions so their ``@mcp_server.tool``
+# decorators register the new surface (``vector_search`` /
+# ``graph_search`` / ``fulltext_search`` / ``web_search``). The imports
+# happen at the bottom of this module — after ``mcp_server``,
+# ``API_BASE_URL``, and ``get_api_key`` are defined — to break the
+# circular import cycle (``aperag.mcp.tools.search_*`` import from
+# ``aperag.mcp.server``).
+#
+# Re-exporting the function symbols at module level preserves the
+# existing ``aperag.mcp.server.web_search`` access path for backward
+# compatibility with callers (e.g. ``tests/unit_test/test_mcp_server.py``)
+# that read attributes off the server module directly.
+from aperag.mcp.tools.search_fulltext import fulltext_search  # noqa: E402, F401
+from aperag.mcp.tools.search_graph import graph_search  # noqa: E402, F401
+from aperag.mcp.tools.search_vector import vector_search  # noqa: E402, F401
+from aperag.mcp.tools.search_web import web_search  # noqa: E402, F401
 
 # Export the server instance
 __all__ = ["mcp_server"]

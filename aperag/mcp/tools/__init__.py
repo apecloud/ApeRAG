@@ -49,6 +49,22 @@ from aperag.mcp.tools.schemas import (
     OutlineHeading,
 )
 
+# NOTE(D10.d #96): the D10.d split search tool modules
+# (``aperag.mcp.tools.search_{vector,graph,fulltext,web}``) are
+# intentionally **not** re-exported from this package's ``__init__``
+# because they ``from aperag.mcp.server import mcp_server, ...`` at
+# module load time. After D10.c implementation (#1714 / #95) added
+# top-level ``from aperag.mcp.tools import ...`` to ``aperag/mcp/server.py``,
+# importing the search modules from here would create a partial-load
+# cycle: server.py top imports trigger this ``__init__`` → search_*
+# modules try to import from ``aperag.mcp.server`` → server.py is still
+# in mid-execution and ``mcp_server`` / ``API_BASE_URL`` /
+# ``get_api_key`` are not yet defined. Registration therefore happens
+# only via the bottom-of-server.py import block (after the symbols
+# exist). Consumers that need the function symbols can import directly
+# from the per-tool module path or via the ``aperag.mcp.server`` module
+# attribute (which re-exports them at module level for backward compat).
+
 __all__ = [
     # Stable handle types (LOCKED per §A.9)
     "ChunkId",
