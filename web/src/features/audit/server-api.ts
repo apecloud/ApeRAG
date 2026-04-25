@@ -44,7 +44,7 @@ function buildAuditLogsUrl(params?: ListAuditLogsParams): string {
   if (params?.sortBy) qs.set('sort_by', params.sortBy);
   if (params?.sortOrder) qs.set('sort_order', params.sortOrder);
   const query = qs.toString();
-  return `${API_SERVER_ENDPOINT}/api/v1/audit-logs${query ? `?${query}` : ''}`;
+  return `${API_SERVER_ENDPOINT}/api/v2/audit-logs${query ? `?${query}` : ''}`;
 }
 
 export async function listAuditLogs(

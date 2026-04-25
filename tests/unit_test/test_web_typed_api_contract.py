@@ -1143,7 +1143,7 @@ def test_phase1_fe_complete_identity_auth_admin_audit_adapter_boundary():
         assert method in admin_server_api, f"features/admin/server-api.ts missing `{method}`"
 
     # audit — hand-written mirror + raw fetch (hidden path
-    # `/api/v1/audit-logs`). `features/audit/types.ts` must NOT import
+    # `/api/v2/audit-logs`). `features/audit/types.ts` must NOT import
     # raw schema; its header must self-document the Phase 4 +1
     # raw_schema impact so future readers don't hunt for history.
     audit_types = (REPO_ROOT / "web/src/features/audit/types.ts").read_text()
@@ -1151,8 +1151,10 @@ def test_phase1_fe_complete_identity_auth_admin_audit_adapter_boundary():
     audit_server_api = (REPO_ROOT / "web/src/features/audit/server-api.ts").read_text()
     assert "from '@/api-v2/schema'" not in audit_types
     assert "raw_schema 13 → 16" in audit_types
-    assert "/api/v1/audit-logs" in audit_client_api
-    assert "/api/v1/audit-logs" in audit_server_api
+    assert "/api/v2/audit-logs" in audit_client_api
+    assert "/api/v2/audit-logs" in audit_server_api
+    assert "/api/v1/audit-logs" not in audit_client_api
+    assert "/api/v1/audit-logs" not in audit_server_api
 
     # chat-input — #13 Option A thin caller migrates off
     # `apiClient.chatDocumentsApi.*` onto `features/bot/client-api`.
