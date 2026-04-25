@@ -78,6 +78,22 @@ type UIMessagePart =
 
 落地时机：D8.3 (citations + tools) 实施时按此命名规则展开。
 
+### §2.5 Web-backend MCP-capable agent target architecture (out of D8 implementation scope; D9 design-only)
+
+为避免 D8.3 tool lifecycle 实施时出现 "looks MCP-ready 但命名 / 权限 / consent 不到位" 的 retrofitting 成本，本节明确 web-backend MCP-capable agent 的目标边界（actual implementation 走 D9 lane）：
+
+- **FE protocol layer**: 只认 UIMessage stream / UIMessage storage，**不感知 MCP**。Wire schema 的 `tool-<name>` parts 与 MCP `tools/list` namespace 一致即可，不直接表达 MCP `resources/read` / `prompts/get` / `sampling/createMessage` / `elicitation` RPCs。
+- **Backend agent runtime layer (D9 territory)**: 负责 orchestrate agent loop（pydantic_ai / 自建 MCP host / OpenAI Agents 实现皆可）；将 MCP RPC 内部事件投影成 UIMessage parts 透传给 FE。
+- **Tool boundary**: 当前 RAG tools (search_collection / web_search / read_document) 是 Python internal calls；未来 D9 切到 MCP client/server interface 时，对 FE 仍表现为同一套 `tool-<name>` parts（per §2.4 namespace ready）。
+- **MCP auth / registry / consent / sampling / elicitation 边界**: 属于 D9 design scope，**必须在 D8.3 tool lifecycle 实施前完成 D9 design**（design-only 不 block D8.0 doc landing 也不 block D8.1/D8.2 stream/storage implementation）。
+
+### D9 design 输出 deliverables（design-only，不实施）
+- per-user / per-bot 的 MCP server registry 边界
+- tool authorization scope（哪些工具用户可见 / 可调用 / 需 consent）
+- tool consent UI 在 UIMessage parts 中的表达（建议用 `data-tool-consent` custom transient part）
+- `sampling/createMessage` recursive LLM call 是否 surface 到 wire（建议 NO — backend-internal 即可）
+- `elicitation` user-input request 是否 surface 到 wire（建议 YES — 用 `data-elicitation` custom part 表达）
+
 ## Field-Level Disposition Table
 
 ### Current → Final-state mapping
