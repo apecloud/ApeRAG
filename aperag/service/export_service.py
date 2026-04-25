@@ -99,7 +99,7 @@ class ExportService:
         task = await self.db_ops._execute_query(_create)
 
         # Trigger Celery task (import here to avoid circular imports)
-        from config.export_tasks import export_collection_task
+        from aperag.domains.knowledge_base.tasks import export_collection_task
 
         export_collection_task.delay(task.id)
 

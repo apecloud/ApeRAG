@@ -19,7 +19,8 @@ entities the knowledge_base domain is responsible for — plus their
 lifecycle / classification enums (``CollectionStatus`` /
 ``CollectionSummaryStatus`` / ``CollectionType`` / ``DocumentStatus``).
 Phase 8 Task #39 carved ``ExportTask`` (+ ``ExportTaskStatus`` enum)
-here too — ``export_collection_task`` packages files inside a
+here too — ``export_collection_task`` (now in
+``aperag/domains/knowledge_base/tasks.py``) packages files inside a
 collection prefix, so the table is naturally KB-owned.
 Moved here from ``aperag.db.models`` in Phase 3 step 4 as the final
 piece of the Phase 3 DB split.
