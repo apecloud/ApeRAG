@@ -24,7 +24,7 @@ import { ChatInput, ChatInputSubmitParams } from './chat-input';
 import { MessagePartsAi } from './message-parts-ai';
 import { MessagePartsUser } from './message-parts-user';
 
-const API_BASE_PATH = `${process.env.NEXT_PUBLIC_BASE_PATH || ''}/api/v1`;
+const API_BASE_PATH = `${process.env.NEXT_PUBLIC_BASE_PATH || ''}/api/v2`;
 const AGENT_RUNTIME_BASE_PATH = `${process.env.NEXT_PUBLIC_BASE_PATH || ''}/api/v2/agent`;
 const ACTIVE_TURN_STORAGE_PREFIX = 'agent-runtime-v3:active-turn:';
 

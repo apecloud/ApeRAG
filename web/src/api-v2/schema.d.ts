@@ -1288,7 +1288,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/chats/{chat_id}/feedback": {
+    "/api/v2/chats/{chat_id}/feedback": {
         parameters: {
             query?: never;
             header?: never;
@@ -1305,7 +1305,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/chats/{chat_id}/turns/{turn_id}/feedback": {
+    "/api/v2/chats/{chat_id}/turns/{turn_id}/feedback": {
         parameters: {
             query?: never;
             header?: never;
@@ -1323,7 +1323,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/chats/{chat_id}/search": {
+    "/api/v2/chats/{chat_id}/search": {
         parameters: {
             query?: never;
             header?: never;
@@ -1343,7 +1343,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/chats/{chat_id}/documents": {
+    "/api/v2/chats/{chat_id}/documents": {
         parameters: {
             query?: never;
             header?: never;
@@ -1363,7 +1363,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/chats/{chat_id}/documents/{document_id}": {
+    "/api/v2/chats/{chat_id}/documents/{document_id}": {
         parameters: {
             query?: never;
             header?: never;
