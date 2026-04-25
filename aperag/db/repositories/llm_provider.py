@@ -41,6 +41,44 @@ class AsyncLlmProviderRepositoryMixin(AsyncRepositoryProtocol):
 
         return await self._execute_query(_query)
 
+    async def query_provider_api_key(
+        self, provider_type: str, user_id: str, need_public: bool = False
+    ) -> Optional[str]:
+        """Compatibility shim used by callers that only need the raw api key
+        for a given provider_type (e.g. Jina web reading, web search).
+
+        Returns the ``encrypted_api_key`` from the most recently-updated
+        ACTIVE ``ModelAccount`` for ``provider_type`` owned by ``user_id``.
+        When ``need_public`` is true, fall back to any ACTIVE ``public``
+        account if the user has no personal account configured. Returns
+        ``None`` when no account is configured.
+
+        This replaces the legacy ``llm_provider.api_key`` lookup that the
+        model-platform refactor removed; the semantics are intentionally
+        narrow so that the call sites in ``web_access`` / ``knowledge_base``
+        do not need to be aware of ``ModelAccount`` IDs.
+        """
+
+        async def _query(session):
+            user_filter = ModelAccount.user_id == user_id
+            if need_public:
+                user_filter = user_filter | (ModelAccount.user_id == "public")
+            stmt = (
+                select(ModelAccount)
+                .where(
+                    ModelAccount.provider_type == provider_type,
+                    ModelAccount.gmt_deleted.is_(None),
+                    ModelAccount.status == "ACTIVE",
+                    user_filter,
+                )
+                .order_by(ModelAccount.gmt_updated.desc())
+            )
+            result = await session.execute(stmt)
+            account = result.scalars().first()
+            return account.encrypted_api_key if account else None
+
+        return await self._execute_query(_query)
+
     async def query_model_accounts(self, user_id: str):
         async def _query(session):
             stmt = (
