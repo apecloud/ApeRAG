@@ -159,18 +159,28 @@ export type StreamPart =
 
 // --- At-rest agent message parts (consumed by #77 renderer + #78 UI) ------
 // These are the dedup'd, lifecycle-collapsed parts the hook publishes.
-// Shape aligns with AI SDK v5 UIMessagePart so the renderer can use SDK
-// type guards (isTextUIPart / isToolUIPart / etc.) where convenient.
+// Shape aligns 1:1 with AI SDK v5 `UIMessagePart` discriminators so the
+// renderer can use the SDK's `isTextUIPart` / `isToolUIPart` /
+// `isDataUIPart` guards directly. The compile-time `_AgentMessagePartIsSDKCompatible`
+// assertion at the bottom of this file enforces this contract — if a
+// shape drifts, type-check fails.
 
 export type AgentTextPart = {
-  kind: 'text';
+  type: 'text';
+  /** Wire `text-block id` (also re-exposed for #77 dedup-by-id rendering). */
   id: string;
   text: string;
   state: 'streaming' | 'done';
 };
 
+/**
+ * Tool part. Type discriminator follows the AI SDK v5 dynamic-tool
+ * pattern: `tool-${SafeToolName}` (per D8 §2.4 / D9 §A1+A6).
+ * `isToolUIPart` from `ai` accepts any `tool-${string}` literal so
+ * this shape is exchangeable with the SDK's `ToolUIPart`.
+ */
 export type AgentToolPart = {
-  kind: 'tool';
+  type: `tool-${string}`;
   toolCallId: string;
   toolName: string;
   metadata?: Record<string, unknown>;
@@ -185,34 +195,41 @@ export type AgentToolPart = {
 };
 
 export type AgentSourceUrlPart = {
-  kind: 'source-url';
+  type: 'source-url';
   sourceId: string;
   url: string;
-  title?: string | null;
+  title?: string;
 };
 
 export type AgentSourceDocumentPart = {
-  kind: 'source-document';
+  type: 'source-document';
   sourceId: string;
   mediaType: string;
   title: string;
 };
 
+/** Anthropic-shape citation, wrapped per AI SDK v5 `DataUIPart`. */
 export type AgentCitationPart = {
-  kind: 'citation';
-  key: string;
+  type: 'data-citation';
+  /** Synthetic stable fingerprint (`cited_text + canonical(location)`). */
+  id: string;
   data: CitationData;
 };
 
+/** Tool-consent prompt, wrapped per AI SDK v5 `DataUIPart`. */
 export type AgentToolConsentPart = {
-  kind: 'tool-consent';
-  toolCallId: string;
+  type: 'data-tool-consent';
+  /** `data.toolCallId` — re-exposed at the part envelope so SDK
+   *  consumers can dedup without inspecting the inner payload. */
+  id: string;
   data: ToolConsentData;
 };
 
+/** Elicitation prompt, wrapped per AI SDK v5 `DataUIPart`. */
 export type AgentElicitationPart = {
-  kind: 'elicitation';
-  elicitationId: string;
+  type: 'data-elicitation';
+  /** `data.elicitationId` — see comment on `AgentToolConsentPart.id`. */
+  id: string;
   data: ElicitationData;
 };
 
@@ -224,6 +241,64 @@ export type AgentMessagePart =
   | AgentCitationPart
   | AgentToolConsentPart
   | AgentElicitationPart;
+
+// --- Compile-time SDK compatibility assertion (Weston msg=63a796f3 B2) ---
+//
+// Each part type below must be structurally assignable to the
+// corresponding shape in `@ai-sdk/react` (sourced from the `ai`
+// package). If any shape drifts, this file fails to type-check and
+// the renderer's `isTextUIPart` / `isToolUIPart` / `isDataUIPart`
+// guards would silently misclassify our parts at runtime.
+
+import type {
+  TextUIPart as _SDKTextUIPart,
+  SourceUrlUIPart as _SDKSourceUrlUIPart,
+  SourceDocumentUIPart as _SDKSourceDocumentUIPart,
+  DataUIPart as _SDKDataUIPart,
+} from 'ai';
+
+// The data discriminators we actually emit. Used to parameterize
+// the SDK's `DataUIPart<DATA_TYPES>` for the assertion below.
+export type ApeRAGUIDataTypes = {
+  citation: CitationData;
+  'tool-consent': ToolConsentData;
+  elicitation: ElicitationData;
+};
+
+type _AssertText = AgentTextPart extends _SDKTextUIPart ? true : never;
+type _AssertSourceUrl =
+  AgentSourceUrlPart extends _SDKSourceUrlUIPart ? true : never;
+type _AssertSourceDocument =
+  AgentSourceDocumentPart extends _SDKSourceDocumentUIPart ? true : never;
+type _AssertCitation =
+  AgentCitationPart extends _SDKDataUIPart<ApeRAGUIDataTypes>
+    ? true
+    : never;
+type _AssertToolConsent =
+  AgentToolConsentPart extends _SDKDataUIPart<ApeRAGUIDataTypes>
+    ? true
+    : never;
+type _AssertElicitation =
+  AgentElicitationPart extends _SDKDataUIPart<ApeRAGUIDataTypes>
+    ? true
+    : never;
+// Tool parts are intentionally not asserted against `ToolUIPart<TOOLS>`
+// (which requires a static `TOOLS` schema) — the SDK's `isToolUIPart`
+// guard branches on `type.startsWith('tool-')`, which our
+// `tool-${string}` template-literal discriminator satisfies.
+
+// One read of every assertion alias so the compiler keeps them around.
+// Each member here would be `never` if the corresponding `extends`
+// failed, which would propagate a type error to anyone importing this
+// constant — making the compatibility check load-bearing.
+export const _AgentMessagePartIsSDKCompatible: [
+  _AssertText,
+  _AssertSourceUrl,
+  _AssertSourceDocument,
+  _AssertCitation,
+  _AssertToolConsent,
+  _AssertElicitation,
+] = [true, true, true, true, true, true];
 
 // --- Stream status ---------------------------------------------------------
 

@@ -5,25 +5,27 @@
 // Narrow projection from the new `AgentMessagePart[]` seam back into
 // the legacy `AgentTurnSnapshot { turn, timeline, artifacts }` shape so
 // that `AgentTurnCard` keeps rendering during the D8.4a/4b transition.
-// Boundary (per architect lock msg=ed98280c):
+// Boundary (per architect lock msg=ed98280c + dongdong msg=f33e9039):
 //
-//   * Coverage: `streamingAnswer` (concatenated text per text-block id)
-//     + minimal `timeline` (one entry per running tool call) + empty
-//     `artifacts`. Citations + sources flow through `parts` only — the
-//     references sheet stays empty until #77 wires the new renderer.
+//   * Coverage: `streamingAnswer` (concatenation of every text-block in
+//     declaration order, joined with `\n\n`); patched turn `status` /
+//     `error_message` / `timeline_cursor` from the live stream;
+//     `timeline` and `artifacts` pass-through from `baselineSnapshot`
+//     only.
 //   * NOT covered: rich activity inference, debug previews, reference
-//     bundle items, error_summary translation, timeline merging. Those
-//     belong to the D8.4b renderer (#77).
+//     bundle items rendered from the new parts stream, error_summary
+//     translation, timeline merging from new parts. Those belong to
+//     the D8.4b renderer (#77).
 //
 // This shim has zero callers outside `chat-messages.tsx`. Do not
 // extend its surface — every new field would otherwise become a soft
 // requirement for the renderer rewrite.
 
 import type {
-  AgentTextPart,
-  AgentToolPart,
   AgentMessagePart,
   AgentStreamStatus,
+  AgentTextPart,
+  AgentToolPart,
 } from './types';
 import type {
   AgentTurnEnvelope,
@@ -34,9 +36,9 @@ export type LegacySnapshotShim = {
   /**
    * Streaming answer text — concatenation of every text block in
    * declaration order. AI SDK v5 spec allows multiple text blocks per
-   * turn (text-start{id} / text-delta{id} / text-end{id}); we group
-   * by id and join with `\n\n` so multi-block streams still read
-   * naturally in the existing card.
+   * turn (`text-start{id}` → `text-delta{id}` → `text-end{id}`); we
+   * group by id and join with `\n\n` so multi-block streams still
+   * read naturally in the existing card.
    */
   streamingAnswer: string;
   pending: boolean;
@@ -72,7 +74,9 @@ export function projectToLegacySnapshot(input: {
   const streamingAnswer = collectStreamingAnswer(input.parts);
 
   const liveStatus =
-    input.status === 'idle' ? input.turn.status : STREAM_TO_LEGACY_STATUS[input.status];
+    input.status === 'idle'
+      ? input.turn.status
+      : STREAM_TO_LEGACY_STATUS[input.status];
 
   const turn: AgentTurnEnvelope = {
     ...input.turn,
@@ -101,7 +105,7 @@ export function projectToLegacySnapshot(input: {
 function collectStreamingAnswer(parts: AgentMessagePart[]): string {
   const texts: string[] = [];
   for (const part of parts) {
-    if (part.kind === 'text') {
+    if (part.type === 'text') {
       const value = (part as AgentTextPart).text;
       if (value) texts.push(value);
     }
@@ -114,9 +118,12 @@ function collectStreamingAnswer(parts: AgentMessagePart[]): string {
 export function getRunningToolName(parts: AgentMessagePart[]): string | null {
   for (let i = parts.length - 1; i >= 0; i -= 1) {
     const part = parts[i];
-    if (part.kind !== 'tool') continue;
+    if (!part.type.startsWith('tool-')) continue;
     const tool = part as AgentToolPart;
-    if (tool.state === 'input-streaming' || tool.state === 'input-available') {
+    if (
+      tool.state === 'input-streaming' ||
+      tool.state === 'input-available'
+    ) {
       return tool.toolName || null;
     }
   }

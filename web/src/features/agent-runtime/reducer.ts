@@ -2,21 +2,24 @@
 
 // Stream reducer: collapses lifecycle wire parts into the consolidated,
 // dedup'd `AgentMessagePart[]` shape that downstream renderers (#77)
-// and interactive UI (#78) consume.
+// and interactive UI (#78) consume. Output shapes are SDK-compatible
+// (see `types.ts` `_AgentMessagePartIsSDKCompatible` assertion).
 //
 // Dedup contract (architect lock msg=f35c5a3d / Lock C):
 //   The BE replays an entire envelope on disconnect — every part
 //   produced by the same envelope is re-emitted on resume. The client
 //   is responsible for deduping by **stable part identifier**:
-//     * text-* parts: `id`
-//     * tool-* parts: `toolCallId`
-//     * source-* parts: `sourceId`
-//     * data-tool-consent: `data.toolCallId`
-//     * data-elicitation: `data.elicitationId`
+//     * text parts: `id` (text-block id)
+//     * tool parts: `toolCallId`
+//     * source-url / source-document: `sourceId`
+//     * data-tool-consent: `data.toolCallId` (re-exposed as part `id`)
+//     * data-elicitation: `data.elicitationId` (re-exposed as part `id`)
 //     * data-citation: `cited_text + canonical(location)` fingerprint
-//       — there is no native id; the BE always re-emits the same
-//       payload on replay, so a content fingerprint is stable.
-//     * data-activity: TRANSIENT — replace-last only, never persisted.
+//       (re-exposed as part `id`) — there is no native id on the wire,
+//       and the BE always re-emits the same payload on replay so a
+//       content fingerprint is stable.
+//     * data-activity: TRANSIENT — replace-last only, never persisted
+//       into the parts array.
 //
 // State semantics:
 //   * Status follows the lifecycle envelope: `connecting` → `streaming`
@@ -29,11 +32,12 @@
 //     resumes at the next envelope, never mid-fanout.
 
 import type {
+  ActivityData,
   AgentMessagePart,
   AgentStreamStatus,
   AgentTextPart,
   AgentToolPart,
-  ActivityData,
+  CitationData,
   StreamPart,
 } from './types';
 
@@ -114,9 +118,9 @@ export function applyPart(
         lastSequence: maxSeq(state.lastSequence, eventId),
       };
     case 'tool-input-delta':
-      // Args streaming — we don't surface partial JSON to the UI
-      // today (BE batches on `tool-input-available`), but we still
-      // keep the part registered so a later renderer can show "input
+      // Args streaming — we don't surface partial JSON to the UI today
+      // (BE batches on `tool-input-available`), but we still keep the
+      // part registered so a later renderer can show "input
       // streaming…" affordances.
       return {
         ...state,
@@ -166,31 +170,27 @@ export function applyPart(
     case 'source-url':
       return {
         ...state,
-        parts: upsertById(state.parts, 'sourceId', part.sourceId, () => ({
-          kind: 'source-url',
-          sourceId: part.sourceId,
+        parts: upsertSourceUrl(state.parts, part.sourceId, {
           url: part.url,
-          title: part.title,
-        })),
+          title: nullToUndefined(part.title),
+        }),
         lastSequence: maxSeq(state.lastSequence, eventId),
       };
     case 'source-document':
       return {
         ...state,
-        parts: upsertById(state.parts, 'sourceId', part.sourceId, () => ({
-          kind: 'source-document',
-          sourceId: part.sourceId,
+        parts: upsertSourceDocument(state.parts, part.sourceId, {
           mediaType: part.mediaType,
           title: part.title,
-        })),
+        }),
         lastSequence: maxSeq(state.lastSequence, eventId),
       };
 
     case 'data-citation': {
-      const key = citationKey(part.data);
+      const id = citationFingerprint(part.data);
       return {
         ...state,
-        parts: upsertCitation(state.parts, key, part.data),
+        parts: upsertCitation(state.parts, id, part.data),
         lastSequence: maxSeq(state.lastSequence, eventId),
       };
     }
@@ -198,46 +198,20 @@ export function applyPart(
     case 'data-tool-consent':
       return {
         ...state,
-        parts: upsertById(
-          state.parts,
-          'toolCallId',
-          part.data.toolCallId,
-          () => ({
-            kind: 'tool-consent',
-            toolCallId: part.data.toolCallId,
-            data: part.data,
-          }),
-          (existing) =>
-            existing.kind === 'tool-consent'
-              ? { ...existing, data: part.data }
-              : existing,
-        ),
+        parts: upsertToolConsent(state.parts, part.data),
         lastSequence: maxSeq(state.lastSequence, eventId),
       };
 
     case 'data-elicitation':
       return {
         ...state,
-        parts: upsertById(
-          state.parts,
-          'elicitationId',
-          part.data.elicitationId,
-          () => ({
-            kind: 'elicitation',
-            elicitationId: part.data.elicitationId,
-            data: part.data,
-          }),
-          (existing) =>
-            existing.kind === 'elicitation'
-              ? { ...existing, data: part.data }
-              : existing,
-        ),
+        parts: upsertElicitation(state.parts, part.data),
         lastSequence: maxSeq(state.lastSequence, eventId),
       };
 
     case 'data-activity':
-      // Transient — replace-last only, never persisted to `parts`.
-      // The architect lock (msg=f35c5a3d) makes this explicit: the
+      // Transient — replace-last only, never persisted to `parts`. The
+      // architect lock (msg=f35c5a3d) makes this explicit: the
       // wire-side `transient: true` flag means the consumer must NOT
       // include the part in any persistent message history.
       return {
@@ -267,7 +241,19 @@ function maxSeq(current: number, candidate: number | null): number {
   return candidate > current ? candidate : current;
 }
 
+function nullToUndefined<T>(value: T | null | undefined): T | undefined {
+  return value == null ? undefined : value;
+}
+
 // -- text helpers ---------------------------------------------------------
+
+function isTextPart(part: AgentMessagePart): part is AgentTextPart {
+  return part.type === 'text';
+}
+
+function isToolPart(part: AgentMessagePart): part is AgentToolPart {
+  return part.type.startsWith('tool-');
+}
 
 function upsertText(
   parts: AgentMessagePart[],
@@ -275,12 +261,12 @@ function upsertText(
   initial: string,
   state: AgentTextPart['state'],
 ): AgentMessagePart[] {
-  const index = parts.findIndex((p) => p.kind === 'text' && p.id === id);
+  const index = parts.findIndex((p) => isTextPart(p) && p.id === id);
   if (index >= 0) {
     const existing = parts[index] as AgentTextPart;
     return replaceAt(parts, index, { ...existing, state });
   }
-  return [...parts, { kind: 'text', id, text: initial, state }];
+  return [...parts, { type: 'text', id, text: initial, state }];
 }
 
 function appendTextDelta(
@@ -288,12 +274,12 @@ function appendTextDelta(
   id: string,
   delta: string,
 ): AgentMessagePart[] {
-  const index = parts.findIndex((p) => p.kind === 'text' && p.id === id);
+  const index = parts.findIndex((p) => isTextPart(p) && p.id === id);
   if (index < 0) {
     // text-delta arrived without text-start (BE emits text-start once
     // per turn but defends against missing it). Synthesize a streaming
     // block so the delta isn't dropped.
-    return [...parts, { kind: 'text', id, text: delta, state: 'streaming' }];
+    return [...parts, { type: 'text', id, text: delta, state: 'streaming' }];
   }
   const existing = parts[index] as AgentTextPart;
   return replaceAt(parts, index, {
@@ -304,7 +290,7 @@ function appendTextDelta(
 }
 
 function closeText(parts: AgentMessagePart[], id: string): AgentMessagePart[] {
-  const index = parts.findIndex((p) => p.kind === 'text' && p.id === id);
+  const index = parts.findIndex((p) => isTextPart(p) && p.id === id);
   if (index < 0) return parts;
   const existing = parts[index] as AgentTextPart;
   return replaceAt(parts, index, { ...existing, state: 'done' });
@@ -312,86 +298,143 @@ function closeText(parts: AgentMessagePart[], id: string): AgentMessagePart[] {
 
 // -- tool helpers ---------------------------------------------------------
 
+type ToolPatch = Partial<
+  Pick<
+    AgentToolPart,
+    'toolName' | 'metadata' | 'input' | 'output' | 'errorText' | 'state'
+  >
+>;
+
 function upsertTool(
   parts: AgentMessagePart[],
   toolCallId: string,
-  patch: Partial<Omit<AgentToolPart, 'kind' | 'toolCallId'>>,
+  patch: ToolPatch,
 ): AgentMessagePart[] {
   const index = parts.findIndex(
-    (p) => p.kind === 'tool' && p.toolCallId === toolCallId,
+    (p) => isToolPart(p) && p.toolCallId === toolCallId,
   );
   if (index < 0) {
-    return [
-      ...parts,
-      {
-        kind: 'tool',
-        toolCallId,
-        toolName: patch.toolName ?? '',
-        metadata: patch.metadata,
-        input: patch.input,
-        output: patch.output,
-        errorText: patch.errorText,
-        state: patch.state ?? 'input-streaming',
-      },
-    ];
+    const toolName = patch.toolName ?? '';
+    const created: AgentToolPart = {
+      type: `tool-${toolName}`,
+      toolCallId,
+      toolName,
+      metadata: patch.metadata,
+      input: patch.input,
+      output: patch.output,
+      errorText: patch.errorText,
+      state: patch.state ?? 'input-streaming',
+    };
+    return [...parts, created];
   }
   const existing = parts[index] as AgentToolPart;
-  return replaceAt(parts, index, {
+  // Preserve toolName once it's known (input-start / input-available
+  // both carry it; output-* parts do not). The `type` discriminator is
+  // recomputed when toolName changes so SDK guards still see a stable
+  // `tool-${name}` shape after the toolName resolves.
+  const nextToolName = patch.toolName ?? existing.toolName;
+  const merged: AgentToolPart = {
     ...existing,
     ...patch,
-    // Preserve toolName once it's known (input-start → input-available
-    // both carry it; output-available does not).
-    toolName: patch.toolName ?? existing.toolName,
+    toolName: nextToolName,
+    type: `tool-${nextToolName}`,
     state: patch.state ?? existing.state,
-  });
+  };
+  return replaceAt(parts, index, merged);
 }
 
-// -- generic helpers ------------------------------------------------------
+// -- source helpers -------------------------------------------------------
 
-type AgentMessagePartByKey<K extends string> = Extract<
-  AgentMessagePart,
-  Record<K, string>
->;
-
-function upsertById<K extends 'sourceId' | 'toolCallId' | 'elicitationId'>(
+function upsertSourceUrl(
   parts: AgentMessagePart[],
-  key: K,
-  value: string,
-  create: () => AgentMessagePartByKey<K>,
-  update?: (existing: AgentMessagePart) => AgentMessagePart,
+  sourceId: string,
+  fields: { url: string; title?: string },
 ): AgentMessagePart[] {
   const index = parts.findIndex(
-    (p) => (p as Record<string, unknown>)[key] === value,
-  );
-  if (index < 0) return [...parts, create()];
-  if (!update) return parts;
-  return replaceAt(parts, index, update(parts[index]));
-}
-
-function upsertCitation(
-  parts: AgentMessagePart[],
-  key: string,
-  data: import('./types').CitationData,
-): AgentMessagePart[] {
-  const index = parts.findIndex(
-    (p) => p.kind === 'citation' && p.key === key,
+    (p) => p.type === 'source-url' && p.sourceId === sourceId,
   );
   if (index < 0) {
-    return [...parts, { kind: 'citation', key, data }];
+    return [...parts, { type: 'source-url', sourceId, ...fields }];
   }
-  // Already seen — replay. Keep existing (data is byte-identical
-  // per envelope-atomic replay).
+  // Already seen — replay. Same payload byte-stable per
+  // envelope-atomic replay; keep existing.
   return parts;
 }
 
-function citationKey(data: import('./types').CitationData): string {
+function upsertSourceDocument(
+  parts: AgentMessagePart[],
+  sourceId: string,
+  fields: { mediaType: string; title: string },
+): AgentMessagePart[] {
+  const index = parts.findIndex(
+    (p) => p.type === 'source-document' && p.sourceId === sourceId,
+  );
+  if (index < 0) {
+    return [...parts, { type: 'source-document', sourceId, ...fields }];
+  }
+  return parts;
+}
+
+// -- data part helpers ----------------------------------------------------
+
+function upsertCitation(
+  parts: AgentMessagePart[],
+  id: string,
+  data: CitationData,
+): AgentMessagePart[] {
+  const index = parts.findIndex(
+    (p) => p.type === 'data-citation' && p.id === id,
+  );
+  if (index < 0) {
+    return [...parts, { type: 'data-citation', id, data }];
+  }
+  // Already seen — replay; data is byte-identical per envelope-atomic
+  // replay so we keep the existing entry.
+  return parts;
+}
+
+function upsertToolConsent(
+  parts: AgentMessagePart[],
+  data: import('./types').ToolConsentData,
+): AgentMessagePart[] {
+  const id = data.toolCallId;
+  const index = parts.findIndex(
+    (p) => p.type === 'data-tool-consent' && p.id === id,
+  );
+  if (index < 0) {
+    return [...parts, { type: 'data-tool-consent', id, data }];
+  }
+  // Consent decision can transition (pending → approved/denied/expired);
+  // the BE re-emits the part with the new state, so we replace data.
+  return replaceAt(parts, index, { type: 'data-tool-consent', id, data });
+}
+
+function upsertElicitation(
+  parts: AgentMessagePart[],
+  data: import('./types').ElicitationData,
+): AgentMessagePart[] {
+  const id = data.elicitationId;
+  const index = parts.findIndex(
+    (p) => p.type === 'data-elicitation' && p.id === id,
+  );
+  if (index < 0) {
+    return [...parts, { type: 'data-elicitation', id, data }];
+  }
+  // Same reasoning as consent: state transitions (pending → answered /
+  // cancelled) are re-emitted; replace data on hit.
+  return replaceAt(parts, index, { type: 'data-elicitation', id, data });
+}
+
+function citationFingerprint(data: CitationData): string {
   // Stable fingerprint: cited_text + JSON.stringify(location). The BE
   // always replays the identical payload on reconnect, so this collides
   // exactly when (and only when) we've already seen the citation.
-  // JSON.stringify is deterministic for primitive-keyed objects, which
-  // matches the BE Pydantic model shape.
+  // Symphony msg=2f9225f5: JSON.stringify key order is engine-stable
+  // for primitive-keyed objects (matches BE Pydantic shape) within a
+  // process; if cross-session ghost duplicates surface later, swap to
+  // a canonical sorted-keys hash.
   try {
-    return `${data.cited_text}${JSON.stringify(data.location)}`;
+    return `${data.cited_text}${JSON.stringify(data.location)}`;
   } catch {
     return data.cited_text;
   }

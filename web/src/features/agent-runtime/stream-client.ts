@@ -144,6 +144,9 @@ export async function consumeAgentStream(
         }
         options.onPart(frame.part, frame.id);
         if (isTerminalPart(frame.part)) {
+          // Terminal part dispatched — the BE will close TCP next
+          // tick. We return early so the hook flips to the matching
+          // status without waiting on EOF.
           return { reason: 'completed' };
         }
       }
@@ -161,7 +164,15 @@ export async function consumeAgentStream(
     }
   }
 
-  return { reason: 'completed' };
+  // EOF without a terminal part — the HTTP stream closed cleanly but
+  // the turn was not finished/aborted/errored. Treat as recoverable
+  // stream loss so the hook's reconnect loop resumes from
+  // `lastEventId`. Without this guard a clean mid-turn TCP close
+  // would mark the turn completed (Weston msg=63a796f3 blocker #1).
+  return {
+    reason: 'error',
+    error: 'stream closed before terminal frame',
+  };
 }
 
 function buildStreamUrl(rawUrl: string, lastEventId?: number): string {
