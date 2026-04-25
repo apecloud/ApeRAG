@@ -273,7 +273,7 @@ def collection_summary_task(
                     collection_id=collection_id,
                 ),
                 log_message=(
-                    f"Processing ownership lost for collection summary {summary_id}; " "suppressing success handling"
+                    f"Processing ownership lost for collection summary {summary_id}; suppressing success handling"
                 ),
             )
 
@@ -289,7 +289,7 @@ def collection_summary_task(
                     collection_id=collection_id,
                 ),
                 log_message=(
-                    f"Processing ownership lost for collection summary {summary_id}; " "suppressing failure callback"
+                    f"Processing ownership lost for collection summary {summary_id}; suppressing failure callback"
                 ),
             )
 
@@ -352,8 +352,9 @@ def export_collection_task(self, export_task_id: str):
 
     store = get_object_store()
 
-    def _update_task(status=None, progress=None, message=None, error_message=None,
-                     object_store_path=None, file_size=None):
+    def _update_task(
+        status=None, progress=None, message=None, error_message=None, object_store_path=None, file_size=None
+    ):
         for session in get_sync_session():
             result = session.execute(select(ExportTask).where(ExportTask.id == export_task_id))
             task = result.scalars().first()
@@ -411,7 +412,7 @@ def export_collection_task(self, export_task_id: str):
         downloaded_count = [0]
 
         def _download_one(obj_path: str):
-            rel_path = obj_path[len(prefix):]
+            rel_path = obj_path[len(prefix) :]
             local_path = os.path.join(temp_dir, rel_path)
             os.makedirs(os.path.dirname(local_path), exist_ok=True)
             stream = store.get(obj_path)
