@@ -41,9 +41,9 @@ swap in a stricter validator by passing ``validator=`` to
 State transitions: ``pending -> submitted | cancelled``. There is no
 "expired" state for elicitation in D9 §5.1 -- the runtime decides
 whether to time out the awaiting tool execution and surface a
-``tool-output-available {errorText}`` instead. We mirror that here
-by exposing :meth:`ElicitationService.cancel` for the runtime to
-call on abort / timeout.
+``tool-output-error`` wire part (per AI SDK v5 strict spec) instead.
+We mirror that here by exposing :meth:`ElicitationService.cancel` for
+the runtime to call on abort / timeout.
 """
 
 from __future__ import annotations

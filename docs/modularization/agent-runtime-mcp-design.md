@@ -89,7 +89,7 @@ Registry 必须存 `(mcpServer, mcpToolName, safeName)` 三元组以保证 safeN
 D8.3 tool lifecycle implementation 必须 enforce：
 - **Visibility filter**: 不 visible 的 tool 不进入 agent 的 system prompt tool list
 - **Consent gate hook**: agent 决定调用 consent-required tool 时，不直接发 `tool-input-start`，而是先发 `data-tool-consent` part，等待用户 decision；approved 后发 `tool-input-start` continue
-- **Invocation block**: agent 调用 blocked tool 时直接返回 `tool-output-available` with `errorText: "Tool invocation denied: requires user consent"`
+- **Invocation block**: agent 调用 blocked tool 时直接发 `tool-output-error` (AI SDK v5 strict spec, post D8.0c+ #89) with `errorText: "Tool invocation denied: requires user consent"`
 
 ## 3. Tool Consent UI in UIMessage Parts
 
@@ -137,7 +137,7 @@ Frontend 渲染 consent UI 用 `toolName + argsPreview + risk` 给用户决策�
 5. backend updates data-tool-consent part state → "approved" or "denied"
 6. backend → agent runtime:
    - approved: continue with tool-input-start lifecycle (raw args used internally)
-   - denied: emit tool-output-available with errorText "denied by user"
+   - denied: emit tool-output-error with errorText "denied by user"  (AI SDK v5 strict spec, post D8.0c+ #89)
 ```
 
 ### 3.3 Timeout policy

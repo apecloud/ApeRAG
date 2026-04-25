@@ -69,6 +69,7 @@ from aperag.domains.agent_runtime.wire.parts import (
     ToolInputAvailablePart,
     ToolInputStartPart,
     ToolOutputAvailablePart,
+    ToolOutputErrorPart,
 )
 
 
@@ -205,7 +206,8 @@ def test_translate_tool_started_finished():
     assert isinstance(finished[0], ToolOutputAvailablePart)
     assert finished[0].tool_call_id == "event-tool"
     assert finished[0].output == {"items": [{"id": "doc-1"}]}
-    assert finished[0].error_text is None
+    # Strict AI SDK v5: success path has no error_text field at all.
+    assert not hasattr(finished[0], "error_text")
 
 
 def test_translate_tool_failure():
@@ -225,7 +227,9 @@ def test_translate_tool_failure():
 
     assert len(parts) == 1
     out = parts[0]
-    assert isinstance(out, ToolOutputAvailablePart)
+    # Strict AI SDK v5: failures emit ``tool-output-error``, NOT
+    # ``tool-output-available`` with errorText (D8.0c+ #89 fix-forward).
+    assert isinstance(out, ToolOutputErrorPart)
     assert out.tool_call_id == "event-fail"
     assert out.error_text == "rate limited"
 
@@ -407,7 +411,8 @@ def test_part_json_round_trip():
             metadata={"mcpServer": "aperag", "mcpToolName": "search_collection"},
         ),
         ToolInputAvailablePart(tool_call_id="t-1", tool_name="search_collection", input={"q": "rag"}),
-        ToolOutputAvailablePart(tool_call_id="t-1", output={"items": []}, error_text=None),
+        ToolOutputAvailablePart(tool_call_id="t-1", output={"items": []}),
+        ToolOutputErrorPart(tool_call_id="t-2", error_text="rate limited"),
         SourceUrlPart(source_id="src-1", url="https://example.com/rag", title="RAG Primer"),
         DataCitationPart(
             data={
@@ -445,6 +450,47 @@ def test_part_wire_uses_camel_case_keys():
     error = dump_part(ErrorPart(error_text="boom"))
     assert "errorText" in error
     assert "error_text" not in error
+
+
+def test_tool_output_strict_split_per_ai_sdk_v5():
+    """Strict AI SDK v5: tool failure emits ``tool-output-error``,
+    success emits ``tool-output-available``. Neither part type carries
+    the other's payload (D8.0c+ #89 fix-forward)."""
+
+    success_dict = dump_part(ToolOutputAvailablePart(tool_call_id="t-ok", output={"items": []}))
+    assert success_dict["type"] == "tool-output-available"
+    # Success path MUST NOT carry an errorText key on the wire.
+    assert "errorText" not in success_dict
+    assert "error_text" not in success_dict
+
+    error_dict = dump_part(ToolOutputErrorPart(tool_call_id="t-fail", error_text="rate limited"))
+    assert error_dict["type"] == "tool-output-error"
+    assert error_dict["errorText"] == "rate limited"
+    assert error_dict["toolCallId"] == "t-fail"
+    # Failure path MUST NOT carry an output key on the wire.
+    assert "output" not in error_dict
+
+    # Both shapes are recognized by the discriminated union TypeAdapter.
+    assert isinstance(parse_part(success_dict), ToolOutputAvailablePart)
+    assert isinstance(parse_part(error_dict), ToolOutputErrorPart)
+
+
+def test_tool_output_available_rejects_error_text_kwarg():
+    """ToolOutputAvailablePart no longer accepts ``error_text`` —
+    constructing it with one must surface as a Pydantic error rather
+    than silently coexist (regression guard for #89 strict split)."""
+
+    import pydantic
+
+    with pytest.raises(pydantic.ValidationError):
+        ToolOutputAvailablePart.model_validate(
+            {
+                "type": "tool-output-available",
+                "toolCallId": "t-1",
+                "output": {"items": []},
+                "errorText": "should not be accepted",
+            }
+        )
 
 
 # ---------------------------------------------------------------------------

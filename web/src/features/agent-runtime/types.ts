@@ -137,12 +137,6 @@ export type StreamPart =
       type: 'tool-output-available';
       toolCallId: string;
       output: unknown;
-      // BE `parts.py` (#73) currently sets `errorText` here on failure;
-      // AI SDK v5 strict spec migrates failure to `tool-output-error`
-      // (see task #89 D8.0c+ hygiene fix-forward). The reducer accepts
-      // both shapes so the FE rolls forward without coupling to the
-      // BE's split timing.
-      errorText?: string | null;
     }
   | { type: 'tool-output-error'; toolCallId: string; errorText: string }
   | { type: 'source-url'; sourceId: string; url: string; title?: string | null }
