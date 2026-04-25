@@ -50,7 +50,6 @@ import pytest
 # would otherwise occur if the search modules were imported via
 # ``aperag.mcp.tools`` package's ``__init__``.
 from aperag.mcp import server as mcp_server_module
-from aperag.mcp.cursor.errors import CursorError
 from aperag.mcp.server import (
     fulltext_search,
     graph_search,
@@ -180,33 +179,100 @@ def test_web_search_signature_preserves_existing_wire_for_b4():
 )
 @pytest.mark.parametrize(
     "bad_cursor",
-    ["", "garbage", "AAAA", "{}"],
-    ids=["empty_string", "garbage", "base64_no_payload", "empty_json"],
+    ["garbage", "AAAA", "{}", "0"],
+    ids=["garbage", "base64_no_payload", "empty_json", "single_zero"],
 )
-async def test_collection_scoped_split_tools_reject_non_null_cursor(tool, bad_cursor):
-    """Per `[D10 spec amendment]` msg=b9b7072a Drift #4 (c): the
-    ``cursor`` parameter on ``vector_search`` / ``graph_search`` /
-    ``fulltext_search`` is published as a placeholder; any non-null
-    value must raise ``CursorError("cursor_invalid")`` until real
-    search pagination ships. Silent reset to first page is
-    explicitly forbidden (§C explicit-not-silent invariant).
+async def test_collection_scoped_split_tools_reject_non_empty_cursor(tool, bad_cursor):
+    """Per `[D10 spec amendment]` msg=b9b7072a Drift #4 (c) +
+    architect sign-off msg=ebfcdabe + Weston blocker msg=177a1dd8:
+    any non-empty cursor must loud-fail with ``NotImplementedError``
+    bearing a "search pagination is not yet implemented" message.
 
-    ``cursor=None`` is exercised by the existing happy-path suite.
+    The sign-off explicitly forbids reusing
+    ``CursorError("cursor_invalid", ...)`` for this case — the canonical
+    cursor codes describe wire-level malformed / expired / drifted
+    cursors, and the "feature not implemented yet" semantic must not
+    be camouflaged as a malformed-cursor error.
+
+    ``cursor=None`` and ``cursor=""`` are covered by the
+    happy-path-passthrough test below; this case only exercises the
+    truthy-cursor loud-fail path.
     """
 
-    with pytest.raises(CursorError) as excinfo:
+    with pytest.raises(NotImplementedError) as excinfo:
         await tool("collection-id", "query", cursor=bad_cursor)
 
-    err = excinfo.value
-    assert err.code == "cursor_invalid", (
-        f"{tool.__name__} must produce canonical `cursor_invalid` for non-null cursor; got {err.code!r}."
+    message = str(excinfo.value)
+    assert "search pagination is not yet implemented" in message, (
+        f"{tool.__name__} loud-fail message must clearly state that "
+        f"search pagination is not implemented (got {message!r})."
     )
-    assert err.details.get("reason") == "search_not_paginated", (
-        "Error envelope must surface the deferred-pagination reason "
-        "so clients understand they should not retry the cursor."
+    assert tool.__name__ in message, (
+        "Loud-fail message must identify the originating tool so logs can attribute the rejection."
     )
-    assert err.details.get("tool") == tool.__name__, (
-        "Error envelope must identify the originating tool so logs can attribute the rejection."
+    assert "search_not_paginated" in message, (
+        "Loud-fail message must surface the deferred-pagination reason so clients understand they should not retry."
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "tool",
+    [vector_search, graph_search, fulltext_search],
+    ids=["vector_search", "graph_search", "fulltext_search"],
+)
+@pytest.mark.parametrize(
+    "noop_cursor",
+    [None, ""],
+    ids=["none", "empty_string"],
+)
+async def test_collection_scoped_split_tools_treat_none_and_empty_cursor_as_first_page(tool, noop_cursor, monkeypatch):
+    """Weston blocker msg=177a1dd8 lock: ``None`` *and* ``""`` cursor
+    must both preserve the existing single-page ``top_k`` behavior
+    (``""`` is **not** a malformed cursor; it is the canonical
+    "no pagination requested" wire value).
+
+    We stub ``get_api_key()`` and the outbound httpx call so the test
+    only validates that the cursor guard does **not** raise — it does
+    not exercise the backend search path itself.
+    """
+
+    import aperag.mcp.tools.search_fulltext as sft
+    import aperag.mcp.tools.search_graph as sg
+    import aperag.mcp.tools.search_vector as sv
+
+    monkeypatch.setattr(sv, "get_api_key", lambda: "test-token")
+    monkeypatch.setattr(sg, "get_api_key", lambda: "test-token")
+    monkeypatch.setattr(sft, "get_api_key", lambda: "test-token")
+
+    class _FakeResponse:
+        status_code = 200
+
+        def json(self):
+            return {"items": []}
+
+    class _FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(self, url, headers=None, json=None):
+            return _FakeResponse()
+
+    import httpx
+
+    monkeypatch.setattr(httpx, "AsyncClient", _FakeAsyncClient)
+
+    # No exception expected — the cursor guard must not raise on
+    # ``None`` or ``""``.
+    result = await tool("collection-id", "query", cursor=noop_cursor)
+    assert isinstance(result, dict), (
+        f"{tool.__name__} must return the SearchResult dict for None/empty cursor (got {type(result).__name__})."
     )
 
 

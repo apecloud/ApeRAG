@@ -25,8 +25,10 @@ shape follow-up settled by the ``[D10 spec amendment]`` thread
 (msg=b9b7072a) — defer canonical SearchResultItem to D10.h cutover.
 
 The ``cursor`` parameter is a placeholder per the same thread (Drift
-#4 (c)): signature lands now, body raises ``CursorError`` on any
-non-null value until real search pagination ships.
+#4 (c)): signature lands now, body raises ``NotImplementedError``
+on any non-empty value until real search pagination ships.
+``None`` and ``""`` both preserve single-page ``top_k`` behavior per
+the Weston blocker review (msg=177a1dd8).
 """
 
 from __future__ import annotations
@@ -37,7 +39,6 @@ from typing import Any, Dict
 import httpx
 
 from aperag.domains.retrieval.schemas import SearchResult
-from aperag.mcp.cursor.errors import CursorError
 from aperag.mcp.server import API_BASE_URL, get_api_key, mcp_server
 
 logger = logging.getLogger(__name__)
@@ -82,20 +83,19 @@ async def graph_search(
         query: The natural-language search query.
         top_k: Maximum number of results to return (default: 5).
         cursor: Pagination cursor placeholder (§B.2 / amendment
-            msg=b9b7072a Drift #4 (c)). ``None`` returns first page;
-            non-null raises ``CursorError("cursor_invalid")`` until
-            real search pagination ships.
+            msg=b9b7072a Drift #4 (c)). ``None`` and ``""`` return
+            first page; any non-empty value raises
+            ``NotImplementedError`` with a clear "not implemented"
+            message until real search pagination ships.
 
     Returns:
         Search results with ``items`` carrying ``recall_type =
         "graph_search"``. Graph-specific fields (entity / relation / path)
         are surfaced via ``items[*].metadata``.
     """
-    if cursor is not None:
-        raise CursorError(
-            "cursor_invalid",
-            "search pagination cursor is not yet implemented",
-            details={"reason": "search_not_paginated", "tool": "graph_search"},
+    if cursor:
+        raise NotImplementedError(
+            "search pagination is not yet implemented (tool=graph_search, reason=search_not_paginated)"
         )
     try:
         api_key = get_api_key()

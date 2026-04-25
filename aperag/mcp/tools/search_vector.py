@@ -32,9 +32,15 @@ the split surface + omnibus deprecation.
 The ``cursor`` parameter is a placeholder per the same amendment
 thread (Drift #4 resolution (c)): the signature is published now so
 external MCP clients see the canonical shape, but the body explicitly
-fails with ``CursorError("cursor_invalid", ...)`` on any non-null
-input until real search pagination lands. ``None`` continues to mean
-"first page" (current behavior).
+raises ``NotImplementedError("search pagination is not yet
+implemented")`` on any **non-empty** value. The architect sign-off
+(msg=ebfcdabe) plus Weston's blocker review (msg=177a1dd8) explicitly
+forbid reusing the canonical ``CursorError("cursor_invalid", ...)``
+malformed-wire semantic for this "feature not implemented" case —
+that would camouflage missing capability as a client-side cursor bug.
+``cursor=None`` and ``cursor=""`` both keep the existing single-page
+``top_k`` behavior (Weston msg=177a1dd8 lock); only truthy /
+non-empty cursor values trigger the loud-fail.
 """
 
 from __future__ import annotations
@@ -45,7 +51,6 @@ from typing import Any, Dict
 import httpx
 
 from aperag.domains.retrieval.schemas import SearchResult
-from aperag.mcp.cursor.errors import CursorError
 from aperag.mcp.server import API_BASE_URL, get_api_key, mcp_server
 
 logger = logging.getLogger(__name__)
@@ -94,23 +99,25 @@ async def vector_search(
         similarity_threshold: Minimum similarity score [0, 1]; ``None``
             uses the collection's default threshold.
         rerank: Whether to apply reranker on returned candidates (default: True).
-        cursor: Pagination cursor placeholder (§B.1). ``None`` returns
-            the first page (current behavior). Any non-null value
-            raises ``CursorError("cursor_invalid")`` per the
-            ``[D10 spec amendment]`` (msg=b9b7072a) Drift #4 (c)
-            resolution — real search pagination requires a backend
-            capability that is not yet available and will land in a
-            dedicated D11+ upgrade.
+        cursor: Pagination cursor placeholder (§B.1). ``None`` and
+            ``""`` both return the first page (current behavior); any
+            non-empty value raises ``NotImplementedError`` with a
+            ``"search pagination is not yet implemented"`` message per
+            the ``[D10 spec amendment]`` (msg=b9b7072a + sign-off
+            msg=ebfcdabe + Weston msg=177a1dd8). Real search
+            pagination requires a backend capability that is not yet
+            available and will land in a dedicated D11+ upgrade.
 
     Returns:
         Search results with ``items`` ranked by vector similarity. Each
         item carries ``recall_type = "vector_search"``.
     """
-    if cursor is not None:
-        raise CursorError(
-            "cursor_invalid",
-            "search pagination cursor is not yet implemented",
-            details={"reason": "search_not_paginated", "tool": "vector_search"},
+    if cursor:
+        # ``cursor`` is truthy iff non-None and non-empty (Weston
+        # msg=177a1dd8 lock: ``None`` and ``""`` both preserve
+        # single-page ``top_k`` behavior).
+        raise NotImplementedError(
+            "search pagination is not yet implemented (tool=vector_search, reason=search_not_paginated)"
         )
     try:
         api_key = get_api_key()
