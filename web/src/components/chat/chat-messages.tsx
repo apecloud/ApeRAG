@@ -4,6 +4,7 @@ import type { ChatDetails, ChatMessage, Feedback } from '@/features/bot/types';
 import {
   cancelAgentTurn,
   createAgentTurn,
+  extractErrorTextFromSnapshot,
   getAgentTurnSnapshot,
   mapBackendTurnStatus,
   synthesizePartsFromSnapshot,
@@ -530,9 +531,19 @@ function AgentTurnStreamCard({
   const displayStatus: AgentStreamStatus = useFallback
     ? mapBackendTurnStatus(envelope.status)
     : stream.status;
+  const fallbackErrorText = useMemo(
+    () =>
+      useFallback && baselineSnapshot
+        ? extractErrorTextFromSnapshot(baselineSnapshot)
+        : null,
+    [useFallback, baselineSnapshot],
+  );
   const displayErrorText =
     displayStatus === 'failed'
-      ? (stream.errorText ?? envelope.error_message ?? null)
+      ? (stream.errorText ??
+        fallbackErrorText ??
+        envelope.error_message ??
+        null)
       : stream.errorText;
 
   const onTerminalRef = useRef(onTerminal);
