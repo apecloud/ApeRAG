@@ -58,9 +58,9 @@ import { isVisibleCollectionConfigKey } from './feature-visibility';
 
 const collectionModelSchema = z
   .object({
-    custom_llm_provider: z.string(),
-    model: z.string(),
-    model_service_provider: z.string(),
+    model_id: z.string(),
+    temperature: z.number().nullable(),
+    tags: z.array(z.string()).nullable(),
   })
   .optional();
 
@@ -84,12 +84,12 @@ const collectionSchema = z
   .refine(
     ({ config }) => {
       if (config.enable_vector) {
-        return !_.isEmpty(config.embedding?.model);
+        return !_.isEmpty(config.embedding?.model_id);
       }
       return true;
     },
     {
-      path: ['config.embedding.model'],
+      path: ['config.embedding.model_id'],
     },
   )
   .refine(
@@ -99,12 +99,12 @@ const collectionSchema = z
         config.enable_summary ||
         config.enable_vision
       ) {
-        return !_.isEmpty(config.completion?.model);
+        return !_.isEmpty(config.completion?.model_id);
       }
       return true;
     },
     {
-      path: ['config.completion.model'],
+      path: ['config.completion.model_id'],
     },
   );
 
@@ -139,14 +139,14 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
       enable_summary: false,
       enable_vision: false,
       completion: {
-        custom_llm_provider: '',
-        model: '',
-        model_service_provider: '',
+        model_id: '',
+        temperature: 0.1,
+        tags: [],
       },
       embedding: {
-        custom_llm_provider: '',
-        model: '',
-        model_service_provider: '',
+        model_id: '',
+        temperature: 0.1,
+        tags: [],
       },
       language: locale as TitleLanguage,
     },
@@ -191,22 +191,14 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
    * set completion、embedding models used in model select component
    */
   const loadModels = useCallback(async () => {
-    const models = await getAvailableModels([['enable_for_collection']]);
+    const models = await getAvailableModels(['chat', 'embedding']);
     setCompletionModels(
-      models.map((m) => ({
-        label: m.label ?? undefined,
-        name: m.name ?? undefined,
-        models: m.completion ?? undefined,
-      })),
+      [{ label: page_collections('completion_model'), name: 'chat', models: models.filter((m) => m.capability === 'chat').map((m) => ({ model_id: m.id, temperature: 0.1, tags: [] })) }],
     );
     setEmbeddingModels(
-      models.map((m) => ({
-        label: m.label ?? undefined,
-        name: m.name ?? undefined,
-        models: m.embedding ?? undefined,
-      })),
+      [{ label: page_collections('embedding_model'), name: 'embedding', models: models.filter((m) => m.capability === 'embedding').map((m) => ({ model_id: m.id, temperature: 0.1, tags: [] })) }],
     );
-  }, []);
+  }, [page_collections]);
 
   /**
    * handle create or update a collection
@@ -238,7 +230,7 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
    */
   const completionModelName = useWatch({
     control: form.control,
-    name: 'config.completion.model',
+    name: 'config.completion.model_id',
   });
   useEffect(() => {
     if (_.isEmpty(completionModels)) return;
@@ -249,11 +241,7 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
     let currentProvider: ProviderModel | undefined;
     completionModels?.forEach((provider) => {
       provider.models?.forEach((m) => {
-        if (m.tags?.some((t) => t === 'default_for_collection_completion')) {
-          defaultModel = m;
-          defaultProvider = provider;
-        }
-        if (m.model === completionModelName) {
+        if (m.model_id === completionModelName) {
           currentModel = m;
           currentProvider = provider;
         }
@@ -261,18 +249,8 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
     });
 
     form.setValue(
-      'config.completion.custom_llm_provider',
-      currentModel?.custom_llm_provider ||
-        currentModel?.custom_llm_provider ||
-        '',
-    );
-    form.setValue(
-      'config.completion.model_service_provider',
-      currentProvider?.name || defaultProvider?.name || '',
-    );
-    form.setValue(
-      'config.completion.model',
-      currentModel?.model || defaultModel?.model || '',
+      'config.completion.model_id',
+      currentModel?.model_id || defaultModel?.model_id || '',
     );
   }, [completionModelName, completionModels, form]);
 
@@ -286,7 +264,7 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
    */
   const embeddingModelName = useWatch({
     control: form.control,
-    name: 'config.embedding.model',
+    name: 'config.embedding.model_id',
   });
   useEffect(() => {
     if (action === 'edit') return;
@@ -299,29 +277,15 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
 
     embeddingModels?.forEach((provider) => {
       provider.models?.forEach((m) => {
-        if (m.tags?.some((t) => t === 'default_for_embedding')) {
-          defaultModel = m;
-          defaultProvider = provider;
-        }
-        if (m.model === embeddingModelName) {
+        if (m.model_id === embeddingModelName) {
           currentModel = m;
           currentProvider = provider;
         }
       });
     });
     form.setValue(
-      'config.embedding.custom_llm_provider',
-      currentModel?.custom_llm_provider ||
-        currentModel?.custom_llm_provider ||
-        '',
-    );
-    form.setValue(
-      'config.embedding.model_service_provider',
-      currentProvider?.name || defaultProvider?.name || '',
-    );
-    form.setValue(
-      'config.embedding.model',
-      currentModel?.model || defaultModel?.model || '',
+      'config.embedding.model_id',
+      currentModel?.model_id || defaultModel?.model_id || '',
     );
   }, [action, embeddingModelName, embeddingModels, form]);
 
@@ -499,7 +463,7 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
             <CardContent className="flex flex-col gap-6 px-5 py-5">
               <FormField
                 control={form.control}
-                name="config.embedding.model"
+                name="config.embedding.model_id"
                 render={({ field }) => {
                   const embeddingLocked = action === 'edit';
                   return (
@@ -539,10 +503,10 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
                                     {item.models?.map((model) => {
                                       return (
                                         <SelectItem
-                                          key={model.model}
-                                          value={model.model || ''}
+                                          key={model.model_id}
+                                          value={model.model_id || ''}
                                         >
-                                          {model.model}
+                                          {model.model_id}
                                         </SelectItem>
                                       );
                                     })}
@@ -566,7 +530,7 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
 
               <FormField
                 control={form.control}
-                name="config.completion.model"
+                name="config.completion.model_id"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>
@@ -591,10 +555,10 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
                                   {item.models?.map((model) => {
                                     return (
                                       <SelectItem
-                                        key={model.model}
-                                        value={model.model || ''}
+                                        key={model.model_id}
+                                        value={model.model_id || ''}
                                       >
-                                        {model.model}
+                                        {model.model_id}
                                       </SelectItem>
                                     );
                                   })}

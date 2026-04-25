@@ -32,26 +32,36 @@ back-compat with pre-extraction callers.
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, Field, confloat, conint
+from pydantic import BaseModel, ConfigDict, Field, confloat, conint, model_validator
+
+_log = logging.getLogger(__name__)
 
 
 class ModelSpec(BaseModel):
-    model: Optional[str] = Field(
+    """Inline model spec embedded in collection / bot config blobs.
+
+    Post-#1697 the canonical shape is ``{model_id}``. Pre-#1697 callers
+    (collections / bots already in the DB, plus any external clients
+    that hand-build the JSON) wrote ``{model, model_service_provider,
+    custom_llm_provider}`` instead. Pydantic silently dropped those
+    extras after the schema cut, so existing rows would parse with
+    ``model_id=None`` and the runtime resolver would 404. Per Weston
+    msg=80e873c1 / Blocker C we keep parsing both shapes — when the
+    legacy triple is present, it is stashed on the private
+    ``__legacy_*__`` slots and a ``ModelPlatformService`` lookup at
+    runtime resolves it to a real ``model_id`` (see
+    :func:`aperag.schema.utils.resolve_model_spec_legacy`).
+    """
+
+    model_config = ConfigDict(protected_namespaces=(), extra="ignore")
+
+    model_id: Optional[str] = Field(
         None,
-        description="The name of the language model to use",
-        examples=["gpt-4o-mini"],
-    )
-    model_service_provider: Optional[str] = Field(
-        None,
-        description="Used for querying auth information (api_key/api_base/...) for a model service provider.",
-        examples=["openai"],
-    )
-    custom_llm_provider: Optional[str] = Field(
-        None,
-        description="Used for Non-OpenAI LLMs (e.g. 'bedrock' for amazon.titan-tg1-large)",
-        examples=["openai"],
+        description="ApeRAG model id to use",
+        examples=["mdl_default_chat"],
     )
     temperature: Optional[confloat(ge=0.0, le=2.0)] = Field(
         0.1,
@@ -73,6 +83,46 @@ class ModelSpec(BaseModel):
         description="Tags for model categorization",
         examples=[["free", "recommend"]],
     )
+    # Internal-only stash for the legacy triple. Not a public field
+    # (excluded from ``model_dump``) — the runtime resolver fills
+    # ``model_id`` from these when needed and that value is what
+    # downstream code reads.
+    legacy_model: Optional[str] = Field(default=None, exclude=True, repr=False)
+    legacy_provider: Optional[str] = Field(default=None, exclude=True, repr=False)
+    legacy_custom_llm_provider: Optional[str] = Field(default=None, exclude=True, repr=False)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _hoist_legacy_triple(cls, data):
+        if not isinstance(data, dict):
+            return data
+        # Don't clobber a real ``model_id`` — the new shape always wins.
+        if data.get("model_id"):
+            return data
+        legacy_model = data.get("model")
+        legacy_provider = data.get("model_service_provider")
+        legacy_custom = data.get("custom_llm_provider")
+        if legacy_model or legacy_provider:
+            data = {**data}
+            data["legacy_model"] = legacy_model
+            data["legacy_provider"] = legacy_provider
+            data["legacy_custom_llm_provider"] = legacy_custom
+            _log.debug(
+                "ModelSpec parsed legacy shape; stashed for runtime resolve",
+                extra={"legacy_model": legacy_model, "legacy_provider": legacy_provider},
+            )
+        return data
+
+    @property
+    def model(self) -> Optional[str]:
+        return self.model_id
+
+    def has_legacy_triple(self) -> bool:
+        """``True`` when this spec was parsed from the pre-#1697 shape
+        and still needs ``ModelPlatformService.resolve_legacy_model_id``
+        before downstream code uses ``model_id``.
+        """
+        return bool(self.legacy_model or self.legacy_provider)
 
 
 class KnowledgeGraphConfig(BaseModel):

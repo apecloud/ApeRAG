@@ -144,8 +144,7 @@ class EvaluationDatasetItemsAppendResponse(BaseModel):
 
 class JudgeConfig(BaseModel):
     mode: EvaluationJudgeMode = EvaluationJudgeMode.EXACT_MATCH
-    model: Optional[str] = None
-    model_service_provider: Optional[str] = None
+    model_id: Optional[str] = None
     prompt_template: Optional[str] = None
     score_threshold: Optional[float] = Field(None, ge=0.0, le=1.0)
     params: Optional[dict[str, Any]] = None

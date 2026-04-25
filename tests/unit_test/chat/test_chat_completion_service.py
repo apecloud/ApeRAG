@@ -8,15 +8,14 @@ from aperag.domains.agent_runtime.db.models import AgentTurnStatus
 from aperag.utils.constant import DOC_QA_REFERENCES
 
 
-def _bot(*, bot_id="bot-1", model="gpt-4o-mini", provider="openai"):
+def _bot(*, bot_id="bot-1", model="mdl-chat"):
     return SimpleNamespace(
         id=bot_id,
         config=json.dumps(
             {
                 "agent": {
                     "completion": {
-                        "model": model,
-                        "model_service_provider": provider,
+                        "model_id": model,
                         "temperature": 0.1,
                     }
                 }
@@ -163,8 +162,7 @@ async def test_openai_chat_completions_returns_openai_response_and_maps_override
     created_request = fake_turn_service.created_requests[0]
     assert created_request.query == "hello world"
     assert created_request.client_idempotency_key == "idem-1"
-    assert created_request.completion.model == "gpt-4o-mini"
-    assert created_request.completion.model_service_provider == "openai"
+    assert created_request.completion.model_id == "mdl-chat"
     assert created_request.completion.temperature == 0.4
     assert fake_runtime_manager.launch_calls[0]["lease_owner"] == "lease-owner-1"
 

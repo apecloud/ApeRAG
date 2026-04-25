@@ -17,7 +17,10 @@ HTTP 200
 # Create a bare collection so the retrieval endpoints have a valid
 # target. All indexing is disabled — the search request below is
 # expected to fail at the "no strategy enabled" gate before any recall
-# backend is touched, which keeps the suite deterministic.
+# backend is touched, which keeps the suite deterministic. ``embedding``
+# / ``completion`` are intentionally omitted — they are optional, this
+# file is a contract / 4xx-shape test and must not depend on any
+# external provider availability or seeded ``model_id``.
 POST {{base_url}}/api/v2/collections
 Content-Type: application/json
 {
@@ -30,17 +33,7 @@ Content-Type: application/json
     "enable_fulltext": false,
     "enable_knowledge_graph": false,
     "enable_summary": false,
-    "enable_vision": false,
-    "embedding": {
-      "model": "text-embedding-v3",
-      "model_service_provider": "alibabacloud",
-      "custom_llm_provider": "openai"
-    },
-    "completion": {
-      "model": "google/gemini-2.5-flash",
-      "model_service_provider": "openrouter",
-      "custom_llm_provider": "openrouter"
-    }
+    "enable_vision": false
   }
 }
 HTTP 200

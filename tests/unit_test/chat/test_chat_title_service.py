@@ -15,26 +15,35 @@ class _EmptyHistory:
 
 
 def test_generate_title_uses_existing_chat_title_when_history_is_empty(monkeypatch):
+    """If the chat has no Redis history yet, the service must short-circuit to
+    the chat row's existing ``title`` without resolving the background-task
+    ``ModelUse`` or invoking the LLM.
+
+    The model-platform refactor replaced the legacy
+    ``default_model_service.get_default_background_task_config`` call with a
+    direct ``query_model_uses`` lookup against the conversation domain's
+    ``db_ops``, so the early-return path now skips that lookup entirely.
+    """
+
+    invocation_mock = AsyncMock(side_effect=AssertionError("model invocation must not run for empty history"))
+
     service = ChatTitleService()
     service.db_ops = SimpleNamespace(
         query_bot=AsyncMock(return_value=SimpleNamespace(id="bot-1")),
         query_chat=AsyncMock(return_value=SimpleNamespace(id="chat-1", title="Existing Chat Title")),
+        query_model_uses=AsyncMock(side_effect=AssertionError("model_uses must not be queried for empty history")),
     )
 
-    default_model_mock = AsyncMock(return_value=("google/gemini-2.5-flash", "openrouter", "openrouter"))
-    # Phase 5 step 5-S4e canonical (msg=940bd884): the service reaches
-    # ``default_model_service`` via a direct cross-domain import from
-    # ``aperag.domains.model_platform.service.default_model_service``,
-    # so the patch target is the ``default_model_service`` symbol the
-    # domain module re-binds at import time.
     monkeypatch.setattr(
-        "aperag.domains.conversation.service.chat_title_service.default_model_service."
-        "get_default_background_task_config",
-        default_model_mock,
+        "aperag.domains.conversation.service.chat_title_service.RedisChatMessageHistory",
+        _EmptyHistory,
     )
-    monkeypatch.setattr("aperag.domains.conversation.service.chat_title_service.RedisChatMessageHistory", _EmptyHistory)
+    monkeypatch.setattr(
+        "aperag.domains.conversation.service.chat_title_service.model_invocation_service.chat",
+        invocation_mock,
+    )
 
     title = asyncio.run(service.generate_title("user-1", "bot-1", "chat-1"))
 
     assert title == "Existing Chat Title"
-    default_model_mock.assert_not_awaited()
+    invocation_mock.assert_not_awaited()

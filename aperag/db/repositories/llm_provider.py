@@ -1,856 +1,388 @@
-# Copyright 2025 ApeCloud, Inc.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+from __future__ import annotations
 
-from typing import List, Optional
+from typing import Optional
 
+import sqlalchemy as sa
 from sqlalchemy import select
 
-from aperag.db.repositories.base import (
-    AsyncRepositoryProtocol,
-    SyncRepositoryProtocol,
-)
-from aperag.domains.model_platform.db.models import (
-    LLMProvider,
-    LLMProviderModel,
-    ModelServiceProvider,
-    ModelServiceProviderStatus,
-)
+from aperag.db.repositories.base import AsyncRepositoryProtocol, SyncRepositoryProtocol
+from aperag.domains.model_platform.db.models import Model, ModelAccount, ModelProvider, ModelUse
 from aperag.utils.utils import utc_now
 
 
 class LlmProviderRepositoryMixin(SyncRepositoryProtocol):
-    def query_llm_provider_by_name(self, name: str, user_id: str = None) -> LLMProvider:
+    def query_model_runtime(self, model_id: str, user_id: str):
         def _query(session):
-            stmt = select(LLMProvider).where(LLMProvider.name == name, LLMProvider.gmt_deleted.is_(None))
-            if user_id:
-                # Get both public providers and user's private providers
-                stmt = stmt.where((LLMProvider.user_id == "public") | (LLMProvider.user_id == user_id))
-            result = session.execute(stmt)
-            return result.scalars().first()
+            model = session.get(Model, model_id)
+            if not model or model.gmt_deleted is not None or model.status != "ACTIVE":
+                return None
+            account = session.get(ModelAccount, model.account_id)
+            if (
+                not account
+                or account.gmt_deleted is not None
+                or account.status != "ACTIVE"
+                or account.user_id not in (user_id, "public")
+            ):
+                return None
+            return model, account
 
         return self._execute_query(_query)
 
-    def query_provider_api_key(self, provider_name: str, user_id: str = None, need_public: bool = True) -> str:
-        """Query provider API key with user access control using single SQL JOIN (sync version)
-
-        Args:
-            provider_name: Provider name to query
-            user_id: User ID for private provider access
-            need_public: Whether to include public providers
-
-        Returns:
-            API key string if found, None otherwise
+    def resolve_legacy_model_id(
+        self,
+        user_id: str,
+        *,
+        provider_type: str,
+        provider_model_id: str,
+        capability: str | None = None,
+    ) -> Optional[str]:
+        """Sync companion to the async resolver in
+        :class:`AsyncLlmProviderRepositoryMixin`. Used by sync collection
+        config callers (``base_embedding``, ``base_completion``) that
+        need to map the legacy ``{model, provider}`` triple to a
+        new-schema ``model.id`` without an event loop.
         """
 
         def _query(session):
-            # Join LLMProvider and ModelServiceProvider tables
-            from sqlalchemy import join
-
             stmt = (
-                select(ModelServiceProvider.api_key)
-                .select_from(join(LLMProvider, ModelServiceProvider, LLMProvider.name == ModelServiceProvider.name))
+                select(Model, ModelAccount)
+                .join(ModelAccount, Model.account_id == ModelAccount.id)
                 .where(
-                    LLMProvider.name == provider_name,
-                    LLMProvider.gmt_deleted.is_(None),
-                    ModelServiceProvider.status != ModelServiceProviderStatus.DELETED,
-                    ModelServiceProvider.gmt_deleted.is_(None),
+                    Model.gmt_deleted.is_(None),
+                    Model.status == "ACTIVE",
+                    Model.provider_model_id == provider_model_id,
+                    ModelAccount.gmt_deleted.is_(None),
+                    ModelAccount.status == "ACTIVE",
+                    ModelAccount.provider_type == provider_type,
+                    (ModelAccount.user_id == user_id) | (ModelAccount.user_id == "public"),
                 )
             )
-
-            # Add user access control conditions
-            conditions = []
-            if need_public:
-                conditions.append(LLMProvider.user_id == "public")
-            if user_id:
-                conditions.append(LLMProvider.user_id == user_id)
-
-            if conditions:
-                if len(conditions) == 1:
-                    stmt = stmt.where(conditions[0])
-                else:
-                    from sqlalchemy import or_
-
-                    stmt = stmt.where(or_(*conditions))
-
+            if capability:
+                stmt = stmt.where(Model.capability == capability)
             result = session.execute(stmt)
-            return result.scalar()
-
-        return self._execute_query(_query)
-
-    def query_msp_dict(self, user: str = None):
-        def _query(session):
-            stmt = select(ModelServiceProvider).where(
-                ModelServiceProvider.status != ModelServiceProviderStatus.DELETED,
-                ModelServiceProvider.gmt_deleted.is_(None),
-            )
-            # For now, return all MSPs since we removed user column
-            result = session.execute(stmt)
-            return {msp.name: msp for msp in result.scalars().all()}
-
-        return self._execute_query(_query)
-
-    def query_llm_provider_model(self, provider_name: str, api: str, model: str) -> LLMProviderModel:
-        """Get a specific LLM provider model"""
-
-        def _query(session):
-            stmt = select(LLMProviderModel).where(
-                LLMProviderModel.provider_name == provider_name,
-                LLMProviderModel.api == api,
-                LLMProviderModel.model == model,
-                LLMProviderModel.gmt_deleted.is_(None),
-            )
-            result = session.execute(stmt)
-            return result.scalars().first()
+            rows = result.all()
+            if not rows:
+                return None
+            # Prefer user-owned over public.
+            user_rows = [(model, account) for model, account in rows if account.user_id == user_id]
+            chosen = user_rows[0] if user_rows else rows[0]
+            return chosen[0].id
 
         return self._execute_query(_query)
 
 
 class AsyncLlmProviderRepositoryMixin(AsyncRepositoryProtocol):
-    async def query_provider_api_key(self, provider_name: str, user_id: str = None, need_public: bool = True) -> str:
-        """Query provider API key with user access control using single SQL JOIN
+    async def query_model_providers(self):
+        async def _query(session):
+            stmt = (
+                select(ModelProvider)
+                .where(ModelProvider.gmt_deleted.is_(None), ModelProvider.enabled.is_(True))
+                .order_by(ModelProvider.sort_order, ModelProvider.display_name)
+            )
+            result = await session.execute(stmt)
+            return result.scalars().all()
 
-        Args:
-            provider_name: Provider name to query
-            user_id: User ID for private provider access
-            need_public: Whether to include public providers
+        return await self._execute_query(_query)
 
-        Returns:
-            API key string if found, None otherwise
+    async def query_model_account_api_key(
+        self, provider_type: str, user_id: str, fallback_to_public: bool = False
+    ) -> Optional[str]:
+        """Resolve the encrypted API key for the most recently-updated
+        ACTIVE ``ModelAccount`` for ``provider_type`` owned by ``user_id``.
 
-            SELECT model_service_provider.api_key
-                FROM llm_provider
-                JOIN model_service_provider ON llm_provider.name = model_service_provider.name
-                WHERE llm_provider.name = :provider_name
-                AND llm_provider.gmt_deleted IS NULL
-                AND model_service_provider.status != 'DELETED'
-                AND model_service_provider.gmt_deleted IS NULL
-                AND (llm_provider.user_id = 'public' OR llm_provider.user_id = :user_id)
+        When ``fallback_to_public`` is true, fall back to any ACTIVE
+        ``public`` account when the user has no personal account configured.
+        Returns ``None`` when no account is configured.
+
+        Primitive for callers that need the raw provider api key without
+        having to know the ``ModelAccount`` id (e.g. Jina web reading /
+        web search). This is consumed by
+        ``ModelPlatformService.get_user_provider_api_key``; cross-domain
+        callers go through the service, not the repository.
         """
 
         async def _query(session):
-            # Join LLMProvider and ModelServiceProvider tables
-            from sqlalchemy import join
-
+            user_filter = ModelAccount.user_id == user_id
+            if fallback_to_public:
+                user_filter = user_filter | (ModelAccount.user_id == "public")
             stmt = (
-                select(ModelServiceProvider.api_key)
-                .select_from(join(LLMProvider, ModelServiceProvider, LLMProvider.name == ModelServiceProvider.name))
+                select(ModelAccount)
                 .where(
-                    LLMProvider.name == provider_name,
-                    LLMProvider.gmt_deleted.is_(None),
-                    ModelServiceProvider.status != ModelServiceProviderStatus.DELETED,
-                    ModelServiceProvider.gmt_deleted.is_(None),
+                    ModelAccount.provider_type == provider_type,
+                    ModelAccount.gmt_deleted.is_(None),
+                    ModelAccount.status == "ACTIVE",
+                    user_filter,
+                )
+                # The user's personal account ALWAYS wins over a ``public`` row,
+                # even when ``public`` was updated more recently — otherwise a
+                # later admin edit on the shared key would silently shadow the
+                # caller's own credential.
+                .order_by(
+                    sa.case((ModelAccount.user_id == user_id, 0), else_=1),
+                    ModelAccount.gmt_updated.desc(),
                 )
             )
-
-            # Add user access control conditions
-            conditions = []
-            if need_public:
-                conditions.append(LLMProvider.user_id == "public")
-            if user_id:
-                conditions.append(LLMProvider.user_id == user_id)
-
-            if conditions:
-                if len(conditions) == 1:
-                    stmt = stmt.where(conditions[0])
-                else:
-                    from sqlalchemy import or_
-
-                    stmt = stmt.where(or_(*conditions))
-
             result = await session.execute(stmt)
-            return result.scalar()
+            account = result.scalars().first()
+            return account.encrypted_api_key if account else None
 
         return await self._execute_query(_query)
 
-    async def upsert_msp(self, name: str, api_key: str):
-        """Create or update model service provider API key"""
-
-        async def _operation(session):
-            # Try to find existing MSP
-            stmt = select(ModelServiceProvider).where(
-                ModelServiceProvider.name == name, ModelServiceProvider.gmt_deleted.is_(None)
-            )
-            result = await session.execute(stmt)
-            msp = result.scalars().first()
-
-            if msp:
-                # Update existing
-                msp.api_key = api_key
-                msp.gmt_updated = utc_now()
-                session.add(msp)
-            else:
-                # Create new
-                msp = ModelServiceProvider(name=name, status=ModelServiceProviderStatus.ACTIVE, api_key=api_key)
-                session.add(msp)
-
-            await session.flush()
-            await session.refresh(msp)
-            return msp
-
-        return await self.execute_with_transaction(_operation)
-
-    async def delete_msp_by_name(self, name: str):
-        """Physical delete model service provider by name"""
-
-        async def _operation(session):
-            stmt = select(ModelServiceProvider).where(
-                ModelServiceProvider.name == name, ModelServiceProvider.gmt_deleted.is_(None)
-            )
-            result = await session.execute(stmt)
-            msp = result.scalars().first()
-
-            if msp:
-                await session.delete(msp)
-                await session.flush()
-                return True
-            return False
-
-        return await self.execute_with_transaction(_operation)
-
-    async def delete_msp(self, msp: ModelServiceProvider):
-        """Physical delete model service provider"""
-
-        async def _operation(session):
-            await session.delete(msp)
-            await session.flush()
-
-        return await self.execute_with_transaction(_operation)
-
-    async def query_msp(self, user: str = None, provider: str = None, filterDeletion: bool = True):
+    async def query_model_accounts(self, user_id: str):
         async def _query(session):
-            stmt = select(ModelServiceProvider).where(ModelServiceProvider.name == provider)
-            if filterDeletion:
-                stmt = stmt.where(
-                    ModelServiceProvider.status != ModelServiceProviderStatus.DELETED,
-                    ModelServiceProvider.gmt_deleted.is_(None),
-                )
-            result = await session.execute(stmt)
-            return result.scalars().first()
-
-        return await self._execute_query(_query)
-
-    async def query_msp_dict(self, user: str = None):
-        async def _query(session):
-            stmt = select(ModelServiceProvider).where(
-                ModelServiceProvider.status != ModelServiceProviderStatus.DELETED,
-                ModelServiceProvider.gmt_deleted.is_(None),
-            )
-            # For now, return all MSPs since we removed user column
-            result = await session.execute(stmt)
-            return {msp.name: msp for msp in result.scalars().all()}
-
-        return await self._execute_query(_query)
-
-    async def query_msp_list(self, user: str = None):
-        async def _query(session):
-            stmt = select(ModelServiceProvider).where(
-                ModelServiceProvider.status != ModelServiceProviderStatus.DELETED,
-                ModelServiceProvider.gmt_deleted.is_(None),
-            )
-            # For now, return all MSPs since we removed user column
-            result = await session.execute(stmt)
-            return result.scalars().all()
-
-        return await self._execute_query(_query)
-
-    async def update_msp(self, msp: ModelServiceProvider):
-        async def _operation(session):
-            session.add(msp)
-            await session.flush()
-            await session.refresh(msp)
-            return msp
-
-        return await self.execute_with_transaction(_operation)
-
-    async def upsert_model_service_provider(self, user: str, name: str, api_key: str):
-        """Create or update model service provider API key (legacy method)"""
-        # This is a wrapper for the new upsert_msp method to maintain compatibility
-        return await self.upsert_msp(name, api_key)
-
-    # LLM Provider Operations
-    async def query_llm_providers(self, user_id: str = None, need_public: bool = True):
-        """Get all active LLM providers, optionally filtered by user and public providers
-
-        Args:
-            user_id: User ID to filter by user's private providers
-            need_public: Whether to include public providers
-        """
-
-        async def _query(session):
-            stmt = select(LLMProvider).where(LLMProvider.gmt_deleted.is_(None))
-
-            conditions = []
-
-            # Add public providers condition if needed
-            if need_public:
-                conditions.append(LLMProvider.user_id == "public")
-
-            # Add user's private providers condition if user_id is provided
-            if user_id:
-                conditions.append(LLMProvider.user_id == user_id)
-
-            # Apply conditions
-            if conditions:
-                if len(conditions) == 1:
-                    stmt = stmt.where(conditions[0])
-                else:
-                    from sqlalchemy import or_
-
-                    stmt = stmt.where(or_(*conditions))
-            # If no conditions (user_id=None, need_public=False), return all providers
-
-            result = await session.execute(stmt)
-            return result.scalars().all()
-
-        return await self._execute_query(_query)
-
-    async def query_llm_provider_by_name(self, name: str):
-        """Get LLM provider by name"""
-
-        async def _query(session):
-            stmt = select(LLMProvider).where(LLMProvider.name == name, LLMProvider.gmt_deleted.is_(None))
-            result = await session.execute(stmt)
-            return result.scalars().first()
-
-        return await self._execute_query(_query)
-
-    async def query_llm_provider_by_name_user(self, name: str, user_id: str) -> LLMProvider:
-        """Get LLM provider by name and user_id"""
-
-        async def _query(session):
-            stmt = select(LLMProvider).where(
-                LLMProvider.name == name, LLMProvider.user_id == user_id, LLMProvider.gmt_deleted.is_(None)
-            )
-            result = await session.execute(stmt)
-            return result.scalars().first()
-
-        return await self._execute_query(_query)
-
-    async def create_llm_provider(
-        self,
-        name: str,
-        user_id: str,
-        label: str,
-        completion_dialect: str = "openai",
-        embedding_dialect: str = "openai",
-        rerank_dialect: str = "jina_ai",
-        allow_custom_base_url: bool = False,
-        base_url: str = "",
-        extra: str = None,
-    ) -> LLMProvider:
-        """Create a new LLM provider"""
-
-        async def _operation(session):
-            provider = LLMProvider(
-                name=name,
-                user_id=user_id,
-                label=label,
-                completion_dialect=completion_dialect,
-                embedding_dialect=embedding_dialect,
-                rerank_dialect=rerank_dialect,
-                allow_custom_base_url=allow_custom_base_url,
-                base_url=base_url,
-                extra=extra,
-            )
-            session.add(provider)
-            await session.flush()
-            await session.refresh(provider)
-            return provider
-
-        return await self.execute_with_transaction(_operation)
-
-    async def update_llm_provider(
-        self,
-        name: str,
-        user_id: str = None,
-        label: str = None,
-        completion_dialect: str = None,
-        embedding_dialect: str = None,
-        rerank_dialect: str = None,
-        allow_custom_base_url: bool = None,
-        base_url: str = None,
-        extra: str = None,
-    ) -> Optional[LLMProvider]:
-        """Update an existing LLM provider"""
-
-        async def _operation(session):
-            stmt = select(LLMProvider).where(LLMProvider.name == name, LLMProvider.gmt_deleted.is_(None))
-            result = await session.execute(stmt)
-            provider = result.scalars().first()
-
-            if provider:
-                if user_id is not None:
-                    provider.user_id = user_id
-                if label is not None:
-                    provider.label = label
-                if completion_dialect is not None:
-                    provider.completion_dialect = completion_dialect
-                if embedding_dialect is not None:
-                    provider.embedding_dialect = embedding_dialect
-                if rerank_dialect is not None:
-                    provider.rerank_dialect = rerank_dialect
-                if allow_custom_base_url is not None:
-                    provider.allow_custom_base_url = allow_custom_base_url
-                if base_url is not None:
-                    provider.base_url = base_url
-                if extra is not None:
-                    provider.extra = extra
-
-                provider.gmt_updated = utc_now()
-                session.add(provider)
-                await session.flush()
-                await session.refresh(provider)
-
-            return provider
-
-        return await self.execute_with_transaction(_operation)
-
-    async def delete_llm_provider(self, name: str) -> Optional[LLMProvider]:
-        """Soft delete LLM provider and its models"""
-
-        async def _operation(session):
-            stmt = select(LLMProvider).where(LLMProvider.name == name, LLMProvider.gmt_deleted.is_(None))
-            result = await session.execute(stmt)
-            provider = result.scalars().first()
-
-            if provider:
-                # Soft delete the provider
-                provider.gmt_deleted = utc_now()
-                provider.gmt_updated = utc_now()
-                session.add(provider)
-
-                # Also soft delete all models for this provider
-                models_stmt = select(LLMProviderModel).where(
-                    LLMProviderModel.provider_name == name, LLMProviderModel.gmt_deleted.is_(None)
-                )
-                models_result = await session.execute(models_stmt)
-                models = models_result.scalars().all()
-                for model in models:
-                    model.gmt_deleted = utc_now()
-                    model.gmt_updated = utc_now()
-                    session.add(model)
-
-                await session.flush()
-                await session.refresh(provider)
-
-            return provider
-
-        return await self.execute_with_transaction(_operation)
-
-    async def restore_llm_provider(self, name: str) -> Optional[LLMProvider]:
-        """Restore a soft-deleted LLM provider"""
-
-        async def _operation(session):
-            stmt = select(LLMProvider).where(LLMProvider.name == name, LLMProvider.gmt_deleted.is_not(None))
-            result = await session.execute(stmt)
-            provider = result.scalars().first()
-
-            if provider:
-                provider.gmt_deleted = None
-                provider.gmt_updated = utc_now()
-                session.add(provider)
-
-                # Also restore all models for this provider
-                models_stmt = select(LLMProviderModel).where(
-                    LLMProviderModel.provider_name == name, LLMProviderModel.gmt_deleted.is_not(None)
-                )
-                models_result = await session.execute(models_stmt)
-                models = models_result.scalars().all()
-                for model in models:
-                    model.gmt_deleted = None
-                    model.gmt_updated = utc_now()
-                    session.add(model)
-
-                await session.flush()
-                await session.refresh(provider)
-
-            return provider
-
-        return await self.execute_with_transaction(_operation)
-
-    # LLM Provider Model Operations
-    async def query_llm_provider_models(self, provider_name: str = None):
-        """Get all active LLM provider models, optionally filtered by provider"""
-
-        async def _query(session):
-            stmt = select(LLMProviderModel).where(LLMProviderModel.gmt_deleted.is_(None))
-            if provider_name:
-                stmt = stmt.where(LLMProviderModel.provider_name == provider_name)
-            stmt = stmt.order_by(LLMProviderModel.model)
-            result = await session.execute(stmt)
-            return result.scalars().all()
-
-        return await self._execute_query(_query)
-
-    async def query_llm_provider_models_by_provider_list(self, provider_names: list):
-        """Get all active LLM provider models for a list of providers
-
-        Args:
-            provider_names: List of provider names to filter by
-
-        Returns:
-            List of LLMProviderModel objects
-        """
-
-        async def _query(session):
-            if not provider_names:
-                return []
-
             stmt = (
-                select(LLMProviderModel)
-                .where(LLMProviderModel.provider_name.in_(provider_names), LLMProviderModel.gmt_deleted.is_(None))
-                .order_by(LLMProviderModel.model)
+                select(ModelAccount)
+                .where(
+                    ModelAccount.gmt_deleted.is_(None),
+                    ModelAccount.status == "ACTIVE",
+                    (ModelAccount.user_id == user_id) | (ModelAccount.user_id == "public"),
+                )
+                .order_by(ModelAccount.display_name)
             )
             result = await session.execute(stmt)
             return result.scalars().all()
 
         return await self._execute_query(_query)
 
-    async def query_llm_provider_model(self, provider_name: str, api: str, model: str) -> LLMProviderModel:
-        """Get a specific LLM provider model"""
-
+    async def query_model_account(self, account_id: str, user_id: str) -> Optional[ModelAccount]:
         async def _query(session):
-            stmt = select(LLMProviderModel).where(
-                LLMProviderModel.provider_name == provider_name,
-                LLMProviderModel.api == api,
-                LLMProviderModel.model == model,
-                LLMProviderModel.gmt_deleted.is_(None),
+            stmt = select(ModelAccount).where(
+                ModelAccount.id == account_id,
+                ModelAccount.gmt_deleted.is_(None),
+                ModelAccount.status == "ACTIVE",
+                (ModelAccount.user_id == user_id) | (ModelAccount.user_id == "public"),
             )
             result = await session.execute(stmt)
             return result.scalars().first()
 
         return await self._execute_query(_query)
 
-    async def create_llm_provider_model(
+    async def create_model_account(
         self,
-        provider_name: str,
-        api: str,
-        model: str,
-        custom_llm_provider: str,
-        context_window: int = None,
-        max_input_tokens: int = None,
-        max_output_tokens: int = None,
-        tags: list = None,
-    ) -> LLMProviderModel:
-        """Create a new LLM provider model"""
-
+        user_id: str,
+        provider_type: str,
+        name: str,
+        display_name: str,
+        base_url: str,
+        api_key: str,
+        auth_config: dict | None = None,
+        extra: dict | None = None,
+    ) -> ModelAccount:
         async def _operation(session):
-            from aperag.domains.model_platform.db.models import APIType
+            account = ModelAccount(
+                user_id=user_id,
+                provider_type=provider_type,
+                name=name,
+                display_name=display_name,
+                base_url=base_url,
+                encrypted_api_key=api_key,
+                auth_config=auth_config or {},
+                extra=extra or {},
+            )
+            session.add(account)
+            await session.flush()
+            await session.refresh(account)
+            return account
 
-            # Convert enum to string if needed
-            api_value = api.value if isinstance(api, APIType) else api
+        return await self.execute_with_transaction(_operation)
 
-            model_obj = LLMProviderModel(
-                provider_name=provider_name,
-                api=api_value,
-                model=model,
-                custom_llm_provider=custom_llm_provider,
+    async def update_model_account(self, account_id: str, user_id: str, values: dict) -> Optional[ModelAccount]:
+        async def _operation(session):
+            result = await session.execute(
+                select(ModelAccount).where(
+                    ModelAccount.id == account_id,
+                    ModelAccount.gmt_deleted.is_(None),
+                    ModelAccount.status == "ACTIVE",
+                    ModelAccount.user_id == user_id,
+                )
+            )
+            account = result.scalars().first()
+            if account is None:
+                return None
+            for key in ["name", "display_name", "base_url", "auth_config", "status", "extra"]:
+                if key in values and values[key] is not None:
+                    setattr(account, key, values[key])
+            if values.get("api_key"):
+                account.encrypted_api_key = values["api_key"]
+            account.gmt_updated = utc_now()
+            session.add(account)
+            await session.flush()
+            await session.refresh(account)
+            return account
+
+        return await self.execute_with_transaction(_operation)
+
+    async def query_models(self, user_id: str, account_id: str | None = None):
+        async def _query(session):
+            stmt = (
+                select(Model)
+                .join(ModelAccount, Model.account_id == ModelAccount.id)
+                .where(
+                    Model.gmt_deleted.is_(None),
+                    Model.status == "ACTIVE",
+                    ModelAccount.gmt_deleted.is_(None),
+                    ModelAccount.status == "ACTIVE",
+                    (ModelAccount.user_id == user_id) | (ModelAccount.user_id == "public"),
+                )
+                .order_by(Model.display_name)
+            )
+            if account_id:
+                stmt = stmt.where(Model.account_id == account_id)
+            result = await session.execute(stmt)
+            return result.scalars().all()
+
+        return await self._execute_query(_query)
+
+    async def query_model(self, model_id: str, user_id: str) -> Optional[Model]:
+        async def _query(session):
+            stmt = (
+                select(Model)
+                .join(ModelAccount, Model.account_id == ModelAccount.id)
+                .where(
+                    Model.id == model_id,
+                    Model.gmt_deleted.is_(None),
+                    Model.status == "ACTIVE",
+                    ModelAccount.gmt_deleted.is_(None),
+                    ModelAccount.status == "ACTIVE",
+                    (ModelAccount.user_id == user_id) | (ModelAccount.user_id == "public"),
+                )
+            )
+            result = await session.execute(stmt)
+            return result.scalars().first()
+
+        return await self._execute_query(_query)
+
+    async def query_model_runtime(self, model_id: str, user_id: str):
+        async def _query(session):
+            stmt = (
+                select(Model, ModelAccount)
+                .join(ModelAccount, Model.account_id == ModelAccount.id)
+                .where(
+                    Model.id == model_id,
+                    Model.gmt_deleted.is_(None),
+                    Model.status == "ACTIVE",
+                    ModelAccount.gmt_deleted.is_(None),
+                    ModelAccount.status == "ACTIVE",
+                    (ModelAccount.user_id == user_id) | (ModelAccount.user_id == "public"),
+                )
+            )
+            result = await session.execute(stmt)
+            return result.first()
+
+        return await self._execute_query(_query)
+
+    async def create_model(
+        self,
+        user_id: str,
+        account_id: str,
+        provider_model_id: str,
+        display_name: str,
+        capability: str,
+        runner_type: str,
+        runner_config: dict | None = None,
+        context_window: int | None = None,
+        max_input_tokens: int | None = None,
+        max_output_tokens: int | None = None,
+        embedding_dimensions: int | None = None,
+        supports_vision: bool = False,
+        supports_tool_calling: bool = False,
+        extra: dict | None = None,
+    ) -> Model:
+        async def _operation(session):
+            model = Model(
+                account_id=account_id,
+                provider_model_id=provider_model_id,
+                display_name=display_name,
+                capability=capability.value if hasattr(capability, "value") else capability,
+                runner_type=runner_type,
+                runner_config=runner_config or {},
                 context_window=context_window,
                 max_input_tokens=max_input_tokens,
                 max_output_tokens=max_output_tokens,
-                tags=tags or [],
+                embedding_dimensions=embedding_dimensions,
+                supports_vision=supports_vision,
+                supports_tool_calling=supports_tool_calling,
+                extra=extra or {},
             )
-            session.add(model_obj)
+            session.add(model)
             await session.flush()
-            await session.refresh(model_obj)
-            return model_obj
+            await session.refresh(model)
+            return model
 
         return await self.execute_with_transaction(_operation)
 
-    async def update_llm_provider_model(
-        self,
-        provider_name: str,
-        api: str,
-        model: str,
-        custom_llm_provider: str = None,
-        context_window: int = None,
-        max_input_tokens: int = None,
-        max_output_tokens: int = None,
-        tags: list = None,
-    ) -> Optional[LLMProviderModel]:
-        """Update an existing LLM provider model"""
-
+    async def update_model(self, model_id: str, user_id: str, values: dict) -> Optional[Model]:
         async def _operation(session):
-            stmt = select(LLMProviderModel).where(
-                LLMProviderModel.provider_name == provider_name,
-                LLMProviderModel.api == api,
-                LLMProviderModel.model == model,
-                LLMProviderModel.gmt_deleted.is_(None),
-            )
-            result = await session.execute(stmt)
-            model_obj = result.scalars().first()
-
-            if model_obj:
-                if custom_llm_provider is not None:
-                    model_obj.custom_llm_provider = custom_llm_provider
-                if context_window is not None:
-                    model_obj.context_window = context_window
-                if max_input_tokens is not None:
-                    model_obj.max_input_tokens = max_input_tokens
-                if max_output_tokens is not None:
-                    model_obj.max_output_tokens = max_output_tokens
-                if tags is not None:
-                    model_obj.tags = tags
-
-                model_obj.gmt_updated = utc_now()
-                session.add(model_obj)
-                await session.flush()
-                await session.refresh(model_obj)
-
-            return model_obj
-
-        return await self.execute_with_transaction(_operation)
-
-    async def delete_llm_provider_model(self, provider_name: str, api: str, model: str) -> Optional[LLMProviderModel]:
-        """Soft delete a specific LLM provider model"""
-
-        async def _operation(session):
-            stmt = select(LLMProviderModel).where(
-                LLMProviderModel.provider_name == provider_name,
-                LLMProviderModel.api == api,
-                LLMProviderModel.model == model,
-                LLMProviderModel.gmt_deleted.is_(None),
-            )
-            result = await session.execute(stmt)
-            model_obj = result.scalars().first()
-
-            if model_obj:
-                model_obj.gmt_deleted = utc_now()
-                model_obj.gmt_updated = utc_now()
-                session.add(model_obj)
-                await session.flush()
-                await session.refresh(model_obj)
-
-            return model_obj
-
-        return await self.execute_with_transaction(_operation)
-
-    async def restore_llm_provider_model(self, provider_name: str, api: str, model: str) -> Optional[LLMProviderModel]:
-        """Restore a soft-deleted LLM provider model"""
-
-        async def _operation(session):
-            stmt = select(LLMProviderModel).where(
-                LLMProviderModel.provider_name == provider_name,
-                LLMProviderModel.api == api,
-                LLMProviderModel.model == model,
-                LLMProviderModel.gmt_deleted.is_not(None),
-            )
-            result = await session.execute(stmt)
-            model_obj = result.scalars().first()
-
-            if model_obj:
-                model_obj.gmt_deleted = None
-                model_obj.gmt_updated = utc_now()
-                session.add(model_obj)
-                await session.flush()
-                await session.refresh(model_obj)
-
-            return model_obj
-
-        return await self.execute_with_transaction(_operation)
-
-    async def query_available_providers_with_models(self, user_id: str = None, need_public: bool = True):
-        """Query available providers with their models in a single optimized query
-
-        This method uses JOIN queries to efficiently get:
-        1. Providers that user can access (public + user's private)
-        2. Only providers that have configured API keys
-        3. All models for those providers
-
-        Args:
-            user_id: User ID for private provider access
-            need_public: Whether to include public providers
-
-        Returns:
-            Dict with 'providers' and 'models' keys containing the data
-        """
-
-        async def _query(session):
-            from sqlalchemy import join, or_
-
-            # First query: Get providers with API keys using JOIN
-            provider_stmt = (
-                select(LLMProvider, ModelServiceProvider.api_key)
-                .select_from(join(LLMProvider, ModelServiceProvider, LLMProvider.name == ModelServiceProvider.name))
+            result = await session.execute(
+                select(Model)
+                .join(ModelAccount, Model.account_id == ModelAccount.id)
                 .where(
-                    LLMProvider.gmt_deleted.is_(None),
-                    ModelServiceProvider.status != ModelServiceProviderStatus.DELETED,
-                    ModelServiceProvider.gmt_deleted.is_(None),
+                    Model.id == model_id,
+                    Model.gmt_deleted.is_(None),
+                    Model.status == "ACTIVE",
+                    ModelAccount.gmt_deleted.is_(None),
+                    ModelAccount.status == "ACTIVE",
+                    ModelAccount.user_id == user_id,
                 )
             )
+            model = result.scalars().first()
+            if model is None:
+                return None
+            for key, value in values.items():
+                if value is None:
+                    continue
+                if hasattr(value, "value"):
+                    value = value.value
+                setattr(model, key, value)
+            model.gmt_updated = utc_now()
+            session.add(model)
+            await session.flush()
+            await session.refresh(model)
+            return model
 
-            # Add user access control conditions
-            conditions = []
-            if need_public:
-                conditions.append(LLMProvider.user_id == "public")
-            if user_id:
-                conditions.append(LLMProvider.user_id == user_id)
+        return await self.execute_with_transaction(_operation)
 
-            if conditions:
-                if len(conditions) == 1:
-                    provider_stmt = provider_stmt.where(conditions[0])
-                else:
-                    provider_stmt = provider_stmt.where(or_(*conditions))
-
-            # Execute provider query
-            provider_result = await session.execute(provider_stmt)
-            provider_rows = provider_result.all()
-
-            # Extract provider names for model query
-            available_provider_names = [row[0].name for row in provider_rows]
-
-            if not available_provider_names:
-                return {"providers": [], "models": []}
-
-            # Second query: Get models for available providers only
-            model_stmt = (
-                select(LLMProviderModel)
-                .where(
-                    LLMProviderModel.provider_name.in_(available_provider_names), LLMProviderModel.gmt_deleted.is_(None)
-                )
-                .order_by(LLMProviderModel.model)
-            )
-
-            model_result = await session.execute(model_stmt)
-            models = model_result.scalars().all()
-
-            # Return structured data
-            providers = [row[0] for row in provider_rows]  # LLMProvider objects
-
-            return {"providers": providers, "models": models}
-
-        return await self._execute_query(_query)
-
-    async def find_models_by_tag(self, user_id: str, tag: str) -> List[LLMProviderModel]:
-        """Find models with specific tag that user can access"""
-
+    async def query_model_uses(self, user_id: str):
         async def _query(session):
-            # Get providers that user can access
-            provider_conditions = []
-            provider_conditions.append(LLMProvider.user_id == "public")
-            if user_id:
-                provider_conditions.append(LLMProvider.user_id == user_id)
-
-            # Query models with tag from accessible providers
-            # Cast json to jsonb for @> operator support
-            from sqlalchemy import cast
-            from sqlalchemy.dialects.postgresql import JSONB
-
             stmt = (
-                select(LLMProviderModel)
-                .join(LLMProvider, LLMProviderModel.provider_name == LLMProvider.name)
+                select(ModelUse)
                 .where(
-                    LLMProvider.gmt_deleted.is_(None),
-                    LLMProviderModel.gmt_deleted.is_(None),
-                    cast(LLMProviderModel.tags, JSONB).op("@>")(cast([tag], JSONB)),
+                    ModelUse.gmt_deleted.is_(None),
+                    ModelUse.enabled.is_(True),
+                    (ModelUse.user_id == user_id) | (ModelUse.user_id == "public"),
                 )
+                .order_by(ModelUse.scenario)
             )
-
-            if provider_conditions:
-                from sqlalchemy import or_
-
-                stmt = stmt.where(or_(*provider_conditions))
-
             result = await session.execute(stmt)
             return result.scalars().all()
 
         return await self._execute_query(_query)
 
-    async def remove_tag_from_all_models(self, user_id: str, tag: str):
-        """Remove specific tag from all models that user can access"""
-
+    async def upsert_model_use(self, user_id: str, scenario: str, values: dict) -> ModelUse:
         async def _operation(session):
-            # Get models with the tag that user can access
-            models = await self.find_models_by_tag_in_session(session, user_id, tag)
-
-            for model in models:
-                if model.tags and tag in model.tags:
-                    model.tags.remove(tag)
-                    model.gmt_updated = utc_now()
-                    session.add(model)
-
-        return await self.execute_with_transaction(_operation)
-
-    async def add_tag_to_model(self, provider_name: str, api: str, model: str, tag: str):
-        """Add tag to specific model if user can access it"""
-
-        async def _operation(session):
-            # Check if user can access the provider
-            provider_conditions = []
-            provider_conditions.append(LLMProvider.user_id == "public")
-
-            # Query the specific model
-            stmt = (
-                select(LLMProviderModel)
-                .join(LLMProvider, LLMProviderModel.provider_name == LLMProvider.name)
-                .where(
-                    LLMProvider.gmt_deleted.is_(None),
-                    LLMProviderModel.gmt_deleted.is_(None),
-                    LLMProviderModel.provider_name == provider_name,
-                    LLMProviderModel.api == api,
-                    LLMProviderModel.model == model,
-                )
+            stmt = select(ModelUse).where(
+                ModelUse.user_id == user_id,
+                ModelUse.scenario == scenario,
+                ModelUse.gmt_deleted.is_(None),
             )
-
-            if provider_conditions:
-                from sqlalchemy import or_
-
-                stmt = stmt.where(or_(*provider_conditions))
-
             result = await session.execute(stmt)
-            model_obj = result.scalars().first()
-
-            if model_obj:
-                if model_obj.tags is None:
-                    model_obj.tags = []
-                if tag not in model_obj.tags:
-                    model_obj.tags.append(tag)
-                    model_obj.gmt_updated = utc_now()
-                    session.add(model_obj)
-                return True  # Return True whether tag was added or already exists
-            return False
+            item = result.scalars().first()
+            if item is None:
+                item = ModelUse(
+                    user_id=user_id,
+                    scenario=scenario,
+                    capability=values.get("capability") or "chat",
+                )
+            for key in ["strategy", "primary_model_id", "fallback_model_ids", "enabled", "extra"]:
+                if key in values:
+                    value = values[key]
+                    if hasattr(value, "value"):
+                        value = value.value
+                    setattr(item, key, value)
+            item.gmt_updated = utc_now()
+            session.add(item)
+            await session.flush()
+            await session.refresh(item)
+            return item
 
         return await self.execute_with_transaction(_operation)
-
-    async def find_models_by_tag_in_session(self, session, user_id: str, tag: str) -> List[LLMProviderModel]:
-        """Find models with specific tag in existing session"""
-
-        # Get providers that user can access
-        provider_conditions = []
-        provider_conditions.append(LLMProvider.user_id == "public")
-        if user_id:
-            provider_conditions.append(LLMProvider.user_id == user_id)
-
-        # Query models with tag from accessible providers
-        # Cast json to jsonb for @> operator support
-        from sqlalchemy import cast
-        from sqlalchemy.dialects.postgresql import JSONB
-
-        stmt = (
-            select(LLMProviderModel)
-            .join(LLMProvider, LLMProviderModel.provider_name == LLMProvider.name)
-            .where(
-                LLMProvider.gmt_deleted.is_(None),
-                LLMProviderModel.gmt_deleted.is_(None),
-                cast(LLMProviderModel.tags, JSONB).op("@>")(cast([tag], JSONB)),
-            )
-        )
-
-        if provider_conditions:
-            from sqlalchemy import or_
-
-            stmt = stmt.where(or_(*provider_conditions))
-
-        result = await session.execute(stmt)
-        return result.scalars().all()
