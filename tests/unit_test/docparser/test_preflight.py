@@ -64,7 +64,9 @@ def test_run_document_parse_preflight_allows_legacy_office_with_mineru_fallback(
 
 
 def test_run_document_parse_preflight_reports_object_store_unavailable(monkeypatch):
-    monkeypatch.setattr("aperag.docparser.preflight.get_object_store", lambda: (_ for _ in ()).throw(RuntimeError("s3 init failed")))
+    monkeypatch.setattr(
+        "aperag.docparser.preflight.get_object_store", lambda: (_ for _ in ()).throw(RuntimeError("s3 init failed"))
+    )
 
     with pytest.raises(ParserError) as exc_info:
         asyncio.run(

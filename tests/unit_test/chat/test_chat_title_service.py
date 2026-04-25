@@ -32,9 +32,7 @@ def test_generate_title_uses_existing_chat_title_when_history_is_empty(monkeypat
         "get_default_background_task_config",
         default_model_mock,
     )
-    monkeypatch.setattr(
-        "aperag.domains.conversation.service.chat_title_service.RedisChatMessageHistory", _EmptyHistory
-    )
+    monkeypatch.setattr("aperag.domains.conversation.service.chat_title_service.RedisChatMessageHistory", _EmptyHistory)
 
     title = asyncio.run(service.generate_title("user-1", "bot-1", "chat-1"))
 
