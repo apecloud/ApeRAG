@@ -418,6 +418,31 @@ def test_no_module_imports_legacy_views_prompts():
     )
 
 
+def test_no_module_imports_legacy_governance_routes():
+    """Phase 8 #50 (G4a): ``aperag/domains/governance/api/routes.py`` was
+    split into ``audit_routes.py`` + ``apikeys_routes.py`` so ``#50``
+    (audit-logs) and ``#51`` (apikeys) can migrate to ``/api/v2``
+    independently. The combined ``routes`` module is gone — no code
+    anywhere in ``aperag/`` may import from the deleted path.
+    """
+    offenders: list[str] = []
+    aperag_root = REPO_ROOT / "aperag"
+    for path in aperag_root.rglob("*.py"):
+        if not path.is_file():
+            continue
+        modules = _imported_modules(path.read_text())
+        if "aperag.domains.governance.api.routes" in modules:
+            offenders.append(f"{path.relative_to(REPO_ROOT).as_posix()} imports aperag.domains.governance.api.routes")
+
+    assert not offenders, (
+        "`aperag.domains.governance.api.routes` was split in Phase 8 task #50 (G4a). "
+        "Import the carved router from "
+        "`aperag.domains.governance.api.audit_routes` (audit-logs) or "
+        "`aperag.domains.governance.api.apikeys_routes` (api keys) instead. "
+        "Offenders:\n  " + "\n  ".join(sorted(offenders))
+    )
+
+
 # ---------- Retrieval <-> knowledge_graph one-way bridge ----------
 
 

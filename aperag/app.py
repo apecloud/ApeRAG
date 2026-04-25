@@ -42,7 +42,8 @@ from aperag.domains.conversation.api.routes import (
 )
 from aperag.domains.conversation.service.bot_service import set_quota_ops as _conv_set_quota_ops
 from aperag.domains.evaluation.api.routes import router as evaluation_v2_router
-from aperag.domains.governance.api.routes import router as governance_router
+from aperag.domains.governance.api.apikeys_routes import router as apikeys_router
+from aperag.domains.governance.api.audit_routes import router as audit_router
 from aperag.domains.identity.api.auth_routes import router as auth_router
 from aperag.domains.identity.api.config_routes import router as config_router
 from aperag.domains.identity.service.user_manager import (
@@ -232,7 +233,8 @@ async def health_check():
 
 app.include_router(auth_router, prefix="/api/v2/auth")
 app.include_router(export_router, prefix="/api/v2")  # KB-domain export router (Phase 8 #47 G1, D7 v2 hard-cut)
-app.include_router(governance_router, prefix="/api/v1")  # Governance domain router (api_key + audit)
+app.include_router(audit_router, prefix="/api/v2")  # Governance: audit-logs (hard-cut to v2 in #50)
+app.include_router(apikeys_router, prefix="/api/v1")  # Governance: api_keys (#51 G4b will flip to /api/v2)
 app.include_router(llm_router, prefix="/api/v1")  # Model platform: embed/rerank (OpenAI-compat)
 app.include_router(
     marketplace_router, prefix="/api/v1"

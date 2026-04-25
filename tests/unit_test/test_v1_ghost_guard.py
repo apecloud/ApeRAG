@@ -38,19 +38,18 @@ OPENAI_COMPAT_V1_ALLOWLIST: frozenset[str] = frozenset(
 
 # Transitional prefixes — these v1 routes are still mounted in main and used
 # by e2e Hurl as long as the corresponding G* migration tasks have not landed.
-# Each follow-up PR (G4a audit / G4b apikeys / G4c marketplace /
-# G4d chat ops) is expected to remove the matching entry from this set
-# together with its Hurl rewrite. Phase 8 #1 (G1 export, #47),
-# #2 (G2 settings, #48), and #3 (G3 prompts, #49) have already shrunk
-# this set to remove ``/api/v1/export*``, ``/api/v1/settings*``, and
-# ``/api/v1/prompts*``.
+# Each follow-up PR (G4b apikeys / G4c marketplace / G4d chat ops) is
+# expected to remove the matching entry from this set together with
+# its Hurl rewrite. Phase 8 #1 (G1 export, #47), #2 (G2 settings, #48),
+# #3 (G3 prompts, #49), and #50 (G4a audit-logs) have already shrunk
+# this set to remove ``/api/v1/export*``, ``/api/v1/settings*``,
+# ``/api/v1/prompts*``, and ``/api/v1/audit-logs``.
 #
 # Anything outside both sets is an unrecognised v1 reference and must be
 # either migrated or moved into one of these sets in the same PR.
 TRANSITIONAL_V1_PREFIXES: frozenset[str] = frozenset(
     {
         "/api/v1/apikeys",  # G4b → /api/v2/apikeys
-        "/api/v1/audit-logs",  # G4a → /api/v2/audit-logs
         "/api/v1/marketplace",  # G4c → /api/v2/marketplace
         "/api/v1/collections",  # G1 (export) + G5 (document upload variants)
         "/api/v1/export-tasks",  # G1  → /api/v2/export-tasks
