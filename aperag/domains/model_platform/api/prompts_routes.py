@@ -57,10 +57,7 @@ def set_prompt_crud_ops(ops: PromptCRUDOps) -> None:
 
 def _get_prompt_crud_ops() -> PromptCRUDOps:
     if _prompt_crud_ops is None:
-        raise RuntimeError(
-            "PromptCRUDOps not wired. aperag/app.py must call "
-            "set_prompt_crud_ops() at startup."
-        )
+        raise RuntimeError("PromptCRUDOps not wired. aperag/app.py must call set_prompt_crud_ops() at startup.")
     return _prompt_crud_ops
 
 
