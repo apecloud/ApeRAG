@@ -31,6 +31,7 @@ from __future__ import annotations
 
 from sqlalchemy import select
 
+from aperag.cache import get_read_primitive_cache
 from aperag.config import get_async_session
 from aperag.domains.knowledge_base.db.models import (
     Document,
@@ -82,31 +83,43 @@ async def read_document_chunk(
 
     parse_version = resolve_parse_version(document, collection)
 
-    # 5. Fetch authoritative chunk — un-cached body work.
-    # Delegate to the existing tenant-aware service-layer helper which
-    # routes through the vector-store connector with the multi-tenant
-    # guard. We then locate the requested chunk by id within the result.
-    all_chunks = await document_service.get_document_chunks(str(user.id), collection_id, document_id)
-    matched = next((c for c in all_chunks if c.id == chunk_id), None)
-    if matched is None:
-        raise DocumentNotFoundException(f"Chunk not found in document {document_id}: chunk_id={chunk_id!r}")
+    # 5. Fetch authoritative chunk — D10.g cache-wrapped.
+    # §E.6: chunk_id is indexing-immutable, so the cache key is
+    # ``(chunk_id,)`` only — no parse_version weighting. Tenancy/auth
+    # above are NEVER skipped (§E.7 hard lock).
+    cache = await get_read_primitive_cache()
 
-    chunk_index = 0
-    for i, c in enumerate(all_chunks):
-        if c.id == chunk_id:
-            chunk_index = i
-            break
+    async def _compute() -> DocumentChunk:
+        # Delegate to the existing tenant-aware service-layer helper which
+        # routes through the vector-store connector with the multi-tenant
+        # guard. We then locate the requested chunk by id within the result.
+        all_chunks = await document_service.get_document_chunks(str(user.id), collection_id, document_id)
+        matched = next((c for c in all_chunks if c.id == chunk_id), None)
+        if matched is None:
+            raise DocumentNotFoundException(f"Chunk not found in document {document_id}: chunk_id={chunk_id!r}")
 
-    metadata = matched.metadata or {}
-    return DocumentChunk(
-        chunk_id=matched.id,
-        document_id=document.id,
-        collection_id=document.collection_id,
-        parsed_markdown=matched.text or "",
-        section_path=metadata.get("section_path"),
-        chunk_index=chunk_index,
-        chunk_total=len(all_chunks),
-        parse_version=parse_version,
+        chunk_index = 0
+        for i, c in enumerate(all_chunks):
+            if c.id == chunk_id:
+                chunk_index = i
+                break
+
+        metadata = matched.metadata or {}
+        return DocumentChunk(
+            chunk_id=matched.id,
+            document_id=document.id,
+            collection_id=document.collection_id,
+            parsed_markdown=matched.text or "",
+            section_path=metadata.get("section_path"),
+            chunk_index=chunk_index,
+            chunk_total=len(all_chunks),
+            parse_version=parse_version,
+        )
+
+    return await cache.get_or_compute_chunk(
+        chunk_id=chunk_id,
+        compute=_compute,
+        model_cls=DocumentChunk,
     )
 
 

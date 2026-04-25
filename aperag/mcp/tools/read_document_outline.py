@@ -30,6 +30,7 @@ from __future__ import annotations
 
 from sqlalchemy import select
 
+from aperag.cache import get_read_primitive_cache
 from aperag.config import get_async_session
 from aperag.domains.knowledge_base.db.models import (
     Document,
@@ -84,14 +85,25 @@ async def read_document_outline(
 
     parse_version = resolve_parse_version(document, collection)
 
-    # 5. Fetch + walk authoritative markdown — un-cached body work.
-    markdown = await read_parsed_markdown(document)
-    headings = build_outline_from_markdown(markdown, max_depth=max_depth)
+    # 5. Fetch + walk authoritative markdown — D10.g cache-wrapped.
+    # The cache only accelerates; tenancy/auth above are NEVER skipped
+    # (§E.7 hard lock).
+    cache = await get_read_primitive_cache()
 
-    return DocumentOutline(
+    async def _compute() -> DocumentOutline:
+        markdown = await read_parsed_markdown(document)
+        headings = build_outline_from_markdown(markdown, max_depth=max_depth)
+        return DocumentOutline(
+            document_id=document.id,
+            headings=headings,
+            parse_version=parse_version,
+        )
+
+    return await cache.get_or_compute_outline(
         document_id=document.id,
-        headings=headings,
         parse_version=parse_version,
+        compute=_compute,
+        model_cls=DocumentOutline,
     )
 
 
