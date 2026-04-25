@@ -501,8 +501,10 @@ def test_bot_feature_uses_v2_typed_api_boundary():
     # classes are banned across this scope. The `chat-input.tsx` caller is
     # **deliberately out of scope** (deferred to the chat/document boundary
     # batch).
+    # Phase 8 D8.4b (#77) replaced `agent-turn-card.tsx` with
+    # `agent-turn-renderer.tsx`; the contract guard moves with it.
     batch6_chat_paths = [
-        REPO_ROOT / "web/src/components/chat/agent-turn-card.tsx",
+        REPO_ROOT / "web/src/components/chat/agent-turn-renderer.tsx",
         REPO_ROOT / "web/src/components/chat/chat-messages.tsx",
         REPO_ROOT / "web/src/components/chat/message-feedback.tsx",
         REPO_ROOT / "web/src/components/chat/message-part-ai.tsx",
