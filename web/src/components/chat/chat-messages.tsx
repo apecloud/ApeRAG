@@ -5,7 +5,6 @@ import {
   cancelAgentTurn,
   createAgentTurn,
   getAgentTurnSnapshot,
-  projectToLegacySnapshot,
   useAgentTurnStream,
   type AgentTurnEnvelope,
   type AgentTurnSnapshotEnvelope,
@@ -22,7 +21,7 @@ import {
 } from 'react';
 import { animateScroll as scroll } from 'react-scroll';
 import { toast } from 'sonner';
-import { AgentTurnCard } from './agent-turn-card';
+import { AgentTurnRenderer } from './agent-turn-renderer';
 import { ChatInput, ChatInputSubmitParams } from './chat-input';
 import { MessagePartsAi } from './message-parts-ai';
 import { MessagePartsUser } from './message-parts-user';
@@ -477,11 +476,11 @@ function buildStreamUrl(chatId: string | undefined, turnId: string): string | nu
 }
 
 // ---------------------------------------------------------------------------
-// AgentTurnStreamCard — child component that owns one live `useAgentTurnStream`
-// hook per turn and projects it back into the legacy `AgentTurnSnapshot` shape
-// the existing `AgentTurnCard` renders. The shim lives in
-// `features/agent-runtime/legacy-snapshot-shim.ts` and is scheduled for deletion
-// as part of #77 (parts renderer).
+// AgentTurnStreamCard — child component that owns one live
+// `useAgentTurnStream` hook per turn and feeds the result straight into
+// the new parts renderer. The hook seam is the contract; #78 plugs
+// interactive consent / elicitation slots in via the renderer's
+// `ConsentSlot` / `ElicitationSlot` props.
 // ---------------------------------------------------------------------------
 
 function AgentTurnStreamCard({
@@ -498,22 +497,14 @@ function AgentTurnStreamCard({
   onTerminal: (turnId: string, finalEnvelope: AgentTurnEnvelope) => void;
 }) {
   const { envelope, baselineSnapshot, streamUrl } = liveTurn;
-  const initialSequence = baselineSnapshot?.turn.timeline_cursor || envelope.timeline_cursor || 0;
+  const initialSequence =
+    baselineSnapshot?.turn.timeline_cursor || envelope.timeline_cursor || 0;
 
   const stream = useAgentTurnStream({
     chatId,
     turnId: envelope.turn_id,
     streamUrl,
     initialSequence,
-  });
-
-  const projection = projectToLegacySnapshot({
-    turn: envelope,
-    parts: stream.parts,
-    status: stream.status,
-    errorText: stream.errorText,
-    lastSequence: stream.lastSequence,
-    baselineSnapshot,
   });
 
   const onTerminalRef = useRef(onTerminal);
@@ -526,18 +517,19 @@ function AgentTurnStreamCard({
       stream.status === 'cancelled' ||
       stream.status === 'aborted'
     ) {
-      onTerminalRef.current(envelope.turn_id, projection.legacySnapshot.turn);
+      onTerminalRef.current(envelope.turn_id, envelope);
     }
-    // Only fire when status transitions; consumers track the latest envelope
-    // via projection on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stream.status, envelope.turn_id]);
 
   return (
-    <AgentTurnCard
-      snapshot={projection.legacySnapshot}
-      pending={projection.pending}
-      streamingAnswer={projection.streamingAnswer}
+    <AgentTurnRenderer
+      chatId={chatId}
+      turn={envelope}
+      parts={stream.parts}
+      transientActivity={stream.transientActivity}
+      status={stream.status}
+      errorText={stream.errorText}
       feedback={feedback}
       onFeedback={onFeedback}
     />

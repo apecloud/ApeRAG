@@ -363,6 +363,8 @@
     "activity_stream": {
       "label": "推理过程",
       "empty": "正在思考…",
+      "completed_empty": "本次运行没有产生工具调用。",
+      "pending_empty": "本次运行在生成回答前就结束了。",
       "repeated": "该步骤保持激活期间重复了 {count} 次。",
       "meta": {
         "steps": "{count} 步",
@@ -387,6 +389,32 @@
         "web": "网页",
         "chat_history": "聊天记录"
       },
+      "tool": {
+        "title": "调用工具：{name}",
+        "state": {
+          "input-streaming": "正在准备参数…",
+          "input-available": "参数就绪",
+          "output-available": "已完成",
+          "output-error": "调用失败"
+        }
+      },
+      "transient": {
+        "thinking": "正在思考…",
+        "searching_knowledge": "正在检索知识…",
+        "reading_source": "正在阅读资料…",
+        "comparing_results": "正在比对结果…",
+        "writing_answer": "正在生成回答…",
+        "waiting": "等待中…",
+        "completed": "已完成",
+        "error": "出现错误"
+      },
+      "consent": {
+        "placeholder_title": "工具授权请求：{name}",
+        "placeholder_state": "状态：{state}（等待 #78 交互组件接入）"
+      },
+      "elicitation": {
+        "placeholder_state": "状态：{state}（等待 #78 交互组件接入）"
+      },
       "debug": {
         "title": "调试详情",
         "technical_type": "技术事件",
@@ -409,6 +437,7 @@
       "answer": "回答",
       "failed_empty": "本次运行在生成最终回答前就结束了。",
       "cancelled_empty": "本次运行在生成最终回答前被取消了。",
+      "completed_empty": "本次运行已完成，但未返回文本内容。",
       "pending_empty": "活动流结束后，回答会显示在这里。"
     },
     "feedback": {

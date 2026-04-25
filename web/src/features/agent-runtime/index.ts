@@ -49,9 +49,3 @@ export {
   type UseAgentTurnStreamInput,
   type UseAgentTurnStreamResult,
 } from './use-agent-turn-stream';
-
-export {
-  getRunningToolName,
-  projectToLegacySnapshot,
-  type LegacySnapshotShim,
-} from './legacy-snapshot-shim';
