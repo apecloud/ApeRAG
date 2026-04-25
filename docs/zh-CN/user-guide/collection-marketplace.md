@@ -29,7 +29,7 @@ ApeRAG 的 **Collection Marketplace**（知识库市场）让你把自己的知�
 在 ApeRAG Web UI 的 collection 详情页点击"分享到市场"按钮；或走 HTTP：
 
 ```http
-POST /api/v1/collections/{collection_id}/sharing
+POST /api/v2/collections/{collection_id}/sharing
 Authorization: Bearer sk-<your-key>
 ```
 
@@ -42,7 +42,7 @@ Authorization: Bearer sk-<your-key>
 ### 查看发布状态
 
 ```http
-GET /api/v1/collections/{collection_id}/sharing
+GET /api/v2/collections/{collection_id}/sharing
 ```
 
 返回：
@@ -57,7 +57,7 @@ GET /api/v1/collections/{collection_id}/sharing
 ### 取消发布
 
 ```http
-DELETE /api/v1/collections/{collection_id}/sharing
+DELETE /api/v2/collections/{collection_id}/sharing
 ```
 
 返回 204。取消后：
@@ -69,7 +69,7 @@ DELETE /api/v1/collections/{collection_id}/sharing
 ### 发布前的准备
 
 - **检查内容**：所有文档 / 链接 / 知识图谱都会被订阅者看到，下架前先确认没有敏感内容。
-- **加 collection summary**：在详情页点"生成摘要"或走 `POST /api/v1/collections/{id}/summary`；订阅者能在市场列表里看到摘要，有助于发现。
+- **加 collection summary**：在详情页点"生成摘要"或走 `POST /api/v2/collections/{id}/summary`；订阅者能在市场列表里看到摘要，有助于发现。
 - **调整标题和描述**：这些字段是订阅者看到的第一眼信息。
 - **确认索引完整**：发布时不会自动触发索引重建；若某些文档还在 `PENDING` / `FAILED` 状态，订阅者访问时会看到空白或错误。
 

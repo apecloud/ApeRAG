@@ -27,7 +27,7 @@
 | `resource_id` | 字符串 | 从 `path` 中解析出来的资源 ID（查询时解析，不在写入时落库） |
 | `api_name` | 字符串 | 由 `@audit` 装饰器传入，形如 `CreateCollection` |
 | `http_method` | 字符串 | `POST` / `PUT` / `DELETE` 等 |
-| `path` | 字符串 | 请求路径（如 `/api/v1/collections/col-abc123`） |
+| `path` | 字符串 | 请求路径（如 `/api/v2/collections/col-abc123`） |
 | `status_code` | 整数 | HTTP 响应码 |
 | `request_data` | JSON 字符串 | 请求体，敏感字段已过滤 |
 | `response_data` | JSON 字符串 | 响应体，敏感字段已过滤 |

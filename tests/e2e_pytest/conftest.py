@@ -74,7 +74,7 @@ def collection(client):
             },
         },
     }
-    resp = client.post("/api/v1/collections", json=data)
+    resp = client.post("/api/v2/collections", json=data)
     assert resp.status_code == HTTPStatus.OK, f"status_code={resp.status_code}, resp={resp.text}"
     collection_data = resp.json()
     collection_id = collection_data["id"]
@@ -85,7 +85,7 @@ def collection(client):
     max_wait = 30
     interval = 2
     for _ in range(max_wait // interval):
-        get_resp = client.get(f"/api/v1/collections/{collection_id}")
+        get_resp = client.get(f"/api/v2/collections/{collection_id}")
         assert get_resp.status_code == HTTPStatus.OK, get_resp.text
         got = get_resp.json()
         assert_dict_subset(data, got)
@@ -98,10 +98,10 @@ def collection(client):
     yield collection_data
 
     # Cleanup: Delete collection
-    delete_resp = client.delete(f"/api/v1/collections/{collection_id}")
+    delete_resp = client.delete(f"/api/v2/collections/{collection_id}")
     assert delete_resp.status_code == HTTPStatus.OK, delete_resp.text
 
-    resp = client.get(f"/api/v1/collections/{collection_id}")
+    resp = client.get(f"/api/v2/collections/{collection_id}")
     assert resp.status_code == HTTPStatus.NOT_FOUND, resp.text
 
 
@@ -109,7 +109,7 @@ def collection(client):
 def document(client, collection):
     # Upload a test document
     files = {"files": ("test.txt", "This is a test document for e2e.", "text/plain")}
-    upload_resp = client.post(f"/api/v1/collections/{collection['id']}/documents", files=files)
+    upload_resp = client.post(f"/api/v2/collections/{collection['id']}/documents", files=files)
     assert upload_resp.status_code == HTTPStatus.OK, upload_resp.text
     resp_data = upload_resp.json()
     assert len(resp_data["items"]) == 1
@@ -119,7 +119,7 @@ def document(client, collection):
     max_wait = 10
     interval = 2
     for _ in range(max_wait // interval):
-        get_resp = client.get(f"/api/v1/collections/{collection['id']}/documents/{doc_id}")
+        get_resp = client.get(f"/api/v2/collections/{collection['id']}/documents/{doc_id}")
         assert get_resp.status_code == HTTPStatus.OK, get_resp.text
         data = get_resp.json()
         if data.get("vector_index_status") == "ACTIVE" and data.get("fulltext_index_status") == "ACTIVE":
@@ -131,10 +131,10 @@ def document(client, collection):
     yield {"id": doc_id, "content": files["files"][1]}
 
     # Cleanup: Delete document
-    delete_resp = client.delete(f"/api/v1/collections/{collection['id']}/documents/{doc_id}")
+    delete_resp = client.delete(f"/api/v2/collections/{collection['id']}/documents/{doc_id}")
     assert delete_resp.status_code == HTTPStatus.OK, delete_resp.text
 
-    resp = client.get(f"/api/v1/collections/{collection['id']}/documents")
+    resp = client.get(f"/api/v2/collections/{collection['id']}/documents")
     assert resp.status_code == HTTPStatus.OK, resp.text
     data = resp.json()
     for item in data["items"]:
@@ -160,11 +160,11 @@ def bot(client, document, collection):
             }
         },
     }
-    resp = client.post("/api/v1/bots", json=create_data)
+    resp = client.post("/api/v2/bots", json=create_data)
     assert resp.status_code == HTTPStatus.OK, resp.text
     bot = resp.json()
     yield bot
-    resp = client.delete(f"/api/v1/bots/{bot['id']}")
+    resp = client.delete(f"/api/v2/bots/{bot['id']}")
     assert resp.status_code in (200, 204), f"Failed to delete bot: {resp.status_code}, {resp.text}"
 
 

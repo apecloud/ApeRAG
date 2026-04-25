@@ -22,20 +22,20 @@ def _request_schema(spec: dict, path: str, method: str) -> dict:
 
 
 # v1 documents ghost paths still wired in main pending #26 final sweep.
-# Strictly document-scoped subpaths under /api/v1/collections/{collection_id}/...
+# Strictly document-scoped subpaths under /api/v2/collections/{collection_id}/...
 DOCUMENTS_V1_GHOST_PATHS = frozenset(
     {
-        "/api/v1/collections/{collection_id}/documents",
-        "/api/v1/collections/{collection_id}/documents/confirm",
-        "/api/v1/collections/{collection_id}/documents/fetch-url",
-        "/api/v1/collections/{collection_id}/documents/staged",
-        "/api/v1/collections/{collection_id}/documents/upload",
-        "/api/v1/collections/{collection_id}/documents/{document_id}",
-        "/api/v1/collections/{collection_id}/documents/{document_id}/download",
-        "/api/v1/collections/{collection_id}/documents/{document_id}/object",
-        "/api/v1/collections/{collection_id}/documents/{document_id}/preview",
-        "/api/v1/collections/{collection_id}/documents/{document_id}/rebuild_indexes",
-        "/api/v1/collections/{collection_id}/rebuild_failed_indexes",
+        "/api/v2/collections/{collection_id}/documents",
+        "/api/v2/collections/{collection_id}/documents/confirm",
+        "/api/v2/collections/{collection_id}/documents/fetch-url",
+        "/api/v2/collections/{collection_id}/documents/staged",
+        "/api/v2/collections/{collection_id}/documents/upload",
+        "/api/v2/collections/{collection_id}/documents/{document_id}",
+        "/api/v2/collections/{collection_id}/documents/{document_id}/download",
+        "/api/v2/collections/{collection_id}/documents/{document_id}/object",
+        "/api/v2/collections/{collection_id}/documents/{document_id}/preview",
+        "/api/v2/collections/{collection_id}/documents/{document_id}/rebuild_indexes",
+        "/api/v2/collections/{collection_id}/rebuild_failed_indexes",
     }
 )
 

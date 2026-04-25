@@ -709,10 +709,10 @@ def test_document_feature_uses_v2_typed_api_boundary():
 
     # Business code under #28 scope must not reach the old generated document
     # SDK calls or the v1 document routes directly. The `features/document`
-    # adapter itself is allowed to wrap still-v1 paths (upload flow is
-    # Phase 1b typed-wrap of `/api/v1/collections/.../documents/{staged,
-    # upload,confirm,fetch-url}` — #4 batch 8), so the v1-path ban here
-    # targets business code only, not the adapter.
+    # adapter wraps the upload-flow paths (Phase 1b batch 8 originally
+    # typed-wrapped them at v1; Phase 8 #63 G5a flipped them to
+    # ``/api/v2/collections/.../documents/{staged,upload,confirm,fetch-url}``).
+    # The v1-path ban here targets business code only, not the adapter.
     assert "defaultApi.collectionsCollectionIdDocumentsGet" not in joined
     assert "defaultApi.collectionsCollectionIdDocumentsDocumentIdGet" not in joined
     assert "defaultApi.collectionsCollectionIdDocumentsDocumentIdDelete" not in joined
@@ -842,10 +842,10 @@ def test_document_feature_uses_v2_typed_api_boundary():
     assert "fetchUrlDocuments: empty response body" in document_client_api
     assert "bodySerializer" in document_client_api
     assert "new FormData()" in document_client_api
-    assert "'/api/v1/collections/{collection_id}/documents/staged'" in document_client_api
-    assert "'/api/v1/collections/{collection_id}/documents/upload'" in document_client_api
-    assert "'/api/v1/collections/{collection_id}/documents/confirm'" in document_client_api
-    assert "'/api/v1/collections/{collection_id}/documents/fetch-url'" in document_client_api
+    assert "'/api/v2/collections/{collection_id}/documents/staged'" in document_client_api
+    assert "'/api/v2/collections/{collection_id}/documents/upload'" in document_client_api
+    assert "'/api/v2/collections/{collection_id}/documents/confirm'" in document_client_api
+    assert "'/api/v2/collections/{collection_id}/documents/fetch-url'" in document_client_api
 
     # Positive: `features/document/types.ts` exposes the upload schema
     # aliases (required-shape components) + the schema-derived nullable

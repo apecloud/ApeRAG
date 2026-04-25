@@ -183,7 +183,7 @@ def test_something(login_user):
 Return httpx.Client with cookie-based authentication
 ```python
 def test_something(cookie_client):
-    resp = cookie_client.get("/api/v1/collections")
+    resp = cookie_client.get("/api/v2/collections")
 ```
 
 #### `api_key` (module scope)
@@ -198,7 +198,7 @@ def test_something(api_key):
 Return httpx.Client with API Key authentication
 ```python
 def test_something(client):
-    resp = client.get("/api/v1/collections")
+    resp = client.get("/api/v2/collections")
 ```
 
 ### Model Service Fixtures
@@ -290,7 +290,7 @@ from tests.e2e_pytest.utils import assert_dict_subset
 
 def test_collection_update(client, collection):
     update_data = {"title": "Updated Title"}
-    resp = client.put(f"/api/v1/collections/{collection['id']}", json=update_data)
+    resp = client.put(f"/api/v2/collections/{collection['id']}", json=update_data)
     
     result = resp.json()
     assert_dict_subset(update_data, result)
