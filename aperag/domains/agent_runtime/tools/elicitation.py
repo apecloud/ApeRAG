@@ -61,7 +61,7 @@ from aperag.domains.agent_runtime.uimessage import ElicitationData
 DEFAULT_ELICITATION_TIMEOUT_SECONDS = 300
 
 
-ElicitationOutcome = Literal["submitted", "cancelled"]
+ElicitationOutcome = Literal["answered", "cancelled"]
 
 
 @dataclass(frozen=True)
@@ -132,13 +132,22 @@ class ElicitationService:
         self,
         *,
         elicitation_id: str,
+        server_name: str,
         prompt: str,
         schema: dict[str, Any],
     ) -> ElicitationRequestResult:
-        """Stash schema, register pending waiter, return wire payload."""
+        """Stash schema, register pending waiter, return wire payload.
+
+        ``server_name`` is the MCP server identity that initiated the
+        elicitation (per D9 §5.1 + D9.1 amend) so the FE consent UI
+        can surface where the input request originated. Required by
+        the canonical ``ElicitationData`` shape.
+        """
 
         if not elicitation_id:
             raise ValueError("elicitation_id must be non-empty")
+        if not server_name:
+            raise ValueError("server_name must be non-empty")
         if not isinstance(schema, dict):
             raise TypeError("schema must be a dict (JSON Schema object)")
         async with self._lock:
@@ -151,6 +160,7 @@ class ElicitationService:
         # frame already advertised.
         payload = ElicitationData(
             elicitation_id=elicitation_id,
+            server_name=server_name,
             prompt=prompt,
             schema_=json.loads(json.dumps(schema)),
             response=None,
@@ -180,10 +190,12 @@ class ElicitationService:
     ) -> ElicitationSubmitResult:
         """Validate + record the user's answer, wake the waiter.
 
-        Raises ``KeyError`` when no elicitation is pending,
-        ``ValueError`` when the response fails validation. The
-        elicitation stays ``pending`` on validation failure so the FE
-        can re-prompt with the corrected response.
+        Sets ``state="answered"`` on success (per D9 §5.1 / D9.1
+        canonical state vocabulary). Raises ``KeyError`` when no
+        elicitation is pending, ``ValueError`` when the response
+        fails validation. The elicitation stays ``pending`` on
+        validation failure so the FE can re-prompt with the
+        corrected response.
         """
 
         async with self._lock:
@@ -198,10 +210,10 @@ class ElicitationService:
         check(payload.schema_, response)
 
         async with self._lock:
-            updated = payload.model_copy(update={"response": response, "state": "submitted"})
+            updated = payload.model_copy(update={"response": response, "state": "answered"})
             result = ElicitationSubmitResult(
                 elicitation_id=elicitation_id,
-                outcome="submitted",
+                outcome="answered",
                 payload=updated,
             )
             self._payloads[elicitation_id] = updated

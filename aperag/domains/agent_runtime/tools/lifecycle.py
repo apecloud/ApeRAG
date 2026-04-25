@@ -225,11 +225,13 @@ class LifecycleEmitter:
         self,
         *,
         elicitation_id: str,
+        server_name: str,
         prompt: str,
         schema: dict[str, Any],
     ) -> ElicitationEnvelopeEmission:
         result = await self._elicitation.request_input(
             elicitation_id=elicitation_id,
+            server_name=server_name,
             prompt=prompt,
             schema=schema,
         )

@@ -110,6 +110,7 @@ def test_translate_consent_decided_passes_through_state():
 def test_translate_elicitation_requested_emits_data_elicitation_part():
     payload = ElicitationData(
         elicitation_id="e1",
+        server_name="aperag-fs",
         prompt="Provide path",
         schema={"required": ["path"]},
         response=None,
@@ -135,6 +136,7 @@ def test_translate_accepts_unwrapped_envelope_data_too():
 
     payload = ElicitationData(
         elicitation_id="e1",
+        server_name="aperag-fs",
         prompt="?",
         schema={},
         state="pending",
@@ -188,6 +190,7 @@ async def test_lifecycle_emitter_request_elicitation_returns_envelope_payload():
     emitter = LifecycleEmitter(consent=consent, elicitation=elicitation)
     emission = await emitter.request_elicitation(
         elicitation_id="e1",
+        server_name="aperag-fs",
         prompt="?",
         schema={"required": ["x"]},
     )

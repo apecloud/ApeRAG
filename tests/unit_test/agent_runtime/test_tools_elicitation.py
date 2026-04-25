@@ -35,6 +35,7 @@ async def test_request_input_emits_pending_payload():
     svc = ElicitationService(audit_logger=lambda evt, payload: audit.append((evt, payload)))
     result = await svc.request_input(
         elicitation_id="e1",
+        server_name="aperag-fs",
         prompt="Which file should I write to?",
         schema=_REQUIRED_SCHEMA,
     )
@@ -49,6 +50,7 @@ async def test_submit_validates_required_fields_and_records_response():
     svc = ElicitationService()
     await svc.request_input(
         elicitation_id="e1",
+        server_name="aperag-fs",
         prompt="Provide path",
         schema=_REQUIRED_SCHEMA,
     )
@@ -64,8 +66,8 @@ async def test_submit_validates_required_fields_and_records_response():
         actor_user_id="user",
     )
     result = await waiter_task
-    assert result.outcome == "submitted"
-    assert result.payload.state == "submitted"
+    assert result.outcome == "answered"
+    assert result.payload.state == "answered"
     assert result.payload.response == {"path": "/tmp/notes.md"}
 
 
@@ -74,6 +76,7 @@ async def test_submit_rejects_response_missing_required_field():
     svc = ElicitationService()
     await svc.request_input(
         elicitation_id="e1",
+        server_name="aperag-fs",
         prompt="Provide path",
         schema=_REQUIRED_SCHEMA,
     )
@@ -94,7 +97,7 @@ async def test_submit_unknown_elicitation_raises_keyerror():
 @pytest.mark.asyncio
 async def test_submit_after_resolve_rejected():
     svc = ElicitationService()
-    await svc.request_input(elicitation_id="e1", prompt="?", schema={})
+    await svc.request_input(elicitation_id="e1", server_name="aperag-fs", prompt="?", schema={})
     await svc.submit("e1", {}, actor_user_id="user")
     with pytest.raises(ValueError, match="already resolved"):
         await svc.submit("e1", {}, actor_user_id="user")
@@ -103,7 +106,7 @@ async def test_submit_after_resolve_rejected():
 @pytest.mark.asyncio
 async def test_cancel_sets_state_cancelled():
     svc = ElicitationService()
-    await svc.request_input(elicitation_id="e1", prompt="?", schema={})
+    await svc.request_input(elicitation_id="e1", server_name="aperag-fs", prompt="?", schema={})
     result = await svc.cancel("e1", actor_user_id="user", reason="user-aborted")
     assert result.outcome == "cancelled"
     assert result.payload.state == "cancelled"
@@ -112,7 +115,7 @@ async def test_cancel_sets_state_cancelled():
 @pytest.mark.asyncio
 async def test_wait_for_input_cancels_on_timeout():
     svc = ElicitationService(default_timeout_seconds=1)
-    await svc.request_input(elicitation_id="e1", prompt="?", schema={})
+    await svc.request_input(elicitation_id="e1", server_name="aperag-fs", prompt="?", schema={})
     result = await svc.wait_for_input("e1", timeout_seconds=0.05)
     assert result.outcome == "cancelled"
 
@@ -120,7 +123,12 @@ async def test_wait_for_input_cancels_on_timeout():
 @pytest.mark.asyncio
 async def test_custom_validator_can_override_default():
     svc = ElicitationService()
-    await svc.request_input(elicitation_id="e1", prompt="?", schema={"required": ["x"]})
+    await svc.request_input(
+        elicitation_id="e1",
+        server_name="aperag-fs",
+        prompt="?",
+        schema={"required": ["x"]},
+    )
 
     def reject_all(schema, response):
         raise ValueError("custom validator says no")
@@ -133,4 +141,28 @@ async def test_custom_validator_can_override_default():
 async def test_request_input_rejects_non_dict_schema():
     svc = ElicitationService()
     with pytest.raises(TypeError):
-        await svc.request_input(elicitation_id="e1", prompt="?", schema=["bad"])  # type: ignore[arg-type]
+        await svc.request_input(
+            elicitation_id="e1",
+            server_name="aperag-fs",
+            prompt="?",
+            schema=["bad"],  # type: ignore[arg-type]
+        )
+
+
+@pytest.mark.asyncio
+async def test_request_input_rejects_empty_server_name():
+    svc = ElicitationService()
+    with pytest.raises(ValueError, match="server_name"):
+        await svc.request_input(elicitation_id="e1", server_name="", prompt="?", schema={})
+
+
+@pytest.mark.asyncio
+async def test_payload_carries_canonical_server_name():
+    svc = ElicitationService()
+    result = await svc.request_input(
+        elicitation_id="e1",
+        server_name="aperag-fs",
+        prompt="?",
+        schema={},
+    )
+    assert result.payload.server_name == "aperag-fs"
