@@ -6,6 +6,61 @@ Content-Type: application/json
 }
 HTTP 200
 
+# v3 model-platform setup — every file is run independently and
+# ``ModelSpec`` only accepts ``model_id`` now, so the collection config
+# below references freshly-seeded embedding / completion models.
+POST {{base_url}}/api/v3/model-accounts
+Content-Type: application/json
+{
+  "provider_type": "dashscope",
+  "name": "alibabacloud-graph-{{run_id}}",
+  "display_name": "DashScope (E2E graph {{run_id}})",
+  "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  "api_key": "{{alibabacloud_api_key}}"
+}
+HTTP 200
+[Captures]
+dashscope_account_id: jsonpath "$.id"
+
+POST {{base_url}}/api/v3/model-accounts
+Content-Type: application/json
+{
+  "provider_type": "openai_compatible",
+  "name": "openrouter-graph-{{run_id}}",
+  "display_name": "OpenRouter (E2E graph {{run_id}})",
+  "base_url": "https://openrouter.ai/api/v1",
+  "api_key": "{{openrouter_api_key}}"
+}
+HTTP 200
+[Captures]
+openrouter_account_id: jsonpath "$.id"
+
+POST {{base_url}}/api/v3/models
+Content-Type: application/json
+{
+  "account_id": "{{dashscope_account_id}}",
+  "provider_model_id": "text-embedding-v3",
+  "display_name": "DashScope text-embedding-v3",
+  "capability": "embedding",
+  "embedding_dimensions": 1024
+}
+HTTP 200
+[Captures]
+embedding_model_id: jsonpath "$.id"
+
+POST {{base_url}}/api/v3/models
+Content-Type: application/json
+{
+  "account_id": "{{openrouter_account_id}}",
+  "provider_model_id": "google/gemini-2.5-flash",
+  "display_name": "OpenRouter Gemini 2.5 Flash",
+  "capability": "chat",
+  "context_window": 8192
+}
+HTTP 200
+[Captures]
+completion_model_id: jsonpath "$.id"
+
 POST {{base_url}}/api/v2/collections
 Content-Type: application/json
 {
@@ -20,14 +75,10 @@ Content-Type: application/json
     "enable_summary": false,
     "enable_vision": false,
     "embedding": {
-      "model": "text-embedding-v3",
-      "model_service_provider": "alibabacloud",
-      "custom_llm_provider": "openai"
+      "model_id": "{{embedding_model_id}}"
     },
     "completion": {
-      "model": "google/gemini-2.5-flash",
-      "model_service_provider": "openrouter",
-      "custom_llm_provider": "openrouter"
+      "model_id": "{{completion_model_id}}"
     }
   }
 }
