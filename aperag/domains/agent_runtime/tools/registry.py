@@ -117,9 +117,17 @@ class RegistryConflictError(RuntimeError):
 
 @dataclass
 class _ScopeIndex:
-    """Internal: name-keyed view of one tier."""
+    """Internal: ``(scope_ref, name)``-keyed view of one tier.
 
-    entries: dict[str, MCPServerEntry] = field(default_factory=dict)
+    System tier uses ``scope_ref=None`` so the system namespace stays
+    a single global keyspace (per D9 §1.1 step 1). Bot/user tiers use
+    the owning ``scope_ref`` so different bots / different users can
+    independently register the same ``name`` without collision (per
+    D9 §1.1 multi-tenant boundary; "no silent override" applies
+    cross-tier, NOT inside a tier across distinct scope_refs).
+    """
+
+    entries: dict[tuple[Optional[str], str], MCPServerEntry] = field(default_factory=dict)
 
 
 class MCPServerRegistry:
@@ -156,6 +164,11 @@ class MCPServerRegistry:
         name -- per D9 §A5 there is no silent override path here.
         Admin override goes through :meth:`register_admin_alias`.
 
+        Same-name entries inside the same tier but across different
+        ``scope_ref`` values (e.g. bot A's ``github`` vs bot B's
+        ``github``) are treated as independent registrations and do
+        NOT collide -- the bot/user boundary is per-scope_ref.
+
         Re-registration of an existing key is permitted (idempotent
         update of url/auth/enabled); it is audit-logged so stale-cache
         replay is debuggable.
@@ -163,27 +176,32 @@ class MCPServerRegistry:
 
         with self._lock:
             if entry.scope is not RegistryScope.SYSTEM:
-                system_clash = self._tiers[RegistryScope.SYSTEM].entries.get(entry.name)
+                system_clash = self._tiers[RegistryScope.SYSTEM].entries.get((None, entry.name))
                 if system_clash is not None:
                     self._audit("registry.system_namespace_rejected", _entry_audit_payload(entry))
                     raise RegistryConflictError(
                         f"Cannot register {entry.scope.value} server '{entry.name}': "
                         "name is reserved by the system namespace."
                     )
-            self._tiers[entry.scope].entries[entry.name] = entry
+            self._tiers[entry.scope].entries[_tier_key(entry.scope, entry.scope_ref, entry.name)] = entry
             self._audit("registry.registered", _entry_audit_payload(entry))
 
-    def unregister(self, scope: RegistryScope, name: str) -> bool:
-        """Remove ``name`` from ``scope``. Returns ``True`` if removed.
+    def unregister(self, scope: RegistryScope, name: str, *, scope_ref: Optional[str] = None) -> bool:
+        """Remove ``name`` from ``scope`` (within ``scope_ref`` for bot/user).
 
         Idempotent on missing entries (returns ``False``). Audit-logged
-        on success so the trail captures intentional removals.
+        on success so the trail captures intentional removals. Pass
+        ``scope_ref=None`` for the system tier (system entries have no
+        scope_ref by construction).
         """
 
         with self._lock:
-            removed = self._tiers[scope].entries.pop(name, None) is not None
+            removed = self._tiers[scope].entries.pop(_tier_key(scope, scope_ref, name), None) is not None
             if removed:
-                self._audit("registry.unregistered", {"scope": scope.value, "name": name})
+                self._audit(
+                    "registry.unregistered",
+                    {"scope": scope.value, "scope_ref": scope_ref, "name": name},
+                )
             return removed
 
     def register_admin_alias(
@@ -212,7 +230,7 @@ class MCPServerRegistry:
         with self._lock:
             key = (target_scope, target_scope_ref, alias.name)
             self._admin_aliases[key] = alias
-            self._tiers[target_scope].entries[alias.name] = alias
+            self._tiers[target_scope].entries[_tier_key(target_scope, target_scope_ref, alias.name)] = alias
             self._audit(
                 "registry.admin_alias_registered",
                 {
@@ -230,38 +248,45 @@ class MCPServerRegistry:
 
         Resolution order is ``system -> bot -> user``; later tiers
         skip entries whose name is already bound by an earlier tier
-        (per D9 §1.1 step 3, "no override"). ``enabled=False``
-        entries are filtered out at the resolution boundary so the
-        runtime never sees a disabled server.
+        (per D9 §1.1 step 3, "no override across tiers"). Inside a
+        tier, entries are filtered to the matching ``scope_ref`` so a
+        bot only sees its own MCP servers and a user only sees their
+        own personal MCP servers (per D9 §1 multi-tenant boundary).
+        ``enabled=False`` entries are filtered out at the resolution
+        boundary so the runtime never sees a disabled server.
         """
 
         seen_names: set[str] = set()
         out: list[MCPServerEntry] = []
 
-        for entry in self._tiers[RegistryScope.SYSTEM].entries.values():
+        for (_scope_ref, name), entry in self._tiers[RegistryScope.SYSTEM].entries.items():
             if entry.enabled:
-                seen_names.add(entry.name)
+                seen_names.add(name)
                 out.append(entry)
 
         if bot_id is not None:
-            for entry in self._tiers[RegistryScope.BOT].entries.values():
+            for (scope_ref, name), entry in self._tiers[RegistryScope.BOT].entries.items():
                 if not entry.enabled:
                     continue
-                if entry.scope_ref is not None and entry.scope_ref != bot_id:
+                if scope_ref != bot_id:
                     continue
-                if entry.name in seen_names:
+                if name in seen_names:
+                    # Cross-tier shadow: an earlier tier already
+                    # claimed this name; per D9 §1.1 step 3 the
+                    # later tier is silently skipped (admin alias is
+                    # the only override path).
                     continue
-                seen_names.add(entry.name)
+                seen_names.add(name)
                 out.append(entry)
 
-        for entry in self._tiers[RegistryScope.USER].entries.values():
+        for (scope_ref, name), entry in self._tiers[RegistryScope.USER].entries.items():
             if not entry.enabled:
                 continue
-            if entry.scope_ref is not None and entry.scope_ref != user_id:
+            if scope_ref != user_id:
                 continue
-            if entry.name in seen_names:
+            if name in seen_names:
                 continue
-            seen_names.add(entry.name)
+            seen_names.add(name)
             out.append(entry)
 
         return out
@@ -288,6 +313,20 @@ class MCPServerRegistry:
 
 
 # -- internals ----------------------------------------------------------
+
+
+def _tier_key(scope: RegistryScope, scope_ref: Optional[str], name: str) -> tuple[Optional[str], str]:
+    """Compose a tier-internal entry key.
+
+    System tier ignores ``scope_ref`` (system entries are global; the
+    name is the entire keyspace). Bot/user tiers key on
+    ``(scope_ref, name)`` so different scope_refs can register the
+    same name without collision.
+    """
+
+    if scope is RegistryScope.SYSTEM:
+        return (None, name)
+    return (scope_ref, name)
 
 
 def _noop_audit(event: str, payload: dict[str, Any]) -> None:  # pragma: no cover - trivial default

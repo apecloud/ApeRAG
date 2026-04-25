@@ -176,6 +176,8 @@ class LifecycleEmitter:
         self,
         *,
         consent_id: str,
+        turn_id: str,
+        user_id: str,
         tool_name: str,
         raw_args: Any,
         risk: str,
@@ -186,10 +188,16 @@ class LifecycleEmitter:
         Pure construction -- the caller is responsible for actually
         feeding ``envelope_data`` into ``EventService.append_event``
         with the appropriate ``turn_id`` / ``sequence`` / ``actor``.
+
+        ``turn_id`` + ``user_id`` get recorded as the consent's
+        tenant binding so the HTTP decide path can enforce ownership
+        (per D9 §2 multi-tenant boundary).
         """
 
         result = await self._consent.request_consent(
             consent_id=consent_id,
+            turn_id=turn_id,
+            user_id=user_id,
             tool_name=tool_name,
             raw_args=raw_args,
             risk=risk,
@@ -225,12 +233,16 @@ class LifecycleEmitter:
         self,
         *,
         elicitation_id: str,
+        turn_id: str,
+        user_id: str,
         server_name: str,
         prompt: str,
         schema: dict[str, Any],
     ) -> ElicitationEnvelopeEmission:
         result = await self._elicitation.request_input(
             elicitation_id=elicitation_id,
+            turn_id=turn_id,
+            user_id=user_id,
             server_name=server_name,
             prompt=prompt,
             schema=schema,

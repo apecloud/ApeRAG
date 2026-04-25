@@ -88,6 +88,26 @@ class ConsentRequestResult:
 
 
 @dataclass(frozen=True)
+class ConsentBinding:
+    """Tenant binding recorded at request time so the decide path can
+    enforce ownership (per D9 §2 multi-tenant boundary).
+
+    Architect canonical lock (msg=19f2c9a9): a pending consent MUST
+    record ``turn_id`` + ``user_id``; ``decide()`` MUST reject
+    decisions that do not match. Defense-in-depth alongside the
+    HTTP-layer turn ownership check via
+    ``turn_service.get_turn_snapshot``.
+    """
+
+    turn_id: str
+    user_id: str
+
+
+class ConsentOwnershipError(PermissionError):
+    """Raised when a consent decision attempt violates tenant binding."""
+
+
+@dataclass(frozen=True)
 class ConsentDecisionResult:
     """Outcome of :meth:`ConsentService.wait_for_decision`."""
 
@@ -121,6 +141,7 @@ class ConsentService:
         self._waiters: dict[str, asyncio.Event] = {}
         self._decisions: dict[str, ConsentDecisionResult] = {}
         self._payloads: dict[str, ToolConsentData] = {}
+        self._bindings: dict[str, ConsentBinding] = {}
 
     # -- request side (runtime emits consent prompt) ---------------
 
@@ -128,6 +149,8 @@ class ConsentService:
         self,
         *,
         consent_id: str,
+        turn_id: str,
+        user_id: str,
         tool_name: str,
         raw_args: Any,
         risk: str,
@@ -136,13 +159,21 @@ class ConsentService:
         """Stash raw args, build wire payload, register a pending waiter.
 
         ``consent_id`` should be the tool call id so the FE consent
-        UI's POST back can be correlated to the same id. Raises
-        ``ValueError`` on duplicate consent id (re-emitting consent
-        for an already-pending tool call is a programming bug).
+        UI's POST back can be correlated to the same id. ``turn_id``
+        + ``user_id`` are recorded as the tenant binding so
+        :meth:`decide` can reject cross-user / cross-turn decisions
+        (per D9 §2 multi-tenant boundary; architect canonical lock
+        msg=19f2c9a9). Raises ``ValueError`` on duplicate consent id
+        (re-emitting consent for an already-pending tool call is a
+        programming bug).
         """
 
         if not consent_id:
             raise ValueError("consent_id must be non-empty")
+        if not turn_id:
+            raise ValueError("turn_id must be non-empty")
+        if not user_id:
+            raise ValueError("user_id must be non-empty")
         async with self._lock:
             if consent_id in self._waiters:
                 raise ValueError(f"consent already pending for {consent_id!r}")
@@ -161,6 +192,7 @@ class ConsentService:
         await self._raw_args_cache.put(consent_id, raw_args, ttl_seconds=self._default_args_ttl)
         async with self._lock:
             self._payloads[consent_id] = payload
+            self._bindings[consent_id] = ConsentBinding(turn_id=turn_id, user_id=user_id)
 
         self._audit(
             "consent.requested",
@@ -182,13 +214,18 @@ class ConsentService:
         decision: ConsentDecision,
         *,
         actor_user_id: str,
+        expected_turn_id: Optional[str] = None,
     ) -> ConsentDecisionResult:
         """Record the user's decision and wake the runtime waiter.
 
         Raises ``KeyError`` when no consent is pending for
         ``consent_id`` (idempotent re-decide is rejected -- tests +
         admin rollback should explicitly cancel + re-request rather
-        than silently double-decide).
+        than silently double-decide). Raises
+        :class:`ConsentOwnershipError` when ``actor_user_id`` does
+        not match the user that the consent was issued for, or when
+        ``expected_turn_id`` is provided and does not match the turn
+        the consent was bound to (per D9 §2 multi-tenant boundary).
         """
 
         if decision not in ("approved", "denied"):
@@ -197,8 +234,17 @@ class ConsentService:
         async with self._lock:
             event = self._waiters.get(consent_id)
             payload = self._payloads.get(consent_id)
-            if event is None or payload is None:
+            binding = self._bindings.get(consent_id)
+            if event is None or payload is None or binding is None:
                 raise KeyError(consent_id)
+            if binding.user_id != actor_user_id:
+                raise ConsentOwnershipError(
+                    f"consent {consent_id!r} is owned by user {binding.user_id!r}, not {actor_user_id!r}"
+                )
+            if expected_turn_id is not None and binding.turn_id != expected_turn_id:
+                raise ConsentOwnershipError(
+                    f"consent {consent_id!r} is bound to turn {binding.turn_id!r}, not {expected_turn_id!r}"
+                )
             if consent_id in self._decisions:
                 raise ValueError(f"decision already recorded for {consent_id!r}")
             updated = payload.model_copy(update={"state": decision})
@@ -322,8 +368,10 @@ def _iso_now() -> str:
 
 
 __all__ = [
+    "ConsentBinding",
     "ConsentDecision",
     "ConsentDecisionResult",
+    "ConsentOwnershipError",
     "ConsentRequestResult",
     "ConsentService",
     "DEFAULT_CONSENT_TIMEOUT_SECONDS",

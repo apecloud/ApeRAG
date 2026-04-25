@@ -133,11 +133,16 @@ class ToolAuthorizationPolicy:
     Construct with a ``risk_resolver`` callable that maps a tool's
     safe name to its :class:`ToolRiskClassification`. Tests pass a
     dict-backed lambda; production wires the runtime's tool-cache
-    metadata. When the resolver returns ``None`` the policy falls
-    back to ``READ_ONLY`` -- a deliberately conservative-on-the-LLM
-    default so that an unclassified tool is auto-invocable but never
-    triggers consent (the runtime that adds new tool types must
-    explicitly classify them as side-effecting if they are).
+    metadata. When the resolver returns ``None`` the policy applies
+    a **default-deny security posture** (per architect canonical lock
+    msg=19f2c9a9 + Weston msg=57cf4632) — the tool is visible but
+    consent-required, surfaced with risk literal ``writes_user_data``
+    so the FE renders a clear consent prompt. The rationale: missing
+    classification is the ambiguous case that could hide a side-
+    effect tool; consent-required is the security-first fail-closed
+    behavior, while READ_ONLY auto-invocation would silently bypass
+    the consent gate. System operators must explicitly classify
+    tools as ``READ_ONLY`` for auto-invocation.
     """
 
     def __init__(
@@ -166,8 +171,22 @@ class ToolAuthorizationPolicy:
         # don't need to refactor when arg-aware policy lands.
         del tool_args
 
-        risk = self._risk_resolver(tool_safe_name) or ToolRiskClassification.READ_ONLY
+        resolved = self._risk_resolver(tool_safe_name)
+        if resolved is None:
+            # Default-deny per architect canonical lock msg=19f2c9a9.
+            # Treat unclassified tools as side-effecting until a
+            # system operator explicitly marks them READ_ONLY; the
+            # consent prompt surfaces ``writes_user_data`` so the FE
+            # warns the user about the unverified classification.
+            return AuthorizationDecision(
+                visible=True,
+                can_invoke_auto=False,
+                requires_consent=True,
+                risk=ToolRiskClassification.SIDE_EFFECT_USER_DATA.value,
+                reason="unclassified tool; default-deny per security canonical (consent required)",
+            )
 
+        risk = resolved
         if risk is ToolRiskClassification.READ_ONLY:
             return AuthorizationDecision(
                 visible=True,

@@ -48,8 +48,8 @@ from aperag.domains.agent_runtime.schemas import (
     CreateTurnRequest,
     CreateTurnResponse,
 )
-from aperag.domains.agent_runtime.tools.consent import ConsentService
-from aperag.domains.agent_runtime.tools.elicitation import ElicitationService
+from aperag.domains.agent_runtime.tools.consent import ConsentOwnershipError, ConsentService
+from aperag.domains.agent_runtime.tools.elicitation import ElicitationOwnershipError, ElicitationService
 from aperag.domains.agent_runtime.tools.lifecycle import translate_lifecycle_envelope
 from aperag.domains.agent_runtime.wire import (
     StreamPart,
@@ -194,8 +194,9 @@ class ElicitationSubmitResponse(BaseModel):
     state: str
 
 
-@router.post("/agent/turns/{turn_id}/consent/{tool_call_id}")
+@router.post("/agent/chats/{chat_id}/turns/{turn_id}/consent/{tool_call_id}")
 async def post_consent_decision_view(
+    chat_id: str,
     turn_id: str,
     tool_call_id: str,
     body: ConsentDecisionBody,
@@ -203,24 +204,40 @@ async def post_consent_decision_view(
 ) -> ConsentDecisionResponse:
     """Record the user's consent decision (D9 §3.2 step 4).
 
-    Authorisation is delegated to ``required_user`` -- the user must
-    be authenticated. Per-turn ownership check is intentionally
-    skipped here because the consent flow is keyed on
-    ``tool_call_id`` (globally unique); a malicious client cannot
-    decide a consent it did not see emitted.
+    Tenant-bound per D9 §2 multi-tenant boundary (architect canonical
+    lock msg=19f2c9a9):
 
-    Returns ``404`` when no consent is pending for ``tool_call_id``,
-    ``409`` when a decision was already recorded for it.
+    1. ``required_user`` enforces authentication.
+    2. ``turn_service.get_turn_snapshot`` enforces that the
+       authenticated user owns ``(chat_id, turn_id)``;
+       ``ResourceNotFoundException`` on miss surfaces as 404 via the
+       global exception handler.
+    3. ``ConsentService.decide(*, expected_turn_id=...)`` enforces
+       that the consent's stashed binding matches both
+       ``actor_user_id`` and ``turn_id``. Defense-in-depth so even a
+       misrouted request cannot resolve someone else's consent.
+
+    Returns ``404`` for unknown turn / unknown consent, ``403`` when
+    the consent is bound to a different user / turn, ``409`` when a
+    decision was already recorded.
     """
+
+    # Steps 1+2: ownership pre-check (raises ResourceNotFoundException
+    # -> 404 via global handler when chat or turn does not belong to
+    # the authenticated user).
+    await runtime_manager.turn_service.get_turn_snapshot(str(user.id), chat_id, turn_id)
 
     try:
         result = await consent_service.decide(
             tool_call_id,
             body.decision,
             actor_user_id=str(user.id),  # type: ignore[arg-type]
+            expected_turn_id=turn_id,
         )
     except KeyError:
         raise HTTPException(status_code=404, detail=f"no pending consent for {tool_call_id!r}")
+    except ConsentOwnershipError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
 
@@ -246,8 +263,9 @@ async def post_consent_decision_view(
     )
 
 
-@router.post("/agent/turns/{turn_id}/elicit/{elicitation_id}")
+@router.post("/agent/chats/{chat_id}/turns/{turn_id}/elicit/{elicitation_id}")
 async def post_elicitation_response_view(
+    chat_id: str,
     turn_id: str,
     elicitation_id: str,
     body: ElicitationSubmitBody,
@@ -255,23 +273,34 @@ async def post_elicitation_response_view(
 ) -> ElicitationSubmitResponse:
     """Submit an elicitation response (D9 §5.2 step 4).
 
+    Tenant-bound the same way as :func:`post_consent_decision_view`
+    (per D9 §2 multi-tenant boundary; architect canonical lock
+    msg=19f2c9a9): HTTP-layer ``turn_service.get_turn_snapshot``
+    ownership pre-check + service-layer
+    :class:`ElicitationOwnershipError` defense-in-depth.
+
     Schema validation is handled inside
     :meth:`ElicitationService.submit`; a validation failure surfaces
     as ``422`` and the elicitation stays pending so the FE can
     re-prompt with the corrected value.
     """
 
+    await runtime_manager.turn_service.get_turn_snapshot(str(user.id), chat_id, turn_id)
+
     try:
         result = await elicitation_service.submit(
             elicitation_id,
             body.response,
             actor_user_id=str(user.id),  # type: ignore[arg-type]
+            expected_turn_id=turn_id,
         )
     except KeyError:
         raise HTTPException(
             status_code=404,
             detail=f"no pending elicitation for {elicitation_id!r}",
         )
+    except ElicitationOwnershipError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
     except ValueError as exc:
         # Validation error vs already-resolved error are both 4xx but
         # carry different semantics; the message body distinguishes

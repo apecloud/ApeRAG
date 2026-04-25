@@ -42,12 +42,19 @@ def test_read_only_tool_is_visible_and_auto_invocable():
     assert decision.risk is None
 
 
-def test_unknown_tool_defaults_to_read_only():
+def test_unknown_tool_default_deny_per_security_canonical():
+    """Architect canonical lock msg=19f2c9a9: missing risk
+    classification MUST surface as consent-required (default-deny)
+    so a misclassified side-effect tool cannot silently bypass the
+    consent gate."""
+
     policy = _policy({})
     decision = policy.evaluate(Principal(user_id="u1"), "unknown")
     assert decision.visible is True
-    assert decision.can_invoke_auto is True
-    assert decision.requires_consent is False
+    assert decision.can_invoke_auto is False
+    assert decision.requires_consent is True
+    assert decision.risk == "writes_user_data"
+    assert "default-deny" in decision.reason
 
 
 def test_admin_tool_hidden_from_non_admin_principal():
@@ -122,3 +129,13 @@ def test_filter_visible_drops_admin_only_for_user():
         ["search", "system_config", "write_file"],
     )
     assert visible == ["search", "write_file"]
+
+
+def test_unknown_tool_filter_visible_keeps_consent_required_tool():
+    """The unknown-tool default-deny still keeps the tool visible to
+    the LLM (consent-required, not invisible). filter_visible only
+    drops invisible ones."""
+
+    policy = _policy({})
+    visible = policy.filter_visible(Principal(user_id="u1"), ["mystery"])
+    assert visible == ["mystery"]

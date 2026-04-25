@@ -170,3 +170,55 @@ def test_unregister_removes_and_audit_logs():
     registry.register(_make_entry(RegistryScope.SYSTEM, "tmp"))
     assert registry.unregister(RegistryScope.SYSTEM, "tmp") is True
     assert any(evt == "registry.unregistered" for evt, _ in audit)
+
+
+# -- D9 §A5 multi-tenant isolation: same-name servers across distinct
+# scope_refs must coexist without overwriting each other.
+
+
+def test_two_bots_can_register_same_name_without_collision():
+    registry = MCPServerRegistry()
+    a = _make_entry(RegistryScope.BOT, "github", scope_ref="bot-A")
+    b = _make_entry(RegistryScope.BOT, "github", scope_ref="bot-B")
+    registry.register(a)
+    registry.register(b)
+    # Both entries persist and resolve correctly per-bot.
+    assert {entry.scope_ref for entry in registry.list_in_scope(RegistryScope.BOT)} == {"bot-A", "bot-B"}
+    assert [e.scope_ref for e in registry.effective_servers(user_id="u", bot_id="bot-A")] == ["bot-A"]
+    assert [e.scope_ref for e in registry.effective_servers(user_id="u", bot_id="bot-B")] == ["bot-B"]
+
+
+def test_two_users_can_register_same_name_without_collision():
+    registry = MCPServerRegistry()
+    a = _make_entry(RegistryScope.USER, "my-mcp", scope_ref="user-A")
+    b = _make_entry(RegistryScope.USER, "my-mcp", scope_ref="user-B")
+    registry.register(a)
+    registry.register(b)
+    assert {entry.scope_ref for entry in registry.list_in_scope(RegistryScope.USER)} == {"user-A", "user-B"}
+    assert [e.scope_ref for e in registry.effective_servers(user_id="user-A", bot_id=None)] == ["user-A"]
+    assert [e.scope_ref for e in registry.effective_servers(user_id="user-B", bot_id=None)] == ["user-B"]
+
+
+def test_user_register_does_not_leak_to_other_user_resolution():
+    registry = MCPServerRegistry()
+    registry.register(_make_entry(RegistryScope.USER, "private", scope_ref="user-A"))
+    # user-B must not see user-A's personal MCP server.
+    assert registry.effective_servers(user_id="user-B", bot_id=None) == []
+
+
+def test_bot_register_does_not_leak_to_other_bot_resolution():
+    registry = MCPServerRegistry()
+    registry.register(_make_entry(RegistryScope.BOT, "github", scope_ref="bot-A"))
+    assert registry.effective_servers(user_id="u", bot_id="bot-B") == []
+
+
+def test_unregister_is_scope_ref_aware_for_bot_user_tiers():
+    registry = MCPServerRegistry()
+    registry.register(_make_entry(RegistryScope.BOT, "github", scope_ref="bot-A"))
+    registry.register(_make_entry(RegistryScope.BOT, "github", scope_ref="bot-B"))
+
+    assert registry.unregister(RegistryScope.BOT, "github", scope_ref="bot-A") is True
+    # bot-B's entry untouched.
+    assert {e.scope_ref for e in registry.list_in_scope(RegistryScope.BOT)} == {"bot-B"}
+    # Idempotent on already-removed bot-A entry.
+    assert registry.unregister(RegistryScope.BOT, "github", scope_ref="bot-A") is False

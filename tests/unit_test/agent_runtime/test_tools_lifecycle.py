@@ -157,6 +157,8 @@ async def test_lifecycle_emitter_request_consent_returns_envelope_payload():
     emitter = LifecycleEmitter(consent=consent, elicitation=elicitation)
     emission = await emitter.request_consent(
         consent_id="c1",
+        turn_id="turn-1",
+        user_id="user-1",
         tool_name="t",
         raw_args={"x": 1},
         risk="writes_user_data",
@@ -173,11 +175,13 @@ async def test_lifecycle_emitter_resolved_envelope_after_decision():
     emitter = LifecycleEmitter(consent=consent, elicitation=elicitation)
     await emitter.request_consent(
         consent_id="c1",
+        turn_id="turn-1",
+        user_id="user-1",
         tool_name="t",
         raw_args={"x": 1},
         risk="writes_user_data",
     )
-    await consent.decide("c1", "approved", actor_user_id="user")
+    await consent.decide("c1", "approved", actor_user_id="user-1")
     emission = await emitter.consent_decision_envelope("c1")
     assert emission.event_type == EVENT_TOOL_CONSENT_DECIDED
     assert emission.payload.state == "approved"
@@ -190,6 +194,8 @@ async def test_lifecycle_emitter_request_elicitation_returns_envelope_payload():
     emitter = LifecycleEmitter(consent=consent, elicitation=elicitation)
     emission = await emitter.request_elicitation(
         elicitation_id="e1",
+        turn_id="turn-1",
+        user_id="user-1",
         server_name="aperag-fs",
         prompt="?",
         schema={"required": ["x"]},

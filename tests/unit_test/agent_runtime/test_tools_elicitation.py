@@ -35,6 +35,8 @@ async def test_request_input_emits_pending_payload():
     svc = ElicitationService(audit_logger=lambda evt, payload: audit.append((evt, payload)))
     result = await svc.request_input(
         elicitation_id="e1",
+        turn_id="turn-1",
+        user_id="user-1",
         server_name="aperag-fs",
         prompt="Which file should I write to?",
         schema=_REQUIRED_SCHEMA,
@@ -50,6 +52,8 @@ async def test_submit_validates_required_fields_and_records_response():
     svc = ElicitationService()
     await svc.request_input(
         elicitation_id="e1",
+        turn_id="turn-1",
+        user_id="user-1",
         server_name="aperag-fs",
         prompt="Provide path",
         schema=_REQUIRED_SCHEMA,
@@ -63,7 +67,7 @@ async def test_submit_validates_required_fields_and_records_response():
     await svc.submit(
         "e1",
         {"path": "/tmp/notes.md"},
-        actor_user_id="user",
+        actor_user_id="user-1",
     )
     result = await waiter_task
     assert result.outcome == "answered"
@@ -76,12 +80,14 @@ async def test_submit_rejects_response_missing_required_field():
     svc = ElicitationService()
     await svc.request_input(
         elicitation_id="e1",
+        turn_id="turn-1",
+        user_id="user-1",
         server_name="aperag-fs",
         prompt="Provide path",
         schema=_REQUIRED_SCHEMA,
     )
     with pytest.raises(ValueError, match="missing required fields"):
-        await svc.submit("e1", {"other": "x"}, actor_user_id="user")
+        await svc.submit("e1", {"other": "x"}, actor_user_id="user-1")
     # Elicitation stays pending after a validation failure -- caller
     # can re-prompt without a separate cancel + re-request.
     assert svc.get_payload("e1").state == "pending"
@@ -91,23 +97,37 @@ async def test_submit_rejects_response_missing_required_field():
 async def test_submit_unknown_elicitation_raises_keyerror():
     svc = ElicitationService()
     with pytest.raises(KeyError):
-        await svc.submit("never", {}, actor_user_id="user")
+        await svc.submit("never", {}, actor_user_id="user-1")
 
 
 @pytest.mark.asyncio
 async def test_submit_after_resolve_rejected():
     svc = ElicitationService()
-    await svc.request_input(elicitation_id="e1", server_name="aperag-fs", prompt="?", schema={})
-    await svc.submit("e1", {}, actor_user_id="user")
+    await svc.request_input(
+        elicitation_id="e1",
+        turn_id="turn-1",
+        user_id="user-1",
+        server_name="aperag-fs",
+        prompt="?",
+        schema={},
+    )
+    await svc.submit("e1", {}, actor_user_id="user-1")
     with pytest.raises(ValueError, match="already resolved"):
-        await svc.submit("e1", {}, actor_user_id="user")
+        await svc.submit("e1", {}, actor_user_id="user-1")
 
 
 @pytest.mark.asyncio
 async def test_cancel_sets_state_cancelled():
     svc = ElicitationService()
-    await svc.request_input(elicitation_id="e1", server_name="aperag-fs", prompt="?", schema={})
-    result = await svc.cancel("e1", actor_user_id="user", reason="user-aborted")
+    await svc.request_input(
+        elicitation_id="e1",
+        turn_id="turn-1",
+        user_id="user-1",
+        server_name="aperag-fs",
+        prompt="?",
+        schema={},
+    )
+    result = await svc.cancel("e1", actor_user_id="user-1", reason="user-aborted")
     assert result.outcome == "cancelled"
     assert result.payload.state == "cancelled"
 
@@ -115,7 +135,14 @@ async def test_cancel_sets_state_cancelled():
 @pytest.mark.asyncio
 async def test_wait_for_input_cancels_on_timeout():
     svc = ElicitationService(default_timeout_seconds=1)
-    await svc.request_input(elicitation_id="e1", server_name="aperag-fs", prompt="?", schema={})
+    await svc.request_input(
+        elicitation_id="e1",
+        turn_id="turn-1",
+        user_id="user-1",
+        server_name="aperag-fs",
+        prompt="?",
+        schema={},
+    )
     result = await svc.wait_for_input("e1", timeout_seconds=0.05)
     assert result.outcome == "cancelled"
 
@@ -125,6 +152,8 @@ async def test_custom_validator_can_override_default():
     svc = ElicitationService()
     await svc.request_input(
         elicitation_id="e1",
+        turn_id="turn-1",
+        user_id="user-1",
         server_name="aperag-fs",
         prompt="?",
         schema={"required": ["x"]},
@@ -134,7 +163,7 @@ async def test_custom_validator_can_override_default():
         raise ValueError("custom validator says no")
 
     with pytest.raises(ValueError, match="custom validator says no"):
-        await svc.submit("e1", {"x": "v"}, actor_user_id="user", validator=reject_all)
+        await svc.submit("e1", {"x": "v"}, actor_user_id="user-1", validator=reject_all)
 
 
 @pytest.mark.asyncio
@@ -143,6 +172,8 @@ async def test_request_input_rejects_non_dict_schema():
     with pytest.raises(TypeError):
         await svc.request_input(
             elicitation_id="e1",
+            turn_id="turn-1",
+            user_id="user-1",
             server_name="aperag-fs",
             prompt="?",
             schema=["bad"],  # type: ignore[arg-type]
@@ -153,7 +184,14 @@ async def test_request_input_rejects_non_dict_schema():
 async def test_request_input_rejects_empty_server_name():
     svc = ElicitationService()
     with pytest.raises(ValueError, match="server_name"):
-        await svc.request_input(elicitation_id="e1", server_name="", prompt="?", schema={})
+        await svc.request_input(
+            elicitation_id="e1",
+            turn_id="turn-1",
+            user_id="user-1",
+            server_name="",
+            prompt="?",
+            schema={},
+        )
 
 
 @pytest.mark.asyncio
@@ -161,8 +199,52 @@ async def test_payload_carries_canonical_server_name():
     svc = ElicitationService()
     result = await svc.request_input(
         elicitation_id="e1",
+        turn_id="turn-1",
+        user_id="user-1",
         server_name="aperag-fs",
         prompt="?",
         schema={},
     )
     assert result.payload.server_name == "aperag-fs"
+
+
+@pytest.mark.asyncio
+async def test_submit_rejects_cross_user_actor():
+    """D9 §2 multi-tenant boundary -- a different authenticated user
+    must NOT be able to submit another user's elicitation."""
+
+    from aperag.domains.agent_runtime.tools.elicitation import ElicitationOwnershipError
+
+    svc = ElicitationService()
+    await svc.request_input(
+        elicitation_id="e1",
+        turn_id="turn-1",
+        user_id="alice",
+        server_name="aperag-fs",
+        prompt="?",
+        schema={},
+    )
+    with pytest.raises(ElicitationOwnershipError):
+        await svc.submit("e1", {}, actor_user_id="mallory")
+    # alice can still submit; the elicitation stays pending after ownership rejection.
+    result = await svc.submit("e1", {}, actor_user_id="alice")
+    assert result.outcome == "answered"
+
+
+@pytest.mark.asyncio
+async def test_submit_rejects_cross_turn_actor():
+    from aperag.domains.agent_runtime.tools.elicitation import ElicitationOwnershipError
+
+    svc = ElicitationService()
+    await svc.request_input(
+        elicitation_id="e1",
+        turn_id="turn-A",
+        user_id="alice",
+        server_name="aperag-fs",
+        prompt="?",
+        schema={},
+    )
+    with pytest.raises(ElicitationOwnershipError):
+        await svc.submit("e1", {}, actor_user_id="alice", expected_turn_id="turn-B")
+    result = await svc.submit("e1", {}, actor_user_id="alice", expected_turn_id="turn-A")
+    assert result.outcome == "answered"

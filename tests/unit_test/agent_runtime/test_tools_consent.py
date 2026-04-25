@@ -20,7 +20,7 @@ import asyncio
 
 import pytest
 
-from aperag.domains.agent_runtime.tools.consent import ConsentService
+from aperag.domains.agent_runtime.tools.consent import ConsentOwnershipError, ConsentService
 
 
 @pytest.mark.asyncio
@@ -30,6 +30,8 @@ async def test_request_consent_emits_pending_payload_with_redaction():
     raw = {"path": "/etc/passwd", "content": "secret-token"}
     result = await svc.request_consent(
         consent_id="call-1",
+        turn_id="turn-1",
+        user_id="user-1",
         tool_name="aperag_fs_write_file",
         raw_args=raw,
         risk="writes_user_data",
@@ -51,6 +53,8 @@ async def test_request_consent_rejects_duplicate_id():
     svc = ConsentService()
     await svc.request_consent(
         consent_id="dup",
+        turn_id="turn-1",
+        user_id="user-1",
         tool_name="t",
         raw_args={},
         risk="writes_user_data",
@@ -58,6 +62,8 @@ async def test_request_consent_rejects_duplicate_id():
     with pytest.raises(ValueError):
         await svc.request_consent(
             consent_id="dup",
+            turn_id="turn-1",
+            user_id="user-1",
             tool_name="t",
             raw_args={},
             risk="writes_user_data",
@@ -70,6 +76,8 @@ async def test_decide_approves_and_runtime_can_consume_raw_args():
     raw = {"command": "rm -rf /tmp/scratch"}
     await svc.request_consent(
         consent_id="c1",
+        turn_id="turn-1",
+        user_id="user-1",
         tool_name="cli",
         raw_args=raw,
         risk="modifies_system",
@@ -80,7 +88,7 @@ async def test_decide_approves_and_runtime_can_consume_raw_args():
 
     waiter_task = asyncio.create_task(runtime_waiter())
     await asyncio.sleep(0)  # let the waiter park
-    await svc.decide("c1", "approved", actor_user_id="user-42")
+    await svc.decide("c1", "approved", actor_user_id="user-1")
     decision = await waiter_task
     assert decision.decision == "approved"
     # Raw args fetched once -> dispatched
@@ -94,11 +102,13 @@ async def test_denial_drops_raw_args_immediately():
     svc = ConsentService()
     await svc.request_consent(
         consent_id="c1",
+        turn_id="turn-1",
+        user_id="user-1",
         tool_name="t",
         raw_args={"x": 1},
         risk="writes_user_data",
     )
-    await svc.decide("c1", "denied", actor_user_id="user")
+    await svc.decide("c1", "denied", actor_user_id="user-1")
     assert await svc.consume_raw_args("c1") is None
 
 
@@ -107,12 +117,14 @@ async def test_decide_rejects_invalid_decision():
     svc = ConsentService()
     await svc.request_consent(
         consent_id="c1",
+        turn_id="turn-1",
+        user_id="user-1",
         tool_name="t",
         raw_args={},
         risk="writes_user_data",
     )
     with pytest.raises(ValueError):
-        await svc.decide("c1", "later", actor_user_id="u")
+        await svc.decide("c1", "later", actor_user_id="user-1")
 
 
 @pytest.mark.asyncio
@@ -127,13 +139,15 @@ async def test_decide_twice_rejected():
     svc = ConsentService()
     await svc.request_consent(
         consent_id="c1",
+        turn_id="turn-1",
+        user_id="user-1",
         tool_name="t",
         raw_args={},
         risk="writes_user_data",
     )
-    await svc.decide("c1", "approved", actor_user_id="u")
+    await svc.decide("c1", "approved", actor_user_id="user-1")
     with pytest.raises(ValueError):
-        await svc.decide("c1", "denied", actor_user_id="u")
+        await svc.decide("c1", "denied", actor_user_id="user-1")
 
 
 @pytest.mark.asyncio
@@ -141,6 +155,8 @@ async def test_wait_for_decision_expires_on_timeout():
     svc = ConsentService(default_timeout_seconds=1)
     await svc.request_consent(
         consent_id="c1",
+        turn_id="turn-1",
+        user_id="user-1",
         tool_name="t",
         raw_args={},
         risk="writes_user_data",
@@ -156,14 +172,83 @@ async def test_args_hash_stable_across_consents_for_same_args():
     svc = ConsentService()
     a = await svc.request_consent(
         consent_id="a",
+        turn_id="turn-1",
+        user_id="user-1",
         tool_name="t",
         raw_args={"k": "v"},
         risk="writes_user_data",
     )
     b = await svc.request_consent(
         consent_id="b",
+        turn_id="turn-1",
+        user_id="user-1",
         tool_name="t",
         raw_args={"k": "v"},
         risk="writes_user_data",
     )
     assert a.payload.args_hash == b.payload.args_hash
+
+
+@pytest.mark.asyncio
+async def test_decide_rejects_cross_user_actor():
+    """D9 §2 multi-tenant boundary -- a different authenticated user
+    must NOT be able to resolve another user's consent."""
+
+    svc = ConsentService()
+    await svc.request_consent(
+        consent_id="c1",
+        turn_id="turn-1",
+        user_id="alice",
+        tool_name="t",
+        raw_args={},
+        risk="writes_user_data",
+    )
+    with pytest.raises(ConsentOwnershipError):
+        await svc.decide("c1", "approved", actor_user_id="mallory")
+    # consent stays pending; alice can still decide.
+    result = await svc.decide("c1", "approved", actor_user_id="alice")
+    assert result.decision == "approved"
+
+
+@pytest.mark.asyncio
+async def test_decide_rejects_cross_turn_actor():
+    """A user authenticated to a different turn id must NOT resolve
+    a consent that was bound to a different turn (defense-in-depth
+    even when the user_id matches)."""
+
+    svc = ConsentService()
+    await svc.request_consent(
+        consent_id="c1",
+        turn_id="turn-A",
+        user_id="alice",
+        tool_name="t",
+        raw_args={},
+        risk="writes_user_data",
+    )
+    with pytest.raises(ConsentOwnershipError):
+        await svc.decide("c1", "approved", actor_user_id="alice", expected_turn_id="turn-B")
+    result = await svc.decide("c1", "approved", actor_user_id="alice", expected_turn_id="turn-A")
+    assert result.decision == "approved"
+
+
+@pytest.mark.asyncio
+async def test_request_consent_rejects_empty_turn_or_user():
+    svc = ConsentService()
+    with pytest.raises(ValueError, match="turn_id"):
+        await svc.request_consent(
+            consent_id="c1",
+            turn_id="",
+            user_id="u",
+            tool_name="t",
+            raw_args={},
+            risk="writes_user_data",
+        )
+    with pytest.raises(ValueError, match="user_id"):
+        await svc.request_consent(
+            consent_id="c1",
+            turn_id="t",
+            user_id="",
+            tool_name="t",
+            raw_args={},
+            risk="writes_user_data",
+        )

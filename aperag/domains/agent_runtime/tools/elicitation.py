@@ -71,6 +71,20 @@ class ElicitationRequestResult:
 
 
 @dataclass(frozen=True)
+class ElicitationBinding:
+    """Tenant binding recorded at request time so the submit/cancel
+    path can enforce ownership (per D9 §2 multi-tenant boundary;
+    architect canonical lock msg=19f2c9a9)."""
+
+    turn_id: str
+    user_id: str
+
+
+class ElicitationOwnershipError(PermissionError):
+    """Raised when an elicitation submit attempt violates tenant binding."""
+
+
+@dataclass(frozen=True)
 class ElicitationSubmitResult:
     elicitation_id: str
     outcome: ElicitationOutcome
@@ -125,6 +139,7 @@ class ElicitationService:
         self._waiters: dict[str, asyncio.Event] = {}
         self._payloads: dict[str, ElicitationData] = {}
         self._results: dict[str, ElicitationSubmitResult] = {}
+        self._bindings: dict[str, ElicitationBinding] = {}
 
     # -- request side ----------------------------------------------
 
@@ -132,6 +147,8 @@ class ElicitationService:
         self,
         *,
         elicitation_id: str,
+        turn_id: str,
+        user_id: str,
         server_name: str,
         prompt: str,
         schema: dict[str, Any],
@@ -140,12 +157,19 @@ class ElicitationService:
 
         ``server_name`` is the MCP server identity that initiated the
         elicitation (per D9 §5.1 + D9.1 amend) so the FE consent UI
-        can surface where the input request originated. Required by
-        the canonical ``ElicitationData`` shape.
+        can surface where the input request originated. ``turn_id``
+        + ``user_id`` are recorded as the tenant binding so
+        :meth:`submit` / :meth:`cancel` can reject cross-user /
+        cross-turn calls (per D9 §2 multi-tenant boundary; architect
+        canonical lock msg=19f2c9a9).
         """
 
         if not elicitation_id:
             raise ValueError("elicitation_id must be non-empty")
+        if not turn_id:
+            raise ValueError("turn_id must be non-empty")
+        if not user_id:
+            raise ValueError("user_id must be non-empty")
         if not server_name:
             raise ValueError("server_name must be non-empty")
         if not isinstance(schema, dict):
@@ -154,6 +178,7 @@ class ElicitationService:
             if elicitation_id in self._waiters:
                 raise ValueError(f"elicitation already pending for {elicitation_id!r}")
             self._waiters[elicitation_id] = asyncio.Event()
+            self._bindings[elicitation_id] = ElicitationBinding(turn_id=turn_id, user_id=user_id)
 
         # Defensive copy so the caller can mutate the schema dict
         # afterwards without retroactively changing what the wire
@@ -186,6 +211,7 @@ class ElicitationService:
         response: dict[str, Any],
         *,
         actor_user_id: str,
+        expected_turn_id: Optional[str] = None,
         validator: Optional[SchemaValidator] = None,
     ) -> ElicitationSubmitResult:
         """Validate + record the user's answer, wake the waiter.
@@ -195,14 +221,26 @@ class ElicitationService:
         elicitation is pending, ``ValueError`` when the response
         fails validation. The elicitation stays ``pending`` on
         validation failure so the FE can re-prompt with the
-        corrected response.
+        corrected response. Raises
+        :class:`ElicitationOwnershipError` when ``actor_user_id`` /
+        ``expected_turn_id`` do not match the binding recorded at
+        :meth:`request_input` time (per D9 §2 multi-tenant boundary).
         """
 
         async with self._lock:
             payload = self._payloads.get(elicitation_id)
             event = self._waiters.get(elicitation_id)
-            if payload is None or event is None:
+            binding = self._bindings.get(elicitation_id)
+            if payload is None or event is None or binding is None:
                 raise KeyError(elicitation_id)
+            if binding.user_id != actor_user_id:
+                raise ElicitationOwnershipError(
+                    f"elicitation {elicitation_id!r} is owned by user {binding.user_id!r}, not {actor_user_id!r}"
+                )
+            if expected_turn_id is not None and binding.turn_id != expected_turn_id:
+                raise ElicitationOwnershipError(
+                    f"elicitation {elicitation_id!r} is bound to turn {binding.turn_id!r}, not {expected_turn_id!r}"
+                )
             if elicitation_id in self._results:
                 raise ValueError(f"elicitation already resolved for {elicitation_id!r}")
 
@@ -235,15 +273,33 @@ class ElicitationService:
         elicitation_id: str,
         *,
         actor_user_id: str,
+        expected_turn_id: Optional[str] = None,
         reason: str = "cancelled",
+        bypass_ownership: bool = False,
     ) -> ElicitationSubmitResult:
-        """Resolve a pending elicitation as ``state='cancelled'``."""
+        """Resolve a pending elicitation as ``state='cancelled'``.
+
+        ``bypass_ownership=True`` is reserved for internal callers
+        (timeout sweeper, runtime abort) where there is no human
+        actor to validate against. Public-facing HTTP handlers MUST
+        leave it ``False`` so the tenant binding is enforced.
+        """
 
         async with self._lock:
             payload = self._payloads.get(elicitation_id)
             event = self._waiters.get(elicitation_id)
-            if payload is None or event is None:
+            binding = self._bindings.get(elicitation_id)
+            if payload is None or event is None or binding is None:
                 raise KeyError(elicitation_id)
+            if not bypass_ownership:
+                if binding.user_id != actor_user_id:
+                    raise ElicitationOwnershipError(
+                        f"elicitation {elicitation_id!r} is owned by user {binding.user_id!r}, not {actor_user_id!r}"
+                    )
+                if expected_turn_id is not None and binding.turn_id != expected_turn_id:
+                    raise ElicitationOwnershipError(
+                        f"elicitation {elicitation_id!r} is bound to turn {binding.turn_id!r}, not {expected_turn_id!r}"
+                    )
             if elicitation_id in self._results:
                 raise ValueError(f"elicitation already resolved for {elicitation_id!r}")
             updated = payload.model_copy(update={"state": "cancelled"})
@@ -288,13 +344,23 @@ class ElicitationService:
         try:
             await asyncio.wait_for(event.wait(), timeout=timeout)
         except asyncio.TimeoutError:
-            return await self.cancel(elicitation_id, actor_user_id="system", reason="timeout")
+            return await self.cancel(
+                elicitation_id,
+                actor_user_id="system",
+                reason="timeout",
+                bypass_ownership=True,
+            )
 
         async with self._lock:
             result = self._results.get(elicitation_id)
             if result is None:
                 # Defensive parity with ``ConsentService.wait_for_decision``.
-                return await self.cancel(elicitation_id, actor_user_id="system", reason="missing_result")
+                return await self.cancel(
+                    elicitation_id,
+                    actor_user_id="system",
+                    reason="missing_result",
+                    bypass_ownership=True,
+                )
             return result
 
     # -- introspection ---------------------------------------------
@@ -313,7 +379,9 @@ class ElicitationService:
 
 __all__ = [
     "DEFAULT_ELICITATION_TIMEOUT_SECONDS",
+    "ElicitationBinding",
     "ElicitationOutcome",
+    "ElicitationOwnershipError",
     "ElicitationRequestResult",
     "ElicitationService",
     "ElicitationSubmitResult",
