@@ -1163,7 +1163,7 @@ def test_phase1_fe_complete_identity_auth_admin_audit_adapter_boundary():
     bot_client_api = (REPO_ROOT / "web/src/features/bot/client-api.ts").read_text()
     assert "uploadChatDocument" in bot_client_api
     assert "getChatDocument" in bot_client_api
-    assert "'/api/v1/chats/{chat_id}/documents'" in bot_client_api
+    assert "'/api/v2/chats/{chat_id}/documents'" in bot_client_api
 
     # feature-visibility.ts — document residual swaps
     # `RebuildIndexesRequestIndexTypesEnum` → `DOCUMENT_INDEX_TYPES`.

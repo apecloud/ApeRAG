@@ -173,7 +173,7 @@ export async function generateBotChatTitle(
 }
 
 // Chat document attachment (for chat-input.tsx). Thin typed wrap of
-// `/api/v1/chats/{chat_id}/documents` (POST multipart upload +
+// `/api/v2/chats/{chat_id}/documents` (POST multipart upload +
 // GET {document_id} status poll). Lives in bot feature because chats are
 // owned by the bot domain; no separate features/chat/* surface per
 // design-lock msg=5f0a370b decision 2d.
@@ -183,7 +183,7 @@ export async function uploadChatDocument(
   file: File,
 ): Promise<Document> {
   const { data } = await browserApiClient.POST(
-    '/api/v1/chats/{chat_id}/documents',
+    '/api/v2/chats/{chat_id}/documents',
     {
       params: { path: { chat_id: chatId } },
       body: { file: file as unknown as string },
@@ -205,7 +205,7 @@ export async function getChatDocument(
   documentId: string,
 ): Promise<Document> {
   const { data } = await browserApiClient.GET(
-    '/api/v1/chats/{chat_id}/documents/{document_id}',
+    '/api/v2/chats/{chat_id}/documents/{document_id}',
     {
       params: { path: { chat_id: chatId, document_id: documentId } },
     },
