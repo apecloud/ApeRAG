@@ -609,7 +609,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/apikeys": {
+    "/api/v2/apikeys": {
         parameters: {
             query?: never;
             header?: never;
@@ -633,7 +633,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/apikeys/{apikey_id}": {
+    "/api/v2/apikeys/{apikey_id}": {
         parameters: {
             query?: never;
             header?: never;

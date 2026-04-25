@@ -61,8 +61,8 @@ def test_api_key_feature_uses_v2_typed_api_boundary():
     # path — that is deferred to a later domain/API phase.
     assert "from '@/api'" not in feature_sources
     assert "fetch(" not in feature_sources
-    assert "'/api/v1/apikeys'" in feature_sources
-    assert "'/api/v1/apikeys/{apikey_id}'" in feature_sources
+    assert "'/api/v2/apikeys'" in feature_sources
+    assert "'/api/v2/apikeys/{apikey_id}'" in feature_sources
 
     # Positive: the business caller wiring goes through the feature adapter,
     # not the old generated SDK.

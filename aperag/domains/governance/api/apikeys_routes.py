@@ -20,8 +20,8 @@ mounted both API keys and audit logs) is split into two single-purpose
 routers so that #50 (audit-logs) and #51 (apikeys) can migrate to
 ``/api/v2`` independently per architect canonical D7-2 (msg=25a30445).
 
-Phase 8 #50 lands this file with no URL change — apikeys stays at
-``/api/v1/apikeys`` until #51 G4b flips the mount to ``/api/v2``.
+Phase 8 #51 G4b flipped the mount in ``aperag/app.py`` from ``/api/v1``
+to ``/api/v2`` — the canonical apikeys URL is now ``/api/v2/apikeys``.
 """
 
 from fastapi import APIRouter, Depends, Request

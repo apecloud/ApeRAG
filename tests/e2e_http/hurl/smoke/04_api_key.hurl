@@ -6,7 +6,7 @@ Content-Type: application/json
 }
 HTTP 200
 
-POST {{base_url}}/api/v1/apikeys
+POST {{base_url}}/api/v2/apikeys
 Content-Type: application/json
 {
   "description": "smoke key {{run_id}}"
@@ -21,7 +21,7 @@ jsonpath "$.id" == "{{api_key_id}}"
 jsonpath "$.key" == "{{api_key_value}}"
 jsonpath "$.description" == "smoke key {{run_id}}"
 
-GET {{base_url}}/api/v1/apikeys
+GET {{base_url}}/api/v2/apikeys
 HTTP 200
 
 POST {{base_url}}/api/v2/auth/logout
@@ -39,7 +39,7 @@ Content-Type: application/json
 }
 HTTP 200
 
-PUT {{base_url}}/api/v1/apikeys/{{api_key_id}}
+PUT {{base_url}}/api/v2/apikeys/{{api_key_id}}
 Content-Type: application/json
 {
   "description": "smoke key {{run_id}} updated"
@@ -49,7 +49,7 @@ HTTP 200
 jsonpath "$.id" == "{{api_key_id}}"
 jsonpath "$.description" == "smoke key {{run_id}} updated"
 
-DELETE {{base_url}}/api/v1/apikeys/{{api_key_id}}
+DELETE {{base_url}}/api/v2/apikeys/{{api_key_id}}
 HTTP 200
 
 POST {{base_url}}/api/v2/auth/logout
