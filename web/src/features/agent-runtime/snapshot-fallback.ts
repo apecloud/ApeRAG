@@ -1,24 +1,34 @@
 'use client';
 
+// TRANSITIONAL — TODO(#90 D8.4d): delete this file once the BE
+// snapshot endpoint returns UIMessage parts directly.
+//
 // Reload-path fallback for terminal historical turns.
 //
 // The agent runtime snapshot endpoint
 // (`GET /agent/chats/{cid}/turns/{tid}`) still returns the legacy
 // `{turn, timeline, artifacts}` envelope; D8.2 (#74) added at-rest
 // UIMessage storage but the read path that the FE calls on reload
-// has not yet been migrated to expose UIMessage parts. Until that BE
-// change lands, terminal historical turns reload with an empty live
+// has not yet been migrated to expose UIMessage parts. Until task
+// #90 (D8.4d backend snapshot endpoint UIMessage-parts return)
+// lands, terminal historical turns reload with an empty live
 // stream (`streamUrl: null` ⇒ hook never connects ⇒ `parts: []` and
 // `status: 'idle'`), which would render as an empty queued card —
-// the regression dongdong called out (msg=97336fb9).
+// the regression dongdong (msg=97336fb9) and Weston (msg=f8d3f102)
+// called out on PR #1703 first-cut.
 //
 // Fix: when the hook is dormant for a terminal turn, synthesize a
 // minimal `AgentMessagePart[]` from the snapshot's legacy artifacts
 // (answer text + reference bundle items) so the renderer shows the
 // completed answer + references instead of an empty idle state.
+// `error_summary` artifacts are pulled into the renderer's
+// `errorText` channel (since the wire/at-rest contract treats
+// errors as status + errorText, not as a persisted part).
+//
 // The synthesis is read-only and never feeds back into the live
-// reducer; once the BE snapshot endpoint returns UIMessages, this
-// file is a one-line delete.
+// reducer; once #90 lands, this file is a wholesale delete and
+// `chat-messages.tsx` switches to consuming the BE-returned parts
+// directly.
 
 import type { AgentMessagePart, AgentStreamStatus } from './types';
 import type { AgentArtifactEnvelope, AgentTurnSnapshotEnvelope } from './api';
@@ -34,6 +44,7 @@ type ReferenceBundleItem = {
 
 const ANSWER_ARTIFACT_TYPE = 'answer';
 const REFERENCE_BUNDLE_ARTIFACT_TYPE = 'reference_bundle';
+const ERROR_SUMMARY_ARTIFACT_TYPE = 'error_summary';
 
 function findArtifact(
   artifacts: AgentArtifactEnvelope[],
@@ -133,6 +144,36 @@ export function synthesizePartsFromSnapshot(
   }
 
   return parts;
+}
+
+/**
+ * Extract a renderer-friendly `errorText` from a snapshot's
+ * `error_summary` artifact, if any. Falls back to `null` so the
+ * caller can chain to `turn.error_message`.
+ *
+ * Per architect msg=711f8c2f: error_summary maps to the renderer's
+ * status/errorText channel rather than to a part — `error` in the
+ * wire/at-rest contract is a lifecycle marker (it sets
+ * `status='failed'` in the reducer), not a persisted message part.
+ */
+export function extractErrorTextFromSnapshot(
+  snapshot: AgentTurnSnapshotEnvelope,
+): string | null {
+  const artifact = findArtifact(snapshot.artifacts, ERROR_SUMMARY_ARTIFACT_TYPE);
+  if (!artifact) return null;
+  const payload = artifact.payload || {};
+  const candidate =
+    typeof payload.message === 'string'
+      ? payload.message
+      : typeof payload.text === 'string'
+        ? payload.text
+        : typeof payload.summary === 'string'
+          ? payload.summary
+          : artifact.summary || null;
+  if (typeof candidate === 'string' && candidate.trim().length > 0) {
+    return candidate;
+  }
+  return null;
 }
 
 const TERMINAL_BACKEND_STATUSES = new Set([
