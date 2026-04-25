@@ -326,6 +326,7 @@ async def test_tool_part_type_uses_safe_tool_name_form():
     assert tool["type"] == "tool-aperag_knowledge_base_search_collection"
     assert "tool_name" not in tool, "tool_name must not be a top-level field; SafeToolName is encoded in 'type'"
     assert tool["state"] == "output-available"
+    assert tool["toolCallId"] == "tc-1"
     assert tool["metadata"] == {
         "mcpServer": "aperag",
         "mcpToolName": "knowledge-base.search_collection",
@@ -355,13 +356,54 @@ async def test_data_parts_use_wrapped_data_shape():
         assert isinstance(part["data"], dict) and part["data"], f"{wrapped_type}.data must be a non-empty object"
 
     citation = persisted["data-citation"]["data"]
-    assert "cited_text" in citation and "location" in citation
+    assert "cited_text" in citation and "location" in citation  # Anthropic-shape stays snake_case per D8 §2
 
     consent = persisted["data-tool-consent"]["data"]
-    assert {"tool_call_id", "tool_name", "args_preview", "args_hash", "risk", "state"} <= consent.keys()
+    assert {"toolCallId", "toolName", "argsPreview", "argsHash", "requestedAt", "risk", "state"} <= consent.keys()
 
     elicitation = persisted["data-elicitation"]["data"]
-    assert {"elicitation_id", "prompt", "schema", "state"} <= elicitation.keys()
+    assert {"elicitationId", "prompt", "schema", "state"} <= elicitation.keys()
+
+
+@pytest.mark.asyncio
+async def test_persisted_keys_use_canonical_camelcase():
+    """AI SDK v5 standard parts + custom data payloads must serialize with
+    canonical camelCase keys per D8 §2, matching the wire produced by #73.
+
+    Architect lock 2026-04-25 (msg=935bdb9d follow-up / Weston msg=59a459c6):
+    same-schema invariant covers key casing, not just nested structure.
+    Failing this regression would force #76/#77 FE renderer to handle
+    snake_case-from-storage and camelCase-from-stream as two distinct
+    shapes.
+    """
+
+    db = _FakeDbOps()
+    redis = _FakeRedisStore()
+    store = UIMessageStore(db_ops=db, redis_store=redis)
+
+    await store.write(turn_id="turn-casing", chat_id="chat-casing", message=_every_part_message())
+
+    by_type = {part["type"]: part for part in db.rows["turn-casing"]["parts"]}
+
+    tool = by_type["tool-aperag_knowledge_base_search_collection"]
+    assert "toolCallId" in tool and "tool_call_id" not in tool
+    assert "error_text" not in tool  # snake_case form must never appear (errorText is the canonical alias)
+
+    source_url = by_type["source-url"]
+    assert "sourceId" in source_url and "source_id" not in source_url
+
+    source_doc = by_type["source-document"]
+    assert "sourceId" in source_doc and "source_id" not in source_doc
+    assert "mediaType" in source_doc and "media_type" not in source_doc
+
+    consent = by_type["data-tool-consent"]["data"]
+    snake_forbidden = {"tool_call_id", "tool_name", "args_preview", "args_hash", "requested_at"}
+    assert snake_forbidden.isdisjoint(consent.keys()), (
+        f"snake_case keys leaked into data-tool-consent.data: {snake_forbidden & consent.keys()}"
+    )
+
+    elicitation = by_type["data-elicitation"]["data"]
+    assert "elicitationId" in elicitation and "elicitation_id" not in elicitation
 
 
 def test_persistable_parts_helper_strips_only_transient():
