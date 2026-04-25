@@ -286,35 +286,57 @@ class DataActivityPart(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Placeholder parts owned by D9 / #75 chenyexuan
+# Consent + elicitation parts (D9 §3 + §5; populated by D8.3 / #75)
 # ---------------------------------------------------------------------------
 #
-# The literals + minimal shapes below exist so the discriminated
-# union accepts D9 frames the moment #75 starts emitting them. The
-# emission flow itself (consent gating, elicitation schema validation,
-# argsPreview / argsHash redaction per D9 §A7) is OUT OF SCOPE for
-# #73 — see ``agent-runtime-mcp-design.md`` §3 + §5.
+# These were placeholders during #73 (cuiwenbo). #75 (chenyexuan)
+# refines them to the canonical wrapped shape and drops the transient
+# flag — D9 §3.1 / §5.1 explicitly classify both as persisted parts
+# (consent decisions are audit-trail relevant; elicitation responses
+# are part of message history). The wire shape is byte-for-byte
+# equivalent to the at-rest UIMessage classes in
+# ``aperag/domains/agent_runtime/uimessage.py`` so the FE can
+# round-trip wire frames into stored UIMessage parts without a
+# converter.
+#
+# We re-import ``ToolConsentData`` / ``ElicitationData`` from the
+# at-rest module to enforce single-source-of-truth on the payload
+# shape — any field-level evolution lands once and both layers see
+# it.
+
+
+from aperag.domains.agent_runtime.uimessage import (  # noqa: E402  (import at end so wire layer's own classes take precedence in module symbol order)
+    ElicitationData,
+    ToolConsentData,
+)
 
 
 class DataToolConsentPart(BaseModel):
     """Tool-call consent prompt (D9 §3 + §A7).
 
-    Per A7: ``argsPreview`` is a redacted preview safe to surface in
-    UI; ``argsHash`` is a stable hash of the full args; the raw args
-    stay backend-private. #75 owns populating these correctly.
+    Per D9 §A7: ``argsPreview`` is a redacted preview safe to surface
+    in UI; ``argsHash`` is a stable hash of the full args; the raw
+    args stay backend-private. #75 populates the inner
+    :class:`ToolConsentData` payload.
+
+    Persisted (NOT transient) per D9 §3.1 -- consent decisions are
+    part of the audit trail and must round-trip into the at-rest
+    UIMessage history.
     """
 
     type: Literal["data-tool-consent"] = "data-tool-consent"
-    data: dict[str, Any] = Field(default_factory=dict)
-    transient: Literal[True] = True
+    data: ToolConsentData
 
 
 class DataElicitationPart(BaseModel):
-    """Schema-validated user-input elicitation (D9 §5)."""
+    """Schema-validated user-input elicitation (D9 §5).
+
+    Persisted (NOT transient) per D9 §5.1 -- the user's answer is
+    part of message history.
+    """
 
     type: Literal["data-elicitation"] = "data-elicitation"
-    data: dict[str, Any] = Field(default_factory=dict)
-    transient: Literal[True] = True
+    data: ElicitationData
 
 
 # ---------------------------------------------------------------------------

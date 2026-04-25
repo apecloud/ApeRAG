@@ -33,12 +33,13 @@ routes, which is G1-legal cross-domain.
 import asyncio
 import json
 import logging
-from typing import AsyncIterator, Protocol
+from typing import Any, AsyncIterator, Protocol
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 
-from aperag.domains.agent_runtime.db.models import AgentTurnStatus
+from aperag.domains.agent_runtime.db.models import AgentEventActor, AgentTurnStatus
 from aperag.domains.agent_runtime.runtime import agent_runtime_manager as runtime_manager
 from aperag.domains.agent_runtime.schemas import (
     AgentArtifactEnvelope,
@@ -47,6 +48,9 @@ from aperag.domains.agent_runtime.schemas import (
     CreateTurnRequest,
     CreateTurnResponse,
 )
+from aperag.domains.agent_runtime.tools.consent import ConsentService
+from aperag.domains.agent_runtime.tools.elicitation import ElicitationService
+from aperag.domains.agent_runtime.tools.lifecycle import translate_lifecycle_envelope
 from aperag.domains.agent_runtime.wire import (
     StreamPart,
     TranslatorState,
@@ -54,6 +58,15 @@ from aperag.domains.agent_runtime.wire import (
     translate_envelope,
 )
 from aperag.domains.identity.service.auth_dependencies import required_user
+
+# D8.3 lane (#75) -- consent / elicitation services live as
+# process-singletons here so the SSE route, the runtime worker, and
+# the POST handlers all share one in-memory state. Production wires
+# the audit logger via app startup; defaults are no-op for tests +
+# local dev. The runtime task manager imports these via this module
+# (cf. ``runtime.AgentRuntimeTaskManager``).
+consent_service = ConsentService()
+elicitation_service = ElicitationService()
 
 logger = logging.getLogger(__name__)
 
@@ -148,6 +161,162 @@ async def get_artifact_view(
     return await runtime_manager.artifact_service.get_artifact_for_user(str(user.id), artifact_id)
 
 
+# -- D8.3 (#75) consent + elicitation HTTP surfaces ---------------
+
+
+class ConsentDecisionBody(BaseModel):
+    """Body for ``POST /agent/turns/{turn_id}/consent/{tool_call_id}``.
+
+    ``decision`` is one of ``approved`` / ``denied``. The runtime
+    transitions ``state="expired"`` independently when the consent
+    times out -- not allowed as an inbound decision.
+    """
+
+    decision: str = Field(pattern="^(approved|denied)$")
+
+
+class ConsentDecisionResponse(BaseModel):
+    """Response for the consent POST -- echoes the resolved part."""
+
+    consent_id: str
+    decision: str
+    state: str
+
+
+class ElicitationSubmitBody(BaseModel):
+    """Body for ``POST /agent/turns/{turn_id}/elicit/{elicitation_id}``."""
+
+    response: dict[str, Any]
+
+
+class ElicitationSubmitResponse(BaseModel):
+    elicitation_id: str
+    state: str
+
+
+@router.post("/agent/turns/{turn_id}/consent/{tool_call_id}")
+async def post_consent_decision_view(
+    turn_id: str,
+    tool_call_id: str,
+    body: ConsentDecisionBody,
+    user: AuthenticatedUser = Depends(required_user),
+) -> ConsentDecisionResponse:
+    """Record the user's consent decision (D9 §3.2 step 4).
+
+    Authorisation is delegated to ``required_user`` -- the user must
+    be authenticated. Per-turn ownership check is intentionally
+    skipped here because the consent flow is keyed on
+    ``tool_call_id`` (globally unique); a malicious client cannot
+    decide a consent it did not see emitted.
+
+    Returns ``404`` when no consent is pending for ``tool_call_id``,
+    ``409`` when a decision was already recorded for it.
+    """
+
+    try:
+        result = await consent_service.decide(
+            tool_call_id,
+            body.decision,
+            actor_user_id=str(user.id),  # type: ignore[arg-type]
+        )
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"no pending consent for {tool_call_id!r}")
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+
+    # The runtime worker that owns the turn is awaiting
+    # ``ConsentService.wait_for_decision``; recording the decision
+    # above wakes that waiter. We additionally append a
+    # ``tool.consent.decided`` envelope to the timeline so the SSE
+    # stream replays it on reconnect.
+    sequence = await _next_sequence(turn_id)
+    await runtime_manager.event_service.append_event(
+        turn_id=turn_id,
+        sequence=sequence,
+        event_type="tool.consent.decided",
+        actor=AgentEventActor.SYSTEM,
+        label=tool_call_id,
+        status=body.decision,
+        data={"data": result.payload.model_dump(mode="json", by_alias=True)},
+    )
+    return ConsentDecisionResponse(
+        consent_id=tool_call_id,
+        decision=body.decision,
+        state=result.payload.state,
+    )
+
+
+@router.post("/agent/turns/{turn_id}/elicit/{elicitation_id}")
+async def post_elicitation_response_view(
+    turn_id: str,
+    elicitation_id: str,
+    body: ElicitationSubmitBody,
+    user: AuthenticatedUser = Depends(required_user),
+) -> ElicitationSubmitResponse:
+    """Submit an elicitation response (D9 §5.2 step 4).
+
+    Schema validation is handled inside
+    :meth:`ElicitationService.submit`; a validation failure surfaces
+    as ``422`` and the elicitation stays pending so the FE can
+    re-prompt with the corrected value.
+    """
+
+    try:
+        result = await elicitation_service.submit(
+            elicitation_id,
+            body.response,
+            actor_user_id=str(user.id),  # type: ignore[arg-type]
+        )
+    except KeyError:
+        raise HTTPException(
+            status_code=404,
+            detail=f"no pending elicitation for {elicitation_id!r}",
+        )
+    except ValueError as exc:
+        # Validation error vs already-resolved error are both 4xx but
+        # carry different semantics; the message body distinguishes
+        # them.
+        if "already resolved" in str(exc):
+            raise HTTPException(status_code=409, detail=str(exc))
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    sequence = await _next_sequence(turn_id)
+    await runtime_manager.event_service.append_event(
+        turn_id=turn_id,
+        sequence=sequence,
+        event_type="tool.elicitation.resolved",
+        actor=AgentEventActor.SYSTEM,
+        label=elicitation_id,
+        status=result.outcome,
+        data={"data": result.payload.model_dump(mode="json", by_alias=True)},
+    )
+    return ElicitationSubmitResponse(elicitation_id=elicitation_id, state=result.payload.state)
+
+
+async def _next_sequence(turn_id: str) -> int:
+    """Allocate the next envelope sequence for ``turn_id``.
+
+    The runtime worker normally owns sequence allocation, but the
+    consent / elicitation HTTP handlers run outside that loop, so
+    they read the current ``timeline_cursor`` from the turn row and
+    bump it. Race risk is bounded -- envelope-atomic replay (#73
+    Option 2) tolerates the cursor advancing in either path because
+    each envelope carries a stable id (here: ``tool_call_id`` /
+    ``elicitation_id``) the FE consumer can dedup on.
+    """
+
+    # Lazy import keeps this module import-cycle-safe (the runtime
+    # imports routes.py via app.py at startup; routes.py importing
+    # the runtime module top-level would close the loop).
+    from aperag.domains.agent_runtime.runtime import agent_runtime_manager
+
+    snapshot = await agent_runtime_manager.turn_service.db_ops.query_agent_turn_by_id(turn_id)
+    if snapshot is None:
+        raise HTTPException(status_code=404, detail=f"unknown turn {turn_id!r}")
+    cursor = snapshot.timeline_cursor or 0
+    return cursor + 1
+
+
 @router.get(
     "/agent/chats/{chat_id}/turns/{turn_id}/events",
     response_class=StreamingResponse,
@@ -203,7 +372,15 @@ async def stream_turn_events_view(
                 if events:
                     for event in events:
                         current_after_sequence = event.sequence
-                        parts = translate_envelope(event, translator_state)
+                        # D8.1 wire translator handles canonical
+                        # tool/text/source/finish parts; D8.3 (#75)
+                        # adds consent + elicitation parts via the
+                        # lifecycle translator extension. The two
+                        # are concatenated so a single envelope can
+                        # produce both kinds of parts in one
+                        # fan-out group (uncommon today but the
+                        # translator extension is purely additive).
+                        parts = translate_envelope(event, translator_state) + translate_lifecycle_envelope(event)
                         if not parts:
                             # No FE-visible parts for this envelope.
                             # Cursor still advanced so resume keeps
