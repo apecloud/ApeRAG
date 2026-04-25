@@ -26,10 +26,8 @@ bottom of this module.
 "ro"]`` so consumers outside identity never need the identity ``Role``
 enum (G15 canonical — ``user.role == "admin"`` by literal).
 
-``QuotaInfo`` / ``UserQuotaInfo`` / ``UserQuotaList`` /
-``QuotaUpdateRequest`` stay in ``aperag.schema.view_models`` — quota's
-permanent domain home is deferred to Phase 5 / Phase 6 (msg=896584ee
-Section 2 patch). Phase 4 only carves the identity-shape contract.
+Quota schemas are owned by ``aperag.domains.governance.schemas``; the
+identity domain only owns identity-shaped contracts.
 """
 
 from __future__ import annotations

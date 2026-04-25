@@ -82,17 +82,14 @@ def test_quota_feature_uses_v2_typed_api_boundary():
     """#4 Phase 1b batch 2 — quota domain (workspace scope only).
 
     The workspace Quotas page and its server caller must reach the typed
-    `/api/v1/quotas` endpoint through `features/quota/server-api`, not via
+    `/api/v2/quotas` endpoint through `features/quota/server-api`, not via
     the legacy `@/api` generated SDK or its indirect `getServerApi` path.
-    The `GET /api/v1/quotas` typed response is a union
+    The `GET /api/v2/quotas` typed response is a union
     `UserQuotaInfo | UserQuotaList` because the endpoint is shared with
     admin list views; the adapter narrows at its boundary so the page
     never has to `as UserQuotaInfo`.
 
-    Scope: `app/workspace/quotas/**` + `features/quota/**`. Admin-side
-    quota callers (`admin/configuration/quota-settings.tsx`,
-    `admin/users/user-quota-action.tsx`) stay on the legacy SDK until the
-    later `governance` batch — they are out of this PR's scope.
+    Scope: `app/workspace/quotas/**` + `features/quota/**`.
     """
     checked_paths = [
         REPO_ROOT / "web/src/app/workspace/quotas",
@@ -116,11 +113,11 @@ def test_quota_feature_uses_v2_typed_api_boundary():
     assert "apiClient.quotasApi" not in joined
     assert "getServerApi" not in joined
 
-    # Positive: the adapter must only reach the typed v1 quotas path
+    # Positive: the adapter must only reach the typed v2 quotas path
     # through the typed openapi client.
     assert "from '@/api'" not in feature_sources
     assert "fetch(" not in feature_sources
-    assert "'/api/v1/quotas'" in feature_sources
+    assert "'/api/v2/quotas'" in feature_sources
 
     # Positive: the adapter narrows the union (UserQuotaInfo | UserQuotaList)
     # at the boundary so workspace callers never see an admin list.
@@ -1141,6 +1138,14 @@ def test_phase1_fe_complete_identity_auth_admin_audit_adapter_boundary():
         assert method in admin_client_api, f"features/admin/client-api.ts missing `{method}`"
     for method in ("getSettings", "getSystemDefaultQuotas", "listUsers"):
         assert method in admin_server_api, f"features/admin/server-api.ts missing `{method}`"
+    assert "/api/v2/system/default-quotas" in admin_client_api
+    assert "/api/v2/system/default-quotas" in admin_server_api
+    assert "/api/v2/quotas" in admin_client_api
+    assert "/api/v2/quotas/{user_id}" in admin_client_api
+    assert "/api/v2/quotas/{user_id}/recalculate" in admin_client_api
+    assert "/api/v1/system/default-quotas" not in admin_client_api
+    assert "/api/v1/system/default-quotas" not in admin_server_api
+    assert "/api/v1/quotas" not in admin_client_api
 
     # audit — hand-written mirror + raw fetch (hidden path
     # `/api/v2/audit-logs`). `features/audit/types.ts` must NOT import

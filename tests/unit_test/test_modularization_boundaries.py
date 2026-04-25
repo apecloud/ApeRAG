@@ -442,6 +442,28 @@ def test_no_module_imports_legacy_governance_routes():
     )
 
 
+def test_no_module_imports_legacy_views_quota():
+    """Phase 8 #66 (G5b): ``aperag/views/quota.py`` was carved into
+    ``aperag.domains.governance.api.quota_routes`` and hard-cut to
+    ``/api/v2``. No code under ``aperag/`` may import the deleted legacy
+    view module.
+    """
+    offenders: list[str] = []
+    aperag_root = REPO_ROOT / "aperag"
+    for path in aperag_root.rglob("*.py"):
+        if not path.is_file():
+            continue
+        modules = _imported_modules(path.read_text())
+        if "aperag.views.quota" in modules:
+            offenders.append(f"{path.relative_to(REPO_ROOT).as_posix()} imports aperag.views.quota")
+
+    assert not offenders, (
+        "`aperag.views.quota` was deleted in Phase 8 task #66 (G5b). "
+        "Import quota routes from `aperag.domains.governance.api.quota_routes` "
+        "instead. Offenders:\n  " + "\n  ".join(sorted(offenders))
+    )
+
+
 # ---------- Retrieval <-> knowledge_graph one-way bridge ----------
 
 

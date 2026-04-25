@@ -12,15 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Quota and system-default quota API routes for the governance domain.
+
+Phase 8 task #66 restores the previously unmounted quota contract as a
+same-shape ``/api/v2`` hard-cut and makes this domain module the canonical
+router home.
+"""
+
 import logging
 from typing import List, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.security import HTTPBearer
 
-from aperag.domains.identity.db.models import Role, User
-from aperag.domains.identity.service.auth_dependencies import required_user
-from aperag.schema.view_models import (
+from aperag.domains.governance.ports import AuthenticatedUser
+from aperag.domains.governance.schemas import (
     QuotaInfo,
     QuotaUpdateRequest,
     QuotaUpdateResponse,
@@ -31,12 +36,12 @@ from aperag.schema.view_models import (
     UserQuotaInfo,
     UserQuotaList,
 )
-from aperag.service.quota_service import quota_service
+from aperag.domains.governance.service.quota_service import quota_service
+from aperag.domains.identity.service.auth_dependencies import required_user
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
-security = HTTPBearer()
+router = APIRouter(tags=["quotas"])
 
 
 def _convert_quota_dict_to_list(quota_dict: dict) -> List[QuotaInfo]:
@@ -56,13 +61,13 @@ def _convert_quota_dict_to_list(quota_dict: dict) -> List[QuotaInfo]:
 async def get_quotas(
     user_id: str = Query(None, description="User ID to get quotas for (admin only, defaults to current user)"),
     search: str = Query(None, description="Search term for username, email, or user ID (admin only)"),
-    current_user: User = Depends(required_user),
+    current_user: AuthenticatedUser = Depends(required_user),
 ):
     """Get quota information for the current user or specific user (admin only)"""
     try:
         if search:
             # Admin only - search for users
-            if current_user.role != Role.ADMIN:
+            if current_user.role != "admin":
                 raise HTTPException(status_code=403, detail="Admin access required")
 
             # Use the search functionality to find users
@@ -87,7 +92,7 @@ async def get_quotas(
             return UserQuotaList(items=items)
         elif user_id:
             # Admin only - get specific user's quotas
-            if current_user.role != Role.ADMIN:
+            if current_user.role != "admin":
                 raise HTTPException(status_code=403, detail="Admin access required")
 
             target_user_id = user_id
@@ -101,8 +106,8 @@ async def get_quotas(
 
         # For single user response, we need to get user info
         if target_user_id == current_user.id:
-            username = current_user.username
-            email = current_user.email
+            username = getattr(current_user, "username", None)
+            email = getattr(current_user, "email", None)
             role = current_user.role
         else:
             # For admin getting other user's quota, we need to fetch user info
@@ -138,11 +143,13 @@ async def get_quotas(
 
 
 @router.put("/quotas/{user_id}", response_model=QuotaUpdateResponse)
-async def update_quota(user_id: str, request: QuotaUpdateRequest, current_user: User = Depends(required_user)):
+async def update_quota(
+    user_id: str, request: QuotaUpdateRequest, current_user: AuthenticatedUser = Depends(required_user)
+):
     """Update quota limits for a specific user (admin only) - supports both single and batch updates"""
     try:
         # Only admin users can update quotas
-        if current_user.role != Role.ADMIN:
+        if current_user.role != "admin":
             raise HTTPException(status_code=403, detail="Admin access required")
 
         # Convert request to dict format for the service
@@ -167,11 +174,11 @@ async def update_quota(user_id: str, request: QuotaUpdateRequest, current_user: 
 
 
 @router.post("/quotas/{user_id}/recalculate")
-async def recalculate_quota_usage(user_id: str, current_user: User = Depends(required_user)):
+async def recalculate_quota_usage(user_id: str, current_user: AuthenticatedUser = Depends(required_user)):
     """Recalculate and update current usage for all quota types for a user (admin only)"""
     try:
         # Only admin users can recalculate quotas
-        if current_user.role != Role.ADMIN:
+        if current_user.role != "admin":
             raise HTTPException(status_code=403, detail="Admin access required")
 
         # Recalculate usage
@@ -185,11 +192,11 @@ async def recalculate_quota_usage(user_id: str, current_user: User = Depends(req
 
 
 @router.get("/system/default-quotas", response_model=SystemDefaultQuotasResponse)
-async def get_system_default_quotas(current_user: User = Depends(required_user)):
+async def get_system_default_quotas(current_user: AuthenticatedUser = Depends(required_user)):
     """Get system default quota configuration (admin only)"""
     try:
         # Only admin users can view system default quotas
-        if current_user.role != Role.ADMIN:
+        if current_user.role != "admin":
             raise HTTPException(status_code=403, detail="Admin access required")
 
         # Get system default quotas
@@ -206,12 +213,12 @@ async def get_system_default_quotas(current_user: User = Depends(required_user))
 
 @router.put("/system/default-quotas", response_model=SystemDefaultQuotasUpdateResponse)
 async def update_system_default_quotas(
-    request: SystemDefaultQuotasUpdateRequest, current_user: User = Depends(required_user)
+    request: SystemDefaultQuotasUpdateRequest, current_user: AuthenticatedUser = Depends(required_user)
 ):
     """Update system default quota configuration (admin only)"""
     try:
         # Only admin users can update system default quotas
-        if current_user.role != Role.ADMIN:
+        if current_user.role != "admin":
             raise HTTPException(status_code=403, detail="Admin access required")
 
         # Convert Pydantic model to dict
