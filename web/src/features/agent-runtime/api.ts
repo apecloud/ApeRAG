@@ -58,15 +58,30 @@ export type AgentArtifactEnvelope = {
   updated_at?: string | null;
 };
 
-// Phase 8 D8.4d (#90): the snapshot endpoint now returns the canonical
-// UIMessage at-rest envelope (matches `aperag.domains.agent_runtime.uimessage.AgentTurnSnapshot`).
+// Phase 8 D8.4d (#90) + D8.5-BE (#92): the snapshot endpoint and
+// `getBotChat()` history payload both return the canonical UIMessage
+// at-rest envelope (matches
+// `aperag.domains.agent_runtime.uimessage.AgentTurnSnapshot`).
 // Per D8 §2 wire / at-rest are byte-equal, so the FE consumes the same
 // `AgentMessagePart` discriminated union from both the live SSE stream
 // and this reload payload — no client-side converter is required.
+//
+// `runtime_kind` (D8.5-BE) is a forward-compat discriminator for
+// future direct/RAG chat paths; today's production code only emits
+// `agent_runtime`. The FE does NOT branch on it (per PM lock
+// msg=38e116e5 — kept BE-internal).
+//
+// `input_text` is the user-side bubble content; the FE renders it as
+// the `MessagePartsUser` paired with the AI card so historical and
+// live turns share one render path.
+export type AgentRuntimeKind = 'agent_runtime' | 'direct_chat' | 'rag_chat';
+
 export type AgentTurnSnapshotEnvelope = {
   schema_version: string;
   turn_id: string;
   chat_id: string;
+  runtime_kind: AgentRuntimeKind;
+  input_text?: string | null;
   role: 'assistant';
   status: string;
   parts: AgentMessagePart[];

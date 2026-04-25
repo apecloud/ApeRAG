@@ -1178,6 +1178,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/agent/chats/{chat_id}/turns/{turn_id}/consent/{tool_call_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Consent Decision View
+         * @description Record the user's consent decision (D9 §3.2 step 4).
+         *
+         *     Tenant-bound per D9 §2 multi-tenant boundary (architect canonical
+         *     lock msg=19f2c9a9):
+         *
+         *     1. ``required_user`` enforces authentication.
+         *     2. ``turn_service.get_turn_snapshot`` enforces that the
+         *        authenticated user owns ``(chat_id, turn_id)``;
+         *        ``ResourceNotFoundException`` on miss surfaces as 404 via the
+         *        global exception handler.
+         *     3. ``ConsentService.decide(*, expected_turn_id=...)`` enforces
+         *        that the consent's stashed binding matches both
+         *        ``actor_user_id`` and ``turn_id``. Defense-in-depth so even a
+         *        misrouted request cannot resolve someone else's consent.
+         *
+         *     Returns ``404`` for unknown turn / unknown consent, ``403`` when
+         *     the consent is bound to a different user / turn, ``409`` when a
+         *     decision was already recorded.
+         */
+        post: operations["agent_runtime_post_consent_decision_view"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/agent/chats/{chat_id}/turns/{turn_id}/elicit/{elicitation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Elicitation Response View
+         * @description Submit an elicitation response (D9 §5.2 step 4).
+         *
+         *     Tenant-bound the same way as :func:`post_consent_decision_view`
+         *     (per D9 §2 multi-tenant boundary; architect canonical lock
+         *     msg=19f2c9a9): HTTP-layer ``turn_service.get_turn_snapshot``
+         *     ownership pre-check + service-layer
+         *     :class:`ElicitationOwnershipError` defense-in-depth.
+         *
+         *     Schema validation is handled inside
+         *     :meth:`ElicitationService.submit`; a validation failure surfaces
+         *     as ``422`` and the elicitation stays pending so the FE can
+         *     re-prompt with the corrected value.
+         */
+        post: operations["agent_runtime_post_elicitation_response_view"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/agent/chats/{chat_id}/turns/{turn_id}/events": {
         parameters: {
             query?: never;
@@ -1983,15 +2051,35 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * ActivityData
+         * @description Inner payload mirroring ``UserActivityEnvelope`` for wire/at-rest
+         *     same-schema parity. ``DataActivityPart`` is transient — never persisted —
+         *     but the wrapped shape is preserved so the live SSE stream stays
+         *     structurally identical to persisted variants.
+         */
+        ActivityData: {
+            activity: components["schemas"]["UserActivityEnvelope"];
+        };
         /** Agent */
-        Agent: {
-            completion?: components["schemas"]["ModelSpec"] | null;
+        "Agent-Input": {
+            completion?: components["schemas"]["ModelSpec-Input"] | null;
             /** System Prompt Template */
             system_prompt_template?: string | null;
             /** Query Prompt Template */
             query_prompt_template?: string | null;
             /** Collections */
-            collections?: components["schemas"]["Collection"][] | null;
+            collections?: components["schemas"]["Collection-Input"][] | null;
+        };
+        /** Agent */
+        "Agent-Output": {
+            completion?: components["schemas"]["ModelSpec-Output"] | null;
+            /** System Prompt Template */
+            system_prompt_template?: string | null;
+            /** Query Prompt Template */
+            query_prompt_template?: string | null;
+            /** Collections */
+            collections?: components["schemas"]["Collection-Output"][] | null;
         };
         /** AgentArtifactEnvelope */
         AgentArtifactEnvelope: {
@@ -2018,43 +2106,6 @@ export interface components {
             created_at?: string | null;
             /** Updated At */
             updated_at?: string | null;
-        };
-        /** AgentTimelineEventEnvelope */
-        AgentTimelineEventEnvelope: {
-            /**
-             * Schema Version
-             * @default agent-runtime-v3.1
-             */
-            schema_version: string;
-            /** Event Id */
-            event_id: string;
-            /** Turn Id */
-            turn_id: string;
-            /** Sequence */
-            sequence: number;
-            /**
-             * Timestamp
-             * Format: date-time
-             */
-            timestamp: string;
-            /** Type */
-            type: string;
-            /** Technical Type */
-            technical_type?: string | null;
-            /** Label */
-            label?: string | null;
-            /** Status */
-            status?: string | null;
-            /**
-             * Actor
-             * @enum {string}
-             */
-            actor: "agent" | "tool" | "system";
-            /** Data */
-            data?: {
-                [key: string]: unknown;
-            };
-            user_activity?: components["schemas"]["UserActivityEnvelope"] | null;
         };
         /** AgentTurnEnvelope */
         AgentTurnEnvelope: {
@@ -2105,13 +2156,79 @@ export interface components {
             /** Updated At */
             updated_at?: string | null;
         };
-        /** AgentTurnSnapshot */
+        /**
+         * AgentTurnSnapshot
+         * @description Canonical UIMessage at-rest snapshot for an agent turn (Phase 8 D8.4d / #90, D8.5-BE / #92).
+         *
+         *     Replaces the legacy ``{turn, timeline, artifacts}`` snapshot shape
+         *     with the ``UIMessage``-aligned canonical that the FE renderer
+         *     (#76 / #77 / #78) consumes from both the live SSE stream and the
+         *     at-rest reload path. Per D8 §2 wire / at-rest are byte-equal, so
+         *     no client-side converter is required: a snapshot reload
+         *     deserializes through the same ``UIMessagePart`` discriminated
+         *     union the wire emits.
+         *
+         *     ``runtime_kind`` (D8.5-BE) tags the runtime that produced the
+         *     turn — ``agent_runtime`` for the agent reasoning loop,
+         *     ``direct_chat`` / ``rag_chat`` reserved for future paths. ``role``
+         *     keeps speaker semantics independent of runtime kind.
+         *
+         *     ``parts`` is the persistable subset (transient ``data-activity``
+         *     is stripped before write per :func:`persistable_parts`);
+         *     ``status`` mirrors the runtime ``AgentTurnStatus`` enum value;
+         *     ``error_text`` surfaces an ``error_summary`` artifact's message
+         *     for failed turns. Turn-shape metadata (timestamps, ids, cursor)
+         *     is kept top-level so the FE can render without a separate
+         *     envelope round-trip.
+         *
+         *     Lives in this module rather than ``schemas`` to keep the
+         *     ``UIMessage`` family (parts + envelope) in a single source-of-truth
+         *     file; ``schemas`` re-exports the name for back-compat with
+         *     existing import sites.
+         */
         AgentTurnSnapshot: {
-            turn: components["schemas"]["AgentTurnEnvelope"];
-            /** Timeline */
-            timeline?: components["schemas"]["AgentTimelineEventEnvelope"][];
-            /** Artifacts */
-            artifacts?: components["schemas"]["AgentArtifactEnvelope"][];
+            /**
+             * Schema Version
+             * @default agent-runtime-v3.1
+             */
+            schema_version: string;
+            /** Turn Id */
+            turn_id: string;
+            /** Chat Id */
+            chat_id: string;
+            /**
+             * Runtime Kind
+             * @default agent_runtime
+             * @enum {string}
+             */
+            runtime_kind: "agent_runtime" | "direct_chat" | "rag_chat";
+            /** Input Text */
+            input_text?: string | null;
+            /**
+             * Role
+             * @default assistant
+             * @constant
+             */
+            role: "assistant";
+            /** Status */
+            status: string;
+            /** Parts */
+            parts?: (components["schemas"]["TextPart"] | components["schemas"]["ToolPart"] | components["schemas"]["SourceUrlPart"] | components["schemas"]["SourceDocumentPart"] | components["schemas"]["DataCitationPart"] | components["schemas"]["DataActivityPart"] | components["schemas"]["DataToolConsentPart"] | components["schemas"]["DataElicitationPart"])[];
+            /** Error Text */
+            error_text?: string | null;
+            /**
+             * Timeline Cursor
+             * @default 0
+             */
+            timeline_cursor: number;
+            /** Started At */
+            started_at?: string | null;
+            /** Finished At */
+            finished_at?: string | null;
+            /** Created At */
+            created_at?: string | null;
+            /** Updated At */
+            updated_at?: string | null;
         };
         /** ApiKey */
         ApiKey: {
@@ -2204,15 +2321,19 @@ export interface components {
              * @example agent
              */
             type?: ("knowledge" | "common" | "agent") | null;
-            config?: components["schemas"]["BotConfig"] | null;
+            config?: components["schemas"]["BotConfig-Output"] | null;
             /** Created */
             created?: string | null;
             /** Updated */
             updated?: string | null;
         };
         /** BotConfig */
-        BotConfig: {
-            agent?: components["schemas"]["Agent"] | null;
+        "BotConfig-Input": {
+            agent?: components["schemas"]["Agent-Input"] | null;
+        };
+        /** BotConfig */
+        "BotConfig-Output": {
+            agent?: components["schemas"]["Agent-Output"] | null;
         };
         /** BotCreate */
         BotCreate: {
@@ -2226,7 +2347,7 @@ export interface components {
              * @example agent
              */
             type?: "agent" | null;
-            config?: components["schemas"]["BotConfig"] | null;
+            config?: components["schemas"]["BotConfig-Input"] | null;
         };
         /**
          * BotList
@@ -2243,7 +2364,7 @@ export interface components {
             title?: string | null;
             /** Description */
             description?: string | null;
-            config?: components["schemas"]["BotConfig"] | null;
+            config?: components["schemas"]["BotConfig-Input"] | null;
         };
         /** CancelRunResponse */
         CancelRunResponse: {
@@ -2275,6 +2396,23 @@ export interface components {
              * @description The new password of the user
              */
             new_password?: string | null;
+        };
+        /** CharLocation */
+        CharLocation: {
+            /**
+             * Type
+             * @default char_location
+             * @constant
+             */
+            type: "char_location";
+            /** Doc Index */
+            doc_index: number;
+            /** Doc Title */
+            doc_title?: string | null;
+            /** Start Char */
+            start_char: number;
+            /** End Char */
+            end_char: number;
         };
         /** Chat */
         Chat: {
@@ -2309,9 +2447,9 @@ export interface components {
             peer_type?: ("system" | "feishu" | "weixin" | "weixin_official" | "web" | "dingtalk") | null;
             /**
              * History
-             * @description Array of conversation turns, where each turn is an array of message parts
+             * @description Phase 8 D8.5-BE (#92): historical conversation turns as canonical ``AgentTurnSnapshot`` envelopes — each turn carries the same ``UIMessagePart[]`` shape the FE consumes from the live SSE stream (D8 §2 wire/at-rest byte-equal). Replaces the legacy ``list[list[ChatMessage]]`` shape; FE renders historical turns with the same renderer used for live turns.
              */
-            history?: components["schemas"]["ChatMessage"][][] | null;
+            history?: components["schemas"]["AgentTurnSnapshot"][] | null;
             /** Status */
             status?: ("active" | "archived") | null;
             /** Created */
@@ -2363,27 +2501,6 @@ export interface components {
             /** Items */
             items?: components["schemas"]["Chat"][] | null;
         };
-        /** ChatMessage */
-        ChatMessage: {
-            /** Id */
-            id?: string | null;
-            /** Part Id */
-            part_id?: string | null;
-            /** Type */
-            type?: ("welcome" | "message" | "start" | "stop" | "error" | "tool_call_result" | "thinking" | "references") | null;
-            /** Timestamp */
-            timestamp?: number | null;
-            /** Role */
-            role?: ("human" | "ai") | null;
-            /** Data */
-            data?: string | null;
-            /** References */
-            references?: components["schemas"]["Reference"][] | null;
-            /** Urls */
-            urls?: string[] | null;
-            /** Files */
-            files?: components["schemas"]["File"][] | null;
-        };
         /** ChatUpdate */
         ChatUpdate: {
             /** Title */
@@ -2400,11 +2517,18 @@ export interface components {
                 [key: string]: unknown;
             } | null;
         };
+        /** CitationData */
+        CitationData: {
+            /** Cited Text */
+            cited_text: string;
+            /** Location */
+            location: components["schemas"]["CharLocation"] | components["schemas"]["PageLocation"] | components["schemas"]["ContentBlockLocation"] | components["schemas"]["UrlCitationLocation"];
+        };
         /**
          * Collection
          * @description Collection is a collection of documents
          */
-        Collection: {
+        "Collection-Input": {
             /** Id */
             id?: string | null;
             /** Title */
@@ -2413,7 +2537,39 @@ export interface components {
             type?: string | null;
             /** Description */
             description?: string | null;
-            config?: components["schemas"]["CollectionConfig"] | null;
+            config?: components["schemas"]["CollectionConfig-Input"] | null;
+            /** Status */
+            status?: ("ACTIVE" | "INACTIVE" | "DELETED") | null;
+            /** Created */
+            created?: string | null;
+            /** Updated */
+            updated?: string | null;
+            /**
+             * Is Published
+             * @description Whether the collection is published to marketplace
+             * @default false
+             */
+            is_published: boolean | null;
+            /**
+             * Published At
+             * @description Publication time, null when not published
+             */
+            published_at?: string | null;
+        };
+        /**
+         * Collection
+         * @description Collection is a collection of documents
+         */
+        "Collection-Output": {
+            /** Id */
+            id?: string | null;
+            /** Title */
+            title?: string | null;
+            /** Type */
+            type?: string | null;
+            /** Description */
+            description?: string | null;
+            config?: components["schemas"]["CollectionConfig-Output"] | null;
             /** Status */
             status?: ("ACTIVE" | "INACTIVE" | "DELETED") | null;
             /** Created */
@@ -2433,7 +2589,7 @@ export interface components {
             published_at?: string | null;
         };
         /** CollectionConfig */
-        CollectionConfig: {
+        "CollectionConfig-Input": {
             /**
              * Source
              * @description Source system identifier. Only `system` is supported.
@@ -2480,14 +2636,65 @@ export interface components {
              * @example zh-CN
              */
             language: ("zh-CN" | "en-US" | "ja-JP" | "ko-KR") | null;
-            embedding?: components["schemas"]["ModelSpec"] | null;
-            completion?: components["schemas"]["ModelSpec"] | null;
+            embedding?: components["schemas"]["ModelSpec-Input"] | null;
+            completion?: components["schemas"]["ModelSpec-Input"] | null;
+        };
+        /** CollectionConfig */
+        "CollectionConfig-Output": {
+            /**
+             * Source
+             * @description Source system identifier. Only `system` is supported.
+             * @default system
+             * @example system
+             */
+            source: string | null;
+            /**
+             * Enable Vector
+             * @description Whether to enable vector index
+             * @default true
+             */
+            enable_vector: boolean | null;
+            /**
+             * Enable Fulltext
+             * @description Whether to enable fulltext index
+             * @default true
+             */
+            enable_fulltext: boolean | null;
+            /**
+             * Enable Knowledge Graph
+             * @description Whether to enable knowledge graph index
+             * @default true
+             */
+            enable_knowledge_graph: boolean | null;
+            /**
+             * Enable Summary
+             * @description Whether to enable summary index
+             * @default false
+             */
+            enable_summary: boolean | null;
+            /**
+             * Enable Vision
+             * @description Whether to enable vision index
+             * @default false
+             */
+            enable_vision: boolean | null;
+            knowledge_graph_config?: components["schemas"]["KnowledgeGraphConfig"] | null;
+            index_prompts?: components["schemas"]["IndexPrompts"] | null;
+            /**
+             * Language
+             * @description Language for the collection content and processing
+             * @default zh-CN
+             * @example zh-CN
+             */
+            language: ("zh-CN" | "en-US" | "ja-JP" | "ko-KR") | null;
+            embedding?: components["schemas"]["ModelSpec-Output"] | null;
+            completion?: components["schemas"]["ModelSpec-Output"] | null;
         };
         /** CollectionCreate */
         CollectionCreate: {
             /** Title */
             title?: string | null;
-            config?: components["schemas"]["CollectionConfig"] | null;
+            config?: components["schemas"]["CollectionConfig-Input"] | null;
             /** Type */
             type?: string | null;
             /** Description */
@@ -2526,7 +2733,7 @@ export interface components {
             title?: string | null;
             /** Description */
             description?: string | null;
-            config?: components["schemas"]["CollectionConfig"] | null;
+            config?: components["schemas"]["CollectionConfig-Input"] | null;
         };
         /**
          * CollectionView
@@ -2632,13 +2839,52 @@ export interface components {
              */
             failed_documents?: components["schemas"]["FailedDocument"][] | null;
         };
+        /**
+         * ConsentDecisionBody
+         * @description Body for ``POST /agent/turns/{turn_id}/consent/{tool_call_id}``.
+         *
+         *     ``decision`` is one of ``approved`` / ``denied``. The runtime
+         *     transitions ``state="expired"`` independently when the consent
+         *     times out -- not allowed as an inbound decision.
+         */
+        ConsentDecisionBody: {
+            /** Decision */
+            decision: string;
+        };
+        /**
+         * ConsentDecisionResponse
+         * @description Response for the consent POST -- echoes the resolved part.
+         */
+        ConsentDecisionResponse: {
+            /** Consent Id */
+            consent_id: string;
+            /** Decision */
+            decision: string;
+            /** State */
+            state: string;
+        };
+        /** ContentBlockLocation */
+        ContentBlockLocation: {
+            /**
+             * Type
+             * @default content_block_location
+             * @constant
+             */
+            type: "content_block_location";
+            /** Doc Index */
+            doc_index: number;
+            /** Doc Title */
+            doc_title?: string | null;
+            /** Block Index */
+            block_index: number;
+        };
         /** CreateTurnRequest */
         CreateTurnRequest: {
             /** Query */
             query: string;
-            completion?: components["schemas"]["ModelSpec"] | null;
+            completion?: components["schemas"]["ModelSpec-Input"] | null;
             /** Collections */
-            collections?: components["schemas"]["Collection"][];
+            collections?: components["schemas"]["Collection-Input"][];
             /**
              * Web Search Enabled
              * @default false
@@ -2659,6 +2905,81 @@ export interface components {
             turn: components["schemas"]["AgentTurnEnvelope"];
             /** Stream Url */
             stream_url: string;
+        };
+        /**
+         * DataActivityPart
+         * @description Ephemeral UX activity (thinking / searching / etc.).
+         *
+         *     ``transient=True`` is hard-coded — these parts are only ever
+         *     present in the live SSE stream; ``persistable_parts`` strips them
+         *     before at-rest write.
+         */
+        DataActivityPart: {
+            /**
+             * Type
+             * @default data-activity
+             * @constant
+             */
+            type: "data-activity";
+            data: components["schemas"]["ActivityData"];
+            /**
+             * Transient
+             * @default true
+             * @constant
+             */
+            transient: true;
+        };
+        /**
+         * DataCitationPart
+         * @description Anthropic-shape typed citation (D8 §2 + §2.5).
+         *
+         *     Wrapped ``data: CitationData`` shape per D8 §2 same-schema canonical
+         *     (architect lock 2026-04-25, msg=...): wire and at-rest must round-trip
+         *     byte-for-byte with no wire/at-rest converter layer.
+         */
+        DataCitationPart: {
+            /**
+             * Type
+             * @default data-citation
+             * @constant
+             */
+            type: "data-citation";
+            data: components["schemas"]["CitationData"];
+        };
+        /**
+         * DataElicitationPart
+         * @description User input request (D9 §5).
+         *
+         *     Persisted — the user's response becomes part of message history.
+         *     ``schema`` is the JSON-Schema fragment the FE should render as a
+         *     form; ``response`` is the validated submission.
+         */
+        DataElicitationPart: {
+            /**
+             * Type
+             * @default data-elicitation
+             * @constant
+             */
+            type: "data-elicitation";
+            data: components["schemas"]["ElicitationData"];
+        };
+        /**
+         * DataToolConsentPart
+         * @description Tool consent request / decision (D9 §A7).
+         *
+         *     Persisted as part of the audit trail. Raw tool args are stored
+         *     out-of-band by the runtime; only ``args_preview`` (≤ 500 chars
+         *     redacted preview) and ``args_hash`` (sha256 over canonical JSON)
+         *     appear here.
+         */
+        DataToolConsentPart: {
+            /**
+             * Type
+             * @default data-tool-consent
+             * @constant
+             */
+            type: "data-tool-consent";
+            data: components["schemas"]["ToolConsentData"];
         };
         /** DeleteDocumentsRequest */
         DeleteDocumentsRequest: {
@@ -2826,6 +3147,45 @@ export interface components {
             /** Vision Chunks */
             vision_chunks?: components["schemas"]["VisionChunk"][] | null;
         };
+        /** ElicitationData */
+        ElicitationData: {
+            /** Elicitationid */
+            elicitationId: string;
+            /** Servername */
+            serverName: string;
+            /** Prompt */
+            prompt: string;
+            /** Schema */
+            schema?: {
+                [key: string]: unknown;
+            };
+            /** Response */
+            response?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "pending" | "answered" | "cancelled";
+        };
+        /**
+         * ElicitationSubmitBody
+         * @description Body for ``POST /agent/turns/{turn_id}/elicit/{elicitation_id}``.
+         */
+        ElicitationSubmitBody: {
+            /** Response */
+            response: {
+                [key: string]: unknown;
+            };
+        };
+        /** ElicitationSubmitResponse */
+        ElicitationSubmitResponse: {
+            /** Elicitation Id */
+            elicitation_id: string;
+            /** State */
+            state: string;
+        };
         /** EmbeddingData */
         EmbeddingData: {
             /**
@@ -2838,15 +3198,43 @@ export interface components {
             /** Index */
             index: number;
         };
-        /** EmbeddingRequest */
+        /**
+         * EmbeddingRequest
+         * @description OpenAI-compatible embedding request.
+         *
+         *     Accepts either the new ``{model_id}`` shape *or* the legacy
+         *     ``{model, model_service_provider, custom_llm_provider}`` triple
+         *     that pre-#1697 callers (provider hurl, external clients) still
+         *     send. ``/api/v1/embeddings`` is permanent OpenAI-compat allowlist
+         *     surface — see Weston msg=80e873c1 / PR #1697 Blocker A. The
+         *     triple is resolved to a ``model_id`` server-side via
+         *     ``resolve_legacy_model_id`` before the runtime lookup runs.
+         *     Routes that are post-#1697-only (``/api/v3/...``) require
+         *     ``model_id`` and never accept the triple.
+         */
         EmbeddingRequest: {
             /**
              * Model Id
              * @description ApeRAG model id
              */
-            model_id: string;
+            model_id?: string | null;
             /** Input */
             input: string | string[];
+            /**
+             * Model
+             * @description Legacy provider-model name (pre-#1697 compat). Resolved to ``model_id`` server-side.
+             */
+            model?: string | null;
+            /**
+             * Model Service Provider
+             * @description Legacy provider name (pre-#1697 compat). Resolved to ``model_id`` server-side.
+             */
+            model_service_provider?: string | null;
+            /**
+             * Custom Llm Provider
+             * @description Legacy provider dialect (pre-#1697 compat). Ignored once ``model_id`` is resolved.
+             */
+            custom_llm_provider?: string | null;
         };
         /** EmbeddingResponse */
         EmbeddingResponse: {
@@ -4045,8 +4433,92 @@ export interface components {
             items?: components["schemas"]["ModelProvider"][];
             pageResult?: components["schemas"]["PageResult"] | null;
         };
-        /** ModelSpec */
-        ModelSpec: {
+        /**
+         * ModelSpec
+         * @description Inline model spec embedded in collection / bot config blobs.
+         *
+         *     Post-#1697 the canonical shape is ``{model_id}``. Pre-#1697 callers
+         *     (collections / bots already in the DB, plus any external clients
+         *     that hand-build the JSON) wrote ``{model, model_service_provider,
+         *     custom_llm_provider}`` instead. Pydantic silently dropped those
+         *     extras after the schema cut, so existing rows would parse with
+         *     ``model_id=None`` and the runtime resolver would 404. Per Weston
+         *     msg=80e873c1 / Blocker C we keep parsing both shapes — when the
+         *     legacy triple is present, it is stashed on the private
+         *     ``__legacy_*__`` slots and a ``ModelPlatformService`` lookup at
+         *     runtime resolves it to a real ``model_id`` (see
+         *     :func:`aperag.schema.utils.resolve_model_spec_legacy`).
+         */
+        "ModelSpec-Input": {
+            /**
+             * Model Id
+             * @description ApeRAG model id to use
+             * @example mdl_default_chat
+             */
+            model_id?: string | null;
+            /**
+             * Temperature
+             * @description Controls randomness in the output. Values between 0 and 2. Lower values make output more focused and deterministic
+             * @default 0.1
+             * @example 0.1
+             */
+            temperature: number | null;
+            /**
+             * Max Tokens
+             * @description Maximum number of tokens to generate
+             * @example 4096
+             */
+            max_tokens?: number | null;
+            /**
+             * Max Completion Tokens
+             * @description Upper bound for generated completion tokens, including visible and reasoning tokens
+             * @example 4096
+             */
+            max_completion_tokens?: number | null;
+            /**
+             * Timeout
+             * @description Maximum execution time in seconds for the API request
+             */
+            timeout?: number | null;
+            /**
+             * Top N
+             * @description Number of top results to return when reranking documents
+             */
+            top_n?: number | null;
+            /**
+             * Tags
+             * @description Tags for model categorization
+             * @default []
+             * @example [
+             *       "free",
+             *       "recommend"
+             *     ]
+             */
+            tags: string[] | null;
+            /** Legacy Model */
+            legacy_model?: string | null;
+            /** Legacy Provider */
+            legacy_provider?: string | null;
+            /** Legacy Custom Llm Provider */
+            legacy_custom_llm_provider?: string | null;
+        };
+        /**
+         * ModelSpec
+         * @description Inline model spec embedded in collection / bot config blobs.
+         *
+         *     Post-#1697 the canonical shape is ``{model_id}``. Pre-#1697 callers
+         *     (collections / bots already in the DB, plus any external clients
+         *     that hand-build the JSON) wrote ``{model, model_service_provider,
+         *     custom_llm_provider}`` instead. Pydantic silently dropped those
+         *     extras after the schema cut, so existing rows would parse with
+         *     ``model_id=None`` and the runtime resolver would 404. Per Weston
+         *     msg=80e873c1 / Blocker C we keep parsing both shapes — when the
+         *     legacy triple is present, it is stashed on the private
+         *     ``__legacy_*__`` slots and a ``ModelPlatformService`` lookup at
+         *     runtime resolves it to a real ``model_id`` (see
+         *     :func:`aperag.schema.utils.resolve_model_spec_legacy`).
+         */
+        "ModelSpec-Output": {
             /**
              * Model Id
              * @description ApeRAG model id to use
@@ -4248,6 +4720,21 @@ export interface components {
         /** OpenAIErrorResponse */
         OpenAIErrorResponse: {
             error: components["schemas"]["OpenAIErrorDetail"];
+        };
+        /** PageLocation */
+        PageLocation: {
+            /**
+             * Type
+             * @default page_location
+             * @constant
+             */
+            type: "page_location";
+            /** Doc Index */
+            doc_index: number;
+            /** Doc Title */
+            doc_title?: string | null;
+            /** Page Index */
+            page_index: number;
         };
         /**
          * PageResult
@@ -4477,19 +4964,6 @@ export interface components {
              */
             affected_documents?: number | null;
         };
-        /** Reference */
-        Reference: {
-            /** Score */
-            score?: number | null;
-            /** Text */
-            text?: string | null;
-            /** Image Uri */
-            image_uri?: string | null;
-            /** Metadata */
-            metadata?: {
-                [key: string]: unknown;
-            } | null;
-        };
         /**
          * Register
          * @description The email of the user
@@ -4524,13 +4998,17 @@ export interface components {
             relevance_score: number;
             document?: components["schemas"]["Document2"] | null;
         };
-        /** RerankRequest */
+        /**
+         * RerankRequest
+         * @description OpenAI-compatible rerank request — same legacy/new shape duality
+         *     as :class:`EmbeddingRequest`. See its docstring for the rationale.
+         */
         RerankRequest: {
             /**
              * Model Id
              * @description ApeRAG rerank model id
              */
-            model_id: string;
+            model_id?: string | null;
             /** Query */
             query: string;
             /** Documents */
@@ -4545,6 +5023,21 @@ export interface components {
              * @default true
              */
             return_documents: boolean | null;
+            /**
+             * Model
+             * @description Legacy provider-model name (pre-#1697 compat). Resolved to ``model_id`` server-side.
+             */
+            model?: string | null;
+            /**
+             * Model Service Provider
+             * @description Legacy provider name (pre-#1697 compat). Resolved to ``model_id`` server-side.
+             */
+            model_service_provider?: string | null;
+            /**
+             * Custom Llm Provider
+             * @description Legacy provider dialect (pre-#1697 compat). Ignored once ``model_id`` is resolved.
+             */
+            custom_llm_provider?: string | null;
         };
         /** RerankResponse */
         RerankResponse: {
@@ -4861,6 +5354,36 @@ export interface components {
              */
             published_at?: string | null;
         };
+        /** SourceDocumentPart */
+        SourceDocumentPart: {
+            /**
+             * Type
+             * @default source-document
+             * @constant
+             */
+            type: "source-document";
+            /** Sourceid */
+            sourceId: string;
+            /** Mediatype */
+            mediaType: string;
+            /** Title */
+            title: string;
+        };
+        /** SourceUrlPart */
+        SourceUrlPart: {
+            /**
+             * Type
+             * @default source-url
+             * @constant
+             */
+            type: "source-url";
+            /** Sourceid */
+            sourceId: string;
+            /** Url */
+            url: string;
+            /** Title */
+            title?: string | null;
+        };
         /** StagedDocumentsResponse */
         StagedDocumentsResponse: {
             /**
@@ -4963,6 +5486,20 @@ export interface components {
             message: string;
             quotas: components["schemas"]["SystemDefaultQuotas"];
         };
+        /**
+         * TextPart
+         * @description Plain assistant / user text content.
+         */
+        TextPart: {
+            /**
+             * Type
+             * @default text
+             * @constant
+             */
+            type: "text";
+            /** Text */
+            text: string;
+        };
         /** TitleGenerateRequest */
         TitleGenerateRequest: {
             /**
@@ -4991,6 +5528,71 @@ export interface components {
              * @description Generated title string
              */
             title: string;
+        };
+        /** ToolConsentData */
+        ToolConsentData: {
+            /** Toolcallid */
+            toolCallId: string;
+            /** Toolname */
+            toolName: string;
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /** Argspreview */
+            argsPreview: string;
+            /** Argshash */
+            argsHash: string;
+            /**
+             * Risk
+             * @enum {string}
+             */
+            risk: "writes_user_data" | "calls_external_api" | "modifies_system" | "admin_only";
+            /** Requestedat */
+            requestedAt: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "pending" | "approved" | "denied" | "expired";
+        };
+        /**
+         * ToolPart
+         * @description AI SDK v5 consolidated tool-call part (D8 §2.4 / D9 §A1+§A6).
+         *
+         *     The ``type`` discriminator carries the ``SafeToolName`` directly
+         *     (e.g. ``tool-aperag_knowledge_base_search_collection``); MCP server /
+         *     tool identity lives in ``metadata``. This matches the AI SDK v5
+         *     *at-rest* shape (one consolidated tool part per call, lifecycle
+         *     captured in ``state``) — not the *wire* shape, which is a sequence
+         *     of ``tool-input-*`` / ``tool-output-*`` events emitted by #73 and
+         *     collapsed by the FE consumer into this consolidated form.
+         *
+         *     SafeToolName resolution (raw MCP name → ``tool-<safeName>``) is
+         *     #75's responsibility (``aperag.domains.agent_runtime.tools``);
+         *     storage only enforces that the caller has already produced a
+         *     canonical ``type`` string.
+         */
+        ToolPart: {
+            /** Type */
+            type: string;
+            /** Toolcallid */
+            toolCallId: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "input-streaming" | "input-available" | "output-available" | "output-error";
+            /** Input */
+            input?: unknown | null;
+            /** Output */
+            output?: unknown | null;
+            /** Errortext */
+            errorText?: string | null;
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
         };
         /** TurnFeedback */
         TurnFeedback: {
@@ -5064,6 +5666,19 @@ export interface components {
              * @enum {string}
              */
             status: "UPLOADED" | "PENDING" | "RUNNING" | "COMPLETE" | "FAILED" | "DELETED" | "EXPIRED";
+        };
+        /** UrlCitationLocation */
+        UrlCitationLocation: {
+            /**
+             * Type
+             * @default url_citation
+             * @constant
+             */
+            type: "url_citation";
+            /** Url */
+            url: string;
+            /** Title */
+            title?: string | null;
         };
         /** User */
         User: {
@@ -7812,6 +8427,84 @@ export interface operations {
             };
         };
     };
+    agent_runtime_post_consent_decision_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                chat_id: string;
+                turn_id: string;
+                tool_call_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConsentDecisionBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsentDecisionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_runtime_post_elicitation_response_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                chat_id: string;
+                turn_id: string;
+                elicitation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ElicitationSubmitBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ElicitationSubmitResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     agent_runtime_stream_turn_events_view: {
         parameters: {
             query?: {
@@ -9321,7 +10014,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Collection"];
+                    "application/json": components["schemas"]["Collection-Output"];
                 };
             };
             /** @description Validation Error */
@@ -9354,7 +10047,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Collection"];
+                    "application/json": components["schemas"]["Collection-Output"];
                 };
             };
             /** @description Validation Error */
@@ -9391,7 +10084,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Collection"];
+                    "application/json": components["schemas"]["Collection-Output"];
                 };
             };
             /** @description Validation Error */
