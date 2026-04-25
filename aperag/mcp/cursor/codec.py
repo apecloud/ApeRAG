@@ -40,11 +40,9 @@ from typing import Any
 from aperag.mcp.cursor.errors import CursorError
 
 # CURSOR_SCHEMA_VERSION bumps when the on-wire payload shape changes
-# in an incompatible way. Decoders treat any `schema_version` they
-# don't know about as `cursor_schema_unsupported` (§C.3) — pending
-# the spec amendment double-sign on the canonical error code names
-# per architect msg=669db73c, the literal raised here is owned by
-# ``aperag.mcp.cursor.errors`` once that module lands.
+# in an incompatible way. Decoders raise ``cursor_schema_unsupported``
+# (§C.3) for any value they don't recognise; the literal lives in
+# :mod:`aperag.mcp.cursor.errors`.
 CURSOR_SCHEMA_VERSION: int = 1
 
 DEFAULT_TTL_SECONDS: int = 3600  # §C.4 1h default; per-tool override

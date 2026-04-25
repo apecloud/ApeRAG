@@ -21,13 +21,15 @@ Strict call sequence:
 3. ``authorization_gate(user, "list_documents")`` — D9 §2
 4. fetch authoritative — un-cached.
 
-Cursor / total_count: opaque base64 ``{"offset": int}`` for the first
-cut; D10.e (#97 @Bryce) replaces the codec.
+Cursor / total_count: opaque base64 cursor produced by
+:mod:`aperag.service.pagination`, which wraps the canonical
+:mod:`aperag.mcp.cursor` codec around the offset bookkeeping below.
+Malformed / expired / scope-mismatched cursors surface as canonical
+``CursorError`` per §C.3.
 """
 
 from __future__ import annotations
 
-import base64
 import json
 import mimetypes
 from typing import Literal, Optional
@@ -49,40 +51,7 @@ from aperag.mcp.tools._d9_base import (
     tenancy_gate,
 )
 from aperag.mcp.tools.schemas import DocumentList, DocumentMetadata
-
-
-def _decode_cursor(cursor: Optional[str]) -> int:
-    """Decode the placeholder D10.c offset cursor.
-
-    Returns 0 only when ``cursor`` is ``None`` or empty; raises
-    ``ValueError`` on malformed cursor per §C explicit-not-silent. Bryce's
-    D10.e cursor codec replaces this placeholder.
-
-    # TODO(D10.e #97): replace with canonical CursorError after #97 integration
-    """
-
-    if cursor is None or cursor == "":
-        return 0
-    try:
-        decoded = base64.urlsafe_b64decode(cursor.encode("ascii")).decode("utf-8")
-        payload = json.loads(decoded)
-    except Exception as exc:
-        raise ValueError(f"cursor decode failed: {exc}") from exc
-    if not isinstance(payload, dict) or "offset" not in payload:
-        raise ValueError("cursor decode failed: missing 'offset' key")
-    raw_offset = payload["offset"]
-    if isinstance(raw_offset, bool) or not isinstance(raw_offset, int):
-        raise ValueError("cursor decode failed: 'offset' must be a non-negative int")
-    if raw_offset < 0:
-        raise ValueError("cursor decode failed: 'offset' must be non-negative")
-    return raw_offset
-
-
-def _encode_cursor(offset: int) -> str:
-    return base64.urlsafe_b64encode(json.dumps({"offset": offset}, separators=(",", ":")).encode("utf-8")).decode(
-        "ascii"
-    )
-
+from aperag.service.pagination import decode_offset_cursor, encode_offset_cursor
 
 _DOCUMENT_STATUS_TO_INDEXING = {
     DocumentStatus.PENDING: "pending",
@@ -136,7 +105,20 @@ async def list_documents(
 
     # 4. Fetch authoritative.
     limit = max(1, min(int(limit), 200))
-    offset = _decode_cursor(cursor)
+
+    cursor_filters = {
+        "title_filter": title_filter,
+        "type_filter": sorted(t.lower() for t in type_filter) if type_filter else None,
+        "indexed_only": bool(indexed_only),
+        "sort_order": sort_order,
+    }
+    cursor_kwargs = dict(
+        sort_key=sort_by,
+        filters=cursor_filters,
+        collection_id=collection_id,
+        tenant_id=str(user.id),
+    )
+    offset = decode_offset_cursor(cursor, **cursor_kwargs)
 
     sort_col = _SORT_COLS.get(sort_by, Document.gmt_created)
     sort_clause = sort_col.asc() if sort_order == "asc" else sort_col.desc()
@@ -207,7 +189,8 @@ async def list_documents(
         for d in documents
     ]
 
-    next_cursor = _encode_cursor(offset + len(items)) if (offset + len(items)) < total else None
+    next_offset = offset + len(items)
+    next_cursor = encode_offset_cursor(offset=next_offset, **cursor_kwargs) if next_offset < total else None
     return DocumentList(items=items, next_cursor=next_cursor, total_count=total)
 
 
