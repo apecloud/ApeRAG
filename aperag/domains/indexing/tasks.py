@@ -58,15 +58,19 @@ import json
 import logging
 from typing import Any, Callable, List
 
-from celery import Task, chain, chord, current_app, group
+from celery import Task, chain, current_app
 
 from aperag.docparser.base import ParserError
+from aperag.domains.indexing.orchestration import (
+    aggregate_workflow_results,
+    build_dispatched_workflow_result,
+    build_index_workflow_chord,
+    build_workflow_failure_result,
+    is_skipped_payload,
+)
 from aperag.tasks.document import document_index_task
 from aperag.tasks.models import (
-    IndexTaskResult,
     ParsedDocumentData,
-    TaskStatus,
-    WorkflowResult,
 )
 from aperag.tasks.processing_lease import (
     DEFAULT_PROCESSING_LEASE_RENEW_INTERVAL_SECONDS,
@@ -87,10 +91,6 @@ def _build_skipped_payload(reason: str, **payload) -> dict:
 
 def _build_skipped_task_result(document_id: str, index_type: str, reason: str) -> dict:
     return _build_skipped_payload(reason, document_id=document_id, index_type=index_type)
-
-
-def _is_skipped_payload(payload: Any) -> bool:
-    return isinstance(payload, dict) and payload.get("status") == "skipped"
 
 
 def _validate_task_relevance(
@@ -282,14 +282,6 @@ def _make_document_index_lease_renewer(targets: List[dict], description: str) ->
         interval_seconds=DEFAULT_PROCESSING_LEASE_RENEW_INTERVAL_SECONDS,
         description=description,
     )
-
-
-def _build_dispatched_workflow_result(async_result) -> dict:
-    """Return a small, JSON-serializable handoff payload for downstream workflow tracking."""
-    return {
-        "status": "dispatched",
-        "workflow_id": async_result.id,
-    }
 
 
 def _handle_ownership_lost(*, payload_factory: Callable[[], dict], log_message: str):
@@ -769,22 +761,15 @@ def update_index_task(self, document_id: str, index_type: str, parsed_data_dict:
 def trigger_create_indexes_workflow(
     self, parsed_data_dict: dict, document_id: str, index_types: List[str], context: dict = None
 ) -> Any:
-    """
-    Dynamic orchestration task for index creation workflow.
+    """Dynamic orchestration task for index creation workflow.
 
-    This task acts as a fan-out point, receiving parsed document data and dynamically
-    creating parallel index creation tasks based on the actual parsed content.
-
-    Args:
-        parsed_data_dict: Serialized ParsedDocumentData from parse_document_task
-        document_id: Document ID to process
-        index_types: List of index types to create
-
-    Returns:
-        Chord signature for parallel index creation + completion notification
+    Thin Celery wrapper. Pure orchestration logic lives in
+    ``aperag.domains.indexing.orchestration.build_index_workflow_chord``.
+    Per Phase 8 D4 (refined): chain/chord composition unchanged; this
+    wrapper exists because chain step targets must be Celery tasks.
     """
     try:
-        if _is_skipped_payload(parsed_data_dict):
+        if is_skipped_payload(parsed_data_dict):
             logger.warning(
                 "Skipping create-index workflow fan-out for document %s because parse stage returned %s",
                 document_id,
@@ -793,21 +778,18 @@ def trigger_create_indexes_workflow(
             return parsed_data_dict
 
         logger.info(f"Triggering parallel index creation for document {document_id} with types: {index_types}")
-
-        # Dynamically create parallel index creation tasks
-        parallel_index_tasks = group(
-            [create_index_task.s(document_id, index_type, parsed_data_dict, context) for index_type in index_types]
+        workflow_chord = build_index_workflow_chord(
+            document_id=document_id,
+            index_types=index_types,
+            per_index_signature_factory=lambda index_type: create_index_task.s(
+                document_id, index_type, parsed_data_dict, context
+            ),
+            completion_callback_signature=notify_workflow_complete.s(
+                document_id, IndexAction.CREATE, index_types
+            ),
         )
-
-        # Create a chord that executes the completion notification after all create tasks are done
-        workflow_chord = chord(
-            parallel_index_tasks, notify_workflow_complete.s(document_id, IndexAction.CREATE, index_types)
-        )
-
-        # Execute the chord
         chord_async_result = workflow_chord.apply_async()
-
-        return _build_dispatched_workflow_result(chord_async_result)
+        return build_dispatched_workflow_result(chord_async_result)
 
     except Exception as e:
         error_msg = f"Failed to trigger create indexes workflow: {str(e)}"
@@ -817,33 +799,25 @@ def trigger_create_indexes_workflow(
 
 @current_app.task(bind=True, name="config.celery_tasks.trigger_delete_indexes_workflow")
 def trigger_delete_indexes_workflow(self, document_id: str, index_types: List[str], context: dict = None) -> Any:
-    """
-    Dynamic orchestration task for index deletion workflow.
+    """Dynamic orchestration task for index deletion workflow.
 
-    Args:
-        document_id: Document ID to process
-        index_types: List of index types to delete
-
-    Returns:
-        Chord signature for parallel index deletion + completion notification
+    Thin Celery wrapper; orchestration logic in
+    ``aperag.domains.indexing.orchestration.build_index_workflow_chord``.
     """
     try:
         logger.info(f"Triggering parallel index deletion for document {document_id} with types: {index_types}")
-
-        # Create parallel index deletion tasks
-        parallel_delete_tasks = group(
-            [delete_index_task.s(document_id, index_type, context) for index_type in index_types]
+        workflow_chord = build_index_workflow_chord(
+            document_id=document_id,
+            index_types=index_types,
+            per_index_signature_factory=lambda index_type: delete_index_task.s(
+                document_id, index_type, context
+            ),
+            completion_callback_signature=notify_workflow_complete.s(
+                document_id, IndexAction.DELETE, index_types
+            ),
         )
-
-        # Create a chord that executes the completion notification after all delete tasks are done
-        workflow_chord = chord(
-            parallel_delete_tasks, notify_workflow_complete.s(document_id, IndexAction.DELETE, index_types)
-        )
-
-        # Execute the chord
         chord_async_result = workflow_chord.apply_async()
-
-        return _build_dispatched_workflow_result(chord_async_result)
+        return build_dispatched_workflow_result(chord_async_result)
 
     except Exception as e:
         error_msg = f"Failed to trigger delete indexes workflow: {str(e)}"
@@ -855,19 +829,13 @@ def trigger_delete_indexes_workflow(self, document_id: str, index_types: List[st
 def trigger_update_indexes_workflow(
     self, parsed_data_dict: dict, document_id: str, index_types: List[str], context: dict = None
 ) -> Any:
-    """
-    Dynamic orchestration task for index update workflow.
+    """Dynamic orchestration task for index update workflow.
 
-    Args:
-        parsed_data_dict: Serialized ParsedDocumentData from parse_document_task
-        document_id: Document ID to process
-        index_types: List of index types to update
-
-    Returns:
-        Chord signature for parallel index update + completion notification
+    Thin Celery wrapper; orchestration logic in
+    ``aperag.domains.indexing.orchestration.build_index_workflow_chord``.
     """
     try:
-        if _is_skipped_payload(parsed_data_dict):
+        if is_skipped_payload(parsed_data_dict):
             logger.warning(
                 "Skipping update-index workflow fan-out for document %s because parse stage returned %s",
                 document_id,
@@ -876,20 +844,18 @@ def trigger_update_indexes_workflow(
             return parsed_data_dict
 
         logger.info(f"Triggering parallel index update for document {document_id} with types: {index_types}")
-
-        # Create parallel index update tasks
-        parallel_update_tasks = group(
-            [update_index_task.s(document_id, index_type, parsed_data_dict, context) for index_type in index_types]
+        workflow_chord = build_index_workflow_chord(
+            document_id=document_id,
+            index_types=index_types,
+            per_index_signature_factory=lambda index_type: update_index_task.s(
+                document_id, index_type, parsed_data_dict, context
+            ),
+            completion_callback_signature=notify_workflow_complete.s(
+                document_id, IndexAction.UPDATE, index_types
+            ),
         )
-
-        # Create chord: parallel tasks + completion notification
-        workflow_chord = chord(
-            parallel_update_tasks, notify_workflow_complete.s(document_id, IndexAction.UPDATE, index_types)
-        )
-
         chord_async_result = workflow_chord.apply_async()
-
-        return _build_dispatched_workflow_result(chord_async_result)
+        return build_dispatched_workflow_result(chord_async_result)
 
     except Exception as e:
         error_msg = f"Failed to trigger update indexes workflow: {str(e)}"
@@ -901,102 +867,33 @@ def trigger_update_indexes_workflow(
 def notify_workflow_complete(
     self, index_results: List[dict], document_id: str, operation: str, index_types: List[str]
 ) -> dict:
-    """
-    Workflow completion notification task.
+    """Chord callback invoked after all parallel index tasks complete.
 
-    This task is called after all parallel index operations complete,
-    aggregating results and providing final workflow status.
-
-    Args:
-        index_results: List of IndexTaskResult dicts from parallel tasks
-        document_id: Document ID that was processed
-        operation: Operation type ('create', 'delete', 'update')
-        index_types: List of index types that were processed
-
-    Returns:
-        Serialized WorkflowResult
+    Thin Celery wrapper. Aggregation logic lives in
+    ``aperag.domains.indexing.orchestration.aggregate_workflow_results``.
+    Wrapper exists because chord callbacks must be broker-registered
+    Celery tasks (Celery dispatches them via the broker).
     """
     try:
         logger.info(f"Workflow {operation} completed for document {document_id}")
         logger.info(f"Index results: {index_results}")
-
-        # Analyze results
-        successful_tasks = []
-        failed_tasks = []
-        skipped_tasks = []
-        normalized_results = []
-
-        for result_dict in index_results:
-            if isinstance(result_dict, dict) and result_dict.get("status") == "skipped":
-                skipped_tasks.append(result_dict.get("index_type", "unknown"))
-                continue
-            try:
-                result = IndexTaskResult.from_dict(result_dict)
-                normalized_results.append(result)
-                if result.success:
-                    successful_tasks.append(result.index_type)
-                else:
-                    failed_tasks.append(f"{result.index_type}: {result.error}")
-            except Exception as e:
-                failed_tasks.append(f"unknown: {str(e)}")
-
-        # Determine overall status
-        if not failed_tasks:
-            status = TaskStatus.SUCCESS
-            processed_indexes = successful_tasks if successful_tasks else skipped_tasks
-            status_message = (
-                f"Document {document_id} {operation} COMPLETED SUCCESSFULLY! "
-                f"Processed indexes: {', '.join(processed_indexes)}"
-            )
-            if skipped_tasks:
-                status_message += f". Skipped: {', '.join(skipped_tasks)}"
-            logger.info(status_message)
-        elif successful_tasks:
-            status = TaskStatus.PARTIAL_SUCCESS
-            status_message = (
-                f"Document {document_id} {operation} COMPLETED with WARNINGS. "
-                f"Success: {', '.join(successful_tasks)}. Failures: {'; '.join(failed_tasks)}"
-            )
-            if skipped_tasks:
-                status_message += f". Skipped: {', '.join(skipped_tasks)}"
-            logger.warning(status_message)
-        else:
-            status = TaskStatus.FAILED
-            status_message = f"Document {document_id} {operation} FAILED. All tasks failed: {'; '.join(failed_tasks)}"
-            logger.error(status_message)
-
-        # Create workflow result
-        workflow_result = WorkflowResult(
-            workflow_id=f"{document_id}_{operation}",
+        workflow_result = aggregate_workflow_results(
+            index_results=index_results,
             document_id=document_id,
             operation=operation,
-            status=status,
-            message=status_message,
-            successful_indexes=successful_tasks,
-            failed_indexes=[f.split(":")[0] for f in failed_tasks],
-            total_indexes=len(index_types),
-            index_results=normalized_results,
+            index_types=index_types,
         )
-
         return workflow_result.to_dict()
 
     except Exception as e:
         error_msg = f"Failed to process workflow completion for document {document_id}: {str(e)}"
         logger.error(error_msg, exc_info=True)
-
-        # Return failure result
-        workflow_result = WorkflowResult(
-            workflow_id=f"{document_id}_{operation}",
+        workflow_result = build_workflow_failure_result(
             document_id=document_id,
             operation=operation,
-            status=TaskStatus.FAILED,
-            message=error_msg,
-            successful_indexes=[],
-            failed_indexes=index_types,
-            total_indexes=len(index_types),
-            index_results=[],
+            index_types=index_types,
+            error_message=error_msg,
         )
-
         return workflow_result.to_dict()
 
 
