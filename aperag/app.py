@@ -223,7 +223,7 @@ async def health_check():
 
 
 app.include_router(auth_router, prefix="/api/v2/auth")
-app.include_router(export_router, prefix="/api/v1")  # KB-domain export router (Phase 8 #47 G1)
+app.include_router(export_router, prefix="/api/v2")  # KB-domain export router (Phase 8 #47 G1, D7 v2 hard-cut)
 app.include_router(governance_router, prefix="/api/v1")  # Governance domain router (api_key + audit)
 app.include_router(llm_router, prefix="/api/v1")  # Model platform: embed/rerank (OpenAI-compat)
 app.include_router(

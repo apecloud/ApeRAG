@@ -123,7 +123,7 @@ class ExportService:
 
         download_url = None
         if task.status == ExportTaskStatus.COMPLETED:
-            download_url = f"/api/v1/export-tasks/{task_id}/download"
+            download_url = f"/api/v2/export-tasks/{task_id}/download"
 
         return ExportTaskResponse(
             export_task_id=task.id,

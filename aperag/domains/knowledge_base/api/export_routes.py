@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Export operations HTTP router (Phase 8 #47 G1 carve).
+"""Export operations HTTP router (Phase 8 #47 G1 carve, D7 v2 hard-cut).
 
-Carved from legacy ``aperag/views/export.py``. URLs unchanged
-(``/api/v1/collections/{id}/export`` + ``/api/v1/export-tasks/*``);
-mounted at ``/api/v1`` in ``aperag/app.py`` to preserve external
-contract — Phase 8 D1 hard-cut to ``/api/v2`` is deferred to a later
-batch (G3+ ghost cleanup).
+Carved from legacy ``aperag/views/export.py``. URLs migrated to v2
+(``/api/v2/collections/{id}/export`` + ``/api/v2/export-tasks/*``);
+mounted at ``/api/v2`` in ``aperag/app.py`` per D7 canonical
+(uniform ``/api/v2`` for all backend routes; OpenAI-compat
+``/api/v1/embeddings`` + ``/api/v1/rerank`` are the only remaining
+v1 allowlist).
 """
 
 import logging
