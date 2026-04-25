@@ -51,8 +51,6 @@ export {
 } from './use-agent-turn-stream';
 
 export {
-  extractErrorTextFromSnapshot,
   isTerminalBackendStatus,
   mapBackendTurnStatus,
-  synthesizePartsFromSnapshot,
 } from './snapshot-fallback';

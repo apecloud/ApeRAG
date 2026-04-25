@@ -31,7 +31,12 @@ from aperag.domains.agent_runtime.schemas import (
     UserActivityEnvelope,
     UserActivityIntent,
 )
+from aperag.domains.agent_runtime.snapshot_assembler import (
+    assemble_parts_from_artifacts,
+    extract_error_text,
+)
 from aperag.domains.agent_runtime.storage import AgentRuntimeRedisStore
+from aperag.domains.agent_runtime.uimessage_store import UIMessageStore
 from aperag.domains.conversation.db.models import BotType
 from aperag.domains.conversation.schemas import BotConfig
 from aperag.exceptions import ChatNotFoundException, ResourceNotFoundException, ValidationException
@@ -294,9 +299,20 @@ def _extract_answer_text_from_artifact(artifact) -> str:
 
 
 class TurnService:
-    def __init__(self, db_ops: AsyncDatabaseOps | None = None, redis_store: AgentRuntimeRedisStore | None = None):
+    def __init__(
+        self,
+        db_ops: AsyncDatabaseOps | None = None,
+        redis_store: AgentRuntimeRedisStore | None = None,
+        uimessage_store: UIMessageStore | None = None,
+    ):
         self.db_ops = db_ops or async_db_ops
         self.redis_store = redis_store or AgentRuntimeRedisStore()
+        # ``uimessage_store`` is the canonical at-rest reader once the
+        # wire emitter starts persisting ``agent_message.parts`` (D8.6
+        # / #80). Until then it stays optional and we fall back to
+        # projecting legacy artifacts via
+        # ``assemble_parts_from_artifacts``.
+        self.uimessage_store = uimessage_store
 
     async def get_chat_and_bot(self, user: str, chat_id: str):
         chat = await self.db_ops.query_chat_by_id(user, chat_id)
@@ -411,33 +427,76 @@ class TurnService:
             )
 
     async def get_turn_snapshot(self, user: str, chat_id: str, turn_id: str) -> AgentTurnSnapshot:
+        """Return the canonical ``AgentTurnSnapshot`` (Phase 8 D8.4d).
+
+        The legacy ``{turn, timeline, artifacts}`` shape is gone; the
+        FE renderer (#76 / #77 / #78) now consumes the same
+        ``UIMessagePart`` discriminated union it already gets from the
+        live SSE stream (per D8 §2 wire / at-rest byte-equal).
+
+        Sources, in priority order:
+
+        1. ``UIMessageStore.read(turn_id)`` — once the wire emitter
+           starts persisting ``agent_message.parts`` (D8.6 / #80
+           cleanup) this is the only path. Today the store is
+           optional and most reads return ``None``.
+        2. ``assemble_parts_from_artifacts`` — transitional projection
+           from the legacy ``answer`` / ``reference_bundle``
+           artifacts so completed / failed / cancelled turns keep
+           rendering before D8.6.
+
+        The ``error_text`` field is filled from the
+        ``error_summary`` artifact (or the runtime ``error_message``
+        field as a fallback) so a FAILED reload shows the same
+        message the live ``error`` part would have surfaced.
+        """
+
         turn = await self.db_ops.query_agent_turn(user, chat_id, turn_id)
         if not turn:
             raise ResourceNotFoundException("Turn", turn_id)
 
-        persisted_events = await self.db_ops.query_agent_timeline_events(turn_id, after_sequence=0, limit=2000)
-        cached_events = [
-            EventService.adapt_event_envelope(AgentTimelineEventEnvelope.model_validate(item))
-            for item in await self.redis_store.get_all_events(turn_id)
-        ]
-        merged_events: dict[int, AgentTimelineEventEnvelope] = {
-            event.sequence: EventService.to_event_envelope(event) for event in persisted_events
-        }
-        for event in cached_events:
-            merged_events[event.sequence] = event
-
-        runtime_state = await self.redis_store.get_runtime_state(turn_id)
-        artifacts = await self.db_ops.query_agent_artifacts_by_turn(turn_id)
-        timeline = [merged_events[key] for key in sorted(merged_events)]
-        latest_sequence = timeline[-1].sequence if timeline else 0
-        turn_envelope = _apply_runtime_state_to_turn(
-            self.to_turn_envelope(turn), runtime_state, latest_sequence=latest_sequence
+        runtime_state = await self.redis_store.get_runtime_state(turn_id) or {}
+        status_value = runtime_state.get("status") or turn.status
+        status_str = status_value.value if hasattr(status_value, "value") else str(status_value)
+        timeline_cursor = max(
+            _coerce_timeline_cursor(runtime_state.get("timeline_cursor")),
+            _coerce_timeline_cursor(turn.timeline_cursor),
         )
 
+        parts: list[Any] = []
+        artifacts: list[Any] = []
+
+        if self.uimessage_store is not None:
+            try:
+                persisted_message = await self.uimessage_store.read(turn_id)
+            except Exception:  # pragma: no cover — store is best-effort during transition
+                persisted_message = None
+            if persisted_message is not None and persisted_message.parts:
+                parts = list(persisted_message.parts)
+
+        if not parts:
+            artifacts = await self.db_ops.query_agent_artifacts_by_turn(turn_id)
+            parts = list(assemble_parts_from_artifacts(artifacts))
+
+        error_text: Optional[str] = None
+        if status_str in {AgentTurnStatus.FAILED.value, AgentTurnStatus.CANCELLED.value}:
+            if not artifacts:
+                artifacts = await self.db_ops.query_agent_artifacts_by_turn(turn_id)
+            error_text = extract_error_text(artifacts)
+            if not error_text:
+                error_text = runtime_state.get("error_message") or turn.error_message
+
         return AgentTurnSnapshot(
-            turn=turn_envelope,
-            timeline=timeline,
-            artifacts=[ArtifactService.to_artifact_envelope(artifact) for artifact in artifacts],
+            turn_id=turn.id,
+            chat_id=turn.chat_id,
+            status=status_str,
+            parts=parts,
+            error_text=error_text,
+            timeline_cursor=timeline_cursor,
+            started_at=turn.gmt_started,
+            finished_at=turn.gmt_finished,
+            created_at=turn.gmt_created,
+            updated_at=turn.gmt_updated,
         )
 
     @staticmethod

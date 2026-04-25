@@ -51,6 +51,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from datetime import datetime
 from typing import Any, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -291,6 +292,50 @@ class UIMessage(BaseModel):
     id: str
     role: Literal["user", "assistant", "system"]
     parts: list[UIMessagePart] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------
+# Snapshot endpoint envelope (Phase 8 D8.4d / #90)
+# ---------------------------------------------------------------------
+
+
+class AgentTurnSnapshot(BaseModel):
+    """Canonical UIMessage at-rest snapshot for an agent turn (Phase 8 D8.4d / #90).
+
+    Replaces the legacy ``{turn, timeline, artifacts}`` snapshot shape
+    with the ``UIMessage``-aligned canonical that the FE renderer
+    (#76 / #77 / #78) consumes from both the live SSE stream and the
+    at-rest reload path. Per D8 §2 wire / at-rest are byte-equal, so
+    no client-side converter is required: a snapshot reload
+    deserializes through the same ``UIMessagePart`` discriminated
+    union the wire emits.
+
+    ``parts`` is the persistable subset (transient ``data-activity``
+    is stripped before write per :func:`persistable_parts`);
+    ``status`` mirrors the runtime ``AgentTurnStatus`` enum value;
+    ``error_text`` surfaces an ``error_summary`` artifact's message
+    for failed turns. Turn-shape metadata (timestamps, ids, cursor)
+    is kept top-level so the FE can render without a separate
+    envelope round-trip.
+
+    Lives in this module rather than ``schemas`` to keep the
+    ``UIMessage`` family (parts + envelope) in a single source-of-truth
+    file; ``schemas`` re-exports the name for back-compat with
+    existing import sites.
+    """
+
+    schema_version: str = AGENT_RUNTIME_SCHEMA_VERSION
+    turn_id: str
+    chat_id: str
+    role: Literal["assistant"] = "assistant"
+    status: str
+    parts: list[UIMessagePart] = Field(default_factory=list)
+    error_text: Optional[str] = None
+    timeline_cursor: int = 0
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
 
 # ---------------------------------------------------------------------
