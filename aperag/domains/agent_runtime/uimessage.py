@@ -154,12 +154,31 @@ class SourceDocumentPart(BaseModel):
     title: str
 
 
-class DataCitationPart(BaseModel):
-    """Anthropic-shape typed citation (D8 §2 + §2.5)."""
-
-    type: Literal["data-citation"] = "data-citation"
+class CitationData(BaseModel):
     cited_text: str
     location: CitationLocation
+
+
+class DataCitationPart(BaseModel):
+    """Anthropic-shape typed citation (D8 §2 + §2.5).
+
+    Wrapped ``data: CitationData`` shape per D8 §2 same-schema canonical
+    (architect lock 2026-04-25, msg=...): wire and at-rest must round-trip
+    byte-for-byte with no wire/at-rest converter layer.
+    """
+
+    type: Literal["data-citation"] = "data-citation"
+    data: CitationData
+
+
+class ActivityData(BaseModel):
+    """Inner payload mirroring ``UserActivityEnvelope`` for wire/at-rest
+    same-schema parity. ``DataActivityPart`` is transient — never persisted —
+    but the wrapped shape is preserved so the live SSE stream stays
+    structurally identical to persisted variants.
+    """
+
+    activity: UserActivityEnvelope
 
 
 class DataActivityPart(BaseModel):
@@ -171,20 +190,11 @@ class DataActivityPart(BaseModel):
     """
 
     type: Literal["data-activity"] = "data-activity"
-    activity: UserActivityEnvelope
+    data: ActivityData
     transient: Literal[True] = True
 
 
-class DataToolConsentPart(BaseModel):
-    """Tool consent request / decision (D9 §A7).
-
-    Persisted as part of the audit trail. Raw tool args are stored
-    out-of-band by the runtime; only ``args_preview`` (≤ 500 chars
-    redacted preview) and ``args_hash`` (sha256 over canonical JSON)
-    appear here.
-    """
-
-    type: Literal["data-tool-consent"] = "data-tool-consent"
+class ToolConsentData(BaseModel):
     tool_call_id: str
     tool_name: str
     metadata: dict[str, Any] = Field(default_factory=dict)
@@ -200,6 +210,29 @@ class DataToolConsentPart(BaseModel):
     state: Literal["pending", "approved", "denied", "expired"]
 
 
+class DataToolConsentPart(BaseModel):
+    """Tool consent request / decision (D9 §A7).
+
+    Persisted as part of the audit trail. Raw tool args are stored
+    out-of-band by the runtime; only ``args_preview`` (≤ 500 chars
+    redacted preview) and ``args_hash`` (sha256 over canonical JSON)
+    appear here.
+    """
+
+    type: Literal["data-tool-consent"] = "data-tool-consent"
+    data: ToolConsentData
+
+
+class ElicitationData(BaseModel):
+    elicitation_id: str
+    prompt: str
+    schema_: dict[str, Any] = Field(default_factory=dict, alias="schema")
+    response: Optional[dict[str, Any]] = None
+    state: Literal["pending", "submitted", "cancelled"]
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class DataElicitationPart(BaseModel):
     """User input request (D9 §5).
 
@@ -209,13 +242,7 @@ class DataElicitationPart(BaseModel):
     """
 
     type: Literal["data-elicitation"] = "data-elicitation"
-    elicitation_id: str
-    prompt: str
-    schema_: dict[str, Any] = Field(default_factory=dict, alias="schema")
-    response: Optional[dict[str, Any]] = None
-    state: Literal["pending", "submitted", "cancelled"]
-
-    model_config = ConfigDict(populate_by_name=True)
+    data: ElicitationData
 
 
 UIMessagePart = Union[
