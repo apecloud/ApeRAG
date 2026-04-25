@@ -87,7 +87,7 @@ Content-Type: application/json
 
 `/api/v2/web/search` handler 的策略（见 `api/routes.py`）：
 
-1. 查当前用户是否配置了 JINA API key（`async_db_ops.query_provider_api_key("jina", user_id=..., need_public=True)`）
+1. 查当前用户是否配置了 JINA API key（`model_platform_service.get_user_provider_api_key(user_id=..., provider_type="jina", fallback_to_public=True)`）
 2. 若有 → 尝试 JINA 搜索
 3. 若 JINA 失败或无 key → 回落到 DuckDuckGo
 

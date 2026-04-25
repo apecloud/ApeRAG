@@ -135,6 +135,31 @@ class ModelPlatformService:
         accounts = await async_db_ops.query_model_accounts(user_id)
         return ModelAccountList(items=[_account_to_schema(account) for account in accounts])
 
+    async def get_user_provider_api_key(
+        self,
+        user_id: str,
+        provider_type: str,
+        *,
+        fallback_to_public: bool = False,
+    ) -> str | None:
+        """Return the API key the user has configured for ``provider_type``.
+
+        When ``fallback_to_public`` is ``True``, fall back to a
+        system-shared (``public``) account if the user has no personal
+        account configured. Returns ``None`` when no account is configured.
+
+        This is the canonical surface for non-model-platform callers
+        (web_access, knowledge_base) that need a raw provider API key
+        without owning a ``ModelAccount`` id; it replaces the
+        legacy ``llm_provider.api_key`` lookup the model-platform refactor
+        removed.
+        """
+        return await async_db_ops.query_model_account_api_key(
+            provider_type=provider_type,
+            user_id=user_id,
+            fallback_to_public=fallback_to_public,
+        )
+
     async def create_account(self, user_id: str, request: ModelAccountCreate) -> ModelAccount:
         account = await async_db_ops.create_model_account(user_id=user_id, **request.model_dump())
         return _account_to_schema(account)
