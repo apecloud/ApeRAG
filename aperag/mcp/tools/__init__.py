@@ -30,6 +30,7 @@ from aperag.mcp.tools.get_document_metadata import get_document_metadata
 from aperag.mcp.tools.handles import ChunkId, HeadingAnchor, SectionPath
 from aperag.mcp.tools.list_collections import list_collections
 from aperag.mcp.tools.list_documents import list_documents
+from aperag.mcp.tools.parse_version import ParseVersionT, compute_parse_version
 from aperag.mcp.tools.read_document import read_document
 from aperag.mcp.tools.read_document_chunk import read_document_chunk
 from aperag.mcp.tools.read_document_outline import read_document_outline
@@ -53,6 +54,9 @@ __all__ = [
     "ChunkId",
     "HeadingAnchor",
     "SectionPath",
+    # parse_version helpers (§E.2)
+    "ParseVersionT",
+    "compute_parse_version",
     # Read primitive functions (per §A.1 - §A.8)
     "list_collections",
     "list_documents",

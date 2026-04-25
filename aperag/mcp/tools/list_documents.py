@@ -12,15 +12,84 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""D10 §A.2 — ``list_documents`` read primitive (stub)."""
+"""D10 §A.2 — ``list_documents`` read primitive.
+
+Strict call sequence:
+
+1. ``resolve_authenticated_user()`` — D9 base
+2. ``tenancy_gate(user, collection_id)`` — D9 base canonical SoT
+3. ``authorization_gate(user, "list_documents")`` — D9 §2
+4. fetch authoritative — un-cached.
+
+Cursor / total_count: opaque base64 ``{"offset": int}`` for the first
+cut; D10.e (#97 @Bryce) replaces the codec.
+"""
 
 from __future__ import annotations
 
+import base64
+import json
+import mimetypes
 from typing import Literal, Optional
 
-from aperag.mcp.tools.schemas import DocumentList
+from sqlalchemy import and_, func, select
 
-_NOT_IMPL = "D10.c: implementation pending in follow-up PR; surface only for cross-lane import"
+from aperag.config import get_async_session
+from aperag.domains.indexing.db.models import (
+    DocumentIndex,
+    DocumentIndexStatus,
+)
+from aperag.domains.knowledge_base.db.models import (
+    Document,
+    DocumentStatus,
+)
+from aperag.mcp.tools._d9_base import (
+    authorization_gate,
+    resolve_authenticated_user,
+    tenancy_gate,
+)
+from aperag.mcp.tools.schemas import DocumentList, DocumentMetadata
+
+
+def _decode_cursor(cursor: Optional[str]) -> int:
+    if not cursor:
+        return 0
+    try:
+        payload = json.loads(base64.urlsafe_b64decode(cursor.encode("ascii")).decode("utf-8"))
+        return max(int(payload.get("offset", 0)), 0)
+    except Exception:
+        return 0
+
+
+def _encode_cursor(offset: int) -> str:
+    return base64.urlsafe_b64encode(json.dumps({"offset": offset}, separators=(",", ":")).encode("utf-8")).decode(
+        "ascii"
+    )
+
+
+_DOCUMENT_STATUS_TO_INDEXING = {
+    DocumentStatus.PENDING: "pending",
+    DocumentStatus.RUNNING: "indexing",
+    DocumentStatus.COMPLETE: "complete",
+    DocumentStatus.FAILED: "failed",
+    DocumentStatus.UPLOADED: "pending",
+    DocumentStatus.EXPIRED: "failed",
+    DocumentStatus.DELETED: "failed",
+}
+
+
+def _media_type_for(name: Optional[str]) -> str:
+    if not name:
+        return "application/octet-stream"
+    mt, _ = mimetypes.guess_type(name)
+    return mt or "application/octet-stream"
+
+
+_SORT_COLS = {
+    "created_at": Document.gmt_created,
+    "title": Document.name,
+    "size_bytes": Document.size,
+}
 
 
 async def list_documents(
@@ -38,7 +107,83 @@ async def list_documents(
 
     Per ``docs/modularization/d10-design-pack.md`` §A.2.
     """
-    raise NotImplementedError(_NOT_IMPL)
+
+    # 1. D9 base: authenticated user.
+    user = await resolve_authenticated_user()
+
+    # 2. D9 base: canonical tenancy gate.
+    await tenancy_gate(user, collection_id)
+
+    # 3. D9 §2 three-level authorization.
+    await authorization_gate(user, "list_documents")
+
+    # 4. Fetch authoritative.
+    limit = max(1, min(int(limit), 200))
+    offset = _decode_cursor(cursor)
+
+    sort_col = _SORT_COLS.get(sort_by, Document.gmt_created)
+    sort_clause = sort_col.asc() if sort_order == "asc" else sort_col.desc()
+
+    base_filters = [
+        Document.user == str(user.id),
+        Document.collection_id == collection_id,
+        Document.status != DocumentStatus.DELETED,
+    ]
+    if title_filter:
+        base_filters.append(Document.name.ilike(f"%{title_filter}%"))
+    if indexed_only:
+        base_filters.append(Document.status == DocumentStatus.COMPLETE)
+
+    async for session in get_async_session():
+        # Count
+        count_stmt = select(func.count()).select_from(Document).where(and_(*base_filters))
+        total = int((await session.execute(count_stmt)).scalar() or 0)
+
+        page_stmt = select(Document).where(and_(*base_filters)).order_by(sort_clause).offset(offset).limit(limit)
+        documents = list((await session.execute(page_stmt)).scalars().all())
+
+        # Apply type_filter post-fetch (mimetypes guesswork, not DB-indexed).
+        if type_filter:
+            allowed = {t.lower() for t in type_filter}
+            documents = [d for d in documents if _media_type_for(d.name).lower() in allowed]
+
+        # Batch-fetch indexed chunk counts for the page.
+        chunk_counts: dict[str, int] = {}
+        if documents:
+            doc_ids = [d.id for d in documents]
+            idx_stmt = select(DocumentIndex).where(
+                DocumentIndex.document_id.in_(doc_ids),
+                DocumentIndex.status == DocumentIndexStatus.ACTIVE,
+            )
+            for idx_row in (await session.execute(idx_stmt)).scalars().all():
+                count = 0
+                if idx_row.index_data:
+                    try:
+                        data = json.loads(idx_row.index_data)
+                        count = len(data.get("context_ids") or [])
+                    except (TypeError, json.JSONDecodeError):
+                        count = 0
+                chunk_counts[idx_row.document_id] = max(chunk_counts.get(idx_row.document_id, 0), count)
+        break
+
+    items = [
+        DocumentMetadata(
+            document_id=d.id,
+            collection_id=d.collection_id,
+            title=d.name or d.id,
+            media_type=_media_type_for(d.name),
+            size_bytes=int(d.size or 0),
+            indexed_chunks_count=int(chunk_counts.get(d.id, 0)),
+            indexing_status=_DOCUMENT_STATUS_TO_INDEXING.get(d.status, "pending"),
+            failure_reason=None,
+            created_at=d.gmt_created,
+            updated_at=d.gmt_updated,
+        )
+        for d in documents
+    ]
+
+    next_cursor = _encode_cursor(offset + len(items)) if (offset + len(items)) < total else None
+    return DocumentList(items=items, next_cursor=next_cursor, total_count=total)
 
 
 __all__ = ["list_documents"]
