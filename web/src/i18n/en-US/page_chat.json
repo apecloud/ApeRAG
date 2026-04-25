@@ -21,6 +21,8 @@
   "activity_stream": {
     "label": "Agent trace",
     "empty": "Thinking…",
+    "completed_empty": "This run did not invoke any tools.",
+    "pending_empty": "This run ended before any answer was produced.",
     "repeated": "Repeated {count} times while this step stayed active.",
     "meta": {
       "steps": "{count, plural, one {# step} other {# steps}}",
@@ -45,6 +47,32 @@
       "web": "web",
       "chat_history": "chat history"
     },
+    "tool": {
+      "title": "Calling tool: {name}",
+      "state": {
+        "input-streaming": "Preparing arguments…",
+        "input-available": "Arguments ready",
+        "output-available": "Done",
+        "output-error": "Failed"
+      }
+    },
+    "transient": {
+      "thinking": "Thinking…",
+      "searching_knowledge": "Searching knowledge…",
+      "reading_source": "Reading source…",
+      "comparing_results": "Comparing results…",
+      "writing_answer": "Writing the answer…",
+      "waiting": "Waiting…",
+      "completed": "Done",
+      "error": "Error encountered"
+    },
+    "consent": {
+      "placeholder_title": "Tool authorization request: {name}",
+      "placeholder_state": "State: {state} (awaiting #78 interactive UI)"
+    },
+    "elicitation": {
+      "placeholder_state": "State: {state} (awaiting #78 interactive UI)"
+    },
     "debug": {
       "title": "Debug details",
       "technical_type": "Technical event",
@@ -68,6 +96,7 @@
     "answer": "Answer",
     "failed_empty": "This run ended before a final answer was produced.",
     "cancelled_empty": "This run was cancelled before a final answer was produced.",
+    "completed_empty": "This run completed but produced no text content.",
     "pending_empty": "The answer will appear here once the activity stream finishes."
   },
 

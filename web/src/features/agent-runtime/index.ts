@@ -51,7 +51,8 @@ export {
 } from './use-agent-turn-stream';
 
 export {
-  getRunningToolName,
-  projectToLegacySnapshot,
-  type LegacySnapshotShim,
-} from './legacy-snapshot-shim';
+  extractErrorTextFromSnapshot,
+  isTerminalBackendStatus,
+  mapBackendTurnStatus,
+  synthesizePartsFromSnapshot,
+} from './snapshot-fallback';
