@@ -159,6 +159,11 @@ wait_for_document_indexes() {
 }
 
 wait_for_turn_completion() {
+  # Phase 8 D8.4d (#90): the snapshot endpoint now returns canonical
+  # UIMessage parts at the top level; the legacy ``{turn,
+  # answer_artifact_id, reference_bundle_artifact_id}`` envelope is
+  # gone. We poll ``.status`` (top-level) and surface the assistant's
+  # answer text + reference count directly from ``.parts``.
   local chat_id="$1"
   local turn_id="$2"
   local max_attempts=90
@@ -170,14 +175,14 @@ wait_for_turn_completion() {
     body="$(request_json GET "/api/v2/agent/chats/${chat_id}/turns/${turn_id}")"
     last_body="${body}"
     local turn_status
-    local answer_artifact_id
-    local reference_artifact_id
-    turn_status="$(jq -r '.turn.status // empty' <<<"${body}")"
-    answer_artifact_id="$(jq -r '.turn.answer_artifact_id // empty' <<<"${body}")"
-    reference_artifact_id="$(jq -r '.turn.reference_bundle_artifact_id // empty' <<<"${body}")"
+    local answer_text
+    local reference_count
+    turn_status="$(jq -r '.status // empty' <<<"${body}")"
+    answer_text="$(jq -r '[.parts[]? | select(.type == "text") | .text] | join("")' <<<"${body}")"
+    reference_count="$(jq -r '[.parts[]? | select(.type == "data-citation")] | length' <<<"${body}")"
 
-    if [[ "${turn_status}" == "COMPLETED" && -n "${answer_artifact_id}" ]]; then
-      printf '%s\n%s\n' "${answer_artifact_id}" "${reference_artifact_id}"
+    if [[ "${turn_status}" == "COMPLETED" && -n "${answer_text}" ]]; then
+      printf '%s\n%s\n' "${answer_text}" "${reference_count}"
       return 0
     fi
 
@@ -191,7 +196,7 @@ wait_for_turn_completion() {
     (( attempt += 1 ))
   done
 
-  echo "Timed out waiting for turn completion artifacts" >&2
+  echo "Timed out waiting for turn completion parts" >&2
   if [[ -n "${last_body}" ]]; then
     jq . <<<"${last_body}" >&2 || true
   fi
@@ -332,19 +337,23 @@ turn_body="$(request_json POST "/api/v2/agent/chats/${chat_id}/turns" "$(jq -nc 
   }')")"
 turn_id="$(jq -r '.turn.turn_id' <<<"${turn_body}")"
 
-mapfile -t artifact_ids < <(wait_for_turn_completion "${chat_id}" "${turn_id}")
-answer_artifact_id="${artifact_ids[0]}"
-reference_artifact_id="${artifact_ids[1]:-}"
+mapfile -t completion_signals < <(wait_for_turn_completion "${chat_id}" "${turn_id}")
+answer_text="${completion_signals[0]}"
+reference_count="${completion_signals[1]:-0}"
 
-answer_body="$(request_json GET "/api/v2/agent/artifacts/${answer_artifact_id}")"
+# Phase 8 D8.4d (#90): the snapshot endpoint returns the answer text
+# directly as ``TextPart`` and reference items as ``DataCitationPart``;
+# the assertion budget is the same (answer non-empty + at least one
+# reference when present) but reads off ``.parts`` rather than the
+# legacy artifact endpoint.
+if [[ -z "${answer_text}" ]]; then
+  echo "Snapshot returned empty answer text" >&2
+  exit 1
+fi
 
-jq -e '.artifact_type == "answer"' <<<"${answer_body}" >/dev/null
-jq -e '(.payload.text // "") | length > 0' <<<"${answer_body}" >/dev/null
-
-if [[ -n "${reference_artifact_id}" ]]; then
-  reference_body="$(request_json GET "/api/v2/agent/artifacts/${reference_artifact_id}")"
-  jq -e '.artifact_type == "reference_bundle"' <<<"${reference_body}" >/dev/null
-  jq -e '(.payload.items // []) | length > 0' <<<"${reference_body}" >/dev/null
+if (( reference_count == 0 )); then
+  echo "Snapshot returned no data-citation parts" >&2
+  exit 1
 fi
 
 echo "Business chat collection flow passed"
