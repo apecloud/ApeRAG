@@ -358,6 +358,29 @@ def test_aperag_domains_never_import_legacy_auth_view_dependencies():
     )
 
 
+def test_no_module_imports_legacy_views_settings():
+    """Phase 8 #48 (G2): ``aperag/views/settings.py`` was carved into
+    ``aperag.domains.knowledge_base.api.settings_routes`` and the legacy
+    file is gone. No code anywhere in ``aperag/`` may import from the
+    deleted module — the new home is the canonical owner.
+    """
+    offenders: list[str] = []
+    aperag_root = REPO_ROOT / "aperag"
+    for path in aperag_root.rglob("*.py"):
+        if not path.is_file():
+            continue
+        modules = _imported_modules(path.read_text())
+        if "aperag.views.settings" in modules:
+            offenders.append(f"{path.relative_to(REPO_ROOT).as_posix()} imports aperag.views.settings")
+
+    assert not offenders, (
+        "`aperag.views.settings` was deleted in Phase 8 task #48 (G2). "
+        "Import the carved router or service from "
+        "`aperag.domains.knowledge_base.api.settings_routes` instead. "
+        "Offenders:\n  " + "\n  ".join(sorted(offenders))
+    )
+
+
 # ---------- Retrieval <-> knowledge_graph one-way bridge ----------
 
 
