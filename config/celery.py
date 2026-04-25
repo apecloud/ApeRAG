@@ -12,12 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from logging.config import dictConfig
-
 from celery import Celery
-from celery.signals import worker_process_init, worker_process_shutdown
+from celery.signals import before_task_publish, task_postrun, task_prerun, worker_process_init, worker_process_shutdown
 
 from aperag.config import settings
+from aperag.observability import build_observability_config, configure_logging, configure_process_observability
+from aperag.observability.context import bind_observability_context, reset_observability_context
+from aperag.observability.tracing import attach_context_from_carrier, detach_context, inject_carrier, start_span
+
+observability_config = build_observability_config(settings)
+configure_logging(observability_config)
+configure_process_observability(observability_config)
 
 # Create celery app instance
 app = Celery("aperag")
@@ -64,69 +69,56 @@ app.conf.beat_schedule = {
     },
 }
 
-# Simple logging configuration for Celery workers
-CELERY_LOGGING_CONFIG = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'formatters': {
-        'console': {
-            'format': '[%(asctime)s: %(levelname)s/%(processName)s] %(name)s - %(message)s'
-        }
-    },
-    'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-            'formatter': 'console',
-            'level': 'INFO',
-        }
-    },
-    'loggers': {
-        'LiteLLM': {
-            'level': 'WARNING',
-            'handlers': ['console'],
-            'propagate': False,
-        },
-        # Configure all aperag loggers
-        'aperag': {
-            'level': 'INFO',
-            'handlers': ['console'],
-            'propagate': False,
-        },
-        # Configure celery loggers
-        'celery': {
-            'level': 'INFO',
-            'handlers': ['console'],
-            'propagate': False,
-        },
-        'celery.task': {
-            'level': 'INFO',
-            'handlers': ['console'],
-            'propagate': False,
-        },
-        'celery.worker': {
-            'level': 'INFO',
-            'handlers': ['console'],
-            'propagate': False,
-        },
-    },
-    # Configure root logger to ensure all logs have timestamps
-    'root': {
-        'level': 'INFO',
-        'handlers': ['console'],
-    },
-}
-
 @worker_process_init.connect
 def setup_worker(**kwargs):
     """Setup logging and other worker initialization"""
-    # Configure logging for this worker process
-    dictConfig(CELERY_LOGGING_CONFIG)
+    configure_logging(observability_config)
+    configure_process_observability(observability_config)
     # Celery tasks create isolated event loops (`asyncio.run()` / manual loop wrappers).
     # LiteLLM's async callback worker keeps a process-global asyncio.Queue, which can become
     # bound to the wrong loop and crash the worker process.
     from aperag.llm.litellm_logging import disable_litellm_async_logging_callbacks
 
     disable_litellm_async_logging_callbacks()
+
+
+@before_task_publish.connect
+def inject_trace_context(headers=None, **kwargs):
+    if headers is not None:
+        inject_carrier(headers)
+
+
+@task_prerun.connect
+def start_task_observability(task=None, task_id=None, **kwargs):
+    if task is None:
+        return
+    headers = getattr(getattr(task, "request", None), "headers", None) or {}
+    token = attach_context_from_carrier(headers)
+    context_tokens = bind_observability_context(task_id=task_id, operation=getattr(task, "name", None))
+    span_cm = start_span(
+        "celery.task.run",
+        tracer_name="aperag.celery",
+        **{
+            "aperag.task.id": task_id,
+            "aperag.task.name": getattr(task, "name", None),
+        },
+    )
+    span_cm.__enter__()
+    task.request._aperag_observability_token = token
+    task.request._aperag_observability_context_tokens = context_tokens
+    task.request._aperag_observability_span_cm = span_cm
+
+
+@task_postrun.connect
+def finish_task_observability(task=None, state=None, **kwargs):
+    if task is None:
+        return
+    request = getattr(task, "request", None)
+    span_cm = getattr(request, "_aperag_observability_span_cm", None)
+    if span_cm is not None:
+        span_cm.__exit__(None, None, None)
+    reset_observability_context(getattr(request, "_aperag_observability_context_tokens", None))
+    detach_context(getattr(request, "_aperag_observability_token", None))
 
 @worker_process_shutdown.connect
 def shutdown_worker(**kwargs):

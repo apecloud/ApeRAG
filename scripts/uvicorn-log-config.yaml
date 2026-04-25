@@ -2,7 +2,7 @@ version: 1
 disable_existing_loggers: false
 formatters:
   simple:
-    format: "%(asctime)s - %(levelname)s - %(message)s"
+    format: "%(message)s"
 handlers:
   console:
     class: logging.StreamHandler
