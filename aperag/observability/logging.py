@@ -102,7 +102,9 @@ class ObservabilityJsonFormatter(logging.Formatter):
         if extras:
             payload["attributes"] = sanitize_mapping(extras)
 
-        return json.dumps({key: sanitize_value(value) for key, value in payload.items()}, ensure_ascii=False, default=str)
+        return json.dumps(
+            {key: sanitize_value(value) for key, value in payload.items()}, ensure_ascii=False, default=str
+        )
 
 
 class ObservabilityTextFormatter(logging.Formatter):

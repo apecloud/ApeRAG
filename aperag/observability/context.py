@@ -12,16 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
 from contextlib import contextmanager
 from contextvars import ContextVar
+from dataclasses import dataclass
 from typing import Iterator, Optional
-
 
 request_id_var: ContextVar[Optional[str]] = ContextVar("aperag_request_id", default=None)
 task_id_var: ContextVar[Optional[str]] = ContextVar("aperag_task_id", default=None)
 domain_var: ContextVar[Optional[str]] = ContextVar("aperag_domain", default=None)
 operation_var: ContextVar[Optional[str]] = ContextVar("aperag_operation", default=None)
+
 
 @dataclass(frozen=True)
 class ObservabilityContext:

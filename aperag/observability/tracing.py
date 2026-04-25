@@ -37,7 +37,7 @@ try:
     from opentelemetry.trace import NonRecordingSpan, SpanContext, TraceFlags, TraceState, set_span_in_context
 
     OTEL_AVAILABLE = True
-except ImportError:  # pragma: no cover - depends on optional runtime package availability
+except ImportError:  # pragma: no cover - depends on runtime package availability
     OTEL_AVAILABLE = False
 
 
@@ -63,36 +63,6 @@ def init_tracing(config: ObservabilityConfig) -> bool:
         if config.enabled:
             logger.warning("OpenTelemetry packages are not available; tracing is disabled")
         return False
-
-
-def configure_process_observability(config: ObservabilityConfig) -> bool:
-    """Configure process-wide telemetry primitives.
-
-    Logging is configured separately so entrypoints can do it before importing
-    noisy dependencies. This function owns OpenTelemetry providers and the
-    metrics facade state for the current process.
-    """
-
-    configure_metrics(config)
-    return init_tracing(config)
-
-
-def configure_fastapi(app: Any, config: ObservabilityConfig) -> None:
-    """Instrument a concrete FastAPI app after it has been created."""
-
-    if not OTEL_AVAILABLE or config.mode == "off" or not config.enable_fastapi:
-        return
-
-    try:
-        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-
-        FastAPIInstrumentor.instrument_app(app)
-    except Exception:
-        logger.warning(
-            "failed to instrument FastAPI app",
-            exc_info=True,
-            extra={"operation": "observability.fastapi.instrument", "outcome": "failure"},
-        )
 
     if config.mode == "off":
         _initialized = True
@@ -133,6 +103,40 @@ def configure_fastapi(app: Any, config: ObservabilityConfig) -> None:
         return False
 
 
+def configure_process_observability(config: ObservabilityConfig) -> bool:
+    """Configure process-wide tracing and metrics."""
+    configure_metrics(config)
+    initialized = init_tracing(config)
+    if initialized and OTEL_AVAILABLE and config.enable_sqlalchemy and config.mode != "off":
+        try:
+            from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+
+            SQLAlchemyInstrumentor().instrument()
+        except Exception:
+            logger.exception(
+                "failed to instrument SQLAlchemy",
+                extra={"operation": "observability.sqlalchemy.instrument", "outcome": "failure"},
+            )
+    return initialized
+
+
+def configure_fastapi(app: Any, config: ObservabilityConfig) -> bool:
+    """Instrument one FastAPI app instance explicitly."""
+    if not OTEL_AVAILABLE or config.mode == "off" or not config.enable_fastapi:
+        return False
+    try:
+        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+
+        FastAPIInstrumentor.instrument_app(app)
+        return True
+    except Exception:
+        logger.exception(
+            "failed to instrument FastAPI app",
+            extra={"operation": "observability.fastapi.instrument", "outcome": "failure"},
+        )
+        return False
+
+
 def shutdown_tracing() -> None:
     """Flush and shut down the configured tracer provider when supported."""
     if not OTEL_AVAILABLE:
@@ -150,6 +154,7 @@ def _build_resource(config: ObservabilityConfig):
     attributes: dict[str, Any] = {
         "service.name": config.service_name,
         "service.version": config.service_version,
+        "service.instance.id": service_instance_id(),
     }
     if config.environment:
         attributes["deployment.environment"] = config.environment
@@ -316,37 +321,3 @@ def make_span_context(trace_id: str, span_id: Optional[str] = None):
 
 def service_instance_id() -> str:
     return os.getenv("HOSTNAME") or os.getenv("NODE_IP") or ""
-
-
-def configure_fastapi(app, config: ObservabilityConfig) -> bool:
-    """Instrument one FastAPI app instance explicitly."""
-    if not OTEL_AVAILABLE or config.mode == "off" or not config.enable_fastapi:
-        return False
-    try:
-        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-
-        FastAPIInstrumentor.instrument_app(app)
-        return True
-    except Exception:
-        logger.exception(
-            "failed to instrument FastAPI app",
-            extra={"operation": "observability.fastapi.instrument", "outcome": "failure"},
-        )
-        return False
-
-
-def configure_process_observability(config: ObservabilityConfig) -> bool:
-    """Configure process-wide tracing and metrics."""
-    configure_metrics(config)
-    initialized = init_tracing(config)
-    if initialized and OTEL_AVAILABLE and config.enable_sqlalchemy and config.mode != "off":
-        try:
-            from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
-
-            SQLAlchemyInstrumentor().instrument()
-        except Exception:
-            logger.exception(
-                "failed to instrument SQLAlchemy",
-                extra={"operation": "observability.sqlalchemy.instrument", "outcome": "failure"},
-            )
-    return initialized

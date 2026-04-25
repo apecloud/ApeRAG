@@ -32,42 +32,43 @@ app.conf.update(
     task_acks_late=True,
     broker_url=settings.celery_broker_url,
     result_backend=settings.celery_result_backend,
-    task_serializer='json',
-    accept_content=['json'],
-    result_serializer='json',
-    timezone='UTC',
+    task_serializer="json",
+    accept_content=["json"],
+    result_serializer="json",
+    timezone="UTC",
     enable_utc=True,
     worker_send_task_events=settings.celery_worker_send_task_events,
     task_send_sent_event=settings.celery_task_send_sent_event,
     task_track_started=settings.celery_task_track_started,
     # Auto-discover tasks in the aperag.tasks package
     include=[
-        'aperag.domains.indexing.tasks',
-        'aperag.domains.knowledge_base.tasks',
-        'aperag.domains.knowledge_graph.tasks',
-        'aperag.domains.evaluation.tasks',
+        "aperag.domains.indexing.tasks",
+        "aperag.domains.knowledge_base.tasks",
+        "aperag.domains.knowledge_graph.tasks",
+        "aperag.domains.evaluation.tasks",
     ],
     # Enable detailed logging for celery workers - let our custom config handle formatting
-    worker_log_format='[%(asctime)s: %(levelname)s/%(processName)s] %(name)s - %(message)s',
-    worker_task_log_format='[%(asctime)s: %(levelname)s/%(processName)s] %(name)s - %(message)s',
+    worker_log_format="[%(asctime)s: %(levelname)s/%(processName)s] %(name)s - %(message)s",
+    worker_task_log_format="[%(asctime)s: %(levelname)s/%(processName)s] %(name)s - %(message)s",
     # Let our custom logging configuration handle the root logger
     worker_hijack_root_logger=True,
 )
 
 app.conf.beat_schedule = {
-    'reconcile-indexes': {
-        'task': 'config.celery_tasks.reconcile_indexes_task',
-        'schedule': 300.0,  # Run every 5 minutes
+    "reconcile-indexes": {
+        "task": "config.celery_tasks.reconcile_indexes_task",
+        "schedule": 300.0,  # Run every 5 minutes
     },
-    'reconcile-collection-summaries': {
-        'task': 'config.celery_tasks.reconcile_collection_summaries_task',
-        'schedule': 60.0,
+    "reconcile-collection-summaries": {
+        "task": "config.celery_tasks.reconcile_collection_summaries_task",
+        "schedule": 60.0,
     },
-    'collection-gc': {
-        'task': 'config.celery_tasks.cleanup_expired_documents_task',
-        'schedule': 600.0,
+    "collection-gc": {
+        "task": "config.celery_tasks.cleanup_expired_documents_task",
+        "schedule": 600.0,
     },
 }
+
 
 @worker_process_init.connect
 def setup_worker(**kwargs):
@@ -120,10 +121,12 @@ def finish_task_observability(task=None, state=None, **kwargs):
     reset_observability_context(getattr(request, "_aperag_observability_context_tokens", None))
     detach_context(getattr(request, "_aperag_observability_token", None))
 
+
 @worker_process_shutdown.connect
 def shutdown_worker(**kwargs):
     """Additional worker cleanup if needed"""
     pass
+
 
 if __name__ == "__main__":
     app.start()
