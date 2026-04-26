@@ -37,11 +37,17 @@ def test_list_collections_docstring_explains_empty_and_user_step_language():
     assert "Checking which knowledge bases are available." in doc
 
 
-def test_search_collection_docstring_explains_step_and_failure_meaning():
-    doc = mcp_server.search_collection.__doc__
-
-    assert "What failure may mean:" in doc
-    assert "Reviewed results from the selected knowledge base." in doc
+def test_search_collection_legacy_omnibus_no_longer_registered():
+    """``search_collection`` was hard-cut in D10.h #100. The omnibus
+    tool must not reappear on ``aperag.mcp.server`` — callers compose
+    the canonical split tools (``vector_search`` / ``graph_search`` /
+    ``fulltext_search``) directly. The split tools' own
+    user-visible step language is covered in
+    ``tests/unit_test/mcp/test_search_split.py``.
+    """
+    assert not hasattr(mcp_server, "search_collection"), (
+        "search_collection must remain removed after the D10.h cutover."
+    )
 
 
 def test_web_tools_docstrings_match_user_visible_step_language():

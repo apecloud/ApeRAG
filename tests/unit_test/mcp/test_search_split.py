@@ -302,74 +302,46 @@ async def test_web_search_does_not_carry_cursor_param():
     )
 
 
-# --- 3. Deprecation banner on omnibus aliases ------------------------
+# --- 3. Cutover removal of omnibus aliases (D10.h #100) --------------
+#
+# D10.d (#1713 / #1717) preserved ``search_collection`` and
+# ``search_chat_files`` behind a ``[DEPRECATED]`` banner so external
+# callers had a migration window. D10.h (#100) hard-cuts both — the
+# banners + bodies are now gone, and the only thing the test surface
+# pins is that they stay gone, since ``earayu2 msg=9730bb6b`` made
+# the project's hard-cut philosophy explicit (no users / no data).
 
 
-def test_search_collection_carries_deprecation_banner():
-    """``search_collection`` docstring is prefixed with
-    ``[DEPRECATED]`` and references the canonical D10.b doc (§B.5 /
-    §H.1) so reviewers and tool consumers see the migration signal.
+def test_search_collection_legacy_omnibus_removed_from_module():
+    """``search_collection`` was deleted in D10.h #100 — neither the
+    runtime attribute nor an ``async def`` in the source survives.
     """
-    doc = mcp_server_module.search_collection.__doc__ or ""
-    assert "[DEPRECATED]" in doc, "search_collection must carry a [DEPRECATED] banner per §B.5 / §H.1."
-    # Banner must point migrators at the new split tools; cite the
-    # spec source for traceability.
-    assert "vector_search" in doc and "graph_search" in doc and "fulltext_search" in doc, (
-        "Deprecation banner must enumerate the split tools so callers know the migration target."
+    assert not hasattr(mcp_server_module, "search_collection"), (
+        "search_collection must be removed from aperag.mcp.server in the D10.h cutover."
     )
 
-
-def test_search_chat_files_carries_deprecation_banner():
-    """``search_chat_files`` shares the deprecation timeline of
-    ``search_collection`` per §H.2.
-    """
-    doc = mcp_server_module.search_chat_files.__doc__ or ""
-    assert "[DEPRECATED]" in doc, "search_chat_files must carry a [DEPRECATED] banner per §H.2."
-
-
-# --- 4. Forbidden boundary (§G D10.d): impl body untouched -----------
-
-
-def _async_def_source(source: str, name: str) -> str:
+    source = MCP_SERVER_PATH.read_text()
     tree = ast.parse(source)
-    for node in ast.walk(tree):
-        if isinstance(node, ast.AsyncFunctionDef) and node.name == name:
-            return ast.get_source_segment(source, node) or ""
-    raise AssertionError(f"async def {name!r} not found in source")
+    inline_defs = [
+        node for node in ast.walk(tree) if isinstance(node, ast.AsyncFunctionDef) and node.name == "search_collection"
+    ]
+    assert inline_defs == [], "aperag.mcp.server must not define `async def search_collection` after the D10.h cutover."
 
 
-def test_search_collection_body_still_targets_v2_collections_path():
-    """§G D10.d Forbidden: ``search_collection`` implementation must be
-    untouched — only the docstring banner changed. Re-asserts the same
-    invariant as ``test_mcp_contract.test_search_collection_targets_v2_path``
-    so the D10.d split lane cannot accidentally drift the body.
+def test_search_chat_files_legacy_omnibus_removed_from_module():
+    """``search_chat_files`` shared the deprecation timeline and is
+    cut in the same lane.
     """
-    source = MCP_SERVER_PATH.read_text()
-    body = _async_def_source(source, "search_collection")
-    assert "/api/v2/collections/" in body, "search_collection body must still hit /api/v2/collections/."
-    assert "/api/v1/collections/" not in body
-    # The 5 mode flags accepted by the omnibus alias must remain so
-    # existing callers keep working during the deprecation window.
-    for mode in (
-        "use_vector_index",
-        "use_fulltext_index",
-        "use_graph_index",
-        "use_summary_index",
-        "use_vision_index",
-    ):
-        assert mode in body, (
-            f"search_collection must still accept `{mode}` for backward "
-            "compatibility (Forbidden: implementation untouched until D10.h)."
-        )
+    assert not hasattr(mcp_server_module, "search_chat_files"), (
+        "search_chat_files must be removed from aperag.mcp.server in the D10.h cutover."
+    )
 
-
-def test_search_chat_files_body_still_targets_v2_chats_path():
-    """§G D10.d Forbidden: ``search_chat_files`` implementation must be
-    untouched — only the docstring banner changed.
-    """
     source = MCP_SERVER_PATH.read_text()
-    body = _async_def_source(source, "search_chat_files")
-    assert "/api/v2/chats/" in body, "search_chat_files body must still hit /api/v2/chats/."
+    tree = ast.parse(source)
+    inline_defs = [
+        node for node in ast.walk(tree) if isinstance(node, ast.AsyncFunctionDef) and node.name == "search_chat_files"
+    ]
+    assert inline_defs == [], "aperag.mcp.server must not define `async def search_chat_files` after the D10.h cutover."
 
 
 # --- 5. Server module no longer defines old web_search inline --------
@@ -400,5 +372,11 @@ def test_web_search_module_targets_v2_web_path():
     """
     web_search_path = REPO_ROOT / "aperag" / "mcp" / "tools" / "search_web.py"
     source = web_search_path.read_text()
-    body = _async_def_source(source, "web_search")
+    tree = ast.parse(source)
+    body: str = ""
+    for node in ast.walk(tree):
+        if isinstance(node, ast.AsyncFunctionDef) and node.name == "web_search":
+            body = ast.get_source_segment(source, node) or ""
+            break
+    assert body, "async def web_search not found in aperag/mcp/tools/search_web.py"
     assert "/api/v2/web/search" in body, "web_search body must still hit /api/v2/web/search after the D10.d relocation."

@@ -332,10 +332,14 @@ async def test_event_service_to_event_envelope_adds_user_activity_contract():
     event = _build_event(
         3,
         "tool.started",
-        label="search_collection",
+        label="vector_search",
         status="started",
         data={
-            "tool_name": "search_collection",
+            # Post D10.h cutover the omnibus ``search_collection`` is
+            # gone; ``_KNOWLEDGE_SEARCH_TOOLS`` (services.py) now keys
+            # off the canonical D10.d split tools, so the activity
+            # inference contract is exercised against ``vector_search``.
+            "tool_name": "vector_search",
             "args": {
                 "query": "OpenAI API key",
                 "collection_name": "Product Docs",
