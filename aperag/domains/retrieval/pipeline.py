@@ -38,11 +38,11 @@ from typing import Any, List, Optional, Protocol, Tuple
 
 from aperag.config import build_vector_db_context, settings
 from aperag.db.ops import async_db_ops
-from aperag.domains.indexing.fulltext_index import extract_keywords
 from aperag.domains.retrieval.context.context import ContextManager
 from aperag.domains.retrieval.ports import GraphSearchContract
 from aperag.domains.retrieval.schemas import SearchRequest, SearchResultItem, SearchResultMetadata
 from aperag.exceptions import ValidationException
+from aperag.indexing.keyword_extract import extract_keywords
 from aperag.llm.embed.base_embedding import get_collection_embedding_service_sync
 from aperag.llm.llm_error_types import (
     EmbeddingError,

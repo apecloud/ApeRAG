@@ -26,16 +26,17 @@ mass edit in this PR.
 
 from __future__ import annotations
 
+from aperag.domains.retrieval.pipeline import (
+    SearchPipelineService,
+    search_pipeline_service,
+)
+
 # Re-exports for ``monkeypatch.setattr("aperag.service.search_pipeline_service.extract_keywords", ...)``
 # style test fixtures that reach into the old module path. The
 # underlying helpers now live in their canonical modules; the names
 # below are provided as writable aliases so ``monkeypatch`` keeps
 # working for legacy tests.
-from aperag.domains.indexing.fulltext_index import extract_keywords  # noqa: F401
-from aperag.domains.retrieval.pipeline import (
-    SearchPipelineService,
-    search_pipeline_service,
-)
+from aperag.indexing.keyword_extract import extract_keywords  # noqa: F401
 from aperag.utils.utils import generate_fulltext_index_name  # noqa: F401
 
 __all__ = ["SearchPipelineService", "search_pipeline_service"]
