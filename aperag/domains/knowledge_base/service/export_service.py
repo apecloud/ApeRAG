@@ -98,10 +98,16 @@ class ExportService:
 
         task = await self.db_ops._execute_query(_create)
 
-        # Trigger Celery task (import here to avoid circular imports)
+        # Pattern C (fire-and-forget) per architect msg=3890c9d7 — wrap
+        # the legacy sync helper in asyncio.create_task + asyncio.to_thread
+        # so the HTTP response returns immediately. The body is sync I/O
+        # (object-store download + ZIP packaging); failures update the
+        # ExportTask DB row + the user can retry from the UI.
+        import asyncio  # local import to avoid raising the module-level cost
+
         from aperag.domains.knowledge_base.tasks import export_collection_task
 
-        export_collection_task.delay(task.id)
+        asyncio.create_task(asyncio.to_thread(export_collection_task, task.id))
 
         return ExportTaskResponse(
             export_task_id=task.id,
