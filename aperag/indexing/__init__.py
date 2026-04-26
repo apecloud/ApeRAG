@@ -27,6 +27,7 @@ from aperag.indexing.base import DeriveResult, ModalityWorker
 from aperag.indexing.cleanup import (
     CLEANUP_INTERVAL_SECONDS,
     ORPHAN_COOLDOWN_SECONDS,
+    cleanup_for_deleted_documents,
     cleanup_orphan_parse_versions,
     find_orphan_parse_versions,
     run_cleanup_loop,
@@ -127,7 +128,6 @@ from aperag.indexing.reconciler import (
     HEARTBEAT_STALE_SECONDS,
     RECONCILE_BATCH_SIZE,
     RECONCILE_INTERVAL_SECONDS,
-    reconcile_cutover,
     reconcile_failed_retry,
     reconcile_pending_dispatch,
     reconcile_running_reclaim,
@@ -242,13 +242,13 @@ __all__ = [
     "reconcile_pending_dispatch",
     "reconcile_failed_retry",
     "reconcile_running_reclaim",
-    "reconcile_cutover",
     "run_reconcile_loop",
     # Cleanup (T2.1)
     "CLEANUP_INTERVAL_SECONDS",
     "ORPHAN_COOLDOWN_SECONDS",
     "find_orphan_parse_versions",
     "cleanup_orphan_parse_versions",
+    "cleanup_for_deleted_documents",
     "run_cleanup_loop",
     # Quota (T2.2 §H.5)
     "DEFAULT_TENANT_FALLBACK",

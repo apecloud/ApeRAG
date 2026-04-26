@@ -27,9 +27,12 @@ Per ``docs/modularization/indexing-redesign-design-pack.md`` §E.2 +
    :data:`HEARTBEAT_INTERVAL_SECONDS` so the reconciler does not
    reclaim the row out from under us.
 4. Run ``modality.derive(...)`` then ``modality.sync(...)``.
-5. On success: ``UPDATE status='ACTIVE', derived_artifact_path=...``.
-   The §F.3 cutover transaction (flip ``is_serving``) is the
-   reconciler's job (per-modality cutover trigger), not the orchestrator.
+5. On success: §F.3 atomic cutover — three statements in a single
+   worker-side transaction (``status=ACTIVE`` → demote prior
+   ``is_serving`` → promote new). Per architect ruling msg=492315e8
+   Ruling 1, the cutover MUST run in the worker session, never split
+   across a reconciler cycle (which would create an
+   ACTIVE-but-not-is_serving inconsistency window §F.4 disallows).
 6. On failure: ``UPDATE status='FAILED', error_message=..., retry_count++,
    retry_after=now()+backoff(retry_count)``. The §I.2 backoff schedule
    (30s → 60s → 120s → 240s → 480s) caps at 5 retries; past that the
@@ -275,8 +278,41 @@ def _claim_row(engine: Engine, index_id: int) -> bool:
     return (result.rowcount or 0) > 0
 
 
-def _finalize_active(engine: Engine, index_id: int, derived_artifact_path: str) -> None:
+def _finalize_active_with_cutover(
+    engine: Engine,
+    index_id: int,
+    derived_artifact_path: str,
+    document_id: str,
+    modality: Modality,
+) -> None:
+    """§F.3 atomic cutover — three statements in a single transaction.
+
+    Per architect ruling msg=492315e8 Ruling 1, the cutover MUST run
+    inside the worker's own DB session immediately after ``sync()``
+    succeeds. Splitting across reconciler cycles introduces an
+    ACTIVE-but-not-is_serving inconsistency window that §F.4 does not
+    sanction.
+
+    Statements (run in this exact order under one ``BEGIN ... COMMIT``):
+
+    1. ``UPDATE document_index_v2 SET status='ACTIVE', derived_artifact_path=$path
+        WHERE id=$row_id`` — marks the new sync's output as canonical.
+    2. ``UPDATE document_index_v2 SET is_serving=FALSE
+        WHERE document_id=$doc AND modality=$mod AND is_serving=TRUE`` —
+       demotes the prior serving row (if any).
+    3. ``UPDATE document_index_v2 SET is_serving=TRUE
+        WHERE id=$row_id`` — promotes the new row.
+
+    The §F.1 partial unique index ``uniq_document_index_v2_serving``
+    guarantees that even under concurrent worker / reconciler
+    pressure no two rows can sit at ``is_serving=TRUE`` for the same
+    ``(document_id, modality)`` — the second TX would conflict and
+    abort. Statement 2 (demote-FALSE) precedes statement 3
+    (promote-TRUE) so the partial-unique index never sees two TRUE
+    rows mid-transaction.
+    """
     with Session(engine) as session, session.begin():
+        # Statement 1: status=ACTIVE.
         session.execute(
             update(DocumentIndex)
             .where(DocumentIndex.id == index_id)
@@ -288,6 +324,23 @@ def _finalize_active(engine: Engine, index_id: int, derived_artifact_path: str) 
                 retry_after=None,
             )
         )
+        # Statement 2: demote prior serving row for the same (doc, modality).
+        # ``id != index_id`` so a no-op cycle (e.g. reprocessing an
+        # already-promoted row) doesn't demote-then-promote itself.
+        session.execute(
+            update(DocumentIndex)
+            .where(
+                and_(
+                    DocumentIndex.document_id == document_id,
+                    DocumentIndex.modality == modality.value,
+                    DocumentIndex.is_serving.is_(True),
+                    DocumentIndex.id != index_id,
+                )
+            )
+            .values(is_serving=False)
+        )
+        # Statement 3: promote this row.
+        session.execute(update(DocumentIndex).where(DocumentIndex.id == index_id).values(is_serving=True))
 
 
 def _finalize_failed(
@@ -398,10 +451,12 @@ async def process_one_task(
             derived_artifact_path=derive_result.derived_artifact_path,
         )
         await asyncio.to_thread(
-            _finalize_active,
+            _finalize_active_with_cutover,
             engine,
             payload.index_id,
             derive_result.derived_artifact_path,
+            payload.document_id,
+            payload.modality,
         )
         return "completed"
 

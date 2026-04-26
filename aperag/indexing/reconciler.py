@@ -16,7 +16,7 @@
 
 Per ``docs/modularization/indexing-redesign-design-pack.md`` §I.3, a
 single asyncio process runs every :data:`RECONCILE_INTERVAL_SECONDS`
-and performs four DB scans:
+and performs three DB scans:
 
 1. **PENDING dispatch** — push every PENDING row's payload onto its
    modality's Redis queue. The orchestrator's atomic ``UPDATE ...
@@ -31,16 +31,18 @@ and performs four DB scans:
    (60s). The orchestrator's atomic claim ``UPDATE WHERE status IN
    ('PENDING','FAILED')`` will pick it up; the original worker
    process is presumed dead.
-4. **Per-modality cutover trigger** — for every row that just went
-   ACTIVE and is not yet ``is_serving=TRUE``, run the §F.3
-   three-statement cutover transaction (UPDATE status=ACTIVE → demote
-   prior serving row → promote new row). Per-modality, not
-   document-wide (§F.6 — each modality flips independently).
 
-The four scans are intentionally idempotent: re-running a cycle
+Per-modality cutover (§F.3) is intentionally NOT a reconciler scan:
+the §F.3 three-statement transaction must run inside the worker's
+own session immediately after ``sync()`` succeeds (architect ruling
+msg=492315e8 Ruling 1 — splitting introduces an ACTIVE-but-not-
+is_serving inconsistency window the spec explicitly forbids). See
+``aperag.indexing.orchestrator._finalize_active_with_cutover``.
+
+The three scans are intentionally idempotent: re-running a cycle
 mid-flight produces the same end state, so a reconciler crash mid-
 cycle is recoverable on next tick. The ``run_reconcile_loop`` wrapper
-is the production entrypoint; the four ``reconcile_*`` functions are
+is the production entrypoint; the three ``reconcile_*`` functions are
 the testable seams (drive each scan independently in unit tests).
 """
 
@@ -242,72 +244,15 @@ def reconcile_running_reclaim(
     return result.rowcount or 0
 
 
-# ---------------------------------------------------------------------
-# (4) Per-modality cutover trigger
-# ---------------------------------------------------------------------
-
-
-def reconcile_cutover(
-    *,
-    engine: Engine,
-    batch_size: int = RECONCILE_BATCH_SIZE,
-) -> int:
-    """Run §F.3 three-statement cutover for every ACTIVE-but-not-serving row.
-
-    For each candidate row, in a single transaction:
-
-    1. UPDATE prior serving row for ``(document_id, modality)`` to
-       ``is_serving=FALSE`` (the demote step).
-    2. UPDATE this row to ``is_serving=TRUE`` (the promote step).
-
-    The §F.1 partial unique index ``uniq_document_index_v2_serving``
-    guarantees these two statements never leave two rows
-    ``is_serving=TRUE`` for the same ``(document_id, modality)`` even
-    under concurrent reconcilers — the second transaction would
-    detect the conflict and abort.
-
-    The full §F.3 contract calls for THREE statements (status→ACTIVE
-    is the first); here the orchestrator already wrote status=ACTIVE
-    on completion, so the reconciler runs the remaining two statements
-    in the same transaction, which is semantically equivalent.
-
-    Returns the number of rows promoted to ``is_serving=TRUE``.
-    """
-    with Session(engine) as session, session.begin():
-        candidates = list(
-            session.scalars(
-                select(DocumentIndex)
-                .where(
-                    and_(
-                        DocumentIndex.status == IndexStatus.ACTIVE.value,
-                        DocumentIndex.is_serving.is_(False),
-                    )
-                )
-                .order_by(DocumentIndex.updated_at)
-                .limit(batch_size)
-            )
-        )
-        promoted = 0
-        for row in candidates:
-            # Demote any prior serving row for the same (doc, modality).
-            # Distinct from this row's id so we don't accidentally
-            # demote-then-promote the same row in a no-op cycle.
-            session.execute(
-                update(DocumentIndex)
-                .where(
-                    and_(
-                        DocumentIndex.document_id == row.document_id,
-                        DocumentIndex.modality == row.modality,
-                        DocumentIndex.is_serving.is_(True),
-                        DocumentIndex.id != row.id,
-                    )
-                )
-                .values(is_serving=False)
-            )
-            # Promote this row.
-            session.execute(update(DocumentIndex).where(DocumentIndex.id == row.id).values(is_serving=True))
-            promoted += 1
-    return promoted
+# Per-modality cutover (§F.3) is intentionally NOT in the reconciler.
+# Per architect ruling msg=492315e8 (Ruling 1), the §F.3 three-statement
+# transaction (status=ACTIVE → demote-old → promote-new) must run inside
+# the worker's own DB session immediately after sync() succeeds — not
+# split across reconciler cycles. Splitting introduces the orchestration
+# §F.3 explicitly forbids and creates an ACTIVE-but-not-is_serving
+# inconsistency window of ~30s (the reconciler interval). See
+# ``aperag.indexing.orchestrator._finalize_active_with_cutover`` for the
+# canonical 3-statement TX.
 
 
 # ---------------------------------------------------------------------
@@ -323,10 +268,10 @@ async def run_reconcile_loop(
     interval_seconds: int = RECONCILE_INTERVAL_SECONDS,
     stale_seconds: int = HEARTBEAT_STALE_SECONDS,
 ) -> None:
-    """Run the four reconcile scans every ``interval_seconds`` until shutdown.
+    """Run the three reconcile scans every ``interval_seconds`` until shutdown.
 
-    Each cycle is best-effort: an exception in any of the four scans
-    is logged and the cycle continues to the next scan. A cycle that
+    Each cycle is best-effort: an exception in any of the scans is
+    logged and the cycle continues to the next scan. A cycle that
     bombs entirely (e.g. DB unreachable) sleeps the interval and
     retries — better to keep the loop alive than to crash the process.
     """
@@ -339,14 +284,12 @@ async def run_reconcile_loop(
                 engine=engine,
                 stale_seconds=stale_seconds,
             )
-            promoted = await asyncio.to_thread(reconcile_cutover, engine=engine)
-            if pushed or retried or reclaimed or promoted:
+            if pushed or retried or reclaimed:
                 logger.info(
-                    "reconciler cycle: dispatched=%d retried=%d reclaimed=%d promoted=%d",
+                    "reconciler cycle: dispatched=%d retried=%d reclaimed=%d",
                     pushed,
                     retried,
                     reclaimed,
-                    promoted,
                 )
         except Exception as exc:  # noqa: BLE001 — keep the loop alive
             logger.exception("reconciler cycle failed: %s", exc)
@@ -360,7 +303,6 @@ __all__ = [
     "HEARTBEAT_STALE_SECONDS",
     "RECONCILE_BATCH_SIZE",
     "RECONCILE_INTERVAL_SECONDS",
-    "reconcile_cutover",
     "reconcile_failed_retry",
     "reconcile_pending_dispatch",
     "reconcile_running_reclaim",

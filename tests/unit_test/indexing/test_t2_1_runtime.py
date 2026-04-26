@@ -26,11 +26,20 @@ Locks the §K Wave 2 acceptance gates for the runtime lane:
    back to PENDING without burning retry budget (§E.4).
 5. **Reconciler FAILED retry** — flips elapsed-backoff FAILED rows
    back to PENDING; past-budget rows stay FAILED.
-6. **Reconciler per-modality cutover** — promotes ACTIVE-but-not-
-   serving rows to ``is_serving=TRUE`` while demoting the prior
-   serving row (§F.3 + §F.1 partial unique invariant honoured).
-7. **Cleanup orphan GC** — backend ``delete_by_filter`` + DB row
-   ``DELETE`` for superseded parse_versions past the cool-down (§F.5).
+6. **Worker §F.3 cutover** — three-statement TX (status=ACTIVE →
+   demote prior is_serving → promote new) inside the worker session
+   immediately after sync(); §F.1 partial unique invariant honoured
+   (per architect ruling msg=492315e8 Ruling 1, NOT a reconciler scan).
+7. **Cleanup orphan GC** (path A) — backend ``delete_by_filter`` /
+   ``delete_by_query`` + DB row DELETE for superseded parse_versions
+   past the cool-down (§F.5). Graph orphan GC is a backend no-op
+   (§D.3.6 sync supersede already cleared lineage per amended §D.3.2
+   canonical) — DB row still GC'd.
+8. **Cleanup document-deletion** (path B) — caller-driven
+   ``cleanup_for_deleted_documents``: flat backend delete per
+   parse_version for non-graph modalities; lineage-aware cleanup
+   on the graph worker's ``LineageGraphStore`` (one call per doc
+   regardless of parse_version count).
 """
 
 from __future__ import annotations
@@ -58,11 +67,11 @@ from aperag.indexing import (
     InMemoryWorkQueue,
     Modality,
     VectorModality,
+    cleanup_for_deleted_documents,
     cleanup_orphan_parse_versions,
     drain_queue_sync,
     parse_document,
     process_one_task,
-    reconcile_cutover,
     reconcile_failed_retry,
     reconcile_pending_dispatch,
     reconcile_running_reclaim,
@@ -203,6 +212,9 @@ def test_orchestrator_claim_derive_sync_finalize_happy_path(engine):
     assert row.derived_artifact_path == chunks_path
     assert row.error_message is None
     assert row.retry_after is None
+    # §F.3 cutover runs in the worker session — successful completion
+    # must leave the row both ACTIVE and is_serving=TRUE in one TX.
+    assert row.is_serving is True
     assert backend.points_for_document(doc_id, parse_version), "successful sync must populate the vector backend"
 
 
@@ -486,78 +498,114 @@ def test_reconciler_failed_retry_flips_elapsed_backoff_only(engine):
 
 
 # ---------------------------------------------------------------------
-# (6) Per-modality cutover trigger (§F.3)
+# (6) §F.3 single-TX cutover in worker (per architect ruling msg=492315e8 Ruling 1)
 # ---------------------------------------------------------------------
+#
+# Cutover is NOT a reconciler scan — it MUST run inside the worker's
+# own session immediately after sync() succeeds. Splitting status=ACTIVE
+# from is_serving promotion creates an inconsistency window §F.4
+# disallows. These tests assert the cutover happens atomically inside
+# process_one_task() on success.
 
 
-def test_reconciler_cutover_promotes_active_row_and_demotes_prior_serving(engine):
-    """A new ACTIVE row must demote the prior is_serving row + promote itself."""
+def test_orchestrator_cutover_promotes_new_and_demotes_prior_serving_in_one_tx(engine):
+    """A successful sync must demote the prior is_serving row + promote
+    the new row in a single TX (§F.3 three-statement contract)."""
+    store = InMemoryObjectStore()
+    doc_id, new_pv, chunks_path = _seed_chunks(store)
+    backend = InMemoryVectorBackend()
+    worker = VectorModality(backend=backend, store=store)
+
+    # Pre-existing serving row for the same (doc, modality), with a
+    # different parse_version, simulating "doc was already indexed".
     old_id = _insert_row(
         engine,
-        document_id="doc-1",
-        parse_version="oldoldoldoldoldold"[:16],
+        document_id=doc_id,
+        parse_version="oldparseversionx"[:16],
         modality=Modality.VECTOR,
         status=IndexStatus.ACTIVE,
         is_serving=True,
     )
     new_id = _insert_row(
         engine,
-        document_id="doc-1",
-        parse_version="newnewnewnewnewnew"[:16],
+        document_id=doc_id,
+        parse_version=new_pv,
         modality=Modality.VECTOR,
-        status=IndexStatus.ACTIVE,
-        is_serving=False,
+        source_path=chunks_path,
+    )
+    payload = DispatchPayload(
+        index_id=new_id,
+        document_id=doc_id,
+        parse_version=new_pv,
+        modality=Modality.VECTOR,
+        source_path=chunks_path,
     )
 
-    promoted = reconcile_cutover(engine=engine)
-    assert promoted == 1
+    outcome = asyncio.run(process_one_task(engine=engine, payload=payload, worker=worker, heartbeat_interval_seconds=0))
+    assert outcome == "completed"
 
     old_row = _row(engine, old_id)
     new_row = _row(engine, new_id)
-    assert old_row.is_serving is False, "prior serving row must be demoted"
-    assert new_row.is_serving is True, "new ACTIVE row must be promoted"
+    assert old_row.is_serving is False, "prior serving row must be demoted by §F.3 stmt 2"
+    assert new_row.is_serving is True, "new ACTIVE row must be promoted by §F.3 stmt 3"
 
 
-def test_reconciler_cutover_respects_partial_unique_invariant(engine):
-    """The §F.3 cutover transaction must never leave 2 rows is_serving=TRUE
-    for the same (doc, modality) — the §F.1 partial unique index guards
-    even against orchestrator bugs."""
+def test_orchestrator_cutover_respects_partial_unique_invariant(engine):
+    """§F.3 cutover must never leave 2 rows is_serving=TRUE for the same
+    (doc, modality) — the §F.1 partial unique index guards against any
+    drift even if statement 2 (demote) were skipped."""
+    store = InMemoryObjectStore()
+    doc_id, new_pv, chunks_path = _seed_chunks(store)
+    backend = InMemoryVectorBackend()
+    worker = VectorModality(backend=backend, store=store)
+
     _insert_row(
         engine,
-        document_id="doc-1",
-        parse_version="oldoldoldoldoldold"[:16],
+        document_id=doc_id,
+        parse_version="oldparseversionx"[:16],
         modality=Modality.VECTOR,
         status=IndexStatus.ACTIVE,
         is_serving=True,
     )
-    _insert_row(
+    new_id = _insert_row(
         engine,
-        document_id="doc-1",
-        parse_version="newnewnewnewnewnew"[:16],
+        document_id=doc_id,
+        parse_version=new_pv,
         modality=Modality.VECTOR,
-        status=IndexStatus.ACTIVE,
-        is_serving=False,
+        source_path=chunks_path,
     )
-    reconcile_cutover(engine=engine)
+    payload = DispatchPayload(
+        index_id=new_id,
+        document_id=doc_id,
+        parse_version=new_pv,
+        modality=Modality.VECTOR,
+        source_path=chunks_path,
+    )
+    asyncio.run(process_one_task(engine=engine, payload=payload, worker=worker, heartbeat_interval_seconds=0))
 
     with Session(engine) as session:
         serving_count = session.scalar(
             select(text("COUNT(*)"))
             .select_from(DocumentIndex.__table__)
-            .where(DocumentIndex.document_id == "doc-1")
+            .where(DocumentIndex.document_id == doc_id)
             .where(DocumentIndex.modality == Modality.VECTOR.value)
             .where(DocumentIndex.is_serving.is_(True))
         )
     assert serving_count == 1, (
-        "post-cutover, exactly one row per (doc, modality) is serving — partial unique invariant holds"
+        "post-cutover, exactly one row per (doc, modality) is serving — §F.1 partial unique invariant"
     )
 
 
-def test_reconciler_cutover_per_modality_independent(engine):
-    """Vector cutover must NOT affect fulltext serving for the same doc."""
+def test_orchestrator_cutover_is_per_modality(engine):
+    """Vector cutover must NOT affect fulltext serving for the same doc (§F.6)."""
+    store = InMemoryObjectStore()
+    doc_id, new_pv, chunks_path = _seed_chunks(store)
+    backend = InMemoryVectorBackend()
+    worker = VectorModality(backend=backend, store=store)
+
     ft_id = _insert_row(
         engine,
-        document_id="doc-1",
+        document_id=doc_id,
         parse_version="ftparsversion111"[:16],
         modality=Modality.FULLTEXT,
         status=IndexStatus.ACTIVE,
@@ -565,17 +613,22 @@ def test_reconciler_cutover_per_modality_independent(engine):
     )
     vec_id = _insert_row(
         engine,
-        document_id="doc-1",
-        parse_version="vecparsversion11"[:16],
+        document_id=doc_id,
+        parse_version=new_pv,
         modality=Modality.VECTOR,
-        status=IndexStatus.ACTIVE,
-        is_serving=False,
+        source_path=chunks_path,
     )
-    reconcile_cutover(engine=engine)
+    payload = DispatchPayload(
+        index_id=vec_id,
+        document_id=doc_id,
+        parse_version=new_pv,
+        modality=Modality.VECTOR,
+        source_path=chunks_path,
+    )
+    asyncio.run(process_one_task(engine=engine, payload=payload, worker=worker, heartbeat_interval_seconds=0))
+
     assert _row(engine, vec_id).is_serving is True
-    assert _row(engine, ft_id).is_serving is True, (
-        "fulltext serving for doc-1 must be untouched by vector cutover (§F.6)"
-    )
+    assert _row(engine, ft_id).is_serving is True, "fulltext serving must be untouched by vector cutover (§F.6)"
 
 
 # ---------------------------------------------------------------------
@@ -698,28 +751,15 @@ def test_cleanup_respects_cooldown(engine):
     )
 
 
-def test_cleanup_skips_graph_modality_with_warning(engine, caplog):
-    """Graph backend has no flat delete_by_filter — cleanup must skip it
-    (deferred to T2.2 per §D.3 lineage cleanup), not crash, and still
-    GC the DB row so the orphan list shrinks.
+def test_cleanup_orphan_parse_version_for_graph_is_backend_noop(engine):
+    """Per architect ruling msg=492315e8 Ruling 3: graph orphan
+    parse_version GC is a backend no-op because the §D.3.6 sync
+    supersede semantic already cleared old lineage members when the
+    new parse_version was written. The DB row is still dropped.
     """
-
-    class _GraphLikeWorker(ModalityWorker):
-        """Stand-in for GraphModalityWorker — exposes ``_store`` with no
-        ``delete_by_filter``/``delete_by_query``, mimicking the real
-        graph worker's lineage-only API.
-        """
-
-        modality = Modality.GRAPH
-
-        def __init__(self):
-            self._store = object()  # no flat delete API
-
-        async def derive(self, *, document_id, parse_version, source_path):
-            pass  # pragma: no cover
-
-        async def sync(self, *, document_id, parse_version, derived_artifact_path):
-            pass  # pragma: no cover
+    store = InMemoryObjectStore()  # noqa: F841 — included for parity with non-graph tests
+    graph_store = _StubLineageGraphStore()
+    worker = _GraphLikeWorker(graph_store)
 
     old_id = _insert_row(
         engine,
@@ -742,23 +782,233 @@ def test_cleanup_skips_graph_modality_with_warning(engine, caplog):
     counts = asyncio.run(
         cleanup_orphan_parse_versions(
             engine=engine,
-            workers={Modality.GRAPH: _GraphLikeWorker()},
+            workers={Modality.GRAPH: worker},
         )
     )
-    # Backend delete is skipped (T2.2 §D.3 follow-up) but DB row is still GC'd.
+    assert counts["graph_noop"] == 1, "orphan parse_v GC for graph must be a counted no-op"
     assert counts["backend_deleted"] == 0
-    assert counts["backend_skipped"] == 1
-    assert counts["rows_deleted"] == 1
+    assert counts["backend_skipped"] == 0
+    assert counts["rows_deleted"] == 1, (
+        "DB row is still GC'd even though the graph backend lineage was already cleared by sync"
+    )
+    # The graph store was never touched on the orphan path.
+    assert graph_store.find_calls == 0
+    assert graph_store.remove_calls == 0
 
 
 # ---------------------------------------------------------------------
-# (8) End-to-end orchestrator + reconciler smoke
+# (7b) cleanup_for_deleted_documents (path B — caller-driven document delete)
 # ---------------------------------------------------------------------
 
 
-def test_end_to_end_pending_dispatch_orchestrator_run_cutover(engine):
+def test_cleanup_for_deleted_documents_removes_non_graph_backend_per_parse_version(engine):
+    """Document deletion path: every parse_version row's backend tombstone
+    is removed via the worker's flat delete (vector / fulltext / summary
+    / vision)."""
+    store = InMemoryObjectStore()  # noqa: F841 — required arg shape parity
+    backend = InMemoryVectorBackend()
+    worker = VectorModality(backend=backend, store=InMemoryObjectStore())
+
+    pv_a = "deldocparsversA1"[:16]
+    pv_b = "deldocparsversB1"[:16]
+    _insert_row(
+        engine,
+        document_id="doc-del",
+        parse_version=pv_a,
+        modality=Modality.VECTOR,
+        status=IndexStatus.ACTIVE,
+        is_serving=True,
+    )
+    _insert_row(
+        engine,
+        document_id="doc-del",
+        parse_version=pv_b,
+        modality=Modality.VECTOR,
+        status=IndexStatus.ACTIVE,
+        is_serving=False,
+    )
+    for pv, chunk_id in ((pv_a, "chunk-a"), (pv_b, "chunk-b")):
+        backend.upsert_point(
+            chunk_id=chunk_id,
+            embedding=[0.0] * 16,
+            payload={
+                "document_id": "doc-del",
+                "parse_version": pv,
+                "modality": "vector",
+                "chunk_id": chunk_id,
+                "text": "x",
+                "section_path": None,
+                "heading_anchor": None,
+                "page_idx": None,
+            },
+        )
+
+    counts = asyncio.run(
+        cleanup_for_deleted_documents(
+            engine=engine,
+            workers={Modality.VECTOR: worker},
+            document_ids=["doc-del"],
+        )
+    )
+    assert counts["backend_deleted"] == 2, "every parse_version row gets a backend delete"
+    assert counts["rows_deleted"] == 2
+    assert backend.points_for_document("doc-del") == [], "backend tombstones gone"
+    with Session(engine) as session:
+        remaining = list(session.scalars(select(DocumentIndex.id).where(DocumentIndex.document_id == "doc-del")))
+    assert remaining == []
+
+
+def test_cleanup_for_deleted_documents_calls_graph_lineage_cleanup_once_per_doc(engine):
+    """Document deletion path on graph: regardless of how many
+    parse_version rows exist for a document, the lineage cleanup call
+    is invoked exactly once per (document_id, graph) — the call is
+    by-document, not by-parse_version (per §D.3.2 amended canonical
+    PR #1725 head a0a47994)."""
+    graph_store = _StubLineageGraphStore(
+        entity_lineage={"doc-graph": ["entity-A", "entity-B"]},
+        relation_lineage={"doc-graph": [("entity-A", "REL", "entity-B")]},
+    )
+    worker = _GraphLikeWorker(graph_store)
+
+    _insert_row(
+        engine,
+        document_id="doc-graph",
+        parse_version="graphpv0000000_a"[:16],
+        modality=Modality.GRAPH,
+        status=IndexStatus.ACTIVE,
+        is_serving=False,
+    )
+    _insert_row(
+        engine,
+        document_id="doc-graph",
+        parse_version="graphpv0000000_b"[:16],
+        modality=Modality.GRAPH,
+        status=IndexStatus.ACTIVE,
+        is_serving=True,
+    )
+
+    counts = asyncio.run(
+        cleanup_for_deleted_documents(
+            engine=engine,
+            workers={Modality.GRAPH: worker},
+            document_ids=["doc-graph"],
+        )
+    )
+
+    assert counts["graph_lineage_cleaned"] == 1, (
+        "lineage cleanup runs once per document, regardless of parse_version count"
+    )
+    assert counts["rows_deleted"] == 2, "all parse_version rows for the document are GC'd"
+    assert graph_store.remove_calls == 2, "two entities had lineage members removed"
+    assert graph_store.gc_calls == 2, "each entity was checked for GC once its lineage was empty"
+    assert graph_store.relation_remove_calls == 1, "the one relation was removed"
+
+
+def test_cleanup_for_deleted_documents_handles_empty_input(engine):
+    counts = asyncio.run(
+        cleanup_for_deleted_documents(
+            engine=engine,
+            workers={},
+            document_ids=[],
+        )
+    )
+    assert counts == {
+        "backend_deleted": 0,
+        "graph_lineage_cleaned": 0,
+        "rows_deleted": 0,
+        "backend_skipped": 0,
+    }
+
+
+# ---------------------------------------------------------------------
+# Stub LineageGraphStore + GraphModalityWorker for cleanup tests.
+# We don't import GraphModalityWorker because constructing it requires
+# extras (Nebula/Neo4j path) and an extractor; the cleanup path only
+# touches `_store` + `_entity_lock` (Wave 1 conventions), so a tiny
+# duck-typed stand-in covers the contract.
+# ---------------------------------------------------------------------
+
+
+class _StubAsyncLock:
+    """Async context manager that records acquire/release sequence."""
+
+    def __init__(self) -> None:
+        self.acquired = []
+
+    def acquire(self, entity_id: str):
+        return self._Acquire(self, entity_id)
+
+    class _Acquire:
+        def __init__(self, parent, entity_id):
+            self.parent = parent
+            self.entity_id = entity_id
+
+        async def __aenter__(self):
+            self.parent.acquired.append(self.entity_id)
+            return None
+
+        async def __aexit__(self, *args):
+            return None
+
+
+class _StubLineageGraphStore:
+    """Records cleanup calls so tests can assert on call shape."""
+
+    def __init__(
+        self,
+        entity_lineage: dict[str, list[str]] | None = None,
+        relation_lineage: dict[str, list[tuple[str, str, str]]] | None = None,
+    ) -> None:
+        self._entity_lineage = entity_lineage or {}
+        self._relation_lineage = relation_lineage or {}
+        self.find_calls = 0
+        self.remove_calls = 0
+        self.gc_calls = 0
+        self.relation_remove_calls = 0
+
+    async def find_entity_ids_with_lineage(self, *, document_id: str) -> list[str]:
+        self.find_calls += 1
+        return list(self._entity_lineage.get(document_id, []))
+
+    async def remove_entity_lineage_member(self, *, entity_name: str, document_id: str) -> None:
+        self.remove_calls += 1
+
+    async def gc_entity_if_orphan(self, *, entity_name: str) -> None:
+        self.gc_calls += 1
+
+    async def find_relation_keys_with_lineage(self, *, document_id: str) -> list[tuple[str, str, str]]:
+        return list(self._relation_lineage.get(document_id, []))
+
+    async def remove_relation_lineage_member(self, *, relation_key: tuple[str, str, str], document_id: str) -> None:
+        self.relation_remove_calls += 1
+
+
+class _GraphLikeWorker(ModalityWorker):
+    """Stand-in for ``GraphModalityWorker`` — exposes ``_store`` +
+    ``_entity_lock`` without requiring graph extras."""
+
+    modality = Modality.GRAPH
+
+    def __init__(self, store: _StubLineageGraphStore | None = None) -> None:
+        self._store = store or _StubLineageGraphStore()
+        self._entity_lock = _StubAsyncLock()
+
+    async def derive(self, *, document_id, parse_version, source_path):
+        pass  # pragma: no cover
+
+    async def sync(self, *, document_id, parse_version, derived_artifact_path):
+        pass  # pragma: no cover
+
+
+# ---------------------------------------------------------------------
+# (8) End-to-end PENDING → orchestrator → ACTIVE+is_serving smoke
+# ---------------------------------------------------------------------
+
+
+def test_end_to_end_pending_dispatch_orchestrator_run(engine):
     """Full smoke: PENDING → reconciler dispatch → orchestrator run →
-    ACTIVE → reconciler cutover → is_serving=TRUE."""
+    ACTIVE + is_serving=TRUE in one TX (no separate reconciler cutover step
+    per architect ruling msg=492315e8 Ruling 1)."""
     store = InMemoryObjectStore()
     doc_id, parse_version, chunks_path = _seed_chunks(store)
     backend = InMemoryVectorBackend()
@@ -777,19 +1027,16 @@ def test_end_to_end_pending_dispatch_orchestrator_run_cutover(engine):
     asyncio.run(reconcile_pending_dispatch(engine=engine, queue=queue))
     assert queue.qsize(Modality.VECTOR) == 1
 
-    # 2. Orchestrator pops + processes.
+    # 2. Orchestrator pops + processes — both ACTIVE and is_serving=TRUE
+    # land in one §F.3 transaction.
     raw = asyncio.run(queue.pop(modality=Modality.VECTOR, timeout_seconds=0.1))
     assert raw is not None
     payload = DispatchPayload.from_dict(raw)
     outcome = asyncio.run(process_one_task(engine=engine, payload=payload, worker=worker, heartbeat_interval_seconds=0))
     assert outcome == "completed"
-    assert _row(engine, row_id).status == IndexStatus.ACTIVE.value
-    assert _row(engine, row_id).is_serving is False
-
-    # 3. Reconciler runs cutover → row becomes serving.
-    promoted = reconcile_cutover(engine=engine)
-    assert promoted == 1
-    assert _row(engine, row_id).is_serving is True
+    final = _row(engine, row_id)
+    assert final.status == IndexStatus.ACTIVE.value
+    assert final.is_serving is True
 
 
 # ---------------------------------------------------------------------
