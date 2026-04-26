@@ -54,15 +54,16 @@ HTTP 200
 [Asserts]
 
 # §C.5 PaginationParams input markers — cursor + limit on every
-# paginated read primitive.
+# paginated read primitive's ``inputSchema``. The MCP tool functions
+# in ``aperag/mcp/server.py`` are typed ``-> Dict[str, Any]`` so
+# FastMCP exposes only ``"outputSchema": {"additionalProperties":
+# true}`` — there is no on-wire pin for the
+# ``items / next_cursor / total_count`` envelope fields. Those are
+# pinned at the Pydantic schema level by
+# ``aperag/mcp/cursor/schemas.py`` and the cursor unit suite
+# (``tests/unit_test/mcp/test_cursor_contract.py`` +
+# ``tests/unit_test/service/test_pagination_helper.py``).
 body contains "\"list_collections\""
 body contains "\"list_documents\""
 body contains "\"cursor\""
 body contains "\"limit\""
-
-# §C.5 PaginationResult output markers — items / next_cursor /
-# total_count on every paginated tool's outputSchema. FastMCP emits
-# the Pydantic model JSON schema, so the field names round-trip.
-body contains "\"items\""
-body contains "\"next_cursor\""
-body contains "\"total_count\""
