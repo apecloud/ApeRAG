@@ -14,19 +14,26 @@
 
 """Agent-runtime-domain SQLAlchemy models.
 
-Owns ``AgentTurn`` + ``AgentTimelineEvent`` + ``AgentMessage`` plus
-``AgentTurnStatus`` / ``AgentEventActor`` enums. Moved here from
-``aperag.db.models`` in Phase 5 step 5-S2b; the legacy aggregate
-module retains a re-export shim until Phase 6 cleanup.
+Owns ``AgentTurn`` + ``AgentMessage`` plus ``AgentTurnStatus`` /
+``AgentEventActor`` enums. Moved here from ``aperag.db.models`` in
+Phase 5 step 5-S2b; the legacy aggregate module retains a re-export
+shim until Phase 6 cleanup.
 
-Phase 8 D8.6 (#80) chunk-2 hard-cut removed the legacy
-``AgentArtifact`` table and the ``AgentArtifactType`` enum — at-rest
-answer/citation persistence is now canonical via ``AgentMessage``
-(D8.2 #74) populated by the runtime emit path.
+Phase 8 D8.6 (#80) hard-cut history:
 
-Tables key on ``turn_id`` (events + messages) or ``chat_id`` (turn);
-these are opaque string FKs, so no Python-level cross-domain import
-is required. ``chat_id`` is logically owned by the ``conversation``
+* chunk-2 dropped the legacy ``AgentArtifact`` table and the
+  ``AgentArtifactType`` enum — at-rest answer/citation persistence
+  is now canonical via ``AgentMessage`` (D8.2 #74), populated by the
+  runtime emit path's ``UIMessageStore.write`` call at end-of-turn.
+* chunk-3 dropped the ``AgentTimelineEvent`` table — wire-emitter
+  envelopes are now ephemeral (live SSE + Redis cache for
+  reconnect-within-TTL only). Reload outside the TTL has no
+  historical events to replay; the canonical at-rest authority is
+  ``AgentMessage``.
+
+Tables key on ``turn_id`` (messages) or ``chat_id`` (turn); these
+are opaque string FKs, so no Python-level cross-domain import is
+required. ``chat_id`` is logically owned by the ``conversation``
 domain but the relationship is traversed at query time via the turn
 service, not via ORM relationship() bindings.
 """
@@ -112,25 +119,6 @@ class AgentTurn(Base):
     gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
 
-class AgentTimelineEvent(Base):
-    __tablename__ = "agent_timeline_event"
-    __table_args__ = (
-        UniqueConstraint("turn_id", "sequence", name="uq_agent_timeline_event_turn_sequence"),
-        Index("idx_agent_timeline_event_turn_timestamp", "turn_id", "timestamp"),
-    )
-
-    id = Column(String(24), primary_key=True, default=lambda: "evt" + _random_id())
-    turn_id = Column(String(24), nullable=False, index=True)
-    sequence = Column(Integer, nullable=False)
-    timestamp = Column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
-    type = Column(String(128), nullable=False, index=True)
-    label = Column(String(128), nullable=True)
-    status = Column(String(64), nullable=True)
-    actor = Column(_enum_column(AgentEventActor), nullable=False, default=AgentEventActor.SYSTEM)
-    data = Column(JSON, default=lambda: {}, nullable=False)
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-
-
 class AgentMessage(Base):
     """At-rest UIMessage envelope (Phase 8 D8.2 first-cut, D8.5-BE refined).
 
@@ -150,10 +138,9 @@ class AgentMessage(Base):
     architect canonical lock msg=e01e9b4b.
 
     Phase 8 D8.6 (#80) chunk-2 dropped the legacy ``AgentArtifact``
-    table and column FKs from ``AgentTurn``; ``AgentMessage`` is now
-    the single authoritative at-rest store for assistant turn
-    contents. ``AgentTimelineEvent`` remains pending chunk-3 cleanup
-    (replay/reload semantic change is reviewed separately).
+    table and column FKs from ``AgentTurn``; chunk-3 dropped
+    ``AgentTimelineEvent``. ``AgentMessage`` is now the single
+    authoritative at-rest store for assistant turn contents.
     """
 
     __tablename__ = "agent_message"

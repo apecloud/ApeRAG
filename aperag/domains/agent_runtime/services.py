@@ -487,6 +487,17 @@ class TurnService:
 
 
 class EventService:
+    """Live wire-emitter envelope service for agent runtime events.
+
+    Phase 8 D8.6 (#80) chunk-3 hard-cut removed the
+    ``agent_timeline_event`` DB persistence layer. Envelopes are now
+    composed locally and pushed only to the Redis live cache (live SSE
+    + reconnect-within-TTL). Reload outside the Redis TTL has no
+    historical events to replay — by design (PM lock msg=ce…): the
+    canonical at-rest authority is the ``agent_message`` UIMessage row;
+    timeline events are ephemeral wire telemetry, not durable history.
+    """
+
     def __init__(self, db_ops: AsyncDatabaseOps | None = None, redis_store: AgentRuntimeRedisStore | None = None):
         self.db_ops = db_ops or async_db_ops
         self.redis_store = redis_store or AgentRuntimeRedisStore()
@@ -502,18 +513,21 @@ class EventService:
         status: Optional[str] = None,
         data: Optional[dict[str, Any]] = None,
     ) -> AgentTimelineEventEnvelope:
-        timestamp = utc_now()
-        event = await self.db_ops.create_agent_timeline_event(
-            turn_id=turn_id,
-            sequence=sequence,
-            timestamp=timestamp,
-            event_type=event_type,
-            label=label,
-            status=status,
-            actor=actor,
-            data=data or {},
+        actor_value = actor.value if hasattr(actor, "value") else actor
+        envelope = self.adapt_event_envelope(
+            AgentTimelineEventEnvelope(
+                event_id="evt" + uuid.uuid4().hex[:21],
+                turn_id=turn_id,
+                sequence=sequence,
+                timestamp=utc_now(),
+                type=event_type,
+                technical_type=event_type,
+                label=label,
+                status=status,
+                actor=actor_value,
+                data=data or {},
+            )
         )
-        envelope = self.to_event_envelope(event)
         await self.redis_store.append_event(envelope)
         await self.redis_store.merge_runtime_state(turn_id, {"timeline_cursor": sequence})
         return envelope
@@ -522,27 +536,7 @@ class EventService:
         self, turn_id: str, after_sequence: int = 0, limit: int = 500
     ) -> list[AgentTimelineEventEnvelope]:
         cached = await self.redis_store.get_events_after(turn_id, after_sequence=after_sequence, limit=limit)
-        if cached:
-            return [self.adapt_event_envelope(AgentTimelineEventEnvelope.model_validate(item)) for item in cached]
-        persisted = await self.db_ops.query_agent_timeline_events(turn_id, after_sequence=after_sequence, limit=limit)
-        return [self.to_event_envelope(item) for item in persisted]
-
-    @staticmethod
-    def to_event_envelope(event) -> AgentTimelineEventEnvelope:
-        actor_value = event.actor.value if hasattr(event.actor, "value") else event.actor
-        envelope = AgentTimelineEventEnvelope(
-            event_id=event.id,
-            turn_id=event.turn_id,
-            sequence=event.sequence,
-            timestamp=event.timestamp,
-            type=event.type,
-            technical_type=event.type,
-            label=event.label,
-            status=event.status,
-            actor=actor_value,
-            data=event.data or {},
-        )
-        return EventService.adapt_event_envelope(envelope)
+        return [self.adapt_event_envelope(AgentTimelineEventEnvelope.model_validate(item)) for item in cached]
 
     @staticmethod
     def adapt_event_envelope(event: AgentTimelineEventEnvelope) -> AgentTimelineEventEnvelope:

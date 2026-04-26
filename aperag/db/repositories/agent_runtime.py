@@ -17,10 +17,7 @@ from typing import Optional
 from sqlalchemy import select
 
 from aperag.db.repositories.base import AsyncRepositoryProtocol
-from aperag.domains.agent_runtime.db.models import (
-    AgentTimelineEvent,
-    AgentTurn,
-)
+from aperag.domains.agent_runtime.db.models import AgentTurn
 from aperag.utils.utils import utc_now
 
 
@@ -132,52 +129,3 @@ class AsyncAgentRuntimeRepositoryMixin(AsyncRepositoryProtocol):
             return instance
 
         return await self.execute_with_transaction(_operation)
-
-    async def create_agent_timeline_event(
-        self,
-        *,
-        turn_id: str,
-        sequence: int,
-        timestamp,
-        event_type: str,
-        label: Optional[str],
-        status: Optional[str],
-        actor,
-        data: dict,
-    ) -> AgentTimelineEvent:
-        async def _operation(session):
-            instance = AgentTimelineEvent(
-                turn_id=turn_id,
-                sequence=sequence,
-                timestamp=timestamp,
-                type=event_type,
-                label=label,
-                status=status,
-                actor=actor,
-                data=data,
-            )
-            session.add(instance)
-            await session.flush()
-            await session.refresh(instance)
-            return instance
-
-        return await self.execute_with_transaction(_operation)
-
-    async def query_agent_timeline_events(
-        self,
-        turn_id: str,
-        *,
-        after_sequence: int = 0,
-        limit: int = 500,
-    ) -> list[AgentTimelineEvent]:
-        async def _query(session):
-            stmt = (
-                select(AgentTimelineEvent)
-                .where(AgentTimelineEvent.turn_id == turn_id, AgentTimelineEvent.sequence > after_sequence)
-                .order_by(AgentTimelineEvent.sequence.asc())
-                .limit(limit)
-            )
-            result = await session.execute(stmt)
-            return result.scalars().all()
-
-        return await self._execute_query(_query)
