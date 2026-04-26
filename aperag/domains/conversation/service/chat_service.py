@@ -50,10 +50,6 @@ from aperag.domains.conversation.db.models import BotType, ChatStatus
 from aperag.domains.conversation.db.models import Chat as ChatRow
 from aperag.domains.conversation.schemas import Chat, ChatDetails, ChatUpdate
 from aperag.exceptions import ChatNotFoundException, ResourceNotFoundException, ValidationException
-from aperag.utils.history import (
-    RedisChatMessageHistory,
-    get_async_redis_client,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -236,9 +232,6 @@ class ChatService:
         deleted_chat = await self.db_ops.delete_chat_by_id(user, bot_id, chat_id)
 
         if deleted_chat:
-            history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
-            await history.clear()
-
             return self.build_chat_response(deleted_chat)
 
         return None
