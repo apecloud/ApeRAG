@@ -51,6 +51,7 @@ path the §L acceptance gate needs to keep green at all times.
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import Sequence
 from typing import Any
 
@@ -77,6 +78,7 @@ from aperag.indexing import (
     VisionModality,
     dispatch_indexing,
     parse_document,
+    write_atomic,
 )
 from aperag.indexing.base import ModalityWorker
 from aperag.indexing.models import DocumentIndex, IndexStatus
@@ -215,6 +217,81 @@ def test_inline_mode_indexes_one_document_end_to_end():
             # production path's reconciler / cleanup absorbs that;
             # here we just ensure the post-condition is what the user
             # observes after one happy-path call.
+        finally:
+            engine.dispose()
+
+    asyncio.run(_run())
+
+
+def test_inline_mode_vision_modality_with_image_source_path():
+    """Vision modality alone via ``IndexingMode.INLINE`` with a JSON
+    list source path.
+
+    Vision's :meth:`derive` contract is "read a JSON array of image
+    records from ``source_path``, write a ``vision/manifest.jsonl``
+    artifact". That source format is incompatible with the chunks.jsonl
+    other modalities consume, so a single ``DispatchRequest`` cannot
+    cover all five modalities at once. The production upload path
+    (chenyexuan T3.1 commit 3 ``app.state.indexing_queue`` seam, plus
+    the upcoming commit-4 caller migration) resolves per-modality
+    source paths upstream of the dispatcher and issues per-modality
+    ``DispatchRequest`` calls. This test pins the vision-only inline
+    flow so a regression in :class:`VisionModality` derive / sync /
+    cutover surfaces here, even before the upload-path wire-in lands.
+    """
+
+    async def _run() -> None:
+        engine = _make_engine()
+        try:
+            store = InMemoryObjectStore()
+            workers = _make_workers(store=store)
+
+            document_id = "doc-vision-only"
+            # Skip parse_document: vision needs a JSON list, not the
+            # parser's chunks.jsonl. Seed an image-records JSON list
+            # (with one minimal entry) under the canonical source path
+            # vision derive expects.
+            parse_version = "vision-test-v1"
+            vision_source_path = f"collections/{COLLECTION_ID}/documents/{document_id}/source/images.json"
+            write_atomic(
+                store,
+                vision_source_path,
+                json.dumps(
+                    [
+                        {
+                            "image_id": "img-1",
+                            "alt_text": "a synthetic test image",
+                            "page_idx": 0,
+                            "bbox": [0, 0, 100, 100],
+                        }
+                    ]
+                ).encode("utf-8"),
+            )
+
+            row_ids = await dispatch_indexing(
+                engine=engine,
+                queue=None,
+                workers=workers,
+                request=DispatchRequest(
+                    collection_id=COLLECTION_ID,
+                    document_id=document_id,
+                    parse_version=parse_version,
+                    source_path=vision_source_path,
+                    tenant_scope_key=TENANT_SCOPE_KEY,
+                    modalities=(Modality.VISION,),
+                ),
+                mode=IndexingMode.INLINE,
+            )
+
+            assert len(row_ids) == 1
+            with Session(engine) as session:
+                rows = list(session.scalars(select(DocumentIndex).where(DocumentIndex.document_id == document_id)))
+            assert len(rows) == 1
+            row = rows[0]
+            assert row.modality == Modality.VISION.value
+            assert row.status == IndexStatus.ACTIVE.value
+            assert row.is_serving is True
+            assert row.parse_version == parse_version
         finally:
             engine.dispose()
 
