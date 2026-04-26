@@ -27,10 +27,19 @@ from aperag.indexing.base import DeriveResult, ModalityWorker
 from aperag.indexing.cleanup import (
     CLEANUP_INTERVAL_SECONDS,
     ORPHAN_COOLDOWN_SECONDS,
+    cleanup_for_deleted_collections,
     cleanup_for_deleted_documents,
     cleanup_orphan_parse_versions,
     find_orphan_parse_versions,
     run_cleanup_loop,
+)
+from aperag.indexing.dispatcher import (
+    DEFAULT_MODALITIES,
+    DispatchRequest,
+    IndexingMode,
+    all_modalities,
+    dispatch_indexing,
+    modalities_for_collection,
 )
 from aperag.indexing.fulltext import (
     FulltextBackend,
@@ -243,13 +252,21 @@ __all__ = [
     "reconcile_failed_retry",
     "reconcile_running_reclaim",
     "run_reconcile_loop",
-    # Cleanup (T2.1)
+    # Cleanup (T2.1 + T3.1 path C)
     "CLEANUP_INTERVAL_SECONDS",
     "ORPHAN_COOLDOWN_SECONDS",
     "find_orphan_parse_versions",
     "cleanup_orphan_parse_versions",
     "cleanup_for_deleted_documents",
+    "cleanup_for_deleted_collections",
     "run_cleanup_loop",
+    # Dispatcher (T3.1)
+    "DispatchRequest",
+    "IndexingMode",
+    "DEFAULT_MODALITIES",
+    "dispatch_indexing",
+    "modalities_for_collection",
+    "all_modalities",
     # Quota (T2.2 §H.5)
     "DEFAULT_TENANT_FALLBACK",
     "QuotaPolicy",
