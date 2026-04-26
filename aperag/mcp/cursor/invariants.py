@@ -29,10 +29,9 @@ to remain valid:
   against; reindex bumps the id and any cursor with a stale hash
   fails ``cursor_index_changed``.
 
-The function is intentionally insulated from §C error code naming
-(pending architect canonical lock per msg=441c5e56): callers
-compute the hash here and compare; the *response* mapping into
-``cursor_filter_mismatch`` / ``cursor_tenant_mismatch`` /
+The function is intentionally insulated from §C error code naming:
+callers compute the hash here and compare; the *response* mapping
+into ``cursor_filter_mismatch`` / ``cursor_tenant_mismatch`` /
 ``cursor_index_changed`` lives in ``aperag.mcp.cursor.errors``.
 """
 

@@ -154,18 +154,30 @@ def test_fulltext_search_signature_matches_b3_lock():
     assert params["cursor"].default is None
 
 
-def test_web_search_signature_preserves_existing_wire_for_b4():
-    """``web_search`` signature preserves the existing wire-facing
-    parameter names (``max_results`` / positional ``source`` default
-    ``""``); §B.4 spec migration to ``top_k`` / kw-only is deferred to
-    the D10.h cutover lane to avoid breaking external MCP clients.
+def test_web_search_signature_matches_b4_canonical():
+    """``web_search`` carries the §B.4 canonical signature applied in
+    D10.h #100: ``query`` is positional + required; every other
+    parameter is keyword-only; the result-count limit is named
+    ``top_k``; ``source`` is ``str | None``.
     """
-    params = _params(web_search)
-    assert "query" in params and params["query"].default == ""
-    assert "max_results" in params and params["max_results"].default == 5
-    assert "timeout" in params and params["timeout"].default == 30
-    assert "locale" in params and params["locale"].default == "en-US"
-    assert "source" in params and params["source"].default == ""
+    import inspect
+
+    sig = inspect.signature(web_search)
+    params = sig.parameters
+
+    assert params["query"].kind == inspect.Parameter.POSITIONAL_OR_KEYWORD
+    assert params["query"].default is inspect.Parameter.empty, "query must be required"
+    for kw_name in ("top_k", "timeout", "locale", "source"):
+        assert kw_name in params, f"{kw_name!r} missing"
+        assert params[kw_name].kind == inspect.Parameter.KEYWORD_ONLY, (
+            f"{kw_name!r} must be keyword-only after the §B.4 cutover"
+        )
+
+    assert params["top_k"].default == 5
+    assert params["timeout"].default == 30
+    assert params["locale"].default == "en-US"
+    assert params["source"].default is None
+    assert "max_results" not in params, "legacy `max_results` parameter must be gone"
 
 
 # --- 2b. Cursor placeholder explicit-not-silent (§B / amendment Drift #4) ---

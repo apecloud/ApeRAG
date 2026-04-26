@@ -21,7 +21,6 @@ from fastmcp import FastMCP
 from fastmcp.server.dependencies import get_http_headers
 
 # Import view models for type safety
-from aperag.domains.retrieval.schemas import SearchResult
 from aperag.domains.web_access.schemas import WebReadResponse
 from aperag.mcp.capabilities import ToolAnnotation
 from aperag.mcp.tools import (
@@ -290,305 +289,13 @@ async def read_document_chunk(
 
 
 # === end D10.c read primitives ===
-
-
-@mcp_server.tool
-async def search_collection(
-    collection_id: str,
-    query: str,
-    use_vector_index: bool = True,
-    use_fulltext_index: bool = True,
-    use_graph_index: bool = True,
-    use_summary_index: bool = True,
-    use_vision_index: bool = True,
-    rerank: bool = True,
-    topk: int = 5,
-    query_keywords: list[str] = None,
-) -> Dict[str, Any]:
-    """[DEPRECATED] Search a persistent knowledge base for evidence relevant to the current request.
-
-    [DEPRECATED] Phase 9 D10.d (#96, ``docs/modularization/d10-design-pack.md``
-    §B.5 / §H.1): use the discrete split tools instead —
-    ``vector_search`` / ``graph_search`` / ``fulltext_search``. This
-    omnibus tool is preserved as a deprecated alias for backward
-    compatibility during the D10 migration window and will be removed in
-    D11 once telemetry confirms no remaining external callers (D10.h
-    cutover lane). Implementation is intentionally untouched.
-
-    Use this when:
-    - You already know which collection should be searched.
-    - The user asks a knowledge question that should be answered from indexed documents.
-
-    Do not use this when:
-    - The target files were uploaded only in the current chat; use search_chat_files instead.
-    - No collection has been selected or discovered yet.
-
-    What success means:
-    - You retrieved candidate evidence from the chosen collection.
-
-    What an empty result means:
-    - This collection did not return strong evidence for the current query.
-    - It does not prove the answer is false; it means this source did not support the step.
-
-    What failure may mean:
-    - auth / permission: the current user cannot access this collection.
-    - network / timeout: the search path did not complete.
-    - bad request: the collection ID or search config is invalid.
-
-    How to explain this step to the user:
-    - While running: "Searching the selected knowledge base for evidence about the request."
-    - After completion: "Reviewed results from the selected knowledge base."
-
-    Args:
-        collection_id: The ID of the collection to search in
-        query: The search query
-        query_keywords: The keywords extracted from query to use for fulltext search (optional), only effective when use_fulltext_index is True.
-        use_vector_index: Whether to use vector/semantic search (default: True)
-        use_fulltext_index: Whether to use full-text keyword search (default: True)
-        use_graph_index: Whether to use knowledge graph search (default: True)
-        use_summary_index: Whether to use summary search (default: True)
-        use_vision_index: Whether to use vision search (default: True)
-        rerank: Whether to enable reranking of search results for better relevance (default: True)
-        topk: Maximum number of results to return per search type (default: 5)
-
-    Returns:
-        Search results with relevant documents and metadata (SearchResult format)
-
-    Note:
-        Uses SearchResult view model for type-safe response parsing and validation.
-
-        ```
-        class SearchResultItem(BaseModel):
-            rank: Optional[int] = Field(None, description='Result rank')
-            score: Optional[float] = Field(None, description='Result score')
-            content: Optional[str] = Field(None, description='Result content')
-            source: Optional[str] = Field(None, description='Source document or metadata')
-            recall_type: Optional[
-                Literal['vector_search', 'graph_search', 'fulltext_search', 'summary_search']
-            ] = Field(None, description='Recall type')
-            metadata: Optional[dict[str, Any]] = Field(
-                None, description='Metadata of the result'
-            )
-
-
-        class SearchResult(BaseModel):
-            id: Optional[str] = Field(None, description='The id of the search result')
-            query: Optional[str] = None
-            vector_search: Optional[VectorSearchParams] = None
-            fulltext_search: Optional[FulltextSearchParams] = None
-            graph_search: Optional[GraphSearchParams] = None
-            summary_search: Optional[SummarySearchParams] = None
-            vision_search: Optional[VisionSearchParams] = None
-            items: Optional[list[SearchResultItem]] = None
-            created: Optional[datetime] = Field(
-                None, description='The creation time of the search result'
-            )
-        ```
-
-        The `result.items[x].metadata["page_idx"]` field indicates that the item's content is from page `page_idx` of the document (`metadata["source"]`). Note that `page_idx` is 0-indexed.
-
-        Vector search results may include images. Images are indexed in two ways:
-        1.  A multimodal embedding model converts the image into a vector. Since text and images share the same vector space, you can use text for semantic search.
-        2.  A Vision LLM generates a text description of the image, which is then converted into a vector by a text embedding model. This also enables retrieval based on vector similarity.
-
-        If `result.items[x].metadata["indexer"]` is "vision", the item is an image.
-        - If `item.content` is empty, the image was retrieved via multimodal embedding.
-        - If `item.content` is not empty, it contains a visual description of the image.
-
-        Although the LLM's Tool message interface doesn't support direct image input (meaning you can't "see" the images, even as a vision model), you can use `item.content` to understand the image and answer questions.
-        If you reference an image in your response, include its URL so the user can see it and understand your reasoning.
-
-        If your final output is in Markdown, you can display the image using an image block, like `![](<asset_url>)`. Here's how to construct the `asset_url` in Python pseudo-code:
-
-        ```python
-        m = result.items[0].metadata
-        if m.get("asset_id") and m.get("document_id") and m.get("collection_id") and m.get("mimetype"):
-            asset_url = f"asset://{m['asset_id']}?document_id={m['document_id']}&collection_id={m['collection_id']}&mime_type={m['mimetype']}"
-        ```
-
-        The `asset_url` uses a special `asset://` scheme instead of `http/https`. This helps the front-end parse and handle it. It uses `asset_id` as the path and passes `document_id`, `collection_id`, and `mimetype` as query parameters. Note that `asset_id`, `document_id`, and `collection_id` are required to display the image and must not be omitted.
-    """
-    try:
-        api_key = get_api_key()
-
-        # Build search request based on enabled search types
-        search_data = {"query": query, "rerank": rerank}
-
-        # Add search configurations for enabled types
-        if use_vector_index:
-            search_data["vector_search"] = {"topk": topk, "similarity": 0.2}
-
-        if use_fulltext_index:
-            search_data["fulltext_search"] = {"topk": topk, "keywords": query_keywords}
-
-        if use_graph_index:
-            search_data["graph_search"] = {"topk": topk}
-
-        if use_summary_index:
-            search_data["summary_search"] = {"topk": topk, "similarity": 0.2}
-
-        if use_vision_index:
-            search_data["vision_search"] = {"topk": topk, "similarity": 0.2}
-
-        # Ensure at least one search type is enabled
-        if not any([use_vector_index, use_fulltext_index, use_graph_index, use_summary_index]):
-            return {"error": "At least one search type must be enabled"}
-
-        # Use longer timeout for search operations (graph search can be time-consuming)
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            response = await client.post(
-                f"{API_BASE_URL}/api/v2/collections/{collection_id}/searches",
-                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                json=search_data,
-            )
-            if response.status_code == 200 or response.status_code == 201:
-                try:
-                    # Parse response using view model for type safety
-                    search_result = SearchResult.model_validate(response.json())
-
-                    # Ensure returned results don't exceed topk limit
-                    # This provides additional protection in case HTTP API doesn't apply global limit
-                    if search_result.items and len(search_result.items) > topk:
-                        search_result.items = search_result.items[:topk]
-                        # Update ranks if they exist
-                        for i, item in enumerate(search_result.items):
-                            if item.rank is not None:
-                                item.rank = i + 1
-
-                    return search_result.model_dump()
-                except Exception as e:
-                    logger.error(f"Failed to parse search response: {e}")
-                    return {"error": "Failed to parse search response", "details": str(e)}
-            else:
-                return {"error": f"Search failed: {response.status_code}", "details": response.text}
-    except ValueError as e:
-        return {"error": str(e)}
-
-
-@mcp_server.tool
-async def search_chat_files(
-    chat_id: str,
-    query: str,
-    use_vector_index: bool = True,
-    use_fulltext_index: bool = True,
-    rerank: bool = True,
-    topk: int = 5,
-) -> Dict[str, Any]:
-    """[DEPRECATED] Search files uploaded in the current chat for evidence relevant to this turn.
-
-    [DEPRECATED] Phase 9 D10.d (#96, ``docs/modularization/d10-design-pack.md``
-    §H.2): chat-scoped omnibus search shares the deprecation timeline of
-    ``search_collection``. The split tool surface (``vector_search`` /
-    ``graph_search`` / ``fulltext_search``) is collection-scoped today;
-    a chat-scoped equivalent will be sequenced in the D10.h cutover
-    lane. Implementation is intentionally untouched.
-
-    Use this when:
-    - The user refers to files shared in this chat session.
-    - You need evidence from temporary, chat-scoped documents.
-
-    Do not use this when:
-    - You are searching a persistent knowledge base; use search_collection instead.
-    - No files were uploaded in the current chat.
-
-    What success means:
-    - You found candidate evidence inside the current chat's uploaded files.
-
-    What an empty result means:
-    - The uploaded files did not return useful evidence for this query.
-    - It does not automatically mean the files are unreadable or the system failed.
-
-    What failure may mean:
-    - auth / permission: the current request cannot access this chat's files.
-    - network / timeout: the search path did not complete.
-
-    How to explain this step to the user:
-    - While running: "Searching files uploaded in this chat."
-    - After completion: "Reviewed results from files uploaded in this chat."
-
-    Args:
-        chat_id: The ID of the chat to search files in
-        query: The search query
-        use_vector_index: Whether to use vector/semantic search (default: True)
-        use_fulltext_index: Whether to use full-text keyword search (default: True)
-        rerank: Whether to enable reranking of search results for better relevance (default: True)
-        topk: Maximum number of results to return per search type (default: 5)
-
-    Returns:
-        Search results with relevant documents and metadata (SearchResult format)
-
-    Note:
-        Uses SearchResult view model for type-safe response parsing and validation.
-
-        SCOPE: This tool ONLY searches temporary files uploaded in the current chat.
-        It does NOT search permanent knowledge collections.
-
-        Return format follows the same structure as search_collection:
-        - rank: Result rank
-        - score: Result score
-        - content: Result content
-        - source: Source document or metadata
-        - recall_type: Type of search that found this result
-        - metadata: Additional metadata including page_idx, asset_id, etc.
-
-        Images are handled the same way as in collection search:
-        - metadata["indexer"] == "vision" indicates an image
-        - Use asset:// URLs for displaying images in markdown
-    """
-    try:
-        api_key = get_api_key()
-
-        # Build search request based on enabled search types
-        search_data = {"query": query, "rerank": rerank}
-
-        # Add search configurations for enabled types
-        if use_vector_index:
-            search_data["vector_search"] = {"topk": topk, "similarity": 0.2}
-
-        if use_fulltext_index:
-            search_data["fulltext_search"] = {"topk": topk}
-
-        # Ensure at least one search type is enabled
-        if not any([use_vector_index, use_fulltext_index]):
-            return {"error": "At least one search type must be enabled"}
-
-        # Use longer timeout for search operations
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            response = await client.post(
-                f"{API_BASE_URL}/api/v2/chats/{chat_id}/search",
-                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                json=search_data,
-            )
-            if response.status_code == 200 or response.status_code == 201:
-                try:
-                    # Parse response using view model for type safety
-                    search_result = SearchResult.model_validate(response.json())
-
-                    # Ensure returned results don't exceed topk limit
-                    # This provides additional protection in case HTTP API doesn't apply global limit
-                    if search_result.items and len(search_result.items) > topk:
-                        search_result.items = search_result.items[:topk]
-                        # Update ranks if they exist
-                        for i, item in enumerate(search_result.items):
-                            if item.rank is not None:
-                                item.rank = i + 1
-
-                    return search_result.model_dump()
-                except Exception as e:
-                    logger.error(f"Failed to parse chat search response: {e}")
-                    return {"error": "Failed to parse chat search response", "details": str(e)}
-            else:
-                return {"error": f"Chat search failed: {response.status_code}", "details": response.text}
-    except ValueError as e:
-        return {"error": str(e)}
-
-
-# NOTE(D10.d #96 §B.4): the ``web_search`` tool implementation moved to
-# ``aperag.mcp.tools.search_web`` so all D10 search tools live in the
-# ``aperag/mcp/tools/`` subpackage. Wire signature is preserved (no
-# breaking change for external MCP callers); §B.4 spec parameter
-# canonicalization (``top_k`` / kw-only / ``source: str | None``) is
-# deferred to the D10.h cutover lane.
+# D10 search tools (vector_search / graph_search / fulltext_search /
+# web_search) live in ``aperag.mcp.tools.search_*`` per D10.d #96. The
+# legacy ``search_collection`` / ``search_chat_files`` omnibus tools
+# were removed in D10.h #100 — callers must compose the split tools
+# directly. ``web_search`` parameter canonicalization (`query`
+# required, kw-only, ``top_k``, ``source: str | None``) was applied
+# in the same cutover.
 
 
 @mcp_server.tool
@@ -696,176 +403,58 @@ async def aperag_usage_guide() -> str:
     return """
 # ApeRAG Search Guide
 
-ApeRAG provides powerful knowledge search capabilities across your collections.
+ApeRAG exposes the canonical D10 MCP tool surface (per
+``docs/modularization/d10-design-pack.md``):
 
-## Available Operations:
-1. **list_collections**: Get all available collections with essential information (ID, title, description)
-2. **search_collection**: Search within collections using multiple search methods
-3. **web_search**: Perform web search using various search engines (Google, DuckDuckGo, Bing)
-4. **web_read**: Read and extract content from web pages
+## Read primitives (D10.c §A)
+- ``list_collections`` / ``list_documents`` — paginated metadata
+- ``get_collection_metadata`` / ``get_document_metadata``
+- ``read_document`` / ``read_document_outline``
+- ``read_document_section`` / ``read_document_chunk``
 
-## Authentication:
-API authentication is handled automatically through one of these methods:
-1. **HTTP Authorization header**: `Authorization: Bearer your-api-key` (when using HTTP transport)
-2. **Environment variable**: `APERAG_API_KEY=your-api-key` (fallback method)
+## Search primitives (D10.d §B)
+- ``vector_search`` — semantic similarity over collection embeddings
+- ``graph_search`` — knowledge-graph-derived evidence
+- ``fulltext_search`` — keyword / full-text hits
+- ``web_search`` — public-internet search (independent of collections)
 
-The server will automatically try both methods in order of preference.
+The legacy ``search_collection`` / ``search_chat_files`` omnibus
+tools were removed in D10.h #100; callers compose the split tools
+directly. Pagination is opaque cursor (D10.e §C); see ``next_cursor``
+on the paginated read primitives.
 
-## Quick Start:
-1. First, get available collections with essential information: `list_collections()`
-2. Choose a collection from the list
-3. Search the collection: `search_collection(collection_id="abc123", query="your question")`
-   (By default, vector search, graph search, and reranking are enabled for optimal performance)
+## Authentication
+- HTTP transport: ``Authorization: Bearer <api-key>``
+- stdio fallback: ``APERAG_API_KEY`` environment variable
 
-## Search Types:
-You can enable/disable any combination of search methods:
-- **Vector search** (use_vector_index): Semantic similarity search using embeddings (default: True)
-- **Full-text search** (use_fulltext_index): Traditional keyword-based text search (default: True)
-- **Graph search** (use_graph_index): Knowledge graph-based search (default: True)
-- **Summary search** (use_summary_index): Search through document summaries (default: True)
-- **Reranking** (rerank): AI-powered reranking for improved result relevance (default: True)
-
-⚠️ **Important**: Full-text search can return large amounts of text content which may cause context window overflow with smaller LLM models. Use with caution and consider reducing topk when enabling fulltext search.
-
-By default, vector search, full-text search, graph search, summary search, and reranking are enabled for comprehensive search coverage.
-
-## Example Workflow:
+## Quick start
 ```
-# Step 1: Get collections with essential information
 collections = list_collections()
-
-# Step 2: Choose a collection from the list
-# (collections.items contains collection ID, title, and description)
 collection_id = collections.items[0].id
 
-# Step 3: Search with default methods (vector + fulltext + graph + summary + rerank)
-results = search_collection(
-    collection_id=collection_id,
-    query="How to deploy applications?",
-    use_vector_index=True,
-    use_fulltext_index=True,
-    use_graph_index=True,
-    use_summary_index=True,
-    rerank=True,
-    topk=5
-)
+# Pick the right primitive for your question:
+hits = vector_search(collection_id=collection_id, query="deploy app")
+graph = graph_search(collection_id=collection_id, query="deploy app")
+fts = fulltext_search(collection_id=collection_id, query="deploy app")
 
-# Or search with only specific methods
-vector_only = search_collection(
-    collection_id=collection_id,
-    query="deployment strategies",
-    use_vector_index=True,
-    use_fulltext_index=False,
-    use_graph_index=False,
-    rerank=True,  # Rerank still enabled for better results
-    topk=10
-)
-
-# Enable summary search for high-level document overviews
-summary_search = search_collection(
-    collection_id=collection_id,
-    query="project overview",
-    use_vector_index=True,
-    use_fulltext_index=True,
-    use_graph_index=True,
-    use_summary_index=True,  # Enable summary search
-    rerank=True,
-    topk=5
+# Pull the raw evidence for the top hit:
+chunk = read_document_chunk(
+    collection_id=hits.items[0].metadata.collection_id,
+    document_id=hits.items[0].metadata.document_id,
+    chunk_id=hits.items[0].metadata.chunk_id,
 )
 ```
 
-Your search results will include relevant documents with context, similarity scores, and metadata.
-
-## Web Search and Content Reading:
-You can also search the web and extract content from web pages:
-
-### Web Search Example:
+## Web search + content read
 ```
-# Basic web search
-web_results = web_search(
-    query="ApeRAG RAG system 2025",
-    max_results=5,
-    locale="zh-CN"
-)
-
-# Site-specific regular search
-site_results = web_search(
-    query="deployment documentation",
-    source="vercel.com",  # limit search to vercel.com domain
-    max_results=10
-)
-
-# Search results include URLs, titles, snippets, and domains
-for result in web_results.results:
-    print(f"Title: {result.title}")
-    print(f"URL: {result.url}")
-    print(f"Snippet: {result.snippet}")
-    print(f"Domain: {result.domain}")
+results = web_search(query="ApeRAG 2025", top_k=5, locale="zh-CN")
+content = web_read(url_list=[r.url for r in results.results])
 ```
 
-### Web Content Reading Example:
-```
-# Read content from web pages (single URL - use array with one element)
-content = web_read(
-    url_list=["https://example.com/article"],  # single URL in array
-    timeout=30
-)
-
-# Read from multiple URLs
-content = web_read(
-    url_list=["https://example.com/page1", "https://example.com/page2"],  # multiple URLs
-    max_concurrent=2
-)
-
-# Content includes extracted text, titles, word counts
-for result in content.results:
-    if result.status == "success":
-        print(f"Title: {result.title}")
-        print(f"Content: {result.content}")
-        print(f"Word Count: {result.word_count}")
-```
-
-### Combined Workflow Example:
-```
-# 1. Search web for recent information
-web_results = web_search(
-    query="latest AI developments 2025",
-    source="anthropic.com",  # limit regular search to Anthropic's content
-    max_results=3
-)
-
-# 2. Extract URLs from search results
-urls = [result.url for result in web_results.results]
-
-# 3. Read full content from those pages
-web_content = web_read(url_list=urls, max_concurrent=2)
-
-# 4. Search your internal knowledge base for related information
-collections = list_collections()
-if collections.items:
-    internal_results = search_collection(
-        collection_id=collections.items[0].id,
-        query="AI developments",
-        rerank=True,  # Default rerank for better results
-        topk=5
-    )
-
-# 5. Combine results for comprehensive analysis
-print("=== Web Results ===")
-for result in web_results.results:
-    print(f"[{result.domain}] {result.title}: {result.url}")
-
-print("\n=== Web Content ===")
-for content in web_content.results:
-    if content.status == "success":
-        print(f"📄 {content.title} ({content.word_count} words)")
-
-print("\n=== Internal Knowledge ===")
-for item in internal_results.items:
-    print(f"🔍 {item.content[:100]}...")
-
-# Now you have both web and internal knowledge base results!
-```
+Each ``SearchResultItem`` carries ``chunk_id`` / ``section_path`` /
+``heading_anchor`` (D10.h Drift #1) so the caller can navigate
+straight from a search hit into the read primitives without an
+extra resolution step.
 """
 
 
