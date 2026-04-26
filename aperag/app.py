@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio  # noqa: E402
+
 from aperag.config import settings
 from aperag.observability import (
     bind_observability_context,
@@ -205,9 +207,109 @@ mcp_app = mcp_server.http_app(path="/", stateless_http=True)
 
 
 async def combined_lifespan(app: FastAPI):
-    """Combined lifespan manager for the API and MCP server."""
-    async with mcp_app.lifespan(app):
-        yield
+    """Combined lifespan manager for the API + MCP server + indexing runtime.
+
+    The indexing runtime (Wave 3 T3.1 wire-in) launches the per-modality
+    worker pool + reconciler + cleanup loop only when
+    ``settings.indexing_mode == "async"``. In ``inline`` mode the
+    upload-side ``dispatch_indexing(mode=INLINE)`` runs derive + sync +
+    cutover within the request coroutine, so no background workers are
+    needed (per design pack §L Tier-1 deployment).
+
+    The runtime is started as background asyncio tasks (not subprocesses)
+    so a single FastAPI process owns its workers — matches the §E.2
+    "one Python process per modality" architecture for the in-process
+    deployment topology. Tier-3 horizontal scale-out runs separate
+    worker processes; that wiring lives in a future ops launcher.
+    """
+    indexing_runtime_tasks: list[asyncio.Task[None]] = []
+    indexing_shutdown: asyncio.Event | None = None
+
+    if settings.indexing_mode == "async":
+        # Lazy imports — pulling the indexing runtime symbols at app
+        # start-up time keeps ``aperag/app.py`` cold-start fast and
+        # confines the import surface to the wired branch.
+        from aperag.config import sync_engine
+        from aperag.indexing import (
+            InMemoryWorkQueue,
+            run_cleanup_loop,
+            run_fulltext_worker,
+            run_graph_worker,
+            run_reconcile_loop,
+            run_summary_worker,
+            run_vector_worker,
+            run_vision_worker,
+        )
+
+        indexing_shutdown = asyncio.Event()
+        # Single process-local InMemoryWorkQueue is the default
+        # transport for the in-process topology. Tier-3 production
+        # swaps this for a Redis-backed WorkQueue (RPUSH / BLPOP) by
+        # injecting via app state at deploy time — Wave 3 follow-up.
+        queue = InMemoryWorkQueue()
+        engine = sync_engine
+
+        # Worker registry per modality — for INLINE mode + cleanup.
+        # Construction here is lazy so the app boot does not eagerly
+        # instantiate Qdrant / Nebula / object-store backends; each
+        # entry is a no-op factory in the InMemoryWorkQueue topology.
+        # The async worker entrypoints accept a worker_factory closure
+        # that builds the concrete ModalityWorker per dispatch.
+        # T3.1 Wave 3 ships the queue-side scaffolding; T3.3 follow-up
+        # wires concrete production backends per modality.
+        async def _placeholder_worker_factory(payload):
+            raise NotImplementedError(
+                "production worker factory wiring is a T3.3 follow-up — see private-deployment.md"
+            )
+
+        worker_kwargs = dict(
+            engine=engine,
+            queue=queue,
+            worker_factory=_placeholder_worker_factory,
+            shutdown=indexing_shutdown,
+        )
+        indexing_runtime_tasks.append(asyncio.create_task(run_vector_worker(**worker_kwargs)))
+        indexing_runtime_tasks.append(asyncio.create_task(run_fulltext_worker(**worker_kwargs)))
+        indexing_runtime_tasks.append(asyncio.create_task(run_graph_worker(**worker_kwargs)))
+        indexing_runtime_tasks.append(asyncio.create_task(run_summary_worker(**worker_kwargs)))
+        indexing_runtime_tasks.append(asyncio.create_task(run_vision_worker(**worker_kwargs)))
+        indexing_runtime_tasks.append(
+            asyncio.create_task(
+                run_reconcile_loop(
+                    engine=engine,
+                    queue=queue,
+                    shutdown=indexing_shutdown,
+                )
+            )
+        )
+        indexing_runtime_tasks.append(
+            asyncio.create_task(
+                run_cleanup_loop(
+                    engine=engine,
+                    workers={},  # T3.3 follow-up: pass concrete worker registry
+                    shutdown=indexing_shutdown,
+                )
+            )
+        )
+
+        # Stash on app state so request handlers can dispatch via the
+        # same queue / engine the workers consume.
+        app.state.indexing_queue = queue
+        app.state.indexing_engine = engine
+    else:
+        app.state.indexing_queue = None
+        app.state.indexing_engine = None
+
+    try:
+        async with mcp_app.lifespan(app):
+            yield
+    finally:
+        if indexing_shutdown is not None:
+            indexing_shutdown.set()
+        if indexing_runtime_tasks:
+            # Drain in-flight worker / reconciler / cleanup loops with
+            # a short grace window so a SIGTERM does not abort mid-task.
+            await asyncio.gather(*indexing_runtime_tasks, return_exceptions=True)
 
 
 # Create the main FastAPI app with combined lifespan

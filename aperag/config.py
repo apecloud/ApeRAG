@@ -106,6 +106,19 @@ class Config(BaseSettings):
 
     local_queue_name: str = Field("", alias="LOCAL_QUEUE_NAME")
 
+    # Indexing mode (Wave 3 T3.1 — replaces Celery dispatch path).
+    # ``async``  → orchestrator + reconciler + cleanup loops launched at
+    #              app startup (lifespan hook); upload handlers RPUSH to
+    #              the per-modality Redis queue; workers BLPOP and
+    #              process. Production / tier-2/3 deployments per
+    #              design pack §L.
+    # ``inline`` → upload handlers call ``dispatch_indexing(mode=INLINE)``
+    #              which runs derive + sync + cutover synchronously
+    #              within the request coroutine; no worker pool, no
+    #              Redis. Tier-1 single-process private deployments
+    #              per design pack §L.
+    indexing_mode: str = Field("async", alias="INDEXING_MODE")
+
     # Model configs
     model_configs: Dict[str, Any] = {}
 
