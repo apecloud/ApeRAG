@@ -411,7 +411,23 @@ collections/<cid>/documents/<did>/derived/parse_<v>/
 
 **关键设计 invariant**: 任何 backend sync 失败重试时，worker 只 `read derived/parse_<v>/<file>` + 重写 backend，**绝不重新调用 LLM / embedding API**。这把"贵的不可重做"和"便宜的可重做"在物理上分开。
 
-**为什么 chunks.jsonl 给 vector 和 fulltext 共用一份**：因为 chunking 边界对两个 modality 必须相同（hybrid search 要按相同 chunk_id 对齐）。强制共用一个文件就消灭了"两次 chunking 边界漂移"的隐患。
+**`chunks.jsonl` 给 vector + fulltext 共用一份 — conscious trade-off（Bryce v2 review msg=7ccb176f #1 surface）**
+
+最优 chunking 策略两个 modality **不同**：
+- vector 偏大 chunk（800-1500 tokens）以保 semantic 完整性 + embedding context 利用率
+- fulltext 偏小 chunk（200-400 tokens）以保 keyword precision + short-query recall 不被稀释
+
+强制共用 = 两者都用妥协 chunk_size，理论 vector recall 和 fulltext precision 都会比独立优化时略低。**v2 选择共用是 conscious simplification**，理由：
+- pre-launch 阶段，hybrid search dedup 按 `chunk_id` 对齐是硬要求；两份独立 chunks 边界对齐是另一个复杂度源（chunk_id 跨两份文件 collisions / mappings）
+- 上线后真观测到 fulltext precision 显著低再 split，不在没数据时预先优化
+
+**未来 split 扩展点（不锁死）**:
+- `chunks.jsonl` 永远是 base canonical，含 vector 用的 token 范围
+- 若未来要 split：新加 `chunks.fulltext.jsonl` 作 shadow 文件（fine-grained subdivision），fulltext 模态切到读 shadow；vector 继续读 `chunks.jsonl`
+- shadow 文件的 chunk_id 用 `<base_chunk_id>:<sub_idx>` 命名空间，向上兼容 hybrid dedup
+- 整改是 fulltext modality 单文件改动 + alembic 加 `fulltext_artifact_path` 列；不动 vector / graph / summary / vision
+
+这条扩展路径明示，避免 1 年后想优化时被锁死。
 
 **两个 deletion 行为**:
 - 用户删除文档 → 整个 `collections/<cid>/documents/<did>/` 目录走 cleanup worker GC。
@@ -477,31 +493,140 @@ This is a two-phase operation per (doc, version, modality) triple, with the **de
 | Summary | Qdrant | `WHERE document_id=X AND parse_version=Y` | `summary.json` |
 | Vision | Qdrant | `WHERE document_id=X AND parse_version=Y` | `vision/manifest.jsonl` |
 
-### D.3. Graph indexer fix (the existing bug)
+### D.3. Graph indexer fix — entity lineage model (cross-doc shared entities)
 
-`aperag/graphindex/storage/nebula.py:354 upsert_entities` must change from append-on-conflict to:
+**Bryce v2 review msg=7ccb176f #3 catch**: simple "DELETE-by-(doc, version) + re-INSERT" 在 graph 模态会**丢掉其他文档对共享 entity 的贡献**。例: "Linus" 在 100 个文档里都被提到，简单 DELETE-by-doc 会从 entity 行抹掉其他 99 个 doc 的 source_chunk_ids。
 
-```python
-def sync_graph_from_jsonl(jsonl_path, document_id, parse_version):
-    # Step 1: delete any previously-synced rows for this (doc, version)
-    nebula.execute(
-        "DELETE VERTEX WHERE document_id == $doc AND parse_version == $ver",
-        doc=document_id, ver=parse_version,
-    )
-    nebula.execute(
-        "DELETE EDGE  WHERE document_id == $doc AND parse_version == $ver",
-        ...
-    )
-    # Step 2: insert from the immutable jsonl artifact
-    for line in open(jsonl_path):
-        record = json.loads(line)
-        nebula.upsert_vertex(... document_id=document_id, parse_version=parse_version)
-        # or upsert_edge for relation records
+正确模型是 **per-(document, parse_version) lineage tracking on shared entities**。这与其他 4 个模态（vector / fulltext / summary / vision）不同，因为它们的 backend 行不跨文档共享。
+
+#### D.3.1. Schema 形态（Nebula / Neo4j 共同）
+
+每个 entity vertex 持有 lineage **集合**字段（不是被一个 doc 整体替换的字段）：
+
+```
+Entity vertex:
+  name              : "Linus Torvalds"
+  type              : "Person"
+  source_lineage    : SET<{document_id, parse_version, chunk_ids[]}>
+  description_parts : SET<{document_id, parse_version, text}>   -- 每个 doc 一条
 ```
 
-`upsert_vertex` and `upsert_edge` in this redesign perform `INSERT ... ON CONFLICT REPLACE` semantics with `parse_version` as part of the unique key — never append.
+每个 relation edge 同理：
+```
+Relation edge:
+  source            : "Linus Torvalds"
+  target            : "Linux Kernel"
+  type              : "created"
+  evidence_lineage  : SET<{document_id, parse_version, chunk_ids[]}>
+```
 
-For Neo4j the change is similar; Nebula GQL syntax differs but the semantics are identical.
+`source_lineage` / `evidence_lineage` 用 SET 语义，按 `(document_id, parse_version)` 唯一。这把"哪个 doc 的哪个 parse_version 贡献了什么"显式追踪。
+
+#### D.3.2. sync(kg.jsonl, doc, parse_version) 算法
+
+```python
+def sync_graph_from_jsonl(jsonl_path, document_id, parse_version, graph):
+    # ── Step 1: 移除当前 (doc, parse_version) 的 lineage 贡献 ──
+    # 注意：不直接 DELETE entity；只移除该 (doc, parse_version) 在 SET 里的成员
+
+    # 1a. 拉所有受影响的 entity（被该 (doc, parse_version) 写过的）
+    affected_entities = graph.execute(
+        "MATCH (n) WHERE EXISTS (s IN n.source_lineage "
+        "WHERE s.document_id == $doc AND s.parse_version == $ver) RETURN n.name",
+        doc=document_id, ver=parse_version,
+    )
+
+    # 1b. 从每个 entity 的 source_lineage / description_parts 里移除当前 (doc, ver)
+    graph.execute(
+        "MATCH (n) WHERE EXISTS (s IN n.source_lineage "
+        "WHERE s.document_id == $doc AND s.parse_version == $ver) "
+        "SET n.source_lineage = [s IN n.source_lineage WHERE NOT "
+        "(s.document_id == $doc AND s.parse_version == $ver)], "
+        "    n.description_parts = [d IN n.description_parts WHERE NOT "
+        "(d.document_id == $doc AND d.parse_version == $ver)]",
+        doc=document_id, ver=parse_version,
+    )
+
+    # 1c. 同样清 relation edges 的 evidence_lineage
+    graph.execute(
+        "MATCH ()-[e]->() WHERE EXISTS (s IN e.evidence_lineage "
+        "WHERE s.document_id == $doc AND s.parse_version == $ver) "
+        "SET e.evidence_lineage = [s IN e.evidence_lineage WHERE NOT "
+        "(s.document_id == $doc AND s.parse_version == $ver)]",
+        doc=document_id, ver=parse_version,
+    )
+
+    # 1d. GC：source_lineage 为空的 entity → DELETE 整行
+    #         evidence_lineage 为空的 relation → DELETE edge
+    graph.execute("MATCH (n) WHERE size(n.source_lineage) == 0 DETACH DELETE n")
+    graph.execute("MATCH ()-[e]->() WHERE size(e.evidence_lineage) == 0 DELETE e")
+
+    # ── Step 2: 从 kg.jsonl 重建当前 (doc, parse_version) 的 lineage 贡献 ──
+    for line in open(jsonl_path):
+        record = json.loads(line)
+        if record.type == "entity":
+            graph.upsert_entity_lineage(
+                name=record.name,
+                type=record.type,
+                add_lineage={
+                    "document_id": document_id,
+                    "parse_version": parse_version,
+                    "chunk_ids": record.source_chunk_ids,
+                },
+                add_description_part={
+                    "document_id": document_id,
+                    "parse_version": parse_version,
+                    "text": record.description,
+                },
+            )
+        else:  # relation
+            graph.upsert_relation_lineage(
+                source=record.source,
+                target=record.target,
+                type=record.relation_type,
+                add_evidence={
+                    "document_id": document_id,
+                    "parse_version": parse_version,
+                    "chunk_ids": record.source_chunk_ids,
+                },
+            )
+```
+
+**`upsert_entity_lineage` semantics**: if entity exists, append to lineage SET (deduplicated by `(document_id, parse_version)`); else create with single lineage member.
+
+#### D.3.3. Description 暴露策略（read path）
+
+retrieve 时 entity 的 description 不能只取一个 doc 的片段（会让其他 doc 的贡献消失），也不应每次拼所有 doc 的片段（可能很长）。读路径有两个选项，v2 选项 A：
+
+- **Option A (v2 default)**: read primitive 返回 `description_parts` 全集（按 doc count 排序），上层 LLM 自行去重 / 摘要。简单。
+- **Option B (future split path)**: 在 derive 阶段或 read 阶段调一次 LLM 聚合 `description_parts` → 单一 `description_aggregated`，写回 entity。增加一次 LLM 调用，但 read 层简单。
+
+Option A 在 100 文档量级足够；如未来 entity 被 1000+ docs 共享导致 description_parts 太长，再切 Option B。Schema 已支持（`description_parts` 是 SET，加一个 `description_aggregated` 字段不破坏现状）。
+
+#### D.3.4. 与 D.1 contract 的关系
+
+D.1 "DELETE-by-(doc, parse_version) THEN INSERT" 对 graph 模态需要 reinterpret：
+
+> Graph 的 sync 是 **lineage-level DELETE + lineage-level INSERT**，不是 entity-level。Entity 行的生命周期由 lineage SET 是否为空驱动（empty → DELETE）。
+
+幂等性还是成立的：再跑一次 sync(jsonl, doc, parse_version) → 1b 会移除上轮加的 lineage member，1d 不会误删（因为 step 2 又把 lineage 加回去了），最终状态 byte-equivalent。
+
+#### D.3.5. Neo4j vs Nebula 实现
+
+- **Neo4j**: Cypher 原生支持 list filtering（`[s IN n.source_lineage WHERE ...]`），上面伪 Cypher 直接可执行。
+- **Nebula**: nGQL 支持 LIST 类型 (Nebula 3.x)，但 list 操作语法不如 Cypher 直接；需要在应用层 read-modify-write（拉 lineage list → Python filter → 写回）。这增加 race condition 风险。**因此**：sync_graph 必须对单 entity 的更新串行化（per-entity lock，按 entity_name hash 路由到固定 worker，或者 Nebula transaction 范围 lock）。Wave 2 的 graph_worker 实现要含这条 invariant。
+- 两个后端都需要 `(name, type)` 复合主键做 entity dedup（已有）。
+
+#### D.3.6. 自测扩展
+
+D.4 idempotency 自测对 graph 加 1 个 case：
+- doc_A v1 写入 → 包含 entity "Linus" lineage[A,v1]
+- doc_B v1 写入 → entity "Linus" lineage[A,v1] + lineage[B,v1]
+- doc_A v2 写入（覆盖 doc_A 旧 lineage）→ entity "Linus" lineage[A,v2] + lineage[B,v1]
+- doc_A 删除 → entity "Linus" lineage[B,v1]（仍存在）
+- doc_B 删除 → entity "Linus" 整行 DELETE（lineage 空）
+
+**这是 graph 模态相对其他 4 个模态最重的特殊性，必须 wave 1 graph implementer（建议 Bryce，他最熟）严格按此契约写。**
 
 ### D.4. Self-test
 
@@ -654,6 +779,16 @@ CREATE TABLE document_index (
     UNIQUE (document_id, parse_version, modality)
 );
 
+-- Partial unique index — locks the per-(document, modality) "at most one
+-- serving row" invariant at the DB layer (Bryce v2 review msg=7ccb176f #2).
+-- Postgres native; SQLite (Tier 1, §L) supports the same syntax since 3.8.
+-- Without this, an orchestrator bug could leave two rows is_serving=TRUE
+-- for the same (doc, modality), which would JOIN out duplicate search
+-- results — a class of bug the schema must make impossible.
+CREATE UNIQUE INDEX uniq_document_index_serving
+    ON document_index (document_id, modality)
+    WHERE is_serving = TRUE;
+
 CREATE TABLE document (
     id VARCHAR PRIMARY KEY,
     collection_id VARCHAR NOT NULL,
@@ -662,9 +797,11 @@ CREATE TABLE document (
 );
 ```
 
-`is_serving=TRUE` is the per-(document, modality) "serving pointer". At most one row per `(document_id, modality)` has `is_serving=TRUE`. Search reads only `is_serving=TRUE` rows.
+`is_serving=TRUE` is the per-(document, modality) "serving pointer". The partial unique index above guarantees **at most one** row per `(document_id, modality)` has `is_serving=TRUE` — DB-enforced, not application-enforced. Search reads only `is_serving=TRUE` rows.
 
 `latest_parse_version` on `document` is purely informational (for UI / admin); it has no flip semantics.
+
+**Cutover transaction interaction with the partial unique index** (§F.3): the swap is `UPDATE old_row SET is_serving=FALSE` then `UPDATE new_row SET is_serving=TRUE`, in this order, in one transaction. Postgres evaluates the partial unique constraint at statement boundaries (deferred when DEFERRABLE; immediate by default) — within one transaction, the FALSE update lands first so the TRUE update doesn't conflict. If a worker tries to bypass the cutover order and TRUE-flip directly, the DB rejects.
 
 ### F.2. Status enum (4 states)
 
