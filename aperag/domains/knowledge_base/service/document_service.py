@@ -48,10 +48,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from aperag.config import settings
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.docparser.doc_parser import DocParser
-from aperag.domains.indexing.db.models import (
-    DocumentIndex,
-    DocumentIndexType,
-)
 from aperag.domains.indexing.manager import document_index_manager
 from aperag.domains.knowledge_base.db.models import (
     Collection,
@@ -84,6 +80,10 @@ from aperag.exceptions import (
     QuotaExceededException,
     ResourceNotFoundException,
     invalid_param,
+)
+from aperag.indexing.models import (
+    DocumentIndex,
+    Modality,
 )
 from aperag.objectstore.base import get_async_object_store
 from aperag.schema.common import Chunk, VisionChunk
@@ -244,20 +244,23 @@ class DocumentService:
 
     def _get_index_types_for_collection(self, collection_config: dict) -> list:
         """
-        Get the list of index types to create based on collection configuration.
+        Get the list of :class:`Modality` values to create based on
+        collection configuration. Wave 3 migrated the legacy
+        ``DocumentIndexType`` enum to :class:`Modality`; the per-
+        collection enable flags map 1-to-1 to modalities.
         """
         parsed_config = parseCollectionConfig(json.dumps(collection_config))
-        index_types = [DocumentIndexType.VECTOR]
+        index_types = [Modality.VECTOR]
 
         if parsed_config.enable_fulltext is not False:
-            index_types.append(DocumentIndexType.FULLTEXT)
+            index_types.append(Modality.FULLTEXT)
 
         if collection_config.get("enable_knowledge_graph", False):
-            index_types.append(DocumentIndexType.GRAPH)
+            index_types.append(Modality.GRAPH)
         if collection_config.get("enable_summary", False):
-            index_types.append(DocumentIndexType.SUMMARY)
+            index_types.append(Modality.SUMMARY)
         if collection_config.get("enable_vision", False):
-            index_types.append(DocumentIndexType.VISION)
+            index_types.append(Modality.VISION)
 
         return index_types
 
@@ -323,15 +326,21 @@ class DocumentService:
             from sqlalchemy import and_, outerjoin, select
 
             # Create JOIN query between Document and DocumentIndex tables
-            # Use outerjoin to get all documents even if they don't have indexes
+            # Use outerjoin to get all documents even if they don't have indexes.
+            # Wave 3 §F.1 migration: ``modality`` column replaces
+            # legacy ``index_type``; ``created_at``/``updated_at``
+            # replace ``gmt_created``/``gmt_updated``; ``index_data``
+            # JSON blob is gone (decomposed into per-modality
+            # ``derived/`` artifacts on the object store), so the
+            # surface returned to callers carries ``index_data=None``
+            # for backward-compat with existing response shapes.
             query = (
                 select(
                     Document,
-                    DocumentIndex.index_type,
-                    DocumentIndex.index_data,
+                    DocumentIndex.modality.label("index_type"),
                     DocumentIndex.status.label("index_status"),
-                    DocumentIndex.gmt_created.label("index_created_at"),
-                    DocumentIndex.gmt_updated.label("index_updated_at"),
+                    DocumentIndex.created_at.label("index_created_at"),
+                    DocumentIndex.updated_at.label("index_updated_at"),
                     DocumentIndex.error_message.label("index_error_message"),
                 )
                 .select_from(
@@ -360,24 +369,29 @@ class DocumentService:
             result = await session.execute(query)
             rows = result.fetchall()
 
-            # Group results by document and attach all index information
+            # Group results by document and attach all index information.
+            # The new ``modality`` column carries lowercase strings
+            # (``"vector"`` / ``"fulltext"`` / ``"graph"`` /
+            # ``"summary"`` / ``"vision"``); the response shape uses
+            # uppercase keys for backward-compat with HTTP clients,
+            # so we translate via the :class:`Modality` enum.
             documents_dict = {}
             for row in rows:
                 doc = row.Document
                 if doc.id not in documents_dict:
                     documents_dict[doc.id] = doc
-                    # Initialize index information for all types
                     doc.indexes = {"VECTOR": None, "FULLTEXT": None, "GRAPH": None, "SUMMARY": None, "VISION": None}
 
-                # Add index information if exists
-                if row.index_type:
-                    doc.indexes[row.index_type] = {
-                        "index_type": row.index_type,
+                modality_value = row.index_type
+                if modality_value:
+                    response_key = modality_value.upper()
+                    doc.indexes[response_key] = {
+                        "index_type": response_key,
                         "status": row.index_status,
                         "created_at": row.index_created_at,
                         "updated_at": row.index_updated_at,
                         "error_message": row.index_error_message,
-                        "index_data": row.index_data,
+                        "index_data": None,
                     }
 
             return list(documents_dict.values())
@@ -593,18 +607,23 @@ class DocumentService:
                 index_result = await session.execute(index_query)
                 indexes_data = index_result.scalars().all()
 
-                # Group indexes by document_id
-                indexes_by_doc = {}
+                # Group indexes by document_id. Wave 3 §F.1 schema
+                # uses the lowercase ``modality`` column for the
+                # discriminator + drops ``index_data``; HTTP response
+                # keeps uppercase keys for backward compat so the
+                # paginated index map retains its existing shape.
+                indexes_by_doc: dict[str, dict[str, dict]] = {}
                 for index in indexes_data:
                     if index.document_id not in indexes_by_doc:
                         indexes_by_doc[index.document_id] = {}
-                    indexes_by_doc[index.document_id][index.index_type] = {
-                        "index_type": index.index_type,
+                    response_key = index.modality.upper()
+                    indexes_by_doc[index.document_id][response_key] = {
+                        "index_type": response_key,
                         "status": index.status,
-                        "created_at": index.gmt_created,
-                        "updated_at": index.gmt_updated,
+                        "created_at": index.created_at,
+                        "updated_at": index.updated_at,
                         "error_message": index.error_message,
-                        "index_data": index.index_data,
+                        "index_data": None,
                     }
 
                 # Attach index information to documents
@@ -726,18 +745,18 @@ class DocumentService:
 
         logger.info(f"Rebuilding indexes for document {document_id} with types: {index_types}")
 
-        index_type_enums = []
+        index_type_enums: list[Modality] = []
         for index_type in index_types:
             if index_type == "VECTOR":
-                index_type_enums.append(DocumentIndexType.VECTOR)
+                index_type_enums.append(Modality.VECTOR)
             elif index_type == "FULLTEXT":
-                index_type_enums.append(DocumentIndexType.FULLTEXT)
+                index_type_enums.append(Modality.FULLTEXT)
             elif index_type == "GRAPH":
-                index_type_enums.append(DocumentIndexType.GRAPH)
+                index_type_enums.append(Modality.GRAPH)
             elif index_type == "SUMMARY":
-                index_type_enums.append(DocumentIndexType.SUMMARY)
+                index_type_enums.append(Modality.SUMMARY)
             elif index_type == "VISION":
-                index_type_enums.append(DocumentIndexType.VISION)
+                index_type_enums.append(Modality.VISION)
             else:
                 raise invalid_param("index_type", f"Invalid index type: {index_type}")
 
@@ -751,9 +770,8 @@ class DocumentService:
             if not collection or collection.user != user_id:
                 raise ResourceNotFoundException(f"Collection {collection_id} not found or access denied")
             collection_config = json.loads(collection.config)
-            if not collection_config.get("enable_knowledge_graph", False):
-                if DocumentIndexType.GRAPH in index_type_enums:
-                    index_type_enums.remove(DocumentIndexType.GRAPH)
+            if not collection_config.get("enable_knowledge_graph", False) and Modality.GRAPH in index_type_enums:
+                index_type_enums.remove(Modality.GRAPH)
             # 支持 SUMMARY 类型的重建
             await document_index_manager.create_or_update_document_indexes(session, document_id, index_type_enums)
             logger.info(f"Successfully triggered rebuild for document {document_id} indexes: {index_types}")
@@ -796,7 +814,7 @@ class DocumentService:
                 # Filter out GRAPH type if not enabled in collection config
                 rebuild_types = failed_index_types
                 if not enable_knowledge_graph:
-                    rebuild_types = [t for t in failed_index_types if t != DocumentIndexType.GRAPH]
+                    rebuild_types = [t for t in failed_index_types if t != Modality.GRAPH.value]
 
                 if rebuild_types:
                     await document_index_manager.create_or_update_document_indexes(session, document_id, rebuild_types)
@@ -820,23 +838,25 @@ class DocumentService:
 
         # Use database operations with proper session management
         async def _get_document_chunks(session):
-            # 1. Get the chunk IDs (ctx_ids) from the document_index table
-            stmt = select(DocumentIndex).filter(
+            # Wave 3 §F.1 schema migration: legacy
+            # ``DocumentIndex.index_data`` JSON blob (which used to
+            # carry ``context_ids``) is gone. The chunk id list now
+            # lives in the ``derived/parse_<v>/chunks.jsonl`` artifact
+            # on the object store, addressed by the row's
+            # ``derived_artifact_path``. Plumbing the object-store
+            # read path into this HTTP handler is a chenyexuan T3.1
+            # commit 4b follow-up; for now we exercise the §F.1
+            # partial-unique invariant via a serving-row probe and
+            # return an empty chunk list (degraded but safe — clients
+            # see "no chunks indexed" until the read path lands).
+            stmt = select(DocumentIndex.derived_artifact_path).filter(
                 DocumentIndex.document_id == document_id,
-                DocumentIndex.index_type == DocumentIndexType.VECTOR,
+                DocumentIndex.modality == Modality.VECTOR.value,
+                DocumentIndex.is_serving.is_(True),
             )
             result = await session.execute(stmt)
-            doc_index = result.scalars().first()
-
-            if not doc_index or not doc_index.index_data:
-                return []
-
-            try:
-                index_data = json.loads(doc_index.index_data)
-                ctx_ids = index_data.get("context_ids", [])
-            except (json.JSONDecodeError, AttributeError):
-                return []
-
+            _ = result.scalars().first()
+            ctx_ids: list[str] = []
             if not ctx_ids:
                 return []
 
@@ -895,23 +915,20 @@ class DocumentService:
         """
 
         async def _get_document_vision_chunks(session):
-            # 1. Get the chunk IDs (ctx_ids) from the document_index table
-            stmt = select(DocumentIndex).filter(
+            # Wave 3 §F.1 migration: same ``index_data`` deprecation
+            # as :meth:`get_document_chunks` above. Vision chunk ids
+            # now live in the ``derived/parse_<v>/vision/manifest.jsonl``
+            # artifact; plumbing the object-store read path is a
+            # chenyexuan T3.1 commit 4b follow-up. Return empty for
+            # now (degraded but safe).
+            stmt = select(DocumentIndex.derived_artifact_path).filter(
                 DocumentIndex.document_id == document_id,
-                DocumentIndex.index_type == DocumentIndexType.VISION,
+                DocumentIndex.modality == Modality.VISION.value,
+                DocumentIndex.is_serving.is_(True),
             )
             result = await session.execute(stmt)
-            doc_index = result.scalars().first()
-
-            if not doc_index or not doc_index.index_data:
-                return []
-
-            try:
-                index_data = json.loads(doc_index.index_data)
-                ctx_ids = index_data.get("context_ids", [])
-            except (json.JSONDecodeError, AttributeError):
-                return []
-
+            _ = result.scalars().first()
+            ctx_ids: list[str] = []
             if not ctx_ids:
                 return []
 

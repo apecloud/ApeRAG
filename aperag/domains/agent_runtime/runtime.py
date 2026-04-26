@@ -16,6 +16,13 @@ import asyncio
 import json
 import logging
 import os
+
+# Wave 3 hard-cut moved this trivial token generator inline so the
+# legacy ``aperag.tasks.processing_lease`` module can be deleted
+# without leaving an external dependency on the agent-runtime path
+# (per architect msg=3890c9d7 Item 1 ruling: "如实际用到，提取小
+# helper 到 agent_runtime 自己 module").
+import uuid as _uuid
 from contextlib import suppress
 from dataclasses import dataclass
 from typing import Any, Optional
@@ -57,7 +64,14 @@ from aperag.domains.knowledge_base.schemas import Collection as KBCollectionSche
 from aperag.domains.model_platform.schemas import ModelCapability
 from aperag.exceptions import ResourceNotFoundException, ValidationException
 from aperag.llm.runtime.resolver import resolve_model_invocation_from_records
-from aperag.tasks.processing_lease import generate_processing_token
+
+
+def generate_processing_token() -> str:
+    """Return a fresh hex token used to claim a turn's processing
+    lease. The token is opaque to callers; the only contract is
+    uniqueness."""
+    return _uuid.uuid4().hex
+
 
 # ``prompt_template_service`` is reached via a ``PromptTemplateOps`` DI
 # slot rather than a direct import — it still lives in

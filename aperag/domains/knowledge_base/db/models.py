@@ -56,7 +56,7 @@ from sqlalchemy import (
 )
 
 from aperag.db.base import Base
-from aperag.domains.indexing.db.models import DocumentIndex, DocumentIndexStatus
+from aperag.indexing.models import DocumentIndex, IndexStatus
 from aperag.utils.utils import utc_now
 
 
@@ -188,6 +188,22 @@ class Document(Base):
         return result.scalars().all()
 
     def get_overall_index_status(self, session) -> "DocumentStatus":
+        """Aggregate per-modality :class:`DocumentIndex` rows into one
+        document-level status.
+
+        Wave 3 §F.1 schema replaces the legacy
+        ``DocumentIndexStatus.{CREATING, DELETION_IN_PROGRESS}``
+        intermediate states with a single ``RUNNING`` status; this
+        helper now folds the per-modality (status, is_serving) pair
+        into the existing :class:`DocumentStatus` summary the public
+        API surfaces.
+
+        Mapping:
+        - any ``FAILED`` modality → ``FAILED``
+        - any ``PENDING``/``RUNNING`` modality → ``RUNNING``
+        - all modalities ``ACTIVE`` AND ``is_serving=TRUE`` → ``COMPLETE``
+        - otherwise (e.g., some ``ACTIVE`` but cutover transit) → ``PENDING``
+        """
         document_indexes = self.get_document_indexes(session)
 
         if not document_indexes:
@@ -195,13 +211,11 @@ class Document(Base):
 
         statuses = [idx.status for idx in document_indexes]
 
-        if any(status == DocumentIndexStatus.FAILED for status in statuses):
+        if any(status == IndexStatus.FAILED.value for status in statuses):
             return DocumentStatus.FAILED
-        elif any(
-            status in [DocumentIndexStatus.CREATING, DocumentIndexStatus.DELETION_IN_PROGRESS] for status in statuses
-        ):
+        elif any(status in (IndexStatus.PENDING.value, IndexStatus.RUNNING.value) for status in statuses):
             return DocumentStatus.RUNNING
-        elif all(status == DocumentIndexStatus.ACTIVE for status in statuses):
+        elif all(idx.status == IndexStatus.ACTIVE.value and idx.is_serving for idx in document_indexes):
             return DocumentStatus.COMPLETE
         else:
             return DocumentStatus.PENDING

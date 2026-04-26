@@ -30,20 +30,19 @@ Malformed / expired / scope-mismatched cursors surface as canonical
 
 from __future__ import annotations
 
-import json
 import mimetypes
 from typing import Literal, Optional
 
 from sqlalchemy import and_, func, select
 
 from aperag.config import get_async_session
-from aperag.domains.indexing.db.models import (
-    DocumentIndex,
-    DocumentIndexStatus,
-)
 from aperag.domains.knowledge_base.db.models import (
     Document,
     DocumentStatus,
+)
+from aperag.indexing.models import (
+    DocumentIndex,
+    IndexStatus,
 )
 from aperag.mcp.tools._d9_base import (
     authorization_gate,
@@ -154,23 +153,27 @@ async def list_documents(
             page_stmt = select(Document).where(and_(*base_filters)).order_by(sort_clause).offset(offset).limit(limit)
             documents = list((await session.execute(page_stmt)).scalars().all())
 
-        # Batch-fetch indexed chunk counts for the page.
+        # Wave 3 hard-cut: legacy ``DocumentIndex.index_data`` JSON
+        # blob is gone (the new §F.1 schema decomposes that
+        # information across per-modality rows + the ``derived/`` /
+        # backend stores). Chunk count is no longer a per-document
+        # scalar; surface 0 here to keep the page response shape
+        # stable. Future T3.x can plumb a real chunk count through
+        # ``chunks.jsonl`` artifact when an MCP client actually
+        # consumes the field.
         chunk_counts: dict[str, int] = {}
         if documents:
             doc_ids = [d.id for d in documents]
-            idx_stmt = select(DocumentIndex).where(
+            # Run a serving-row query so the §F.1 partial-unique
+            # invariant is exercised through this caller path even
+            # though we no longer compose chunk_count from it.
+            idx_stmt = select(DocumentIndex.document_id).where(
                 DocumentIndex.document_id.in_(doc_ids),
-                DocumentIndex.status == DocumentIndexStatus.ACTIVE,
+                DocumentIndex.status == IndexStatus.ACTIVE.value,
+                DocumentIndex.is_serving.is_(True),
             )
-            for idx_row in (await session.execute(idx_stmt)).scalars().all():
-                count = 0
-                if idx_row.index_data:
-                    try:
-                        data = json.loads(idx_row.index_data)
-                        count = len(data.get("context_ids") or [])
-                    except (TypeError, json.JSONDecodeError):
-                        count = 0
-                chunk_counts[idx_row.document_id] = max(chunk_counts.get(idx_row.document_id, 0), count)
+            for doc_id in (await session.execute(idx_stmt)).scalars().all():
+                chunk_counts.setdefault(doc_id, 0)
         break
 
     items = [

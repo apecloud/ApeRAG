@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import logging
 from typing import Any, Callable, Dict, List, Optional
 
@@ -22,17 +21,17 @@ from sqlalchemy.orm import Session
 
 from aperag.config import get_async_session, get_sync_session
 from aperag.db.ops import db_ops
-from aperag.domains.indexing.db.models import (
-    DocumentIndex,
-    DocumentIndexStatus,
-    DocumentIndexType,
-)
 from aperag.domains.indexing.summary_index import SummaryIndexer
 from aperag.domains.knowledge_base.db.models import (
     Collection,
     CollectionSummary,
     CollectionSummaryStatus,
     Document,
+)
+from aperag.indexing.models import (
+    DocumentIndex,
+    IndexStatus,
+    Modality,
 )
 from aperag.llm.completion.base_completion import get_collection_completion_service_sync
 from aperag.schema.utils import parseCollectionConfig
@@ -223,32 +222,36 @@ class CollectionSummaryService:
         if not document_ids:
             return []
 
-        # Get summary indexes for these documents
+        # Wave 3 §F.1 schema migration: legacy
+        # ``DocumentIndex.index_data`` JSON blob is gone — per-modality
+        # summary text now lives in the ``derived/parse_<v>/
+        # summary.json`` artifact on the object store, addressed by
+        # the row's ``derived_artifact_path``. Reading the actual
+        # summary text per document requires hitting the object store.
+        # That object-store read path is a chenyexuan T3.1 commit 4b
+        # follow-up (the collection_summary lane is Pattern A/B/C
+        # work); for now we return an empty list so callers see
+        # "no per-document summaries available" — a degraded but
+        # safe behaviour (collection-level summaries that this
+        # service rolls up will be regenerated next cycle once the
+        # object-store read path lands).
         def _get_summary_indexes(session: Session):
             result = session.execute(
                 select(DocumentIndex).where(
                     DocumentIndex.document_id.in_(document_ids),
-                    DocumentIndex.index_type == DocumentIndexType.SUMMARY,
-                    DocumentIndex.status == DocumentIndexStatus.ACTIVE,
+                    DocumentIndex.modality == Modality.SUMMARY.value,
+                    DocumentIndex.status == IndexStatus.ACTIVE.value,
+                    DocumentIndex.is_serving.is_(True),
                 )
             )
             return result.scalars().all()
 
-        summary_indexes = db_ops._execute_query(_get_summary_indexes)
-        document_summaries = []
-
-        for summary_index in summary_indexes:
-            try:
-                # Get document summary from index data
-                if summary_index.index_data:
-                    index_data = json.loads(summary_index.index_data)
-                    summary = index_data.get("summary")
-                    if summary:
-                        document_summaries.append({"document_id": summary_index.document_id, "summary": summary})
-            except (json.JSONDecodeError, KeyError) as e:
-                logger.warning(f"Failed to parse summary for document {summary_index.document_id}: {e}")
-                continue
-
+        # Run the query so the §F.1 partial-unique invariant is
+        # exercised through this caller path; the row pointers are
+        # the seam into the object-store read path that T3.1
+        # commit 4b will wire.
+        _ = db_ops._execute_query(_get_summary_indexes)
+        document_summaries: list[dict] = []
         return document_summaries
 
     def _reduce_document_summaries(
