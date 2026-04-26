@@ -55,7 +55,7 @@ from pathlib import Path
 from typing import IO
 
 from aperag.objectstore.base import ObjectStore as _BaseSyncStore
-from aperag.objectstore.local import LocalObjectStore
+from aperag.objectstore.local import Local as LocalObjectStore
 
 logger = logging.getLogger(__name__)
 

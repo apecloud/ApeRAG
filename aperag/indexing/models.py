@@ -82,7 +82,7 @@ class DocumentIndex(Base):
     unique index slot.
     """
 
-    __tablename__ = "document_index"
+    __tablename__ = "document_index_v2"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     document_id: Mapped[str] = mapped_column(String(64), nullable=False, index=False)
@@ -96,6 +96,13 @@ class DocumentIndex(Base):
 
     last_heartbeat: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     derived_artifact_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # §H.2 multi-tenant isolation: tenant_scope_key is the rate-limit /
+    # quota / bulkhead partition key (e.g. ``"user:<uid>"`` or
+    # ``"org:<org_id>"``). Carried on every document_index row so the
+    # T2.2 quota lane can throttle per-tenant without a join, and the
+    # T2.1 worker pool can isolate noisy neighbours by partition.
+    tenant_scope_key: Mapped[str] = mapped_column(String(64), nullable=False)
 
     is_serving: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("FALSE"))
 
@@ -116,22 +123,28 @@ class DocumentIndex(Base):
             "document_id",
             "parse_version",
             "modality",
-            name="uq_document_index_triple",
+            name="uq_document_index_v2_triple",
         ),
         Index(
-            "idx_document_index_status_modality",
+            "idx_document_index_v2_status_modality",
             "status",
             "modality",
         ),
         Index(
-            "idx_document_index_document_modality",
+            "idx_document_index_v2_document_modality",
             "document_id",
             "modality",
+        ),
+        # §H.2 tenant scope index — used by T2.2 quota / bulkhead
+        # partitioning to look up "all in-flight rows for tenant X".
+        Index(
+            "idx_document_index_v2_tenant_scope",
+            "tenant_scope_key",
         ),
         # §F.1 partial unique invariant — DB-enforced "at most one
         # serving row per (document_id, modality)".
         Index(
-            "uniq_document_index_serving",
+            "uniq_document_index_v2_serving",
             "document_id",
             "modality",
             unique=True,

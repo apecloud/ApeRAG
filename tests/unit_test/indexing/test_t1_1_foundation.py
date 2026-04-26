@@ -82,7 +82,7 @@ def _build_inmemory_document_index_table() -> tuple[MetaData, Table]:
     """
     metadata = MetaData()
     table = Table(
-        "document_index",
+        "document_index_v2",
         metadata,
         Column("id", Integer, primary_key=True, autoincrement=True),
         Column("document_id", String(64), nullable=False),
@@ -92,16 +92,17 @@ def _build_inmemory_document_index_table() -> tuple[MetaData, Table]:
         Column("error_message", Text, nullable=True),
         Column("retry_count", Integer, nullable=False, server_default="0"),
         Column("derived_artifact_path", Text, nullable=True),
+        Column("tenant_scope_key", String(64), nullable=False),
         Column("is_serving", Boolean, nullable=False, server_default=text("FALSE")),
         Index(
-            "uq_document_index_triple",
+            "uq_document_index_v2_triple",
             "document_id",
             "parse_version",
             "modality",
             unique=True,
         ),
         Index(
-            "uniq_document_index_serving",
+            "uniq_document_index_v2_serving",
             "document_id",
             "modality",
             unique=True,
@@ -117,7 +118,7 @@ def _build_inmemory_document_index_table() -> tuple[MetaData, Table]:
 
 
 def test_partial_unique_serving_blocks_two_active_rows_per_document_modality():
-    """The DB-layer partial unique index `uniq_document_index_serving`
+    """The DB-layer partial unique index `uniq_document_index_v2_serving`
     must reject a second `is_serving=TRUE` row for the same
     `(document_id, modality)` pair (Bryce v2 review msg=7ccb176f #2 +
     design pack §F.1).
@@ -137,6 +138,7 @@ def test_partial_unique_serving_blocks_two_active_rows_per_document_modality():
                 parse_version="aaaaaaaaaaaaaaaa",
                 modality=Modality.VECTOR.value,
                 status="ACTIVE",
+                tenant_scope_key="user:test",
                 is_serving=True,
             )
         )
@@ -164,6 +166,7 @@ def test_partial_unique_serving_blocks_two_active_rows_per_document_modality():
                 parse_version="cccccccccccccccc",
                 modality=Modality.VECTOR.value,
                 status="PENDING",
+                tenant_scope_key="user:test",
                 is_serving=False,
             )
         )
@@ -177,6 +180,7 @@ def test_partial_unique_serving_blocks_two_active_rows_per_document_modality():
                 parse_version="dddddddddddddddd",
                 modality=Modality.GRAPH.value,
                 status="ACTIVE",
+                tenant_scope_key="user:test",
                 is_serving=True,
             )
         )
@@ -201,6 +205,7 @@ def test_cutover_swap_three_statement_transaction_satisfies_partial_unique(tmp_p
                 parse_version="oldoldoldoldoldo",
                 modality=Modality.VECTOR.value,
                 status="ACTIVE",
+                tenant_scope_key="user:test",
                 is_serving=True,
             )
         )
@@ -211,6 +216,7 @@ def test_cutover_swap_three_statement_transaction_satisfies_partial_unique(tmp_p
                 parse_version="newnewnewnewnewn",
                 modality=Modality.VECTOR.value,
                 status="ACTIVE",
+                tenant_scope_key="user:test",
                 is_serving=False,
             )
         )
@@ -219,25 +225,25 @@ def test_cutover_swap_three_statement_transaction_satisfies_partial_unique(tmp_p
     # FALSE → flip new TRUE, all in one transaction.
     with engine.begin() as conn:
         conn.execute(
-            text("UPDATE document_index SET status = 'ACTIVE' WHERE id = :id"),
+            text("UPDATE document_index_v2 SET status = 'ACTIVE' WHERE id = :id"),
             {"id": 2},
         )
         conn.execute(
             text(
-                "UPDATE document_index SET is_serving = 0 "
+                "UPDATE document_index_v2 SET is_serving = 0 "
                 "WHERE document_id = :doc AND modality = :mod AND is_serving = 1"
             ),
             {"doc": "doc-9", "mod": Modality.VECTOR.value},
         )
         conn.execute(
-            text("UPDATE document_index SET is_serving = 1 WHERE id = :id"),
+            text("UPDATE document_index_v2 SET is_serving = 1 WHERE id = :id"),
             {"id": 2},
         )
 
     with engine.connect() as conn:
         rows = conn.execute(
             text(
-                "SELECT id, parse_version, is_serving FROM document_index "
+                "SELECT id, parse_version, is_serving FROM document_index_v2 "
                 "WHERE document_id='doc-9' AND modality='vector' "
                 "ORDER BY id"
             )

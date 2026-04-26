@@ -24,6 +24,11 @@ deterministic parser entry point that produces the shared
 """
 
 from aperag.indexing.base import DeriveResult, ModalityWorker
+from aperag.indexing.fulltext import (
+    FulltextBackend,
+    FulltextModality,
+    InMemoryFulltextBackend,
+)
 from aperag.indexing.models import DocumentIndex, IndexStatus, Modality
 from aperag.indexing.object_store import (
     InMemoryObjectStore,
@@ -35,6 +40,21 @@ from aperag.indexing.object_store import (
     write_atomic,
     write_atomic_async,
 )
+from aperag.indexing.observability import (
+    INDEX_FAILURE_METRIC,
+    INDEX_LAG_METRIC,
+    INDEX_SUCCESS_METRIC,
+    QUEUE_DEPTH_METRIC,
+    WORKER_UTILIZATION_METRIC,
+    InMemoryMetricsEmitter,
+    MetricsEmitter,
+    NoopMetricsEmitter,
+    emit_index_failure,
+    emit_index_lag,
+    emit_index_success,
+    emit_queue_depth,
+    emit_worker_utilization,
+)
 from aperag.indexing.parser import (
     DEFAULT_CHUNK_OVERLAP,
     DEFAULT_CHUNK_SIZE,
@@ -44,6 +64,21 @@ from aperag.indexing.parser import (
     ParseResult,
     parse_document,
     read_chunks,
+)
+from aperag.indexing.summary import (
+    InMemorySummaryBackend,
+    SummaryBackend,
+    SummaryModality,
+)
+from aperag.indexing.vector import (
+    InMemoryVectorBackend,
+    VectorBackend,
+    VectorModality,
+)
+from aperag.indexing.vision import (
+    InMemoryVisionBackend,
+    VisionBackend,
+    VisionModality,
 )
 
 __all__ = [
@@ -72,4 +107,31 @@ __all__ = [
     "DEFAULT_PARSER_PIPELINE",
     "DEFAULT_CHUNK_SIZE",
     "DEFAULT_CHUNK_OVERLAP",
+    # Modalities (T1.3 / T1.4)
+    "VectorModality",
+    "VectorBackend",
+    "InMemoryVectorBackend",
+    "FulltextModality",
+    "FulltextBackend",
+    "InMemoryFulltextBackend",
+    "SummaryModality",
+    "SummaryBackend",
+    "InMemorySummaryBackend",
+    "VisionModality",
+    "VisionBackend",
+    "InMemoryVisionBackend",
+    # Observability (T1.5)
+    "MetricsEmitter",
+    "NoopMetricsEmitter",
+    "InMemoryMetricsEmitter",
+    "INDEX_LAG_METRIC",
+    "INDEX_FAILURE_METRIC",
+    "INDEX_SUCCESS_METRIC",
+    "QUEUE_DEPTH_METRIC",
+    "WORKER_UTILIZATION_METRIC",
+    "emit_index_lag",
+    "emit_index_failure",
+    "emit_index_success",
+    "emit_queue_depth",
+    "emit_worker_utilization",
 ]
