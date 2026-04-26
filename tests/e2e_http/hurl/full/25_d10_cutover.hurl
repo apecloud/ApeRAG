@@ -53,6 +53,7 @@ Accept: application/json, text/event-stream
   "params": {}
 }
 HTTP 200
+[Asserts]
 
 # Canonical surface still on the wire — these are the names a
 # post-cutover external Agent should discover.

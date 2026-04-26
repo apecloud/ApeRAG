@@ -48,6 +48,7 @@ Accept: application/json, text/event-stream
   "params": {}
 }
 HTTP 200
+[Asserts]
 
 # §B.1 / §B.2 / §B.3 collection-scoped split search inputSchema
 # markers — every tool keeps the per-tool ``query`` + collection

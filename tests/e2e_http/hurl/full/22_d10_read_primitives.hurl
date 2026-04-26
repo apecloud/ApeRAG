@@ -47,6 +47,7 @@ Accept: application/json, text/event-stream
   "params": {}
 }
 HTTP 200
+[Asserts]
 
 # §A.1 list_collections inputSchema markers — paginated read primitive.
 body contains "\"list_collections\""

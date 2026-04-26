@@ -51,6 +51,7 @@ Accept: application/json, text/event-stream
   "params": {}
 }
 HTTP 200
+[Asserts]
 
 # §C.5 PaginationParams input markers — cursor + limit on every
 # paginated read primitive.
