@@ -14,20 +14,18 @@
 
 """Phase 9 D10.d (#96) — vector_search split MCP tool (§B.1).
 
-Replaces ``search_collection use_vector_index=True`` with a discrete tool
-per ``docs/modularization/d10-design-pack.md`` §B.1 (Lock #5 split).
-``search_collection`` itself remains as a deprecated alias (§B.5 / §H.1)
-until the D10.h cutover.
+The discrete vector-similarity search primitive per
+``docs/modularization/d10-design-pack.md`` §B.1 (Lock #5 split). The
+omnibus ``search_collection`` was hard-cut in D10.h #100, so this
+file is now the only public entry point for vector recall.
 
 Wire shape: returns the existing ``SearchResult`` dict shape from the
 ``aperag/api/v2/collections/{id}/searches`` backend (``recall_type =
-"vector_search"`` for produced items). The §B canonical
-``SearchResult`` / ``SearchResultItem`` with ``chunk_id`` /
-``section_path`` / ``heading_anchor`` exposure was settled by the
-``[D10 spec amendment]`` thread (msg=b9b7072a) — Drift #1 resolution
-(c): defer the canonical shape to the D10.h cutover lane (one-shot
-``aperag/domains/retrieval/`` upgrade) so this lane stays focused on
-the split surface + omnibus deprecation.
+"vector_search"`` for produced items). The retrieval-domain
+``SearchResultMetadata`` allowlist gained ``chunk_id`` /
+``section_path`` / ``heading_anchor`` in the same D10.h lane so the
+caller can navigate from a search hit straight into the read
+primitives.
 
 The ``cursor`` parameter is a placeholder per the same amendment
 thread (Drift #4 resolution (c)): the signature is published now so

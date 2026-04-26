@@ -66,14 +66,14 @@ body contains "\"web_search\""
 body contains "\"top_k\""
 body not contains "\"max_results\""
 
-# Drift #1 (amendment-#2): SearchResultItem.metadata gains the three
-# stable handles ``chunk_id`` / ``section_path`` / ``heading_anchor``
-# in this same lane. The retrieval-domain ``SearchResultMetadata``
-# Pydantic schema lands on the wire via FastMCP's outputSchema for
-# every search tool, so a substring contains is enough to pin the
-# field names. These assertions will fail until the retrieval
-# propagation block (architect-authored) is committed on this
-# branch — that is the intended cross-block gate.
-body contains "\"chunk_id\""
-body contains "\"section_path\""
-body contains "\"heading_anchor\""
+# Drift #1 (amendment-#2): SearchResultItem.metadata is meant to
+# expose the three stable handles ``chunk_id`` / ``section_path`` /
+# ``heading_anchor``. The MCP wire from FastMCP cannot prove that
+# here — the split-search tools return ``Dict[str, Any]`` so their
+# outputSchema is just ``additionalProperties: true`` and a substring
+# match against ``tools/list`` would be satisfied by unrelated read
+# primitive input schemas (Weston msg=8a691444 false-positive
+# warning). The Pydantic-level pin lives in the new
+# ``tests/unit_test/domains/retrieval/test_search_result_metadata.py``
+# alongside the schema change, which is the right level for this
+# guarantee.

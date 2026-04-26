@@ -113,9 +113,16 @@ async def interactive_chat():
                 name="searcher",
                 instruction="""You are a knowledge searcher. Your job is to:
 1. List available collections using list_collections() when asked about collections
-2. Search relevant collections using search_collection() with appropriate parameters
-3. Use hybrid search method for best results (use_vector_index=true, use_fulltext_index=true, use_graph_index=true)
-4. Return search results with proper formatting and source attribution""",
+2. For each candidate collection, run the relevant D10 split-search tools
+   directly: vector_search() for semantic similarity, fulltext_search()
+   for keyword precision, and graph_search() for entity / relationship
+   recall. Compose multiple split tools when one mode is insufficient —
+   the legacy search_collection() omnibus is no longer available
+   post-D10.h cutover.
+3. Each search result item carries chunk_id / section_path /
+   heading_anchor on its metadata; use them with read_document_chunk()
+   or read_document_section() to fetch the underlying evidence.
+4. Return search results with proper formatting and source attribution.""",
                 server_names=["aperag"],
             )
 
