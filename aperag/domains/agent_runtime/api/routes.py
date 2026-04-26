@@ -42,7 +42,6 @@ from pydantic import BaseModel, Field
 from aperag.domains.agent_runtime.db.models import AgentEventActor, AgentTurnStatus
 from aperag.domains.agent_runtime.runtime import agent_runtime_manager as runtime_manager
 from aperag.domains.agent_runtime.schemas import (
-    AgentArtifactEnvelope,
     CancelTurnResponse,
     CreateTurnRequest,
     CreateTurnResponse,
@@ -152,13 +151,6 @@ async def cancel_turn_view(
     await runtime_manager.turn_service.get_turn_snapshot(str(user.id), chat_id, turn_id)
     await runtime_manager.cancel_turn(turn_id)
     return CancelTurnResponse(turn_id=turn_id, status=AgentTurnStatus.CANCELLED)
-
-
-@router.get("/agent/artifacts/{artifact_id}")
-async def get_artifact_view(
-    artifact_id: str, user: AuthenticatedUser = Depends(required_user)
-) -> AgentArtifactEnvelope:
-    return await runtime_manager.artifact_service.get_artifact_for_user(str(user.id), artifact_id)
 
 
 # -- D8.3 (#75) consent + elicitation HTTP surfaces ---------------

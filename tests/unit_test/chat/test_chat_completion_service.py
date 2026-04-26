@@ -5,6 +5,13 @@ import pytest
 
 import aperag.domains.conversation.service.chat_completion_service as completion_module
 from aperag.domains.agent_runtime.db.models import AgentTurnStatus
+from aperag.domains.agent_runtime.uimessage import (
+    CitationData,
+    DataCitationPart,
+    TextPart,
+    UIMessage,
+    UrlCitationLocation,
+)
 from aperag.utils.constant import DOC_QA_REFERENCES
 
 
@@ -33,24 +40,36 @@ def _turn(*, turn_id="turn-1", chat_id="chat-1", status=AgentTurnStatus.COMPLETE
     )
 
 
-def _artifacts(*, answer_text="done", references=None):
-    """Phase 8 D8.4d (#90): the OpenAI-compat completion path now reads
-    raw ``AgentArtifact`` rows directly from the DB instead of through
-    ``get_turn_snapshot`` (which now returns canonical UIMessage parts
-    for the FE)."""
-    references = references or [{"title": "Doc 1", "snippet": "hello"}]
-    return [
-        SimpleNamespace(
-            artifact_id="artifact-answer",
-            artifact_type="answer",
-            payload={"text": answer_text},
-        ),
-        SimpleNamespace(
-            artifact_id="artifact-refs",
-            artifact_type="reference_bundle",
-            payload={"items": references},
-        ),
-    ]
+def _persisted_message(*, answer_text="done", references=None) -> UIMessage:
+    """Phase 8 D8.6 (#80) chunk-2: the OpenAI-compat completion path
+    now reads canonical ``UIMessage`` parts (``TextPart`` for the
+    answer + ``DataCitationPart`` for each reference) directly from
+    ``UIMessageStore`` instead of the legacy artifact rows.
+    """
+
+    references = references or [{"title": "Doc 1", "snippet": "hello", "url": "https://example.com/doc1"}]
+    parts = [TextPart(text=answer_text)]
+    for ref in references:
+        parts.append(
+            DataCitationPart(
+                data=CitationData(
+                    cited_text=ref.get("snippet", ""),
+                    location=UrlCitationLocation(
+                        url=ref.get("url", ""),
+                        title=ref.get("title"),
+                    ),
+                )
+            )
+        )
+    return UIMessage(id="msg-turn-1", role="assistant", parts=parts)
+
+
+class _FakeUIMessageStore:
+    def __init__(self, message: UIMessage | None):
+        self._message = message
+
+    async def read(self, _turn_id):
+        return self._message
 
 
 class _FakeEventService:
@@ -67,17 +86,13 @@ class _FakeEventService:
 
 
 class _FakeTurnService:
-    def __init__(self, *, chat, bot, turn, artifacts, query_turns=None):
+    def __init__(self, *, chat, bot, turn, query_turns=None):
         self.chat = chat
         self.bot = bot
         self.turn = turn
-        self.artifacts = list(artifacts or [])
         self.query_turns = list(query_turns or [turn])
         self.created_requests = []
-        self.db_ops = SimpleNamespace(
-            query_agent_turn=self._query_agent_turn,
-            query_agent_artifacts_by_turn=self._query_agent_artifacts_by_turn,
-        )
+        self.db_ops = SimpleNamespace(query_agent_turn=self._query_agent_turn)
 
     async def get_chat_and_bot(self, _user, _chat_id):
         return self.chat, self.bot
@@ -91,14 +106,12 @@ class _FakeTurnService:
             return self.query_turns.pop(0)
         return self.query_turns[0]
 
-    async def _query_agent_artifacts_by_turn(self, _turn_id):
-        return list(self.artifacts)
-
 
 class _FakeRuntimeManager:
-    def __init__(self, *, turn_service, event_service):
+    def __init__(self, *, turn_service, event_service, uimessage_store):
         self.turn_service = turn_service
         self.event_service = event_service
+        self.uimessage_store = uimessage_store
         self.tasks = {}
         self.launch_calls = []
         self.cancel_calls = []
@@ -134,9 +147,12 @@ async def test_openai_chat_completions_returns_openai_response_and_maps_override
     chat = SimpleNamespace(id="chat-1")
     bot = _bot()
     turn = _turn()
-    artifacts = _artifacts(answer_text="final answer")
-    fake_turn_service = _FakeTurnService(chat=chat, bot=bot, turn=turn, artifacts=artifacts)
-    fake_runtime_manager = _FakeRuntimeManager(turn_service=fake_turn_service, event_service=_FakeEventService())
+    fake_turn_service = _FakeTurnService(chat=chat, bot=bot, turn=turn)
+    fake_runtime_manager = _FakeRuntimeManager(
+        turn_service=fake_turn_service,
+        event_service=_FakeEventService(),
+        uimessage_store=_FakeUIMessageStore(_persisted_message(answer_text="final answer")),
+    )
 
     monkeypatch.setattr(completion_module, "runtime_manager", fake_runtime_manager)
 
@@ -173,9 +189,12 @@ async def test_openai_chat_completions_creates_and_cleans_up_ephemeral_chat(monk
     chat = SimpleNamespace(id="chat-ephemeral")
     bot = _bot()
     turn = _turn(chat_id="chat-ephemeral")
-    artifacts = _artifacts(answer_text="ephemeral answer")
-    fake_turn_service = _FakeTurnService(chat=chat, bot=bot, turn=turn, artifacts=artifacts)
-    fake_runtime_manager = _FakeRuntimeManager(turn_service=fake_turn_service, event_service=_FakeEventService())
+    fake_turn_service = _FakeTurnService(chat=chat, bot=bot, turn=turn)
+    fake_runtime_manager = _FakeRuntimeManager(
+        turn_service=fake_turn_service,
+        event_service=_FakeEventService(),
+        uimessage_store=_FakeUIMessageStore(_persisted_message(answer_text="ephemeral answer")),
+    )
     fake_chat_service = _FakeChatService(created_chat_id="chat-ephemeral")
 
     monkeypatch.setattr(completion_module, "runtime_manager", fake_runtime_manager)
@@ -200,18 +219,20 @@ async def test_openai_chat_completions_streams_sse_from_runtime_events(monkeypat
     bot = _bot()
     running_turn = _turn(status=AgentTurnStatus.RUNNING)
     completed_turn = _turn(status=AgentTurnStatus.COMPLETED)
-    artifacts = _artifacts(answer_text="streamed answer")
     fake_turn_service = _FakeTurnService(
         chat=chat,
         bot=bot,
         turn=running_turn,
-        artifacts=artifacts,
         query_turns=[running_turn, completed_turn],
     )
     fake_event_service = _FakeEventService(
         events=[SimpleNamespace(sequence=1, type="text.delta", data={"delta": "hello"})]
     )
-    fake_runtime_manager = _FakeRuntimeManager(turn_service=fake_turn_service, event_service=fake_event_service)
+    fake_runtime_manager = _FakeRuntimeManager(
+        turn_service=fake_turn_service,
+        event_service=fake_event_service,
+        uimessage_store=_FakeUIMessageStore(_persisted_message(answer_text="streamed answer")),
+    )
 
     monkeypatch.setattr(completion_module, "runtime_manager", fake_runtime_manager)
 

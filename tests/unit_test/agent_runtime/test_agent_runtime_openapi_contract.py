@@ -9,7 +9,13 @@ def _json_schema(operation: dict, status: str = "200") -> dict:
     return operation["responses"][status]["content"]["application/json"]["schema"]
 
 
-def test_agent_runtime_v2_openapi_contract_exposes_turn_event_and_artifact_models():
+def test_agent_runtime_v2_openapi_contract_exposes_turn_event_models():
+    """Phase 8 D8.6 (#80) chunk-2 dropped the legacy
+    ``/api/v2/agent/artifacts/{artifact_id}`` endpoint and the
+    ``AgentArtifactEnvelope`` schema; the OpenAPI surface should no
+    longer expose either.
+    """
+
     create_turn = _operation("/api/v2/agent/chats/{chat_id}/turns", "post")
     assert create_turn["requestBody"]["content"]["application/json"]["schema"] == {
         "$ref": "#/components/schemas/CreateTurnRequest"
@@ -22,8 +28,10 @@ def test_agent_runtime_v2_openapi_contract_exposes_turn_event_and_artifact_model
     cancel = _operation("/api/v2/agent/chats/{chat_id}/turns/{turn_id}/cancel", "post")
     assert _json_schema(cancel) == {"$ref": "#/components/schemas/CancelTurnResponse"}
 
-    artifact = _operation("/api/v2/agent/artifacts/{artifact_id}", "get")
-    assert _json_schema(artifact) == {"$ref": "#/components/schemas/AgentArtifactEnvelope"}
+    paths = app.openapi()["paths"]
+    assert "/api/v2/agent/artifacts/{artifact_id}" not in paths
+    schemas = app.openapi()["components"]["schemas"]
+    assert "AgentArtifactEnvelope" not in schemas
 
     events = _operation("/api/v2/agent/chats/{chat_id}/turns/{turn_id}/events", "get")
     event_stream = events["responses"]["200"]["content"]["text/event-stream"]["schema"]

@@ -26,8 +26,9 @@ from pydantic_ai.mcp import MCPServerStreamableHTTP
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
+from aperag.config import get_async_session
 from aperag.db.ops import async_db_ops
-from aperag.domains.agent_runtime.db.models import AgentArtifactType, AgentEventActor, AgentTurnStatus
+from aperag.domains.agent_runtime.db.models import AgentEventActor, AgentTurnStatus
 from aperag.domains.agent_runtime.ports import PromptTemplateOps
 from aperag.domains.agent_runtime.schemas import (
     AgentMessage,
@@ -36,13 +37,22 @@ from aperag.domains.agent_runtime.schemas import (
     VisibleAgentState,
 )
 from aperag.domains.agent_runtime.services import (
-    ArtifactService,
     EventService,
     HistoryWriter,
     TurnService,
     _parse_bot_config,
 )
-from aperag.domains.agent_runtime.storage import DEFAULT_AGENT_TURN_LEASE_TTL_SECONDS
+from aperag.domains.agent_runtime.storage import DEFAULT_AGENT_TURN_LEASE_TTL_SECONDS, AgentRuntimeRedisStore
+from aperag.domains.agent_runtime.uimessage import (
+    CitationData,
+    DataCitationPart,
+    SourceUrlPart,
+    TextPart,
+    UIMessage,
+    UIMessagePart,
+    UrlCitationLocation,
+)
+from aperag.domains.agent_runtime.uimessage_store import UIMessageDbOps, UIMessageStore
 from aperag.domains.knowledge_base.schemas import Collection as KBCollectionSchema
 from aperag.domains.model_platform.schemas import ModelCapability
 from aperag.exceptions import ResourceNotFoundException, ValidationException
@@ -80,6 +90,43 @@ def _get_prompt_template_ops() -> PromptTemplateOps:
 logger = logging.getLogger(__name__)
 
 DEFAULT_AGENT_TURN_LEASE_RENEW_INTERVAL_SECONDS = int(os.getenv("APERAG_AGENT_TURN_LEASE_RENEW_INTERVAL_SECONDS", "30"))
+
+
+def _compose_assistant_parts(
+    *,
+    turn_id: str,
+    answer_text: str,
+    references: list[ReferenceBundleItem],
+) -> list[UIMessagePart]:
+    """Project the runtime's accumulated answer + references into a
+    canonical at-rest ``UIMessagePart`` list for ``UIMessageStore.write``.
+
+    Order: ``TextPart`` (answer) first, then ``SourceUrlPart`` /
+    ``DataCitationPart`` pairs from each reference. Items without a
+    URI surface as ``DataCitationPart`` only — same shape the FE
+    renderer expects from the live SSE stream (D8 §2 byte-equal).
+    """
+
+    parts: list[UIMessagePart] = []
+    if answer_text:
+        parts.append(TextPart(text=answer_text))
+    for index, ref in enumerate(references):
+        metadata = ref.metadata if isinstance(ref.metadata, dict) else {}
+        url = ref.uri or metadata.get("url")
+        title = ref.title or metadata.get("title")
+        snippet = ref.snippet or ""
+        source_id = ref.source_id or f"{turn_id}-ref-{index}"
+        if url:
+            parts.append(SourceUrlPart(source_id=str(source_id), url=str(url), title=title))
+        parts.append(
+            DataCitationPart(
+                data=CitationData(
+                    cited_text=str(snippet),
+                    location=UrlCitationLocation(url=str(url) if url else "", title=title),
+                )
+            )
+        )
+    return parts
 
 
 @dataclass
@@ -181,12 +228,15 @@ class AgentRuntime:
 class AgentRuntimeTaskManager:
     def __init__(self):
         self.tasks: dict[str, asyncio.Task] = {}
-        self.turn_service = TurnService()
+        self.uimessage_store = UIMessageStore(
+            db_ops=UIMessageDbOps(session_factory=get_async_session),
+            redis_store=AgentRuntimeRedisStore(),
+        )
+        self.turn_service = TurnService(uimessage_store=self.uimessage_store)
         self.event_service = EventService()
-        self.artifact_service = ArtifactService()
-        self.history_writer = HistoryWriter()
+        self.history_writer = HistoryWriter(uimessage_store=self.uimessage_store)
         self.runtime: AgentRuntime = PydanticAIRuntime(
-            self.turn_service, self.event_service, self.artifact_service, self.history_writer
+            self.turn_service, self.event_service, self.history_writer, self.uimessage_store
         )
 
     async def claim_turn(self, turn_id: str) -> str | None:
@@ -245,13 +295,13 @@ class PydanticAIRuntime(AgentRuntime):
         self,
         turn_service: TurnService,
         event_service: EventService,
-        artifact_service: ArtifactService,
         history_writer: HistoryWriter,
+        uimessage_store: UIMessageStore,
     ):
         self.turn_service = turn_service
         self.event_service = event_service
-        self.artifact_service = artifact_service
         self.history_writer = history_writer
+        self.uimessage_store = uimessage_store
 
     async def cancel_turn(self, turn_id: str) -> None:
         await self.turn_service.redis_store.mark_cancelled(turn_id)
@@ -434,38 +484,19 @@ class PydanticAIRuntime(AgentRuntime):
 
             lease_guard.ensure_owned()
             answer_text = "".join(text_chunks).strip()
-            answer_artifact = await self.artifact_service.create_artifact(
-                turn_id=turn.id,
-                artifact_type=AgentArtifactType.ANSWER,
-                summary=answer_text[:200] if answer_text else "",
-                payload={"text": answer_text, "query": request.query},
-            )
-            reference_artifact = None
-            if reference_items:
-                reference_artifact = await self.artifact_service.create_artifact(
-                    turn_id=turn.id,
-                    artifact_type=AgentArtifactType.REFERENCE_BUNDLE,
-                    summary=f"{len(reference_items)} references",
-                    payload={"items": [item.model_dump() for item in reference_items]},
-                )
-                await emit(
-                    "artifact.created",
-                    actor=AgentEventActor.SYSTEM,
-                    label="reference_bundle",
-                    status="ready",
-                    data={
-                        "artifact_id": reference_artifact.artifact_id,
-                        "artifact_type": reference_artifact.artifact_type,
-                    },
-                )
 
-            await emit(
-                "artifact.created",
-                actor=AgentEventActor.SYSTEM,
-                label="answer",
-                status="ready",
-                data={"artifact_id": answer_artifact.artifact_id, "artifact_type": answer_artifact.artifact_type},
+            await self.uimessage_store.write(
+                turn_id=turn.id,
+                chat_id=chat.id,
+                message=UIMessage(
+                    id=f"msg-{turn.id}",
+                    role="assistant",
+                    parts=_compose_assistant_parts(
+                        turn_id=turn.id, answer_text=answer_text, references=reference_items
+                    ),
+                ),
             )
+
             await emit(
                 "agent.state.changed",
                 actor=AgentEventActor.AGENT,
@@ -478,12 +509,7 @@ class PydanticAIRuntime(AgentRuntime):
                 label=VisibleAgentState.COMPLETED.value,
                 status="completed",
             )
-            await self.turn_service.mark_completed(
-                turn.id,
-                answer_artifact_id=answer_artifact.artifact_id,
-                reference_bundle_artifact_id=reference_artifact.artifact_id if reference_artifact else None,
-                sequence=sequence,
-            )
+            await self.turn_service.mark_completed(turn.id, sequence=sequence)
             await self.history_writer.commit_completed_turn(
                 turn=turn,
                 request=request,
@@ -522,19 +548,6 @@ class PydanticAIRuntime(AgentRuntime):
                 )
                 return
             logger.exception("Agent Runtime V3 turn failed: %s", turn.id)
-            error_artifact = await self.artifact_service.create_artifact(
-                turn_id=turn.id,
-                artifact_type=AgentArtifactType.ERROR_SUMMARY,
-                summary=str(exc),
-                payload={"message": str(exc), "type": exc.__class__.__name__},
-            )
-            await emit(
-                "artifact.created",
-                actor=AgentEventActor.SYSTEM,
-                label="error_summary",
-                status="ready",
-                data={"artifact_id": error_artifact.artifact_id, "artifact_type": error_artifact.artifact_type},
-            )
             await emit(
                 "agent.state.changed",
                 actor=AgentEventActor.AGENT,

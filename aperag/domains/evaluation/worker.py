@@ -172,12 +172,12 @@ async def dispatch_evaluation_turn(
     latency_ms = int((time.monotonic() - start) * 1000)
 
     if final_status == AgentTurnStatus.COMPLETED.value:
-        # Phase 8 D8.4d (#90): the snapshot endpoint now returns canonical
-        # UIMessage parts; legacy ``snapshot.artifacts`` is gone. Pull
-        # artifacts straight from the DB instead of rebuilding the answer
-        # from the at-rest UIMessage parts (which is the FE concern).
-        artifacts = await agent_runtime_manager.turn_service.db_ops.query_agent_artifacts_by_turn(turn.id)
-        answer_text = _extract_answer_text(artifacts)
+        # Phase 8 D8.6 (#80) chunk-2: read canonical UIMessage parts
+        # the runtime persists at end-of-turn and join all TextPart
+        # contributions into the evaluation answer text.
+        persisted = await agent_runtime_manager.uimessage_store.read(turn.id)
+        parts = list(persisted.parts) if persisted and persisted.parts else []
+        answer_text = _extract_answer_text(parts)
         return TurnDispatchOutcome(
             status=EvaluationRunItemAttemptStatus.COMPLETED,
             agent_chat_id=chat_id,
@@ -211,18 +211,12 @@ async def dispatch_evaluation_turn(
     )
 
 
-def _extract_answer_text(artifacts) -> str:
-    for artifact in artifacts:
-        artifact_type = getattr(artifact, "artifact_type", None)
-        # AgentArtifactType is a str-Enum; compare by string value to
-        # avoid pulling the enum into this module just for one branch.
-        type_value = getattr(artifact_type, "value", artifact_type)
-        if type_value == "answer":
-            payload = getattr(artifact, "payload", None) or {}
-            text = payload.get("text") or payload.get("content")
-            if text:
-                return text
-    return ""
+def _extract_answer_text(parts) -> str:
+    """Join the assistant's ``TextPart`` contents into a single string."""
+    from aperag.domains.agent_runtime.uimessage import TextPart
+
+    chunks = [part.text for part in parts if isinstance(part, TextPart) and part.text]
+    return "".join(chunks)
 
 
 # ---------------------------------------------------------------------------

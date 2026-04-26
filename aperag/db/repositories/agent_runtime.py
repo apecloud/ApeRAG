@@ -18,7 +18,6 @@ from sqlalchemy import select
 
 from aperag.db.repositories.base import AsyncRepositoryProtocol
 from aperag.domains.agent_runtime.db.models import (
-    AgentArtifact,
     AgentTimelineEvent,
     AgentTurn,
 )
@@ -177,48 +176,6 @@ class AsyncAgentRuntimeRepositoryMixin(AsyncRepositoryProtocol):
                 .where(AgentTimelineEvent.turn_id == turn_id, AgentTimelineEvent.sequence > after_sequence)
                 .order_by(AgentTimelineEvent.sequence.asc())
                 .limit(limit)
-            )
-            result = await session.execute(stmt)
-            return result.scalars().all()
-
-        return await self._execute_query(_query)
-
-    async def create_agent_artifact(
-        self,
-        *,
-        turn_id: str,
-        artifact_type,
-        summary: Optional[str],
-        payload: dict,
-        storage_ref: Optional[str] = None,
-    ) -> AgentArtifact:
-        async def _operation(session):
-            instance = AgentArtifact(
-                turn_id=turn_id,
-                artifact_type=artifact_type,
-                summary=summary,
-                payload=payload,
-                storage_ref=storage_ref,
-            )
-            session.add(instance)
-            await session.flush()
-            await session.refresh(instance)
-            return instance
-
-        return await self.execute_with_transaction(_operation)
-
-    async def query_agent_artifact(self, artifact_id: str) -> Optional[AgentArtifact]:
-        async def _query(session):
-            stmt = select(AgentArtifact).where(AgentArtifact.id == artifact_id)
-            result = await session.execute(stmt)
-            return result.scalars().first()
-
-        return await self._execute_query(_query)
-
-    async def query_agent_artifacts_by_turn(self, turn_id: str) -> list[AgentArtifact]:
-        async def _query(session):
-            stmt = (
-                select(AgentArtifact).where(AgentArtifact.turn_id == turn_id).order_by(AgentArtifact.gmt_created.asc())
             )
             result = await session.execute(stmt)
             return result.scalars().all()

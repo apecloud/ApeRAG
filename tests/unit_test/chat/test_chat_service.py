@@ -19,15 +19,26 @@ import pytest
 
 from aperag.domains.agent_runtime.db.models import AgentTurnStatus
 from aperag.domains.agent_runtime.uimessage import (
+    CitationData,
     DataCitationPart,
     SourceUrlPart,
     TextPart,
+    UIMessage,
+    UrlCitationLocation,
 )
 from aperag.domains.conversation.service.chat_service import ChatService
 
 
 def _now():
     return datetime.now(timezone.utc)
+
+
+class _FakeUIMessageStore:
+    def __init__(self, messages=None):
+        self.messages = dict(messages or {})
+
+    async def read(self, turn_id):
+        return self.messages.get(turn_id)
 
 
 class _FakeChatDbOps:
@@ -47,38 +58,12 @@ class _FakeChatDbOps:
             user="user-1",
             input_text="What changed?",
             status=AgentTurnStatus.COMPLETED,
-            answer_artifact_id="artifact-answer",
-            reference_bundle_artifact_id="artifact-refs",
             error_message=None,
             timeline_cursor=2,
             gmt_created=_now(),
             gmt_started=_now(),
             gmt_finished=_now(),
             gmt_updated=_now(),
-        )
-        self.answer_artifact = SimpleNamespace(
-            id="artifact-answer",
-            artifact_type="answer",
-            summary="Here is the answer.",
-            payload={"text": "Here is the answer."},
-        )
-        self.reference_artifact = SimpleNamespace(
-            id="artifact-refs",
-            artifact_type="reference_bundle",
-            summary="1 references",
-            payload={
-                "items": [
-                    {
-                        "title": "Doc A",
-                        "snippet": "Reference snippet",
-                        "score": 0.9,
-                        "source_type": "search_collection",
-                        "source_id": "doc-a",
-                        "uri": "https://example.com/doc-a",
-                        "metadata": {"section": "intro"},
-                    }
-                ]
-            },
         )
 
     async def query_chat(self, user, bot_id, chat_id):
@@ -91,23 +76,32 @@ class _FakeChatDbOps:
             return [self.turn]
         return []
 
-    async def query_agent_artifacts_by_turn(self, turn_id):
-        if turn_id == "turn-1":
-            return [self.answer_artifact, self.reference_artifact]
-        return []
+
+def _build_persisted_message() -> UIMessage:
+    return UIMessage(
+        id="msg-turn-1",
+        role="assistant",
+        parts=[
+            TextPart(text="Here is the answer."),
+            SourceUrlPart(source_id="doc-a", url="https://example.com/doc-a", title="Doc A"),
+            DataCitationPart(
+                data=CitationData(
+                    cited_text="Reference snippet",
+                    location=UrlCitationLocation(url="https://example.com/doc-a", title="Doc A"),
+                )
+            ),
+        ],
+    )
 
 
 @pytest.mark.asyncio
 async def test_get_chat_returns_canonical_uimessage_history():
-    """Phase 8 D8.5-BE (#92): ``ChatDetails.history`` is now a list of
-    canonical ``AgentTurnSnapshot`` envelopes (one per assistant turn),
-    each carrying the same ``UIMessagePart`` shape the FE consumes from
-    the live SSE stream. Replaces the legacy
-    ``list[list[ChatMessage]]`` shape so historical and live turns
-    render through a single canonical path.
+    """Phase 8 D8.6 (#80) chunk-2: ``ChatDetails.history`` reads
+    canonical ``UIMessage`` parts directly from ``UIMessageStore`` —
+    legacy ``AgentArtifact`` projection is gone.
     """
 
-    service = ChatService()
+    service = ChatService(uimessage_store=_FakeUIMessageStore({"turn-1": _build_persisted_message()}))
     service.db_ops = _FakeChatDbOps()
 
     chat = await service.get_chat("user-1", "bot-1", "chat-1")
@@ -143,11 +137,13 @@ async def test_get_chat_returns_canonical_uimessage_history():
 
 @pytest.mark.asyncio
 async def test_get_chat_history_surfaces_error_text_for_failed_turn():
-    """A FAILED turn's error_text comes from ``error_summary`` artifact
-    when present, falling back to ``turn.error_message`` (mirrors the
-    snapshot endpoint contract from #90 D8.4d)."""
+    """Phase 8 D8.6 (#80) chunk-2: a FAILED turn's ``error_text`` comes
+    straight off the ``AgentTurn`` row (the legacy ``error_summary``
+    artifact is gone). ``parts`` is empty when the runtime never
+    persisted a UIMessage for the failed turn.
+    """
 
-    service = ChatService()
+    service = ChatService(uimessage_store=_FakeUIMessageStore())
     db_ops = _FakeChatDbOps()
     db_ops.turn = SimpleNamespace(
         id="turn-failed",
@@ -155,8 +151,6 @@ async def test_get_chat_history_surfaces_error_text_for_failed_turn():
         user="user-1",
         input_text="Trigger failure",
         status=AgentTurnStatus.FAILED,
-        answer_artifact_id=None,
-        reference_bundle_artifact_id=None,
         error_message="upstream provider timeout",
         timeline_cursor=1,
         gmt_created=_now(),
@@ -164,13 +158,6 @@ async def test_get_chat_history_surfaces_error_text_for_failed_turn():
         gmt_finished=_now(),
         gmt_updated=_now(),
     )
-    db_ops.answer_artifact = None
-    db_ops.reference_artifact = None
-
-    async def _empty_artifacts(turn_id):
-        return []
-
-    db_ops.query_agent_artifacts_by_turn = _empty_artifacts
     service.db_ops = db_ops
 
     chat = await service.get_chat("user-1", "bot-1", "chat-1")
@@ -192,7 +179,7 @@ async def test_get_chat_history_does_not_expose_legacy_chatmessage_shape():
     the canonical snapshot shape.
     """
 
-    service = ChatService()
+    service = ChatService(uimessage_store=_FakeUIMessageStore({"turn-1": _build_persisted_message()}))
     service.db_ops = _FakeChatDbOps()
 
     chat = await service.get_chat("user-1", "bot-1", "chat-1")
