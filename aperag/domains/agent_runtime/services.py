@@ -21,7 +21,6 @@ from sqlalchemy.exc import IntegrityError
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.domains.agent_runtime.db.models import AgentEventActor, AgentTurnStatus
 from aperag.domains.agent_runtime.schemas import (
-    AgentArtifactEnvelope,
     AgentTimelineEventEnvelope,
     AgentTurnEnvelope,
     CreateTurnRequest,
@@ -30,12 +29,8 @@ from aperag.domains.agent_runtime.schemas import (
     UserActivityEnvelope,
     UserActivityIntent,
 )
-from aperag.domains.agent_runtime.snapshot_assembler import (
-    assemble_parts_from_artifacts,
-    extract_error_text,
-)
 from aperag.domains.agent_runtime.storage import AgentRuntimeRedisStore
-from aperag.domains.agent_runtime.uimessage import AgentTurnSnapshot
+from aperag.domains.agent_runtime.uimessage import AgentTurnSnapshot, TextPart
 from aperag.domains.agent_runtime.uimessage_store import UIMessageStore
 from aperag.domains.conversation.db.models import BotType
 from aperag.domains.conversation.schemas import BotConfig
@@ -67,10 +62,6 @@ def _apply_runtime_state_to_turn(
     updates["timeline_cursor"] = max(timeline_cursor, _coerce_timeline_cursor(runtime_state.get("timeline_cursor")))
     if "status" in runtime_state:
         updates["status"] = runtime_state["status"]
-    if runtime_state.get("answer_artifact_id"):
-        updates["answer_artifact_id"] = runtime_state["answer_artifact_id"]
-    if runtime_state.get("reference_bundle_artifact_id"):
-        updates["reference_bundle_artifact_id"] = runtime_state["reference_bundle_artifact_id"]
     if runtime_state.get("error_code"):
         updates["error_code"] = runtime_state["error_code"]
     if runtime_state.get("error_message"):
@@ -292,12 +283,6 @@ def _build_user_activity_for_event(
     return _build_user_activity(UserActivityIntent.WAITING)
 
 
-def _extract_answer_text_from_artifact(artifact) -> str:
-    if not artifact or not isinstance(artifact.payload, dict):
-        return ""
-    return artifact.payload.get("text") or artifact.payload.get("content") or ""
-
-
 class TurnService:
     def __init__(
         self,
@@ -307,11 +292,6 @@ class TurnService:
     ):
         self.db_ops = db_ops or async_db_ops
         self.redis_store = redis_store or AgentRuntimeRedisStore()
-        # ``uimessage_store`` is the canonical at-rest reader once the
-        # wire emitter starts persisting ``agent_message.parts`` (D8.6
-        # / #80). Until then it stays optional and we fall back to
-        # projecting legacy artifacts via
-        # ``assemble_parts_from_artifacts``.
         self.uimessage_store = uimessage_store
 
     async def get_chat_and_bot(self, user: str, chat_id: str):
@@ -364,19 +344,10 @@ class TurnService:
                 {"status": turn.status, "timeline_cursor": turn.timeline_cursor, "chat_id": turn.chat_id},
             )
 
-    async def mark_completed(
-        self,
-        turn_id: str,
-        *,
-        answer_artifact_id: Optional[str],
-        reference_bundle_artifact_id: Optional[str],
-        sequence: int,
-    ) -> None:
+    async def mark_completed(self, turn_id: str, *, sequence: int) -> None:
         turn = await self.db_ops.update_agent_turn(
             turn_id,
             status=AgentTurnStatus.COMPLETED,
-            answer_artifact_id=answer_artifact_id,
-            reference_bundle_artifact_id=reference_bundle_artifact_id,
             timeline_cursor=sequence,
             gmt_finished=utc_now(),
         )
@@ -387,8 +358,6 @@ class TurnService:
                     "status": turn.status,
                     "timeline_cursor": turn.timeline_cursor,
                     "chat_id": turn.chat_id,
-                    "answer_artifact_id": answer_artifact_id,
-                    "reference_bundle_artifact_id": reference_bundle_artifact_id,
                 },
             )
 
@@ -427,28 +396,15 @@ class TurnService:
             )
 
     async def get_turn_snapshot(self, user: str, chat_id: str, turn_id: str) -> AgentTurnSnapshot:
-        """Return the canonical ``AgentTurnSnapshot`` (Phase 8 D8.4d).
+        """Return the canonical ``AgentTurnSnapshot`` from the at-rest UIMessage store.
 
-        The legacy ``{turn, timeline, artifacts}`` shape is gone; the
-        FE renderer (#76 / #77 / #78) now consumes the same
-        ``UIMessagePart`` discriminated union it already gets from the
-        live SSE stream (per D8 §2 wire / at-rest byte-equal).
-
-        Sources, in priority order:
-
-        1. ``UIMessageStore.read(turn_id)`` — once the wire emitter
-           starts persisting ``agent_message.parts`` (D8.6 / #80
-           cleanup) this is the only path. Today the store is
-           optional and most reads return ``None``.
-        2. ``assemble_parts_from_artifacts`` — transitional projection
-           from the legacy ``answer`` / ``reference_bundle``
-           artifacts so completed / failed / cancelled turns keep
-           rendering before D8.6.
-
-        The ``error_text`` field is filled from the
-        ``error_summary`` artifact (or the runtime ``error_message``
-        field as a fallback) so a FAILED reload shows the same
-        message the live ``error`` part would have surfaced.
+        Phase 8 D8.6 (#80) chunk-2 hard-cut removed the legacy
+        ``AgentArtifact`` projection fallback. The live runtime now
+        writes ``UIMessageStore`` at end-of-turn (D8.2 #74 store +
+        D8.6 #80 wire-in), so the snapshot endpoint reads the
+        canonical ``UIMessage`` directly. ``error_text`` falls back
+        to the ``AgentTurn`` row's ``error_message`` for FAILED /
+        CANCELLED turns.
         """
 
         turn = await self.db_ops.query_agent_turn(user, chat_id, turn_id)
@@ -464,27 +420,14 @@ class TurnService:
         )
 
         parts: list[Any] = []
-        artifacts: list[Any] = []
-
         if self.uimessage_store is not None:
-            try:
-                persisted_message = await self.uimessage_store.read(turn_id)
-            except Exception:  # pragma: no cover — store is best-effort during transition
-                persisted_message = None
+            persisted_message = await self.uimessage_store.read(turn_id)
             if persisted_message is not None and persisted_message.parts:
                 parts = list(persisted_message.parts)
 
-        if not parts:
-            artifacts = await self.db_ops.query_agent_artifacts_by_turn(turn_id)
-            parts = list(assemble_parts_from_artifacts(artifacts))
-
         error_text: Optional[str] = None
         if status_str in {AgentTurnStatus.FAILED.value, AgentTurnStatus.CANCELLED.value}:
-            if not artifacts:
-                artifacts = await self.db_ops.query_agent_artifacts_by_turn(turn_id)
-            error_text = extract_error_text(artifacts)
-            if not error_text:
-                error_text = runtime_state.get("error_message") or turn.error_message
+            error_text = runtime_state.get("error_message") or turn.error_message
 
         return AgentTurnSnapshot(
             turn_id=turn.id,
@@ -521,8 +464,6 @@ class TurnService:
             model_profile=turn.model_profile or {},
             error_code=turn.error_code,
             error_message=turn.error_message,
-            answer_artifact_id=turn.answer_artifact_id,
-            reference_bundle_artifact_id=turn.reference_bundle_artifact_id,
             timeline_cursor=turn.timeline_cursor or 0,
             started_at=turn.gmt_started,
             finished_at=turn.gmt_finished,
@@ -605,91 +546,38 @@ class EventService:
         )
 
 
-class ArtifactService:
-    def __init__(self, db_ops: AsyncDatabaseOps | None = None):
-        self.db_ops = db_ops or async_db_ops
-
-    async def create_artifact(
-        self,
-        *,
-        turn_id: str,
-        artifact_type,
-        summary: Optional[str],
-        payload: dict[str, Any],
-        storage_ref: Optional[str] = None,
-    ) -> AgentArtifactEnvelope:
-        artifact = await self.db_ops.create_agent_artifact(
-            turn_id=turn_id,
-            artifact_type=artifact_type,
-            summary=summary,
-            payload=payload,
-            storage_ref=storage_ref,
-        )
-        return self.to_artifact_envelope(artifact)
-
-    async def get_artifact_for_user(self, user: str, artifact_id: str) -> AgentArtifactEnvelope:
-        artifact = await self.db_ops.query_agent_artifact(artifact_id)
-        if not artifact:
-            raise ResourceNotFoundException("Artifact", artifact_id)
-
-        turn = await self._query_turn_for_user(user, artifact.turn_id)
-        if not turn:
-            raise ResourceNotFoundException("Artifact", artifact_id)
-        return self.to_artifact_envelope(artifact)
-
-    async def _query_turn_for_user(self, user: str, turn_id: str):
-        async def _query(session):
-            from sqlalchemy import select
-
-            from aperag.domains.agent_runtime.db.models import AgentTurn
-
-            stmt = select(AgentTurn).where(AgentTurn.id == turn_id, AgentTurn.user == user)
-            result = await session.execute(stmt)
-            return result.scalars().first()
-
-        return await self.db_ops._execute_query(_query)
-
-    @staticmethod
-    def to_artifact_envelope(artifact) -> AgentArtifactEnvelope:
-        artifact_type = (
-            artifact.artifact_type.value if hasattr(artifact.artifact_type, "value") else artifact.artifact_type
-        )
-        return AgentArtifactEnvelope(
-            artifact_id=artifact.id,
-            turn_id=artifact.turn_id,
-            artifact_type=artifact_type,
-            summary=artifact.summary,
-            payload=artifact.payload or {},
-            storage_ref=artifact.storage_ref,
-            created_at=artifact.gmt_created,
-            updated_at=artifact.gmt_updated,
-        )
-
-
 class HistoryWriter:
-    def __init__(self, db_ops: AsyncDatabaseOps | None = None):
+    def __init__(
+        self,
+        db_ops: AsyncDatabaseOps | None = None,
+        uimessage_store: UIMessageStore | None = None,
+    ):
         self.db_ops = db_ops or async_db_ops
+        self.uimessage_store = uimessage_store
 
     async def build_history_context(self, user: str, chat_id: str, limit: int = 8) -> str:
+        """Compose a plain-text history of recent COMPLETED turns for prompt context.
+
+        Phase 8 D8.6 (#80) chunk-2 hard-cut switched the source from
+        the legacy ``AgentArtifact`` rows to the canonical
+        ``UIMessage`` parts written by the runtime at end-of-turn.
+        Each turn contributes its persisted assistant ``TextPart``
+        text (joined when multiple) plus the original ``input_text``.
+        """
+
+        if self.uimessage_store is None:
+            return ""
+
         turns = await self.db_ops.query_recent_agent_turns(user, chat_id, limit=limit)
         lines: list[str] = []
         for turn in turns:
             if turn.status != AgentTurnStatus.COMPLETED:
                 continue
-            artifacts = await self.db_ops.query_agent_artifacts_by_turn(turn.id)
-            answer = None
-            if turn.answer_artifact_id:
-                answer = next((artifact for artifact in artifacts if artifact.id == turn.answer_artifact_id), None)
-            if not answer:
-                answer = next(
-                    (
-                        artifact
-                        for artifact in artifacts
-                        if getattr(artifact.artifact_type, "value", artifact.artifact_type) == "answer"
-                    ),
-                    None,
-                )
-            answer_text = _extract_answer_text_from_artifact(answer)
+            message = await self.uimessage_store.read(turn.id)
+            if message is None or not message.parts:
+                continue
+            chunks = [part.text for part in message.parts if isinstance(part, TextPart) and part.text]
+            answer_text = "\n".join(chunks).strip()
             if not answer_text:
                 continue
             lines.append(f"User: {turn.input_text}")

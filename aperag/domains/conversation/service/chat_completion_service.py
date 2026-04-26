@@ -366,14 +366,13 @@ class ChatCompletionService:
             if self._status_value(turn.status) != AgentTurnStatus.COMPLETED.value:
                 return OpenAIFormatter.format_error(turn.error_message or "Chat completion failed")
 
-            # Phase 8 D8.4d (#90): the snapshot endpoint now returns
-            # canonical UIMessage parts; legacy ``snapshot.artifacts``
-            # is gone. Pull artifacts directly from the DB so the
-            # OpenAI-compat completion content keeps its existing
-            # answer + references shape (which is independent of the
-            # FE-facing UIMessage protocol).
-            artifacts = await runtime_manager.turn_service.db_ops.query_agent_artifacts_by_turn(turn_id)
-            content = self._build_completion_content(artifacts)
+            # Phase 8 D8.6 (#80) chunk-2 hard-cut: pull the canonical
+            # UIMessage parts persisted by the runtime at end-of-turn
+            # and project them into the OpenAI-compat completion
+            # content shape (answer text + references payload).
+            persisted = await runtime_manager.uimessage_store.read(turn_id)
+            parts = list(persisted.parts) if persisted and persisted.parts else []
+            content = self._build_completion_content(parts)
             return OpenAIFormatter.format_complete_response(turn_id, content)
         finally:
             if ephemeral_chat:
@@ -444,30 +443,45 @@ class ChatCompletionService:
         return status.value if hasattr(status, "value") else str(status)
 
     @staticmethod
-    def _build_completion_content(artifacts) -> str:
-        """Build OpenAI-compat completion content from raw agent artifacts.
+    def _build_completion_content(parts) -> str:
+        """Build OpenAI-compat completion content from canonical UIMessage parts.
 
-        Phase 8 D8.4d (#90) flipped the snapshot endpoint to canonical
-        UIMessage parts; this OpenAI-compat path stays artifact-shaped
-        because the response format is independent of the FE-facing
-        UIMessage protocol. Callers pass the raw artifact list from
-        ``db_ops.query_agent_artifacts_by_turn``.
+        Phase 8 D8.6 (#80) chunk-2 switched the source from legacy
+        ``AgentArtifact`` rows to the at-rest ``UIMessage`` parts the
+        runtime now writes at end-of-turn. The answer text comes from
+        joined ``TextPart`` content; the references payload is
+        derived from ``DataCitationPart`` entries (one dict per
+        citation, preserving ``url`` / ``title`` / ``cited_text`` so
+        the OpenAI-compat envelope keeps the existing answer +
+        references shape).
         """
-        answer_text = ""
+        from aperag.domains.agent_runtime.uimessage import (
+            DataCitationPart,
+            TextPart,
+            UrlCitationLocation,
+        )
+
+        text_chunks: list[str] = []
         references_payload: list[dict[str, Any]] = []
 
-        for artifact in artifacts:
-            artifact_type = getattr(artifact, "artifact_type", None)
-            type_value = getattr(artifact_type, "value", artifact_type)
-            payload = getattr(artifact, "payload", None) or {}
-            if type_value == "answer":
-                if not answer_text:
-                    answer_text = payload.get("text") or payload.get("content") or ""
-            elif type_value == "reference_bundle":
-                items = payload.get("items")
-                if isinstance(items, list):
-                    references_payload = [item for item in items if isinstance(item, dict)]
+        for part in parts:
+            if isinstance(part, TextPart) and part.text:
+                text_chunks.append(part.text)
+                continue
+            if isinstance(part, DataCitationPart):
+                location = part.data.location if part.data else None
+                url = location.url if isinstance(location, UrlCitationLocation) else None
+                title = location.title if isinstance(location, UrlCitationLocation) else None
+                cited_text = part.data.cited_text if part.data else ""
+                references_payload.append(
+                    {
+                        "uri": url or "",
+                        "title": title,
+                        "snippet": cited_text,
+                    }
+                )
 
+        answer_text = "".join(text_chunks)
         if references_payload:
             return f"{answer_text}{DOC_QA_REFERENCES}{json.dumps(references_payload, ensure_ascii=False)}"
         return answer_text

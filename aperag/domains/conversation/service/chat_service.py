@@ -23,8 +23,7 @@ longer touches the three G1-banned legacy aggregate modules
 
 * ``Chat`` / ``ChatStatus`` → ``aperag.domains.conversation.db.models``
 * ``BotType`` → ``aperag.domains.conversation.db.models``
-* ``AgentArtifactType`` / ``AgentTurnStatus`` →
-  ``aperag.domains.agent_runtime.db.models``
+* ``AgentTurnStatus`` → ``aperag.domains.agent_runtime.db.models``
 * Pydantic ``Chat`` / ``ChatDetails`` / ``ChatMessage`` / ``Reference``
   → ``aperag.domains.conversation.schemas``
 
@@ -41,11 +40,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.domains.agent_runtime.db.models import AgentTurnStatus
-from aperag.domains.agent_runtime.snapshot_assembler import (
-    assemble_parts_from_artifacts,
-    extract_error_text,
-)
+from aperag.domains.agent_runtime.storage import AgentRuntimeRedisStore
 from aperag.domains.agent_runtime.uimessage import AgentTurnSnapshot
+from aperag.domains.agent_runtime.uimessage_store import UIMessageDbOps, UIMessageStore
 from aperag.domains.conversation.db.models import BotType, ChatStatus
 from aperag.domains.conversation.db.models import Chat as ChatRow
 from aperag.domains.conversation.schemas import Chat, ChatDetails, ChatUpdate
@@ -57,11 +54,28 @@ logger = logging.getLogger(__name__)
 class ChatService:
     """Chat service that handles business logic for chats"""
 
-    def __init__(self, session: AsyncSession = None):
+    def __init__(
+        self,
+        session: AsyncSession = None,
+        *,
+        uimessage_store: Optional[UIMessageStore] = None,
+    ):
         if session is None:
             self.db_ops = async_db_ops
         else:
             self.db_ops = AsyncDatabaseOps(session)
+        self.uimessage_store = uimessage_store
+
+    async def _resolve_uimessage_store(self) -> UIMessageStore:
+        if self.uimessage_store is not None:
+            return self.uimessage_store
+        from aperag.config import get_async_session
+
+        self.uimessage_store = UIMessageStore(
+            db_ops=UIMessageDbOps(session_factory=get_async_session),
+            redis_store=AgentRuntimeRedisStore(),
+        )
+        return self.uimessage_store
 
     def build_chat_response(self, chat: ChatRow) -> Chat:
         """Build Chat response object for API return."""
@@ -78,45 +92,24 @@ class ChatService:
     async def _build_v3_chat_history(self, user: str, chat_id: str) -> list[AgentTurnSnapshot]:
         """Build the chat history as canonical ``AgentTurnSnapshot`` envelopes.
 
-        Phase 8 D8.5-BE (#92) flips this from the legacy
-        ``list[list[ChatMessage]]`` shape to one ``AgentTurnSnapshot``
-        per assistant turn. Each snapshot carries the same
-        ``UIMessagePart[]`` shape the FE consumes from the live SSE
-        stream, so historical and live turns render through a single
-        canonical path (D8 §2 wire/at-rest byte-equal).
-
-        The user query is exposed at ``input_text`` on the snapshot
-        envelope rather than as a separate ``role=human`` ChatMessage
-        entry; the FE renders it from there. The assistant turn's
-        ``answer`` / ``reference_bundle`` / ``error_summary``
-        artifacts are projected into ``parts`` via
-        :func:`assemble_parts_from_artifacts`, mirroring the snapshot
-        endpoint (#90 / D8.4d). FAILED / CANCELLED turns surface their
-        message via ``error_text`` (preferring an ``error_summary``
-        artifact, falling back to ``turn.error_message``), again
-        mirroring the snapshot endpoint contract.
-
-        Once the wire emitter starts populating ``agent_message.parts``
-        directly (D8.6 / #80), this method can short-circuit to
-        :meth:`UIMessageStore.read` per-turn; until then the artifact
-        projection is the single source. ``runtime_kind`` is hardcoded
-        to ``agent_runtime`` here — non-agent runtimes will write
-        ``direct_chat`` / ``rag_chat`` rows directly via the future
-        non-agent write path and this method only needs to surface
-        them when they exist (a no-op until then per architect lock
-        msg=01918929).
+        Phase 8 D8.6 (#80) chunk-2 hard-cut switched the per-turn
+        ``parts`` source from the legacy ``AgentArtifact`` projection
+        to the canonical ``UIMessage`` rows the runtime now writes at
+        end-of-turn. FAILED / CANCELLED turns surface their message
+        via ``error_text`` from the ``AgentTurn`` row directly.
         """
 
         turns = await self.db_ops.query_agent_turns(user, chat_id)
+        store = await self._resolve_uimessage_store()
 
         history: list[AgentTurnSnapshot] = []
         for turn in turns:
-            artifacts = await self.db_ops.query_agent_artifacts_by_turn(turn.id)
-            parts = list(assemble_parts_from_artifacts(artifacts))
+            persisted_message = await store.read(turn.id)
+            parts = list(persisted_message.parts) if persisted_message and persisted_message.parts else []
 
             error_text: Optional[str] = None
             if turn.status in {AgentTurnStatus.FAILED, AgentTurnStatus.CANCELLED}:
-                error_text = extract_error_text(artifacts) or turn.error_message
+                error_text = turn.error_message
 
             status_value = turn.status.value if hasattr(turn.status, "value") else str(turn.status)
             history.append(

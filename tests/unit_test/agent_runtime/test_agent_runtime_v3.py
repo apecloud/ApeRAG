@@ -6,19 +6,22 @@ from sqlalchemy.exc import IntegrityError
 
 import aperag.domains.agent_runtime.storage as agent_runtime_storage
 from aperag.domains.agent_runtime.api import routes as agent_runtime_view
-from aperag.domains.agent_runtime.db.models import (
-    AgentArtifactType,
-    AgentEventActor,
-    AgentTurnStatus,
-)
+from aperag.domains.agent_runtime.db.models import AgentEventActor, AgentTurnStatus
 from aperag.domains.agent_runtime.schemas import (
-    AgentArtifactEnvelope,
     AgentTimelineEventEnvelope,
     CreateTurnRequest,
     UserActivityIntent,
 )
 from aperag.domains.agent_runtime.services import EventService, HistoryWriter, TurnService
-from aperag.domains.agent_runtime.uimessage import AgentTurnSnapshot
+from aperag.domains.agent_runtime.uimessage import (
+    AgentTurnSnapshot,
+    CitationData,
+    DataCitationPart,
+    SourceUrlPart,
+    TextPart,
+    UIMessage,
+    UrlCitationLocation,
+)
 
 
 def _now():
@@ -70,20 +73,26 @@ class _FakeLeaseRedisClient:
         raise AssertionError(f"Unexpected script: {script}")
 
 
+class _FakeUIMessageStore:
+    """Minimal in-memory UIMessageStore stand-in for unit tests."""
+
+    def __init__(self, *, messages=None):
+        self.messages = dict(messages or {})
+
+    async def read(self, turn_id):
+        return self.messages.get(turn_id)
+
+
 class _FakeDbOps:
-    def __init__(self, *, turn=None, persisted_events=None, artifacts=None):
+    def __init__(self, *, turn=None, persisted_events=None):
         self.turn = turn
         self.persisted_events = list(persisted_events or [])
-        self.artifacts = list(artifacts or [])
 
     async def query_agent_turn(self, _user, _chat_id, _turn_id):
         return self.turn
 
     async def query_agent_timeline_events(self, _turn_id, after_sequence=0, limit=2000):
         return [event for event in self.persisted_events if event.sequence > after_sequence][:limit]
-
-    async def query_agent_artifacts_by_turn(self, _turn_id):
-        return list(self.artifacts)
 
 
 class _FakeCreateTurnDbOps:
@@ -115,15 +124,11 @@ class _FakeCreateTurnDbOps:
 
 
 class _FakeHistoryDbOps:
-    def __init__(self, *, turns=None, artifacts_by_turn=None):
+    def __init__(self, *, turns=None):
         self.turns = list(turns or [])
-        self.artifacts_by_turn = artifacts_by_turn or {}
 
     async def query_recent_agent_turns(self, _user, _chat_id, limit=8):
         return self.turns[-limit:]
-
-    async def query_agent_artifacts_by_turn(self, turn_id):
-        return list(self.artifacts_by_turn.get(turn_id, []))
 
 
 def _build_turn(**overrides):
@@ -139,8 +144,6 @@ def _build_turn(**overrides):
         "model_profile": {"model": "gpt"},
         "error_code": None,
         "error_message": None,
-        "answer_artifact_id": None,
-        "reference_bundle_artifact_id": None,
         "timeline_cursor": 1,
         "gmt_started": None,
         "gmt_finished": None,
@@ -165,19 +168,6 @@ def _build_event(sequence: int, event_type: str, *, label=None, status=None, dat
     )
 
 
-def _build_artifact():
-    return SimpleNamespace(
-        id="artifact-1",
-        turn_id="turn-1",
-        artifact_type="answer",
-        summary="answer",
-        payload={"text": "done"},
-        storage_ref=None,
-        gmt_created=_now(),
-        gmt_updated=_now(),
-    )
-
-
 class _FakeRequest:
     def __init__(self, *, base_url="http://testserver/", headers=None):
         self.base_url = base_url
@@ -189,66 +179,32 @@ class _FakeRequest:
 
 @pytest.mark.asyncio
 async def test_turn_snapshot_returns_canonical_uimessage_parts_for_completed_turn():
-    """D8.4d (#90): snapshot endpoint returns ``parts: UIMessagePart[]``
-    instead of the legacy ``{turn, timeline, artifacts}`` shape.
-
-    A completed turn with both ``answer`` and ``reference_bundle``
-    artifacts should project into a ``TextPart`` followed by
-    ``SourceUrlPart`` / ``DataCitationPart`` pairs, with the canonical
-    ``status`` and ``timeline_cursor`` mirrored from the runtime
-    state. Per D8 §2 wire/at-rest byte-equal canonical, the FE
-    consumes the same discriminated union from snapshot and live SSE.
+    """Phase 8 D8.6 (#80) chunk-2: snapshot endpoint reads canonical
+    ``UIMessagePart[]`` directly from ``UIMessageStore`` (no artifact
+    fallback). The runtime now persists assistant text + citations as
+    a single ``UIMessage`` row at end-of-turn.
     """
 
-    turn = _build_turn(
-        status=AgentTurnStatus.COMPLETED,
-        answer_artifact_id="artifact-1",
-        reference_bundle_artifact_id="bundle-1",
-        timeline_cursor=2,
-    )
-    answer_artifact = SimpleNamespace(
-        id="artifact-1",
-        turn_id="turn-1",
-        artifact_type=AgentArtifactType.ANSWER,
-        summary="answer",
-        payload={"text": "Hello world"},
-        storage_ref=None,
-        gmt_created=_now(),
-        gmt_updated=_now(),
-    )
-    reference_artifact = SimpleNamespace(
-        id="bundle-1",
-        turn_id="turn-1",
-        artifact_type=AgentArtifactType.REFERENCE_BUNDLE,
-        summary="1 references",
-        payload={
-            "items": [
-                {
-                    "source_type": "web_page",
-                    "source_id": "src-1",
-                    "title": "Example",
-                    "snippet": "ApeRAG is great",
-                    "uri": "https://example.com/a",
-                    "metadata": {},
-                }
-            ]
-        },
-        storage_ref=None,
-        gmt_created=_now(),
-        gmt_updated=_now(),
+    turn = _build_turn(status=AgentTurnStatus.COMPLETED, timeline_cursor=2)
+    persisted = UIMessage(
+        id="msg-turn-1",
+        role="assistant",
+        parts=[
+            TextPart(text="Hello world"),
+            SourceUrlPart(source_id="src-1", url="https://example.com/a", title="Example"),
+            DataCitationPart(
+                data=CitationData(
+                    cited_text="ApeRAG is great",
+                    location=UrlCitationLocation(url="https://example.com/a", title="Example"),
+                )
+            ),
+        ],
     )
 
     service = TurnService(
-        db_ops=_FakeDbOps(
-            turn=turn,
-            artifacts=[answer_artifact, reference_artifact],
-        ),
-        redis_store=_FakeRedisStore(
-            runtime_state={
-                "status": "COMPLETED",
-                "timeline_cursor": 2,
-            },
-        ),
+        db_ops=_FakeDbOps(turn=turn),
+        redis_store=_FakeRedisStore(runtime_state={"status": "COMPLETED", "timeline_cursor": 2}),
+        uimessage_store=_FakeUIMessageStore(messages={"turn-1": persisted}),
     )
 
     snapshot = await service.get_turn_snapshot("user-1", "chat-1", "turn-1")
@@ -270,10 +226,9 @@ async def test_turn_snapshot_returns_canonical_uimessage_parts_for_completed_tur
 
 @pytest.mark.asyncio
 async def test_turn_snapshot_surfaces_error_text_for_failed_turn():
-    """D8.4d (#90): a FAILED turn's ``error_summary`` artifact surfaces
-    via the ``error_text`` field, not as a part. Mirrors the FE
-    transitional adapter (#77 huangheng ``snapshot-fallback.ts``) so
-    the BE can replace it cleanly post-merge.
+    """Phase 8 D8.6 (#80) chunk-2: a FAILED turn's ``error_text`` comes
+    straight off the ``AgentTurn`` row — the legacy ``error_summary``
+    artifact was removed when ``agent_artifact`` got dropped.
     """
 
     turn = _build_turn(
@@ -282,26 +237,17 @@ async def test_turn_snapshot_surfaces_error_text_for_failed_turn():
         error_message="upstream timeout",
         timeline_cursor=3,
     )
-    error_artifact = SimpleNamespace(
-        id="error-1",
-        turn_id="turn-1",
-        artifact_type=AgentArtifactType.ERROR_SUMMARY,
-        summary="upstream timeout",
-        payload={"message": "Detailed: upstream timeout after 30s"},
-        storage_ref=None,
-        gmt_created=_now(),
-        gmt_updated=_now(),
-    )
 
     service = TurnService(
-        db_ops=_FakeDbOps(turn=turn, artifacts=[error_artifact]),
+        db_ops=_FakeDbOps(turn=turn),
         redis_store=_FakeRedisStore(runtime_state={"status": "FAILED"}),
+        uimessage_store=_FakeUIMessageStore(),
     )
 
     snapshot = await service.get_turn_snapshot("user-1", "chat-1", "turn-1")
 
     assert snapshot.status == "FAILED"
-    assert snapshot.error_text == "Detailed: upstream timeout after 30s"
+    assert snapshot.error_text == "upstream timeout"
     # No assistant text was produced; error is not modelled as a part.
     assert snapshot.parts == []
 
@@ -316,6 +262,7 @@ async def test_turn_snapshot_does_not_expose_legacy_keys():
     service = TurnService(
         db_ops=_FakeDbOps(turn=_build_turn(status=AgentTurnStatus.QUEUED)),
         redis_store=_FakeRedisStore(),
+        uimessage_store=_FakeUIMessageStore(),
     )
 
     snapshot = await service.get_turn_snapshot("user-1", "chat-1", "turn-1")
@@ -360,21 +307,15 @@ async def test_event_service_to_event_envelope_adds_user_activity_contract():
 @pytest.mark.asyncio
 async def test_turn_snapshot_user_activity_inference_runs_via_event_service():
     """``TurnService.get_turn_snapshot`` no longer projects timeline
-    events (D8.4d / #90 dropped the legacy timeline shape). The user
-    activity inference contract still belongs to ``EventService`` and
-    is exercised directly by
-    ``test_event_service_to_event_envelope_adds_user_activity_contract``.
-
-    This test pins the empty-timeline guarantee: snapshots no longer
-    include timeline / artifacts arrays, so the FE renderer is the
-    sole consumer of activity hints (via the live SSE
-    ``data-activity`` part).
+    events. The user activity inference contract still belongs to
+    ``EventService`` and is exercised directly.
     """
 
     turn = _build_turn()
     service = TurnService(
         db_ops=_FakeDbOps(turn=turn),
         redis_store=_FakeRedisStore(runtime_state=None),
+        uimessage_store=_FakeUIMessageStore(),
     )
 
     snapshot = await service.get_turn_snapshot("user-1", "chat-1", "turn-1")
@@ -432,30 +373,30 @@ async def test_agent_runtime_redis_store_turn_claim_renew_and_release(monkeypatc
 
 @pytest.mark.asyncio
 async def test_history_writer_builds_context_from_v3_turns_only():
+    """Phase 8 D8.6 (#80) chunk-2: ``build_history_context`` now reads
+    canonical ``UIMessage`` text parts per-turn instead of legacy
+    ``answer`` artifact rows. Turns whose persisted message is empty
+    contribute nothing to the prompt context.
+    """
+
     completed_turn = _build_turn(
         id="turn-v3",
         status=AgentTurnStatus.COMPLETED,
         input_text="new question",
-        answer_artifact_id="artifact-answer",
     )
     incomplete_answer_turn = _build_turn(
         id="turn-v3-missing-answer",
         status=AgentTurnStatus.COMPLETED,
         input_text="missing answer question",
     )
-    answer_artifact = SimpleNamespace(
-        id="artifact-answer",
-        artifact_type="answer",
-        payload={"text": "new answer"},
+    persisted_message = UIMessage(
+        id="msg-turn-v3",
+        role="assistant",
+        parts=[TextPart(text="new answer")],
     )
     writer = HistoryWriter(
-        db_ops=_FakeHistoryDbOps(
-            turns=[completed_turn, incomplete_answer_turn],
-            artifacts_by_turn={
-                "turn-v3": [answer_artifact],
-                "turn-v3-missing-answer": [],
-            },
-        )
+        db_ops=_FakeHistoryDbOps(turns=[completed_turn, incomplete_answer_turn]),
+        uimessage_store=_FakeUIMessageStore(messages={"turn-v3": persisted_message}),
     )
 
     context = await writer.build_history_context("user-1", "chat-1")
@@ -466,7 +407,12 @@ async def test_history_writer_builds_context_from_v3_turns_only():
 
 
 @pytest.mark.asyncio
-async def test_agent_runtime_views_create_stream_snapshot_cancel_and_artifact(monkeypatch):
+async def test_agent_runtime_views_create_stream_snapshot_and_cancel(monkeypatch):
+    """Phase 8 D8.6 (#80) chunk-2: ``/agent/artifacts/{id}`` route is
+    deleted along with the artifact_service entry point. This test
+    pins the remaining create / snapshot / cancel / stream routes.
+    """
+
     turn = _build_turn(status=AgentTurnStatus.RUNNING, timeline_cursor=1)
     snapshot = AgentTurnSnapshot(
         turn_id="turn-1",
@@ -492,16 +438,6 @@ async def test_agent_runtime_views_create_stream_snapshot_cancel_and_artifact(mo
             data={"chat_id": "chat-1"},
         )
     ]
-    artifact = AgentArtifactEnvelope(
-        artifact_id="artifact-1",
-        turn_id="turn-1",
-        artifact_type="answer",
-        summary="done",
-        payload={"text": "done"},
-        storage_ref=None,
-        created_at=_now().isoformat(),
-        updated_at=_now().isoformat(),
-    )
 
     class _FakeTurnService:
         def __init__(self):
@@ -531,15 +467,10 @@ async def test_agent_runtime_views_create_stream_snapshot_cancel_and_artifact(mo
         async def get_events_after(self, _turn_id, after_sequence=0, limit=500):
             return timeline_for_stream if after_sequence == 0 else []
 
-    class _FakeArtifactService:
-        async def get_artifact_for_user(self, _user, _artifact_id):
-            return artifact
-
     class _FakeRuntimeManager:
         def __init__(self):
             self.turn_service = _FakeTurnService()
             self.event_service = _FakeEventService()
-            self.artifact_service = _FakeArtifactService()
             self.tasks = {}
             self.claim_turn_id = None
             self.claim_turn_result = "lease-owner"
@@ -583,12 +514,6 @@ async def test_agent_runtime_views_create_stream_snapshot_cancel_and_artifact(mo
     assert snapshot_response.turn_id == "turn-1"
     assert snapshot_response.role == "assistant"
 
-    artifact_response = await agent_runtime_view.get_artifact_view(
-        "artifact-1",
-        user=user,
-    )
-    assert artifact_response.artifact_id == "artifact-1"
-
     cancel_response = await agent_runtime_view.cancel_turn_view(
         "chat-1",
         "turn-1",
@@ -616,6 +541,17 @@ async def test_agent_runtime_views_create_stream_snapshot_cancel_and_artifact(mo
     assert '"type":"start-step"' in joined
     assert "event: turn.started" not in joined
     assert stream_response.headers["x-vercel-ai-ui-message-stream"] == "v1"
+
+
+def test_agent_runtime_views_no_artifact_route():
+    """Phase 8 D8.6 (#80) chunk-2: the legacy
+    ``/agent/artifacts/{artifact_id}`` route + ``ArtifactService`` are
+    removed. Pin their absence as a regression guard.
+    """
+
+    paths = {route.path for route in agent_runtime_view.router.routes}
+    assert "/agent/artifacts/{artifact_id}" not in paths
+    assert not hasattr(agent_runtime_view, "get_artifact_view")
 
 
 @pytest.mark.asyncio

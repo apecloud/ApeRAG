@@ -23,10 +23,9 @@ conversation, ``ModelSpec`` from ``aperag.schema.common``; G1 allows
 domain→domain.
 
 Module-level ``AGENT_RUNTIME_SCHEMA_VERSION`` constant is kept so
-``AgentTurnEnvelope`` / ``AgentTimelineEventEnvelope`` /
-``AgentArtifactEnvelope`` can tag every serialised payload with the
-runtime contract version (declared ``v3.1``; bumping triggers
-FE-side versioned parse).
+``AgentTurnEnvelope`` / ``AgentTimelineEventEnvelope`` can tag every
+serialised payload with the runtime contract version (declared
+``v3.1``; bumping triggers FE-side versioned parse).
 
 The ``_bind_view_models_reexports`` hook at the bottom mirrors the
 Phase 3 step 4b / Phase 5 step 5-S3 pattern: if this module loads
@@ -112,8 +111,6 @@ class AgentTurnEnvelope(BaseModel):
     model_profile: dict[str, Any] = Field(default_factory=dict)
     error_code: Optional[str] = None
     error_message: Optional[str] = None
-    answer_artifact_id: Optional[str] = None
-    reference_bundle_artifact_id: Optional[str] = None
     timeline_cursor: int = 0
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
@@ -134,18 +131,6 @@ class AgentTimelineEventEnvelope(BaseModel):
     actor: Literal["agent", "tool", "system"]
     data: dict[str, Any] = Field(default_factory=dict)
     user_activity: Optional[UserActivityEnvelope] = None
-
-
-class AgentArtifactEnvelope(BaseModel):
-    schema_version: str = AGENT_RUNTIME_SCHEMA_VERSION
-    artifact_id: str
-    turn_id: str
-    artifact_type: str
-    summary: Optional[str] = None
-    payload: dict[str, Any] = Field(default_factory=dict)
-    storage_ref: Optional[str] = None
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
 
 
 class ReferenceBundleItem(BaseModel):
@@ -243,7 +228,6 @@ class AgentMessage(BaseModel):
 
 __all__ = [
     "AGENT_RUNTIME_SCHEMA_VERSION",
-    "AgentArtifactEnvelope",
     "AgentMessage",
     "AgentTimelineEventEnvelope",
     "AgentTurnEnvelope",

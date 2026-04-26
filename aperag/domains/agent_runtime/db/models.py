@@ -14,18 +14,21 @@
 
 """Agent-runtime-domain SQLAlchemy models.
 
-Owns ``AgentTurn`` + ``AgentTimelineEvent`` + ``AgentArtifact`` —
-the three entities the agent runtime is responsible for — plus
-``AgentTurnStatus`` / ``AgentEventActor`` / ``AgentArtifactType``
-enums. Moved here from ``aperag.db.models`` in Phase 5 step 5-S2b;
-the legacy aggregate module retains a re-export shim until Phase 6
-cleanup.
+Owns ``AgentTurn`` + ``AgentTimelineEvent`` + ``AgentMessage`` plus
+``AgentTurnStatus`` / ``AgentEventActor`` enums. Moved here from
+``aperag.db.models`` in Phase 5 step 5-S2b; the legacy aggregate
+module retains a re-export shim until Phase 6 cleanup.
 
-All three tables key on ``turn_id`` (events + artifacts) or
-``chat_id`` (turn); these are opaque string FKs, so no Python-level
-cross-domain import is required. ``chat_id`` is logically owned by
-the ``conversation`` domain but the relationship is traversed at
-query time via the turn service, not via ORM relationship() bindings.
+Phase 8 D8.6 (#80) chunk-2 hard-cut removed the legacy
+``AgentArtifact`` table and the ``AgentArtifactType`` enum — at-rest
+answer/citation persistence is now canonical via ``AgentMessage``
+(D8.2 #74) populated by the runtime emit path.
+
+Tables key on ``turn_id`` (events + messages) or ``chat_id`` (turn);
+these are opaque string FKs, so no Python-level cross-domain import
+is required. ``chat_id`` is logically owned by the ``conversation``
+domain but the relationship is traversed at query time via the turn
+service, not via ORM relationship() bindings.
 """
 
 from __future__ import annotations
@@ -83,14 +86,6 @@ class AgentEventActor(str, Enum):
     SYSTEM = "system"
 
 
-class AgentArtifactType(str, Enum):
-    ANSWER = "answer"
-    REFERENCE_BUNDLE = "reference_bundle"
-    TOOL_RESULT_SUMMARY = "tool_result_summary"
-    SEARCH_RESULT_SUMMARY = "search_result_summary"
-    ERROR_SUMMARY = "error_summary"
-
-
 class AgentTurn(Base):
     __tablename__ = "agent_turn"
     __table_args__ = (
@@ -110,8 +105,6 @@ class AgentTurn(Base):
     model_profile = Column(JSON, default=lambda: {}, nullable=False)
     error_code = Column(String(128), nullable=True)
     error_message = Column(Text, nullable=True)
-    answer_artifact_id = Column(String(24), nullable=True, index=True)
-    reference_bundle_artifact_id = Column(String(24), nullable=True, index=True)
     timeline_cursor = Column(Integer, default=0, nullable=False)
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_started = Column(DateTime(timezone=True), nullable=True)
@@ -138,20 +131,6 @@ class AgentTimelineEvent(Base):
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
 
-class AgentArtifact(Base):
-    __tablename__ = "agent_artifact"
-    __table_args__ = (Index("idx_agent_artifact_turn_type", "turn_id", "artifact_type"),)
-
-    id = Column(String(24), primary_key=True, default=lambda: "art" + _random_id())
-    turn_id = Column(String(24), nullable=False, index=True)
-    artifact_type = Column(_enum_column(AgentArtifactType), nullable=False, index=True)
-    summary = Column(Text, nullable=True)
-    payload = Column(JSON, default=lambda: {}, nullable=False)
-    storage_ref = Column(Text, nullable=True)
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-
-
 class AgentMessage(Base):
     """At-rest UIMessage envelope (Phase 8 D8.2 first-cut, D8.5-BE refined).
 
@@ -170,10 +149,11 @@ class AgentMessage(Base):
     semantics independent of runtime origin per Weston msg=94dac98a /
     architect canonical lock msg=e01e9b4b.
 
-    The legacy ``AgentArtifact`` / ``AgentTimelineEvent`` tables are
-    retained alongside this table during D8.x rollout — they will be
-    dropped in D8.6 (#80) once D8.4 FE renderer is consuming
-    ``AgentMessage`` exclusively.
+    Phase 8 D8.6 (#80) chunk-2 dropped the legacy ``AgentArtifact``
+    table and column FKs from ``AgentTurn``; ``AgentMessage`` is now
+    the single authoritative at-rest store for assistant turn
+    contents. ``AgentTimelineEvent`` remains pending chunk-3 cleanup
+    (replay/reload semantic change is reviewed separately).
     """
 
     __tablename__ = "agent_message"
