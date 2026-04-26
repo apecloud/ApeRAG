@@ -1231,9 +1231,11 @@ This is invoked at the top of `graph.derive()` and `summary.derive()` (which cal
    - p50, p95, p99
    - Surfaces: how long does indexing take?
 
-2. index_failure_rate{collection_id, modality}
-   - failed transitions / total transitions over rolling 5min window
-   - Surfaces: which modality is broken?
+2. index_failure_total{collection_id, modality}  +  index_success_total{collection_id, modality}
+   - Counter pair (monotonic). Worker emits one bump per terminal transition.
+   - Rate computed downstream by aggregator (PromQL: rate(failure[5m]) / (rate(failure[5m]) + rate(success[5m]))).
+   - Why counter pair instead of single rate gauge: counter pair is OTLP-idiomatic, preserves raw events, re-aggregates cleanly across workers, no per-worker sliding-window state. Amended 2026-04-26 per huangheng Wave 1 CR finding (msg=8e67bf0e) + architect ruling.
+   - Surfaces: which modality is broken (rate downstream); which worker burned the failures (raw counter).
 
 3. queue_depth{modality}
    - Redis LLEN of each queue
@@ -1298,7 +1300,7 @@ v2 把 v1 的 7 个细粒度 PR 收成 **3 个 wave**（≈3 个大 PR）。每�
    - parse_version 计算复用 D10.g §E.2 既有逻辑
 
 4. **Observability primitives + OTLP 对齐 #1702**（1 人，~200 行）
-   - `index_lag_seconds` / `index_failure_rate` / `queue_depth` / `worker_utilization` 4 SLI
+   - `index_lag_seconds` / `index_failure_total` + `index_success_total` (counter pair) / `queue_depth` / `worker_utilization` 4 SLI
    - 与 PR #1702 OTLP infra 合在一起（在 #celery 单独 ack 时讨论）
 
 **Wave 1 不做**:
