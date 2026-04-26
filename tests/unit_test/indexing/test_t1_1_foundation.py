@@ -66,7 +66,8 @@ from aperag.indexing import (
     source_artifact,
     write_atomic,
 )
-from aperag.objectstore.local import LocalObjectStore
+from aperag.objectstore.local import Local as LocalObjectStore
+from aperag.objectstore.local import LocalConfig
 
 # ---------------------------------------------------------------------
 # Helpers
@@ -272,38 +273,21 @@ def test_local_atomic_write_uses_tmp_rename_dance(tmp_path):
     2. After the write completes, the destination exists with full
        contents and no `.tmp.*` sibling remains.
     """
-    settings_payload = type(
-        "_S",
-        (),
-        {
-            "object_store_local_config": type("_C", (), {"root_dir": str(tmp_path)})(),
-        },
-    )()
+    store = LocalObjectStore(LocalConfig(root_dir=str(tmp_path)))
+    path = "collections/c/documents/d/derived/parse_v/chunks.jsonl"
 
-    # Patch ``aperag.objectstore.local.settings`` so the store roots
-    # at our temp dir without poisoning module-level singletons.
-    import aperag.objectstore.local as local_mod
+    write_atomic(store, path, b'{"chunk_id":"x:0","text":"hello"}\n')
 
-    original = local_mod.settings
-    try:
-        local_mod.settings = settings_payload
-        store = LocalObjectStore(settings_payload.object_store_local_config)
-        path = "collections/c/documents/d/derived/parse_v/chunks.jsonl"
+    full_path = store._resolve_object_path(path)  # type: ignore[attr-defined]
+    assert full_path.is_file(), "atomic write must produce the destination file"
 
-        write_atomic(store, path, b'{"chunk_id":"x:0","text":"hello"}\n')
+    # No .tmp.* sibling should remain.
+    siblings = list(full_path.parent.iterdir())
+    tmp_siblings = [p for p in siblings if ".tmp." in p.name]
+    assert tmp_siblings == [], f"atomic write must clean up tmp siblings; found {tmp_siblings}"
 
-        full_path = store._resolve_object_path(path)  # type: ignore[attr-defined]
-        assert full_path.is_file(), "atomic write must produce the destination file"
-
-        # No .tmp.* sibling should remain.
-        siblings = list(full_path.parent.iterdir())
-        tmp_siblings = [p for p in siblings if ".tmp." in p.name]
-        assert tmp_siblings == [], f"atomic write must clean up tmp siblings; found {tmp_siblings}"
-
-        # Content is exactly what we wrote.
-        assert full_path.read_bytes() == b'{"chunk_id":"x:0","text":"hello"}\n'
-    finally:
-        local_mod.settings = original
+    # Content is exactly what we wrote.
+    assert full_path.read_bytes() == b'{"chunk_id":"x:0","text":"hello"}\n'
 
 
 def test_concurrent_atomic_writes_dont_clobber_each_other(tmp_path):
@@ -311,53 +295,39 @@ def test_concurrent_atomic_writes_dont_clobber_each_other(tmp_path):
     directory must both succeed without any tmp file leaking and with
     each destination holding its own bytes.
     """
-    settings_payload = type(
-        "_S",
-        (),
-        {
-            "object_store_local_config": type("_C", (), {"root_dir": str(tmp_path)})(),
-        },
-    )()
-    import aperag.objectstore.local as local_mod
+    store = LocalObjectStore(LocalConfig(root_dir=str(tmp_path)))
 
-    original = local_mod.settings
-    try:
-        local_mod.settings = settings_payload
-        store = LocalObjectStore(settings_payload.object_store_local_config)
+    a_path = "collections/c/documents/d/derived/parse_v/markdown.md"
+    b_path = "collections/c/documents/d/derived/parse_v/outline.json"
+    a_body = b"# Doc title\n\nbody A " * 200
+    b_body = b'[{"level":1,"text":"Doc title","section_path":"1"}]'
 
-        a_path = "collections/c/documents/d/derived/parse_v/markdown.md"
-        b_path = "collections/c/documents/d/derived/parse_v/outline.json"
-        a_body = b"# Doc title\n\nbody A " * 200
-        b_body = b'[{"level":1,"text":"Doc title","section_path":"1"}]'
+    results: dict[str, Exception | None] = {"a": None, "b": None}
 
-        results: dict[str, Exception | None] = {"a": None, "b": None}
+    def writer(key: str, path: str, body: bytes) -> None:
+        try:
+            write_atomic(store, path, body)
+        except Exception as exc:  # noqa: BLE001
+            results[key] = exc
 
-        def writer(key: str, path: str, body: bytes) -> None:
-            try:
-                write_atomic(store, path, body)
-            except Exception as exc:  # noqa: BLE001
-                results[key] = exc
+    thread_a = threading.Thread(target=writer, args=("a", a_path, a_body))
+    thread_b = threading.Thread(target=writer, args=("b", b_path, b_body))
+    thread_a.start()
+    thread_b.start()
+    thread_a.join()
+    thread_b.join()
 
-        thread_a = threading.Thread(target=writer, args=("a", a_path, a_body))
-        thread_b = threading.Thread(target=writer, args=("b", b_path, b_body))
-        thread_a.start()
-        thread_b.start()
-        thread_a.join()
-        thread_b.join()
+    assert results["a"] is None, f"writer A failed: {results['a']}"
+    assert results["b"] is None, f"writer B failed: {results['b']}"
 
-        assert results["a"] is None, f"writer A failed: {results['a']}"
-        assert results["b"] is None, f"writer B failed: {results['b']}"
+    full_a = store._resolve_object_path(a_path)  # type: ignore[attr-defined]
+    full_b = store._resolve_object_path(b_path)  # type: ignore[attr-defined]
+    assert full_a.read_bytes() == a_body
+    assert full_b.read_bytes() == b_body
 
-        full_a = store._resolve_object_path(a_path)  # type: ignore[attr-defined]
-        full_b = store._resolve_object_path(b_path)  # type: ignore[attr-defined]
-        assert full_a.read_bytes() == a_body
-        assert full_b.read_bytes() == b_body
-
-        # No tmp siblings should remain on either side.
-        tmp_remains = [p for p in full_a.parent.iterdir() if ".tmp." in p.name]
-        assert tmp_remains == [], f"concurrent atomic writes must not leak tmp files; found {tmp_remains}"
-    finally:
-        local_mod.settings = original
+    # No tmp siblings should remain on either side.
+    tmp_remains = [p for p in full_a.parent.iterdir() if ".tmp." in p.name]
+    assert tmp_remains == [], f"concurrent atomic writes must not leak tmp files; found {tmp_remains}"
 
 
 def test_in_memory_store_respects_atomic_write_contract():
