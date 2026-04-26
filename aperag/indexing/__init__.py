@@ -54,6 +54,13 @@ from aperag.indexing.graph import (
     parse_kg_jsonl,
     serialize_kg_jsonl,
 )
+from aperag.indexing.limits import (
+    EMBEDDING_CALL_TIMEOUT_SECONDS,
+    LLM_CALL_TIMEOUT_SECONDS,
+    UPLOAD_MAX_BYTES,
+    bulkhead_timeout,
+    reject_if_oversize,
+)
 from aperag.indexing.models import DocumentIndex, IndexStatus, Modality
 from aperag.indexing.object_store import (
     InMemoryObjectStore,
@@ -107,6 +114,14 @@ from aperag.indexing.parser import (
     ParseResult,
     parse_document,
     read_chunks,
+)
+from aperag.indexing.quota import (
+    DEFAULT_TENANT_FALLBACK,
+    InMemoryQuotaBackend,
+    QuotaBackend,
+    QuotaPolicy,
+    QuotaPolicyRegistry,
+    RedisQuotaBackend,
 )
 from aperag.indexing.reconciler import (
     HEARTBEAT_STALE_SECONDS,
@@ -235,4 +250,17 @@ __all__ = [
     "find_orphan_parse_versions",
     "cleanup_orphan_parse_versions",
     "run_cleanup_loop",
+    # Quota (T2.2 §H.5)
+    "DEFAULT_TENANT_FALLBACK",
+    "QuotaPolicy",
+    "QuotaPolicyRegistry",
+    "QuotaBackend",
+    "InMemoryQuotaBackend",
+    "RedisQuotaBackend",
+    # Bulkhead limits (T2.2 §H.6)
+    "LLM_CALL_TIMEOUT_SECONDS",
+    "EMBEDDING_CALL_TIMEOUT_SECONDS",
+    "UPLOAD_MAX_BYTES",
+    "bulkhead_timeout",
+    "reject_if_oversize",
 ]
