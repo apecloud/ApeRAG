@@ -608,20 +608,50 @@ class _RaceProvocateurStore(InMemoryLineageGraphStore):
     race between the find / remove / upsert phases.
 
     The base store is fully serial (single asyncio guard). The
-    provocateur subclass introduces a deterministic ``await
-    asyncio.sleep(0)`` yield inside :meth:`upsert_entity_with_lineage`
-    BEFORE the dictionary mutation. Without the per-entity lock, a
-    concurrent ``upsert`` for the same entity would interleave at
-    that yield point and one of them would clobber the other; with
-    the lock, the second upsert waits at the entry point and observes
-    the first one's lineage member.
+    provocateur subclass introduces a deterministic
+    :class:`asyncio.Event`-based barrier inside
+    :meth:`upsert_entity_with_lineage` so the race window opens at
+    the EXACT same point regardless of asyncio scheduler quirks under
+    CI load. ``race_count`` controls how many concurrent writers must
+    reach the barrier before any may proceed:
 
-    A passing race test means: under the lock, both lineage members
-    end up in the entity's ``source_lineage`` SET. A failure (under
-    a no-op lock) would manifest as one of the lineage members
-    silently dropped — exactly the symptom Bryce surfaced about
-    Nebula's read-modify-write window in msg=ea7ceca0.
+    * ``race_count=1`` (default) — no barrier; the provocateur
+      behaves like a normal store with a single ``asyncio.sleep(0)``
+      yield. Used for the lock-protected test where the per-entity
+      lock guarantees only one writer is in flight at a time, so a
+      ``race_count=2`` barrier would deadlock.
+    * ``race_count=2`` — both writers must complete their read phase
+      (compute ``current_keys`` from the same stale snapshot) before
+      EITHER writer is allowed to write back. This makes the
+      "scheduler-dependent" race deterministic and pins the failure
+      mode the no-lock negative-control asserts.
+
+    Without this barrier the test :func:`test_nebula_race_without_lock_loses_a_writer`
+    flakes under heavy CI load because ``asyncio.sleep(0)`` yields
+    only once and the scheduler may resume the same writer before
+    the other gets to its read phase (huangheng msg=2b20974b
+    informational + architect msg=8420f12a follow-up).
     """
+
+    def __init__(self, *, race_count: int = 1) -> None:
+        super().__init__()
+        self._race_count = race_count
+        self._readers_at_barrier = 0
+        self._barrier_event = asyncio.Event()
+
+    async def _maybe_wait_at_barrier(self) -> None:
+        """Block until ``race_count`` writers have completed their read
+        phase. With ``race_count=1`` this is a no-op (still need a
+        single yield to emulate Nebula round-trip).
+        """
+        if self._race_count <= 1:
+            await asyncio.sleep(0)
+            return
+        async with self._guard:
+            self._readers_at_barrier += 1
+            if self._readers_at_barrier >= self._race_count:
+                self._barrier_event.set()
+        await self._barrier_event.wait()
 
     async def upsert_entity_with_lineage(
         self,
@@ -636,9 +666,11 @@ class _RaceProvocateurStore(InMemoryLineageGraphStore):
             # round-trip latency of Nebula's read-modify-write.
             current_keys = set() if row is None else set(row.source_lineage.keys())
 
-        # Yield outside the guard so a concurrent ``upsert`` enters
-        # ``_guard`` and sees the same ``current_keys`` snapshot.
-        await asyncio.sleep(0)
+        # Wait at the deterministic barrier so a concurrent ``upsert``
+        # has guaranteed read its own ``current_keys`` snapshot
+        # before either writer proceeds. Lock-protected tests bypass
+        # the barrier with ``race_count=1``.
+        await self._maybe_wait_at_barrier()
 
         async with self._guard:
             row = self._entities.get(record.name)
@@ -760,7 +792,14 @@ async def test_nebula_race_without_lock_loses_a_writer():
             del entity_id
             return nullcontext()
 
-    store = _RaceProvocateurStore()
+    # ``race_count=2`` opens a deterministic Event barrier so both
+    # writers MUST complete their read phase before either writes
+    # back, regardless of asyncio scheduler quirks under CI load.
+    # This pins the race deterministically — without the barrier the
+    # ``asyncio.sleep(0)`` yield was scheduler-dependent and the test
+    # flaked under heavy concurrent CI runs (huangheng msg=2b20974b
+    # + architect msg=8420f12a follow-up directive).
+    store = _RaceProvocateurStore(race_count=2)
     object_store = InMemoryObjectStore()
 
     worker_a = _make_worker(

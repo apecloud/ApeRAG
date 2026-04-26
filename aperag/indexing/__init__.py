@@ -24,6 +24,14 @@ deterministic parser entry point that produces the shared
 """
 
 from aperag.indexing.base import DeriveResult, ModalityWorker
+from aperag.indexing.cleanup import (
+    CLEANUP_INTERVAL_SECONDS,
+    ORPHAN_COOLDOWN_SECONDS,
+    cleanup_for_deleted_documents,
+    cleanup_orphan_parse_versions,
+    find_orphan_parse_versions,
+    run_cleanup_loop,
+)
 from aperag.indexing.fulltext import (
     FulltextBackend,
     FulltextModality,
@@ -46,6 +54,13 @@ from aperag.indexing.graph import (
     RelationWithLineage,
     parse_kg_jsonl,
     serialize_kg_jsonl,
+)
+from aperag.indexing.limits import (
+    EMBEDDING_CALL_TIMEOUT_SECONDS,
+    LLM_CALL_TIMEOUT_SECONDS,
+    UPLOAD_MAX_BYTES,
+    bulkhead_timeout,
+    reject_if_oversize,
 )
 from aperag.indexing.models import DocumentIndex, IndexStatus, Modality
 from aperag.indexing.object_store import (
@@ -73,6 +88,24 @@ from aperag.indexing.observability import (
     emit_queue_depth,
     emit_worker_utilization,
 )
+from aperag.indexing.orchestrator import (
+    HEARTBEAT_INTERVAL_SECONDS,
+    INITIAL_RETRY_DELAY_SECONDS,
+    MAX_RETRY_COUNT,
+    DispatchPayload,
+    InMemoryWorkQueue,
+    ModalityWorkerFactory,
+    OrchestratorConfig,
+    WorkQueue,
+    drain_queue_sync,
+    process_one_task,
+    run_fulltext_worker,
+    run_graph_worker,
+    run_summary_worker,
+    run_vector_worker,
+    run_vision_worker,
+    run_worker_loop,
+)
 from aperag.indexing.parser import (
     DEFAULT_CHUNK_OVERLAP,
     DEFAULT_CHUNK_SIZE,
@@ -82,6 +115,23 @@ from aperag.indexing.parser import (
     ParseResult,
     parse_document,
     read_chunks,
+)
+from aperag.indexing.quota import (
+    DEFAULT_TENANT_FALLBACK,
+    InMemoryQuotaBackend,
+    QuotaBackend,
+    QuotaPolicy,
+    QuotaPolicyRegistry,
+    RedisQuotaBackend,
+)
+from aperag.indexing.reconciler import (
+    HEARTBEAT_STALE_SECONDS,
+    RECONCILE_BATCH_SIZE,
+    RECONCILE_INTERVAL_SECONDS,
+    reconcile_failed_retry,
+    reconcile_pending_dispatch,
+    reconcile_running_reclaim,
+    run_reconcile_loop,
 )
 from aperag.indexing.summary import (
     InMemorySummaryBackend,
@@ -168,4 +218,49 @@ __all__ = [
     "emit_index_success",
     "emit_queue_depth",
     "emit_worker_utilization",
+    # Orchestrator (T2.1)
+    "DispatchPayload",
+    "InMemoryWorkQueue",
+    "WorkQueue",
+    "OrchestratorConfig",
+    "ModalityWorkerFactory",
+    "MAX_RETRY_COUNT",
+    "INITIAL_RETRY_DELAY_SECONDS",
+    "HEARTBEAT_INTERVAL_SECONDS",
+    "process_one_task",
+    "run_worker_loop",
+    "run_vector_worker",
+    "run_fulltext_worker",
+    "run_graph_worker",
+    "run_summary_worker",
+    "run_vision_worker",
+    "drain_queue_sync",
+    # Reconciler (T2.1)
+    "RECONCILE_INTERVAL_SECONDS",
+    "RECONCILE_BATCH_SIZE",
+    "HEARTBEAT_STALE_SECONDS",
+    "reconcile_pending_dispatch",
+    "reconcile_failed_retry",
+    "reconcile_running_reclaim",
+    "run_reconcile_loop",
+    # Cleanup (T2.1)
+    "CLEANUP_INTERVAL_SECONDS",
+    "ORPHAN_COOLDOWN_SECONDS",
+    "find_orphan_parse_versions",
+    "cleanup_orphan_parse_versions",
+    "cleanup_for_deleted_documents",
+    "run_cleanup_loop",
+    # Quota (T2.2 §H.5)
+    "DEFAULT_TENANT_FALLBACK",
+    "QuotaPolicy",
+    "QuotaPolicyRegistry",
+    "QuotaBackend",
+    "InMemoryQuotaBackend",
+    "RedisQuotaBackend",
+    # Bulkhead limits (T2.2 §H.6)
+    "LLM_CALL_TIMEOUT_SECONDS",
+    "EMBEDDING_CALL_TIMEOUT_SECONDS",
+    "UPLOAD_MAX_BYTES",
+    "bulkhead_timeout",
+    "reject_if_oversize",
 ]

@@ -97,6 +97,17 @@ class DocumentIndex(Base):
     last_heartbeat: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     derived_artifact_path: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # T2.1 dispatch columns (alembic c2e8d5a1f3b9). collection_id scopes
+    # cleanup-worker GC + tenant queries without needing to parse the
+    # canonical layout out of source_path; source_path is the modality's
+    # ``derive`` input artifact path (chunks.jsonl for vector/fulltext/
+    # graph; markdown.md for summary; modality-specific for vision).
+    # Both nullable for back-compat with Wave 1 fixtures; the
+    # orchestrator skips rows missing source_path (leaves PENDING for
+    # the next reconciler cycle).
+    collection_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    source_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     # §H.2 multi-tenant isolation: tenant_scope_key is the rate-limit /
     # quota / bulkhead partition key (e.g. ``"user:<uid>"`` or
     # ``"org:<org_id>"``). Carried on every document_index row so the
@@ -140,6 +151,11 @@ class DocumentIndex(Base):
         Index(
             "idx_document_index_v2_tenant_scope",
             "tenant_scope_key",
+        ),
+        # T2.1 cleanup-worker scoping index (per-collection GC scan).
+        Index(
+            "idx_document_index_v2_collection",
+            "collection_id",
         ),
         # §F.1 partial unique invariant — DB-enforced "at most one
         # serving row per (document_id, modality)".
