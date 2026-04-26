@@ -1,30 +1,46 @@
-# ApeRAG Indexing Redesign — Design Pack
+# ApeRAG Indexing Redesign — Design Pack v2
 
-**Owner**: 符炫炜 (chief architect)
-**Status**: Draft for earayu2 review
+**Owner**: 符炫炜 (chief architect, sole design owner per `#celery msg=d8080c08`)
+**Status**: v2 — incorporates earayu2 拍板 (`msg=cc0a00d7`) + PM consolidation (`msg=32463d64`)
 **Date**: 2026-04-26
-**Trigger**: earayu2 directive `#celery msg=56812dd6` + `msg=d8080c08` — "可靠稳定的文档处理系统 / 100 concurrent docs / pre-launch / 简单 over 复杂 / 完整 redesign"
+**Trigger**: earayu2 directives `#celery msg=56812dd6` + `msg=d8080c08` + `msg=cc0a00d7`
+
+## v2 changelog
+
+This v2 supersedes v1. Changes driven by earayu2 拍板:
+
+| 决策 | v1 提法 | v2 落点 |
+|---|---|---|
+| Celery 去留 | 列三选项让 earayu 选 | **接受 hard cut → Redis + asyncio**（§E 简化为已选方案，删 decision matrix 主体） |
+| 原子 flip | 双列 `active/pending` + all-modalities-ACTIVE 才翻 | **删除原子 flip**；每个 modality 独立可见；接受短暂不一致（§F 大改） |
+| derived/ 内容 | 概念性描述 | **§C.6 显式列出**：每模态什么是 canonical artifact、什么是可重建缓存 |
+| 对象存储能否承载 | 未答 | **§C.7 明确答**：MinIO / S3-compatible / 本地 FS 都可承载本设计读写模型 |
+| 私有化交付 | 未提 | **新增 §L**：deploy-and-forget / 弱运维 / SQLite-friendly 路径 |
+| 多租户演进 | 仅 collection_id | **§H** 加 future `organization` forward-compat note |
+| 配额管理 | 资源类 admission control 详尽设计 | **§I.4 / §H.5** 简化为 Redis token bucket，留接口给未来 tenant fairness |
+| PR 拆分 | 7 个 PR | **§K 改为 3 个 wave**：少 PR、可并行、少上下文切换 |
+
+不变项: §A（现状分析）/ §B（第一性原理）/ §C.1-§C.5（三层模型）/ §D（幂等 contract）/ §G（modality 统一 pipeline）/ §J（observability）。这些是 earayu2 已默认接受 / 没拍板要改的部分。
 
 ## Preface
 
-ApeRAG is **pre-launch** (no users, no production data, no migration). The current Celery-based document indexing system grew incrementally and now exhibits architecture-level problems that would compound under load. earayu2 has authorized full redesign — including replacing Celery, rewriting the indexing layer, or even going HTTP-only — with the constraint: **simple over complex, code quality over feature breadth, no historical baggage**.
+ApeRAG is **pre-launch** (no users, no production data, no migration), targeting **私有化交付 + deploy-and-forget**（earayu2 `msg=cc0a00d7`）— 客户拿到包能跑、跑起来不用我们管。当前 Celery-based 索引方案是存量包袱，earayu2 已授权 hard-cut。
 
-This design pack delivers (1) a comprehensive analysis of the current system, (2) a first-principles redesign that prioritizes simplicity and reliability, and (3) a phased migration plan.
-
-The architect's recommendation, in one sentence: **drop Celery, adopt a filesystem-as-source-of-truth pattern with derived per-modality artifacts (jsonl, markdown, etc.), use a thin Redis-backed asyncio worker pool, and let the database hold the state machine on `(document_id, parse_version, modality)` triples** — this collapses three different ownership layers (Celery task / lease ledger / DB state) into one (DB), eliminates ~50% of the current code complexity, scales to 100+ concurrent documents on a single server, and makes per-modality reasoning concrete (each modality reads/writes one derived artifact file).
+The architect's recommendation, in one sentence: **drop Celery; treat object-store-as-source-of-truth with per-modality derived artifacts (`chunks.jsonl` / `kg.jsonl` / `summary.json` / `vision/manifest.jsonl`); use a thin Redis-backed asyncio worker pool; let the database hold the state machine on `(document_id, parse_version, modality)` triples; flip per-modality independently and accept short eventual-consistency windows.**
 
 Sections:
-- §A — Current system analysis (with file:line evidence)
-- §B — First principles
-- §C — Three-layer document model (source / derived / index)
-- §D — Idempotency contract per modality
-- §E — Concurrency model decision (HTTP-only vs lightweight task vs replace Celery)
-- §F — State machine + atomic flip
+- §A — Current system analysis (with file:line evidence) — unchanged
+- §B — First principles — unchanged
+- §C — Three-layer document model + **§C.6 derived/ contents per modality** + **§C.7 object-store suitability**
+- §D — Idempotency contract per modality — unchanged
+- §E — Concurrency model: Redis + asyncio (decision locked)
+- §F — State machine + **per-modality independent visibility** (atomic flip removed)
 - §G — Multi-modal unified pipeline
-- §H — Multi-tenant isolation (recommend simple)
-- §I — Failure recovery
+- §H — Multi-tenant isolation (simple now, organization-ready later)
+- §I — Failure recovery (with simple Redis token-bucket quota)
 - §J — Observability
-- §K — Migration plan + phase sequence
+- §K — Migration plan: **3 waves, parallel-friendly**
+- §L — Private / on-premise deployment ("deploy-and-forget")
 
 ---
 
@@ -357,6 +373,82 @@ The object store is whatever ApeRAG already uses (S3 / MinIO / local filesystem 
 - Index state machine: lives in the database (`DocumentIndex` table), not on disk.
 - Tenancy: `collection_id` is part of the path, but the database is the authority on who owns the collection.
 
+### C.6. Derived/ 里到底产哪些东西（answer to earayu2 `msg=cc0a00d7` Q1）
+
+> 原问: "derived/parse_<version>/中生成哪些东西？graph 肯定要，chunk 要吗？vector 要吗？fulltext 呢？"
+
+直接答：**所有 5 个 modality 都把"输入到 backend 之前的最后形态"落到 derived/，作为可重建、可 diff、可复用的中间产物。** 这样每次重试只读 derived/，不重跑 LLM / embedding。
+
+每个文件的角色分两类：
+- **CANONICAL artifact（必须落盘）**：包含 LLM 调用 / embedding 调用 / GPU 推理产出的"贵"结果。丢了要重花钱。
+- **CACHE artifact（可重建，建议落盘）**：解析出来的中间产物，不贵但每次重算浪费。
+
+```
+collections/<cid>/documents/<did>/derived/parse_<v>/
+├── markdown.md             ← CACHE: 解析器产出的全文 markdown（docparser 输出）
+├── outline.json            ← CACHE: 标题树 / section_path 索引（D10.c §A.6）
+├── chunks.jsonl            ← CANONICAL: 每行一个 chunk，{chunk_id, text, embedding[], section_path, heading_anchor, page_idx}
+│                              vector + fulltext 共用此文件。embedding 是贵的，必须落盘。
+├── kg.jsonl                ← CANONICAL: 每行一个 entity 或 relation，{type, document_id, parse_version, name, description, source_chunk_ids[]}
+│                              graph LLM 抽取产出，最贵的产物。
+├── summary.json            ← CANONICAL: {summary_text, embedding[]}，单文档级 summary
+├── vision/
+│   ├── manifest.jsonl      ← CANONICAL: 每行一张图，{image_id, image_path, embedding[], alt_text, page_idx, bbox}
+│   └── images/             ← CANONICAL: 抽取出的图片 blob（PDF 内嵌图片），重抽要解析 PDF
+└── _meta.json              ← parse_version, parser_pipeline, chunking_config, derived_at
+```
+
+**逐模态明确**:
+
+| Modality | derived/ 文件 | 类型 | 贵在哪 | 重试时是否要重产 |
+|---|---|---|---|---|
+| **Vector** | `chunks.jsonl`（embedding 字段） | CANONICAL | embedding API 调用费用 | NO — 只重做 sync |
+| **Fulltext** | `chunks.jsonl`（text 字段，与 vector 共用） | CANONICAL | 与 vector 共享，无独立成本 | NO |
+| **Graph** | `kg.jsonl` | CANONICAL | LLM entity/relation 抽取（最贵） | NO — 只重做 nebula sync |
+| **Summary** | `summary.json` | CANONICAL | LLM summary + embedding | NO |
+| **Vision** | `vision/manifest.jsonl` + `vision/images/` | CANONICAL | 图片抽取 + vision-LLM/embedding | NO |
+| **Parser 共享** | `markdown.md` + `outline.json` | CACHE | docparser CPU/IO 时间 | 可重产，但落盘省时 |
+
+**关键设计 invariant**: 任何 backend sync 失败重试时，worker 只 `read derived/parse_<v>/<file>` + 重写 backend，**绝不重新调用 LLM / embedding API**。这把"贵的不可重做"和"便宜的可重做"在物理上分开。
+
+**为什么 chunks.jsonl 给 vector 和 fulltext 共用一份**：因为 chunking 边界对两个 modality 必须相同（hybrid search 要按相同 chunk_id 对齐）。强制共用一个文件就消灭了"两次 chunking 边界漂移"的隐患。
+
+**两个 deletion 行为**:
+- 用户删除文档 → 整个 `collections/<cid>/documents/<did>/` 目录走 cleanup worker GC。
+- 文档内容更新 → 新 `parse_version` 新建 `derived/parse_<v_new>/`；旧 `derived/parse_<v_old>/` 被 cleanup worker 在 1 小时后 GC（§F.5）。
+
+### C.7. 对象存储能否承载（answer to earayu2 `msg=cc0a00d7` Q2）
+
+> 原问: "我目前部署在线上貌似是 minio 以及对象存储？能承载读写吗？"
+
+直接答：**能。MinIO / S3-compatible / 本地文件系统都可以承载本设计的读写模型。** 不需要换存储后端。
+
+**读写量级估算（100 concurrent docs）**:
+
+每文档生命周期 derived/ 写入 = `markdown.md` + `outline.json` + `chunks.jsonl` + `kg.jsonl` + `summary.json` + `vision/*`，假设平均文档 20 chunks × 1536 维 embedding × 4 bytes ≈ 130KB chunks.jsonl，加 kg.jsonl ~50KB、summary.json ~10KB、vision 假设 5 图 × ~200KB embedding+meta = 1MB，markdown ~100KB，outline ~20KB ⇒ 总计 **~1.5 MB / 文档**。
+
+100 文档 burst 一次 = ~150 MB 写入，分布在 ~25 分钟（graph LLM 是瓶颈，§E.4）= **~100 KB/s 平均写**。MinIO 单实例轻松承载 GB/s 级吞吐，这个量级是噪声。
+
+**读取模式**:
+- Sync 阶段：每个 modality worker 读自己那个文件一次（流式读 jsonl），~每文档 ~100KB sequential read
+- Search 阶段：read primitive 走 cache（`aperag/cache/` D10.g），cache miss 才回对象存储
+
+**对象存储相对文件系统的两个不利点**:
+1. **List 性能**：cleanup worker 要按前缀列出旧 parse_version 目录。MinIO/S3 的 LIST 是按字典序的分页 API，列大目录慢。
+   - **缓解**: cleanup worker 不靠 LIST 发现垃圾；改为从 DB 查 "active/pending 之外的 parse_version"，精确按路径删（§F.5 已是这个模型）。LIST 只在异常恢复时用。
+2. **小文件开销**：`outline.json` ~20KB 是小文件，对象存储有元数据 overhead。
+   - **缓解**: 这个量级（每文档 6-8 个文件）在 MinIO 可忽略；如果要极致优化，可把小文件合并到 `_bundle.tar`。当前规模不必。
+
+**为什么 SQLite-friendly（earayu2 `msg=cc0a00d7` 提到未来用 SQLite 的潜在路径）**:
+- 本设计的 SoT 是 PostgreSQL `document_index` 表（小，~5 行/文档），可平移到 SQLite 而无 schema 改动
+- derived/ 在本地文件系统下就是文件夹；`object_store.py` 抽象层在私有化最小部署时可用 LocalFS adapter
+- 整个系统能在单机+SQLite+LocalFS 跑通（§L）
+
+**读写 contract（worker 必须遵守）**:
+- 写 derived 文件时**先写临时名 `<file>.tmp`，fsync，rename**（POSIX）；MinIO 上用 multipart upload + complete（原子可见）。避免 partial write 被下一个 worker 误读。
+- 读 derived 文件时若不存在或为空 → 视作 "derive 还没完成" → reschedule，不报错。
+- 删除 derived 目录是 cleanup worker 的事；其他 worker 永远不删 derived/。
+
 ---
 
 ## §D. Idempotency contract per modality
@@ -428,46 +520,24 @@ Three reasons:
 
 ---
 
-## §E. Concurrency model
+## §E. Concurrency model — Redis + asyncio (decision locked)
 
-This is the most consequential architectural decision. earayu2 invited evaluation of three options:
-1. HTTP-only (no async / no task system)
-2. Lightweight task system (replace Celery)
-3. Keep Celery but use it correctly
+**earayu2 拍板（`msg=cc0a00d7`）**: "放弃 Celery → Redis + asyncio，我接受。"
 
-### E.1. Decision matrix
+The earlier v1 decision matrix (HTTP-only / lightweight task / refactor Celery) is removed; the locked direction is:
 
-| Criterion | HTTP-only | Lightweight (RQ / dramatiq / custom) | Celery |
-|---|---|---|---|
-| Code lines (estimated indexing layer) | **400** | 700 | 2500 (current) |
-| New external dependency | None | Redis (already used) | Redis + Celery + kombu |
-| 100 concurrent docs feasible | Yes (with asyncio + worker process pool) | Yes | Yes |
-| Worker crash recovery | Process supervisor (systemd / Kubernetes) | Reconciler reclaim | Reconciler + lease + token |
-| Operations overhead | Lowest | Low | Medium-high |
-| Visibility (operators reading state) | High (DB only) | High | Medium |
-| LLM rate-limit handling | Backpressure in HTTP layer | Token bucket per worker pool | Retry + backoff (current) |
-| Time to implement | 1-2 weeks | 2-3 weeks | already exists, just refactor |
-| Future scale beyond 100 concurrent | Horizontal scale (multiple HTTP servers) | Same as Celery | Same |
+> **Drop Celery entirely. Use a small set of asyncio worker processes that BLPOP from per-modality Redis lists; let the database (`document_index` table) hold the state of truth on `(document_id, parse_version, modality)` triples; have one tiny reconciler loop convert DB intent → queue jobs.**
 
-### E.2. Recommendation: lightweight Redis-backed asyncio worker pool — NOT Celery, NOT pure HTTP
+This collapses the three-layer ownership skew (§A.3 Celery / lease thread / DB) into one (DB).
 
-After weighing simplicity, correctness, and 100-concurrent target:
+### E.1. Why this beats the two non-chosen options (kept brief, for the record)
 
-**HTTP-only** is too restrictive: long-running operations (graph extraction can take 30+ seconds with LLM calls) block the HTTP request, forcing the client to either hold the connection or poll. Polling is its own complexity. And LLM rate-limit retry over minutes is awkward to express as an HTTP response cycle.
+- **HTTP-only** loses out because graph LLM extraction takes 30s+ per doc; tying that to an HTTP request forces clients to poll, and rate-limit retries over minutes don't fit the HTTP cycle.
+- **Refactor-Celery** has bounded simplification ceiling — chord/lease/processing_token aren't going away even with refactor; earayu2 said they preferred the cleaner cut.
 
-**Celery** is too heavy: the current Celery architecture has the three-layer skew problem (§A.3), needs a Python lease thread, has chord-callback fragility, and earayu2 has stated dissatisfaction. Refactoring to "use Celery correctly" is possible but the simplification ceiling is bounded by Celery's design.
+The chosen design hits 100-concurrent on a single machine with no architectural change (§E.4) and degrades gracefully to single-process synchronous mode for very small private deployments (§L).
 
-**Lightweight Redis-backed asyncio worker pool** balances:
-- One process per modality (5 small worker processes), each running asyncio
-- Each worker pulls from a Redis list (`BLPOP` with timeout) — no Celery, no chord, no lease
-- State in DB; worker reads task → does work → updates DB
-- Reconciler still exists (a single small loop) for retry-after-failure
-- Per-modality concurrency limit set per worker process via asyncio semaphore
-- Per-resource (LLM, embedding API) token bucket lives in a shared Redis key
-
-This is the recommendation. Concrete sketch in §E.3.
-
-### E.3. Recommended architecture
+### E.2. Architecture (locked)
 
 ```
 ┌─ HTTP API (FastAPI) ─────────────────────────────────────────────────────┐
@@ -517,7 +587,7 @@ This is the recommendation. Concrete sketch in §E.3.
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-### E.4. How concurrency reaches 100 docs simultaneously
+### E.3. How concurrency reaches 100 docs simultaneously
 
 100 documents × 5 modalities = 500 in-flight operations at peak. Workers handle them as follows:
 
@@ -528,11 +598,11 @@ This is the recommendation. Concrete sketch in §E.3.
 - `summary_worker` (concurrency 4): LLM call, similar to graph but shorter.
 - `vision_worker` (concurrency 4): GPU/embedding-bound.
 
-End-to-end: a 100-doc burst takes about 25 minutes because of graph-modality LLM extraction. **All non-graph modalities complete in under 2 minutes.** Per `parse_version` atomic flip, the document becomes searchable on vector + fulltext modalities first, then on graph as it completes — `index_state` discriminator (§G.5) lets clients know.
+End-to-end: a 100-doc burst takes ~25 min because of graph-modality LLM extraction. **All non-graph modalities complete in under 2 minutes.** Per the per-modality independent visibility model (§F), vector + fulltext become searchable first; graph trails as it completes; `index_state` discriminator (§G.5) lets clients know which modalities are live for any given doc/parse_version.
 
-If this is too slow, scale horizontally: add a second graph_worker process (concurrency 4 × 2 = 8 graph in-flight). This is the same pattern as Celery worker scaling but with 1/10th the code.
+If this is too slow, scale horizontally: add a second graph_worker process (concurrency 4 × 2 = 8 graph in-flight). Same pattern as Celery worker scaling but with 1/10 the code.
 
-### E.5. No lease thread, no chord, no token games
+### E.4. No lease thread, no chord, no token games
 
 The current system has:
 - Python lease thread that renews `lease_expires_at` every 60s (§A.4)
@@ -542,21 +612,25 @@ The current system has:
 The new system has:
 - Worker writes `last_heartbeat = now()` at task start (one DB UPDATE)
 - No chord; each modality reports its own status independently
-- Reconciler reclaims any task with `last_heartbeat < now - 60s` AND status=CREATING
+- Reconciler reclaims any task with `last_heartbeat < now - 60s` AND status=RUNNING
 
 This is simpler and survives worker crashes naturally (heartbeat stops being updated → reconciler reclaims).
 
-### E.6. What about HTTP-only?
+### E.5. Single-process synchronous mode (private deploy escape hatch)
 
-For very small deployments (<10 docs/hour), HTTP-only with synchronous in-request processing works. The architect leaves this as a documented escape hatch — same code can run in synchronous mode by setting an env var that makes the HTTP handler call `sync_<modality>` directly instead of `RPUSH`. This is a 50-line addition.
+For very small private deployments (single-customer dev, <10 docs/hour), the same code runs synchronously by setting `INDEXING_MODE=inline`: the HTTP handler calls `derive` + `sync` directly instead of RPUSH. No Redis required (LocalFS object store + SQLite + inline workers — the minimal-deploy stack, see §L). 50-line addition; same modality classes, just different entry point.
 
-But the recommendation is to ship the asynchronous Redis-queue version as the default; it scales to 100 concurrent without architectural change.
+The default `INDEXING_MODE=async` ships the Redis worker-pool architecture; private "deploy-and-forget" stacks can either use it (more throughput) or downgrade to inline (zero ops).
 
 ---
 
-## §F. State machine + atomic flip
+## §F. State machine + per-modality independent visibility
 
-### F.1. New `DocumentIndex` schema
+**earayu2 拍板（`msg=cc0a00d7`）**: "原子切换策略，不太需要做原子性，因为我们的 index 层本身就是给上层 agent 提供查询信息，不需要非常准确，并且原子性可能引入额外的复杂性和性能问题，我能接受一点数据不一致等缺点。"
+
+v2 删除 v1 的 `active_parse_version` / `pending_parse_version` 双列原子翻转设计。每个 `(document_id, parse_version, modality)` 三元组**独立可见、独立翻新**。短暂不一致由上层 agent 自行处理。
+
+### F.1. `document_index` schema (simplified)
 
 ```sql
 CREATE TABLE document_index (
@@ -565,85 +639,105 @@ CREATE TABLE document_index (
     parse_version VARCHAR(16) NOT NULL,
     modality VARCHAR NOT NULL,            -- 'vector' | 'fulltext' | 'graph' | 'summary' | 'vision'
 
-    status VARCHAR NOT NULL,              -- see F.2 below
+    status VARCHAR NOT NULL,              -- PENDING | RUNNING | ACTIVE | FAILED
     error_message TEXT,
     retry_count INT DEFAULT 0,
     retry_after TIMESTAMPTZ,
 
-    last_heartbeat TIMESTAMPTZ,           -- set by worker on each progress step
+    last_heartbeat TIMESTAMPTZ,           -- worker progress
     derived_artifact_path TEXT,           -- e.g. 'collections/A/documents/D/derived/parse_v123/kg.jsonl'
 
+    is_serving BOOLEAN NOT NULL DEFAULT FALSE,  -- this triple is what search currently reads
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    UNIQUE (document_id, parse_version, modality)   -- the convergence triple
+    UNIQUE (document_id, parse_version, modality)
 );
 
 CREATE TABLE document (
     id VARCHAR PRIMARY KEY,
     collection_id VARCHAR NOT NULL,
-    active_parse_version VARCHAR(16),     -- the parse_version the search path uses
-    pending_parse_version VARCHAR(16),    -- the parse_version currently being indexed (NULL if none)
+    latest_parse_version VARCHAR(16),     -- newest parse_version we've started indexing
     -- ... existing fields ...
 );
 ```
 
-The composite unique key `(document_id, parse_version, modality)` is the convergence triple from §B. The `document.active_parse_version` and `document.pending_parse_version` columns implement atomic flip.
+`is_serving=TRUE` is the per-(document, modality) "serving pointer". At most one row per `(document_id, modality)` has `is_serving=TRUE`. Search reads only `is_serving=TRUE` rows.
 
-### F.2. Status enum (simplified from current)
+`latest_parse_version` on `document` is purely informational (for UI / admin); it has no flip semantics.
+
+### F.2. Status enum (4 states)
 
 ```
-PENDING       — row created, work not yet started
-RUNNING       — a worker is processing this triple; last_heartbeat is being updated
-ACTIVE        — backend reflects this triple's derived artifact
-FAILED        — terminal failure for this attempt; retry_after gives next try time
+PENDING   — row created, work not yet started
+RUNNING   — a worker is processing this triple; last_heartbeat updated periodically
+ACTIVE    — backend reflects this triple's derived artifact (write succeeded)
+FAILED    — terminal failure for this attempt; retry_after gives next try time
 ```
 
-Note: removed `CREATING` / `DELETING` / `DELETION_IN_PROGRESS`. Deletion is handled by removing the row and letting a separate cleanup worker (§F.5) garbage-collect backend entries by `(doc, version)`. ACTIVE is the only "happy" state; FAILED is the only "sad" state; PENDING/RUNNING are transient.
+`is_serving` is orthogonal to status — a row can be ACTIVE but not yet serving (e.g., it just finished indexing and the cutover swap hasn't run yet). See §F.3.
 
-### F.3. Atomic flip
+### F.3. Per-modality cutover (no orchestration)
 
-When a document is uploaded or re-uploaded:
+When a worker successfully completes a modality:
 
-1. Compute `parse_version` from content
-2. If `parse_version == document.active_parse_version`: nothing to do (re-upload of identical content)
-3. Else:
-   a. Set `document.pending_parse_version = parse_version`
-   b. Insert 5 `document_index` rows for `(document_id, parse_version, *)` with status PENDING
-   c. Reconciler dispatches them to workers; workers run; status becomes ACTIVE one-by-one
-   d. When all 5 modalities are ACTIVE, transactionally:
-      - `UPDATE document SET active_parse_version = pending_parse_version, pending_parse_version = NULL WHERE id = X`
-      - Old `active_parse_version` rows become candidates for cleanup
-   e. Cleanup worker garbage-collects backend entries for `(doc, old_version)` — see §F.5
+```sql
+BEGIN;
+UPDATE document_index
+   SET status = 'ACTIVE', updated_at = NOW()
+ WHERE id = $row_id;
 
-### F.4. What "all 5 modalities ACTIVE" means with optional modalities
+UPDATE document_index
+   SET is_serving = FALSE
+ WHERE document_id = $doc AND modality = $mod AND is_serving = TRUE;
 
-Some collections don't have all 5 modalities enabled (e.g., no graph index). The `Collection.config.indexers_enabled` set determines which modalities are required. Atomic flip flips when **all enabled modalities are ACTIVE**, ignoring disabled ones.
+UPDATE document_index
+   SET is_serving = TRUE
+ WHERE id = $row_id;
+COMMIT;
+```
 
-A modality stuck on FAILED indefinitely blocks the flip. To unstick:
-- Operator can manually mark the modality as "skipped" (a special row state)
-- Or: configure per-modality optional flag — non-blocking modalities don't gate the flip but are surfaced as `index_state` in search results (§G.5)
+Three statements in one transaction, scoped to a single `(document_id, modality)`. **Per-modality**, not document-wide. Vector swap doesn't wait for graph; graph swap doesn't wait for vector.
 
-Recommendation: for a pre-launch system, **all enabled modalities block the flip by default** — keeps the model simple. Add per-modality optional flag as a phase-2 enhancement only if real operational pain emerges.
+Result: a fresh upload of the same document might briefly show "vector results from new parse_version, graph results from old parse_version" until graph also finishes. earayu2 has explicitly accepted this.
 
-### F.5. Cleanup worker (replaces DELETING / DELETION_IN_PROGRESS)
+### F.4. Inconsistency window — what the upper layer sees
 
-A separate cleanup worker runs periodically (e.g., every 5 minutes) and deletes backend entries for any `(document_id, parse_version)` that is:
-- Not the current `active_parse_version` AND
-- Not the current `pending_parse_version` AND
-- Older than 1 hour
+The window between "new parse_version starts" and "all 5 modalities cut over" can be ~25 minutes (§E.3, graph LLM extraction is the slowest). During this window:
 
-This GC pattern is conceptually like a tombstone collector; it is independent from the main write path. Failure to clean up does not affect correctness — just consumes backend storage.
+| Reader sees | Behavior |
+|---|---|
+| New vector hits + old graph hits in same query | Mixed `parse_version`. Per `index_state` in search metadata (§G.5), client can see which modality served which `parse_version`. |
+| Same chunk re-ranked across modalities | Possible duplicate; rerank dedup by `chunk_id` fixes this (existing dedup logic). |
+| Old chunks linger after content deletion | Until cleanup worker (§F.5) runs (~5 min cycle). |
 
-Document deletion (user requests removal) sets `document.active_parse_version = NULL, document.pending_parse_version = NULL, document.deleted_at = NOW()`. Cleanup worker garbage-collects all `(document_id, *)` backend entries.
+**Why this is acceptable** (from earayu2): the index layer feeds an upper agent that already reasons over heterogeneous evidence. A 5-25 minute "mixed parse_version" window does not cause user-visible incorrectness for agentic search — the agent re-ranks and the inconsistency dissolves on the next iteration. Atomic flip would buy strict consistency at the cost of: an extra coordination layer + atomicity-breaks-on-modality-stuck failure mode + write-blocking complexity.
 
-### F.6. Why this is simpler than current
+**What we explicitly do NOT need**:
+- Multi-modality coordination on cut-over.
+- "All-or-nothing" upgrades.
+- Cross-row distributed transactions.
 
-- 4 status values (PENDING / RUNNING / ACTIVE / FAILED) vs 6 in current
-- No `processing_token` (replaced by heartbeat — simpler concept)
-- No version field (parse_version is sufficient; version was redundant)
-- Deletion is async cleanup, not a state transition — eliminates DELETING / DELETION_IN_PROGRESS / their reclaim logic
-- Atomic flip is one DB UPDATE, not a multi-step orchestration
+### F.5. Cleanup worker (replaces v1's DELETING / DELETION_IN_PROGRESS states)
+
+A separate cleanup worker runs every 5 minutes and deletes backend entries for any `(document_id, parse_version, modality)` that is:
+- `is_serving = FALSE` AND
+- Not the latest `parse_version` per `(document_id, modality)` AND
+- `updated_at < NOW() - INTERVAL '1 hour'`
+
+After backend deletion, the `document_index` row itself is deleted. derived/ directory for the orphan `parse_version` is also removed if no remaining row references it.
+
+Document deletion (user removal): set `document.deleted_at = NOW()` + `is_serving = FALSE` on all rows for `(document_id, *, *)`. Cleanup worker garbage-collects everything within ~1 hour.
+
+This GC pattern is independent of the main write path. A delayed cleanup wastes storage but never causes incorrectness.
+
+### F.6. Why this is simpler than v1's atomic flip
+
+v1 design had: `document.active_parse_version` + `document.pending_parse_version` columns + "all 5 modalities ACTIVE" trigger + transactional flip + handling of optional modalities + handling of stuck-FAILED modality.
+
+v2 has: one boolean `is_serving` per `document_index` row, swapped within a 3-statement transaction scoped to one `(document_id, modality)`. No coordination across modalities. No "stuck blocks flip" failure mode (each modality flips independently when it's done). One concept.
+
+Net: **~150 fewer lines of orchestration code** + an entire failure mode class eliminated.
 
 ---
 
@@ -793,52 +887,110 @@ aperag/indexing/
 
 11 files total. Compare to current ~15 files in `aperag/domains/indexing/` + `aperag/tasks/` + `aperag/graphindex/v2/*`. And the new files are individually shorter.
 
-### G.5. `SearchResultItem.metadata.index_state` discriminator (D10.h amendment-#3 follow-up)
+### G.5. `SearchResultItem.metadata.index_state` discriminator (more important under per-modality independent visibility)
 
-Each search result carries `index_state: {<modality>: ACTIVE | FAILED | NOT_ENABLED}` in its metadata so clients know which modality served the hit and which other modalities are healthy for follow-up calls. This was identified in the architect/Bryce alignment thread (msg=2ee66c89) as Phase 3 in the prior sequencing; it stays in the redesign as a small schema addition to `SearchResultMetadata`.
+With v2's per-modality independent flip (§F.3), it becomes **structurally necessary** for search results to advertise which modality served the hit and at which `parse_version`. Otherwise upper-layer agents cannot reason about the short inconsistency window (§F.4).
+
+Each `SearchResultItem.metadata` carries:
+
+```python
+class SearchResultMetadata(BaseModel):
+    # ... existing fields (chunk_id / section_path / heading_anchor etc) ...
+    parse_version: Optional[str] = None       # which parse_version served this hit
+    modality: Literal["vector","fulltext","graph","summary","vision"]
+    index_state_per_modality: Optional[Dict[str, Literal["ACTIVE","FAILED","NOT_ENABLED","INDEXING"]]] = None
+```
+
+Clients (and the agent layer) can:
+- Detect mixed-version results in one response (different modalities show different `parse_version`)
+- Skip a modality that's currently FAILED/INDEXING
+- Decide whether to wait + retry vs proceed with partial coverage
+
+Schema-wise this is a small extension of the D10.h `SearchResultMetadata` allowlist (already locked at chunk_id / section_path / heading_anchor; v2 adds `parse_version` and `index_state_per_modality`).
 
 ---
 
-## §H. Multi-tenant isolation — recommend simple
+## §H. Multi-tenant isolation — simple now, organization-ready later
 
-earayu2's current message did not emphasize multi-tenancy fairness; the focus was reliability + simplicity + 100 concurrent. The architect recommends:
+earayu2 拍板（`msg=cc0a00d7`）: "未来我考虑引入 organization；额度管理需要，但是目前可以做简单点，不要锁死未来灵活性就好了。"
 
-### H.1. Required (always-on)
+v2 的多租户策略：现在做**最小化**实现，但所有边界都按"未来要加 organization 一层"对齐，不挖坑。
 
-- Tenant context (`collection_id`) is part of every queue message and every DB row
-- Backend writes tagged with `collection_id` in metadata (existing pattern, retained)
-- Cross-tenant validation at HTTP layer: requestor's auth must cover the collection
+### H.1. 当前层级（locked）
 
-### H.2. Optional (recommend deferring)
+```
+User --(owns)--> Collection --(owns)--> Document --> document_index rows
+```
 
-- Per-tenant fairness queueing (Bryce's Phase B)
-- Per-tenant concurrency cap
-- Per-tenant resource quotas
+Tenant 边界在 `Collection.user`。`document_index` 没有显式 user 列（通过 `document_id → collection.user_id` 间接拥有），但**所有 worker 操作以 collection_id 为隔离单位**。
 
-These are deferred because:
-- Pre-launch system has no real tenant load to distinguish
-- The asyncio worker pool with per-modality concurrency limits is already a coarse fairness mechanism (no tenant can monopolize more than the worker's concurrency)
-- Adding fairness machinery before observing real noisy-neighbor behavior is premature optimization
+### H.2. 未来 organization 层（forward-compat hook）
 
-### H.3. When to add fairness
+预期演进路径（不在 v2 实现，但 v2 不阻挡）：
 
-Add fairness machinery when observability (§J) shows:
-- Per-tenant queue depth > 100 sustained for any single tenant
-- Per-tenant index lag > 10 minutes for the median
-- Cross-tenant variance in index lag > 5x
+```
+Organization --(owns)--> User --(belongs)--> Organization
+            \--(owns directly)--> Collection (org-shared)
+```
 
-Until those signals appear, the simpler design is correct.
+为此 v2 在以下两处留 hook：
+- `document_index` 表新增 `tenant_scope_key VARCHAR` 字段（v2 默认填 `user:<user_id>`；未来填 `org:<org_id>` 即切到组织级）。Worker / reconciler / cleanup 都按这个字段做 quota / fairness 维度。
+- 配额表 `tenant_quota` (§H.5) 用 `tenant_scope_key` 做主键，不绑定到 user。
 
-### H.4. Bulkhead — defense in depth
+引入 organization 时只需：
+1. 写一次性脚本把 `tenant_scope_key` 从 `user:X` 重写为 `org:Y`
+2. 不动 worker / reconciler 代码
 
-Independent of fairness, **resource isolation** does matter even at small scale: a malicious or buggy document (e.g., 100MB JSON, prompt injection in the LLM call) shouldn't crash a worker that affects all tenants. The recommendation:
+### H.3. Required (always-on)
 
-- Each worker process has a hard memory limit (Linux cgroup or Docker) — overrun → process restart
-- LLM API calls have a hard timeout (configurable, default 60s)
-- Embedding API calls have a hard timeout (default 30s)
-- Document upload size cap (configurable, default 50MB)
+- 所有 queue message 携带 `tenant_scope_key`
+- 所有 backend 写入在 metadata 里 tag `tenant_scope_key + collection_id`
+- HTTP layer 鉴权：requestor 必须能访问 `collection_id` 所属的 tenant_scope
 
-These are existing patterns in the current code; the redesign keeps them and consolidates into a single config file.
+### H.4. Deferred (do not implement v2 unless symptom shows)
+
+- Per-tenant **fairness queueing**（一个 noisy collection 不能把队列吃满）
+- Per-tenant **concurrency cap**（单 tenant 同时最多 N 个 in-flight）
+- Per-tenant **资源配额** beyond simple LLM token bucket
+
+Add when observability (§J) shows queue starvation or cross-tenant lag variance. 私有化部署里这些信号很少出现 —— 多租户私有化通常 = 一个客户的多个团队。
+
+### H.5. 简单配额管理（earayu2 "需要但简单"）
+
+Single-knob 实现：
+
+```python
+# Redis keys:
+#   quota:llm:{tenant_scope_key}:tokens
+#   quota:embedding:{tenant_scope_key}:tokens
+#   quota:llm:default:tokens   ← 兜底配额，所有 tenant 共享
+
+# Per resource class, per tenant:
+#   capacity     = e.g. 60 tokens (60 LLM calls / minute)
+#   refill_rate  = e.g. 1 token / second
+```
+
+Worker 在调用 LLM / embedding 之前 `acquire_token(scope, resource_class)`：
+- 优先从 `quota:<class>:<tenant_scope_key>:tokens` 拿
+- 没有就从 `quota:<class>:default:tokens` 拿（共享池）
+- 都空就 wait
+
+写一个 `aperag/indexing/quota.py` ~80 行实现整个配额逻辑。tenant 配置可读 `tenant_quota` 表（schema：`tenant_scope_key | resource_class | capacity | refill_rate_per_sec`）；缺记录走 default。
+
+**为什么不锁死未来灵活性**：
+- 数据模型支持 per-tenant per-class 调参，新增 resource class 只是加一行
+- 未来加 fairness queueing（按 tenant_scope_key 分独立队列）或 priority lane，是上面再加一层，不需要改 quota 这一层
+- 切到 organization 维度只是改 `tenant_scope_key` 的填写规则
+
+### H.6. Bulkhead — defense in depth
+
+每个 worker process 设硬上限（与 tenant 无关）：
+- 内存上限（Linux cgroup / Docker）
+- LLM API 调用超时（默认 60s）
+- Embedding API 超时（默认 30s）
+- 上传文档大小上限（默认 50MB）
+
+这些是现有代码就有的 pattern，v2 保留并集中到一个 `aperag/indexing/limits.py`。
 
 ---
 
@@ -968,82 +1120,248 @@ PR #1702 introduces OTLP infrastructure but is awaiting earayu2 routing decision
 
 ---
 
-## §K. Migration plan + phase sequence
+## §K. Migration plan — 3 waves, parallel-friendly
 
-The current system is on `main` and works (post-D10.h cutover). The redesign is a substantial rewrite. Per earayu2's `pre-launch / no users / no migration` guidance, the migration is **hard-cut**: delete the old, ship the new, no compatibility window.
+**earayu2 拍板（`msg=cc0a00d7`）**: "搞大 PR，少 PR，这样可能完成的快一点，少一点上下文切换；如果任务之间没太多依赖，可以并行让多人写代码。"
 
-### K.1. PR sequence (7 PRs)
+v2 把 v1 的 7 个细粒度 PR 收成 **3 个 wave**（≈3 个大 PR）。每个 wave 内部可拆 commit 但合一次 review、合一次 merge。Hard cut 一次完成，不留 feature flag 长期共存。
 
-| # | Phase | Scope | Dependencies |
+### K.1. 3 个 wave 总览
+
+| Wave | 主题 | 是否可并行 | 估算 diff |
 |---|---|---|---|
-| **PR-A** | Observability primitives | Emit 4 SLI from current Celery system to OTLP (alignment with #1702) | None |
-| **PR-B** | New schema + idempotent indexers | Add `parse_version` to `document_index`; rewrite all 5 indexers as `Modality` ABC implementations; fix graph DELETE-before-INSERT; add idempotency self-tests | None (can run alongside Celery) |
-| **PR-C** | Object store layout | Implement source/derived directory structure; document parser writes derived artifacts; existing indexers still consume in-memory parts (compatibility shim) | PR-B |
-| **PR-D** | Worker pool + Redis queue | Implement 5 modality workers + reconciler + cleanup; deploy in parallel with Celery (feature flag: dispatch goes to new system or old) | PR-B, PR-C |
-| **PR-E** | Atomic flip + state machine | Implement document.active_parse_version / pending_parse_version; flip logic; cleanup worker | PR-D |
-| **PR-F** | Cutover | Set feature flag default to new system; delete Celery + reconciler.py + processing_lease.py + tasks.py + indexing/orchestration.py + graphindex v2 indirection | PR-E |
-| **PR-G** | Per-modality availability discriminator | Add `index_state` to `SearchResultMetadata`; D10.h amendment | PR-F |
+| **Wave 1** — Foundation | schema + Modality ABC + idempotency + derived/ 落盘 + 对象存储 adapter + observability primitives | ✅ Wave 内 5 modalities + observability + storage adapter 可并行 | +2200 / -1500 |
+| **Wave 2** — Runtime | Redis queue + asyncio worker pool + reconciler + per-modality cutover + cleanup worker + simple quota | ✅ workers / reconciler / cleanup / quota 可并行 | +1400 / -300 |
+| **Wave 3** — Cutover | hard-delete Celery layer + index_state 暴露到 SearchResultMetadata + 私有化部署默认 inline mode 文档 + 100-doc 负载测试 | ⚠ 需 Wave 2 落地后再做（依赖） | +250 / -3200 (delete-heavy) |
 
-### K.2. PR sizing
+净增减：**+3850 / -5000 ≈ 净减 1150 行**（v2 版减得更多，因为去掉 atomic-flip orchestration 多砍 ~150 行）。
 
-| PR | Estimated diff |
+### K.2. Wave 1 — Foundation
+
+**目标**: 新代码全 ready，但还没有 worker 拉它跑。可以与 main Celery 系统共存而不冲突（新代码独立路径）。
+
+**含 4 块并行可写的内容**:
+
+1. **Schema + Modality ABC**（1 人，~400 行）
+   - 新建 `aperag/indexing/base.py`（Modality ABC, `derive(...) / sync(...)` 抽象）
+   - 新建 `aperag/indexing/schema.py`（`document_index` 新表 alembic migration，含 `is_serving` 列、`tenant_scope_key`、`derived_artifact_path`）
+   - 新建 `aperag/indexing/object_store.py`（LocalFS / S3-compatible adapter）
+
+2. **5 个 Modality 实现**（最多 5 人并行，~150-300 行/模态）
+   - `aperag/indexing/{vector,fulltext,graph,summary,vision}.py`
+   - 每个实现 `derive` + `sync`，`sync` 必须 DELETE-before-INSERT，附幂等自测
+   - **`graph.py` 合并 `aperag/graphindex/v2/*` 的逻辑，删除 7-hop indirection**（earayu2 specific complaint 修复）
+   - **`graph.py` 修 nebula append-on-conflict bug**（§A.6 / §D.3）
+
+3. **Parser → derived/**（1 人，~300 行）
+   - `aperag/indexing/parser.py`：parse → `markdown.md` + `outline.json` + `chunks.jsonl`
+   - parse_version 计算复用 D10.g §E.2 既有逻辑
+
+4. **Observability primitives + OTLP 对齐 #1702**（1 人，~200 行）
+   - `index_lag_seconds` / `index_failure_rate` / `queue_depth` / `worker_utilization` 4 SLI
+   - 与 PR #1702 OTLP infra 合在一起（在 #celery 单独 ack 时讨论）
+
+**Wave 1 不做**:
+- 不接 Redis 队列（modality 独立可单测）
+- 不删 Celery（新旧并存，Celery 仍走原路径）
+- 不改 search 路径
+
+**Wave 1 完工的 acceptance**: 5 modality 都能 `pytest tests/unit/indexing/` 跑通幂等自测；ABC 接口 frozen。
+
+### K.3. Wave 2 — Runtime
+
+**目标**: 把 Wave 1 的 modality 接到 Redis 异步 worker pool，跑通 100-doc burst。Celery 仍未删，但默认流量改走新路径。
+
+**含 4 块并行可写的内容**:
+
+1. **Worker pool + Redis queue**（1 人，~500 行）
+   - `aperag/indexing/orchestrator.py`：BLPOP loop + asyncio semaphore + heartbeat
+   - 5 个 worker entrypoint（小，~50 行/个，复用 orchestrator）
+
+2. **Reconciler + cleanup**（1 人，~250 行）
+   - `aperag/indexing/reconciler.py`：30s loop（PENDING dispatch + FAILED retry + RUNNING reclaim + per-modality cutover trigger）
+   - `aperag/indexing/cleanup.py`：5min loop（GC 旧 parse_version + 已删 document）
+
+3. **Per-modality cutover transaction**（与 reconciler 同一人或者切给 modality owner）
+   - §F.3 三语句事务封进 `Modality.commit_active(...)` helper
+
+4. **Simple quota + bulkhead**（1 人，~150 行）
+   - `aperag/indexing/quota.py`：Redis token bucket per `(resource_class, tenant_scope_key)`
+   - `aperag/indexing/limits.py`：超时 / 上传大小 / 内存上限的统一配置
+
+**Wave 2 不做**:
+- 不删 Celery（默认 INDEXING_MODE=async 切到新系统，但 Celery 代码还在）
+- 不暴露 `parse_version` / `index_state_per_modality` 到 search 出参（Wave 3）
+- 不写 deploy-and-forget 文档
+
+**Wave 2 完工的 acceptance**:
+- Synthetic 100-doc burst 跑通：所有 modality ACTIVE within 30min（graph 是瓶颈）
+- 主路径切换：`INDEXING_MODE=async`（默认）走新系统；`INDEXING_MODE=inline` 单进程同步走（§E.5）
+
+### K.4. Wave 3 — Cutover & cleanup
+
+**目标**: hard-cut 删除 Celery + 全部老代码 + 暴露 search 元数据 + 出私有化部署文档。
+
+**Wave 3 内容**（顺序，因为依赖 Wave 2 跑稳）:
+
+1. **删 Celery 层**（~200 行新建配置 / -3000 行删除）
+   - `aperag/tasks/{collection,document,models,processing_lease,reconciler,scheduler,utils}.py` — 整层删除
+   - `aperag/domains/indexing/{tasks,orchestration,manager}.py` — 删（被 `aperag/indexing/orchestrator.py` 替代）
+   - `aperag/concurrent_control/redis_lock.py` — 删（无 caller）
+   - `aperag/graphindex/v2/*` — 删（被 `aperag/indexing/graph.py` 吞并）
+   - `aperag/domains/indexing/{vector,fulltext,graph,summary,vision}_index.py` — 删（被 `aperag/indexing/<modality>.py` 替代）
+   - Celery + kombu 依赖从 `pyproject.toml` 移除
+
+2. **`SearchResultMetadata` 加 `parse_version` + `index_state_per_modality`**（~80 行新增 / 50 行测试）
+   - 既有 D10.h allowlist 模式扩展
+   - 在 `aperag/api/search.py` 出参补两字段（读自 `document_index.is_serving=TRUE` 行 + `status` 投影）
+
+3. **私有化部署文档 + inline mode**（~100 行新增 + ~150 行 docs）
+   - `docs/private-deployment.md`：单机最小 stack（SQLite + LocalFS + INDEXING_MODE=inline + 无 Redis）→ §L 落地
+   - `INDEXING_MODE=inline` 路径：HTTP handler 直接调 `derive` + `sync`，跳过 RPUSH
+
+4. **Synthetic 100-doc load test 进 CI**（~200 行）
+   - tests/load/test_100_doc_burst.py：并发 upload 100 文档，断言所有 modality ACTIVE within 30min
+
+**Wave 3 完工的 acceptance**:
+- Celery 完全删干净（grep 验证）
+- search API 出参带 `parse_version` + `index_state_per_modality`
+- 私有化部署文档可读 + 单机部署能跑 demo
+- 100-doc burst CI gate 通过
+
+### K.5. 并行度估算
+
+| Wave | 同时可开工人数 |
 |---|---|
-| PR-A | +200 / -0 |
-| PR-B | +1500 / -1500 (rewrites in parallel) |
-| PR-C | +400 / -100 |
-| PR-D | +1200 / -0 |
-| PR-E | +600 / -200 |
-| PR-F | +100 / -3000 (delete-heavy) |
-| PR-G | +150 / -50 |
+| Wave 1 | 4-7 人（5 modality + parser + observability + storage adapter，互不依赖） |
+| Wave 2 | 3-4 人（worker / reconciler / cleanup / quota） |
+| Wave 3 | 1-2 人（Celery 删 + SearchResultMetadata 扩展 + 部署文档，少量耦合） |
 
-Total: roughly +4150 / -4850. Net subtraction of ~700 lines despite a bigger feature set.
+总人时估算（如果 5 人并行可写）：Wave 1 ≈ 1 周，Wave 2 ≈ 1 周，Wave 3 ≈ 0.5 周；总 **2.5 周**。如果 2 人并行：3 周内可控。
 
-### K.3. Deletion list (PR-F)
+### K.6. PR 拆分边界规则（少 PR / 少上下文切换）
 
-Files removed in the cutover:
-- `aperag/tasks/{collection,document,models,processing_lease,reconciler,scheduler,utils}.py` (Celery layer)
-- `aperag/domains/indexing/{tasks,orchestration,manager}.py` (Celery-coupled orchestration)
-- `aperag/concurrent_control/redis_lock.py` (unused after redesign)
-- `aperag/graphindex/v2/*` (collapsed into `aperag/indexing/graph.py`)
+每个 wave = **一个大 PR**（不是 3 个 PR 集合）。Wave 内并行写代码 → push 到同一个分支 → 一次 review、一次 merge。
 
-Files reduced significantly:
-- `aperag/domains/indexing/{vector,fulltext,graph,summary,vision}_index.py` rewritten as `aperag/indexing/{vector,fulltext,graph,summary,vision}.py`
+理由（earayu2 directive 落地）：
+- 少上下文切换：reviewer 一次看完一整层
+- 少 PR：3 次 review cycle vs 7 次
+- 并行不冲突：5 modality 各自独立文件，不动同一个文件，git 合并干净
+- Hard cut 一次到位：Wave 3 一个 PR 删 3000 行老代码，没有半程共存的复杂度
 
-### K.4. Rollback considerations
+### K.7. 测试策略
 
-Pre-launch has no rollback considerations in the production sense. During development, PR-F can be reverted if the new system shows unexpected behavior under the synthetic 100-concurrent load test. The synthetic test runs in CI and is the merge gate for PR-F.
+- **Unit tests**: 每个 modality 配幂等自测（Wave 1 gate）
+- **Integration tests**: end-to-end upload → indexed → searchable（Wave 2 gate）
+- **Synthetic load test**: 100-doc burst（Wave 3 gate，进 CI）
+- **Smoke for inline mode**: 单机 SQLite + LocalFS（Wave 3，docs 配套）
 
-### K.5. Feature flag during PR-D / PR-E
+### K.8. Implementation 分工建议
 
-A single env var `INDEXING_BACKEND=celery|new` switches between systems. Default during PR-D / PR-E is `celery` (old system stays canonical until PR-F). This lets developers exercise the new system in staging without affecting any other environment.
-
-After PR-F merges, the feature flag and the old code path are deleted in the same PR.
-
-### K.6. Test plan summary
-
-- Unit tests: per-modality idempotency self-test (PR-B); reconciler dispatch logic (PR-D); atomic-flip semantics (PR-E)
-- Integration tests: end-to-end document upload → indexed → searchable (each PR)
-- Synthetic load test: 100 documents in parallel through new system; assert all 5 modalities ACTIVE within 30 minutes (PR-F gate)
-
-### K.7. Implementation owners
-
-Same model as D10:
-- Architect (符炫炜) — design pack canon, PR scope decisions, line-by-line review
-- Bryce / cuiwenbo / chenyexuan / 黄恒 / 明书 — implementation per PR claim
-
-The 7 PRs can largely be parallelized after PR-A and PR-B land (PR-C through PR-E have a sequential dependency chain because each depends on the previous).
+PM (燧木) 决定。架构师建议参考 D10 模式：
+- 架构师 (符炫炜) — design canon、wave scope、line-by-line review、跨 modality 对齐
+- 单 modality 写手（5 人 × Wave 1 一人一个 modality + Wave 2 worker / reconciler 等）
+- Bryce — graph modality（最复杂的那个，且修 nebula append bug）+ idempotency 自测把关
 
 ---
 
-## End of design pack
+## §L. Private / on-premise deployment — "deploy-and-forget"
 
-This design pack proposes a **simpler, more reliable, more inspectable** indexing system that scales to 100+ concurrent documents on a single server, eliminates the three-layer ownership skew, fixes the graph idempotency bug, and reduces the indexing layer code count by approximately 700 lines while adding (not removing) functionality.
+earayu2（`msg=cc0a00d7`）: "我的系统是要私有化交付和部署的，我希望能做到交付后不管。"
 
-The architect recommends earayu2 review §E (concurrency model decision) and §K (PR sequence) first; those are the most consequential decisions. If the recommendations there are accepted, the rest of the design pack flows.
+v2 把"私有化交付 + 弱运维 + 客户拿到包就能跑、跑起来不用回头维护"作为**首要 deployment target**。架构必须直接服务这个目标。
 
-Open question for earayu2 to confirm or override:
-- Is the recommended concurrency model (lightweight Redis-backed asyncio worker pool, dropping Celery entirely) acceptable, or do you prefer the Celery-refactor or HTTP-only paths?
-- Is per-modality availability (atomic flip when *all enabled* modalities ACTIVE) the right contract, or do you want graceful degradation (flip per-modality independently)?
-- Is the 7-PR sequence acceptable, or do you want to combine some?
+### L.1. 部署形态分级
 
-The architect can revise the design pack based on earayu2's answers.
+| 形态 | 流量假设 | Stack | 备注 |
+|---|---|---|---|
+| **Tier 1 — Single binary / inline** | < 10 docs/hour | SQLite + LocalFS + 单进程 + `INDEXING_MODE=inline`（§E.5） | 客户单机 demo / POC；无 Redis、无 PostgreSQL、无独立 worker |
+| **Tier 2 — Single VM / async** | < 100 concurrent docs | PostgreSQL + LocalFS or MinIO + Redis + 5 worker processes（§E.2） | 客户单 VM 标准部署；docker-compose 一键拉起 |
+| **Tier 3 — Multi VM / scale-out** | > 100 concurrent docs | PostgreSQL + S3-compatible + Redis + horizontal worker scaling | 客户跨机部署；架构无变化，扩 worker 进程数 |
+
+**所有三层共用同一份代码**，差异仅在配置。私有化交付时根据客户规模选 Tier，不存在"小客户用一套代码、大客户用另一套"。
+
+### L.2. 必须做到的属性
+
+- **零云依赖**：不依赖 AWS / Aliyun / GCP 任何 managed service。MinIO 取代 S3，PostgreSQL 自带，Redis 自带，LLM 走客户的 endpoint（OpenAI 兼容协议）。
+- **打包即可运行**：`docker-compose up` 启全栈；Tier 1 一行 `python -m aperag.cli serve` 即可起。
+- **弱运维**：没有运维介入也不会"越跑越坏"——
+  - cleanup worker 自动 GC 老 parse_version（§F.5）
+  - reconciler 自动 retry 失败 + 自动 reclaim crashed worker（§I.3）
+  - 配额 token bucket 自动 refill（§H.5）
+  - 无需 cron 配置，无需手工清表，无需手工 reindex
+- **可观测性自带**：4 个 SLI emit 到 OTLP，客户可挂自己的 collector；不挂也不影响系统运行。
+- **兼容客户已有 LLM gateway**：所有 LLM / embedding 调用走配置文件指定的 endpoint，不硬编码任何云厂商。
+
+### L.3. Deploy-and-forget 的具体落点
+
+每个会随时间败坏的资源，在架构里都有一个自愈机制：
+
+| 资源 | 不做兜底会怎样 | v2 自愈 |
+|---|---|---|
+| 旧 parse_version 在对象存储和 DB 里堆积 | 磁盘 OOM | cleanup worker 5min cycle，无需运维（§F.5） |
+| Worker 进程崩溃 | 任务卡 RUNNING | reconciler 60s 后 reclaim → retry（§E.4） |
+| LLM API rate-limit 超限 | 重试风暴 | Redis token bucket，超限自动 wait（§H.5） |
+| 失败任务永不重试 | 卡 FAILED | reconciler exponential backoff retry（§I.2） |
+| derived/ 半写文件 | 下次读到坏数据 | tmp+rename / multipart upload + complete（§C.7） |
+| 已删文档残留索引 | backend 越堆越多 | cleanup worker 检测 `deleted_at` GC（§F.5） |
+| 配额配置 drift | 部分租户被卡死 | 兜底走 default 池（§H.5） |
+
+**没有需要"运维定期处理"的资源**。这是"deploy-and-forget"的硬要求。
+
+### L.4. 单机最小 stack（Tier 1，"私有化最小心智成本"）
+
+```
+┌─ 单进程 Python ─────────────────────────────┐
+│  FastAPI HTTP API                           │
+│  inline mode: 上传后同步 derive + sync       │
+│  (no Redis, no separate workers)            │
+│                                             │
+│  SQLite (~/.aperag/aperag.db)               │
+│  LocalFS (~/.aperag/data/collections/...)   │
+└─────────────────────────────────────────────┘
+```
+
+部署 = `pip install aperag && aperag serve`。客户不需要懂 Redis 不需要懂 PostgreSQL。
+
+为什么可以这样：
+- `document_index` 表在 SQLite 上 schema 完全一致，~10 行 PRAGMA + 索引就能跑
+- `object_store.py` LocalFS adapter ≈ 30 行
+- `INDEXING_MODE=inline` HTTP handler 同步调用 `derive` + `sync`（§E.5）
+- Reconciler 在 inline mode 下变成"上传完同步重试"——错失瞬间崩溃可以下次 upload 时清
+
+代价：单机吞吐受限（~10 docs/hour）。客户量大就升 Tier 2，docker-compose 拉起 PostgreSQL + Redis + workers，**代码完全不动**。
+
+### L.5. 升级 / 数据迁移在私有化场景
+
+私有化客户偶尔升级版本，可能 schema 也变。本设计的应对：
+- `parse_version` 哈希函数升级 → 老 version 自然过期，新上传走新 version；老 derived/ 由 cleanup worker 在 1 小时后清。**无需迁移脚本**。
+- Backend schema 变动（e.g., Qdrant payload 字段加） → 重新 `sync` 一次即可；DELETE-before-INSERT 幂等保证（§D.1）。可写一个 admin cmd 重跑 `sync` 对所有现存 `(document_id, parse_version)`。
+- `document_index` schema 变动 → alembic migration（标准）。
+
+### L.6. 与多客户多版本
+
+私有化交付场景下，客户 A 跑 v1.2，客户 B 跑 v1.3，都是独立部署。架构师不需要在代码里支持 "v1.2 和 v1.3 兼容"——每个客户的部署是独立闭环。
+
+这是私有化部署相对 SaaS 的**简化**：删掉了 SaaS 必须考虑的"全部租户同时升级 / 蓝绿 / 多版本共存"的复杂度。
+
+---
+
+## End of design pack v2
+
+v2 的核心简化（相对 v1）：
+- **删原子 flip** → per-modality 独立可见（§F.3-F.4）
+- **删 Celery 决策矩阵** → 锁 Redis + asyncio（§E）
+- **7 PR → 3 wave**（§K）
+- **加 §C.6/C.7** 显式答 derived/ 内容 + 对象存储能力
+- **加 §H** future organization forward-compat
+- **加 §L** 私有化 deploy-and-forget
+
+净效果：~200 行代码进一步减少（atomic flip orchestration 删除）+ 弱运维 contract 明确 + 私有化部署一等公民。
+
+**遗留待 earayu2 复阅**:
+- §F.4 inconsistency window 上限（v2 假设 ~25min，受 graph LLM 限制）—— 是否可接受
+- §H.2 `tenant_scope_key` 列字段命名 —— 保留或换名
+- §K.1 wave 划分 —— 是否进一步合并 Wave 2 + Wave 3
+
+如 earayu2 通过 v2 整体方向，PM (燧木) 即可基于此 v2 拆 task board（3 个 wave 入 task list，按 §K.5 并行度分发 lane owner）。
