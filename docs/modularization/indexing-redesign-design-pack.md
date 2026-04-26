@@ -775,7 +775,22 @@ CREATE TABLE document_index (
     last_heartbeat TIMESTAMPTZ,           -- worker progress
     derived_artifact_path TEXT,           -- e.g. 'collections/A/documents/D/derived/parse_v123/kg.jsonl'
 
+    -- Dispatch denormalization (added 2026-04-27 per huangheng Wave 2 CR
+    -- finding msg=c94b57fe + architect ruling msg=498b12f0). orchestrator
+    -- + cleanup workers query these directly without joining `document`.
+    -- nullable during Wave 1+2 for fixture back-compat; Wave 3 hard-cut
+    -- (task #14) flips both to NOT NULL after legacy table is dropped.
+    collection_id VARCHAR(64) NOT NULL,   -- denormalized from document.collection_id
+    source_path TEXT NOT NULL,            -- pointer to source/ artifact, worker derive reads directly
+
     is_serving BOOLEAN NOT NULL DEFAULT FALSE,  -- this triple is what search currently reads
+
+    -- Forward-compat hook for future organization concept (§H.2). v2
+    -- default fill: f"user:{user_id}". Future: f"org:{org_id}". Required
+    -- key for Redis token bucket per (resource_class, tenant_scope_key)
+    -- in §H.5 quota.
+    tenant_scope_key VARCHAR(64) NOT NULL,
+
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
@@ -791,6 +806,14 @@ CREATE TABLE document_index (
 CREATE UNIQUE INDEX uniq_document_index_serving
     ON document_index (document_id, modality)
     WHERE is_serving = TRUE;
+
+-- Cleanup / quota scan support (added 2026-04-27 alongside collection_id).
+CREATE INDEX idx_document_index_collection
+    ON document_index (collection_id);
+
+-- Quota bucket scans by (resource_class, tenant_scope_key) — see §H.5.
+CREATE INDEX idx_document_index_tenant_scope
+    ON document_index (tenant_scope_key);
 
 CREATE TABLE document (
     id VARCHAR PRIMARY KEY,
@@ -860,14 +883,39 @@ The window between "new parse_version starts" and "all 5 modalities cut over" ca
 
 ### F.5. Cleanup worker (replaces v1's DELETING / DELETION_IN_PROGRESS states)
 
-A separate cleanup worker runs every 5 minutes and deletes backend entries for any `(document_id, parse_version, modality)` that is:
+A separate cleanup worker runs every 5 minutes with **three independent paths**, each idempotent and resumable. Failure to complete any path mid-run does not corrupt state — the next 5-minute cycle picks up where the previous left off.
+
+**Path A — orphan parse_version GC** (regular operating state):
+
+Deletes backend entries for any `(document_id, parse_version, modality)` that is:
 - `is_serving = FALSE` AND
 - Not the latest `parse_version` per `(document_id, modality)` AND
 - `updated_at < NOW() - INTERVAL '1 hour'`
 
 After backend deletion, the `document_index` row itself is deleted. derived/ directory for the orphan `parse_version` is also removed if no remaining row references it.
 
-Document deletion (user removal): set `document.deleted_at = NOW()` + `is_serving = FALSE` on all rows for `(document_id, *, *)`. Cleanup worker garbage-collects everything within ~1 hour.
+For graph modality: per §D.3 amended canonical (lineage cleanup is by `document_id` only, not parse_version), Path A is **a backend no-op for graph** — every fresh `sync(doc, v_new)` already supersedes the doc's lineage SET. The DB row for the orphan parse_version is still deleted; only the backend graph mutation is skipped. A `graph_noop` counter tracks how often this fast-path fires for telemetry.
+
+**Path B — single-document deletion cascade** (user deletes one document):
+
+Trigger: caller (HTTP delete endpoint) writes `document.deleted_at = NOW()` synchronously and posts the document_id to the cleanup-worker job queue.
+
+For each modality:
+- Non-graph (vector / fulltext / summary / vision): per `(doc, parse_version)` `delete_by_filter(document_id, parse_version)` for every parse_version in that document's `document_index` rows.
+- Graph: invoke `remove_entity_lineage_member(document_id=doc)` (per §D.3 — by `document_id` only, removes the doc's lineage SET member from every shared entity; entity-row GC happens when its lineage SET becomes empty). Per-doc dedup: only one call per document regardless of how many parse_versions existed.
+
+After all modalities cleaned: delete the `document_index` rows + delete derived/ tree for the document.
+
+**Path C — collection deletion cascade** (added 2026-04-27 per architect msg=3890c9d7):
+
+Trigger: caller (HTTP delete-collection endpoint) writes `Collection.deleted_at = NOW()` synchronously, then returns 200 to the user. **The HTTP handler does not block on cascade**; the cleanup worker drives the rest.
+
+Worker scan WHERE `Collection.deleted_at IS NOT NULL`. For each:
+- Iterate every `Document` belonging to the collection and invoke Path B (`cleanup_for_deleted_documents`) per document. (Path B is idempotent so partial completion + reprocess on next 5-min cycle is safe.)
+- After all documents cleaned: DELETE `Collection` row + cascade delete `collections/<collection_id>/` source / derived storage tree.
+- If any per-document path B fails: log + skip that document; next cleanup cycle retries.
+
+Path C provides durability for collection deletion that simple `asyncio.create_task()` cannot — if the HTTP server restarts mid-cascade, the cleanup worker resumes via state-driven recovery (the same pattern as document deletion + parse_version GC). This is the canonical replacement for the legacy Celery `collection_delete` task.
 
 This GC pattern is independent of the main write path. A delayed cleanup wastes storage but never causes incorrectness.
 
