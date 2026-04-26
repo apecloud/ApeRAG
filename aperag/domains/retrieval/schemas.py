@@ -71,6 +71,18 @@ class SearchResultMetadata(BaseModel):
     title: Optional[str] = Field(None, description="Human-readable title when available")
     collection_id: Optional[str] = Field(None, description="Collection identifier for client follow-up actions")
     document_id: Optional[str] = Field(None, description="Document identifier for client follow-up actions")
+    chunk_id: Optional[str] = Field(
+        None,
+        description="Indexing-layer chunk identifier for follow-up `read_document_chunk` calls (D10 §A.9 R1 LOCKED handle).",
+    )
+    section_path: Optional[str] = Field(
+        None,
+        description="Slash-separated section path for follow-up `read_document_section` calls (D10 §A.9 R1 LOCKED handle).",
+    )
+    heading_anchor: Optional[str] = Field(
+        None,
+        description="Slug-style heading anchor (e.g. '#chapter-2-implementation') alternative to section_path (D10 §A.9 R1 LOCKED handle).",
+    )
     asset_id: Optional[str] = Field(None, description="Asset identifier for image or binary references")
     mimetype: Optional[str] = Field(None, description="Asset MIME type when the result references an asset")
     page_idx: Optional[int] = Field(None, description="Zero-based page index when available")
@@ -104,6 +116,9 @@ class SearchResultMetadata(BaseModel):
             "title": public_str("title"),
             "collection_id": public_str("collection_id"),
             "document_id": public_str("document_id"),
+            "chunk_id": public_str("chunk_id"),
+            "section_path": public_str("section_path"),
+            "heading_anchor": public_str("heading_anchor"),
             "asset_id": public_str("asset_id"),
             "mimetype": public_str("mimetype"),
             "page_idx": page_idx,
