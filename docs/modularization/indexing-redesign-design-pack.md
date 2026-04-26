@@ -524,36 +524,39 @@ Relation edge:
 
 #### D.3.2. sync(kg.jsonl, doc, parse_version) 算法
 
+> **Amendment 2026-04-26 (PR #1726 Wave 1 implementation lock, Bryce msg=464d5b70 catch + architect ruling msg=80c5dc06)**: lineage cleanup filter 是**按 `document_id` only**（不限 `parse_version`），**不是**按 `(document_id, parse_version)` exact-match。这样 sync(doc_A, v_new) 单调用自包含完成"覆盖 doc_A 旧 lineage" supersede 语义，与 §D.3.6 narrative 一致。原 v3 pseudocode 的 `(doc, parse_version)` exact-match 与 §D.3.6 期望状态矛盾（会留下 lineage[A,v_old] + lineage[A,v_new] 同时存在），是 spec bug。下面 pseudocode 是正确版本。
+
 ```python
 def sync_graph_from_jsonl(jsonl_path, document_id, parse_version, graph):
-    # ── Step 1: 移除当前 (doc, parse_version) 的 lineage 贡献 ──
-    # 注意：不直接 DELETE entity；只移除该 (doc, parse_version) 在 SET 里的成员
+    # ── Step 1: 移除 doc 所有历史 parse_version 的 lineage 贡献 ──
+    # 注意：不直接 DELETE entity；只移除该 document_id 在 SET 里的所有成员，
+    # 不限 parse_version。这让 sync 单调用自包含完成 supersede 语义。
 
-    # 1a. 拉所有受影响的 entity（被该 (doc, parse_version) 写过的）
+    # 1a. 拉所有受影响的 entity（曾被该 document_id 任意 parse_version 写过）
     affected_entities = graph.execute(
         "MATCH (n) WHERE EXISTS (s IN n.source_lineage "
-        "WHERE s.document_id == $doc AND s.parse_version == $ver) RETURN n.name",
-        doc=document_id, ver=parse_version,
+        "WHERE s.document_id == $doc) RETURN n.name",
+        doc=document_id,
     )
 
-    # 1b. 从每个 entity 的 source_lineage / description_parts 里移除当前 (doc, ver)
+    # 1b. 从每个 entity 的 source_lineage / description_parts 里移除该 document_id 的所有 lineage member
     graph.execute(
         "MATCH (n) WHERE EXISTS (s IN n.source_lineage "
-        "WHERE s.document_id == $doc AND s.parse_version == $ver) "
+        "WHERE s.document_id == $doc) "
         "SET n.source_lineage = [s IN n.source_lineage WHERE NOT "
-        "(s.document_id == $doc AND s.parse_version == $ver)], "
+        "(s.document_id == $doc)], "
         "    n.description_parts = [d IN n.description_parts WHERE NOT "
-        "(d.document_id == $doc AND d.parse_version == $ver)]",
-        doc=document_id, ver=parse_version,
+        "(d.document_id == $doc)]",
+        doc=document_id,
     )
 
-    # 1c. 同样清 relation edges 的 evidence_lineage
+    # 1c. 同样清 relation edges 的 evidence_lineage（按 document_id only）
     graph.execute(
         "MATCH ()-[e]->() WHERE EXISTS (s IN e.evidence_lineage "
-        "WHERE s.document_id == $doc AND s.parse_version == $ver) "
+        "WHERE s.document_id == $doc) "
         "SET e.evidence_lineage = [s IN e.evidence_lineage WHERE NOT "
-        "(s.document_id == $doc AND s.parse_version == $ver)]",
-        doc=document_id, ver=parse_version,
+        "(s.document_id == $doc)]",
+        doc=document_id,
     )
 
     # 1d. GC：source_lineage 为空的 entity → DELETE 整行
