@@ -84,15 +84,11 @@ class _FakeUIMessageStore:
 
 
 class _FakeDbOps:
-    def __init__(self, *, turn=None, persisted_events=None):
+    def __init__(self, *, turn=None):
         self.turn = turn
-        self.persisted_events = list(persisted_events or [])
 
     async def query_agent_turn(self, _user, _chat_id, _turn_id):
         return self.turn
-
-    async def query_agent_timeline_events(self, _turn_id, after_sequence=0, limit=2000):
-        return [event for event in self.persisted_events if event.sequence > after_sequence][:limit]
 
 
 class _FakeCreateTurnDbOps:
@@ -154,16 +150,17 @@ def _build_turn(**overrides):
     return SimpleNamespace(**values)
 
 
-def _build_event(sequence: int, event_type: str, *, label=None, status=None, data=None):
-    return SimpleNamespace(
-        id=f"event-{sequence}",
+def _build_envelope(sequence: int, event_type: str, *, label=None, status=None, data=None):
+    return AgentTimelineEventEnvelope(
+        event_id=f"event-{sequence}",
         turn_id="turn-1",
         sequence=sequence,
         timestamp=_now(),
         type=event_type,
+        technical_type=event_type,
         label=label,
         status=status,
-        actor=AgentEventActor.AGENT,
+        actor=AgentEventActor.AGENT.value,
         data=data or {},
     )
 
@@ -275,8 +272,14 @@ async def test_turn_snapshot_does_not_expose_legacy_keys():
 
 
 @pytest.mark.asyncio
-async def test_event_service_to_event_envelope_adds_user_activity_contract():
-    event = _build_event(
+async def test_event_service_adapt_event_envelope_adds_user_activity_contract():
+    """Phase 8 D8.6 (#80) chunk-3: ``to_event_envelope`` is gone with
+    ``agent_timeline_event``. ``adapt_event_envelope`` is now the only
+    surface for turning a wire envelope into the user-activity-tagged
+    payload the FE renderer consumes.
+    """
+
+    envelope = _build_envelope(
         3,
         "tool.started",
         label="search_collection",
@@ -290,18 +293,18 @@ async def test_event_service_to_event_envelope_adds_user_activity_contract():
         },
     )
 
-    envelope = EventService.to_event_envelope(event)
+    adapted = EventService.adapt_event_envelope(envelope)
 
-    assert envelope.technical_type == "tool.started"
-    assert envelope.user_activity is not None
-    assert envelope.user_activity.intent == UserActivityIntent.SEARCHING_KNOWLEDGE
-    assert envelope.user_activity.title_key == "activity.searching_knowledge.title"
-    assert envelope.user_activity.subtitle_key == "activity.searching_knowledge.subtitle"
-    assert envelope.user_activity.detail_key == "activity.searching_knowledge.detail.keyword"
-    assert envelope.user_activity.context is not None
-    assert envelope.user_activity.context.keyword == "OpenAI API key"
-    assert envelope.user_activity.context.source_name == "Product Docs"
-    assert envelope.user_activity.context.target_type == "knowledge_base"
+    assert adapted.technical_type == "tool.started"
+    assert adapted.user_activity is not None
+    assert adapted.user_activity.intent == UserActivityIntent.SEARCHING_KNOWLEDGE
+    assert adapted.user_activity.title_key == "activity.searching_knowledge.title"
+    assert adapted.user_activity.subtitle_key == "activity.searching_knowledge.subtitle"
+    assert adapted.user_activity.detail_key == "activity.searching_knowledge.detail.keyword"
+    assert adapted.user_activity.context is not None
+    assert adapted.user_activity.context.keyword == "OpenAI API key"
+    assert adapted.user_activity.context.source_name == "Product Docs"
+    assert adapted.user_activity.context.target_type == "knowledge_base"
 
 
 @pytest.mark.asyncio
