@@ -1085,16 +1085,18 @@ Each `SearchResultItem.metadata` carries:
 class SearchResultMetadata(BaseModel):
     # ... existing fields (chunk_id / section_path / heading_anchor etc) ...
     parse_version: Optional[str] = None       # which parse_version served this hit
-    modality: Literal["vector","fulltext","graph","summary","vision"]
+    index_modality: Optional[Literal["vector","fulltext","graph","summary","vision"]] = None
     index_state_per_modality: Optional[Dict[str, Literal["ACTIVE","FAILED","NOT_ENABLED","INDEXING"]]] = None
 ```
 
+> **Naming amendment 2026-04-27 (Bryce T3.2 implementation, msg=1a02cbcb)**: the field for "which retrieval modality produced this hit" is **`index_modality`**, not `modality`. D10.h already locked `SearchResultMetadata.modality: Optional[Literal["text", "image"]]` for **content modality** (whether the hit's content is text or an image), and the two concepts are orthogonal — a hit can be `index_modality="vector"` + `modality="text"`, or `index_modality="vision"` + `modality="image"`. The `index_` prefix disambiguates and preserves the D10.h-locked field.
+
 Clients (and the agent layer) can:
 - Detect mixed-version results in one response (different modalities show different `parse_version`)
-- Skip a modality that's currently FAILED/INDEXING
+- Skip a retrieval modality that's currently FAILED/INDEXING
 - Decide whether to wait + retry vs proceed with partial coverage
 
-Schema-wise this is a small extension of the D10.h `SearchResultMetadata` allowlist (already locked at chunk_id / section_path / heading_anchor; v2 adds `parse_version` and `index_state_per_modality`).
+Schema-wise this is a small extension of the D10.h `SearchResultMetadata` allowlist (already locked at chunk_id / section_path / heading_anchor / source / title / collection_id / document_id / asset_id / mimetype / page_idx / url / modality; v3 adds `parse_version` / `index_modality` / `index_state_per_modality`).
 
 ---
 
