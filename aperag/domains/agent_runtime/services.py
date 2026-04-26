@@ -91,9 +91,23 @@ _ACTIVITY_SUBTITLE_KEYS = {
     UserActivityIntent.ERROR: "activity.error.subtitle",
 }
 
-_KNOWLEDGE_SEARCH_TOOLS = {"list_collections", "search_collection"}
+_KNOWLEDGE_SEARCH_TOOLS = {
+    "list_collections",
+    "list_documents",
+    "vector_search",
+    "graph_search",
+    "fulltext_search",
+}
 _WEB_SEARCH_TOOLS = {"search_web", "web_search"}
-_READING_TOOLS = {"read_document", "web_read"}
+_READING_TOOLS = {
+    "read_document",
+    "read_document_outline",
+    "read_document_section",
+    "read_document_chunk",
+    "get_collection_metadata",
+    "get_document_metadata",
+    "web_read",
+}
 
 
 def _normalize_activity_text(value: Any, *, max_length: int = 160) -> Optional[str]:

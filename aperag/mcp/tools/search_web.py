@@ -12,26 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Phase 9 D10.d (#96) — web_search split MCP tool (§B.4).
+"""Phase 9 D10.d (#96) + D10.h (#100) — web_search split MCP tool (§B.4).
 
 Per ``docs/modularization/d10-design-pack.md`` §B.4: ``web_search``
 remains an independent tool (it does not need ``collection_id`` and
 its tenancy gate is per-user provider key, not collection access). This
 module relocates the existing ``web_search`` implementation from
 ``aperag/mcp/server.py`` into the ``aperag/mcp/tools/`` subpackage so
-all D10 search tools live in one place; the wire signature is preserved
-to avoid breaking external MCP clients (Claude Code / Codex / Cursor).
+all D10 search tools live in one place.
 
-§B.4 spec proposes a slightly different signature
-(``top_k`` keyword-only / ``source: str | None``); aligning the tool to
-the spec parameter names is a wire-breaking change for existing
-external callers and is therefore deferred to the D10.h cutover lane.
+D10.h (#100) applies the §B.4 parameter canonicalization that #96
+deferred — ``query`` is required, every other parameter is keyword-
+only, the result-count limit is named ``top_k`` (not
+``max_results``), and ``source`` is ``str | None`` so a missing
+domain filter is null rather than the empty string. The internal
+``aperag/domains/web_access`` backend still names its payload field
+``max_results``; the tool wrapper translates ``top_k`` to that field
+on the wire to keep the backend rename out of this lane.
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import httpx
 
@@ -55,11 +58,12 @@ logger = logging.getLogger(__name__)
     ),
 )
 async def web_search(
-    query: str = "",
-    max_results: int = 5,
+    query: str,
+    *,
+    top_k: int = 5,
     timeout: int = 30,
     locale: str = "en-US",
-    source: str = "",
+    source: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Search the web for current or missing information (§B.4).
 
@@ -91,14 +95,12 @@ async def web_search(
     - After completion: "Checked web sources for supporting information."
 
     Args:
-        query: Search query for web search. Optional when using
-            source-only site browsing.
-        max_results: Maximum number of results to return (default: 5).
+        query: Search query for web search (required).
+        top_k: Maximum number of results to return (default: 5).
         timeout: Request timeout in seconds (default: 30).
         locale: Browser locale (default: ``"en-US"``).
-        source: Optional domain or URL for site-specific filtering. When
-            provided with query, limits search results to this domain
-            (e.g., ``"site:vercel.com query"``).
+        source: Optional domain or URL for site-specific filtering;
+            ``None`` means no domain restriction (default: ``None``).
 
     Returns:
         Web search results with URLs, titles, snippets, and metadata.
@@ -110,28 +112,30 @@ async def web_search(
         workflows stay stable while still distinguishing ``ok`` /
         ``empty`` / ``unavailable`` / ``disabled``.
     """
+    query = query.strip()
+    if not query:
+        raise ValueError("web_search requires a non-empty query")
+    source_value = source.strip() if source else None
     try:
         api_key = get_api_key()
         logger.info(
-            "MCP web_search request query=%s source=%s max_results=%s timeout=%s locale=%s",
-            query.strip() if query else "",
-            source.strip() if source else "",
-            max_results,
+            "MCP web_search request query=%s source=%s top_k=%s timeout=%s locale=%s",
+            query,
+            source_value or "",
+            top_k,
             timeout,
             locale,
         )
 
         search_data: Dict[str, Any] = {
-            "max_results": max_results,
+            "query": query,
+            "max_results": top_k,
             "timeout": timeout,
             "locale": locale,
         }
 
-        if query and query.strip():
-            search_data["query"] = query.strip()
-
-        if source and source.strip():
-            search_data["source"] = source.strip()
+        if source_value:
+            search_data["source"] = source_value
 
         async with httpx.AsyncClient(timeout=90.0) as client:
             response = await client.post(

@@ -14,21 +14,22 @@
 
 """Phase 9 D10.d (#96) — graph_search split MCP tool (§B.2).
 
-Replaces ``search_collection use_graph_index=True`` with a discrete tool
-per ``docs/modularization/d10-design-pack.md`` §B.2 (Lock #5 split).
-``search_collection`` itself remains as a deprecated alias (§B.5 / §H.1)
-until the D10.h cutover.
+The discrete knowledge-graph search primitive per
+``docs/modularization/d10-design-pack.md`` §B.2 (Lock #5 split). The
+omnibus ``search_collection`` was hard-cut in D10.h #100, so this
+file is now the only public entry point for graph recall.
 
 Wire shape: returns the existing ``SearchResult`` dict shape with
-``recall_type = "graph_search"`` for produced items. §B canonical
-shape follow-up settled by the ``[D10 spec amendment]`` thread
-(msg=b9b7072a) — defer canonical SearchResultItem to D10.h cutover.
+``recall_type = "graph_search"`` for produced items. The retrieval
+``SearchResultMetadata`` allowlist now exposes ``chunk_id`` /
+``section_path`` / ``heading_anchor`` so callers can chain into the
+read primitives.
 
-The ``cursor`` parameter is a placeholder per the same thread (Drift
-#4 (c)): signature lands now, body raises ``NotImplementedError``
-on any non-empty value until real search pagination ships.
-``None`` and ``""`` both preserve single-page ``top_k`` behavior per
-the Weston blocker review (msg=177a1dd8).
+The ``cursor`` parameter is a placeholder: the signature lands now
+so external clients see the canonical shape, but the body raises
+``NotImplementedError`` on any non-empty value until real search
+pagination ships. ``None`` and ``""`` both preserve single-page
+``top_k`` behavior.
 """
 
 from __future__ import annotations
