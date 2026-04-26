@@ -1,0 +1,1017 @@
+# Copyright 2025 ApeCloud, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Graph modality — celery T1.2.
+
+Per ``docs/modularization/indexing-redesign-design-pack.md`` §D.3, the
+graph modality is the only one of the five whose backend rows can be
+shared across documents — entity ``Linus Torvalds`` may be cited by 100
+different docs, and a doc-level retry / delete must NOT wipe the other
+99 docs' contribution. The simple "DELETE-by-(doc, parse_version) +
+re-INSERT" contract that vector / fulltext / summary / vision rely on
+would either drop cross-doc lineage (under-delete) or leave doc_A's
+description forever concatenated with doc_B's after a doc_A retry
+(under-clean). This is the bug Bryce v2 review msg=7ccb176f #3 caught
+and architect msg=cc555e33 / msg=f2921ae0 locked the lineage model for.
+
+The §D.3.2 algorithm — implemented by :class:`GraphModalityWorker` —
+sweeps in two phases:
+
+1. **Lineage cleanup**. Every entity / relation that was last touched
+   by ``(document_id, parse_version)`` has the corresponding member
+   removed from its ``source_lineage`` / ``description_parts`` /
+   ``evidence_lineage`` set. Rows whose lineage set goes empty are
+   garbage-collected.
+
+2. **Lineage rebuild**. Every entity / relation in the ``kg.jsonl``
+   artifact is upserted with a fresh ``(document_id, parse_version)``
+   member added to its lineage set. Existing other-doc / other-parse_v
+   lineage members are preserved.
+
+The contract is then idempotent at the lineage level: re-running
+``sync(doc, v1, kg.jsonl)`` collapses cleanly, whether or not it ran
+before, and whether or not other docs have already written to the
+same entities.
+
+Backends differ in how they implement the lineage SET (§D.3.5):
+
+* **Neo4j**: native list ops + APOC; one Cypher call per phase.
+* **Nebula 3.x**: list ops are limited, so the application reads the
+  current lineage list, mutates in Python, writes back. That
+  read-modify-write loop is racy unless we serialize per entity ID.
+  The :class:`EntityLock` abstraction takes a Redis lock keyed by the
+  entity name so two concurrent ``sync`` calls touching the same
+  entity never overlap (msg=f2921ae0 architect-locked invariant).
+* **In-memory**: :class:`InMemoryLineageGraphStore` provides a deterministic
+  Python implementation usable from tests and as a reference for
+  what the backends MUST behave like.
+
+The kg.jsonl artifact is the canonical (and most expensive)
+modality output — re-running ``derive`` would reissue every LLM
+extraction call. So ``derive`` writes once and ``sync`` only ever
+reads. The actual entity / relation extraction is provided by a
+:class:`GraphExtractor` callable injected at construction time so that
+T2.x can wire the production LightRAG-based extractor without
+touching this module.
+
+T1.2 ships:
+
+* the lineage data model (:class:`EntityRecord`, :class:`RelationRecord`,
+  :class:`LineageMember`, :class:`DescriptionPart`),
+* the storage Protocol (:class:`LineageGraphStore`) plus the
+  :class:`InMemoryLineageGraphStore` reference implementation,
+* the :class:`EntityLock` abstraction (in-memory + a thin Redis adapter),
+* the :class:`GraphModalityWorker` implementing the §D.3.2 algorithm,
+* JSONL serialization helpers,
+
+and the §D.3.6 five-step idempotency self-test plus a Nebula-
+race-style concurrent-sync test in
+``tests/unit_test/indexing/test_t1_2_graph.py``.
+
+Concrete Nebula / Neo4j backends bind to this Protocol via their own
+adapter modules in Wave 2 (T2.1) when the worker pool wires real
+connections; that integration is intentionally out of scope for T1.2
+which focuses on the algorithm + race-protection contract.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+from collections.abc import AsyncIterator, Iterable, Sequence
+from contextlib import asynccontextmanager
+from dataclasses import dataclass, field
+from typing import Any, Awaitable, Callable, Protocol
+
+from aperag.indexing.base import DeriveResult, ModalityWorker
+from aperag.indexing.models import Modality
+from aperag.indexing.object_store import (
+    derived_artifact,
+    read_or_none_async,
+    write_atomic_async,
+)
+from aperag.indexing.parser import read_chunks
+from aperag.objectstore.base import ObjectStore as _SyncObjectStore
+
+logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------
+# Lineage data model — design pack §D.3.1
+# ---------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class LineageMember:
+    """One ``(document_id, parse_version)`` slice of an entity / relation's lineage.
+
+    The ``chunk_ids`` tuple records which chunks of THAT specific
+    parse contributed to the entity / relation. On a doc_A v1 retry,
+    we replace exactly the lineage member with
+    ``document_id == "doc_A" AND parse_version == "v1"`` and leave
+    every other ``(doc, ver)`` slice untouched.
+
+    ``tenant_scope_key`` propagates the §H.2 quota / tenant-isolation
+    key into every lineage SET element so that a read-path can filter
+    a shared entity's contributions by tenant ACL (e.g., "show me
+    only the lineage members from my tenant plus public") without
+    forcing the entity row itself to belong to a single tenant.
+    Architect ruling msg=c3b0ba5b leaves the placement decision to
+    the graph implementer; SET-element level is the placement that
+    preserves the shared-entity model the §D.3 lineage design relies
+    on.
+    """
+
+    document_id: str
+    parse_version: str
+    tenant_scope_key: str
+    chunk_ids: tuple[str, ...]
+
+    def key(self) -> tuple[str, str]:
+        """The natural key used to dedup lineage members across syncs."""
+        return (self.document_id, self.parse_version)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "document_id": self.document_id,
+            "parse_version": self.parse_version,
+            "tenant_scope_key": self.tenant_scope_key,
+            "chunk_ids": list(self.chunk_ids),
+        }
+
+    @classmethod
+    def from_dict(cls, raw: dict[str, Any]) -> "LineageMember":
+        return cls(
+            document_id=str(raw["document_id"]),
+            parse_version=str(raw["parse_version"]),
+            tenant_scope_key=str(raw["tenant_scope_key"]),
+            chunk_ids=tuple(str(cid) for cid in raw.get("chunk_ids", [])),
+        )
+
+
+@dataclass(frozen=True)
+class DescriptionPart:
+    """One ``(document_id, parse_version)`` slice of an entity's description.
+
+    Per §D.3.3 Option A the read path returns the *full set* of these
+    parts and lets the upstream LLM dedup / summarise, so each doc's
+    contribution to the description is preserved verbatim instead of
+    being concatenated into a monolithic blob (which is what the v1
+    ``upsert_entities`` append-on-conflict path did, and which broke
+    incremental retries — see the regression Bryce surfaced in
+    msg=7ccb176f #3).
+    """
+
+    document_id: str
+    parse_version: str
+    text: str
+
+    def key(self) -> tuple[str, str]:
+        return (self.document_id, self.parse_version)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "document_id": self.document_id,
+            "parse_version": self.parse_version,
+            "text": self.text,
+        }
+
+    @classmethod
+    def from_dict(cls, raw: dict[str, Any]) -> "DescriptionPart":
+        return cls(
+            document_id=str(raw["document_id"]),
+            parse_version=str(raw["parse_version"]),
+            text=str(raw.get("text", "")),
+        )
+
+
+@dataclass(frozen=True)
+class EntityRecord:
+    """One entity row read from / written to ``kg.jsonl``.
+
+    The ``source_chunk_ids`` are the chunk ids that mention the
+    entity within THIS document's parse. They contribute to the new
+    lineage member that ``sync`` adds during phase-2 rebuild.
+    """
+
+    name: str
+    type: str
+    description: str
+    source_chunk_ids: tuple[str, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "kind": "entity",
+            "name": self.name,
+            "type": self.type,
+            "description": self.description,
+            "source_chunk_ids": list(self.source_chunk_ids),
+        }
+
+
+@dataclass(frozen=True)
+class RelationRecord:
+    """One relation row read from / written to ``kg.jsonl``."""
+
+    source: str
+    target: str
+    type: str
+    description: str
+    source_chunk_ids: tuple[str, ...]
+
+    def relation_key(self) -> tuple[str, str, str]:
+        return (self.source, self.target, self.type)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "kind": "relation",
+            "source": self.source,
+            "target": self.target,
+            "type": self.type,
+            "description": self.description,
+            "source_chunk_ids": list(self.source_chunk_ids),
+        }
+
+
+@dataclass
+class EntityWithLineage:
+    """The full lineage-aware view of one stored entity row.
+
+    Backends materialise this from their underlying
+    storage representation (Nebula JSON STRING, Neo4j list-of-MAP,
+    in-memory dict) and the algorithm in :class:`GraphModalityWorker`
+    only ever sees this canonical form.
+    """
+
+    name: str
+    type: str
+    source_lineage: tuple[LineageMember, ...]
+    description_parts: tuple[DescriptionPart, ...]
+
+
+@dataclass
+class RelationWithLineage:
+    source: str
+    target: str
+    type: str
+    evidence_lineage: tuple[LineageMember, ...]
+    description_parts: tuple[DescriptionPart, ...]
+
+
+# ---------------------------------------------------------------------
+# Per-entity lock abstraction — Nebula read-modify-write race guard
+# (architect msg=f2921ae0 invariant).
+# ---------------------------------------------------------------------
+
+
+class EntityLock(Protocol):
+    """Async context manager factory keyed by entity name.
+
+    Two concurrent ``sync`` invocations that touch the same entity
+    must not overlap on the read-modify-write inside Nebula
+    backends; the lock makes that serialization explicit. Neo4j
+    backends with native list ops can use a no-op lock implementation
+    without losing correctness.
+    """
+
+    def acquire(self, entity_id: str) -> "AbstractAsyncContextManager[None]":
+        """Return an async context manager that holds the lock for the
+        duration of the ``async with`` block.
+
+        ``entity_id`` is the natural identifier (e.g., entity name);
+        the implementation is free to hash-route it onto a finite
+        slot pool to bound memory.
+        """
+
+
+# ``AbstractAsyncContextManager`` lives in ``contextlib`` but typing
+# uses the ``typing.AsyncContextManager`` alias; use the runtime
+# alternative via ``Awaitable``-friendly Protocol so ``EntityLock``
+# stays decoupled from the concrete implementation.
+from contextlib import AbstractAsyncContextManager  # noqa: E402  (after Protocol on purpose)
+
+
+class InMemoryEntityLock:
+    """``EntityLock`` backed by per-key :class:`asyncio.Lock` instances.
+
+    Suitable for tests and single-process deployments. Production
+    multi-process workloads (Wave 2 worker pool) bind to
+    :class:`RedisEntityLock` instead.
+    """
+
+    def __init__(self) -> None:
+        self._locks: dict[str, asyncio.Lock] = {}
+        self._registry_guard = asyncio.Lock()
+
+    async def _get_lock(self, entity_id: str) -> asyncio.Lock:
+        async with self._registry_guard:
+            lock = self._locks.get(entity_id)
+            if lock is None:
+                lock = asyncio.Lock()
+                self._locks[entity_id] = lock
+            return lock
+
+    @asynccontextmanager
+    async def _acquire(self, entity_id: str) -> AsyncIterator[None]:
+        lock = await self._get_lock(entity_id)
+        async with lock:
+            yield
+
+    def acquire(self, entity_id: str) -> AbstractAsyncContextManager[None]:
+        return self._acquire(entity_id)
+
+
+# Abstract factory for the Redis adapter — concrete redis-py wiring
+# lands in Wave 2 alongside the Redis queue infrastructure (T2.1).
+class RedisEntityLock:
+    """Redis-backed implementation of :class:`EntityLock`.
+
+    The lock key is ``f"{key_prefix}:{slot}"`` where ``slot`` is the
+    32-bit hash of ``entity_id`` modulo ``slot_count``. Bounding the
+    key space avoids unbounded growth in Redis when entity ids have
+    high cardinality.
+    """
+
+    def __init__(
+        self,
+        redis_client: Any,
+        *,
+        key_prefix: str = "indexing:graph:entity",
+        slot_count: int = 4096,
+        lock_timeout_seconds: int = 30,
+    ) -> None:
+        self._redis = redis_client
+        self._key_prefix = key_prefix
+        self._slot_count = max(1, slot_count)
+        self._lock_timeout_seconds = lock_timeout_seconds
+
+    def _slot_key(self, entity_id: str) -> str:
+        # ``crc32`` is part of stdlib and gives a stable 32-bit hash;
+        # ``hash()`` is process-randomised since Python 3.3 so it is
+        # unsuitable for sharding across worker processes.
+        from binascii import crc32
+
+        slot = crc32(entity_id.encode("utf-8")) % self._slot_count
+        return f"{self._key_prefix}:{slot:04x}"
+
+    @asynccontextmanager
+    async def _acquire(self, entity_id: str) -> AsyncIterator[None]:
+        # ``redis.asyncio.Redis.lock`` returns an async context manager
+        # in modern redis-py; we delegate so any blocking happens on
+        # the redis client's own event loop.
+        lock = self._redis.lock(
+            self._slot_key(entity_id),
+            timeout=self._lock_timeout_seconds,
+            blocking=True,
+        )
+        await lock.acquire()
+        try:
+            yield
+        finally:
+            try:
+                await lock.release()
+            except Exception:  # noqa: BLE001
+                # If the lock has already expired the release will
+                # fail; we tolerate that since we cannot do anything
+                # more constructive at this point and the caller's
+                # work is already done.
+                pass
+
+    def acquire(self, entity_id: str) -> AbstractAsyncContextManager[None]:
+        return self._acquire(entity_id)
+
+
+# ---------------------------------------------------------------------
+# Storage Protocol — backend abstraction
+# ---------------------------------------------------------------------
+
+
+class LineageGraphStore(Protocol):
+    """Per-collection lineage-aware graph backend.
+
+    The methods are written so that
+    :class:`GraphModalityWorker` can implement the §D.3.2 algorithm
+    against any backend. Each method MUST be safe to call from the
+    asyncio event loop (typically by offloading blocking work to
+    ``asyncio.to_thread``).
+
+    Backends are expected to maintain the invariant that a row's
+    lineage SET deduplicates by ``(document_id, parse_version)``;
+    callers that try to add a member that already exists may either
+    no-op or replace, but two members with the same key MUST NOT
+    coexist after an upsert.
+    """
+
+    async def find_entity_ids_with_lineage(
+        self,
+        *,
+        document_id: str,
+    ) -> list[str]:
+        """Return entity ids whose ``source_lineage`` contains ANY
+        member with the given ``document_id`` (across any
+        ``parse_version``).
+
+        Per §D.3.6 step 3 ("doc_A v2 写入（覆盖 doc_A 旧 lineage）"),
+        when a new parse_version supersedes an old one, ALL of the
+        document's lineage members must be cleared so the rebuild
+        phase can write the new ``(document_id, parse_version)`` slice
+        without leaving stale members from older parses behind. The
+        Protocol therefore filters by document_id only; per-parse_v
+        granularity is preserved on the SET elements themselves but
+        not exposed at the cleanup query.
+        """
+
+    async def find_relation_keys_with_lineage(
+        self,
+        *,
+        document_id: str,
+    ) -> list[tuple[str, str, str]]:
+        """Return relation ``(source, target, type)`` keys whose
+        ``evidence_lineage`` contains ANY member with the given
+        ``document_id``."""
+
+    async def remove_entity_lineage_member(
+        self,
+        *,
+        entity_name: str,
+        document_id: str,
+    ) -> None:
+        """Remove ALL ``LineageMember`` rows from ``source_lineage``
+        AND all ``DescriptionPart`` rows from ``description_parts``
+        whose ``document_id`` matches. Other documents' lineage is
+        left untouched.
+
+        Removing by document_id (not (doc, parse_version)) is what
+        makes §D.3.6 step 3 work without an out-of-band orchestrator
+        cleanup: when doc_A re-parses to v2, the v1 lineage is
+        cleared as part of the same sync call.
+        """
+
+    async def remove_relation_lineage_member(
+        self,
+        *,
+        source: str,
+        target: str,
+        type: str,
+        document_id: str,
+    ) -> None:
+        """Remove ALL ``LineageMember`` rows from ``evidence_lineage``
+        and matching ``DescriptionPart`` rows whose ``document_id``
+        matches."""
+
+    async def gc_entity_if_orphan(self, entity_name: str) -> bool:
+        """Delete the entity row iff its ``source_lineage`` is empty.
+
+        Returns True when a delete actually ran.
+        """
+
+    async def gc_relation_if_orphan(self, source: str, target: str, type: str) -> bool:
+        """Same as :meth:`gc_entity_if_orphan` for a relation edge."""
+
+    async def upsert_entity_with_lineage(
+        self,
+        *,
+        record: EntityRecord,
+        lineage: LineageMember,
+    ) -> None:
+        """Add ``lineage`` to ``source_lineage`` and a corresponding
+        ``DescriptionPart`` to ``description_parts``. Creates the
+        entity if absent. Replaces an existing member with the same
+        ``(document_id, parse_version)`` key."""
+
+    async def upsert_relation_with_lineage(
+        self,
+        *,
+        record: RelationRecord,
+        lineage: LineageMember,
+    ) -> None:
+        """Symmetric to :meth:`upsert_entity_with_lineage` for relations."""
+
+    async def get_entity(self, entity_name: str) -> EntityWithLineage | None:
+        """Read-path helper used by tests / read primitives. Returns
+        the canonical lineage view, or ``None`` if the row was GC'd.
+        """
+
+    async def get_relation(self, source: str, target: str, type: str) -> RelationWithLineage | None:
+        """Read-path helper for relations."""
+
+
+# ---------------------------------------------------------------------
+# In-memory reference implementation — usable by tests and as the
+# canonical correctness oracle.
+# ---------------------------------------------------------------------
+
+
+@dataclass
+class _InMemoryEntityRow:
+    name: str
+    type: str
+    description_parts: dict[tuple[str, str], DescriptionPart] = field(default_factory=dict)
+    source_lineage: dict[tuple[str, str], LineageMember] = field(default_factory=dict)
+
+
+@dataclass
+class _InMemoryRelationRow:
+    source: str
+    target: str
+    type: str
+    description_parts: dict[tuple[str, str], DescriptionPart] = field(default_factory=dict)
+    evidence_lineage: dict[tuple[str, str], LineageMember] = field(default_factory=dict)
+
+
+class InMemoryLineageGraphStore:
+    """Process-local Python implementation of :class:`LineageGraphStore`.
+
+    The state is plain dicts so behaviour is fully deterministic and
+    tests can introspect lineage members directly. The reference
+    implementation is also the one the §D.3.6 self-test runs against,
+    so any divergence between the algorithm spec and the
+    implementation will fail there.
+    """
+
+    def __init__(self) -> None:
+        self._entities: dict[str, _InMemoryEntityRow] = {}
+        self._relations: dict[tuple[str, str, str], _InMemoryRelationRow] = {}
+        # Coarse guard around the dictionaries themselves so concurrent
+        # ``find_*`` calls observe a consistent state. Production
+        # backends serialize per-entity via :class:`EntityLock`; this
+        # in-memory store is intentionally simpler and fully serial.
+        self._guard = asyncio.Lock()
+
+    # ---- queries -----------------------------------------------------
+
+    async def find_entity_ids_with_lineage(
+        self,
+        *,
+        document_id: str,
+    ) -> list[str]:
+        async with self._guard:
+            return [
+                name
+                for name, row in self._entities.items()
+                if any(member.document_id == document_id for member in row.source_lineage.values())
+            ]
+
+    async def find_relation_keys_with_lineage(
+        self,
+        *,
+        document_id: str,
+    ) -> list[tuple[str, str, str]]:
+        async with self._guard:
+            return [
+                rel_key
+                for rel_key, row in self._relations.items()
+                if any(member.document_id == document_id for member in row.evidence_lineage.values())
+            ]
+
+    # ---- lineage member removal -------------------------------------
+
+    async def remove_entity_lineage_member(
+        self,
+        *,
+        entity_name: str,
+        document_id: str,
+    ) -> None:
+        async with self._guard:
+            row = self._entities.get(entity_name)
+            if row is None:
+                return
+            stale_keys = [key for key in row.source_lineage if key[0] == document_id]
+            for key in stale_keys:
+                row.source_lineage.pop(key, None)
+                row.description_parts.pop(key, None)
+
+    async def remove_relation_lineage_member(
+        self,
+        *,
+        source: str,
+        target: str,
+        type: str,
+        document_id: str,
+    ) -> None:
+        rel_key = (source, target, type)
+        async with self._guard:
+            row = self._relations.get(rel_key)
+            if row is None:
+                return
+            stale_keys = [key for key in row.evidence_lineage if key[0] == document_id]
+            for key in stale_keys:
+                row.evidence_lineage.pop(key, None)
+                row.description_parts.pop(key, None)
+
+    # ---- garbage collection -----------------------------------------
+
+    async def gc_entity_if_orphan(self, entity_name: str) -> bool:
+        async with self._guard:
+            row = self._entities.get(entity_name)
+            if row is None:
+                return False
+            if row.source_lineage:
+                return False
+            del self._entities[entity_name]
+            return True
+
+    async def gc_relation_if_orphan(self, source: str, target: str, type: str) -> bool:
+        rel_key = (source, target, type)
+        async with self._guard:
+            row = self._relations.get(rel_key)
+            if row is None:
+                return False
+            if row.evidence_lineage:
+                return False
+            del self._relations[rel_key]
+            return True
+
+    # ---- upserts ----------------------------------------------------
+
+    async def upsert_entity_with_lineage(
+        self,
+        *,
+        record: EntityRecord,
+        lineage: LineageMember,
+    ) -> None:
+        async with self._guard:
+            row = self._entities.get(record.name)
+            if row is None:
+                row = _InMemoryEntityRow(name=record.name, type=record.type)
+                self._entities[record.name] = row
+            else:
+                # Type may evolve as new docs refine the entity; keep
+                # the most recently observed value.
+                row.type = record.type
+            row.source_lineage[lineage.key()] = lineage
+            row.description_parts[lineage.key()] = DescriptionPart(
+                document_id=lineage.document_id,
+                parse_version=lineage.parse_version,
+                text=record.description,
+            )
+
+    async def upsert_relation_with_lineage(
+        self,
+        *,
+        record: RelationRecord,
+        lineage: LineageMember,
+    ) -> None:
+        rel_key = record.relation_key()
+        async with self._guard:
+            row = self._relations.get(rel_key)
+            if row is None:
+                row = _InMemoryRelationRow(source=record.source, target=record.target, type=record.type)
+                self._relations[rel_key] = row
+            row.evidence_lineage[lineage.key()] = lineage
+            row.description_parts[lineage.key()] = DescriptionPart(
+                document_id=lineage.document_id,
+                parse_version=lineage.parse_version,
+                text=record.description,
+            )
+
+    # ---- read path --------------------------------------------------
+
+    async def get_entity(self, entity_name: str) -> EntityWithLineage | None:
+        async with self._guard:
+            row = self._entities.get(entity_name)
+            if row is None:
+                return None
+            return EntityWithLineage(
+                name=row.name,
+                type=row.type,
+                source_lineage=tuple(_sorted_lineage(row.source_lineage.values())),
+                description_parts=tuple(_sorted_description_parts(row.description_parts.values())),
+            )
+
+    async def get_relation(self, source: str, target: str, type: str) -> RelationWithLineage | None:
+        rel_key = (source, target, type)
+        async with self._guard:
+            row = self._relations.get(rel_key)
+            if row is None:
+                return None
+            return RelationWithLineage(
+                source=row.source,
+                target=row.target,
+                type=row.type,
+                evidence_lineage=tuple(_sorted_lineage(row.evidence_lineage.values())),
+                description_parts=tuple(_sorted_description_parts(row.description_parts.values())),
+            )
+
+
+def _sorted_lineage(members: Iterable[LineageMember]) -> list[LineageMember]:
+    return sorted(members, key=lambda m: (m.document_id, m.parse_version))
+
+
+def _sorted_description_parts(parts: Iterable[DescriptionPart]) -> list[DescriptionPart]:
+    return sorted(parts, key=lambda p: (p.document_id, p.parse_version))
+
+
+# ---------------------------------------------------------------------
+# Extractor — the LLM-extraction injection point
+# ---------------------------------------------------------------------
+
+
+GraphExtractor = Callable[
+    [Sequence[dict[str, Any]]],
+    Awaitable[tuple[list[EntityRecord], list[RelationRecord]]],
+]
+"""``derive`` calls the extractor with the chunk records read from
+``chunks.jsonl`` and gets back the raw entity / relation list to
+serialise into ``kg.jsonl``.
+
+The production extractor (LightRAG-based, LLM-driven) is wired in
+T2.x; tests pass deterministic stubs so the §D.3.6 self-test does not
+depend on any LLM.
+"""
+
+
+# ---------------------------------------------------------------------
+# kg.jsonl serialization
+# ---------------------------------------------------------------------
+
+
+KG_ARTIFACT_FILENAME = "kg.jsonl"
+
+
+def serialize_kg_jsonl(
+    entities: Iterable[EntityRecord],
+    relations: Iterable[RelationRecord],
+) -> bytes:
+    """Encode ``entities`` and ``relations`` into the canonical
+    line-oriented ``kg.jsonl`` byte format.
+
+    Order: entities first, then relations. Each line is one JSON
+    object with a ``"kind"`` discriminator so a future schema
+    evolution can add new record kinds without breaking the file
+    format.
+
+    The output ALWAYS contains at least one byte (a newline) so
+    the §C.7 read contract "empty bytes → derive not finished →
+    reschedule" stays unambiguous: a deliberate "no records produced"
+    payload is encoded as ``b"\\n"`` and reads back as a non-empty
+    artifact whose record lists are both empty. This is what makes
+    the §D.3.6 step 4 / step 5 deletion flows work — the orchestrator
+    can explicitly publish an empty kg.jsonl to clear a document's
+    lineage contribution without that empty payload colliding with
+    the "derive crashed mid-write" sentinel.
+    """
+    lines: list[str] = []
+    for entity in entities:
+        lines.append(json.dumps(entity.to_dict(), ensure_ascii=False))
+    for relation in relations:
+        lines.append(json.dumps(relation.to_dict(), ensure_ascii=False))
+    return ("\n".join(lines) + "\n").encode("utf-8")
+
+
+def parse_kg_jsonl(body: bytes) -> tuple[list[EntityRecord], list[RelationRecord]]:
+    """Decode a ``kg.jsonl`` byte payload back into entity / relation
+    record lists. Lines whose ``"kind"`` is unknown are skipped with
+    a warning so a forward-compatible extension does not crash an
+    older worker mid-sync.
+    """
+    entities: list[EntityRecord] = []
+    relations: list[RelationRecord] = []
+    for line_no, line in enumerate(body.splitlines(), start=1):
+        if not line.strip():
+            continue
+        record = json.loads(line)
+        kind = record.get("kind")
+        if kind == "entity":
+            entities.append(
+                EntityRecord(
+                    name=str(record["name"]),
+                    type=str(record["type"]),
+                    description=str(record.get("description", "")),
+                    source_chunk_ids=tuple(str(cid) for cid in record.get("source_chunk_ids", [])),
+                )
+            )
+        elif kind == "relation":
+            relations.append(
+                RelationRecord(
+                    source=str(record["source"]),
+                    target=str(record["target"]),
+                    type=str(record["type"]),
+                    description=str(record.get("description", "")),
+                    source_chunk_ids=tuple(str(cid) for cid in record.get("source_chunk_ids", [])),
+                )
+            )
+        else:
+            logger.warning("kg.jsonl: skipping unknown record kind=%r at line=%d", kind, line_no)
+    return entities, relations
+
+
+# ---------------------------------------------------------------------
+# GraphModalityWorker — implements §D.3.2 algorithm
+# ---------------------------------------------------------------------
+
+
+class GraphModalityWorker(ModalityWorker):
+    """Graph modality :class:`ModalityWorker` implementation.
+
+    The worker is parameterised over a :class:`LineageGraphStore`
+    backend, an :class:`EntityLock` for race-protection, and a
+    :class:`GraphExtractor` callable that performs the actual LLM
+    entity / relation extraction from chunks. This keeps the
+    algorithm code backend-agnostic so the same class works against
+    Nebula, Neo4j, and the in-memory reference store; production
+    deployments swap the backend and lock at construction time.
+    """
+
+    modality = Modality.GRAPH
+
+    def __init__(
+        self,
+        *,
+        store: LineageGraphStore,
+        extractor: GraphExtractor,
+        entity_lock: EntityLock,
+        object_store: _SyncObjectStore,
+        collection_id: str,
+        tenant_scope_key: str,
+    ) -> None:
+        """Construct a graph worker bound to a single tenant scope.
+
+        ``tenant_scope_key`` is the §H.2 quota / ACL key supplied by
+        the orchestrator at job-dispatch time. It is captured into
+        every :class:`LineageMember` this worker writes during
+        ``sync`` so the SET-level tenant attribution survives the
+        artifact round-trip and is available to read-path ACL
+        filtering.
+        """
+        self._store = store
+        self._extractor = extractor
+        self._entity_lock = entity_lock
+        self._object_store = object_store
+        self._collection_id = collection_id
+        self._tenant_scope_key = tenant_scope_key
+
+    # ---- derive -----------------------------------------------------
+
+    async def derive(
+        self,
+        *,
+        document_id: str,
+        parse_version: str,
+        source_path: str,
+    ) -> DeriveResult:
+        """Read ``chunks.jsonl`` for the parse, run the extractor, and
+        write ``kg.jsonl`` atomically. ``source_path`` is accepted to
+        keep the ABC contract uniform but unused — the parser already
+        produced everything we need under ``derived/parse_<v>/``.
+        """
+        del source_path  # see docstring; ABC contract uniformity
+        chunks_path = derived_artifact(
+            collection_id=self._collection_id,
+            document_id=document_id,
+            parse_version=parse_version,
+            filename="chunks.jsonl",
+        )
+        chunks = await asyncio.to_thread(read_chunks, self._object_store, chunks_path)
+        entities, relations = await self._extractor(chunks)
+        body = serialize_kg_jsonl(entities, relations)
+        kg_path = derived_artifact(
+            collection_id=self._collection_id,
+            document_id=document_id,
+            parse_version=parse_version,
+            filename=KG_ARTIFACT_FILENAME,
+        )
+        await write_atomic_async(self._object_store, kg_path, body)
+        logger.info(
+            "graph.derive collection=%s document=%s parse_version=%s entities=%d relations=%d",
+            self._collection_id,
+            document_id,
+            parse_version,
+            len(entities),
+            len(relations),
+        )
+        return DeriveResult(derived_artifact_path=kg_path)
+
+    # ---- sync -------------------------------------------------------
+
+    async def sync(
+        self,
+        *,
+        document_id: str,
+        parse_version: str,
+        derived_artifact_path: str,
+    ) -> None:
+        """Apply the §D.3.2 algorithm so that the backend's lineage
+        state for ``(document_id, parse_version)`` matches the
+        artifact, while preserving every other doc / parse_v's
+        contribution to shared entities."""
+        body = await read_or_none_async(self._object_store, derived_artifact_path)
+        if body is None:
+            # §C.7 contract: empty / missing artifact means "derive
+            # not yet finished"; surface as a no-op so the orchestrator
+            # reschedules instead of trapping.
+            logger.info(
+                "graph.sync skipped — derived artifact missing or empty path=%s",
+                derived_artifact_path,
+            )
+            return
+
+        entities, relations = parse_kg_jsonl(body)
+
+        # ---- Phase 1: lineage cleanup --------------------------------
+        # Per §D.3.6 step 3 + step 4, Phase 1 removes ALL lineage
+        # members for the document (across any parse_version), so a
+        # new parse_version supersedes the old one cleanly within one
+        # sync call. The schema still tracks (doc, parse_v) members
+        # so a future multi-version coexistence (if requested) is
+        # unblocked at the storage level.
+
+        affected_entity_ids = await self._store.find_entity_ids_with_lineage(document_id=document_id)
+        for entity_name in affected_entity_ids:
+            async with self._entity_lock.acquire(entity_name):
+                await self._store.remove_entity_lineage_member(
+                    entity_name=entity_name,
+                    document_id=document_id,
+                )
+                await self._store.gc_entity_if_orphan(entity_name)
+
+        affected_relation_keys = await self._store.find_relation_keys_with_lineage(document_id=document_id)
+        for source, target, rel_type in affected_relation_keys:
+            async with self._entity_lock.acquire(_relation_lock_key(source, target, rel_type)):
+                await self._store.remove_relation_lineage_member(
+                    source=source,
+                    target=target,
+                    type=rel_type,
+                    document_id=document_id,
+                )
+                await self._store.gc_relation_if_orphan(source, target, rel_type)
+
+        # ---- Phase 2: lineage rebuild -------------------------------
+
+        for entity_record in entities:
+            lineage = LineageMember(
+                document_id=document_id,
+                parse_version=parse_version,
+                tenant_scope_key=self._tenant_scope_key,
+                chunk_ids=entity_record.source_chunk_ids,
+            )
+            async with self._entity_lock.acquire(entity_record.name):
+                await self._store.upsert_entity_with_lineage(record=entity_record, lineage=lineage)
+
+        for relation_record in relations:
+            lineage = LineageMember(
+                document_id=document_id,
+                parse_version=parse_version,
+                tenant_scope_key=self._tenant_scope_key,
+                chunk_ids=relation_record.source_chunk_ids,
+            )
+            lock_key = _relation_lock_key(relation_record.source, relation_record.target, relation_record.type)
+            async with self._entity_lock.acquire(lock_key):
+                await self._store.upsert_relation_with_lineage(record=relation_record, lineage=lineage)
+
+        logger.info(
+            "graph.sync collection=%s document=%s parse_version=%s rebuilt_entities=%d rebuilt_relations=%d",
+            self._collection_id,
+            document_id,
+            parse_version,
+            len(entities),
+            len(relations),
+        )
+
+
+def _relation_lock_key(source: str, target: str, type: str) -> str:
+    """Lock key that serialises read-modify-write on a relation edge.
+
+    Using a structured prefix keeps relation locks disjoint from
+    entity locks (an entity named ``"rel:foo->bar:type"`` would
+    otherwise clobber the lock).
+    """
+    return f"rel::{source}::{target}::{type}"
+
+
+__all__ = [
+    # Lineage data model
+    "LineageMember",
+    "DescriptionPart",
+    "EntityRecord",
+    "RelationRecord",
+    "EntityWithLineage",
+    "RelationWithLineage",
+    # Per-entity lock abstraction
+    "EntityLock",
+    "InMemoryEntityLock",
+    "RedisEntityLock",
+    # Storage Protocol + reference implementation
+    "LineageGraphStore",
+    "InMemoryLineageGraphStore",
+    # Extractor injection point
+    "GraphExtractor",
+    # kg.jsonl helpers
+    "KG_ARTIFACT_FILENAME",
+    "serialize_kg_jsonl",
+    "parse_kg_jsonl",
+    # Modality worker
+    "GraphModalityWorker",
+]

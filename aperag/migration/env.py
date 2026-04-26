@@ -14,12 +14,11 @@
 
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
-
 from alembic import context
-from aperag.config import settings as app_config
 from pgvector.sqlalchemy import Vector
+from sqlalchemy import engine_from_config, pool
+
+from aperag.config import settings as app_config
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -32,8 +31,6 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-from aperag.db.models import Base
-
 # Import the models modules to register all SQLAlchemy tables. Phase 8
 # Task #39 carved/deleted the last local ORMs from ``aperag.db.models``,
 # which now only re-exports ``Base`` and ``random_id``/``EnumColumn``
@@ -48,15 +45,24 @@ import aperag.domains.identity.db.models  # noqa: F401
 import aperag.domains.indexing.db.models  # noqa: F401
 import aperag.domains.knowledge_base.db.models  # noqa: F401
 import aperag.domains.knowledge_graph.db.models  # noqa: F401
-import aperag.domains.marketplace.db.models  # noqa: F401
-import aperag.domains.model_platform.db.models  # noqa: F401
-import aperag.domains.retrieval.db.models  # noqa: F401
 
 # graphindex declares GraphIndexNode / GraphIndexEdge / GraphIndexChunk
 # against the same Base but lives outside any domain ``db/models``, so it
 # needs its own explicit import. Keep until Alembic autogen would pick it
 # up transitively.
 import aperag.domains.knowledge_graph.graphindex.models  # noqa: F401
+import aperag.domains.marketplace.db.models  # noqa: F401
+import aperag.domains.model_platform.db.models  # noqa: F401
+import aperag.domains.retrieval.db.models  # noqa: F401
+
+# Phase celery T1.1 — DocumentIndex (the new redesigned indexing state
+# table) lives outside any per-domain ``db/models.py`` because the
+# indexing redesign deliberately replaces the legacy
+# ``aperag.domains.indexing`` Celery surface (Wave 3 hard-delete
+# target). The new ``aperag.indexing.models`` is the canonical home;
+# import explicitly so autogen sees the table.
+import aperag.indexing.models  # noqa: F401
+from aperag.db.models import Base
 
 target_metadata = Base.metadata
 
@@ -112,9 +118,7 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata, render_item=render_item
-        )
+        context.configure(connection=connection, target_metadata=target_metadata, render_item=render_item)
 
         with context.begin_transaction():
             context.run_migrations()

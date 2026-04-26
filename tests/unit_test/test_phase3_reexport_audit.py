@@ -146,6 +146,25 @@ def test_phase3_classes_resolve_on_canonical_domain_paths():
     )
 
 
+# Wave 1+2 transitional duplicate allowlist. ``aperag/indexing/models.py``
+# (PR #1726) introduces its own ``class DocumentIndex(Base):`` (table
+# ``document_index_v2``) alongside the legacy
+# ``aperag/domains/indexing/db/models.py:DocumentIndex`` still consumed by
+# the Celery system. Both classes share the Python name (architect
+# msg=4a801b2b — only ``__tablename__`` differs during the transition;
+# the class name stays canonical). Wave 3 task #14 deletes the legacy
+# file AND removes this allowlist entry in the same PR; the audit should
+# be back to "no exceptions" once that cutover lands.
+WAVE_1_2_TEMPORARY_DUP_ALLOWLIST: dict[str, frozenset[str]] = {
+    "DocumentIndex": frozenset(
+        {
+            "aperag/indexing/models.py",
+            "aperag/domains/indexing/db/models.py",
+        }
+    ),
+}
+
+
 def test_phase3_classes_have_single_definition_site():
     """G13 no-duplicate-registration audit: each Phase 3 class body
     must live in exactly one ``class Foo(Base):`` site across the
@@ -179,7 +198,11 @@ def test_phase3_classes_have_single_definition_site():
             if name in PHASE3_DB_CLASSES or name in PHASE3_ENUMS:
                 duplicates.setdefault(name, []).append(path.relative_to(REPO_ROOT).as_posix())
 
-    offenders = {name: paths for name, paths in duplicates.items() if len(paths) > 1}
+    offenders = {
+        name: paths
+        for name, paths in duplicates.items()
+        if len(paths) > 1 and frozenset(paths) != WAVE_1_2_TEMPORARY_DUP_ALLOWLIST.get(name)
+    }
     missing = [name for name in (*PHASE3_DB_CLASSES, *PHASE3_ENUMS) if name not in duplicates]
 
     assert not offenders and not missing, (
