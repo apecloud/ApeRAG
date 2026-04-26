@@ -15,8 +15,16 @@
 """Chat-title generation service moved to the conversation domain in
 Phase 5 step 5-S4e.
 
-Title generation now reads the background-task ``ModelUse`` and calls
-the shared model invocation service.
+Title generation reads the recent ``AgentTurn`` rows for the chat
+(canonical post-D8.5 #92), composes an OpenAI-format prompt from
+each turn's ``input_text`` (user) plus the persisted assistant
+``UIMessagePart`` text content (via :class:`UIMessageStore`), and
+invokes the background-task ``ModelUse`` via the shared model
+invocation service.
+
+Phase 8 D8.6 (#80) hard-cut removed the legacy
+``RedisChatMessageHistory`` read path; chat history now flows through
+the ``agent_message`` table only.
 """
 
 from __future__ import annotations
@@ -27,16 +35,34 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
+from aperag.domains.agent_runtime.storage import AgentRuntimeRedisStore
+from aperag.domains.agent_runtime.uimessage_store import UIMessageDbOps, UIMessageStore
 from aperag.exceptions import BusinessException, ErrorCode
 from aperag.llm.runtime.invocation_service import model_invocation_service
-from aperag.utils.history import RedisChatMessageHistory, get_async_redis_client
 
 
 class ChatTitleService:
     """Service to generate chat titles using default background-task model configuration."""
 
-    def __init__(self, session: Optional[AsyncSession] = None):
+    def __init__(
+        self,
+        session: Optional[AsyncSession] = None,
+        *,
+        uimessage_store: Optional[UIMessageStore] = None,
+    ):
         self.db_ops = async_db_ops if session is None else AsyncDatabaseOps(session)
+        self.uimessage_store = uimessage_store
+
+    async def _resolve_uimessage_store(self) -> UIMessageStore:
+        if self.uimessage_store is not None:
+            return self.uimessage_store
+        from aperag.config import get_async_session
+
+        self.uimessage_store = UIMessageStore(
+            db_ops=UIMessageDbOps(session_factory=get_async_session),
+            redis_store=AgentRuntimeRedisStore(),
+        )
+        return self.uimessage_store
 
     async def generate_title(
         self,
@@ -61,10 +87,9 @@ class ChatTitleService:
         if not chat:
             raise BusinessException(ErrorCode.CHAT_NOT_FOUND, "Chat not found")
 
-        # Read recent conversation turns from Redis
-        history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
-        stored_messages = await history.messages
-        if not stored_messages:
+        # Read recent conversation turns from the canonical agent_turn table.
+        agent_turns = await self.db_ops.query_agent_turns(user_id, chat_id)
+        if not agent_turns:
             current_title = getattr(chat, "title", None)
             return current_title.strip() if current_title and current_title.strip() else "Untitled"
 
@@ -76,12 +101,21 @@ class ChatTitleService:
         if not model_id:
             raise BusinessException(ErrorCode.LLM_MODEL_NOT_FOUND, "Background task model is not configured")
 
-        # Take most recent N turns
-        recent_turns = stored_messages[-turns:] if turns < len(stored_messages) else stored_messages
-        # Convert to OpenAI format messages
-        openai_messages = []
+        # Take most recent N turns and compose an OpenAI-format prompt
+        # from each turn's user input + persisted assistant text parts.
+        recent_turns = agent_turns[-turns:] if turns < len(agent_turns) else agent_turns
+        store = await self._resolve_uimessage_store()
+        openai_messages: list[dict[str, str]] = []
         for turn in recent_turns:
-            openai_messages.extend(turn.to_openai_format())
+            if turn.input_text:
+                openai_messages.append({"role": "user", "content": turn.input_text})
+            assistant_text = await self._extract_assistant_text(store, turn.id)
+            if assistant_text:
+                openai_messages.append({"role": "assistant", "content": assistant_text})
+
+        if not openai_messages:
+            current_title = getattr(chat, "title", None)
+            return current_title.strip() if current_title and current_title.strip() else "Untitled"
 
         # Build prompt
         prompt = self._build_prompt(language=language, max_length=max_length)
@@ -97,6 +131,29 @@ class ChatTitleService:
         response = response.choices[0].message.content
         title = self._postprocess_title(response, max_length=max_length)
         return title
+
+    @staticmethod
+    async def _extract_assistant_text(store: UIMessageStore, turn_id: str) -> Optional[str]:
+        """Pull a plain-text rendering of the assistant turn's parts.
+
+        The canonical assistant payload is the persisted UIMessage's
+        ``parts`` array; ``text`` parts contribute their ``text`` field
+        joined into a single string. Other part types (tool calls,
+        citations, source URLs, etc.) are intentionally skipped — title
+        generation only needs the assistant's narrative text.
+        """
+
+        message = await store.read(turn_id)
+        if message is None or not message.parts:
+            return None
+        chunks: list[str] = []
+        for part in message.parts:
+            text = getattr(part, "text", None)
+            if isinstance(text, str) and text.strip():
+                chunks.append(text)
+        if not chunks:
+            return None
+        return "\n".join(chunks)
 
     @staticmethod
     def _build_prompt(language: str, max_length: int) -> str:
