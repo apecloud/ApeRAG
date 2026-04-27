@@ -1,0 +1,17 @@
+﻿{
+    "metadata":  {
+                     "title":  "Test wyszukiwania"
+                 },
+    "search":  "Wyszukaj",
+    "test":  "Test",
+    "questions":  "Pytania",
+    "questions_placeholder":  "Wprowadź swoje pytanie.",
+    "creation_time":  "Data utworzenia",
+    "search_result":  "Wynik wyszukiwania",
+    "delete":  "Usuń",
+    "delete_confirm":  "Tej operacji nie można cofnąć. Spowoduje to trwałe usunięcie wyniku wyszukiwania.",
+    "vector_search":  "Wektorowy",
+    "fulltext_search":  "Pełnotekstowy",
+    "graph_search":  "Grafowy",
+    "summary_search":  "Streszczenie"
+}

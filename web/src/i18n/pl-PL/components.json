@@ -1,0 +1,21 @@
+﻿{
+    "dmermaid":  {
+                     "graph":  "Wykres",
+                     "data":  "Dane"
+                 },
+    "copy_to_clipboard":  {
+                              "copied":  "Skopiowano"
+                          },
+    "datetime_picker_24h":  {
+                                "clear":  "Wyczyść",
+                                "close":  "Zamknij",
+                                "now":  "Teraz"
+                            },
+    "datagrid":  {
+                     "empty":  "Brak wyników."
+                 },
+    "pagination":  {
+                       "per_page":  "Wierszy na stronę",
+                       "page_info":  "Strona {page} z {total}"
+                   }
+}

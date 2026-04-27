@@ -1,0 +1,31 @@
+﻿{
+    "metadata":  {
+                     "title":  "Konfiguracja",
+                     "description":  "Sekcja umożliwia administratorom definiowanie i zarządzanie ustawieniami systemowymi obowiązującymi w całej platformie. Te globalne parametry kontrolują podstawowe funkcje, polityki bezpieczeństwa, progi wydajności i inne kluczowe konfiguracje."
+                 },
+    "mineru_api":  "Użyj MinerU API",
+    "mineru_api_description":  "Po włączeniu system będzie priorytetowo używał MinerU API do parsowania dokumentów, aby poprawić jakość i szybkość przetwarzania.",
+    "mineru_api_token":  "Token MinerU API",
+    "mineru_api_token_tips":  "Wskazówka: Oficjalny token MinerU API jest ważny przez 14 dni. Wymień go przed wygaśnięciem.",
+    "check":  "Sprawdź",
+    "mineru_api_token_required":  "Token MinerU API jest wymagany.",
+    "mineru_api_token_invalid":  "Nieprawidłowy token",
+    "use_markitdown":  "Użyj markitdown",
+    "use_markitdown_description":  "Po włączeniu system będzie używał markitdown do parsowania dokumentów.",
+    "parser_health_title":  "Stan parsera",
+    "parser_health_description":  "Pokazuje aktualną ścieżkę parsera, gotowość zależności, dostępność usług zewnętrznych oraz poziomy wsparcia widoczne dla klientów.",
+    "parser_health_refresh":  "Odśwież",
+    "parser_health_loading":  "Ładowanie stanu parsera...",
+    "parser_health_load_failed":  "Nie udało się załadować stanu parsera.",
+    "parser_health_default_parser":  "Domyślny parser",
+    "parser_health_parser_order":  "Kolejność włączonych parserów",
+    "parser_health_dependencies":  "Zależności",
+    "parser_health_services":  "Usługi zewnętrzne",
+    "parser_health_support_matrix":  "Macierz wsparcia",
+    "parser_health_requirements":  "Wymagania",
+    "parser_health_warnings":  "Ostrzeżenia",
+    "parser_health_recommendations":  "Rekomendacje",
+    "parser_health_none":  "Brak",
+    "system_default_quota":  "Domyślne limity użytkowników",
+    "system_default_quota_description":  "Te domyślne limity pomagają utrzymać stabilność systemu, zapobiegają nadmiernemu wykorzystaniu zasobów i zapewniają sprawiedliwą alokację między użytkownikami i aplikacjami."
+}

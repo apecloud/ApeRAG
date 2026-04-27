@@ -2,14 +2,12 @@
   "account": "Account",
   "administrator": "Administrator",
   "docs": "Documents",
-
   "username": "Username",
   "username_placeholder": "Username",
   "password": "Password",
   "password_placeholder": "Password",
-  "email": "邮箱",
-  "email_placeholder": "邮箱",
-
+  "email": "Email",
+  "email_placeholder": "Email address",
   "signin": "Sign In",
   "login_in_with_a_third_party_account": "Login with a third-party account",
   "login_with_google": "Login with Google",
@@ -18,19 +16,19 @@
   "welcome_back": "Welcome back",
   "forgot_your_password": "Forgot your password",
   "do_not_have_an_account": "Don't have an account? ",
-
   "signup": "Sign Up",
   "register_an_account": "Register an account",
   "already_hava_an_account": "Already have an account? ",
-
   "signout": "Sign Out",
-
   "processing_oauth_login": "Processing OAuth login...",
   "oauth_successful": "OAuth successful",
   "the_system_will_automatically_redirect": "the system will automatically redirect",
   "authentication": "Authentication",
   "go_back_home": "Go back home",
   "retry": "Retry",
-  "oauth_verification_failed": "oauth_verification_failed",
-  "an_unexpected_error_occurred": "An unexpected error occurred"
+  "oauth_verification_failed": "OAuth verification failed",
+  "an_unexpected_error_occurred": "An unexpected error occurred",
+  "verify_request_title": "Check your email",
+  "verify_request_description": "A sign-in link has been sent to your email address.",
+  "sign_in_again": "Sign in again"
 }

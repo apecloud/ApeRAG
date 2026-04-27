@@ -1,0 +1,28 @@
+﻿{
+    "metadata":  {
+                     "title":  "Limity",
+                     "description":  "Zarządzaj limitami użycia modeli AI, wywołań API i innych zasobów w tej sekcji. Limity pomagają kontrolować koszty, zapobiegają nadmiernemu użyciu i optymalizują doświadczenie."
+                 },
+    "limit":  "Limit",
+    "usage":  "Użycie",
+    "bot_count":  {
+                      "title":  "Liczba botów",
+                      "description":  "Górny limit aktywnych botów w systemie, zapobiegający nadmiernemu użyciu zasobów i zapewniający stabilność."
+                  },
+    "collection_count":  {
+                             "title":  "Liczba kolekcji",
+                             "description":  "Maksymalna dozwolona liczba kolekcji w bazie danych, kontrolująca złożoność struktury danych."
+                         },
+    "document_count":  {
+                           "title":  "Łączna liczba dokumentów",
+                           "description":  "Ogranicza całkowitą liczbę dokumentów we wszystkich kolekcjach, zarządzając ogólną pojemnością magazynu."
+                       },
+    "documents_per_collection":  {
+                                     "title":  "Dokumenty na kolekcję",
+                                     "description":  "Ogranicza dokumenty na kolekcję, optymalizując wydajność zapytań i równowagę danych."
+                                 },
+    "max_document_count_per_collection":  "Dokumenty na kolekcję",
+    "max_document_count":  "Łączna liczba dokumentów",
+    "max_collection_count":  "Liczba kolekcji",
+    "max_bot_count":  "Liczba botów"
+}

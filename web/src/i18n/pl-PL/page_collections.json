@@ -1,0 +1,79 @@
+﻿{
+    "metadata":  {
+                     "title":  "Kolekcje",
+                     "description":  "Importując i systematycznie organizując źródła danych w ustrukturyzowanej kolekcji, możesz znacząco poprawić zrozumienie kontekstu i dokładność odpowiedzi dużych modeli językowych (LLM)."
+                 },
+    "search":  "Wyszukaj",
+    "no_collections_found":  "Nie znaleziono kolekcji",
+    "settings":  "Ustawienia",
+    "general":  "Ogólne",
+    "private":  "Prywatna",
+    "public":  "Publiczna",
+    "mine":  "Moje",
+    "subscribed":  "Zasubskrybowane",
+    "subscribe":  "Subskrybuj",
+    "no_description_available":  "Brak dostępnego opisu",
+    "create_collection":  "Utwórz kolekcję",
+    "update_collection":  "Aktualizuj kolekcję",
+    "delete_collection":  "Usuń kolekcję",
+    "delete_collection_confirm":  "Tej operacji nie można cofnąć. Spowoduje to trwałe usunięcie kolekcji oraz dokumentów z naszych serwerów.",
+    "publish_collection":  "Opublikuj w Marketplace",
+    "publish_collection_description":  "Pozwól użytkownikom odkrywać i subskrybować Twoją kolekcję.",
+    "published_success":  "Kolekcja opublikowana pomyślnie",
+    "unpublished_success":  "Kolekcja wycofana z publikacji pomyślnie",
+    "unpublish_collection":  "Wycofaj z Marketplace",
+    "unpublish_collection_description":  "Usuń kolekcję z Marketplace, czyniąc ją prywatną.",
+    "name":  "Nazwa",
+    "name_placeholder":  "Wyświetlana nazwa kolekcji.",
+    "language":  "Język",
+    "language_zh_CN":  "Chiński uproszczony",
+    "language_en_US":  "Angielski",
+    "language_pl_PL":  "Polski",
+    "description":  "Opis",
+    "description_placeholder":  "Opisz ogólne znaczenie kolekcji.",
+    "index_types":  "Typy indeksów",
+    "index_types_description":  "Wybierz potrzebne funkcje AI — zbudujemy odpowiednie indeksy dla Twoich dokumentów",
+    "index_type_VECTOR":  {
+                              "title":  "Wektorowy",
+                              "description":  "Reprezentuje dane (tekst, obrazy itp.) jako wielowymiarowe wektory, umożliwiając wyszukiwanie oparte na podobieństwie."
+                          },
+    "index_type_FULLTEXT":  {
+                                "title":  "Pełnotekstowy",
+                                "description":  "Indeksuje słowa kluczowe w tekście za pomocą technik takich jak indeks odwrócony dla dopasowania dokładnego lub rozmytego."
+                            },
+    "index_type_GRAPH":  {
+                             "title":  "Grafowy",
+                             "description":  "Przechowuje dane jako węzły (encje) i krawędzie (relacje), umożliwiając złożone zapytania relacyjne."
+                         },
+    "index_type_SUMMARY":  {
+                               "title":  "Streszczenie",
+                               "description":  "Indeksuje streszczenia lub metadane długich dokumentów zamiast surowej treści dla szybszego wyszukiwania."
+                           },
+    "index_type_VISION":  {
+                              "title":  "Wizyjny",
+                              "description":  "Koduje treści wizualne (obrazy/wideo) jako wektory cech dla wyszukiwania po treści."
+                          },
+    "required":  "Wymagane",
+    "model_settings":  "Ustawienia modelu",
+    "model_settings_description":  "Wybierz modele AI do przetwarzania dokumentów. Różne typy indeksów wymagają wsparcia różnych modeli.",
+    "embedding_model":  "Embedding Model",
+    "embedding_model_description":  "Embedding Model przekształca dane w wektory numeryczne, które oddają znaczenie semantyczne i relacje.",
+    "embedding_model_locked_badge":  "Zablokowany po utworzeniu",
+    "embedding_model_locked_description":  "Embedding Model nie może być zmieniony po utworzeniu kolekcji, ponieważ różne modele produkują niekompatybilne wektory. Utwórz nową kolekcję, jeśli potrzebujesz innego modelu.",
+    "completion_model":  "Completion Model",
+    "completion_model_description":  "Completion Model to AI generujące nową treść poprzez przewidywanie najbardziej prawdopodobnego kolejnego tekstu na podstawie danego wejścia.",
+    "export_knowledge_base":  "Eksportuj bazę wiedzy",
+    "export_knowledge_base_confirm_title":  "Eksportuj bazę wiedzy",
+    "export_knowledge_base_confirm_content":  "Spowoduje to spakowanie całej zawartości bazy wiedzy z magazynu obiektów, w tym oryginalnych plików, sparsowanych artefaktów, danych fragmentów i obrazów.",
+    "export_knowledge_base_start":  "Rozpocznij eksport",
+    "export_knowledge_base_processing_title":  "Eksportowanie bazy wiedzy...",
+    "export_knowledge_base_progress_message":  "Pobieranie plików: {current} / {total}",
+    "export_knowledge_base_completed_title":  "Eksport zakończony!",
+    "export_knowledge_base_completed_description":  "Rozmiar pliku: {size}. Plik zostanie automatycznie usunięty po 7 dniach.",
+    "export_knowledge_base_download":  "Pobierz ZIP",
+    "export_knowledge_base_failed_title":  "Eksport nie powiódł się",
+    "export_knowledge_base_failed_description":  "Wystąpił błąd podczas eksportu. Spróbuj ponownie.",
+    "export_knowledge_base_retry":  "Ponów",
+    "export_knowledge_base_too_many_tasks":  "Zadanie eksportu jest już w toku. Poczekaj na jego zakończenie.",
+    "export_knowledge_base_link_expired":  "Link eksportu wygasł. Wyeksportuj ponownie."
+}

@@ -10,7 +10,7 @@ import { ThemeProvider } from '@/components/providers/theme-provider';
 import 'highlight.js/styles/github-dark.css';
 import './globals.css';
 
-import { getTranslations } from 'next-intl/server';
+import { getLocale, getTranslations } from 'next-intl/server';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -52,13 +52,16 @@ export default async function RootLayout({
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
   } catch (err) {}
 
+  // Get current locale and convert to short HTML lang code (e.g., 'en-US' -> 'en')
+  const locale = await getLocale();
+  const htmlLang = locale.split('-')[0] || 'en';
+
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={htmlLang} suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <NextTopLoader
-          // color="color-mix(in oklab, var(--primary), transparent)"
           color="var(--primary)"
           showSpinner={false}
           crawl={false}

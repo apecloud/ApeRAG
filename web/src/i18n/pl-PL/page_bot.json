@@ -1,0 +1,31 @@
+﻿{
+    "metadata":  {
+                     "title":  "Aplikacje",
+                     "description":  "INEO Sage to nowy chatbot oparty na lokalnych zbiorach danych, wykorzystujący wiele dużych modeli językowych."
+                 },
+    "search":  "Wyszukaj aplikację",
+    "new_bot":  "Utwórz aplikację",
+    "bot_settings":  "Ustawienia aplikacji",
+    "delete_bot":  "Usuń",
+    "delete_bot_confirm":  "Usunięcie aplikacji spowoduje usunięcie wszystkich sesji w tej aplikacji. Potwierdź operację!",
+    "no_bots_found":  "Nie znaleziono aplikacji",
+    "no_description_available":  "Brak dostępnego opisu",
+    "general":  "Ogólne",
+    "model_config":  "Ustawienia modelu",
+    "title":  "Tytuł",
+    "title_placeholder":  "Tytuł aplikacji",
+    "description":  "Opis",
+    "description_placeholder":  "Krótko przedstaw przeznaczenie aplikacji.",
+    "collection":  "Kolekcja",
+    "collection_placeholder":  "Wybierz kolekcję",
+    "no_collection_found":  "Nie znaleziono kolekcji.",
+    "model":  "Model",
+    "model_description":  "Ustawienie domyślnego modelu będzie obowiązywało dla wszystkich nowych sesji.",
+    "system_prompt_template":  "Szablon System Prompt",
+    "system_prompt_template_placeholder":  "Szablon System Prompt",
+    "system_prompt_template_description":  "System Prompt definiuje rolę AI i reguły zachowania, ustawiając ogólny kontekst interakcji.",
+    "query_prompt_template":  "Szablon Query Prompt",
+    "query_prompt_template_placeholder":  "Szablon Query Prompt",
+    "query_prompt_template_description":  "Query Prompt reprezentuje konkretne zapytanie użytkownika, które AI przetwarza w ramach kontekstu System Prompt.",
+    "restore_to_default":  "Przywróć domyślne"
+}

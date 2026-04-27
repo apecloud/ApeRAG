@@ -1,0 +1,16 @@
+﻿{
+    "repositories":  "Repozytoria",
+    "marketplace":  "Marketplace",
+    "collections":  "Kolekcje",
+    "bots":  "Boty",
+    "chats":  "Czaty",
+    "chats_new":  "Utwórz czat",
+    "display_empty_title":  "Nowy czat",
+    "more":  "Więcej",
+    "settings":  "Ustawienia",
+    "models":  "Modele",
+    "api_keys":  "Klucze API",
+    "audit_logs":  "Dzienniki audytu",
+    "quotas":  "Limity",
+    "prompts":  "Prompty"
+}

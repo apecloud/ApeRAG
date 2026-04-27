@@ -1,0 +1,880 @@
+{
+  "activity": {
+    "thinking": {
+      "title": "Analiza pytania",
+      "subtitle": "Wyjaśniam Twój cel i ustalam, jakie informacje są potrzebne."
+    },
+    "searching_knowledge": {
+      "title": "Wyszukiwanie źródeł",
+      "subtitle": "Przeszukuję bazę wiedzy lub sieć w poszukiwaniu informacji związanych z pytaniem.",
+      "detail": {
+        "keyword": "Szukam informacji o „{keyword}”",
+        "source_name": "Źródło: {sourceName}",
+        "count": "Przeanalizowano {count} wyników"
+      }
+    },
+    "reading_source": {
+      "title": "Czytanie źródeł",
+      "subtitle": "Wybieram fragmenty najistotniejsze dla Twojego pytania.",
+      "detail": {
+        "source_name": "Źródło: {sourceName}"
+      }
+    },
+    "comparing_results": {
+      "title": "Porównywanie wyników",
+      "subtitle": "Selekcjonuję najbardziej trafne i wiarygodne informacje.",
+      "detail": {
+        "count": "Porównano {count} wyników"
+      }
+    },
+    "writing_answer": {
+      "title": "Przygotowywanie odpowiedzi",
+      "subtitle": "Porządkuję informacje w finalną odpowiedź."
+    },
+    "waiting": {
+      "title": "Przygotowanie kolejnego kroku",
+      "subtitle": "Przygotowuję się do następnego etapu."
+    },
+    "completed": {
+      "title": "Odpowiedź gotowa",
+      "subtitle": "Wszystko, co potrzebne do odpowiedzi, zostało przygotowane."
+    },
+    "error": {
+      "title": "Proces przerwany",
+      "subtitle": "To uruchomienie nie zakończyło się pomyślnie."
+    }
+  },
+  "admin_config": {
+    "metadata": {
+      "title": "Konfiguracja",
+      "description": "Sekcja umożliwia administratorom definiowanie i zarządzanie ustawieniami systemowymi obowiązującymi w całej platformie. Te globalne parametry kontrolują podstawowe funkcje, polityki bezpieczeństwa, progi wydajności i inne kluczowe konfiguracje."
+    },
+    "mineru_api": "Użyj MinerU API",
+    "mineru_api_description": "Po włączeniu system będzie priorytetowo używał MinerU API do parsowania dokumentów, aby poprawić jakość i szybkość przetwarzania.",
+    "mineru_api_token": "Token MinerU API",
+    "mineru_api_token_tips": "Wskazówka: Oficjalny token MinerU API jest ważny przez 14 dni. Wymień go przed wygaśnięciem.",
+    "check": "Sprawdź",
+    "mineru_api_token_required": "Token MinerU API jest wymagany.",
+    "mineru_api_token_invalid": "Nieprawidłowy token",
+    "use_markitdown": "Użyj markitdown",
+    "use_markitdown_description": "Po włączeniu system będzie używał markitdown do parsowania dokumentów.",
+    "parser_health_title": "Stan parsera",
+    "parser_health_description": "Pokazuje aktualną ścieżkę parsera, gotowość zależności, dostępność usług zewnętrznych oraz poziomy wsparcia widoczne dla klientów.",
+    "parser_health_refresh": "Odśwież",
+    "parser_health_loading": "Ładowanie stanu parsera...",
+    "parser_health_load_failed": "Nie udało się załadować stanu parsera.",
+    "parser_health_default_parser": "Domyślny parser",
+    "parser_health_parser_order": "Kolejność włączonych parserów",
+    "parser_health_dependencies": "Zależności",
+    "parser_health_services": "Usługi zewnętrzne",
+    "parser_health_support_matrix": "Macierz wsparcia",
+    "parser_health_requirements": "Wymagania",
+    "parser_health_warnings": "Ostrzeżenia",
+    "parser_health_recommendations": "Rekomendacje",
+    "parser_health_none": "Brak",
+    "system_default_quota": "Domyślne limity użytkowników",
+    "system_default_quota_description": "Te domyślne limity pomagają utrzymać stabilność systemu, zapobiegają nadmiernemu wykorzystaniu zasobów i zapewniają sprawiedliwą alokację między użytkownikami i aplikacjami."
+  },
+  "admin_users": {
+    "metadata": {
+      "title": "Zarządzanie użytkownikami",
+      "description": "Moduł umożliwia administratorom centralną kontrolę i organizację wszystkich użytkowników systemu z bezpiecznymi konfiguracjami dostępu. Efektywnie zarządzaj tożsamościami, uprawnieniami i politykami uwierzytelniania w całej organizacji."
+    },
+    "search": "Wyszukaj użytkowników",
+    "user_name": "Użytkownik",
+    "user_role": "Rola",
+    "user_status": "Status",
+    "user_source": "Źródło",
+    "user_creation_time": "Data utworzenia",
+    "user_quotas": "Limity",
+    "user_quotas_recalculate": "Przelicz",
+    "user_logs": "Dzienniki audytu",
+    "user_delete": "Usuń"
+  },
+  "common": {
+    "site": {
+      "metadata": {
+        "applicationName": "INEO Sage",
+        "authors": {
+          "url": "https://github.com/apecloud/ApeRAG",
+          "name": "INEO"
+        },
+        "title": "INEO Sage",
+        "description": "Produkcyjna platforma RAG z wyszukiwaniem grafowym, wektorowym i pełnotekstowym."
+      }
+    },
+    "action": {
+      "save": "Zapisz",
+      "cancel": "Anuluj",
+      "continue": "Kontynuuj",
+      "update": "Aktualizuj"
+    },
+    "tips": {
+      "confirm": "Czy na pewno chcesz kontynuować?",
+      "update_success": "Aktualizacja zakończona pomyślnie.",
+      "create_success": "Utworzono pomyślnie.",
+      "delete_success": "Usunięto pomyślnie!",
+      "save_success": "Zapisano pomyślnie!"
+    }
+  },
+  "components": {
+    "dmermaid": {
+      "graph": "Wykres",
+      "data": "Dane"
+    },
+    "copy_to_clipboard": {
+      "copied": "Skopiowano"
+    },
+    "datetime_picker_24h": {
+      "clear": "Wyczyść",
+      "close": "Zamknij",
+      "now": "Teraz"
+    },
+    "datagrid": {
+      "empty": "Brak wyników."
+    },
+    "pagination": {
+      "per_page": "Wierszy na stronę",
+      "page_info": "Strona {page} z {total}"
+    }
+  },
+  "page_api_keys": {
+    "metadata": {
+      "title": "Klucze API",
+      "description": "Sekcja umożliwia bezpieczne przechowywanie, aktualizację i zarządzanie kluczami API dla różnych usług AI (takich jak OpenAI, Anthropic, Gemini itp.). Połączenie kluczy umożliwia spersonalizowaną interakcję z AI przy zachowaniu bezpieczeństwa danych."
+    },
+    "description": "Opis",
+    "search_api_keys": "Wyszukaj",
+    "creation_time": "Data utworzenia",
+    "last_used_time": "Ostatnio użyty",
+    "api_keys": "Klucze API",
+    "api_key_placeholder": "Opisz przeznaczenie klucza API.",
+    "api_key_description": "Klucze API muszą być poufne (np. przechowywane w zmiennych środowiskowych), aby uniknąć nadużyć lub nieoczekiwanych kosztów.",
+    "add_api_keys": "Utwórz klucz API",
+    "edit_api_keys": "Edytuj",
+    "delete_api_key": "Usuń klucz API",
+    "delete_api_key_confirm": "Potwierdzić usunięcie klucza API?",
+    "created_api_key_title": "Klucz API utworzony",
+    "created_api_key_description": "To jedyny moment, w którym pełny klucz API jest widoczny. Skopiuj go i zapisz w bezpiecznym miejscu przed zamknięciem okna.",
+    "created_api_key_label": "Wygenerowany klucz API",
+    "created_api_key_hint": "Każda osoba posiadająca ten klucz może uzyskać dostęp do API INEO Sage z uprawnieniami Twojego konta.",
+    "copy_created_api_key": "Skopiuj klucz API",
+    "saved_api_key": "Zapisałem(-am) ten klucz",
+    "masked_badge": "Ukryty",
+    "masked_notice": "W tabeli wyświetlany jest tylko zamaskowany podgląd każdego klucza API. Pełny klucz można skopiować tylko raz, w momencie utworzenia."
+  },
+  "page_audit_logs": {
+    "metadata": {
+      "title": "Dzienniki audytu",
+      "description": "Śledź i przeglądaj wszystkie krytyczne aktywności systemu dzięki Dziennikom audytu — szczegółowemu zapisowi działań użytkowników, wywołań API i zmian administracyjnych. Zapewnij przejrzystość, bezpieczeństwo i zgodność, monitorując kto, co, kiedy i skąd wykonał."
+    },
+    "search_placeholder": "Wyszukaj po nazwie API",
+    "status": "Status",
+    "duration": "Czas trwania",
+    "start_time": "Czas rozpoczęcia"
+  },
+  "page_auth": {
+    "account": "Konto",
+    "administrator": "Administrator",
+    "docs": "Dokumentacja",
+    "username": "Nazwa użytkownika",
+    "username_placeholder": "Nazwa użytkownika",
+    "password": "Hasło",
+    "password_placeholder": "Hasło",
+    "email": "Adres e-mail",
+    "email_placeholder": "Adres e-mail",
+    "signin": "Zaloguj się",
+    "login_in_with_a_third_party_account": "Zaloguj się przez konto zewnętrzne",
+    "login_with_google": "Zaloguj przez Google",
+    "login_with_github": "Zaloguj przez GitHub",
+    "or_continue_with": "Lub kontynuuj z",
+    "welcome_back": "Witamy ponownie",
+    "forgot_your_password": "Nie pamiętasz hasła?",
+    "do_not_have_an_account": "Nie masz konta? ",
+    "signup": "Zarejestruj się",
+    "register_an_account": "Załóż konto",
+    "already_hava_an_account": "Masz już konto? ",
+    "signout": "Wyloguj",
+    "processing_oauth_login": "Przetwarzanie logowania OAuth...",
+    "oauth_successful": "Logowanie OAuth zakończone sukcesem",
+    "the_system_will_automatically_redirect": "system automatycznie przekieruje",
+    "authentication": "Uwierzytelnianie",
+    "go_back_home": "Wróć na stronę główną",
+    "retry": "Spróbuj ponownie",
+    "oauth_verification_failed": "Weryfikacja OAuth nie powiodła się",
+    "an_unexpected_error_occurred": "Wystąpił nieoczekiwany błąd",
+    "verify_request_title": "Sprawdź swoją skrzynkę e-mail",
+    "verify_request_description": "Link logowania został wysłany na Twój adres e-mail.",
+    "sign_in_again": "Zaloguj się ponownie"
+  },
+  "page_benchmarks": {
+    "metadata": {
+      "title": "Zestawy testowe"
+    },
+    "entry_badge": "Zestawy testowe",
+    "hero_title": "Twórz zestawy testowe do oceny kolekcji",
+    "hero_description": "Przygotuj zestawy testowe i opublikuj wersje przed uruchomieniem zadań ewaluacji bota.",
+    "step_create_dataset": "Utwórz zestaw",
+    "step_publish_version": "Opublikuj wersję",
+    "step_start_run": "Uruchom test",
+    "first_use_title": "Pierwsza konfiguracja",
+    "first_use_description": "Utwórz zestaw, opublikuj wersję z przypadkami testowymi, a następnie uruchom ewaluację ze strony bota.",
+    "first_use_dataset_hint": "Zestawy grupują przypadki testowe dla kolekcji.",
+    "first_use_version_hint": "Każda wersja zamraża przypadki testowe używane do ewaluacji.",
+    "first_use_run_hint": "Uruchomienia wykonują bota względem opublikowanej wersji testowej.",
+    "datasets": "Zestawy",
+    "versions": "Wersje",
+    "runs": "Uruchomienia",
+    "choose_bot_hint": "Użyj tego ID wersji podczas tworzenia uruchomienia ewaluacji dla bota.",
+    "ready_datasets": "Gotowe zestawy",
+    "cases": "Przypadki",
+    "datasets_section_title": "Zestawy testowe",
+    "datasets_section_description": "Zarządzaj ręcznie przygotowanymi zestawami testowymi i publikuj wersje wielokrotnego użytku do ewaluacji.",
+    "search_placeholder": "Wyszukaj zestawy",
+    "create_dataset": "Utwórz zestaw",
+    "empty_title": "Brak zestawów testowych",
+    "empty_description": "Utwórz pierwszy zestaw testowy, aby zacząć budować przypadki ewaluacji dla tej kolekcji.",
+    "no_description": "Brak opisu",
+    "source_type": "Typ źródła",
+    "latest_version": "Najnowsza wersja",
+    "version_count": "Liczba wersji",
+    "created_at": "Utworzono",
+    "create_version": "Utwórz wersję",
+    "publish_first_version": "Opublikuj pierwszą wersję",
+    "create_dataset_title": "Utwórz zestaw testowy",
+    "create_dataset_description": "Utwórz zestaw testowy dla tej kolekcji. Możesz od razu opublikować pierwszą wersję.",
+    "dataset_name_label": "Nazwa zestawu",
+    "dataset_name_placeholder": "Wprowadź nazwę zestawu",
+    "dataset_description_label": "Opis zestawu",
+    "dataset_description_placeholder": "Opisz, co ten zestaw ma mierzyć",
+    "cancel": "Anuluj",
+    "create_dataset_name_required": "Nazwa zestawu jest wymagana",
+    "create_dataset_missing_id": "Zestaw został utworzony, ale nie zwrócono ID",
+    "create_dataset_success": "Zestaw utworzony",
+    "create_dataset_failed": "Nie udało się utworzyć zestawu",
+    "create_version_title": "Opublikuj wersję testową",
+    "create_version_description": "Opublikuj wersję dla wybranego zestawu.",
+    "create_version_description_named": "Opublikuj wersję dla {dataset}.",
+    "version_name_label": "Nazwa wersji",
+    "version_name_placeholder": "Wprowadź nazwę wersji",
+    "case_key_label": "Klucz przypadku",
+    "case_key_placeholder": "Wprowadź unikalny klucz przypadku",
+    "create_version_helper": "Każda opublikowana wersja powinna zawierać stabilne przypadki, które mogą być wielokrotnie używane przez uruchomienia ewaluacji.",
+    "input_message_label": "Wiadomość wejściowa",
+    "input_message_placeholder": "Wprowadź zapytanie użytkownika do oceny",
+    "expected_answer_label": "Oczekiwana odpowiedź",
+    "expected_answer_placeholder": "Opcjonalne: wprowadź idealną odpowiedź",
+    "reference_context_label": "Kontekst referencyjny",
+    "reference_context_placeholder": "Opcjonalne: wprowadź wspierający kontekst",
+    "create_version_input_required": "Wiadomość wejściowa jest wymagana",
+    "create_version_missing_id": "Wersja została utworzona, ale nie zwrócono ID",
+    "create_version_success": "Wersja utworzona",
+    "create_version_failed": "Nie udało się utworzyć wersji",
+    "created_version_title": "Wersja testowa opublikowana",
+    "created_version_description": "Zestaw {dataset} opublikował wersję {version}.",
+    "published_version_id": "ID opublikowanej wersji",
+    "not_available_title": "Zestawy testowe niedostępne",
+    "not_available_description": "API zestawów testowych nie są dostępne w tym środowisku.",
+    "error_title": "Nie można załadować zestawów testowych",
+    "error_description": "Wystąpił błąd podczas ładowania zestawów testowych.",
+    "status.draft": "Wersja robocza",
+    "status.published": "Opublikowano",
+    "status.archived": "Zarchiwizowano",
+    "status.queued": "W kolejce",
+    "status.pending": "Oczekuje",
+    "status.running": "W trakcie",
+    "status.completed": "Zakończono",
+    "status.failed": "Niepowodzenie",
+    "status.cancelled": "Anulowano"
+  },
+  "page_bot": {
+    "metadata": {
+      "title": "Aplikacje",
+      "description": "INEO Sage to nowy chatbot oparty na lokalnych zbiorach danych, wykorzystujący wiele dużych modeli językowych."
+    },
+    "search": "Wyszukaj aplikację",
+    "new_bot": "Utwórz aplikację",
+    "bot_settings": "Ustawienia aplikacji",
+    "delete_bot": "Usuń",
+    "delete_bot_confirm": "Usunięcie aplikacji spowoduje usunięcie wszystkich sesji w tej aplikacji. Potwierdź operację!",
+    "no_bots_found": "Nie znaleziono aplikacji",
+    "no_description_available": "Brak dostępnego opisu",
+    "general": "Ogólne",
+    "model_config": "Ustawienia modelu",
+    "title": "Tytuł",
+    "title_placeholder": "Tytuł aplikacji",
+    "description": "Opis",
+    "description_placeholder": "Krótko przedstaw przeznaczenie aplikacji.",
+    "collection": "Kolekcja",
+    "collection_placeholder": "Wybierz kolekcję",
+    "no_collection_found": "Nie znaleziono kolekcji.",
+    "model": "Model",
+    "model_description": "Ustawienie domyślnego modelu będzie obowiązywało dla wszystkich nowych sesji.",
+    "system_prompt_template": "Szablon System Prompt",
+    "system_prompt_template_placeholder": "Szablon System Prompt",
+    "system_prompt_template_description": "System Prompt definiuje rolę AI i reguły zachowania, ustawiając ogólny kontekst interakcji.",
+    "query_prompt_template": "Szablon Query Prompt",
+    "query_prompt_template_placeholder": "Szablon Query Prompt",
+    "query_prompt_template_description": "Query Prompt reprezentuje konkretne zapytanie użytkownika, które AI przetwarza w ramach kontekstu System Prompt.",
+    "restore_to_default": "Przywróć domyślne"
+  },
+  "page_bot_evaluation": {
+    "metadata": {
+      "title": "Ewaluacje"
+    },
+    "hero_title": "Oceń swojego bota za pomocą powtarzalnych uruchomień",
+    "hero_description": "Twórz uruchomienia ewaluacji względem opublikowanych wersji zestawów testowych i przeglądaj wyniki, ślady wywołań i błędy w jednym miejscu.",
+    "runs_badge": "Ewaluacja bota",
+    "step_prepare_dataset": "Przygotuj zestaw testowy",
+    "step_create_run": "Utwórz uruchomienie",
+    "step_review_results": "Przejrzyj wyniki",
+    "runs_scope_title": "Zakres ewaluacji",
+    "runs_scope_description": "Każde uruchomienie jest wykonywane względem jednego bota i jednej opublikowanej wersji zestawu testowego.",
+    "bot_scope": "Zakres bota",
+    "runs_scope_helper": "Wybierz opublikowaną wersję zestawu testowego ze strony zestawów testowych kolekcji przed rozpoczęciem uruchomienia.",
+    "prefilled_dataset_version": "Wstępnie wypełniona wersja zestawu",
+    "runs_panel_title": "Uruchomienia ewaluacji",
+    "runs_panel_description": "Śledź ostatnie uruchomienia, bieżący postęp i podsumowania wyników.",
+    "runs_section_title": "Uruchomienia",
+    "runs_section_description": "Używaj uruchomień ewaluacji do porównywania zachowania bota względem stabilnej wersji testowej.",
+    "search_placeholder": "Wyszukaj uruchomienia lub elementy",
+    "create_run": "Utwórz uruchomienie",
+    "create_run_title": "Utwórz uruchomienie ewaluacji",
+    "create_run_description": "Rozpocznij nowe uruchomienie ewaluacji dla tego bota.",
+    "create_run_helper": "Użyj ID opublikowanej wersji zestawu testowego ze strony zestawów testowych.",
+    "dataset_version_id_label": "ID wersji zestawu",
+    "dataset_version_id_placeholder": "Wprowadź ID wersji zestawu",
+    "run_name_label": "Nazwa uruchomienia",
+    "run_name_placeholder": "Opcjonalne: wprowadź nazwę uruchomienia",
+    "dataset_version_id_required": "ID wersji zestawu jest wymagane",
+    "missing_bot": "Brak informacji o bocie",
+    "create_run_success": "Uruchomienie ewaluacji utworzone",
+    "create_run_failed": "Nie udało się utworzyć uruchomienia ewaluacji",
+    "empty_title": "Brak uruchomień ewaluacji",
+    "empty_description": "Utwórz pierwsze uruchomienie ewaluacji po opublikowaniu wersji zestawu testowego.",
+    "not_available_title": "Ewaluacja niedostępna",
+    "not_available_description": "API ewaluacji nie są dostępne w tym środowisku.",
+    "error_title": "Nie można załadować danych ewaluacji",
+    "error_description": "Wystąpił błąd podczas ładowania uruchomień ewaluacji.",
+    "summary_total": "Łącznie",
+    "summary_running": "W trakcie",
+    "summary_failed": "Niepowodzenie",
+    "summary_completed": "Zakończono",
+    "avg_score": "Śr. wynik",
+    "run_detail": "Szczegóły uruchomienia",
+    "dataset_version": "Wersja zestawu",
+    "progress": "Postęp",
+    "created_at": "Utworzono",
+    "updated_at": "Zaktualizowano",
+    "items": "Elementy",
+    "items_description": "Sprawdź wyniki każdego przypadku testowego i ponów próbę dla niepowodzeń, jeśli to konieczne.",
+    "empty_detail_title": "Nie znaleziono uruchomienia",
+    "empty_detail_description": "Nie można było załadować żądanego uruchomienia ewaluacji.",
+    "empty_items_title": "Nie znaleziono elementów",
+    "empty_items_description": "Żaden element ewaluacji nie pasuje do bieżącego filtra.",
+    "runs": "Uruchomienia",
+    "cancel": "Anuluj",
+    "cancel_run": "Anuluj uruchomienie",
+    "cancel_success": "Uruchomienie anulowane",
+    "action_failed": "Akcja nie powiodła się",
+    "retry_success": "Próba ponowna wysłana",
+    "attempt_label": "Próba",
+    "case_key": "Klucz przypadku",
+    "status_label": "Status",
+    "score": "Wynik",
+    "latest_attempt": "Ostatnia próba",
+    "trace": "Trace",
+    "error": "Błąd",
+    "actions": "Akcje",
+    "retry_item": "Ponów element",
+    "open_chat": "Otwórz czat",
+    "open_collection_evaluation": "Otwórz zestawy testowe kolekcji",
+    "status.queued": "W kolejce",
+    "status.pending": "Oczekuje",
+    "status.running": "W trakcie",
+    "status.completed": "Zakończono",
+    "status.failed": "Niepowodzenie",
+    "status.cancelled": "Anulowano"
+  },
+  "page_chat": {
+    "metadata": {
+      "title": "Czaty"
+    },
+    "hello_world": "Cześć, jestem INEO Sage.",
+    "rag_description": "INEO Sage to produkcyjna platforma RAG łącząca wyszukiwanie grafowe, wektorowe i pełnotekstowe — zapewnia hybrydowe wyszukiwanie, zarządzanie wiedzą i korporacyjne aplikacje AI.",
+    "mention_a_collection": "Wpisz @, aby wzmiankować kolekcję...",
+    "display_empty_title": "Nowy czat",
+    "no_collection_was_found": "Nie znaleziono kolekcji",
+    "web_search": "Wyszukiwanie w sieci",
+    "web_search_is_enabled": "Wyszukiwanie w sieci jest włączone",
+    "web_search_is_disabled": "Wyszukiwanie w sieci jest wyłączone",
+    "references": "Źródła",
+    "activity_stream": {
+      "label": "Strumień aktywności",
+      "empty": "Oczekiwanie na zdarzenia aktywności...",
+      "repeated": "Powtórzono {count} razy podczas trwania tego kroku.",
+      "status": {
+        "queued": "W kolejce",
+        "running": "W trakcie",
+        "completed": "Zakończono",
+        "failed": "Niepowodzenie",
+        "cancelled": "Anulowano"
+      },
+      "item_status": {
+        "waiting": "Oczekuje",
+        "running": "W trakcie",
+        "completed": "Zakończono",
+        "failed": "Problem"
+      },
+      "target_type": {
+        "knowledge_base": "baza wiedzy",
+        "document": "dokument",
+        "web": "sieć",
+        "chat_history": "historia czatu"
+      },
+      "debug": {
+        "title": "Szczegóły debugowania",
+        "technical_type": "Zdarzenie techniczne",
+        "command_input": "Wejście narzędzia",
+        "result_summary": "Wynik narzędzia",
+        "turn_id": "ID tury",
+        "request_id": "ID żądania",
+        "status": "Status",
+        "error_code": "Kod błędu",
+        "error_message": "Komunikat błędu"
+      }
+    },
+    "answer_section": {
+      "failure_details": "Szczegóły niepowodzenia",
+      "run_failed": "Uruchomienie nie powiodło się",
+      "cancelled_output": "Anulowane wyjście",
+      "run_cancelled": "Uruchomienie anulowane",
+      "final_answer": "Ostateczna odpowiedź",
+      "draft_answer": "Wersja robocza odpowiedzi",
+      "answer": "Odpowiedź",
+      "failed_empty": "To uruchomienie zakończyło się przed wygenerowaniem ostatecznej odpowiedzi.",
+      "cancelled_empty": "To uruchomienie zostało anulowane przed wygenerowaniem ostatecznej odpowiedzi.",
+      "pending_empty": "Odpowiedź pojawi się tutaj po zakończeniu strumienia aktywności."
+    },
+    "feedback": {
+      "title": "Powiedz nam, co myślisz",
+      "choose_a_category": "Wybierz kategorię swojej opinii poniżej.",
+      "Harmful": {
+        "title": "Szkodliwe",
+        "description": "Promuje niebezpieczne, brutalne lub dyskryminujące działania."
+      },
+      "Unsafe": {
+        "title": "Niebezpieczne",
+        "description": "Zawiera ryzykowne lub fizycznie niebezpieczne informacje."
+      },
+      "Fake": {
+        "title": "Fałszywe",
+        "description": "Celowo fałszywe, mylące lub wprowadzające w błąd."
+      },
+      "Unhelpful": {
+        "title": "Nieprzydatne",
+        "description": "Nietrafne, źle wyjaśnione lub nieodpowiadające na pytanie."
+      },
+      "Other": {
+        "title": "Inne",
+        "description": "Każdy problem nieobjęty powyższymi kategoriami."
+      },
+      "share_your_feedback": "Podziel się opinią",
+      "share_your_feedback_placeholder": "Podziel się opinią, abyśmy mogli dalej ulepszać Twoje doświadczenie."
+    }
+  },
+  "page_collection_new": {
+    "metadata": {
+      "title": "Dodaj kolekcję",
+      "description": "Importując i systematycznie organizując źródła danych w ustrukturyzowanej kolekcji, możesz znacząco poprawić zrozumienie kontekstu i dokładność odpowiedzi dużych modeli językowych (LLM)."
+    }
+  },
+  "page_collections": {
+    "metadata": {
+      "title": "Kolekcje",
+      "description": "Importując i systematycznie organizując źródła danych w ustrukturyzowanej kolekcji, możesz znacząco poprawić zrozumienie kontekstu i dokładność odpowiedzi dużych modeli językowych (LLM)."
+    },
+    "search": "Wyszukaj",
+    "no_collections_found": "Nie znaleziono kolekcji",
+    "settings": "Ustawienia",
+    "general": "Ogólne",
+    "private": "Prywatna",
+    "public": "Publiczna",
+    "mine": "Moje",
+    "subscribed": "Zasubskrybowane",
+    "subscribe": "Subskrybuj",
+    "no_description_available": "Brak dostępnego opisu",
+    "create_collection": "Utwórz kolekcję",
+    "update_collection": "Aktualizuj kolekcję",
+    "delete_collection": "Usuń kolekcję",
+    "delete_collection_confirm": "Tej operacji nie można cofnąć. Spowoduje to trwałe usunięcie kolekcji oraz dokumentów z naszych serwerów.",
+    "publish_collection": "Opublikuj w Marketplace",
+    "publish_collection_description": "Pozwól użytkownikom odkrywać i subskrybować Twoją kolekcję.",
+    "published_success": "Kolekcja opublikowana pomyślnie",
+    "unpublished_success": "Kolekcja wycofana z publikacji pomyślnie",
+    "unpublish_collection": "Wycofaj z Marketplace",
+    "unpublish_collection_description": "Usuń kolekcję z Marketplace, czyniąc ją prywatną.",
+    "name": "Nazwa",
+    "name_placeholder": "Wyświetlana nazwa kolekcji.",
+    "language": "Język",
+    "language_zh_CN": "Chiński uproszczony",
+    "language_en_US": "Angielski",
+    "language_pl_PL": "Polski",
+    "description": "Opis",
+    "description_placeholder": "Opisz ogólne znaczenie kolekcji.",
+    "index_types": "Typy indeksów",
+    "index_types_description": "Wybierz potrzebne funkcje AI — zbudujemy odpowiednie indeksy dla Twoich dokumentów",
+    "index_type_VECTOR": {
+      "title": "Wektorowy",
+      "description": "Reprezentuje dane (tekst, obrazy itp.) jako wielowymiarowe wektory, umożliwiając wyszukiwanie oparte na podobieństwie."
+    },
+    "index_type_FULLTEXT": {
+      "title": "Pełnotekstowy",
+      "description": "Indeksuje słowa kluczowe w tekście za pomocą technik takich jak indeks odwrócony dla dopasowania dokładnego lub rozmytego."
+    },
+    "index_type_GRAPH": {
+      "title": "Grafowy",
+      "description": "Przechowuje dane jako węzły (encje) i krawędzie (relacje), umożliwiając złożone zapytania relacyjne."
+    },
+    "index_type_SUMMARY": {
+      "title": "Streszczenie",
+      "description": "Indeksuje streszczenia lub metadane długich dokumentów zamiast surowej treści dla szybszego wyszukiwania."
+    },
+    "index_type_VISION": {
+      "title": "Wizyjny",
+      "description": "Koduje treści wizualne (obrazy/wideo) jako wektory cech dla wyszukiwania po treści."
+    },
+    "required": "Wymagane",
+    "model_settings": "Ustawienia modelu",
+    "model_settings_description": "Wybierz modele AI do przetwarzania dokumentów. Różne typy indeksów wymagają wsparcia różnych modeli.",
+    "embedding_model": "Embedding Model",
+    "embedding_model_description": "Embedding Model przekształca dane w wektory numeryczne, które oddają znaczenie semantyczne i relacje.",
+    "embedding_model_locked_badge": "Zablokowany po utworzeniu",
+    "embedding_model_locked_description": "Embedding Model nie może być zmieniony po utworzeniu kolekcji, ponieważ różne modele produkują niekompatybilne wektory. Utwórz nową kolekcję, jeśli potrzebujesz innego modelu.",
+    "completion_model": "Completion Model",
+    "completion_model_description": "Completion Model to AI generujące nową treść poprzez przewidywanie najbardziej prawdopodobnego kolejnego tekstu na podstawie danego wejścia.",
+    "export_knowledge_base": "Eksportuj bazę wiedzy",
+    "export_knowledge_base_confirm_title": "Eksportuj bazę wiedzy",
+    "export_knowledge_base_confirm_content": "Spowoduje to spakowanie całej zawartości bazy wiedzy z magazynu obiektów, w tym oryginalnych plików, sparsowanych artefaktów, danych fragmentów i obrazów.",
+    "export_knowledge_base_start": "Rozpocznij eksport",
+    "export_knowledge_base_processing_title": "Eksportowanie bazy wiedzy...",
+    "export_knowledge_base_progress_message": "Pobieranie plików: {current} / {total}",
+    "export_knowledge_base_completed_title": "Eksport zakończony!",
+    "export_knowledge_base_completed_description": "Rozmiar pliku: {size}. Plik zostanie automatycznie usunięty po 7 dniach.",
+    "export_knowledge_base_download": "Pobierz ZIP",
+    "export_knowledge_base_failed_title": "Eksport nie powiódł się",
+    "export_knowledge_base_failed_description": "Wystąpił błąd podczas eksportu. Spróbuj ponownie.",
+    "export_knowledge_base_retry": "Ponów",
+    "export_knowledge_base_too_many_tasks": "Zadanie eksportu jest już w toku. Poczekaj na jego zakończenie.",
+    "export_knowledge_base_link_expired": "Link eksportu wygasł. Wyeksportuj ponownie."
+  },
+  "page_docs": {
+    "metadata": {
+      "title": "Dokumentacja"
+    }
+  },
+  "page_documents": {
+    "metadata": {
+      "title": "Dokumenty"
+    },
+    "add_documents": "Dodaj dokumenty",
+    "index_rebuild": "Przebuduj indeks",
+    "index_rebuild_should_select_index_type": "Musisz wybrać co najmniej jeden element.",
+    "index_rebuild_failed": "Przebuduj nieudane indeksy",
+    "index_rebuild_failed_success": "Przebudowano pomyślnie.",
+    "index_rebuild_failed_confirm": "Czy na pewno chcesz przebudować wszystkie nieudane indeksy?",
+    "index_rebuild_tips": "Możesz skonfigurować typy indeksów w Ustawieniach.",
+    "index_rebuild_with": "Przebudowa indeksów rozpoczęta dla typów: {types}",
+    "delete_document": "Usuń dokument",
+    "delete_document_confirm": "Tej operacji nie można cofnąć. Spowoduje to trwałe usunięcie pliku oraz danych z naszych serwerów.",
+    "search_document": "Wyszukaj dokumenty",
+    "upload": "Prześlij",
+    "browse_files": "Przeglądaj pliki",
+    "save_to_collection": "Zapisz do kolekcji",
+    "drag_drop_files_here": "Przeciągnij i upuść pliki tutaj",
+    "or_click_to_browse_files": "Lub kliknij, aby przeglądać (maksymalnie 100MB na plik)",
+    "last_updated": "Ostatnia aktualizacja",
+    "file": "Plik",
+    "filename": "Nazwa pliku",
+    "file_type": "Typ",
+    "upload_progress": "Postęp",
+    "remove_file": "Usuń",
+    "clear_files": "Wyczyść",
+    "import_source_title": "Dodaj dokumenty do bazy wiedzy",
+    "import_source_file": "Prześlij plik",
+    "import_source_file_desc": "PDF, Word, Markdown itp.",
+    "import_source_url": "Adres URL",
+    "import_source_url_desc": "Pobierz treść ze stron internetowych",
+    "import_source_text": "Wklej tekst",
+    "import_source_text_desc": "Wklej zwykły tekst lub Markdown",
+    "import_url_title": "Importuj z URL",
+    "import_url_desc": "Wklej jeden URL na linię. Treść zostanie pobrana automatycznie.",
+    "import_url_placeholder": "https://example.com/article",
+    "import_url_tips_1": "Jeden URL na linię, maksymalnie 10 URL",
+    "import_url_tips_2": "Obsługiwane są tylko publicznie dostępne strony",
+    "import_url_tips_3": "Strony wymagające logowania nie mogą być pobrane",
+    "import_url_btn": "Pobierz i dodaj",
+    "import_url_fetching": "Pobieranie...",
+    "import_url_success": "Dodano {count} stron do obszaru roboczego",
+    "import_url_partial": "Sukces: {succeeded}, niepowodzenie: {failed}",
+    "import_text_title": "Wklej tekst",
+    "import_text_desc": "Wklej treść tekstową, aby zaimportować ją do bazy wiedzy.",
+    "import_text_title_label": "Tytuł (opcjonalny)",
+    "import_text_title_placeholder": "Moja notatka",
+    "import_text_content_label": "Treść",
+    "import_text_content_placeholder": "Wklej tekst tutaj...",
+    "import_text_btn": "Dodaj",
+    "import_text_uploading": "Dodawanie...",
+    "import_text_success": "Dokument tekstowy dodany do obszaru roboczego",
+    "add_more_sources": "Dodaj więcej",
+    "import_back": "Wróć",
+    "import_url_too_many": "Wprowadzono {count} URL — maksymalnie 10"
+  },
+  "page_evaluation": {
+    "metadata": {
+      "title": "Ewaluacje"
+    },
+    "search": "Wyszukaj historię",
+    "add_evaluation": "Dodaj ewaluację",
+    "delete_evaluation": "Usuń ewaluację",
+    "delete_evaluation_confirm": "Tej operacji nie można cofnąć. Spowoduje to trwałe usunięcie ewaluacji oraz danych z naszych serwerów.",
+    "retry_all_evaluation": "Ponów wszystkie",
+    "retry_all_evaluation_confirm": "Czy na pewno chcesz ponownie ocenić wszystkie pytania?",
+    "retry_failed_evaluation": "Ponów nieudane",
+    "retry_failed_evaluation_confirm": "Czy na pewno chcesz ponownie ocenić te nieudane pytania?",
+    "evaluation_history": "Historia ewaluacji",
+    "questions": "Pytanie",
+    "avg_score": "Śr. wynik",
+    "evaluation_name": "Nazwa ewaluacji",
+    "evaluation_name_placeholder": "Wprowadź nazwę ewaluacji",
+    "question_set": "Zestaw pytań",
+    "question_set_placeholder": "Wybierz zestaw pytań",
+    "add_question_set": "Dodaj zestaw pytań",
+    "agent_llm": "LLM agenta",
+    "agent_llm_placeholder": "Wybierz model agenta",
+    "judge_llm": "LLM oceniający",
+    "judge_llm_placeholder": "Wybierz model oceniający",
+    "ground_truth": "Wzorcowa odpowiedź",
+    "rag_answer": "Odpowiedź RAG",
+    "judge_reason": "Uzasadnienie LLM"
+  },
+  "page_graph": {
+    "metadata": {
+      "title": "Graf wiedzy"
+    },
+    "node_group": "Grupa węzłów",
+    "node_search": "Wyszukaj węzeł",
+    "no_nodes_found": "Nie znaleziono informacji o węzłach",
+    "merge_infomation": "{count} sugestii scalania",
+    "merge_suggestions": "Sugestie scalania",
+    "merge_accept": "Akceptuj",
+    "merge_reject": "Odrzuć",
+    "merge_accepted": "Zaakceptowano",
+    "merge_rejected": "Odrzucono",
+    "merge_pending": "Oczekuje",
+    "entity_person": "Osoba",
+    "entity_category": "Kategoria",
+    "entity_date": "Data",
+    "entity_product": "Produkt",
+    "entity_organization": "Organizacja",
+    "entity_technology": "Technologia",
+    "entity_geo": "Lokalizacja",
+    "entity_event": "Wydarzenie",
+    "entity_UNKNOWN": "Nieznany"
+  },
+  "page_marketplace": {
+    "metadata": {
+      "title": "Marketplace",
+      "description": "Odkrywaj i subskrybuj wartościowe kolekcje wiedzy udostępnione przez społeczność, poszerzaj swoje horyzonty wiedzy."
+    },
+    "no_collections_found": "Nie znaleziono kolekcji",
+    "no_description_available": "Brak dostępnego opisu",
+    "search": "Wyszukaj"
+  },
+  "page_models": {
+    "metadata": {
+      "provider_title": "Dostawca modeli",
+      "provider_description": "Sekcja umożliwia podłączenie i dostosowanie preferowanych dostawców LLM oraz modeli do osobistego użytku. Skonfiguruj klucze API, wybierz modele i dostosuj ustawienia, aby ulepszyć doświadczenia z AI.",
+      "model_title": "Modele",
+      "model_description": "Sekcja umożliwia podłączenie i dostosowanie preferowanych dostawców LLM oraz modeli do osobistego użytku. Skonfiguruj klucze API, wybierz modele i dostosuj ustawienia, aby ulepszyć doświadczenia z AI."
+    },
+    "provider": {
+      "search_placeholder": "Wyszukaj dostawcę modeli",
+      "add_provider": "Dodaj dostawcę",
+      "name": "Nazwa",
+      "name_placeholder": "Wyświetlana nazwa dostawcy.",
+      "base_url": "Base URL",
+      "base_url_placeholder": "Bazowy URL API",
+      "base_url_description": "Bazowy URL API LLM odnosi się do głównego adresu używanego do dostępu do usługi API dużego modelu językowego.",
+      "api_dialect": "Dialekt API",
+      "api_dialect_description": "Completion API Dialect sugeruje możliwe wyniki, Embedding API Dialect konwertuje je na wektory, a Rerank API Dialect optymalizuje ich kolejność na podstawie trafności semantycznej.",
+      "models_count": "Modele",
+      "scope": "Zakres",
+      "creation_time": "Data utworzenia",
+      "enabled": "Włączone",
+      "confirm_disabled": "Potwierdź wyłączenie tego dostawcy",
+      "private": "Prywatny",
+      "public": "Publiczny",
+      "edit": "Edytuj",
+      "api_key": "Klucz API",
+      "api_key_placeholder": "Wprowadź klucz API dla dostawcy modeli.",
+      "api_key_description": "Aby uzyskać dostęp do możliwości modelu AI, musisz podać prawidłowy klucz API od wybranego dostawcy modeli. Klucz pełni rolę bezpiecznej metody uwierzytelniania, umożliwiając systemowi przetwarzanie żądań przy zachowaniu prywatności i kontroli użycia.",
+      "edit_provider": "Edytuj dostawcę",
+      "delete": "Usuń",
+      "delete_confirm": "Tej operacji nie można cofnąć. Spowoduje to trwałe usunięcie dostawcy oraz danych z naszych serwerów.",
+      "publish": "Opublikuj jako publiczny",
+      "publish_confirm": "Potwierdź publikację tego dostawcy jako publicznego? Ta operacja jest nieodwracalna i dostawca będzie widoczny dla wszystkich administratorów.",
+      "publish_success": "Dostawca opublikowany pomyślnie"
+    },
+    "model": {
+      "search_placeholder": "Wyszukaj modele",
+      "add_model": "Dodaj model",
+      "name": "Nazwa modelu",
+      "name_placeholder": "Wprowadź nazwę modelu",
+      "llm_params": "Parametry LLM",
+      "agent": "Agent",
+      "collection": "Kolekcja",
+      "api_type": "Typ API",
+      "creation_time": "Data utworzenia",
+      "edit": "Edytuj",
+      "edit_model": "Edytuj model",
+      "delete": "Usuń",
+      "delete_confirm": "Potwierdzić usunięcie modelu?",
+      "custom_llm_provider": "Dostawca LLM",
+      "custom_llm_provider_placeholder": "Wprowadź dostawcę LLM"
+    },
+    "default_model": {
+      "config": "Konfiguracja modeli domyślnych",
+      "help": "Wyczyszczenie wyboru spowoduje usunięcie konfiguracji modelu domyślnego dla tego scenariusza"
+    }
+  },
+  "page_prompts": {
+    "metadata": {
+      "title": "Zarządzanie promptami",
+      "description": "Dostosuj systemowe prompty, aby zmienić zachowanie i styl rozmów asystenta AI. Zmiany nadpisują domyślne ustawienia systemu i mogą być w każdej chwili zresetowane."
+    },
+    "agent_system": {
+      "title": "System Prompt",
+      "description": "Definiuje osobowość, rolę i wytyczne zachowania asystenta AI. Wpływa na podstawowe zachowanie we wszystkich rozmowach."
+    },
+    "agent_query": {
+      "title": "Query Prompt",
+      "description": "Szablon zapytania dla każdej rozmowy. Kontroluje, jak pytania użytkownika i kontekst bazy wiedzy są łączone przed wysłaniem do AI."
+    },
+    "status": {
+      "customized": "Dostosowany",
+      "default": "Domyślny"
+    },
+    "action": {
+      "save": "Zapisz",
+      "reset": "Przywróć domyślny",
+      "reset_confirm": "Przywrócić ten prompt do domyślnego?",
+      "reset_confirm_description": "Spowoduje to usunięcie Twoich dostosowań i przywróci wbudowany domyślny prompt systemu."
+    },
+    "toast": {
+      "save_success": "Prompt zapisany pomyślnie",
+      "reset_success": "Prompt przywrócony do domyślnego"
+    }
+  },
+  "page_question_set": {
+    "metadata": {
+      "title": "Zestawy pytań"
+    },
+    "search": "Wyszukaj",
+    "add_question_set": "Dodaj zestaw pytań",
+    "update_question_set": "Aktualizuj zestaw pytań",
+    "delete_question_set": "Usuń zestaw pytań",
+    "delete_question_set_confirm": "Tej operacji nie można cofnąć. Spowoduje to trwałe usunięcie zestawu pytań oraz danych z naszych serwerów.",
+    "question_set_name": "Nazwa zestawu pytań",
+    "question_set_name_placeholder": "Wprowadź nazwę zestawu pytań.",
+    "question_set_description": "Opis",
+    "question_set_description_placeholder": "Wprowadź opis zestawu pytań.",
+    "add_question": "Dodaj pytanie",
+    "add_question_manual": "Ręcznie",
+    "add_question_generator": "Wygeneruj z kolekcji",
+    "add_question_import": "Importuj z pliku",
+    "update_question": "Aktualizuj pytanie",
+    "delete_question": "Usuń pytanie",
+    "delete_question_confirm": "Tej operacji nie można cofnąć. Spowoduje to trwałe usunięcie pytania.",
+    "question_content": "Pytanie",
+    "question_content_placeholder": "Wprowadź swoje pytanie...",
+    "ground_truth": "Wzorcowa odpowiedź",
+    "ground_truth_placeholder": "Wprowadź wzorcową odpowiedź...",
+    "no_question_found": "Nie znaleziono pytań",
+    "question_count": "Liczba pytań",
+    "question_count_placeholder": "Wprowadź liczbę pytań",
+    "question_llm": "Model LLM",
+    "question_llm_placeholder": "Wybierz model",
+    "prompt_template": "Szablon promptu",
+    "prompt_template_placeholder": "Wprowadź swój prompt...",
+    "prompt_template_tips": "Następujące zmienne zostaną zastąpione przez system:",
+    "prompt_template_document_content": "Treść dokumentu z kolekcji.",
+    "prompt_template_number_of_question": "Liczba pytań do wygenerowania."
+  },
+  "page_quota": {
+    "metadata": {
+      "title": "Limity",
+      "description": "Zarządzaj limitami użycia modeli AI, wywołań API i innych zasobów w tej sekcji. Limity pomagają kontrolować koszty, zapobiegają nadmiernemu użyciu i optymalizują doświadczenie."
+    },
+    "limit": "Limit",
+    "usage": "Użycie",
+    "bot_count": {
+      "title": "Liczba botów",
+      "description": "Górny limit aktywnych botów w systemie, zapobiegający nadmiernemu użyciu zasobów i zapewniający stabilność."
+    },
+    "collection_count": {
+      "title": "Liczba kolekcji",
+      "description": "Maksymalna dozwolona liczba kolekcji w bazie danych, kontrolująca złożoność struktury danych."
+    },
+    "document_count": {
+      "title": "Łączna liczba dokumentów",
+      "description": "Ogranicza całkowitą liczbę dokumentów we wszystkich kolekcjach, zarządzając ogólną pojemnością magazynu."
+    },
+    "documents_per_collection": {
+      "title": "Dokumenty na kolekcję",
+      "description": "Ogranicza dokumenty na kolekcję, optymalizując wydajność zapytań i równowagę danych."
+    },
+    "max_document_count_per_collection": "Dokumenty na kolekcję",
+    "max_document_count": "Łączna liczba dokumentów",
+    "max_collection_count": "Liczba kolekcji",
+    "max_bot_count": "Liczba botów"
+  },
+  "page_search": {
+    "metadata": {
+      "title": "Test wyszukiwania"
+    },
+    "search": "Wyszukaj",
+    "test": "Test",
+    "questions": "Pytania",
+    "questions_placeholder": "Wprowadź swoje pytanie.",
+    "creation_time": "Data utworzenia",
+    "search_result": "Wynik wyszukiwania",
+    "delete": "Usuń",
+    "delete_confirm": "Tej operacji nie można cofnąć. Spowoduje to trwałe usunięcie wyniku wyszukiwania.",
+    "vector_search": "Wektorowy",
+    "fulltext_search": "Pełnotekstowy",
+    "graph_search": "Grafowy",
+    "summary_search": "Streszczenie"
+  },
+  "sidebar_workspace": {
+    "repositories": "Repozytoria",
+    "marketplace": "Marketplace",
+    "collections": "Kolekcje",
+    "bots": "Boty",
+    "chats": "Czaty",
+    "chats_new": "Utwórz czat",
+    "display_empty_title": "Nowy czat",
+    "more": "Więcej",
+    "settings": "Ustawienia",
+    "models": "Modele",
+    "api_keys": "Klucze API",
+    "audit_logs": "Dzienniki audytu",
+    "quotas": "Limity",
+    "prompts": "Prompty"
+  }
+}
+
+
+
+
+

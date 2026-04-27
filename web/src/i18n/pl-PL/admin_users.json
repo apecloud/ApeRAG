@@ -1,0 +1,16 @@
+﻿{
+    "metadata":  {
+                     "title":  "Zarządzanie użytkownikami",
+                     "description":  "Moduł umożliwia administratorom centralną kontrolę i organizację wszystkich użytkowników systemu z bezpiecznymi konfiguracjami dostępu. Efektywnie zarządzaj tożsamościami, uprawnieniami i politykami uwierzytelniania w całej organizacji."
+                 },
+    "search":  "Wyszukaj użytkowników",
+    "user_name":  "Użytkownik",
+    "user_role":  "Rola",
+    "user_status":  "Status",
+    "user_source":  "Źródło",
+    "user_creation_time":  "Data utworzenia",
+    "user_quotas":  "Limity",
+    "user_quotas_recalculate":  "Przelicz",
+    "user_logs":  "Dzienniki audytu",
+    "user_delete":  "Usuń"
+}

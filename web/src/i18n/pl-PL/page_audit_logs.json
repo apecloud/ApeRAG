@@ -1,0 +1,10 @@
+﻿{
+    "metadata":  {
+                     "title":  "Dzienniki audytu",
+                     "description":  "Śledź i przeglądaj wszystkie krytyczne aktywności systemu dzięki Dziennikom audytu — szczegółowemu zapisowi działań użytkowników, wywołań API i zmian administracyjnych. Zapewnij przejrzystość, bezpieczeństwo i zgodność, monitorując kto, co, kiedy i skąd wykonał."
+                 },
+    "search_placeholder":  "Wyszukaj po nazwie API",
+    "status":  "Status",
+    "duration":  "Czas trwania",
+    "start_time":  "Czas rozpoczęcia"
+}

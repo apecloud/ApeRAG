@@ -1,0 +1,87 @@
+﻿{
+    "metadata":  {
+                     "title":  "Czaty"
+                 },
+    "hello_world":  "Cześć, jestem INEO Sage.",
+    "rag_description":  "INEO Sage to produkcyjna platforma RAG łącząca wyszukiwanie grafowe, wektorowe i pełnotekstowe — zapewnia hybrydowe wyszukiwanie, zarządzanie wiedzą i korporacyjne aplikacje AI.",
+    "mention_a_collection":  "Wpisz @, aby wzmiankować kolekcję...",
+    "display_empty_title":  "Nowy czat",
+    "no_collection_was_found":  "Nie znaleziono kolekcji",
+    "web_search":  "Wyszukiwanie w sieci",
+    "web_search_is_enabled":  "Wyszukiwanie w sieci jest włączone",
+    "web_search_is_disabled":  "Wyszukiwanie w sieci jest wyłączone",
+    "references":  "Źródła",
+    "activity_stream":  {
+                            "label":  "Strumień aktywności",
+                            "empty":  "Oczekiwanie na zdarzenia aktywności...",
+                            "repeated":  "Powtórzono {count} razy podczas trwania tego kroku.",
+                            "status":  {
+                                           "queued":  "W kolejce",
+                                           "running":  "W trakcie",
+                                           "completed":  "Zakończono",
+                                           "failed":  "Niepowodzenie",
+                                           "cancelled":  "Anulowano"
+                                       },
+                            "item_status":  {
+                                                "waiting":  "Oczekuje",
+                                                "running":  "W trakcie",
+                                                "completed":  "Zakończono",
+                                                "failed":  "Problem"
+                                            },
+                            "target_type":  {
+                                                "knowledge_base":  "baza wiedzy",
+                                                "document":  "dokument",
+                                                "web":  "sieć",
+                                                "chat_history":  "historia czatu"
+                                            },
+                            "debug":  {
+                                          "title":  "Szczegóły debugowania",
+                                          "technical_type":  "Zdarzenie techniczne",
+                                          "command_input":  "Wejście narzędzia",
+                                          "result_summary":  "Wynik narzędzia",
+                                          "turn_id":  "ID tury",
+                                          "request_id":  "ID żądania",
+                                          "status":  "Status",
+                                          "error_code":  "Kod błędu",
+                                          "error_message":  "Komunikat błędu"
+                                      }
+                        },
+    "answer_section":  {
+                           "failure_details":  "Szczegóły niepowodzenia",
+                           "run_failed":  "Uruchomienie nie powiodło się",
+                           "cancelled_output":  "Anulowane wyjście",
+                           "run_cancelled":  "Uruchomienie anulowane",
+                           "final_answer":  "Ostateczna odpowiedź",
+                           "draft_answer":  "Wersja robocza odpowiedzi",
+                           "answer":  "Odpowiedź",
+                           "failed_empty":  "To uruchomienie zakończyło się przed wygenerowaniem ostatecznej odpowiedzi.",
+                           "cancelled_empty":  "To uruchomienie zostało anulowane przed wygenerowaniem ostatecznej odpowiedzi.",
+                           "pending_empty":  "Odpowiedź pojawi się tutaj po zakończeniu strumienia aktywności."
+                       },
+    "feedback":  {
+                     "title":  "Powiedz nam, co myślisz",
+                     "choose_a_category":  "Wybierz kategorię swojej opinii poniżej.",
+                     "Harmful":  {
+                                     "title":  "Szkodliwe",
+                                     "description":  "Promuje niebezpieczne, brutalne lub dyskryminujące działania."
+                                 },
+                     "Unsafe":  {
+                                    "title":  "Niebezpieczne",
+                                    "description":  "Zawiera ryzykowne lub fizycznie niebezpieczne informacje."
+                                },
+                     "Fake":  {
+                                  "title":  "Fałszywe",
+                                  "description":  "Celowo fałszywe, mylące lub wprowadzające w błąd."
+                              },
+                     "Unhelpful":  {
+                                       "title":  "Nieprzydatne",
+                                       "description":  "Nietrafne, źle wyjaśnione lub nieodpowiadające na pytanie."
+                                   },
+                     "Other":  {
+                                   "title":  "Inne",
+                                   "description":  "Każdy problem nieobjęty powyższymi kategoriami."
+                               },
+                     "share_your_feedback":  "Podziel się opinią",
+                     "share_your_feedback_placeholder":  "Podziel się opinią, abyśmy mogli dalej ulepszać Twoje doświadczenie."
+                 }
+}

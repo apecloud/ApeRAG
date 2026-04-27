@@ -1,0 +1,57 @@
+﻿{
+    "metadata":  {
+                     "provider_title":  "Dostawca modeli",
+                     "provider_description":  "Sekcja umożliwia podłączenie i dostosowanie preferowanych dostawców LLM oraz modeli do osobistego użytku. Skonfiguruj klucze API, wybierz modele i dostosuj ustawienia, aby ulepszyć doświadczenia z AI.",
+                     "model_title":  "Modele",
+                     "model_description":  "Sekcja umożliwia podłączenie i dostosowanie preferowanych dostawców LLM oraz modeli do osobistego użytku. Skonfiguruj klucze API, wybierz modele i dostosuj ustawienia, aby ulepszyć doświadczenia z AI."
+                 },
+    "provider":  {
+                     "search_placeholder":  "Wyszukaj dostawcę modeli",
+                     "add_provider":  "Dodaj dostawcę",
+                     "name":  "Nazwa",
+                     "name_placeholder":  "Wyświetlana nazwa dostawcy.",
+                     "base_url":  "Base URL",
+                     "base_url_placeholder":  "Bazowy URL API",
+                     "base_url_description":  "Bazowy URL API LLM odnosi się do głównego adresu używanego do dostępu do usługi API dużego modelu językowego.",
+                     "api_dialect":  "Dialekt API",
+                     "api_dialect_description":  "Completion API Dialect sugeruje możliwe wyniki, Embedding API Dialect konwertuje je na wektory, a Rerank API Dialect optymalizuje ich kolejność na podstawie trafności semantycznej.",
+                     "models_count":  "Modele",
+                     "scope":  "Zakres",
+                     "creation_time":  "Data utworzenia",
+                     "enabled":  "Włączone",
+                     "confirm_disabled":  "Potwierdź wyłączenie tego dostawcy",
+                     "private":  "Prywatny",
+                     "public":  "Publiczny",
+                     "edit":  "Edytuj",
+                     "api_key":  "Klucz API",
+                     "api_key_placeholder":  "Wprowadź klucz API dla dostawcy modeli.",
+                     "api_key_description":  "Aby uzyskać dostęp do możliwości modelu AI, musisz podać prawidłowy klucz API od wybranego dostawcy modeli. Klucz pełni rolę bezpiecznej metody uwierzytelniania, umożliwiając systemowi przetwarzanie żądań przy zachowaniu prywatności i kontroli użycia.",
+                     "edit_provider":  "Edytuj dostawcę",
+                     "delete":  "Usuń",
+                     "delete_confirm":  "Tej operacji nie można cofnąć. Spowoduje to trwałe usunięcie dostawcy oraz danych z naszych serwerów.",
+                     "publish":  "Opublikuj jako publiczny",
+                     "publish_confirm":  "Potwierdź publikację tego dostawcy jako publicznego? Ta operacja jest nieodwracalna i dostawca będzie widoczny dla wszystkich administratorów.",
+                     "publish_success":  "Dostawca opublikowany pomyślnie"
+                 },
+    "model":  {
+                  "search_placeholder":  "Wyszukaj modele",
+                  "add_model":  "Dodaj model",
+                  "name":  "Nazwa modelu",
+                  "name_placeholder":  "Wprowadź nazwę modelu",
+                  "llm_params":  "Parametry LLM",
+                  "agent":  "Agent",
+                  "collection":  "Kolekcja",
+                  "api_type":  "Typ API",
+                  "creation_time":  "Data utworzenia",
+                  "edit":  "Edytuj",
+                  "edit_model":  "Edytuj model",
+                  "delete":  "Usuń",
+                  "delete_confirm":  "Potwierdzić usunięcie modelu?",
+                  "custom_llm_provider":  "Dostawca LLM",
+                  "custom_llm_provider_placeholder":  "Wprowadź dostawcę LLM"
+              },
+    "default_model":  {
+                          "config":  "Konfiguracja modeli domyślnych",
+                          "help":  "Wyczyszczenie wyboru spowoduje usunięcie konfiguracji modelu domyślnego dla tego scenariusza"
+                      }
+}

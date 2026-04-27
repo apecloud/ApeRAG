@@ -1,13 +1,13 @@
 {
   "site": {
     "metadata": {
-      "applicationName": "ApeRAG",
+      "applicationName": "INEO Sage",
       "authors": {
-        "url": "https://github.com/apecloud/ApeRAG",
-        "name": "ApeCloud"
+        "url": "https://github.com/mirekwilmer/INEOSage",
+        "name": "INEO"
       },
-      "title": "ApeRAG",
-      "description": "Production-Ready RAG Platform with Graph, Vector & Full-Text Search."
+      "title": "INEO Sage",
+      "description": "Intelligent Knowledge Platform with Graph, Vector & Full-Text Search."
     }
   },
   "action": {

@@ -1,0 +1,25 @@
+﻿{
+    "metadata":  {
+                     "title":  "Klucze API",
+                     "description":  "Sekcja umożliwia bezpieczne przechowywanie, aktualizację i zarządzanie kluczami API dla różnych usług AI (takich jak OpenAI, Anthropic, Gemini itp.). Połączenie kluczy umożliwia spersonalizowaną interakcję z AI przy zachowaniu bezpieczeństwa danych."
+                 },
+    "description":  "Opis",
+    "search_api_keys":  "Wyszukaj",
+    "creation_time":  "Data utworzenia",
+    "last_used_time":  "Ostatnio użyty",
+    "api_keys":  "Klucze API",
+    "api_key_placeholder":  "Opisz przeznaczenie klucza API.",
+    "api_key_description":  "Klucze API muszą być poufne (np. przechowywane w zmiennych środowiskowych), aby uniknąć nadużyć lub nieoczekiwanych kosztów.",
+    "add_api_keys":  "Utwórz klucz API",
+    "edit_api_keys":  "Edytuj",
+    "delete_api_key":  "Usuń klucz API",
+    "delete_api_key_confirm":  "Potwierdzić usunięcie klucza API?",
+    "created_api_key_title":  "Klucz API utworzony",
+    "created_api_key_description":  "To jedyny moment, w którym pełny klucz API jest widoczny. Skopiuj go i zapisz w bezpiecznym miejscu przed zamknięciem okna.",
+    "created_api_key_label":  "Wygenerowany klucz API",
+    "created_api_key_hint":  "Każda osoba posiadająca ten klucz może uzyskać dostęp do API INEO Sage z uprawnieniami Twojego konta.",
+    "copy_created_api_key":  "Skopiuj klucz API",
+    "saved_api_key":  "Zapisałem(-am) ten klucz",
+    "masked_badge":  "Ukryty",
+    "masked_notice":  "W tabeli wyświetlany jest tylko zamaskowany podgląd każdego klucza API. Pełny klucz można skopiować tylko raz, w momencie utworzenia."
+}

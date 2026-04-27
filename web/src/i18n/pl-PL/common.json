@@ -1,0 +1,26 @@
+﻿{
+    "site":  {
+                 "metadata":  {
+                                  "applicationName":  "INEO Sage",
+                                  "authors":  {
+                                                  "url":  "https://github.com/apecloud/ApeRAG",
+                                                  "name":  "INEO"
+                                              },
+                                  "title":  "INEO Sage",
+                                  "description":  "Produkcyjna platforma RAG z wyszukiwaniem grafowym, wektorowym i pełnotekstowym."
+                              }
+             },
+    "action":  {
+                   "save":  "Zapisz",
+                   "cancel":  "Anuluj",
+                   "continue":  "Kontynuuj",
+                   "update":  "Aktualizuj"
+               },
+    "tips":  {
+                 "confirm":  "Czy na pewno chcesz kontynuować?",
+                 "update_success":  "Aktualizacja zakończona pomyślnie.",
+                 "create_success":  "Utworzono pomyślnie.",
+                 "delete_success":  "Usunięto pomyślnie!",
+                 "save_success":  "Zapisano pomyślnie!"
+             }
+}

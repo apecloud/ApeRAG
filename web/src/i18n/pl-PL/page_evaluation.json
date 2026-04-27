@@ -1,0 +1,28 @@
+﻿{
+    "metadata":  {
+                     "title":  "Ewaluacje"
+                 },
+    "search":  "Wyszukaj historię",
+    "add_evaluation":  "Dodaj ewaluację",
+    "delete_evaluation":  "Usuń ewaluację",
+    "delete_evaluation_confirm":  "Tej operacji nie można cofnąć. Spowoduje to trwałe usunięcie ewaluacji oraz danych z naszych serwerów.",
+    "retry_all_evaluation":  "Ponów wszystkie",
+    "retry_all_evaluation_confirm":  "Czy na pewno chcesz ponownie ocenić wszystkie pytania?",
+    "retry_failed_evaluation":  "Ponów nieudane",
+    "retry_failed_evaluation_confirm":  "Czy na pewno chcesz ponownie ocenić te nieudane pytania?",
+    "evaluation_history":  "Historia ewaluacji",
+    "questions":  "Pytanie",
+    "avg_score":  "Śr. wynik",
+    "evaluation_name":  "Nazwa ewaluacji",
+    "evaluation_name_placeholder":  "Wprowadź nazwę ewaluacji",
+    "question_set":  "Zestaw pytań",
+    "question_set_placeholder":  "Wybierz zestaw pytań",
+    "add_question_set":  "Dodaj zestaw pytań",
+    "agent_llm":  "LLM agenta",
+    "agent_llm_placeholder":  "Wybierz model agenta",
+    "judge_llm":  "LLM oceniający",
+    "judge_llm_placeholder":  "Wybierz model oceniający",
+    "ground_truth":  "Wzorcowa odpowiedź",
+    "rag_answer":  "Odpowiedź RAG",
+    "judge_reason":  "Uzasadnienie LLM"
+}

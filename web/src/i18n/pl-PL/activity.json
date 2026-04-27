@@ -1,0 +1,45 @@
+﻿{
+    "thinking":  {
+                     "title":  "Analiza pytania",
+                     "subtitle":  "Wyjaśniam Twój cel i ustalam, jakie informacje są potrzebne."
+                 },
+    "searching_knowledge":  {
+                                "title":  "Wyszukiwanie źródeł",
+                                "subtitle":  "Przeszukuję bazę wiedzy lub sieć w poszukiwaniu informacji związanych z pytaniem.",
+                                "detail":  {
+                                               "keyword":  "Szukam informacji o „{keyword}”",
+                                               "source_name":  "Źródło: {sourceName}",
+                                               "count":  "Przeanalizowano {count} wyników"
+                                           }
+                            },
+    "reading_source":  {
+                           "title":  "Czytanie źródeł",
+                           "subtitle":  "Wybieram fragmenty najistotniejsze dla Twojego pytania.",
+                           "detail":  {
+                                          "source_name":  "Źródło: {sourceName}"
+                                      }
+                       },
+    "comparing_results":  {
+                              "title":  "Porównywanie wyników",
+                              "subtitle":  "Selekcjonuję najbardziej trafne i wiarygodne informacje.",
+                              "detail":  {
+                                             "count":  "Porównano {count} wyników"
+                                         }
+                          },
+    "writing_answer":  {
+                           "title":  "Przygotowywanie odpowiedzi",
+                           "subtitle":  "Porządkuję informacje w finalną odpowiedź."
+                       },
+    "waiting":  {
+                    "title":  "Przygotowanie kolejnego kroku",
+                    "subtitle":  "Przygotowuję się do następnego etapu."
+                },
+    "completed":  {
+                      "title":  "Odpowiedź gotowa",
+                      "subtitle":  "Wszystko, co potrzebne do odpowiedzi, zostało przygotowane."
+                  },
+    "error":  {
+                  "title":  "Proces przerwany",
+                  "subtitle":  "To uruchomienie nie zakończyło się pomyślnie."
+              }
+}

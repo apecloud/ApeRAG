@@ -92,17 +92,17 @@
     "user_delete": "Delete"
   },
   "common": {
-    "site": {
-      "metadata": {
-        "applicationName": "ApeRAG",
-        "authors": {
-          "url": "https://github.com/apecloud/ApeRAG",
-          "name": "ApeCloud"
-        },
-        "title": "ApeRAG",
-        "description": "Production-Ready RAG Platform with Graph, Vector & Full-Text Search."
-      }
+"site": {
+  "metadata": {
+    "applicationName": "INEO Sage",
+    "authors": {
+      "url": "https://github.com/mirekwilmer/INEOSage",
+      "name": "INEO"
     },
+    "title": "INEO Sage",
+    "description": "Intelligent Knowledge Platform with Graph, Vector & Full-Text Search."
+  }
+},
     "action": {
       "save": "Save",
       "cancel": "Cancel",
@@ -157,7 +157,7 @@
     "created_api_key_title": "API key created",
     "created_api_key_description": "This is the only time the full API key will be shown. Copy and store it securely before closing this dialog.",
     "created_api_key_label": "Generated API key",
-    "created_api_key_hint": "Anyone with this key can access ApeRAG APIs using the permissions of your account.",
+    "created_api_key_hint": "Anyone with this key can access INEO Sage APIs using the permissions of your account.",
     "copy_created_api_key": "Copy API key",
     "saved_api_key": "I have stored this key",
     "masked_badge": "Masked",
@@ -181,8 +181,8 @@
     "username_placeholder": "Username",
     "password": "Password",
     "password_placeholder": "Password",
-    "email": "邮箱",
-    "email_placeholder": "邮箱",
+    "email": "Email",
+    "email_placeholder": "Email address",
     "signin": "Sign In",
     "login_in_with_a_third_party_account": "Login with a third-party account",
     "login_with_google": "Login with Google",
@@ -202,7 +202,10 @@
     "go_back_home": "Go back home",
     "retry": "Retry",
     "oauth_verification_failed": "oauth_verification_failed",
-    "an_unexpected_error_occurred": "An unexpected error occurred"
+    "an_unexpected_error_occurred": "An unexpected error occurred",
+    "verify_request_title": "Check your email",
+    "verify_request_description": "A sign-in link has been sent to your email address.",
+    "sign_in_again": "Sign in again"
   },
   "page_benchmarks": {
     "metadata": {
@@ -287,7 +290,7 @@
   "page_bot": {
     "metadata": {
       "title": "Applications",
-      "description": "ApeRAG is a new chatbot based on local datasets and utilizes multiple large language models."
+      "description": "INEO Sage is a new chatbot based on local datasets and utilizes multiple large language models."
     },
     "search": "Search application",
     "new_bot": "Create application",
@@ -397,8 +400,8 @@
     "metadata": {
       "title": "Chats"
     },
-    "hello_world": "Hi, I'm ApeRAG.",
-    "rag_description": "ApeRAG is a production-ready RAG platform that combines graph, vector, and full-text search for hybrid retrieval, knowledge management, and enterprise AI applications.",
+    "hello_world": "Hi, I'm INEO Sage.",
+    "rag_description": "INEO Sage is a production-ready RAG platform that combines graph, vector, and full-text search for hybrid retrieval, knowledge management, and enterprise AI applications.",
     "mention_a_collection": "Type @ to mention a collection...",
     "display_empty_title": "New chat",
     "no_collection_was_found": "No collection was found",
@@ -516,6 +519,7 @@
     "language": "Language",
     "language_zh_CN": "Simplified chinese",
     "language_en_US": "English",
+	"language_pl_PL": "Polish",
     "description": "Description",
     "description_placeholder": "Please describe the general meaning of a collection.",
     "index_types": "Index Types",

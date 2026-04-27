@@ -1,0 +1,28 @@
+﻿{
+    "metadata":  {
+                     "title":  "Zarządzanie promptami",
+                     "description":  "Dostosuj systemowe prompty, aby zmienić zachowanie i styl rozmów asystenta AI. Zmiany nadpisują domyślne ustawienia systemu i mogą być w każdej chwili zresetowane."
+                 },
+    "agent_system":  {
+                         "title":  "System Prompt",
+                         "description":  "Definiuje osobowość, rolę i wytyczne zachowania asystenta AI. Wpływa na podstawowe zachowanie we wszystkich rozmowach."
+                     },
+    "agent_query":  {
+                        "title":  "Query Prompt",
+                        "description":  "Szablon zapytania dla każdej rozmowy. Kontroluje, jak pytania użytkownika i kontekst bazy wiedzy są łączone przed wysłaniem do AI."
+                    },
+    "status":  {
+                   "customized":  "Dostosowany",
+                   "default":  "Domyślny"
+               },
+    "action":  {
+                   "save":  "Zapisz",
+                   "reset":  "Przywróć domyślny",
+                   "reset_confirm":  "Przywrócić ten prompt do domyślnego?",
+                   "reset_confirm_description":  "Spowoduje to usunięcie Twoich dostosowań i przywróci wbudowany domyślny prompt systemu."
+               },
+    "toast":  {
+                  "save_success":  "Prompt zapisany pomyślnie",
+                  "reset_success":  "Prompt przywrócony do domyślnego"
+              }
+}

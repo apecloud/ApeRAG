@@ -1,0 +1,24 @@
+﻿{
+    "metadata":  {
+                     "title":  "Graf wiedzy"
+                 },
+    "node_group":  "Grupa węzłów",
+    "node_search":  "Wyszukaj węzeł",
+    "no_nodes_found":  "Nie znaleziono informacji o węzłach",
+    "merge_infomation":  "{count} sugestii scalania",
+    "merge_suggestions":  "Sugestie scalania",
+    "merge_accept":  "Akceptuj",
+    "merge_reject":  "Odrzuć",
+    "merge_accepted":  "Zaakceptowano",
+    "merge_rejected":  "Odrzucono",
+    "merge_pending":  "Oczekuje",
+    "entity_person":  "Osoba",
+    "entity_category":  "Kategoria",
+    "entity_date":  "Data",
+    "entity_product":  "Produkt",
+    "entity_organization":  "Organizacja",
+    "entity_technology":  "Technologia",
+    "entity_geo":  "Lokalizacja",
+    "entity_event":  "Wydarzenie",
+    "entity_UNKNOWN":  "Nieznany"
+}

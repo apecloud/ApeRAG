@@ -13,7 +13,7 @@ const features = [
   {
     title: 'Graph RAG with LightRAG',
     description:
-      'Enhanced version of LightRAG for advanced graph-based knowledge extraction, enabling deep relational and contextual queries.',
+      'Enhanced graph-based knowledge extraction, enabling deep relational and contextual queries across your data.',
   },
   {
     title: 'MinerU Integration',
@@ -59,22 +59,22 @@ export default function Home() {
             <div className="flex flex-row items-center gap-2 rounded-full border px-4 py-1 text-sm/6">
               <Mail className="size-4" />
               For technical questions, contact us by
-              <a href="mailto:sailwebs@apecloud.com" className="underline">
+              <a href="mailto:mwilmer@ineo.com" className="underline">
                 Email <span aria-hidden="true">&rarr;</span>
               </a>
             </div>
           </div>
           <div className="text-center">
             <h1 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
-              Production-Ready RAG Platform with Graph, Vector & Full-Text
-              Search
+              INEO Sage — Intelligent Knowledge Platform with Graph, Vector &
+              Full-Text Search
             </h1>
             <p className="text-muted-foreground mt-8 text-lg">
-              ApeRAG is a production-ready RAG (Retrieval-Augmented Generation)
-              platform that combines Graph RAG, vector search, and full-text
-              search. Build sophisticated AI applications with hybrid retrieval,
-              multimodal document processing, and enterprise-grade management
-              features.
+              INEO Sage is a production-ready RAG (Retrieval-Augmented
+              Generation) platform that combines Graph RAG, vector search, and
+              full-text search. Build sophisticated AI applications with hybrid
+              retrieval, multimodal document processing, and enterprise-grade
+              management features.
             </p>
             <div className="mt-10 flex items-center justify-center gap-x-6">
               <Button asChild>
