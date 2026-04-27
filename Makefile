@@ -277,17 +277,17 @@ test-http-smoke-compose:
 test-http-full-compose:
 	@./tests/e2e_http/scripts/run_compose_full.sh
 
-# Backend-combo shortcuts. Lite = single-PG (pgvector + PG-graph) for the
-# ApeRAG-Lite deployment; Full = Qdrant vector + Neo4j graph for the
-# distributed deployment. Connector-level swap correctness is covered by
-# tests/integration/compat/* (see test-compat-graph / test-compat-vector).
+# Deployment-shape shortcuts. Each SHAPE references a file under
+# tests/e2e_http/shapes/<shape>.env that declares the (vector backend,
+# graph backend, services, profiles) combination as one named form.
+# Add a new shape by adding a new file there. Connector-level swap
+# correctness is covered by tests/integration/compat/* (see
+# test-compat-graph / test-compat-vector).
 test-http-smoke-compose-lite:
-	@VECTOR_DB_TYPE=pgvector GRAPH_DB_TYPE=postgresql \
-		./tests/e2e_http/scripts/run_compose_smoke.sh
+	@SHAPE=lite ./tests/e2e_http/scripts/run_compose_smoke.sh
 
 test-http-smoke-compose-full:
-	@VECTOR_DB_TYPE=qdrant GRAPH_DB_TYPE=neo4j \
-		./tests/e2e_http/scripts/run_compose_smoke.sh
+	@SHAPE=full-neo4j ./tests/e2e_http/scripts/run_compose_smoke.sh
 
 test-http-up-k8s:
 	@./tests/e2e_http/runners/k8s/up.sh

@@ -24,10 +24,16 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
-      qdrant:
-        condition: service_healthy
       es:
         condition: service_healthy
+      # Vector backend is intentionally NOT in depends_on. ApeRAG's
+      # VectorStoreConnectorAdaptor (aperag/vectorstore/connector.py) is
+      # lazy-import + lazy-instantiate, so the api boots cleanly with
+      # VECTOR_DB_TYPE=pgvector even when no qdrant container is running.
+      # Hard-binding qdrant here forced every deployment shape to start
+      # qdrant, which masked "code accidentally still calls qdrant" bugs
+      # in pgvector mode. Runners (tests/e2e_http/runners/compose/up.sh)
+      # are responsible for starting the chosen vector backend.
     volumes:
       - ~/.cache:/root/.cache
       - aperag-shared-data:/shared
