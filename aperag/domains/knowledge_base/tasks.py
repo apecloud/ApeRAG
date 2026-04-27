@@ -307,9 +307,7 @@ def collection_init_task(collection_id: str, document_user_quota: int) -> dict:
         raise
 
 
-def collection_summary_task(
-    summary_id: str, collection_id: str, target_version: int, processing_token: str
-) -> dict:
+def collection_summary_task(summary_id: str, collection_id: str, target_version: int, processing_token: str) -> dict:
     """
     Generate collection summary task entry point
 
@@ -370,7 +368,9 @@ def collection_summary_task(
         # Pattern C: no auto-retry. Mark failed via callback so the
         # reconciler picks up; commit 5 wires this into the periodic
         # ``aperag/indexing/reconciler.py`` 30-s loop.
-        from aperag.tasks.reconciler import collection_summary_callbacks
+        from aperag.domains.knowledge_base.service.collection_summary_service import (
+            collection_summary_callbacks,
+        )
 
         collection_summary_callbacks.on_summary_failed(summary_id, str(e), target_version, processing_token)
         raise
