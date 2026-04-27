@@ -43,17 +43,39 @@ def application_cache_policy(namespace: str, *, enabled: bool | None = None) -> 
 
 
 async def get_application_cache() -> ApplicationCache:
+    """Return the singleton :class:`ApplicationCache` for the running
+    event loop, lazily building it if needed.
+
+    Wave 6 #38 (per `feedback_announce_equals_landed.md` narrative-truth
+    invariant): when the running event loop changes (test process
+    starts a new loop, worker process reinitialises, etc.) the cached
+    instance — whose underlying ``async_redis.Redis`` client is bound
+    to the prior loop — is no longer usable. Pre-Wave-6 we silently
+    swapped it for a :class:`NoopApplicationCacheBackend`, which meant
+    callers paid LiteLLM/embedding cost on every request from then on
+    with no signal that caching had degraded.
+
+    Wave 6 fix: rebuild the cache on the new loop (re-establish the
+    real Redis client) and emit a WARN log + bump
+    ``application_cache_metrics["application_runtime"]["loop_switch_rebuild"]``
+    so operators can observe loop-switch frequency. Rebuild can fail
+    (Redis unreachable on the new loop) — the fallback is still a
+    Noop backend, but only when Redis is actually broken, not when
+    the loop merely changed.
+    """
     global _async_cache, _async_cache_loop
     loop = asyncio.get_running_loop()
     if _async_cache is not None and _async_cache_loop is loop:
         return _async_cache
     if _async_cache is not None and _async_cache_loop is not loop:
-        _async_cache = ApplicationCache(
-            backend=NoopApplicationCacheBackend(),
-            default_policy=application_cache_policy("default", enabled=False),
+        logger.warning(
+            "Application cache rebuilding for new event loop: prior cache was bound "
+            "to a different loop and its Redis client cannot be reused. "
+            "Frequent loop switches indicate a worker / test setup issue."
         )
-        _async_cache_loop = loop
-        return _async_cache
+        application_cache_metrics.increment("application_runtime", "loop_switch_rebuild")
+        _async_cache = None
+        _async_cache_loop = None
 
     if not settings.cache_enabled:
         _async_cache = ApplicationCache(

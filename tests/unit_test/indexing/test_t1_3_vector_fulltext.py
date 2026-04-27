@@ -210,7 +210,9 @@ def test_vector_and_fulltext_share_chunk_ids_for_hybrid_dedup():
         )
     )
 
-    vec_chunk_ids = {p["chunk_id"] for p in vec_backend.points_for_document("doc-beacon", parsed.parse_version)}
+    vec_chunk_ids = {
+        p["payload"]["chunk_id"] for p in vec_backend.points_for_document("doc-beacon", parsed.parse_version)
+    }
     ft_chunk_ids = {d["chunk_id"] for d in ft_backend.documents_for_document("doc-beacon", parsed.parse_version)}
 
     assert vec_chunk_ids == ft_chunk_ids, (
