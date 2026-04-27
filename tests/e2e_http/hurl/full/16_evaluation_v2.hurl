@@ -215,7 +215,14 @@ jsonpath "$.title" == "Default Agent Bot"
 GET {{base_url}}/api/v2/evaluation-runs?bot_id={{bot_id}}&page=1&page_size=20
 HTTP 200
 [Asserts]
-jsonpath "$.items[0].status" == "queued"
+# Wave 3 T3.1 chunk 2 + post-pass-7 evaluation cross-loop fix:
+# Pattern C in-process dispatch (asyncio.create_task on shared loop)
+# starts the worker on the very next event-loop tick, so by the time
+# this GET arrives the run has typically left "queued" already. Accept
+# any non-terminal-failure in-flight or terminal state — the contract
+# this test pins is "the run shows up in the list", not "dispatch is
+# slow enough that 'queued' is observable".
+jsonpath "$.items[0].status" matches "^(queued|running|completed|cancelled)$"
 jsonpath "$.pagination.limit" == 20
 
 GET {{base_url}}/api/v2/evaluation-runs?collection_id={{collection_id}}&page=1&page_size=20
@@ -233,11 +240,13 @@ GET {{base_url}}/api/v2/evaluation-runs/{{run_id_v2}}
 HTTP 200
 [Asserts]
 jsonpath "$.run.id" == "{{run_id_v2}}"
-jsonpath "$.run.status" == "queued"
+# Status / summary counts / progress.percent are timing-sensitive
+# under Pattern C in-process dispatch (see comment at line ~218);
+# accept any in-flight or terminal state. ``summary.total`` is fixed
+# by the dataset cardinality so it stays exact.
+jsonpath "$.run.status" matches "^(queued|running|completed|cancelled)$"
 jsonpath "$.run.dataset_id" == "{{dataset_id}}"
 jsonpath "$.summary.total" == 3
-jsonpath "$.summary.pending" == 3
-jsonpath "$.progress.percent" == 0
 
 GET {{base_url}}/api/v2/evaluation-runs/{{run_id_v2}}/items?page=1&page_size=100
 HTTP 200
@@ -247,14 +256,19 @@ run_item_id: jsonpath "$.items[0].id"
 jsonpath "$.items[0].id" == "{{run_item_id}}"
 jsonpath "$.items[0].run_id" == "{{run_id_v2}}"
 jsonpath "$.items[0].case_key" == "hello-case"
-jsonpath "$.items[0].status" == "pending"
-jsonpath "$.items[0].attempt_count" == 0
+# Item status / attempt_count race with the in-process Pattern C
+# worker that may have already started this item; accept any in-
+# flight or terminal state. Total cardinality remains exact.
+jsonpath "$.items[0].status" matches "^(pending|running|completed|failed|cancelled)$"
 jsonpath "$.pagination.total" == 3
 
 GET {{base_url}}/api/v2/evaluation-runs/{{run_id_v2}}/items/{{run_item_id}}/attempts
 HTTP 200
 [Asserts]
-body contains "\"items\":[]"
+# The attempts list may be empty (no execution started yet) or
+# populated (worker already attempted this item) under Pattern C
+# in-process dispatch; just confirm the envelope shape exists.
+jsonpath "$.items" exists
 
 POST {{base_url}}/api/v2/evaluation-runs/{{run_id_v2}}/cancel
 HTTP 200
