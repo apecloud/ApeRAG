@@ -273,6 +273,37 @@ async def combined_lifespan(app: FastAPI):
         else:
             metrics_emitter = NoopMetricsEmitter()
 
+        # Wave 4 T5: dispatch on ``INDEXING_QUOTA_BACKEND`` setting
+        # (default ``inmemory`` for backward-compat single-pod
+        # deployments; production multi-pod sets ``redis`` so worker
+        # processes share §H.5 token-bucket state via Redis logical
+        # db=3 per §H.5.1 amendment). InMemoryQuotaBackend is process-
+        # local — multi-pod deployments running ``inmemory`` would
+        # have each pod's worker independently exhaust its tenant
+        # quota, which silently breaks the per-tenant rate limit
+        # invariant (§H.5).
+        from aperag.indexing.quota import (
+            InMemoryQuotaBackend,
+            QuotaPolicyRegistry,
+            RedisQuotaBackend,
+        )
+
+        quota_registry = QuotaPolicyRegistry()
+        if settings.indexing_quota_backend.lower() == "redis":
+            try:
+                from redis import asyncio as redis_asyncio
+            except ImportError as exc:  # pragma: no cover — redis is a base dep
+                raise RuntimeError("INDEXING_QUOTA_BACKEND=redis but redis package not installed") from exc
+            quota_redis = redis_asyncio.from_url(
+                settings.indexing_queue_redis_url,
+                encoding="utf-8",
+                decode_responses=False,
+            )
+            quota_backend = RedisQuotaBackend(quota_redis, quota_registry)
+        else:
+            quota_redis = None
+            quota_backend = InMemoryQuotaBackend(quota_registry)
+
         # Worker factory — per-task lazy construction. The async
         # worker entrypoints (``run_*_worker``) call this closure on
         # every BLPOP'd payload to materialise the concrete
@@ -358,6 +389,12 @@ async def combined_lifespan(app: FastAPI):
         app.state.indexing_queue = queue
         app.state.indexing_engine = engine
         app.state.indexing_metrics_emitter = metrics_emitter
+        app.state.indexing_quota_backend = quota_backend
+        # Wave 4 T5: stash the underlying Redis client (only when
+        # ``INDEXING_QUOTA_BACKEND=redis``) so the lifespan finally
+        # block can close it on shutdown — mirrors the T4 RedisWorkQueue
+        # close lifecycle.
+        app.state.indexing_quota_redis = quota_redis
 
         # Service-layer callers (aperag/domains/**) consume the same
         # triple through the process-wide IndexingRuntime singleton —
@@ -373,6 +410,7 @@ async def combined_lifespan(app: FastAPI):
                 workers={},
                 metrics_emitter=metrics_emitter,
                 cleanup_worker_factory=worker_factory.build_for_cleanup_row,
+                quota_backend=quota_backend,
             )
         )
     else:
@@ -400,6 +438,13 @@ async def combined_lifespan(app: FastAPI):
         if queue_obj is not None and hasattr(queue_obj, "close"):
             with contextlib.suppress(Exception):
                 await queue_obj.close()
+        # Wave 4 T5: release the quota Redis client (only present when
+        # ``INDEXING_QUOTA_BACKEND=redis`` was selected at startup).
+        # ``InMemoryQuotaBackend`` has no underlying client.
+        quota_redis_obj = getattr(app.state, "indexing_quota_redis", None)
+        if quota_redis_obj is not None:
+            with contextlib.suppress(Exception):
+                await quota_redis_obj.aclose()
         # Wave 4 T6: flush + shut down the OTLP MeterProvider so the
         # PeriodicExportingMetricReader drains any pending metric
         # samples before the process exits. Mirrors the T4 graceful

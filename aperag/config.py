@@ -160,6 +160,21 @@ class Config(BaseSettings):
     #            even though the emitter dispatch path is taken).
     indexing_metrics_emitter: str = Field("noop", alias="INDEXING_METRICS_EMITTER")
 
+    # Indexing quota backend (Wave 4 T5 — wires the Redis token-bucket
+    # quota across LLM / embedding callsites). Values:
+    #
+    # ``inmemory`` → ``aperag.indexing.quota.InMemoryQuotaBackend``
+    #                (default; per-process token state, suitable for
+    #                tests / single-pod deployments).
+    # ``redis``    → ``aperag.indexing.quota.RedisQuotaBackend`` (Lua-
+    #                atomic token bucket on shared Redis at
+    #                ``indexing_queue_redis_url`` logical db=3 per
+    #                §H.5.1 amendment; multi-pod production MUST set
+    #                ``INDEXING_QUOTA_BACKEND=redis`` so worker
+    #                processes share token state instead of each pod
+    #                exhausting capacity independently).
+    indexing_quota_backend: str = Field("inmemory", alias="INDEXING_QUOTA_BACKEND")
+
     # Model configs
     model_configs: Dict[str, Any] = {}
 

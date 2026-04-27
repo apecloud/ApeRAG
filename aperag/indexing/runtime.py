@@ -41,12 +41,18 @@ from aperag.indexing.base import ModalityWorker
 from aperag.indexing.models import DocumentIndex, Modality
 from aperag.indexing.observability import MetricsEmitter, NoopMetricsEmitter
 from aperag.indexing.orchestrator import WorkQueue
+from aperag.indexing.quota import InMemoryQuotaBackend, QuotaBackend, QuotaPolicyRegistry
+
+
+def _default_quota_backend() -> QuotaBackend:
+    return InMemoryQuotaBackend(QuotaPolicyRegistry())
 
 
 @dataclass(frozen=True)
 class IndexingRuntime:
     """The runtime triple required by ``dispatch_indexing()`` and
-    ``cleanup_for_deleted_documents()``, plus the §J.1 metrics emitter.
+    ``cleanup_for_deleted_documents()``, plus the §J.1 metrics emitter
+    and Wave 4 T5 quota backend.
 
     ``workers`` may be empty when the deployment runs in ASYNC mode and
     cleanup is intentionally non-cascading (e.g. tests). ``queue`` may
@@ -65,6 +71,14 @@ class IndexingRuntime:
     callers that build the runtime without specifying one keep working.
     The lifespan in ``aperag/app.py`` swaps in
     :class:`OTLPMetricsEmitter` when ``INDEXING_METRICS_EMITTER=otlp``.
+
+    ``quota_backend`` (Wave 4 T5) is the §H.5 token-bucket the
+    LLM/embedding-heavy modalities can consume to enforce per-tenant
+    rate limits before issuing the upstream API call. Default is
+    :class:`InMemoryQuotaBackend` (per-process, single-pod scope).
+    Production multi-pod sets ``INDEXING_QUOTA_BACKEND=redis`` to wire
+    :class:`RedisQuotaBackend` so worker processes share token state
+    via the §H.5.1 logical-db assignment (db=3).
     """
 
     engine: Engine
@@ -72,6 +86,7 @@ class IndexingRuntime:
     workers: Mapping[Modality, ModalityWorker]
     metrics_emitter: MetricsEmitter = field(default_factory=NoopMetricsEmitter)
     cleanup_worker_factory: Optional[Callable[[DocumentIndex], Awaitable[ModalityWorker]]] = None
+    quota_backend: QuotaBackend = field(default_factory=_default_quota_backend)
 
 
 _runtime: Optional[IndexingRuntime] = None
