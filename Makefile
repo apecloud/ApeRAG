@@ -51,7 +51,7 @@ help:
 	@printf "  make test-http-full       Run full HTTP suite against an existing target\n"
 	@printf "  make test-http-up-compose / test-http-down-compose\n"
 	@printf "  make test-http-smoke-compose / test-http-full-compose\n"
-	@printf "  make test-http-smoke-compose-lite / test-http-smoke-compose-full   (DB-combo shortcuts)\n"
+	@printf "  make test-http-smoke-compose-{lite,qdrant-neo4j,qdrant-nebula}   (per-shape shortcuts)\n"
 	@printf "  make test-http-up-k8s / test-http-down-k8s\n"
 	@printf "  make test-http-smoke-k8s / test-http-full-k8s\n\n"
 	@printf "Build / API\n"
@@ -205,7 +205,7 @@ add-license:
 .PHONY: test-all test-unit test-integration test-e2e test-e2e-perf \
 	test-http-bootstrap test-http-smoke test-http-full \
 	test-http-up-compose test-http-down-compose test-http-smoke-compose test-http-full-compose \
-	test-http-smoke-compose-lite test-http-smoke-compose-full \
+	test-http-smoke-compose-lite test-http-smoke-compose-qdrant-neo4j test-http-smoke-compose-qdrant-nebula \
 	test-http-up-k8s test-http-down-k8s test-http-smoke-k8s test-http-full-k8s
 test-all: test-unit test-integration test-e2e
 
@@ -286,8 +286,11 @@ test-http-full-compose:
 test-http-smoke-compose-lite:
 	@SHAPE=lite ./tests/e2e_http/scripts/run_compose_smoke.sh
 
-test-http-smoke-compose-full:
-	@SHAPE=full-neo4j ./tests/e2e_http/scripts/run_compose_smoke.sh
+test-http-smoke-compose-qdrant-neo4j:
+	@SHAPE=qdrant-neo4j ./tests/e2e_http/scripts/run_compose_smoke.sh
+
+test-http-smoke-compose-qdrant-nebula:
+	@SHAPE=qdrant-nebula ./tests/e2e_http/scripts/run_compose_smoke.sh
 
 test-http-up-k8s:
 	@./tests/e2e_http/runners/k8s/up.sh

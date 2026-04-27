@@ -1,0 +1,20 @@
+name: E2E HTTP Qdrant + Nebula
+
+# Distributed deployment shape: Qdrant (vector) + Nebula (graph).
+# Runs the smoke + provider-aware HTTP suite against this shape.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e-http-compose:
+    if: ${{ !github.event.pull_request.draft }}
+    uses: ./.github/workflows/e2e-http-shape.yml
+    secrets: inherit
+    with:
+      shape: qdrant-nebula
