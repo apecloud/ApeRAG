@@ -21,7 +21,6 @@ dependencies = [
     "terminal<1.0.0,>=0.4.0",
     "psycopg2-binary<3.0.0,>=2.9.6",
     "watchfiles>=1.0.0",
-    "flower<3.0.0,>=2.0.0",
     "django-celery-beat<3.0.0,>=2.5.0",
     "django>=5.1.14,<5.2.0",
     "boto3>=1.26.165,<2.0.0",

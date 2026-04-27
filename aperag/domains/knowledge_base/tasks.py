@@ -37,23 +37,89 @@ import logging
 import os
 import shutil
 import tempfile
+import threading
+import uuid
 import zipfile
 from datetime import timedelta
-from typing import Callable
+from typing import Callable, Optional
 
 from aperag.tasks.collection import collection_task
-from aperag.tasks.processing_lease import (
-    DEFAULT_PROCESSING_LEASE_RENEW_INTERVAL_SECONDS,
-    DEFAULT_PROCESSING_LEASE_TTL_SECONDS,
-    ProcessingLeaseRenewer,
-    build_lease_expires_at,
-)
 from aperag.utils.utils import utc_now
 
 EXPORT_CHUNK_SIZE = 64 * 1024  # 64 KB
 EXPORT_MAX_DOWNLOAD_WORKERS = 5
 
 logger = logging.getLogger(__name__)
+
+
+# ========== Processing-lease helpers (inlined per architect msg=64fd506a Part 1) ==========
+# The legacy ``aperag/tasks/processing_lease.py`` will be deleted in
+# commit 5 Part 2 atomic together with the rest of ``aperag/tasks/``;
+# its public surface (``generate_processing_token`` +
+# ``build_lease_expires_at`` + ``ProcessingLeaseRenewer``) is inlined
+# here so this file (the only knowledge_base-domain caller after Bryce
+# commit 4a inlined the agent_runtime caller) decouples now and the
+# Part 2 deletion is a clean delete with no ImportError fallout.
+
+DEFAULT_PROCESSING_LEASE_TTL_SECONDS = int(os.getenv("APERAG_PROCESSING_LEASE_TTL_SECONDS", "900"))
+DEFAULT_PROCESSING_LEASE_RENEW_INTERVAL_SECONDS = int(os.getenv("APERAG_PROCESSING_LEASE_RENEW_INTERVAL_SECONDS", "60"))
+
+
+def generate_processing_token() -> str:
+    return uuid.uuid4().hex
+
+
+def build_lease_expires_at(ttl_seconds: int = DEFAULT_PROCESSING_LEASE_TTL_SECONDS):
+    return utc_now() + timedelta(seconds=ttl_seconds)
+
+
+class ProcessingLeaseRenewer:
+    """Background helper that periodically renews the current processing lease."""
+
+    def __init__(
+        self,
+        renew_fn: Callable[[], bool],
+        *,
+        interval_seconds: int = DEFAULT_PROCESSING_LEASE_RENEW_INTERVAL_SECONDS,
+        description: str,
+    ):
+        self._renew_fn = renew_fn
+        self._interval_seconds = max(interval_seconds, 1)
+        self._description = description
+        self._stop_event = threading.Event()
+        self._thread: Optional[threading.Thread] = None
+        self.ownership_lost = False
+
+    def start(self):
+        if self._thread is not None:
+            return
+        self._thread = threading.Thread(
+            target=self._run,
+            name=f"lease-renewer:{self._description}",
+            daemon=True,
+        )
+        self._thread.start()
+
+    def stop(self):
+        self._stop_event.set()
+        if self._thread is not None:
+            self._thread.join(timeout=self._interval_seconds + 1)
+
+    def _run(self):
+        while not self._stop_event.wait(self._interval_seconds):
+            try:
+                renewed = self._renew_fn()
+            except Exception:
+                logger.exception("Processing lease renewer failed for %s", self._description)
+                continue
+
+            if renewed:
+                continue
+
+            self.ownership_lost = True
+            logger.warning("Processing lease ownership lost for %s", self._description)
+            self._stop_event.set()
+            return
 
 
 # ========== Internal helpers ==========
