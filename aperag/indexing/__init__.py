@@ -100,6 +100,7 @@ from aperag.indexing.observability import (
     InMemoryMetricsEmitter,
     MetricsEmitter,
     NoopMetricsEmitter,
+    OTLPMetricsEmitter,
     emit_index_failure,
     emit_index_lag,
     emit_index_success,
@@ -226,6 +227,7 @@ __all__ = [
     # Observability (T1.5)
     "MetricsEmitter",
     "NoopMetricsEmitter",
+    "OTLPMetricsEmitter",
     "InMemoryMetricsEmitter",
     "INDEX_LAG_METRIC",
     "INDEX_FAILURE_METRIC",

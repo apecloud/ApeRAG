@@ -233,6 +233,8 @@ async def combined_lifespan(app: FastAPI):
         from aperag.config import sync_engine
         from aperag.indexing import (
             InMemoryWorkQueue,
+            NoopMetricsEmitter,
+            OTLPMetricsEmitter,
             RedisWorkQueue,
             run_cleanup_loop,
             run_fulltext_worker,
@@ -256,6 +258,19 @@ async def combined_lifespan(app: FastAPI):
         else:
             queue = InMemoryWorkQueue()
         engine = sync_engine
+
+        # Wave 4 T6: dispatch on ``INDEXING_METRICS_EMITTER`` setting
+        # (default ``noop`` for backward-compat; production multi-pod
+        # sets ``otlp`` to wire the four §J.1 SLIs onto the
+        # ``MeterProvider`` configured by ``aperag.observability``).
+        # NoopMetricsEmitter silently drops every sample, so operators
+        # running Tier 2/3 production must explicitly opt into ``otlp``
+        # — otherwise queue-backlog / failure-rate alerts on the
+        # collector side never receive data.
+        if settings.indexing_metrics_emitter.lower() == "otlp":
+            metrics_emitter = OTLPMetricsEmitter()
+        else:
+            metrics_emitter = NoopMetricsEmitter()
 
         # Worker factory — per-task lazy construction. The async
         # worker entrypoints (``run_*_worker``) call this closure on
@@ -309,6 +324,7 @@ async def combined_lifespan(app: FastAPI):
         # same queue / engine the workers consume.
         app.state.indexing_queue = queue
         app.state.indexing_engine = engine
+        app.state.indexing_metrics_emitter = metrics_emitter
 
         # Service-layer callers (aperag/domains/**) consume the same
         # triple through the process-wide IndexingRuntime singleton —
@@ -317,10 +333,18 @@ async def combined_lifespan(app: FastAPI):
         # populates concrete factories per modality.
         from aperag.indexing.runtime import IndexingRuntime, set_runtime
 
-        set_runtime(IndexingRuntime(engine=engine, queue=queue, workers={}))
+        set_runtime(
+            IndexingRuntime(
+                engine=engine,
+                queue=queue,
+                workers={},
+                metrics_emitter=metrics_emitter,
+            )
+        )
     else:
         app.state.indexing_queue = None
         app.state.indexing_engine = None
+        app.state.indexing_metrics_emitter = None
         from aperag.indexing.runtime import set_runtime
 
         set_runtime(None)

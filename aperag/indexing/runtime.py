@@ -32,30 +32,37 @@ runtime can call :func:`set_runtime` with a fixture and reset.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Mapping, Optional
 
 from sqlalchemy import Engine
 
 from aperag.indexing.base import ModalityWorker
 from aperag.indexing.models import Modality
+from aperag.indexing.observability import MetricsEmitter, NoopMetricsEmitter
 from aperag.indexing.orchestrator import WorkQueue
 
 
 @dataclass(frozen=True)
 class IndexingRuntime:
-    """The triple required by ``dispatch_indexing()`` and
-    ``cleanup_for_deleted_documents()``.
+    """The runtime triple required by ``dispatch_indexing()`` and
+    ``cleanup_for_deleted_documents()``, plus the §J.1 metrics emitter.
 
     ``workers`` may be empty when the deployment runs in ASYNC mode and
     cleanup is intentionally non-cascading (e.g. tests). ``queue`` may
     be ``None`` when the deployment runs in INLINE mode (the
     dispatcher fans out via ``workers`` directly).
+
+    ``metrics_emitter`` defaults to :class:`NoopMetricsEmitter` so older
+    callers that build the runtime without specifying one keep working.
+    The lifespan in ``aperag/app.py`` swaps in
+    :class:`OTLPMetricsEmitter` when ``INDEXING_METRICS_EMITTER=otlp``.
     """
 
     engine: Engine
     queue: Optional[WorkQueue]
     workers: Mapping[Modality, ModalityWorker]
+    metrics_emitter: MetricsEmitter = field(default_factory=NoopMetricsEmitter)
 
 
 _runtime: Optional[IndexingRuntime] = None

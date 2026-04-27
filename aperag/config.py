@@ -138,6 +138,28 @@ class Config(BaseSettings):
     indexing_queue_backend: str = Field("inmemory", alias="INDEXING_QUEUE_BACKEND")
     indexing_queue_redis_url: Optional[str] = Field(None, alias="INDEXING_QUEUE_REDIS_URL")
 
+    # Indexing metrics emitter (Wave 4 T6 — replaces NoopMetricsEmitter
+    # default with OTLP wire-in for §J.1 SLIs per design pack §J).
+    # Values:
+    #
+    # ``noop`` → ``aperag.indexing.NoopMetricsEmitter`` (default,
+    #            metrics silently dropped — TEST / dev / single-machine
+    #            deployments without observability infra). Operators
+    #            running production multi-pod deployments MUST set
+    #            ``INDEXING_METRICS_EMITTER=otlp`` to ship the four
+    #            §J.1 SLIs (``index_lag_seconds`` / ``queue_depth`` /
+    #            ``index_success_total`` / ``index_failure_total`` /
+    #            ``worker_utilization``) to the OTLP collector.
+    # ``otlp`` → ``aperag.indexing.OTLPMetricsEmitter`` (production —
+    #            instruments materialised on the OpenTelemetry SDK
+    #            ``MeterProvider`` configured by
+    #            ``aperag.observability``; requires
+    #            ``APERAG_OBSERVABILITY_MODE`` ∈ {``otlp``, ``collector``}
+    #            with a populated ``OTEL_EXPORTER_OTLP_ENDPOINT`` —
+    #            without those the OTLP exporter falls back to no-op
+    #            even though the emitter dispatch path is taken).
+    indexing_metrics_emitter: str = Field("noop", alias="INDEXING_METRICS_EMITTER")
+
     # Model configs
     model_configs: Dict[str, Any] = {}
 
