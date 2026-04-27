@@ -51,6 +51,7 @@ help:
 	@printf "  make test-http-full       Run full HTTP suite against an existing target\n"
 	@printf "  make test-http-up-compose / test-http-down-compose\n"
 	@printf "  make test-http-smoke-compose / test-http-full-compose\n"
+	@printf "  make test-http-smoke-compose-lite / test-http-smoke-compose-full   (DB-combo shortcuts)\n"
 	@printf "  make test-http-up-k8s / test-http-down-k8s\n"
 	@printf "  make test-http-smoke-k8s / test-http-full-k8s\n\n"
 	@printf "Build / API\n"
@@ -204,6 +205,7 @@ add-license:
 .PHONY: test-all test-unit test-integration test-e2e test-e2e-perf \
 	test-http-bootstrap test-http-smoke test-http-full \
 	test-http-up-compose test-http-down-compose test-http-smoke-compose test-http-full-compose \
+	test-http-smoke-compose-lite test-http-smoke-compose-full \
 	test-http-up-k8s test-http-down-k8s test-http-smoke-k8s test-http-full-k8s
 test-all: test-unit test-integration test-e2e
 
@@ -274,6 +276,18 @@ test-http-smoke-compose:
 
 test-http-full-compose:
 	@./tests/e2e_http/scripts/run_compose_full.sh
+
+# Backend-combo shortcuts. Lite = single-PG (pgvector + PG-graph) for the
+# ApeRAG-Lite deployment; Full = Qdrant vector + Neo4j graph for the
+# distributed deployment. Connector-level swap correctness is covered by
+# tests/integration/compat/* (see test-compat-graph / test-compat-vector).
+test-http-smoke-compose-lite:
+	@VECTOR_DB_TYPE=pgvector GRAPH_DB_TYPE=postgresql \
+		./tests/e2e_http/scripts/run_compose_smoke.sh
+
+test-http-smoke-compose-full:
+	@VECTOR_DB_TYPE=qdrant GRAPH_DB_TYPE=neo4j \
+		./tests/e2e_http/scripts/run_compose_smoke.sh
 
 test-http-up-k8s:
 	@./tests/e2e_http/runners/k8s/up.sh

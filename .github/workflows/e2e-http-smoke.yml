@@ -15,6 +15,24 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      # Two deployment-shape combos. Connector-level "swap one DB" coverage
+      # already lives in compat-test.yml's matrix (Qdrant/pgvector,
+      # PG/Neo4j/Nebula); this matrix exists to prove the full HTTP stack
+      # boots and runs end-to-end under each shape.
+      matrix:
+        combo:
+          - name: lite
+            vector: pgvector
+            graph: postgresql
+          - name: full
+            vector: qdrant
+            graph: neo4j
+    name: e2e-http-smoke (${{ matrix.combo.name }})
+    env:
+      VECTOR_DB_TYPE: ${{ matrix.combo.vector }}
+      GRAPH_DB_TYPE: ${{ matrix.combo.graph }}
     steps:
       - uses: actions/checkout@v4
 
@@ -53,7 +71,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-http-bootstrap-artifacts
+          name: e2e-http-bootstrap-artifacts-${{ matrix.combo.name }}
           path: tests/e2e_http/bootstrap/.generated
           if-no-files-found: ignore
           # The bootstrap directory name starts with "." — actions/upload-artifact@v4
@@ -64,8 +82,8 @@ jobs:
       - name: Dump Compose diagnostics on failure
         if: failure()
         run: |
-          docker compose -f docker-compose.yml ps || true
-          docker compose -f docker-compose.yml logs --no-color api postgres redis qdrant es || true
+          docker compose --profile neo4j --profile nebula -f docker-compose.yml ps || true
+          docker compose --profile neo4j --profile nebula -f docker-compose.yml logs --no-color || true
 
       - name: Stop Compose stack
         if: always()
