@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import asyncio  # noqa: E402
+import contextlib  # noqa: E402
 
 from aperag.config import settings
 from aperag.observability import (
@@ -232,6 +233,7 @@ async def combined_lifespan(app: FastAPI):
         from aperag.config import sync_engine
         from aperag.indexing import (
             InMemoryWorkQueue,
+            RedisWorkQueue,
             run_cleanup_loop,
             run_fulltext_worker,
             run_graph_worker,
@@ -242,11 +244,17 @@ async def combined_lifespan(app: FastAPI):
         )
 
         indexing_shutdown = asyncio.Event()
-        # Single process-local InMemoryWorkQueue is the default
-        # transport for the in-process topology. Tier-3 production
-        # swaps this for a Redis-backed WorkQueue (RPUSH / BLPOP) by
-        # injecting via app state at deploy time — Wave 3 follow-up.
-        queue = InMemoryWorkQueue()
+        # Wave 4 T4: dispatch on ``INDEXING_QUEUE_BACKEND`` setting
+        # (default ``inmemory`` for backward-compat single-pod
+        # deployments; production multi-pod sets ``redis`` to enable
+        # BLPOP transport per design pack §E.2). InMemoryWorkQueue is
+        # process-local — multi-pod deployments lose tasks pushed to
+        # one process and BLPOP'd by another, so production must run
+        # ``INDEXING_QUEUE_BACKEND=redis`` for correctness.
+        if settings.indexing_queue_backend.lower() == "redis":
+            queue = RedisWorkQueue(redis_url=settings.indexing_queue_redis_url)
+        else:
+            queue = InMemoryWorkQueue()
         engine = sync_engine
 
         # Worker factory — per-task lazy construction. The async
@@ -327,6 +335,13 @@ async def combined_lifespan(app: FastAPI):
             # Drain in-flight worker / reconciler / cleanup loops with
             # a short grace window so a SIGTERM does not abort mid-task.
             await asyncio.gather(*indexing_runtime_tasks, return_exceptions=True)
+        # Wave 4 T4: release the indexing queue's underlying connection
+        # pool (Redis client owns one); InMemoryWorkQueue has no
+        # ``close`` so guard with hasattr.
+        queue_obj = getattr(app.state, "indexing_queue", None)
+        if queue_obj is not None and hasattr(queue_obj, "close"):
+            with contextlib.suppress(Exception):
+                await queue_obj.close()
 
 
 # Create the main FastAPI app with combined lifespan

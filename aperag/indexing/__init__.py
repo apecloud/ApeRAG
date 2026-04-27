@@ -114,6 +114,7 @@ from aperag.indexing.orchestrator import (
     InMemoryWorkQueue,
     ModalityWorkerFactory,
     OrchestratorConfig,
+    RedisWorkQueue,
     WorkQueue,
     drain_queue_sync,
     process_one_task,
@@ -239,6 +240,7 @@ __all__ = [
     # Orchestrator (T2.1)
     "DispatchPayload",
     "InMemoryWorkQueue",
+    "RedisWorkQueue",
     "WorkQueue",
     "OrchestratorConfig",
     "ModalityWorkerFactory",

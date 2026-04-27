@@ -119,6 +119,25 @@ class Config(BaseSettings):
     #              per design pack §L.
     indexing_mode: str = Field("async", alias="INDEXING_MODE")
 
+    # Indexing queue backend (Wave 4 T4 — replaces InMemoryWorkQueue
+    # default with Redis BLPOP for multi-process scale-out per design
+    # pack §E.2). Values:
+    #
+    # ``inmemory`` → ``aperag.indexing.InMemoryWorkQueue`` (Wave 1+2
+    #                default, single-process, asyncio.Queue per modality;
+    #                multi-pod deployments lose tasks pushed to one
+    #                process and BLPOP'd by another — TEST / SINGLE-POD
+    #                ONLY).
+    # ``redis``    → ``aperag.indexing.RedisWorkQueue`` (production
+    #                BLPOP transport keyed ``q:indexing:<modality>``
+    #                on the URL ``INDEXING_QUEUE_REDIS_URL`` if set,
+    #                else derived from ``REDIS_HOST`` / ``REDIS_PORT``
+    #                / ``REDIS_USER`` / ``REDIS_PASSWORD`` on a
+    #                separate logical DB (db=2) from the cache /
+    #                memory backends).
+    indexing_queue_backend: str = Field("inmemory", alias="INDEXING_QUEUE_BACKEND")
+    indexing_queue_redis_url: Optional[str] = Field(None, alias="INDEXING_QUEUE_REDIS_URL")
+
     # Model configs
     model_configs: Dict[str, Any] = {}
 
@@ -268,6 +287,13 @@ class Config(BaseSettings):
         if not self.memory_redis_url:
             self.memory_redis_url = (
                 f"redis://{self.redis_user}:{self.redis_password}@{self.redis_host}:{self.redis_port}/1"
+            )
+        # INDEXING_QUEUE_REDIS_URL — separate logical DB (db=2) from
+        # broker (db=0) and memory (db=1) so BLPOP queues never collide
+        # with cache or memory backends.
+        if not self.indexing_queue_redis_url:
+            self.indexing_queue_redis_url = (
+                f"redis://{self.redis_user}:{self.redis_password}@{self.redis_host}:{self.redis_port}/2"
             )
         # ES_HOST
         if not self.es_host:
