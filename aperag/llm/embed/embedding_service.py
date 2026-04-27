@@ -18,7 +18,7 @@ import asyncio
 import hashlib
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Dict, List, Sequence, Tuple
+from typing import Dict, List, Sequence, Tuple
 
 import litellm
 
@@ -226,18 +226,21 @@ class EmbeddingService:
     def _embed_image_via_litellm(self, *, image_bytes: bytes, alt_text: str) -> List[float]:
         """Underlying LiteLLM multimodal embedding call.
 
-        Encodes the image as base64 data URL + builds the LiteLLM
-        ``input`` payload. Provider-specific input shape variations are
-        Wave 6 follow-up (per §K.10 Wave 6 backlog cross-cutting
-        refactor). Currently uses the documented LiteLLM-shaped
-        ``[{"image_url": {"url": "data:..."}}]`` input that
-        multimodal-capable providers (Voyage / Jina v3 / OpenAI multi-
-        modal / etc.) accept natively.
+        Encodes the image as a base64 data URL and dispatches to a
+        provider-specific input payload shape via
+        :func:`build_multimodal_input_payload` (Wave 6 task #39 per
+        §G.2.5.1). Voyage / Jina / Cohere / OpenAI all document
+        different multimodal embedding wire shapes; the dispatcher
+        emits the canonical shape for the configured provider and
+        falls back to the Wave 5 P2 LiteLLM-documented default for
+        unknown providers.
         """
         import base64
         import imghdr
 
         from litellm import embedding as litellm_embedding
+
+        from aperag.llm.embed.multimodal_input import build_multimodal_input_payload
 
         # Detect MIME type from the image bytes header (avoids relying
         # on caller-provided alt_text format hints). Falls back to
@@ -248,17 +251,17 @@ class EmbeddingService:
         b64 = base64.b64encode(image_bytes).decode("ascii")
         data_url = f"data:{mime};base64,{b64}"
 
-        input_payload: List[dict[str, Any]] = [{"image_url": {"url": data_url}}]
-        if alt_text and alt_text.strip():
-            # Pair the image with text for embedders that accept multi-
-            # part inputs; embedders that ignore text simply drop it.
-            input_payload.append({"text": alt_text.strip()})
+        input_payload = build_multimodal_input_payload(
+            provider=self.embedding_provider,
+            image_data_url=data_url,
+            alt_text=alt_text,
+        )
 
         response = litellm_embedding(
             model=f"{self.embedding_provider}/{self.model}" if self.embedding_provider else self.model,
             input=input_payload,
             api_key=self.api_key,
-            api_base=self.base_url,
+            api_base=self.api_base,
         )
         # LiteLLM normalises response shape to OpenAI-style; pull the
         # embedding from the first (and only) data element.
