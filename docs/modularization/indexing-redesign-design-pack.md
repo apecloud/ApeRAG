@@ -1885,7 +1885,7 @@ Phase C (PR-B):    └── #39 provider format variations (明书, 2-4 days, p
 
 | # | must-be-real | may-be-gated | fully-resolves |
 |---|---|---|---|
-| 33 | LightRAG-style query layer 真实实现 (by-keyword + vector-recall + traversal API) + cascade-migrate 全 callers，行为等价 (existing retrieval search results within ε tolerance) | 无 (full hard-cut per §K.10) | §K.8 Wave 5 backlog item 1 deferred + §K.10 sub-spec |
+| 33 | LightRAG-style query layer 真实实现 (by-keyword + traversal API) + cascade-migrate 全 callers，行为等价 within ε tolerance for keyword + n-hop graph recall paths。**Graph entity vector recall NOT in Wave 6 scope** — deferred to Wave 7+ if real evidence surfaces (per architect ruling msg=54eac595 chunk 2 narrowed scope; lineage schema 没承担 entity vector storage，inline coupling 违反 simple-stable #3) | 无 (full hard-cut per §K.10) | §K.8 Wave 5 backlog item 1 deferred + §K.10 sub-spec |
 | 34 | parser layer chunk_id 字段 schema 一致 + remaining utc_now → CURRENT_TIMESTAMP unify | parser legacy alt-shape transitional decoder OK to keep if needed for legacy fixtures | huangheng T1 obs B + Wave 5 P5B chunk_id 5th item 推迟项 |
 | 35 | Postgres / Nebula / Neo4j 全 lineage SET storage 改 parallel-list O(N) encoding + alembic migration | 无 — hard-cut policy per earayu2 msg=30c81478 (无生产数据 → schema 直改) | §K.10 item 6 (`feedback_simple_stable_zero_maintenance.md` directive #4 "私有化部署免维护" align — operator deploy 后不管 schema migration since 自动 alembic upgrade) |
 | 36 | `EntityRecord.type` → `entity_type` Protocol surface rename + Postgres column rename + Cypher property rewrite + Nebula tag-prop rename | 无 — hard-cut | §K.10 item 7 + §D.3 Protocol stability |
@@ -1893,21 +1893,27 @@ Phase C (PR-B):    └── #39 provider format variations (明书, 2-4 days, p
 | 38 | `application_runtime.get_application_cache()` 不再静默返 Noop on loop switch；real lazy-rebuild OR explicit metrics counter `cache_noop_due_to_loop_switch_total` + WARN log | 第一次 loop switch 后 rebuild 仍可能小 cost (latency observation OK，但不静默 zero-cache) | huangheng PR #1734 sync point 7 / `feedback_announce_equals_landed.md` (silent zero-cache 是 narrative-truth violation) |
 | 39 | Voyage / Jina v3 / OpenAI multimodal SDK input format 各自实现 (real provider tests OR documented capability matrix) | LiteLLM canonical shape 是 fallback；provider-specific format 是 polish item，可分 sub-batch incremental ship | §G.2.5.1 spec provider variations footnote |
 
-#### K.11.5. Pre-check pattern lock (per `feedback_spec_lock_grep_verify_caller.md` 双 pattern)
+#### K.11.5. Pre-check pattern lock (per `feedback_spec_lock_grep_verify_caller.md` 三 pattern)
 
 **Pattern 1 (caller cascade)** 强制触发条件:
 
 - **#33**: pre-implementation 必跑 `grep -rn "from aperag.domains.knowledge_graph.graphindex" aperag/` 列全 caller graph，分类 (test-only / new-code-self-ref / legacy-production)；legacy production caller (retrieval/pipeline.py / knowledge_graph/service.py / graph_curation/*) 要全列出迁移到新 query layer 的 mapping
 - **#36**: pre-implementation 必跑 `grep -rn "EntityRecord.type\|RelationRecord.type\|\.type=" aperag/indexing/ aperag/domains/` 列 Protocol surface caller graph + Cypher template caller graph + Postgres column caller graph，避免 rename 漏 site
 
-**Pattern 2 (state binding)** 强制触发条件:
+**Pattern 2 (state binding — runtime config)** 强制触发条件:
 
 - **#34**: pre-implementation 必跑 `grep -rn "chunk_id" aperag/indexing/parser*.py aperag/indexing/dispatcher.py aperag/indexing/cleanup.py` 验证 chunk_id 现 binding sites 是否全 align 新 schema
 - **#35**: pre-implementation 必跑 `grep -rn "_lineage\|set_lineage\|sets_for" aperag/indexing/graph_storage/` 列 lineage SET binding sites + alembic head verify
 - **#37**: pre-implementation 必跑 `grep -rn "embed_image\|get_or_compute" aperag/llm/embed/ aperag/cache/` 验证 cache infra (`NAMESPACE_EMBEDDING` / `get_or_compute`) 真实存在 (PR #1734 merged ✅) + `embed_image` API 真实存在 (Wave 5 P2 chunk 1 merged ✅)
 - **#38**: pre-implementation 必跑 `grep -rn "get_application_cache\|Noop" aperag/cache/` 验证 Noop fallback site + loop-switch trigger condition
 
-未通过 pre-check 不允许 push — architect spec lock 时 implementer push 前自跑此 grep + 验证 caller graph 与 spec 一致。
+**Pattern 3 (state binding — Protocol method reads from state X)** 强制触发条件 (added 2026-04-27 per Wave 6 #33 chunk 2 architect ruling msg=54eac595 lesson):
+
+- 任何 spec acceptance lock 形式 "Protocol method that reads from state X (column / table / index)" — **架构师 必先 grep-verify state X 现 schema 中是否存在/可加**。否则 implementer 实施时 surface state-binding gap，触发 architect ruling round-trip + chunk amend
+- **#33 chunk 1 retrospective miss**: §K.11.11 chunk 1 sub-spec 锁 `query_entities_by_vector` Protocol method 时未 grep-verify entity vector storage state binding — Postgres `aperag_lineage_entity` 没 vector column (Wave 4 lineage schema 是 write-side only)。chunk 2 实施时 surface gap → architect Option A ruling msg=54eac595 → narrowed scope (delete `query_entities_by_vector` Protocol method + stub + 2 tests, defer vector recall to Wave 7+ if real evidence surfaces)。Lesson 沉淀到 `feedback_spec_lock_grep_verify_caller.md` Pattern 3
+- **forward**: 未来 Wave/任 architect spec lock for "Protocol method reads state X" 必跑 `grep -rn "state_x_column\|state_x_index" alembic/migrations/ aperag/db/models/` 验证 schema 存在；如不存在 → 4 sub-options (in-chunk schema add / prior chunk add / separate service taking state dep / defer to next Wave)
+
+未通过 pre-check 不允许 push — architect spec lock 时 implementer push 前自跑此 grep + 验证 caller graph / state binding / Protocol-method-state-binding 与 spec 一致。
 
 #### K.11.6. simple-stable 4 guardrail lock (per `feedback_simple_stable_zero_maintenance.md`)
 
@@ -1983,17 +1989,22 @@ PR-A "Wave 6 graphindex" 是 cross-cutting refactor，独立 architect direct ra
 
 **3-chunk decomposition**:
 
-| Chunk | Scope | Owner | Estimated LOC |
-|---|---|---|---|
-| **chunk 1** | LightRAG-style read Protocol stubs on `LineageGraphStore` (`query_by_keyword` / `query_by_vector` / `expand_neighbors_n_hops`) — NO implementation, NO caller migration; spec ↔ Protocol surface align verify only | Bryce | ~200 LOC docs+protocol |
-| **chunk 2** | Protocol implementations across Postgres / Neo4j / Nebula backends + unit tests — backend-specific real query implementations | Bryce | ~600 LOC + tests |
-| **chunk 3** | Caller migration (5 files) + legacy graphindex package hard-cut delete + legacy tests delete + grep-zero verify | Bryce | ~400 LOC |
+| Chunk | Scope | Owner | Estimated LOC | Status |
+|---|---|---|---|---|
+| **chunk 1** | LightRAG-style read Protocol stubs on `LineageGraphStore` — NO implementation, NO caller migration; spec ↔ Protocol surface align verify only | Bryce | ~200 LOC docs+protocol | ✅ MERGED PR #1737 commit `20b9071b` 2026-04-27 |
+| **chunk 2** | Protocol implementations (`query_entities_by_keyword` + `expand_neighbors_n_hops`) across Postgres / Neo4j / Nebula backends + unit tests + chunk 1 amend (drop `query_entities_by_vector` per architect Option A ruling msg=54eac595) | Bryce | ~600 LOC + tests | 🔄 PR #1741 in_review |
+| **chunk 3** | Caller migration (5 files) + legacy graphindex package hard-cut delete + legacy tests delete + grep-zero verify | Bryce | ~400 LOC | ⏳ post-chunk-2 |
+
+**Chunk 1 → chunk 2 amend note (architect ruling msg=54eac595 — Option A narrowed scope)**:
+- chunk 1 originally declared 3 Protocol methods (keyword + vector + traversal). chunk 2 backend impl surface state-binding gap: lineage schema 没 entity vector column (Wave 4 design choice, write-side only)
+- Architect ruling Option A (msg=54eac595): chunk 2 amends chunk 1 — drop `query_entities_by_vector` Protocol method declaration + InMemoryLineageGraphStore stub + 2 contract tests. Vector recall deferred to Wave 7+ if real evidence。
+- Lesson: chunk 1 spec lock 时 architect 应先 grep-verify entity vector storage schema → Pattern 3 (Protocol method state binding) added to §K.11.5 + sediment 到 `feedback_spec_lock_grep_verify_caller.md`
 
 **Each chunk lands independently within PR-A** (chunked-rotation per `feedback_no_refresh_complete_all_tasks.md` Layer 1 same-session continuation directive)。Each chunk has own architect direct ratify gate per §K.11.8 lane lock。
 
 **Why 3 chunks (not 1 monolith)**: (a) chunk 1 spec/Protocol-only allows architect ratify to lock query layer surface before backend implementations; (b) chunk 2 backend impl can independently verify Protocol semantics on real engines (per `feedback_dataflow_review.md` dataflow trace each backend); (c) chunk 3 caller migration is pure mechanical refactor once Protocol stable — chunk 4d Option C precedent (msg=b26f64b2 narrowed scope) avoids "spec drift mid-cascade" anti-pattern。
 
-PR-A 的 acceptance items 即 §K.10 (1-5)：query layer + cascade migrate + delete legacy package + delete legacy tests + grep-zero verify。
+PR-A 的 acceptance items 即 §K.10 (1-5) + amended #33 must-be-real per §K.11.4 (graph entity vector recall not in scope; keyword + traversal sufficient for retrieval/curation existing behaviors)。
 
 #### K.11.12. Wave 6 close-out gate
 
