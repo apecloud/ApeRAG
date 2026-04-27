@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Parser entry point — celery T1.1 Foundation.
+"""Parser entry point — celery T1.1 Foundation + Wave 4 T3 real wire.
 
 Per ``docs/modularization/indexing-redesign-design-pack.md`` §C.1, the
 parser is the producer of the **shared** derived artifacts that every
@@ -32,24 +32,42 @@ extraction. Those are owned by the per-modality ``derive`` workers
 (§C.3): a failed Qdrant sync re-reads ``chunks.jsonl`` instead of
 re-running the parser.
 
-T1.1 ships the **interface and a deterministic in-process simulator**
-so downstream modalities can wire their tests against a real
-``derived/`` layout. Production parser integration (docparser /
-Marker / OCR) is intentionally deferred to T2.x — at that point the
-parser body becomes a thin shim that calls the existing parsing
-pipeline and emits the same artifacts. The simulator proves the
-write contract (atomic visibility + parse_version stability +
-round-trip fidelity); the real parser will inherit that contract
-unchanged.
+T1.1 shipped a **deterministic in-process simulator** for UTF-8
+markdown so downstream modalities could wire their tests against a
+real ``derived/`` layout before the production parser landed. Wave 4
+T3 chunk 1 wires the real :class:`aperag.docparser.doc_parser.DocParser`
+(MarkItDown + MinerU + ImageParser + AudioParser) through the same
+entry point — the simulator path stays for ``.md`` / ``.markdown`` /
+``.txt`` / no-extension inputs and tests, while non-text extensions
+(``.pdf`` / ``.docx`` / ``.doc`` / ``.pptx`` / ``.xlsx`` / ``.png``
+/ ``.jpg`` / ``.epub`` / ``.html`` / ...) materialise a tempfile,
+hand it to ``DocParser.parse_file``, concatenate the resulting
+:class:`MarkdownPart` bodies, and run the same outline + chunking
+pipeline so the artifact schema stays unchanged.
+
+production-readiness invariant (Wave 3 lesson #10):
+- must-be-real: ``DocParser`` chain dispatches on extension and runs
+  real PDF / Office / image / audio parsers on production deployments.
+- may-be-gated: simulator path stays the default for text-only inputs
+  (``.md`` / ``.markdown`` / ``.txt`` / no-extension hint) so unit
+  tests + dev workflows that pass UTF-8 markdown bytes without a
+  filename keep working unchanged.
+- partially-resolves: Wave 4 backlog #4. Chunk 2 promotes the parser
+  to its own ``q:parse`` async queue (per §E.2) so an upload handler
+  no longer blocks on a 30-second OCR run inside the request thread.
 """
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import logging
+import os
 import re
+import tempfile
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from aperag.indexing.object_store import (
@@ -80,6 +98,35 @@ DEFAULT_PARSER_PIPELINE = "indexing-simulator-v1"
 # rolls the parse_version (per design pack §E.2 hash inputs).
 DEFAULT_CHUNK_SIZE = 800
 DEFAULT_CHUNK_OVERLAP = 80
+
+
+# Extensions that the simulator can decode directly (UTF-8 markdown
+# /text). Every other extension (``.pdf`` / ``.docx`` / ``.doc`` /
+# ``.png`` / ``.jpg`` / ...) routes through ``DocParser`` so the
+# production parser chain owns binary + Office + image inputs.
+_SIMULATOR_EXTENSIONS = frozenset(
+    {
+        ".md",
+        ".markdown",
+        ".txt",
+        ".text",
+    }
+)
+
+
+def _normalise_extension(source_filename: str | None) -> str | None:
+    """Lowercase + dotted extension from a filename hint, or ``None``.
+
+    ``None`` / empty / no-dot inputs return ``None`` so callers can
+    keep the legacy simulator behaviour (assume UTF-8 markdown). All
+    other strings normalise to ``.<ext>`` lowercase.
+    """
+    if not source_filename:
+        return None
+    suffix = Path(source_filename).suffix
+    if not suffix:
+        return None
+    return suffix.lower()
 
 
 @dataclass(frozen=True)
@@ -282,12 +329,74 @@ def _document_md5(source_bytes: bytes) -> str:
     return hashlib.md5(source_bytes).hexdigest()
 
 
+def _docparser_extract_markdown(
+    *,
+    source_bytes: bytes,
+    extension: str,
+    parser_config: dict[str, Any] | None,
+) -> str:
+    """Run :class:`DocParser` on ``source_bytes`` and return concatenated markdown.
+
+    Materialises the bytes into a tempfile (DocParser only accepts a
+    real path on disk because MarkItDown / MinerU / OCR all stream
+    from disk), runs the parser chain, then collects every
+    :class:`MarkdownPart` body in order. Non-markdown parts (assets /
+    images / pdf data) are not used here — they belong to the
+    vision modality's ``derive`` step (T1.4) and the cleanup loop's
+    asset GC (T2.1), not the shared markdown contract.
+
+    DocParser is imported lazily so the indexing package's __init__
+    does not pull MarkItDown / MinerU / pikepdf at import time
+    (matches the existing T1.1 lazy-import discipline that kept the
+    Wave 3 hard-cut circular-import-free).
+    """
+    from aperag.docparser.base import MarkdownPart
+    from aperag.docparser.doc_parser import DocParser
+
+    # Use the suffix the caller already normalised so the temp filename
+    # carries the right extension for DocParser's per-extension
+    # dispatch (markitdown_parser / mineru_parser / image_parser).
+    suffix = extension if extension.startswith(".") else f".{extension}"
+    parser = DocParser(parser_config=parser_config or {})
+    if not parser.accept(suffix):
+        raise ValueError(
+            f"DocParser does not accept extension {suffix!r}; "
+            "supported list: " + ", ".join(parser.supported_extensions())
+        )
+
+    # Tempfile lifecycle: write source_bytes → DocParser reads via
+    # path → unlink in finally. ``delete=False`` because Python's
+    # NamedTemporaryFile on POSIX leaves the file open for the parser
+    # to re-open by path; we close + delete explicitly.
+    fd, tmp_path = tempfile.mkstemp(suffix=suffix, prefix="aperag-parse-")
+    os.close(fd)
+    try:
+        with open(tmp_path, "wb") as fh:
+            fh.write(source_bytes)
+        parts = parser.parse_file(Path(tmp_path))
+    finally:
+        with contextlib.suppress(FileNotFoundError):
+            os.unlink(tmp_path)
+
+    markdown_parts = [p.markdown for p in parts if isinstance(p, MarkdownPart) and p.markdown]
+    if not markdown_parts:
+        # Image-only / audio-only inputs (no MarkdownPart) currently
+        # have nothing for the outline + chunks pipeline to emit; we
+        # return an empty body so the artifacts exist but downstream
+        # vector / fulltext modalities see zero chunks. Vision modality
+        # consumes the original asset directly in its derive step.
+        return ""
+    return "\n\n".join(markdown_parts)
+
+
 def parse_document(
     *,
     store: _SyncObjectStore,
     collection_id: str,
     document_id: str,
     source_bytes: bytes,
+    source_filename: str | None = None,
+    parser_config: dict[str, Any] | None = None,
     config: ParseConfig | None = None,
 ) -> ParseResult:
     """Parse the source bytes and persist the three shared artifacts.
@@ -297,20 +406,38 @@ def parse_document(
     them atomically). The artifact paths are the canonical
     ``derived/parse_<version>/`` layout per design pack §C.1.
 
+    Dispatch (Wave 4 T3 chunk 1):
+    - ``source_filename`` ends in a known text extension (``.md`` /
+      ``.markdown`` / ``.txt`` / ``.text``) **or** is ``None`` →
+      decode as UTF-8 markdown via the simulator path. Backward-
+      compatible with every existing caller that just hands bytes.
+    - any other extension → run the real ``DocParser`` chain
+      (MarkItDown / MinerU / ImageParser / AudioParser per
+      ``parser_config``), concatenate every produced ``MarkdownPart``,
+      then continue with the existing outline + chunk pipeline. The
+      ``derived/`` artifact schema is unchanged.
+
     Args:
         store: Object store handle (``LocalObjectStore`` /
             ``S3ObjectStore`` / :class:`InMemoryObjectStore` for tests).
         collection_id: Owning collection.
         document_id: Document being parsed.
-        source_bytes: Raw bytes of the source document. The simulator
-            interprets these as UTF-8 markdown; production parsers
-            would invoke docparser / Marker / OCR here.
+        source_bytes: Raw bytes of the source document.
+        source_filename: Optional filename hint (e.g. ``"report.pdf"``
+            or just ``"report.pdf"`` — only the suffix is consumed).
+            Used to dispatch on extension; ``None`` keeps legacy
+            simulator behaviour.
+        parser_config: Optional collection-level parser config dict
+            (e.g. ``{"use_mineru": True, "mineru_api_token": "..."}``).
+            Forwarded to :class:`DocParser` when the dispatcher routes
+            to the real parser chain. Ignored on the simulator path.
         config: Parsing knobs that influence the parse_version. Pass
             ``None`` to use simulator defaults.
     """
     from aperag.mcp.tools.parse_version import compute_parse_version
 
     cfg = config or ParseConfig()
+    extension = _normalise_extension(source_filename)
 
     document_md5 = _document_md5(source_bytes)
     parse_version = compute_parse_version(
@@ -319,15 +446,25 @@ def parse_document(
         chunking_config=cfg.chunking.serialize(),
     )
 
-    try:
-        markdown = source_bytes.decode("utf-8")
-    except UnicodeDecodeError:
-        # The simulator assumes UTF-8 markdown. Production parsers
-        # convert binary inputs first; that conversion lives outside
-        # this T1.1 surface.
-        raise ValueError(
-            "indexing simulator parser only handles UTF-8 markdown bodies; "
-            "wire docparser/Marker before T2.x for non-text documents"
+    if extension is None or extension in _SIMULATOR_EXTENSIONS:
+        try:
+            markdown = source_bytes.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            # Caller passed text-extension or no extension hint but the
+            # bytes are not UTF-8. Surface the contract gap clearly so
+            # the upload route logs a real cause; production callers
+            # always pass an accurate ``source_filename`` so this only
+            # fires on test misuse.
+            raise ValueError(
+                f"simulator parser path requires UTF-8 markdown bytes "
+                f"(extension={extension or 'none'}); pass source_filename "
+                f"with the real extension to dispatch to DocParser"
+            ) from exc
+    else:
+        markdown = _docparser_extract_markdown(
+            source_bytes=source_bytes,
+            extension=extension,
+            parser_config=parser_config,
         )
 
     outline = _build_outline(markdown)

@@ -203,12 +203,17 @@ async def _create_or_update_document_indexes(
 
     source_bytes = await asyncio.to_thread(_read_source_bytes)
 
+    # Wave 4 T3 chunk 1: pass the upload's filename so ``parse_document``
+    # dispatches to the real ``DocParser`` chain on PDF / Office /
+    # image inputs instead of falling through the simulator's UTF-8
+    # markdown decode (which would raise on binary bytes).
     parsed = await asyncio.to_thread(
         parse_document,
         store=object_store,
         collection_id=document.collection_id,
         document_id=document.id,
         source_bytes=source_bytes,
+        source_filename=object_path,
         config=ParseConfig(),
     )
     parse_version = parsed.parse_version
