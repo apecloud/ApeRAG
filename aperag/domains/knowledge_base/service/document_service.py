@@ -266,6 +266,7 @@ async def _delete_document_indexes(*, document_id: str) -> None:
     await cleanup_for_deleted_documents(
         engine=runtime.engine,
         workers=runtime.workers,
+        worker_factory=runtime.cleanup_worker_factory,
         document_ids=[document_id],
     )
 

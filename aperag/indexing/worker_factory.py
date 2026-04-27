@@ -65,7 +65,7 @@ from typing import Any, Callable, Mapping, Optional
 from sqlalchemy import Engine
 from sqlalchemy.orm import Session
 
-from aperag.indexing.base import ModalityWorker
+from aperag.indexing.base import DeriveResult, ModalityWorker
 from aperag.indexing.models import Modality
 from aperag.indexing.orchestrator import DispatchPayload
 
@@ -838,8 +838,206 @@ class ProductionWorkerFactory:
         with Session(self._engine) as session:
             return session.get(Collection, collection_id)
 
+    async def build_for_cleanup_row(self, row: Any) -> "CleanupWorkerView":
+        """Build a cleanup-only view per ``(row.collection_id, row.modality)``.
+
+        Wave 4 T2 entry point: the cleanup loop reads each
+        :class:`DocumentIndex` row and asks the factory for the right
+        ``_backend`` (vector / fulltext / summary / vision) or
+        ``_store + _entity_lock`` (graph) so the per-modality DELETE
+        can run against the correct per-collection backend.
+
+        Bypasses dispatch-time gates that block worker construction
+        but are irrelevant to deletion — graph "Wave 4 T1 extractor"
+        and vision "multimodal vision-LLM" gates both keep raising for
+        dispatch even after T2 ships, but cleanup must still drop the
+        backend artefacts when an operator deletes a collection /
+        document. Without this bypass the cleanup loop would hit
+        :class:`WorkerFactoryError` for any partially-gated modality
+        and leak Qdrant points / ES docs / graph entities forever.
+        """
+        if row.collection_id is None:
+            raise WorkerFactoryError(f"document_index row id={row.id} has no collection_id; cannot build cleanup view")
+        collection = await asyncio.to_thread(self._load_collection, row.collection_id)
+        if collection is None:
+            raise WorkerFactoryError(
+                f"collection {row.collection_id!r} not found while building cleanup view "
+                f"for index_id={row.id} modality={row.modality}"
+            )
+        try:
+            modality = Modality(row.modality)
+        except ValueError as exc:
+            raise WorkerFactoryError(f"unknown modality {row.modality!r} on index_id={row.id}") from exc
+
+        try:
+            return await asyncio.to_thread(_build_cleanup_view_sync, collection, modality)
+        except WorkerFactoryError:
+            raise
+        except Exception as exc:  # noqa: BLE001 — wrap so cleanup loop can log + skip
+            raise WorkerFactoryError(
+                f"failed to build {modality.value} cleanup view for "
+                f"collection={row.collection_id} index_id={row.id}: {exc!r}"
+            ) from exc
+
+
+# ---------------------------------------------------------------------
+# Cleanup-only worker view — celery Wave 4 T2.
+# ---------------------------------------------------------------------
+#
+# The cleanup loop only consumes a tiny fraction of the
+# :class:`ModalityWorker` surface: ``_backend.{delete_by_filter,
+# delete_by_query}`` for the four flat modalities, and ``_store +
+# _entity_lock`` for graph (per ``aperag.indexing.cleanup``). The full
+# dispatch-time builders enforce gates that block construction even
+# though deletion does not depend on them — the graph "Wave 4 T1
+# extractor" gate (line 429-435) and the vision multimodal gate
+# (line 349-355) both raise :class:`WorkerFactoryError` for any
+# collection that opts into a Wave 4-pending modality.
+#
+# A separate cleanup-only construction path lets the cleanup loop
+# materialise the minimum shape it needs without falling foul of
+# those gates. Production cleanup needs to delete the backend artefacts
+# even when the modality is partially gated — otherwise an operator who
+# disables a modality after Wave 3 would still leak Qdrant points / ES
+# docs / graph entities forever.
+
+
+class CleanupWorkerView(ModalityWorker):
+    """Minimal :class:`ModalityWorker` shape for the cleanup loop.
+
+    Cleanup duck-types on ``_backend`` (flat modalities) or
+    ``_store + _entity_lock`` (graph); ``derive`` / ``sync`` are never
+    called from the cleanup path. This view stubs both as
+    :class:`NotImplementedError` so a programming error that misroutes
+    a cleanup view into the dispatch path surfaces loudly instead of
+    silently dropping work.
+    """
+
+    def __init__(
+        self,
+        *,
+        modality: Modality,
+        backend: Optional[Any] = None,
+        store: Optional[Any] = None,
+        entity_lock: Optional[Any] = None,
+    ) -> None:
+        self.modality = modality
+        # ``cleanup._flat_backend_delete_callable`` walks ``_backend`` for
+        # ``delete_by_filter`` / ``delete_by_query`` so the attribute name
+        # has to match the existing convention used by the production
+        # workers (vector / fulltext / summary / vision all expose
+        # ``_backend``).
+        self._backend = backend
+        self._store = store
+        self._entity_lock = entity_lock
+
+    async def derive(
+        self,
+        *,
+        document_id: str,
+        parse_version: str,
+        source_path: str,
+    ) -> DeriveResult:
+        raise NotImplementedError("CleanupWorkerView.derive must not be called — cleanup-only shape")
+
+    async def sync(
+        self,
+        *,
+        document_id: str,
+        parse_version: str,
+        derived_artifact_path: str,
+    ) -> None:
+        raise NotImplementedError("CleanupWorkerView.sync must not be called — cleanup-only shape")
+
+
+def _build_qdrant_cleanup_backend(collection: Any) -> Any:
+    """Construct the Qdrant ``_backend`` adapter without any modality-
+    specific gate (used for cleanup of vector / summary / vision).
+
+    The full ``_build_vector_worker`` chain calls
+    :func:`get_collection_embedding_service_sync` to size the Qdrant
+    collection; we duplicate that minimal step here so a collection
+    whose embedder config is broken (a Wave 3 lesson #10 case) still
+    deletes its points instead of silently leaking. If the embedding
+    service cannot be resolved we still need ``vector_size`` to
+    address the right collection — fall back to the connector's
+    introspection of the existing collection.
+    """
+    from aperag.config import get_vector_db_connector
+    from aperag.llm.embed.base_embedding import get_collection_embedding_service_sync
+    from aperag.utils.utils import generate_vector_db_collection_name
+
+    qdrant_collection = generate_vector_db_collection_name(collection.id)
+    try:
+        _, vector_size = get_collection_embedding_service_sync(collection)
+    except Exception as exc:  # noqa: BLE001
+        # The embedder is irrelevant for ``delete_by_filter``; the
+        # connector only needs ``vector_size`` to validate against
+        # the existing collection on the Qdrant side. Fall back to a
+        # benign size — the connector will still address the right
+        # collection by name and the delete-by-filter call does not
+        # touch the vector dimension.
+        logger.warning(
+            "cleanup vector backend: embedder resolve failed for collection=%s (%s); "
+            "falling back to size=0 for delete-only operations",
+            getattr(collection, "id", "<unknown>"),
+            exc,
+        )
+        vector_size = 0
+    adaptor = get_vector_db_connector(qdrant_collection, vector_size=vector_size)
+    return _QdrantPointBackend(connector=adaptor.connector)
+
+
+def _build_es_cleanup_backend(collection: Any) -> Any:
+    """Construct the ES ``_backend`` adapter for fulltext cleanup."""
+    from elasticsearch import Elasticsearch
+
+    from aperag.config import settings
+    from aperag.utils.utils import generate_fulltext_index_name
+
+    if not settings.es_host:
+        raise WorkerFactoryError("fulltext cleanup: ES_HOST not configured (settings.es_host empty)")
+
+    es_kwargs: dict[str, Any] = {}
+    if getattr(settings, "es_basic_auth_username", None):
+        es_kwargs["basic_auth"] = (
+            settings.es_basic_auth_username,
+            getattr(settings, "es_basic_auth_password", "") or "",
+        )
+    if getattr(settings, "es_timeout", None):
+        es_kwargs["request_timeout"] = settings.es_timeout
+
+    client = Elasticsearch(settings.es_host, **es_kwargs)
+    index_name = generate_fulltext_index_name(collection.id)
+    return _ElasticsearchFulltextBackend(client=client, index_name=index_name)
+
+
+def _build_cleanup_view_sync(collection: Any, modality: Modality) -> CleanupWorkerView:
+    """Synchronous cleanup-view builder per ``(collection, modality)``.
+
+    Wrapped by :meth:`ProductionWorkerFactory.build_for_cleanup_row`
+    in :func:`asyncio.to_thread` so the SQLAlchemy collection load
+    + sync client construction does not block the orchestrator loop.
+    """
+    if modality is Modality.GRAPH:
+        backend_type = _resolve_graph_backend_type(collection)
+        store = _build_lineage_graph_store(backend_type=backend_type, collection=collection)
+        lock = _resolve_entity_lock(backend_type=backend_type)
+        return CleanupWorkerView(modality=modality, store=store, entity_lock=lock)
+
+    if modality in (Modality.VECTOR, Modality.SUMMARY, Modality.VISION):
+        backend = _build_qdrant_cleanup_backend(collection)
+        return CleanupWorkerView(modality=modality, backend=backend)
+
+    if modality is Modality.FULLTEXT:
+        backend = _build_es_cleanup_backend(collection)
+        return CleanupWorkerView(modality=modality, backend=backend)
+
+    raise WorkerFactoryError(f"no cleanup builder registered for modality {modality.value!r}")
+
 
 __all__ = [
+    "CleanupWorkerView",
     "ProductionWorkerFactory",
     "WorkerFactoryError",
 ]

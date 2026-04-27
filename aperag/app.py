@@ -337,11 +337,17 @@ async def combined_lifespan(app: FastAPI):
                 )
             )
         )
+        # Wave 4 T2: cleanup loop now consumes a per-row worker
+        # factory so each ``DocumentIndex`` row is cleaned against the
+        # right per-(collection, modality) backend. Without this the
+        # cleanup loop ran with ``workers={}`` and silently skipped
+        # every backend delete (Qdrant points / ES docs / graph
+        # entities leaked forever after document or collection delete).
         indexing_runtime_tasks.append(
             asyncio.create_task(
                 run_cleanup_loop(
                     engine=engine,
-                    workers={},  # T3.3 follow-up: pass concrete worker registry
+                    worker_factory=worker_factory.build_for_cleanup_row,
                     shutdown=indexing_shutdown,
                 )
             )
@@ -366,6 +372,7 @@ async def combined_lifespan(app: FastAPI):
                 queue=queue,
                 workers={},
                 metrics_emitter=metrics_emitter,
+                cleanup_worker_factory=worker_factory.build_for_cleanup_row,
             )
         )
     else:

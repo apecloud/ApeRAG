@@ -85,7 +85,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any, Mapping
+from typing import Any, Awaitable, Callable, Mapping, Optional
 
 from sqlalchemy import Engine, and_, delete, func, select
 from sqlalchemy.orm import Session
@@ -94,6 +94,18 @@ from aperag.indexing.base import ModalityWorker
 from aperag.indexing.models import DocumentIndex, Modality
 
 logger = logging.getLogger(__name__)
+
+
+# Wave 4 T2: per-row worker factory shape. Production wires
+# :meth:`aperag.indexing.worker_factory.ProductionWorkerFactory.build_for_cleanup_row`;
+# tests inject a closure that returns the right cleanup view per
+# ``(row.collection_id, row.modality)`` against InMemory backends.
+# A factory may raise :class:`WorkerFactoryError` for a row whose
+# backend is intentionally gated (Wave 4 #9 vision multimodal /
+# Wave 4 #2 graph extractor): the cleanup loop catches that and
+# counts the row as ``backend_skipped`` while still dropping the DB
+# row so the index does not grow unboundedly.
+WorkerFactoryForRow = Callable[[DocumentIndex], Awaitable[ModalityWorker]]
 
 
 # §F.5 cleanup cycle interval. Production runs every 5 minutes;
@@ -150,6 +162,47 @@ def _is_graph_worker(worker: ModalityWorker) -> bool:
     LineageGraphStore) AND ``_entity_lock``.
     """
     return getattr(worker, "modality", None) is Modality.GRAPH
+
+
+async def _resolve_cleanup_worker(
+    *,
+    workers: Optional[Mapping[Modality, ModalityWorker]],
+    worker_factory: Optional[WorkerFactoryForRow],
+    row: DocumentIndex,
+) -> Optional[ModalityWorker]:
+    """Resolve the cleanup worker for a row from factory or static map.
+
+    Wave 4 T2: production wires the factory (per-(collection, modality)
+    lazy materialisation); tests typically pass a pre-built ``workers``
+    mapping. When both are provided the factory wins — production
+    deployments override the legacy mapping with the per-row factory.
+
+    Returns ``None`` when neither source can supply a worker; the
+    caller logs + counts the row as ``backend_skipped``. A factory
+    that raises :class:`WorkerFactoryError` (Wave 4 vision multimodal
+    gate / partial config) also returns ``None`` so the cleanup cycle
+    drops the DB row even when the backend is unreachable, matching
+    the existing "skip backend, drop row" semantics.
+    """
+    if worker_factory is not None:
+        try:
+            return await worker_factory(row)
+        except Exception as exc:  # noqa: BLE001 — surface via log, count as skip
+            logger.warning(
+                "cleanup worker_factory failed modality=%s row id=%d collection=%s: %s — counting as backend_skipped",
+                row.modality,
+                row.id,
+                row.collection_id,
+                exc,
+            )
+            return None
+    if workers is None:
+        return None
+    try:
+        modality = Modality(row.modality)
+    except ValueError:
+        return None
+    return workers.get(modality)
 
 
 # ---------------------------------------------------------------------
@@ -215,16 +268,19 @@ def find_orphan_parse_versions(
 async def cleanup_orphan_parse_versions(
     *,
     engine: Engine,
-    workers: Mapping[Modality, ModalityWorker],
+    workers: Optional[Mapping[Modality, ModalityWorker]] = None,
+    worker_factory: Optional[WorkerFactoryForRow] = None,
     cooldown_seconds: int = ORPHAN_COOLDOWN_SECONDS,
     batch_size: int = CLEANUP_BATCH_SIZE,
 ) -> dict[str, int]:
     """Garbage-collect every orphan triple visible right now (path A).
 
-    ``workers`` is the per-modality registry the orchestrator already
-    uses; cleanup looks up each row's modality to find the worker.
-    Returns a dict ``{"backend_deleted": N, "rows_deleted": N,
-    "graph_noop": N, "backend_skipped": N}`` for telemetry / tests.
+    Wave 4 T2: ``worker_factory`` is the per-row lazy resolver
+    production lifespan installs; ``workers`` is the legacy per-modality
+    static map kept for backward-compat with existing tests. When both
+    are passed the factory wins. Returns a dict ``{"backend_deleted":
+    N, "rows_deleted": N, "graph_noop": N, "backend_skipped": N}``
+    for telemetry / tests.
 
     **Graph behaviour** (per architect ruling msg=492315e8 Ruling 3):
     the §D.3.6 sync supersede semantic already removed the old
@@ -250,7 +306,7 @@ async def cleanup_orphan_parse_versions(
     delete_ids: list[int] = []
     for row in rows:
         try:
-            modality = Modality(row.modality)
+            Modality(row.modality)
         except ValueError:
             logger.error(
                 "cleanup unknown modality %r on row id=%d — skipping",
@@ -259,7 +315,11 @@ async def cleanup_orphan_parse_versions(
             )
             continue
 
-        worker = workers.get(modality)
+        worker = await _resolve_cleanup_worker(
+            workers=workers,
+            worker_factory=worker_factory,
+            row=row,
+        )
         if worker is None:
             logger.warning(
                 "cleanup no worker registered for modality=%s row id=%d — skipping backend delete",
@@ -320,7 +380,8 @@ async def cleanup_orphan_parse_versions(
 async def cleanup_for_deleted_documents(
     *,
     engine: Engine,
-    workers: Mapping[Modality, ModalityWorker],
+    workers: Optional[Mapping[Modality, ModalityWorker]] = None,
+    worker_factory: Optional[WorkerFactoryForRow] = None,
     document_ids: list[str],
 ) -> dict[str, int]:
     """Garbage-collect every triple for the given deleted documents (path B).
@@ -335,6 +396,11 @@ async def cleanup_for_deleted_documents(
       delete via :class:`LineageGraphStore` per architect ruling
       msg=492315e8 Ruling 3. Each entity is removed under its
       :class:`EntityLock` so a concurrent graph sync cannot race.
+
+    Wave 4 T2: ``worker_factory`` resolves the worker per-row from the
+    persisted ``DocumentIndex`` (collection_id + modality); ``workers``
+    is the legacy static map kept for tests. When both are passed the
+    factory wins.
 
     All ``document_index_v2`` rows for the requested documents are
     dropped at the end (one batched DELETE).
@@ -368,7 +434,7 @@ async def cleanup_for_deleted_documents(
 
     for row in rows:
         try:
-            modality = Modality(row.modality)
+            Modality(row.modality)
         except ValueError:
             logger.error(
                 "cleanup unknown modality %r on row id=%d (document=%s) — skipping",
@@ -378,7 +444,11 @@ async def cleanup_for_deleted_documents(
             )
             continue
 
-        worker = workers.get(modality)
+        worker = await _resolve_cleanup_worker(
+            workers=workers,
+            worker_factory=worker_factory,
+            row=row,
+        )
         if worker is None:
             logger.warning(
                 "cleanup no worker for modality=%s row id=%d document=%s — skipping backend",
@@ -510,7 +580,8 @@ def _delete_rows(engine: Engine, ids: list[int]) -> None:
 async def cleanup_for_deleted_collections(
     *,
     engine: Engine,
-    workers: Mapping[Modality, ModalityWorker],
+    workers: Optional[Mapping[Modality, ModalityWorker]] = None,
+    worker_factory: Optional[WorkerFactoryForRow] = None,
     collection_ids: list[str],
 ) -> dict[str, int]:
     """Cascade-cleanup every triple for the given deleted collections (path C).
@@ -567,6 +638,7 @@ async def cleanup_for_deleted_collections(
         sub_counts = await cleanup_for_deleted_documents(
             engine=engine,
             workers=workers,
+            worker_factory=worker_factory,
             document_ids=document_ids,
         )
         for key in ("backend_deleted", "graph_lineage_cleaned", "rows_deleted", "backend_skipped"):
@@ -603,7 +675,8 @@ def _delete_rows_for_collections(engine: Engine, collection_ids: list[str]) -> i
 async def run_cleanup_loop(
     *,
     engine: Engine,
-    workers: Mapping[Modality, ModalityWorker],
+    workers: Optional[Mapping[Modality, ModalityWorker]] = None,
+    worker_factory: Optional[WorkerFactoryForRow] = None,
     shutdown: asyncio.Event,
     interval_seconds: int = CLEANUP_INTERVAL_SECONDS,
     cooldown_seconds: int = ORPHAN_COOLDOWN_SECONDS,
@@ -618,6 +691,11 @@ async def run_cleanup_loop(
       stuck in UPLOADED status > 1 day (replaces legacy
       ``cleanup_expired_documents_task`` Celery beat schedule)
 
+    Wave 4 T2: production lifespan injects ``worker_factory`` (per-row
+    lazy resolver against the existing ``ProductionWorkerFactory``);
+    tests typically inject a static ``workers`` map. When both are
+    given the factory wins.
+
     A cycle that throws is logged and the loop continues — DB
     unreachable / Redis blip should not crash the cleanup process.
     """
@@ -626,6 +704,7 @@ async def run_cleanup_loop(
             counts = await cleanup_orphan_parse_versions(
                 engine=engine,
                 workers=workers,
+                worker_factory=worker_factory,
                 cooldown_seconds=cooldown_seconds,
             )
             if any(counts.values()):
@@ -665,6 +744,7 @@ __all__ = [
     "CLEANUP_BATCH_SIZE",
     "CLEANUP_INTERVAL_SECONDS",
     "ORPHAN_COOLDOWN_SECONDS",
+    "WorkerFactoryForRow",
     "cleanup_expired_documents_hook",
     "cleanup_for_deleted_collections",
     "cleanup_for_deleted_documents",
