@@ -35,16 +35,19 @@ document_id: jsonpath "$.items[0].id"
 header "content-type" contains "application/json"
 jsonpath "$.items[0].id" == "{{document_id}}"
 jsonpath "$.items[0].name" == "tests/e2e_http/testdata/minimal-document.txt"
-jsonpath "$.items[0].graph_index_status" == "SKIPPED"
+# Wave 3 §F.2 hard-cut: per-modality status is null when the modality
+# is not enabled for this collection (no document_index row exists);
+# the legacy "SKIPPED" sentinel was dropped per architect lock.
+jsonpath "$.items[0].graph_index_status" == null
 
 GET {{base_url}}/api/v2/collections/{{collection_id}}/documents/{{document_id}}
 HTTP 200
 [Asserts]
 jsonpath "$.id" == "{{document_id}}"
 jsonpath "$.name" == "tests/e2e_http/testdata/minimal-document.txt"
-jsonpath "$.graph_index_status" == "SKIPPED"
-jsonpath "$.summary_index_status" == "SKIPPED"
-jsonpath "$.vision_index_status" == "SKIPPED"
+jsonpath "$.graph_index_status" == null
+jsonpath "$.summary_index_status" == null
+jsonpath "$.vision_index_status" == null
 
 DELETE {{base_url}}/api/v2/collections/{{collection_id}}/documents/{{document_id}}
 HTTP 204

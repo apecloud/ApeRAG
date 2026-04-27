@@ -377,10 +377,21 @@ class DocumentService:
         collection configuration. Wave 3 migrated the legacy
         ``DocumentIndexType`` enum to :class:`Modality`; the per-
         collection enable flags map 1-to-1 to modalities.
+
+        ``enable_vector`` was historically implicit (vector was
+        always created) but a collection without an embedding-model
+        config cannot satisfy the Wave 3 production worker factory
+        (factory raises :class:`WorkerFactoryError` → row finalises
+        FAILED → reconciler retries forever). Honouring the
+        ``enable_vector`` flag here turns "vector explicitly
+        disabled" into a no-row state — the modality simply does not
+        appear in the document_index table for this document.
         """
         parsed_config = parseCollectionConfig(json.dumps(collection_config))
-        index_types = [Modality.VECTOR]
+        index_types: list = []
 
+        if parsed_config.enable_vector is not False:
+            index_types.append(Modality.VECTOR)
         if parsed_config.enable_fulltext is not False:
             index_types.append(Modality.FULLTEXT)
 
@@ -551,19 +562,22 @@ class DocumentService:
             id=document.id,
             name=document.name,
             status=document.status,
-            # Vector index information
-            vector_index_status=indexes["VECTOR"]["status"] if indexes["VECTOR"] else "SKIPPED",
+            # Per-modality status: ``None`` when the row does not exist
+            # (modality not enabled for this collection — the dispatcher
+            # never created a document_index row). Wave 3 §F.2 hard-cut
+            # dropped the "SKIPPED" sentinel; absence is the canonical
+            # NOT_ENABLED signal for the view-model layer. Friendly
+            # client-facing mapping (NOT_ENABLED / INDEXING) lives in
+            # §G.5 ``SearchResultMetadata.index_state_per_modality``.
+            vector_index_status=indexes["VECTOR"]["status"] if indexes["VECTOR"] else None,
             vector_index_updated=indexes["VECTOR"]["updated_at"] if indexes["VECTOR"] else None,
-            # Fulltext index information
-            fulltext_index_status=indexes["FULLTEXT"]["status"] if indexes["FULLTEXT"] else "SKIPPED",
+            fulltext_index_status=indexes["FULLTEXT"]["status"] if indexes["FULLTEXT"] else None,
             fulltext_index_updated=indexes["FULLTEXT"]["updated_at"] if indexes["FULLTEXT"] else None,
-            # Graph index information
-            graph_index_status=indexes["GRAPH"]["status"] if indexes["GRAPH"] else "SKIPPED",
+            graph_index_status=indexes["GRAPH"]["status"] if indexes["GRAPH"] else None,
             graph_index_updated=indexes["GRAPH"]["updated_at"] if indexes["GRAPH"] else None,
-            # Summary index information
-            summary_index_status=indexes["SUMMARY"]["status"] if indexes.get("SUMMARY") else "SKIPPED",
+            summary_index_status=indexes["SUMMARY"]["status"] if indexes.get("SUMMARY") else None,
             summary_index_updated=indexes["SUMMARY"]["updated_at"] if indexes.get("SUMMARY") else None,
-            vision_index_status=indexes["VISION"]["status"] if indexes.get("VISION") else "SKIPPED",
+            vision_index_status=indexes["VISION"]["status"] if indexes.get("VISION") else None,
             vision_index_updated=indexes["VISION"]["updated_at"] if indexes.get("VISION") else None,
             summary=summary,  # Parse from index_data
             size=document.size,

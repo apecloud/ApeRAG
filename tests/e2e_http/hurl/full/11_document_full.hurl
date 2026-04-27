@@ -138,9 +138,9 @@ jsonpath "$.name" == "tests/e2e_http/testdata/full-document.txt"
 jsonpath "$.status" exists
 jsonpath "$.vector_index_status" exists
 jsonpath "$.fulltext_index_status" exists
-jsonpath "$.graph_index_status" == "SKIPPED"
-jsonpath "$.summary_index_status" == "SKIPPED"
-jsonpath "$.vision_index_status" == "SKIPPED"
+jsonpath "$.graph_index_status" == null
+jsonpath "$.summary_index_status" == null
+jsonpath "$.vision_index_status" == null
 
 GET {{base_url}}/api/v2/collections/{{collection_id}}/documents/{{document_id}}/preview
 HTTP 200
