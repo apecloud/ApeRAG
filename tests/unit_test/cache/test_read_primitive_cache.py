@@ -101,6 +101,38 @@ async def test_distinct_parse_versions_compute_independently():
 
 
 @pytest.mark.asyncio
+async def test_outline_cache_keys_include_max_depth():
+    cache = _make_cache()
+    calls: list[int] = []
+
+    async def compute(depth: int):
+        async def _compute() -> _Payload:
+            calls.append(depth)
+            return _Payload(document_id="doc", parse_version="0000000000000001", body=f"depth-{depth}")
+
+        return _compute
+
+    shallow = await cache.get_or_compute_outline(
+        document_id="doc",
+        parse_version="0000000000000001",
+        max_depth=1,
+        compute=await compute(1),
+        model_cls=_Payload,
+    )
+    deep = await cache.get_or_compute_outline(
+        document_id="doc",
+        parse_version="0000000000000001",
+        max_depth=6,
+        compute=await compute(6),
+        model_cls=_Payload,
+    )
+
+    assert shallow.body == "depth-1"
+    assert deep.body == "depth-6"
+    assert calls == [1, 6]
+
+
+@pytest.mark.asyncio
 async def test_section_cache_keys_include_section_path_and_anchor():
     cache = _make_cache()
     counter = {"n": 0}
@@ -135,9 +167,10 @@ async def test_section_cache_keys_include_section_path_and_anchor():
 
 
 @pytest.mark.asyncio
-async def test_chunk_cache_uses_chunk_id_only_namespace():
-    """§E.6 — chunk_id is indexing-immutable; chunk namespace MUST NOT
-    bake parse_version into the key."""
+async def test_chunk_cache_key_includes_collection_document_and_chunk_id():
+    """Chunk ids are not guaranteed globally unique across tenants or
+    documents, so the cache key must include the full read scope.
+    """
 
     cache = _make_cache()
 
@@ -145,12 +178,13 @@ async def test_chunk_cache_uses_chunk_id_only_namespace():
         return _Payload(document_id="doc", parse_version="0000000000000001", body="ok")
 
     await cache.get_or_compute_chunk(
+        collection_id="col-1",
+        document_id="doc-1",
         chunk_id="c-1",
         compute=compute,
         model_cls=_Payload,
     )
-    # The L1 store must contain a single key shaped exactly d10:chunk:c-1.
-    raw_key = "d10:chunk:c-1"
+    raw_key = "d10:chunk:col-1:doc-1:c-1"
     assert await cache.l1.get(raw_key) is not None
 
 
@@ -207,7 +241,7 @@ async def test_compute_must_return_declared_model_class():
 @pytest.mark.asyncio
 async def test_undecodable_l1_entry_falls_back_to_compute():
     cache = _make_cache()
-    bad_key = f"d10:{NAMESPACE_OUTLINE}:doc:0000000000000001"
+    bad_key = f"d10:{NAMESPACE_OUTLINE}:doc:0000000000000001:6"
     # Manually inject corrupted JSON to simulate a partial deploy with a
     # newer model_cls than the stored payload was serialized for.
     await cache.l1.set(bad_key, "{not valid json")

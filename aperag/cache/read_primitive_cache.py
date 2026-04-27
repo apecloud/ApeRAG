@@ -138,10 +138,11 @@ class ReadPrimitiveCache:
         *,
         document_id: str,
         parse_version: str,
+        max_depth: int = 6,
         compute: Callable[[], Awaitable[ModelT]],
         model_cls: type[ModelT],
     ) -> ModelT:
-        key = _build_key(NAMESPACE_OUTLINE, document_id, parse_version)
+        key = _build_key(NAMESPACE_OUTLINE, document_id, parse_version, str(int(max_depth)))
         return await self._get_or_compute(key=key, compute=compute, model_cls=model_cls)
 
     async def get_or_compute_section(
@@ -177,13 +178,13 @@ class ReadPrimitiveCache:
     async def get_or_compute_chunk(
         self,
         *,
+        collection_id: str,
+        document_id: str,
         chunk_id: str,
         compute: Callable[[], Awaitable[ModelT]],
         model_cls: type[ModelT],
     ) -> ModelT:
-        # §E.6: chunk_id is indexing-layer-immutable, so there is no
-        # parse_version dimension on this namespace.
-        key = _build_key(NAMESPACE_CHUNK, chunk_id)
+        key = _build_key(NAMESPACE_CHUNK, collection_id, document_id, chunk_id)
         return await self._get_or_compute(key=key, compute=compute, model_cls=model_cls)
 
     # ------------------------------------------------------------------

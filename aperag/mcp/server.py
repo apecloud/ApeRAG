@@ -57,8 +57,9 @@ logger = logging.getLogger(__name__)
 # Initialize FastMCP server
 mcp_server = FastMCP("ApeRAG")
 
-# Base URL for internal API calls
-API_BASE_URL = "http://localhost:8000"
+# Base URL for internal API calls. Deployments can point the MCP server
+# at a colocated API service without changing the public tool surface.
+API_BASE_URL = os.getenv("APERAG_API_BASE_URL", "http://localhost:8000").rstrip("/")
 
 
 # === D10.c read primitives ===
@@ -298,7 +299,15 @@ async def read_document_chunk(
 # in the same cutover.
 
 
-@mcp_server.tool
+@mcp_server.tool(
+    annotations=_register_tool_annotation(
+        "web_read",
+        ToolAnnotation(
+            requires=("web_access",),
+            capabilities={"long_context": False, "web_access": True},
+        ),
+    ),
+)
 async def web_read(
     url_list: list[str],
     timeout: int = 30,

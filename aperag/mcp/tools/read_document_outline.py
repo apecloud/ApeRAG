@@ -102,6 +102,7 @@ async def read_document_outline(
     return await cache.get_or_compute_outline(
         document_id=document.id,
         parse_version=parse_version,
+        max_depth=max_depth,
         compute=_compute,
         model_cls=DocumentOutline,
     )
