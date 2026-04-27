@@ -50,4 +50,11 @@ done
 
 echo "Running scripted business-flow checks"
 "${ROOT_DIR}/tests/e2e_http/scripts/run_chat_collection_flow.sh"
-"${ROOT_DIR}/tests/e2e_http/scripts/run_graph_index_flow.sh"
+# Wave 3 release gates the graph modality (architect msg=c79e9a3f):
+# the §D.3.6 Nebula/Postgres LineageGraphStore adapter + LLM
+# extractor are Wave 4 scope, so ProductionWorkerFactory raises
+# WorkerFactoryError for any graph dispatch and the row lands at
+# FAILED — run_graph_index_flow.sh then times out waiting for
+# ACTIVE. Re-enable this script the moment Wave 4 wires the real
+# backend; until then it would only verify the placeholder.
+echo "Skipping run_graph_index_flow.sh until Wave 4 (graph modality gated; see docs/private-deployment.md)"

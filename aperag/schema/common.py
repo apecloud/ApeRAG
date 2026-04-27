@@ -164,7 +164,14 @@ class CollectionConfig(BaseModel):
     )
     enable_vector: Optional[bool] = Field(True, description="Whether to enable vector index")
     enable_fulltext: Optional[bool] = Field(True, description="Whether to enable fulltext index")
-    enable_knowledge_graph: Optional[bool] = Field(True, description="Whether to enable knowledge graph index")
+    # Wave 3 ships graph modality structurally implemented but gated
+    # in :class:`aperag.indexing.worker_factory.ProductionWorkerFactory`
+    # because the §D.3.6 Nebula / Postgres ``LineageGraphStore`` adapter
+    # + LightRAG-style LLM extractor are Wave 4 scope. Default flipped
+    # to False so new collections do not opt into the placeholder path
+    # by accident; Wave 4 release flips it back to True. Per architect
+    # msg=c79e9a3f.
+    enable_knowledge_graph: Optional[bool] = Field(False, description="Whether to enable knowledge graph index")
     enable_summary: Optional[bool] = Field(False, description="Whether to enable summary index")
     enable_vision: Optional[bool] = Field(False, description="Whether to enable vision index")
     knowledge_graph_config: Optional[KnowledgeGraphConfig] = Field(

@@ -343,28 +343,45 @@ def _build_vision_worker(*, collection: Any, object_store: Any) -> ModalityWorke
 
 def _build_graph_worker(*, collection: Any, object_store: Any, payload: DispatchPayload) -> ModalityWorker:
     """Wire :class:`GraphModalityWorker` for the new §D.3 lineage
-    pipeline.
+    pipeline — currently **gated** until Wave 4.
 
-    The §D.3.6 lineage-set adapter for the existing Nebula /
-    Postgres graph store is intentionally a Wave 4 follow-up
-    (architect msg=7782ebe0 spec gap acknowledgement); for now, the
-    factory builds the worker with the in-memory lineage store + lock
-    so the pipeline does not crash on graph dispatches. Each worker
-    process keeps its own in-memory graph state — not durable across
-    restarts, but sufficient for the e2e-http-provider gate (which
-    only blocks on vector ACTIVE).
+    Per architect msg=c79e9a3f gap-report ruling: the §D.3.6 Nebula /
+    Postgres ``LineageGraphStore`` adapter and the LightRAG-style
+    LLM extractor are not in Wave 3 scope. Building this worker
+    against the :class:`InMemoryLineageGraphStore` placeholder + a
+    no-op extractor was a silent failure mode — runs would reach
+    ``status=ACTIVE`` with zero entities written and the user would
+    see "graph indexed" but search would return nothing. Worse, the
+    in-memory store loses all state on worker restart, so even the
+    rare working case is non-durable.
 
-    The extractor is a no-op stub returning empty entity / relation
-    lists so the run reaches ACTIVE without spending LLM tokens. The
-    real LightRAG-style extractor from
-    ``aperag.domains.knowledge_graph.graphindex.integration`` will be
-    wired in alongside the graph store adapter.
+    Wave 3 ships graph **explicitly gated**: this builder raises a
+    :class:`WorkerFactoryError` so any collection with
+    ``enable_knowledge_graph=True`` gets a clear, persisted error
+    on its graph row instead of a silent ACTIVE-with-empty-graph.
+    The collection-config default is also flipped to ``False`` so
+    new collections do not opt into the broken path by accident.
+
+    Wave 4 (locked backlog) wires the real adapter + extractor; the
+    detection rule in this builder will then no longer match (the
+    store is a Nebula adapter, not :class:`InMemoryLineageGraphStore`)
+    and the gate self-disables without a code change here.
     """
     from aperag.indexing.graph import (
         GraphModalityWorker as _GraphModalityWorker,
     )
+    from aperag.indexing.graph import (
+        InMemoryLineageGraphStore,
+    )
 
     store = _process_graph_store_singleton()
+    if isinstance(store, InMemoryLineageGraphStore):
+        raise WorkerFactoryError(
+            "graph modality requires a real LineageGraphStore (Wave 4 wiring); "
+            "current InMemory placeholder is test-only — set "
+            "collection.config.enable_knowledge_graph=false until Wave 4 lands"
+        )
+
     lock = _process_graph_lock_singleton()
 
     async def _no_op_extractor(_chunks):
