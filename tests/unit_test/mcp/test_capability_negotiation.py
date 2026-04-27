@@ -113,7 +113,7 @@ class TestToolAnnotationSchema:
     def test_to_mcp_dict_matches_spec_sample(self):
         a = ToolAnnotation(
             requires=("collection_access",),
-            capabilities={"vision": False, "graph_index": True},
+            capabilities={"vision": False, "web_access": True},
             deprecated=False,
             deprecated_until=None,
             fallback_to=None,
@@ -122,7 +122,7 @@ class TestToolAnnotationSchema:
         # `capabilities`, JSON-friendly None.
         assert a.to_mcp_dict() == {
             "requires": ["collection_access"],
-            "capabilities": {"vision": False, "graph_index": True},
+            "capabilities": {"vision": False, "web_access": True},
             "deprecated": False,
             "deprecated_until": None,
             "fallback_to": None,
@@ -134,10 +134,8 @@ class TestToolAnnotationSchema:
 # ---------------------------------------------------------------------------
 
 
-# The 12 tools that the D10.f spec scope annotates: 8 D10.c read
-# primitives + 4 D10.d search primitives. Pre-D10 deprecated tools
-# (search_collection / search_chat_files / web_read) are out of scope
-# per §G boundary and intentionally NOT present.
+# Built-in read/search/web tools must all carry annotations so any MCP
+# client can make one consistent capability decision.
 _EXPECTED_TOOLS: frozenset[str] = frozenset(
     {
         # D10.c read primitives
@@ -154,6 +152,7 @@ _EXPECTED_TOOLS: frozenset[str] = frozenset(
         "graph_search",
         "fulltext_search",
         "web_search",
+        "web_read",
     }
 )
 
@@ -186,18 +185,27 @@ class TestRegistry:
             for req in ann.requires:
                 assert req in KNOWN_REQUIRES, f"tool {name!r} declares unknown requires entry {req!r}"
 
-    def test_graph_search_requires_graph_index(self):
+    def test_collection_search_tools_do_not_require_client_index_capabilities(self):
+        """Graph/fulltext indexes are collection state, not client
+        capabilities. Clients should not hide these tools just because
+        the host lacks a local graph/fulltext feature flag.
+        """
+
         ann = _annotations.get("graph_search")
         assert ann is not None
-        assert ann.capabilities.get("graph_index") is True
-
-    def test_fulltext_search_requires_fulltext_index(self):
+        assert "graph_index" not in ann.capabilities
         ann = _annotations.get("fulltext_search")
         assert ann is not None
-        assert ann.capabilities.get("fulltext_index") is True
+        assert "fulltext_index" not in ann.capabilities
 
     def test_web_search_requires_web_access(self):
         ann = _annotations.get("web_search")
+        assert ann is not None
+        assert ann.capabilities.get("web_access") is True
+        assert "web_access" in ann.requires
+
+    def test_web_read_requires_web_access(self):
+        ann = _annotations.get("web_read")
         assert ann is not None
         assert ann.capabilities.get("web_access") is True
         assert "web_access" in ann.requires
@@ -281,14 +289,14 @@ class TestRegisterReregistrationGuard:
 
 class TestFilterPseudocode:
     def test_needed_true_capability_excludes_lacking_client(self):
-        ann = ToolAnnotation(capabilities={"graph_index": True})
-        usable, missing = is_usable(ann, {"graph_index": False})
+        ann = ToolAnnotation(capabilities={"web_access": True})
+        usable, missing = is_usable(ann, {"web_access": False})
         assert usable is False
-        assert missing == ("graph_index",)
+        assert missing == ("web_access",)
 
     def test_needed_true_capability_admits_granting_client(self):
-        ann = ToolAnnotation(capabilities={"graph_index": True})
-        usable, missing = is_usable(ann, {"graph_index": True})
+        ann = ToolAnnotation(capabilities={"web_access": True})
+        usable, missing = is_usable(ann, {"web_access": True})
         assert usable is True
         assert missing == ()
 
@@ -309,10 +317,10 @@ class TestFilterPseudocode:
         assert missing == ("web_access",)
 
     def test_multiple_missing_caps_reported_sorted(self):
-        ann = ToolAnnotation(capabilities={"web_access": True, "graph_index": True, "vision": False})
+        ann = ToolAnnotation(capabilities={"web_access": True, "long_context": True, "vision": False})
         usable, missing = is_usable(ann, {"vision": True})
         assert usable is False
-        assert missing == ("graph_index", "web_access")  # sorted
+        assert missing == ("long_context", "web_access")  # sorted
 
 
 # ---------------------------------------------------------------------------
@@ -329,7 +337,7 @@ class TestFilterDecisions:
             ),
             "graph_search": ToolAnnotation(
                 requires=("collection_access",),
-                capabilities={"long_context": False, "graph_index": True},
+                capabilities={"long_context": False},
             ),
             "web_search": ToolAnnotation(
                 requires=("web_access",),
@@ -347,21 +355,21 @@ class TestFilterDecisions:
     def test_air_gapped_client_excludes_web_with_reason(self):
         decisions = filter_tools(
             self._registry(),
-            {"long_context": True, "graph_index": True, "web_access": False},
+            {"long_context": True, "web_access": False},
         )
         by_name = {d.tool_name: d for d in decisions}
         assert by_name["web_search"].usable is False
         assert by_name["web_search"].reason == "capability_required"
         assert by_name["web_search"].missing == ("web_access",)
 
-    def test_no_graph_index_client_excludes_graph_search(self):
+    def test_collection_index_state_does_not_hide_graph_search(self):
         decisions = filter_tools(
             self._registry(),
-            {"long_context": True, "graph_index": False, "web_access": True},
+            {"long_context": True, "web_access": True},
         )
         by_name = {d.tool_name: d for d in decisions}
-        assert by_name["graph_search"].usable is False
-        assert by_name["graph_search"].missing == ("graph_index",)
+        assert by_name["graph_search"].usable is True
+        assert by_name["graph_search"].reason is None
         # vector_search has no needed=True caps so it must remain usable
         assert by_name["vector_search"].usable is True
         assert by_name["vector_search"].reason is None
@@ -369,7 +377,7 @@ class TestFilterDecisions:
     def test_deprecated_tool_kept_with_reason_by_default(self):
         decisions = filter_tools(
             self._registry(),
-            {"long_context": True, "graph_index": True, "web_access": True},
+            {"long_context": True, "web_access": True},
         )
         by_name = {d.tool_name: d for d in decisions}
         assert by_name["old_omnibus_search"].usable is True
@@ -378,7 +386,7 @@ class TestFilterDecisions:
     def test_deprecated_tool_dropped_when_include_deprecated_false(self):
         decisions = filter_tools(
             self._registry(),
-            {"long_context": True, "graph_index": True, "web_access": True},
+            {"long_context": True, "web_access": True},
             include_deprecated=False,
         )
         by_name = {d.tool_name: d for d in decisions}
@@ -397,15 +405,16 @@ class TestFilterDecisions:
     def test_usable_tool_names_helper_returns_only_usable(self):
         names = usable_tool_names(
             self._registry(),
-            {"long_context": True, "graph_index": False, "web_access": False},
+            {"long_context": True, "web_access": False},
         )
         # vector_search has no needed=True caps so it survives.
+        # graph_search is gated by collection state at execution time,
+        # not by client capability filtering.
         # old_omnibus_search is deprecated but still usable per default.
-        # graph_search and web_search are excluded by missing caps.
-        assert set(names) == {"vector_search", "old_omnibus_search"}
+        # web_search is excluded by missing web access.
+        assert set(names) == {"vector_search", "graph_search", "old_omnibus_search"}
 
     def test_required_capabilities_aggregates_only_true_keys(self):
         keys = required_capabilities(self._registry().values())
-        # vision/long_context never appear as needed=True — only
-        # graph_index + web_access. Sorted output.
-        assert keys == ("graph_index", "web_access")
+        # collection index availability is not a client capability.
+        assert keys == ("web_access",)

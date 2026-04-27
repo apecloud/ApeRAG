@@ -31,35 +31,30 @@ def _make_cache() -> ReadPrimitiveCache:
 async def test_invalidate_document_purges_parse_version_namespaces():
     cache = _make_cache()
     # Pre-populate L1 with sample entries across all namespaces.
-    await cache.l1.set("d10:outline:doc-1:0000000000000001", "x")
+    await cache.l1.set("d10:outline:doc-1:0000000000000001:6", "x")
     await cache.l1.set("d10:section:doc-1:0000000000000001::a", "y")
     await cache.l1.set("d10:content:doc-1:0000000000000001", "z")
-    await cache.l1.set("d10:chunk:c-1", "k")
+    await cache.l1.set("d10:chunk:col-1:doc-1:c-1", "k")
 
     await invalidate_document(cache, document_id="doc-1")
 
-    assert await cache.l1.get("d10:outline:doc-1:0000000000000001") is None
+    assert await cache.l1.get("d10:outline:doc-1:0000000000000001:6") is None
     assert await cache.l1.get("d10:section:doc-1:0000000000000001::a") is None
     assert await cache.l1.get("d10:content:doc-1:0000000000000001") is None
-    # §E.6: chunk namespace is keyed by chunk_id only and is NOT
-    # auto-purged by document_id-level invalidation. Callers that
-    # delete a document and need chunk purges must walk the chunk
-    # list — this is intentional per the implementation note in
-    # ``aperag/cache/invalidation.py``.
-    assert await cache.l1.get("d10:chunk:c-1") == "k"
+    assert await cache.l1.get("d10:chunk:col-1:doc-1:c-1") is None
 
 
 @pytest.mark.asyncio
 async def test_invalidate_collection_purges_parse_version_namespaces():
     cache = _make_cache()
-    await cache.l1.set("d10:outline:doc-1:0000000000000001", "x")
+    await cache.l1.set("d10:outline:doc-1:0000000000000001:6", "x")
     await cache.l1.set("d10:section:doc-2:0000000000000002::a", "y")
     await cache.l1.set("d10:content:doc-3:0000000000000003", "z")
-    await cache.l1.set("d10:chunk:c-1", "k")
+    await cache.l1.set("d10:chunk:col-1:doc-1:c-1", "k")
 
     await invalidate_collection(cache, collection_id="col-1")
 
-    assert await cache.l1.get("d10:outline:doc-1:0000000000000001") is None
+    assert await cache.l1.get("d10:outline:doc-1:0000000000000001:6") is None
     assert await cache.l1.get("d10:section:doc-2:0000000000000002::a") is None
     assert await cache.l1.get("d10:content:doc-3:0000000000000003") is None
-    assert await cache.l1.get("d10:chunk:c-1") == "k"
+    assert await cache.l1.get("d10:chunk:col-1:doc-1:c-1") is None

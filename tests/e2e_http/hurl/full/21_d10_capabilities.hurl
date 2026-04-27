@@ -4,9 +4,8 @@
 # every D10 tool registered through ``aperag/mcp/tools/_annotations.py``
 # must carry its ``ToolAnnotation`` payload (``requires`` /
 # ``capabilities`` / ``deprecated`` / ``deprecated_until`` /
-# ``fallback_to``) onto the MCP wire so external Agents (Claude Code /
-# Codex / Cursor) can do client-side filtering without server-side
-# session state.
+# ``fallback_to``) onto the MCP wire so MCP clients can do
+# client-side filtering without server-side session state.
 #
 # This hurl exercises the FastMCP HTTP mount at ``/mcp/`` end-to-end:
 #
@@ -91,15 +90,11 @@ body contains "\"vector_search\""
 body contains "\"graph_search\""
 body contains "\"fulltext_search\""
 body contains "\"web_search\""
+body contains "\"web_read\""
 
-# §D.1 capability discriminators surface (graph_search needs graph
-# index, fulltext_search needs fulltext index, web_search needs web
-# access). Hurl substring assertions can't bind these to the right
-# tool; the unit suite (test_capability_negotiation.py) does that
-# binding. Here we just confirm the keys appear so an external Agent's
-# client-side filter has something to read.
-body contains "\"graph_index\""
-body contains "\"fulltext_index\""
+# §D.1 client capability discriminators surface. Collection index
+# availability is collection state, not a client capability, so graph
+# and full-text search are not filtered via graph_index/fulltext_index.
 body contains "\"web_access\""
 body contains "\"long_context\""
 

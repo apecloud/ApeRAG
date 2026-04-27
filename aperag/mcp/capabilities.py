@@ -26,10 +26,10 @@ capability negotiation:
   ``list_tools`` metadata for external Agents (Claude Code / Codex /
   Cursor).
 
-* :data:`KNOWN_CAPABILITIES` — the closed set of capability keys that
-  D10 currently uses (``vision``, ``long_context``, ``graph_index``,
-  ``fulltext_index``, ``web_access``). Adding a new capability key
-  requires a ``[D10 spec amendment]`` thread per §G hard gate.
+* :data:`KNOWN_CAPABILITIES` — the closed set of client/runtime
+  capability keys that D10 currently uses (``vision``,
+  ``long_context``, ``web_access``). Collection index availability is
+  collection state, not a client capability.
 
 The actual registry of tool name → annotation lives in
 :mod:`aperag.mcp.tools._annotations`. Server-side filtering (Option B)
@@ -50,8 +50,6 @@ KNOWN_CAPABILITIES: frozenset[str] = frozenset(
     {
         "vision",  # client can render / reason over images
         "long_context",  # client tolerates large content payloads
-        "graph_index",  # collection has a graph index built
-        "fulltext_index",  # collection has a fulltext index built
         "web_access",  # caller may reach the public internet
     }
 )
@@ -81,8 +79,6 @@ class ToolAnnotation(BaseModel):
                 "capabilities": {
                     "vision": False,
                     "long_context": False,
-                    "graph_index": True,
-                    "fulltext_index": True,
                     "web_access": True,
                 },
                 "deprecated": False,

@@ -106,9 +106,8 @@ def filter_tools(
     ``annotations`` is a name → :class:`ToolAnnotation` map (typically
     :func:`aperag.mcp.tools._annotations.get_all`).
     ``client_capabilities`` is the client's runtime capability map —
-    e.g. ``{"vision": True, "long_context": True, "graph_index":
-    True, "fulltext_index": True, "web_access": False}`` for an
-    air-gapped vision-capable LLM host.
+    e.g. ``{"vision": True, "long_context": True,
+    "web_access": False}`` for an air-gapped vision-capable LLM host.
 
     Returns one :class:`FilterDecision` per tool, in the same order as
     ``annotations`` iteration. Callers wanting just the usable subset

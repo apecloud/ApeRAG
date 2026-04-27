@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Phase 9 D10.d (#96) — graph_search split MCP tool (§B.2).
+"""Graph search MCP tool.
 
 The discrete knowledge-graph search primitive per
 ``docs/modularization/d10-design-pack.md`` §B.2 (Lock #5 split). The
@@ -25,11 +25,8 @@ Wire shape: returns the existing ``SearchResult`` dict shape with
 ``section_path`` / ``heading_anchor`` so callers can chain into the
 read primitives.
 
-The ``cursor`` parameter is a placeholder: the signature lands now
-so external clients see the canonical shape, but the body raises
-``NotImplementedError`` on any non-empty value until real search
-pagination ships. ``None`` and ``""`` both preserve single-page
-``top_k`` behavior.
+Search pagination is not part of the public MCP contract yet, so this
+tool intentionally exposes only single-page ``top_k`` retrieval.
 """
 
 from __future__ import annotations
@@ -52,9 +49,7 @@ logger = logging.getLogger(__name__)
         "graph_search",
         ToolAnnotation(
             requires=("collection_access",),
-            # graph_search returns nothing useful unless the collection
-            # has a graph index built — explicit-not-silent per §D.3.
-            capabilities={"long_context": False, "graph_index": True},
+            capabilities={"long_context": False},
         ),
     ),
 )
@@ -63,7 +58,6 @@ async def graph_search(
     query: str,
     *,
     top_k: int = 5,
-    cursor: str | None = None,
 ) -> Dict[str, Any]:
     """Knowledge-graph search within a collection (§B.2).
 
@@ -95,21 +89,12 @@ async def graph_search(
         collection_id: The ID of the collection to search.
         query: The natural-language search query.
         top_k: Maximum number of results to return (default: 5).
-        cursor: Pagination cursor placeholder (§B.2 / amendment
-            msg=b9b7072a Drift #4 (c)). ``None`` and ``""`` return
-            first page; any non-empty value raises
-            ``NotImplementedError`` with a clear "not implemented"
-            message until real search pagination ships.
 
     Returns:
         Search results with ``items`` carrying ``recall_type =
         "graph_search"``. Graph-specific fields (entity / relation / path)
         are surfaced via ``items[*].metadata``.
     """
-    if cursor:
-        raise NotImplementedError(
-            "search pagination is not yet implemented (tool=graph_search, reason=search_not_paginated)"
-        )
     try:
         api_key = get_api_key()
 

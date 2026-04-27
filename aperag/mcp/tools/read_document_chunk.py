@@ -84,9 +84,8 @@ async def read_document_chunk(
     parse_version = resolve_parse_version(document, collection)
 
     # 5. Fetch authoritative chunk — D10.g cache-wrapped.
-    # §E.6: chunk_id is indexing-immutable, so the cache key is
-    # ``(chunk_id,)`` only — no parse_version weighting. Tenancy/auth
-    # above are NEVER skipped (§E.7 hard lock).
+    # The key includes collection and document scope because chunk ids
+    # are not guaranteed globally unique across all tenants.
     cache = await get_read_primitive_cache()
 
     async def _compute() -> DocumentChunk:
@@ -117,6 +116,8 @@ async def read_document_chunk(
         )
 
     return await cache.get_or_compute_chunk(
+        collection_id=collection_id,
+        document_id=document_id,
         chunk_id=chunk_id,
         compute=_compute,
         model_cls=DocumentChunk,

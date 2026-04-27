@@ -50,20 +50,13 @@ async def invalidate_document(
 ) -> None:
     """Purge cached entries that pin to a specific document.
 
-    Removes ``d10:outline:{document_id}:*``,
-    ``d10:section:{document_id}:*`` and ``d10:content:{document_id}:*``
-    from both L1 and L2.
-
-    NOTE: ``d10:chunk:*`` is keyed by ``chunk_id`` (not ``document_id``),
-    so a per-document invalidation does **not** purge chunk entries.
-    Callers that delete a document and need chunk-level invalidation
-    must walk the document's chunk list and invalidate each chunk_id
-    separately. This is intentional — keeps the chunk namespace
-    indexing-immutable per §E.6 and avoids requiring the cache to know
-    chunk-to-document mapping.
+    Removes the read primitive namespaces from both L1 and L2. The
+    cache API currently supports namespace-level deletion rather than
+    prefix deletion, so this intentionally over-purges to avoid stale
+    reads after document removal or index rebuild.
     """
 
-    namespaces = ("outline", "section", "content")
+    namespaces = ("outline", "section", "content", "chunk")
     for ns in namespaces:
         # The current cache stores a flat key per ``(namespace,
         # document_id, parse_version, ...)`` so we cannot pinpoint a
@@ -89,12 +82,10 @@ async def invalidate_collection(
     Same conservative-over-purge semantics as
     :func:`invalidate_document` — the cache layer doesn't know which
     documents belong to which collection without an external mapping,
-    so on D11+ write-tool calls we simply purge the parse-version-bound
-    namespaces. ``d10:chunk:*`` again is not affected (chunk_id is
-    indexing-immutable).
+    so on D11+ write-tool calls we simply purge every read namespace.
     """
 
-    namespaces = ("outline", "section", "content")
+    namespaces = ("outline", "section", "content", "chunk")
     for ns in namespaces:
         await cache.l1.delete_namespace(ns)
         await cache.l2.delete_namespace(ns)

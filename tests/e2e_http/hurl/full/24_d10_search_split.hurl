@@ -52,7 +52,8 @@ HTTP 200
 
 # §B.1 / §B.2 / §B.3 collection-scoped split search inputSchema
 # markers — every tool keeps the per-tool ``query`` + collection
-# scoping, and the cursor placeholder seam from #1717.
+# scoping. Search tools do not expose cursor until real search
+# pagination exists.
 body contains "\"vector_search\""
 body contains "\"graph_search\""
 body contains "\"fulltext_search\""
