@@ -232,14 +232,9 @@ def _build_vector_worker(*, collection: Any, object_store: Any) -> ModalityWorke
     """Wire :class:`VectorModality` to a real Qdrant collection +
     real EmbeddingService for the collection's configured model.
     """
-    from aperag.config import get_vector_db_connector
     from aperag.indexing.vector import VectorModality
-    from aperag.llm.embed.base_embedding import get_collection_embedding_service_sync
-    from aperag.utils.utils import generate_vector_db_collection_name
 
-    embedding_service, vector_size = get_collection_embedding_service_sync(collection)
-    qdrant_collection = generate_vector_db_collection_name(collection.id)
-    adaptor = get_vector_db_connector(qdrant_collection, vector_size=vector_size)
+    adaptor, embedding_service, _ = _build_collection_qdrant_connector(collection)
     backend = _QdrantPointBackend(connector=adaptor.connector)
 
     def _embed(text: str) -> list[float]:
@@ -390,14 +385,9 @@ def _build_summary_worker(*, collection: Any, object_store: Any) -> ModalityWork
     model; the embedder is the same one vector uses (one model per
     collection, shared across modalities).
     """
-    from aperag.config import get_vector_db_connector
     from aperag.indexing.summary import SummaryModality
-    from aperag.llm.embed.base_embedding import get_collection_embedding_service_sync
-    from aperag.utils.utils import generate_vector_db_collection_name
 
-    embedding_service, vector_size = get_collection_embedding_service_sync(collection)
-    qdrant_collection = generate_vector_db_collection_name(collection.id)
-    adaptor = get_vector_db_connector(qdrant_collection, vector_size=vector_size)
+    adaptor, embedding_service, _ = _build_collection_qdrant_connector(collection)
     backend = _QdrantPointBackend(connector=adaptor.connector)
 
     summarizer = _build_collection_summarizer(collection)
@@ -444,6 +434,11 @@ def _build_vision_worker(*, collection: Any, object_store: Any) -> ModalityWorke
     from aperag.llm.embed.base_embedding import get_collection_embedding_service_sync
     from aperag.utils.utils import generate_vector_db_collection_name
 
+    # Vision keeps the multimodal gate ABOVE the connector wiring so a
+    # non-multimodal embedder fails fast without a network round-trip.
+    # The shared :func:`_build_collection_qdrant_connector` helper used
+    # by vector / summary calls the connector first; reusing it here
+    # would re-order the gate after the network call.
     embedding_service, vector_size = get_collection_embedding_service_sync(collection)
     if not embedding_service.is_multimodal():
         raise WorkerFactoryError(
@@ -452,7 +447,6 @@ def _build_vision_worker(*, collection: Any, object_store: Any) -> ModalityWorke
             "set collection.config.enable_vision=false until Wave 4 lands "
             "OR configure a multimodal embedding model on the collection's embedding spec"
         )
-
     qdrant_collection = generate_vector_db_collection_name(collection.id)
     adaptor = get_vector_db_connector(qdrant_collection, vector_size=vector_size)
     backend = _QdrantPointBackend(connector=adaptor.connector)
@@ -1033,18 +1027,23 @@ class CleanupWorkerView(ModalityWorker):
         raise NotImplementedError("CleanupWorkerView.sync must not be called — cleanup-only shape")
 
 
-def _build_qdrant_cleanup_backend(collection: Any) -> Any:
-    """Construct the Qdrant ``_backend`` adapter without any modality-
-    specific gate (used for cleanup of vector / summary / vision).
+def _build_collection_qdrant_connector(collection: Any, *, allow_vector_size_fallback: bool = False) -> Any:
+    """Wave 5 P5B shared helper — resolves the per-collection Qdrant
+    connector for both dispatch (``_build_vector_worker`` /
+    ``_build_summary_worker`` / ``_build_vision_worker``) and cleanup
+    (``_build_qdrant_cleanup_backend``).
 
-    The full ``_build_vector_worker`` chain calls
-    :func:`get_collection_embedding_service_sync` to size the Qdrant
-    collection; we duplicate that minimal step here so a collection
-    whose embedder config is broken (a Wave 3 lesson #10 case) still
-    deletes its points instead of silently leaking. If the embedding
-    service cannot be resolved we still need ``vector_size`` to
-    address the right collection — fall back to the connector's
-    introspection of the existing collection.
+    Pre-Wave-5 the dispatch chain and cleanup chain duplicated this
+    block; a future Qdrant adapter / embedder signature change had to
+    be applied twice. Centralising in one helper drops the drift risk
+    surface huangheng flagged on T2 ratify (msg=6aa8ca88 obs B).
+
+    ``allow_vector_size_fallback`` (cleanup-only) tolerates an
+    embedder resolve failure by reporting ``vector_size=0`` — the
+    connector still addresses the right collection by name and
+    ``delete_by_filter`` does not touch the vector dimension. Dispatch
+    callers pass ``False`` so an embedder fault surfaces as
+    :class:`WorkerFactoryError` immediately.
     """
     from aperag.config import get_vector_db_connector
     from aperag.llm.embed.base_embedding import get_collection_embedding_service_sync
@@ -1052,22 +1051,34 @@ def _build_qdrant_cleanup_backend(collection: Any) -> Any:
 
     qdrant_collection = generate_vector_db_collection_name(collection.id)
     try:
-        _, vector_size = get_collection_embedding_service_sync(collection)
-    except Exception as exc:  # noqa: BLE001
-        # The embedder is irrelevant for ``delete_by_filter``; the
-        # connector only needs ``vector_size`` to validate against
-        # the existing collection on the Qdrant side. Fall back to a
-        # benign size — the connector will still address the right
-        # collection by name and the delete-by-filter call does not
-        # touch the vector dimension.
+        embedding_service, vector_size = get_collection_embedding_service_sync(collection)
+    except Exception as exc:
+        if not allow_vector_size_fallback:
+            raise
         logger.warning(
-            "cleanup vector backend: embedder resolve failed for collection=%s (%s); "
+            "qdrant connector: embedder resolve failed for collection=%s (%s); "
             "falling back to size=0 for delete-only operations",
             getattr(collection, "id", "<unknown>"),
             exc,
         )
+        embedding_service = None
         vector_size = 0
     adaptor = get_vector_db_connector(qdrant_collection, vector_size=vector_size)
+    return adaptor, embedding_service, vector_size
+
+
+def _build_qdrant_cleanup_backend(collection: Any) -> Any:
+    """Construct the Qdrant ``_backend`` adapter for cleanup paths.
+
+    Reuses :func:`_build_collection_qdrant_connector` with the
+    cleanup-only ``allow_vector_size_fallback=True`` shape so a
+    collection whose embedder config is broken (a Wave 3 lesson #10
+    case) still has its points deleted instead of leaking.
+    """
+    adaptor, _embedder, _vector_size = _build_collection_qdrant_connector(
+        collection,
+        allow_vector_size_fallback=True,
+    )
     return _QdrantPointBackend(connector=adaptor.connector)
 
 

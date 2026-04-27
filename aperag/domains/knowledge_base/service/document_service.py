@@ -189,12 +189,14 @@ async def _create_or_update_document_indexes(
         return
 
     parser_config = await _resolve_parser_config_for_collection(document.collection_id, session)
+    collection = await session.get(Collection, document.collection_id) if document.collection_id else None
+    from aperag.indexing.parse_orchestrator import resolve_tenant_scope_key
 
     payload = ParseDispatchPayload(
         document_id=document.id,
         collection_id=document.collection_id,
         object_path=object_path,
-        tenant_scope_key=f"user:{document.user}",
+        tenant_scope_key=resolve_tenant_scope_key(document=document, collection=collection),
         modalities=tuple(m.value for m in index_types),
         parser_config=parser_config,
         purge_existing_triples=True,

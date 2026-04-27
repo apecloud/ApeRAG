@@ -77,7 +77,10 @@ from aperag.indexing.graph import (
     RelationRecord,
     RelationWithLineage,
 )
-from aperag.utils.utils import utc_now
+
+# utc_now is no longer needed: Wave 5 P5B switched ORM gmt_* columns
+# to ``server_default=CURRENT_TIMESTAMP`` mirroring the alembic
+# migration declaration.
 
 logger = logging.getLogger(__name__)
 
@@ -116,8 +119,23 @@ class _LineageEntityRow(_LineageGraphBase):
     type = Column(String(64), nullable=False)
     source_lineage = Column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
     description_parts = Column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    # Wave 5 P5B: ORM uses the same ``server_default=CURRENT_TIMESTAMP``
+    # the alembic migration declares — strict ORM↔migration mirror so
+    # ``alembic check`` cannot drift on schema-touching follow-ups.
+    # Pre-Wave-5 ORM used ``default=utc_now`` Python-side; alembic
+    # check passed because Postgres treats both as semantic-equivalent
+    # but the per-mirror discipline is stronger when both layers
+    # speak the same dialect.
+    gmt_created = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+    gmt_updated = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
 
 
 class _LineageRelationRow(_LineageGraphBase):
@@ -140,8 +158,18 @@ class _LineageRelationRow(_LineageGraphBase):
     # standalone ``description`` field so the column had no consumer.
     evidence_lineage = Column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
     description_parts = Column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    # Wave 5 P5B: same ORM↔migration mirror discipline as
+    # ``_LineageEntityRow`` above.
+    gmt_created = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+    gmt_updated = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
 
 
 # ---------------------------------------------------------------------

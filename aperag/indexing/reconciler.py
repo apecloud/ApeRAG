@@ -581,11 +581,13 @@ def _build_parse_payload_for_document(session: Session, document):
         )
         return None
 
+    from aperag.indexing.parse_orchestrator import resolve_tenant_scope_key
+
     return ParseDispatchPayload(
         document_id=document.id,
         collection_id=document.collection_id or "",
         object_path=str(object_path),
-        tenant_scope_key=f"user:{document.user}",
+        tenant_scope_key=resolve_tenant_scope_key(document=document, collection=collection),
         modalities=tuple(modalities),
         parser_config=parser_config,
         purge_existing_triples=True,
