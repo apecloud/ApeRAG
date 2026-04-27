@@ -507,6 +507,89 @@ class LineageGraphStore(Protocol):
     async def get_relation(self, source: str, target: str, type: str) -> RelationWithLineage | None:
         """Read-path helper for relations."""
 
+    # ------------------------------------------------------------------
+    # Wave 6 #33 chunk 1 — LightRAG-style retrieval query layer (Protocol
+    # stubs; cross-backend implementations land in chunk 2 per
+    # §K.11.11). The retrieval pipeline (§G.5) and graph-curation flows
+    # consume these to compose a graph-recall context for a user query
+    # without going through the legacy ``GraphIndexService.query_context``.
+    #
+    # Design notes:
+    # * Returns are the canonical :class:`EntityWithLineage` /
+    #   :class:`RelationWithLineage` shapes already used by ``get_*`` —
+    #   keeps the read surface uniform; callers compose context text
+    #   themselves rather than relying on a backend-formatted string.
+    # * ``query_by_vector`` takes a pre-computed embedding so backends
+    #   stay agnostic of the embedding model; the retrieval pipeline
+    #   already owns the embedder.
+    # * ``expand_neighbors_n_hops`` returns BOTH neighbour entities and
+    #   the relation edges that connect them (1-hop or multi-hop). Per
+    #   simple-stable directive the multi-hop frontier is bounded by
+    #   ``hops`` (caller picks; default 1) so backends don't need a
+    #   query planner.
+    # ------------------------------------------------------------------
+
+    async def query_entities_by_keyword(
+        self,
+        *,
+        query: str,
+        top_k: int,
+    ) -> list[EntityWithLineage]:
+        """Return up to ``top_k`` entities whose ``name`` (or backend
+        equivalent text-searchable field) matches ``query``.
+
+        Match semantics are backend-defined (case-insensitive substring
+        on Postgres / Cypher CONTAINS on Neo4j / etc.); the contract
+        is "best-effort lexical recall, not strict equality". An empty
+        ``query`` returns ``[]`` (no spurious recall).
+
+        Wave 6 #33 chunk 1 — Protocol stub; backend implementations
+        land chunk 2.
+        """
+
+    async def query_entities_by_vector(
+        self,
+        *,
+        embedding: list[float],
+        top_k: int,
+    ) -> list[EntityWithLineage]:
+        """Return up to ``top_k`` entities ranked by similarity of
+        ``embedding`` against an entity-vector index the backend
+        maintains. Backends without a native vector index may compose
+        this against the collection's existing Qdrant collection
+        (entity-name-keyed points) — chunk 2 picks the per-backend
+        approach.
+
+        Empty ``embedding`` is invalid and raises ``ValueError`` (the
+        retrieval pipeline always passes a real vector — the embedder
+        has already validated the query upstream).
+
+        Wave 6 #33 chunk 1 — Protocol stub.
+        """
+
+    async def expand_neighbors_n_hops(
+        self,
+        *,
+        entity_names: list[str],
+        hops: int = 1,
+    ) -> tuple[list[EntityWithLineage], list[RelationWithLineage]]:
+        """Return entities + relations reachable from any of
+        ``entity_names`` within ``hops`` graph traversal steps.
+
+        ``hops=1`` returns immediate neighbours plus the connecting
+        relations. ``hops=N`` returns the N-hop frontier; the result
+        UNION includes the seed entities themselves so callers can
+        feed it directly to a context formatter without a separate
+        join step.
+
+        Implementations MUST bound the result by ``hops`` to keep the
+        traversal cost predictable; per simple-stable directive
+        operators don't manage tunable per-collection traversal
+        budgets — this is the only knob.
+
+        Wave 6 #33 chunk 1 — Protocol stub.
+        """
+
 
 # ---------------------------------------------------------------------
 # In-memory reference implementation — usable by tests and as the
@@ -704,6 +787,40 @@ class InMemoryLineageGraphStore:
                 evidence_lineage=tuple(_sorted_lineage(row.evidence_lineage.values())),
                 description_parts=tuple(_sorted_description_parts(row.description_parts.values())),
             )
+
+    # ------------------------------------------------------------------
+    # Wave 6 #33 chunk 1 — LightRAG-style query layer stubs.
+    # Real implementations land chunk 2 (per §K.11.11 3-chunk
+    # decomposition). The in-memory store also defers to chunk 2 so
+    # tests that assert the Protocol surface can pin the
+    # NotImplementedError contract today and switch to the real
+    # behaviour when chunk 2 ships — without rewriting the test
+    # scaffolding.
+    # ------------------------------------------------------------------
+
+    async def query_entities_by_keyword(
+        self,
+        *,
+        query: str,
+        top_k: int,
+    ) -> list[EntityWithLineage]:
+        raise NotImplementedError("Wave 6 #33 chunk 2 — query_entities_by_keyword pending implementation")
+
+    async def query_entities_by_vector(
+        self,
+        *,
+        embedding: list[float],
+        top_k: int,
+    ) -> list[EntityWithLineage]:
+        raise NotImplementedError("Wave 6 #33 chunk 2 — query_entities_by_vector pending implementation")
+
+    async def expand_neighbors_n_hops(
+        self,
+        *,
+        entity_names: list[str],
+        hops: int = 1,
+    ) -> tuple[list[EntityWithLineage], list[RelationWithLineage]]:
+        raise NotImplementedError("Wave 6 #33 chunk 2 — expand_neighbors_n_hops pending implementation")
 
 
 def _sorted_lineage(members: Iterable[LineageMember]) -> list[LineageMember]:
