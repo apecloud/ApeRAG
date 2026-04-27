@@ -289,9 +289,54 @@ class GraphSearchService:
         return " | ".join(fragments) or "(no description)"
 
 
+# ----------------------------------------------------------------------
+# Per-collection factory — Wave 7 §K.12.6/§K.12.7/§K.12.8 task #7+#8
+# ----------------------------------------------------------------------
+
+
+def build_graph_search_service_for(collection: Any) -> GraphSearchService:
+    """Construct a :class:`GraphSearchService` bound to ``collection``.
+
+    Mirrors :func:`aperag.domains.retrieval.pipeline._build_lineage_graph_store_for`
+    factory pattern so MCP tool view handlers (task #7) and the
+    retrieval pipeline (task #8) share one wiring path. Lazy imports
+    keep the module free of indexing / config side-effects at import
+    time.
+
+    The four dependencies are resolved per-collection:
+
+    * ``store`` — :class:`LineageGraphStore` via existing
+      ``_build_lineage_graph_store`` (Wave 6 #33 / #40 pattern).
+    * ``vector_connector`` — Qdrant / pgvector via the shared
+      ``_build_collection_qdrant_connector`` helper (Wave 5 P5B).
+    * ``embedder`` — ``embedding_service`` returned by
+      ``get_collection_embedding_service_sync`` (the same model the
+      vector worker uses, so query-time embedding lives on the same
+      vector space as write-time).
+    * ``llm`` — ``None`` in v1 (kwarg reserved for follow-up
+      high-level / low-level keyword extraction; not invoked).
+    """
+    from aperag.indexing.worker_factory import (
+        _build_collection_qdrant_connector,
+        _build_lineage_graph_store,
+        _resolve_graph_backend_type,
+    )
+
+    backend_type = _resolve_graph_backend_type(collection)
+    store = _build_lineage_graph_store(backend_type=backend_type, collection=collection)
+    adaptor, embedder, _vector_size = _build_collection_qdrant_connector(collection)
+    return GraphSearchService(
+        store=store,
+        vector_connector=adaptor.connector,
+        embedder=embedder,
+        llm=None,
+    )
+
+
 __all__ = [
     "GraphSearchService",
     "DEFAULT_TOP_K",
     "DEFAULT_SCORE_THRESHOLD",
     "GRAPH_ENTITY_INDEXER",
+    "build_graph_search_service_for",
 ]

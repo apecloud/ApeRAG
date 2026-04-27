@@ -32,7 +32,11 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Request
 
 from aperag.domains.identity.service.auth_dependencies import required_user
 from aperag.domains.knowledge_graph.schemas import (
+    GraphEntitiesSearchResponse,
     GraphLabelsResponse,
+    GraphSearchEntity,
+    GraphSubgraphExpandRequest,
+    GraphSubgraphExpandResponse,
     KnowledgeGraph,
     MergeSuggestionsRequest,
     SuggestionActionRequest,
@@ -263,3 +267,105 @@ async def handle_suggestion_action_view(
 # the FastAPI level, matching every other v1 KG URL. The canonical v2
 # surface does not re-expose kg-eval. See
 # ``docs/zh-CN/design/graphindex_rewrite.md``.
+
+
+# ---------------------------------------------------------------------------
+# Wave 7 §K.12.6/§K.12.7 — internal-only graph search endpoints (task #7)
+#
+# These three endpoints back the ``query_graph_entities`` /
+# ``expand_graph_subgraph`` / ``get_entity_detail`` MCP tools defined in
+# ``aperag/mcp/tools/graph_tools.py``. They are mounted under the same
+# ``/api/v2`` prefix so the in-process MCP server can call them via
+# httpx with ``API_BASE_URL`` (mirroring the existing
+# ``aperag/mcp/tools/search_graph.py`` pattern).
+#
+# They are explicitly NOT user-facing: the frontend has no consumer
+# (cuiwenbo task #9 verified backward-compat unaffected). They appear
+# in OpenAPI regen so the SDK / agent runtime can bind to typed
+# request / response models.
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/collections/{collection_id}/graphs/entities/search",
+    tags=["graph"],
+    response_model=GraphEntitiesSearchResponse,
+)
+async def graph_entities_search_view(
+    request: Request,
+    collection_id: str,
+    q: str,
+    top_k: int = 10,
+    user: AuthenticatedUser = Depends(required_user),
+) -> GraphEntitiesSearchResponse:
+    """Vector-recall the top-K entities matching ``q`` (Wave 7 §K.12.6).
+
+    Empty / whitespace ``q`` returns ``entities=[]`` — same convention as
+    the underlying :class:`GraphSearchService` so MCP tool callers see
+    consistent empty-state behaviour.
+    """
+    if not (1 <= top_k <= 100):
+        raise HTTPException(status_code=400, detail="top_k must be between 1 and 100")
+    try:
+        return await graph_service.search_entities(str(user.id), collection_id, query=q, top_k=top_k)
+    except CollectionNotFoundException:
+        raise HTTPException(status_code=404, detail="Collection not found")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post(
+    "/collections/{collection_id}/graphs/subgraph/expand",
+    tags=["graph"],
+    response_model=GraphSubgraphExpandResponse,
+)
+async def graph_subgraph_expand_view(
+    request: Request,
+    collection_id: str,
+    payload: GraphSubgraphExpandRequest = Body(...),
+    user: AuthenticatedUser = Depends(required_user),
+) -> GraphSubgraphExpandResponse:
+    """Expand neighbours from anchor entities (Wave 7 §K.12.6).
+
+    Backed by ``LineageGraphStore.expand_neighbors_n_hops`` via
+    ``GraphSearchService.get_subgraph``. Backend implementations cap
+    the result size — callers MUST not assume an unbounded subgraph.
+    """
+    try:
+        return await graph_service.expand_subgraph(
+            str(user.id),
+            collection_id,
+            entity_names=list(payload.entity_names),
+            hops=payload.hops,
+        )
+    except CollectionNotFoundException:
+        raise HTTPException(status_code=404, detail="Collection not found")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get(
+    "/collections/{collection_id}/graphs/entities/{name}",
+    tags=["graph"],
+    response_model=GraphSearchEntity,
+)
+async def graph_entity_detail_view(
+    request: Request,
+    collection_id: str,
+    name: str,
+    user: AuthenticatedUser = Depends(required_user),
+) -> GraphSearchEntity:
+    """Return the full record for a single entity (Wave 7 §K.12.6).
+
+    Returns 404 when the entity does not exist in the lineage store
+    (gc'd, never extracted, or wrong collection).
+    """
+    try:
+        result = await graph_service.get_entity_detail(str(user.id), collection_id, entity_name=name)
+    except CollectionNotFoundException:
+        raise HTTPException(status_code=404, detail="Collection not found")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if result is None:
+        raise HTTPException(status_code=404, detail="Entity not found")
+    return result
