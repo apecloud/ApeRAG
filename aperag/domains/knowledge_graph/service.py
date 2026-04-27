@@ -163,24 +163,51 @@ class GraphService:
         target_entity_id: str,
         source_entity_ids: List[str],
     ) -> Dict[str, Any]:
-        """Merge entities and return a summary payload for the UI.
+        """Merge entities — Wave 7 §K.12.8 task #8 cutover to
+        :class:`LineageEntityMerger` (PR #1758).
 
-        The heavy lifting (structural merge + LLM summary of the merged
-        description) happens inside
-        ``GraphIndexService.merge_entities``. This layer only validates
-        the collection and reshapes the DTO into the dict the existing
-        frontend expects.
+        The merger runs the 8-step orchestration inside the new lineage
+        layer: alias-map writes for transparent indexer redirect (steps
+        1-2), per-doc parts re-anchor under the canonical name (step 6a,
+        preserves invariant #1 lineage), unified-description LLM merge
+        + compaction (steps 4-5 + 6b), vector point upsert with the
+        canonical name + 3-field payload + uuid5 id (step 7), and
+        finally L1 + vector deletion of source entities (step 8).
+
+        Response shape is preserved byte-for-byte for backward-compat
+        with the existing frontend (cuiwenbo task #9 stays at
+        OpenAPI-regen + flow smoke):
+
+        * ``target_entity_id`` ← ``LineageMergeResult.final_target``
+        * ``description`` ← ``compacted_description`` if present, else
+          ``unified_description``
+        * ``source_chunk_ids`` ← chunk ids contributed by the source
+          entities, recovered from the target's lineage *after* the
+          merge has re-anchored them under the canonical name
+        * ``edges_redirected`` / ``edges_collapsed`` — the new merger
+          does not return per-edge stats (the alias-redirect decorator
+          handles edge re-anchoring transparently at indexer write
+          time, not at merge time). We surface ``0`` for both fields
+          to keep the response shape stable.
         """
         db_collection = await self._get_and_validate_collection(user_id, collection_id)
 
-        from aperag.domains.knowledge_graph.graphindex.integration import make_service_for_collection
+        from aperag.graph_curation.alias_map import AliasCycleError
+        from aperag.graph_curation.lineage_merge import build_lineage_entity_merger_for
 
-        svc = make_service_for_collection(db_collection)
-        result = await svc.merge_entities(
-            collection_id=collection_id,
-            target_entity_id=target_entity_id,
-            source_entity_ids=source_entity_ids,
-        )
+        merger = build_lineage_entity_merger_for(db_collection)
+        try:
+            merge_result = await merger.merge_entities(
+                target_name=target_entity_id,
+                source_names=source_entity_ids,
+                merged_by=user_id,
+            )
+        except AliasCycleError as exc:
+            # Surface as a validation error so the route returns 400
+            # (per the existing ``ValueError`` → 400 mapping in
+            # ``merge_nodes_view``).
+            raise ValueError(str(exc)) from exc
+
         try:
             from aperag.graph_curation import graph_curation_service
 
@@ -191,14 +218,62 @@ class GraphService:
             )
         except Exception:
             logger.exception("Failed to expire stale graph-curation suggestions after manual merge")
+
+        # Recover source chunk ids from the target's lineage after the
+        # merge — step 6a re-anchored each source's parts under the
+        # canonical name with their original ``(document_id,
+        # parse_version, chunk_ids)`` so the union of those chunks is
+        # what the UI expects.
+        source_chunk_ids = await self._collect_source_chunk_ids(
+            db_collection,
+            entity_name=merge_result.final_target,
+        )
+
+        description = merge_result.compacted_description or merge_result.unified_description or ""
+
         return {
-            "target_entity_id": result.target_entity_id,
-            "merged_source_ids": list(result.merged_source_ids),
-            "description": result.description,
-            "source_chunk_ids": list(result.source_chunk_ids),
-            "edges_redirected": result.edges_redirected,
-            "edges_collapsed": result.edges_collapsed,
+            "target_entity_id": merge_result.final_target,
+            "merged_source_ids": list(merge_result.merged_source_ids),
+            "description": description,
+            "source_chunk_ids": source_chunk_ids,
+            # Edge re-anchoring is handled transparently by the
+            # alias-redirect decorator at indexer write time (Wave 7
+            # §K.12 invariant #9), not as part of the merge action,
+            # so per-edge counts are not surfaced. ``0`` keeps the
+            # response shape stable for backward-compat.
+            "edges_redirected": 0,
+            "edges_collapsed": 0,
         }
+
+    async def _collect_source_chunk_ids(self, collection: Any, *, entity_name: str) -> List[str]:
+        """Return the union of chunk ids attached to ``entity_name``'s
+        lineage members after the merge has run. Used by
+        :meth:`merge_entities` to populate the backward-compat
+        ``source_chunk_ids`` field."""
+        import asyncio
+
+        from aperag.indexing.worker_factory import (
+            _build_lineage_graph_store_inner,
+            _resolve_graph_backend_type,
+        )
+
+        backend_type = _resolve_graph_backend_type(collection)
+        store = await asyncio.to_thread(
+            _build_lineage_graph_store_inner, backend_type=backend_type, collection=collection
+        )
+        entity = await store.get_entity(entity_name)
+        if entity is None:
+            return []
+        chunk_ids: list[str] = []
+        seen: set[str] = set()
+        for member in entity.source_lineage or ():
+            for cid in getattr(member, "chunk_ids", ()) or ():
+                cid_str = str(cid)
+                if cid_str in seen:
+                    continue
+                seen.add(cid_str)
+                chunk_ids.append(cid_str)
+        return chunk_ids
 
     # ============================================================ Wave 7 §K.12.6
     async def search_entities(

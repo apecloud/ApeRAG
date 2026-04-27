@@ -148,25 +148,30 @@ def test_render_graph_context_falls_back_to_no_description_marker():
 
 
 def test_graph_search_returns_empty_when_no_anchors(monkeypatch):
-    """If keyword recall returns no anchor entities, _graph_search
-    returns an empty list — no traversal call, no rendered context."""
+    """If vector recall returns no anchor entities, _graph_search
+    returns an empty list — no subgraph call, no rendered context.
+
+    Wave 7 §K.12.8 cutover: the pipeline now talks to
+    :class:`GraphSearchService`, not directly to the lineage store
+    keyword path. The "no anchors → []" contract still holds.
+    """
     from aperag.domains.retrieval.pipeline import SearchPipelineService
 
-    class _StubStore:
+    class _StubService:
         def __init__(self) -> None:
-            self.expand_called = False
+            self.subgraph_called = False
 
-        async def query_entities_by_keyword(self, *, query, top_k):
+        async def search_entities(self, *, query, top_k):
             return []
 
-        async def expand_neighbors_n_hops(self, *, entity_names, hops=1):
-            self.expand_called = True
+        async def get_subgraph(self, *, entity_names, hops=1):
+            self.subgraph_called = True
             return ([], [])
 
-    stub_store = _StubStore()
+    stub_service = _StubService()
     monkeypatch.setattr(
-        "aperag.domains.retrieval.pipeline._build_lineage_graph_store_for",
-        lambda _collection: stub_store,
+        "aperag.indexing.graph_search_service.build_graph_search_service_for",
+        lambda _collection: stub_service,
     )
 
     class _Collection:
@@ -177,10 +182,16 @@ def test_graph_search_returns_empty_when_no_anchors(monkeypatch):
     svc = SearchPipelineService()
     results = asyncio.run(svc._graph_search(_Collection(), "anything", 5))
     assert results == []
-    assert stub_store.expand_called is False, "expand should not be called when no anchors"
+    assert stub_service.subgraph_called is False, "get_subgraph should not be called when no anchors"
 
 
 def test_graph_search_composes_text_from_anchors_and_neighbors(monkeypatch):
+    """Wave 7 §K.12.8 cutover: the pipeline composes
+    ``GraphSearchService.search_entities`` + ``get_subgraph`` +
+    ``compose_context``. The byte-parity test in PR #1756 keeps the
+    rendered text identical to the Wave 6 keyword-only path so the
+    assertions on body content stay unchanged.
+    """
     members = (
         LineageMember(
             document_id="doc-1",
@@ -209,23 +220,23 @@ def test_graph_search_composes_text_from_anchors_and_neighbors(monkeypatch):
         description_parts=(DescriptionPart(document_id="doc-1", parse_version="v1", text="Alice reports to Bob"),),
     )
 
-    class _StubStore:
+    class _StubService:
         def __init__(self) -> None:
             self.last_query: str | None = None
             self.last_seeds: list[str] | None = None
 
-        async def query_entities_by_keyword(self, *, query, top_k):
+        async def search_entities(self, *, query, top_k):
             self.last_query = query
             return [alice]
 
-        async def expand_neighbors_n_hops(self, *, entity_names, hops=1):
+        async def get_subgraph(self, *, entity_names, hops=1):
             self.last_seeds = entity_names
             return ([alice, bob], [alice_bob])
 
-    stub_store = _StubStore()
+    stub_service = _StubService()
     monkeypatch.setattr(
-        "aperag.domains.retrieval.pipeline._build_lineage_graph_store_for",
-        lambda _collection: stub_store,
+        "aperag.indexing.graph_search_service.build_graph_search_service_for",
+        lambda _collection: stub_service,
     )
 
     from aperag.domains.retrieval.pipeline import SearchPipelineService
@@ -244,8 +255,8 @@ def test_graph_search_composes_text_from_anchors_and_neighbors(monkeypatch):
     assert "Bob" in doc.text
     assert "reports_to" not in doc.text  # type label not in body, only the description
     assert "Alice → Bob" in doc.text
-    assert stub_store.last_query == "Alice"
-    assert stub_store.last_seeds == ["Alice"]
+    assert stub_service.last_query == "Alice"
+    assert stub_service.last_seeds == ["Alice"]
 
 
 def test_graph_search_returns_empty_when_kg_disabled(monkeypatch):

@@ -461,42 +461,62 @@ class SearchPipelineService:
         query: str,
         top_k: int,
     ) -> List[DocumentWithScore]:
-        """Knowledge-graph retrieval path via the new
-        :class:`aperag.indexing.graph.LineageGraphStore` Protocol.
+        """Knowledge-graph retrieval path via :class:`GraphSearchService`.
 
-        Wave 6 #33 chunk 3 (per architect Option C ruling msg=6fccd9ab):
-        replaces the legacy ``GraphIndexService.query_context`` flow
-        with a two-step composition:
+        Wave 7 §K.12.5 / §K.12.8 (task #8) cutover: replaces the
+        keyword-only Wave 6 #33 chunk 3 path with the full
+        vector + 1-hop traversal composition the legacy
+        ``GraphIndexService.query_context`` always intended. Steps:
 
-        1. ``query_entities_by_keyword(query, top_k)`` — anchor entities
-           via lexical recall on the lineage store. The retrieval
-           pipeline owns its own embedder and does not need a backend
-           vector index here (vector recall was honestly deferred per
-           chunk 2 ruling — Wave 4 lineage schema has no entity-vector
-           column).
-        2. ``expand_neighbors_n_hops(entity_names, hops=1)`` — pull the
-           direct neighbours + connecting relations so the rendered
-           context block includes both anchor entities and their
-           one-hop graph context.
+        1. :meth:`GraphSearchService.search_entities` — embed the query
+           against the per-collection vector index and ANN-recall the
+           top-K entities (semantic match, not exact name match).
+        2. :meth:`GraphSearchService.get_subgraph` — pull the direct
+           neighbours + connecting relations of the anchor entities.
+        3. :meth:`GraphSearchService.compose_context` — render the
+           ``-----Entities (KG)----- / -----Relationships (KG)-----``
+           text block.
 
-        A collection that hasn't been indexed yet (or yields no
-        keyword anchors) returns ``[]``; this is the correct behaviour —
-        search pipelines compose (vector + graph + fulltext), and a
-        blank graph just means "graph contributes nothing this time",
-        not "fall back to something stale".
+        The render is byte-for-byte identical to Wave 6's
+        ``_render_graph_context_text`` (locked by
+        ``test_compose_context_matches_retrieval_pipeline_render_byte_for_byte``
+        in PR #1756) so the swap is zero-functional-change for
+        downstream RAG prompts: same context shape, same dedup rule,
+        same fallback marker. Vector recall now actually happens
+        — the Wave 4 → Wave 6 vacuum noted in §K.12.1 is closed.
+
+        A collection that hasn't been indexed yet (no vector points)
+        returns ``[]`` — ``search_entities`` swallows backend
+        embed/search faults and returns an empty list, mirroring the
+        Wave 6 graceful-degrade convention. ``enable_knowledge_graph``
+        gating preserved for backward compat.
         """
         config = parseCollectionConfig(collection.config)
         if not config.enable_knowledge_graph:
             logger.warning(f"Collection {collection.id} does not have knowledge graph enabled")
             return []
 
-        store = _build_lineage_graph_store_for(collection)
-        anchors = await store.query_entities_by_keyword(query=query, top_k=top_k)
+        from aperag.indexing.graph_search_service import (
+            GraphSearchService,
+            build_graph_search_service_for,
+        )
+
+        try:
+            service = build_graph_search_service_for(collection)
+        except Exception:
+            logger.warning(
+                "graph_search: factory failed for collection %s; degrading to empty result",
+                collection.id,
+                exc_info=True,
+            )
+            return []
+
+        anchors = await service.search_entities(query=query, top_k=top_k)
         if not anchors:
             return []
         anchor_names = [e.name for e in anchors]
-        entities, relations = await store.expand_neighbors_n_hops(entity_names=anchor_names, hops=1)
-        text = _render_graph_context_text(entities, relations)
+        entities, relations = await service.get_subgraph(entity_names=anchor_names, hops=1)
+        text = GraphSearchService.compose_context(entities, relations)
         if not text:
             return []
         return [DocumentWithScore(text=text, metadata={"recall_type": "graph_search"})]

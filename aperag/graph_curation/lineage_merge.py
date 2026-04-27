@@ -445,10 +445,103 @@ async def _to_thread(func, *args, **kwargs):
     return await asyncio.to_thread(func, *args, **kwargs)
 
 
+# ---------------------------------------------------------------------
+# Per-collection factory — Wave 7 §K.12.8 task #8 wiring
+# ---------------------------------------------------------------------
+
+
+class _SyncEmbedderShim:
+    """Adapt the sync ``(text -> list[float])`` callable used by the
+    graph worker into the ``embed_query`` shape the merger / detector
+    expect (mirrors :class:`EmbeddingService` surface). Lifted from
+    :class:`MergeCandidateDetector`'s factory so the merger and
+    detector share one shim."""
+
+    def __init__(self, fn: Callable[[str], list[float]]) -> None:
+        self._fn = fn
+
+    def embed_query(self, text: str) -> list[float]:
+        return self._fn(text)
+
+
+def build_lineage_entity_merger_for(collection: Any) -> "LineageEntityMerger":
+    """Build a :class:`LineageEntityMerger` for ``collection``.
+
+    Wires the six dependencies the merger expects:
+
+    * ``store`` — :func:`_build_lineage_graph_store_inner` (raw inner
+      store; the merger writes canonical names directly and must NOT
+      be intercepted by the alias-redirect decorator that
+      :func:`_build_lineage_graph_store` returns to indexer / read
+      paths).
+    * ``alias_repo`` — fresh :class:`AliasMapRepository`.
+    * ``compactor`` — :func:`_build_collection_graph_compactor`. Falls
+      back to a no-op compactor if the collection has no completion
+      model configured (the merger still runs; description simply
+      stays uncompacted).
+    * ``vector_connector`` + ``embedder`` —
+      :func:`_build_collection_graph_vector_writer` shared with the
+      Phase 3 indexer write path. Wrapped via :class:`_SyncEmbedderShim`
+      so the ``embed_query`` interface matches.
+    * ``llm`` — :func:`build_collection_llm_callable` (same async LLM
+      callable the legacy graphindex used).
+    * ``collection_id`` — bound at construction.
+
+    Raises :class:`aperag.indexing.worker_factory.WorkerFactoryError`
+    when the embedder / vector connector / LLM cannot be resolved
+    — a user-driven merge cannot meaningfully proceed without them
+    (no unified description, no vector re-anchor).
+    """
+    # Lazy imports keep this module free of worker_factory at import
+    # time so worker_factory's own ``from .lineage_merge`` import (if
+    # ever added) wouldn't form a cycle.
+    from aperag.domains.knowledge_graph.graphindex.integration import (
+        build_collection_llm_callable,
+    )
+    from aperag.indexing.graph_compactor import GraphIndexCompactor
+    from aperag.indexing.worker_factory import (
+        WorkerFactoryError,
+        _build_collection_graph_vector_writer,
+        _build_lineage_graph_store_inner,
+        _resolve_graph_backend_type,
+    )
+
+    backend_type = _resolve_graph_backend_type(collection)
+    inner_store = _build_lineage_graph_store_inner(backend_type=backend_type, collection=collection)
+
+    vector_connector, embed_fn = _build_collection_graph_vector_writer(collection)
+    if vector_connector is None or embed_fn is None:
+        raise WorkerFactoryError(
+            f"merge_entities: vector connector / embedder unavailable for collection {collection.id!r}"
+        )
+
+    try:
+        llm = build_collection_llm_callable(collection)
+    except Exception as exc:  # noqa: BLE001 — surface as factory failure.
+        raise WorkerFactoryError(
+            f"merge_entities: LLM not configured for collection {collection.id!r}: {exc}"
+        ) from exc
+
+    # Compactor is best-effort — the merger still runs without it
+    # (description stays uncompacted; embedding falls back to unified).
+    compactor = GraphIndexCompactor(llm=llm)
+
+    return LineageEntityMerger(
+        store=inner_store,
+        alias_repo=AliasMapRepository(),
+        compactor=compactor,
+        vector_connector=vector_connector,
+        embedder=_SyncEmbedderShim(embed_fn),
+        llm=llm,
+        collection_id=str(collection.id),
+    )
+
+
 __all__ = [
     "LineageEntityMerger",
     "LineageMergeResult",
     "AliasCycleError",
     "CURATION_MERGE_DOCUMENT_ID",
     "GRAPH_ENTITY_INDEXER",
+    "build_lineage_entity_merger_for",
 ]

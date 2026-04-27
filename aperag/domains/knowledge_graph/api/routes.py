@@ -151,6 +151,13 @@ async def merge_nodes_view(
     * The response echoes the merged description **after** LLM
       summarization, so the frontend can refresh the entity detail
       panel without a second fetch.
+    * ``edges_redirected`` / ``edges_collapsed`` are always ``0`` by
+      design (Wave 7 §K.12 invariant #9) — alias redirect happens at
+      indexer write-time via the
+      :class:`LineageGraphStoreWithAliasRedirect` decorator, not as
+      part of the merge call, so the merge action has no "explicit
+      edge re-anchor count" to surface. The fields are kept on the
+      response shape for backward-compat with the existing frontend.
     """
     entity_ids = payload.get("entity_ids") or []
     if not isinstance(entity_ids, list) or len(entity_ids) < 2:
