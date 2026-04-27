@@ -114,8 +114,11 @@ def build_collection_graph_extractor(collection: Any) -> GraphExtractor:
 
     entity_types = tuple(_resolve_entity_types(collection))
     language = _resolve_language(collection)
-    max_entities = _DEFAULT_MAX_ENTITIES_PER_CHUNK
-    max_relations = _DEFAULT_MAX_RELATIONS_PER_CHUNK
+    max_entities = _resolve_int_kg_config(collection, "max_entities_per_chunk", _DEFAULT_MAX_ENTITIES_PER_CHUNK)
+    max_relations = _resolve_int_kg_config(collection, "max_relations_per_chunk", _DEFAULT_MAX_RELATIONS_PER_CHUNK)
+    per_chunk_timeout = _resolve_float_kg_config(
+        collection, "per_chunk_timeout_seconds", _DEFAULT_PER_CHUNK_TIMEOUT_SECONDS
+    )
 
     async def _extractor(chunks: Sequence[dict[str, Any]]) -> tuple[list[EntityRecord], list[RelationRecord]]:
         """Run the LLM extractor over every chunk in the dispatch."""
@@ -138,6 +141,7 @@ def build_collection_graph_extractor(collection: Any) -> GraphExtractor:
                     language=language,
                     max_entities=max_entities,
                     max_relations=max_relations,
+                    timeout_seconds=per_chunk_timeout,
                 )
             except Exception:  # noqa: BLE001 — per-chunk failure isolation
                 logger.exception(
@@ -168,6 +172,7 @@ async def _extract_one_chunk(
     language: str,
     max_entities: int,
     max_relations: int,
+    timeout_seconds: float,
 ) -> tuple[list[EntityRecord], list[RelationRecord]]:
     """Single-chunk extraction: render the prompt, call the LLM, parse
     the JSON response, return record lists.
@@ -186,7 +191,7 @@ async def _extract_one_chunk(
         max_entities=max_entities,
         max_relations=max_relations,
     )
-    raw = await asyncio.wait_for(llm(prompt), timeout=_DEFAULT_PER_CHUNK_TIMEOUT_SECONDS)
+    raw = await asyncio.wait_for(llm(prompt), timeout=timeout_seconds)
     return _parse_extraction_response(raw=raw, chunk_id=chunk_id)
 
 
@@ -333,6 +338,78 @@ def _resolve_language(collection: Any) -> str:
     if isinstance(cfg, Mapping):
         return str(cfg.get("language") or _DEFAULT_LANGUAGE)
     return _DEFAULT_LANGUAGE
+
+
+def _resolve_kg_config_value(collection: Any, field: str) -> Any:
+    """Read ``collection.config.knowledge_graph_config.<field>`` tolerating
+    the pydantic-attr / Mapping / JSON-string shapes the DB row may take.
+    Returns ``None`` if any layer is missing — callers fall back to their
+    default constant."""
+    cfg = _resolve_config(collection)
+    if cfg is None:
+        return None
+    kg_config: Any = None
+    if hasattr(cfg, "knowledge_graph_config"):
+        kg_config = cfg.knowledge_graph_config
+    elif isinstance(cfg, Mapping):
+        kg_config = cfg.get("knowledge_graph_config")
+    if kg_config is None:
+        return None
+    if hasattr(kg_config, field):
+        return getattr(kg_config, field)
+    if isinstance(kg_config, Mapping):
+        return kg_config.get(field)
+    return None
+
+
+def _resolve_int_kg_config(collection: Any, field: str, default: int) -> int:
+    raw = _resolve_kg_config_value(collection, field)
+    if raw is None:
+        return default
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        logger.warning(
+            "graph extractor: knowledge_graph_config.%s=%r is not an int; falling back to default %d",
+            field,
+            raw,
+            default,
+        )
+        return default
+    if value <= 0:
+        logger.warning(
+            "graph extractor: knowledge_graph_config.%s=%d must be positive; falling back to default %d",
+            field,
+            value,
+            default,
+        )
+        return default
+    return value
+
+
+def _resolve_float_kg_config(collection: Any, field: str, default: float) -> float:
+    raw = _resolve_kg_config_value(collection, field)
+    if raw is None:
+        return default
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        logger.warning(
+            "graph extractor: knowledge_graph_config.%s=%r is not a float; falling back to default %s",
+            field,
+            raw,
+            default,
+        )
+        return default
+    if value <= 0:
+        logger.warning(
+            "graph extractor: knowledge_graph_config.%s=%s must be positive; falling back to default %s",
+            field,
+            value,
+            default,
+        )
+        return default
+    return value
 
 
 def _resolve_config(collection: Any) -> Any:
