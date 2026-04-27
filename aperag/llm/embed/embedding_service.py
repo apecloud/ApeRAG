@@ -199,13 +199,26 @@ class EmbeddingService:
             )
         if not image_bytes:
             raise EmptyTextError(1)
-        try:
-            return self._embed_image_via_litellm(image_bytes=image_bytes, alt_text=alt_text)
-        except (EmptyTextError, EmbeddingError):
-            raise
-        except Exception as e:
-            logger.error(f"Image embedding failed: {str(e)}")
-            raise wrap_litellm_error(e, "embedding", self.embedding_provider, self.model) from e
+
+        def _compute() -> List[float]:
+            try:
+                return self._embed_image_via_litellm(image_bytes=image_bytes, alt_text=alt_text)
+            except (EmptyTextError, EmbeddingError):
+                raise
+            except Exception as e:
+                logger.error(f"Image embedding failed: {str(e)}")
+                raise wrap_litellm_error(e, "embedding", self.embedding_provider, self.model) from e
+
+        if not self.caching:
+            return _compute()
+
+        cache = get_sync_application_cache()
+        return cache.get_or_compute(
+            namespace=NAMESPACE_EMBEDDING,
+            key_data=self._cache_key_for_image(image_bytes, alt_text),
+            compute=_compute,
+            policy=application_cache_policy(NAMESPACE_EMBEDDING),
+        )
 
     async def aembed_image(self, image_bytes: bytes, alt_text: str = "") -> List[float]:
         return await asyncio.to_thread(self.embed_image, image_bytes, alt_text)
@@ -351,4 +364,26 @@ class EmbeddingService:
             "input": text,
             "multimodal": self.multimodal,
             "encoding_format": "float",
+        }
+
+    def _cache_key_for_image(self, image_bytes: bytes, alt_text: str) -> dict:
+        """Cache key shape for ``embed_image`` (Wave 6 task #37).
+
+        Per cache README the namespaced key never embeds raw bytes — the
+        image is identified by ``sha256(image_bytes)`` so the Redis key
+        stays bounded. ``alt_text`` is part of the key because providers
+        that accept paired text+image inputs return a different vector
+        when the textual hint changes; ``alt_text=""`` collapses to the
+        same key for image-only callers.
+        """
+
+        return {
+            "kind": "image",
+            "provider": self.embedding_provider,
+            "model": self.model,
+            "api_base": self.api_base,
+            "api_key_hash": hashlib.sha256((self.api_key or "").encode("utf-8")).hexdigest(),
+            "file_hash": hashlib.sha256(image_bytes).hexdigest(),
+            "alt_text": alt_text or "",
+            "multimodal": True,
         }
