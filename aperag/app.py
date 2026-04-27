@@ -249,23 +249,28 @@ async def combined_lifespan(app: FastAPI):
         queue = InMemoryWorkQueue()
         engine = sync_engine
 
-        # Worker registry per modality — for INLINE mode + cleanup.
-        # Construction here is lazy so the app boot does not eagerly
-        # instantiate Qdrant / Nebula / object-store backends; each
-        # entry is a no-op factory in the InMemoryWorkQueue topology.
-        # The async worker entrypoints accept a worker_factory closure
-        # that builds the concrete ModalityWorker per dispatch.
-        # T3.1 Wave 3 ships the queue-side scaffolding; T3.3 follow-up
-        # wires concrete production backends per modality.
-        async def _placeholder_worker_factory(payload):
-            raise NotImplementedError(
-                "production worker factory wiring is a T3.3 follow-up — see private-deployment.md"
-            )
+        # Worker factory — per-task lazy construction. The async
+        # worker entrypoints (``run_*_worker``) call this closure on
+        # every BLPOP'd payload to materialise the concrete
+        # :class:`ModalityWorker` for that ``(collection, modality)``
+        # pair. ``ProductionWorkerFactory`` resolves the collection
+        # row, picks the right backend (Qdrant / Elasticsearch +
+        # configured embedder / completion model), and constructs the
+        # worker — all backed by the existing build helpers
+        # (``get_collection_embedding_service_sync`` /
+        # ``get_vector_db_connector`` / ``get_object_store``) so this
+        # is composition, not re-implementation. Construction failures
+        # raise :class:`WorkerFactoryError`; the orchestrator runner
+        # catches that and finalises the row FAILED so §I.2 retry
+        # picks it up. Per architect msg=7782ebe0.
+        from aperag.indexing.worker_factory import ProductionWorkerFactory
+
+        worker_factory = ProductionWorkerFactory(engine=engine)
 
         worker_kwargs = dict(
             engine=engine,
             queue=queue,
-            worker_factory=_placeholder_worker_factory,
+            worker_factory=worker_factory,
             shutdown=indexing_shutdown,
         )
         indexing_runtime_tasks.append(asyncio.create_task(run_vector_worker(**worker_kwargs)))

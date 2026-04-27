@@ -513,7 +513,34 @@ async def run_worker_loop(
 
     async def _runner(payload: DispatchPayload) -> str:
         async with semaphore:
-            worker = await worker_factory(payload)
+            try:
+                worker = await worker_factory(payload)
+            except Exception as exc:  # noqa: BLE001 — surface via DB so §I.2 retry kicks in
+                # Without this catch, a factory failure (e.g.
+                # broken collection config, transient backend
+                # connectivity error) would propagate out of the
+                # asyncio.Task spawned by the run-loop and be
+                # silently swallowed — the row would stay PENDING
+                # forever and the reconciler would dispatch the
+                # same broken payload again indefinitely. Instead,
+                # claim the row and finalise it FAILED so the §I.2
+                # backoff schedule can apply and the operator gets
+                # a real error_message to triage.
+                logger.exception(
+                    "orchestrator worker_factory failed for index_id=%d modality=%s: %s",
+                    payload.index_id,
+                    payload.modality.value,
+                    exc,
+                )
+                claimed = await asyncio.to_thread(_claim_row, engine, payload.index_id)
+                if claimed:
+                    await asyncio.to_thread(
+                        _finalize_failed,
+                        engine,
+                        payload.index_id,
+                        f"worker_factory failed: {exc!r}",
+                    )
+                return "factory_failed"
             return await process_one_task(
                 engine=engine,
                 payload=payload,
