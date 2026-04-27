@@ -360,94 +360,365 @@ def test_phase1_cleanup_view_dispatch_for_all_modalities(monkeypatch: pytest.Mon
 # ---------------------------------------------------------------------
 # Layer 2 — full pipeline e2e (gated by RUN_E2E_PHASE1_SMOKE=1).
 # Real Postgres + Redis + Qdrant + Elasticsearch + OTel SDK.
+#
+# Wave 5 P3 (chenyexuan task #28) wires the Layer 2 fixture and
+# replaces the pre-Wave-5 ``pytest.skip`` stubs with functional test
+# bodies. The e2e-http-compose CI lane sets the env vars below; the
+# tests run against the live stack and validate the canonical Phase 1
+# contract end-to-end.
 # ---------------------------------------------------------------------
 
 
 _PHASE1_E2E_GATE = os.environ.get("RUN_E2E_PHASE1_SMOKE") == "1"
+_PHASE1_E2E_COLLECTION_ID = os.environ.get("PHASE1_E2E_COLLECTION_ID")
+
+
+def _phase1_e2e_skip_reason() -> str | None:
+    """Return ``None`` if all required env vars are set, else a
+    human-readable skip reason describing what is missing.
+
+    The Wave 5 P3 contract is that Layer 2 runs only when:
+    * ``RUN_E2E_PHASE1_SMOKE=1`` (operator opt-in)
+    * ``PHASE1_E2E_COLLECTION_ID`` points at a Collection seeded by
+      the e2e-http-compose lane bootstrap with a real model provider
+      configured (so the embedder + summariser actually work).
+    * Backend env vars set so :class:`ProductionWorkerFactory` can
+      resolve real clients (``DATABASE_URL`` / ``ES_HOST`` / Qdrant
+      env vars / ``INDEXING_QUEUE_REDIS_URL``).
+
+    Skipping with a clear reason beats failing — local-dev runs of
+    this file should not require operators to stand up the full
+    stack.
+    """
+    if not _PHASE1_E2E_GATE:
+        return (
+            "Phase 1 full e2e smoke gated on RUN_E2E_PHASE1_SMOKE=1 — needs "
+            "real Postgres + Redis + Qdrant + ES + a configured model "
+            "provider. Runs in the e2e-http-compose CI lane."
+        )
+    if not _PHASE1_E2E_COLLECTION_ID:
+        return (
+            "Phase 1 Layer 2 needs PHASE1_E2E_COLLECTION_ID env var "
+            "pointing at the e2e-http-compose-bootstrapped Collection "
+            "(real model provider configured). Set it from "
+            "tests/e2e_http/bootstrap/.generated/e2e.env."
+        )
+    return None
+
+
+def _resolve_phase1_e2e_engine() -> Engine:
+    """Open a real Postgres engine using the production ``settings``
+    so the test sees the same Collection rows the e2e-http-compose
+    lane seeded.
+
+    Mirrors :func:`aperag.config.sync_engine` but builds the engine
+    directly inside the test so a stale or pooled connection from a
+    prior pytest module does not leak into the suite.
+    """
+    from aperag.config import settings
+
+    if not settings.database_url:
+        pytest.skip("Phase 1 Layer 2: settings.database_url is empty (POSTGRES_HOST etc unset)")
+    return create_engine(settings.database_url, future=True)
+
+
+async def _run_phase1_workers_until_quiet(
+    *,
+    engine: Engine,
+    document_id: str,
+    timeout_seconds: float = 60.0,
+) -> dict[Modality, DocumentIndex]:
+    """Drive the production worker pool until every per-modality
+    ``DocumentIndex`` row for ``document_id`` finalises (ACTIVE or
+    FAILED — terminal states), or ``timeout_seconds`` elapses.
+
+    Returns a dict keyed by Modality with the final row state.
+
+    Implementation drives :class:`ProductionWorkerFactory` directly
+    against the live backends — same dispatch path the
+    ``run_*_worker`` lifespan tasks use. Each modality is processed
+    once per cycle until terminal; the loop is bounded by
+    ``timeout_seconds`` so a hung modality (e.g. unreachable Qdrant)
+    fails the test loud rather than blocking forever.
+    """
+    from sqlalchemy import select as sa_select
+
+    from aperag.indexing.orchestrator import process_one_task
+
+    factory = ProductionWorkerFactory(engine=engine)
+    deadline = asyncio.get_event_loop().time() + timeout_seconds
+    finalised: dict[Modality, DocumentIndex] = {}
+
+    while asyncio.get_event_loop().time() < deadline:
+        with Session(engine) as session:
+            rows = list(
+                session.execute(
+                    sa_select(DocumentIndex).where(DocumentIndex.document_id == document_id)
+                ).scalars()
+            )
+        if not rows:
+            await asyncio.sleep(0.1)
+            continue
+
+        all_terminal = True
+        for row in rows:
+            try:
+                modality = Modality(row.modality)
+            except ValueError:
+                continue
+            if row.status in (IndexStatus.ACTIVE.value, IndexStatus.FAILED.value):
+                finalised[modality] = row
+                continue
+            all_terminal = False
+            payload = DispatchPayload(
+                index_id=row.id,
+                document_id=row.document_id,
+                parse_version=row.parse_version,
+                modality=modality,
+                source_path=row.source_path or "",
+                collection_id=row.collection_id,
+            )
+            try:
+                worker = await factory(payload)
+            except WorkerFactoryError as exc:
+                # Gate-raise → finalise FAILED with the gate message.
+                # Mirrors :class:`run_worker_loop` path so Layer 2
+                # exercises the production pattern.
+                from aperag.indexing.orchestrator import _claim_row, _finalize_failed
+
+                if await asyncio.to_thread(_claim_row, engine, row.id):
+                    await asyncio.to_thread(
+                        _finalize_failed,
+                        engine,
+                        row.id,
+                        f"worker_factory failed: {exc!r}",
+                    )
+                continue
+            await process_one_task(
+                engine=engine,
+                payload=payload,
+                worker=worker,
+                heartbeat_interval_seconds=0,
+            )
+
+        if all_terminal:
+            break
+        await asyncio.sleep(0.2)
+
+    return finalised
 
 
 @pytest.mark.skipif(
-    not _PHASE1_E2E_GATE,
-    reason=(
-        "Phase 1 full e2e smoke gated on RUN_E2E_PHASE1_SMOKE=1 — needs "
-        "real Postgres + Redis + Qdrant + ES + multimodal-capable embedder. "
-        "Runs in the e2e-http-compose CI lane."
-    ),
+    _phase1_e2e_skip_reason() is not None,
+    reason=(_phase1_e2e_skip_reason() or "phase 1 layer 2 skipped"),
 )
 def test_phase1_full_pipeline_vector_fulltext_summary_active_graph_vision_failed():
     """Layer 2 — canonical Phase 1 e2e smoke per architect msg=da3012a4.
 
-    Sequence:
-    1. Spin up a real ``ProductionWorkerFactory`` against the live
-       backend stack (Postgres / Redis / Qdrant / ES / OTel SDK).
-    2. Upload a markdown document; orchestrator dispatches 5 modality
-       rows (vector / fulltext / summary / graph / vision).
-    3. Run the worker pool until all rows finalise.
-    4. Assert vector + fulltext + summary reach
-       ``status == "ACTIVE"`` (3 modality fully working in Phase 1).
-    5. Assert graph + vision finalise ``status == "FAILED"`` with
-       ``error_message`` containing ``"Wave 4 wiring"`` (gates remain
-       effective even with chunk 4b backend dispatch wired).
-    6. Delete the document; run cleanup loop; assert backend
-       artefacts removed (Qdrant point count == 0, ES doc count == 0,
-       lineage entity rows == 0) for the document_id.
+    Wave 5 P3: implementation wired against the e2e-http-compose lane
+    fixture. Reads ``PHASE1_E2E_COLLECTION_ID`` to resolve the live
+    Collection, dispatches a markdown upload, drives the worker pool
+    until every modality row finalises, then asserts the canonical
+    Phase 1 contract:
 
-    This is the contract the e2e-http-compose CI lane enforces before
-    Wave 4 close-out (Phase 2 — after T1 + T7 land — flips graph +
-    vision rows to ACTIVE).
+    * vector + fulltext + summary reach ``ACTIVE`` (three real
+      modalities ship in Wave 4)
+    * graph + vision finalise ``FAILED`` with ``error_message``
+      containing the gate marker (``Wave 4 wiring`` for chunk 4b
+      gates, ``completion model`` for the post-T1 gate self-disable
+      surface, or ``multimodal`` for the vision gate). The OR
+      tolerates the T1 gate-self-disable transition that ships in
+      this same Wave (per chunk 4b → T1 closure).
+
+    The cleanup roundtrip (delete document → cleanup loop → backend
+    artefacts gone) is left to a follow-up sub-test (`...
+    _and_cleanup_removes_backend_artefacts`) once the Layer 2
+    fixture supports document-delete API access.
     """
 
-    pytest.skip(
-        "Layer 2 implementation requires a stub model-provider fixture "
-        "that vector/fulltext/summary embedders can resolve; the "
-        "fixture lives in the e2e-http-compose lane scaffolding "
-        "(``tests/e2e_http/scripts/run_full.sh``). Track Wave 4 "
-        "close-out PR for the wired Layer 2 — current Layer 1 above "
-        "covers the gate invariants Phase 1 needs locked in CI today."
+
+    from aperag.indexing.dispatcher import DispatchRequest, IndexingMode, dispatch_indexing
+    from aperag.indexing.parser import ParseConfig, parse_document
+    from aperag.objectstore.base import get_object_store
+
+    collection_id = _PHASE1_E2E_COLLECTION_ID
+    assert collection_id, "skip should have caught missing env var"
+
+    document_id = "phase1-e2e-" + uuid.uuid4().hex[:8]
+    source_bytes = (
+        b"# Phase 1 e2e smoke\n\n"
+        b"This document exercises the canonical Phase 1 contract: "
+        b"vector + fulltext + summary reach ACTIVE; graph + vision "
+        b"finalise FAILED with the Wave 4 wiring gate message.\n"
     )
+
+    async def _run() -> None:
+        engine = _resolve_phase1_e2e_engine()
+        try:
+            object_store = get_object_store()
+            parsed = parse_document(
+                store=object_store,
+                collection_id=collection_id,
+                document_id=document_id,
+                source_bytes=source_bytes,
+                source_filename="phase1-smoke.md",
+                config=ParseConfig(),
+            )
+            from aperag.indexing.runtime import get_runtime
+
+            runtime = get_runtime()
+            assert runtime is not None and runtime.queue is not None, (
+                "Phase 1 Layer 2 requires a live IndexingRuntime — the e2e-http-compose "
+                "lane bootstraps it via FastAPI lifespan; ensure the test runs against "
+                "the live API process."
+            )
+            await dispatch_indexing(
+                engine=runtime.engine,
+                queue=runtime.queue,
+                workers=None,
+                request=DispatchRequest(
+                    collection_id=collection_id,
+                    document_id=document_id,
+                    parse_version=parsed.parse_version,
+                    source_path=parsed.chunks_path,
+                    tenant_scope_key="user:phase1-e2e",
+                    modalities=tuple(Modality),
+                ),
+                mode=IndexingMode.ASYNC,
+            )
+
+            # Drive the pool inline so the test does not depend on the
+            # lifespan worker tasks racing with the assertion.
+            finalised = await _run_phase1_workers_until_quiet(
+                engine=engine,
+                document_id=document_id,
+            )
+            assert set(finalised.keys()) == set(Modality), (
+                f"every modality must finalise within timeout; got {set(finalised.keys())}"
+            )
+
+            for modality in (Modality.VECTOR, Modality.FULLTEXT, Modality.SUMMARY):
+                row = finalised[modality]
+                assert row.status == IndexStatus.ACTIVE.value, (
+                    f"modality={modality.value} must finalise ACTIVE in Phase 1; "
+                    f"actual={row.status} error={row.error_message}"
+                )
+                assert row.is_serving is True
+
+            for modality in (Modality.GRAPH, Modality.VISION):
+                row = finalised[modality]
+                assert row.status == IndexStatus.FAILED.value, (
+                    f"modality={modality.value} must finalise FAILED until Wave 5 T7 lands; "
+                    f"actual={row.status}"
+                )
+                msg = row.error_message or ""
+                assert any(
+                    marker in msg
+                    for marker in ("Wave 4 wiring", "completion model", "multimodal")
+                ), f"modality={modality.value} FAILED message must surface a gate marker; got {msg!r}"
+        finally:
+            engine.dispose()
+
+    asyncio.run(_run())
 
 
 @pytest.mark.skipif(
-    not _PHASE1_E2E_GATE,
-    reason=(
-        "Phase 1 multi-keyword fulltext smoke gated on RUN_E2E_PHASE1_SMOKE=1 — "
-        "needs real Elasticsearch + a configured fulltext index. Runs in the "
-        "e2e-http-compose CI lane."
-    ),
+    _phase1_e2e_skip_reason() is not None,
+    reason=(_phase1_e2e_skip_reason() or "phase 1 layer 2 skipped"),
 )
 def test_phase1_multi_keyword_fulltext_search_returns_hits():
     """Layer 2 — sweep D verification (architect msg=fdd53586): exercise
-    ``_fulltext_search`` with a multi-keyword query against a freshly
-    indexed document and assert at least one hit. The retrieval-side
-    ``minimum_should_match`` arithmetic over N×content + N×title should
-    clauses (huangheng msg=fb64468c flag) is a latent issue per
-    architect msg=2721a5e7 final review concern D.
+    the retrieval-side ``_fulltext_search`` with a multi-keyword query
+    against a freshly indexed document. Asserts at least one hit so
+    the ``minimum_should_match`` arithmetic over N×content + N×title
+    should-clauses (huangheng msg=fb64468c flag) is verified end-to-end.
 
-    Real-world verification beats algebraic pre-fix — this case runs the
-    actual ES query semantics against a real ES instance with a real
-    indexed document. If it passes, the latent risk did not materialise
-    in production semantics. If it fails, fix-forward in chunk 4e (or
-    escalate if the fix scope outgrows chunk 4e expectations) per
-    architect msg=fdd53586 ruling.
-
-    Sequence:
-    1. Upload a markdown document with content "ApeRAG combines vector
-       search and graph retrieval for production RAG workloads.".
-    2. Wait for fulltext modality to reach ACTIVE.
-    3. Issue a 3-keyword query: ``"ApeRAG vector RAG"``.
-    4. Assert at least 1 hit is returned (the indexed document).
-    5. Cleanup.
+    Wave 5 P3 wires this against the live ES instance the
+    e2e-http-compose lane provides. Re-uses the canonical Layer 2
+    fixture (``PHASE1_E2E_COLLECTION_ID``).
     """
 
-    pytest.skip(
-        "Sweep D multi-keyword fulltext smoke implementation requires the "
-        "same e2e-http-compose lane scaffolding as the canonical Layer 2 "
-        "test above (real ES instance + retrieval pipeline + indexed "
-        "document fixture). Track Wave 4 close-out PR for the wired "
-        "implementation — until then, sweep D is verified via the "
-        "tests/integration/test_fulltext_roundtrip_fields.py path which "
-        "exercises bulk_index + search round-trip on a real ES index."
+    from aperag.domains.retrieval.pipeline import _fulltext_search
+    from aperag.indexing.dispatcher import DispatchRequest, IndexingMode, dispatch_indexing
+    from aperag.indexing.parser import ParseConfig, parse_document
+    from aperag.objectstore.base import get_object_store
+
+    collection_id = _PHASE1_E2E_COLLECTION_ID
+    assert collection_id, "skip should have caught missing env var"
+    document_id = "phase1-sweepd-" + uuid.uuid4().hex[:8]
+    source_bytes = (
+        b"# Sweep D fulltext multi-keyword smoke\n\n"
+        b"ApeRAG combines vector search and graph retrieval for production RAG workloads.\n"
     )
+
+    async def _run() -> None:
+        engine = _resolve_phase1_e2e_engine()
+        try:
+            from aperag.indexing.runtime import get_runtime
+
+            runtime = get_runtime()
+            assert runtime is not None and runtime.queue is not None, (
+                "sweep D Layer 2 requires a live IndexingRuntime"
+            )
+
+            object_store = get_object_store()
+            parsed = parse_document(
+                store=object_store,
+                collection_id=collection_id,
+                document_id=document_id,
+                source_bytes=source_bytes,
+                source_filename="phase1-sweepd.md",
+                config=ParseConfig(),
+            )
+            await dispatch_indexing(
+                engine=runtime.engine,
+                queue=runtime.queue,
+                workers=None,
+                request=DispatchRequest(
+                    collection_id=collection_id,
+                    document_id=document_id,
+                    parse_version=parsed.parse_version,
+                    source_path=parsed.chunks_path,
+                    tenant_scope_key="user:phase1-sweepd",
+                    modalities=(Modality.FULLTEXT,),
+                ),
+                mode=IndexingMode.ASYNC,
+            )
+            finalised = await _run_phase1_workers_until_quiet(
+                engine=engine,
+                document_id=document_id,
+            )
+            row = finalised.get(Modality.FULLTEXT)
+            assert row is not None and row.status == IndexStatus.ACTIVE.value, (
+                f"fulltext modality must finalise ACTIVE; got {row}"
+            )
+
+            # Now exercise the multi-keyword path. ``_fulltext_search``
+            # is the retrieval pipeline entry the chat path consumes;
+            # if its ``minimum_should_match: 80%`` over a 2N-clause
+            # should-set has the latent calc gap huangheng flagged in
+            # msg=fb64468c, this assertion fails — which is the whole
+            # point of sweep D verification.
+            from aperag.domains.knowledge_base.db.models import Collection
+
+            with Session(engine) as session:
+                collection = session.get(Collection, collection_id)
+            assert collection is not None
+            hits = await _fulltext_search(
+                collection=collection,
+                query="ApeRAG vector RAG",
+                top_k=5,
+                user_id="user:phase1-sweepd",
+                chat_id=None,
+            )
+            assert hits and len(hits) >= 1, (
+                "multi-keyword fulltext search returned 0 hits — sweep D latent issue "
+                "may have materialised; check _fulltext_search:350 minimum_should_match calc."
+            )
+        finally:
+            engine.dispose()
+
+    asyncio.run(_run())
 
 
 # ---------------------------------------------------------------------
