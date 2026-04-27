@@ -690,10 +690,15 @@ def _resolve_graph_backend_type(collection: Any) -> str:
     return backend
 
 
-def _build_lineage_graph_store(*, backend_type: str, collection: Any) -> Any:
-    """Construct the per-collection :class:`LineageGraphStore` adapter
-    by binding the shared per-process backend client to the collection
-    id."""
+def _build_lineage_graph_store_inner(*, backend_type: str, collection: Any) -> Any:
+    """Construct the raw per-collection :class:`LineageGraphStore`
+    adapter (no alias-redirect wrapper).
+
+    Used internally by :func:`_build_lineage_graph_store` and by the
+    user-driven merger (Wave 7 task #6 :class:`LineageEntityMerger`,
+    which writes canonical names directly and must not be intercepted
+    by the alias-redirect decorator).
+    """
     if backend_type == "postgres":
         engine = _postgres_async_engine_singleton()
         from aperag.indexing.graph_storage.postgres import PostgresLineageGraphStore
@@ -718,6 +723,33 @@ def _build_lineage_graph_store(*, backend_type: str, collection: Any) -> Any:
             space_prefix=space_prefix,
         )
     raise WorkerFactoryError(f"unsupported graph_backend_type {backend_type!r}")
+
+
+def _build_lineage_graph_store(*, backend_type: str, collection: Any) -> Any:
+    """Wave 7 §K.12 invariant #9 — return the alias-redirect-wrapped
+    :class:`LineageGraphStore`.
+
+    Every write goes through the per-collection
+    :class:`LineageGraphStoreWithAliasRedirect` (PR #1758) so
+    user-merged entities are transparently consolidated at indexing
+    time. Reads pass through unchanged. This makes the inseparability
+    gate of task #6 alive in production: without this swap the alias
+    map is written but never consulted, so user merges silently
+    re-created the merged-away entities on the next sync.
+
+    Callers that need the raw inner store (the merger's L1 write
+    path, which targets canonical names directly and must not be
+    redirected) should use :func:`_build_lineage_graph_store_inner`.
+    """
+    from aperag.graph_curation.alias_map import AliasMapRepository
+    from aperag.indexing.alias_redirect_store import LineageGraphStoreWithAliasRedirect
+
+    inner = _build_lineage_graph_store_inner(backend_type=backend_type, collection=collection)
+    return LineageGraphStoreWithAliasRedirect(
+        inner=inner,
+        alias_repo=AliasMapRepository(),
+        collection_id=str(collection.id),
+    )
 
 
 def _resolve_entity_lock(*, backend_type: str) -> Any:
