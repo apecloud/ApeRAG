@@ -17,9 +17,9 @@ does not slowly fall over.
 ## Wave 3 release scope (read first)
 
 Wave 3 ships the production-ready infrastructure for the
-**vector**, **fulltext**, **summary**, and **vision** modalities.
-Two surfaces are intentionally **gated** until Wave 4 to avoid
-silently broken behaviour in production:
+**vector**, **fulltext**, and **summary** modalities. Two surfaces
+are intentionally **gated** until Wave 4 to avoid silently broken
+behaviour in production:
 
 * **Knowledge-graph modality is gated.** The §D.3 lineage pipeline
   is structurally implemented but its production backend (the
@@ -50,10 +50,17 @@ silently broken behaviour in production:
   convert binary inputs to markdown before parsing. Until then,
   upload handlers must accept only markdown bodies.
 
-The Wave 4 backlog is locked: real graph backend + extractor + real
-parser integration + cleanup-loop modality fan-out + cross-modality
-contract tests (already merged via PR #1730). See architect
-msg=c79e9a3f for the full gap analysis that produced this scope cut.
+The Wave 4 backlog is locked at 11 items: real graph backend
+adapters (Postgres / Neo4j / Nebula) + LightRAG-style LLM extractor
++ real parser integration (DocParser / Marker / OCR + ``q:parse``
+async promotion) + cleanup-loop modality fan-out + cross-modality
+contract tests (already merged via PR #1730) + real Redis WorkQueue
++ real Redis QuotaBackend (Lua atomic) + OTLP MetricsEmitter
+production wire-in + real multimodal vision-LLM + fulltext
+multi-backend adapter dispatch (Elasticsearch + OpenSearch). See
+architect msg=c79e9a3f for the original gap analysis and the §K
+Wave 4 amendment scope for the dispatch / spec additions accumulated
+during implementation.
 
 ## Pick a deployment tier
 

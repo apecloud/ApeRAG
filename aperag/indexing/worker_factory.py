@@ -458,9 +458,12 @@ def _build_vision_worker(*, collection: Any, object_store: Any) -> ModalityWorke
     backend = _QdrantPointBackend(connector=adaptor.connector)
 
     def _embed(image_id: str, alt_text: str) -> list[float]:
-        # Multimodal embedder is configured (gate above passed); the
-        # call below routes through the multimodal model rather than
-        # the string-concat placeholder.
+        # ``is_multimodal()`` gate above only verifies that operators
+        # explicitly opted into a multimodal embedder. The body is
+        # still the Wave 3 string-concat placeholder until T7 replaces
+        # it with a real image-bytes path (load image from object
+        # store → multimodal embed); ``embed_query`` of an alt-text
+        # surrogate is not actual visual indexing.
         return embedding_service.embed_query(f"{image_id}|{alt_text}")
 
     return VisionModality(backend=backend, store=object_store, embedder=_embed)
