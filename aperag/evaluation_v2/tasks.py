@@ -12,25 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Async worker pipeline for evaluation-v2.
+"""Legacy submodule shim — ``aperag/evaluation_v2/tasks.py``.
 
-Phase 1 only scaffolds the module. The Phase 3 implementation will:
-
-1. Pick up queued runs, transition them to RUNNING.
-2. For each run item, create an isolated agent chat and dispatch a
-   Runtime V3 turn via `agent_runtime.runtime.agent_runtime_manager`.
-3. Wait for the turn to finalize, fetch the answer / reference artifacts,
-   and invoke the configured judge (`aperag.evaluation_v2.judges`).
-4. Persist attempt + item results and update run summary metrics.
-5. Handle cancellation and retries by respecting run status transitions.
-
-Keep this module import-safe; register Celery tasks here so they are
-discoverable by the worker autodiscover pass.
+Celery task module — all bindings re-exported from the canonical
+domain home. Celery task names are preserved by Celery's routing so
+queue workers continue to dispatch by the original task names.
 """
 
-from __future__ import annotations
-
-
-async def run_evaluation_run(run_id: str) -> None:
-    """Phase 3 entrypoint. No-op until the worker pipeline lands."""
-    return None
+from aperag.domains.evaluation.tasks import *  # noqa: F401,F403

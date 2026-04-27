@@ -73,11 +73,9 @@ elasticsearch:
 
 neo4j:
   enabled: false  # Enable/disable Neo4j graph database integration (optional for graph features)
-  # Hostname for the Neo4j Bolt service.
-  # Default: "neo4j-cluster-neo4j" (Kubeblocks Neo4j SVC name)
-  NEO4J_HOST: "neo4j-cluster-neo4j"
-  # Port for the Neo4j Bolt service. Default: "7687"
-  NEO4J_PORT: "7687"
+  # Bolt URI for the Neo4j service.
+  # Default: "bolt://neo4j-cluster-neo4j:7687" (Kubeblocks Neo4j SVC name)
+  NEO4J_URI: "bolt://neo4j-cluster-neo4j:7687"
   # The name of the Secret containing Neo4j username and password (e.g., "username" and "password" keys).
   # Example: "neo4j-cluster-neo4j-account-neo4j" (references your Kubeblocks credential Secret)
   NEO4J_CREDENTIALS_SECRET_NAME: "neo4j-cluster-neo4j-account-neo4j"
@@ -138,6 +136,15 @@ api:
     AUTHING_APP_ID: ""
     LOGTO_DOMAIN: ""
     LOGTO_APP_ID: ""
+    REGISTER_MODE: unlimited
+
+    # Database connection pool
+    DB_POOL_SIZE: "20"
+    DB_MAX_OVERFLOW: "40"
+    DB_POOL_TIMEOUT: "60"
+    DB_POOL_RECYCLE: "3600"
+    DB_POOL_PRE_PING: "True"
+
     # Vector DB
     VECTOR_DB_TYPE: qdrant
     VECTOR_DB_CONTEXT: '{"url":"http://qdrant-cluster-qdrant-qdrant", "port":6333, "distance":"Cosine", "timeout": 1000}'
@@ -163,6 +170,13 @@ api:
     PGVECTOR_HNSW_M: "16"
     PGVECTOR_HNSW_EF_CONSTRUCTION: "64"
     PGVECTOR_HNSW_EF_SEARCH: "40"
+
+    # Fulltext search
+    ES_TIMEOUT: "30"
+    ES_MAX_RETRIES: "3"
+    ES_FULLTEXT_NUMBER_OF_SHARDS: "1"
+    ES_FULLTEXT_NUMBER_OF_REPLICAS: "0"
+
     # Object Store
     OBJECT_STORE_TYPE: local
     OBJECT_STORE_LOCAL_ROOT_DIR: /data/objects
@@ -178,6 +192,7 @@ api:
     MAX_BOT_COUNT: 10
     MAX_COLLECTION_COUNT: 50
     MAX_DOCUMENT_COUNT: 1000
+    MAX_DOCUMENT_SIZE: "104857600"
     MAX_CONVERSATION_COUNT: 100
     EMBEDDING_MAX_CHUNKS_IN_BATCH: 10
     # Chunking
@@ -187,13 +202,15 @@ api:
     DEFAULT_ENCODING_MODEL: cl100k_base
     TOKENIZERS_PARALLELISM: "false"
 
-    GRAPH_INDEX_KV_STORAGE: PGOpsSyncKVStorage
-    GRAPH_INDEX_VECTOR_STORAGE: PGOpsSyncVectorStorage
-    GRAPH_INDEX_GRAPH_STORAGE: PGOpsSyncGraphStorage
-    NEBULA_HOST: ""
-    NEBULA_PORT: "9669"
-    NEBULA_USER: "root"
+    # Graph DB backend
+    GRAPH_DB_TYPE: postgresql
+    NEO4J_URI: ""
+    NEO4J_USERNAME: "neo4j"
+    NEO4J_PASSWORD: ""
+    NEBULA_HOSTS: ""
+    NEBULA_USERNAME: "root"
     NEBULA_PASSWORD: "nebula"
+    NEBULA_SPACE_PREFIX: "aperag"
 
     # Cache
     CACHE_ENABLED: "True"
@@ -202,6 +219,26 @@ api:
     # LLM Keyword Extraction
     LLM_KEYWORD_EXTRACTION_PROVIDER: "openrouter"
     LLM_KEYWORD_EXTRACTION_MODEL: "google/gemini-2.5-flash"
+
+    # Optional parser integrations
+    WHISPER_HOST: ""
+    PADDLEOCR_HOST: ""
+
+    # OpenTelemetry / Jaeger
+    OTEL_ENABLED: "True"
+    OTEL_SERVICE_NAME: aperag
+    OTEL_SERVICE_VERSION: "1.0.0"
+    OTEL_CONSOLE_ENABLED: "False"
+    OTEL_FASTAPI_ENABLED: "True"
+    OTEL_SQLALCHEMY_ENABLED: "True"
+    OTEL_MCP_ENABLED: "True"
+    JAEGER_ENABLED: "False"
+    JAEGER_ENDPOINT: ""
+
+    # Evaluation concurrency
+    MAX_CONCURRENT_EVALUATIONS: "5"
+    MAX_CONCURRENT_PROCESSING_TASKS_PER_EVALUATION: "5"
+    EVALUATION_ITEM_PROCESSING_TASK_TIMEOUT_MINUTES: "15"
 
   livenessProbe:
     httpGet:

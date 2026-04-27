@@ -185,10 +185,6 @@ class Config(BaseSettings):
     llm_keyword_extraction_provider: str = Field("", alias="LLM_KEYWORD_EXTRACTION_PROVIDER")
     llm_keyword_extraction_model: str = Field("", alias="LLM_KEYWORD_EXTRACTION_MODEL")
 
-    # Qianfan
-    qianfan_api_key: str = Field("", alias="QIANFAN_API_KEY")
-    qianfan_secret_key: str = Field("", alias="QIANFAN_SECRET_KEY")
-
     # OCR/ASR
     whisper_host: str = Field("", alias="WHISPER_HOST")
     paddleocr_host: str = Field("", alias="PADDLEOCR_HOST")
@@ -199,10 +195,6 @@ class Config(BaseSettings):
     # Cache
     cache_enabled: bool = Field(True, alias="CACHE_ENABLED")
     cache_ttl: int = Field(86400, alias="CACHE_TTL")
-
-    # Opik
-    opik_api_key: str = Field("", alias="OPIK_API_KEY")
-    opik_workspace: str = Field("", alias="OPIK_WORKSPACE")
 
     # OpenTelemetry/Jaeger Tracing
     otel_enabled: bool = Field(True, alias="OTEL_ENABLED")

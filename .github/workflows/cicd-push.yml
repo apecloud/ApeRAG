@@ -10,6 +10,22 @@ on:
 jobs:
   lint-and-unit:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: aperag
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d aperag"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aperag
     steps:
       - uses: actions/checkout@v4
 
@@ -28,9 +44,21 @@ jobs:
         run: |
           make env-install
 
+      - name: Apply migrations
+        run: |
+          make db-migrate
+
+      - name: Alembic drift check
+        run: |
+          make db-check
+
       - name: Run lint
         run: |
           make lint
+
+      - name: Check code-first OpenAPI export
+        run: |
+          make openapi-check
 
       - name: Run unit tests with coverage
         run: |

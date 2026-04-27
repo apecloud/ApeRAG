@@ -16,30 +16,32 @@ import random
 import uuid
 from enum import Enum
 
-from fastapi_users.db import SQLAlchemyBaseOAuthAccountTable
 from sqlalchemy import (
     JSON,
     BigInteger,
     Boolean,
     Column,
     DateTime,
-    ForeignKey,
     Index,
     Integer,
     Numeric,
     String,
     Text,
     UniqueConstraint,
-    select,
-    text,
 )
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from aperag.db.base import Base
+from aperag.domains.identity.db.models import (  # noqa: F401  Phase 4 Step 4-S2a per-domain re-export
+    OAuthAccount,
+    Role,
+    User,
+)
 from aperag.utils.utils import utc_now
 
-# Create the declarative base
-Base = declarative_base()
+# ``Base`` is re-exported from ``aperag.db.base`` so existing call sites
+# (``from aperag.db.models import Base`` — notably ``aperag/graphindex/models.py``
+# and the Alembic ``env.py``) continue to resolve the same declarative base
+# during Phase 3's per-domain DB split. See ``aperag/db/base.py`` for the why.
 
 
 # Helper function for random id generation
@@ -66,126 +68,20 @@ def EnumColumn(enum_class, **kwargs):
 
 
 # Enums for choices
-class CollectionStatus(str, Enum):
-    INACTIVE = "INACTIVE"
-    ACTIVE = "ACTIVE"
-    DELETED = "DELETED"
+# ``CollectionMarketplaceStatusEnum`` moved to
+# ``aperag.domains.marketplace.db.models`` in Phase 4 Step 4-S2c;
+# re-exported at the bottom of this module.
 
 
-class CollectionSummaryStatus(str, Enum):
-    PENDING = "PENDING"
-    GENERATING = "GENERATING"
-    COMPLETE = "COMPLETE"
-    FAILED = "FAILED"
-
-
-class CollectionType(str, Enum):
-    DOCUMENT = "document"
-    CHAT = "CHAT"
-
-
-class CollectionMarketplaceStatusEnum(str, Enum):
-    """Collection marketplace sharing status enumeration"""
-
-    DRAFT = "DRAFT"  # Not published, only owner can see
-    PUBLISHED = "PUBLISHED"  # Published to marketplace, publicly visible
-
-
-class DocumentStatus(str, Enum):
-    UPLOADED = "UPLOADED"  # 新增：已上传但未确认添加到collection
-    EXPIRED = "EXPIRED"  # 新增：已过期的临时上传文档
-    PENDING = "PENDING"
-    RUNNING = "RUNNING"
-    COMPLETE = "COMPLETE"
-    FAILED = "FAILED"
-    DELETED = "DELETED"
-
-
-class DocumentIndexType(str, Enum):
-    """Document index type enumeration"""
-
-    VECTOR = "VECTOR"
-    FULLTEXT = "FULLTEXT"
-    GRAPH = "GRAPH"
-    SUMMARY = "SUMMARY"
-    VISION = "VISION"
-
-
-class DocumentIndexStatus(str, Enum):
-    """Document index lifecycle status"""
-
-    PENDING = "PENDING"  # Awaiting processing (create/update)
-    CREATING = "CREATING"  # Task claimed, creation/update in progress
-    ACTIVE = "ACTIVE"  # Index is up-to-date and ready for use
-    DELETING = "DELETING"  # Deletion has been requested
-    DELETION_IN_PROGRESS = "DELETION_IN_PROGRESS"  # Task claimed, deletion in progress
-    FAILED = "FAILED"  # The last operation failed
-
-
-class BotStatus(str, Enum):
-    ACTIVE = "ACTIVE"
-    DELETED = "DELETED"
-
-
-class BotType(str, Enum):
-    KNOWLEDGE = "knowledge"
-    COMMON = "common"
-    AGENT = "agent"
-
-
-class Role(str, Enum):
-    ADMIN = "admin"
-    RW = "rw"
-    RO = "ro"
-
-
-class ChatStatus(str, Enum):
-    ACTIVE = "ACTIVE"
-    DELETED = "DELETED"
-
-
-class ChatPeerType(str, Enum):
-    SYSTEM = "system"
-    FEISHU = "feishu"
-    WEIXIN = "weixin"
-    WEIXIN_OFFICIAL = "weixin_official"
-    WEB = "web"
-    DINGTALK = "dingtalk"
-
-
-class AgentTurnStatus(str, Enum):
-    QUEUED = "QUEUED"
-    RUNNING = "RUNNING"
-    COMPLETED = "COMPLETED"
-    FAILED = "FAILED"
-    CANCELLED = "CANCELLED"
-
-
-class AgentEventActor(str, Enum):
-    AGENT = "agent"
-    TOOL = "tool"
-    SYSTEM = "system"
-
-
-class AgentArtifactType(str, Enum):
-    ANSWER = "answer"
-    REFERENCE_BUNDLE = "reference_bundle"
-    TOOL_RESULT_SUMMARY = "tool_result_summary"
-    SEARCH_RESULT_SUMMARY = "search_result_summary"
-    ERROR_SUMMARY = "error_summary"
-
-
-class TurnFeedbackType(str, Enum):
-    GOOD = "good"
-    BAD = "bad"
-
-
-class TurnFeedbackTag(str, Enum):
-    HARMFUL = "Harmful"
-    UNSAFE = "Unsafe"
-    FAKE = "Fake"
-    UNHELPFUL = "Unhelpful"
-    OTHER = "Other"
+# ``Role`` moved to ``aperag.domains.identity.db.models`` in Phase 4
+# Step 4-S2a; re-exported via the shim block at the bottom of this
+# module so pre-migration callers continue to resolve it here.
+# Phase 4 G15 canonical forbids cross-domain imports of the enum —
+# consumers compare ``user.role == "admin"`` by literal instead.
+#
+# ``BotStatus`` / ``BotType`` moved to
+# ``aperag.domains.conversation.db.models`` in Phase 5 Step 5-S2a;
+# re-exported via the shim block at the bottom of this module.
 
 
 class ModelServiceProviderStatus(str, Enum):
@@ -194,15 +90,14 @@ class ModelServiceProviderStatus(str, Enum):
     DELETED = "DELETED"
 
 
-class ApiKeyStatus(str, Enum):
-    ACTIVE = "ACTIVE"
-    DELETED = "DELETED"
+# ``ApiKeyStatus`` moved to
+# ``aperag.domains.governance.db.models`` in Phase 4 Step 4-S2b;
+# re-exported at the bottom of this module.
 
 
-class APIType(str, Enum):
-    COMPLETION = "completion"
-    EMBEDDING = "embedding"
-    RERANK = "rerank"
+# ``APIType`` moved to
+# ``aperag.domains.model_platform.db.models`` in Phase 4 Step 4-S2d;
+# re-exported at the bottom of this module.
 
 
 class QuestionType(str, Enum):
@@ -232,244 +127,10 @@ class EvaluationItemStatus(str, Enum):
     FAILED = "FAILED"
 
 
-class BenchmarkDatasetVersionStatus(str, Enum):
-    DRAFT = "draft"
-    PUBLISHED = "published"
-    ARCHIVED = "archived"
-
-
-class BenchmarkDatasetSourceType(str, Enum):
-    MANUAL = "manual"
-    IMPORT = "import"
-    MIGRATED_FROM_QUESTION_SET = "migrated_from_question_set"
-
-
-class EvaluationRunStatus(str, Enum):
-    QUEUED = "queued"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
-
-
-class EvaluationRunItemStatus(str, Enum):
-    PENDING = "pending"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
-
-
-class EvaluationRunItemAttemptStatus(str, Enum):
-    QUEUED = "queued"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
-
-
-class EvaluationJudgeMode(str, Enum):
-    NONE = "none"
-    EXACT_MATCH = "exact_match"
-    LLM_AS_JUDGE = "llm_as_judge"
-
-
 # Models
-class Collection(Base):
-    __tablename__ = "collection"
-
-    id = Column(String(24), primary_key=True, default=lambda: "col" + random_id())
-    title = Column(String(256), nullable=False)
-    description = Column(Text, nullable=True)
-    user = Column(String(256), nullable=False, index=True)  # Add index for frequent queries
-    status = Column(EnumColumn(CollectionStatus), nullable=False, index=True)  # Add index for status queries
-    type = Column(EnumColumn(CollectionType), nullable=False)
-    config = Column(Text, nullable=False)
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Add index for soft delete queries
-
-
-class CollectionSummary(Base):
-    __tablename__ = "collection_summary"
-    __table_args__ = (
-        UniqueConstraint("collection_id", name="uq_collection_summary"),
-        Index("idx_collection_summary_status_lease", "status", "lease_expires_at"),
-    )
-
-    id = Column(String(24), primary_key=True, default=lambda: "cs" + random_id())
-    collection_id = Column(String(24), nullable=False, index=True)
-
-    # Reconciliation fields
-    status = Column(
-        EnumColumn(CollectionSummaryStatus), nullable=False, default=CollectionSummaryStatus.PENDING, index=True
-    )
-    version = Column(Integer, nullable=False, default=1)
-    observed_version = Column(Integer, nullable=False, default=0)
-
-    # Summary content and metadata
-    summary = Column(Text, nullable=True)
-    error_message = Column(Text, nullable=True)
-    processing_token = Column(String(64), nullable=True)
-    lease_expires_at = Column(DateTime(timezone=True), nullable=True)
-
-    # Timestamps
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_last_reconciled = Column(DateTime(timezone=True), nullable=True)
-
-    def __repr__(self):
-        return f"<CollectionSummary(id={self.id}, collection_id={self.collection_id}, status={self.status}, version={self.version})>"
-
-    def update_version(self):
-        """Update the version to trigger reconciliation"""
-        self.version += 1
-        self.gmt_updated = utc_now()
-
-
-class CollectionMarketplace(Base):
-    """Collection sharing status table"""
-
-    __tablename__ = "collection_marketplace"
-    __table_args__ = (
-        UniqueConstraint("collection_id", name="uq_collection_marketplace_collection"),
-        Index("idx_collection_marketplace_status", "status"),
-        Index("idx_collection_marketplace_gmt_deleted", "gmt_deleted"),
-        Index("idx_collection_marketplace_collection_id", "collection_id"),
-        Index("idx_collection_marketplace_list", "status", "gmt_created"),
-    )
-
-    id = Column(String(24), primary_key=True, default=lambda: "market_" + random_id()[:16])
-    collection_id = Column(String(24), nullable=False)
-
-    # Sharing status: use VARCHAR storage, not database enum type, validated at application layer
-    status = Column(String(20), nullable=False, default=CollectionMarketplaceStatusEnum.DRAFT.value)
-
-    # Timestamp fields
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)  # Updated in code layer
-    gmt_deleted = Column(DateTime(timezone=True), nullable=True)
-
-    def __repr__(self):
-        return f"<CollectionMarketplace(id={self.id}, collection_id={self.collection_id}, status={self.status})>"
-
-
-class UserCollectionSubscription(Base):
-    """User subscription to published collections table"""
-
-    __tablename__ = "user_collection_subscription"
-    __table_args__ = (
-        # Allow multiple history records, but active subscription (gmt_deleted=NULL) must be unique
-        UniqueConstraint(
-            "user_id", "collection_marketplace_id", "gmt_deleted", name="idx_user_marketplace_history_unique"
-        ),
-        Index("idx_user_subscription_marketplace", "collection_marketplace_id"),
-        Index("idx_user_subscription_user", "user_id"),
-        Index("idx_user_subscription_gmt_deleted", "gmt_deleted"),
-    )
-
-    id = Column(String(24), primary_key=True, default=lambda: "sub_" + random_id()[:16])
-    user_id = Column(String(24), nullable=False)  # Related to users table, maintained at application layer
-    collection_marketplace_id = Column(
-        String(24), nullable=False
-    )  # Related to collection_marketplace table, maintained at application layer
-
-    # Timestamp fields
-    gmt_subscribed = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_deleted = Column(DateTime(timezone=True), nullable=True)  # Soft delete: NULL means active subscription
-
-    def __repr__(self):
-        return f"<UserCollectionSubscription(id={self.id}, user_id={self.user_id}, marketplace_id={self.collection_marketplace_id})>"
-
-
-class Document(Base):
-    __tablename__ = "document"
-    __table_args__ = (
-        # Partial unique index: only enforce uniqueness for active (non-deleted) documents
-        # This prevents duplicate documents while allowing same name for deleted documents
-        # Using partial index with WHERE clause instead of including gmt_deleted in constraint
-        # because in PostgreSQL, NULL != NULL, so constraint with gmt_deleted doesn't work for active docs
-        Index(
-            "uq_document_collection_name_active",
-            "collection_id",
-            "name",
-            unique=True,
-            postgresql_where=text("gmt_deleted IS NULL"),
-        ),
-    )
-
-    id = Column(String(24), primary_key=True, default=lambda: "doc" + random_id())
-    name = Column(String(1024), nullable=False)
-    user = Column(String(256), nullable=False, index=True)  # Add index for user queries
-    collection_id = Column(String(24), nullable=True, index=True)  # Add index for collection queries
-    status = Column(EnumColumn(DocumentStatus), nullable=False, index=True)  # Add index for status queries
-    size = Column(BigInteger, nullable=False)  # Support larger files (up to 9 exabytes)
-    content_hash = Column(
-        String(64), nullable=True, index=True
-    )  # SHA-256 hash of original file content for duplicate detection
-    object_path = Column(Text, nullable=True)
-    doc_metadata = Column(Text, nullable=True)  # Store document metadata as JSON string
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Add index for soft delete queries
-
-    def get_document_indexes(self, session):
-        """Get document indexes from the merged table"""
-
-        stmt = select(DocumentIndex).where(DocumentIndex.document_id == self.id)
-        result = session.execute(stmt)
-        return result.scalars().all()
-
-    def get_overall_index_status(self, session) -> "DocumentStatus":
-        """Calculate overall status based on document indexes"""
-        document_indexes = self.get_document_indexes(session)
-
-        if not document_indexes:
-            return DocumentStatus.PENDING
-
-        statuses = [idx.status for idx in document_indexes]
-
-        if any(status == DocumentIndexStatus.FAILED for status in statuses):
-            return DocumentStatus.FAILED
-        elif any(
-            status in [DocumentIndexStatus.CREATING, DocumentIndexStatus.DELETION_IN_PROGRESS] for status in statuses
-        ):
-            return DocumentStatus.RUNNING
-        elif all(status == DocumentIndexStatus.ACTIVE for status in statuses):
-            return DocumentStatus.COMPLETE
-        else:
-            return DocumentStatus.PENDING
-
-    def object_store_base_path(self) -> str:
-        """Generate the base path for object store"""
-        user = self.user.replace("|", "-")
-        return f"user-{user}/{self.collection_id}/{self.id}"
-
-    async def get_collection(self, session):
-        """Get the associated collection object"""
-        return await session.get(Collection, self.collection_id)
-
-    async def set_collection(self, collection):
-        """Set the collection_id by Collection object or id"""
-        if hasattr(collection, "id"):
-            self.collection_id = collection.id
-        elif isinstance(collection, str):
-            self.collection_id = collection
-
-
-class Bot(Base):
-    __tablename__ = "bot"
-
-    id = Column(String(24), primary_key=True, default=lambda: "bot" + random_id())
-    user = Column(String(256), nullable=False, index=True)  # Add index for user queries
-    title = Column(String(256), nullable=True)
-    type = Column(EnumColumn(BotType), nullable=False, default=BotType.KNOWLEDGE)
-    description = Column(Text, nullable=True)
-    status = Column(EnumColumn(BotStatus), nullable=False, index=True)  # Add index for status queries
-    config = Column(Text, nullable=False)
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Add index for soft delete queries
+# ``CollectionMarketplace`` + ``UserCollectionSubscription`` moved
+# to ``aperag.domains.marketplace.db.models`` in Phase 4 Step 4-S2c;
+# re-exported at the bottom of this module.
 
 
 class ConfigModel(Base):
@@ -502,144 +163,13 @@ class UserQuota(Base):
         return not self.is_quota_exceeded(amount)
 
 
-class Chat(Base):
-    __tablename__ = "chat"
-    __table_args__ = (
-        UniqueConstraint("bot_id", "peer_type", "peer_id", "gmt_deleted", name="uq_chat_bot_peer_deleted"),
-    )
-
-    id = Column(String(24), primary_key=True, default=lambda: "chat" + random_id())
-    user = Column(String(256), nullable=False, index=True)  # Add index for user queries
-    peer_type = Column(EnumColumn(ChatPeerType), nullable=False, default=ChatPeerType.SYSTEM)
-    peer_id = Column(String(256), nullable=True)
-    status = Column(EnumColumn(ChatStatus), nullable=False, index=True)  # Add index for status queries
-    bot_id = Column(String(24), nullable=False, index=True)  # Add index for bot queries
-    title = Column(String(256), nullable=True)
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Add index for soft delete queries
-
-    async def get_bot(self, session):
-        """Get the associated bot object"""
-        return await session.get(Bot, self.bot_id)
-
-    async def set_bot(self, bot):
-        """Set the bot_id by Bot object or id"""
-        if hasattr(bot, "id"):
-            self.bot_id = bot.id
-        elif isinstance(bot, str):
-            self.bot_id = bot
-
-
-class AgentTurn(Base):
-    __tablename__ = "agent_turn"
-    __table_args__ = (
-        UniqueConstraint("chat_id", "client_idempotency_key", name="uq_agent_turn_chat_idempotency"),
-        Index("idx_agent_turn_chat_created", "chat_id", "gmt_created"),
-        Index("idx_agent_turn_user_status", "user", "status"),
-    )
-
-    id = Column(String(24), primary_key=True, default=lambda: "turn" + random_id())
-    chat_id = Column(String(24), nullable=False, index=True)
-    user = Column(String(256), nullable=False, index=True)
-    bot_id = Column(String(24), nullable=False, index=True)
-    request_id = Column(String(64), nullable=False, unique=True, index=True)
-    client_idempotency_key = Column(String(128), nullable=False)
-    status = Column(EnumColumn(AgentTurnStatus), nullable=False, default=AgentTurnStatus.QUEUED, index=True)
-    input_text = Column(Text, nullable=False)
-    model_profile = Column(JSON, default=lambda: {}, nullable=False)
-    error_code = Column(String(128), nullable=True)
-    error_message = Column(Text, nullable=True)
-    answer_artifact_id = Column(String(24), nullable=True, index=True)
-    reference_bundle_artifact_id = Column(String(24), nullable=True, index=True)
-    timeline_cursor = Column(Integer, default=0, nullable=False)
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_started = Column(DateTime(timezone=True), nullable=True)
-    gmt_finished = Column(DateTime(timezone=True), nullable=True)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-
-
-class AgentTimelineEvent(Base):
-    __tablename__ = "agent_timeline_event"
-    __table_args__ = (
-        UniqueConstraint("turn_id", "sequence", name="uq_agent_timeline_event_turn_sequence"),
-        Index("idx_agent_timeline_event_turn_timestamp", "turn_id", "timestamp"),
-    )
-
-    id = Column(String(24), primary_key=True, default=lambda: "evt" + random_id())
-    turn_id = Column(String(24), nullable=False, index=True)
-    sequence = Column(Integer, nullable=False)
-    timestamp = Column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
-    type = Column(String(128), nullable=False, index=True)
-    label = Column(String(128), nullable=True)
-    status = Column(String(64), nullable=True)
-    actor = Column(EnumColumn(AgentEventActor), nullable=False, default=AgentEventActor.SYSTEM)
-    data = Column(JSON, default=lambda: {}, nullable=False)
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-
-
-class AgentArtifact(Base):
-    __tablename__ = "agent_artifact"
-    __table_args__ = (Index("idx_agent_artifact_turn_type", "turn_id", "artifact_type"),)
-
-    id = Column(String(24), primary_key=True, default=lambda: "art" + random_id())
-    turn_id = Column(String(24), nullable=False, index=True)
-    artifact_type = Column(EnumColumn(AgentArtifactType), nullable=False, index=True)
-    summary = Column(Text, nullable=True)
-    payload = Column(JSON, default=lambda: {}, nullable=False)
-    storage_ref = Column(Text, nullable=True)
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-
-
-class TurnFeedback(Base):
-    __tablename__ = "turn_feedback"
-
-    user = Column(String(256), nullable=False, index=True)
-    chat_id = Column(String(24), primary_key=True)
-    turn_id = Column(String(256), primary_key=True)
-    type = Column(EnumColumn(TurnFeedbackType), nullable=False)
-    tag = Column(EnumColumn(TurnFeedbackTag), nullable=True)
-    message = Column(Text, nullable=True)
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-
-    async def get_chat(self, session):
-        """Get the associated chat object"""
-        return await session.get(Chat, self.chat_id)
-
-    async def set_chat(self, chat):
-        """Set the chat_id by Chat object or id"""
-        if hasattr(chat, "id"):
-            self.chat_id = chat.id
-        elif isinstance(chat, str):
-            self.chat_id = chat
-
-
-class ApiKey(Base):
-    __tablename__ = "api_key"
-
-    id = Column(String(24), primary_key=True, default=lambda: "key" + random_id())
-    key = Column(String(64), default=lambda: f"sk-{uuid.uuid4().hex}", nullable=False)
-    user = Column(String(256), nullable=False, index=True)  # Add index for user queries
-    description = Column(String(256), nullable=True)
-    status = Column(EnumColumn(ApiKeyStatus), nullable=False, index=True)  # Add index for status queries
-    is_system = Column(Boolean, default=False, nullable=False, index=True)  # Mark system-generated API keys
-    last_used_at = Column(DateTime(timezone=True), nullable=True)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Add index for soft delete queries
-
-    @staticmethod
-    def generate_key() -> str:
-        """Generate a unique API key"""
-        return f"sk-{uuid.uuid4().hex}"
-
-    async def update_last_used(self, session):
-        """Update the last_used_at timestamp"""
-        self.last_used_at = utc_now()
-        session.add(self)
-        await session.commit()
+# ``ApiKey`` moved to ``aperag.domains.governance.db.models`` in
+# Phase 4 Step 4-S2b; re-exported at the bottom of this module.
+#
+# ``Chat`` + ``AgentTurn`` + ``AgentTimelineEvent`` + ``AgentArtifact``
+# + ``TurnFeedback`` moved to their respective conversation /
+# agent_runtime domain ``db/models.py`` in Phase 5 Step 5-S2a / 5-S2b;
+# re-exported at the bottom of this module.
 
 
 class ModelServiceProvider(Base):
@@ -655,129 +185,16 @@ class ModelServiceProvider(Base):
     gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Add index for soft delete queries
 
 
-class LLMProvider(Base):
-    """LLM Provider configuration model
-
-    This model stores the provider-level configuration that was previously
-    stored in model_configs.json file. Each provider has basic information
-    and dialect configurations for different API types.
-    """
-
-    __tablename__ = "llm_provider"
-
-    name = Column(String(128), primary_key=True)  # Unique provider name identifier
-    user_id = Column(String(256), nullable=False, index=True)  # Owner of the provider config, "public" for global
-    label = Column(String(256), nullable=False)  # Human-readable provider display name
-    completion_dialect = Column(String(64), nullable=False)  # API dialect for completion/chat APIs
-    embedding_dialect = Column(String(64), nullable=False)  # API dialect for embedding APIs
-    rerank_dialect = Column(String(64), nullable=False)  # API dialect for rerank APIs
-    allow_custom_base_url = Column(Boolean, default=False, nullable=False)  # Whether custom base URLs are allowed
-    base_url = Column(String(512), nullable=False)  # Default API base URL for this provider
-    extra = Column(Text, nullable=True)  # Additional configuration data in JSON format
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_deleted = Column(DateTime(timezone=True), nullable=True)
-
-    def __str__(self):
-        return f"LLMProvider(name={self.name}, label={self.label}, user_id={self.user_id})"
+# ``LLMProvider`` + ``LLMProviderModel`` moved to
+# ``aperag.domains.model_platform.db.models`` in Phase 4 Step 4-S2d;
+# re-exported at the bottom of this module. ``APIType`` moved with
+# them (used only by ``LLMProviderModel.api``).
 
 
-class LLMProviderModel(Base):
-    """LLM Provider Model configuration
-
-    This model stores individual model configurations for each provider.
-    Each model belongs to a provider and has a specific API type (completion, embedding, rerank).
-    """
-
-    __tablename__ = "llm_provider_models"
-
-    provider_name = Column(String(128), primary_key=True)  # Reference to LLMProvider.name
-    api = Column(EnumColumn(APIType), nullable=False, primary_key=True)
-    model = Column(String(256), primary_key=True)  # Model name/identifier
-    custom_llm_provider = Column(String(128), nullable=False)  # Custom LLM provider implementation
-    context_window = Column(Integer, nullable=True)  # Context window size (total tokens)
-    max_input_tokens = Column(Integer, nullable=True)  # Maximum input tokens
-    max_output_tokens = Column(Integer, nullable=True)  # Maximum output tokens
-    tags = Column(JSON, default=lambda: [], nullable=True)  # Tags for model categorization
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_deleted = Column(DateTime(timezone=True), nullable=True)
-
-    def __str__(self):
-        return f"LLMProviderModel(provider={self.provider_name}, api={self.api}, model={self.model})"
-
-    async def get_provider(self, session):
-        """Get the associated provider object"""
-        return await session.get(LLMProvider, self.provider_name)
-
-    async def set_provider(self, provider):
-        """Set the provider_name by LLMProvider object or name"""
-        if hasattr(provider, "name"):
-            self.provider_name = provider.name
-        elif isinstance(provider, str):
-            self.provider_name = provider
-
-    def has_tag(self, tag: str) -> bool:
-        """Check if model has a specific tag"""
-        return tag in (self.tags or [])
-
-    def add_tag(self, tag: str) -> bool:
-        """Add a tag to model. Returns True if tag was added, False if already exists"""
-        if self.tags is None:
-            self.tags = []
-        if tag not in self.tags:
-            self.tags.append(tag)
-            return True
-        return False
-
-    def remove_tag(self, tag: str) -> bool:
-        """Remove a tag from model. Returns True if tag was removed, False if not found"""
-        if self.tags and tag in self.tags:
-            self.tags.remove(tag)
-            return True
-        return False
-
-    def get_tags(self) -> list:
-        """Get all tags for this model"""
-        return self.tags or []
-
-
-class User(Base):
-    __tablename__ = "user"
-
-    id = Column(String(24), primary_key=True, default=lambda: "user" + random_id())
-    username = Column(String(256), unique=True, nullable=True)  # Unified with other user fields
-    email = Column(String(254), unique=True, nullable=True)
-    role = Column(EnumColumn(Role), nullable=False, default=Role.RO)
-    hashed_password = Column(String(128), nullable=False)  # fastapi-users expects hashed_password
-    is_active = Column(Boolean, default=True, nullable=False)
-    is_superuser = Column(Boolean, default=False, nullable=False)
-    is_verified = Column(Boolean, default=True, nullable=False)  # fastapi-users requires is_verified
-    is_staff = Column(Boolean, default=False, nullable=False)
-    chat_collection_id = Column(String(24), nullable=True, index=True)  # Chat collection for user
-    date_joined = Column(
-        DateTime(timezone=True), default=utc_now, nullable=False
-    )  # Unified naming with other time fields
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_deleted = Column(DateTime(timezone=True), nullable=True)
-    oauth_accounts: Mapped[list["OAuthAccount"]] = relationship("OAuthAccount", lazy="joined", back_populates="user")
-
-    @property
-    def password(self):
-        raise AttributeError("password is not a readable attribute")
-
-    @password.setter
-    def password(self, value):
-        self.hashed_password = value
-
-
-class OAuthAccount(SQLAlchemyBaseOAuthAccountTable[str], Base):
-    __tablename__ = "oauth_account"
-
-    id = Column(String(24), primary_key=True, default=lambda: "oauth" + random_id())
-    user_id: Mapped[str] = mapped_column(String, ForeignKey("user.id", ondelete="cascade"), nullable=False)
-    user: Mapped["User"] = relationship("User", back_populates="oauth_accounts")
+# ``User`` + ``OAuthAccount`` moved to
+# ``aperag.domains.identity.db.models`` in Phase 4 Step 4-S2a; the
+# re-export shim at the bottom of this module keeps pre-migration
+# ``from aperag.db.models import User`` callers working.
 
 
 class Invitation(Base):
@@ -809,123 +226,9 @@ class Invitation(Base):
         # self.expires_at = utc_now()
 
 
-class SearchHistory(Base):
-    __tablename__ = "searchhistory"
-
-    id = Column(String(24), primary_key=True, default=lambda: "sh" + random_id())
-    user = Column(String(256), nullable=False, index=True)  # Add index for user queries
-    collection_id = Column(String(24), nullable=True, index=True)  # Add index for collection queries
-    query = Column(Text, nullable=False)
-    vector_search = Column(JSON, default=lambda: {}, nullable=True)
-    fulltext_search = Column(JSON, default=lambda: {}, nullable=True)
-    graph_search = Column(JSON, default=lambda: {}, nullable=True)
-    summary_search = Column(JSON, default=lambda: {}, nullable=True)
-    vision_search = Column(JSON, default=lambda: {}, nullable=True)
-    items = Column(JSON, default=lambda: [], nullable=True)
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Add index for soft delete queries
-
-
-class DocumentIndex(Base):
-    """Document index - single status model"""
-
-    __tablename__ = "document_index"
-    __table_args__ = (
-        UniqueConstraint("document_id", "index_type", name="uq_document_index"),
-        Index("idx_document_index_status_lease", "status", "lease_expires_at"),
-    )
-
-    id = Column(Integer, primary_key=True, index=True)
-    document_id = Column(String(24), nullable=False, index=True)
-    index_type = Column(EnumColumn(DocumentIndexType), nullable=False, index=True)
-
-    status = Column(EnumColumn(DocumentIndexStatus), nullable=False, default=DocumentIndexStatus.PENDING, index=True)
-    version = Column(Integer, nullable=False, default=1)  # Incremented on each spec change
-    observed_version = Column(Integer, nullable=False, default=0)  # Last processed spec version
-
-    # Index data and task tracking
-    index_data = Column(Text, nullable=True)  # JSON string for index-specific data
-    error_message = Column(Text, nullable=True)
-    processing_token = Column(String(64), nullable=True)
-    lease_expires_at = Column(DateTime(timezone=True), nullable=True)
-
-    # Timestamps
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_last_reconciled = Column(DateTime(timezone=True), nullable=True)  # Last reconciliation attempt
-
-    def __repr__(self):
-        return f"<DocumentIndex(id={self.id}, document_id={self.document_id}, type={self.index_type}, status={self.status}, version={self.version})>"
-
-    def update_version(self):
-        """Update the version to trigger reconciliation"""
-        self.version += 1
-        self.gmt_updated = utc_now()
-
-
-class AuditResource(str, Enum):
-    """Audit resource types"""
-
-    COLLECTION = "collection"
-    DOCUMENT = "document"
-    BOT = "bot"
-    CHAT = "chat"
-    MESSAGE = "message"
-    API_KEY = "api_key"
-    LLM_PROVIDER = "llm_provider"
-    LLM_PROVIDER_MODEL = "llm_provider_model"
-    MODEL_SERVICE_PROVIDER = "model_service_provider"
-    USER = "user"
-    CONFIG = "config"
-    INVITATION = "invitation"
-    AUTH = "auth"
-    CHAT_COMPLETION = "chat_completion"
-    SEARCH = "search"
-    LLM = "llm"
-    FLOW = "flow"
-    SYSTEM = "system"
-    INDEX = "index"
-
-
-class AuditLog(Base):
-    """Audit log model to track all system operations"""
-
-    __tablename__ = "audit_log"
-
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String(36), nullable=True, comment="User ID")
-    username = Column(String(255), nullable=True, comment="Username")
-    resource_type = Column(EnumColumn(AuditResource), nullable=True, comment="Resource type")
-    resource_id = Column(String(255), nullable=True, comment="Resource ID (extracted at query time)")
-    api_name = Column(String(255), nullable=False, comment="API operation name")
-    http_method = Column(String(10), nullable=False, comment="HTTP method (POST, PUT, DELETE)")
-    path = Column(String(512), nullable=False, comment="API path")
-    status_code = Column(Integer, nullable=True, comment="HTTP status code")
-    request_data = Column(Text, nullable=True, comment="Request data (JSON)")
-    response_data = Column(Text, nullable=True, comment="Response data (JSON)")
-    error_message = Column(Text, nullable=True, comment="Error message if failed")
-    ip_address = Column(String(45), nullable=True, comment="Client IP address")
-    user_agent = Column(String(500), nullable=True, comment="User agent string")
-    request_id = Column(String(255), nullable=False, comment="Request ID for tracking")
-    start_time = Column(BigInteger, nullable=False, comment="Request start time (milliseconds since epoch)")
-    end_time = Column(BigInteger, nullable=True, comment="Request end time (milliseconds since epoch)")
-    gmt_created = Column(DateTime(timezone=True), nullable=False, default=utc_now, comment="Created time")
-
-    # Index for better query performance
-    __table_args__ = (
-        Index("idx_audit_user_id", "user_id"),
-        Index("idx_audit_resource_type", "resource_type"),
-        Index("idx_audit_api_name", "api_name"),
-        Index("idx_audit_http_method", "http_method"),
-        Index("idx_audit_status_code", "status_code"),
-        Index("idx_audit_gmt_created", "gmt_created"),
-        Index("idx_audit_resource_id", "resource_id"),
-        Index("idx_audit_request_id", "request_id"),
-        Index("idx_audit_start_time", "start_time"),
-    )
-
-    def __repr__(self):
-        return f"<AuditLog(id={self.id}, user={self.username}, api={self.api_name}, method={self.http_method}, status={self.status_code})>"
+# ``AuditResource`` + ``AuditLog`` moved to
+# ``aperag.domains.governance.db.models`` in Phase 4 Step 4-S2b;
+# re-exported at the bottom of this module.
 
 
 class QuestionSet(Base):
@@ -1032,21 +335,6 @@ class ExportTaskStatus(str, Enum):
     EXPIRED = "EXPIRED"
 
 
-class GraphCurationRunStatus(str, Enum):
-    PENDING = "PENDING"
-    RUNNING = "RUNNING"
-    COMPLETED = "COMPLETED"
-    FAILED = "FAILED"
-
-
-class GraphCurationSuggestionStatus(str, Enum):
-    PENDING = "PENDING"
-    ACCEPTED = "ACCEPTED"
-    REJECTED = "REJECTED"
-    EXPIRED = "EXPIRED"
-    SUPERSEDED = "SUPERSEDED"
-
-
 class ExportTask(Base):
     __tablename__ = "export_task"
     __table_args__ = (
@@ -1072,60 +360,6 @@ class ExportTask(Base):
     gmt_expires = Column(DateTime(timezone=True), nullable=True)
 
 
-class GraphCurationRun(Base):
-    __tablename__ = "graph_curation_runs"
-    __table_args__ = (
-        Index("idx_graph_curation_runs_collection_status", "collection_id", "status"),
-        Index("idx_graph_curation_runs_user_created", "user_id", "gmt_created"),
-    )
-
-    id = Column(String(32), primary_key=True, default=lambda: "gcr_" + random_id()[:16])
-    user_id = Column(String(256), nullable=False)
-    collection_id = Column(String(24), nullable=False)
-    status = Column(
-        EnumColumn(GraphCurationRunStatus),
-        nullable=False,
-        default=GraphCurationRunStatus.PENDING,
-    )
-    config_json = Column(JSON, nullable=True)
-    stats = Column(JSON, nullable=True)
-    error_message = Column(Text, nullable=True)
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
-    gmt_started = Column(DateTime(timezone=True), nullable=True)
-    gmt_finished = Column(DateTime(timezone=True), nullable=True)
-
-
-class GraphCurationSuggestion(Base):
-    __tablename__ = "graph_curation_suggestions"
-    __table_args__ = (
-        Index("idx_graph_curation_suggestions_run", "run_id"),
-        Index("idx_graph_curation_suggestions_collection_status", "collection_id", "status"),
-        Index("idx_graph_curation_suggestions_collection_created", "collection_id", "gmt_created"),
-    )
-
-    id = Column(String(32), primary_key=True, default=lambda: "gcs_" + random_id()[:16])
-    run_id = Column(String(32), nullable=False)
-    user_id = Column(String(256), nullable=False)
-    collection_id = Column(String(24), nullable=False)
-    status = Column(
-        EnumColumn(GraphCurationSuggestionStatus),
-        nullable=False,
-        default=GraphCurationSuggestionStatus.PENDING,
-    )
-    entity_ids = Column(JSON, nullable=False)
-    entity_snapshots = Column(JSON, nullable=False)
-    target_entity_id = Column(String(255), nullable=False)
-    confidence_score = Column(Numeric(6, 3), nullable=False)
-    reason = Column(Text, nullable=False)
-    evidence = Column(JSON, nullable=True)
-    resolution_note = Column(Text, nullable=True)
-    operated_by = Column(String(256), nullable=True)
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
-    gmt_operated = Column(DateTime(timezone=True), nullable=True)
-
-
 class PromptTemplate(Base):
     __tablename__ = "prompt_template"
 
@@ -1140,156 +374,89 @@ class PromptTemplate(Base):
     gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)
 
 
-# ===== Evaluation v2 (new evaluation product line on top of Agent Runtime V3) =====
+# ===== Evaluation (simplified: Dataset + Run model, no Benchmark/Version layer) =====
 
 
-class BenchmarkDataset(Base):
-    __tablename__ = "benchmark_datasets"
-    __table_args__ = (
-        Index("idx_benchmark_datasets_user", "user_id"),
-        Index("idx_benchmark_datasets_collection", "collection_id"),
-    )
+# ---------------------------------------------------------------------------
+# Per-domain DB re-exports (Phase 3 decision D / msg=02acb01a +
+# msg=226b2584; extended by Phase 5 step 5-S2 into the conversation /
+# agent_runtime / evaluation domains).
+#
+# Physical owners of these classes have moved into
+# ``aperag/domains/<domain>/db/models.py``. The aggregate module keeps
+# re-exporting them so the pre-refactor caller base — plus the Alembic
+# ``env.py`` metadata registration — works without a rename sweep. The
+# full symbol list locks in at G11 (Phase 3 end-of-step-4: 15 symbols;
+# Phase 5 extends it with the Phase 5 DB split: conversation adds 9 in
+# 5-S2a). Phase 6 cleanup deletes this block once every remaining
+# import site has migrated to the canonical per-domain path.
+# ---------------------------------------------------------------------------
 
-    id = Column(String(32), primary_key=True, default=lambda: "bds_" + random_id()[:16])
-    user_id = Column(String(256), nullable=False)
-    collection_id = Column(String(24), nullable=True)
-    name = Column(String(255), nullable=False)
-    description = Column(Text, nullable=True)
-    source_type = Column(
-        EnumColumn(BenchmarkDatasetSourceType),
-        nullable=False,
-        default=BenchmarkDatasetSourceType.MANUAL,
-    )
-    schema_hint = Column(JSON, nullable=True)
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
-    gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)
-
-
-class BenchmarkDatasetVersion(Base):
-    __tablename__ = "benchmark_dataset_versions"
-    __table_args__ = (
-        UniqueConstraint("dataset_id", "version", name="uq_benchmark_dataset_version"),
-        Index("idx_benchmark_dataset_versions_dataset", "dataset_id"),
-        Index("idx_benchmark_dataset_versions_status", "status"),
-    )
-
-    id = Column(String(32), primary_key=True, default=lambda: "bdv_" + random_id()[:16])
-    dataset_id = Column(String(32), nullable=False)
-    version = Column(Integer, nullable=False)
-    version_name = Column(String(255), nullable=True)
-    status = Column(
-        EnumColumn(BenchmarkDatasetVersionStatus),
-        nullable=False,
-        default=BenchmarkDatasetVersionStatus.PUBLISHED,
-    )
-    case_count = Column(Integer, nullable=False, default=0)
-    source_snapshot = Column(JSON, nullable=True)
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
-    gmt_published = Column(DateTime(timezone=True), nullable=True)
-
-
-class BenchmarkCase(Base):
-    __tablename__ = "benchmark_cases"
-    __table_args__ = (
-        UniqueConstraint("dataset_version_id", "case_key", name="uq_benchmark_case_version_key"),
-        Index("idx_benchmark_cases_version", "dataset_version_id"),
-    )
-
-    id = Column(String(32), primary_key=True, default=lambda: "bc_" + random_id()[:16])
-    dataset_version_id = Column(String(32), nullable=False)
-    case_key = Column(String(128), nullable=False)
-    input_message = Column(Text, nullable=False)
-    expected_answer = Column(Text, nullable=True)
-    reference_context = Column(Text, nullable=True)
-    tags = Column(JSON, nullable=True)
-    case_metadata = Column(JSON, nullable=True)
-    sort_key = Column(Integer, nullable=False, default=0)
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-
-
-class EvaluationRun(Base):
-    __tablename__ = "evaluation_runs"
-    __table_args__ = (
-        Index("idx_evaluation_runs_user", "user_id"),
-        Index("idx_evaluation_runs_bot", "bot_id"),
-        Index("idx_evaluation_runs_status", "status"),
-        Index("idx_evaluation_runs_dataset_version", "dataset_version_id"),
-    )
-
-    id = Column(String(32), primary_key=True, default=lambda: "er_" + random_id()[:16])
-    user_id = Column(String(256), nullable=False)
-    bot_id = Column(String(24), nullable=False)
-    dataset_version_id = Column(String(32), nullable=False)
-    name = Column(String(255), nullable=True)
-    bot_config_snapshot = Column(JSON, nullable=True)
-    model_config_snapshot = Column(JSON, nullable=True)
-    judge_config = Column(JSON, nullable=True)
-    status = Column(
-        EnumColumn(EvaluationRunStatus),
-        nullable=False,
-        default=EvaluationRunStatus.QUEUED,
-    )
-    summary = Column(JSON, nullable=True)
-    error_message = Column(Text, nullable=True)
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
-    gmt_started = Column(DateTime(timezone=True), nullable=True)
-    gmt_finished = Column(DateTime(timezone=True), nullable=True)
-
-
-class EvaluationRunItem(Base):
-    __tablename__ = "evaluation_run_items"
-    __table_args__ = (
-        UniqueConstraint("run_id", "case_id", name="uq_evaluation_run_item_run_case"),
-        Index("idx_evaluation_run_items_run", "run_id"),
-        Index("idx_evaluation_run_items_status", "status"),
-    )
-
-    id = Column(String(32), primary_key=True, default=lambda: "eri_" + random_id()[:16])
-    run_id = Column(String(32), nullable=False)
-    case_id = Column(String(32), nullable=False)
-    case_key = Column(String(128), nullable=False)
-    status = Column(
-        EnumColumn(EvaluationRunItemStatus),
-        nullable=False,
-        default=EvaluationRunItemStatus.PENDING,
-    )
-    best_score = Column(Numeric(6, 3), nullable=True)
-    latest_attempt_id = Column(String(32), nullable=True)
-    attempt_count = Column(Integer, nullable=False, default=0)
-    error_message = Column(Text, nullable=True)
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
-
-
-class EvaluationRunItemAttempt(Base):
-    __tablename__ = "evaluation_run_item_attempts"
-    __table_args__ = (
-        UniqueConstraint("run_item_id", "attempt_no", name="uq_evaluation_run_item_attempt_no"),
-        Index("idx_evaluation_run_item_attempts_item", "run_item_id"),
-        Index("idx_evaluation_run_item_attempts_run", "run_id"),
-    )
-
-    id = Column(String(32), primary_key=True, default=lambda: "era_" + random_id()[:16])
-    run_item_id = Column(String(32), nullable=False)
-    run_id = Column(String(32), nullable=False)
-    attempt_no = Column(Integer, nullable=False)
-    status = Column(
-        EnumColumn(EvaluationRunItemAttemptStatus),
-        nullable=False,
-        default=EvaluationRunItemAttemptStatus.QUEUED,
-    )
-    agent_chat_id = Column(String(24), nullable=True)
-    agent_turn_id = Column(String(24), nullable=True)
-    answer_text = Column(Text, nullable=True)
-    judge_result = Column(JSON, nullable=True)
-    score = Column(Numeric(6, 3), nullable=True)
-    latency_ms = Column(Integer, nullable=True)
-    token_usage = Column(JSON, nullable=True)
-    error_message = Column(Text, nullable=True)
-    retry_reason = Column(Text, nullable=True)
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_started = Column(DateTime(timezone=True), nullable=True)
-    gmt_finished = Column(DateTime(timezone=True), nullable=True)
+from aperag.domains.agent_runtime.db.models import (  # noqa: E402, F401  re-export for back-compat (Phase 5 Step 5-S2b)
+    AgentArtifact,
+    AgentArtifactType,
+    AgentEventActor,
+    AgentTimelineEvent,
+    AgentTurn,
+    AgentTurnStatus,
+)
+from aperag.domains.conversation.db.models import (  # noqa: E402, F401  re-export for back-compat (Phase 5 Step 5-S2a)
+    Bot,
+    BotStatus,
+    BotType,
+    Chat,
+    ChatPeerType,
+    ChatStatus,
+    TurnFeedback,
+    TurnFeedbackTag,
+    TurnFeedbackType,
+)
+from aperag.domains.evaluation.db.models import (  # noqa: E402, F401  re-export for back-compat (Phase 5 Step 5-S2c)
+    EvaluationDataset,
+    EvaluationDatasetItem,
+    EvaluationDatasetSourceType,
+    EvaluationJudgeMode,
+    EvaluationRun,
+    EvaluationRunItem,
+    EvaluationRunItemAttempt,
+    EvaluationRunItemAttemptStatus,
+    EvaluationRunItemStatus,
+    EvaluationRunStatus,
+)
+from aperag.domains.governance.db.models import (  # noqa: E402, F401  re-export for back-compat (Phase 4 Step 4-S2b)
+    ApiKey,
+    ApiKeyStatus,
+    AuditLog,
+    AuditResource,
+)
+from aperag.domains.indexing.db.models import (  # noqa: E402, F401  re-export for back-compat
+    DocumentIndex,
+    DocumentIndexStatus,
+    DocumentIndexType,
+)
+from aperag.domains.knowledge_base.db.models import (  # noqa: E402, F401  re-export for back-compat
+    Collection,
+    CollectionStatus,
+    CollectionSummary,
+    CollectionSummaryStatus,
+    CollectionType,
+    Document,
+    DocumentStatus,
+)
+from aperag.domains.knowledge_graph.db.models import (  # noqa: E402, F401  re-export for back-compat
+    GraphCurationRun,
+    GraphCurationRunStatus,
+    GraphCurationSuggestion,
+    GraphCurationSuggestionStatus,
+)
+from aperag.domains.marketplace.db.models import (  # noqa: E402, F401  re-export for back-compat (Phase 4 Step 4-S2c)
+    CollectionMarketplace,
+    CollectionMarketplaceStatusEnum,
+    UserCollectionSubscription,
+)
+from aperag.domains.model_platform.db.models import (  # noqa: E402, F401  re-export for back-compat (Phase 4 Step 4-S2d)
+    APIType,
+    LLMProvider,
+    LLMProviderModel,
+)
+from aperag.domains.retrieval.db.models import SearchHistory  # noqa: E402, F401  re-export for back-compat

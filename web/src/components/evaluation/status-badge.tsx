@@ -5,9 +5,6 @@ import { cn } from '@/lib/utils';
 import { useTranslations } from 'next-intl';
 
 const toneByStatus: Record<string, string> = {
-  draft: 'border-slate-300 bg-slate-100 text-slate-700',
-  published: 'border-emerald-300 bg-emerald-100 text-emerald-800',
-  archived: 'border-zinc-300 bg-zinc-100 text-zinc-700',
   queued: 'border-slate-300 bg-slate-100 text-slate-700',
   pending: 'border-slate-300 bg-slate-100 text-slate-700',
   running: 'border-sky-300 bg-sky-100 text-sky-800',
@@ -36,21 +33,6 @@ const getStatusLabel = (
   } catch {
     return fallbackLabel(status);
   }
-};
-
-export const DatasetVersionStatusBadge = ({ status }: { status?: string }) => {
-  const t = useTranslations('page_benchmarks');
-  return (
-    <Badge
-      variant="outline"
-      className={cn(
-        'border px-2.5 py-1 text-xs font-medium',
-        toneByStatus[status?.toLowerCase() || 'draft'],
-      )}
-    >
-      {getStatusLabel(status, t)}
-    </Badge>
-  );
 };
 
 export const EvaluationStatusBadge = ({ status }: { status?: string }) => {

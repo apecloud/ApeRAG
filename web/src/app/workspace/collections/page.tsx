@@ -1,4 +1,3 @@
-import { CollectionView } from '@/api';
 import {
   PageContainer,
   PageContent,
@@ -7,7 +6,8 @@ import {
   PageTitle,
 } from '@/components/page-container';
 
-import { getServerApi } from '@/lib/api/server';
+import { listCollections } from '@/features/collection/server-api';
+import type { CollectionView } from '@/features/collection/types';
 import { toJson } from '@/lib/utils';
 import { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
@@ -24,17 +24,16 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function Page() {
-  const serverApi = await getServerApi();
   const page_collections = await getTranslations('page_collections');
 
   let collections: CollectionView[] = [];
   try {
-    const res = await serverApi.defaultApi.collectionsGet({
+    const data = await listCollections({
       page: 1,
       pageSize: 100,
       includeSubscribed: true,
     });
-    collections = res.data.items || [];
+    collections = data.items ?? [];
   } catch (err) {
     console.log(err);
   }

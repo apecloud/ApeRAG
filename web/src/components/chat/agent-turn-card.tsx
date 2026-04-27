@@ -1,6 +1,6 @@
 'use client';
 
-import { Feedback, Reference } from '@/api';
+import type { Feedback, Reference } from '@/features/bot/types';
 import { CopyToClipboard } from '@/components/copy-to-clipboard';
 import { Markdown } from '@/components/markdown';
 import { Badge } from '@/components/ui/badge';

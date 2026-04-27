@@ -26,14 +26,19 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
+import {
+  cancelEvaluationRun,
+  retryEvaluationRunItem,
+} from '@/features/evaluation/client-api';
+import type {
+  EvaluationRunDetailResponse,
+  EvaluationRunItem,
+} from '@/features/evaluation/types';
 import { EvaluationApiNotice } from './api-notice';
 import { EvaluationEmptyState } from './empty-state';
 import { EvaluationStatusBadge } from './status-badge';
-import type { EvaluationRunDetailResponse, EvaluationRunItem } from './types';
 
 const NON_TERMINAL_RUN_STATUSES = new Set(['queued', 'running']);
-
-const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
 
 const getRunProgress = (detail?: EvaluationRunDetailResponse | null) => {
   if (typeof detail?.progress?.percent === 'number') {
@@ -52,28 +57,6 @@ const getRunProgress = (detail?: EvaluationRunDetailResponse | null) => {
   return Math.round((resolved / detail.summary.total) * 100);
 };
 
-const extractErrorMessage = (payload: unknown) => {
-  if (
-    payload &&
-    typeof payload === 'object' &&
-    'detail' in payload &&
-    typeof payload.detail === 'string'
-  ) {
-    return payload.detail;
-  }
-
-  if (
-    payload &&
-    typeof payload === 'object' &&
-    'message' in payload &&
-    typeof payload.message === 'string'
-  ) {
-    return payload.message;
-  }
-
-  return undefined;
-};
-
 const matchesSearch = (item: EvaluationRunItem, searchValue: string) => {
   const query = searchValue.trim().toLowerCase();
   if (!query) return true;
@@ -82,9 +65,10 @@ const matchesSearch = (item: EvaluationRunItem, searchValue: string) => {
     item.case_key,
     item.status,
     item.error,
+    item.input_message,
     item.latest_attempt?.agent_chat_id,
     item.latest_attempt?.agent_turn_id,
-  ].some((value) => value?.toLowerCase().includes(query));
+  ].some((value) => String(value ?? '').toLowerCase().includes(query));
 };
 
 export const EvaluationRunDetail = ({
@@ -94,7 +78,7 @@ export const EvaluationRunDetail = ({
   unavailable,
   error,
 }: {
-  botId: string;
+  botId?: string;
   detail: EvaluationRunDetailResponse | null;
   items: EvaluationRunItem[];
   unavailable: boolean;
@@ -130,32 +114,11 @@ export const EvaluationRunDetail = ({
     });
   };
 
-  const postAction = async (path: string, body?: unknown) => {
-    const response = await fetch(`${basePath}${path}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: body ? JSON.stringify(body) : undefined,
-    });
-
-    const payload = await response.json().catch(() => undefined);
-
-    if (!response.ok) {
-      throw new Error(
-        extractErrorMessage(payload) ||
-          `Request failed with status ${response.status}`,
-      );
-    }
-
-    return payload;
-  };
-
   const handleCancelRun = async () => {
     if (!run?.id) return;
 
     try {
-      await postAction(`/api/v2/evaluation-runs/${run.id}/cancel`);
+      await cancelEvaluationRun(run.id);
       toast.success(t('cancel_success'));
       refreshPage();
     } catch (actionError) {
@@ -169,10 +132,7 @@ export const EvaluationRunDetail = ({
     if (!run?.id || !itemId) return;
 
     try {
-      await postAction(
-        `/api/v2/evaluation-runs/${run.id}/items/${itemId}/retry`,
-        {},
-      );
+      await retryEvaluationRunItem(run.id, itemId);
       toast.success(t('retry_success'));
       refreshPage();
     } catch (actionError) {
@@ -209,6 +169,8 @@ export const EvaluationRunDetail = ({
     );
   }
 
+  const resolvedBotId = run.bot_id || botId;
+
   return (
     <div className="flex flex-col gap-6">
       <div className="grid gap-4 xl:grid-cols-[1.4fr_repeat(4,1fr)]">
@@ -217,12 +179,14 @@ export const EvaluationRunDetail = ({
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-1">
                 <CardDescription>{t('run_detail')}</CardDescription>
-                <CardTitle className="text-2xl">{run.id || '--'}</CardTitle>
+                <CardTitle className="text-2xl">
+                  {run.name || run.id || '--'}
+                </CardTitle>
               </div>
               <EvaluationStatusBadge status={run.status} />
             </div>
             <CardDescription>
-              {t('dataset_version')}: {run.dataset_version_id || '--'}
+              {t('dataset')}: {run.dataset_name || run.dataset_id || '--'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -257,7 +221,7 @@ export const EvaluationRunDetail = ({
           <CardHeader className="pb-2">
             <CardDescription>{t('summary_total')}</CardDescription>
             <CardTitle className="text-3xl">
-              {detail.summary?.total ?? 0}
+              {detail?.summary?.total ?? 0}
             </CardTitle>
           </CardHeader>
         </Card>
@@ -265,7 +229,7 @@ export const EvaluationRunDetail = ({
           <CardHeader className="pb-2">
             <CardDescription>{t('summary_running')}</CardDescription>
             <CardTitle className="text-3xl">
-              {detail.summary?.running ?? 0}
+              {detail?.summary?.running ?? 0}
             </CardTitle>
           </CardHeader>
         </Card>
@@ -273,7 +237,7 @@ export const EvaluationRunDetail = ({
           <CardHeader className="pb-2">
             <CardDescription>{t('summary_completed')}</CardDescription>
             <CardTitle className="text-3xl">
-              {detail.summary?.completed ?? 0}
+              {detail?.summary?.completed ?? 0}
             </CardTitle>
           </CardHeader>
         </Card>
@@ -281,7 +245,7 @@ export const EvaluationRunDetail = ({
           <CardHeader className="pb-2">
             <CardDescription>{t('avg_score')}</CardDescription>
             <CardTitle className="text-3xl">
-              {typeof detail.summary?.avg_score === 'number'
+              {typeof detail?.summary?.avg_score === 'number'
                 ? detail.summary.avg_score.toFixed(2)
                 : '--'}
             </CardTitle>
@@ -341,11 +305,7 @@ export const EvaluationRunDetail = ({
                     <TableCell>
                       <EvaluationStatusBadge status={item.status} />
                     </TableCell>
-                    <TableCell>
-                      {typeof item.best_score === 'number'
-                        ? item.best_score.toFixed(2)
-                        : '--'}
-                    </TableCell>
+                    <TableCell>{item.best_score ?? '--'}</TableCell>
                     <TableCell>
                       <div className="space-y-1">
                         <div>
@@ -364,10 +324,10 @@ export const EvaluationRunDetail = ({
                       </div>
                     </TableCell>
                     <TableCell>
-                      {item.latest_attempt?.agent_chat_id ? (
+                      {item.latest_attempt?.agent_chat_id && resolvedBotId ? (
                         <Link
                           className="text-primary text-sm underline-offset-4 hover:underline"
-                          href={`/workspace/bots/${run.bot_id || botId}/chats/${item.latest_attempt.agent_chat_id}`}
+                          href={`/workspace/bots/${resolvedBotId}/chats/${item.latest_attempt.agent_chat_id}`}
                         >
                           {t('open_chat')}
                         </Link>

@@ -13,7 +13,9 @@ export const BotSectionNav = async ({
   active: 'chats' | 'evaluation';
 }) => {
   const pageChat = await getTranslations('page_chat');
-  const pageBotEvaluation = await getTranslations('page_bot_evaluation');
+  const pageBotEvaluation = (await getTranslations(
+    'page_bot_evaluation' as never,
+  )) as (key: 'metadata.title') => string;
 
   const links = [
     {

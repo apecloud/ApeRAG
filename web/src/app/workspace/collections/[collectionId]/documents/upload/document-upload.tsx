@@ -1,6 +1,11 @@
 'use client';
 
-import { UploadDocumentResponseStatusEnum } from '@/api';
+import {
+  confirmDocuments,
+  listStagedDocuments,
+  uploadDocument,
+} from '@/features/document/client-api';
+import type { UploadDocumentStatus } from '@/features/document/types';
 import { useCollectionContext } from '@/components/providers/collection-provider';
 import { Button } from '@/components/ui/button';
 import {
@@ -29,7 +34,6 @@ import {
   FileUploadTrigger,
 } from '@/components/ui/file-upload';
 import { Progress } from '@/components/ui/progress';
-import { apiClient } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import {
   ColumnDef,
@@ -73,7 +77,7 @@ type DocumentsWithFile = {
   progress: number;
   progress_status: 'pending' | 'uploading' | 'success' | 'failed';
   document_id?: string;
-  status?: UploadDocumentResponseStatusEnum;
+  status?: UploadDocumentStatus;
 };
 
 type AsyncTask = (callback: (error?: Error | null) => void) => void;
@@ -106,15 +110,12 @@ export const DocumentUpload = () => {
   const refreshStaged = useCallback(async () => {
     if (!collection.id) return;
     try {
-      const res =
-        await apiClient.defaultApi.collectionsCollectionIdDocumentsStagedGet({
-          collectionId: collection.id,
-        });
-      const staged: DocumentsWithFile[] = res.data.documents.map((doc) => ({
+      const res = await listStagedDocuments(collection.id);
+      const staged: DocumentsWithFile[] = res.documents.map((doc) => ({
         filename: doc.filename,
         size: doc.size,
         document_id: doc.document_id,
-        status: doc.status as UploadDocumentResponseStatusEnum,
+        status: doc.status,
         progress: 100,
         progress_status: 'success' as const,
       }));
@@ -181,19 +182,12 @@ export const DocumentUpload = () => {
 
   const handleSaveToCollection = useCallback(async () => {
     if (!collection.id) return;
-    const res =
-      await apiClient.defaultApi.collectionsCollectionIdDocumentsConfirmPost({
-        collectionId: collection.id,
-        confirmDocumentsRequest: {
-          document_ids: documents
-            .map((doc) => doc.document_id || '')
-            .filter((id) => !_.isEmpty(id)),
-        },
-      });
-    if (res.status === 200) {
-      toast.success('Document added successfully');
-      router.push(`/workspace/collections/${collection.id}/documents`);
-    }
+    const documentIds = documents
+      .map((doc) => doc.document_id || '')
+      .filter((id) => !_.isEmpty(id));
+    await confirmDocuments(collection.id, documentIds);
+    toast.success('Document added successfully');
+    router.push(`/workspace/collections/${collection.id}/documents`);
   }, [collection.id, documents, router]);
 
   // ── Upload machinery ─────────────────────────────────────────────────────
@@ -204,7 +198,12 @@ export const DocumentUpload = () => {
     uploadControllerRef.current = null;
   }, []);
 
-  useEffect(() => () => stopUpload(), [stopUpload]);
+  // Intentionally no unmount-cleanup auto-abort: a bulk upload must survive
+  // same-tab navigation (e.g. user switches to another workspace page while
+  // uploads are still in flight). The trade-off is that in-flight HTTP
+  // requests keep running without UI state after unmount; a cross-page
+  // persistent upload queue is tracked for #24 / follow-up. The "Stop" button
+  // in the uploader still calls `stopUpload()` explicitly.
 
   const startUpload = useCallback(
     (docs: DocumentsWithFile[]) => {
@@ -268,17 +267,15 @@ export const DocumentUpload = () => {
         const progressTask = networkSimulation(progressController.signal);
 
         try {
-          const res =
-            await apiClient.defaultApi.collectionsCollectionIdDocumentsUploadPost(
-              { collectionId: collection.id, file },
-              { timeout: 1000 * 30, signal: controller.signal },
-            );
+          const res = await uploadDocument(collection.id, file, {
+            signal: controller.signal,
+          });
 
           setDocuments((docs) => {
             const doc = docs.find((d) => d.file && _.isEqual(d.file, file));
-            if (doc && res.data.document_id) {
+            if (doc && res.document_id) {
               Object.assign(doc, {
-                ...res.data,
+                ...res,
                 progress: 100,
                 progress_status: 'success',
               });

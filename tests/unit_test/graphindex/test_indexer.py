@@ -17,9 +17,9 @@ from typing import Sequence
 
 import pytest
 
-from aperag.graphindex.config import GraphIndexConfig
-from aperag.graphindex.dto import Chunk, DeleteDocumentResult, Entity, Relation
-from aperag.graphindex.engine.indexer import index_document
+from aperag.domains.knowledge_graph.graphindex.config import GraphIndexConfig
+from aperag.domains.knowledge_graph.graphindex.dto import Chunk, DeleteDocumentResult, Entity, Relation
+from aperag.domains.knowledge_graph.graphindex.engine.indexer import index_document
 
 
 class _FakeStore:
@@ -67,7 +67,7 @@ class _FakeStore:
         return sorted({e.type for e in self.entities})
 
     async def list_subgraph(self, collection_id, label, max_depth, max_nodes):
-        from aperag.graphindex.dto import KnowledgeGraph
+        from aperag.domains.knowledge_graph.graphindex.dto import KnowledgeGraph
 
         return KnowledgeGraph(nodes=(), edges=(), is_truncated=False)
 

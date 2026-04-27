@@ -20,8 +20,11 @@ import httpx
 from fastmcp import FastMCP
 from fastmcp.server.dependencies import get_http_headers
 
+from aperag.domains.knowledge_base.schemas import CollectionViewList
+
 # Import view models for type safety
-from aperag.schema.view_models import CollectionViewList, SearchResult, WebReadResponse, WebSearchResponse
+from aperag.domains.retrieval.schemas import SearchResult
+from aperag.domains.web_access.schemas import WebReadResponse, WebSearchResponse
 
 logger = logging.getLogger(__name__)
 
@@ -225,7 +228,7 @@ async def search_collection(
         # Use longer timeout for search operations (graph search can be time-consuming)
         async with httpx.AsyncClient(timeout=120.0) as client:
             response = await client.post(
-                f"{API_BASE_URL}/api/v1/collections/{collection_id}/searches",
+                f"{API_BASE_URL}/api/v2/collections/{collection_id}/searches",
                 headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
                 json=search_data,
             )
@@ -441,7 +444,7 @@ async def web_search(
         # Use longer timeout for web search operations
         async with httpx.AsyncClient(timeout=90.0) as client:
             response = await client.post(
-                f"{API_BASE_URL}/api/v1/web/search",
+                f"{API_BASE_URL}/api/v2/web/search",
                 headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
                 json=search_data,
             )
@@ -544,7 +547,7 @@ async def web_read(
         # Use longer timeout for web content reading operations
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
-                f"{API_BASE_URL}/api/v1/web/read",
+                f"{API_BASE_URL}/api/v2/web/read",
                 headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
                 json=read_data,
             )

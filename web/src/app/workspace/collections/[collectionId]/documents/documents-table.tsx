@@ -27,7 +27,10 @@ import {
 import * as React from 'react';
 import { defaultStyles, FileIcon } from 'react-file-icon';
 
-import { Document, RebuildIndexesRequestIndexTypesEnum } from '@/api';
+import {
+  DOCUMENT_INDEX_TYPES,
+  type Document,
+} from '@/features/document/types';
 
 import { DataGrid, DataGridPagination } from '@/components/data-grid';
 import { FormatDate } from '@/components/format-date';
@@ -214,39 +217,37 @@ export function DocumentsTable({
 
   const columns: ColumnDef<Document>[] = React.useMemo(() => {
     const indexCols: ColumnDef<Document>[] = [];
-    objectKeys(RebuildIndexesRequestIndexTypesEnum)
-      .filter(isVisibleDocumentIndexType)
-      .map((key) => {
-        const accessorKey = key.toLowerCase() + '_index_status';
+    DOCUMENT_INDEX_TYPES.filter(isVisibleDocumentIndexType).map((key) => {
+      const accessorKey = key.toLowerCase() + '_index_status';
 
-        const config = collection.config;
-        let enabled: boolean | undefined;
-        switch (key) {
-          case 'FULLTEXT':
-            enabled = config?.enable_fulltext;
-            break;
-          case 'GRAPH':
-            enabled = config?.enable_knowledge_graph;
-            break;
-          case 'VECTOR':
-            enabled = config?.enable_vector;
-            break;
-          default:
-            enabled = false;
-        }
-        if (enabled) {
-          indexCols.push({
-            accessorKey,
-            header: page_collections(`index_type_${key}.title`),
-            cell: ({ row }) => (
-              <DocumentIndexStatus
-                document={row.original}
-                accessorKey={accessorKey}
-              />
-            ),
-          });
-        }
-      });
+      const config = collection.config;
+      let enabled: boolean | undefined;
+      switch (key) {
+        case 'FULLTEXT':
+          enabled = config?.enable_fulltext;
+          break;
+        case 'GRAPH':
+          enabled = config?.enable_knowledge_graph;
+          break;
+        case 'VECTOR':
+          enabled = config?.enable_vector;
+          break;
+        default:
+          enabled = false;
+      }
+      if (enabled) {
+        indexCols.push({
+          accessorKey,
+          header: page_collections(`index_type_${key}.title`),
+          cell: ({ row }) => (
+            <DocumentIndexStatus
+              document={row.original}
+              accessorKey={accessorKey}
+            />
+          ),
+        });
+      }
+    });
 
     const cols: ColumnDef<Document>[] = [
       {
@@ -386,15 +387,22 @@ export function DocumentsTable({
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     pageCount,
-    onPaginationChange: (fn) => {
-      // @ts-expect-error onPaginationChange
-      const { pageIndex, pageSize } = fn({
+    // TanStack Table's `onPaginationChange` handler receives an
+    // `Updater<PaginationState>` — either a `PaginationState` value or a
+    // `(old: PaginationState) => PaginationState` function. Treating it as
+    // only a function (as the previous `@ts-expect-error` version did) would
+    // throw at runtime whenever TanStack dispatches a plain value, silently
+    // eating pagination clicks. Handle both shapes explicitly.
+    onPaginationChange: (updater) => {
+      const current = {
         pageIndex: query.page - 1,
         pageSize: query.pageSize,
-      });
+      };
+      const next =
+        typeof updater === 'function' ? updater(current) : updater;
       handleSearch({
-        page: pageIndex + 1,
-        pageSize,
+        page: next.pageIndex + 1,
+        pageSize: next.pageSize,
       });
     },
     getCoreRowModel: getCoreRowModel(),

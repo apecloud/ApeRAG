@@ -1,4 +1,3 @@
-import { SharedCollection } from '@/api';
 import {
   PageContainer,
   PageContent,
@@ -6,7 +5,8 @@ import {
   PageTitle,
 } from '@/components/page-container';
 import { Button } from '@/components/ui/button';
-import { getServerApi } from '@/lib/api/server';
+import { listMarketplaceCollections } from '@/features/marketplace/server-api';
+import type { SharedCollection } from '@/features/marketplace/types';
 import { BookOpen } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 import Link from 'next/link';
@@ -15,16 +15,12 @@ import { CollectionList } from './collection-list';
 export const dynamic = 'force-dynamic';
 
 export default async function Page() {
-  const serverApi = await getServerApi();
   const page_marketplace = await getTranslations('page_marketplace');
   const sidebar_workspace = await getTranslations('sidebar_workspace');
   let collections: SharedCollection[] = [];
   try {
-    const res = await serverApi.defaultApi.marketplaceCollectionsGet({
-      page: 1,
-      pageSize: 100,
-    });
-    collections = res.data.items || [];
+    const res = await listMarketplaceCollections({ page: 1, pageSize: 100 });
+    collections = res.items || [];
   } catch (err) {
     console.log(err);
   }

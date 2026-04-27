@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock
 import pytest
 from fastapi import HTTPException
 
+from aperag.domains.web_access import schemas as web_access_schemas
 from aperag.schema import view_models
 from aperag.service.document_service import DocumentService
 
@@ -28,9 +29,9 @@ class _FakeReaderService:
         return type(self).plans.pop(0)
 
 
-def _web_read_response(*results: view_models.WebReadResultItem) -> view_models.WebReadResponse:
+def _web_read_response(*results: web_access_schemas.WebReadResultItem) -> web_access_schemas.WebReadResponse:
     succeeded = sum(1 for result in results if result.status == "success")
-    return view_models.WebReadResponse(
+    return web_access_schemas.WebReadResponse(
         results=list(results),
         total_urls=len(results),
         successful=succeeded,
@@ -53,7 +54,7 @@ def test_fetch_url_documents_imports_markdown_via_trafilatura_when_no_jina_key(m
     _FakeReaderService.calls = []
     _FakeReaderService.plans = [
         _web_read_response(
-            view_models.WebReadResultItem(
+            web_access_schemas.WebReadResultItem(
                 url="https://example.com/report",
                 status="success",
                 title="ACME Report",
@@ -63,7 +64,7 @@ def test_fetch_url_documents_imports_markdown_via_trafilatura_when_no_jina_key(m
     ]
 
     monkeypatch.setattr("aperag.db.ops.async_db_ops.query_provider_api_key", AsyncMock(return_value=None))
-    monkeypatch.setattr("aperag.websearch.reader.reader_service.ReaderService", _FakeReaderService)
+    monkeypatch.setattr("aperag.domains.web_access.reader.reader_service.ReaderService", _FakeReaderService)
 
     response = asyncio.run(service.fetch_url_documents("user-1", "col-1", ["https://example.com/report"]))
 
@@ -95,7 +96,7 @@ def test_fetch_url_documents_falls_back_when_jina_returns_no_successes(monkeypat
     _FakeReaderService.calls = []
     _FakeReaderService.plans = [
         _web_read_response(
-            view_models.WebReadResultItem(
+            web_access_schemas.WebReadResultItem(
                 url="https://example.com/fallback",
                 status="error",
                 error="provider timeout",
@@ -103,7 +104,7 @@ def test_fetch_url_documents_falls_back_when_jina_returns_no_successes(monkeypat
             )
         ),
         _web_read_response(
-            view_models.WebReadResultItem(
+            web_access_schemas.WebReadResultItem(
                 url="https://example.com/fallback",
                 status="success",
                 title="Fallback Title",
@@ -113,7 +114,7 @@ def test_fetch_url_documents_falls_back_when_jina_returns_no_successes(monkeypat
     ]
 
     monkeypatch.setattr("aperag.db.ops.async_db_ops.query_provider_api_key", AsyncMock(return_value="jina-key"))
-    monkeypatch.setattr("aperag.websearch.reader.reader_service.ReaderService", _FakeReaderService)
+    monkeypatch.setattr("aperag.domains.web_access.reader.reader_service.ReaderService", _FakeReaderService)
 
     response = asyncio.run(service.fetch_url_documents("user-1", "col-1", ["https://example.com/fallback"]))
 
@@ -144,13 +145,13 @@ def test_fetch_url_documents_falls_back_per_failed_url_when_jina_partially_succe
     _FakeReaderService.calls = []
     _FakeReaderService.plans = [
         _web_read_response(
-            view_models.WebReadResultItem(
+            web_access_schemas.WebReadResultItem(
                 url="https://example.com/primary",
                 status="success",
                 title="Primary Title",
                 content="primary markdown",
             ),
-            view_models.WebReadResultItem(
+            web_access_schemas.WebReadResultItem(
                 url="https://example.com/fallback",
                 status="error",
                 error="provider timeout",
@@ -158,7 +159,7 @@ def test_fetch_url_documents_falls_back_per_failed_url_when_jina_partially_succe
             ),
         ),
         _web_read_response(
-            view_models.WebReadResultItem(
+            web_access_schemas.WebReadResultItem(
                 url="https://example.com/fallback",
                 status="success",
                 title="Fallback Title",
@@ -168,7 +169,7 @@ def test_fetch_url_documents_falls_back_per_failed_url_when_jina_partially_succe
     ]
 
     monkeypatch.setattr("aperag.db.ops.async_db_ops.query_provider_api_key", AsyncMock(return_value="jina-key"))
-    monkeypatch.setattr("aperag.websearch.reader.reader_service.ReaderService", _FakeReaderService)
+    monkeypatch.setattr("aperag.domains.web_access.reader.reader_service.ReaderService", _FakeReaderService)
 
     response = asyncio.run(
         service.fetch_url_documents(
@@ -195,7 +196,7 @@ def test_fetch_url_documents_reports_upload_failures_per_url(monkeypatch):
     _FakeReaderService.calls = []
     _FakeReaderService.plans = [
         _web_read_response(
-            view_models.WebReadResultItem(
+            web_access_schemas.WebReadResultItem(
                 url="https://example.com/quota",
                 status="success",
                 title="Quota Title",
@@ -205,7 +206,7 @@ def test_fetch_url_documents_reports_upload_failures_per_url(monkeypatch):
     ]
 
     monkeypatch.setattr("aperag.db.ops.async_db_ops.query_provider_api_key", AsyncMock(return_value=None))
-    monkeypatch.setattr("aperag.websearch.reader.reader_service.ReaderService", _FakeReaderService)
+    monkeypatch.setattr("aperag.domains.web_access.reader.reader_service.ReaderService", _FakeReaderService)
 
     response = asyncio.run(service.fetch_url_documents("user-1", "col-1", ["https://example.com/quota"]))
 

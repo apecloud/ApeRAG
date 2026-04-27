@@ -1,6 +1,6 @@
-import { LlmProvider, LlmProviderModel } from '@/api';
 import { Switch } from '@/components/ui/switch';
-import { apiClient } from '@/lib/api/client';
+import { updateProviderModelTags } from '@/features/providers/client-api';
+import type { Provider, ProviderModel } from '@/features/providers/types';
 import _ from 'lodash';
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
@@ -12,8 +12,8 @@ export const ModelTagSwitch = ({
   provider,
   tag,
 }: {
-  model: LlmProviderModel;
-  provider: LlmProvider;
+  model: ProviderModel;
+  provider: Provider;
   tag: string;
 }) => {
   const common_tips = useTranslations('common.tips');
@@ -24,21 +24,9 @@ export const ModelTagSwitch = ({
         ? (model.tags || []).concat(tag)
         : (model.tags || []).filter((t) => t !== tag);
 
-      const res =
-        await apiClient.defaultApi.llmProvidersProviderNameModelsApiModelPut({
-          providerName: provider.name,
-          api: model.api,
-          model: model.model,
-          llmProviderModelUpdate: {
-            ...model,
-            tags: _.uniq(tags),
-          },
-        });
-
-      if (res?.status === 200) {
-        setTimeout(router.refresh, 300);
-        toast.success(common_tips('update_success'));
-      }
+      await updateProviderModelTags(provider.name, model, _.uniq(tags));
+      setTimeout(router.refresh, 300);
+      toast.success(common_tips('update_success'));
     },
     [common_tips, model, provider.name, router.refresh, tag],
   );

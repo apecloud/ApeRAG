@@ -1,4 +1,3 @@
-import { LlmProvider } from '@/api';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -9,14 +8,15 @@ import {
 } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { apiClient } from '@/lib/api/client';
+import { updateProvider } from '@/features/providers/client-api';
+import type { Provider } from '@/features/providers/types';
 import { DialogDescription } from '@radix-ui/react-dialog';
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 
-export const ProviderToggle = ({ provider }: { provider: LlmProvider }) => {
+export const ProviderToggle = ({ provider }: { provider: Provider }) => {
   const [enabledVisible, setEnabledVisible] = useState<boolean>(false);
   const [disabledVisible, setDisabledVisible] = useState<boolean>(false);
   const [apiKey, setApiKey] = useState<string>(provider.api_key || '');
@@ -30,32 +30,34 @@ export const ProviderToggle = ({ provider }: { provider: LlmProvider }) => {
       toast.error('Please enter the api key for the model provider.');
       return;
     }
-    const res = await apiClient.defaultApi.llmProvidersProviderNamePut({
-      providerName: provider.name,
-      llmProviderUpdateWithApiKey: {
-        ...provider,
-        api_key: apiKey,
-        status: 'enable',
-      },
+    await updateProvider(provider.name, {
+      label: provider.label,
+      base_url: provider.base_url,
+      completion_dialect: provider.completion_dialect,
+      embedding_dialect: provider.embedding_dialect,
+      rerank_dialect: provider.rerank_dialect,
+      allow_custom_base_url: provider.allow_custom_base_url,
+      extra: provider.extra ?? undefined,
+      api_key: apiKey,
+      status: 'enable',
     });
-    if (res.data.name) {
-      setEnabledVisible(false);
-      setTimeout(router.refresh, 300);
-    }
+    setEnabledVisible(false);
+    setTimeout(router.refresh, 300);
   }, [apiKey, provider, router]);
 
   const handleDisabled = useCallback(async () => {
-    const res = await apiClient.defaultApi.llmProvidersProviderNamePut({
-      providerName: provider.name,
-      llmProviderUpdateWithApiKey: {
-        ...provider,
-        status: 'disable',
-      },
+    await updateProvider(provider.name, {
+      label: provider.label,
+      base_url: provider.base_url,
+      completion_dialect: provider.completion_dialect,
+      embedding_dialect: provider.embedding_dialect,
+      rerank_dialect: provider.rerank_dialect,
+      allow_custom_base_url: provider.allow_custom_base_url,
+      extra: provider.extra ?? undefined,
+      status: 'disable',
     });
-    if (res.data.name) {
-      setDisabledVisible(false);
-      setTimeout(router.refresh, 300);
-    }
+    setDisabledVisible(false);
+    setTimeout(router.refresh, 300);
   }, [provider, router]);
 
   return (

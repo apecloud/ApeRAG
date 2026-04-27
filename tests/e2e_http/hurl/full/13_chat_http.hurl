@@ -6,7 +6,7 @@ Content-Type: application/json
 }
 HTTP 200
 
-POST {{base_url}}/api/v1/bots
+POST {{base_url}}/api/v2/bots
 Content-Type: application/json
 {
   "title": "Chat Bot {{run_id}}",
@@ -32,7 +32,7 @@ bot_id: jsonpath "$.id"
 jsonpath "$.id" == "{{bot_id}}"
 jsonpath "$.config.agent.completion.model" == "google/gemini-2.5-flash"
 
-POST {{base_url}}/api/v1/bots/{{bot_id}}/chats
+POST {{base_url}}/api/v2/bots/{{bot_id}}/chats
 HTTP 200
 [Captures]
 chat_id: jsonpath "$.id"
@@ -40,12 +40,12 @@ chat_id: jsonpath "$.id"
 jsonpath "$.id" == "{{chat_id}}"
 jsonpath "$.bot_id" == "{{bot_id}}"
 
-GET {{base_url}}/api/v1/bots/{{bot_id}}/chats?page=1&page_size=20
+GET {{base_url}}/api/v2/bots/{{bot_id}}/chats?page=1&page_size=20
 HTTP 200
 [Asserts]
 jsonpath "$.items[0].id" == "{{chat_id}}"
 
-PUT {{base_url}}/api/v1/bots/{{bot_id}}/chats/{{chat_id}}
+PUT {{base_url}}/api/v2/bots/{{bot_id}}/chats/{{chat_id}}
 Content-Type: application/json
 {
   "title": "Chat Title {{run_id}}"
@@ -55,7 +55,7 @@ HTTP 200
 jsonpath "$.id" == "{{chat_id}}"
 jsonpath "$.title" == "Chat Title {{run_id}}"
 
-GET {{base_url}}/api/v1/bots/{{bot_id}}/chats/{{chat_id}}
+GET {{base_url}}/api/v2/bots/{{bot_id}}/chats/{{chat_id}}
 HTTP 200
 [Asserts]
 jsonpath "$.id" == "{{chat_id}}"
@@ -80,8 +80,8 @@ jsonpath "$.model" == "aperag"
 jsonpath "$.choices[0].message.role" == "assistant"
 jsonpath "$.choices[0].message.content" exists
 
-DELETE {{base_url}}/api/v1/bots/{{bot_id}}/chats/{{chat_id}}
+DELETE {{base_url}}/api/v2/bots/{{bot_id}}/chats/{{chat_id}}
 HTTP 204
 
-DELETE {{base_url}}/api/v1/bots/{{bot_id}}
+DELETE {{base_url}}/api/v2/bots/{{bot_id}}
 HTTP 204

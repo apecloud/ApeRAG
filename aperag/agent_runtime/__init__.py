@@ -12,8 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .runtime import agent_runtime_manager
-from .schemas import (
+"""Legacy shim package for ``aperag/agent_runtime/`` after Phase 5 step 5-S5b.
+
+Canonical home: ``aperag.domains.agent_runtime``. The top-level package
+is retained as a re-export shim so pre-migration callers
+(``aperag.evaluation_v2.worker``, ``aperag.views.agent_runtime`` shim,
+any test that imports ``aperag.agent_runtime.runtime``) keep
+resolving the same ``agent_runtime_manager`` + envelope Pydantic
+classes without a rename sweep. Phase 6 cleanup removes the shim
+after every caller has migrated.
+"""
+
+from aperag.domains.agent_runtime.runtime import agent_runtime_manager  # noqa: F401
+from aperag.domains.agent_runtime.schemas import (  # noqa: F401
     AgentArtifactEnvelope,
     AgentTimelineEventEnvelope,
     AgentTurnEnvelope,

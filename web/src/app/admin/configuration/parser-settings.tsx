@@ -1,6 +1,10 @@
 'use client';
 
-import { Settings } from '@/api';
+import {
+  testMineruToken,
+  updateSettings,
+} from '@/features/admin/client-api';
+import type { Settings } from '@/features/admin/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -13,7 +17,6 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { apiClient } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { LaptopMinimalCheck, LoaderCircle, RefreshCcw } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -86,7 +89,7 @@ const StatusBadge = ({ status }: { status: HealthStatus | SupportStatus }) => (
 export const ParserSettings = ({
   data: initData = defaultValue,
 }: {
-  data: Settings;
+  data?: Settings;
 }) => {
   const [data, setData] = useState<Settings>({
     ...defaultValue,
@@ -124,9 +127,7 @@ export const ParserSettings = ({
   }, [admin_config]);
 
   const handleSave = useCallback(async () => {
-    await apiClient.defaultApi.settingsPut({
-      settings: data,
-    });
+    await updateSettings(data);
     toast.success('Saved successfully');
     await fetchParserHealth();
   }, [data, fetchParserHealth]);
@@ -135,9 +136,7 @@ export const ParserSettings = ({
     async (key: keyof Settings, checked: boolean) => {
       const settings = { ...data, [key]: checked };
       setData(settings);
-      await apiClient.defaultApi.settingsPut({
-        settings,
-      });
+      await updateSettings(settings);
       await fetchParserHealth();
     },
     [data, fetchParserHealth],
@@ -150,12 +149,8 @@ export const ParserSettings = ({
     }
 
     setChecking(true);
-    const res = await apiClient.defaultApi.settingsTestMineruTokenPost({
-      settingsTestMineruTokenPostRequest: {
-        token: data.mineru_api_token,
-      },
-    });
-    if (res.data.status_code === 401) {
+    const res = await testMineruToken(data.mineru_api_token);
+    if (res.status_code === 401) {
       toast.error(admin_config('mineru_api_token_invalid'));
     } else {
       setChecked(true);
@@ -357,7 +352,7 @@ export const ParserSettings = ({
               </CardDescription>
             </div>
             <Switch
-              checked={data.use_mineru}
+              checked={data.use_mineru ?? undefined}
               onCheckedChange={(checked) =>
                 handleSwitchChange('use_mineru', checked)
               }
@@ -369,7 +364,7 @@ export const ParserSettings = ({
           <div className="flex flex-row gap-4">
             <Input
               placeholder={admin_config('mineru_api_token')}
-              value={data.mineru_api_token}
+              value={data.mineru_api_token ?? ''}
               onChange={(e) => {
                 setData({ ...data, mineru_api_token: e.currentTarget.value });
               }}
@@ -410,7 +405,7 @@ export const ParserSettings = ({
               </CardDescription>
             </div>
             <Switch
-              checked={data.use_markitdown}
+              checked={data.use_markitdown ?? undefined}
               onCheckedChange={(checked) =>
                 handleSwitchChange('use_markitdown', checked)
               }

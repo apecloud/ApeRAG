@@ -35,9 +35,15 @@ if config.config_file_name is not None:
 from aperag.db.models import Base
 
 # Import the models module to automatically register all SQLAlchemy tables
-# When you add new SQLAlchemy classes to aperag/db/models.py, they will be 
+# When you add new SQLAlchemy classes to aperag/db/models.py, they will be
 # automatically discovered - no need to modify this file!
 import aperag.db.models  # noqa: F401
+
+# graphindex declares GraphIndexNode / GraphIndexEdge / GraphIndexChunk
+# against the same Base but lives outside aperag.db.models, so it is not
+# transitively registered above. Import it here so `alembic check` does not
+# flag graphindex_{nodes,edges,chunks} as drift.
+import aperag.domains.knowledge_graph.graphindex.models  # noqa: F401
 
 target_metadata = Base.metadata
 

@@ -1,4 +1,4 @@
-import { ChatMessage, Feedback } from '@/api';
+import type { ChatMessage, Feedback } from '@/features/bot/types';
 import { CopyToClipboard } from '@/components/copy-to-clipboard';
 import { Card } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -29,7 +29,8 @@ export const MessagePartsAi = ({
     [parts],
   );
   const turnId = useMemo(
-    () => parts.find((part) => part.role === 'ai' && part.id)?.id,
+    () =>
+      parts.find((part) => part.role === 'ai' && part.id)?.id ?? undefined,
     [parts],
   );
   const copyText = useMemo(

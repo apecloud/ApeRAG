@@ -185,15 +185,11 @@ COMPLETED / FAILED → EXPIRED（7 天后定时任务）
 
 ## 6. API
 
-API 定义的源文件：
-- Schema：`aperag/api/components/schemas/export.yaml`
-- 路径：`aperag/api/paths/export.yaml`
-- 注册：`aperag/api/openapi.yaml`
+API 定义源自 FastAPI route 和 Pydantic view model。
 
 修改 API 后需运行：
 ```bash
-make api-generate-models          # 重新生成 aperag/schema/view_models.py
-make api-generate-sdk    # 重新生成 web/src/api/**
+make openapi-check       # 验证 code-first OpenAPI 可以导出
 ```
 
 ### 接口列表
@@ -300,8 +296,8 @@ confirm → processing → completed
 
 | 文件 | 说明 |
 |------|------|
-| `aperag/api/components/schemas/export.yaml` | API Schema 定义（源文件） |
-| `aperag/api/paths/export.yaml` | API 路径定义（源文件） |
+| `aperag/schema/view_models.py` | Pydantic API schema 定义 |
+| `aperag/views/export.py` | FastAPI 路径定义 |
 | `aperag/db/models.py` | 新增 `ExportTask` 模型和 `ExportTaskStatus` 枚举 |
 | `aperag/migration/versions/20260304120000-a1b2c3d4e5f6.py` | 数据库迁移 |
 | `aperag/service/export_service.py` | 导出业务逻辑 |
@@ -317,11 +313,10 @@ confirm → processing → completed
 | `aperag/objectstore/base.py` | 新增 `list_objects_by_prefix` 抽象方法 |
 | `aperag/objectstore/local.py` | 实现 `list_objects_by_prefix` |
 | `aperag/objectstore/s3.py` | 实现 `list_objects_by_prefix` |
-| `aperag/api/openapi.yaml` | 注册新增的 3 个路径 |
-| `aperag/schema/view_models.py` | 自动生成，含 `ExportTaskResponse` |
+| `aperag/schema/view_models.py` | Pydantic view model，含 `ExportTaskResponse` |
 | `aperag/app.py` | 注册 `export_router` |
 | `config/celery.py` | 注册 `config.export_tasks` 模块 |
-| `web/src/api/**` | 自动生成的前端 SDK |
+| FE v2 feature adapter | 接入导出的 code-first OpenAPI typed client |
 | `web/src/app/workspace/collections/[collectionId]/collection-header.tsx` | 接入导出按钮 |
 | `web/src/i18n/en-US/page_collections.json` | 新增翻译键 |
 | `web/src/i18n/zh-CN/page_collections.json` | 新增翻译键 |

@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - 'aperag/graphindex/**'
+      - 'aperag/domains/knowledge_graph/graphindex/**'
       - 'aperag/vectorstore/**'
       - 'tests/integration/compat/**'
       - '.github/workflows/compat-test.yml'

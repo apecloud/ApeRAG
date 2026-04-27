@@ -7,7 +7,7 @@ import {
   SidebarInset,
   SidebarProvider,
 } from '@/components/ui/sidebar';
-import { getServerApi } from '@/lib/api/server';
+import { getCurrentUser } from '@/features/auth/server-api';
 
 import { notFound, redirect } from 'next/navigation';
 import { AdminSideBarMenu } from './admin-sidebar-menu';
@@ -17,13 +17,7 @@ export default async function Layout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  let user;
-  const apiServer = await getServerApi();
-  try {
-    const res = await apiServer.defaultApi.userGet();
-    user = res.data;
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  } catch (err) {}
+  const user = await getCurrentUser();
 
   if (!user) {
     redirect(`/auth/signin?callbackUrl=${encodeURIComponent('/admin')}`);

@@ -30,7 +30,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-import { LlmProvider, LlmProviderModel, LlmProviderModelApiEnum } from '@/api';
 import { FormatDate } from '@/components/format-date';
 import {
   ArrowLeft,
@@ -55,6 +54,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import type {
+  Provider,
+  ProviderModel,
+  ProviderModelApi,
+} from '@/features/providers/types';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { ModelActions } from './model-actions';
@@ -74,8 +78,8 @@ export function ModelTable({
   data,
   pathnamePrefix,
 }: {
-  provider: LlmProvider;
-  data: LlmProviderModel[];
+  provider: Provider;
+  data: ProviderModel[];
   pathnamePrefix: string;
 }) {
   const page_models = useTranslations('page_models');
@@ -93,7 +97,7 @@ export function ModelTable({
   const currentApiFilter = React.useMemo(
     () =>
       columnFilters.find((item) => item.id === 'api')?.value as
-        | LlmProviderModelApiEnum
+        | ProviderModelApi
         | undefined,
     [columnFilters],
   );
@@ -112,8 +116,8 @@ export function ModelTable({
     pageSize: 20,
   });
   const [searchValue, setSearchValue] = React.useState<string>('');
-  const columns: ColumnDef<LlmProviderModel>[] = React.useMemo(() => {
-    const cols: ColumnDef<LlmProviderModel>[] = [
+  const columns: ColumnDef<ProviderModel>[] = React.useMemo(() => {
+    const cols: ColumnDef<ProviderModel>[] = [
       {
         id: 'select',
         header: ({ table }) => (

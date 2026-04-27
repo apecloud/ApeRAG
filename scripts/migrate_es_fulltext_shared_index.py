@@ -49,7 +49,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from aperag.config import get_sync_session  # noqa: E402
 from aperag.db import models as db_models  # noqa: E402
-from aperag.index.fulltext_index import (  # noqa: E402
+from aperag.domains.indexing.fulltext_index import (  # noqa: E402
     _get_sync_es,
     count_documents,
     delete_collection_documents,

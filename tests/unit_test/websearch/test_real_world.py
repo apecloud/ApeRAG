@@ -16,9 +16,9 @@ from datetime import datetime
 
 import pytest
 
-from aperag.schema.view_models import WebReadRequest, WebSearchRequest
-from aperag.websearch.reader.reader_service import ReaderService
-from aperag.websearch.search.search_service import SearchService
+from aperag.domains.web_access.reader.reader_service import ReaderService
+from aperag.domains.web_access.schemas import WebReadRequest, WebSearchRequest
+from aperag.domains.web_access.search.search_service import SearchService
 
 
 @pytest.mark.integration

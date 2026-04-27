@@ -1,6 +1,6 @@
 'use client';
 
-import { ChatDetails, ChatMessage, Feedback } from '@/api';
+import type { ChatDetails, ChatMessage, Feedback } from '@/features/bot/types';
 import { useBotContext } from '@/components/providers/bot-provider';
 import _ from 'lodash';
 import { useParams } from 'next/navigation';
@@ -160,7 +160,7 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
   }, [turnStates]);
 
   const activeTurnStorageKey = useMemo(
-    () => getActiveTurnStorageKey(chat.id),
+    () => getActiveTurnStorageKey(chat.id ?? undefined),
     [chat.id],
   );
 

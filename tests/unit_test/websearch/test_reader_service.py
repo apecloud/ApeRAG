@@ -7,9 +7,9 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from aperag.schema.view_models import WebReadRequest, WebReadResultItem
-from aperag.websearch.reader.providers.trafilatura_read_provider import ReaderProviderError
-from aperag.websearch.reader.reader_service import ReaderService
+from aperag.domains.web_access.reader.providers.trafilatura_read_provider import ReaderProviderError
+from aperag.domains.web_access.reader.reader_service import ReaderService
+from aperag.domains.web_access.schemas import WebReadRequest, WebReadResultItem
 
 
 class TestReaderService:

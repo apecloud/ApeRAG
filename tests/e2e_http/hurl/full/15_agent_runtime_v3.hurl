@@ -6,7 +6,7 @@ Content-Type: application/json
 }
 HTTP 200
 
-POST {{base_url}}/api/v1/bots
+POST {{base_url}}/api/v2/bots
 Content-Type: application/json
 {
   "title": "Agent Runtime V3 {{run_id}}",
@@ -29,7 +29,7 @@ HTTP 200
 [Captures]
 bot_id: jsonpath "$.id"
 
-POST {{base_url}}/api/v1/bots/{{bot_id}}/chats
+POST {{base_url}}/api/v2/bots/{{bot_id}}/chats
 HTTP 200
 [Captures]
 chat_id: jsonpath "$.id"
@@ -82,8 +82,8 @@ jsonpath "$.status" == "CANCELLED"
 GET {{base_url}}/api/v2/agent/artifacts/not-found-{{run_id}}
 HTTP 404
 
-DELETE {{base_url}}/api/v1/bots/{{bot_id}}/chats/{{chat_id}}
+DELETE {{base_url}}/api/v2/bots/{{bot_id}}/chats/{{chat_id}}
 HTTP 204
 
-DELETE {{base_url}}/api/v1/bots/{{bot_id}}
+DELETE {{base_url}}/api/v2/bots/{{bot_id}}
 HTTP 204

@@ -180,7 +180,7 @@ description = CASE
 END
 ```
 
-- **`:sep` = `"\n\n"`**，定义在 `aperag.graphindex.dto.DESCRIPTION_SEPARATOR`。
+- **`:sep` = `"\n\n"`**，定义在 `aperag.domains.knowledge_graph.graphindex.dto.DESCRIPTION_SEPARATOR`。
 - **substring dedup**：同一份 boilerplate 出现在多个 chunk 时不会被写两次。这是第一版最常见的抱怨（"我的 description 在重复自己"）。
 - **没有 cap**：上层决定是否摘要、何时摘要。SQL 层的 contract 是"写多少存多少，只做 dedup"。
 
@@ -318,7 +318,7 @@ aperag/graphindex/
 ### 4.1 `service.py` 的契约
 
 ```python
-from aperag.graphindex import GraphIndexService
+from aperag.domains.knowledge_graph.graphindex import GraphIndexService
 
 svc = GraphIndexService.from_config(config)  # 单例也行、每次 new 也行
 
@@ -484,8 +484,8 @@ DSL 过滤。
 
 全文档贴一条（避免未来再问为什么这样写）：
 
-- **禁止 from aperag.graphindex.engine import ...**：业务层只准 `from
-  aperag.graphindex import GraphIndexService`（和 DTO）。engine 是内部。
+- **禁止 from aperag.domains.knowledge_graph.graphindex.engine import ...**：业务层只准 `from
+  aperag.domains.knowledge_graph.graphindex import GraphIndexService`（和 DTO）。engine 是内部。
 - **禁止 models.py 被外部导入**：SQLAlchemy 模型只给 `storage/postgres.py`
   和 alembic 用。
 - **每个 public 方法有 docstring**，解释：做什么、幂等性、线程安全性、

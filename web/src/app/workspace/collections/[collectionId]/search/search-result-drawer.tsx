@@ -1,4 +1,3 @@
-import { SearchResult } from '@/api';
 import { Markdown } from '@/components/markdown';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,6 +12,7 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from '@/components/ui/drawer';
+import type { SearchResult } from '@/features/retrieval/types';
 import { Slot } from '@radix-ui/react-slot';
 import _ from 'lodash';
 import { ChevronRight } from 'lucide-react';
@@ -29,7 +29,7 @@ export const SearchResultDrawer = ({
 }) => {
   const [visible, setVisible] = useState<boolean>(false);
   const page_search = useTranslations('page_search');
-  const visibleItems = filterVisibleSearchItems(result.items);
+  const visibleItems = filterVisibleSearchItems(result.items ?? undefined);
 
   if (_.isEmpty(visibleItems)) {
     return children;

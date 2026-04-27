@@ -1,11 +1,11 @@
 'use client';
 
+import { uploadDocument } from '@/features/document/client-api';
 import { useCollectionContext } from '@/components/providers/collection-provider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { apiClient } from '@/lib/api/client';
 import { LoaderCircle, Type } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useCallback, useState } from 'react';
@@ -33,10 +33,7 @@ export const TextImport = ({ onSuccess }: Props) => {
       // Create a File object from the text — reuses the existing upload endpoint entirely
       const file = new File([content], filename, { type: 'text/plain' });
 
-      await apiClient.defaultApi.collectionsCollectionIdDocumentsUploadPost({
-        collectionId: collection.id,
-        file,
-      });
+      await uploadDocument(collection.id, file);
 
       onSuccess();
     } finally {

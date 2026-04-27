@@ -476,7 +476,7 @@ retrieval 完全错乱。所以必须从接口层直接禁止。
 
 ### 7.3 为什么不在 OpenAPI schema 上强制
 
-考虑过在 `aperag/api/components/schemas/collection.yaml` 里为 `CollectionUpdate`
+考虑过在 Pydantic `CollectionUpdate`
 单独拷一份不含 `embedding` 的子 schema，但：
 
 - 现有 `CollectionUpdate = CollectionCreate` 的全量复用会被破坏；

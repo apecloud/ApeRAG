@@ -12,7 +12,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { apiClient } from '@/lib/api/client';
+import { deleteCollection } from '@/features/collection/client-api';
 import { Slot } from '@radix-ui/react-slot';
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
@@ -32,13 +32,9 @@ export const CollectionDelete = ({
 
   const handleDelete = useCallback(async () => {
     if (collection?.id) {
-      const res = await apiClient.defaultApi.collectionsCollectionIdDelete({
-        collectionId: collection.id,
-      });
-      if (res?.status === 200) {
-        setDeleteVisible(false);
-        router.push('/workspace/collections');
-      }
+      await deleteCollection(collection.id);
+      setDeleteVisible(false);
+      router.push('/workspace/collections');
     }
   }, [collection?.id, router]);
 

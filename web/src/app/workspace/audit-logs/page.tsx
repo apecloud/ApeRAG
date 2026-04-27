@@ -1,4 +1,3 @@
-import { AuditApiListAuditLogsRequest } from '@/api';
 import {
   PageContainer,
   PageContent,
@@ -6,7 +5,8 @@ import {
   PageHeader,
   PageTitle,
 } from '@/components/page-container';
-import { getServerApi } from '@/lib/api/server';
+import { listAuditLogs } from '@/features/audit/server-api';
+import type { ListAuditLogsParams } from '@/features/audit/types';
 import { parsePageParams, toJson } from '@/lib/utils';
 import { getTranslations } from 'next-intl/server';
 import { AuditLogTable } from './audit-log-table';
@@ -14,9 +14,8 @@ import { AuditLogTable } from './audit-log-table';
 export default async function Page({
   searchParams,
 }: {
-  searchParams: Promise<AuditApiListAuditLogsRequest>;
+  searchParams: Promise<ListAuditLogsParams>;
 }) {
-  const serverApi = await getServerApi();
   const page_audit_logs = await getTranslations('page_audit_logs');
   const {
     page,
@@ -30,7 +29,7 @@ export default async function Page({
 
   let res;
   try {
-    res = await serverApi.auditApi.listAuditLogs({
+    res = await listAuditLogs({
       apiName,
       sortBy,
       sortOrder,
@@ -42,8 +41,7 @@ export default async function Page({
     console.log(err);
   }
 
-  //@ts-expect-error api define has a bug
-  const data = res?.data?.items || [];
+  const data = res?.items || [];
 
   return (
     <PageContainer>
@@ -57,7 +55,7 @@ export default async function Page({
         </PageDescription>
         <AuditLogTable
           data={toJson(data)}
-          pageCount={res?.data.total_pages || 1}
+          pageCount={res?.total_pages || 1}
           urlPrefix="/workspace"
         />
       </PageContent>

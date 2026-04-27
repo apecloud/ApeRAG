@@ -1,15 +1,15 @@
+import { BotSectionNav } from '@/components/evaluation/bot-section-nav';
+import { EvaluationRunDetail } from '@/components/evaluation/evaluation-run-detail';
 import {
   PageContainer,
   PageContent,
   PageHeader,
 } from '@/components/page-container';
-import { BotSectionNav } from '@/components/evaluation/bot-section-nav';
-import { EvaluationRunDetail } from '@/components/evaluation/evaluation-run-detail';
+import { getBot } from '@/features/bot/server-api';
 import {
   getEvaluationRunDetail,
   listEvaluationRunItems,
-} from '@/components/evaluation/server';
-import { getServerApi } from '@/lib/api/server';
+} from '@/features/evaluation/server-api';
 import { toJson } from '@/lib/utils';
 import { getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
@@ -26,21 +26,24 @@ export default async function Page({
   ]);
   const resolvedBotId = runDetail.payload?.run?.bot_id || botId;
 
-  if (runDetail.payload?.run?.bot_id && runDetail.payload.run.bot_id !== botId) {
+  if (
+    runDetail.payload?.run?.bot_id &&
+    runDetail.payload.run.bot_id !== botId
+  ) {
     notFound();
   }
 
-  const serverApi = await getServerApi();
   const pageBot = await getTranslations('page_bot');
   const pageBotEvaluation = await getTranslations('page_bot_evaluation');
 
   let bot;
 
   try {
-    const botRes = await serverApi.defaultApi.botsBotIdGet({
-      botId: resolvedBotId,
-    });
-    bot = toJson(botRes.data);
+    const botRes = await getBot(resolvedBotId);
+    if (!botRes) {
+      notFound();
+    }
+    bot = toJson(botRes);
   } catch {
     notFound();
   }

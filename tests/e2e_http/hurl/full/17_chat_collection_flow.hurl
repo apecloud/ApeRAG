@@ -6,7 +6,7 @@ Content-Type: application/json
 }
 HTTP 200
 
-POST {{base_url}}/api/v1/collections
+POST {{base_url}}/api/v2/collections
 Content-Type: application/json
 {
   "title": "Chat Collection Flow {{run_id}}",
@@ -39,7 +39,7 @@ jsonpath "$.id" == "{{collection_id}}"
 jsonpath "$.config.enable_vector" == true
 jsonpath "$.config.enable_fulltext" == true
 
-POST {{base_url}}/api/v1/collections/{{collection_id}}/documents/upload
+POST {{base_url}}/api/v2/collections/{{collection_id}}/documents/upload
 [MultipartFormData]
 file: file,tests/e2e_http/testdata/full-document.txt; type=text/plain
 HTTP 200
@@ -49,7 +49,7 @@ document_id: jsonpath "$.document_id"
 jsonpath "$.document_id" == "{{document_id}}"
 jsonpath "$.status" == "UPLOADED"
 
-POST {{base_url}}/api/v1/collections/{{collection_id}}/documents/confirm
+POST {{base_url}}/api/v2/collections/{{collection_id}}/documents/confirm
 Content-Type: application/json
 {
   "document_ids": ["{{document_id}}"]
@@ -59,7 +59,7 @@ HTTP 200
 jsonpath "$.confirmed_count" == 1
 jsonpath "$.failed_count" == 0
 
-POST {{base_url}}/api/v1/bots
+POST {{base_url}}/api/v2/bots
 Content-Type: application/json
 {
   "title": "Collection Chat Flow {{run_id}}",
@@ -90,7 +90,7 @@ bot_id: jsonpath "$.id"
 jsonpath "$.id" == "{{bot_id}}"
 jsonpath "$.config.agent.collections[0].id" == "{{collection_id}}"
 
-POST {{base_url}}/api/v1/bots/{{bot_id}}/chats
+POST {{base_url}}/api/v2/bots/{{bot_id}}/chats
 HTTP 200
 [Captures]
 chat_id: jsonpath "$.id"
@@ -126,16 +126,14 @@ jsonpath "$.turn.bot_id" == "{{bot_id}}"
 jsonpath "$.timeline" exists
 jsonpath "$.artifacts" exists
 
-DELETE {{base_url}}/api/v1/bots/{{bot_id}}/chats/{{chat_id}}
+DELETE {{base_url}}/api/v2/bots/{{bot_id}}/chats/{{chat_id}}
 HTTP 204
 
-DELETE {{base_url}}/api/v1/bots/{{bot_id}}
+DELETE {{base_url}}/api/v2/bots/{{bot_id}}
 HTTP 204
 
-DELETE {{base_url}}/api/v1/collections/{{collection_id}}/documents/{{document_id}}
-HTTP 200
-[Asserts]
-jsonpath "$.id" == "{{document_id}}"
+DELETE {{base_url}}/api/v2/collections/{{collection_id}}/documents/{{document_id}}
+HTTP 204
 
-DELETE {{base_url}}/api/v1/collections/{{collection_id}}
-HTTP 200
+DELETE {{base_url}}/api/v2/collections/{{collection_id}}
+HTTP 204

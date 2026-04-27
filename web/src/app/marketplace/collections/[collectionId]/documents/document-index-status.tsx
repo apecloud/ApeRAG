@@ -1,9 +1,12 @@
-import { Document, DocumentVectorIndexStatusEnum } from '@/api';
+import type {
+  Document,
+  DocumentIndexStatus as DocumentIndexStatusType,
+} from '@/features/document/types';
 import { cn } from '@/lib/utils';
 import _ from 'lodash';
 
-const getIndexStatusBg = (status?: DocumentVectorIndexStatusEnum) => {
-  const data = {
+const getIndexStatusBg = (status?: DocumentIndexStatusType | null) => {
+  const data: Record<DocumentIndexStatusType, string> = {
     ACTIVE: 'bg-green-500',
     CREATING: 'bg-sky-500',
     DELETING: 'bg-pink-500',

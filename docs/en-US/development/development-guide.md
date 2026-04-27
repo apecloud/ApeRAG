@@ -59,7 +59,7 @@ make env-dev
 This command will:
 *   Install `uv` if not already available
 *   Create a Python 3.11 virtual environment (located in `.venv/`)
-*   Install development tools (redocly, openapi-generator-cli, etc.)
+*   Install backend dependencies and repository git hooks
 *   Install pre-commit hooks for code quality
 *   Install addlicense tool for license management
 
@@ -157,17 +157,18 @@ Now you have ApeRAG running locally from source code, ready for development! �
 ### Q: 🔧 How do I add or modify a REST API endpoint?
 
 **Complete workflow:**
-1. Edit OpenAPI specification: `aperag/api/paths/[endpoint-name].yaml`
-2. Regenerate backend models: 
+1. Define request/response models in Python using Pydantic models.
+2. Implement backend view: `aperag/views/[module].py`
+3. Export the code-first OpenAPI specs:
    ```bash
-   make api-generate-models  # This runs merge-openapi internally
+   make openapi-generate  # Writes openapi.full.json and openapi.public.json
    ```
-3. Implement backend view: `aperag/views/[module].py`
-4. Generate frontend TypeScript client:
+4. Verify the exported specs:
    ```bash
-   make api-generate-sdk  # Updates frontend/src/api/
+   make openapi-check
    ```
-5. Test the API:
+5. Coordinate frontend typed client updates through the FE v2 adapter layer.
+6. Test the API:
    ```bash
    make test-all
    # ✅ Check live docs: http://localhost:8000/docs
@@ -198,12 +199,11 @@ Now you have ApeRAG running locally from source code, ready for development! �
    - Backend logic: `aperag/[module]/`
    - Async tasks: `aperag/tasks/`
    - Database models: `aperag/db/models.py`
-2. Update API and generate code:
+2. Update API and verify the code-first contract:
    ```bash
    make db-revision      # Generate migration files
    make db-migrate           # Apply database changes
-   make api-generate-models   # Update Pydantic models
-   make api-generate-sdk  # Update TypeScript client
+   make openapi-check         # Verify FastAPI/Pydantic OpenAPI export
    ```
 3. Quality assurance:
    ```bash
@@ -297,21 +297,6 @@ make test-all
    uv run pytest tests/path/to/fixed_test.py -v  # Verify fix
    ```
 
-### Q: 📊 How do I run RAG evaluation and analysis?
-
-**Evaluation workflow:**
-```bash
-# Ensure environment is ready
-make infra-up WITH_NEO4J=1  # Use Neo4j for better graph performance
-make serve-api
-make serve-worker
-
-# Run comprehensive RAG evaluation
-make evaluate               # 📊 Runs aperag.evaluation.run module
-
-# 📈 Check evaluation reports in tests/report/
-```
-
 ### Q: 📦 How do I update dependencies safely?
 
 **Python dependencies:**
@@ -328,7 +313,6 @@ make evaluate               # 📊 Runs aperag.evaluation.run module
    ```bash
    cd frontend && yarn install
    make serve-web      # Test frontend compilation
-   make api-generate-sdk  # Ensure API client still works
    ```
 
 ### Q: 🚀 How do I prepare code for production deployment?
@@ -347,8 +331,7 @@ make evaluate               # 📊 Runs aperag.evaluation.run module
    ```
 3. API consistency:
    ```bash
-   make api-generate-models         # Ensure models match OpenAPI spec
-   make api-generate-sdk   # Update frontend client
+   make openapi-check       # Ensure code-first OpenAPI export works
    ```
 4. Database migrations:
    ```bash

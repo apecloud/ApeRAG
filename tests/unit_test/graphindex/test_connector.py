@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import pytest
 
-from aperag.graphindex.storage.connector import GraphStoreAdaptor
+from aperag.domains.knowledge_graph.graphindex.storage.connector import GraphStoreAdaptor
 
 
 def test_adaptor_rejects_unknown_backend():
@@ -47,8 +47,8 @@ class TestVectorRecallQueryPipeline:
 
     @pytest.fixture
     def service(self):
-        from aperag.graphindex import Entity, GraphIndexService, KnowledgeGraph
-        from aperag.graphindex.dto import Chunk, DeleteDocumentResult, MergeEntitiesResult
+        from aperag.domains.knowledge_graph.graphindex import Entity, GraphIndexService, KnowledgeGraph
+        from aperag.domains.knowledge_graph.graphindex.dto import Chunk, DeleteDocumentResult, MergeEntitiesResult
 
         class StubStore:
             def __init__(self):
@@ -233,8 +233,8 @@ class TestVectorRecallQueryPipeline:
     async def test_query_context_fallback_when_no_vector(self):
         """When no vector connector is configured, the service falls
         back to name-match — must not crash."""
-        from aperag.graphindex import GraphIndexService, KnowledgeGraph
-        from aperag.graphindex.dto import DeleteDocumentResult
+        from aperag.domains.knowledge_graph.graphindex import GraphIndexService, KnowledgeGraph
+        from aperag.domains.knowledge_graph.graphindex.dto import DeleteDocumentResult
 
         class MinimalStore:
             async def ensure_schema(self):
@@ -302,8 +302,8 @@ class TestRelationOnlyRecall:
 
     @pytest.mark.asyncio
     async def test_relation_hit_resolves_to_entity(self):
-        from aperag.graphindex import Entity, GraphIndexService, KnowledgeGraph
-        from aperag.graphindex.dto import DeleteDocumentResult, MergeEntitiesResult
+        from aperag.domains.knowledge_graph.graphindex import Entity, GraphIndexService, KnowledgeGraph
+        from aperag.domains.knowledge_graph.graphindex.dto import DeleteDocumentResult, MergeEntitiesResult
         from aperag.vectorstore.dto import SearchHit
 
         bob = Entity(entity_id="e-bob", collection_id="c", name="Bob", type="person", description="A person")

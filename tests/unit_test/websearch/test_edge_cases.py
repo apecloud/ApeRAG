@@ -14,12 +14,12 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from aperag.schema.view_models import WebSearchRequest, WebSearchResultItem
+from aperag.domains.web_access.schemas import WebSearchRequest, WebSearchResultItem
+from aperag.domains.web_access.search.providers.duckduckgo_search_provider import DuckDuckGoProvider
+from aperag.domains.web_access.search.providers.jina_search_provider import JinaSearchProvider
+from aperag.domains.web_access.search.search_service import SearchService
+from aperag.domains.web_access.utils.url_validator import URLValidator
 from duckduckgo_search.exceptions import DuckDuckGoSearchException
-from aperag.websearch.search.providers.duckduckgo_search_provider import DuckDuckGoProvider
-from aperag.websearch.search.providers.jina_search_provider import JinaSearchProvider
-from aperag.websearch.search.search_service import SearchService
-from aperag.websearch.utils.url_validator import URLValidator
 
 
 class TestParameterValidation:
@@ -197,7 +197,7 @@ class TestMaliciousInputs:
         for query in malicious_queries:
             # Should not crash, treat as normal query
             try:
-                with patch("aperag.websearch.search.providers.duckduckgo_search_provider.DDGS") as mock_ddgs:
+                with patch("aperag.domains.web_access.search.providers.duckduckgo_search_provider.DDGS") as mock_ddgs:
                     mock_ddgs.return_value.__enter__.return_value.text.return_value = []
                     results = await provider.search(query)
                     assert isinstance(results, list)
@@ -210,7 +210,7 @@ class TestMaliciousInputs:
         """Test that DuckDuckGo provider falls back to the next backend on rate-limit-like errors."""
         provider = DuckDuckGoProvider({"backend_fallback_order": ["auto", "html"]})
 
-        with patch("aperag.websearch.search.providers.duckduckgo_search_provider.DDGS") as mock_ddgs:
+        with patch("aperag.domains.web_access.search.providers.duckduckgo_search_provider.DDGS") as mock_ddgs:
             ddgs_instance = mock_ddgs.return_value.__enter__.return_value
             ddgs_instance.text.side_effect = [
                 DuckDuckGoSearchException("rate limited"),
@@ -232,7 +232,7 @@ class TestSpecialCases:
         """Test handling when API succeeds but returns no results."""
         provider = DuckDuckGoProvider()
 
-        with patch("aperag.websearch.search.providers.duckduckgo_search_provider.DDGS") as mock_ddgs:
+        with patch("aperag.domains.web_access.search.providers.duckduckgo_search_provider.DDGS") as mock_ddgs:
             mock_ddgs.return_value.__enter__.return_value.text.return_value = []
 
             results = await provider.search("very_rare_query_12345")
@@ -249,7 +249,7 @@ class TestSpecialCases:
             {"title": "Also Valid", "href": "https://alsovalid.com", "body": "Good"},
         ]
 
-        with patch("aperag.websearch.search.providers.duckduckgo_search_provider.DDGS") as mock_ddgs:
+        with patch("aperag.domains.web_access.search.providers.duckduckgo_search_provider.DDGS") as mock_ddgs:
             mock_ddgs.return_value.__enter__.return_value.text.return_value = mixed_results
 
             results = await provider.search("test")

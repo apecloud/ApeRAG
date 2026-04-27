@@ -8,7 +8,7 @@ import {
   RadialBarChart,
 } from 'recharts';
 
-import { QuotaInfo } from '@/api';
+import type { QuotaInfo } from '@/features/quota/types';
 import { Badge } from '@/components/ui/badge';
 import {
   Card,

@@ -1,6 +1,6 @@
 'use client';
 
-import { Document, RebuildIndexesRequestIndexTypesEnum } from '@/api';
+import { DOCUMENT_INDEX_TYPES } from '@/features/document/types';
 import { useCollectionContext } from '@/components/providers/collection-provider';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -15,8 +15,9 @@ import {
 } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem } from '@/components/ui/form';
 import { Label } from '@/components/ui/label';
-import { apiClient } from '@/lib/api/client';
-import { cn, objectKeys } from '@/lib/utils';
+import { rebuildDocumentIndexes } from '@/features/document/client-api';
+import type { Document } from '@/features/document/types';
+import { cn } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Slot } from '@radix-ui/react-slot';
 import { useTranslations } from 'next-intl';
@@ -29,7 +30,7 @@ import { isVisibleDocumentIndexType } from '../../feature-visibility';
 import { DocumentIndexStatus } from './document-index-status';
 
 const documentReBuildSchema = z.object({
-  index_types: z.array(z.enum(objectKeys(RebuildIndexesRequestIndexTypesEnum))),
+  index_types: z.array(z.enum(DOCUMENT_INDEX_TYPES)),
 });
 
 type DocumentReBuildSchemaType = z.infer<typeof documentReBuildSchema>;
@@ -47,9 +48,9 @@ export const DocumentReBuildIndex = ({
   const common_action = useTranslations('common.action');
   const [visible, setVisible] = useState<boolean>(false);
   const router = useRouter();
-  const visibleIndexTypes = objectKeys(
-    RebuildIndexesRequestIndexTypesEnum,
-  ).filter(isVisibleDocumentIndexType);
+  const visibleIndexTypes = DOCUMENT_INDEX_TYPES.filter(
+    isVisibleDocumentIndexType,
+  );
   const form = useForm<DocumentReBuildSchemaType>({
     resolver: zodResolver(documentReBuildSchema),
     defaultValues: {
@@ -75,29 +76,20 @@ export const DocumentReBuildIndex = ({
       return;
     }
 
-    const res =
-      await apiClient.defaultApi.collectionsCollectionIdDocumentsDocumentIdRebuildIndexesPost(
-        {
-          collectionId: collection.id,
-          documentId: file.id,
-          rebuildIndexesRequest: {
-            index_types: values.index_types,
-          },
-        },
-      );
+    await rebuildDocumentIndexes(collection.id, file.id, {
+      index_types: values.index_types,
+    });
 
-    if (res.status === 200) {
-      toast.success(
-        page_documents('index_rebuild_with', {
-          types: values.index_types
-            .map((type) => page_collections(`index_type_${type}.title`))
-            .join(', '),
-        }),
-      );
+    toast.success(
+      page_documents('index_rebuild_with', {
+        types: values.index_types
+          .map((type) => page_collections(`index_type_${type}.title`))
+          .join(', '),
+      }),
+    );
 
-      setVisible(false);
-      setTimeout(router.refresh, 300);
-    }
+    setVisible(false);
+    setTimeout(router.refresh, 300);
   };
 
   return (

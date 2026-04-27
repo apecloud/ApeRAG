@@ -1,6 +1,5 @@
 'use client';
 
-import { Document } from '@/api';
 import { useCollectionContext } from '@/components/providers/collection-provider';
 import {
   AlertDialog,
@@ -13,7 +12,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { apiClient } from '@/lib/api/client';
+import { deleteDocument } from '@/features/document/client-api';
+import type { Document } from '@/features/document/types';
 import { Slot } from '@radix-ui/react-slot';
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
@@ -36,19 +36,10 @@ export const DocumentDelete = ({
 
   const handleDelete = async () => {
     if (!collection.id || !document.id) return;
-    const res =
-      await apiClient.defaultApi.collectionsCollectionIdDocumentsDocumentIdDelete(
-        {
-          collectionId: collection.id,
-          documentId: document.id,
-        },
-      );
-
-    if (res.status === 200) {
-      toast.success(common_tips('delete_success'));
-      setVisible(false);
-      setTimeout(router.refresh, 300);
-    }
+    await deleteDocument(collection.id, document.id);
+    toast.success(common_tips('delete_success'));
+    setVisible(false);
+    setTimeout(router.refresh, 300);
   };
 
   return (

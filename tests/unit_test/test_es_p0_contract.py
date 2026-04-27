@@ -5,9 +5,9 @@ from types import SimpleNamespace
 import pytest
 
 from aperag.db.models import CollectionStatus, DocumentIndexType
+from aperag.domains.retrieval.pipeline import SearchPipelineService
 from aperag.query.query import DocumentWithScore
 from aperag.service.document_service import DocumentService
-from aperag.service.search_pipeline_service import SearchPipelineService
 from aperag.tasks.collection import CollectionTask
 from aperag.tasks.document import DocumentIndexTask
 
@@ -42,7 +42,9 @@ def test_collection_task_skips_fulltext_init_when_disabled(monkeypatch):
     monkeypatch.setattr("aperag.tasks.collection.db_ops.query_collection_by_id", lambda *_args, **_kwargs: collection)
     monkeypatch.setattr("aperag.tasks.collection.db_ops.update_collection", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(CollectionTask, "_initialize_vector_databases", lambda self, *_args, **_kwargs: None)
-    monkeypatch.setattr(CollectionTask, "_initialize_fulltext_index", lambda self, collection_id: called.append(collection_id))
+    monkeypatch.setattr(
+        CollectionTask, "_initialize_fulltext_index", lambda self, collection_id: called.append(collection_id)
+    )
 
     result = CollectionTask().initialize_collection("col-1", 1)
 
@@ -59,7 +61,7 @@ def test_document_index_task_skips_fulltext_create_when_disabled(monkeypatch):
         lambda *_args, **_kwargs: (SimpleNamespace(id="doc-1"), collection),
     )
     monkeypatch.setattr(
-        "aperag.index.fulltext_index.fulltext_indexer.create_index",
+        "aperag.domains.indexing.fulltext_index.fulltext_indexer.create_index",
         lambda **_kwargs: (_ for _ in ()).throw(AssertionError("fulltext create_index should not be called")),
     )
 
@@ -84,9 +86,9 @@ async def test_fulltext_search_uses_fulltext_helper_and_query_fallback(monkeypat
         captured["chat_id"] = chat_id
         return [DocumentWithScore(text="doc", score=1.0, metadata={})]
 
-    monkeypatch.setattr("aperag.service.search_pipeline_service.extract_keywords", fake_extract_keywords)
-    monkeypatch.setattr("aperag.service.search_pipeline_service.generate_fulltext_index_name", lambda cid: f"ft-{cid}")
-    monkeypatch.setattr("aperag.index.fulltext_index.fulltext_indexer.search_document", fake_search_document)
+    monkeypatch.setattr("aperag.domains.retrieval.pipeline.extract_keywords", fake_extract_keywords)
+    monkeypatch.setattr("aperag.domains.retrieval.pipeline.generate_fulltext_index_name", lambda cid: f"ft-{cid}")
+    monkeypatch.setattr("aperag.domains.indexing.fulltext_index.fulltext_indexer.search_document", fake_search_document)
 
     service = SearchPipelineService()
     collection = SimpleNamespace(id="col-1", config=_collection_config(True))
@@ -105,7 +107,7 @@ async def test_fulltext_search_uses_fulltext_helper_and_query_fallback(monkeypat
 
 @pytest.mark.asyncio
 async def test_fulltext_search_logs_explicit_degrade_on_backend_failure(monkeypatch, caplog):
-    from aperag.index.fulltext_index import FulltextSearchDegradedError
+    from aperag.domains.indexing.fulltext_index import FulltextSearchDegradedError
 
     async def fake_extract_keywords(*_args, **_kwargs):
         return ["x"]
@@ -113,8 +115,8 @@ async def test_fulltext_search_logs_explicit_degrade_on_backend_failure(monkeypa
     async def fake_search_document(*_args, **_kwargs):
         raise FulltextSearchDegradedError("boom")
 
-    monkeypatch.setattr("aperag.service.search_pipeline_service.extract_keywords", fake_extract_keywords)
-    monkeypatch.setattr("aperag.index.fulltext_index.fulltext_indexer.search_document", fake_search_document)
+    monkeypatch.setattr("aperag.domains.retrieval.pipeline.extract_keywords", fake_extract_keywords)
+    monkeypatch.setattr("aperag.domains.indexing.fulltext_index.fulltext_indexer.search_document", fake_search_document)
 
     service = SearchPipelineService()
     collection = SimpleNamespace(id="col-1", config=_collection_config(True))
@@ -146,7 +148,7 @@ async def test_fulltext_index_search_uses_dual_read_chat_filter(monkeypatch):
             captured["routing"] = routing
             return SimpleNamespace(body={"hits": {"hits": []}})
 
-    from aperag.index.fulltext_index import FulltextIndexer
+    from aperag.domains.indexing.fulltext_index import FulltextIndexer
 
     indexer = object.__new__(FulltextIndexer)
     indexer.async_es = FakeAsyncEs()
@@ -164,7 +166,7 @@ async def test_fulltext_index_search_uses_dual_read_chat_filter(monkeypatch):
                 ],
                 "minimum_should_match": 1,
             }
-        }
+        },
     ]
     assert captured["routing"] == "col-1"
 
@@ -193,9 +195,9 @@ def test_create_index_mapping_exposes_explicit_filter_fields(monkeypatch):
         def __init__(self, *_args, **_kwargs):
             self.indices = FakeIndices()
 
-    monkeypatch.setattr("aperag.index.fulltext_index.Elasticsearch", FakeElasticsearch)
+    monkeypatch.setattr("aperag.domains.indexing.fulltext_index.Elasticsearch", FakeElasticsearch)
 
-    from aperag.index.fulltext_index import create_index
+    from aperag.domains.indexing.fulltext_index import create_index
 
     create_index("ft-col-1")
 

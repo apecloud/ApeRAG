@@ -12,62 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from sqlalchemy.ext.asyncio import AsyncSession
+"""Legacy shim for ``turn_feedback_service`` after Phase 5 step 5-S4a.
 
-from aperag.db.ops import AsyncDatabaseOps, async_db_ops
-from aperag.exceptions import ChatNotFoundException, ResourceNotFoundException, ValidationException
-from aperag.schema import view_models
+The canonical home is
+``aperag.domains.conversation.service.turn_feedback_service``; this
+module re-exports ``TurnFeedbackService`` and the
+``turn_feedback_service_global`` singleton so pre-migration callers
+(``aperag.views.chat``) keep resolving the same class objects without
+a rename sweep. Phase 6 cleanup removes the shim after every caller
+has migrated.
+"""
 
+from aperag.domains.conversation.service.turn_feedback_service import (  # noqa: F401
+    TurnFeedbackService,
+    turn_feedback_service_global,
+)
 
-def _coerce_turn_feedback(feedback) -> view_models.TurnFeedback:
-    return view_models.TurnFeedback(
-        turn_id=feedback.turn_id,
-        type=feedback.type,
-        tag=feedback.tag,
-        message=feedback.message,
-        created=feedback.gmt_created,
-        updated=feedback.gmt_updated,
-    )
-
-
-class TurnFeedbackService:
-    def __init__(self, session: AsyncSession = None):
-        self.db_ops = async_db_ops if session is None else AsyncDatabaseOps(session)
-
-    async def list_turn_feedbacks(self, user: str, chat_id: str) -> view_models.TurnFeedbackList:
-        chat = await self.db_ops.query_chat_by_id(user, chat_id)
-        if chat is None:
-            raise ChatNotFoundException(chat_id)
-
-        feedbacks = await self.db_ops.query_turn_feedbacks(user, chat_id)
-        return view_models.TurnFeedbackList(items=[_coerce_turn_feedback(feedback) for feedback in feedbacks])
-
-    async def upsert_turn_feedback(
-        self, user: str, chat_id: str, turn_id: str, feedback_in: view_models.Feedback
-    ) -> view_models.TurnFeedback:
-        if not feedback_in.type:
-            raise ValidationException("Feedback type is required")
-
-        turn = await self.db_ops.query_agent_turn(user, chat_id, turn_id)
-        if turn is None:
-            raise ResourceNotFoundException("Turn", turn_id)
-
-        feedback = await self.db_ops.set_turn_feedback_state(
-            user=user,
-            chat_id=chat_id,
-            turn_id=turn.id,
-            feedback_type=feedback_in.type,
-            feedback_tag=feedback_in.tag,
-            feedback_message=feedback_in.message,
-        )
-        return _coerce_turn_feedback(feedback)
-
-    async def delete_turn_feedback(self, user: str, chat_id: str, turn_id: str) -> bool:
-        turn = await self.db_ops.query_agent_turn(user, chat_id, turn_id)
-        if turn is None:
-            raise ResourceNotFoundException("Turn", turn_id)
-
-        return await self.db_ops.remove_turn_feedback(user, chat_id, turn.id)
-
-
-turn_feedback_service_global = TurnFeedbackService()
+__all__ = [
+    "TurnFeedbackService",
+    "turn_feedback_service_global",
+]

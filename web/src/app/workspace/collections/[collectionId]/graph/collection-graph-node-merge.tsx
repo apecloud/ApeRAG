@@ -1,11 +1,5 @@
 'use client';
 
-import {
-  MergeSuggestionItem,
-  MergeSuggestionItemStatusEnum,
-  MergeSuggestionsResponse,
-  SuggestionActionRequestActionEnum,
-} from '@/api';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
@@ -21,7 +15,13 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { apiClient } from '@/lib/api/client';
+import { handleSuggestionAction as dispatchSuggestionAction } from '@/features/knowledge-graph/client-api';
+import type {
+  MergeSuggestionItem,
+  MergeSuggestionsResponse,
+  MergeSuggestionStatus,
+  SuggestionAction,
+} from '@/features/knowledge-graph/types';
 import { Check, LoaderCircle, Sparkles, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useCallback, useState } from 'react';
@@ -38,29 +38,26 @@ const SuggestionItem = ({
   afterAcceptMergeSuggestion: () => void;
 }) => {
   const [loading, setLoading] =
-    useState<{ [key in SuggestionActionRequestActionEnum]: boolean }>();
+    useState<{ [key in SuggestionAction]: boolean }>();
   const page_graph = useTranslations('page_graph');
   const handleSuggestionAction = useCallback(
-    async (action: SuggestionActionRequestActionEnum) => {
+    async (action: SuggestionAction) => {
       setLoading({
         accept: action === 'accept',
         reject: action === 'reject',
       });
-      const res =
-        await apiClient.graphApi.collectionsCollectionIdGraphsMergeSuggestionsSuggestionIdActionPost(
-          {
-            suggestionId: item.id,
-            collectionId: item.collection_id,
-            suggestionActionRequest: {
-              action,
-              target_entity_data: item.suggested_target_entity,
-            },
-          },
-        );
-      if (res.data.status === 'success' && action === 'reject') {
+      const res = await dispatchSuggestionAction(
+        item.collection_id,
+        item.id,
+        {
+          action,
+          target_entity_data: item.suggested_target_entity,
+        },
+      );
+      if (res?.status === 'success' && action === 'reject') {
         await afterRejectMergeSuggestion();
       }
-      if (res.data.status === 'success' && action === 'accept') {
+      if (res?.status === 'success' && action === 'accept') {
         await afterAcceptMergeSuggestion();
       }
       setLoading({
@@ -162,7 +159,7 @@ export const CollectionGraphNodeMerge = ({
   onRefresh: () => void;
 }) => {
   const [activeStatus, setActiveStatus] =
-    useState<MergeSuggestionItemStatusEnum>('PENDING');
+    useState<MergeSuggestionStatus>('PENDING');
   const page_graph = useTranslations('page_graph');
   return (
     <Drawer
@@ -177,17 +174,17 @@ export const CollectionGraphNodeMerge = ({
           <Tabs
             defaultValue={activeStatus}
             onValueChange={(v: string) =>
-              setActiveStatus(v as MergeSuggestionItemStatusEnum)
+              setActiveStatus(v as MergeSuggestionStatus)
             }
           >
             <TabsList>
-              <TabsTrigger value={MergeSuggestionItemStatusEnum.PENDING}>
+              <TabsTrigger value="PENDING">
                 {page_graph('merge_pending')}
               </TabsTrigger>
-              <TabsTrigger value={MergeSuggestionItemStatusEnum.ACCEPTED}>
+              <TabsTrigger value="ACCEPTED">
                 {page_graph('merge_accepted')}
               </TabsTrigger>
-              <TabsTrigger value={MergeSuggestionItemStatusEnum.REJECTED}>
+              <TabsTrigger value="REJECTED">
                 {page_graph('merge_rejected')}
               </TabsTrigger>
             </TabsList>

@@ -1,13 +1,17 @@
 'use client';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import {
+  getKnowledgeGraph,
+  getMarketplaceKnowledgeGraph,
+  runMergeSuggestions,
+} from '@/features/knowledge-graph/client-api';
+import type {
   GraphEdge,
   GraphNode,
   KnowledgeGraph,
   MergeSuggestionsResponse,
-} from '@/api';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { apiClient } from '@/lib/api/client';
+} from '@/features/knowledge-graph/types';
 import { cn } from '@/lib/utils';
 
 import { Badge } from '@/components/ui/badge';
@@ -101,45 +105,26 @@ export const CollectionGraph = ({
     if (typeof params.collectionId !== 'string') return;
     setLoading(true);
 
-    let data: KnowledgeGraph;
+    const data: KnowledgeGraph | undefined = marketplace
+      ? await getMarketplaceKnowledgeGraph(params.collectionId)
+      : await getKnowledgeGraph(params.collectionId);
 
-    if (!marketplace) {
-      const res = await apiClient.graphApi.collectionsCollectionIdGraphsGet(
-        {
-          collectionId: params.collectionId,
-        },
-        {
-          timeout: 1000 * 20,
-        },
-      );
-      data = res.data;
-    } else {
-      const res =
-        await apiClient.defaultApi.marketplaceCollectionsCollectionIdGraphGet(
-          {
-            collectionId: params.collectionId,
-          },
-          {
-            timeout: 1000 * 20,
-          },
-        );
-      data = res.data as KnowledgeGraph;
+    if (!data) {
+      setLoading(false);
+      return;
     }
 
+    const edges = data.edges || [];
     const nodes =
       data.nodes?.map((n) => {
-        const targetCount = data.edges.filter(
-          (edg) => edg.target === n.id,
-        ).length;
-        const sourceCount = data.edges.filter(
-          (edg) => edg.source === n.id,
-        ).length;
+        const targetCount = edges.filter((edg) => edg.target === n.id).length;
+        const sourceCount = edges.filter((edg) => edg.source === n.id).length;
         return {
           ...n,
           value: Math.max(targetCount, sourceCount, NODE_MIN),
         };
       }) || [];
-    const links = data.edges || [];
+    const links = edges;
 
     setGraphData({ nodes, links });
 
@@ -150,16 +135,8 @@ export const CollectionGraph = ({
 
   const getMergeSuggestions = useCallback(async () => {
     if (typeof params.collectionId !== 'string' || marketplace) return;
-    const suggestionRes =
-      await apiClient.graphApi.collectionsCollectionIdGraphsMergeSuggestionsPost(
-        {
-          collectionId: params.collectionId,
-        },
-        {
-          timeout: 1000 * 20,
-        },
-      );
-    setMergeSuggestion(suggestionRes.data);
+    const suggestionRes = await runMergeSuggestions(params.collectionId);
+    setMergeSuggestion(suggestionRes);
   }, [marketplace, params.collectionId]);
 
   const handleCloseDetail = useCallback(() => {

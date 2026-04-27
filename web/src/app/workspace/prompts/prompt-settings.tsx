@@ -1,6 +1,13 @@
 'use client';
 
-import { PromptDetail, UserPromptsResponse } from '@/api';
+import {
+  deleteUserPrompt,
+  updateUserPrompts,
+} from '@/features/prompt/client-api';
+import type {
+  PromptDetail,
+  UserPromptsResponse,
+} from '@/features/prompt/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -22,7 +29,6 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { apiClient } from '@/lib/api/client';
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
@@ -52,10 +58,8 @@ const PromptCard = ({ promptType, detail, onSaved }: PromptCardProps) => {
   const handleSave = useCallback(async () => {
     setSaving(true);
     try {
-      await apiClient.defaultApi.promptsUserPut({
-        updateUserPromptsRequest: {
-          prompts: { [promptType]: content },
-        },
+      await updateUserPrompts({
+        prompts: { [promptType]: content },
       });
       toast.success(page_prompts('toast.save_success'));
       onSaved();
@@ -65,9 +69,7 @@ const PromptCard = ({ promptType, detail, onSaved }: PromptCardProps) => {
   }, [content, promptType, page_prompts, onSaved]);
 
   const handleReset = useCallback(async () => {
-    await apiClient.defaultApi.promptsUserPromptTypeDelete({
-      promptType: promptType as never,
-    });
+    await deleteUserPrompt(promptType);
     toast.success(page_prompts('toast.reset_success'));
     setResetOpen(false);
     onSaved();

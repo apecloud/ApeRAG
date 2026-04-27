@@ -6,10 +6,10 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from aperag.schema.view_models import WebSearchRequest, WebSearchResultItem
+from aperag.domains.web_access.schemas import WebSearchRequest, WebSearchResultItem
 
 # SearchProviderError removed - using standard exceptions
-from aperag.websearch.search.search_service import SearchService
+from aperag.domains.web_access.search.search_service import SearchService
 
 
 class TestSearchService:

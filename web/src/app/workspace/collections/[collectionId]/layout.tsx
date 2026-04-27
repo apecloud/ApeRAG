@@ -1,5 +1,8 @@
 import { CollectionProvider } from '@/components/providers/collection-provider';
-import { getServerApi } from '@/lib/api/server';
+import {
+  getCollection,
+  getCollectionSharingStatus,
+} from '@/features/collection/server-api';
 import { notFound } from 'next/navigation';
 
 export default async function ChatLayout({
@@ -10,22 +13,17 @@ export default async function ChatLayout({
   children: React.ReactNode;
 }>) {
   const { collectionId } = await params;
-  const serverApi = await getServerApi();
 
   let collection;
   let share;
 
   try {
     const [collectionRes, shareRes] = await Promise.all([
-      serverApi.defaultApi.collectionsCollectionIdGet({
-        collectionId,
-      }),
-      serverApi.defaultApi.collectionsCollectionIdSharingGet({
-        collectionId,
-      }),
+      getCollection(collectionId),
+      getCollectionSharingStatus(collectionId),
     ]);
-    collection = collectionRes.data;
-    share = shareRes.data;
+    collection = collectionRes ?? undefined;
+    share = shareRes ?? undefined;
   } catch (err) {
     console.log(err);
   }

@@ -36,19 +36,19 @@ chat_id=""
 cleanup() {
   if [[ -n "${chat_id}" && -n "${bot_id}" ]]; then
     curl -sS -o /dev/null -b "${COOKIE_JAR}" -X DELETE \
-      "${BASE_URL}/api/v1/bots/${bot_id}/chats/${chat_id}" || true
+      "${BASE_URL}/api/v2/bots/${bot_id}/chats/${chat_id}" || true
   fi
   if [[ -n "${bot_id}" ]]; then
     curl -sS -o /dev/null -b "${COOKIE_JAR}" -X DELETE \
-      "${BASE_URL}/api/v1/bots/${bot_id}" || true
+      "${BASE_URL}/api/v2/bots/${bot_id}" || true
   fi
   if [[ -n "${document_id}" && -n "${collection_id}" ]]; then
     curl -sS -o /dev/null -b "${COOKIE_JAR}" -X DELETE \
-      "${BASE_URL}/api/v1/collections/${collection_id}/documents/${document_id}" || true
+      "${BASE_URL}/api/v2/collections/${collection_id}/documents/${document_id}" || true
   fi
   if [[ -n "${collection_id}" ]]; then
     curl -sS -o /dev/null -b "${COOKIE_JAR}" -X DELETE \
-      "${BASE_URL}/api/v1/collections/${collection_id}" || true
+      "${BASE_URL}/api/v2/collections/${collection_id}" || true
   fi
   rm -f "${TMP_FILES[@]}"
 }
@@ -132,7 +132,7 @@ wait_for_document_indexes() {
 
   while (( attempt <= max_attempts )); do
     local body
-    body="$(request_json GET "/api/v1/collections/${collection_id}/documents/${document_id}")"
+    body="$(request_json GET "/api/v2/collections/${collection_id}/documents/${document_id}")"
     local vector_status
     local fulltext_status
     vector_status="$(jq -r '.vector_index_status // empty' <<<"${body}")"
@@ -203,7 +203,7 @@ request_json POST "/api/v1/login" "$(jq -nc \
   --arg password "${E2E_PASSWORD}" \
   '{username: $username, password: $password}')"
 
-collection_body="$(request_json POST "/api/v1/collections" "$(jq -nc \
+collection_body="$(request_json POST "/api/v2/collections" "$(jq -nc \
   --arg run_id "${E2E_RUN_ID}" \
   '{
     title: ("Chat Collection Flow Script " + $run_id),
@@ -231,17 +231,17 @@ collection_body="$(request_json POST "/api/v1/collections" "$(jq -nc \
 collection_id="$(jq -r '.id' <<<"${collection_body}")"
 
 upload_body="$(request_file_upload \
-  "/api/v1/collections/${collection_id}/documents/upload" \
+  "/api/v2/collections/${collection_id}/documents/upload" \
   "${ROOT_DIR}/tests/e2e_http/testdata/full-document.txt")"
 document_id="$(jq -r '.document_id' <<<"${upload_body}")"
 
-request_json POST "/api/v1/collections/${collection_id}/documents/confirm" "$(jq -nc \
+request_json POST "/api/v2/collections/${collection_id}/documents/confirm" "$(jq -nc \
   --arg document_id "${document_id}" \
   '{document_ids: [$document_id]}')"
 
 wait_for_document_indexes "${collection_id}" "${document_id}"
 
-search_body="$(request_json POST "/api/v1/collections/${collection_id}/searches" "$(jq -nc '{
+search_body="$(request_json POST "/api/v2/collections/${collection_id}/searches" "$(jq -nc '{
   query: "Hurl",
   fulltext_search: {
     topk: 3
@@ -250,7 +250,7 @@ search_body="$(request_json POST "/api/v1/collections/${collection_id}/searches"
 }')")"
 jq -e '(.items // []) | length > 0' <<<"${search_body}" >/dev/null
 
-bot_body="$(request_json POST "/api/v1/bots" "$(jq -nc \
+bot_body="$(request_json POST "/api/v2/bots" "$(jq -nc \
   --arg run_id "${E2E_RUN_ID}" \
   --arg collection_id "${collection_id}" \
   '{
@@ -273,7 +273,7 @@ bot_body="$(request_json POST "/api/v1/bots" "$(jq -nc \
   }')")"
 bot_id="$(jq -r '.id' <<<"${bot_body}")"
 
-chat_body="$(request_json POST "/api/v1/bots/${bot_id}/chats")"
+chat_body="$(request_json POST "/api/v2/bots/${bot_id}/chats")"
 chat_id="$(jq -r '.id' <<<"${chat_body}")"
 
 turn_body="$(request_json POST "/api/v2/agent/chats/${chat_id}/turns" "$(jq -nc \

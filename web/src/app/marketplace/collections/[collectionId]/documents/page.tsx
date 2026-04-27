@@ -1,5 +1,8 @@
 import { PageContainer, PageContent } from '@/components/page-container';
-import { getServerApi } from '@/lib/api/server';
+import {
+  getMarketplaceCollection,
+  listMarketplaceCollectionDocuments,
+} from '@/features/marketplace/server-api';
 import { parsePageParams, toJson } from '@/lib/utils';
 import { notFound } from 'next/navigation';
 import { CollectionHeader } from '../collection-header';
@@ -14,13 +17,9 @@ export default async function Page({
 }>) {
   const { collectionId } = await params;
   const { page, pageSize, search } = await searchParams;
-  const serverApi = await getServerApi();
-  const [collectionRes, documentsRes] = await Promise.all([
-    serverApi.defaultApi.marketplaceCollectionsCollectionIdGet({
-      collectionId,
-    }),
-    serverApi.defaultApi.marketplaceCollectionsCollectionIdDocumentsGet({
-      collectionId,
+  const [collection, documents] = await Promise.all([
+    getMarketplaceCollection(collectionId),
+    listMarketplaceCollectionDocuments(collectionId, {
       ...parsePageParams({ page, pageSize }),
       sortBy: 'created',
       sortOrder: 'desc',
@@ -28,22 +27,21 @@ export default async function Page({
     }),
   ]);
 
-  //@ts-expect-error api define has a bug
-  const documents = toJson(documentsRes.data.items || []);
-  const collection = toJson(collectionRes.data);
-
   if (!collection) {
     notFound();
   }
 
+  const documentItems = toJson(documents.items || []);
+  const collectionJson = toJson(collection);
+
   return (
     <PageContainer>
-      <CollectionHeader collection={collection} />
+      <CollectionHeader collection={collectionJson} />
       <PageContent>
         <DocumentsTable
-          collection={collection}
-          data={documents}
-          pageCount={documentsRes.data.total_pages}
+          collection={collectionJson}
+          data={documentItems}
+          pageCount={documents.total_pages}
         />
       </PageContent>
     </PageContainer>

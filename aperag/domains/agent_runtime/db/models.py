@@ -1,0 +1,152 @@
+# Copyright 2025 ApeCloud, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Agent-runtime-domain SQLAlchemy models.
+
+Owns ``AgentTurn`` + ``AgentTimelineEvent`` + ``AgentArtifact`` —
+the three entities the agent runtime is responsible for — plus
+``AgentTurnStatus`` / ``AgentEventActor`` / ``AgentArtifactType``
+enums. Moved here from ``aperag.db.models`` in Phase 5 step 5-S2b;
+the legacy aggregate module retains a re-export shim until Phase 6
+cleanup.
+
+All three tables key on ``turn_id`` (events + artifacts) or
+``chat_id`` (turn); these are opaque string FKs, so no Python-level
+cross-domain import is required. ``chat_id`` is logically owned by
+the ``conversation`` domain but the relationship is traversed at
+query time via the turn service, not via ORM relationship() bindings.
+"""
+
+from __future__ import annotations
+
+import random
+import uuid
+from enum import Enum
+
+from sqlalchemy import (
+    JSON,
+    Column,
+    DateTime,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
+
+from aperag.db.base import Base
+from aperag.utils.utils import utc_now
+
+
+def _random_id() -> str:
+    """Local copy of ``aperag.db.models.random_id`` so this module does
+    not have to import from the G1 strict-ban aggregate. Phase 6 cleanup
+    collapses the helper twins onto ``aperag.db.base``.
+    """
+
+    return "".join(random.sample(uuid.uuid4().hex, 16))
+
+
+def _enum_column(enum_class):
+    """Mirror of ``aperag.db.models.EnumColumn``. Formula:
+    ``max(max_value_len + 20, 50)``. Keep in sync until Phase 6
+    consolidates these helper twins.
+    """
+
+    max_length = max(len(e.value) for e in enum_class) if enum_class and len(enum_class) > 0 else 50
+    max_length = max(max_length + 20, 50)
+    return String(length=max_length)
+
+
+class AgentTurnStatus(str, Enum):
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+
+
+class AgentEventActor(str, Enum):
+    AGENT = "agent"
+    TOOL = "tool"
+    SYSTEM = "system"
+
+
+class AgentArtifactType(str, Enum):
+    ANSWER = "answer"
+    REFERENCE_BUNDLE = "reference_bundle"
+    TOOL_RESULT_SUMMARY = "tool_result_summary"
+    SEARCH_RESULT_SUMMARY = "search_result_summary"
+    ERROR_SUMMARY = "error_summary"
+
+
+class AgentTurn(Base):
+    __tablename__ = "agent_turn"
+    __table_args__ = (
+        UniqueConstraint("chat_id", "client_idempotency_key", name="uq_agent_turn_chat_idempotency"),
+        Index("idx_agent_turn_chat_created", "chat_id", "gmt_created"),
+        Index("idx_agent_turn_user_status", "user", "status"),
+    )
+
+    id = Column(String(24), primary_key=True, default=lambda: "turn" + _random_id())
+    chat_id = Column(String(24), nullable=False, index=True)
+    user = Column(String(256), nullable=False, index=True)
+    bot_id = Column(String(24), nullable=False, index=True)
+    request_id = Column(String(64), nullable=False, unique=True, index=True)
+    client_idempotency_key = Column(String(128), nullable=False)
+    status = Column(_enum_column(AgentTurnStatus), nullable=False, default=AgentTurnStatus.QUEUED, index=True)
+    input_text = Column(Text, nullable=False)
+    model_profile = Column(JSON, default=lambda: {}, nullable=False)
+    error_code = Column(String(128), nullable=True)
+    error_message = Column(Text, nullable=True)
+    answer_artifact_id = Column(String(24), nullable=True, index=True)
+    reference_bundle_artifact_id = Column(String(24), nullable=True, index=True)
+    timeline_cursor = Column(Integer, default=0, nullable=False)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_started = Column(DateTime(timezone=True), nullable=True)
+    gmt_finished = Column(DateTime(timezone=True), nullable=True)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class AgentTimelineEvent(Base):
+    __tablename__ = "agent_timeline_event"
+    __table_args__ = (
+        UniqueConstraint("turn_id", "sequence", name="uq_agent_timeline_event_turn_sequence"),
+        Index("idx_agent_timeline_event_turn_timestamp", "turn_id", "timestamp"),
+    )
+
+    id = Column(String(24), primary_key=True, default=lambda: "evt" + _random_id())
+    turn_id = Column(String(24), nullable=False, index=True)
+    sequence = Column(Integer, nullable=False)
+    timestamp = Column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
+    type = Column(String(128), nullable=False, index=True)
+    label = Column(String(128), nullable=True)
+    status = Column(String(64), nullable=True)
+    actor = Column(_enum_column(AgentEventActor), nullable=False, default=AgentEventActor.SYSTEM)
+    data = Column(JSON, default=lambda: {}, nullable=False)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class AgentArtifact(Base):
+    __tablename__ = "agent_artifact"
+    __table_args__ = (Index("idx_agent_artifact_turn_type", "turn_id", "artifact_type"),)
+
+    id = Column(String(24), primary_key=True, default=lambda: "art" + _random_id())
+    turn_id = Column(String(24), nullable=False, index=True)
+    artifact_type = Column(_enum_column(AgentArtifactType), nullable=False, index=True)
+    summary = Column(Text, nullable=True)
+    payload = Column(JSON, default=lambda: {}, nullable=False)
+    storage_ref = Column(Text, nullable=True)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)

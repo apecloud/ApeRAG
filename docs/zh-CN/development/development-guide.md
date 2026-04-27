@@ -64,7 +64,7 @@ make env-dev
 此命令将：
 *   如果尚未可用，则安装 `uv`
 *   创建 Python 3.11 虚拟环境（位于 `.venv/` 中）
-*   安装开发工具（redocly、openapi-generator-cli 等）
+*   安装后端依赖和仓库 git hooks
 *   为代码质量安装 pre-commit hooks
 *   安装 addlicense 工具进行许可证管理
 
@@ -162,17 +162,18 @@ docker volume ls | grep aperag
 ### Q: 🔧 如何添加或修改 REST API 端点？
 
 **完整工作流程：**
-1. 编辑 OpenAPI 规范：`aperag/api/paths/[endpoint-name].yaml`
-2. 重新生成后端模型：
+1. 使用 Python / Pydantic 定义 request / response model。
+2. 实现后端视图：`aperag/views/[module].py`
+3. 导出 code-first OpenAPI specs：
    ```bash
-   make api-generate-models  # 这会在内部运行 merge-openapi
+   make openapi-generate  # 写入 openapi.full.json 和 openapi.public.json
    ```
-3. 实现后端视图：`aperag/views/[module].py`
-4. 生成前端 TypeScript 客户端：
+4. 验证导出链路：
    ```bash
-   make api-generate-sdk  # 更新 frontend/src/api/
+   make openapi-check
    ```
-5. 测试 API：
+5. 前端 typed client 更新统一通过 FE v2 adapter 层推进。
+6. 测试 API：
    ```bash
    make test-all
    # ✅ 检查实时文档：http://localhost:8000/docs
@@ -203,12 +204,11 @@ docker volume ls | grep aperag
    - 后端逻辑：`aperag/[module]/`
    - 异步任务：`aperag/tasks/`
    - 数据库模型：`aperag/db/models.py`
-2. 更新 API 并生成代码：
+2. 更新 API 并验证 code-first contract：
    ```bash
    make db-revision      # 生成迁移文件
    make db-migrate           # 应用数据库更改
-   make api-generate-models   # 更新 Pydantic 模型
-   make api-generate-sdk  # 更新 TypeScript 客户端
+   make openapi-check         # 验证 FastAPI/Pydantic OpenAPI 导出
    ```
 3. 质量保证：
    ```bash
@@ -302,21 +302,6 @@ make test-all
    uv run pytest tests/path/to/fixed_test.py -v  # 验证修复
    ```
 
-### Q: 📊 如何运行 RAG 评估和分析？
-
-**评估工作流程：**
-```bash
-# 确保环境准备就绪
-make infra-up WITH_NEO4J=1  # 使用 Neo4j 获得更好的图性能
-make serve-api
-make serve-worker
-
-# 运行全面的 RAG 评估
-make evaluate               # 📊 运行 aperag.evaluation.run 模块
-
-# 📈 检查 tests/report/ 中的评估报告
-```
-
 ### Q: 📦 如何安全地更新依赖项？
 
 **Python 依赖项：**
@@ -333,7 +318,6 @@ make evaluate               # 📊 运行 aperag.evaluation.run 模块
    ```bash
    cd frontend && yarn install
    make serve-web      # 测试前端编译
-   make api-generate-sdk  # 确保 API 客户端仍然工作
    ```
 
 ### Q: 🚀 如何准备代码进行生产部署？
@@ -352,8 +336,7 @@ make evaluate               # 📊 运行 aperag.evaluation.run 模块
    ```
 3. API 一致性：
    ```bash
-   make api-generate-models         # 确保模型与 OpenAPI 规范匹配
-   make api-generate-sdk   # 更新前端客户端
+   make openapi-check       # 确保 code-first OpenAPI 可以导出
    ```
 4. 数据库迁移：
    ```bash

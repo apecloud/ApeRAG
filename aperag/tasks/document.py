@@ -56,7 +56,7 @@ class DocumentIndexTask:
 
     def _upsert_graph_index(self, document_id: str, collection, parsed_data: ParsedDocumentData) -> dict:
         """Index a document into the graphindex v2 graph store."""
-        from aperag.graphindex.integration import run_index_document_sync
+        from aperag.domains.knowledge_graph.graphindex.integration import run_index_document_sync
 
         res = run_index_document_sync(
             collection=collection,
@@ -75,7 +75,7 @@ class DocumentIndexTask:
 
     def _delete_graph_index(self, document_id: str, collection) -> None:
         """Delete a document's graph rows from graphindex v2."""
-        from aperag.graphindex.integration import run_delete_document_sync
+        from aperag.domains.knowledge_graph.graphindex.integration import run_delete_document_sync
 
         run_delete_document_sync(collection=collection, doc_id=document_id)
         self._expire_graph_curation_collection_best_effort(str(collection.id), "document_delete")
@@ -115,7 +115,7 @@ class DocumentIndexTask:
 
         try:
             if index_type == DocumentIndexType.VECTOR.value:
-                from aperag.index.vector_index import vector_indexer
+                from aperag.domains.indexing.vector_index import vector_indexer
 
                 result = vector_indexer.create_index(
                     document_id=document_id,
@@ -129,7 +129,7 @@ class DocumentIndexTask:
                 result_data = result.data or {"success": True}
 
             elif index_type == DocumentIndexType.FULLTEXT.value:
-                from aperag.index.fulltext_index import fulltext_indexer
+                from aperag.domains.indexing.fulltext_index import fulltext_indexer
 
                 if not fulltext_indexer.is_enabled(collection):
                     logger.info(f"Fulltext indexing disabled for document {document_id}")
@@ -147,7 +147,7 @@ class DocumentIndexTask:
                     result_data = result.data or {"success": True}
 
             elif index_type == DocumentIndexType.GRAPH.value:
-                from aperag.index.graph_index import graph_indexer
+                from aperag.domains.indexing.graph_index import graph_indexer
 
                 if not graph_indexer.is_enabled(collection):
                     logger.info(f"Graph indexing disabled for document {document_id}")
@@ -156,7 +156,7 @@ class DocumentIndexTask:
                     result_data = self._upsert_graph_index(document_id, collection, parsed_data)
 
             elif index_type == DocumentIndexType.SUMMARY.value:
-                from aperag.index.summary_index import summary_indexer
+                from aperag.domains.indexing.summary_index import summary_indexer
                 from aperag.schema.utils import parseCollectionConfig
 
                 # Check if summary is enabled in collection config
@@ -177,7 +177,7 @@ class DocumentIndexTask:
                     result_data = result.data or {"success": True}
 
             elif index_type == DocumentIndexType.VISION.value:
-                from aperag.index.vision_index import vision_indexer
+                from aperag.domains.indexing.vision_index import vision_indexer
 
                 if not vision_indexer.is_enabled(collection):
                     logger.info(f"Vision indexing disabled for document {document_id}")
@@ -227,34 +227,34 @@ class DocumentIndexTask:
 
         try:
             if index_type == DocumentIndexType.VECTOR.value:
-                from aperag.index.vector_index import vector_indexer
+                from aperag.domains.indexing.vector_index import vector_indexer
 
                 result = vector_indexer.delete_index(document_id, collection)
                 if not result.success:
                     raise Exception(result.error)
 
             elif index_type == DocumentIndexType.FULLTEXT.value:
-                from aperag.index.fulltext_index import fulltext_indexer
+                from aperag.domains.indexing.fulltext_index import fulltext_indexer
 
                 result = fulltext_indexer.delete_index(document_id, collection)
                 if not result.success:
                     raise Exception(result.error)
 
             elif index_type == DocumentIndexType.GRAPH.value:
-                from aperag.index.graph_index import graph_indexer
+                from aperag.domains.indexing.graph_index import graph_indexer
 
                 if graph_indexer.is_enabled(collection):
                     self._delete_graph_index(document_id, collection)
 
             elif index_type == DocumentIndexType.SUMMARY.value:
-                from aperag.index.summary_index import summary_indexer
+                from aperag.domains.indexing.summary_index import summary_indexer
 
                 result = summary_indexer.delete_index(document_id, collection)
                 if not result.success:
                     raise Exception(result.error)
 
             elif index_type == DocumentIndexType.VISION.value:
-                from aperag.index.vision_index import vision_indexer
+                from aperag.domains.indexing.vision_index import vision_indexer
 
                 result = vision_indexer.delete_index(document_id, collection)
                 if not result.success:
@@ -293,7 +293,7 @@ class DocumentIndexTask:
 
         try:
             if index_type == DocumentIndexType.VECTOR.value:
-                from aperag.index.vector_index import vector_indexer
+                from aperag.domains.indexing.vector_index import vector_indexer
 
                 result = vector_indexer.update_index(
                     document_id=document_id,
@@ -307,7 +307,7 @@ class DocumentIndexTask:
                 result_data = result.data or {"success": True}
 
             elif index_type == DocumentIndexType.FULLTEXT.value:
-                from aperag.index.fulltext_index import fulltext_indexer
+                from aperag.domains.indexing.fulltext_index import fulltext_indexer
 
                 if not fulltext_indexer.is_enabled(collection):
                     logger.info(f"Fulltext indexing disabled for document {document_id}")
@@ -325,7 +325,7 @@ class DocumentIndexTask:
                     result_data = result.data or {"success": True}
 
             elif index_type == DocumentIndexType.GRAPH.value:
-                from aperag.index.graph_index import graph_indexer
+                from aperag.domains.indexing.graph_index import graph_indexer
 
                 if not graph_indexer.is_enabled(collection):
                     logger.info(f"Graph indexing disabled for document {document_id}")
@@ -334,7 +334,7 @@ class DocumentIndexTask:
                     result_data = self._upsert_graph_index(document_id, collection, parsed_data)
 
             elif index_type == DocumentIndexType.SUMMARY.value:
-                from aperag.index.summary_index import summary_indexer
+                from aperag.domains.indexing.summary_index import summary_indexer
                 from aperag.schema.utils import parseCollectionConfig
 
                 # Check if summary is enabled in collection config
@@ -355,7 +355,7 @@ class DocumentIndexTask:
                     result_data = result.data or {"success": True}
 
             elif index_type == DocumentIndexType.VISION.value:
-                from aperag.index.vision_index import vision_indexer
+                from aperag.domains.indexing.vision_index import vision_indexer
 
                 if not vision_indexer.is_enabled(collection):
                     logger.info(f"Vision indexing disabled for document {document_id}")

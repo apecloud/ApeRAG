@@ -1,4 +1,4 @@
-import { ChatMessage } from '@/api';
+import type { ChatMessage } from '@/features/bot/types';
 import { Markdown } from '@/components/markdown';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import _ from 'lodash';
@@ -38,7 +38,7 @@ export const MessagePartAi = ({
     case 'thinking':
       return (
         <MessageCollapseContent title="Thinking" animate={loading}>
-          <Markdown>{part.data}</Markdown>
+          <Markdown>{part.data ?? ''}</Markdown>
         </MessageCollapseContent>
       );
     case 'tool_call_result':
@@ -49,7 +49,7 @@ export const MessagePartAi = ({
         </MessageCollapseContent>
       );
     case 'message':
-      return <Markdown>{part.data}</Markdown>;
+      return <Markdown>{part.data ?? ''}</Markdown>;
     case 'stop':
       return '';
     default:

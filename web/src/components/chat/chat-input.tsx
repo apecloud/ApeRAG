@@ -1,9 +1,11 @@
 import {
-  ChatDetails,
-  Collection,
-  ModelSpec,
-  UploadDocumentResponseStatusEnum,
-} from '@/api';
+  getChatDocument,
+  uploadChatDocument,
+} from '@/features/bot/client-api';
+import type { ChatDetails } from '@/features/bot/types';
+import type { Collection } from '@/features/collection/types';
+import type { UploadDocumentStatus } from '@/features/document/types';
+import type { ModelSpec } from '@/features/providers/types';
 import { PageContent } from '@/components/page-container';
 import { useBotContext } from '@/components/providers/bot-provider';
 import { Button } from '@/components/ui/button';
@@ -32,7 +34,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { apiClient } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { useInterval } from 'ahooks';
 import { motion } from 'framer-motion';
@@ -76,7 +77,7 @@ export type Attachment = {
   document_id?: string;
   filename?: string;
   size?: number;
-  status?: UploadDocumentResponseStatusEnum;
+  status?: UploadDocumentStatus;
 };
 
 export const ChatInput = ({
@@ -141,30 +142,27 @@ export const ChatInput = ({
           }
           return [...items];
         });
-        const res =
-          await apiClient.chatDocumentsApi.chatsChatIdDocumentsDocumentIdGet({
-            chatId,
-            documentId: attachment.document_id || '',
-          });
+        const res = await getChatDocument(
+          chatId,
+          attachment.document_id || '',
+        );
 
-        if (res.data) {
-          setAttachments((items) => {
-            const item = items.find((item) => item.id === attachment.id);
-            if (item) {
-              switch (res.data.status) {
-                case 'COMPLETE':
-                  item.progress_status = 'success';
-                  break;
-                case 'FAILED':
-                  item.progress_status = 'failed';
-                  break;
-                default:
-                  item.progress_status = 'indexing';
-              }
+        setAttachments((items) => {
+          const item = items.find((item) => item.id === attachment.id);
+          if (item) {
+            switch (res.status) {
+              case 'COMPLETE':
+                item.progress_status = 'success';
+                break;
+              case 'FAILED':
+                item.progress_status = 'failed';
+                break;
+              default:
+                item.progress_status = 'indexing';
             }
-            return [...items];
-          });
-        }
+          }
+          return [...items];
+        });
       }),
     );
   }, [attachments, chat.id]);
@@ -189,16 +187,12 @@ export const ChatInput = ({
           }
           return [...items];
         });
-        const res = await apiClient.chatDocumentsApi.chatsChatIdDocumentsPost({
-          chatId,
-          file,
-          messageId: '',
-        });
-        if (res.data.id) {
+        const res = await uploadChatDocument(chatId, file);
+        if (res.id) {
           setAttachments((items) => {
             const item = items.find((item) => item.id === attachment.id);
             if (item) {
-              item.document_id = res.data.id;
+              item.document_id = res.id ?? undefined;
               item.progress_status = 'uploaded';
             }
             return [...items];
@@ -308,7 +302,7 @@ export const ChatInput = ({
     providerModels?.forEach((provider) => {
       provider.models?.forEach((m) => {
         if (m.tags?.some((t) => t === 'default_for_agent_completion')) {
-          defaultModel = m.model;
+          defaultModel = m.model ?? undefined;
         }
         if (m.model === modelName) {
           includesCurrentModel = true;

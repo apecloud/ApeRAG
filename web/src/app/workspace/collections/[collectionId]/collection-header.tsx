@@ -1,5 +1,5 @@
 'use client';
-import { CollectionViewStatusEnum } from '@/api';
+import type { CollectionStatus } from '@/features/collection/types';
 import { FormatDate } from '@/components/format-date';
 import { PageContent } from '@/components/page-container';
 import { Button } from '@/components/ui/button';
@@ -23,7 +23,10 @@ import _ from 'lodash';
 import { useCollectionContext } from '@/components/providers/collection-provider';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { apiClient } from '@/lib/api/client';
+import {
+  publishCollectionSharing,
+  unpublishCollectionSharing,
+} from '@/features/collection/client-api';
 import { CollectionExport } from '@/components/collections/export-dialog';
 import {
   Calendar,
@@ -43,9 +46,7 @@ import { toast } from 'sonner';
 import { CollectionDelete } from './collection-delete';
 
 export const CollectionHeader = ({ className }: { className?: string }) => {
-  const badgeColor: {
-    [key in CollectionViewStatusEnum]: string;
-  } = {
+  const badgeColor: Record<CollectionStatus, string> = {
     ACTIVE: 'bg-green-700',
     INACTIVE: 'bg-red-500',
     DELETED: 'bg-gray-500',
@@ -53,14 +54,14 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
   const { collection, share, loadShare } = useCollectionContext();
   const pathname = usePathname();
   const page_collections = useTranslations('page_collections');
-  const page_benchmarks = useTranslations('page_benchmarks');
+  const page_evaluations = useTranslations('page_collection_evaluations');
   const page_documents = useTranslations('page_documents');
   const page_graph = useTranslations('page_graph');
 
   const urls = useMemo(() => {
     return {
       documents: `/workspace/collections/${collection.id}/documents`,
-      benchmarks: `/workspace/collections/${collection.id}/benchmarks`,
+      evaluations: `/workspace/collections/${collection.id}/evaluations`,
       search: `/workspace/collections/${collection.id}/search`,
       graph: `/workspace/collections/${collection.id}/graph`,
       settings: `/workspace/collections/${collection.id}/settings`,
@@ -73,14 +74,10 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
         return;
       }
       if (checked) {
-        await apiClient.defaultApi.collectionsCollectionIdSharingPost({
-          collectionId: collection?.id,
-        });
+        await publishCollectionSharing(collection.id);
         toast.success(page_collections('published_success'));
       } else {
-        await apiClient.defaultApi.collectionsCollectionIdSharingDelete({
-          collectionId: collection?.id,
-        });
+        await unpublishCollectionSharing(collection.id);
         toast.success(page_collections('unpublished_success'));
       }
       await loadShare();
@@ -206,14 +203,14 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
 
           <Button
             asChild
-            data-active={Boolean(pathname.match(urls.benchmarks))}
+            data-active={Boolean(pathname.match(urls.evaluations))}
             className="hover:border-b-primary data-[active=true]:border-b-primary h-10 rounded-none border-y-2 border-y-transparent px-1 has-[>svg]:px-2"
             variant="ghost"
           >
-            <Link href={urls.benchmarks}>
+            <Link href={urls.evaluations}>
               <FlaskConical />
               <span className="hidden sm:inline">
-                {page_benchmarks('metadata.title')}
+                {page_evaluations('metadata.title')}
               </span>
             </Link>
           </Button>

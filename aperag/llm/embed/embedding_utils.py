@@ -16,9 +16,8 @@
 # -*- coding: utf-8 -*-
 # import faulthandler
 import logging
-from typing import List
+from typing import List, Protocol
 
-from langchain_core.embeddings import Embeddings
 from llama_index.core.schema import BaseNode, TextNode
 
 from aperag.config import settings
@@ -33,10 +32,14 @@ logger = logging.getLogger(__name__)
 # faulthandler.enable()
 
 
+class EmbeddingModel(Protocol):
+    def embed_documents(self, texts: List[str]) -> List[List[float]]: ...
+
+
 def create_embeddings_and_store(
     parts: List[Part],
     vector_store_adaptor: VectorStoreConnectorAdaptor,
-    embedding_model: Embeddings,
+    embedding_model: EmbeddingModel,
     chunk_size: int = None,
     chunk_overlap: int = None,
     tokenizer=None,

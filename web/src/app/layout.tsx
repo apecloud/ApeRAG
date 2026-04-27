@@ -1,5 +1,5 @@
 import { Toaster } from '@/components/ui/sonner';
-import { getServerApi } from '@/lib/api/server';
+import { getCurrentUser } from '@/features/auth/server-api';
 import type { Metadata } from 'next';
 import { NextIntlClientProvider } from 'next-intl';
 import { Geist, Geist_Mono } from 'next/font/google';
@@ -44,13 +44,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  let user;
-  const apiServer = await getServerApi();
-  try {
-    const res = await apiServer.defaultApi.userGet();
-    user = res.data;
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  } catch (err) {}
+  const user = (await getCurrentUser()) ?? undefined;
 
   // Get current locale and convert to short HTML lang code (e.g., 'en-US' -> 'en')
   const locale = await getLocale();

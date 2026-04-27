@@ -380,8 +380,7 @@ ORDER BY ucs.gmt_subscribed DESC;
     - `gmt_deleted: Optional[datetime]`: 取消订阅时间（NULL表示活跃订阅）
 
 **4.1.2 新增视图模型 (aperag/schema/view_models.py):**
-> 在aperag/api/components/schemas/marketplace.yaml中定义
-> 注意需要用make api-generate-models和make api-generate-sdk生成前后端代码
+> 在 Python / Pydantic 中定义，并通过 `make openapi-check` 验证 code-first OpenAPI 导出。
 
 - **`SharedCollection`**: 共享的 Collection 信息（视图模型）
     - `id: str`: Collection ID
@@ -406,7 +405,7 @@ ORDER BY ucs.gmt_subscribed DESC;
 
 **4.1.4 OpenAPI Schema 组织:**
 
-所有新增的 model 定义将放置在 `aperag/api/components/schemas/marketplace.yaml` 文件中，现有 Collection model 的扩展将在 `aperag/api/components/schemas/collection.yaml` 中添加新字段。
+所有新增的 model 定义放在 Python / Pydantic schema 中，现有 Collection model 的扩展也在对应 Pydantic model 中添加新字段。
 
 #### 4.2. 服务层设计 (Business Logic)
 
@@ -1116,24 +1115,24 @@ const CollectionDetail: React.FC = () => {
     - [x] 验证新表创建成功，检查约束和索引是否正确建立
 
 - [x] **1.2. OpenAPI Schema 定义**
-    - [x] 创建 `aperag/api/components/schemas/marketplace.yaml`，定义以下视图模型：
+    - [x] 创建 Pydantic marketplace 视图模型：
         - `CollectionMarketplaceStatusEnum`
         - `SharedCollection` (共享Collection模型，用于市场浏览和订阅访问)
         - `SharedCollectionList` (共享Collection列表响应模型)
         - `SharingStatusResponse` (简洁的分享状态响应模型，包含is_published和published_at字段)
-    - [x] 创建 `aperag/api/paths/marketplace.yaml`，定义以下端点的完整规范：
+    - [x] 创建 FastAPI marketplace router，定义以下端点：
         - `GET /api/v1/marketplace/collections`：获取市场Collection列表
         - `GET /api/v1/marketplace/collections/subscriptions`：获取当前用户订阅的Collection列表
         - `POST /api/v1/marketplace/collections/{collection_id}/subscribe`：订阅Collection
         - `DELETE /api/v1/marketplace/collections/{collection_id}/subscribe`：取消订阅Collection
-    - [x] 修改 `aperag/api/paths/collections.yaml`，添加 sharing 相关端点：
+    - [x] 修改 FastAPI collections router，添加 sharing 相关端点：
         - `GET /api/v1/collections/{collection_id}/sharing`
         - `POST /api/v1/collections/{collection_id}/sharing`
         - `DELETE /api/v1/collections/{collection_id}/sharing`
 
-    - [x] 修改 `aperag/api/components/schemas/collection.yaml`，在 Collection schema 中添加 `is_published` 和 `published_at` 字段
-    - [x] 运行 `make api-generate-models` 生成更新后的 `aperag/schema/view_models.py`
-    - [x] 验证生成的 Pydantic 模型类型注解正确
+    - [x] 修改 Pydantic view model，在 Collection schema 中添加 `is_published` 和 `published_at` 字段
+    - [x] 运行 `make openapi-check` 验证 code-first OpenAPI 导出
+    - [x] 验证 Pydantic 模型类型注解正确
 
 - [x] **1.3. 服务层 - Marketplace Service**
     - [x] 创建 `aperag/service/marketplace_service.py` 文件和 MarketplaceService 类
@@ -1220,11 +1219,11 @@ const CollectionDetail: React.FC = () => {
         - 实现 `get_marketplace_collection_graph_view`: 知识图谱
         - 为每个端点添加订阅权限验证和异常错误处理
 
-- [x] **2.2. 前端 - 生成 SDK 与状态管理**
-    - [x] 运行 `make api-generate-sdk` 更新前端 API client
-    - [x] 验证 `frontend/src/api/` 目录中的新增内容：
-        - 检查 `apis/` 目录下是否生成了 marketplace 相关的 API 函数
-        - 检查 `models/` 目录下是否生成了新的 TypeScript 接口
+- [x] **2.2. 前端 - typed client 与状态管理**
+    - [x] 通过 FE typed client / feature adapter 接入 marketplace API
+    - [x] 验证前端 feature adapter 中的新增内容：
+        - 检查 marketplace 相关 API 函数
+        - 检查新的 TypeScript 接口
         - 验证现有 Collection 接口是否正确更新
     - [ ] 更新前端类型定义：
         - 修改 `frontend/src/models/collection.ts` 中的 Collection 接口

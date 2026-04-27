@@ -27,7 +27,10 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 
-import { AuditApiListAuditLogsRequest, AuditLog } from '@/api';
+import type {
+  AuditLog,
+  ListAuditLogsParams as AuditApiListAuditLogsRequest,
+} from '@/features/audit/types';
 
 import { DataGrid, DataGridPagination } from '@/components/data-grid';
 import { DateTimePicker24h } from '@/components/date-time-picker-24h';
