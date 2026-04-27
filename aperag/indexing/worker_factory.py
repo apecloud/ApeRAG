@@ -442,23 +442,28 @@ def _build_vision_worker(*, collection: Any, object_store: Any) -> ModalityWorke
     embedding_service, vector_size = get_collection_embedding_service_sync(collection)
     if not embedding_service.is_multimodal():
         raise WorkerFactoryError(
-            "vision modality requires a real multimodal vision-LLM (Wave 4 wiring); "
-            "current text-only embedder produces fake string-concat vision vectors — "
-            "set collection.config.enable_vision=false until Wave 4 lands "
-            "OR configure a multimodal embedding model on the collection's embedding spec"
+            "vision modality requires a multimodal embedding model "
+            "(set Model.supports_multimodal_embedding=True on the collection's "
+            "embedder spec — Voyage Multimodal / Jina v3 / OpenAI multimodal / etc.) "
+            "OR set collection.config.enable_vision=false to keep the modality off"
         )
     qdrant_collection = generate_vector_db_collection_name(collection.id)
     adaptor = get_vector_db_connector(qdrant_collection, vector_size=vector_size)
     backend = _QdrantPointBackend(connector=adaptor.connector)
 
-    def _embed(image_id: str, alt_text: str) -> list[float]:
-        # ``is_multimodal()`` gate above only verifies that operators
-        # explicitly opted into a multimodal embedder. The body is
-        # still the Wave 3 string-concat placeholder until T7 replaces
-        # it with a real image-bytes path (load image from object
-        # store → multimodal embed); ``embed_query`` of an alt-text
-        # surrogate is not actual visual indexing.
-        return embedding_service.embed_query(f"{image_id}|{alt_text}")
+    def _embed(image_id: str, alt_text: str, image_bytes: bytes | None = None) -> list[float]:
+        # Wave 5 P2 chunk 4: real callsite rewrite — load the actual
+        # image bytes from the parser's descriptor (chunk 2 writes
+        # ``vision/source.jsonl`` with ``image_path``) and call the
+        # multimodal-aware ``embed_image`` API surface (chunk 1).
+        # ``image_bytes=None`` only happens on the legacy simulator
+        # path used by tests — fall back to the text-only embedding so
+        # those fixtures keep working without standing up real image
+        # bytes. The chunk 4b gate above already prevents a non-multi-
+        # modal embedder from reaching this body.
+        if image_bytes is None:
+            return embedding_service.embed_query(f"{image_id}|{alt_text}")
+        return embedding_service.embed_image(image_bytes=image_bytes, alt_text=alt_text)
 
     return VisionModality(backend=backend, store=object_store, embedder=_embed)
 

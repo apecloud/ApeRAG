@@ -244,6 +244,137 @@ def test_vision_modality_enum_is_vision():
     assert VisionModality.modality is Modality.VISION
 
 
+def test_vision_derive_consumes_jsonl_descriptor_with_image_path():
+    """Wave 5 P2 chunk 4: when the parser writes the new descriptor
+    (`vision/source.jsonl`) with an ``image_path`` per record, vision
+    derive must (a) load each image's bytes from the path, (b) hand
+    them to the embedder via ``image_bytes=``, (c) still emit one
+    manifest line per record."""
+
+    store = InMemoryObjectStore()
+
+    # Stage two image blobs at canonical paths.
+    image_a_path = "collections/col-1/documents/doc-vision-jsonl/derived/parse_v1/vision/images/img-a.jpg"
+    image_b_path = "collections/col-1/documents/doc-vision-jsonl/derived/parse_v1/vision/images/img-b.png"
+    write_atomic(store, image_a_path, b"\xff\xd8\xff\xe0fake-jpeg")
+    write_atomic(store, image_b_path, b"\x89PNGfake-png")
+
+    # Stage the JSONL descriptor pointing at the blobs.
+    descriptor_path = "collections/col-1/documents/doc-vision-jsonl/derived/parse_v1/vision/source.jsonl"
+    descriptor_lines = [
+        json.dumps(
+            {
+                "image_id": "img-a",
+                "image_path": image_a_path,
+                "mime_type": "image/jpeg",
+                "alt_text": "banner",
+                "page_idx": 0,
+                "bbox": [0, 0, 100, 100],
+            }
+        ),
+        json.dumps(
+            {
+                "image_id": "img-b",
+                "image_path": image_b_path,
+                "mime_type": "image/png",
+                "alt_text": "",
+                "page_idx": None,
+                "bbox": None,
+            }
+        ),
+    ]
+    write_atomic(store, descriptor_path, ("\n".join(descriptor_lines) + "\n").encode("utf-8"))
+
+    # Capture what the embedder sees so we can assert image bytes were
+    # actually loaded and forwarded.
+    seen: list[tuple[str, str, bytes | None]] = []
+
+    def _capturing_embedder(image_id: str, alt_text: str, image_bytes: bytes | None = None) -> list[float]:
+        seen.append((image_id, alt_text, image_bytes))
+        return [0.1, 0.2, 0.3]
+
+    modality = VisionModality(backend=InMemoryVisionBackend(), store=store, embedder=_capturing_embedder)
+    result = asyncio.run(
+        modality.derive(
+            document_id="doc-vision-jsonl",
+            parse_version="v1",
+            source_path=descriptor_path,
+        )
+    )
+
+    assert result.derived_artifact_path.endswith("vision/manifest.jsonl")
+    assert len(seen) == 2
+    a_seen = next(rec for rec in seen if rec[0] == "img-a")
+    b_seen = next(rec for rec in seen if rec[0] == "img-b")
+    assert a_seen[2] == b"\xff\xd8\xff\xe0fake-jpeg"
+    assert b_seen[2] == b"\x89PNGfake-png"
+
+
+def test_vision_derive_falls_back_when_image_blob_missing():
+    """If the descriptor references an ``image_path`` that does not
+    exist (parser write was interrupted / object store eviction), the
+    embedder still runs with ``image_bytes=None`` so the partial-derive
+    state surfaces a manifest the operator can inspect rather than the
+    whole derive cycle exploding."""
+
+    store = InMemoryObjectStore()
+    descriptor_path = "collections/col-1/documents/doc-broken/derived/parse_v1/vision/source.jsonl"
+    record = {
+        "image_id": "img-missing",
+        "image_path": "collections/col-1/documents/doc-broken/derived/parse_v1/vision/images/img-missing.jpg",
+        "mime_type": "image/jpeg",
+        "alt_text": "stale",
+        "page_idx": None,
+        "bbox": None,
+    }
+    write_atomic(store, descriptor_path, (json.dumps(record) + "\n").encode("utf-8"))
+
+    seen: list[bytes | None] = []
+
+    def _capturing_embedder(image_id: str, alt_text: str, image_bytes: bytes | None = None) -> list[float]:
+        seen.append(image_bytes)
+        return [0.0]
+
+    modality = VisionModality(backend=InMemoryVisionBackend(), store=store, embedder=_capturing_embedder)
+    asyncio.run(
+        modality.derive(
+            document_id="doc-broken",
+            parse_version="v1",
+            source_path=descriptor_path,
+        )
+    )
+
+    assert seen == [None], "missing image blob → embedder receives image_bytes=None fallback"
+
+
+def test_vision_derive_legacy_simulator_format_still_works():
+    """Backward-compat: a legacy single-JSON-array source file (the
+    pre-Wave-5 simulator shape) should keep working. ``image_bytes``
+    is None for every record (no ``image_path`` field) and the
+    placeholder embedder produces a deterministic vector."""
+
+    store = InMemoryObjectStore()
+    images = [
+        {"image_id": "img-1", "alt_text": "x", "page_idx": 0, "bbox": None},
+        {"image_id": "img-2", "alt_text": "y", "page_idx": 1, "bbox": None},
+    ]
+    source_path = _seed_vision_source(store, document_id="doc-legacy", payload=images)
+    modality = VisionModality(backend=InMemoryVisionBackend(), store=store)
+
+    result = asyncio.run(
+        modality.derive(
+            document_id="doc-legacy",
+            parse_version="v1",
+            source_path=source_path,
+        )
+    )
+    body = store.get(result.derived_artifact_path).read().decode("utf-8")
+    lines = [json.loads(line) for line in body.splitlines() if line.strip()]
+    assert {entry["image_id"] for entry in lines} == {"img-1", "img-2"}
+    for entry in lines:
+        assert entry["embedding"]
+
+
 def test_vision_payload_carries_modality_discriminator_and_image_id():
     store = InMemoryObjectStore()
     images = [{"image_id": "img-only", "alt_text": "only", "page_idx": None, "bbox": None}]

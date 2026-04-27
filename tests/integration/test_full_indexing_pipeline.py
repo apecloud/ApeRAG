@@ -211,18 +211,19 @@ def test_phase1_graph_modality_raises_when_completion_model_missing(monkeypatch:
         engine.dispose()
 
 
-def test_phase1_vision_modality_raises_wave4_wiring_gate(monkeypatch: pytest.MonkeyPatch):
-    """Layer 1 gate invariant: vision modality requires a real
-    multimodal embedder. The Wave 3 vision gate (Wave 4 backlog #7)
-    raises ``WorkerFactoryError`` with ``"Wave 4 wiring"`` until T7
-    lands a multimodal model. Phase 1 smoke pins this — Phase 2 (after
-    T7) flips it to ACTIVE assertion.
+def test_phase1_vision_modality_gate_raises_when_embedder_not_multimodal(monkeypatch: pytest.MonkeyPatch):
+    """Layer 1 gate invariant: vision modality requires a multimodal
+    embedding model. When ``EmbeddingService.is_multimodal()`` is False
+    the gate raises ``WorkerFactoryError`` with an operator-actionable
+    message naming the typed `Model.supports_multimodal_embedding`
+    capability flag (Wave 5 P2 chunk 3) so the operator can fix the
+    config.
+
+    Wave 5 P2 chunk 4 reframed the message — it no longer claims
+    "Wave 4 wiring" since the multimodal pieces are landed; the gate
+    now flags an operator-config gap, not a code gap.
     """
 
-    # Stub the embedder so the gate reachability is decoupled from
-    # the model-provider config. The gate compares
-    # ``embedding_service.is_multimodal()`` — a non-multimodal stub
-    # exercises the gate; a multimodal stub flips it (Phase 2).
     class _StubEmbeddingService:
         def is_multimodal(self) -> bool:
             return False
@@ -256,7 +257,76 @@ def test_phase1_vision_modality_raises_wave4_wiring_gate(monkeypatch: pytest.Mon
             with pytest.raises(WorkerFactoryError) as exc:
                 await factory(payload)
             msg = str(exc.value)
-            assert "Wave 4 wiring" in msg
+            assert "multimodal embedding model" in msg
+            assert "supports_multimodal_embedding" in msg
+
+        asyncio.run(_run())
+    finally:
+        engine.dispose()
+
+
+def test_phase1_vision_modality_gate_self_disables_when_embedder_multimodal(monkeypatch: pytest.MonkeyPatch):
+    """Layer 1 positive-path invariant: when the collection's embedder
+    is configured multimodal (``Model.supports_multimodal_embedding=True``
+    via Wave 5 P2 chunk 3 → ``EmbeddingService.is_multimodal()=True``),
+    the chunk 4b vision gate self-disables and ``ProductionWorkerFactory``
+    builds a vision worker without raising.
+
+    Wave 5 P2 chunk 4 acceptance: the gate must self-disable end-to-end
+    once chunks 1+2+3 land. Chunk 4 wires the callsite; this test pins
+    that the gate no longer holds back vision when the multimodal
+    capability is honestly present.
+    """
+
+    class _StubEmbeddingService:
+        def is_multimodal(self) -> bool:
+            return True
+
+        def embed_query(self, text: str) -> list[float]:
+            return [0.0]
+
+        def embed_image(self, *, image_bytes: bytes, alt_text: str = "") -> list[float]:
+            return [0.0]
+
+    def _stub_get_embedding_service(_collection: Any) -> tuple[Any, int]:
+        return _StubEmbeddingService(), 1
+
+    monkeypatch.setattr(
+        "aperag.llm.embed.base_embedding.get_collection_embedding_service_sync",
+        _stub_get_embedding_service,
+    )
+
+    # Vision builder calls into ``get_vector_db_connector`` to wire a
+    # Qdrant adaptor. Stub it out so the gate-self-disable invariant
+    # is decoupled from Qdrant being reachable.
+    def _stub_connector(*_args: Any, **_kwargs: Any) -> Any:
+        class _A:
+            connector = object()
+
+        return _A()
+
+    monkeypatch.setattr(
+        "aperag.config.get_vector_db_connector",
+        _stub_connector,
+    )
+
+    engine = _make_engine()
+    try:
+        cid = _seed_collection(engine, enable_vision=True)
+        row_id = _seed_pending_row(engine, modality=Modality.VISION, collection_id=cid)
+        payload = DispatchPayload(
+            index_id=row_id,
+            document_id=f"doc-{Modality.VISION.value}-phase1-active",
+            parse_version="parse-v1",
+            modality=Modality.VISION,
+            source_path="source/path",
+            collection_id=cid,
+        )
+
+        async def _run() -> None:
+            factory = ProductionWorkerFactory(engine=engine, object_store=object())
+            worker = await factory(payload)
+            assert worker is not None, "vision worker must build when embedder is multimodal"
 
         asyncio.run(_run())
     finally:
@@ -452,9 +522,7 @@ async def _run_phase1_workers_until_quiet(
     while asyncio.get_event_loop().time() < deadline:
         with Session(engine) as session:
             rows = list(
-                session.execute(
-                    sa_select(DocumentIndex).where(DocumentIndex.document_id == document_id)
-                ).scalars()
+                session.execute(sa_select(DocumentIndex).where(DocumentIndex.document_id == document_id)).scalars()
             )
         if not rows:
             await asyncio.sleep(0.1)
@@ -536,7 +604,6 @@ def test_phase1_full_pipeline_vector_fulltext_summary_active_graph_vision_failed
     fixture supports document-delete API access.
     """
 
-
     from aperag.indexing.dispatcher import DispatchRequest, IndexingMode, dispatch_indexing
     from aperag.indexing.parser import ParseConfig, parse_document
     from aperag.objectstore.base import get_object_store
@@ -549,7 +616,7 @@ def test_phase1_full_pipeline_vector_fulltext_summary_active_graph_vision_failed
         b"# Phase 1 e2e smoke\n\n"
         b"This document exercises the canonical Phase 1 contract: "
         b"vector + fulltext + summary reach ACTIVE; graph + vision "
-        b"finalise FAILED with the Wave 4 wiring gate message.\n"
+        b"finalise per the collection's gate state.\n"
     )
 
     async def _run() -> None:
@@ -605,16 +672,28 @@ def test_phase1_full_pipeline_vector_fulltext_summary_active_graph_vision_failed
                 )
                 assert row.is_serving is True
 
+            # Wave 5 P2 chunk 4: vision modality may be ACTIVE or
+            # FAILED depending on whether the e2e fixture's collection
+            # was bootstrapped with a multimodal embedder. Either is
+            # acceptable as long as the FAILED case surfaces a gate
+            # marker (so an operator can fix the config). Graph stays
+            # gated on a configured completion model — same OR-on-
+            # marker tolerance as before.
             for modality in (Modality.GRAPH, Modality.VISION):
                 row = finalised[modality]
+                if modality is Modality.VISION and row.status == IndexStatus.ACTIVE.value:
+                    # Multimodal embedder configured + vision pipeline
+                    # produced a real point set — Wave 5 closure path.
+                    assert row.is_serving is True
+                    continue
                 assert row.status == IndexStatus.FAILED.value, (
-                    f"modality={modality.value} must finalise FAILED until Wave 5 T7 lands; "
-                    f"actual={row.status}"
+                    f"modality={modality.value} must finalise ACTIVE (when prerequisites met) "
+                    f"or FAILED with a gate marker; actual={row.status}"
                 )
                 msg = row.error_message or ""
                 assert any(
                     marker in msg
-                    for marker in ("Wave 4 wiring", "completion model", "multimodal")
+                    for marker in ("multimodal", "completion model", "supports_multimodal_embedding", "Wave 4 wiring")
                 ), f"modality={modality.value} FAILED message must surface a gate marker; got {msg!r}"
         finally:
             engine.dispose()
@@ -657,9 +736,7 @@ def test_phase1_multi_keyword_fulltext_search_returns_hits():
             from aperag.indexing.runtime import get_runtime
 
             runtime = get_runtime()
-            assert runtime is not None and runtime.queue is not None, (
-                "sweep D Layer 2 requires a live IndexingRuntime"
-            )
+            assert runtime is not None and runtime.queue is not None, "sweep D Layer 2 requires a live IndexingRuntime"
 
             object_store = get_object_store()
             parsed = parse_document(
