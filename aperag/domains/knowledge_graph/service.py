@@ -63,13 +63,30 @@ class GraphService:
 
         Empty list when the collection has not been indexed yet — that
         is the *correct* answer, not a cue to fall back to anything.
+
+        Wave 6 #40 narrow replacement (per architect ruling
+        msg=3efdf906): reads from the canonical
+        :class:`LineageGraphStore` Protocol via the worker_factory's
+        backend dispatch (mirroring ``retrieval/pipeline.py:_graph_search``
+        from #33 chunk 3). The legacy
+        ``GraphIndexService.list_labels`` callsite is retired here;
+        the legacy ``graphindex/`` package stays alive only for
+        ``get_knowledge_graph`` + ``merge_entities`` (deferred per
+        Option C).
         """
         db_collection = await self._get_and_validate_collection(user_id, collection_id)
 
-        from aperag.domains.knowledge_graph.graphindex.integration import make_service_for_collection
+        # Lazy import keeps service module free of indexing-layer
+        # dependencies at import time (consistent with
+        # ``retrieval/pipeline.py:_build_lineage_graph_store_for``).
+        from aperag.indexing.worker_factory import (
+            _build_lineage_graph_store,
+            _resolve_graph_backend_type,
+        )
 
-        svc = make_service_for_collection(db_collection)
-        labels = await svc.get_labels(collection_id=collection_id)
+        backend_type = _resolve_graph_backend_type(db_collection)
+        store = _build_lineage_graph_store(backend_type=backend_type, collection=db_collection)
+        labels = await store.list_entity_labels()
         return GraphLabelsResponse(labels=labels)
 
     # ============================================================= subgraph UI

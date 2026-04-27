@@ -1012,25 +1012,6 @@ class NebulaGraphStore:
 
         return await asyncio.to_thread(_do)
 
-    async def list_labels(self, collection_id: str) -> list[str]:
-        def _do() -> list[str]:
-            space = self._space(collection_id)
-            try:
-                result = self._execute(
-                    space,
-                    f"LOOKUP ON `{_ENTITY_TAG}` YIELD DISTINCT properties(vertex).type AS t",
-                )
-                types = set()
-                for i in range(result.row_size()):
-                    t = result.row_values(i)[0].as_string() if result.row_values(i)[0].is_string() else ""
-                    if t:
-                        types.add(t)
-                return sorted(types)
-            except Exception:
-                return []
-
-        return await asyncio.to_thread(_do)
-
     async def list_subgraph(
         self,
         collection_id: str,

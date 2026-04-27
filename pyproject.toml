@@ -78,6 +78,19 @@ dependencies = [
     "opentelemetry-instrumentation-sqlalchemy>=0.41b0",
     "pypdfium2>=4.30.0",
     "httpx-oauth>=0.16.1",
+    # Wave 6 #40: Neo4j + Nebula graph drivers were optional
+    # ``[graph-neo4j]`` / ``[graph-nebula]`` extras pre-Wave 6, but
+    # the api container's `uv sync` does not install optional groups,
+    # so the UI ``GET /collections/{id}/graphs/labels`` endpoint hits
+    # ``ImportError: No module named 'neo4j'`` on any Neo4j-backed
+    # collection (per @冬柏 e2e diagnosis). The graph store factories
+    # in ``aperag.indexing.worker_factory`` still lazy-import the
+    # client modules, so unused-backend deployments only pay the wheel
+    # download cost — operators who never set ``GRAPH_DB_TYPE`` to
+    # neo4j / nebula see zero runtime impact, but operators who do
+    # don't need to remember a deploy-time extras flag.
+    "neo4j>=5.0.0",
+    "nebula3-python>=3.0.0",
 ]
 name = "aperag"
 version = "0.1.0"

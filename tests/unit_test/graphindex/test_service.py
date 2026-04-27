@@ -36,7 +36,6 @@ class _StubStore:
         self.calls: list[tuple[str, tuple, dict]] = []
         self.find_result: list[Entity] = []
         self.expand_result: tuple[list[Entity], list[Relation]] = ([], [])
-        self.labels_result: list[str] = []
         self.subgraph_result = KnowledgeGraph(nodes=(), edges=(), is_truncated=False)
         self.delete_result: Optional[DeleteDocumentResult] = None
         # Normalization / merge surface.
@@ -85,10 +84,6 @@ class _StubStore:
             )
         )
         return self.expand_result
-
-    async def list_labels(self, collection_id):
-        self.calls.append(("list_labels", (collection_id,), {}))
-        return list(self.labels_result)
 
     async def list_subgraph(self, collection_id, label, max_depth, max_nodes):
         self.calls.append(("list_subgraph", (collection_id, label, max_depth, max_nodes), {}))
@@ -154,17 +149,6 @@ async def _null_llm(_prompt: str) -> str:
 # ---------------------------------------------------------------------------
 # read-path delegation
 # ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_get_labels_delegates_to_store():
-    store = _StubStore()
-    store.labels_result = ["person", "organization"]
-    svc = GraphIndexService(store=store, llm=_null_llm)
-
-    got = await svc.get_labels(collection_id="c")
-    assert got == ["person", "organization"]
-    assert ("list_labels", ("c",), {}) in store.calls
 
 
 @pytest.mark.asyncio

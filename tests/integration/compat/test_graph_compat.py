@@ -419,16 +419,13 @@ async def test_get_chunks_by_ids(store, collection_id):
     assert "Alice met Bob at Acme Labs." in texts, f"[{name}] chunk text not found"
 
 
-@pytest.mark.asyncio
-async def test_list_labels(store, collection_id):
-    """list_labels should return distinct entity types."""
-    name, s = store
-    graph = _graph_data(collection_id)
-    await s.upsert_chunks(collection_id, [graph.chunk_1])
-    await s.upsert_entities(collection_id, [graph.entity_alice, graph.entity_acme])
-    labels = await s.list_labels(collection_id)
-    assert "person" in labels, f"[{name}] 'person' label missing"
-    assert "organization" in labels, f"[{name}] 'organization' label missing"
+# ``test_list_labels`` removed in Wave 6 #40 narrow replacement —
+# the legacy ``GraphStore.list_labels`` was retired in favour of
+# ``LineageGraphStore.list_entity_labels`` (per architect ruling
+# msg=3efdf906). The new method is exercised by
+# ``tests/unit_test/indexing/test_lineage_query_protocol.py`` plus the
+# real-engine integration suites under
+# ``tests/integration/test_{neo4j,nebula}_lineage_graph_store.py``.
 
 
 @pytest.mark.asyncio
