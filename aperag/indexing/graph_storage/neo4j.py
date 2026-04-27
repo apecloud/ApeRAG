@@ -495,6 +495,130 @@ class Neo4jLineageGraphStore:
                 ),
             )
 
+    # -- LightRAG-style query layer (Wave 6 #33 chunk 2) --------------
+
+    async def query_entities_by_keyword(
+        self,
+        *,
+        query: str,
+        top_k: int,
+    ) -> list[EntityWithLineage]:
+        if not query or not query.strip() or top_k <= 0:
+            return []
+        # Cypher's CONTAINS is case-sensitive; we lowercase both sides
+        # to honour the Protocol contract of "case-insensitive lexical
+        # recall". Cypher 5.x has no built-in case-insensitive CONTAINS,
+        # so this is the canonical idiom.
+        cypher = (
+            f"MATCH (n:{_ENTITY_LABEL} {{collection_id: $collection_id}}) "
+            f"WHERE toLower(n.name) CONTAINS toLower($query) "
+            f"RETURN n.name AS name, n.type AS type, "
+            f"       n.source_lineage AS source_lineage, "
+            f"       n.description_parts AS description_parts "
+            f"ORDER BY n.name "
+            f"LIMIT $top_k"
+        )
+        async with self._session() as session:
+            result = await session.run(
+                cypher,
+                collection_id=self._collection_id,
+                query=query.strip(),
+                top_k=int(top_k),
+            )
+            return [
+                EntityWithLineage(
+                    name=rec["name"],
+                    type=rec["type"] or "",
+                    source_lineage=tuple(LineageMember.from_dict(json.loads(s)) for s in (rec["source_lineage"] or [])),
+                    description_parts=tuple(
+                        DescriptionPart.from_dict(json.loads(s)) for s in (rec["description_parts"] or [])
+                    ),
+                )
+                async for rec in result
+            ]
+
+    async def expand_neighbors_n_hops(
+        self,
+        *,
+        entity_names: list[str],
+        hops: int = 1,
+    ) -> tuple[list[EntityWithLineage], list[RelationWithLineage]]:
+        if not entity_names:
+            return ([], [])
+
+        seen_entities: dict[str, EntityWithLineage] = {}
+        seen_relations: dict[tuple[str, str, str], RelationWithLineage] = {}
+
+        async def _fetch_entities(session, names: list[str]) -> None:
+            if not names:
+                return
+            cypher = (
+                f"MATCH (n:{_ENTITY_LABEL} {{collection_id: $collection_id}}) "
+                f"WHERE n.name IN $names "
+                f"RETURN n.name AS name, n.type AS type, "
+                f"       n.source_lineage AS source_lineage, "
+                f"       n.description_parts AS description_parts"
+            )
+            result = await session.run(cypher, collection_id=self._collection_id, names=names)
+            async for rec in result:
+                if rec["name"] in seen_entities:
+                    continue
+                seen_entities[rec["name"]] = EntityWithLineage(
+                    name=rec["name"],
+                    type=rec["type"] or "",
+                    source_lineage=tuple(LineageMember.from_dict(json.loads(s)) for s in (rec["source_lineage"] or [])),
+                    description_parts=tuple(
+                        DescriptionPart.from_dict(json.loads(s)) for s in (rec["description_parts"] or [])
+                    ),
+                )
+
+        async def _fetch_relations_touching(session, names: list[str]) -> set[str]:
+            if not names:
+                return set()
+            cypher = (
+                f"MATCH (r:{_RELATION_LABEL} {{collection_id: $collection_id}}) "
+                f"WHERE r.source IN $names OR r.target IN $names "
+                f"RETURN r.source AS source, r.target AS target, r.type AS type, "
+                f"       r.evidence_lineage AS evidence_lineage, "
+                f"       r.description_parts AS description_parts"
+            )
+            result = await session.run(cypher, collection_id=self._collection_id, names=names)
+            next_frontier: set[str] = set()
+            async for rec in result:
+                key = (rec["source"], rec["target"], rec["type"])
+                if key not in seen_relations:
+                    seen_relations[key] = RelationWithLineage(
+                        source=rec["source"],
+                        target=rec["target"],
+                        type=rec["type"],
+                        evidence_lineage=tuple(
+                            LineageMember.from_dict(json.loads(s)) for s in (rec["evidence_lineage"] or [])
+                        ),
+                        description_parts=tuple(
+                            DescriptionPart.from_dict(json.loads(s)) for s in (rec["description_parts"] or [])
+                        ),
+                    )
+                for endpoint in (rec["source"], rec["target"]):
+                    if endpoint not in seen_entities and endpoint not in next_frontier:
+                        next_frontier.add(endpoint)
+            return next_frontier
+
+        async with self._session() as session:
+            current = [n for n in entity_names if n]
+            await _fetch_entities(session, current)
+
+            for _ in range(max(hops, 0)):
+                next_frontier = await _fetch_relations_touching(session, current)
+                if not next_frontier:
+                    break
+                next_list = list(next_frontier)
+                await _fetch_entities(session, next_list)
+                current = next_list
+
+        entities = sorted(seen_entities.values(), key=lambda e: e.name)
+        relations = sorted(seen_relations.values(), key=lambda r: (r.source, r.target, r.type))
+        return (entities, relations)
+
 
 __all__ = [
     "Neo4jLineageGraphStore",

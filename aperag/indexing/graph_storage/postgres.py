@@ -528,6 +528,133 @@ class PostgresLineageGraphStore:
                 description_parts=tuple(DescriptionPart.from_dict(part) for part in (row.description_parts or [])),
             )
 
+    # -- LightRAG-style query layer (Wave 6 #33 chunk 2) --------------
+
+    async def query_entities_by_keyword(
+        self,
+        *,
+        query: str,
+        top_k: int,
+    ) -> list[EntityWithLineage]:
+        if not query or not query.strip() or top_k <= 0:
+            return []
+        # ILIKE substring match — case-insensitive lexical recall.
+        # Backend-defined match semantics per Protocol contract.
+        like = f"%{query.strip()}%"
+        async with self._engine.connect() as conn:
+            result = await conn.execute(
+                select(
+                    _LineageEntityRow.name,
+                    _LineageEntityRow.type,
+                    _LineageEntityRow.source_lineage,
+                    _LineageEntityRow.description_parts,
+                )
+                .where(
+                    _LineageEntityRow.collection_id == self._collection_id,
+                    _LineageEntityRow.name.ilike(like),
+                )
+                .order_by(_LineageEntityRow.name)
+                .limit(top_k)
+            )
+            return [
+                EntityWithLineage(
+                    name=row.name,
+                    type=row.type,
+                    source_lineage=tuple(LineageMember.from_dict(elem) for elem in (row.source_lineage or [])),
+                    description_parts=tuple(DescriptionPart.from_dict(part) for part in (row.description_parts or [])),
+                )
+                for row in result
+            ]
+
+    async def expand_neighbors_n_hops(
+        self,
+        *,
+        entity_names: list[str],
+        hops: int = 1,
+    ) -> tuple[list[EntityWithLineage], list[RelationWithLineage]]:
+        if not entity_names:
+            return ([], [])
+
+        seen_entities: dict[str, EntityWithLineage] = {}
+        seen_relations: dict[tuple[str, str, str], RelationWithLineage] = {}
+
+        async def _fetch_entities(names: set[str]) -> None:
+            if not names:
+                return
+            result = await conn.execute(
+                select(
+                    _LineageEntityRow.name,
+                    _LineageEntityRow.type,
+                    _LineageEntityRow.source_lineage,
+                    _LineageEntityRow.description_parts,
+                ).where(
+                    _LineageEntityRow.collection_id == self._collection_id,
+                    _LineageEntityRow.name.in_(list(names)),
+                )
+            )
+            for row in result:
+                if row.name in seen_entities:
+                    continue
+                seen_entities[row.name] = EntityWithLineage(
+                    name=row.name,
+                    type=row.type,
+                    source_lineage=tuple(LineageMember.from_dict(elem) for elem in (row.source_lineage or [])),
+                    description_parts=tuple(DescriptionPart.from_dict(part) for part in (row.description_parts or [])),
+                )
+
+        async def _fetch_relations_touching(names: set[str]) -> set[str]:
+            """Fetch relations where source or target is in ``names``.
+            Returns the set of neighbour names (the OTHER endpoint not
+            already in ``names``) for the next-hop frontier."""
+            if not names:
+                return set()
+            result = await conn.execute(
+                select(
+                    _LineageRelationRow.source,
+                    _LineageRelationRow.target,
+                    _LineageRelationRow.type,
+                    _LineageRelationRow.evidence_lineage,
+                    _LineageRelationRow.description_parts,
+                ).where(
+                    _LineageRelationRow.collection_id == self._collection_id,
+                    (_LineageRelationRow.source.in_(list(names))) | (_LineageRelationRow.target.in_(list(names))),
+                )
+            )
+            next_frontier: set[str] = set()
+            for row in result:
+                key = (row.source, row.target, row.type)
+                if key not in seen_relations:
+                    seen_relations[key] = RelationWithLineage(
+                        source=row.source,
+                        target=row.target,
+                        type=row.type,
+                        evidence_lineage=tuple(LineageMember.from_dict(elem) for elem in (row.evidence_lineage or [])),
+                        description_parts=tuple(
+                            DescriptionPart.from_dict(part) for part in (row.description_parts or [])
+                        ),
+                    )
+                for endpoint in (row.source, row.target):
+                    if endpoint not in seen_entities and endpoint not in next_frontier:
+                        next_frontier.add(endpoint)
+            return next_frontier
+
+        async with self._engine.connect() as conn:
+            current = {n for n in entity_names if n}
+            await _fetch_entities(current)
+
+            for _ in range(max(hops, 0)):
+                next_frontier = await _fetch_relations_touching(current)
+                if not next_frontier:
+                    break
+                await _fetch_entities(next_frontier)
+                # next iteration's seeds are the new neighbours so we
+                # don't re-walk relations from the previous frontier.
+                current = next_frontier
+
+        entities = sorted(seen_entities.values(), key=lambda e: e.name)
+        relations = sorted(seen_relations.values(), key=lambda r: (r.source, r.target, r.type))
+        return (entities, relations)
+
 
 __all__ = [
     "ENTITY_TABLE",
