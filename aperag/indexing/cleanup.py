@@ -84,6 +84,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Awaitable, Callable, Mapping, Optional
 
@@ -92,6 +93,7 @@ from sqlalchemy.orm import Session
 
 from aperag.indexing.base import ModalityWorker
 from aperag.indexing.models import DocumentIndex, Modality
+from aperag.indexing.worker_factory import WorkerFactoryError
 
 logger = logging.getLogger(__name__)
 
@@ -164,45 +166,92 @@ def _is_graph_worker(worker: ModalityWorker) -> bool:
     return getattr(worker, "modality", None) is Modality.GRAPH
 
 
+@dataclass(frozen=True)
+class CleanupWorkerResolution:
+    """Wave 5 P4 T2 — outcome of :func:`_resolve_cleanup_worker`.
+
+    Distinguishes the two failure modes that pre-Wave-5 collapsed into
+    a single ``None`` return:
+
+    * **intentional gate** (``worker is None`` AND ``transient is False``)
+      — :class:`WorkerFactoryError` raised because the modality is
+      Wave-N-gated by design (graph extractor not wired / vision
+      multimodal not configured), the operator deliberately disabled
+      the modality via ``collection.config``, or the row's modality
+      string is unknown. The cleanup loop should drop the DB row so
+      the index does not grow unboundedly while the gate is active.
+
+    * **transient infrastructure error** (``worker is None`` AND
+      ``transient is True``) — DB connection blip / Qdrant
+      unreachable / ES unhealthy / Redis network glitch. The cleanup
+      loop must NOT drop the DB row — the next cycle (5 min later)
+      retries automatically once the backend recovers. Pre-Wave-5
+      this collapsed into the gate path and silently lost the retry
+      signal.
+
+    * **resolved worker** (``worker is not None``, ``transient ignored``)
+      — happy path; caller proceeds with backend cleanup.
+    """
+
+    worker: Optional[ModalityWorker]
+    transient: bool
+
+
 async def _resolve_cleanup_worker(
     *,
     workers: Optional[Mapping[Modality, ModalityWorker]],
     worker_factory: Optional[WorkerFactoryForRow],
     row: DocumentIndex,
-) -> Optional[ModalityWorker]:
+) -> CleanupWorkerResolution:
     """Resolve the cleanup worker for a row from factory or static map.
 
-    Wave 4 T2: production wires the factory (per-(collection, modality)
-    lazy materialisation); tests typically pass a pre-built ``workers``
-    mapping. When both are provided the factory wins — production
-    deployments override the legacy mapping with the per-row factory.
+    Wave 4 T2 + Wave 5 P4 (transient-vs-intentional split): production
+    wires the factory (per-(collection, modality) lazy materialisation);
+    tests typically pass a pre-built ``workers`` mapping. When both
+    are provided the factory wins — production deployments override
+    the legacy mapping with the per-row factory.
 
-    Returns ``None`` when neither source can supply a worker; the
-    caller logs + counts the row as ``backend_skipped``. A factory
-    that raises :class:`WorkerFactoryError` (Wave 4 vision multimodal
-    gate / partial config) also returns ``None`` so the cleanup cycle
-    drops the DB row even when the backend is unreachable, matching
-    the existing "skip backend, drop row" semantics.
+    Returns a :class:`CleanupWorkerResolution`:
+
+    * ``worker is not None``: backend cleanup proceeds.
+    * ``worker is None, transient=False``: intentional gate / unknown
+      modality / no source — caller drops DB row.
+    * ``worker is None, transient=True``: transient infrastructure
+      error — caller skips DB row drop so next cycle retries.
+
+    Pre-Wave-5 this returned ``None`` for both failure modes,
+    causing transient errors to silently lose their retry signal.
     """
     if worker_factory is not None:
         try:
-            return await worker_factory(row)
-        except Exception as exc:  # noqa: BLE001 — surface via log, count as skip
+            return CleanupWorkerResolution(worker=await worker_factory(row), transient=False)
+        except WorkerFactoryError as exc:
             logger.warning(
-                "cleanup worker_factory failed modality=%s row id=%d collection=%s: %s — counting as backend_skipped",
+                "cleanup worker_factory gate raised modality=%s row id=%d collection=%s: %s — "
+                "counting as backend_skipped (intentional gate, dropping DB row)",
                 row.modality,
                 row.id,
                 row.collection_id,
                 exc,
             )
-            return None
+            return CleanupWorkerResolution(worker=None, transient=False)
+        except Exception as exc:  # noqa: BLE001 — transient infra error, retry next cycle
+            logger.warning(
+                "cleanup worker_factory transient failure modality=%s row id=%d collection=%s: %s — "
+                "skipping DB row drop, will retry next cycle",
+                row.modality,
+                row.id,
+                row.collection_id,
+                exc,
+            )
+            return CleanupWorkerResolution(worker=None, transient=True)
     if workers is None:
-        return None
+        return CleanupWorkerResolution(worker=None, transient=False)
     try:
         modality = Modality(row.modality)
     except ValueError:
-        return None
-    return workers.get(modality)
+        return CleanupWorkerResolution(worker=None, transient=False)
+    return CleanupWorkerResolution(worker=workers.get(modality), transient=False)
 
 
 # ---------------------------------------------------------------------
@@ -301,6 +350,7 @@ async def cleanup_orphan_parse_versions(
         "rows_deleted": 0,
         "graph_noop": 0,
         "backend_skipped": 0,
+        "transient_deferred": 0,
     }
 
     delete_ids: list[int] = []
@@ -315,11 +365,18 @@ async def cleanup_orphan_parse_versions(
             )
             continue
 
-        worker = await _resolve_cleanup_worker(
+        resolution = await _resolve_cleanup_worker(
             workers=workers,
             worker_factory=worker_factory,
             row=row,
         )
+        if resolution.transient:
+            # Wave 5 P4: transient infra error — skip both backend
+            # delete AND DB row drop so the next cleanup cycle (5 min
+            # later) retries automatically once the backend recovers.
+            counts["transient_deferred"] += 1
+            continue
+        worker = resolution.worker
         if worker is None:
             logger.warning(
                 "cleanup no worker registered for modality=%s row id=%d — skipping backend delete",
@@ -424,6 +481,7 @@ async def cleanup_for_deleted_documents(
         "graph_lineage_cleaned": 0,
         "rows_deleted": 0,
         "backend_skipped": 0,
+        "transient_deferred": 0,
     }
 
     # Per-document, per-modality dedup so graph lineage cleanup runs
@@ -444,11 +502,18 @@ async def cleanup_for_deleted_documents(
             )
             continue
 
-        worker = await _resolve_cleanup_worker(
+        resolution = await _resolve_cleanup_worker(
             workers=workers,
             worker_factory=worker_factory,
             row=row,
         )
+        if resolution.transient:
+            # Wave 5 P4: transient infra error — skip backend delete
+            # AND DB row drop so the caller can retry on a later cycle
+            # / re-invocation once the backend recovers.
+            counts["transient_deferred"] += 1
+            continue
+        worker = resolution.worker
         if worker is None:
             logger.warning(
                 "cleanup no worker for modality=%s row id=%d document=%s — skipping backend",
@@ -623,6 +688,7 @@ async def cleanup_for_deleted_collections(
         "graph_lineage_cleaned": 0,
         "rows_deleted": 0,
         "backend_skipped": 0,
+        "transient_deferred": 0,
         "collections_cleaned": 0,
     }
     if not collection_ids:
@@ -641,7 +707,13 @@ async def cleanup_for_deleted_collections(
             worker_factory=worker_factory,
             document_ids=document_ids,
         )
-        for key in ("backend_deleted", "graph_lineage_cleaned", "rows_deleted", "backend_skipped"):
+        for key in (
+            "backend_deleted",
+            "graph_lineage_cleaned",
+            "rows_deleted",
+            "backend_skipped",
+            "transient_deferred",
+        ):
             counts[key] += sub_counts[key]
 
     # Sweep any rows that path B did not catch (no document_id match

@@ -329,6 +329,29 @@ def _document_md5(source_bytes: bytes) -> str:
     return hashlib.md5(source_bytes).hexdigest()
 
 
+def _all_artifacts_present(
+    *,
+    store: _SyncObjectStore,
+    markdown_path: str,
+    outline_path: str,
+    chunks_path: str,
+) -> bool:
+    """Wave 5 P4 short-circuit predicate: all three canonical
+    derived artifacts must exist for the cached parse to be valid.
+
+    Uses ``ObjectStore.obj_exists`` (cheap metadata check) rather
+    than ``read_or_none`` so the predicate stays cost-bounded for
+    every parse call. ``chunks.jsonl`` is checked last because it is
+    the only artifact downstream modality workers actually read; if
+    it is missing the previous parse was interrupted mid-write and
+    re-parsing is required regardless.
+    """
+    try:
+        return store.obj_exists(markdown_path) and store.obj_exists(outline_path) and store.obj_exists(chunks_path)
+    except Exception:  # noqa: BLE001 — predicate fails closed (re-parse)
+        return False
+
+
 def _docparser_extract_markdown(
     *,
     source_bytes: bytes,
@@ -398,6 +421,7 @@ def parse_document(
     source_filename: str | None = None,
     parser_config: dict[str, Any] | None = None,
     config: ParseConfig | None = None,
+    short_circuit_if_artifacts_exist: bool = True,
 ) -> ParseResult:
     """Parse the source bytes and persist the three shared artifacts.
 
@@ -405,6 +429,16 @@ def parse_document(
     identical inputs produces identical artifacts (and overwrites
     them atomically). The artifact paths are the canonical
     ``derived/parse_<version>/`` layout per design pack §C.1.
+
+    Wave 5 P4 short-circuit: when ``short_circuit_if_artifacts_exist``
+    is True (default) and all three derived artifacts (``markdown.md``
+    / ``outline.json`` / ``chunks.jsonl``) already exist in the object
+    store under the canonical ``derived/parse_<version>/`` path, the
+    parser **skips DocParser + writes entirely** and returns the
+    existing :class:`ParseResult`. This eliminates the ~30s OCR / Word
+    rerun cost when a document is re-uploaded with identical content
+    or a rebuild is dispatched against an already-parsed version
+    (per huangheng T3 chunk 2 obs B + architect Wave 5 P4 lock).
 
     Dispatch (Wave 4 T3 chunk 1):
     - ``source_filename`` ends in a known text extension (``.md`` /
@@ -433,6 +467,12 @@ def parse_document(
             to the real parser chain. Ignored on the simulator path.
         config: Parsing knobs that influence the parse_version. Pass
             ``None`` to use simulator defaults.
+        short_circuit_if_artifacts_exist: When True (default), reuse
+            existing canonical artifacts if all three are already in
+            the object store under the resolved
+            ``derived/parse_<version>/`` path. Pass ``False`` to force
+            a re-parse + re-write (used by tests pinning DocParser
+            invocation count).
     """
     from aperag.mcp.tools.parse_version import compute_parse_version
 
@@ -445,6 +485,45 @@ def parse_document(
         document_md5=document_md5,
         chunking_config=cfg.chunking.serialize(),
     )
+
+    markdown_path = derived_artifact(
+        collection_id=collection_id,
+        document_id=document_id,
+        parse_version=parse_version,
+        filename="markdown.md",
+    )
+    outline_path = derived_artifact(
+        collection_id=collection_id,
+        document_id=document_id,
+        parse_version=parse_version,
+        filename="outline.json",
+    )
+    chunks_path = derived_artifact(
+        collection_id=collection_id,
+        document_id=document_id,
+        parse_version=parse_version,
+        filename="chunks.jsonl",
+    )
+
+    if short_circuit_if_artifacts_exist and _all_artifacts_present(
+        store=store,
+        markdown_path=markdown_path,
+        outline_path=outline_path,
+        chunks_path=chunks_path,
+    ):
+        logger.info(
+            "indexing parser short-circuit collection=%s document=%s parse_version=%s "
+            "(all derived artifacts already present; skipping DocParser + writes)",
+            collection_id,
+            document_id,
+            parse_version,
+        )
+        return ParseResult(
+            parse_version=parse_version,
+            markdown_path=markdown_path,
+            outline_path=outline_path,
+            chunks_path=chunks_path,
+        )
 
     if extension is None or extension in _SIMULATOR_EXTENSIONS:
         try:
@@ -469,25 +548,6 @@ def parse_document(
 
     outline = _build_outline(markdown)
     chunks = _split_chunks(markdown, cfg.chunking)
-
-    markdown_path = derived_artifact(
-        collection_id=collection_id,
-        document_id=document_id,
-        parse_version=parse_version,
-        filename="markdown.md",
-    )
-    outline_path = derived_artifact(
-        collection_id=collection_id,
-        document_id=document_id,
-        parse_version=parse_version,
-        filename="outline.json",
-    )
-    chunks_path = derived_artifact(
-        collection_id=collection_id,
-        document_id=document_id,
-        parse_version=parse_version,
-        filename="chunks.jsonl",
-    )
 
     write_atomic(store, markdown_path, markdown.encode("utf-8"))
     write_atomic(
