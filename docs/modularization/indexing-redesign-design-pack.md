@@ -1701,13 +1701,13 @@ per chunk 4d+4e ratify msg=c279a0ff + sweep D Layer 2 stub (`4d36c7fb`):
 
 5 commits in same phase batch (Bryce ownership per Wave 4 chunk 4 / T1 / T8 expertise):
 
-1. **T1 graph extractor per-collection config tunability** (per huangheng T1 obs A): `collection.config.knowledge_graph_config.{per_chunk_timeout, max_entities_per_chunk, max_relations_per_chunk}` per-collection override
-2. **chunk 4b `_no_op_extractor` identity check → attribute marker** (per huangheng chunk 4b obs B): `getattr(extractor, 'is_no_op', False)` more robust pattern
-3. **W5-perf-graph-lineage parallel-list O(N) alternative encoding** for high-cardinality entities (>10k docs/entity, per architect msg=39a74026)
-4. **W5-neo4j-label-namespace prefix `aperag_LineageEntity` / `aperag_LineageRelation`** to avoid user-namespace collision
-5. **W5-cypher-type-keyword rename `n.type` property** (Cypher `TYPE()` keyword shadow); cross-backend rename also in Postgres/Nebula
+1. **T1 graph extractor per-collection config tunability** (per huangheng T1 obs A): `collection.config.knowledge_graph_config.{per_chunk_timeout, max_entities_per_chunk, max_relations_per_chunk}` per-collection override — **shipped `f5e454ed`**
+2. ~~chunk 4b `_no_op_extractor` identity check → attribute marker~~ — **N/A: resolved by Wave 4 T1 land**. The placeholder was deleted when `build_collection_graph_extractor` replaced `_no_op_extractor` (see commit `19d3d70f`); there is no surviving identity-check site to harden, so this item is moot in current code.
+3. ~~W5-perf-graph-lineage parallel-list O(N) alternative encoding~~ — **deferred to Wave 6**. Cross-backend perf rewrite touches Postgres / Nebula schema (Postgres switching from JSONB-array-of-objects to parallel `text[]` columns; Nebula re-modelling tags) plus alembic migration. High-cardinality (>10k docs/entity) is not a Wave 5 acceptance criterion — defer to dedicated perf wave once observed in real deployments.
+4. **W5-neo4j-label-namespace prefix `aperag_LineageEntity` / `aperag_LineageRelation`** to avoid user-namespace collision — **shipped `42b5fa6a`** (Neo4j-only constant + comment rename, no schema migration needed since Wave 4 default-gated graph indexing meant no production data on legacy labels).
+5. ~~W5-cypher-type-keyword rename `n.type` property~~ — **deferred to Wave 6**. Although `TYPE(n)` is a Cypher built-in for relationships not nodes (so node-property `n.type` is technically unambiguous), a forward-compat rename across all 3 backends (Postgres column rename + alembic migration + Cypher property rename + Nebula tag-prop rename + `EntityRecord.type` / `RelationRecord.type` Protocol surface) is non-trivial. Keep current naming until Wave 6 dedicated cross-backend rename batch.
 
-**fully-resolves**: §K.8 Wave 5 backlog items 5 + 12 (其中 12 fold 进 PR-A T7 multimodal 实施 if applicable)
+**fully-resolves**: §K.8 P5A items 1 + 4 (items 2 / 3 / 5 redirected as noted)
 
 #### Phase 5B (post-Phase-4, chenyexuan batch) — P2 batch infra + cleanup polish
 
@@ -1801,6 +1801,25 @@ PM (燧木) 决定。架构师建议参考 D10 模式：
    - ``tests/unit_test/graphindex/test_nebula_store.py``
    - ``tests/integration/compat/test_graph_compat.py``
 5. **Final grep-zero verify**: post-Wave-6, ``aperag/`` 全树无 ``from aperag.domains.knowledge_graph.graphindex`` import
+
+**Cross-backend lineage polish folded from Wave 5 P5A** (per Wave 5 P5A close-out
+2026-04-27):
+
+6. **W5-perf-graph-lineage parallel-list O(N) cross-backend** — Postgres
+   switches the JSONB-array-of-objects to parallel ``text[]`` columns
+   (matching Neo4j parallel-list encoding); Nebula re-models tags to
+   parallel-list semantics; alembic migration for the column-shape
+   change. Trigger when a deployment observes >10k docs/entity (per
+   architect msg=39a74026 high-cardinality threshold).
+7. **W5-cypher-type-keyword cross-backend rename** — rename
+   ``EntityRecord.type`` / ``RelationRecord.type`` (and
+   ``EntityWithLineage`` / ``RelationWithLineage``) to ``entity_type`` /
+   ``relation_type`` across the §D.3 Protocol; Postgres column rename via
+   alembic; Cypher ``n.type`` / ``r.type`` rewrite; Nebula tag-prop
+   rename. Forward-compat hygiene (Cypher ``TYPE(r)`` is for relationships
+   only so current code is technically unambiguous, but Protocol-surface
+   rename frees future use of ``TYPE`` as a true Cypher keyword without
+   ambiguity).
 
 **production-readiness 三类 layer**:
 - must-be-real: 新 LightRAG-style query layer ships behavior-equivalent retrieval (existing graph search results within ε tolerance)
