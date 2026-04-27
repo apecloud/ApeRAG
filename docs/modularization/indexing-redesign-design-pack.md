@@ -1620,27 +1620,33 @@ v2 把 v1 的 7 个细粒度 PR 收成 **3 个 wave**（≈3 个大 PR）。每�
 
 **5-phase commit roadmap (16 acceptance items)**:
 
-#### Phase 1 (sequential first) — Legacy graphindex package 整体淘汰
+#### Phase 1 (narrowed scope per architect ruling 2026-04-27 post-cascade scope check) — `aperag/indexing/llm.py` relocate + import re-route
 
-- delete `aperag/domains/knowledge_graph/graphindex/{storage, service, integration, engine, __init__}.py`（per chunk 4d Option C ruling msg=b26f64b2 + §K.8 deferral）
-- migrate retrieval/curation 调用 → §G.5 read primitives:
-  - `aperag/domains/retrieval/pipeline.py:85` `make_service_for_collection`
-  - `aperag/domains/knowledge_graph/service.py:69+` graph CRUD
-  - `aperag/graph_curation/service.py:37` + `integration.py:21`
-  - `aperag/indexing/worker_factory.py:696` `build_collection_llm_callable`
-- relocate `build_collection_llm_callable` + `render_extraction_prompt` → 新 `aperag/indexing/llm.py`
-- delete tests: `tests/unit_test/graphindex/test_connector.py` / `test_nebula_store.py` / `tests/integration/compat/test_graph_compat.py`
+**Scope evolution** (per Bryce scope reality check msg=30c7e994 + architect ruling Option (a) adoption msg-post-2026-04-27-18:10):
 
-**production-readiness 三类 layer**:
-- must-be-real: §G.5 read primitives 真 wire retrieval/curation flow（not stubs）
-- may-be-gated: 无 (full hard-cut)
-- fully-resolves: §K.8 Wave 5 backlog item 1 (legacy graphindex elimination) + item 3 (`aperag/indexing/llm.py` relocate)
+The original Phase 1 scope (delete legacy ``graphindex/{storage, service, integration, engine, __init__}.py`` + migrate retrieval/curation callers to §G.5 read primitives) collided with an unresolved design gap: legacy ``GraphIndexService.query_context()`` is a 24-method LightRAG-style query API, while the new ``LineageGraphStore`` Protocol exposes only 4 read methods (``find_entity_ids_with_lineage`` / ``find_relation_keys_with_lineage`` / ``get_entity`` / ``get_relation``) bound to ``(document_id, parse_version)`` lineage scans + single-key fetches. There is no by-keyword / by-semantic / by-graph-traversal API surface on the new pipeline yet — that is itself a 1-2 week design + implementation effort (build LightRAG-style query layer on ``LineageGraphStore`` with vector recall + traversal).
+
+Per architect Option (a) ruling: **Phase 1 narrowed to relocate-only scope**. Full legacy ``graphindex`` package elimination and retrieval/curation cascade migration are deferred to **Wave 6** as a coordinated cross-cutting refactor PR alongside the new query layer design.
+
+**Phase 1 actual scope (Wave 5 chunks 1+2 already shipped)**:
+
+- relocate ``build_collection_llm_callable`` + ``render_extraction_prompt`` + ``ENTITY_RELATION_EXTRACTION`` template + ``LLMCall`` type alias → new ``aperag/indexing/llm.py`` (Wave 5 PR commit ``11113acb``)
+- legacy ``graphindex/integration.py`` and ``graphindex/prompts.py`` keep deprecation-shim re-exports during the Wave 6 deprecation window so legacy retrieval/curation callers do not break mid-Wave-5
+- migrate ``aperag/indexing/graph_extractor.py`` import to new location (Wave 5 PR commit ``11113acb``)
+- migrate ``aperag/service/prompt_template_service.py`` ``get_default_prompt(prompt_type="graph")`` import to new location (Wave 5 PR commit ``e0707165``)
+
+**production-readiness 三类 layer (revised)**:
+- must-be-real: ``aperag.indexing.llm`` is the canonical home for the relocated helpers; Wave 4 indexing pipeline (``graph_extractor`` + ``worker_factory`` chunk 4b graph dispatch) imports from new location, no transitive legacy dependency
+- may-be-gated: legacy ``graphindex/{integration,prompts}.py`` re-export shims are intentional Wave 6 deprecation-window devices, not gated defaults
+- fully-resolves: §K.8 Wave 5 backlog item 3 (``aperag/indexing/llm.py`` relocate). Wave 5 backlog item 1 (legacy graphindex package elimination) **deferred to Wave 6** — see §K.10.
+
+**Wave 6 entry condition** (per architect Option (a) ruling): a separate Wave 6 PR covers the legacy graphindex retrieval-side query layer migration. Phase 1 narrowed scope avoids the Wave 3 lesson #10 anti-pattern (silent regression by forcing a 1-week design refactor into a high-throughput PR) and follows the chunk 4d Option C precedent (narrowed scope + Wave N+1 cross-cutting refactor batch).
 
 **pre-check pattern** (per `feedback_spec_lock_grep_verify_caller.md` Pattern 1):
-- grep `from aperag.domains.knowledge_graph.graphindex` 全验 caller cascade migration completeness
-- grep-zero verify post-migration: `aperag/indexing/*` 不 import legacy graphindex (chunk 4d invariant maintained)
+- ``grep -rn "from aperag.domains.knowledge_graph.graphindex" aperag/indexing/`` → 0 matches (chunk 4d invariant maintained ✅)
+- legacy callers (``retrieval/pipeline.py`` / ``knowledge_graph/service.py`` / ``graph_curation/*``) **intentionally** still import from legacy modules pending Wave 6 migration
 
-**architect direct ratify scope**: caller migration completeness verify (post-Phase-1 grep-zero check); `aperag/indexing/llm.py` API surface align Wave 4 import path expectations。
+**architect direct ratify scope**: chunk 1 (``11113acb``) ratified ✅; chunk 2 (``e0707165``) huangheng pass-1 ✅. No further Phase 1 architect direct ratify gate needed in Wave 5 — the cascade chunks (3-7) move to Wave 6 with their own architect ratify lane (cascade caller migration spec + completeness verify).
 
 #### Phase 2 (post-Phase-1) — T7 multimodal vision-LLM 3-item bundle
 
@@ -1771,6 +1777,41 @@ PM (燧木) 决定。架构师建议参考 D10 模式：
 - 架构师 (符炫炜) — design canon、wave scope、line-by-line review、跨 modality 对齐
 - 单 modality 写手（5 人 × Wave 1 一人一个 modality + Wave 2 worker / reconciler 等）
 - Bryce — graph modality（最复杂的那个，且修 nebula append bug）+ idempotency 自测把关
+
+### K.10. Wave 6 — Legacy graphindex elimination + retrieval/curation migration（per architect Option (a) ruling 2026-04-27 + Wave 5 Phase 1 scope-narrow handoff）
+
+**目标**: 完成 Wave 5 Phase 1 narrowed scope 推迟的 legacy ``graphindex`` package 整体淘汰 + retrieval/curation flows 迁移。这是 cross-cutting refactor，与 Wave 5 single-PR 风格不同 — 需先设计新查询层 (LightRAG-style query layer on ``LineageGraphStore``)，再 cascade migrate 调用方。
+
+**Wave 6 acceptance items** (per Wave 5 §K.9 scope-narrow handoff):
+
+1. **Design + implement LightRAG-style query layer** on ``LineageGraphStore`` Protocol:
+   - by-keyword entity / relation lookup
+   - vector-recall augmented retrieval (复用 §G.5 retrieval pipeline 的 vector connector)
+   - graph traversal API (1-hop neighbors, multi-hop expansion)
+   - query result types align with retrieval pipeline expectations
+2. **Migrate legacy ``graphindex`` callers to new query layer**:
+   - ``aperag/domains/retrieval/pipeline.py:_fulltext_search`` etc. — 用新 query API 替 ``GraphIndexService.query_context()``
+   - ``aperag/domains/knowledge_graph/service.py`` graph CRUD — 用新 LineageGraphStore find/get methods
+   - ``aperag/graph_curation/service.py`` + ``integration.py`` + ``candidate_generation.py`` — 用新 query API + Entity DTO relocation
+3. **Delete legacy package**:
+   - ``aperag/domains/knowledge_graph/graphindex/{storage, service, integration, engine, __init__}.py``
+   - ``graphindex/{config, dto, prompts, models}.py`` (DTOs may relocate to canonical home)
+4. **Delete legacy tests**:
+   - ``tests/unit_test/graphindex/test_connector.py``
+   - ``tests/unit_test/graphindex/test_nebula_store.py``
+   - ``tests/integration/compat/test_graph_compat.py``
+5. **Final grep-zero verify**: post-Wave-6, ``aperag/`` 全树无 ``from aperag.domains.knowledge_graph.graphindex`` import
+
+**production-readiness 三类 layer**:
+- must-be-real: 新 LightRAG-style query layer ships behavior-equivalent retrieval (existing graph search results within ε tolerance)
+- may-be-gated: 无 (full hard-cut)
+- fully-resolves: §K.8 Wave 5 backlog item 1 deferred (legacy graphindex elimination) + supplementary cascade items
+
+**effort estimate**: 1-2 weeks single-implementer or 0.5-1 week 2-implementer parallel (query layer design + migration + test rewrite + e2e behavior preservation verify)。
+
+**architect direct ratify lane**: full Wave 6 — query layer Protocol design + migration completeness verify + behavior-preservation validation against retrieval / curation existing behaviors。
+
+**why Wave 6 separate PR (not Wave 5 fold)**: Wave 5 PR (#1733) targets 16 polish items in single-PR fast-landing style. Wave 6 cross-cutting refactor needs (a) new design work upstream, (b) careful behavior validation against existing retrieval flows, (c) phased migration to avoid silent regression. Bundling into Wave 5 risked Wave 3 lesson #10 anti-pattern (rushed cross-cutting refactor in high-throughput PR → silent broken paths). Wave 6 separate PR with its own architect ratify lane is the disciplined path.
 
 ---
 
