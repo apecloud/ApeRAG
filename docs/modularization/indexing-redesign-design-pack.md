@@ -1112,15 +1112,24 @@ T7 wiring requires three coordinated pieces beyond what chunk 4 ships:
    set `is_multimodal=True` on the collection's embedder spec. The
    capability flag is the source of truth for the chunk 4b gate.
 
-Per architect msg=87e2b187 chunk 4d Option C ruling, T7 wiring closes
-items 1+3 in Wave 4 (gate self-disables + API surface + provider
-flag) and defers item 2 to Wave 5 alongside the parser canonical
-schema unification (per huangheng T1 obs B). Until item 2 lands, T7
-ships the embedder API surface + gate behaviour but the actual
-``vision/images/<image_id>.<ext>`` reads gracefully fallback to
-alt_text-based embedding (which is still NOT a faithful visual
-embedding — operators see a clean ``error_message`` in the
-DocumentIndex row noting the parser-side gap).
+Per architect msg=87e2b187 chunk 4d Option C ruling + Bryce
+honest-scope clarification msg=bad51f10: T7 in PR #1731 is **doc-
+only** — this §G.2.5.1 spec amendment locks the wiring contract
+across all three pieces, but **none of items 1 / 2 / 3 ship code
+in Wave 4**. The three pieces are tightly coupled (multimodal API
+surface needs a provider flag to be useful + a parser branch to
+have any image bytes to embed); splitting them across PRs risks the
+Wave 3 lesson #10 broken-pattern (e.g., ship API surface with no
+caller, ship provider flag with no API surface, etc.). The whole
+T7 implementation defers to a single Wave 5 PR that bundles all
+three.
+
+Wave 4 close-out invariant: the chunk 4b vision gate stays
+effective. Operators that opt into vision without a multimodal
+embedder configured see a clean ``WorkerFactoryError`` with the
+"Wave 4 wiring" message — which after T7 doc-only ships still
+points at the same actionable status: configure a multimodal
+embedder OR set ``enable_vision=false``.
 
 ### G.3. Deriver / syncer interfaces (Python)
 
