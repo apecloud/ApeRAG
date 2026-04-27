@@ -65,7 +65,7 @@ jobs:
         if: failure()
         run: |
           docker compose -f docker-compose.yml ps || true
-          docker compose -f docker-compose.yml logs --no-color api celeryworker celerybeat postgres redis qdrant es || true
+          docker compose -f docker-compose.yml logs --no-color api postgres redis qdrant es || true
 
       - name: Stop Compose stack
         if: always()
@@ -170,7 +170,7 @@ jobs:
         if: failure()
         run: |
           docker compose -f docker-compose.yml ps || true
-          docker compose -f docker-compose.yml logs --no-color api celeryworker celerybeat postgres redis qdrant es || true
+          docker compose -f docker-compose.yml logs --no-color api postgres redis qdrant es || true
 
       - name: Stop Compose stack
         if: always()

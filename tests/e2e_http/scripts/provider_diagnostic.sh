@@ -60,7 +60,7 @@ echo "[provider_diagnostic] capturing to ${DIAG_DIR}"
   echo "RUNNER_OS=${RUNNER_OS:-<local>}"
 } 2>&1 | _redact > "${DIAG_DIR}/compose-ps.txt" || true
 
-for svc in api celeryworker celerybeat postgres redis qdrant es; do
+for svc in api postgres redis qdrant es; do
   out="${DIAG_DIR}/compose-logs-${svc}.txt"
   # --tail=4000 keeps the bundle small even for long-running workers while
   # still covering the failing hurl request window (~1-2s).
