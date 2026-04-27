@@ -143,6 +143,13 @@ _SCHEMA_VISIBILITY_ERROR_FRAGMENTS = (
     "TagNotFound",
     "EdgeNotFound",
     "SpaceNotFound",
+    # Storage-side variant (text spelling differs from metad's): the
+    # storaged process emits ``Storage Error: Tag not found`` /
+    # ``Edge not found`` while metad emits the camelCased forms above.
+    # Wave 4 chunk 4c surfaced this on rapid space-drop/recreate
+    # cycles (cross-backend contract fixture's per-test SPACE setup).
+    "Tag not found",
+    "Edge not found",
 )
 
 
