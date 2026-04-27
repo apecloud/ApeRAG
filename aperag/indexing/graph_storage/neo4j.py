@@ -509,9 +509,15 @@ class Neo4jLineageGraphStore:
         # to honour the Protocol contract of "case-insensitive lexical
         # recall". Cypher 5.x has no built-in case-insensitive CONTAINS,
         # so this is the canonical idiom.
+        # The Cypher bind variable is named ``$keyword`` (NOT ``$query``)
+        # because ``AsyncSession.run`` reserves the kwarg ``query`` for
+        # the Cypher string itself; passing ``query=...`` as a parameter
+        # raises ``TypeError: AsyncSession.run() got multiple values for
+        # argument 'query'``. Renaming the bind avoids the clash without
+        # changing the Protocol method signature.
         cypher = (
             f"MATCH (n:{_ENTITY_LABEL} {{collection_id: $collection_id}}) "
-            f"WHERE toLower(n.name) CONTAINS toLower($query) "
+            f"WHERE toLower(n.name) CONTAINS toLower($keyword) "
             f"RETURN n.name AS name, n.entity_type AS entity_type, "
             f"       n.source_lineage AS source_lineage, "
             f"       n.description_parts AS description_parts "
@@ -522,7 +528,7 @@ class Neo4jLineageGraphStore:
             result = await session.run(
                 cypher,
                 collection_id=self._collection_id,
-                query=query.strip(),
+                keyword=query.strip(),
                 top_k=int(top_k),
             )
             return [
