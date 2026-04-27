@@ -1012,6 +1012,17 @@ sync(chunks.jsonl, document_id, parse_version, es) →
 
 Note: vector and fulltext can **share `chunks.jsonl`**. The difference is just which fields ES consumes vs Qdrant consumes. This collapses duplicate chunking logic.
 
+##### G.2.2.1. Fulltext backend dispatch（Wave 4 T9 amendment, architect msg=eba26fc2）
+
+`collection.config.fulltext_backend_type` is a `Literal["elasticsearch", "opensearch"]` field (default `"elasticsearch"`) wired through `worker_factory._build_fulltext_backend(backend_type, index_name)`. The two backends share the same `_ElasticsearchFulltextBackend` adapter because OpenSearch (forked from Elasticsearch 7.10) preserves wire-compatible HTTP API for `index` / `bulk` / `delete_by_query`. Only the client-construction step differs:
+
+| Backend | Driver | Client kwargs |
+|---|---|---|
+| `elasticsearch` | `elasticsearch` (always available) | `Elasticsearch(host, basic_auth=(user, pass), request_timeout=N)` |
+| `opensearch` | `opensearchpy` (lazy import — `WorkerFactoryError` if missing, points at `fulltext-opensearch` extra) | `OpenSearch(hosts=[host], http_auth=(user, pass), timeout=N)` |
+
+**Single `ES_HOST` env var serves both backends** — operators run one fulltext cluster per deployment. When choosing OpenSearch, configure `ES_HOST` to the OpenSearch endpoint (e.g. `https://opensearch.internal:9200`) — the adapter does not introspect server-side identity, only wire protocol. New backends (Solr / Typesense / MeiliSearch) plug in via the same dispatch by extending `_VALID_FULLTEXT_BACKENDS` + adding a `_build_*_client` helper.
+
 #### G.2.3. Graph modality
 
 ```
