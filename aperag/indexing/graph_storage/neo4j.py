@@ -44,7 +44,6 @@ two-table schema exactly):
 
     (:LineageRelation {
         collection_id, source, target, type,
-        description,                     -- legacy column, chunk 4 audit candidate (per architect msg=95179f2a Design point 3)
         evidence_lineage,
         evidence_lineage_doc_ids,
         evidence_lineage_parse_versions,
@@ -53,6 +52,13 @@ two-table schema exactly):
         description_parts_parse_versions,
         gmt_created, gmt_updated
     })
+
+Wave 4 chunk 4 dropped the legacy ``description`` property — the
+per-document fragments in ``description_parts`` are the canonical
+source. The standalone overwritten-on-every-upsert ``description``
+property had no consumer on the §D.3 / §G.5 read path
+(``RelationWithLineage`` does not expose it), so dropping it
+cross-backend keeps "ORM 100% mirror" with the Postgres adapter.
 
 Rationale for parallel lists: Cypher list comprehensions can filter by
 index (``[i IN range(0, size(L)-1) WHERE L[i] <> $key]``) but a list of
@@ -386,7 +392,6 @@ class Neo4jLineageGraphStore:
             f"MERGE (r:{_RELATION_LABEL} "
             f"  {{collection_id: $collection_id, source: $source, target: $target, type: $type}}) "
             f"ON CREATE SET "
-            f"  r.description = '', "
             f"  r.evidence_lineage = [], "
             f"  r.evidence_lineage_doc_ids = [], "
             f"  r.evidence_lineage_parse_versions = [], "
@@ -401,8 +406,7 @@ class Neo4jLineageGraphStore:
             f"  [i IN range(0, size(r.description_parts_doc_ids) - 1) "
             f"   WHERE NOT (r.description_parts_doc_ids[i] = $document_id "
             f"              AND r.description_parts_parse_versions[i] = $parse_version)] AS dp_keep "
-            f"SET r.description = $description, "
-            f"    r.evidence_lineage = [i IN el_keep | r.evidence_lineage[i]] + [$member_json], "
+            f"SET r.evidence_lineage = [i IN el_keep | r.evidence_lineage[i]] + [$member_json], "
             f"    r.evidence_lineage_doc_ids = "
             f"      [i IN el_keep | r.evidence_lineage_doc_ids[i]] + [$document_id], "
             f"    r.evidence_lineage_parse_versions = "
@@ -421,7 +425,6 @@ class Neo4jLineageGraphStore:
                 source=record.source,
                 target=record.target,
                 type=record.type,
-                description=record.description,
                 document_id=lineage.document_id,
                 parse_version=lineage.parse_version,
                 member_json=member_json,

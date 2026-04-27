@@ -56,14 +56,12 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any
 
 from sqlalchemy import (
     Column,
     DateTime,
+    Index,
     String,
-    Text,
-    UniqueConstraint,
     select,
     text,
 )
@@ -99,11 +97,20 @@ RELATION_TABLE = "aperag_lineage_relation"
 
 class _LineageEntityRow(_LineageGraphBase):
     __tablename__ = ENTITY_TABLE
-    __table_args__ = (UniqueConstraint("collection_id", "name", name="uq_lineage_entity_collection_name"),)
+    # The ``(collection_id, name)`` composite primary key already
+    # enforces uniqueness; the upsert SQL uses the column-list
+    # ``ON CONFLICT (collection_id, name)`` form so no separate
+    # named UniqueConstraint is required. The GIN index accelerates
+    # the JSONB ``@>`` containment scan in
+    # ``find_entity_ids_with_lineage`` against multi-tenant tables.
+    __table_args__ = (
+        Index(
+            "idx_lineage_entity_source_lineage_gin",
+            "source_lineage",
+            postgresql_using="gin",
+        ),
+    )
 
-    # composite primary key kept on the UniqueConstraint above so
-    # SQLAlchemy can issue UPSERTs (PostgreSQL ON CONFLICT requires a
-    # named constraint or a column list).
     collection_id = Column(String(64), primary_key=True)
     name = Column(String(512), primary_key=True)
     type = Column(String(64), nullable=False)
@@ -116,12 +123,10 @@ class _LineageEntityRow(_LineageGraphBase):
 class _LineageRelationRow(_LineageGraphBase):
     __tablename__ = RELATION_TABLE
     __table_args__ = (
-        UniqueConstraint(
-            "collection_id",
-            "source",
-            "target",
-            "type",
-            name="uq_lineage_relation_collection_triple",
+        Index(
+            "idx_lineage_relation_evidence_lineage_gin",
+            "evidence_lineage",
+            postgresql_using="gin",
         ),
     )
 
@@ -129,7 +134,10 @@ class _LineageRelationRow(_LineageGraphBase):
     source = Column(String(512), primary_key=True)
     target = Column(String(512), primary_key=True)
     type = Column(String(64), primary_key=True)
-    description = Column(Text, nullable=False, server_default="")
+    # Wave 4 chunk 4 dropped the legacy ``description`` Text column —
+    # the per-document fragments in ``description_parts`` are the
+    # canonical source. ``RelationWithLineage`` does not expose a
+    # standalone ``description`` field so the column had no consumer.
     evidence_lineage = Column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
     description_parts = Column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
@@ -190,12 +198,18 @@ class PostgresLineageGraphStore:
         # JSONB containment ``@>`` matches when the right side is a
         # subset of the left; we wrap the document_id object in a
         # one-element array so the operator scans the lineage SET.
+        # ``CAST(:document_id AS TEXT)`` makes the asyncpg adapter
+        # infer the parameter type — without the cast asyncpg sees
+        # an indeterminate datatype because the parameter sits inside
+        # ``jsonb_build_object`` (which accepts ``ANY``).
         sql = text(
             f"""
             SELECT name
             FROM {ENTITY_TABLE}
             WHERE collection_id = :collection_id
-              AND source_lineage @> jsonb_build_array(jsonb_build_object('document_id', :document_id))
+              AND source_lineage @> jsonb_build_array(
+                    jsonb_build_object('document_id', CAST(:document_id AS TEXT))
+                  )
             """
         )
         async with self._engine.connect() as conn:
@@ -208,7 +222,9 @@ class PostgresLineageGraphStore:
             SELECT source, target, type
             FROM {RELATION_TABLE}
             WHERE collection_id = :collection_id
-              AND evidence_lineage @> jsonb_build_array(jsonb_build_object('document_id', :document_id))
+              AND evidence_lineage @> jsonb_build_array(
+                    jsonb_build_object('document_id', CAST(:document_id AS TEXT))
+                  )
             """
         )
         async with self._engine.connect() as conn:
@@ -341,7 +357,7 @@ class PostgresLineageGraphStore:
                 jsonb_build_array(CAST(:part_json AS jsonb)),
                 NOW(), NOW()
             )
-            ON CONFLICT ON CONSTRAINT uq_lineage_entity_collection_name DO UPDATE
+            ON CONFLICT (collection_id, name) DO UPDATE
             SET type = EXCLUDED.type,
                 source_lineage = (
                     -- strip any existing element with the same
@@ -390,19 +406,17 @@ class PostgresLineageGraphStore:
             f"""
             INSERT INTO {RELATION_TABLE} (
                 collection_id, source, target, type,
-                description, evidence_lineage, description_parts,
+                evidence_lineage, description_parts,
                 gmt_created, gmt_updated
             )
             VALUES (
                 :collection_id, :source, :target, :type,
-                :description,
                 jsonb_build_array(CAST(:member_json AS jsonb)),
                 jsonb_build_array(CAST(:part_json AS jsonb)),
                 NOW(), NOW()
             )
-            ON CONFLICT ON CONSTRAINT uq_lineage_relation_collection_triple DO UPDATE
-            SET description = EXCLUDED.description,
-                evidence_lineage = (
+            ON CONFLICT (collection_id, source, target, type) DO UPDATE
+            SET evidence_lineage = (
                     COALESCE(
                         (SELECT jsonb_agg(elem) FROM jsonb_array_elements({RELATION_TABLE}.evidence_lineage) elem
                          WHERE NOT (elem->>'document_id' = :document_id AND elem->>'parse_version' = :parse_version)),
@@ -427,7 +441,6 @@ class PostgresLineageGraphStore:
                     "source": record.source,
                     "target": record.target,
                     "type": record.type,
-                    "description": record.description,
                     "document_id": lineage.document_id,
                     "parse_version": lineage.parse_version,
                     "member_json": member_json,
@@ -440,7 +453,12 @@ class PostgresLineageGraphStore:
     async def get_entity(self, entity_name: str) -> EntityWithLineage | None:
         async with self._engine.connect() as conn:
             result = await conn.execute(
-                select(_LineageEntityRow).where(
+                select(
+                    _LineageEntityRow.name,
+                    _LineageEntityRow.type,
+                    _LineageEntityRow.source_lineage,
+                    _LineageEntityRow.description_parts,
+                ).where(
                     _LineageEntityRow.collection_id == self._collection_id,
                     _LineageEntityRow.name == entity_name,
                 )
@@ -448,13 +466,23 @@ class PostgresLineageGraphStore:
             row = result.first()
             if row is None:
                 return None
-            mapping = row._mapping
-            return _row_to_entity_with_lineage(mapping)
+            return EntityWithLineage(
+                name=row.name,
+                type=row.type,
+                source_lineage=tuple(LineageMember.from_dict(elem) for elem in (row.source_lineage or [])),
+                description_parts=tuple(DescriptionPart.from_dict(part) for part in (row.description_parts or [])),
+            )
 
     async def get_relation(self, source: str, target: str, type: str) -> RelationWithLineage | None:
         async with self._engine.connect() as conn:
             result = await conn.execute(
-                select(_LineageRelationRow).where(
+                select(
+                    _LineageRelationRow.source,
+                    _LineageRelationRow.target,
+                    _LineageRelationRow.type,
+                    _LineageRelationRow.evidence_lineage,
+                    _LineageRelationRow.description_parts,
+                ).where(
                     _LineageRelationRow.collection_id == self._collection_id,
                     _LineageRelationRow.source == source,
                     _LineageRelationRow.target == target,
@@ -464,37 +492,13 @@ class PostgresLineageGraphStore:
             row = result.first()
             if row is None:
                 return None
-            mapping = row._mapping
-            return _row_to_relation_with_lineage(mapping)
-
-
-# ---------------------------------------------------------------------
-# Row → dataclass materialisation. Centralised so the JSONB shape
-# decisions live in one place.
-# ---------------------------------------------------------------------
-
-
-def _row_to_entity_with_lineage(row: Any) -> EntityWithLineage:
-    raw_lineage = row[_LineageEntityRow.source_lineage] or []
-    raw_parts = row[_LineageEntityRow.description_parts] or []
-    return EntityWithLineage(
-        name=row[_LineageEntityRow.name],
-        type=row[_LineageEntityRow.type],
-        source_lineage=tuple(LineageMember.from_dict(elem) for elem in raw_lineage),
-        description_parts=tuple(DescriptionPart.from_dict(part) for part in raw_parts),
-    )
-
-
-def _row_to_relation_with_lineage(row: Any) -> RelationWithLineage:
-    raw_lineage = row[_LineageRelationRow.evidence_lineage] or []
-    raw_parts = row[_LineageRelationRow.description_parts] or []
-    return RelationWithLineage(
-        source=row[_LineageRelationRow.source],
-        target=row[_LineageRelationRow.target],
-        type=row[_LineageRelationRow.type],
-        evidence_lineage=tuple(LineageMember.from_dict(elem) for elem in raw_lineage),
-        description_parts=tuple(DescriptionPart.from_dict(part) for part in raw_parts),
-    )
+            return RelationWithLineage(
+                source=row.source,
+                target=row.target,
+                type=row.type,
+                evidence_lineage=tuple(LineageMember.from_dict(elem) for elem in (row.evidence_lineage or [])),
+                description_parts=tuple(DescriptionPart.from_dict(part) for part in (row.description_parts or [])),
+            )
 
 
 __all__ = [

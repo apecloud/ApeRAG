@@ -347,7 +347,6 @@ class NebulaLineageGraphStore:
                 f"gmt_created datetime, gmt_updated datetime)",
                 f"CREATE TAG IF NOT EXISTS `{_RELATION_TAG}`("
                 f"source string, target string, type string, "
-                f"description string, "
                 f"evidence_lineage_json string, description_parts_json string, "
                 f"gmt_created datetime, gmt_updated datetime)",
                 f"CREATE TAG INDEX IF NOT EXISTS `idx_{_ENTITY_TAG}_name` ON `{_ENTITY_TAG}`(name(256))",
@@ -403,22 +402,20 @@ class NebulaLineageGraphStore:
 
     def _read_relation_lineage(
         self, source: str, target: str, type: str
-    ) -> tuple[str, list[LineageMember], list[DescriptionPart]] | None:
+    ) -> tuple[list[LineageMember], list[DescriptionPart]] | None:
         vid = _relation_vid(source, target, type)
         stmt = (
             f'FETCH PROP ON `{_RELATION_TAG}` "{_escape_str(vid)}" '
-            f"YIELD `{_RELATION_TAG}`.description AS description, "
-            f"`{_RELATION_TAG}`.evidence_lineage_json AS el, "
+            f"YIELD `{_RELATION_TAG}`.evidence_lineage_json AS el, "
             f"`{_RELATION_TAG}`.description_parts_json AS dp"
         )
         result = self._execute_with_schema_retry(self._space, stmt)
         if result.row_size() == 0:
             return None
         row = result.row_values(0)
-        description = row[0].as_string() if row[0].is_string() else ""
-        el_raw = row[1].as_string() if row[1].is_string() else ""
-        dp_raw = row[2].as_string() if row[2].is_string() else ""
-        return description, _members_from_json(el_raw), _parts_from_json(dp_raw)
+        el_raw = row[0].as_string() if row[0].is_string() else ""
+        dp_raw = row[1].as_string() if row[1].is_string() else ""
+        return _members_from_json(el_raw), _parts_from_json(dp_raw)
 
     def _list_all_entity_vids(self) -> list[str]:
         """Return all VIDs tagged with ``lineage_entity`` in the
@@ -490,18 +487,16 @@ class NebulaLineageGraphStore:
         source: str,
         target: str,
         type_value: str,
-        description: str,
         evidence_lineage: list[LineageMember],
         description_parts: list[DescriptionPart],
     ) -> None:
         vid = _relation_vid(source, target, type_value)
         stmt = (
             f"INSERT VERTEX `{_RELATION_TAG}`"
-            f"(source, target, type, description, "
+            f"(source, target, type, "
             f"evidence_lineage_json, description_parts_json, gmt_created, gmt_updated) "
             f'VALUES "{_escape_str(vid)}":('
             f'"{_escape_str(source)}", "{_escape_str(target)}", "{_escape_str(type_value)}", '
-            f'"{_escape_str(description)}", '
             f'"{_escape_str(_members_to_json(evidence_lineage))}", '
             f'"{_escape_str(_parts_to_json(description_parts))}", '
             f"datetime(), datetime())"
@@ -545,7 +540,7 @@ class NebulaLineageGraphStore:
                 row = self._read_relation_lineage_by_vid(vid)
                 if row is None:
                     continue
-                source, target, type_value, _description, members, _parts = row
+                source, target, type_value, members, _parts = row
                 if any(m.document_id == document_id for m in members):
                     keys.append((source, target, type_value))
             return keys
@@ -576,13 +571,12 @@ class NebulaLineageGraphStore:
 
     def _read_relation_lineage_by_vid(
         self, vid: str
-    ) -> tuple[str, str, str, str, list[LineageMember], list[DescriptionPart]] | None:
+    ) -> tuple[str, str, str, list[LineageMember], list[DescriptionPart]] | None:
         stmt = (
             f'FETCH PROP ON `{_RELATION_TAG}` "{_escape_str(vid)}" '
             f"YIELD `{_RELATION_TAG}`.source AS source, "
             f"`{_RELATION_TAG}`.target AS target, "
             f"`{_RELATION_TAG}`.type AS type, "
-            f"`{_RELATION_TAG}`.description AS description, "
             f"`{_RELATION_TAG}`.evidence_lineage_json AS el, "
             f"`{_RELATION_TAG}`.description_parts_json AS dp"
         )
@@ -593,14 +587,12 @@ class NebulaLineageGraphStore:
         source = row[0].as_string() if row[0].is_string() else ""
         target = row[1].as_string() if row[1].is_string() else ""
         type_value = row[2].as_string() if row[2].is_string() else ""
-        description = row[3].as_string() if row[3].is_string() else ""
-        el_raw = row[4].as_string() if row[4].is_string() else ""
-        dp_raw = row[5].as_string() if row[5].is_string() else ""
+        el_raw = row[3].as_string() if row[3].is_string() else ""
+        dp_raw = row[4].as_string() if row[4].is_string() else ""
         return (
             source,
             target,
             type_value,
-            description,
             _members_from_json(el_raw),
             _parts_from_json(dp_raw),
         )
@@ -637,7 +629,7 @@ class NebulaLineageGraphStore:
                 row = self._read_relation_lineage(source, target, type)
                 if row is None:
                     return
-                description, members, parts = row
+                members, parts = row
                 new_members = [m for m in members if m.document_id != document_id]
                 new_parts = [p for p in parts if p.document_id != document_id]
                 if len(new_members) == len(members) and len(new_parts) == len(parts):
@@ -646,7 +638,6 @@ class NebulaLineageGraphStore:
                     source=source,
                     target=target,
                     type_value=type,
-                    description=description,
                     evidence_lineage=new_members,
                     description_parts=new_parts,
                 )
@@ -679,7 +670,7 @@ class NebulaLineageGraphStore:
                 row = self._read_relation_lineage(source, target, type)
                 if row is None:
                     return False
-                _description, members, _parts = row
+                members, _parts = row
                 if members:
                     return False
                 self._delete_relation_vertex(source, target, type)
@@ -740,14 +731,13 @@ class NebulaLineageGraphStore:
                     new_members = [lineage]
                     new_parts = [new_part]
                 else:
-                    _existing_description, members, parts = row
+                    members, parts = row
                     new_members = [m for m in members if m.key() != lineage.key()] + [lineage]
                     new_parts = [p for p in parts if p.key() != new_part.key()] + [new_part]
                 self._write_relation_vertex(
                     source=record.source,
                     target=record.target,
                     type_value=record.type,
-                    description=record.description,
                     evidence_lineage=new_members,
                     description_parts=new_parts,
                 )
@@ -780,7 +770,7 @@ class NebulaLineageGraphStore:
             row = self._read_relation_lineage(source, target, type)
             if row is None:
                 return None
-            _description, members, parts = row
+            members, parts = row
             return RelationWithLineage(
                 source=source,
                 target=target,
