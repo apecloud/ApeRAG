@@ -567,11 +567,6 @@ def get_api_key() -> str:
 # existing ``aperag.mcp.server.web_search`` access path for backward
 # compatibility with callers (e.g. ``tests/unit_test/test_mcp_server.py``)
 # that read attributes off the server module directly.
-from aperag.mcp.tools.search_fulltext import fulltext_search  # noqa: E402, F401
-from aperag.mcp.tools.search_graph import graph_search  # noqa: E402, F401
-from aperag.mcp.tools.search_vector import vector_search  # noqa: E402, F401
-from aperag.mcp.tools.search_web import web_search  # noqa: E402, F401
-
 # Wave 7 §K.12.6 — graph entity search / subgraph expand / detail.
 # Importing the module is what registers the three ``@mcp_server.tool``
 # decorators with the FastMCP instance above.
@@ -580,6 +575,10 @@ from aperag.mcp.tools.graph_tools import (  # noqa: E402, F401
     get_entity_detail,
     query_graph_entities,
 )
+from aperag.mcp.tools.search_fulltext import fulltext_search  # noqa: E402, F401
+from aperag.mcp.tools.search_graph import graph_search  # noqa: E402, F401
+from aperag.mcp.tools.search_vector import vector_search  # noqa: E402, F401
+from aperag.mcp.tools.search_web import web_search  # noqa: E402, F401
 
 # Export the server instance
 __all__ = ["mcp_server"]

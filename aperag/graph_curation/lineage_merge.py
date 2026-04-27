@@ -518,9 +518,7 @@ def build_lineage_entity_merger_for(collection: Any) -> "LineageEntityMerger":
     try:
         llm = build_collection_llm_callable(collection)
     except Exception as exc:  # noqa: BLE001 — surface as factory failure.
-        raise WorkerFactoryError(
-            f"merge_entities: LLM not configured for collection {collection.id!r}: {exc}"
-        ) from exc
+        raise WorkerFactoryError(f"merge_entities: LLM not configured for collection {collection.id!r}: {exc}") from exc
 
     # Compactor is best-effort — the merger still runs without it
     # (description stays uncompacted; embedding falls back to unified).

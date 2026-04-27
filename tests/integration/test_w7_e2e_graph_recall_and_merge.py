@@ -123,20 +123,32 @@ import pytest
 # shape now so review can happen in parallel with task #8 impl.
 # ---------------------------------------------------------------------
 
-_TASK8_WIRING_LANDED = False  # flip to True in the same PR that lands
-# task #8 wiring (worker_factory decorator wrap +
-# REST merge route swap + retrieval pipeline cutover).
-# Until then every step skips with a pointer to task #8.
+_TASK8_WIRING_LANDED = True  # task #8 PR #1762 merged 2026-04-28
+# (commit 08d9d3b6). Three wiring points alive:
+#   * worker_factory._build_lineage_graph_store →
+#     LineageGraphStoreWithAliasRedirect(inner=...)
+#   * retrieval/pipeline._graph_search → GraphSearchService
+#     (search_entities + get_subgraph + compose_context)
+#   * GraphService.merge_entities → LineageEntityMerger via
+#     build_lineage_entity_merger_for(collection)
+# Bodies still pending — see per-step skip messages for the concrete
+# API surface each step targets. Once filled they run only when
+# RUN_W7_E2E_NARRATIVE=1 (Layer 2 gate); the file collects + skips
+# cleanly under default local-dev pytest invocation.
 
 _RUN_GATE_ENV = "RUN_W7_E2E_NARRATIVE"
 
 
-def _wiring_skip_reason(step: str) -> str:
+def _body_skip_reason(step: str, api: str) -> str:
+    """Skip reason for a step whose body still needs implementing.
+
+    ``api`` is a short pointer to the merged surface the body targets,
+    so a follow-up implementer can grep straight to it.
+    """
     return (
-        f"task #11 step '{step}' requires task #8 wiring "
-        "(LineageGraphStoreWithAliasRedirect / REST merge route swap / "
-        "retrieval pipeline cutover). Scaffold pinned per architect "
-        "msg=a0ba75da; bodies fill in alongside the task #8 PR."
+        f"task #11 step '{step}' body pending — target API: {api}. "
+        f"Wiring landed via PR #1762 (commit 08d9d3b6); body needs a "
+        f"running stack ({_RUN_GATE_ENV}=1) + provider keys to exercise."
     )
 
 
@@ -150,10 +162,6 @@ def _layer2_skip_reason() -> str:
 
 
 pytestmark = [
-    pytest.mark.skipif(
-        not _TASK8_WIRING_LANDED,
-        reason=_wiring_skip_reason("module"),
-    ),
     pytest.mark.skipif(
         os.environ.get(_RUN_GATE_ENV) != "1",
         reason=_layer2_skip_reason(),
@@ -174,7 +182,14 @@ async def test_step1_upload_document_with_kg_jsonl():
     """Upload a document whose ``kg.jsonl`` contains the Alice / Bob /
     Acme entity set + Alice—knows—Bob and Bob—works_at—Acme relations.
     The document upload returns a document_id used by step 2."""
-    pytest.skip(_wiring_skip_reason("step 1 upload"))
+    pytest.skip(
+        _body_skip_reason(
+            "step 1 upload",
+            "POST /api/v1/collections/{cid}/documents (multipart) — kg.jsonl "
+            "containing entity_type=PERSON Alice/Bob + entity_type=ORG Acme + "
+            "2 relations (knows, works_at).",
+        )
+    )
 
 
 @pytest.mark.asyncio
@@ -188,7 +203,14 @@ async def test_step2_sync_phase3_writes_entity_vectors_and_compaction():
     * Snapshot-diff does not delete shared entities across docs
       (T8 chunk 4 cross-event-loop invariant).
     """
-    pytest.skip(_wiring_skip_reason("step 2 sync Phase 3"))
+    pytest.skip(
+        _body_skip_reason(
+            "step 2 sync Phase 3",
+            "Poll DocumentIndex.status until ACTIVE (Modality.GRAPH); then "
+            "verify aperag_lineage_entity row count >=3, entity_vector + "
+            "compacted_description columns NON-NULL for all 3 entities.",
+        )
+    )
 
 
 @pytest.mark.asyncio
@@ -196,7 +218,14 @@ async def test_step3_search_entities_returns_indexed_entity():
     """``GraphSearchService.search_entities("Alice")`` MUST return
     Alice. Validates wiring #3 — retrieval/pipeline.py:_graph_search
     cuts over to the new vector recall."""
-    pytest.skip(_wiring_skip_reason("step 3 search via retrieval cutover"))
+    pytest.skip(
+        _body_skip_reason(
+            "step 3 search via retrieval cutover",
+            "aperag.indexing.graph_search_service.GraphSearchService.search_entities("
+            "query='Alice', top_k=5) — assert hit Alice; verifies wiring #3 "
+            "(retrieval/pipeline._graph_search routed through this).",
+        )
+    )
 
 
 @pytest.mark.asyncio
@@ -206,7 +235,18 @@ async def test_step4_rest_merge_endpoint_persists_alias_map():
     response payload reports alias_map updated. Validates wiring #2
     — REST route swap from legacy ``GraphIndexService.merge_entities``
     to ``GraphCurationService.merge_entities``."""
-    pytest.skip(_wiring_skip_reason("step 4 REST merge route swap"))
+    pytest.skip(
+        _body_skip_reason(
+            "step 4 REST merge route swap",
+            "POST /api/v1/collections/{cid}/graphs/nodes/merge with body "
+            "{target_entity_id: 'Alice', source_entity_ids: ['Alicia']} → "
+            "200; response shape preserved (target_entity_id / description / "
+            "source_chunk_ids / edges_redirected=0 / edges_collapsed=0). "
+            "Verifies wiring #2 — GraphService.merge_entities → "
+            "LineageEntityMerger.merge_entities via "
+            "build_lineage_entity_merger_for(collection).",
+        )
+    )
 
 
 @pytest.mark.asyncio
@@ -215,7 +255,15 @@ async def test_step5_alias_map_row_persisted_and_vector_re_embedded():
     assert ``{Alicia: Alice}`` row exists. Vector point for the
     canonical Alice is the upsert target. Source DescriptionParts
     re-anchor preserved."""
-    pytest.skip(_wiring_skip_reason("step 5 alias_map persistence"))
+    pytest.skip(
+        _body_skip_reason(
+            "step 5 alias_map persistence",
+            "aperag.graph_curation.alias_map.AliasMapRepository — read row "
+            "with collection_id + alias='Alicia'; assert canonical='Alice'. "
+            "Cross-check vector store: target Alice's point was upserted "
+            "with the merged compacted_description.",
+        )
+    )
 
 
 @pytest.mark.asyncio
@@ -228,7 +276,17 @@ async def test_step6_re_add_doc_with_alias_silently_redirects():
     gate: it is the only test that proves the
     ``LineageGraphStoreWithAliasRedirect`` decorator (wiring #1) is
     not just present but produces the expected behaviour."""
-    pytest.skip(_wiring_skip_reason("step 6 alias redirect on indexer upsert"))
+    pytest.skip(
+        _body_skip_reason(
+            "step 6 alias redirect on indexer upsert",
+            "Re-upload doc whose kg.jsonl has 'Alicia'; await sync ACTIVE; "
+            "query aperag_lineage_entity by name='Alicia' → expect 0 rows; "
+            "by name='Alice' → expect existing row with new "
+            "DescriptionPart appended (alias-redirected). Verifies wiring "
+            "#1 — LineageGraphStoreWithAliasRedirect.upsert_entity "
+            "intercepting via AliasMapRepository.lookup.",
+        )
+    )
 
 
 @pytest.mark.asyncio
@@ -237,7 +295,15 @@ async def test_step7_re_search_still_returns_merged_entity():
     ``search_entities("Alicia")`` ALSO hits Alice (recall traverses
     the alias_map). Validates the round-trip merge → re-index →
     re-recall narrative end-to-end."""
-    pytest.skip(_wiring_skip_reason("step 7 re-search after merge"))
+    pytest.skip(
+        _body_skip_reason(
+            "step 7 re-search after merge",
+            "GraphSearchService.search_entities('Alice') → still hits "
+            "Alice. search_entities('Alicia') → also hits Alice "
+            "(post-step-6 the alias was redirected at index time, so the "
+            "vector point is canonical). Validates the round-trip narrative.",
+        )
+    )
 
 
 @pytest.mark.asyncio
@@ -253,7 +319,16 @@ async def test_step8_get_entity_detail_alias_returns_404_w8_3_pin():
     payload). The fix is to flip the assertion: that flip is the
     physical evidence that W8-3 shipped + the trigger condition is
     pinned in the repo."""
-    pytest.skip(_wiring_skip_reason("step 8 W8-3 trigger pin"))
+    pytest.skip(
+        _body_skip_reason(
+            "step 8 W8-3 trigger pin",
+            "GET /api/v1/collections/{cid}/graphs/nodes/Alicia → today "
+            "MUST return 404/NotFound (read path bypasses alias_map). "
+            "When Wave 8 W8-3 ships read-side alias resolution, this "
+            "assertion flips to 200 with Alice payload — the test IS the "
+            "trigger condition pinned in the repo.",
+        )
+    )
 
 
 @pytest.mark.asyncio
@@ -272,4 +347,17 @@ async def test_step9_failure_mode_compactor_llm_down_graceful_degrade():
     Complements ``tests/unit_test/.../test_w7_phase3_*_failure_non_fatal``
     by proving the same invariant survives the full e2e pipeline,
     not just the unit-level branch."""
-    pytest.skip(_wiring_skip_reason("step 9 failure-mode graceful degrade"))
+    pytest.skip(
+        _body_skip_reason(
+            "step 9 failure-mode graceful degrade",
+            "monkeypatch the compactor LLM call (target the function "
+            "wrapped inside GraphCompactor — see "
+            "aperag/indexing/graph_compactor.py — to raise RuntimeError); "
+            "re-trigger sync on a fresh document; assert "
+            "DocumentIndex.status reaches ACTIVE (not FAILED) and the "
+            "entity row exists with a fallback compacted_description "
+            "(longest DescriptionPart text) per Wave 6 graceful-degrade "
+            "contract. Cross-references unit-level "
+            "test_w7_phase3_*_failure_non_fatal.",
+        )
+    )
