@@ -316,7 +316,7 @@ def test_path_c_cascades_via_path_b_and_sweeps_collection_rows(engine):
         ("chunk-O", "docOther", "poooooooooooooo1"),
     ):
         backend.upsert_point(
-            chunk_id=chunk_id,
+            point_id=chunk_id,
             embedding=[0.0] * 16,
             payload={
                 "document_id": doc,
@@ -344,7 +344,7 @@ def test_path_c_cascades_via_path_b_and_sweeps_collection_rows(engine):
     assert counts["backend_skipped"] == 0
 
     # Backend: only the other-collection chunk survives.
-    surviving_chunks = {p["chunk_id"] for p in backend.all_points()}
+    surviving_chunks = {p["point_id"] for p in backend.all_points()}
     assert surviving_chunks == {"chunk-O"}
 
     # DB: only the other-collection row survives.
@@ -382,7 +382,7 @@ def test_path_c_idempotent_on_re_run(engine):
         engine, document_id="docZ", parse_version="pzzzzzzzzzzzzzz1", modality=Modality.VECTOR, collection_id="col-Z"
     )
     backend.upsert_point(
-        chunk_id="chunk-Z",
+        point_id="chunk-Z",
         embedding=[0.0] * 16,
         payload={
             "document_id": "docZ",

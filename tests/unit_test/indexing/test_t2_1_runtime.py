@@ -665,7 +665,7 @@ def test_cleanup_deletes_superseded_parse_version_after_cooldown(engine):
 
     # Pre-populate the backend so we can assert the cleanup deletes.
     backend.upsert_point(
-        chunk_id="chunk-old",
+        point_id="chunk-old",
         embedding=[0.1] * 16,
         payload={
             "document_id": "doc-1",
@@ -679,7 +679,7 @@ def test_cleanup_deletes_superseded_parse_version_after_cooldown(engine):
         },
     )
     backend.upsert_point(
-        chunk_id="chunk-new",
+        point_id="chunk-new",
         embedding=[0.2] * 16,
         payload={
             "document_id": "doc-1",
@@ -704,7 +704,7 @@ def test_cleanup_deletes_superseded_parse_version_after_cooldown(engine):
 
     # Old backend entry is gone; new entry survives.
     surviving = backend.points_for_document("doc-1")
-    surviving_chunk_ids = {p["chunk_id"] for p in surviving}
+    surviving_chunk_ids = {p["point_id"] for p in surviving}
     assert surviving_chunk_ids == {"chunk-new"}
 
     # Old DB row is gone; new row still there.
@@ -827,7 +827,7 @@ def test_cleanup_for_deleted_documents_removes_non_graph_backend_per_parse_versi
     )
     for pv, chunk_id in ((pv_a, "chunk-a"), (pv_b, "chunk-b")):
         backend.upsert_point(
-            chunk_id=chunk_id,
+            point_id=chunk_id,
             embedding=[0.0] * 16,
             payload={
                 "document_id": "doc-del",

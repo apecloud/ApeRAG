@@ -75,17 +75,24 @@ class VectorBackend(Protocol):
     def upsert_point(
         self,
         *,
-        chunk_id: str,
+        point_id: str,
         embedding: list[float],
         payload: dict[str, Any],
     ) -> None:
-        """Idempotent point insert keyed on ``chunk_id`` (Qdrant point id)."""
+        """Idempotent point insert keyed on ``point_id`` (Qdrant point id).
+
+        For the vector modality the caller passes the parser-emitted
+        ``chunk_id`` as ``point_id`` (one chunk → one point). The
+        ``chunk_id`` value is also written into ``payload["chunk_id"]``
+        by the worker so retrieval can echo it back; vector + fulltext
+        share that payload field for hybrid-dedup (§C.6).
+        """
 
 
 class InMemoryVectorBackend:
     """Process-local in-memory backend for unit tests.
 
-    Stores points in a dict keyed by ``chunk_id``. Implements the
+    Stores points in a dict keyed by ``point_id``. Implements the
     :class:`VectorBackend` protocol so vector.sync can target it
     transparently.
     """
@@ -95,22 +102,22 @@ class InMemoryVectorBackend:
 
     def delete_by_filter(self, *, document_id: str, parse_version: str) -> int:
         deleted = 0
-        for chunk_id in list(self._points):
-            payload = self._points[chunk_id].get("payload", {})
+        for point_id in list(self._points):
+            payload = self._points[point_id].get("payload", {})
             if payload.get("document_id") == document_id and payload.get("parse_version") == parse_version:
-                self._points.pop(chunk_id)
+                self._points.pop(point_id)
                 deleted += 1
         return deleted
 
     def upsert_point(
         self,
         *,
-        chunk_id: str,
+        point_id: str,
         embedding: list[float],
         payload: dict[str, Any],
     ) -> None:
-        self._points[chunk_id] = {
-            "chunk_id": chunk_id,
+        self._points[point_id] = {
+            "point_id": point_id,
             "embedding": list(embedding),
             "payload": dict(payload),
         }
@@ -126,10 +133,10 @@ class InMemoryVectorBackend:
             if parse_version is not None and payload.get("parse_version") != parse_version:
                 continue
             out.append(record)
-        return sorted(out, key=lambda r: r["chunk_id"])
+        return sorted(out, key=lambda r: r["point_id"])
 
     def all_points(self) -> list[dict[str, Any]]:
-        return sorted(self._points.values(), key=lambda r: r["chunk_id"])
+        return sorted(self._points.values(), key=lambda r: r["point_id"])
 
 
 def _placeholder_embedding(text: str, dim: int = SIMULATOR_EMBEDDING_DIM) -> list[float]:
@@ -229,7 +236,7 @@ class VectorModality(ModalityWorker):
                 "page_idx": chunk.get("page_idx"),
             }
             self._backend.upsert_point(
-                chunk_id=chunk_id,
+                point_id=chunk_id,
                 embedding=embedding,
                 payload=payload,
             )

@@ -325,7 +325,19 @@ async def reconcile_collection_summaries_hook(
     )
 
     def _reclaim_stale_and_claim_pending() -> list[tuple[str, str, int, str]]:
-        """Sync DB-only worker. Returns list of claimed dispatch tuples."""
+        """Sync DB-only worker. Returns list of claimed dispatch tuples.
+
+        Note (Wave 6 #34 utc_now audit): the ``utc_now`` calls in this
+        function are application-level wall-clock reads used to compute
+        lease expiry windows and stamp ``gmt_last_reconciled`` /
+        ``gmt_updated`` for in-flight rows. They are intentionally
+        Python-side and distinct from the ORM-default
+        ``server_default=CURRENT_TIMESTAMP`` migration done in Wave 5
+        P5B for ``_LineageEntityRow`` / ``_LineageRelationRow``: those
+        cover row-creation defaults; reconciler updates need a wall-
+        clock value materialised inside the worker process for lease
+        comparison logic, so server-side defaults do not apply here.
+        """
         from aperag.utils.utils import utc_now as _utc_now
 
         claimed_dispatches: list[tuple[str, str, int, str]] = []

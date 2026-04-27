@@ -136,7 +136,7 @@ def test_worker_factory_wins_over_workers_map_when_both_passed(engine):
     pv_a = "doc-del-a-pv0001"[:16]
     _insert_row(engine, document_id="doc-del", parse_version=pv_a, modality=Modality.VECTOR)
     factory_backend.upsert_point(
-        chunk_id="chunk-fac",
+        point_id="chunk-fac",
         embedding=[0.0] * 16,
         payload={
             "document_id": "doc-del",
@@ -150,7 +150,7 @@ def test_worker_factory_wins_over_workers_map_when_both_passed(engine):
         },
     )
     fallback_backend.upsert_point(
-        chunk_id="chunk-fallback",
+        point_id="chunk-fallback",
         embedding=[0.0] * 16,
         payload={
             "document_id": "doc-del",
@@ -245,7 +245,7 @@ def test_factory_dispatches_per_collection_and_modality(engine):
         backend = backends[(col, modality)]
         if modality is Modality.VECTOR:
             backend.upsert_point(
-                chunk_id=chunk_id,
+                point_id=chunk_id,
                 embedding=[0.0] * 16,
                 payload={
                     "document_id": document_id,
@@ -360,7 +360,7 @@ def test_orphan_parse_version_gc_uses_worker_factory(engine):
     _set_updated_at(engine, old_id, _utcnow() - timedelta(hours=2))
 
     backend.upsert_point(
-        chunk_id="chunk-orphan",
+        point_id="chunk-orphan",
         embedding=[0.0] * 16,
         payload={
             "document_id": "doc-orphan",
@@ -415,7 +415,7 @@ def test_collection_deletion_cascade_uses_worker_factory(engine):
         collection_id="col-doomed",
     )
     backend.upsert_point(
-        chunk_id="chunk-col",
+        point_id="chunk-col",
         embedding=[0.0] * 16,
         payload={
             "document_id": "doc-col",
@@ -489,7 +489,7 @@ def test_workers_map_only_path_unchanged_for_existing_callers(engine):
     pv = "compatparsever01"[:16]
     _insert_row(engine, document_id="doc-compat", parse_version=pv, modality=Modality.VECTOR)
     backend.upsert_point(
-        chunk_id="chunk-compat",
+        point_id="chunk-compat",
         embedding=[0.0] * 16,
         payload={
             "document_id": "doc-compat",

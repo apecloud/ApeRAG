@@ -94,10 +94,16 @@ class _QdrantPointBackend:
     vision modalities consume.
 
     All three modalities share the same Qdrant-shaped surface (delete
-    by ``(document_id, parse_version)`` filter, upsert by
-    ``chunk_id``/``point_id``). One adapter class satisfies the three
-    Protocols structurally — no inheritance needed because the
-    Protocols are ``@runtime_checkable``.
+    by ``(document_id, parse_version)`` filter, upsert by ``point_id``).
+    One adapter class satisfies the three Protocols structurally — no
+    inheritance needed because the Protocols are ``@runtime_checkable``.
+
+    The ``point_id`` is the canonical name for the Qdrant point
+    identifier across all three modalities (per Wave 6 #34 schema
+    unification). Vector workers pass the parser-emitted ``chunk_id``
+    here; summary uses ``summary:<doc>:<v>``; vision uses
+    ``vision:<doc>:<v>:<image_id>``. Each worker controls its own
+    payload — the adapter does not inject anything.
     """
 
     def __init__(self, *, connector: Any) -> None:
@@ -120,43 +126,34 @@ class _QdrantPointBackend:
     def upsert_point(
         self,
         *,
-        chunk_id: str | None = None,
-        point_id: str | None = None,
+        point_id: str,
         embedding: list[float],
         payload: dict[str, Any],
     ) -> None:
-        # Vector modality calls with ``chunk_id``; summary / vision
-        # modalities call with ``point_id``. Both end up as the
-        # underlying Qdrant point id.
-        #
         # Qdrant only accepts unsigned-integer or UUID point ids. The
         # T1.1 parser produces chunk ids of the form
         # ``<sha-prefix>:<index>`` (e.g. ``f766a946575ec3b4:0000``)
         # which Qdrant rejects with HTTP 400 "is not a valid point
         # ID". Map the caller-supplied string id into a deterministic
         # UUID5 so retries land on the same point and the upsert is
-        # idempotent — and stash the original id in the payload so
-        # the read path can still surface it to clients.
+        # idempotent. The caller's payload is forwarded verbatim — it
+        # already carries whatever modality-specific identifier the
+        # read path needs (vector keeps ``chunk_id`` in payload for
+        # hybrid-dedup; summary uses ``summary_text``; vision uses
+        # ``image_id``).
         import uuid
 
         from aperag.vectorstore.dto import VectorPoint
 
-        identifier = chunk_id if chunk_id is not None else point_id
-        if not identifier:
-            raise ValueError("upsert_point requires either chunk_id or point_id")
-        identifier = str(identifier)
-        qdrant_id = str(uuid.uuid5(uuid.NAMESPACE_OID, identifier))
-        merged_payload = dict(payload)
-        # Preserve the original id under a stable key so the read
-        # path can echo it back; ``chunk_id`` is what vector modality
-        # already writes so we don't overwrite it.
-        merged_payload.setdefault("chunk_id", identifier)
+        if not point_id:
+            raise ValueError("upsert_point requires point_id")
+        qdrant_id = str(uuid.uuid5(uuid.NAMESPACE_OID, str(point_id)))
         self._connector.upsert(
             [
                 VectorPoint(
                     id=qdrant_id,
                     vector=list(embedding),
-                    payload=merged_payload,
+                    payload=dict(payload),
                 )
             ]
         )
