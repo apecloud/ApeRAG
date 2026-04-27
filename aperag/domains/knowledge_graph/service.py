@@ -343,9 +343,7 @@ class GraphService:
 
         db_collection = await self._get_and_validate_collection(user_id, collection_id)
         backend_type = _resolve_graph_backend_type(db_collection)
-        store = await asyncio.to_thread(
-            _build_lineage_graph_store, backend_type=backend_type, collection=db_collection
-        )
+        store = await asyncio.to_thread(_build_lineage_graph_store, backend_type=backend_type, collection=db_collection)
         entity = await store.get_entity(entity_name)
         if entity is None:
             return None

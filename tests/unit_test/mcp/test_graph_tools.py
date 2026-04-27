@@ -56,9 +56,7 @@ def test_graph_tools_are_re_exported_on_server_module():
     """Importing ``aperag.mcp.server`` must register the 3 tools (the
     decorators run at module import time)."""
     for name in ("query_graph_entities", "expand_graph_subgraph", "get_entity_detail"):
-        assert hasattr(mcp_server_module, name), (
-            f"aperag.mcp.server must re-export {name} (decorator registration)."
-        )
+        assert hasattr(mcp_server_module, name), f"aperag.mcp.server must re-export {name} (decorator registration)."
 
 
 # --- 2. Signature locks ---------------------------------------------
@@ -69,11 +67,7 @@ def _params(func) -> dict[str, inspect.Parameter]:
 
 
 def _kw_only(func) -> set[str]:
-    return {
-        name
-        for name, p in inspect.signature(func).parameters.items()
-        if p.kind is inspect.Parameter.KEYWORD_ONLY
-    }
+    return {name for name, p in inspect.signature(func).parameters.items() if p.kind is inspect.Parameter.KEYWORD_ONLY}
 
 
 def test_query_graph_entities_signature():
