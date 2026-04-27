@@ -1,22 +1,20 @@
-"""Celery tasks owned by the knowledge_graph domain.
+"""Plain-Python tasks owned by the knowledge_graph domain.
 
-Domain-owned tasks for the knowledge_graph domain. Moved from
-``config/celery_tasks.py`` as part of phase-3 infra absorption (task #37 D4a).
-Pure move — no behavior change. Task ``name="..."`` strings are pinned to
-``config.celery_tasks.<name>`` to preserve task identity for in-flight queue
-messages.
+Wave 3 T3.1 chunk 2 (per architect msg=3890c9d7 Pattern A/B/C): the
+legacy ``@app.task`` decorator + ``config.celery`` import are gone.
+``generate_graph_curation_run_task`` is now a plain Python sync
+function — callers schedule it directly (Pattern C fire-and-forget via
+``asyncio.create_task(asyncio.to_thread(generate_graph_curation_run_task,
+run_id, collection_id))``).
 """
 
 import logging
 from typing import Any
 
-from config.celery import app
-
 logger = logging.getLogger(__name__)
 
 
-@app.task(bind=True, name="config.celery_tasks.generate_graph_curation_run_task")
-def generate_graph_curation_run_task(self, run_id: str, collection_id: str) -> Any:
+def generate_graph_curation_run_task(run_id: str, collection_id: str) -> Any:
     """Execute one graph-curation scan run."""
     try:
         from aperag.graph_curation.integration import run_graph_curation_run_sync

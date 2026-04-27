@@ -42,7 +42,6 @@ from aperag.domains.retrieval.context.context import ContextManager
 from aperag.domains.retrieval.ports import GraphSearchContract
 from aperag.domains.retrieval.schemas import SearchRequest, SearchResultItem, SearchResultMetadata
 from aperag.exceptions import ValidationException
-from aperag.indexing.keyword_extract import extract_keywords
 from aperag.llm.embed.base_embedding import get_collection_embedding_service_sync
 from aperag.llm.llm_error_types import (
     EmbeddingError,
@@ -53,7 +52,7 @@ from aperag.llm.llm_error_types import (
 from aperag.observability import start_span
 from aperag.platform.query.query import DocumentWithScore
 from aperag.schema.utils import parseCollectionConfig
-from aperag.utils.utils import generate_fulltext_index_name, generate_vector_db_collection_name
+from aperag.utils.utils import generate_vector_db_collection_name
 
 logger = logging.getLogger(__name__)
 
@@ -290,50 +289,21 @@ class SearchPipelineService:
         user_id: str,
         chat_id: Optional[str] = None,
     ) -> List[DocumentWithScore]:
-        from aperag.domains.indexing.fulltext_index import FulltextSearchDegradedError, fulltext_indexer
-
+        # Wave 3 T3.1 chunk 2: ``aperag/domains/indexing/fulltext_index.py``
+        # was hard-deleted alongside the Celery indexing layer. The Wave-3
+        # T3.2 search lane (Bryce) wires this method to the new
+        # ``aperag.indexing.fulltext`` modality backend; until that lands,
+        # fulltext recall returns empty so the rest of the retrieval
+        # pipeline (vector / graph / web) keeps working.
         config = parseCollectionConfig(collection.config)
         if config.enable_fulltext is False:
             logger.info("Skipping fulltext search for collection %s because enable_fulltext=false", collection.id)
             return []
-
-        index_name = generate_fulltext_index_name(collection.id)
-        final_keywords = list(keywords or [])
-        if not final_keywords:
-            extractor_ctx = {
-                "index_name": index_name,
-                "es_host": settings.es_host,
-                "es_timeout": settings.es_timeout,
-                "es_max_retries": settings.es_max_retries,
-                "user_id": user_id,
-            }
-            final_keywords = await extract_keywords(query, extractor_ctx)
-
-        final_keywords = list(set(final_keywords))
-        if not final_keywords:
-            logger.warning(
-                "Fulltext keyword extraction degraded for collection %s; falling back to raw query token",
-                collection.id,
-            )
-            final_keywords = [query]
-
-        try:
-            docs = await fulltext_indexer.search_document(
-                index_name,
-                str(collection.id),
-                final_keywords,
-                top_k * 3,
-                chat_id=chat_id,
-            )
-        except FulltextSearchDegradedError as e:
-            logger.warning("Fulltext search degraded for collection %s: %s", collection.id, e)
-            return []
-
-        for doc in docs:
-            if doc.metadata is None:
-                doc.metadata = {}
-            doc.metadata["recall_type"] = "fulltext_search"
-        return docs
+        logger.warning(
+            "Fulltext recall stubbed (Wave 3 T3.2 wiring pending) for collection %s — returning no docs",
+            collection.id,
+        )
+        return []
 
     async def _graph_search(
         self,

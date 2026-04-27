@@ -14,11 +14,14 @@
 
 """Async worker pipeline for evaluation-v3 (#evaluation #20 / PR-1b).
 
-Celery producer seam. ``run_evaluation_run(run_id)`` is the task name that
-``EvaluationRunService.launch_run`` dispatches via ``.delay(...)``; all
-state-machine logic lives in :mod:`aperag.evaluation_v2.worker` to keep
-this module a thin sync wrapper that is safe to import during test
-collection even when Celery / the agent runtime / Redis are unavailable.
+Wave 3 T3.1 chunk 2: the legacy Celery decorators + ``config.celery``
+import are gone (per architect msg=3890c9d7 Pattern A/B/C). The
+``run_evaluation_run`` function is now a plain Python sync wrapper —
+callers schedule it directly (Pattern C fire-and-forget via
+``asyncio.create_task(asyncio.to_thread(run_evaluation_run, run_id))``).
+All state-machine logic still lives in :mod:`aperag.domains.evaluation.
+worker` so this module stays a thin sync wrapper that is safe to import
+during test collection.
 """
 
 from __future__ import annotations
@@ -26,19 +29,15 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from config.celery import app
-
 logger = logging.getLogger(__name__)
 
 
-@app.task(bind=True, name="aperag.evaluation_v2.tasks.run_evaluation_run")
-def run_evaluation_run(self, run_id: str) -> dict:
-    """Celery entrypoint. Runs :func:`execute_evaluation_run` in a fresh
-    event loop and returns a small status payload for worker logging.
+def run_evaluation_run(run_id: str) -> dict:
+    """Plain Python entrypoint (Wave 3 T3.1 chunk 2 — formerly Celery).
 
-    The task is intentionally short-circuited when the run_id is unknown
-    or already terminal — the orchestration layer handles both cases
-    idempotently, so a re-dispatched Celery message is safe to replay.
+    Runs :func:`execute_evaluation_run` in a fresh event loop and
+    returns a small status payload for worker logging. Idempotent: the
+    orchestration layer short-circuits unknown / already-terminal runs.
     """
 
     # Lazy import: keeps this module import-safe when the agent runtime /

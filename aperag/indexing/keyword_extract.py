@@ -44,8 +44,14 @@ from typing import Any, Dict, List, Optional
 from elasticsearch import AsyncElasticsearch
 
 from aperag.config import settings
-from aperag.db.ops import db_ops
 from aperag.llm.completion.completion_service import CompletionService
+
+# Wave 3 T3.1 chunk 2: ``db_ops`` is imported lazily inside the LLM
+# extractor body to break the
+# ``aperag.db.repositories.document_index → aperag.indexing →
+# aperag.indexing.keyword_extract → aperag.db.ops`` circular import
+# triggered when the indexing package's ``__init__`` re-exports got
+# eager during the Wave 3 hard-cut.
 
 logger = logging.getLogger(__name__)
 
@@ -173,6 +179,8 @@ class LLMKeywordExtractor(KeywordExtractor):
             if not user_id:
                 logger.warning("User ID not available in context for LLM keyword extraction")
                 return None
+            from aperag.db.ops import db_ops
+
             row = db_ops.query_model_runtime(settings.llm_keyword_extraction_model, user_id)
             if not row:
                 logger.warning(

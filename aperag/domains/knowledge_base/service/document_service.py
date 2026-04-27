@@ -48,7 +48,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from aperag.config import settings
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.docparser.doc_parser import DocParser
-from aperag.domains.indexing.manager import document_index_manager
 from aperag.domains.knowledge_base.db.models import (
     Collection,
     CollectionStatus,
@@ -102,26 +101,38 @@ from aperag.utils.utils import calculate_file_hash, generate_vector_db_collectio
 logger = logging.getLogger(__name__)
 
 
+# Wave 3 T3.1 chunk 2 placeholder. The legacy
+# ``aperag.domains.indexing.manager:document_index_manager`` ABC was hard-
+# deleted alongside the entire Celery indexing layer. Chunk 3 wires the
+# 5 call sites (search for ``document_index_manager``) to the new
+# ``aperag.indexing.dispatcher.dispatch_indexing()`` async helper +
+# ``aperag.indexing.cleanup.cleanup_for_deleted_documents()``. Until
+# then, this stub keeps the surrounding HTTP routes importable; calls
+# log a warning + no-op so the unit-test surface (which doesn't exercise
+# real indexing) keeps loading.
+class _DocumentIndexManagerStub:
+    async def create_or_update_document_indexes(self, *args, **kwargs):  # noqa: D401
+        logger.warning(
+            "document_index_manager.create_or_update_document_indexes called pre-chunk-3 wiring — no-op stub"
+        )
+
+    async def delete_document_indexes(self, *args, **kwargs):  # noqa: D401
+        logger.warning("document_index_manager.delete_document_indexes called pre-chunk-3 wiring — no-op stub")
+
+
+document_index_manager = _DocumentIndexManagerStub()
+
+
 def _trigger_index_reconciliation():
-    """
-    Trigger index reconciliation task asynchronously for better real-time responsiveness.
+    """No-op stub — Wave 3 T3.1 chunk 2.
 
-    This is called after document create/update/delete operations to immediately
-    process index changes, improving responsiveness compared to relying only on
-    periodic reconciliation. The periodic task interval can be increased since
-    we have real-time triggering.
+    The legacy Celery beat-driven ``reconcile_indexes_task`` is gone;
+    the new ``aperag.indexing.reconciler.run_reconcile_loop`` runs
+    continuously inside the FastAPI process so manual triggering is
+    unnecessary. Kept as a no-op so the existing call sites compile
+    until chunk 3 deletes them entirely.
     """
-    try:
-        # Import here to avoid circular dependencies and handle missing celery gracefully
-        from aperag.domains.indexing.tasks import reconcile_indexes_task
-
-        # Trigger the reconciliation task asynchronously
-        reconcile_indexes_task.delay()
-        logger.debug("Index reconciliation task triggered for real-time processing")
-    except ImportError:
-        logger.warning("Celery not available, skipping index reconciliation trigger")
-    except Exception as e:
-        logger.warning(f"Failed to trigger index reconciliation task: {e}")
+    return None
 
 
 class DocumentService:

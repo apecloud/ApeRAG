@@ -56,8 +56,15 @@ from sqlalchemy import (
 )
 
 from aperag.db.base import Base
-from aperag.indexing.models import DocumentIndex, IndexStatus
 from aperag.utils.utils import utc_now
+
+# Wave 3 T3.1 chunk 2: ``DocumentIndex`` + ``IndexStatus`` are imported
+# lazily inside ``Document.get_document_indexes`` /
+# ``get_overall_index_status`` to break the
+# ``knowledge_base.db.models → aperag.indexing → aperag.indexing.fulltext
+# → aperag.indexing.parser → aperag.mcp.tools.parse_version → mcp.tools.
+# get_collection_metadata → knowledge_base.db.models`` circular import
+# triggered by the ``aperag.indexing/__init__.py`` re-exports.
 
 
 def _random_id() -> str:
@@ -183,6 +190,8 @@ class Document(Base):
     gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)
 
     def get_document_indexes(self, session):
+        from aperag.indexing.models import DocumentIndex
+
         stmt = select(DocumentIndex).where(DocumentIndex.document_id == self.id)
         result = session.execute(stmt)
         return result.scalars().all()
@@ -204,6 +213,8 @@ class Document(Base):
         - all modalities ``ACTIVE`` AND ``is_serving=TRUE`` → ``COMPLETE``
         - otherwise (e.g., some ``ACTIVE`` but cutover transit) → ``PENDING``
         """
+        from aperag.indexing.models import IndexStatus
+
         document_indexes = self.get_document_indexes(session)
 
         if not document_indexes:

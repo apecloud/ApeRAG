@@ -21,7 +21,11 @@ from sqlalchemy.orm import Session
 
 from aperag.config import get_async_session, get_sync_session
 from aperag.db.ops import db_ops
-from aperag.domains.indexing.summary_index import SummaryIndexer
+
+# Wave 3 T3.1 chunk 2: ``SummaryIndexer`` (legacy
+# ``aperag/domains/indexing/summary_index.py``) was hard-deleted; the
+# only reference here was an unused ``self.summary_indexer`` instance
+# attribute on ``CollectionSummaryService.__init__``. Removed both.
 from aperag.domains.knowledge_base.db.models import (
     Collection,
     CollectionSummary,
@@ -280,7 +284,7 @@ class CollectionSummaryService:
     """Service for managing collection summaries using reconcile strategy"""
 
     def __init__(self):
-        self.summary_indexer = SummaryIndexer()
+        pass
 
     async def trigger_collection_summary_generation(self, collection: Collection) -> bool:
         """

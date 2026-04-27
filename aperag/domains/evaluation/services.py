@@ -345,9 +345,13 @@ class EvaluationRunService:
         have to stand up Celery just to exercise the service.
         """
 
+        # Wave 3 T3.1 chunk 2: Pattern C fire-and-forget — formerly
+        # ``run_evaluation_run.delay(run_id)`` Celery enqueue.
+        import asyncio
+
         from aperag.domains.evaluation.tasks import run_evaluation_run
 
-        run_evaluation_run.delay(run_id)
+        asyncio.create_task(asyncio.to_thread(run_evaluation_run, run_id))
 
     async def list_runs(
         self,

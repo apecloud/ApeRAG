@@ -64,12 +64,15 @@ from aperag.indexing.graph import (
     parse_kg_jsonl,
     serialize_kg_jsonl,
 )
-from aperag.indexing.keyword_extract import (
-    IKKeywordExtractor,
-    KeywordExtractor,
-    LLMKeywordExtractor,
-    extract_keywords,
-)
+
+# Wave 3 T3.1 chunk 2: ``aperag.indexing.keyword_extract`` is no longer
+# re-exported here — eager import pulled the LLM completion stack into
+# the indexing package's __init__, which transitively touched
+# ``aperag.db.ops`` mid-load and triggered three unrelated circular
+# imports during the hard-cut. The two production callers
+# (``aperag/domains/retrieval/pipeline.py`` +
+# ``aperag/service/search_pipeline_service.py``) already import directly
+# from ``aperag.indexing.keyword_extract`` so the re-export was dead.
 from aperag.indexing.limits import (
     EMBEDDING_CALL_TIMEOUT_SECONDS,
     LLM_CALL_TIMEOUT_SECONDS,
@@ -273,11 +276,6 @@ __all__ = [
     "dispatch_indexing",
     "modalities_for_collection",
     "all_modalities",
-    # Keyword extraction (T3.1 commit 4 — moved from legacy fulltext_index.py)
-    "KeywordExtractor",
-    "IKKeywordExtractor",
-    "LLMKeywordExtractor",
-    "extract_keywords",
     # Quota (T2.2 §H.5)
     "DEFAULT_TENANT_FALLBACK",
     "QuotaPolicy",
