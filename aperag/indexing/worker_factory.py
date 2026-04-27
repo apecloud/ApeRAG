@@ -276,7 +276,11 @@ def _build_fulltext_worker(*, collection: Any, object_store: Any) -> ModalityWor
     client = Elasticsearch(settings.es_host, **es_kwargs)
     index_name = generate_fulltext_index_name(collection.id)
     backend = _ElasticsearchFulltextBackend(client=client, index_name=index_name)
-    return FulltextModality(backend=backend, store=object_store)
+    # Pass ``collection.id`` so ``FulltextModality.sync`` can write
+    # ``collection_id`` into every ES document — the retrieval
+    # pipeline ``_fulltext_search`` filters on this field. Without
+    # it, search returns 0 hits silently.
+    return FulltextModality(backend=backend, store=object_store, collection_id=collection.id)
 
 
 def _build_summary_worker(*, collection: Any, object_store: Any) -> ModalityWorker:
@@ -311,16 +315,30 @@ def _build_summary_worker(*, collection: Any, object_store: Any) -> ModalityWork
 
 
 def _build_vision_worker(*, collection: Any, object_store: Any) -> ModalityWorker:
-    """Wire :class:`VisionModality` to Qdrant + a vision-capable
-    embedder.
+    """Wire :class:`VisionModality` — currently **gated** until Wave 4.
 
-    The embedder used here mirrors the multimodal embedding service
-    the retrieval-side resolver picks for image queries; if the
-    collection has not configured a multimodal embedder, the call to
-    ``get_collection_embedding_service_sync`` still succeeds (text
-    embedder), and vision falls back to the placeholder hash embedding
-    derived from ``alt_text`` — that keeps the pipeline correct for
-    text-only deployments.
+    Per architect msg=69df0779 ruling: a real vision modality needs
+    a multimodal vision-LLM (image bytes → embedding) and a real PDF
+    image-extraction pipeline. The Wave 1+2 implementation closed
+    the gap at the wrong layer by computing
+    ``embedding_service.embed_query(f"{image_id}|{alt_text}")`` — a
+    text embedding on a string-concat — which produces deterministic
+    per-image vectors but no actual image-content awareness. Search
+    on a "vision-indexed" document would only match alt-text token
+    similarity, not visual content. Same silent-broken pattern as
+    the graph modality; same Wave 4 gate is the correct response.
+
+    Wave 3 ships vision **explicitly gated**: this builder requires
+    the collection's embedding service to be ``is_multimodal=True``
+    (i.e. an explicitly-configured multimodal embedding model). Any
+    collection that opts into vision without a multimodal model gets
+    a clear ``WorkerFactoryError`` instead of a fake-vision ACTIVE.
+    The collection-config default is also kept ``False`` so new
+    collections do not accidentally opt in.
+
+    Wave 4 (locked backlog #9) wires the real multimodal vision-LLM;
+    once an operator configures a multimodal model, ``is_multimodal``
+    flips to True and the gate self-disables here.
     """
     from aperag.config import get_vector_db_connector
     from aperag.indexing.vision import VisionModality
@@ -328,14 +346,22 @@ def _build_vision_worker(*, collection: Any, object_store: Any) -> ModalityWorke
     from aperag.utils.utils import generate_vector_db_collection_name
 
     embedding_service, vector_size = get_collection_embedding_service_sync(collection)
+    if not embedding_service.is_multimodal():
+        raise WorkerFactoryError(
+            "vision modality requires a real multimodal vision-LLM (Wave 4 wiring); "
+            "current text-only embedder produces fake string-concat vision vectors — "
+            "set collection.config.enable_vision=false until Wave 4 lands "
+            "OR configure a multimodal embedding model on the collection's embedding spec"
+        )
+
     qdrant_collection = generate_vector_db_collection_name(collection.id)
     adaptor = get_vector_db_connector(qdrant_collection, vector_size=vector_size)
     backend = _QdrantPointBackend(connector=adaptor.connector)
 
     def _embed(image_id: str, alt_text: str) -> list[float]:
-        # Same shape the placeholder uses (image_id + alt_text concat)
-        # so a deployment without a multimodal model still produces
-        # deterministic per-image vectors.
+        # Multimodal embedder is configured (gate above passed); the
+        # call below routes through the multimodal model rather than
+        # the string-concat placeholder.
         return embedding_service.embed_query(f"{image_id}|{alt_text}")
 
     return VisionModality(backend=backend, store=object_store, embedder=_embed)

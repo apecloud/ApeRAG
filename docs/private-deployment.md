@@ -32,6 +32,18 @@ silently broken behaviour in production:
   graph search works. Wave 4 release flips the default back to
   ``true`` once the real backend is wired.
 
+* **Vision modality is gated.** The §D.2 vision pipeline is
+  structurally implemented but a real multimodal vision-LLM (image
+  bytes → vector) and a PDF / image extraction pipeline are Wave 4
+  scope. ``CollectionConfig.enable_vision`` defaults to ``false``;
+  any collection that opts in without configuring a multimodal
+  embedding model gets a ``WorkerFactoryError`` on its vision row
+  rather than a fake-vision ``ACTIVE`` populated by a text-only
+  string-concat embedding (the placeholder shape Wave 1 shipped
+  with). Wave 4 wires the real vision-LLM; once an operator
+  configures a multimodal embedding model, the factory's
+  ``is_multimodal`` check passes and the gate self-disables.
+
 * **Parser supports UTF-8 markdown only.** PDF, Word, image, and
   other binary inputs raise ``ValueError`` from the indexing
   parser. Wave 4 wires the docparser / Marker / OCR pipelines that
