@@ -172,6 +172,18 @@ class CollectionConfig(BaseModel):
     # by accident; Wave 4 release flips it back to True. Per architect
     # msg=c79e9a3f.
     enable_knowledge_graph: Optional[bool] = Field(False, description="Whether to enable knowledge graph index")
+    # Wave 4 T8 chunk 4b: lineage graph backend dispatch.
+    # ``postgres`` is the §D.3.5 reference adapter (no extra
+    # infrastructure needed beyond the application's own PostgreSQL);
+    # ``neo4j`` and ``nebula`` are the production graph databases for
+    # deployments that already run them. ``worker_factory`` reads this
+    # field to construct the right :class:`LineageGraphStore` per
+    # collection. New collections that opt into knowledge graph default
+    # to ``postgres`` since it shares the existing app DB.
+    graph_backend_type: Optional[Literal["postgres", "neo4j", "nebula"]] = Field(
+        "postgres",
+        description="Lineage graph backend for knowledge graph indexing",
+    )
     enable_summary: Optional[bool] = Field(False, description="Whether to enable summary index")
     enable_vision: Optional[bool] = Field(False, description="Whether to enable vision index")
     knowledge_graph_config: Optional[KnowledgeGraphConfig] = Field(
