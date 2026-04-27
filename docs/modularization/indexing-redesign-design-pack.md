@@ -2138,12 +2138,33 @@ per `feedback_simple_stable_zero_maintenance.md` 4 guardrail（不无限扩范�
   - kwarg sentinel 语义: 不传 = 保留 existing；传 None = 显式清空；传 str = 写入；implementer 自选 sentinel 实现细节，但行为契约固定
 - **safety gate test**（per huangheng msg=828c83cc，3 backend 各 1 case）: `test_compactor_write_preserves_all_lineage_fields` — 验证 compactor read-modify-write 不丢 `source_lineage` / `description_parts`，是 Option B 的 invariant 守门员
 
-**新加表**（item 4 + item 6）：
+**新加表**（item 6 only）：
 
 - `aperag_lineage_entity_alias`：`(collection_id, alias_name, canonical_name, merged_at, merged_by)` PK `(collection_id, alias_name)` + index `(collection_id, canonical_name)`（反向查询用）
-- `aperag_merge_candidate`：`(collection_id, entity_a, entity_b, similarity_score, source, detected_at)` PK `(collection_id, entity_a, entity_b)`，`entity_a < entity_b` lexicographic 强制（防 (A,B) 与 (B,A) 重复）
 
-**alembic migration**：item 1 + item 4 + item 6 各 1 个 migration（链式）。
+**Item 4 候选检测 — 不新加表**（lock 2026-04-28，per cuiwenbo msg=0414287c + chenyexuan msg=0243e9bf grep + architect ratify msg=2be943f6 + 明书 grep msg=e5c35c05）:
+
+- 写入现有 `GraphCurationSuggestion` 表（`aperag/domains/knowledge_graph/db/models.py:106`）
+- 每次 sync 创建一个 `GraphCurationRun` 行：`status=COMPLETED`, `config_json={"source": "auto_detect", "sync_run_id": "<sync uuid>"}`, `user_id=collection.owner`
+- 写 `GraphCurationSuggestion` 行 mapping:
+  - `entity_ids = [entity_a, entity_b]` (canonical pair `(min, max)` alphabetical-first 强制)
+  - `target_entity_id = min(entity_a, entity_b)` (deterministic alphabetical-first; user 在 accept 时仍可通过 `target_entity_data` override)
+  - `confidence_score = composite(jaccard, vector_score)` (沿用现有 `_pair_score`)
+  - `reason = "auto_detected"` (区分 user-driven 的 `reason` 文本)
+  - `evidence = {"jaccard": ..., "vector_score": ..., "llm_judge_verdict": ...?}`
+  - `status = "PENDING"`
+- supersede 语义: 下次 sync detector 跑前必显式 supersede 前一次 auto-source 的 PENDING → SUPERSEDED (不留双 PENDING orphan)
+- 0 alembic migration (复用现有表)
+
+理由 (per `feedback_simple_stable_zero_maintenance.md` 4 guardrail 全 hit):
+- 现有 `GraphCurationSuggestion` schema 已成熟 (batch / status / accept-reject / target_data override / `PENDING|ACCEPTED|REJECTED|EXPIRED|SUPERSEDED` lifecycle)
+- 现有 `aperag/graph_curation/candidate_generation.py:build_candidate_pairs` (Jaccard + vector 复合 scoring) + `service.py:_adjudicate_pairs` (LLM judge) infra 已 production-validated
+- frontend 0 改 (cuiwenbo task #9 工作量从 1 天降到 ~1h)
+- task #4 实施降级到薄 wrapper, ETA 从 1-2 周到 1 天
+
+**Detector 仍叫 `MergeCandidateDetector`** (新代码命名一致, "Candidate detection" = algorithmic 阶段 vs "Suggestion" = user-facing 持久化层, 两层概念清晰)。
+
+**alembic migration**：item 1 + item 6 各 1 个 migration（链式; item 4 = 0 migration）。
 
 **老表 drop**（item 10 last）：alembic drop `graphindex_nodes` + `graphindex_edges`（hard-cut，无生产数据）。
 
@@ -2186,17 +2207,19 @@ Agent 通过这三个 tool 实现 LightRAG 风格 RAG over graph：semantic sear
 | 1 | `LineageGraphStore` schema 加 `compacted_description: TEXT NULL` 字段 + alembic migration（Postgres）+ 三个 backend 各自存储支持 | Bryce | 1 天 |
 | 2 | `GraphIndexCompactor` 组件：移植老 `_compact_oversized_descriptions` + `_summarize_description` + `_fallback_truncate` + `_should_summarize` 算法到新代码树（去 LightRAG 命名）+ unit tests | 明书 | 1 天 |
 | 3 | `GraphModalityWorker.sync()` 扩展末尾四步（compactor → embed → vector upsert via `VectorStoreConnectorAdaptor` + snapshot-diff delete → 跑 detector）+ integration tests | Bryce（依赖 #1）| 2 天 |
-| 4 | `MergeCandidateDetector` 组件：字符串 Jaccard + vector ANN + 可选 LLM judge → 写 `aperag_merge_candidate` 表 + alembic + unit tests | 明书 | 1-2 天 |
+| 4 | `MergeCandidateDetector` 薄 wrapper：复用现有 `build_candidate_pairs` (Jaccard + vector 复合) + 可选 LLM judge → 写现有 `GraphCurationSuggestion` 表（per-sync `GraphCurationRun` source=auto_detect）+ supersede 前一次 auto-PENDING + unit tests。**0 alembic migration** | 明书 | 1 天 |
 | 5 | `GraphSearchService` 实现：聚合 + `search_entities` + `search_relations` + `get_subgraph` + `compose_context`，参考老 `query_context` line 760-870 算法 + unit tests | 明书 + architect | 2-3 天 |
 | 6 | `GraphCurationService` 实现：alias_map 表（含 alembic + cycle flatten + per-collection cache）+ `merge_entities`（UNION + LLM unified + compaction + vector re-embed + remove sources）+ `find_merge_candidates`（thin wrapper）+ chunk 2 critical inseparability：`upsert_entity` 内部透明 alias redirect + integration tests | 明书 + Bryce 协助 graph backend（依赖 #1）| 2-3 天 |
 | 7 | MCP 接口注册：`query_graph_entities` / `expand_graph_subgraph` / `get_entity_detail` 进 `agent_runtime/tools/registry.py` + integration tests | 明书 或 chenyexuan（依赖 #5）| 1 天 |
-| 8 | `retrieval/pipeline.py:_graph_search` 升级走 `GraphSearchService`（恢复向量召回，不是 keyword-only）+ `aperag/graph_curation/*` 4 文件迁移（用 alias 替代老 Entity DTO）+ REST API `/graphs/merge`、`/graphs/merge-candidates`、`/graphs/{id}` | chenyexuan（依赖 #5 + #6）| 1-2 天 |
+| 8 | `retrieval/pipeline.py:_graph_search` 升级走 `GraphSearchService`（恢复向量召回，不是 keyword-only）+ `aperag/graph_curation/*` 4 文件迁移（用 alias 替代老 Entity DTO）+ `domains/knowledge_graph/service.py` `merge_entities`+`get_knowledge_graph` internal cutover + 现有 REST routes (`POST/GET /graphs/merge-suggestions`、`POST /graphs/nodes/merge`、`GET /graphs?label=...`) 内部 cutover。**0 new endpoint** (复用 `MergeSuggestion*` REST per cuiwenbo lock) | chenyexuan（依赖 #5 + #6）| 1-2 天 |
 | 9 | 前端验证 + OpenAPI 重新生成（response shape 不变则 0 工作量；否则 UI 微调显示 `compacted_description` / 候选合并 UI）| cuiwenbo（如需）| 0-1 天 |
 | 10 | 删除整个 `aperag/domains/knowledge_graph/graphindex/` 包 + `tests/unit_test/graphindex/` 整目录 + `tests/integration/compat/test_graph_compat.py`（已被 `test_lineage_graph_compat.py` 替代）+ alembic drop `graphindex_nodes` + `graphindex_edges` 表 + grep-zero verify。**这步必须最后做** | Bryce（依赖前 9 项全 merged）| 0.5 天 |
 
 **Total**：1.5-2 周（多人并行：item 1+2+4+5 可同时启动；item 3 + 6 依赖 item 1；item 7 + 8 依赖 item 5；item 9 依赖 item 8；item 10 必 last）。
 
 #### K.12.9. Pre-check pattern lock（per `feedback_spec_lock_grep_verify_caller.md` + `feedback_architect_design_impl_gap_monitor.md`）
+
+**强制要求**（per `feedback_cr_spec_crosscheck.md` hard gate）: 每个 PR description body 必 paste 4-pattern + 5 mini-pattern grep 输出 + 12 invariant cross-check 表 + simple-stable 4-guardrail 落点。CR 拒绝 LGTM 缺这三段的 PR。
 
 每个 acceptance item 实施前必跑（implementer 自我审计 + post pre-check matrix gap analysis 给 architect 验证）：
 
@@ -2205,10 +2228,15 @@ Agent 通过这三个 tool 实现 LightRAG 风格 RAG over graph：semantic sear
   - FOR EACH caller, enumerate `GraphIndexService.METHOD(` calls — method coverage matrix
 - **Pattern 2** (state binding): 
   - `grep -rn "graphindex_nodes\|graphindex_edges" aperag/` — legacy table refs
-  - `grep -rn "compacted_description\|aperag_merge_candidate\|aperag_lineage_entity_alias" aperag/migration/` — 新 schema binding
+  - `grep -rn "compacted_description\|aperag_lineage_entity_alias" aperag/migration/` — 新 schema binding
 - **Pattern 3** (Protocol method state): 
-  - `grep -rn "indexer.*graph_entity\|indexer.*graph_relation" aperag/vectorstore/` — Qdrant payload filter binding
+  - `grep -rn "indexer.*graph_entity\|indexer.*graph_relation" aperag/vectorstore/` — vector payload filter binding
   - 验证 `description_parts.text` 列累积长度 vs `max_description_chars` 阈值
+- **Mini #4** (Protocol DTO 名 grep): `grep -rn "class EntityRecord\|class EntityWithLineage" aperag/indexing/graph.py` — 派生字段必须落在 storage view DTO, 不污染 raw 抽取契约
+- **Mini #5** (dependency 接口签名): `grep -rn "def search\|def query" aperag/vectorstore/base.py aperag/vectorstore/connector.py` — sync vs async, method 名 verify
+- **Mini #6** (binding pattern conform): `grep -rn "def .*\\(self.*collection_id" aperag/indexing/graph.py` — 现有 Protocol 全 per-collection 绑定, 新 method 不引入 `collection_id` 参数
+- **Mini #7** (新加 X 前 grep 现有 X-similar): `grep -rn "class.*Suggestion\|class.*Candidate\|build_.*pairs\|adjudicate" aperag/ tests/` — reuse > new default
+- **Mini #8** (port legacy 必列 invariant feature): spec 写"port legacy 算法 X" 时必显式列 X 的 invariant feature list (例: DESCRIPTION_SUMMARIZATION 5 features = subject_label / language / relation framing / contradiction handling / length flexibility)
 
 #### K.12.10. 命名约定（去 LightRAG）
 
@@ -2221,6 +2249,42 @@ Agent 通过这三个 tool 实现 LightRAG 风格 RAG over graph：semantic sear
 | 老 `legacy graphindex` 类名 | 整个包删掉 |
 
 代码 + REST API + MCP tool name 中完全去掉 LightRAG。仅本节"现状分析"提及"灵感来自 LightRAG 设计"。
+
+#### K.12.10b. Cycle flatten 算法（alias_map redirect 1-hop guarantee）
+
+每次 user merge `A → B` 时, 防 cycle 必跑 flatten:
+
+```
+def upsert_alias(collection_id, alias_name=A, target=B):
+    # 1. resolve target's canonical (1-hop guarantee = 永远不嵌套)
+    canonical = resolve_canonical(collection_id, target)  # 若 B 已 alias_of(C), canonical=C
+    
+    # 2. write (A, canonical) — alias_map 永远存终点, 不存中间链
+    upsert_row(collection_id, alias=A, canonical=canonical, merged_at=now, merged_by=user)
+    
+    # 3. invalidate per-collection cache
+    cache.invalidate(collection_id)
+
+
+def resolve_canonical(collection_id, name) -> str:
+    """ 永远 1-hop 查询. 若 alias_map 中存 (name, X), 返回 X; 否则返回 name 自身 """
+    row = alias_map.get(collection_id, name)
+    return row.canonical if row else name
+```
+
+**Invariant**: alias_map 中 `(alias_name, canonical_name)` 行的 `canonical_name` **永远是终点** (即不存在另一行 `(canonical_name, X)` where X != canonical_name)。upsert 时 flatten target chain 保证此 invariant。
+
+**Edge case** (用户先 merge A→B, 再 merge B→C):
+- step 1: alias_map 写 `(A, B)`
+- step 2: merge B→C 触发 `upsert_alias(B → C)` + 必须扫描所有 alias_map 行 where canonical=B → 改成 canonical=C (flatten 已存在的 A→B 链 → A→C)
+- 实施: `UPDATE alias_map SET canonical_name=C WHERE collection_id=cid AND canonical_name=B; INSERT (B, C);`
+
+**为何 1-hop 而不是 transitive lookup**: 简单稳定 (per directive #3) + lookup O(1) per-collection cache + 不需递归 cycle detection (写时已防)。
+
+**实施测试 case**:
+- merge A→B 后查 A → B
+- merge B→C 后查 A → C (transitive flatten)
+- merge C→A (循环) → 拒绝 (cycle detection)
 
 #### K.12.11. Architect direct ratify lane（per §K.9.2 / §K.11.8 lane lock pattern）
 
