@@ -7,6 +7,7 @@ Main service class for web content reading functionality with provider abstracti
 import logging
 from typing import Dict, List, Optional
 
+from aperag.cache import NAMESPACE_WEB_READ, application_cache_policy, get_application_cache
 from aperag.domains.web_access.reader.base_reader import BaseReaderProvider
 from aperag.domains.web_access.reader.providers.jina_read_provider import JinaReaderProvider
 from aperag.domains.web_access.reader.providers.trafilatura_read_provider import (
@@ -14,6 +15,7 @@ from aperag.domains.web_access.reader.providers.trafilatura_read_provider import
     TrafilaturaProvider,
 )
 from aperag.domains.web_access.schemas import WebReadRequest, WebReadResponse, WebReadResultItem
+from aperag.domains.web_access.utils.url_validator import URLValidator
 
 logger = logging.getLogger(__name__)
 
@@ -105,26 +107,43 @@ class ReaderService:
             if not urls:
                 raise ReaderProviderError("URLs list cannot be empty")
 
-            # Track timing
             start_time = self._get_current_time()
+            normalized_urls = [URLValidator.normalize_url(url.strip()) for url in urls]
+            cache = await get_application_cache()
 
-            # Read content based on number of URLs
-            if len(urls) == 1:
-                # Single URL - use read method
-                result = await self.provider.read(
-                    url=urls[0],
-                    timeout=request.timeout,
-                    locale=request.locale,
-                )
-                results = [result]
-            else:
-                # Multiple URLs - use read_batch method
-                results = await self.provider.read_batch(
-                    urls=urls,
-                    timeout=request.timeout,
-                    locale=request.locale,
-                    max_concurrent=request.max_concurrent,
-                )
+            async def compute_missing(missing_urls: list[str]) -> dict[str, dict]:
+                if len(missing_urls) == 1:
+                    results = [
+                        await self.provider.read(
+                            url=missing_urls[0],
+                            timeout=request.timeout,
+                            locale=request.locale,
+                        )
+                    ]
+                else:
+                    results = await self.provider.read_batch(
+                        urls=missing_urls,
+                        timeout=request.timeout,
+                        locale=request.locale,
+                        max_concurrent=request.max_concurrent,
+                    )
+                return {url: result.model_dump(mode="json") for url, result in zip(missing_urls, results)}
+
+            result_payloads = await cache.get_many_or_compute_missing(
+                namespace=NAMESPACE_WEB_READ,
+                items=normalized_urls,
+                key_data_for_item=lambda url: {
+                    "provider": self.provider_name.lower(),
+                    "provider_config": self.provider_config,
+                    "url": url,
+                    "locale": request.locale,
+                    "timeout": request.timeout,
+                },
+                compute_missing=compute_missing,
+                policy=application_cache_policy(NAMESPACE_WEB_READ),
+                should_cache=lambda value: value.get("status") == "success",
+            )
+            results = [WebReadResultItem.model_validate(item) for item in result_payloads]
 
             processing_time = self._get_current_time() - start_time
 

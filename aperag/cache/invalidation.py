@@ -12,23 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Explicit cache invalidation triggers for D10.g (task #99).
+"""Explicit cache invalidation triggers for read-primitive cache entries.
 
-§E.5 distinguishes implicit and explicit invalidation:
+Read-primitive cache distinguishes implicit and explicit invalidation:
 
 * **Implicit** — ``parse_version`` change produces a fresh key, so the
   old key is simply unreferenced and decays out of L1 / L2 by their
-  natural eviction. Most invalidation flows naturally; D10.c does not
-  need to call any helper here for a re-parse.
+  natural eviction. Re-parse flows do not need to call any helper here.
 * **Explicit** — ``delete_document`` / ``rebuild_indexes`` /
   admin-flush actions that need to purge cached entries even though
   ``parse_version`` did not move (e.g., the document is being removed
   outright). Those callers go through this module.
 
-D10.g first-cut **does not auto-wire** these helpers into any code
-path; the actual wiring is the D11+ write-tools lane's responsibility
-(per §E.5 + §G D10.g write-set boundary). The helpers are provided
-here so that lane has a stable API to call instead of hand-rolling
+These helpers give write paths a stable API instead of hand-rolling
 ``redis.scan_iter`` matches.
 """
 
@@ -65,11 +61,11 @@ async def invalidate_document(
         # the conservatively-correct path for D11+ write tools that
         # rarely happens. The cost is tolerable.
         # TODO(D11+ write tools): implement narrower "scan by prefix
-        # ``d10:<ns>:<document_id>:``" once Redis SCAN match support is
+        # ``read_primitive:<ns>:<document_id>:``" once Redis SCAN match support is
         # exposed through ``AsyncRedisLike``.
         await cache.l1.delete_namespace(ns)
         await cache.l2.delete_namespace(ns)
-    logger.info("D10.g cache: invalidated all entries for document_id=%s", document_id)
+    logger.info("Read-primitive cache: invalidated all entries for document_id=%s", document_id)
 
 
 async def invalidate_collection(
@@ -89,7 +85,7 @@ async def invalidate_collection(
     for ns in namespaces:
         await cache.l1.delete_namespace(ns)
         await cache.l2.delete_namespace(ns)
-    logger.info("D10.g cache: invalidated all entries for collection_id=%s", collection_id)
+    logger.info("Read-primitive cache: invalidated all entries for collection_id=%s", collection_id)
 
 
 __all__ = [

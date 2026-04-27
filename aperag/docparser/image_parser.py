@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import base64
+import hashlib
 import json
 from io import BytesIO
 from pathlib import Path
@@ -21,6 +22,7 @@ from typing import Any
 import requests
 from PIL import Image
 
+from aperag.cache import NAMESPACE_REMOTE_PARSER, application_cache_policy, get_sync_application_cache
 from aperag.config import settings
 from aperag.docparser.base import BaseParser, FallbackError, ParserError, Part, TextPart
 
@@ -57,6 +59,21 @@ class ImageParser(BaseParser):
         return [TextPart(content=content, metadata=metadata)]
 
     def read_image_text(self, path: Path) -> str:
+        cache = get_sync_application_cache()
+        return cache.get_or_compute(
+            namespace=NAMESPACE_REMOTE_PARSER,
+            key_data={
+                "parser": self.name,
+                "file_hash": _file_sha256(path),
+                "endpoint": settings.paddleocr_host,
+                "request": "ocr_system",
+            },
+            compute=lambda: self._read_image_text_uncached(path),
+            policy=application_cache_policy(NAMESPACE_REMOTE_PARSER),
+            should_cache=lambda value: bool(value),
+        )
+
+    def _read_image_text_uncached(self, path: Path) -> str:
         def image_to_base64(image_path: str):
             with Image.open(image_path) as image:
                 if image.mode == "RGBA":
@@ -96,3 +113,11 @@ class ImageParser(BaseParser):
         for text in texts:
             res += text
         return res
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()

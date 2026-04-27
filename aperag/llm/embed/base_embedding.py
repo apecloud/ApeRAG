@@ -1,5 +1,7 @@
+import hashlib
 import logging
 
+from aperag.cache import NAMESPACE_EMBEDDING_DIMENSION, application_cache_policy, get_sync_application_cache
 from aperag.config import settings
 from aperag.db.ops import db_ops
 from aperag.llm.embed.embedding_service import EmbeddingService
@@ -8,20 +10,33 @@ from aperag.llm.runtime.resolver import resolve_model_invocation_from_records
 from aperag.schema.utils import parseCollectionConfig
 
 logger = logging.getLogger(__name__)
-_dimension_cache: dict[str, int] = {}
 
 
 def _get_embedding_dimension(embedding_svc: EmbeddingService, model_id: str, configured_dimension: int | None) -> int:
     if configured_dimension:
         return configured_dimension
-    if model_id in _dimension_cache:
-        return _dimension_cache[model_id]
-    vec = embedding_svc.embed_query("dimension_probe")
-    if not vec:
-        raise EmbeddingError("Failed to obtain embedding vector while probing dimension", {"model_id": model_id})
-    dim = len(vec[0]) if isinstance(vec[0], (list, tuple)) else len(vec)
-    _dimension_cache[model_id] = dim
-    return dim
+
+    def compute_dimension() -> int:
+        vec = embedding_svc.embed_query("dimension_probe")
+        if not vec:
+            raise EmbeddingError("Failed to obtain embedding vector while probing dimension", {"model_id": model_id})
+        return len(vec[0]) if isinstance(vec[0], (list, tuple)) else len(vec)
+
+    cache = get_sync_application_cache()
+    return int(
+        cache.get_or_compute(
+            namespace=NAMESPACE_EMBEDDING_DIMENSION,
+            key_data={
+                "model_id": model_id,
+                "provider": embedding_svc.embedding_provider,
+                "model": embedding_svc.model,
+                "api_base": embedding_svc.api_base,
+                "api_key_hash": hashlib.sha256((embedding_svc.api_key or "").encode("utf-8")).hexdigest(),
+            },
+            compute=compute_dimension,
+            policy=application_cache_policy(NAMESPACE_EMBEDDING_DIMENSION),
+        )
+    )
 
 
 def get_embedding_service(model_id: str, user_id: str) -> tuple[EmbeddingService, int]:

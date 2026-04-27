@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import base64
+import hashlib
 import io
 import logging
 import tempfile
@@ -22,7 +24,21 @@ from typing import Any
 
 import requests
 
-from aperag.docparser.base import BaseParser, FallbackError, ParserError, Part, PdfPart
+from aperag.cache import NAMESPACE_REMOTE_PARSER, application_cache_policy, get_sync_application_cache
+from aperag.docparser.base import (
+    AssetBinPart,
+    BaseParser,
+    CodePart,
+    FallbackError,
+    ImagePart,
+    MarkdownPart,
+    MediaPart,
+    ParserError,
+    Part,
+    PdfPart,
+    TextPart,
+    TitlePart,
+)
 from aperag.docparser.mineru_common import middle_json_to_parts, to_md_part
 
 logger = logging.getLogger(__name__)
@@ -61,6 +77,26 @@ class MinerUParser(BaseParser):
                 code="missing_configuration",
                 detail="Set mineru_api_token to enable MinerU enhancement.",
             )
+
+        token_scope = hashlib.sha256(self.api_token.encode("utf-8")).hexdigest()
+        cache = get_sync_application_cache()
+        payload = cache.get_or_compute(
+            namespace=NAMESPACE_REMOTE_PARSER,
+            key_data={
+                "parser": self.name,
+                "file_hash": _file_sha256(path),
+                "endpoint": API_HOST,
+                "model_version": "v2",
+                "metadata": metadata,
+                "token_scope": token_scope,
+            },
+            compute=lambda: _parts_to_cache_payload(self._parse_file_uncached(path, metadata)),
+            policy=application_cache_policy(NAMESPACE_REMOTE_PARSER),
+            should_cache=lambda value: bool(value),
+        )
+        return _parts_from_cache_payload(payload)
+
+    def _parse_file_uncached(self, path: Path, metadata: dict[str, Any]) -> list[Part]:
 
         headers = {
             "Authorization": f"Bearer {self.api_token}",
@@ -245,6 +281,59 @@ class MinerUParser(BaseParser):
         finally:
             if temp_dir_obj:
                 temp_dir_obj.cleanup()
+
+
+_PART_TYPES = {
+    "Part": Part,
+    "MarkdownPart": MarkdownPart,
+    "PdfPart": PdfPart,
+    "AssetBinPart": AssetBinPart,
+    "TextPart": TextPart,
+    "TitlePart": TitlePart,
+    "CodePart": CodePart,
+    "MediaPart": MediaPart,
+    "ImagePart": ImagePart,
+}
+
+
+def _parts_to_cache_payload(parts: list[Part]) -> list[dict[str, Any]]:
+    return [{"type": part.__class__.__name__, "data": _encode_bytes(part.model_dump(mode="python"))} for part in parts]
+
+
+def _parts_from_cache_payload(payload: list[dict[str, Any]]) -> list[Part]:
+    parts: list[Part] = []
+    for item in payload:
+        model = _PART_TYPES.get(item.get("type"), Part)
+        parts.append(model.model_validate(_decode_bytes(item.get("data", {}))))
+    return parts
+
+
+def _encode_bytes(value: Any) -> Any:
+    if isinstance(value, bytes):
+        return {"__bytes_b64__": base64.b64encode(value).decode("ascii")}
+    if isinstance(value, dict):
+        return {key: _encode_bytes(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_encode_bytes(item) for item in value]
+    return value
+
+
+def _decode_bytes(value: Any) -> Any:
+    if isinstance(value, dict):
+        if set(value) == {"__bytes_b64__"}:
+            return base64.b64decode(value["__bytes_b64__"])
+        return {key: _decode_bytes(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_decode_bytes(item) for item in value]
+    return value
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 # --- For testing ---

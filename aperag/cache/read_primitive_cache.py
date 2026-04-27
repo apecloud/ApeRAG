@@ -12,36 +12,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Read-primitive cache facade for D10.g (task #99).
+"""Read-primitive cache facade.
 
-The four parse_version-keyed primitives in :mod:`aperag.mcp.tools` —
+The four parse-version-keyed primitives in :mod:`aperag.mcp.tools` —
 ``read_document`` / ``read_document_outline`` / ``read_document_section``
-/ ``read_document_chunk`` — are the §E.3 budget hot path (PDF cold parse
+/ ``read_document_chunk`` — are a budget hot path (PDF cold parse
 1-3s, OCR cold parse 5-30s). :class:`ReadPrimitiveCache` is the seam
 those primitives can call once tenancy + authorization have already run
 to amortize the parse cost on subsequent reads of the same parsed view.
 
-§E.7 hard lock — the cache **never** runs tenancy / authorization; it
+The cache **never** runs tenancy / authorization; it
 trusts that the caller has already done so. The single exception is
-``read_document_chunk`` whose key is ``(chunk_id,)`` only (per §E.6
-chunk_id is indexing-immutable and does not need parse_version
-weighting).
+``read_document_chunk`` whose key is based on stable chunk identity.
 
 Cache key shape (one namespace per primitive):
 
-* ``d10:outline:<document_id>:<parse_version>``
-* ``d10:section:<document_id>:<parse_version>:<section_path or "">:<heading_anchor or "">``
-* ``d10:content:<document_id>:<parse_version>``
-* ``d10:chunk:<chunk_id>``
+* ``read_primitive:outline:<document_id>:<parse_version>``
+* ``read_primitive:section:<document_id>:<parse_version>:<section_path or "">:<heading_anchor or "">``
+* ``read_primitive:content:<document_id>:<parse_version>``
+* ``read_primitive:chunk:<chunk_id>``
 
 Values are JSON-serialized via Pydantic ``model_dump_json()`` and
 validated back via ``Model.model_validate_json()``. A serialization or
 deserialization failure is treated as a cache miss (logged) — the
 authoritative store is the source of truth.
 
-Wiring (D10.c primitive bodies, post Phase 2B follow-up): callers pass
-the cache instance + a no-arg ``compute`` callable that performs the
-authoritative fetch:
+Callers pass the cache instance + a no-arg ``compute`` callable that
+performs the authoritative fetch:
 
 .. code-block:: python
 
@@ -67,6 +64,7 @@ from typing import Awaitable, Callable, Optional, TypeVar
 from pydantic import BaseModel, ValidationError
 
 from aperag.cache.parse_version_cache import (
+    READ_PRIMITIVE_CACHE_PREFIX,
     AsyncRedisLike,
     CacheLayer,
     L1Cache,
@@ -79,8 +77,8 @@ logger = logging.getLogger(__name__)
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
 
-# Reserved cache namespaces. Keep in sync with the design pack §E
-# canonical key prefixes; the invalidation helpers grep on these.
+# Reserved cache namespaces. Keep in sync with canonical key prefixes;
+# the invalidation helpers grep on these.
 NAMESPACE_OUTLINE = "outline"
 NAMESPACE_SECTION = "section"
 NAMESPACE_CONTENT = "content"
@@ -96,7 +94,7 @@ def _build_key(namespace: str, *parts: str) -> str:
     surrounding caller normalizes ``None`` to ``""`` before passing in.
     """
 
-    return ":".join(("d10", namespace, *parts))
+    return ":".join((READ_PRIMITIVE_CACHE_PREFIX, namespace, *parts))
 
 
 class ReadPrimitiveCache:
@@ -108,7 +106,7 @@ class ReadPrimitiveCache:
     one ``get_or_compute_*`` per primitive so callers do not build
     cache keys by hand and so the test surface stays small.
 
-    Per §E.1 sequencing (read primitive → L1 → L2 → compute → write
+    Sequencing (read primitive → L1 → L2 → compute → write
     L2 + L1), ``get_or_compute_*`` writes back to **both** layers on a
     miss so the next request from any worker hits L1 directly while
     other workers can hit the shared L2.
@@ -235,7 +233,9 @@ class ReadPrimitiveCache:
 
         if not isinstance(value, model_cls):
             # Defensive: compute path must return the declared type.
-            raise TypeError(f"D10.g cache compute returned {type(value).__name__}, expected {model_cls.__name__}")
+            raise TypeError(
+                f"Read-primitive cache compute returned {type(value).__name__}, expected {model_cls.__name__}"
+            )
         return value
 
     async def _compute_and_store(
@@ -248,7 +248,7 @@ class ReadPrimitiveCache:
         try:
             payload = value.model_dump_json()
         except Exception as e:  # pragma: no cover - Pydantic encode is robust
-            logger.warning("D10.g cache encode failed for %s: %s", key, e)
+            logger.warning("Read-primitive cache encode failed for %s: %s", key, e)
             return value
         # Write-back: L2 first (shared) so other workers see it sooner;
         # then L1 so this worker's next read is L1-cheap.
@@ -262,14 +262,14 @@ class ReadPrimitiveCache:
             return model_cls.model_validate_json(payload)
         except ValidationError as e:
             logger.warning(
-                "D10.g cache decode failed for model %s: %s — treating as miss",
+                "Read-primitive cache decode failed for model %s: %s — treating as miss",
                 model_cls.__name__,
                 e,
             )
             return None
         except Exception as e:  # pragma: no cover - JSON / unexpected
             logger.warning(
-                "D10.g cache decode raised %s for model %s — treating as miss",
+                "Read-primitive cache decode raised %s for model %s — treating as miss",
                 type(e).__name__,
                 model_cls.__name__,
             )

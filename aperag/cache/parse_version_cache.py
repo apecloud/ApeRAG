@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Two-tier cache primitives for D10.g (task #99).
+"""Two-tier cache primitives for read-primitive responses.
 
-L1 is an in-process LRU bounded by ``Config.d10_cache_l1_size``; L2 is a
+L1 is an in-process LRU bounded by
+``Config.read_primitive_cache_l1_size``; L2 is a
 Redis-backed adapter behind an injectable client (per architect Q3 lock
 msg=a67974b3 — keyword-only DI). Both layers store and return JSON-
 serialized strings; the higher-level :mod:`aperag.cache.read_primitive_cache`
@@ -27,13 +28,12 @@ type. The composition order (L1 → L2 → compute) lives in
 
 Key shape (used by the L2 Redis store):
 
-* ``d10:<namespace>:<key_part_1>:<key_part_2>:...``
+* ``read_primitive:<namespace>:<key_part_1>:<key_part_2>:...``
 * Reserved namespaces: ``outline`` / ``section`` / ``content`` /
   ``chunk`` / ``colmeta`` / ``docmeta``.
 
-Per §E.5 explicit invalidation triggers may purge an entire namespace
-via :meth:`L2Cache.delete_namespace` — that is reserved for the D11+
-write tool path; D10.g first-cut does not auto-wire any such trigger.
+Explicit invalidation triggers may purge an entire namespace via
+:meth:`L2Cache.delete_namespace`.
 """
 
 from __future__ import annotations
@@ -44,6 +44,8 @@ from collections import OrderedDict
 from typing import Any, Optional, Protocol, runtime_checkable
 
 logger = logging.getLogger(__name__)
+
+READ_PRIMITIVE_CACHE_PREFIX = "read_primitive"
 
 
 # ---------------------------------------------------------------------------
@@ -135,7 +137,7 @@ class L1Cache:
             self._store.pop(key, None)
 
     async def delete_namespace(self, namespace: str) -> None:
-        prefix = f"d10:{namespace}:"
+        prefix = f"{READ_PRIMITIVE_CACHE_PREFIX}:{namespace}:"
         async with self._lock:
             doomed = [k for k in self._store if k.startswith(prefix)]
             for k in doomed:
@@ -160,7 +162,7 @@ class L2Cache:
 
     A failure to talk to Redis is logged and swallowed: the read
     primitive falls through to the compute step (cache miss is fail-
-    open). This is the §E.7 behavior — the cache only accelerates; if
+    open). The cache only accelerates; if
     it fails, the authoritative store still answers.
     """
 
@@ -199,7 +201,7 @@ class L2Cache:
             logger.warning("L2 cache DEL failed for %s: %s", key, e)
 
     async def delete_namespace(self, namespace: str) -> None:
-        prefix = f"d10:{namespace}:"
+        prefix = f"{READ_PRIMITIVE_CACHE_PREFIX}:{namespace}:"
         try:
             doomed: list[str] = []
             async for raw_key in self._redis.scan_iter(match=f"{prefix}*"):
@@ -239,4 +241,5 @@ __all__ = [
     "L1Cache",
     "L2Cache",
     "NoopL2Cache",
+    "READ_PRIMITIVE_CACHE_PREFIX",
 ]

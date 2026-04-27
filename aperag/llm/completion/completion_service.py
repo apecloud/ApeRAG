@@ -11,11 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import hashlib
 import logging
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
 import litellm
 
+from aperag.cache import (
+    NAMESPACE_LLM_COMPLETION,
+    application_cache_policy,
+    get_application_cache,
+    get_sync_application_cache,
+)
 from aperag.llm.llm_error_types import (
     CompletionError,
     InvalidPromptError,
@@ -99,19 +106,29 @@ class CompletionService:
             self._validate_inputs(prompt, images)
             messages = self._build_messages(history, prompt, images, memory)
 
-            response = await litellm.acompletion(
-                custom_llm_provider=self.provider,
-                model=self.model,
-                base_url=self.base_url,
-                api_key=self.api_key,
-                temperature=self.temperature,
-                max_tokens=self.max_tokens,
-                messages=messages,
-                stream=False,
-                caching=self.caching,
-            )
+            async def compute() -> str:
+                response = await litellm.acompletion(
+                    custom_llm_provider=self.provider,
+                    model=self.model,
+                    base_url=self.base_url,
+                    api_key=self.api_key,
+                    temperature=self.temperature,
+                    max_tokens=self.max_tokens,
+                    messages=messages,
+                    stream=False,
+                    caching=False,
+                )
+                return self._extract_content_from_response(response)
 
-            return self._extract_content_from_response(response)
+            if not self.caching:
+                return await compute()
+            cache = await get_application_cache()
+            return await cache.get_or_compute(
+                namespace=NAMESPACE_LLM_COMPLETION,
+                key_data=self._cache_key_data(messages=messages, stream=False),
+                compute=compute,
+                policy=application_cache_policy(NAMESPACE_LLM_COMPLETION),
+            )
 
         except CompletionError:
             # Re-raise our custom completion errors
@@ -137,7 +154,7 @@ class CompletionService:
                 max_tokens=self.max_tokens,
                 messages=messages,
                 stream=True,
-                caching=self.caching,
+                caching=False,
             )
 
             # Process the raw stream and yield clean text chunks
@@ -170,19 +187,29 @@ class CompletionService:
             self._validate_inputs(prompt, images)
             messages = self._build_messages(history, prompt, images, memory)
 
-            response = litellm.completion(
-                custom_llm_provider=self.provider,
-                model=self.model,
-                base_url=self.base_url,
-                api_key=self.api_key,
-                temperature=self.temperature,
-                max_tokens=self.max_tokens,
-                messages=messages,
-                stream=False,
-                caching=self.caching,
-            )
+            def compute() -> str:
+                response = litellm.completion(
+                    custom_llm_provider=self.provider,
+                    model=self.model,
+                    base_url=self.base_url,
+                    api_key=self.api_key,
+                    temperature=self.temperature,
+                    max_tokens=self.max_tokens,
+                    messages=messages,
+                    stream=False,
+                    caching=False,
+                )
+                return self._extract_content_from_response(response)
 
-            return self._extract_content_from_response(response)
+            if not self.caching:
+                return compute()
+            cache = get_sync_application_cache()
+            return cache.get_or_compute(
+                namespace=NAMESPACE_LLM_COMPLETION,
+                key_data=self._cache_key_data(messages=messages, stream=False),
+                compute=compute,
+                policy=application_cache_policy(NAMESPACE_LLM_COMPLETION),
+            )
 
         except CompletionError:
             # Re-raise our custom completion errors
@@ -209,3 +236,16 @@ class CompletionService:
     ) -> str:
         """Generate complete response (sync, non-streaming)."""
         return self._completion_core(history, prompt, images, memory)
+
+    def _cache_key_data(self, *, messages: List[Dict], stream: bool) -> dict[str, Any]:
+        return {
+            "provider": self.provider,
+            "model": self.model,
+            "base_url": self.base_url,
+            "api_key_hash": hashlib.sha256((self.api_key or "").encode("utf-8")).hexdigest(),
+            "temperature": self.temperature,
+            "max_tokens": self.max_tokens,
+            "vision": self.vision,
+            "stream": stream,
+            "messages": messages,
+        }

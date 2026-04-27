@@ -7,6 +7,7 @@ Main service class for web search functionality with provider abstraction.
 import logging
 from typing import Dict, List
 
+from aperag.cache import NAMESPACE_WEB_SEARCH, application_cache_policy, get_application_cache
 from aperag.domains.web_access.schemas import (
     WebSearchMeta,
     WebSearchRequest,
@@ -97,34 +98,49 @@ class SearchService:
         if request.timeout > 300:
             raise ValueError("timeout cannot exceed 300 seconds")
 
-        start_time = self._get_current_time()
+        async def compute_response() -> dict:
+            start_time = self._get_current_time()
+            results = await self.provider.search(
+                query=request.query,
+                max_results=request.max_results,
+                timeout=request.timeout,
+                locale=request.locale,
+                source=request.source,
+            )
+            search_time = self._get_current_time() - start_time
+            provider_meta = getattr(self.provider, "last_search_meta", {}) or {}
+            response = WebSearchResponse(
+                query=request.query or "",
+                results=results,
+                total_results=len(results),
+                search_time=search_time,
+                meta=WebSearchMeta(
+                    search_status=provider_meta.get("search_status") or ("ok" if results else "empty"),
+                    provider_used=list(provider_meta.get("provider_used") or [self.provider_name.lower()]),
+                    backend_used=list(provider_meta.get("backend_used") or [self.provider_name.lower()]),
+                    fallback_used=bool(provider_meta.get("fallback_used", False)),
+                    error_code=provider_meta.get("error_code"),
+                ),
+            )
+            return response.model_dump(mode="json")
 
-        # Call the provider's search method
-        results = await self.provider.search(
-            query=request.query,
-            max_results=request.max_results,
-            timeout=request.timeout,
-            locale=request.locale,
-            source=request.source,
+        cache = await get_application_cache()
+        payload = await cache.get_or_compute(
+            namespace=NAMESPACE_WEB_SEARCH,
+            key_data={
+                "provider": self.provider_name.lower(),
+                "provider_config": self.provider_config,
+                "query": request.query or "",
+                "source": request.source or "",
+                "locale": request.locale,
+                "max_results": request.max_results,
+                "timeout": request.timeout,
+            },
+            compute=compute_response,
+            policy=application_cache_policy(NAMESPACE_WEB_SEARCH),
+            should_cache=lambda value: (value.get("meta") or {}).get("search_status") in {"ok", "empty"},
         )
-
-        search_time = self._get_current_time() - start_time
-        provider_meta = getattr(self.provider, "last_search_meta", {}) or {}
-
-        # Create response
-        return WebSearchResponse(
-            query=request.query or "",
-            results=results,
-            total_results=len(results),
-            search_time=search_time,
-            meta=WebSearchMeta(
-                search_status=provider_meta.get("search_status") or ("ok" if results else "empty"),
-                provider_used=list(provider_meta.get("provider_used") or [self.provider_name.lower()]),
-                backend_used=list(provider_meta.get("backend_used") or [self.provider_name.lower()]),
-                fallback_used=bool(provider_meta.get("fallback_used", False)),
-                error_code=provider_meta.get("error_code"),
-            ),
-        )
+        return WebSearchResponse.model_validate(payload)
 
     async def search_simple(
         self,
