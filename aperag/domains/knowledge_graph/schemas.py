@@ -344,6 +344,102 @@ class SuggestionActionResponse(BaseModel):
     )
 
 
+# ----------------------------------------------------------------------
+# Wave 7 §K.12.6/§K.12.7 — internal-only graph search/expand/detail shapes
+# ----------------------------------------------------------------------
+#
+# These models back the three MCP-facing endpoints under
+# ``/collections/{id}/graphs/entities/...`` and ``/graphs/subgraph/...``.
+# They are explicitly NOT user-facing — frontend has no consumer for
+# them — but they appear in OpenAPI regen so SDK callers can bind to
+# them statically.
+#
+# Per §K.12 invariant #12 (grep-zero LightRAG) the names are
+# ``Graph*`` only; per invariant #11 (D-3 candidate detection writes
+# only) these are read-only shapes — no mutation surface.
+
+
+class GraphSearchEntity(BaseModel):
+    """Entity returned by ``/graphs/entities/search`` and
+    ``/graphs/entities/{name}``.
+
+    Mirrors :class:`aperag.indexing.graph.EntityWithLineage` projected
+    to the public-facing fields. The ``description`` field collapses
+    ``compacted_description`` (when present) and ``description_parts``
+    using the same rule as :func:`GraphSearchService.compose_context`,
+    so MCP callers see one stable text — independent of whether the
+    GraphIndexCompactor (task #2) has run yet.
+    """
+
+    name: str = Field(..., description="Canonical entity name", examples=["墨香居"])
+    entity_type: str = Field(..., description="Entity type", examples=["organization"])
+    description: str = Field(
+        ...,
+        description="Compacted description if available, otherwise joined description parts",
+        examples=["墨香居是这条老巷子里唯一的旧书店。"],
+    )
+    source_chunk_count: int = Field(
+        0,
+        description="Number of source chunks supporting this entity",
+        examples=[3],
+        ge=0,
+    )
+
+
+class GraphRelationView(BaseModel):
+    """Relation projection used by subgraph expansion responses."""
+
+    source: str = Field(..., description="Source entity name", examples=["李明华"])
+    target: str = Field(..., description="Target entity name", examples=["墨香居"])
+    description: str = Field(
+        ...,
+        description="Compacted description if available, otherwise joined description parts",
+        examples=["李明华经营墨香居"],
+    )
+
+
+class GraphEntitiesSearchResponse(BaseModel):
+    """Response for ``GET /graphs/entities/search``."""
+
+    entities: list[GraphSearchEntity] = Field(
+        ...,
+        description="Entities returned by vector recall, ordered by descending similarity score",
+    )
+
+
+class GraphSubgraphExpandRequest(BaseModel):
+    """Request body for ``POST /graphs/subgraph/expand``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    entity_names: list[str] = Field(
+        ...,
+        description="Anchor entity names to expand from",
+        examples=[["墨香居", "李明华"]],
+        min_length=1,
+    )
+    hops: int = Field(
+        1,
+        description="Number of hops to expand (bounded by backend implementation)",
+        examples=[1],
+        ge=1,
+        le=3,
+    )
+
+
+class GraphSubgraphExpandResponse(BaseModel):
+    """Response for ``POST /graphs/subgraph/expand``."""
+
+    entities: list[GraphSearchEntity] = Field(
+        ...,
+        description="Entities reachable from the anchor names within ``hops``",
+    )
+    relations: list[GraphRelationView] = Field(
+        ...,
+        description="Relations connecting the returned entities",
+    )
+
+
 __all__ = [
     "GraphLabelsResponse",
     "GraphNodeProperties",
@@ -360,4 +456,9 @@ __all__ = [
     "SuggestionActionRequest",
     "SuggestionActionMergeResult",
     "SuggestionActionResponse",
+    "GraphSearchEntity",
+    "GraphRelationView",
+    "GraphEntitiesSearchResponse",
+    "GraphSubgraphExpandRequest",
+    "GraphSubgraphExpandResponse",
 ]

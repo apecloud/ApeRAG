@@ -244,6 +244,9 @@ class TestRegisterReregistrationGuard:
         importlib.reload(importlib.import_module("aperag.mcp.tools.search_graph"))
         importlib.reload(importlib.import_module("aperag.mcp.tools.search_fulltext"))
         importlib.reload(importlib.import_module("aperag.mcp.tools.search_web"))
+        # Wave 7 §K.12.6 task #7 — reload graph_tools so its 3 tool
+        # decorators re-register after the surgical _reset_for_tests().
+        importlib.reload(importlib.import_module("aperag.mcp.tools.graph_tools"))
         importlib.reload(importlib.import_module("aperag.mcp.server"))
         # Sanity: every snapshot entry is back.
         restored = _annotations.get_all()

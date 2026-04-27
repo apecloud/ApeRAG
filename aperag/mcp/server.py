@@ -572,5 +572,14 @@ from aperag.mcp.tools.search_graph import graph_search  # noqa: E402, F401
 from aperag.mcp.tools.search_vector import vector_search  # noqa: E402, F401
 from aperag.mcp.tools.search_web import web_search  # noqa: E402, F401
 
+# Wave 7 §K.12.6 — graph entity search / subgraph expand / detail.
+# Importing the module is what registers the three ``@mcp_server.tool``
+# decorators with the FastMCP instance above.
+from aperag.mcp.tools.graph_tools import (  # noqa: E402, F401
+    expand_graph_subgraph,
+    get_entity_detail,
+    query_graph_entities,
+)
+
 # Export the server instance
 __all__ = ["mcp_server"]

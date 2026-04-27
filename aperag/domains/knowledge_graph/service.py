@@ -39,7 +39,7 @@ from __future__ import annotations
 
 import logging
 from types import SimpleNamespace
-from typing import Any, Dict, List
+from typing import TYPE_CHECKING, Any, Dict, List
 
 from aperag.db.ops import async_db_ops
 from aperag.domains.knowledge_graph.graphindex.dto import Entity as GraphIndexEntity
@@ -47,6 +47,14 @@ from aperag.domains.knowledge_graph.graphindex.dto import Relation as GraphIndex
 from aperag.domains.knowledge_graph.ports import CollectionRow
 from aperag.domains.knowledge_graph.schemas import GraphLabelsResponse, KnowledgeGraph
 from aperag.exceptions import CollectionNotFoundException
+
+if TYPE_CHECKING:
+    from aperag.domains.knowledge_graph.schemas import (
+        GraphEntitiesSearchResponse,
+        GraphRelationView,
+        GraphSearchEntity,
+        GraphSubgraphExpandResponse,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -191,6 +199,82 @@ class GraphService:
             "edges_redirected": result.edges_redirected,
             "edges_collapsed": result.edges_collapsed,
         }
+
+    # ============================================================ Wave 7 §K.12.6
+    async def search_entities(
+        self,
+        user_id: str,
+        collection_id: str,
+        *,
+        query: str,
+        top_k: int = 10,
+    ) -> "GraphEntitiesSearchResponse":
+        """Vector-recall the top-K entities for ``query``.
+
+        Backed by :class:`GraphSearchService.search_entities`. Internal
+        endpoint serving the ``query_graph_entities`` MCP tool.
+        """
+        import asyncio
+
+        from aperag.domains.knowledge_graph.schemas import GraphEntitiesSearchResponse
+        from aperag.indexing.graph_search_service import build_graph_search_service_for
+
+        db_collection = await self._get_and_validate_collection(user_id, collection_id)
+        service = await asyncio.to_thread(build_graph_search_service_for, db_collection)
+        entities = await service.search_entities(query=query, top_k=top_k)
+        return GraphEntitiesSearchResponse(entities=[_entity_to_search_view(e) for e in entities])
+
+    async def expand_subgraph(
+        self,
+        user_id: str,
+        collection_id: str,
+        *,
+        entity_names: List[str],
+        hops: int = 1,
+    ) -> "GraphSubgraphExpandResponse":
+        """Expand neighbours from ``entity_names`` within ``hops``.
+
+        Backed by :class:`GraphSearchService.get_subgraph` (delegates to
+        :meth:`LineageGraphStore.expand_neighbors_n_hops`).
+        """
+        import asyncio
+
+        from aperag.domains.knowledge_graph.schemas import GraphSubgraphExpandResponse
+        from aperag.indexing.graph_search_service import build_graph_search_service_for
+
+        db_collection = await self._get_and_validate_collection(user_id, collection_id)
+        service = await asyncio.to_thread(build_graph_search_service_for, db_collection)
+        entities, relations = await service.get_subgraph(entity_names=entity_names, hops=hops)
+        return GraphSubgraphExpandResponse(
+            entities=[_entity_to_search_view(e) for e in entities],
+            relations=[_relation_to_view(r) for r in relations],
+        )
+
+    async def get_entity_detail(
+        self,
+        user_id: str,
+        collection_id: str,
+        *,
+        entity_name: str,
+    ) -> "GraphSearchEntity | None":
+        """Return the full record for a single entity.
+
+        Returns ``None`` when the entity is not found in the lineage
+        store — the route handler turns that into a 404.
+        """
+        import asyncio
+
+        from aperag.indexing.worker_factory import _build_lineage_graph_store, _resolve_graph_backend_type
+
+        db_collection = await self._get_and_validate_collection(user_id, collection_id)
+        backend_type = _resolve_graph_backend_type(db_collection)
+        store = await asyncio.to_thread(
+            _build_lineage_graph_store, backend_type=backend_type, collection=db_collection
+        )
+        entity = await store.get_entity(entity_name)
+        if entity is None:
+            return None
+        return _entity_to_search_view(entity)
 
     # --------------------------------------------------------- internal helpers
     def _optimize_graph_for_visualization(self, nodes, edges, max_nodes):
@@ -361,6 +445,57 @@ def _adapt_edges(edges: List[GraphIndexRelation]) -> List[SimpleNamespace]:
             )
         )
     return out
+
+
+# ---------------------------------------------------------------------------
+# Wave 7 §K.12.6 — EntityWithLineage / RelationWithLineage → public view
+# ---------------------------------------------------------------------------
+
+
+def _entity_to_search_view(entity: Any) -> "GraphSearchEntity":
+    """Project an :class:`EntityWithLineage` to the public search shape.
+
+    Uses the same compacted-or-fallback rule as
+    :func:`GraphSearchService.compose_context` so MCP callers see the
+    same description independent of which path (search vs subgraph
+    vs detail) returned it.
+    """
+    from aperag.domains.knowledge_graph.schemas import GraphSearchEntity
+    from aperag.indexing.graph_search_service import GraphSearchService
+
+    description = GraphSearchService._render_description(
+        getattr(entity, "compacted_description", None),
+        entity.description_parts or (),
+    )
+    # ``source_chunk_count`` aggregates chunk ids across all lineage
+    # members (per :class:`LineageMember.chunk_ids`). Description parts
+    # only carry text, not chunk ids — those live on the lineage side.
+    chunk_ids: set[str] = set()
+    for member in entity.source_lineage or ():
+        for cid in getattr(member, "chunk_ids", ()) or ():
+            chunk_ids.add(str(cid))
+    return GraphSearchEntity(
+        name=entity.name,
+        entity_type=entity.entity_type or "entity",
+        description=description,
+        source_chunk_count=len(chunk_ids),
+    )
+
+
+def _relation_to_view(relation: Any) -> "GraphRelationView":
+    """Project a :class:`RelationWithLineage` to the public view."""
+    from aperag.domains.knowledge_graph.schemas import GraphRelationView
+    from aperag.indexing.graph_search_service import GraphSearchService
+
+    description = GraphSearchService._render_description(
+        getattr(relation, "compacted_description", None),
+        relation.description_parts or (),
+    )
+    return GraphRelationView(
+        source=relation.source,
+        target=relation.target,
+        description=description,
+    )
 
 
 # Global service instance
