@@ -113,61 +113,19 @@ class Document(BaseModel):
             "DELETED",
         ]
     ] = None
-    vector_index_status: Optional[
-        Literal[
-            "PENDING",
-            "CREATING",
-            "ACTIVE",
-            "DELETING",
-            "DELETION_IN_PROGRESS",
-            "FAILED",
-            "SKIPPED",
-        ]
-    ] = None
-    fulltext_index_status: Optional[
-        Literal[
-            "PENDING",
-            "CREATING",
-            "ACTIVE",
-            "DELETING",
-            "DELETION_IN_PROGRESS",
-            "FAILED",
-            "SKIPPED",
-        ]
-    ] = None
-    graph_index_status: Optional[
-        Literal[
-            "PENDING",
-            "CREATING",
-            "ACTIVE",
-            "DELETING",
-            "DELETION_IN_PROGRESS",
-            "FAILED",
-            "SKIPPED",
-        ]
-    ] = None
-    summary_index_status: Optional[
-        Literal[
-            "PENDING",
-            "CREATING",
-            "ACTIVE",
-            "DELETING",
-            "DELETION_IN_PROGRESS",
-            "FAILED",
-            "SKIPPED",
-        ]
-    ] = None
-    vision_index_status: Optional[
-        Literal[
-            "PENDING",
-            "CREATING",
-            "ACTIVE",
-            "DELETING",
-            "DELETION_IN_PROGRESS",
-            "FAILED",
-            "SKIPPED",
-        ]
-    ] = None
+    # Wave 3 §F.2 hard-cut: per-modality status Literal aligns to the
+    # 4-state IndexStatus enum (PENDING / RUNNING / ACTIVE / FAILED).
+    # The legacy 6-state values (CREATING / DELETING /
+    # DELETION_IN_PROGRESS) are gone; RUNNING covers both create and
+    # delete in-flight, and "modality not enabled" is expressed by the
+    # field being absent (None) rather than a sentinel "SKIPPED" — the
+    # row simply does not exist in document_index. Per architect msg
+    # post-pass-5 + PM msg=79683cc0 ruling.
+    vector_index_status: Optional[Literal["PENDING", "RUNNING", "ACTIVE", "FAILED"]] = None
+    fulltext_index_status: Optional[Literal["PENDING", "RUNNING", "ACTIVE", "FAILED"]] = None
+    graph_index_status: Optional[Literal["PENDING", "RUNNING", "ACTIVE", "FAILED"]] = None
+    summary_index_status: Optional[Literal["PENDING", "RUNNING", "ACTIVE", "FAILED"]] = None
+    vision_index_status: Optional[Literal["PENDING", "RUNNING", "ACTIVE", "FAILED"]] = None
     vector_index_updated: Optional[datetime] = Field(None, description="Vector index last updated time")
     fulltext_index_updated: Optional[datetime] = Field(None, description="Fulltext index last updated time")
     graph_index_updated: Optional[datetime] = Field(None, description="Graph index last updated time")

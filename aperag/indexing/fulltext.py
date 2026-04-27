@@ -108,9 +108,22 @@ class FulltextModality(ModalityWorker):
         *,
         backend: FulltextBackend,
         store: _SyncObjectStore,
+        collection_id: str | None = None,
     ) -> None:
         self._backend = backend
         self._store = store
+        # Wave 3 closing fix: ``aperag/domains/retrieval/pipeline.py:
+        # _fulltext_search`` queries the legacy ES schema
+        # (``content``/``title``/``collection_id`` filter — the shape
+        # the legacy ``aperag/domains/indexing/fulltext_index.py``
+        # wrote before Wave 3 hard-cut). The new modality worker
+        # must keep writing the same shape so the read path is
+        # symmetric, otherwise every fulltext search returns 0
+        # hits silently. ``collection_id`` is the only new piece
+        # of context the modality needs; the worker_factory passes
+        # it at construction time. Production tests (run_chat_
+        # collection_flow.sh) verify the round-trip end-to-end.
+        self._collection_id = collection_id
 
     async def derive(
         self,
@@ -158,18 +171,25 @@ class FulltextModality(ModalityWorker):
 
         documents = []
         for chunk in chunks:
-            documents.append(
-                {
-                    "document_id": document_id,
-                    "parse_version": parse_version,
-                    "modality": Modality.FULLTEXT.value,
-                    "chunk_id": chunk["chunk_id"],
-                    "text": chunk.get("text", ""),
-                    "section_path": chunk.get("section_path"),
-                    "heading_anchor": chunk.get("heading_anchor"),
-                    "page_idx": chunk.get("page_idx"),
-                }
-            )
+            chunk_text = chunk.get("text", "")
+            doc: dict[str, Any] = {
+                "document_id": document_id,
+                "parse_version": parse_version,
+                "modality": Modality.FULLTEXT.value,
+                "chunk_id": chunk["chunk_id"],
+                # ``content`` is the field the retrieval pipeline
+                # (``_fulltext_search``) queries; ``text`` is kept
+                # as an alias for the existing in-memory test
+                # backends + InMemory contract tests that read it.
+                "content": chunk_text,
+                "text": chunk_text,
+                "section_path": chunk.get("section_path"),
+                "heading_anchor": chunk.get("heading_anchor"),
+                "page_idx": chunk.get("page_idx"),
+            }
+            if self._collection_id is not None:
+                doc["collection_id"] = self._collection_id
+            documents.append(doc)
         self._backend.bulk_index(documents=documents)
 
 

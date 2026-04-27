@@ -12,40 +12,279 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import logging
 from typing import Any, Callable, Dict, List, Optional
 
-from sqlalchemy import select
+from sqlalchemy import and_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
 from aperag.config import get_async_session, get_sync_session
 from aperag.db.ops import db_ops
-from aperag.domains.indexing.db.models import (
-    DocumentIndex,
-    DocumentIndexStatus,
-    DocumentIndexType,
-)
-from aperag.domains.indexing.summary_index import SummaryIndexer
+
+# Wave 3 T3.1 chunk 2: ``SummaryIndexer`` (legacy
+# ``aperag/domains/indexing/summary_index.py``) was hard-deleted; the
+# only reference here was an unused ``self.summary_indexer`` instance
+# attribute on ``CollectionSummaryService.__init__``. Removed both.
 from aperag.domains.knowledge_base.db.models import (
     Collection,
     CollectionSummary,
     CollectionSummaryStatus,
     Document,
 )
+from aperag.indexing.models import (
+    DocumentIndex,
+    IndexStatus,
+    Modality,
+)
 from aperag.llm.completion.base_completion import get_collection_completion_service_sync
 from aperag.schema.utils import parseCollectionConfig
-from aperag.tasks.reconciler import CollectionSummaryCallbacks
+from aperag.utils.utils import utc_now
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------
+# Collection summary lifecycle callbacks (Wave 3 commit 5 Part 2 chunk 1
+# inline migration from legacy ``aperag/tasks/reconciler.py``).
+#
+# Each callback is the terminal hook that the summary generation task
+# invokes on success / failure. They update the ``CollectionSummary``
+# row's lifecycle (GENERATING → COMPLETE / FAILED) and, on success
+# with the summary feature enabled, propagate the generated text to
+# the parent ``Collection.description`` for retrieval-side surfacing.
+# All three callbacks are tolerant of token / version mismatches —
+# the periodic reconciler may re-issue work in the §F.4 cutover
+# transit window and the callback that arrives second silently
+# no-ops with a "_describe_summary_callback_mismatch" diagnostic.
+# ---------------------------------------------------------------------
+
+
+class CollectionSummaryCallbacks:
+    """Callbacks for collection summary task completion."""
+
+    @staticmethod
+    def _describe_summary_callback_mismatch(
+        summary_id: str,
+        processing_token: str,
+        expected_status: CollectionSummaryStatus,
+        target_version: int,
+    ) -> str:
+        try:
+            for session in get_sync_session():
+                summary_query = select(CollectionSummary).where(CollectionSummary.id == summary_id)
+                summary_result = session.execute(summary_query)
+                summary_record = summary_result.scalar_one_or_none()
+                if not summary_record:
+                    return "summary_record_not_found"
+                if summary_record.processing_token != processing_token:
+                    return "token_mismatch"
+                if summary_record.status != expected_status:
+                    return f"status_changed_to_{summary_record.status}"
+                if summary_record.version != target_version:
+                    return f"version_mismatch_expected_{target_version}_current_{summary_record.version}"
+                return "unknown_mismatch"
+        except Exception:
+            logger.exception("Failed to inspect collection summary callback mismatch for %s", summary_id)
+        return "unknown_mismatch"
+
+    @staticmethod
+    def on_summary_generated(summary_id: str, summary_content: str, target_version: int, processing_token: str):
+        """Called when summary generation succeeds.
+
+        Promotes the ``CollectionSummary`` row to ``COMPLETE`` and (if
+        the parent collection has summary enabled) writes the generated
+        text into ``Collection.description``. Both updates are guarded
+        by token / version / unchanged-since-read predicates so a
+        stale callback racing a newer generation cannot clobber the
+        latest result.
+        """
+        try:
+            for session in get_sync_session():
+                summary_query = select(CollectionSummary).where(
+                    and_(
+                        CollectionSummary.id == summary_id,
+                        CollectionSummary.status == CollectionSummaryStatus.GENERATING,
+                        CollectionSummary.version == target_version,
+                        CollectionSummary.processing_token == processing_token,
+                    )
+                )
+                summary_result = session.execute(summary_query)
+                summary_record = summary_result.scalar_one_or_none()
+
+                if not summary_record:
+                    reason = CollectionSummaryCallbacks._describe_summary_callback_mismatch(
+                        summary_id,
+                        processing_token,
+                        CollectionSummaryStatus.GENERATING,
+                        target_version,
+                    )
+                    logger.warning(
+                        "Summary completion callback ignored for %s (v%s) - %s",
+                        summary_id,
+                        target_version,
+                        reason,
+                    )
+                    return
+
+                collection_id = summary_record.collection_id
+
+                collection_query = select(Collection).where(
+                    and_(Collection.id == collection_id, Collection.gmt_deleted.is_(None))
+                )
+                collection_result = session.execute(collection_query)
+                collection_record = collection_result.scalar_one_or_none()
+
+                if not collection_record:
+                    logger.error(f"Collection {collection_id} not found during summary completion")
+                    return
+
+                try:
+                    config = parseCollectionConfig(collection_record.config)
+                    is_summary_enabled = config.enable_summary
+                except Exception as e:
+                    logger.error(f"Failed to parse collection config for {collection_id}: {e}")
+                    is_summary_enabled = False
+
+                current_time = utc_now()
+                collection_updated_time = collection_record.gmt_updated
+
+                summary_update_stmt = (
+                    update(CollectionSummary)
+                    .where(
+                        and_(
+                            CollectionSummary.id == summary_id,
+                            CollectionSummary.status == CollectionSummaryStatus.GENERATING,
+                            CollectionSummary.version == target_version,
+                            CollectionSummary.processing_token == processing_token,
+                        )
+                    )
+                    .values(
+                        status=CollectionSummaryStatus.COMPLETE,
+                        summary=summary_content,
+                        error_message=None,
+                        observed_version=target_version,
+                        processing_token=None,
+                        lease_expires_at=None,
+                        gmt_updated=current_time,
+                    )
+                )
+                summary_update_result = session.execute(summary_update_stmt)
+
+                if summary_update_result.rowcount == 0:
+                    session.rollback()
+                    reason = CollectionSummaryCallbacks._describe_summary_callback_mismatch(
+                        summary_id,
+                        processing_token,
+                        CollectionSummaryStatus.GENERATING,
+                        target_version,
+                    )
+                    logger.warning(
+                        "Summary completion callback ignored for %s (v%s) - %s",
+                        summary_id,
+                        target_version,
+                        reason,
+                    )
+                    return
+
+                if is_summary_enabled and summary_content:
+                    collection_update_stmt = (
+                        update(Collection)
+                        .where(
+                            and_(
+                                Collection.id == collection_id,
+                                Collection.gmt_updated == collection_updated_time,
+                                Collection.gmt_deleted.is_(None),
+                            )
+                        )
+                        .values(
+                            description=summary_content,
+                            gmt_updated=current_time,
+                        )
+                    )
+                    collection_update_result = session.execute(collection_update_stmt)
+
+                    if collection_update_result.rowcount > 0:
+                        logger.info(f"Updated collection {collection_id} description with generated summary")
+                    else:
+                        logger.warning(
+                            f"Failed to update collection {collection_id} description - "
+                            "collection may have been modified concurrently"
+                        )
+
+                session.commit()
+                logger.info(f"Collection summary generation completed for {summary_id} (v{target_version})")
+
+        except Exception as e:
+            logger.error(f"Failed to update collection summary completion for {summary_id}: {e}")
+            try:
+                session.rollback()
+            except Exception:
+                pass
+
+    @staticmethod
+    def on_summary_failed(summary_id: str, error_message: str, target_version: int, processing_token: str):
+        """Called when summary generation fails.
+
+        Transitions the row to ``FAILED`` with the error message;
+        token / version mismatch silently no-ops so a late callback
+        does not overwrite a successful retry's result.
+        """
+        try:
+            for session in get_sync_session():
+                update_stmt = (
+                    update(CollectionSummary)
+                    .where(
+                        and_(
+                            CollectionSummary.id == summary_id,
+                            CollectionSummary.status == CollectionSummaryStatus.GENERATING,
+                            CollectionSummary.version == target_version,
+                            CollectionSummary.processing_token == processing_token,
+                        )
+                    )
+                    .values(
+                        status=CollectionSummaryStatus.FAILED,
+                        error_message=error_message,
+                        processing_token=None,
+                        lease_expires_at=None,
+                        gmt_updated=utc_now(),
+                    )
+                )
+                result = session.execute(update_stmt)
+                if result.rowcount > 0:
+                    session.commit()
+                    logger.error(
+                        f"Collection summary generation failed for {summary_id} (v{target_version}): {error_message}"
+                    )
+                else:
+                    session.rollback()
+                    reason = CollectionSummaryCallbacks._describe_summary_callback_mismatch(
+                        summary_id,
+                        processing_token,
+                        CollectionSummaryStatus.GENERATING,
+                        target_version,
+                    )
+                    logger.warning(
+                        "Summary failure callback ignored for %s (v%s) - %s",
+                        summary_id,
+                        target_version,
+                        reason,
+                    )
+        except Exception as e:
+            logger.error(f"Failed to update collection summary failure for {summary_id}: {e}")
+
+
+# Module-level singleton mirrors the legacy
+# ``aperag.tasks.reconciler.collection_summary_callbacks`` so callers
+# can swap the import path without changing the call shape.
+collection_summary_callbacks = CollectionSummaryCallbacks()
 
 
 class CollectionSummaryService:
     """Service for managing collection summaries using reconcile strategy"""
 
     def __init__(self):
-        self.summary_indexer = SummaryIndexer()
+        pass
 
     async def trigger_collection_summary_generation(self, collection: Collection) -> bool:
         """
@@ -223,32 +462,36 @@ class CollectionSummaryService:
         if not document_ids:
             return []
 
-        # Get summary indexes for these documents
+        # Wave 3 §F.1 schema migration: legacy
+        # ``DocumentIndex.index_data`` JSON blob is gone — per-modality
+        # summary text now lives in the ``derived/parse_<v>/
+        # summary.json`` artifact on the object store, addressed by
+        # the row's ``derived_artifact_path``. Reading the actual
+        # summary text per document requires hitting the object store.
+        # That object-store read path is a chenyexuan T3.1 commit 4b
+        # follow-up (the collection_summary lane is Pattern A/B/C
+        # work); for now we return an empty list so callers see
+        # "no per-document summaries available" — a degraded but
+        # safe behaviour (collection-level summaries that this
+        # service rolls up will be regenerated next cycle once the
+        # object-store read path lands).
         def _get_summary_indexes(session: Session):
             result = session.execute(
                 select(DocumentIndex).where(
                     DocumentIndex.document_id.in_(document_ids),
-                    DocumentIndex.index_type == DocumentIndexType.SUMMARY,
-                    DocumentIndex.status == DocumentIndexStatus.ACTIVE,
+                    DocumentIndex.modality == Modality.SUMMARY.value,
+                    DocumentIndex.status == IndexStatus.ACTIVE.value,
+                    DocumentIndex.is_serving.is_(True),
                 )
             )
             return result.scalars().all()
 
-        summary_indexes = db_ops._execute_query(_get_summary_indexes)
-        document_summaries = []
-
-        for summary_index in summary_indexes:
-            try:
-                # Get document summary from index data
-                if summary_index.index_data:
-                    index_data = json.loads(summary_index.index_data)
-                    summary = index_data.get("summary")
-                    if summary:
-                        document_summaries.append({"document_id": summary_index.document_id, "summary": summary})
-            except (json.JSONDecodeError, KeyError) as e:
-                logger.warning(f"Failed to parse summary for document {summary_index.document_id}: {e}")
-                continue
-
+        # Run the query so the §F.1 partial-unique invariant is
+        # exercised through this caller path; the row pointers are
+        # the seam into the object-store read path that T3.1
+        # commit 4b will wire.
+        _ = db_ops._execute_query(_get_summary_indexes)
+        document_summaries: list[dict] = []
         return document_summaries
 
     def _reduce_document_summaries(

@@ -1,16 +1,40 @@
-"""Celery tasks owned by the knowledge_base domain.
+"""Knowledge_base domain task helpers — celery T3.1 Pattern A/B/C migration.
 
-Domain-owned tasks for the knowledge_base domain. Moved from
-``config/celery_tasks.py`` as part of phase-3 infra absorption (task #37 D4a).
-Pure move — no behavior change. Task ``name="..."`` strings are pinned to
-``config.celery_tasks.<name>`` to preserve task identity for in-flight queue
-messages.
+Wave 3 hard-cut per architect msg=3890c9d7 Pattern A/B/C ruling:
+the Celery decorators + ``celery`` / ``config.celery`` imports were
+removed; each function is now a plain Python function the caller
+invokes directly (Pattern A synchronous), or wraps in
+``asyncio.create_task()`` (Pattern C fire-and-forget), or merges
+into the periodic loops in ``aperag/indexing/{cleanup,reconciler}.py``
+(Pattern B periodic).
 
-Scope:
-- Collection lifecycle tasks (init / delete)
-- Collection summary generation + reconciliation
-- Document GC (cleanup of expired uploads)
-- Collection export packaging (``export_collection_task``)
+Pattern map (per architect msg=3890c9d7):
+- ``collection_delete_task``           — Pattern A (durability-required;
+                                         caller invokes synchronously;
+                                         body marks ``Collection.deleted_at``
+                                         and the periodic Path-C
+                                         ``cleanup_for_deleted_collections``
+                                         sweep cascades the deletion)
+- ``collection_init_task``             — Pattern C (idempotent;
+                                         ``asyncio.create_task()`` ok;
+                                         body now only flips
+                                         ``Collection.status=ACTIVE`` —
+                                         per-modality index provisioning
+                                         is implicit lazy in the new
+                                         modality-worker model)
+- ``collection_summary_task``          — Pattern C (regenerable;
+                                         ``asyncio.create_task()`` ok)
+- ``export_collection_task``           — Pattern C (resumable; user can
+                                         retry on failure;
+                                         ``asyncio.create_task()`` ok)
+- ``cleanup_expired_documents_task``   — Pattern B (periodic; wired into
+                                         the 5-min loop in
+                                         ``aperag/indexing/cleanup.py``
+                                         via ``cleanup_expired_documents_hook``)
+- ``reconcile_collection_summaries_task`` — Pattern B (periodic; wired into
+                                         the 30-s loop in
+                                         ``aperag/indexing/reconciler.py``
+                                         via ``reconcile_collection_summaries_hook``)
 """
 
 import concurrent.futures
@@ -19,27 +43,88 @@ import logging
 import os
 import shutil
 import tempfile
+import threading
+import uuid
 import zipfile
 from datetime import timedelta
-from typing import Any, Callable
+from typing import Callable, Optional
 
-from celery import current_app
-
-from aperag.tasks.collection import collection_task
-from aperag.tasks.processing_lease import (
-    DEFAULT_PROCESSING_LEASE_RENEW_INTERVAL_SECONDS,
-    DEFAULT_PROCESSING_LEASE_TTL_SECONDS,
-    ProcessingLeaseRenewer,
-    build_lease_expires_at,
-)
-from aperag.tasks.utils import TaskConfig
 from aperag.utils.utils import utc_now
-from config.celery import app
 
 EXPORT_CHUNK_SIZE = 64 * 1024  # 64 KB
 EXPORT_MAX_DOWNLOAD_WORKERS = 5
 
 logger = logging.getLogger(__name__)
+
+
+# ========== Processing-lease helpers (inlined per architect msg=64fd506a Part 1) ==========
+# The legacy ``aperag/tasks/processing_lease.py`` will be deleted in
+# commit 5 Part 2 atomic together with the rest of ``aperag/tasks/``;
+# its public surface (``generate_processing_token`` +
+# ``build_lease_expires_at`` + ``ProcessingLeaseRenewer``) is inlined
+# here so this file (the only knowledge_base-domain caller after Bryce
+# commit 4a inlined the agent_runtime caller) decouples now and the
+# Part 2 deletion is a clean delete with no ImportError fallout.
+
+DEFAULT_PROCESSING_LEASE_TTL_SECONDS = int(os.getenv("APERAG_PROCESSING_LEASE_TTL_SECONDS", "900"))
+DEFAULT_PROCESSING_LEASE_RENEW_INTERVAL_SECONDS = int(os.getenv("APERAG_PROCESSING_LEASE_RENEW_INTERVAL_SECONDS", "60"))
+
+
+def generate_processing_token() -> str:
+    return uuid.uuid4().hex
+
+
+def build_lease_expires_at(ttl_seconds: int = DEFAULT_PROCESSING_LEASE_TTL_SECONDS):
+    return utc_now() + timedelta(seconds=ttl_seconds)
+
+
+class ProcessingLeaseRenewer:
+    """Background helper that periodically renews the current processing lease."""
+
+    def __init__(
+        self,
+        renew_fn: Callable[[], bool],
+        *,
+        interval_seconds: int = DEFAULT_PROCESSING_LEASE_RENEW_INTERVAL_SECONDS,
+        description: str,
+    ):
+        self._renew_fn = renew_fn
+        self._interval_seconds = max(interval_seconds, 1)
+        self._description = description
+        self._stop_event = threading.Event()
+        self._thread: Optional[threading.Thread] = None
+        self.ownership_lost = False
+
+    def start(self):
+        if self._thread is not None:
+            return
+        self._thread = threading.Thread(
+            target=self._run,
+            name=f"lease-renewer:{self._description}",
+            daemon=True,
+        )
+        self._thread.start()
+
+    def stop(self):
+        self._stop_event.set()
+        if self._thread is not None:
+            self._thread.join(timeout=self._interval_seconds + 1)
+
+    def _run(self):
+        while not self._stop_event.wait(self._interval_seconds):
+            try:
+                renewed = self._renew_fn()
+            except Exception:
+                logger.exception("Processing lease renewer failed for %s", self._description)
+                continue
+
+            if renewed:
+                continue
+
+            self.ownership_lost = True
+            logger.warning("Processing lease ownership lost for %s", self._description)
+            self._stop_event.set()
+            return
 
 
 # ========== Internal helpers ==========
@@ -157,18 +242,24 @@ def _validate_collection_summary_relevance(summary_id: str, target_version: int,
 # ========== Collection Tasks ==========
 
 
-@current_app.task(name="config.celery_tasks.reconcile_collection_summaries_task")
-def reconcile_collection_summaries_task():
-    """Periodic task to reconcile collection summary specs with statuses"""
+def reconcile_collection_summaries_task() -> None:
+    """Pattern B: periodic reconcile of collection summary specs with statuses.
+
+    Wave 3 hard-cut: now a thin sync shim around
+    :func:`aperag.indexing.reconciler.reconcile_collection_summaries_hook`,
+    which is the canonical entry point invoked by the 30-s reconciler
+    loop. The hook is async (Pattern C dispatch via
+    ``asyncio.create_task``); this shim adapts via ``asyncio.run`` for
+    the rare sync-only direct caller. The Celery beat schedule that
+    previously called this is gone.
+    """
+    import asyncio
+
     try:
         logger.info("Starting collection summary reconciliation")
+        from aperag.indexing.reconciler import reconcile_collection_summaries_hook
 
-        # Import here to avoid circular dependencies
-        from aperag.tasks.reconciler import collection_summary_reconciler
-
-        # Run reconciliation
-        collection_summary_reconciler.reconcile_all()
-
+        asyncio.run(reconcile_collection_summaries_hook())
         logger.info("Collection summary reconciliation completed")
 
     except Exception as e:
@@ -176,68 +267,90 @@ def reconcile_collection_summaries_task():
         raise
 
 
-@app.task(bind=True, name="config.celery_tasks.collection_delete_task")
-def collection_delete_task(self, collection_id: str) -> Any:
-    """
-    Delete collection task entry point
+def collection_delete_task(collection_id: str) -> dict:
+    """Pattern A: synchronous collection-deletion mark + path-C cascade.
 
-    Args:
-        collection_id: Collection ID to delete
+    Per architect msg=3890c9d7 Pattern A spec: HTTP handler invokes this
+    SYNCHRONOUSLY; the body marks the collection ``deleted_at = NOW()``
+    so the periodic cleanup loop (5-min,
+    ``aperag/indexing/cleanup.py:cleanup_for_deleted_collections``)
+    picks it up and cascades through path B per-document cleanup. The
+    cascade is durability-required — losing the mark = orphan rows +
+    storage. The HTTP handler must NOT wrap this in
+    ``asyncio.create_task()``.
+
+    The 1-min worst-case cleanup latency is acceptable for the user
+    (collection deletion is a low-frequency op + the user already saw
+    the HTTP 200 by the time the periodic sweep runs).
     """
+    from sqlalchemy import update
+
+    from aperag.config import get_sync_session
+    from aperag.domains.knowledge_base.db.models import Collection, CollectionStatus
+
     try:
-        result = collection_task.delete_collection(collection_id)
-
-        if not result.success:
-            raise Exception(result.error)
-
-        logger.info(f"Collection {collection_id} deleted successfully")
-        return result.to_dict()
+        for session in get_sync_session():
+            session.execute(
+                update(Collection)
+                .where(Collection.id == collection_id)
+                .values(
+                    status=CollectionStatus.DELETED,
+                    gmt_deleted=utc_now(),
+                    gmt_updated=utc_now(),
+                )
+            )
+            session.commit()
+        logger.info(f"Collection {collection_id} marked deleted (path-C cascade pending periodic sweep)")
+        return {"success": True, "collection_id": collection_id, "status": "deleted"}
 
     except Exception as e:
         logger.error(f"Collection deletion failed for {collection_id}: {str(e)}")
-        raise self.retry(
-            exc=e,
-            countdown=TaskConfig.RETRY_COUNTDOWN_COLLECTION,
-            max_retries=TaskConfig.RETRY_MAX_RETRIES_COLLECTION,
-        )
+        raise
 
 
-@app.task(bind=True, name="config.celery_tasks.collection_init_task")
-def collection_init_task(self, collection_id: str, document_user_quota: int) -> Any:
+def collection_init_task(collection_id: str, document_user_quota: int) -> dict:
+    """Pattern C: fire-and-forget collection initialization.
+
+    Wave 3 hard-cut: collection-level index initialization is implicit
+    in the new modality-worker model — per-document modality dispatch
+    (via ``aperag.indexing.dispatcher.dispatch_indexing()``) creates
+    the ES index / Qdrant collection lazily on first sync. This task
+    body now only flips ``Collection.status = ACTIVE`` so the HTTP
+    UI can show the collection as ready; the actual index provisioning
+    happens on the first document upload.
+
+    ``document_user_quota`` is preserved in the signature for caller
+    compatibility but is no longer load-bearing in the task body
+    (quota enforcement lives in the T2.2 quota lane, not at
+    collection-init time).
     """
-    Initialize collection task entry point
+    from sqlalchemy import update
 
-    Args:
-        collection_id: Collection ID to initialize
-        document_user_quota: User quota for documents
-    """
+    from aperag.config import get_sync_session
+    from aperag.domains.knowledge_base.db.models import Collection, CollectionStatus
+
     try:
-        result = collection_task.initialize_collection(collection_id, document_user_quota)
-
-        if not result.success:
-            raise Exception(result.error)
-
-        logger.info(f"Collection {collection_id} initialized successfully")
-        return result.to_dict()
+        for session in get_sync_session():
+            session.execute(
+                update(Collection)
+                .where(Collection.id == collection_id)
+                .values(status=CollectionStatus.ACTIVE, gmt_updated=utc_now())
+            )
+            session.commit()
+        logger.info(f"Collection {collection_id} initialized (status=ACTIVE; index provisioning lazy on first upload)")
+        return {
+            "success": True,
+            "collection_id": collection_id,
+            "status": "initialized",
+            "document_user_quota": document_user_quota,
+        }
 
     except Exception as e:
         logger.error(f"Collection initialization failed for {collection_id}: {str(e)}")
-        raise self.retry(
-            exc=e,
-            countdown=TaskConfig.RETRY_COUNTDOWN_COLLECTION,
-            max_retries=TaskConfig.RETRY_MAX_RETRIES_COLLECTION,
-        )
+        raise
 
 
-@app.task(
-    bind=True,
-    autoretry_for=(Exception,),
-    retry_kwargs={"max_retries": 3, "countdown": 60},
-    name="config.celery_tasks.collection_summary_task",
-)
-def collection_summary_task(
-    self, summary_id: str, collection_id: str, target_version: int, processing_token: str
-) -> Any:
+def collection_summary_task(summary_id: str, collection_id: str, target_version: int, processing_token: str) -> dict:
     """
     Generate collection summary task entry point
 
@@ -295,50 +408,101 @@ def collection_summary_task(
 
         logger.error(f"Collection summary generation failed for {collection_id}: {str(e)}")
 
-        # Mark as failed using callback if we've exhausted retries
-        if self.request.retries >= self.max_retries:
-            from aperag.tasks.reconciler import collection_summary_callbacks
-
-            collection_summary_callbacks.on_summary_failed(summary_id, str(e), target_version, processing_token)
-
-        raise self.retry(
-            exc=e,
-            countdown=TaskConfig.RETRY_COUNTDOWN_COLLECTION,
-            max_retries=TaskConfig.RETRY_MAX_RETRIES_COLLECTION,
+        # Pattern C: no auto-retry. Mark failed via callback so the
+        # reconciler picks up; commit 5 wires this into the periodic
+        # ``aperag/indexing/reconciler.py`` 30-s loop.
+        from aperag.domains.knowledge_base.service.collection_summary_service import (
+            collection_summary_callbacks,
         )
+
+        collection_summary_callbacks.on_summary_failed(summary_id, str(e), target_version, processing_token)
+        raise
     finally:
         if renewer:
             renewer.stop()
 
 
-@current_app.task(name="config.celery_tasks.cleanup_expired_documents_task")
-def cleanup_expired_documents_task():
+def cleanup_expired_documents_task() -> dict:
+    """Pattern B: periodic cleanup of expired uploaded documents.
+
+    Wave 3 hard-cut: now an inlined SQL tombstone scan + soft-delete
+    of documents in ``UPLOADED`` status > 1 day old (per legacy
+    ``CollectionTask.cleanup_expired_documents`` contract). The
+    surrounding 5-min loop (``aperag/indexing/cleanup.py``) calls this
+    via :func:`cleanup_expired_documents_hook`.
     """
-    Celery task to clean up expired uploaded documents.
-    This task should be scheduled to run periodically (e.g., every hour).
-    """
-    logger.info("Starting Celery task: cleanup_expired_documents")
+    from sqlalchemy import and_, select
 
-    # Import here to avoid circular dependencies
-    from aperag.tasks.reconciler import collection_gc_reconciler
+    from aperag.config import get_sync_session
+    from aperag.domains.knowledge_base.db.models import Document, DocumentStatus
+    from aperag.objectstore.base import get_object_store
 
-    result = collection_gc_reconciler.reconcile_all()
+    logger.info("Starting cleanup_expired_documents")
 
-    logger.info(f"Celery task completed with result: {result}")
+    expired_count = 0
+    failed_count = 0
+    total_found = 0
+    obj_store = get_object_store()
+    expiration_threshold = utc_now() - timedelta(days=1)
+
+    for session in get_sync_session():
+        stmt = select(Document).where(
+            and_(
+                Document.status == DocumentStatus.UPLOADED,
+                Document.gmt_created < expiration_threshold,
+            )
+        )
+        expired_documents = list(session.execute(stmt).scalars().all())
+        total_found = len(expired_documents)
+
+        for document in expired_documents:
+            try:
+                # Best-effort object-store cleanup; log + continue on failure
+                # so a transient storage hiccup does not block the DB tombstone.
+                try:
+                    obj_store.delete_objects_by_prefix(document.object_store_base_path())
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning(
+                        "Failed to delete objects for expired document %s from object store: %s",
+                        document.id,
+                        exc,
+                    )
+
+                document.status = DocumentStatus.EXPIRED
+                document.gmt_updated = utc_now()
+                session.add(document)
+                expired_count += 1
+            except Exception as exc:  # noqa: BLE001
+                failed_count += 1
+                logger.error(f"Failed to cleanup expired document {document.id}: {exc}")
+
+        session.commit()
+        break  # only one yielded session per get_sync_session
+
+    result = {
+        "expired_count": expired_count,
+        "failed_count": failed_count,
+        "total_found": total_found,
+    }
+    logger.info(f"cleanup_expired_documents completed: {result}")
     return result
 
 
 # ========== Collection Export ==========
 
 
-@app.task(
-    bind=True,
-    name="config.celery_tasks.export_collection_task",
-    soft_time_limit=55 * 60,
-    time_limit=60 * 60,
-)
-def export_collection_task(self, export_task_id: str):
-    """Celery task: package all object-store files under a collection prefix into a ZIP."""
+def export_collection_task(export_task_id: str) -> None:
+    """Pattern C: package all object-store files under a collection prefix into a ZIP.
+
+    No longer a Celery task — caller wraps in ``asyncio.create_task()``
+    + ``asyncio.to_thread()`` (the body is synchronous I/O bound). The
+    DB row's ``status`` field tracks progress; users see partial state
+    in the UI and can retry on failure.
+
+    Legacy Celery soft / hard time limits (55 / 60 min) are now
+    enforced by the §H.6 ``bulkhead_timeout`` async context manager
+    that the caller wraps the dispatch in (T2.2 lane).
+    """
     from sqlalchemy import select
 
     from aperag.config import get_sync_session

@@ -14,31 +14,42 @@
 
 """Async worker pipeline for evaluation-v3 (#evaluation #20 / PR-1b).
 
-Celery producer seam. ``run_evaluation_run(run_id)`` is the task name that
-``EvaluationRunService.launch_run`` dispatches via ``.delay(...)``; all
-state-machine logic lives in :mod:`aperag.evaluation_v2.worker` to keep
-this module a thin sync wrapper that is safe to import during test
-collection even when Celery / the agent runtime / Redis are unavailable.
+Wave 3 T3.1 chunk 2 + post-pass-6 fix: the legacy Celery decorators
++ ``config.celery`` import are gone (per architect msg=3890c9d7
+Pattern A/B/C). ``run_evaluation_run`` is now a true coroutine —
+callers schedule it directly (Pattern C fire-and-forget via
+``asyncio.create_task(run_evaluation_run(run_id))``).
+
+Why an awaitable rather than the prior sync wrapper around
+``asyncio.run``: the wrapper started a *fresh* event loop on a
+worker thread, so any ``asyncpg`` connection borrowed from the
+process-wide pool (which is bound to the FastAPI lifespan loop) was
+"a Future attached to a different loop" — corrupting the pool and
+cascading into 500s on every later DB call. Running the coroutine
+on the FastAPI loop keeps the connection-pool affinity correct.
+
+All state-machine logic still lives in :mod:`aperag.domains.
+evaluation.worker` so this module stays a thin scheduling shim safe
+to import during test collection.
 """
 
 from __future__ import annotations
 
-import asyncio
 import logging
-
-from config.celery import app
 
 logger = logging.getLogger(__name__)
 
 
-@app.task(bind=True, name="aperag.evaluation_v2.tasks.run_evaluation_run")
-def run_evaluation_run(self, run_id: str) -> dict:
-    """Celery entrypoint. Runs :func:`execute_evaluation_run` in a fresh
-    event loop and returns a small status payload for worker logging.
+async def run_evaluation_run(run_id: str) -> dict:
+    """Async entrypoint — schedules on the caller's event loop.
 
-    The task is intentionally short-circuited when the run_id is unknown
-    or already terminal — the orchestration layer handles both cases
-    idempotently, so a re-dispatched Celery message is safe to replay.
+    Pattern C fire-and-forget callers do
+    ``asyncio.create_task(run_evaluation_run(run_id))``; the task
+    runs concurrently with the request handler and shares the same
+    event loop, so any DB session it opens borrows from the same
+    asyncpg pool the rest of the process uses. Idempotent: the
+    orchestration layer short-circuits unknown / already-terminal
+    runs.
     """
 
     # Lazy import: keeps this module import-safe when the agent runtime /
@@ -46,7 +57,7 @@ def run_evaluation_run(self, run_id: str) -> dict:
     from aperag.domains.evaluation.worker import execute_evaluation_run
 
     logger.info("evaluation worker picking up run %s", run_id)
-    final_status = asyncio.run(execute_evaluation_run(run_id))
+    final_status = await execute_evaluation_run(run_id)
     final_status_value = final_status.value if hasattr(final_status, "value") else str(final_status)
     logger.info("evaluation worker finished run %s with status %s", run_id, final_status_value)
     return {"run_id": run_id, "status": final_status_value}

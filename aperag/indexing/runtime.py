@@ -1,0 +1,81 @@
+# Copyright 2025 ApeCloud, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Process-local indexing runtime singleton — celery T3.1 chunk 3.
+
+The FastAPI lifespan owns the canonical ``engine`` + ``queue`` +
+``workers`` triple (see ``aperag/app.py:combined_lifespan``). It also
+stashes them on ``app.state.indexing_*`` for HTTP routes that have a
+``Request`` handle. Service-layer code (``aperag/domains/**``) does not
+have a ``Request`` and shouldn't import FastAPI, so this module is the
+back-channel: the lifespan calls :func:`set_runtime` after building the
+triple, and service-layer callers use :func:`get_runtime` (returns
+``None`` when ``INDEXING_MODE != async`` — the legacy synchronous code
+path is dead and any caller hitting that case should log + no-op).
+
+The runtime is intentionally a single mutable global rather than a
+``ContextVar`` because the indexing fan-out is one process-wide queue
++ engine pair, not per-request. Tests that need to stub a different
+runtime can call :func:`set_runtime` with a fixture and reset.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Mapping, Optional
+
+from sqlalchemy import Engine
+
+from aperag.indexing.base import ModalityWorker
+from aperag.indexing.models import Modality
+from aperag.indexing.orchestrator import WorkQueue
+
+
+@dataclass(frozen=True)
+class IndexingRuntime:
+    """The triple required by ``dispatch_indexing()`` and
+    ``cleanup_for_deleted_documents()``.
+
+    ``workers`` may be empty when the deployment runs in ASYNC mode and
+    cleanup is intentionally non-cascading (e.g. tests). ``queue`` may
+    be ``None`` when the deployment runs in INLINE mode (the
+    dispatcher fans out via ``workers`` directly).
+    """
+
+    engine: Engine
+    queue: Optional[WorkQueue]
+    workers: Mapping[Modality, ModalityWorker]
+
+
+_runtime: Optional[IndexingRuntime] = None
+
+
+def set_runtime(runtime: Optional[IndexingRuntime]) -> None:
+    """Install the process-wide indexing runtime (called by the
+    FastAPI lifespan). Pass ``None`` on shutdown to clear it."""
+
+    global _runtime
+    _runtime = runtime
+
+
+def get_runtime() -> Optional[IndexingRuntime]:
+    """Return the installed runtime, or ``None`` if the lifespan has
+    not run (test environment, sync-only mode, or pre-startup boot
+    sequence). Service-layer callers should treat ``None`` as "indexing
+    disabled" and log + no-op rather than crashing."""
+
+    return _runtime
+
+
+__all__ = ["IndexingRuntime", "get_runtime", "set_runtime"]

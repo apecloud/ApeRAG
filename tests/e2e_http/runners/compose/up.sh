@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 cd "${ROOT_DIR}"
 
 E2E_BASE_URL="${E2E_BASE_URL:-http://127.0.0.1:8000}"
-E2E_COMPOSE_SERVICES="${E2E_COMPOSE_SERVICES:-postgres redis qdrant es api celeryworker celerybeat}"
+E2E_COMPOSE_SERVICES="${E2E_COMPOSE_SERVICES:-postgres redis qdrant es api}"
 E2E_HEALTH_ATTEMPTS="${E2E_HEALTH_ATTEMPTS:-90}"
 E2E_HEALTH_SLEEP_SECONDS="${E2E_HEALTH_SLEEP_SECONDS:-2}"
 

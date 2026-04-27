@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Cleanup worker — celery T2.1.
+"""Cleanup worker — celery T2.1 (extended in T3.1 with path C).
 
 Per ``docs/modularization/indexing-redesign-design-pack.md`` §F.5, the
-cleanup worker has TWO trigger paths with different semantics for the
-graph modality (per architect ruling msg=492315e8 Ruling 3):
+cleanup worker has THREE trigger paths with different semantics for
+the graph modality (per architect ruling msg=492315e8 Ruling 3 +
+msg=3890c9d7 Pattern A):
 
 (A) **Orphan parse_version GC** — :func:`cleanup_orphan_parse_versions`,
     runs every :data:`CLEANUP_INTERVAL_SECONDS`. A row is orphan if all of:
@@ -51,10 +52,32 @@ graph modality (per architect ruling msg=492315e8 Ruling 3):
     serialized through its :class:`EntityLock` so a concurrent graph
     sync cannot race the cleanup.
 
-The two entry points share :func:`_delete_document_index_rows` and
-the orchestrator's ``Modality`` registry; callers wire whichever fits
-their lifecycle (orphan GC = scheduled loop, document deletion = on
-user-initiated delete).
+(C) **Collection deletion cascade** —
+    :func:`cleanup_for_deleted_collections`, the T3.1 path C added
+    per architect msg=3890c9d7 Pattern A. Invoked by the
+    Pattern-A-synchronous HTTP handler for the ``DELETE /collection``
+    endpoint AND by the periodic Pattern-B reconciler scan that
+    sweeps tombstoned collections (``WHERE Collection.deleted_at IS
+    NOT NULL``). For each deleted collection:
+
+    1. Find all distinct ``document_id`` values whose
+       ``document_index`` rows reference that collection.
+    2. Cascade to path B (:func:`cleanup_for_deleted_documents`) for
+       those documents — that path already handles modality fan-out
+       (graph lineage cleanup vs flat backend delete).
+    3. Sweep any remaining ``document_index`` rows for the
+       collection (covers the edge case where a document had no
+       indexed modalities yet but the row was created before delete).
+
+    Path C is idempotent: a partial cascade that crashes mid-way is
+    resumed on the next scan because the per-row state machine still
+    leaves the un-GC'd rows discoverable by collection_id.
+
+The three entry points share the same :func:`_delete_rows` helper
+and the orchestrator's ``Modality`` registry; callers wire whichever
+fits their lifecycle (orphan GC = scheduled loop, document deletion
+= on user-initiated delete, collection deletion = on user-initiated
+collection delete + reconciler sweep).
 """
 
 from __future__ import annotations
@@ -480,6 +503,99 @@ def _delete_rows(engine: Engine, ids: list[int]) -> None:
 
 
 # ---------------------------------------------------------------------
+# (4) Collection-deletion cascade — path C (T3.1 architect msg=3890c9d7).
+# ---------------------------------------------------------------------
+
+
+async def cleanup_for_deleted_collections(
+    *,
+    engine: Engine,
+    workers: Mapping[Modality, ModalityWorker],
+    collection_ids: list[str],
+) -> dict[str, int]:
+    """Cascade-cleanup every triple for the given deleted collections (path C).
+
+    Caller-driven, invoked by both:
+
+    - The Pattern-A synchronous HTTP handler for ``DELETE /collection``
+      (must be synchronous because Celery is gone in Wave 3 and a
+      collection-delete failure mid-cascade would leave orphan
+      ``document_index`` rows + orphan source/derived storage —
+      ``asyncio.create_task()`` is unsafe here per architect ruling
+      msg=3890c9d7).
+
+    - A periodic Pattern-B reconciler scan that sweeps tombstoned
+      collections (e.g. ``WHERE Collection.deleted_at IS NOT NULL``)
+      so a Pattern-A crash mid-cascade is recovered on the next loop.
+
+    For each collection_id:
+
+    1. Find all distinct ``document_id`` values in
+       ``document_index`` rows referencing it.
+    2. Cascade to :func:`cleanup_for_deleted_documents` (path B) —
+       that path already handles modality fan-out (graph lineage
+       cleanup vs flat backend delete).
+    3. Sweep any remaining ``document_index`` rows for the
+       collection. Covers the edge case where a row was created with
+       a collection_id but no document_id ever got indexed (or
+       all parse_versions were already orphan-GC'd by path A).
+
+    Returns a counts dict with the path-B keys plus
+    ``"collections_cleaned": len(collection_ids)``.
+
+    Idempotent: a partial cascade that crashes mid-way is resumed on
+    the next call because the per-row state machine still leaves
+    un-GC'd rows discoverable by ``collection_id``.
+    """
+    counts = {
+        "backend_deleted": 0,
+        "graph_lineage_cleaned": 0,
+        "rows_deleted": 0,
+        "backend_skipped": 0,
+        "collections_cleaned": 0,
+    }
+    if not collection_ids:
+        return counts
+
+    document_ids = await asyncio.to_thread(
+        _select_distinct_document_ids_for_collections,
+        engine,
+        collection_ids,
+    )
+
+    if document_ids:
+        sub_counts = await cleanup_for_deleted_documents(
+            engine=engine,
+            workers=workers,
+            document_ids=document_ids,
+        )
+        for key in ("backend_deleted", "graph_lineage_cleaned", "rows_deleted", "backend_skipped"):
+            counts[key] += sub_counts[key]
+
+    # Sweep any rows that path B did not catch (no document_id match
+    # because the row was orphaned earlier or the collection had
+    # rows queued before any document made it past PENDING).
+    extras = await asyncio.to_thread(_delete_rows_for_collections, engine, collection_ids)
+    counts["rows_deleted"] += extras
+    counts["collections_cleaned"] = len(collection_ids)
+    return counts
+
+
+def _select_distinct_document_ids_for_collections(engine: Engine, collection_ids: list[str]) -> list[str]:
+    with Session(engine) as session:
+        rows = session.scalars(
+            select(DocumentIndex.document_id).where(DocumentIndex.collection_id.in_(collection_ids)).distinct()
+        )
+        return list(rows)
+
+
+def _delete_rows_for_collections(engine: Engine, collection_ids: list[str]) -> int:
+    with Session(engine) as session, session.begin():
+        result = session.execute(delete(DocumentIndex).where(DocumentIndex.collection_id.in_(collection_ids)))
+        return result.rowcount or 0
+
+
+# ---------------------------------------------------------------------
 # Run loop — production entrypoint.
 # ---------------------------------------------------------------------
 
@@ -492,7 +608,15 @@ async def run_cleanup_loop(
     interval_seconds: int = CLEANUP_INTERVAL_SECONDS,
     cooldown_seconds: int = ORPHAN_COOLDOWN_SECONDS,
 ) -> None:
-    """Run :func:`cleanup_orphan_parse_versions` every ``interval_seconds``.
+    """Run cleanup scans every ``interval_seconds``.
+
+    Two scans per cycle (Wave 3 Pattern B integration per architect
+    msg=3890c9d7):
+
+    - :func:`cleanup_orphan_parse_versions` — orphan parse_v GC (path A)
+    - :func:`cleanup_expired_documents_hook` — soft-delete documents
+      stuck in UPLOADED status > 1 day (replaces legacy
+      ``cleanup_expired_documents_task`` Celery beat schedule)
 
     A cycle that throws is logged and the loop continues — DB
     unreachable / Redis blip should not crash the cleanup process.
@@ -514,15 +638,35 @@ async def run_cleanup_loop(
         except Exception as exc:  # noqa: BLE001 — keep loop alive
             logger.exception("cleanup cycle failed: %s", exc)
         try:
+            await cleanup_expired_documents_hook()
+        except Exception as exc:  # noqa: BLE001 — Pattern B hook never crashes loop
+            logger.exception("cleanup_expired_documents_hook failed: %s", exc)
+        try:
             await asyncio.wait_for(shutdown.wait(), timeout=interval_seconds)
         except asyncio.TimeoutError:
             continue
+
+
+async def cleanup_expired_documents_hook() -> None:
+    """Pattern B periodic hook — Wave 3 architect msg=3890c9d7.
+
+    Thin async wrapper over the legacy-equivalent
+    ``aperag.domains.knowledge_base.tasks.cleanup_expired_documents_task``
+    body (sync SQL tombstone scan). Imported lazily to avoid the
+    circular ``cleanup → knowledge_base → cleanup`` dependency at
+    module load time.
+    """
+    from aperag.domains.knowledge_base.tasks import cleanup_expired_documents_task
+
+    await asyncio.to_thread(cleanup_expired_documents_task)
 
 
 __all__ = [
     "CLEANUP_BATCH_SIZE",
     "CLEANUP_INTERVAL_SECONDS",
     "ORPHAN_COOLDOWN_SECONDS",
+    "cleanup_expired_documents_hook",
+    "cleanup_for_deleted_collections",
     "cleanup_for_deleted_documents",
     "cleanup_orphan_parse_versions",
     "find_orphan_parse_versions",

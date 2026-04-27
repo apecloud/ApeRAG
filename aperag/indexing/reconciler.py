@@ -260,6 +260,168 @@ def reconcile_running_reclaim(
 # ---------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------
+# Pattern B periodic hook — collection summary reconciliation.
+# ---------------------------------------------------------------------
+#
+# Per architect msg=3890c9d7 Pattern B ruling, the legacy
+# ``CollectionSummaryReconciler.reconcile_all()`` (formerly a Celery
+# beat task scheduled every 30s via ``django-celery-beat``) is merged
+# into this 30-s reconciler loop as a sibling scan. The loop now also:
+#
+#   4. **Reclaim stale collection-summary leases** — flip
+#      ``CollectionSummary.status='GENERATING' AND
+#      lease_expires_at < now()`` back to ``PENDING`` so the next
+#      reconciliation pass re-claims them.
+#   5. **Dispatch pending collection summaries** — for every
+#      ``CollectionSummary`` whose ``version != observed_version`` and
+#      ``status='PENDING'``, atomically claim with a fresh
+#      ``processing_token`` + ``lease_expires_at``, then fire-and-forget
+#      ``collection_summary_task`` via ``asyncio.create_task(
+#      asyncio.to_thread(...))`` (Pattern C dispatch).
+#
+# The dispatch is intentionally fire-and-forget (Pattern C):
+# ``collection_summary_task`` is regenerable + idempotent (its own
+# claim guard inside the task body re-validates ownership), so
+# losing the dispatch on reconciler crash is recovered next cycle by
+# the stale-lease reclaim. The hook never blocks the loop on summary
+# generation duration.
+
+
+async def reconcile_collection_summaries_hook(
+    *,
+    batch_size: int = RECONCILE_BATCH_SIZE,
+) -> None:
+    """Pattern B periodic hook — Wave 3 architect msg=3890c9d7.
+
+    Replaces legacy ``aperag.tasks.reconciler.CollectionSummaryReconciler.
+    reconcile_all()`` + the ``django-celery-beat`` 30-s schedule entry.
+    Runs inside the existing 30-s reconciler loop and:
+
+    1. Reclaims stale ``GENERATING`` summaries whose lease expired.
+    2. Selects ``PENDING`` summaries whose ``version`` exceeds
+       ``observed_version`` (work to do).
+    3. Atomically claims each (fresh ``processing_token`` +
+       ``lease_expires_at``).
+    4. Fires ``collection_summary_task`` per claim as a Pattern C
+       fire-and-forget background asyncio task — never blocks the loop.
+
+    Imported lazily inside the function body to avoid the circular
+    ``aperag.indexing.reconciler → aperag.domains.knowledge_base.{tasks,
+    db.models} → aperag.indexing`` dependency at module-load time.
+    """
+    from aperag.config import get_sync_session
+    from aperag.domains.knowledge_base.db.models import (
+        CollectionSummary,
+        CollectionSummaryStatus,
+    )
+    from aperag.domains.knowledge_base.tasks import (
+        build_lease_expires_at,
+        collection_summary_task,
+        generate_processing_token,
+    )
+
+    def _reclaim_stale_and_claim_pending() -> list[tuple[str, str, int, str]]:
+        """Sync DB-only worker. Returns list of claimed dispatch tuples."""
+        from aperag.utils.utils import utc_now as _utc_now
+
+        claimed_dispatches: list[tuple[str, str, int, str]] = []
+        for session in get_sync_session():
+            current_time = _utc_now()
+            reclaim_stmt = (
+                update(CollectionSummary)
+                .where(
+                    and_(
+                        CollectionSummary.status == CollectionSummaryStatus.GENERATING,
+                        CollectionSummary.processing_token.is_not(None),
+                        CollectionSummary.lease_expires_at.is_not(None),
+                        CollectionSummary.lease_expires_at < current_time,
+                    )
+                )
+                .values(
+                    status=CollectionSummaryStatus.PENDING,
+                    error_message="stale lease reclaimed",
+                    processing_token=None,
+                    lease_expires_at=None,
+                    gmt_updated=current_time,
+                    gmt_last_reconciled=current_time,
+                )
+            )
+            reclaim_result = session.execute(reclaim_stmt)
+            if reclaim_result.rowcount:
+                session.commit()
+                logger.warning(
+                    "Reclaimed %s stale collection-summary leases back to PENDING",
+                    reclaim_result.rowcount,
+                )
+
+            pending_stmt = (
+                select(CollectionSummary)
+                .where(
+                    and_(
+                        CollectionSummary.version != CollectionSummary.observed_version,
+                        CollectionSummary.status == CollectionSummaryStatus.PENDING,
+                    )
+                )
+                .limit(batch_size)
+            )
+            pending = list(session.scalars(pending_stmt))
+            if not pending:
+                return claimed_dispatches
+
+            for summary in pending:
+                token = generate_processing_token()
+                claim_stmt = (
+                    update(CollectionSummary)
+                    .where(
+                        and_(
+                            CollectionSummary.id == summary.id,
+                            CollectionSummary.status == CollectionSummaryStatus.PENDING,
+                            CollectionSummary.version == summary.version,
+                        )
+                    )
+                    .values(
+                        status=CollectionSummaryStatus.GENERATING,
+                        processing_token=token,
+                        lease_expires_at=build_lease_expires_at(),
+                        gmt_last_reconciled=_utc_now(),
+                        gmt_updated=_utc_now(),
+                    )
+                )
+                claim_result = session.execute(claim_stmt)
+                if claim_result.rowcount:
+                    session.commit()
+                    claimed_dispatches.append((summary.id, summary.collection_id, summary.version, token))
+                else:
+                    session.rollback()
+                    logger.debug(
+                        "Skipping summary %s — could not claim (concurrent claim or version drift)",
+                        summary.id,
+                    )
+            return claimed_dispatches
+        return claimed_dispatches
+
+    dispatches = await asyncio.to_thread(_reclaim_stale_and_claim_pending)
+    for summary_id, collection_id, target_version, processing_token in dispatches:
+        # Pattern C fire-and-forget — task body has its own ownership re-check.
+        asyncio.create_task(
+            asyncio.to_thread(
+                collection_summary_task,
+                summary_id,
+                collection_id,
+                target_version,
+                processing_token,
+            )
+        )
+    if dispatches:
+        logger.info("collection-summary reconciler dispatched=%d", len(dispatches))
+
+
+# ---------------------------------------------------------------------
+# Run loop — production entrypoint.
+# ---------------------------------------------------------------------
+
+
 async def run_reconcile_loop(
     *,
     engine: Engine,
@@ -268,12 +430,16 @@ async def run_reconcile_loop(
     interval_seconds: int = RECONCILE_INTERVAL_SECONDS,
     stale_seconds: int = HEARTBEAT_STALE_SECONDS,
 ) -> None:
-    """Run the three reconcile scans every ``interval_seconds`` until shutdown.
+    """Run the three reconcile scans + Pattern B hook every cycle until shutdown.
 
     Each cycle is best-effort: an exception in any of the scans is
     logged and the cycle continues to the next scan. A cycle that
     bombs entirely (e.g. DB unreachable) sleeps the interval and
     retries — better to keep the loop alive than to crash the process.
+
+    The Pattern B ``reconcile_collection_summaries_hook`` runs after
+    the three index scans; a hook failure is logged but never crashes
+    the loop.
     """
     while not shutdown.is_set():
         try:
@@ -294,6 +460,10 @@ async def run_reconcile_loop(
         except Exception as exc:  # noqa: BLE001 — keep the loop alive
             logger.exception("reconciler cycle failed: %s", exc)
         try:
+            await reconcile_collection_summaries_hook()
+        except Exception as exc:  # noqa: BLE001 — Pattern B hook never crashes loop
+            logger.exception("reconcile_collection_summaries_hook failed: %s", exc)
+        try:
             await asyncio.wait_for(shutdown.wait(), timeout=interval_seconds)
         except asyncio.TimeoutError:
             continue
@@ -303,6 +473,7 @@ __all__ = [
     "HEARTBEAT_STALE_SECONDS",
     "RECONCILE_BATCH_SIZE",
     "RECONCILE_INTERVAL_SECONDS",
+    "reconcile_collection_summaries_hook",
     "reconcile_failed_retry",
     "reconcile_pending_dispatch",
     "reconcile_running_reclaim",

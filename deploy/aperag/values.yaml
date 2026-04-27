@@ -105,14 +105,12 @@ api:
   # requests:
   #   cpu: 100m
   #   memory: 128Mi
-  # api must be co-located with celery-worker in order to handle uploaded documents
+  # Wave 3 T3.1 chunk 3: the celery-worker pod is gone (in-process
+  # ``aperag.indexing`` runtime spawned inside this api pod by the
+  # FastAPI lifespan). The previous podAffinity-with-celery-worker rule
+  # is no longer applicable; the soft anti-affinity for spreading api
+  # replicas across nodes is preserved.
   affinity:
-    podAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        - labelSelector:
-            matchLabels:
-              app.aperag.io/component: celery-worker
-          topologyKey: kubernetes.io/hostname
     podAntiAffinity:
       preferredDuringSchedulingIgnoredDuringExecution:
         - weight: 100
@@ -267,84 +265,12 @@ api:
     failureThreshold: 3
     successThreshold: 1
 
-celery-worker:
-  replicaCount: 1
-  embeddingDevice: "cpu"
-  resources: { }
-    # We usually recommend not to specify default resources and to leave this as a conscious
-    # choice for the user. This also increases chances charts run on environments with little
-    # resources, such as Minikube. If you do want to specify resources, uncomment the following
-    # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-    # limits:
-    #   cpu: 100m
-    #   memory: 128Mi
-    # requests:
-    #   cpu: 100m
-    #   memory: 128Mi
-  affinity:
-    podAntiAffinity:
-      preferredDuringSchedulingIgnoredDuringExecution:
-      - weight: 100
-        podAffinityTerm:
-          labelSelector:
-            matchLabels:
-              app.aperag.io/component: celery-worker
-          topologyKey: kubernetes.io/hostname
-  livenessProbe:
-    exec:
-      command:
-        - sh
-        - -c
-        - "celery -A config.celery status -d celery@$(hostname) > /dev/null 2>&1"
-    initialDelaySeconds: 15
-    periodSeconds: 30
-    timeoutSeconds: 5
-    failureThreshold: 3
-    successThreshold: 1
-  readinessProbe:
-    exec:
-      command:
-        - sh
-        - -c
-        - "celery -A config.celery status -d celery@$(hostname) > /dev/null 2>&1"
-    initialDelaySeconds: 15
-    periodSeconds: 30
-    timeoutSeconds: 5
-    failureThreshold: 3
-    successThreshold: 1
-
-celerybeat:
-  replicaCount: 1
-  resources: { }
-    # We usually recommend not to specify default resources and to leave this as a conscious
-    # choice for the user. This also increases chances charts run on environments with little
-    # resources, such as Minikube. If you do want to specify resources, uncomment the following
-    # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-    # limits:
-    #   cpu: 100m
-    #   memory: 128Mi
-    # requests:
-    #   cpu: 100m
-    #   memory: 128Mi
-
-flower:
-  replicaCount: 1
-  user: admin
-  password: admin
-  resources: { }
-    # We usually recommend not to specify default resources and to leave this as a conscious
-    # choice for the user. This also increases chances charts run on environments with little
-    # resources, such as Minikube. If you do want to specify resources, uncomment the following
-    # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-    # limits:
-    #   cpu: 100m
-    #   memory: 128Mi
-    # requests:
-    #   cpu: 100m
-    #   memory: 128Mi
-  env:
-    CELERY_FLOWER_USER: admin
-    CELERY_FLOWER_PASSWORD: admin
+# Wave 3 T3.1 chunk 3: ``celery-worker`` / ``celerybeat`` / ``flower``
+# value blocks were removed alongside the corresponding template
+# deletions. The new in-process ``aperag.indexing`` runtime
+# (worker pool + reconciler + cleanup loops) is spawned by the FastAPI
+# lifespan inside the ``api`` deployment, so no separate worker / beat
+# / monitoring pods are needed.
 
 # Frontend configuration
 frontend:

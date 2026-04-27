@@ -190,7 +190,9 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       volumes:
-        # shared uploaded files between api and celery
+        # uploaded files volume (Wave 3 T3.1: previously shared with
+        # the celery-worker pod; now consumed solely by the in-process
+        # ``aperag.indexing`` runtime inside this api pod)
         - name: data
           hostPath:
             path: {{ .Values.api.dataPath }}

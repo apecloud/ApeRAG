@@ -57,8 +57,14 @@ from aperag.indexing.object_store import (
     read_or_none,
     write_atomic,
 )
-from aperag.mcp.tools.parse_version import compute_parse_version
 from aperag.objectstore.base import ObjectStore as _SyncObjectStore
+
+# Wave 3 T3.1 chunk 2: ``compute_parse_version`` is imported lazily
+# inside ``parse_document`` to avoid pulling the entire ``aperag.mcp``
+# package (server + tool registry) at module load. Loading mcp.tools.*
+# at this level was the root of two circular imports
+# (``knowledge_base.db.models`` and ``db.ops``) that surfaced when the
+# Wave 3 hard-cut deleted the legacy indexing layer's stub re-exports.
 
 logger = logging.getLogger(__name__)
 
@@ -302,6 +308,8 @@ def parse_document(
         config: Parsing knobs that influence the parse_version. Pass
             ``None`` to use simulator defaults.
     """
+    from aperag.mcp.tools.parse_version import compute_parse_version
+
     cfg = config or ParseConfig()
 
     document_md5 = _document_md5(source_bytes)

@@ -39,9 +39,6 @@ help:
 	@printf "  make stack-logs           Tail stack logs\n\n"
 	@printf "Services\n"
 	@printf "  make serve-api            Run backend API locally\n"
-	@printf "  make serve-worker         Run celery worker locally\n"
-	@printf "  make serve-beat           Run celery beat locally\n"
-	@printf "  make serve-flower         Run flower locally\n"
 	@printf "  make serve-web            Run frontend locally\n\n"
 	@printf "Tests\n"
 	@printf "  make test-all             Run unit + integration + pytest E2E suites\n"
@@ -171,18 +168,14 @@ stack-logs:
 ##################################################
 
 # Local development services
-.PHONY: serve-api serve-web serve-worker serve-flower serve-beat
+# Wave 3 T3.1 chunk 3: ``serve-worker`` / ``serve-beat`` / ``serve-flower``
+# targets removed alongside the Celery infrastructure deletion. The
+# in-process ``aperag.indexing`` runtime (worker pool + reconciler +
+# cleanup loops) is spawned by the FastAPI lifespan when ``serve-api``
+# starts, so no separate worker / beat / monitoring command is needed.
+.PHONY: serve-api serve-web
 serve-api: db-migrate
 	uvicorn aperag.app:app --host 0.0.0.0 --log-config scripts/uvicorn-log-config.yaml
-
-serve-worker:
-	celery -A config.celery worker -B -l INFO --pool=threads --concurrency=16
-
-serve-beat:
-	celery -A config.celery beat -l INFO
-
-serve-flower:
-	celery -A config.celery flower --conf/flowerconfig.py
 
 serve-web:
 	cd ./web && yarn dev

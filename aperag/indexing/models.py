@@ -82,7 +82,7 @@ class DocumentIndex(Base):
     unique index slot.
     """
 
-    __tablename__ = "document_index_v2"
+    __tablename__ = "document_index"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     document_id: Mapped[str] = mapped_column(String(64), nullable=False, index=False)
@@ -97,16 +97,16 @@ class DocumentIndex(Base):
     last_heartbeat: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     derived_artifact_path: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # T2.1 dispatch columns (alembic c2e8d5a1f3b9). collection_id scopes
-    # cleanup-worker GC + tenant queries without needing to parse the
-    # canonical layout out of source_path; source_path is the modality's
-    # ``derive`` input artifact path (chunks.jsonl for vector/fulltext/
-    # graph; markdown.md for summary; modality-specific for vision).
-    # Both nullable for back-compat with Wave 1 fixtures; the
-    # orchestrator skips rows missing source_path (leaves PENDING for
-    # the next reconciler cycle).
-    collection_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    source_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # T2.1 dispatch columns (alembic c2e8d5a1f3b9 + Wave 3 NOT-NULL
+    # promotion in d0f4c1b9a8e2). collection_id scopes cleanup-worker GC
+    # + tenant queries without needing to parse the canonical layout out
+    # of source_path; source_path is the modality's ``derive`` input
+    # artifact path (chunks.jsonl for vector/fulltext/graph; markdown.md
+    # for summary; modality-specific for vision). Both promoted to NOT
+    # NULL in Wave 3 — the orchestrator + reconciler always populate
+    # them at INSERT time per architect msg=498b12f0.
+    collection_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_path: Mapped[str] = mapped_column(Text, nullable=False)
 
     # §H.2 multi-tenant isolation: tenant_scope_key is the rate-limit /
     # quota / bulkhead partition key (e.g. ``"user:<uid>"`` or
@@ -134,33 +134,33 @@ class DocumentIndex(Base):
             "document_id",
             "parse_version",
             "modality",
-            name="uq_document_index_v2_triple",
+            name="uq_document_index_triple",
         ),
         Index(
-            "idx_document_index_v2_status_modality",
+            "idx_document_index_status_modality",
             "status",
             "modality",
         ),
         Index(
-            "idx_document_index_v2_document_modality",
+            "idx_document_index_document_modality",
             "document_id",
             "modality",
         ),
         # §H.2 tenant scope index — used by T2.2 quota / bulkhead
         # partitioning to look up "all in-flight rows for tenant X".
         Index(
-            "idx_document_index_v2_tenant_scope",
+            "idx_document_index_tenant_scope",
             "tenant_scope_key",
         ),
         # T2.1 cleanup-worker scoping index (per-collection GC scan).
         Index(
-            "idx_document_index_v2_collection",
+            "idx_document_index_collection",
             "collection_id",
         ),
         # §F.1 partial unique invariant — DB-enforced "at most one
         # serving row per (document_id, modality)".
         Index(
-            "uniq_document_index_v2_serving",
+            "uniq_document_index_serving",
             "document_id",
             "modality",
             unique=True,

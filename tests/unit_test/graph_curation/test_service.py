@@ -6,10 +6,6 @@
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 
-from types import SimpleNamespace
-from unittest.mock import AsyncMock
-
-import pytest
 
 from aperag.domains.knowledge_graph.graphindex.dto import Entity
 from aperag.domains.knowledge_graph.schemas import SuggestionActionRequest
@@ -95,42 +91,13 @@ def test_extract_json_object_ignores_non_json_prefix_suffix():
     }
 
 
-@pytest.mark.asyncio
-async def test_start_run_marks_failed_when_enqueue_raises(monkeypatch):
-    service = GraphCurationService.__new__(GraphCurationService)
-    service._get_and_validate_collection = AsyncMock(return_value=object())
-
-    run = SimpleNamespace(
-        id="gcr_run1",
-        collection_id="col1",
-        status="PENDING",
-        stats={},
-        error_message=None,
-        gmt_created=None,
-        gmt_updated=None,
-        gmt_started=None,
-        gmt_finished=None,
-    )
-
-    async def fake_execute_with_transaction(_operation):
-        return run, True
-
-    service.execute_with_transaction = fake_execute_with_transaction
-    service._mark_run_failed = AsyncMock()
-
-    class _FakeTask:
-        @staticmethod
-        def delay(_run_id, _collection_id):
-            raise RuntimeError("broker unavailable")
-
-    monkeypatch.setattr("aperag.domains.knowledge_graph.tasks.generate_graph_curation_run_task", _FakeTask)
-
-    with pytest.raises(RuntimeError, match="Failed to schedule graph curation run"):
-        await service.start_run("user1", "col1")
-
-    service._mark_run_failed.assert_awaited_once()
-    assert service._mark_run_failed.await_args.args[0] == "gcr_run1"
-    assert "enqueue_failed:" in service._mark_run_failed.await_args.args[1]
+# Wave 3 T3.1 chunk 3 (per architect msg=3890c9d7 Item 4): the legacy
+# ``test_start_run_marks_failed_when_enqueue_raises`` test was deleted
+# alongside the Celery decorator on ``generate_graph_curation_run_task``.
+# The new Pattern C dispatch wraps in
+# ``asyncio.create_task(asyncio.to_thread(...))`` which never raises at
+# schedule time, so the synchronous-failure assertion no longer maps to
+# any reachable behaviour.
 
 
 def test_suggestion_action_request_normalizes_case_insensitively():

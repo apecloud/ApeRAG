@@ -33,6 +33,7 @@ the same G1 boundary pass Step 5b2b applied to ``collection_service``:
   continue to resolve via the ``view_models`` dual-hook re-export shim.
 """
 
+import asyncio
 import json
 import logging
 import mimetypes
@@ -48,11 +49,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from aperag.config import settings
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.docparser.doc_parser import DocParser
-from aperag.domains.indexing.db.models import (
-    DocumentIndex,
-    DocumentIndexType,
-)
-from aperag.domains.indexing.manager import document_index_manager
 from aperag.domains.knowledge_base.db.models import (
     Collection,
     CollectionStatus,
@@ -85,6 +81,10 @@ from aperag.exceptions import (
     ResourceNotFoundException,
     invalid_param,
 )
+from aperag.indexing.models import (
+    DocumentIndex,
+    Modality,
+)
 from aperag.objectstore.base import get_async_object_store
 from aperag.schema.common import Chunk, VisionChunk
 from aperag.schema.utils import parseCollectionConfig
@@ -102,26 +102,202 @@ from aperag.utils.utils import calculate_file_hash, generate_vector_db_collectio
 logger = logging.getLogger(__name__)
 
 
+# ---------------------------------------------------------------------
+# New-API wrappers — celery T3.1 chunk 3 (replace legacy
+# ``document_index_manager.{create_or_update,delete}_document_indexes``).
+# ---------------------------------------------------------------------
+#
+# The legacy ABC was hard-deleted in chunk 2; these two helpers are the
+# minimum-blast-radius adapters that keep the existing 5 call sites
+# compiling while routing to the new ``aperag.indexing`` surface
+# (``dispatch_indexing()`` for INSERT, ``cleanup_for_deleted_documents()``
+# for DELETE). Both consume the process-local
+# :class:`aperag.indexing.runtime.IndexingRuntime` populated by the
+# FastAPI lifespan; if the runtime is absent (test environment, or
+# ``INDEXING_MODE != async``), they log + no-op rather than crash.
+
+
+async def _create_or_update_document_indexes(
+    *,
+    document_id: str,
+    index_types: list[Modality],
+    session: AsyncSession,
+) -> None:
+    """Replacement for legacy ``document_index_manager.
+    create_or_update_document_indexes``.
+
+    Wave 3 T3.1 chunk 3 + post-pass-8 parser-wiring fix
+    (architect msg=c605037e ruling on the chunks.jsonl-never-written
+    gap): dispatches via the new
+    :func:`aperag.indexing.dispatcher.dispatch_indexing` ASYNC mode.
+
+    Parsing runs **synchronously inside this dispatch** (option 1
+    minimal scope per architect). Celery used to spin a separate
+    ``process_document_task`` that wrote the canonical
+    ``derived/parse_<version>/{markdown.md,outline.json,chunks.jsonl}``
+    artifacts; chunk 2 deleted that task layer but no replacement
+    caller invoked :func:`aperag.indexing.parse_document`, so every
+    modality worker hit ``derive-incomplete`` and rescheduled
+    forever — the symptom that broke
+    e2e-http-provider's ``wait_for_document_indexes`` assertion.
+
+    Sync parse here keeps the §E.2 "parse-as-first-stage" data flow
+    intact; the parse step happens inside the request task instead of
+    a separate ``parse_worker`` queue. Wave 4 follow-up may promote
+    parse to ``q:parse`` once parse latency starts blocking HTTP
+    requests; the sync path is acceptable for current latencies.
+
+    The dispatcher's ``source_path`` is now ``parsed.chunks_path`` —
+    the canonical location modality workers read chunks from. The
+    parse_version returned by the parser pins ``(parser, content,
+    chunking)`` per the §C.3 idempotency contract; we use it
+    verbatim instead of recomputing locally.
+    """
+    if not index_types:
+        return
+
+    from aperag.indexing import DispatchRequest, IndexingMode, dispatch_indexing
+    from aperag.indexing.parser import ParseConfig, parse_document
+    from aperag.indexing.runtime import get_runtime
+    from aperag.objectstore.base import get_object_store
+
+    runtime = get_runtime()
+    if runtime is None:
+        logger.warning(
+            "_create_or_update_document_indexes(document=%s): IndexingRuntime not installed "
+            "(INDEXING_MODE != async or pre-startup); skipping dispatch",
+            document_id,
+        )
+        return
+
+    document = await session.get(Document, document_id)
+    if document is None:
+        logger.warning(
+            "_create_or_update_document_indexes(document=%s): Document row not found; skipping",
+            document_id,
+        )
+        return
+
+    # Resolve the upload object path (``user-<u>/<col>/<doc>/original<ext>``)
+    # from the document metadata the upload handler stashed there. The
+    # base path alone is a directory prefix, not the file we need to
+    # parse.
+    metadata = json.loads(document.doc_metadata) if document.doc_metadata else {}
+    object_path = metadata.get("object_path")
+    if not object_path:
+        logger.warning(
+            "_create_or_update_document_indexes(document=%s): doc_metadata.object_path missing; "
+            "cannot parse — skipping dispatch",
+            document_id,
+        )
+        return
+
+    object_store = get_object_store()
+
+    def _read_source_bytes() -> bytes:
+        stream = object_store.get(object_path)
+        if stream is None:
+            raise FileNotFoundError(f"document source not found in object store: {object_path}")
+        with stream:
+            return stream.read()
+
+    source_bytes = await asyncio.to_thread(_read_source_bytes)
+
+    parsed = await asyncio.to_thread(
+        parse_document,
+        store=object_store,
+        collection_id=document.collection_id,
+        document_id=document.id,
+        source_bytes=source_bytes,
+        config=ParseConfig(),
+    )
+    parse_version = parsed.parse_version
+    source_path = parsed.chunks_path
+    tenant_scope_key = f"user:{document.user}"
+
+    # Wave 3 T3.1 chunk 3 fix-forward: ``rebuild_indexes`` re-invokes
+    # this adapter with the same ``(document_id, parse_version,
+    # modality)`` triple that already exists (content unchanged →
+    # parse_version unchanged). The §F.1 ``uq_document_index_triple``
+    # UNIQUE constraint then fails the dispatcher's INSERT with an
+    # IntegrityError → 500 DATABASE_ERROR. Pre-DELETE matching rows
+    # (any status / serving state) so the INSERT lands cleanly. The
+    # cutover-on-sync-completion (§F.3) re-establishes the serving
+    # state once the new dispatch's worker finishes; brief
+    # unavailability between DELETE and cutover is acceptable for an
+    # explicit rebuild op.
+    from sqlalchemy import delete as sa_delete
+
+    from aperag.indexing.models import DocumentIndex
+
+    def _purge_existing_triples() -> None:
+        from sqlalchemy.orm import Session
+
+        with Session(runtime.engine) as sync_session, sync_session.begin():
+            sync_session.execute(
+                sa_delete(DocumentIndex).where(
+                    DocumentIndex.document_id == document.id,
+                    DocumentIndex.parse_version == parse_version,
+                    DocumentIndex.modality.in_([m.value for m in index_types]),
+                )
+            )
+
+    await asyncio.to_thread(_purge_existing_triples)
+
+    await dispatch_indexing(
+        engine=runtime.engine,
+        queue=runtime.queue,
+        workers=runtime.workers,
+        request=DispatchRequest(
+            collection_id=document.collection_id,
+            document_id=document.id,
+            parse_version=parse_version,
+            source_path=source_path,
+            tenant_scope_key=tenant_scope_key,
+            modalities=tuple(index_types),
+        ),
+        mode=IndexingMode.ASYNC,
+    )
+
+
+async def _delete_document_indexes(*, document_id: str) -> None:
+    """Replacement for legacy ``document_index_manager.
+    delete_document_indexes``.
+
+    Wave 3 T3.1 chunk 3: routes to
+    :func:`aperag.indexing.cleanup.cleanup_for_deleted_documents` which
+    handles the modality fan-out (graph lineage cleanup vs flat
+    backend delete) + DELETEs the ``document_index`` rows.
+    """
+    from aperag.indexing.cleanup import cleanup_for_deleted_documents
+    from aperag.indexing.runtime import get_runtime
+
+    runtime = get_runtime()
+    if runtime is None:
+        logger.warning(
+            "_delete_document_indexes(document=%s): IndexingRuntime not installed; skipping cleanup",
+            document_id,
+        )
+        return
+
+    await cleanup_for_deleted_documents(
+        engine=runtime.engine,
+        workers=runtime.workers,
+        document_ids=[document_id],
+    )
+
+
 def _trigger_index_reconciliation():
-    """
-    Trigger index reconciliation task asynchronously for better real-time responsiveness.
+    """No-op — Wave 3 T3.1 chunk 3.
 
-    This is called after document create/update/delete operations to immediately
-    process index changes, improving responsiveness compared to relying only on
-    periodic reconciliation. The periodic task interval can be increased since
-    we have real-time triggering.
+    The legacy Celery beat-driven ``reconcile_indexes_task`` is gone;
+    the new ``aperag.indexing.reconciler.run_reconcile_loop`` runs
+    continuously inside the FastAPI process so manual triggering is
+    unnecessary. Kept as a no-op shim so the existing call sites
+    compile; the periodic 30-s loop picks up any newly-PENDING rows
+    immediately.
     """
-    try:
-        # Import here to avoid circular dependencies and handle missing celery gracefully
-        from aperag.domains.indexing.tasks import reconcile_indexes_task
-
-        # Trigger the reconciliation task asynchronously
-        reconcile_indexes_task.delay()
-        logger.debug("Index reconciliation task triggered for real-time processing")
-    except ImportError:
-        logger.warning("Celery not available, skipping index reconciliation trigger")
-    except Exception as e:
-        logger.warning(f"Failed to trigger index reconciliation task: {e}")
+    return None
 
 
 class DocumentService:
@@ -244,20 +420,34 @@ class DocumentService:
 
     def _get_index_types_for_collection(self, collection_config: dict) -> list:
         """
-        Get the list of index types to create based on collection configuration.
+        Get the list of :class:`Modality` values to create based on
+        collection configuration. Wave 3 migrated the legacy
+        ``DocumentIndexType`` enum to :class:`Modality`; the per-
+        collection enable flags map 1-to-1 to modalities.
+
+        ``enable_vector`` was historically implicit (vector was
+        always created) but a collection without an embedding-model
+        config cannot satisfy the Wave 3 production worker factory
+        (factory raises :class:`WorkerFactoryError` → row finalises
+        FAILED → reconciler retries forever). Honouring the
+        ``enable_vector`` flag here turns "vector explicitly
+        disabled" into a no-row state — the modality simply does not
+        appear in the document_index table for this document.
         """
         parsed_config = parseCollectionConfig(json.dumps(collection_config))
-        index_types = [DocumentIndexType.VECTOR]
+        index_types: list = []
 
+        if parsed_config.enable_vector is not False:
+            index_types.append(Modality.VECTOR)
         if parsed_config.enable_fulltext is not False:
-            index_types.append(DocumentIndexType.FULLTEXT)
+            index_types.append(Modality.FULLTEXT)
 
         if collection_config.get("enable_knowledge_graph", False):
-            index_types.append(DocumentIndexType.GRAPH)
+            index_types.append(Modality.GRAPH)
         if collection_config.get("enable_summary", False):
-            index_types.append(DocumentIndexType.SUMMARY)
+            index_types.append(Modality.SUMMARY)
         if collection_config.get("enable_vision", False):
-            index_types.append(DocumentIndexType.VISION)
+            index_types.append(Modality.VISION)
 
         return index_types
 
@@ -323,15 +513,21 @@ class DocumentService:
             from sqlalchemy import and_, outerjoin, select
 
             # Create JOIN query between Document and DocumentIndex tables
-            # Use outerjoin to get all documents even if they don't have indexes
+            # Use outerjoin to get all documents even if they don't have indexes.
+            # Wave 3 §F.1 migration: ``modality`` column replaces
+            # legacy ``index_type``; ``created_at``/``updated_at``
+            # replace ``gmt_created``/``gmt_updated``; ``index_data``
+            # JSON blob is gone (decomposed into per-modality
+            # ``derived/`` artifacts on the object store), so the
+            # surface returned to callers carries ``index_data=None``
+            # for backward-compat with existing response shapes.
             query = (
                 select(
                     Document,
-                    DocumentIndex.index_type,
-                    DocumentIndex.index_data,
+                    DocumentIndex.modality.label("index_type"),
                     DocumentIndex.status.label("index_status"),
-                    DocumentIndex.gmt_created.label("index_created_at"),
-                    DocumentIndex.gmt_updated.label("index_updated_at"),
+                    DocumentIndex.created_at.label("index_created_at"),
+                    DocumentIndex.updated_at.label("index_updated_at"),
                     DocumentIndex.error_message.label("index_error_message"),
                 )
                 .select_from(
@@ -360,24 +556,29 @@ class DocumentService:
             result = await session.execute(query)
             rows = result.fetchall()
 
-            # Group results by document and attach all index information
+            # Group results by document and attach all index information.
+            # The new ``modality`` column carries lowercase strings
+            # (``"vector"`` / ``"fulltext"`` / ``"graph"`` /
+            # ``"summary"`` / ``"vision"``); the response shape uses
+            # uppercase keys for backward-compat with HTTP clients,
+            # so we translate via the :class:`Modality` enum.
             documents_dict = {}
             for row in rows:
                 doc = row.Document
                 if doc.id not in documents_dict:
                     documents_dict[doc.id] = doc
-                    # Initialize index information for all types
                     doc.indexes = {"VECTOR": None, "FULLTEXT": None, "GRAPH": None, "SUMMARY": None, "VISION": None}
 
-                # Add index information if exists
-                if row.index_type:
-                    doc.indexes[row.index_type] = {
-                        "index_type": row.index_type,
+                modality_value = row.index_type
+                if modality_value:
+                    response_key = modality_value.upper()
+                    doc.indexes[response_key] = {
+                        "index_type": response_key,
                         "status": row.index_status,
                         "created_at": row.index_created_at,
                         "updated_at": row.index_updated_at,
                         "error_message": row.index_error_message,
-                        "index_data": row.index_data,
+                        "index_data": None,
                     }
 
             return list(documents_dict.values())
@@ -408,19 +609,22 @@ class DocumentService:
             id=document.id,
             name=document.name,
             status=document.status,
-            # Vector index information
-            vector_index_status=indexes["VECTOR"]["status"] if indexes["VECTOR"] else "SKIPPED",
+            # Per-modality status: ``None`` when the row does not exist
+            # (modality not enabled for this collection — the dispatcher
+            # never created a document_index row). Wave 3 §F.2 hard-cut
+            # dropped the "SKIPPED" sentinel; absence is the canonical
+            # NOT_ENABLED signal for the view-model layer. Friendly
+            # client-facing mapping (NOT_ENABLED / INDEXING) lives in
+            # §G.5 ``SearchResultMetadata.index_state_per_modality``.
+            vector_index_status=indexes["VECTOR"]["status"] if indexes["VECTOR"] else None,
             vector_index_updated=indexes["VECTOR"]["updated_at"] if indexes["VECTOR"] else None,
-            # Fulltext index information
-            fulltext_index_status=indexes["FULLTEXT"]["status"] if indexes["FULLTEXT"] else "SKIPPED",
+            fulltext_index_status=indexes["FULLTEXT"]["status"] if indexes["FULLTEXT"] else None,
             fulltext_index_updated=indexes["FULLTEXT"]["updated_at"] if indexes["FULLTEXT"] else None,
-            # Graph index information
-            graph_index_status=indexes["GRAPH"]["status"] if indexes["GRAPH"] else "SKIPPED",
+            graph_index_status=indexes["GRAPH"]["status"] if indexes["GRAPH"] else None,
             graph_index_updated=indexes["GRAPH"]["updated_at"] if indexes["GRAPH"] else None,
-            # Summary index information
-            summary_index_status=indexes["SUMMARY"]["status"] if indexes.get("SUMMARY") else "SKIPPED",
+            summary_index_status=indexes["SUMMARY"]["status"] if indexes.get("SUMMARY") else None,
             summary_index_updated=indexes["SUMMARY"]["updated_at"] if indexes.get("SUMMARY") else None,
-            vision_index_status=indexes["VISION"]["status"] if indexes.get("VISION") else "SKIPPED",
+            vision_index_status=indexes["VISION"]["status"] if indexes.get("VISION") else None,
             vision_index_updated=indexes["VISION"]["updated_at"] if indexes.get("VISION") else None,
             summary=summary,  # Parse from index_data
             size=document.size,
@@ -503,8 +707,9 @@ class DocumentService:
                     content_hash=file_info["file_hash"],
                 )
 
-                # Create indexes
-                await document_index_manager.create_or_update_document_indexes(
+                # Create indexes (Wave 3 T3.1 chunk 3: dispatch via new
+                # ``aperag.indexing.dispatcher.dispatch_indexing``).
+                await _create_or_update_document_indexes(
                     document_id=document_instance.id, index_types=index_types, session=session
                 )
 
@@ -593,18 +798,23 @@ class DocumentService:
                 index_result = await session.execute(index_query)
                 indexes_data = index_result.scalars().all()
 
-                # Group indexes by document_id
-                indexes_by_doc = {}
+                # Group indexes by document_id. Wave 3 §F.1 schema
+                # uses the lowercase ``modality`` column for the
+                # discriminator + drops ``index_data``; HTTP response
+                # keeps uppercase keys for backward compat so the
+                # paginated index map retains its existing shape.
+                indexes_by_doc: dict[str, dict[str, dict]] = {}
                 for index in indexes_data:
                     if index.document_id not in indexes_by_doc:
                         indexes_by_doc[index.document_id] = {}
-                    indexes_by_doc[index.document_id][index.index_type] = {
-                        "index_type": index.index_type,
+                    response_key = index.modality.upper()
+                    indexes_by_doc[index.document_id][response_key] = {
+                        "index_type": response_key,
                         "status": index.status,
-                        "created_at": index.gmt_created,
-                        "updated_at": index.gmt_updated,
+                        "created_at": index.created_at,
+                        "updated_at": index.updated_at,
                         "error_message": index.error_message,
-                        "index_data": index.index_data,
+                        "index_data": None,
                     }
 
                 # Attach index information to documents
@@ -653,8 +863,11 @@ class DocumentService:
             logger.warning(f"Document {document_id} not found for deletion, skipping.")
             return
 
-        # Use index manager to mark all related indexes for deletion
-        await document_index_manager.delete_document_indexes(document_id=document.id, index_types=None, session=session)
+        # Cleanup all per-modality index rows + backend state (Wave 3
+        # T3.1 chunk 3: routes to ``aperag.indexing.cleanup.
+        # cleanup_for_deleted_documents`` which handles the modality
+        # fan-out + DELETEs the ``document_index`` rows).
+        await _delete_document_indexes(document_id=document.id)
 
         # Delete from object store
         async_obj_store = get_async_object_store()
@@ -726,18 +939,18 @@ class DocumentService:
 
         logger.info(f"Rebuilding indexes for document {document_id} with types: {index_types}")
 
-        index_type_enums = []
+        index_type_enums: list[Modality] = []
         for index_type in index_types:
             if index_type == "VECTOR":
-                index_type_enums.append(DocumentIndexType.VECTOR)
+                index_type_enums.append(Modality.VECTOR)
             elif index_type == "FULLTEXT":
-                index_type_enums.append(DocumentIndexType.FULLTEXT)
+                index_type_enums.append(Modality.FULLTEXT)
             elif index_type == "GRAPH":
-                index_type_enums.append(DocumentIndexType.GRAPH)
+                index_type_enums.append(Modality.GRAPH)
             elif index_type == "SUMMARY":
-                index_type_enums.append(DocumentIndexType.SUMMARY)
+                index_type_enums.append(Modality.SUMMARY)
             elif index_type == "VISION":
-                index_type_enums.append(DocumentIndexType.VISION)
+                index_type_enums.append(Modality.VISION)
             else:
                 raise invalid_param("index_type", f"Invalid index type: {index_type}")
 
@@ -751,11 +964,13 @@ class DocumentService:
             if not collection or collection.user != user_id:
                 raise ResourceNotFoundException(f"Collection {collection_id} not found or access denied")
             collection_config = json.loads(collection.config)
-            if not collection_config.get("enable_knowledge_graph", False):
-                if DocumentIndexType.GRAPH in index_type_enums:
-                    index_type_enums.remove(DocumentIndexType.GRAPH)
-            # 支持 SUMMARY 类型的重建
-            await document_index_manager.create_or_update_document_indexes(session, document_id, index_type_enums)
+            if not collection_config.get("enable_knowledge_graph", False) and Modality.GRAPH in index_type_enums:
+                index_type_enums.remove(Modality.GRAPH)
+            # Trigger rebuild for the requested modalities (Wave 3 T3.1
+            # chunk 3: dispatch via the new dispatcher).
+            await _create_or_update_document_indexes(
+                document_id=document_id, index_types=index_type_enums, session=session
+            )
             logger.info(f"Successfully triggered rebuild for document {document_id} indexes: {index_types}")
             return {"code": "200", "message": f"Index rebuild initiated for types: {', '.join(index_types)}"}
 
@@ -796,10 +1011,18 @@ class DocumentService:
                 # Filter out GRAPH type if not enabled in collection config
                 rebuild_types = failed_index_types
                 if not enable_knowledge_graph:
-                    rebuild_types = [t for t in failed_index_types if t != DocumentIndexType.GRAPH]
+                    rebuild_types = [t for t in failed_index_types if t != Modality.GRAPH.value]
 
                 if rebuild_types:
-                    await document_index_manager.create_or_update_document_indexes(session, document_id, rebuild_types)
+                    # Wave 3 T3.1 chunk 3: dispatch failed-rebuild via
+                    # the new dispatcher. ``rebuild_types`` originates as
+                    # raw enum-string values; coerce to ``Modality``.
+                    rebuild_modalities = [rt if isinstance(rt, Modality) else Modality(rt) for rt in rebuild_types]
+                    await _create_or_update_document_indexes(
+                        document_id=document_id,
+                        index_types=rebuild_modalities,
+                        session=session,
+                    )
                     affected_documents += 1
                     logger.info(f"Triggered rebuild for document {document_id} indexes: {[t for t in rebuild_types]}")
 
@@ -820,23 +1043,25 @@ class DocumentService:
 
         # Use database operations with proper session management
         async def _get_document_chunks(session):
-            # 1. Get the chunk IDs (ctx_ids) from the document_index table
-            stmt = select(DocumentIndex).filter(
+            # Wave 3 §F.1 schema migration: legacy
+            # ``DocumentIndex.index_data`` JSON blob (which used to
+            # carry ``context_ids``) is gone. The chunk id list now
+            # lives in the ``derived/parse_<v>/chunks.jsonl`` artifact
+            # on the object store, addressed by the row's
+            # ``derived_artifact_path``. Plumbing the object-store
+            # read path into this HTTP handler is a chenyexuan T3.1
+            # commit 4b follow-up; for now we exercise the §F.1
+            # partial-unique invariant via a serving-row probe and
+            # return an empty chunk list (degraded but safe — clients
+            # see "no chunks indexed" until the read path lands).
+            stmt = select(DocumentIndex.derived_artifact_path).filter(
                 DocumentIndex.document_id == document_id,
-                DocumentIndex.index_type == DocumentIndexType.VECTOR,
+                DocumentIndex.modality == Modality.VECTOR.value,
+                DocumentIndex.is_serving.is_(True),
             )
             result = await session.execute(stmt)
-            doc_index = result.scalars().first()
-
-            if not doc_index or not doc_index.index_data:
-                return []
-
-            try:
-                index_data = json.loads(doc_index.index_data)
-                ctx_ids = index_data.get("context_ids", [])
-            except (json.JSONDecodeError, AttributeError):
-                return []
-
+            _ = result.scalars().first()
+            ctx_ids: list[str] = []
             if not ctx_ids:
                 return []
 
@@ -895,23 +1120,20 @@ class DocumentService:
         """
 
         async def _get_document_vision_chunks(session):
-            # 1. Get the chunk IDs (ctx_ids) from the document_index table
-            stmt = select(DocumentIndex).filter(
+            # Wave 3 §F.1 migration: same ``index_data`` deprecation
+            # as :meth:`get_document_chunks` above. Vision chunk ids
+            # now live in the ``derived/parse_<v>/vision/manifest.jsonl``
+            # artifact; plumbing the object-store read path is a
+            # chenyexuan T3.1 commit 4b follow-up. Return empty for
+            # now (degraded but safe).
+            stmt = select(DocumentIndex.derived_artifact_path).filter(
                 DocumentIndex.document_id == document_id,
-                DocumentIndex.index_type == DocumentIndexType.VISION,
+                DocumentIndex.modality == Modality.VISION.value,
+                DocumentIndex.is_serving.is_(True),
             )
             result = await session.execute(stmt)
-            doc_index = result.scalars().first()
-
-            if not doc_index or not doc_index.index_data:
-                return []
-
-            try:
-                index_data = json.loads(doc_index.index_data)
-                ctx_ids = index_data.get("context_ids", [])
-            except (json.JSONDecodeError, AttributeError):
-                return []
-
+            _ = result.scalars().first()
+            ctx_ids: list[str] = []
             if not ctx_ids:
                 return []
 
@@ -1314,8 +1536,9 @@ class DocumentService:
                     document.status = DocumentStatus.PENDING
                     session.add(document)
 
-                    # Create indexes
-                    await document_index_manager.create_or_update_document_indexes(
+                    # Create indexes (Wave 3 T3.1 chunk 3: dispatch via
+                    # new dispatcher post-confirm).
+                    await _create_or_update_document_indexes(
                         document_id=document.id, index_types=index_types, session=session
                     )
 

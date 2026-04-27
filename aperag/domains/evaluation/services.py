@@ -345,9 +345,19 @@ class EvaluationRunService:
         have to stand up Celery just to exercise the service.
         """
 
+        # Wave 3 T3.1 chunk 2 + post-pass-6 fix: Pattern C
+        # fire-and-forget — formerly ``run_evaluation_run.delay(run_id)``
+        # Celery enqueue. ``run_evaluation_run`` is a coroutine, so we
+        # schedule it directly on the caller's event loop. Wrapping in
+        # ``asyncio.to_thread`` (the prior recipe) spawned a new event
+        # loop on a worker thread and blew up asyncpg pool affinity
+        # ("Future attached to a different loop"); see the docstring on
+        # ``run_evaluation_run`` for the failure mode.
+        import asyncio
+
         from aperag.domains.evaluation.tasks import run_evaluation_run
 
-        run_evaluation_run.delay(run_id)
+        asyncio.create_task(run_evaluation_run(run_id))
 
     async def list_runs(
         self,

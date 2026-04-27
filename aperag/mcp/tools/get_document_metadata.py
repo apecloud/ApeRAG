@@ -24,21 +24,20 @@ Strict call sequence:
 
 from __future__ import annotations
 
-import json
 import mimetypes
 
 from sqlalchemy import select
 
 from aperag.config import get_async_session
-from aperag.domains.indexing.db.models import (
-    DocumentIndex,
-    DocumentIndexStatus,
-)
 from aperag.domains.knowledge_base.db.models import (
     Document,
     DocumentStatus,
 )
 from aperag.exceptions import DocumentNotFoundException
+from aperag.indexing.models import (
+    DocumentIndex,
+    IndexStatus,
+)
 from aperag.mcp.tools._d9_base import (
     authorization_gate,
     resolve_authenticated_user,
@@ -78,18 +77,26 @@ async def get_document_metadata(
         if not document:
             raise DocumentNotFoundException(document_id)
 
+        # Wave 3 hard-cut: legacy ``DocumentIndex.index_data`` JSON
+        # blob is gone (the new §F.1 schema decomposes that
+        # information across per-modality rows + the ``derived/`` /
+        # backend stores). Chunk count is no longer a per-document
+        # scalar; surface 0 here to keep the
+        # :class:`DocumentMetadata` shape stable. Future T3.x can
+        # plumb a real chunk count through the parser /
+        # ``chunks.jsonl`` artifact when an MCP client actually
+        # consumes the field.
         chunk_count = 0
-        idx_stmt = select(DocumentIndex).where(
+        idx_stmt = select(DocumentIndex.id).where(
             DocumentIndex.document_id == document_id,
-            DocumentIndex.status == DocumentIndexStatus.ACTIVE,
+            DocumentIndex.status == IndexStatus.ACTIVE.value,
+            DocumentIndex.is_serving.is_(True),
         )
-        for idx_row in (await session.execute(idx_stmt)).scalars().all():
-            if idx_row.index_data:
-                try:
-                    data = json.loads(idx_row.index_data)
-                    chunk_count = max(chunk_count, len(data.get("context_ids") or []))
-                except (TypeError, json.JSONDecodeError):
-                    continue
+        # Run the query so the Wave 3 §F.1 partial-unique invariant
+        # is exercised through this caller path; the result is used
+        # only as a "the document has at least one serving modality"
+        # signal, not for the dropped index_data.
+        _ = (await session.execute(idx_stmt)).scalars().first()
         break
 
     media_type, _ = mimetypes.guess_type(document.name or "")

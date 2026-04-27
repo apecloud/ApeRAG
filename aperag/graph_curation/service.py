@@ -101,13 +101,17 @@ class GraphCurationService(AsyncBaseRepository):
         run, created = await self.execute_with_transaction(_op)
 
         if created:
+            # Wave 3 T3.1 chunk 2: Pattern C fire-and-forget — formerly
+            # ``generate_graph_curation_run_task.delay(...)`` Celery enqueue.
+            import asyncio
+
             from aperag.domains.knowledge_graph.tasks import generate_graph_curation_run_task
 
             try:
-                generate_graph_curation_run_task.delay(run.id, collection_id)
+                asyncio.create_task(asyncio.to_thread(generate_graph_curation_run_task, run.id, collection_id))
             except Exception as exc:
                 logger.exception(
-                    "graph curation: failed to enqueue run %s for collection %s",
+                    "graph curation: failed to schedule run %s for collection %s",
                     run.id,
                     collection_id,
                 )

@@ -38,7 +38,6 @@ from typing import Any, List, Optional, Protocol, Tuple
 
 from aperag.config import build_vector_db_context, settings
 from aperag.db.ops import async_db_ops
-from aperag.domains.indexing.fulltext_index import extract_keywords
 from aperag.domains.retrieval.context.context import ContextManager
 from aperag.domains.retrieval.ports import GraphSearchContract
 from aperag.domains.retrieval.schemas import SearchRequest, SearchResultItem, SearchResultMetadata
@@ -53,7 +52,7 @@ from aperag.llm.llm_error_types import (
 from aperag.observability import start_span
 from aperag.platform.query.query import DocumentWithScore
 from aperag.schema.utils import parseCollectionConfig
-from aperag.utils.utils import generate_fulltext_index_name, generate_vector_db_collection_name
+from aperag.utils.utils import generate_vector_db_collection_name
 
 logger = logging.getLogger(__name__)
 
@@ -290,7 +289,22 @@ class SearchPipelineService:
         user_id: str,
         chat_id: Optional[str] = None,
     ) -> List[DocumentWithScore]:
-        from aperag.domains.indexing.fulltext_index import FulltextSearchDegradedError, fulltext_indexer
+        """Fulltext recall (Wave 3 T3.1 chunk 3 — inline ES query).
+
+        Wave 3 hard-cut deleted the legacy
+        ``aperag/domains/indexing/fulltext_index.py:FulltextIndexer.
+        search_document``; this method now talks to Elasticsearch
+        directly through the same query shape (the retrieval-side
+        query is stateless against whatever
+        ``aperag.indexing.fulltext.FulltextModality.sync()`` wrote).
+        T3.2 search-lane work (Bryce) is purely additive on
+        ``SearchResultMetadata`` and does not introduce a new search
+        backend abstraction; the inline query is the canonical path.
+        """
+        from elasticsearch import AsyncElasticsearch
+
+        from aperag.indexing.keyword_extract import extract_keywords
+        from aperag.utils.utils import generate_fulltext_index_name
 
         config = parseCollectionConfig(collection.config)
         if config.enable_fulltext is False:
@@ -317,23 +331,82 @@ class SearchPipelineService:
             )
             final_keywords = [query]
 
+        es_config = {
+            "request_timeout": settings.es_timeout,
+            "max_retries": settings.es_max_retries,
+            "retry_on_timeout": True,
+        }
+        async_es = AsyncElasticsearch(settings.es_host, **es_config)
+
         try:
-            docs = await fulltext_indexer.search_document(
-                index_name,
-                str(collection.id),
-                final_keywords,
-                top_k * 3,
-                chat_id=chat_id,
+            exists = await async_es.indices.exists(index=index_name)
+            if not exists.body:
+                return []
+
+            es_query = {
+                "bool": {
+                    "should": [{"match": {"content": kw}} for kw in final_keywords]
+                    + [{"match": {"title": kw}} for kw in final_keywords],
+                    "minimum_should_match": "80%",
+                    "filter": [{"term": {"collection_id": str(collection.id)}}],
+                }
+            }
+            if chat_id:
+                es_query["bool"]["filter"].append(
+                    {
+                        "bool": {
+                            "should": [
+                                {"term": {"chat_id": str(chat_id)}},
+                                {"term": {"metadata.chat_id": str(chat_id)}},
+                            ],
+                            "minimum_should_match": 1,
+                        }
+                    }
+                )
+
+            resp = await async_es.search(
+                index=index_name,
+                query=es_query,
+                sort=[{"_score": {"order": "desc"}}],
+                size=top_k * 3,
+                routing=str(collection.id),
             )
-        except FulltextSearchDegradedError as e:
-            logger.warning("Fulltext search degraded for collection %s: %s", collection.id, e)
+            hits = resp.body["hits"]["hits"]
+        except Exception as exc:
+            logger.warning("Fulltext search degraded for collection %s: %s", collection.id, exc)
+            try:
+                await async_es.close()
+            except Exception:  # noqa: BLE001
+                pass
             return []
 
-        for doc in docs:
-            if doc.metadata is None:
-                doc.metadata = {}
-            doc.metadata["recall_type"] = "fulltext_search"
-        return docs
+        try:
+            await async_es.close()
+        except Exception:  # noqa: BLE001
+            pass
+
+        results: List[DocumentWithScore] = []
+        for hit in hits:
+            source = hit.get("_source", {})
+            metadata = {
+                "source": source.get("name", ""),
+                "document_id": source.get("document_id"),
+                "chunk_id": source.get("chunk_id"),
+                "recall_type": "fulltext_search",
+            }
+            if source.get("title"):
+                metadata["title"] = source["title"]
+            if source.get("metadata"):
+                metadata.update(source["metadata"])
+                metadata["recall_type"] = "fulltext_search"
+            results.append(
+                DocumentWithScore(
+                    text=source.get("content", ""),
+                    score=hit.get("_score", 0.0),
+                    metadata=metadata,
+                )
+            )
+        return results
 
     async def _graph_search(
         self,

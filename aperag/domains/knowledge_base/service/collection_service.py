@@ -32,6 +32,7 @@ the only restructuring is a G1 boundary pass:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any, List, Optional, Tuple
 
@@ -210,9 +211,13 @@ class CollectionService:
         if collection.config.enable_summary:
             await collection_summary_service.trigger_collection_summary_generation(instance)
 
-        # Initialize collection based on type
+        # Initialize collection based on type. Pattern C (fire-and-forget)
+        # per architect msg=3890c9d7 — wrap in asyncio.create_task so the
+        # HTTP response returns immediately; failures log + are recovered
+        # by the next reconciler scan (Wave 2 §I.3 + commit-5 follow-up
+        # wires this lane into the periodic loop).
         document_user_quota = await self.db_ops.query_user_quota(user, QuotaType.MAX_DOCUMENT_COUNT)
-        collection_init_task.delay(instance.id, document_user_quota)
+        asyncio.create_task(asyncio.to_thread(collection_init_task, instance.id, document_user_quota))
 
         return await self.build_collection_response(instance)
 
@@ -434,8 +439,13 @@ class CollectionService:
         deleted_instance = await self.db_ops.execute_with_transaction(_delete_collection_with_quota)
 
         if deleted_instance:
-            # Clean up related resources
-            collection_delete_task.delay(collection_id)
+            # Pattern A (durability-required) per architect msg=3890c9d7:
+            # synchronously cascade the cleanup so a failure surfaces as
+            # an HTTP 500 (the user can retry, and the periodic cleanup
+            # loop sweeps any orphaned rows path-C-style). NOT
+            # asyncio.create_task — losing this work = orphan rows + DB
+            # corruption.
+            await asyncio.to_thread(collection_delete_task, collection_id)
             return await self.build_collection_response(deleted_instance)
 
         return None

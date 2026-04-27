@@ -50,7 +50,6 @@ for _domain in (
     "evaluation",
     "governance",
     "identity",
-    "indexing",
     "knowledge_base",
     "knowledge_graph",
     "marketplace",
@@ -58,6 +57,13 @@ for _domain in (
     "retrieval",
 ):
     importlib.import_module(f"aperag.domains.{_domain}.db.models")
+
+# Wave 3 T3.1: ``DocumentIndex`` was moved out of the per-domain
+# namespace (``aperag.domains.indexing.db.models``) into the new
+# celery-redesign canonical location ``aperag.indexing.models``.
+# Import it here so ``Base.metadata.tables['document_index']`` is
+# populated for the table-presence assertion below.
+importlib.import_module("aperag.indexing.models")
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -76,11 +82,15 @@ PHASE3_ENUMS = (
     "CollectionSummaryStatus",
     "CollectionType",
     "DocumentStatus",
-    "DocumentIndexStatus",
-    "DocumentIndexType",
     "GraphCurationRunStatus",
     "GraphCurationSuggestionStatus",
 )
+# ``DocumentIndexStatus`` / ``DocumentIndexType`` were removed in Wave 3
+# T3.1 alongside ``aperag/domains/indexing/db/models.py``. The new
+# ``aperag/indexing/models.py`` exposes ``IndexStatus`` + ``Modality``
+# instead, but those are not Phase-3-canonical Domain DB enums and live
+# outside the ``aperag.domains.<d>.db.models`` namespace this audit
+# enforces — so they are intentionally not added back here.
 
 PHASE3_TABLES = (
     "collection",
@@ -101,7 +111,11 @@ PHASE3_SYMBOL_TO_MODULE = {
     "Collection": "aperag.domains.knowledge_base.db.models",
     "CollectionSummary": "aperag.domains.knowledge_base.db.models",
     "Document": "aperag.domains.knowledge_base.db.models",
-    "DocumentIndex": "aperag.domains.indexing.db.models",
+    # Wave 3 T3.1: the canonical ``DocumentIndex`` ORM lives in
+    # ``aperag/indexing/models.py`` (the celery-redesign §F.1 row).
+    # The legacy ``aperag/domains/indexing/db/models.py:DocumentIndex``
+    # was hard-deleted in the same commit.
+    "DocumentIndex": "aperag.indexing.models",
     "SearchHistory": "aperag.domains.retrieval.db.models",
     "GraphCurationRun": "aperag.domains.knowledge_graph.db.models",
     "GraphCurationSuggestion": "aperag.domains.knowledge_graph.db.models",
@@ -109,8 +123,6 @@ PHASE3_SYMBOL_TO_MODULE = {
     "CollectionSummaryStatus": "aperag.domains.knowledge_base.db.models",
     "CollectionType": "aperag.domains.knowledge_base.db.models",
     "DocumentStatus": "aperag.domains.knowledge_base.db.models",
-    "DocumentIndexStatus": "aperag.domains.indexing.db.models",
-    "DocumentIndexType": "aperag.domains.indexing.db.models",
     "GraphCurationRunStatus": "aperag.domains.knowledge_graph.db.models",
     "GraphCurationSuggestionStatus": "aperag.domains.knowledge_graph.db.models",
 }
@@ -146,23 +158,14 @@ def test_phase3_classes_resolve_on_canonical_domain_paths():
     )
 
 
-# Wave 1+2 transitional duplicate allowlist. ``aperag/indexing/models.py``
-# (PR #1726) introduces its own ``class DocumentIndex(Base):`` (table
-# ``document_index_v2``) alongside the legacy
-# ``aperag/domains/indexing/db/models.py:DocumentIndex`` still consumed by
-# the Celery system. Both classes share the Python name (architect
-# msg=4a801b2b — only ``__tablename__`` differs during the transition;
-# the class name stays canonical). Wave 3 task #14 deletes the legacy
-# file AND removes this allowlist entry in the same PR; the audit should
-# be back to "no exceptions" once that cutover lands.
-WAVE_1_2_TEMPORARY_DUP_ALLOWLIST: dict[str, frozenset[str]] = {
-    "DocumentIndex": frozenset(
-        {
-            "aperag/indexing/models.py",
-            "aperag/domains/indexing/db/models.py",
-        }
-    ),
-}
+# Wave 3 T3.1: the legacy ``aperag/domains/indexing/db/models.py:
+# DocumentIndex`` was deleted alongside the entire Celery indexing
+# layer; the only remaining ``class DocumentIndex(Base):`` lives in
+# ``aperag/indexing/models.py`` (table ``document_index``). The Wave
+# 1/2 transitional dup allowlist is therefore intentionally empty —
+# leaving the empty mapping (rather than dropping the symbol) keeps
+# the call site below stable for any future short-lived duplicates.
+WAVE_1_2_TEMPORARY_DUP_ALLOWLIST: dict[str, frozenset[str]] = {}
 
 
 def test_phase3_classes_have_single_definition_site():
