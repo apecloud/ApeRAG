@@ -275,11 +275,15 @@ def _entity_from_dict(raw: Mapping[str, Any], *, chunk_id: str) -> EntityRecord:
     name = str(raw["name"]).strip()
     if not name:
         raise ValueError("entity name cannot be empty")
-    entity_type = str(raw.get("type") or "")
+    # The LLM extraction prompt still emits ``type`` in its JSON output
+    # (LightRAG-style template); we accept either the canonical
+    # ``entity_type`` field (post-Wave-6 #36 rename) or the legacy
+    # ``type`` field for backward compat with prompt templates.
+    entity_type = str(raw.get("entity_type") or raw.get("type") or "")
     description = str(raw.get("description") or "")
     return EntityRecord(
         name=name,
-        type=entity_type,
+        entity_type=entity_type,
         description=description,
         source_chunk_ids=(chunk_id,) if chunk_id else (),
     )
@@ -290,12 +294,12 @@ def _relation_from_dict(raw: Mapping[str, Any], *, chunk_id: str) -> RelationRec
     target = str(raw["target"]).strip()
     if not source or not target:
         raise ValueError("relation source/target cannot be empty")
-    rel_type = str(raw.get("type") or "")
+    rel_type = str(raw.get("relation_type") or raw.get("type") or "")
     description = str(raw.get("description") or "")
     return RelationRecord(
         source=source,
         target=target,
-        type=rel_type,
+        relation_type=rel_type,
         description=description,
         source_chunk_ids=(chunk_id,) if chunk_id else (),
     )

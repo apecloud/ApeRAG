@@ -204,10 +204,19 @@ class EntityRecord:
     The ``source_chunk_ids`` are the chunk ids that mention the
     entity within THIS document's parse. They contribute to the new
     lineage member that ``sync`` adds during phase-2 rebuild.
+
+    Wave 6 #36 (per §K.10 item 7 + architect ruling): the field is
+    named ``entity_type`` (not ``type``) to free the bare ``type``
+    name across the §D.3 Protocol surface so callers can introduce
+    Python type-hint metadata or Cypher ``TYPE()`` keyword usage on
+    relation edges without shadow conflicts. The on-wire ``to_dict``
+    JSON key is also ``entity_type`` to keep storage and Python
+    surface identical (hard-cut per earayu2 msg=30c81478 — no
+    production data on the legacy ``type`` shape).
     """
 
     name: str
-    type: str
+    entity_type: str
     description: str
     source_chunk_ids: tuple[str, ...]
 
@@ -215,7 +224,7 @@ class EntityRecord:
         return {
             "kind": "entity",
             "name": self.name,
-            "type": self.type,
+            "entity_type": self.entity_type,
             "description": self.description,
             "source_chunk_ids": list(self.source_chunk_ids),
         }
@@ -223,23 +232,28 @@ class EntityRecord:
 
 @dataclass(frozen=True)
 class RelationRecord:
-    """One relation row read from / written to ``kg.jsonl``."""
+    """One relation row read from / written to ``kg.jsonl``.
+
+    Wave 6 #36: ``relation_type`` (was ``type``) frees the bare
+    ``type`` name; cross-backend column / property / tag-prop renames
+    follow in `graph_storage/{postgres,neo4j,nebula}.py`.
+    """
 
     source: str
     target: str
-    type: str
+    relation_type: str
     description: str
     source_chunk_ids: tuple[str, ...]
 
     def relation_key(self) -> tuple[str, str, str]:
-        return (self.source, self.target, self.type)
+        return (self.source, self.target, self.relation_type)
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "kind": "relation",
             "source": self.source,
             "target": self.target,
-            "type": self.type,
+            "relation_type": self.relation_type,
             "description": self.description,
             "source_chunk_ids": list(self.source_chunk_ids),
         }
@@ -256,7 +270,7 @@ class EntityWithLineage:
     """
 
     name: str
-    type: str
+    entity_type: str
     source_lineage: tuple[LineageMember, ...]
     description_parts: tuple[DescriptionPart, ...]
 
@@ -265,7 +279,7 @@ class EntityWithLineage:
 class RelationWithLineage:
     source: str
     target: str
-    type: str
+    relation_type: str
     evidence_lineage: tuple[LineageMember, ...]
     description_parts: tuple[DescriptionPart, ...]
 
@@ -582,7 +596,7 @@ class LineageGraphStore(Protocol):
 @dataclass
 class _InMemoryEntityRow:
     name: str
-    type: str
+    entity_type: str
     description_parts: dict[tuple[str, str], DescriptionPart] = field(default_factory=dict)
     source_lineage: dict[tuple[str, str], LineageMember] = field(default_factory=dict)
 
@@ -591,7 +605,7 @@ class _InMemoryEntityRow:
 class _InMemoryRelationRow:
     source: str
     target: str
-    type: str
+    relation_type: str
     description_parts: dict[tuple[str, str], DescriptionPart] = field(default_factory=dict)
     evidence_lineage: dict[tuple[str, str], LineageMember] = field(default_factory=dict)
 
@@ -710,12 +724,12 @@ class InMemoryLineageGraphStore:
         async with self._guard:
             row = self._entities.get(record.name)
             if row is None:
-                row = _InMemoryEntityRow(name=record.name, type=record.type)
+                row = _InMemoryEntityRow(name=record.name, entity_type=record.entity_type)
                 self._entities[record.name] = row
             else:
                 # Type may evolve as new docs refine the entity; keep
                 # the most recently observed value.
-                row.type = record.type
+                row.entity_type = record.entity_type
             row.source_lineage[lineage.key()] = lineage
             row.description_parts[lineage.key()] = DescriptionPart(
                 document_id=lineage.document_id,
@@ -733,7 +747,11 @@ class InMemoryLineageGraphStore:
         async with self._guard:
             row = self._relations.get(rel_key)
             if row is None:
-                row = _InMemoryRelationRow(source=record.source, target=record.target, type=record.type)
+                row = _InMemoryRelationRow(
+                    source=record.source,
+                    target=record.target,
+                    relation_type=record.relation_type,
+                )
                 self._relations[rel_key] = row
             row.evidence_lineage[lineage.key()] = lineage
             row.description_parts[lineage.key()] = DescriptionPart(
@@ -751,7 +769,7 @@ class InMemoryLineageGraphStore:
                 return None
             return EntityWithLineage(
                 name=row.name,
-                type=row.type,
+                entity_type=row.entity_type,
                 source_lineage=tuple(_sorted_lineage(row.source_lineage.values())),
                 description_parts=tuple(_sorted_description_parts(row.description_parts.values())),
             )
@@ -765,7 +783,7 @@ class InMemoryLineageGraphStore:
             return RelationWithLineage(
                 source=row.source,
                 target=row.target,
-                type=row.type,
+                relation_type=row.relation_type,
                 evidence_lineage=tuple(_sorted_lineage(row.evidence_lineage.values())),
                 description_parts=tuple(_sorted_description_parts(row.description_parts.values())),
             )
@@ -791,7 +809,7 @@ class InMemoryLineageGraphStore:
                 matches.append(
                     EntityWithLineage(
                         name=row.name,
-                        type=row.type,
+                        entity_type=row.entity_type,
                         source_lineage=tuple(_sorted_lineage(row.source_lineage.values())),
                         description_parts=tuple(_sorted_description_parts(row.description_parts.values())),
                     )
@@ -822,7 +840,7 @@ class InMemoryLineageGraphStore:
                     continue
                 seen_entities[name] = EntityWithLineage(
                     name=row.name,
-                    type=row.type,
+                    entity_type=row.entity_type,
                     source_lineage=tuple(_sorted_lineage(row.source_lineage.values())),
                     description_parts=tuple(_sorted_description_parts(row.description_parts.values())),
                 )
@@ -837,7 +855,7 @@ class InMemoryLineageGraphStore:
                             seen_relations[rel_key] = RelationWithLineage(
                                 source=rel_row.source,
                                 target=rel_row.target,
-                                type=rel_row.type,
+                                relation_type=rel_row.relation_type,
                                 evidence_lineage=tuple(_sorted_lineage(rel_row.evidence_lineage.values())),
                                 description_parts=tuple(_sorted_description_parts(rel_row.description_parts.values())),
                             )
@@ -849,7 +867,7 @@ class InMemoryLineageGraphStore:
                                 continue
                             seen_entities[neighbour] = EntityWithLineage(
                                 name=row.name,
-                                type=row.type,
+                                entity_type=row.entity_type,
                                 source_lineage=tuple(_sorted_lineage(row.source_lineage.values())),
                                 description_parts=tuple(_sorted_description_parts(row.description_parts.values())),
                             )
@@ -859,7 +877,7 @@ class InMemoryLineageGraphStore:
                 current = next_frontier
 
         entities = sorted(seen_entities.values(), key=lambda e: e.name)
-        relations = sorted(seen_relations.values(), key=lambda r: (r.source, r.target, r.type))
+        relations = sorted(seen_relations.values(), key=lambda r: (r.source, r.target, r.relation_type))
         return (entities, relations)
 
 
@@ -945,7 +963,7 @@ def parse_kg_jsonl(body: bytes) -> tuple[list[EntityRecord], list[RelationRecord
             entities.append(
                 EntityRecord(
                     name=str(record["name"]),
-                    type=str(record["type"]),
+                    entity_type=str(record["entity_type"]),
                     description=str(record.get("description", "")),
                     source_chunk_ids=tuple(str(cid) for cid in record.get("source_chunk_ids", [])),
                 )
@@ -955,7 +973,7 @@ def parse_kg_jsonl(body: bytes) -> tuple[list[EntityRecord], list[RelationRecord
                 RelationRecord(
                     source=str(record["source"]),
                     target=str(record["target"]),
-                    type=str(record["type"]),
+                    relation_type=str(record["relation_type"]),
                     description=str(record.get("description", "")),
                     source_chunk_ids=tuple(str(cid) for cid in record.get("source_chunk_ids", [])),
                 )
@@ -1124,7 +1142,11 @@ class GraphModalityWorker(ModalityWorker):
                 tenant_scope_key=self._tenant_scope_key,
                 chunk_ids=relation_record.source_chunk_ids,
             )
-            lock_key = _relation_lock_key(relation_record.source, relation_record.target, relation_record.type)
+            lock_key = _relation_lock_key(
+                relation_record.source,
+                relation_record.target,
+                relation_record.relation_type,
+            )
             async with self._entity_lock.acquire(lock_key):
                 await self._store.upsert_relation_with_lineage(record=relation_record, lineage=lineage)
 

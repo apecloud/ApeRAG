@@ -100,7 +100,7 @@ def _render_graph_context_text(entities: list[Any], relations: list[Any]) -> str
         for e in entities:
             desc_parts = [p.text.strip() for p in (e.description_parts or ()) if p.text and p.text.strip()]
             desc = " | ".join(desc_parts) or "(no description)"
-            type_label = e.type or "entity"
+            type_label = e.entity_type or "entity"
             lines.append(f"- [{type_label}] {e.name} — {desc}")
     if relations:
         if lines:

@@ -34,7 +34,7 @@ prefix (Wave 5 P5A item 4) prevents collisions with user-owned graphs
 in shared Neo4j deployments.
 
     (:aperag_LineageEntity {
-        collection_id, name, type,
+        collection_id, name, entity_type,
         source_lineage,                  -- list<string>, JSON-encoded LineageMember
         source_lineage_doc_ids,          -- list<string>, parallel index, dedup + strip-by-doc filter
         source_lineage_parse_versions,   -- list<string>, parallel index, dedup composite key
@@ -45,7 +45,7 @@ in shared Neo4j deployments.
     })
 
     (:aperag_LineageRelation {
-        collection_id, source, target, type,
+        collection_id, source, target, relation_type,
         evidence_lineage,
         evidence_lineage_doc_ids,
         evidence_lineage_parse_versions,
@@ -208,7 +208,7 @@ class Neo4jLineageGraphStore:
             await session.run(
                 f"CREATE CONSTRAINT {_RELATION_CONSTRAINT_NAME} IF NOT EXISTS "
                 f"FOR (r:{_RELATION_LABEL}) "
-                f"REQUIRE (r.collection_id, r.source, r.target, r.type) IS UNIQUE"
+                f"REQUIRE (r.collection_id, r.source, r.target, r.relation_type) IS UNIQUE"
             )
 
     # -- find-by-document scans (pre-rebuild phase) -------------------
@@ -231,7 +231,7 @@ class Neo4jLineageGraphStore:
         query = (
             f"MATCH (r:{_RELATION_LABEL} {{collection_id: $collection_id}}) "
             f"WHERE $document_id IN r.evidence_lineage_doc_ids "
-            f"RETURN r.source AS source, r.target AS target, r.type AS type"
+            f"RETURN r.source AS source, r.target AS target, r.relation_type AS relation_type"
         )
         async with self._session() as session:
             result = await session.run(
@@ -239,7 +239,7 @@ class Neo4jLineageGraphStore:
                 collection_id=self._collection_id,
                 document_id=document_id,
             )
-            return [(rec["source"], rec["target"], rec["type"]) async for rec in result]
+            return [(rec["source"], rec["target"], rec["relation_type"]) async for rec in result]
 
     # -- strip-by-document (pre-rebuild phase) ------------------------
 
@@ -274,7 +274,7 @@ class Neo4jLineageGraphStore:
     async def remove_relation_lineage_member(self, *, source: str, target: str, type: str, document_id: str) -> None:
         query = (
             f"MATCH (r:{_RELATION_LABEL} "
-            f"  {{collection_id: $collection_id, source: $source, target: $target, type: $type}}) "
+            f"  {{collection_id: $collection_id, source: $source, target: $target, relation_type: $relation_type}}) "
             f"WITH r, "
             f"  [i IN range(0, size(r.evidence_lineage_doc_ids) - 1) "
             f"   WHERE r.evidence_lineage_doc_ids[i] <> $document_id] AS el_keep, "
@@ -294,7 +294,7 @@ class Neo4jLineageGraphStore:
                 collection_id=self._collection_id,
                 source=source,
                 target=target,
-                type=type,
+                relation_type=type,
                 document_id=document_id,
             )
 
@@ -315,7 +315,7 @@ class Neo4jLineageGraphStore:
     async def gc_relation_if_orphan(self, source: str, target: str, type: str) -> bool:
         query = (
             f"MATCH (r:{_RELATION_LABEL} "
-            f"  {{collection_id: $collection_id, source: $source, target: $target, type: $type}}) "
+            f"  {{collection_id: $collection_id, source: $source, target: $target, relation_type: $relation_type}}) "
             f"WHERE size(r.evidence_lineage) = 0 "
             f"DELETE r "
             f"RETURN count(r) AS deleted"
@@ -326,7 +326,7 @@ class Neo4jLineageGraphStore:
                 collection_id=self._collection_id,
                 source=source,
                 target=target,
-                type=type,
+                relation_type=type,
             )
             rec = await result.single()
             return bool(rec and rec["deleted"] > 0)
@@ -367,7 +367,7 @@ class Neo4jLineageGraphStore:
             f"  [i IN range(0, size(n.description_parts_doc_ids) - 1) "
             f"   WHERE NOT (n.description_parts_doc_ids[i] = $document_id "
             f"              AND n.description_parts_parse_versions[i] = $parse_version)] AS dp_keep "
-            f"SET n.type = $type, "
+            f"SET n.entity_type = $entity_type, "
             f"    n.source_lineage = [i IN sl_keep | n.source_lineage[i]] + [$member_json], "
             f"    n.source_lineage_doc_ids = [i IN sl_keep | n.source_lineage_doc_ids[i]] + [$document_id], "
             f"    n.source_lineage_parse_versions = "
@@ -384,7 +384,7 @@ class Neo4jLineageGraphStore:
                 query,
                 collection_id=self._collection_id,
                 name=record.name,
-                type=record.type,
+                entity_type=record.entity_type,
                 document_id=lineage.document_id,
                 parse_version=lineage.parse_version,
                 member_json=member_json,
@@ -402,7 +402,7 @@ class Neo4jLineageGraphStore:
         )
         query = (
             f"MERGE (r:{_RELATION_LABEL} "
-            f"  {{collection_id: $collection_id, source: $source, target: $target, type: $type}}) "
+            f"  {{collection_id: $collection_id, source: $source, target: $target, relation_type: $relation_type}}) "
             f"ON CREATE SET "
             f"  r.evidence_lineage = [], "
             f"  r.evidence_lineage_doc_ids = [], "
@@ -436,7 +436,7 @@ class Neo4jLineageGraphStore:
                 collection_id=self._collection_id,
                 source=record.source,
                 target=record.target,
-                type=record.type,
+                relation_type=record.relation_type,
                 document_id=lineage.document_id,
                 parse_version=lineage.parse_version,
                 member_json=member_json,
@@ -448,7 +448,7 @@ class Neo4jLineageGraphStore:
     async def get_entity(self, entity_name: str) -> EntityWithLineage | None:
         query = (
             f"MATCH (n:{_ENTITY_LABEL} {{collection_id: $collection_id, name: $name}}) "
-            f"RETURN n.name AS name, n.type AS type, "
+            f"RETURN n.name AS name, n.entity_type AS entity_type, "
             f"       n.source_lineage AS source_lineage, "
             f"       n.description_parts AS description_parts"
         )
@@ -459,7 +459,7 @@ class Neo4jLineageGraphStore:
                 return None
             return EntityWithLineage(
                 name=rec["name"],
-                type=rec["type"] or "",
+                entity_type=rec["entity_type"] or "",
                 source_lineage=tuple(LineageMember.from_dict(json.loads(s)) for s in (rec["source_lineage"] or [])),
                 description_parts=tuple(
                     DescriptionPart.from_dict(json.loads(s)) for s in (rec["description_parts"] or [])
@@ -469,8 +469,8 @@ class Neo4jLineageGraphStore:
     async def get_relation(self, source: str, target: str, type: str) -> RelationWithLineage | None:
         query = (
             f"MATCH (r:{_RELATION_LABEL} "
-            f"  {{collection_id: $collection_id, source: $source, target: $target, type: $type}}) "
-            f"RETURN r.source AS source, r.target AS target, r.type AS type, "
+            f"  {{collection_id: $collection_id, source: $source, target: $target, relation_type: $relation_type}}) "
+            f"RETURN r.source AS source, r.target AS target, r.relation_type AS relation_type, "
             f"       r.evidence_lineage AS evidence_lineage, "
             f"       r.description_parts AS description_parts"
         )
@@ -480,7 +480,7 @@ class Neo4jLineageGraphStore:
                 collection_id=self._collection_id,
                 source=source,
                 target=target,
-                type=type,
+                relation_type=type,
             )
             rec = await result.single()
             if rec is None:
@@ -488,7 +488,7 @@ class Neo4jLineageGraphStore:
             return RelationWithLineage(
                 source=rec["source"],
                 target=rec["target"],
-                type=rec["type"],
+                relation_type=rec["relation_type"],
                 evidence_lineage=tuple(LineageMember.from_dict(json.loads(s)) for s in (rec["evidence_lineage"] or [])),
                 description_parts=tuple(
                     DescriptionPart.from_dict(json.loads(s)) for s in (rec["description_parts"] or [])
@@ -512,7 +512,7 @@ class Neo4jLineageGraphStore:
         cypher = (
             f"MATCH (n:{_ENTITY_LABEL} {{collection_id: $collection_id}}) "
             f"WHERE toLower(n.name) CONTAINS toLower($query) "
-            f"RETURN n.name AS name, n.type AS type, "
+            f"RETURN n.name AS name, n.entity_type AS entity_type, "
             f"       n.source_lineage AS source_lineage, "
             f"       n.description_parts AS description_parts "
             f"ORDER BY n.name "
@@ -528,7 +528,7 @@ class Neo4jLineageGraphStore:
             return [
                 EntityWithLineage(
                     name=rec["name"],
-                    type=rec["type"] or "",
+                    entity_type=rec["entity_type"] or "",
                     source_lineage=tuple(LineageMember.from_dict(json.loads(s)) for s in (rec["source_lineage"] or [])),
                     description_parts=tuple(
                         DescriptionPart.from_dict(json.loads(s)) for s in (rec["description_parts"] or [])
@@ -555,7 +555,7 @@ class Neo4jLineageGraphStore:
             cypher = (
                 f"MATCH (n:{_ENTITY_LABEL} {{collection_id: $collection_id}}) "
                 f"WHERE n.name IN $names "
-                f"RETURN n.name AS name, n.type AS type, "
+                f"RETURN n.name AS name, n.entity_type AS entity_type, "
                 f"       n.source_lineage AS source_lineage, "
                 f"       n.description_parts AS description_parts"
             )
@@ -565,7 +565,7 @@ class Neo4jLineageGraphStore:
                     continue
                 seen_entities[rec["name"]] = EntityWithLineage(
                     name=rec["name"],
-                    type=rec["type"] or "",
+                    entity_type=rec["entity_type"] or "",
                     source_lineage=tuple(LineageMember.from_dict(json.loads(s)) for s in (rec["source_lineage"] or [])),
                     description_parts=tuple(
                         DescriptionPart.from_dict(json.loads(s)) for s in (rec["description_parts"] or [])
@@ -578,19 +578,19 @@ class Neo4jLineageGraphStore:
             cypher = (
                 f"MATCH (r:{_RELATION_LABEL} {{collection_id: $collection_id}}) "
                 f"WHERE r.source IN $names OR r.target IN $names "
-                f"RETURN r.source AS source, r.target AS target, r.type AS type, "
+                f"RETURN r.source AS source, r.target AS target, r.relation_type AS relation_type, "
                 f"       r.evidence_lineage AS evidence_lineage, "
                 f"       r.description_parts AS description_parts"
             )
             result = await session.run(cypher, collection_id=self._collection_id, names=names)
             next_frontier: set[str] = set()
             async for rec in result:
-                key = (rec["source"], rec["target"], rec["type"])
+                key = (rec["source"], rec["target"], rec["relation_type"])
                 if key not in seen_relations:
                     seen_relations[key] = RelationWithLineage(
                         source=rec["source"],
                         target=rec["target"],
-                        type=rec["type"],
+                        relation_type=rec["relation_type"],
                         evidence_lineage=tuple(
                             LineageMember.from_dict(json.loads(s)) for s in (rec["evidence_lineage"] or [])
                         ),
@@ -616,7 +616,7 @@ class Neo4jLineageGraphStore:
                 current = next_list
 
         entities = sorted(seen_entities.values(), key=lambda e: e.name)
-        relations = sorted(seen_relations.values(), key=lambda r: (r.source, r.target, r.type))
+        relations = sorted(seen_relations.values(), key=lambda r: (r.source, r.target, r.relation_type))
         return (entities, relations)
 
 

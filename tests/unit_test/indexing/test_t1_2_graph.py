@@ -248,7 +248,7 @@ async def test_d3_6_step1_doc_a_v1_inserts_initial_lineage(store, entity_lock, o
         "doc_A": [
             EntityRecord(
                 name="Linus",
-                type="Person",
+                entity_type="Person",
                 description="kernel hacker per doc_A",
                 source_chunk_ids=("doc_A-v1-c0",),
             )
@@ -675,14 +675,17 @@ class _RaceProvocateurStore(InMemoryLineageGraphStore):
         async with self._guard:
             row = self._entities.get(record.name)
             if row is None:
-                row = type(row)(name=record.name, type=record.type) if row is not None else None
+                # Note: the outer ``type(row)(...)`` call uses Python's
+                # builtin ``type()``; the ``entity_type=`` kwarg is the
+                # new dataclass field name (Wave 6 #36).
+                row = type(row)(name=record.name, entity_type=record.entity_type) if row is not None else None
             from aperag.indexing.graph import _InMemoryEntityRow  # noqa: PLC0415
 
             if row is None:
-                row = _InMemoryEntityRow(name=record.name, type=record.type)
+                row = _InMemoryEntityRow(name=record.name, entity_type=record.entity_type)
                 self._entities[record.name] = row
             else:
-                row.type = record.type
+                row.entity_type = record.entity_type
             # Without the ``EntityLock`` the second writer's
             # ``current_keys`` may have been computed before the
             # first writer's mutation, but since we still merge into
@@ -869,9 +872,9 @@ def test_kg_jsonl_skips_unknown_kinds_gracefully():
     # Forward-compatible: an older worker reads a newer artifact and
     # silently skips kinds it does not know yet.
     body = (
-        b'{"kind": "entity", "name": "X", "type": "Y", "description": "", "source_chunk_ids": []}\n'
+        b'{"kind": "entity", "name": "X", "entity_type": "Y", "description": "", "source_chunk_ids": []}\n'
         b'{"kind": "future_kind", "data": "..."}\n'
-        b'{"kind": "relation", "source": "X", "target": "Z", "type": "rel", "description": "", "source_chunk_ids": []}\n'
+        b'{"kind": "relation", "source": "X", "target": "Z", "relation_type": "rel", "description": "", "source_chunk_ids": []}\n'
     )
     entities, relations = parse_kg_jsonl(body)
     assert len(entities) == 1
@@ -1046,7 +1049,7 @@ async def test_end_to_end_with_real_parser_chunks():
             [
                 EntityRecord(
                     name=f"E_{c['chunk_id']}",
-                    type="Test",
+                    entity_type="Test",
                     description=c["text"],
                     source_chunk_ids=(c["chunk_id"],),
                 )

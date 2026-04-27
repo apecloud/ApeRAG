@@ -308,7 +308,7 @@ async def test_roundtrip_entity_with_one_lineage_member(lineage_store):
 
     record = EntityRecord(
         name="Linus Torvalds",
-        type="person",
+        entity_type="person",
         description="Created Linux.",
         source_chunk_ids=("chunk-1",),
     )
@@ -318,7 +318,7 @@ async def test_roundtrip_entity_with_one_lineage_member(lineage_store):
     fetched = await lineage_store.get_entity("Linus Torvalds")
     assert fetched is not None
     assert fetched.name == "Linus Torvalds"
-    assert fetched.type == "person"
+    assert fetched.entity_type == "person"
     assert len(fetched.source_lineage) == 1
     assert fetched.source_lineage[0].document_id == "doc-A"
     assert fetched.source_lineage[0].parse_version == "v1"
@@ -335,7 +335,7 @@ async def test_two_documents_cite_same_entity_preserves_both_lineage(lineage_sto
 
     record_base = EntityRecord(
         name="Python",
-        type="language",
+        entity_type="language",
         description="",
         source_chunk_ids=(),
     )
@@ -366,7 +366,7 @@ async def test_doc_re_parse_replaces_old_parse_version_member(lineage_store):
 
     record = EntityRecord(
         name="Rust",
-        type="language",
+        entity_type="language",
         description="memory-safe",
         source_chunk_ids=(),
     )
@@ -407,7 +407,7 @@ async def test_remove_then_gc_orphan_entity(lineage_store):
     """Case 4: §D.3.2 phase-1 strip → phase-2 GC. Orphan-only deletion;
     other-doc citations protect the row from GC."""
 
-    record = EntityRecord(name="ApeRAG", type="project", description="", source_chunk_ids=())
+    record = EntityRecord(name="ApeRAG", entity_type="project", description="", source_chunk_ids=())
     await lineage_store.upsert_entity_with_lineage(
         record=EntityRecord(**{**record.__dict__, "description": "RAG framework"}),
         lineage=_make_member(doc="doc-A", version="v1"),
@@ -441,7 +441,7 @@ async def test_relation_lineage_set_independent_from_entity(lineage_store):
     rel = RelationRecord(
         source="Linus Torvalds",
         target="Linux",
-        type="created",
+        relation_type="created",
         description="Linus created Linux in 1991.",
         source_chunk_ids=("c-1",),
     )
@@ -489,7 +489,7 @@ async def test_tenant_isolation_collection_id_filters_all_queries(lineage_store,
     try:
         record = EntityRecord(
             name="Shared Entity",
-            type="thing",
+            entity_type="thing",
             description="from other tenant",
             source_chunk_ids=(),
         )
@@ -639,7 +639,7 @@ async def test_cross_event_loop_construct_then_call(backend: str):
         await store.ensure_schema()
         record = EntityRecord(
             name="XLoop Entity",
-            type="thing",
+            entity_type="thing",
             description="cross-loop ok",
             source_chunk_ids=(),
         )

@@ -72,7 +72,7 @@ def test_parse_extraction_response_handles_well_formed_json():
     assert len(entities) == 1
     assert entities[0] == EntityRecord(
         name="Linus",
-        type="person",
+        entity_type="person",
         description="Created Linux",
         source_chunk_ids=("c-1",),
     )
@@ -80,7 +80,7 @@ def test_parse_extraction_response_handles_well_formed_json():
     assert relations[0] == RelationRecord(
         source="Linus",
         target="Linux",
-        type="created",
+        relation_type="created",
         description="Linus created Linux",
         source_chunk_ids=("c-1",),
     )
@@ -120,7 +120,7 @@ def test_parse_extraction_response_skips_individual_malformed_records():
     entities, relations = ge._parse_extraction_response(raw=raw, chunk_id="c-1")
     names = [e.name for e in entities]
     assert names == ["Good Entity", "Another Good"]
-    relation_types = [r.type for r in relations]
+    relation_types = [r.relation_type for r in relations]
     assert relation_types == ["rel1"]
 
 
