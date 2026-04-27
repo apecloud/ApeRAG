@@ -61,70 +61,14 @@ services:
     ports:
       - "3000:3000"
 
-  celeryworker:
-    image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-v0.0.0-nightly}
-    build:
-      context: .
-      dockerfile: ./Dockerfile
-    container_name: aperag-celeryworker
-    depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-      qdrant:
-        condition: service_healthy
-      es:
-        condition: service_healthy
-    volumes:
-      - ~/.cache:/root/.cache
-      - ./resources:/data/resources
-      - aperag-shared-data:/shared
-    env_file:
-      - .env
-      - envs/docker.env.overrides
-    environment:
-      - NODE_IP=aperag-celeryworker
-      - APERAG_API_BASE_URL=http://aperag-api:8000
-    command: ["/app/scripts/entrypoint.sh", "/app/scripts/start-celery-worker.sh"]
-
-  celerybeat:
-    image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-v0.0.0-nightly}
-    build:
-      context: .
-      dockerfile: ./Dockerfile
-    container_name: aperag-celerybeat
-    env_file:
-      - .env
-      - envs/docker.env.overrides
-    depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-    environment:
-      - NODE_IP=aperag-celerybeat
-    command: ["/app/scripts/entrypoint.sh", "/app/scripts/start-celery-beat.sh"]
-
-  flower:
-    image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-v0.0.0-nightly}
-    build:
-      context: .
-      dockerfile: ./Dockerfile
-    container_name: aperag-flower
-    depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-    env_file:
-      - .env
-      - envs/docker.env.overrides
-    ports:
-      - "5555:5555"
-    environment:
-      - NODE_IP=aperag-flower
-    command: ["/app/scripts/entrypoint.sh", "/app/scripts/start-celery-flower.sh"]
+  # Wave 3 T3.1 chunk 3: Celery infrastructure (celeryworker /
+  # celerybeat / flower) was hard-deleted alongside the
+  # ``aperag/tasks/`` + ``config/celery.py`` layers. The new
+  # in-process ``aperag.indexing`` runtime (worker pool + reconciler +
+  # cleanup loops) is spawned by the FastAPI lifespan inside the
+  # ``aperag-api`` container, so no separate worker/beat/flower
+  # containers are needed. ``run_reconcile_loop`` (30 s) replaces
+  # ``celerybeat``; ``run_*_worker`` tasks replace ``celeryworker``.
 
   # ==============================================
   # Infrastructure Services (always available)

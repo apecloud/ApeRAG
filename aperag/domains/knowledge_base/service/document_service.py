@@ -33,6 +33,7 @@ the same G1 boundary pass Step 5b2b applied to ``collection_service``:
   continue to resolve via the ``view_models`` dual-hook re-export shim.
 """
 
+import asyncio
 import json
 import logging
 import mimetypes
@@ -166,6 +167,35 @@ async def _create_or_update_document_indexes(
     )
     source_path = document.object_store_base_path()
     tenant_scope_key = f"user:{document.user}"
+
+    # Wave 3 T3.1 chunk 3 fix-forward: ``rebuild_indexes`` re-invokes
+    # this adapter with the same ``(document_id, parse_version,
+    # modality)`` triple that already exists (content unchanged →
+    # parse_version unchanged). The §F.1 ``uq_document_index_triple``
+    # UNIQUE constraint then fails the dispatcher's INSERT with an
+    # IntegrityError → 500 DATABASE_ERROR. Pre-DELETE matching rows
+    # (any status / serving state) so the INSERT lands cleanly. The
+    # cutover-on-sync-completion (§F.3) re-establishes the serving
+    # state once the new dispatch's worker finishes; brief
+    # unavailability between DELETE and cutover is acceptable for an
+    # explicit rebuild op.
+    from sqlalchemy import delete as sa_delete
+
+    from aperag.indexing.models import DocumentIndex
+
+    def _purge_existing_triples() -> None:
+        from sqlalchemy.orm import Session
+
+        with Session(runtime.engine) as sync_session, sync_session.begin():
+            sync_session.execute(
+                sa_delete(DocumentIndex).where(
+                    DocumentIndex.document_id == document.id,
+                    DocumentIndex.parse_version == parse_version,
+                    DocumentIndex.modality.in_([m.value for m in index_types]),
+                )
+            )
+
+    await asyncio.to_thread(_purge_existing_triples)
 
     await dispatch_indexing(
         engine=runtime.engine,

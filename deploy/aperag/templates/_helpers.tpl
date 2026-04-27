@@ -55,10 +55,6 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 app.aperag.io/component: api
 {{- end }}
 
-{{- define "celeryworker.labels" -}}
-app.aperag.io/component: celery-worker
-{{- end }}
-
 {{- define "frontend.labels" -}}
 app.aperag.io/component: frontend
 {{- end }}
