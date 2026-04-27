@@ -1,0 +1,539 @@
+# Copyright 2025 ApeCloud, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+
+"""Cross-backend ``LineageGraphStore`` compatibility tests.
+
+Mirrors the legacy ``test_graph_compat.py`` pattern but targets the
+new Wave 4 T8 + Wave 6 #33 ``LineageGraphStore`` Protocol
+(``aperag/indexing/graph.py``) and its three production backends:
+
+  - ``PostgresLineageGraphStore`` (``aperag/indexing/graph_storage/postgres.py``)
+  - ``Neo4jLineageGraphStore``    (``aperag/indexing/graph_storage/neo4j.py``)
+  - ``NebulaLineageGraphStore``   (``aperag/indexing/graph_storage/nebula.py``)
+
+Each test runs the same deterministic scenario against every backend
+that has a running instance. Backends are gated on env vars so CI can
+selectively enable whichever databases it spins up — the same env vars
+the legacy ``test_graph_compat.py`` already uses.
+
+Env vars:
+    COMPAT_PG_URL       = postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/postgres
+    COMPAT_NEO4J_URI    = bolt://127.0.0.1:7687
+    COMPAT_NEO4J_USER   = neo4j
+    COMPAT_NEO4J_PASS   = password
+    COMPAT_NEBULA_HOSTS = 127.0.0.1:9669
+
+Usage:
+    # All available backends (skip when env var unset)
+    pytest tests/integration/compat/test_lineage_graph_compat.py -v
+
+    # Via make
+    make test-compat-graph
+"""
+
+from __future__ import annotations
+
+import os
+import uuid
+
+import pytest
+
+from aperag.indexing.graph import (
+    EntityRecord,
+    InMemoryEntityLock,
+    LineageMember,
+    RelationRecord,
+)
+
+# --- backend factories ----------------------------------------------------
+
+
+def _make_pg_store(collection_id: str):
+    url = os.environ.get("COMPAT_PG_URL")
+    if not url:
+        return None
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    from aperag.indexing.graph_storage.postgres import PostgresLineageGraphStore
+
+    engine = create_async_engine(url, future=True)
+    store = PostgresLineageGraphStore(engine=engine, collection_id=collection_id)
+    return store, engine
+
+
+def _make_neo4j_store(collection_id: str):
+    uri = os.environ.get("COMPAT_NEO4J_URI")
+    if not uri:
+        return None
+    from neo4j import AsyncGraphDatabase
+
+    from aperag.indexing.graph_storage.neo4j import Neo4jLineageGraphStore
+
+    driver = AsyncGraphDatabase.driver(
+        uri,
+        auth=(
+            os.environ.get("COMPAT_NEO4J_USER", "neo4j"),
+            os.environ.get("COMPAT_NEO4J_PASS", "password"),
+        ),
+    )
+    store = Neo4jLineageGraphStore(driver=driver, collection_id=collection_id)
+    return store, driver
+
+
+def _make_nebula_store(collection_id: str):
+    hosts = os.environ.get("COMPAT_NEBULA_HOSTS")
+    if not hosts:
+        return None
+    from nebula3.Config import Config as NebulaConfig
+    from nebula3.gclient.net import ConnectionPool
+
+    from aperag.indexing.graph_storage.nebula import NebulaLineageGraphStore
+
+    pool = ConnectionPool()
+    parsed = []
+    for host_str in hosts.split(","):
+        host, _, port = host_str.strip().partition(":")
+        parsed.append((host, int(port) if port else 9669))
+    pool.init(parsed, NebulaConfig())
+    store = NebulaLineageGraphStore(
+        pool=pool,
+        username=os.environ.get("COMPAT_NEBULA_USER", "root"),
+        password=os.environ.get("COMPAT_NEBULA_PASS", "nebula"),
+        collection_id=collection_id,
+        entity_lock=InMemoryEntityLock(),
+    )
+    return store, pool
+
+
+_BACKENDS = {
+    "postgresql": _make_pg_store,
+    "neo4j": _make_neo4j_store,
+    "nebula": _make_nebula_store,
+}
+
+
+def _available_backend_names():
+    available = []
+    if os.environ.get("COMPAT_PG_URL"):
+        available.append(pytest.param("postgresql", id="postgresql"))
+    if os.environ.get("COMPAT_NEO4J_URI"):
+        available.append(pytest.param("neo4j", id="neo4j"))
+    if os.environ.get("COMPAT_NEBULA_HOSTS"):
+        available.append(pytest.param("nebula", id="nebula"))
+    return available
+
+
+_available = _available_backend_names()
+
+if not _available:
+    pytestmark = pytest.mark.skip(
+        reason="No graph backend env vars set (COMPAT_PG_URL / COMPAT_NEO4J_URI / COMPAT_NEBULA_HOSTS)"
+    )
+
+
+# --- per-test fixtures ----------------------------------------------------
+
+
+@pytest.fixture
+def collection_id() -> str:
+    # Per-test fresh collection id keeps fixtures isolated even when a
+    # prior test leaks rows; backends bind to ``collection_id`` at
+    # construction time and ``ensure_schema`` is idempotent.
+    return f"compat_lineage_{uuid.uuid4().hex[:8]}"
+
+
+@pytest.fixture(params=_available if _available else [pytest.param(None, marks=pytest.mark.skip)])
+async def store(request, collection_id):
+    """Yield a (backend_name, lineage_store) tuple. Provisions per-backend
+    schema and tears down the per-test collection at exit.
+    """
+    name = request.param
+    factory_result = _BACKENDS[name](collection_id)
+    assert factory_result is not None, f"factory for backend {name!r} returned None despite env var set"
+    store_obj, owned_resource = factory_result
+
+    # All three production backends expose ``ensure_schema()`` for test
+    # bring-up (alembic / DDL is the production path; tests just create
+    # what they need on the fly).
+    await store_obj.ensure_schema()
+
+    yield name, store_obj
+
+    # Cleanup. Each backend has its own teardown idiom; missing methods
+    # are tolerated so the fixture is robust to backend-API drift.
+    try:
+        drop = getattr(store_obj, "drop_collection", None)
+        if drop is not None:
+            await drop()
+    except Exception:
+        pass
+    try:
+        close = getattr(store_obj, "close", None)
+        if close is not None:
+            res = close()
+            # Some backends return a coroutine, others a None.
+            if hasattr(res, "__await__"):
+                await res
+    except Exception:
+        pass
+
+    # Per-backend resource disposal: SQLAlchemy engine, Neo4j driver,
+    # Nebula connection pool. These are caller-owned in production
+    # too — the worker_factory caches them — so the fixture mirrors
+    # that lifecycle here.
+    if name == "postgresql":
+        await owned_resource.dispose()
+    elif name == "neo4j":
+        await owned_resource.close()
+    elif name == "nebula":
+        owned_resource.close()
+
+
+# --- shared deterministic test data ---------------------------------------
+
+# Use stable lineage members so assertions are easy to read; the
+# Protocol's contract is "dedup by (document_id, parse_version)" so
+# we exercise both replace-on-same-key and add-on-distinct-key paths.
+
+_LM_A_V1 = LineageMember(
+    document_id="doc-A",
+    parse_version="v1",
+    tenant_scope_key="tenant-X",
+    chunk_ids=("c1", "c2"),
+)
+
+_LM_A_V2 = LineageMember(
+    document_id="doc-A",
+    parse_version="v2",
+    tenant_scope_key="tenant-X",
+    chunk_ids=("c3",),
+)
+
+_LM_B_V1 = LineageMember(
+    document_id="doc-B",
+    parse_version="v1",
+    tenant_scope_key="tenant-X",
+    chunk_ids=("c10",),
+)
+
+
+def _entity(name: str, *, entity_type: str = "person", description: str = "desc") -> EntityRecord:
+    return EntityRecord(
+        name=name,
+        entity_type=entity_type,
+        description=description,
+        source_chunk_ids=("c1",),
+    )
+
+
+def _relation(source: str, target: str, *, relation_type: str = "knows") -> RelationRecord:
+    return RelationRecord(
+        source=source,
+        target=target,
+        relation_type=relation_type,
+        description=f"{source} -[{relation_type}]-> {target}",
+        source_chunk_ids=("c1",),
+    )
+
+
+# --- tests: lineage write + read round-trip -------------------------------
+
+
+@pytest.mark.asyncio
+async def test_upsert_entity_then_get_entity_round_trip(store, collection_id):
+    """``upsert_entity_with_lineage`` followed by ``get_entity`` MUST
+    return the canonical lineage view with the exact lineage member
+    that was written."""
+
+    _, s = store
+    await s.upsert_entity_with_lineage(record=_entity("Alice"), lineage=_LM_A_V1)
+
+    got = await s.get_entity("Alice")
+    assert got is not None, "entity must exist after upsert"
+    assert got.name == "Alice"
+    assert got.entity_type == "person"
+    assert any(lm.document_id == "doc-A" and lm.parse_version == "v1" for lm in got.source_lineage), (
+        "source_lineage must contain the just-written member"
+    )
+
+
+@pytest.mark.asyncio
+async def test_upsert_entity_dedup_by_doc_parse_version(store, collection_id):
+    """Two upserts with the same ``(document_id, parse_version)`` MUST
+    NOT produce two coexisting members — Protocol invariant
+    (``LineageGraphStore`` docstring lines 425-428)."""
+
+    _, s = store
+    await s.upsert_entity_with_lineage(record=_entity("Alice"), lineage=_LM_A_V1)
+    await s.upsert_entity_with_lineage(record=_entity("Alice", description="desc-2"), lineage=_LM_A_V1)
+
+    got = await s.get_entity("Alice")
+    assert got is not None
+    matching = [lm for lm in got.source_lineage if lm.document_id == "doc-A" and lm.parse_version == "v1"]
+    assert len(matching) == 1, f"expected exactly one (doc-A, v1) member; got {len(matching)}"
+
+
+@pytest.mark.asyncio
+async def test_upsert_entity_distinct_parse_versions_coexist(store, collection_id):
+    """Two upserts with different ``parse_version`` for the same
+    ``document_id`` MUST coexist as separate members."""
+
+    _, s = store
+    await s.upsert_entity_with_lineage(record=_entity("Alice"), lineage=_LM_A_V1)
+    await s.upsert_entity_with_lineage(record=_entity("Alice"), lineage=_LM_A_V2)
+
+    got = await s.get_entity("Alice")
+    assert got is not None
+    versions = {lm.parse_version for lm in got.source_lineage if lm.document_id == "doc-A"}
+    assert versions == {"v1", "v2"}
+
+
+@pytest.mark.asyncio
+async def test_upsert_relation_then_get_relation_round_trip(store, collection_id):
+    """Symmetric to entity round-trip for relations."""
+
+    _, s = store
+    # Endpoints must exist before the relation upsert on graph backends
+    # that enforce referential integrity (Postgres FK, Neo4j MERGE on
+    # endpoint match). Nebula doesn't require it but the call is harmless.
+    await s.upsert_entity_with_lineage(record=_entity("Alice"), lineage=_LM_A_V1)
+    await s.upsert_entity_with_lineage(record=_entity("Bob"), lineage=_LM_A_V1)
+    await s.upsert_relation_with_lineage(record=_relation("Alice", "Bob"), lineage=_LM_A_V1)
+
+    got = await s.get_relation("Alice", "Bob", "knows")
+    assert got is not None, "relation must exist after upsert"
+    assert (got.source, got.target, got.relation_type) == ("Alice", "Bob", "knows")
+    assert any(lm.document_id == "doc-A" for lm in got.evidence_lineage)
+
+
+# --- tests: lineage scan helpers (pre-rebuild phase) ----------------------
+
+
+@pytest.mark.asyncio
+async def test_find_entity_ids_with_lineage_returns_only_matching_doc(store, collection_id):
+    """``find_entity_ids_with_lineage(document_id=X)`` MUST return
+    exactly the entities whose lineage SET contains a member with
+    ``document_id=X`` (any parse_version)."""
+
+    _, s = store
+    await s.upsert_entity_with_lineage(record=_entity("Alice"), lineage=_LM_A_V1)
+    await s.upsert_entity_with_lineage(record=_entity("Bob"), lineage=_LM_A_V2)
+    await s.upsert_entity_with_lineage(record=_entity("Carol"), lineage=_LM_B_V1)
+
+    ids_for_a = await s.find_entity_ids_with_lineage(document_id="doc-A")
+    assert sorted(ids_for_a) == ["Alice", "Bob"]
+
+    ids_for_b = await s.find_entity_ids_with_lineage(document_id="doc-B")
+    assert ids_for_b == ["Carol"]
+
+
+@pytest.mark.asyncio
+async def test_find_relation_keys_with_lineage_returns_matching_doc(store, collection_id):
+    """Symmetric scan helper for relations."""
+
+    _, s = store
+    await s.upsert_entity_with_lineage(record=_entity("Alice"), lineage=_LM_A_V1)
+    await s.upsert_entity_with_lineage(record=_entity("Bob"), lineage=_LM_A_V1)
+    await s.upsert_entity_with_lineage(record=_entity("Carol"), lineage=_LM_B_V1)
+    await s.upsert_relation_with_lineage(record=_relation("Alice", "Bob"), lineage=_LM_A_V1)
+    await s.upsert_relation_with_lineage(record=_relation("Carol", "Bob"), lineage=_LM_B_V1)
+
+    keys_for_a = await s.find_relation_keys_with_lineage(document_id="doc-A")
+    assert ("Alice", "Bob", "knows") in keys_for_a
+    assert ("Carol", "Bob", "knows") not in keys_for_a
+
+
+# --- tests: lineage member removal + GC -----------------------------------
+
+
+@pytest.mark.asyncio
+async def test_remove_entity_lineage_member_clears_only_target_doc(store, collection_id):
+    """``remove_entity_lineage_member`` MUST clear ALL members whose
+    ``document_id`` matches (across any parse_version) and leave other
+    documents' lineage intact."""
+
+    _, s = store
+    await s.upsert_entity_with_lineage(record=_entity("Alice"), lineage=_LM_A_V1)
+    await s.upsert_entity_with_lineage(record=_entity("Alice"), lineage=_LM_A_V2)
+    await s.upsert_entity_with_lineage(record=_entity("Alice"), lineage=_LM_B_V1)
+
+    await s.remove_entity_lineage_member(entity_name="Alice", document_id="doc-A")
+
+    got = await s.get_entity("Alice")
+    assert got is not None, "entity row must persist; remove only clears lineage members"
+    docs = {lm.document_id for lm in got.source_lineage}
+    assert docs == {"doc-B"}, f"only doc-B lineage should remain; got {docs}"
+
+
+@pytest.mark.asyncio
+async def test_gc_entity_if_orphan_deletes_only_when_lineage_empty(store, collection_id):
+    """``gc_entity_if_orphan`` returns True iff a delete actually ran
+    AND only when ``source_lineage`` is empty after upstream cleanup."""
+
+    _, s = store
+    await s.upsert_entity_with_lineage(record=_entity("Alice"), lineage=_LM_A_V1)
+
+    # Lineage non-empty → GC must NOT run.
+    deleted = await s.gc_entity_if_orphan("Alice")
+    assert deleted is False
+    assert await s.get_entity("Alice") is not None
+
+    # Clear lineage, then GC should run.
+    await s.remove_entity_lineage_member(entity_name="Alice", document_id="doc-A")
+    deleted = await s.gc_entity_if_orphan("Alice")
+    assert deleted is True
+    assert await s.get_entity("Alice") is None
+
+
+@pytest.mark.asyncio
+async def test_gc_relation_if_orphan_deletes_only_when_lineage_empty(store, collection_id):
+    """Symmetric GC contract for relations."""
+
+    _, s = store
+    await s.upsert_entity_with_lineage(record=_entity("Alice"), lineage=_LM_A_V1)
+    await s.upsert_entity_with_lineage(record=_entity("Bob"), lineage=_LM_A_V1)
+    await s.upsert_relation_with_lineage(record=_relation("Alice", "Bob"), lineage=_LM_A_V1)
+
+    deleted = await s.gc_relation_if_orphan("Alice", "Bob", "knows")
+    assert deleted is False
+
+    await s.remove_relation_lineage_member(
+        source="Alice",
+        target="Bob",
+        type="knows",
+        document_id="doc-A",
+    )
+    deleted = await s.gc_relation_if_orphan("Alice", "Bob", "knows")
+    assert deleted is True
+    assert await s.get_relation("Alice", "Bob", "knows") is None
+
+
+# --- tests: Wave 6 #33 retrieval query layer ------------------------------
+
+
+@pytest.mark.asyncio
+async def test_query_entities_by_keyword_returns_match(store, collection_id):
+    """``query_entities_by_keyword`` MUST recall an entity whose name
+    contains the query term (best-effort lexical recall, backend-defined)."""
+
+    _, s = store
+    await s.upsert_entity_with_lineage(record=_entity("Alice Wonderland"), lineage=_LM_A_V1)
+    await s.upsert_entity_with_lineage(record=_entity("Bob"), lineage=_LM_A_V1)
+
+    hits = await s.query_entities_by_keyword(query="Alice", top_k=10)
+    names = {h.name for h in hits}
+    assert "Alice Wonderland" in names
+
+
+@pytest.mark.asyncio
+async def test_query_entities_by_keyword_empty_query_returns_nothing(store, collection_id):
+    """Empty / whitespace-only query MUST return ``[]`` — no spurious
+    recall (Protocol docstring lines 562-563)."""
+
+    _, s = store
+    await s.upsert_entity_with_lineage(record=_entity("Alice"), lineage=_LM_A_V1)
+
+    assert await s.query_entities_by_keyword(query="", top_k=10) == []
+    assert await s.query_entities_by_keyword(query="   ", top_k=10) == []
+
+
+@pytest.mark.asyncio
+async def test_query_entities_by_keyword_top_k_zero_returns_nothing(store, collection_id):
+    """``top_k <= 0`` MUST return ``[]`` (Protocol docstring line 563)."""
+
+    _, s = store
+    await s.upsert_entity_with_lineage(record=_entity("Alice"), lineage=_LM_A_V1)
+
+    assert await s.query_entities_by_keyword(query="Alice", top_k=0) == []
+
+
+@pytest.mark.asyncio
+async def test_expand_neighbors_n_hops_returns_seed_and_relations(store, collection_id):
+    """``hops=1`` MUST return immediate neighbours plus connecting
+    relations. The result UNION includes the seed entities themselves
+    (Protocol docstring lines 575-578)."""
+
+    _, s = store
+    # Build a small graph: Alice -- knows -- Bob -- works_at -- Acme
+    for n in ("Alice", "Bob", "Acme"):
+        await s.upsert_entity_with_lineage(record=_entity(n), lineage=_LM_A_V1)
+    await s.upsert_relation_with_lineage(record=_relation("Alice", "Bob"), lineage=_LM_A_V1)
+    await s.upsert_relation_with_lineage(
+        record=_relation("Bob", "Acme", relation_type="works_at"),
+        lineage=_LM_A_V1,
+    )
+
+    entities, relations = await s.expand_neighbors_n_hops(entity_names=["Alice"], hops=1)
+    names = {e.name for e in entities}
+    assert "Alice" in names, "seed entity must be in result"
+    assert "Bob" in names, "1-hop neighbour Bob must be in result"
+
+    rel_keys = {(r.source, r.target, r.relation_type) for r in relations}
+    assert ("Alice", "Bob", "knows") in rel_keys
+
+
+@pytest.mark.asyncio
+async def test_expand_neighbors_zero_hops_returns_only_seed(store, collection_id):
+    """``hops <= 0`` MUST return just the seed entities (no relations),
+    per Protocol docstring lines 583-585."""
+
+    _, s = store
+    await s.upsert_entity_with_lineage(record=_entity("Alice"), lineage=_LM_A_V1)
+    await s.upsert_entity_with_lineage(record=_entity("Bob"), lineage=_LM_A_V1)
+    await s.upsert_relation_with_lineage(record=_relation("Alice", "Bob"), lineage=_LM_A_V1)
+
+    entities, relations = await s.expand_neighbors_n_hops(entity_names=["Alice"], hops=0)
+    names = {e.name for e in entities}
+    assert names == {"Alice"}
+    assert relations == []
+
+
+@pytest.mark.asyncio
+async def test_expand_neighbors_empty_seed_returns_empty(store, collection_id):
+    """Empty ``entity_names`` MUST return ``([], [])``
+    (Protocol docstring line 586)."""
+
+    _, s = store
+    entities, relations = await s.expand_neighbors_n_hops(entity_names=[], hops=2)
+    assert entities == []
+    assert relations == []
+
+
+# --- tests: description-parts accumulation --------------------------------
+
+
+@pytest.mark.asyncio
+async def test_description_parts_accumulate_across_distinct_parses(store, collection_id):
+    """Per §D.3.3 Option A the read path must return the FULL set of
+    ``DescriptionPart`` rows; two upserts with distinct
+    ``(document_id, parse_version)`` keys MUST coexist as separate
+    parts so the upstream LLM dedup / summarise step sees each
+    document's contribution verbatim."""
+
+    _, s = store
+    await s.upsert_entity_with_lineage(
+        record=_entity("Alice", description="from doc-A v1"),
+        lineage=_LM_A_V1,
+    )
+    await s.upsert_entity_with_lineage(
+        record=_entity("Alice", description="from doc-A v2"),
+        lineage=_LM_A_V2,
+    )
+
+    got = await s.get_entity("Alice")
+    assert got is not None
+    parts = {(p.document_id, p.parse_version): p.text for p in got.description_parts}
+    assert parts.get(("doc-A", "v1")) == "from doc-A v1"
+    assert parts.get(("doc-A", "v2")) == "from doc-A v2"
+
+
+# --- explicit "method exists" guard ---------------------------------------
+# This file does NOT yet cover ``list_entity_labels()`` — that method
+# lands with PR #1746 (Wave 6 #40 narrow replacement). Once #1746
+# merges, a follow-up adds a parametrized test mirroring the pattern
+# above. Tracked under #测试 task #25 follow-up.
