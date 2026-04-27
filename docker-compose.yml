@@ -26,6 +26,9 @@ services:
         condition: service_healthy
       es:
         condition: service_healthy
+      neo4j:
+        condition: service_healthy
+        required: false
       # Vector backend is intentionally NOT in depends_on. ApeRAG's
       # VectorStoreConnectorAdaptor (aperag/vectorstore/connector.py) is
       # lazy-import + lazy-instantiate, so the api boots cleanly with
@@ -34,6 +37,11 @@ services:
       # qdrant, which masked "code accidentally still calls qdrant" bugs
       # in pgvector mode. Runners (tests/e2e_http/runners/compose/up.sh)
       # are responsible for starting the chosen vector backend.
+      #
+      # neo4j uses required:false so the dependency activates only when
+      # the neo4j profile is enabled (e2e Neo4j shape). Without it, the
+      # api can start before neo4j is reachable and the first /graphs
+      # call fails with ServiceUnavailable: DNS resolve aperag-neo4j:7687.
     volumes:
       - ~/.cache:/root/.cache
       - aperag-shared-data:/shared
@@ -165,6 +173,12 @@ services:
       - NEO4J_apoc_export_file_enabled=true
     volumes:
       - aperag-neo4j-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p password 'RETURN 1' || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 18  # 18 * 10s = 180s — Neo4j enterprise + apoc plugin takes time to boot
+      start_period: 20s
     profiles: ["neo4j"]
 
   nebula-metad:
