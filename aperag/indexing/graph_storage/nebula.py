@@ -348,12 +348,15 @@ class NebulaLineageGraphStore:
             )
 
             tag_stmts = [
+                # Wave 6 #36: tag-prop renamed ``type`` → ``entity_type`` /
+                # ``relation_type`` per architect Pattern 3 ruling.
+                # Hard-cut per earayu2 msg=30c81478 (no production data).
                 f"CREATE TAG IF NOT EXISTS `{_ENTITY_TAG}`("
-                f"name string, type string, "
+                f"name string, entity_type string, "
                 f"source_lineage_json string, description_parts_json string, "
                 f"gmt_created datetime, gmt_updated datetime)",
                 f"CREATE TAG IF NOT EXISTS `{_RELATION_TAG}`("
-                f"source string, target string, type string, "
+                f"source string, target string, relation_type string, "
                 f"evidence_lineage_json string, description_parts_json string, "
                 f"gmt_created datetime, gmt_updated datetime)",
                 f"CREATE TAG INDEX IF NOT EXISTS `idx_{_ENTITY_TAG}_name` ON `{_ENTITY_TAG}`(name(256))",
@@ -394,7 +397,7 @@ class NebulaLineageGraphStore:
         vid = _entity_vid(entity_name)
         stmt = (
             f'FETCH PROP ON `{_ENTITY_TAG}` "{_escape_str(vid)}" '
-            f"YIELD `{_ENTITY_TAG}`.type AS type, "
+            f"YIELD `{_ENTITY_TAG}`.entity_type AS entity_type, "
             f"`{_ENTITY_TAG}`.source_lineage_json AS sl, "
             f"`{_ENTITY_TAG}`.description_parts_json AS dp"
         )
@@ -479,7 +482,7 @@ class NebulaLineageGraphStore:
         vid = _entity_vid(name)
         stmt = (
             f"INSERT VERTEX `{_ENTITY_TAG}`"
-            f"(name, type, source_lineage_json, description_parts_json, gmt_created, gmt_updated) "
+            f"(name, entity_type, source_lineage_json, description_parts_json, gmt_created, gmt_updated) "
             f'VALUES "{_escape_str(vid)}":('
             f'"{_escape_str(name)}", "{_escape_str(type_value)}", '
             f'"{_escape_str(_members_to_json(source_lineage))}", '
@@ -500,7 +503,7 @@ class NebulaLineageGraphStore:
         vid = _relation_vid(source, target, type_value)
         stmt = (
             f"INSERT VERTEX `{_RELATION_TAG}`"
-            f"(source, target, type, "
+            f"(source, target, relation_type, "
             f"evidence_lineage_json, description_parts_json, gmt_created, gmt_updated) "
             f'VALUES "{_escape_str(vid)}":('
             f'"{_escape_str(source)}", "{_escape_str(target)}", "{_escape_str(type_value)}", '
@@ -562,7 +565,7 @@ class NebulaLineageGraphStore:
         stmt = (
             f'FETCH PROP ON `{_ENTITY_TAG}` "{_escape_str(vid)}" '
             f"YIELD `{_ENTITY_TAG}`.name AS name, "
-            f"`{_ENTITY_TAG}`.type AS type, "
+            f"`{_ENTITY_TAG}`.entity_type AS entity_type, "
             f"`{_ENTITY_TAG}`.source_lineage_json AS sl, "
             f"`{_ENTITY_TAG}`.description_parts_json AS dp"
         )
@@ -583,7 +586,7 @@ class NebulaLineageGraphStore:
             f'FETCH PROP ON `{_RELATION_TAG}` "{_escape_str(vid)}" '
             f"YIELD `{_RELATION_TAG}`.source AS source, "
             f"`{_RELATION_TAG}`.target AS target, "
-            f"`{_RELATION_TAG}`.type AS type, "
+            f"`{_RELATION_TAG}`.relation_type AS relation_type, "
             f"`{_RELATION_TAG}`.evidence_lineage_json AS el, "
             f"`{_RELATION_TAG}`.description_parts_json AS dp"
         )
@@ -716,7 +719,7 @@ class NebulaLineageGraphStore:
                     new_parts = [p for p in parts if p.key() != new_part.key()] + [new_part]
                 self._write_entity_vertex(
                     name=record.name,
-                    type_value=record.type,
+                    type_value=record.entity_type,
                     source_lineage=new_members,
                     description_parts=new_parts,
                 )
@@ -730,10 +733,10 @@ class NebulaLineageGraphStore:
             parse_version=lineage.parse_version,
             text=record.description,
         )
-        async with self._entity_lock.acquire(_relation_vid(record.source, record.target, record.type)):
+        async with self._entity_lock.acquire(_relation_vid(record.source, record.target, record.relation_type)):
 
             def _upsert() -> None:
-                row = self._read_relation_lineage(record.source, record.target, record.type)
+                row = self._read_relation_lineage(record.source, record.target, record.relation_type)
                 if row is None:
                     new_members = [lineage]
                     new_parts = [new_part]
@@ -744,7 +747,7 @@ class NebulaLineageGraphStore:
                 self._write_relation_vertex(
                     source=record.source,
                     target=record.target,
-                    type_value=record.type,
+                    type_value=record.relation_type,
                     evidence_lineage=new_members,
                     description_parts=new_parts,
                 )
@@ -763,7 +766,7 @@ class NebulaLineageGraphStore:
             type_value, members, parts = row
             return EntityWithLineage(
                 name=entity_name,
-                type=type_value,
+                entity_type=type_value,
                 source_lineage=tuple(members),
                 description_parts=tuple(parts),
             )
@@ -781,7 +784,7 @@ class NebulaLineageGraphStore:
             return RelationWithLineage(
                 source=source,
                 target=target,
-                type=type,
+                relation_type=type,
                 evidence_lineage=tuple(members),
                 description_parts=tuple(parts),
             )
@@ -820,7 +823,7 @@ class NebulaLineageGraphStore:
                 matches.append(
                     EntityWithLineage(
                         name=name,
-                        type=type_value,
+                        entity_type=type_value,
                         source_lineage=tuple(members),
                         description_parts=tuple(parts),
                     )
@@ -853,7 +856,7 @@ class NebulaLineageGraphStore:
                 type_value, members, parts = row
                 seen_entities[name] = EntityWithLineage(
                     name=name,
-                    type=type_value,
+                    entity_type=type_value,
                     source_lineage=tuple(members),
                     description_parts=tuple(parts),
                 )
@@ -882,7 +885,7 @@ class NebulaLineageGraphStore:
                         seen_relations[key] = RelationWithLineage(
                             source=src,
                             target=tgt,
-                            type=rtype,
+                            relation_type=rtype,
                             evidence_lineage=tuple(members),
                             description_parts=tuple(parts),
                         )
@@ -896,7 +899,7 @@ class NebulaLineageGraphStore:
                 current = next_frontier
 
             entities = sorted(seen_entities.values(), key=lambda e: e.name)
-            relations = sorted(seen_relations.values(), key=lambda r: (r.source, r.target, r.type))
+            relations = sorted(seen_relations.values(), key=lambda r: (r.source, r.target, r.relation_type))
             return (entities, relations)
 
         return await asyncio.to_thread(_walk)

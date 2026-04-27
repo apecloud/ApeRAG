@@ -74,13 +74,13 @@ def test_render_graph_context_renders_lightrag_style_sections():
     entities = [
         EntityWithLineage(
             name="Alice",
-            type="person",
+            entity_type="person",
             source_lineage=members,
             description_parts=parts_a,
         ),
         EntityWithLineage(
             name="Acme",
-            type="organization",
+            entity_type="organization",
             source_lineage=members,
             description_parts=parts_b,
         ),
@@ -90,7 +90,7 @@ def test_render_graph_context_renders_lightrag_style_sections():
         RelationWithLineage(
             source="Alice",
             target="Acme",
-            type="founded",
+            relation_type="founded",
             evidence_lineage=members,
             description_parts=rel_parts,
         )
@@ -119,7 +119,7 @@ def test_render_graph_context_joins_multiple_description_parts():
         DescriptionPart(document_id="doc-1", parse_version="v1", text="   "),  # whitespace skipped
     )
     entities = [
-        EntityWithLineage(name="X", type="thing", source_lineage=members, description_parts=parts),
+        EntityWithLineage(name="X", entity_type="thing", source_lineage=members, description_parts=parts),
     ]
     text = _render_graph_context_text(entities, [])
     assert "- [thing] X — frag-1 | frag-2" in text
@@ -137,7 +137,7 @@ def test_render_graph_context_falls_back_to_no_description_marker():
     entities = [
         EntityWithLineage(
             name="Y",
-            type="",
+            entity_type="",
             source_lineage=members,
             description_parts=(),
         ),
@@ -191,20 +191,20 @@ def test_graph_search_composes_text_from_anchors_and_neighbors(monkeypatch):
     )
     alice = EntityWithLineage(
         name="Alice",
-        type="person",
+        entity_type="person",
         source_lineage=members,
         description_parts=(DescriptionPart(document_id="doc-1", parse_version="v1", text="Lead engineer"),),
     )
     bob = EntityWithLineage(
         name="Bob",
-        type="person",
+        entity_type="person",
         source_lineage=members,
         description_parts=(DescriptionPart(document_id="doc-1", parse_version="v1", text="CFO"),),
     )
     alice_bob = RelationWithLineage(
         source="Alice",
         target="Bob",
-        type="reports_to",
+        relation_type="reports_to",
         evidence_lineage=members,
         description_parts=(DescriptionPart(document_id="doc-1", parse_version="v1", text="Alice reports to Bob"),),
     )

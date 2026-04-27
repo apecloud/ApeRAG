@@ -119,7 +119,7 @@ async def test_roundtrip_entity_with_one_lineage_member(store):
 
     record = EntityRecord(
         name="Linus Torvalds",
-        type="person",
+        entity_type="person",
         description="Created Linux.",
         source_chunk_ids=("chunk-1",),
     )
@@ -129,7 +129,7 @@ async def test_roundtrip_entity_with_one_lineage_member(store):
     fetched = await store.get_entity("Linus Torvalds")
     assert fetched is not None
     assert fetched.name == "Linus Torvalds"
-    assert fetched.type == "person"
+    assert fetched.entity_type == "person"
     assert len(fetched.source_lineage) == 1
     assert fetched.source_lineage[0].document_id == "doc-A"
     assert fetched.source_lineage[0].parse_version == "v1"
@@ -146,7 +146,7 @@ async def test_two_documents_cite_same_entity_preserves_both_lineage(store):
 
     record_base = EntityRecord(
         name="Python",
-        type="language",
+        entity_type="language",
         description="",
         source_chunk_ids=(),
     )
@@ -189,7 +189,7 @@ async def test_doc_re_parse_replaces_old_parse_version_member(store):
 
     record = EntityRecord(
         name="Rust",
-        type="language",
+        entity_type="language",
         description="memory-safe",
         source_chunk_ids=(),
     )
@@ -239,7 +239,7 @@ async def test_remove_then_gc_orphan_entity(store):
     the entity must NOT make it eligible for GC.
     """
 
-    record = EntityRecord(name="ApeRAG", type="project", description="", source_chunk_ids=())
+    record = EntityRecord(name="ApeRAG", entity_type="project", description="", source_chunk_ids=())
     await store.upsert_entity_with_lineage(
         record=EntityRecord(**{**record.__dict__, "description": "RAG framework"}),
         lineage=_make_member(doc="doc-A", version="v1"),
@@ -276,7 +276,7 @@ async def test_relation_lineage_set_independent_from_entity(store):
     rel = RelationRecord(
         source="Linus Torvalds",
         target="Linux",
-        type="created",
+        relation_type="created",
         description="Linus created Linux in 1991.",
         source_chunk_ids=("c-1",),
     )
@@ -331,7 +331,7 @@ async def test_tenant_isolation_collection_id_filters_all_queries(store):
     try:
         record = EntityRecord(
             name="Shared Entity",
-            type="thing",
+            entity_type="thing",
             description="from other tenant",
             source_chunk_ids=(),
         )

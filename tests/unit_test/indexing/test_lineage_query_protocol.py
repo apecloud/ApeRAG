@@ -93,7 +93,7 @@ def _seed_minimal_graph(store: InMemoryLineageGraphStore) -> None:
             await store.upsert_entity_with_lineage(
                 record=EntityRecord(
                     name=name,
-                    type="person",
+                    entity_type="person",
                     description=f"{name} description",
                     source_chunk_ids=("chunk-1",),
                 ),
@@ -103,7 +103,7 @@ def _seed_minimal_graph(store: InMemoryLineageGraphStore) -> None:
             record=RelationRecord(
                 source="Alice",
                 target="Bob",
-                type="knows",
+                relation_type="knows",
                 description="knows",
                 source_chunk_ids=("chunk-1",),
             ),
@@ -113,7 +113,7 @@ def _seed_minimal_graph(store: InMemoryLineageGraphStore) -> None:
             record=RelationRecord(
                 source="Bob",
                 target="Carol",
-                type="manages",
+                relation_type="manages",
                 description="manages",
                 source_chunk_ids=("chunk-1",),
             ),
@@ -158,7 +158,7 @@ def test_in_memory_expand_neighbors_one_hop_includes_seed_and_neighbours():
         entities, relations = await store.expand_neighbors_n_hops(entity_names=["Alice"], hops=1)
         names = {e.name for e in entities}
         assert names == {"Alice", "Bob"}
-        rel_keys = {(r.source, r.target, r.type) for r in relations}
+        rel_keys = {(r.source, r.target, r.relation_type) for r in relations}
         assert rel_keys == {("Alice", "Bob", "knows")}
 
     asyncio.run(_run())
@@ -173,7 +173,7 @@ def test_in_memory_expand_neighbors_two_hops_walks_further():
         names = {e.name for e in entities}
         # 2-hop reaches Carol via Alice→Bob→Carol.
         assert names == {"Alice", "Bob", "Carol"}
-        rel_keys = {(r.source, r.target, r.type) for r in relations}
+        rel_keys = {(r.source, r.target, r.relation_type) for r in relations}
         assert rel_keys == {("Alice", "Bob", "knows"), ("Bob", "Carol", "manages")}
 
     asyncio.run(_run())

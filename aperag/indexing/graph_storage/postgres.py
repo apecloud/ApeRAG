@@ -116,7 +116,12 @@ class _LineageEntityRow(_LineageGraphBase):
 
     collection_id = Column(String(64), primary_key=True)
     name = Column(String(512), primary_key=True)
-    type = Column(String(64), nullable=False)
+    # Wave 6 #36: column renamed ``type`` → ``entity_type`` to free the
+    # bare ``type`` name across the §D.3 Protocol surface (frees Python
+    # ``type`` builtin from ORM attribute shadow). Alembic migration
+    # ``f8a4c5b9d3e1`` performs the column rename hard-cut (no
+    # production data per earayu2 msg=30c81478).
+    entity_type = Column(String(64), nullable=False)
     source_lineage = Column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
     description_parts = Column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
     # Wave 5 P5B: ORM uses the same ``server_default=CURRENT_TIMESTAMP``
@@ -151,7 +156,8 @@ class _LineageRelationRow(_LineageGraphBase):
     collection_id = Column(String(64), primary_key=True)
     source = Column(String(512), primary_key=True)
     target = Column(String(512), primary_key=True)
-    type = Column(String(64), primary_key=True)
+    # Wave 6 #36: column renamed ``type`` → ``relation_type``.
+    relation_type = Column(String(64), primary_key=True)
     # Wave 4 chunk 4 dropped the legacy ``description`` Text column —
     # the per-document fragments in ``description_parts`` are the
     # canonical source. ``RelationWithLineage`` does not expose a
@@ -247,7 +253,7 @@ class PostgresLineageGraphStore:
     async def find_relation_keys_with_lineage(self, *, document_id: str) -> list[tuple[str, str, str]]:
         sql = text(
             f"""
-            SELECT source, target, type
+            SELECT source, target, relation_type
             FROM {RELATION_TABLE}
             WHERE collection_id = :collection_id
               AND evidence_lineage @> jsonb_build_array(
@@ -257,7 +263,7 @@ class PostgresLineageGraphStore:
         )
         async with self._engine.connect() as conn:
             result = await conn.execute(sql, {"collection_id": self._collection_id, "document_id": document_id})
-            return [(row.source, row.target, row.type) for row in result]
+            return [(row.source, row.target, row.relation_type) for row in result]
 
     # -- strip-by-document (pre-rebuild phase) ------------------------
 
@@ -308,7 +314,7 @@ class PostgresLineageGraphStore:
                 ),
                 gmt_updated = NOW()
             WHERE collection_id = :collection_id
-              AND source = :source AND target = :target AND type = :type
+              AND source = :source AND target = :target AND relation_type = :relation_type
             """
         )
         async with self._engine.begin() as conn:
@@ -318,7 +324,7 @@ class PostgresLineageGraphStore:
                     "collection_id": self._collection_id,
                     "source": source,
                     "target": target,
-                    "type": type,
+                    "relation_type": type,
                     "document_id": document_id,
                 },
             )
@@ -343,7 +349,7 @@ class PostgresLineageGraphStore:
             f"""
             DELETE FROM {RELATION_TABLE}
             WHERE collection_id = :collection_id
-              AND source = :source AND target = :target AND type = :type
+              AND source = :source AND target = :target AND relation_type = :relation_type
               AND jsonb_array_length(evidence_lineage) = 0
             """
         )
@@ -354,7 +360,7 @@ class PostgresLineageGraphStore:
                     "collection_id": self._collection_id,
                     "source": source,
                     "target": target,
-                    "type": type,
+                    "relation_type": type,
                 },
             )
             return (result.rowcount or 0) > 0
@@ -376,17 +382,17 @@ class PostgresLineageGraphStore:
         sql = text(
             f"""
             INSERT INTO {ENTITY_TABLE} (
-                collection_id, name, type, source_lineage, description_parts,
+                collection_id, name, entity_type, source_lineage, description_parts,
                 gmt_created, gmt_updated
             )
             VALUES (
-                :collection_id, :name, :type,
+                :collection_id, :name, :entity_type,
                 jsonb_build_array(CAST(:member_json AS jsonb)),
                 jsonb_build_array(CAST(:part_json AS jsonb)),
                 NOW(), NOW()
             )
             ON CONFLICT (collection_id, name) DO UPDATE
-            SET type = EXCLUDED.type,
+            SET entity_type = EXCLUDED.entity_type,
                 source_lineage = (
                     -- strip any existing element with the same
                     -- (document_id, parse_version) key, then append
@@ -413,7 +419,7 @@ class PostgresLineageGraphStore:
                 {
                     "collection_id": self._collection_id,
                     "name": record.name,
-                    "type": record.type,
+                    "entity_type": record.entity_type,
                     "document_id": lineage.document_id,
                     "parse_version": lineage.parse_version,
                     "member_json": member_json,
@@ -433,17 +439,17 @@ class PostgresLineageGraphStore:
         sql = text(
             f"""
             INSERT INTO {RELATION_TABLE} (
-                collection_id, source, target, type,
+                collection_id, source, target, relation_type,
                 evidence_lineage, description_parts,
                 gmt_created, gmt_updated
             )
             VALUES (
-                :collection_id, :source, :target, :type,
+                :collection_id, :source, :target, :relation_type,
                 jsonb_build_array(CAST(:member_json AS jsonb)),
                 jsonb_build_array(CAST(:part_json AS jsonb)),
                 NOW(), NOW()
             )
-            ON CONFLICT (collection_id, source, target, type) DO UPDATE
+            ON CONFLICT (collection_id, source, target, relation_type) DO UPDATE
             SET evidence_lineage = (
                     COALESCE(
                         (SELECT jsonb_agg(elem) FROM jsonb_array_elements({RELATION_TABLE}.evidence_lineage) elem
@@ -468,7 +474,7 @@ class PostgresLineageGraphStore:
                     "collection_id": self._collection_id,
                     "source": record.source,
                     "target": record.target,
-                    "type": record.type,
+                    "relation_type": record.relation_type,
                     "document_id": lineage.document_id,
                     "parse_version": lineage.parse_version,
                     "member_json": member_json,
@@ -483,7 +489,7 @@ class PostgresLineageGraphStore:
             result = await conn.execute(
                 select(
                     _LineageEntityRow.name,
-                    _LineageEntityRow.type,
+                    _LineageEntityRow.entity_type,
                     _LineageEntityRow.source_lineage,
                     _LineageEntityRow.description_parts,
                 ).where(
@@ -496,7 +502,7 @@ class PostgresLineageGraphStore:
                 return None
             return EntityWithLineage(
                 name=row.name,
-                type=row.type,
+                entity_type=row.entity_type,
                 source_lineage=tuple(LineageMember.from_dict(elem) for elem in (row.source_lineage or [])),
                 description_parts=tuple(DescriptionPart.from_dict(part) for part in (row.description_parts or [])),
             )
@@ -507,14 +513,14 @@ class PostgresLineageGraphStore:
                 select(
                     _LineageRelationRow.source,
                     _LineageRelationRow.target,
-                    _LineageRelationRow.type,
+                    _LineageRelationRow.relation_type,
                     _LineageRelationRow.evidence_lineage,
                     _LineageRelationRow.description_parts,
                 ).where(
                     _LineageRelationRow.collection_id == self._collection_id,
                     _LineageRelationRow.source == source,
                     _LineageRelationRow.target == target,
-                    _LineageRelationRow.type == type,
+                    _LineageRelationRow.relation_type == type,
                 )
             )
             row = result.first()
@@ -523,7 +529,7 @@ class PostgresLineageGraphStore:
             return RelationWithLineage(
                 source=row.source,
                 target=row.target,
-                type=row.type,
+                relation_type=row.relation_type,
                 evidence_lineage=tuple(LineageMember.from_dict(elem) for elem in (row.evidence_lineage or [])),
                 description_parts=tuple(DescriptionPart.from_dict(part) for part in (row.description_parts or [])),
             )
@@ -545,7 +551,7 @@ class PostgresLineageGraphStore:
             result = await conn.execute(
                 select(
                     _LineageEntityRow.name,
-                    _LineageEntityRow.type,
+                    _LineageEntityRow.entity_type,
                     _LineageEntityRow.source_lineage,
                     _LineageEntityRow.description_parts,
                 )
@@ -559,7 +565,7 @@ class PostgresLineageGraphStore:
             return [
                 EntityWithLineage(
                     name=row.name,
-                    type=row.type,
+                    entity_type=row.entity_type,
                     source_lineage=tuple(LineageMember.from_dict(elem) for elem in (row.source_lineage or [])),
                     description_parts=tuple(DescriptionPart.from_dict(part) for part in (row.description_parts or [])),
                 )
@@ -584,7 +590,7 @@ class PostgresLineageGraphStore:
             result = await conn.execute(
                 select(
                     _LineageEntityRow.name,
-                    _LineageEntityRow.type,
+                    _LineageEntityRow.entity_type,
                     _LineageEntityRow.source_lineage,
                     _LineageEntityRow.description_parts,
                 ).where(
@@ -597,7 +603,7 @@ class PostgresLineageGraphStore:
                     continue
                 seen_entities[row.name] = EntityWithLineage(
                     name=row.name,
-                    type=row.type,
+                    entity_type=row.entity_type,
                     source_lineage=tuple(LineageMember.from_dict(elem) for elem in (row.source_lineage or [])),
                     description_parts=tuple(DescriptionPart.from_dict(part) for part in (row.description_parts or [])),
                 )
@@ -612,7 +618,7 @@ class PostgresLineageGraphStore:
                 select(
                     _LineageRelationRow.source,
                     _LineageRelationRow.target,
-                    _LineageRelationRow.type,
+                    _LineageRelationRow.relation_type,
                     _LineageRelationRow.evidence_lineage,
                     _LineageRelationRow.description_parts,
                 ).where(
@@ -622,12 +628,12 @@ class PostgresLineageGraphStore:
             )
             next_frontier: set[str] = set()
             for row in result:
-                key = (row.source, row.target, row.type)
+                key = (row.source, row.target, row.relation_type)
                 if key not in seen_relations:
                     seen_relations[key] = RelationWithLineage(
                         source=row.source,
                         target=row.target,
-                        type=row.type,
+                        relation_type=row.relation_type,
                         evidence_lineage=tuple(LineageMember.from_dict(elem) for elem in (row.evidence_lineage or [])),
                         description_parts=tuple(
                             DescriptionPart.from_dict(part) for part in (row.description_parts or [])
@@ -652,7 +658,7 @@ class PostgresLineageGraphStore:
                 current = next_frontier
 
         entities = sorted(seen_entities.values(), key=lambda e: e.name)
-        relations = sorted(seen_relations.values(), key=lambda r: (r.source, r.target, r.type))
+        relations = sorted(seen_relations.values(), key=lambda r: (r.source, r.target, r.relation_type))
         return (entities, relations)
 
 
