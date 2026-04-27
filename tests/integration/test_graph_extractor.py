@@ -213,7 +213,7 @@ def test_extractor_isolates_per_chunk_failures(monkeypatch: pytest.MonkeyPatch):
 
     # Stub the legacy integration so the extractor builder doesn't try
     # to look up a real model provider.
-    import aperag.domains.knowledge_graph.graphindex.integration as _integration
+    import aperag.indexing.llm as _integration
 
     monkeypatch.setattr(
         _integration,
@@ -242,7 +242,7 @@ def test_extractor_builder_raises_when_completion_model_missing(monkeypatch: pyt
     builder wraps the failure in :class:`WorkerFactoryError` so the
     orchestrator can finalise the row FAILED with a clear message."""
 
-    import aperag.domains.knowledge_graph.graphindex.integration as _integration
+    import aperag.indexing.llm as _integration
 
     def _no_llm(_coll):
         raise ValueError("no completion model configured for collection col-x")

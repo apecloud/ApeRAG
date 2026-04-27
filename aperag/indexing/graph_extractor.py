@@ -99,9 +99,7 @@ def build_collection_graph_extractor(collection: Any) -> GraphExtractor:
     FAILED with the message rather than silently building a worker
     that will fail at dispatch time.
     """
-    from aperag.domains.knowledge_graph.graphindex.integration import (
-        build_collection_llm_callable,
-    )
+    from aperag.indexing.llm import build_collection_llm_callable
     from aperag.indexing.worker_factory import WorkerFactoryError
 
     try:
@@ -179,9 +177,7 @@ async def _extract_one_chunk(
     timeout we propagate :class:`asyncio.TimeoutError` to the caller
     which already logs + skips the chunk.
     """
-    from aperag.domains.knowledge_graph.graphindex.prompts import (
-        render_extraction_prompt,
-    )
+    from aperag.indexing.llm import render_extraction_prompt
 
     prompt = render_extraction_prompt(
         input_text=text,
