@@ -1,13 +1,24 @@
-name: E2E HTTP
+name: E2E HTTP (shape)
+
+# Reusable workflow that runs the HTTP E2E suite (smoke + provider-aware)
+# against a single deployment SHAPE. Top-level callers (e2e-http-lite.yml,
+# e2e-http-full.yml) bind the shape so each shape produces its own status
+# check, and adding a new shape is a one-line caller file.
 
 on:
   workflow_call:
-  # ``workflow_dispatch`` lets a diagnostic task fire the full suite against
-  # the current ref without opening a dummy PR. See task #11: after Phase A
-  # (log preservation) merges, Phase B (causation verdict) may need to
-  # replay the provider-aware suite on demand rather than waiting for a
-  # natural PR failure.
+    inputs:
+      shape:
+        description: "Deployment shape name (must match tests/e2e_http/shapes/<shape>.env)"
+        required: true
+        type: string
   workflow_dispatch:
+    inputs:
+      shape:
+        description: "Deployment shape name (must match tests/e2e_http/shapes/<shape>.env)"
+        required: true
+        type: string
+        default: lite
 
 jobs:
   e2e-http-smoke:
@@ -15,24 +26,8 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: read
-    strategy:
-      fail-fast: false
-      # Two deployment-shape combos. Connector-level "swap one DB" coverage
-      # already lives in compat-test.yml's matrix (Qdrant/pgvector,
-      # PG/Neo4j/Nebula); this matrix exists to prove the full HTTP stack
-      # boots and runs end-to-end under each shape.
-      matrix:
-        combo:
-          - name: lite
-            vector: pgvector
-            graph: postgresql
-          - name: full
-            vector: qdrant
-            graph: neo4j
-    name: e2e-http-smoke (${{ matrix.combo.name }})
     env:
-      VECTOR_DB_TYPE: ${{ matrix.combo.vector }}
-      GRAPH_DB_TYPE: ${{ matrix.combo.graph }}
+      SHAPE: ${{ inputs.shape }}
     steps:
       - uses: actions/checkout@v4
 
@@ -71,7 +66,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-http-bootstrap-artifacts-${{ matrix.combo.name }}
+          name: e2e-http-bootstrap-artifacts-${{ inputs.shape }}-smoke
           path: tests/e2e_http/bootstrap/.generated
           if-no-files-found: ignore
           # The bootstrap directory name starts with "." — actions/upload-artifact@v4
@@ -122,6 +117,7 @@ jobs:
     permissions:
       contents: read
     env:
+      SHAPE: ${{ inputs.shape }}
       E2E_ALIBABACLOUD_API_KEY: ${{ secrets.E2E_ALIBABACLOUD_API_KEY }}
       E2E_OPENROUTER_API_KEY: ${{ secrets.E2E_OPENROUTER_API_KEY }}
     steps:
@@ -162,7 +158,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-http-provider-bootstrap-artifacts
+          name: e2e-http-bootstrap-artifacts-${{ inputs.shape }}-provider
           path: tests/e2e_http/bootstrap/.generated
           if-no-files-found: ignore
           include-hidden-files: true
@@ -176,7 +172,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-http-provider-diagnostic-artifacts
+          name: e2e-http-provider-diagnostic-artifacts-${{ inputs.shape }}
           path: tests/e2e_http/.diagnostic-artifacts
           if-no-files-found: ignore
           # ``.diagnostic-artifacts`` starts with a dot (hidden). v4 default skips
@@ -187,8 +183,8 @@ jobs:
       - name: Dump Compose diagnostics on failure
         if: failure()
         run: |
-          docker compose -f docker-compose.yml ps || true
-          docker compose -f docker-compose.yml logs --no-color api postgres redis qdrant es || true
+          docker compose --profile neo4j --profile nebula -f docker-compose.yml ps || true
+          docker compose --profile neo4j --profile nebula -f docker-compose.yml logs --no-color || true
 
       - name: Stop Compose stack
         if: always()
