@@ -1832,6 +1832,180 @@ PM (燧木) 决定。架构师建议参考 D10 模式：
 
 **why Wave 6 separate PR (not Wave 5 fold)**: Wave 5 PR (#1733) targets 16 polish items in single-PR fast-landing style. Wave 6 cross-cutting refactor needs (a) new design work upstream, (b) careful behavior validation against existing retrieval flows, (c) phased migration to avoid silent regression. Bundling into Wave 5 risked Wave 3 lesson #10 anti-pattern (rushed cross-cutting refactor in high-throughput PR → silent broken paths). Wave 6 separate PR with its own architect ratify lane is the disciplined path.
 
+### K.11. Wave 6 — Full spec amendment (post-Wave-5 PR #1733 merge, 2026-04-27)
+
+**目标**: §K.10 锁定 graphindex elimination 为 Wave 6 主项 (5 items + 2 perf 折叠)。Wave 5 close-out 后，task board 上的 Wave 6 实际 backlog 共 **7 acceptance items** (#33-#39)：§K.10 的 #33+#35+#36 三项，加上 4 项新发现的 polish items (#34 parser unify + #37 multimodal cache wiring + #38 cache cross-loop lazy-rebuild + #39 provider format variations)。本节 §K.11 即 Wave 6 完整 spec amendment — 在 §K.10 graphindex elimination 基础上扩展到全部 7 items 的 phase 拆分 + 同时锁 Wave 4-5 沉淀的 architect-side patterns (`feedback_simple_stable_zero_maintenance.md` / `feedback_spec_lock_grep_verify_caller.md` / `feedback_no_refresh_complete_all_tasks.md` / `feedback_production_readiness_invariant.md`)。
+
+**与 §K.10 的关系**: §K.10 留作 graphindex elimination 单独 sub-spec (handoff from Wave 5 Phase 1 narrowed scope ruling)；§K.11 是 Wave 6 整体 spec — 7 items / 3 phase / 2 PR 战略 / 4 guardrail / 双 pre-check pattern lock。Wave 6 的 architect direct ratify lane 由 §K.11 lane lock 决定 (替 §K.10 单一 lane statement)。
+
+#### K.11.1. Wave 6 acceptance items (7 items)
+
+| # | Item | Owner | Phase | Effort | PR target |
+|---|---|---|---|---|---|
+| 33 | Legacy graphindex elimination + LightRAG-style query layer (foundational; per §K.10) | Bryce | A | 1-2 weeks | PR-A (graphindex) |
+| 34 | Parser canonical schema unification (chunk_id field unify on parser layer + remaining utc_now/CURRENT_TIMESTAMP audit + spec amend) | chenyexuan | B | 1-2 days | PR-B (polish) |
+| 35 | Lineage SET parallel-list O(N) cross-backend perf rewrite (Postgres JSONB→text[] + Nebula tag re-model + Neo4j parallel-list re-encode + alembic; per §K.10 item 6) | Bryce | B | 3-5 days | PR-B (polish) |
+| 36 | Cypher TYPE() rename + EntityRecord.type Protocol surface rename (cross-backend column rename + §D.3 Protocol surface change; per §K.10 item 7) | Bryce | B | 2-3 days | PR-B (polish) |
+| 37 | Multimodal embedding cache wiring (`EmbeddingService.embed_image` callsite 接 `aperag.cache.NAMESPACE_EMBEDDING`; image bytes → sha256 file_hash + provider/model + alt_text key shape; uses canonical PR #1734 cache infra per earayu2 directive msg=26d1509e) | 明书 | B | 1-2 days | PR-B (polish) |
+| 38 | Application cache cross-loop lazy-rebuild + WARN log (fix `application_runtime.get_application_cache()` Noop fallback OR add metrics counter `cache_noop_due_to_loop_switch_total`; per huangheng PR #1734 sync point 7) | chenyexuan | B | 1-2 days | PR-B (polish) |
+| 39 | Provider-specific multimodal embedder format variations (Voyage / Jina v3 / OpenAI multimodal SDK input format adjustments; Wave 5 chunk 1 用 LiteLLM documented shape per §G.2.5.1) | 明书 | C | 2-4 days | PR-B (polish), post-#37 |
+
+#### K.11.2. 2-PR strategy (per `feedback_simple_stable_zero_maintenance.md` 4 guardrail #2 "尽快上线")
+
+Wave 6 split 成 2 PR 是因为 #33 (graphindex elim + LightRAG-style query layer) 是 1-2 周 cross-cutting refactor，会自然拖住其他 6 个小型 polish items 的 ship pace。Bundle 进 single PR → 违反 simple-stable directive #2 "先把功能做实，希望尽快上线"。
+
+| PR | Scope | Items | Branch | Owner driving |
+|---|---|---|---|---|
+| **PR-A "Wave 6 graphindex"** | foundational cross-cutting refactor — query layer Protocol design + cascade migrate retrieval/curation/service callers + delete legacy graphindex package | #33 | `bryce/celery-wave6-graphindex` | Bryce |
+| **PR-B "Wave 6 polish batch"** | 6 bounded items: parser unify + perf rewrite + Cypher rename + multimodal cache + cross-loop rebuild + provider format variations | #34 + #35 + #36 + #37 + #38 + #39 | `wave6/celery-wave6-polish` | Bryce + chenyexuan + 明书 multi-implementer |
+
+**Land order**: PR-B 先 ship (1 周内 land)，PR-A 后 ship (1-2 周 land；可与 PR-B parallel 推进，PR-B merge 不阻塞 PR-A 设计/迁移)。两 PR 之间无文件 overlap (#33 改 graphindex/* + retrieval/* + knowledge_graph/* + graph_curation/*; PR-B items 改 parser.py / graph_storage/* / embedding_service.py / cache/*) — mechanical merge 可预期。
+
+#### K.11.3. Phase 拆分 + 依赖图
+
+```
+Phase A (PR-A):    #33 ─────────────────────────────────────────► merge
+                     ↑ (parallel — no shared files with Phase B)
+Phase B (PR-B):    ├─ #34 chunk_id unify (chenyexuan, 1-2 days)
+                   ├─ #35 lineage perf rewrite (Bryce, 3-5 days)
+                   ├─ #36 Cypher rename (Bryce, 2-3 days)
+                   ├─ #37 multimodal cache wiring (明书, 1-2 days)
+                   └─ #38 cache cross-loop rebuild (chenyexuan, 1-2 days)
+Phase C (PR-B):    └── #39 provider format variations (明书, 2-4 days, post-#37)
+                                                          │
+                                                          ▼
+                                                       PR-B merge
+```
+
+**Phase B 内部并行性**: 6 个 items 中 #34 / #35 / #36 / #37 / #38 互无 file overlap (parser.py / graph_storage/{postgres,neo4j,nebula}.py / embedding_service.py / aperag/cache/__init__.py + application_runtime.py)，可同步进行。#39 sequential after #37 是因为 cache wiring 落地后 provider format 才有 callsite stable。
+
+#### K.11.4. Production-readiness 三类 layer (per `feedback_production_readiness_invariant.md`)
+
+每个 acceptance item 必显式声明三类 layer scope:
+
+| # | must-be-real | may-be-gated | fully-resolves |
+|---|---|---|---|
+| 33 | LightRAG-style query layer 真实实现 (by-keyword + vector-recall + traversal API) + cascade-migrate 全 callers，行为等价 (existing retrieval search results within ε tolerance) | 无 (full hard-cut per §K.10) | §K.8 Wave 5 backlog item 1 deferred + §K.10 sub-spec |
+| 34 | parser layer chunk_id 字段 schema 一致 + remaining utc_now → CURRENT_TIMESTAMP unify | parser legacy alt-shape transitional decoder OK to keep if needed for legacy fixtures | huangheng T1 obs B + Wave 5 P5B chunk_id 5th item 推迟项 |
+| 35 | Postgres / Nebula / Neo4j 全 lineage SET storage 改 parallel-list O(N) encoding + alembic migration | 无 — hard-cut policy per earayu2 msg=30c81478 (无生产数据 → schema 直改) | §K.10 item 6 (`feedback_simple_stable_zero_maintenance.md` directive #4 "私有化部署免维护" align — operator deploy 后不管 schema migration since 自动 alembic upgrade) |
+| 36 | `EntityRecord.type` → `entity_type` Protocol surface rename + Postgres column rename + Cypher property rewrite + Nebula tag-prop rename | 无 — hard-cut | §K.10 item 7 + §D.3 Protocol stability |
+| 37 | `EmbeddingService.embed_image` 调用接 `aperag.cache.get_or_compute` (NAMESPACE_EMBEDDING) + sha256 file_hash key shape；hot-path real cache hit/miss measured | 无 — full impl, no shim. Cache miss 走 LiteLLM real call (chunk 1 落地的 `_embed_image_via_litellm` path) | post-#1734 (cache infra) + Wave 5 P2 chunk 4 callsite (`embed_image` API) prerequisite |
+| 38 | `application_runtime.get_application_cache()` 不再静默返 Noop on loop switch；real lazy-rebuild OR explicit metrics counter `cache_noop_due_to_loop_switch_total` + WARN log | 第一次 loop switch 后 rebuild 仍可能小 cost (latency observation OK，但不静默 zero-cache) | huangheng PR #1734 sync point 7 / `feedback_announce_equals_landed.md` (silent zero-cache 是 narrative-truth violation) |
+| 39 | Voyage / Jina v3 / OpenAI multimodal SDK input format 各自实现 (real provider tests OR documented capability matrix) | LiteLLM canonical shape 是 fallback；provider-specific format 是 polish item，可分 sub-batch incremental ship | §G.2.5.1 spec provider variations footnote |
+
+#### K.11.5. Pre-check pattern lock (per `feedback_spec_lock_grep_verify_caller.md` 双 pattern)
+
+**Pattern 1 (caller cascade)** 强制触发条件:
+
+- **#33**: pre-implementation 必跑 `grep -rn "from aperag.domains.knowledge_graph.graphindex" aperag/` 列全 caller graph，分类 (test-only / new-code-self-ref / legacy-production)；legacy production caller (retrieval/pipeline.py / knowledge_graph/service.py / graph_curation/*) 要全列出迁移到新 query layer 的 mapping
+- **#36**: pre-implementation 必跑 `grep -rn "EntityRecord.type\|RelationRecord.type\|\.type=" aperag/indexing/ aperag/domains/` 列 Protocol surface caller graph + Cypher template caller graph + Postgres column caller graph，避免 rename 漏 site
+
+**Pattern 2 (state binding)** 强制触发条件:
+
+- **#34**: pre-implementation 必跑 `grep -rn "chunk_id" aperag/indexing/parser*.py aperag/indexing/dispatcher.py aperag/indexing/cleanup.py` 验证 chunk_id 现 binding sites 是否全 align 新 schema
+- **#35**: pre-implementation 必跑 `grep -rn "_lineage\|set_lineage\|sets_for" aperag/indexing/graph_storage/` 列 lineage SET binding sites + alembic head verify
+- **#37**: pre-implementation 必跑 `grep -rn "embed_image\|get_or_compute" aperag/llm/embed/ aperag/cache/` 验证 cache infra (`NAMESPACE_EMBEDDING` / `get_or_compute`) 真实存在 (PR #1734 merged ✅) + `embed_image` API 真实存在 (Wave 5 P2 chunk 1 merged ✅)
+- **#38**: pre-implementation 必跑 `grep -rn "get_application_cache\|Noop" aperag/cache/` 验证 Noop fallback site + loop-switch trigger condition
+
+未通过 pre-check 不允许 push — architect spec lock 时 implementer push 前自跑此 grep + 验证 caller graph 与 spec 一致。
+
+#### K.11.6. simple-stable 4 guardrail lock (per `feedback_simple_stable_zero_maintenance.md`)
+
+每个 Wave 6 acceptance item / chunk 必通过：
+
+| Guardrail | Wave 6 application |
+|---|---|
+| **不无限扩范围** | 7 items locked 来源 = task board #33-#39 (per architect msg=c8cdb40d audit-filter conclusion 22 audit findings → 0 Wave 7 expansion)。Wave 6 内不增加 academic / "good-to-have" items；如 implementer 实施时 surface 新 obs，记 follow-up doc 段落但不 fold 进 chunk |
+| **先把功能做实，尽快上线** | PR-B (6 polish items) 1 周内 ship (per `feedback_announce_equals_landed.md` PR-as-truth)；PR-A (#33) 1-2 周 ship 但不阻 PR-B；single-PR within phase, multi-implementer parallel, chunked-rotation commits 内 push 节奏 |
+| **简单稳定优于复杂** | Wave 6 拒绝 distributed pattern (DLQ / pub-sub invalidation) / cross-region replication / quality eval framework / drift detection 类 over-engineering；KISS — cache wiring = 现有 pattern mirror, schema rewrite = alembic mechanical migration, query layer = LightRAG-style 已验证 patten |
+| **私有化部署免维护** | 拒绝 operator CLI tooling / manual recovery script / runbook-required ops；#33 query layer 自带 vector-recall 自动 fallback；#37 cache 自带 sha256 file_hash 自动 dedupe；#38 cross-loop rebuild 自动 rebuild on loop switch (no manual reset); #35 alembic upgrade 自动 (operator deploy 即激活 perf rewrite) |
+
+#### K.11.7. Layer 1 same-session continuation directive (per `feedback_no_refresh_complete_all_tasks.md`)
+
+Wave 6 implementation 同 Wave 4-5 directive (earayu2 msg=24797e27)：
+- earayu2 不再帮 fresh-restart agent session
+- 各 implementer same-session continuation push 节奏 maintained
+- Layer 1 metric goal: ≥ 90% same-session ratio (Wave 5 verified 13/13 = 100%)
+- chunked-rotation within PR-B (multiple commits in same branch / same session per implementer)
+- 跨 implementer 之间 PR-B branch share — 任意 implementer push 完后下个 implementer rebase 接
+
+#### K.11.8. Architect direct ratify lane
+
+Wave 6 architect direct ratify scope (per Wave 5 §K.9.2 lane lock pattern + simple-stable directive #4 "私有化部署免维护")：
+
+- **#33 Phase A 全程**: query layer Protocol 设计 + cascade migration completeness verify + behavior preservation validation (existing retrieval / curation behaviors within ε tolerance) — 因 cross-cutting refactor 风险高
+- **#34**: spec amendment text ↔ code state binding align verify (pre-check Pattern 2)
+- **#35**: alembic migration cross-backend correctness + Wave 4 T5 §H.5.1 state binding pattern lesson 类 verify
+- **#36**: §D.3 Protocol surface rename completeness (`EntityRecord.type` / `RelationRecord.type` 全 caller migrate) — 因 Protocol-surface change 是 Wave 1 lesson #5 类 risk 项
+- **#37**: cache key shape ↔ cache README invariant align (raw bytes 不进 key) + sha256 file_hash 真实 dedupe verify
+- **#38**: cross-loop lazy-rebuild correctness + silent-zero-cache anti-pattern 不再触发 verify
+- **#39**: provider format variation 走 huangheng pass-1 lane only — architect spot-check on architectural soundness 即可 (small bounded items no architect direct ratify gate)
+
+如出现 spec / state-binding drift 或 chunk-内 scope creep → architect direct ratify trigger (per Wave 4 T5 §H.5.1 fix-forward 教训 + chunk 4d Option C narrowed precedent msg=b26f64b2)。
+
+#### K.11.9. Hard-cut policy lock (per earayu2 msg=30c81478)
+
+> "数据库无数据，系统未上线，所有改动可以 hard-cut"
+
+Wave 6 acceptance items 中所有 schema / state binding / Protocol surface change 均走 hard-cut path：
+
+- #33 graphindex 删除 → 不留 deprecation shim window (Wave 5 Phase 1 已 keep shims as transitional, Wave 6 hard-cut 删 shim 并删 legacy package)
+- #35 Postgres JSONB → text[] migration → 直接 alembic schema change，不留 migration backfill (无生产数据)
+- #36 Postgres column rename → 直接 alembic rename，不留 dual-column transitional
+- #34 chunk_id schema unify → 直接 hard-cut 老 schema 写入 path
+
+无 forward-compat backfill 设计，无 migration runbook，operator 不需要任何手工步骤 (`feedback_simple_stable_zero_maintenance.md` directive #4 align)。
+
+#### K.11.10. PR-B merge gate (per `feedback_announce_equals_landed.md` 硬证据 ack)
+
+PR-B "Wave 6 polish batch" merge ack 必须含 (与 Wave 5 PR #1733 merge pattern 一致)：
+
+- GitHub URL + head SHA + state=MERGED
+- merge commit SHA on main
+- task board 全 6 items moved to `done` (任何还在 in_progress / in_review 的 item 都 block PR merge)
+- Layer 1 metric tally: pass-1 一次过率 vs total chunks
+- CI 4/4 lanes green (lint-and-unit + graph-compat 3-backend + vector-compat 2-backend)
+
+**not-acceptable signals**: narrative-only "🟢 done" without GitHub URL + SHA + state；跨 implementer 之间口头 handoff without push event evidence；implementer 报 "all tests pass" but PR CI 未跑。
+
+#### K.11.11. PR-A (#33) sub-spec — 3-chunk decomposition (per Bryce context-build report msg=5a82e0d1)
+
+PR-A "Wave 6 graphindex" 是 cross-cutting refactor，独立 architect direct ratify lane。Bryce caller-cascade pre-check (per §K.11.5 Pattern 1) 已 surface 实际 cascade scope:
+
+**Caller cascade scope (5 production caller files)**:
+1. `aperag/domains/retrieval/pipeline.py:85` — `make_service_for_collection` → `svc.query_context(collection_id, query, top_k)` returns `ctx.text` (LightRAG-style query→entities→context-text)
+2. `aperag/domains/knowledge_graph/service.py:69, 94, 151` — graph CRUD service 3 callsites
+3. `aperag/graph_curation/service.py:36-37, 199` — Entity DTO + GraphIndexService + LLMCall + make_service_for_collection
+4. `aperag/graph_curation/integration.py:21` — make_service_for_collection
+5. `aperag/graph_curation/candidate_generation.py:24` — Entity DTO
+
+**Architectural gap**: new `LineageGraphStore` (Wave 4) is **write-side only** (`find_*_with_lineage` by-document-id + `get_*` single-fetch + `upsert_*` / `remove_*` / `gc_*`)。Legacy `query_context(query, top_k)` 是 by-vector + by-keyword + traversal — **没有 1-to-1 mapping**，需要全新设计 query layer。
+
+**3-chunk decomposition**:
+
+| Chunk | Scope | Owner | Estimated LOC |
+|---|---|---|---|
+| **chunk 1** | LightRAG-style read Protocol stubs on `LineageGraphStore` (`query_by_keyword` / `query_by_vector` / `expand_neighbors_n_hops`) — NO implementation, NO caller migration; spec ↔ Protocol surface align verify only | Bryce | ~200 LOC docs+protocol |
+| **chunk 2** | Protocol implementations across Postgres / Neo4j / Nebula backends + unit tests — backend-specific real query implementations | Bryce | ~600 LOC + tests |
+| **chunk 3** | Caller migration (5 files) + legacy graphindex package hard-cut delete + legacy tests delete + grep-zero verify | Bryce | ~400 LOC |
+
+**Each chunk lands independently within PR-A** (chunked-rotation per `feedback_no_refresh_complete_all_tasks.md` Layer 1 same-session continuation directive)。Each chunk has own architect direct ratify gate per §K.11.8 lane lock。
+
+**Why 3 chunks (not 1 monolith)**: (a) chunk 1 spec/Protocol-only allows architect ratify to lock query layer surface before backend implementations; (b) chunk 2 backend impl can independently verify Protocol semantics on real engines (per `feedback_dataflow_review.md` dataflow trace each backend); (c) chunk 3 caller migration is pure mechanical refactor once Protocol stable — chunk 4d Option C precedent (msg=b26f64b2 narrowed scope) avoids "spec drift mid-cascade" anti-pattern。
+
+PR-A 的 acceptance items 即 §K.10 (1-5)：query layer + cascade migrate + delete legacy package + delete legacy tests + grep-zero verify。
+
+#### K.11.12. Wave 6 close-out gate
+
+Wave 6 close-out 双 PR merge：
+- PR-B merge ✅ → 6 polish items shipped (#34 + #35 + #36 + #37 + #38 + #39)
+- PR-A merge ✅ → graphindex elim shipped (#33)
+- task board #33-#39 全 done
+- 架构师发 Wave 6 final review (mirror Wave 5 close-out msg=43df7dd8)
+- Wave 7+ 创建前必通过 simple-stable 4 guardrail 重审 (architect msg=c8cdb40d audit-filter 模板 reusable)
+
+**why 双 PR 是 simple-stable**: 拒绝 single-PR 24-day land cycle (#33 阻 polish 6 items)；6 polish items 1 周 land + #33 设计完成后再 ship — 用户视角 "尽快上线" 实质化 (PR-B 各 modality 改进可下周即用)。
+
 ---
 
 ## §L. Private / on-premise deployment — "deploy-and-forget"
