@@ -153,12 +153,13 @@ def get_hardcoded_index_prompt(prompt_type: str) -> Optional[str]:
         Hardcoded prompt content, or None if not available
     """
     if prompt_type == "graph":
-        # Return the graphindex v2 extraction prompt template. Unlike
-        # LightRAG's parameterised ``entity_extraction``, this one
-        # expects ``{input_text}`` / ``{entity_types}`` / ``{language}``
-        # / ``{max_entities}`` / ``{max_relations}`` to be filled by the
-        # caller (see ``aperag.domains.knowledge_graph.graphindex.prompts.render_extraction_prompt``).
-        from aperag.domains.knowledge_graph.graphindex.prompts import ENTITY_RELATION_EXTRACTION
+        # Return the canonical entity/relation extraction prompt template.
+        # Wave 5 P1 chunk 1 relocate (per §K.9.1 item 3): the canonical
+        # home is now :mod:`aperag.indexing.llm`. The template expects
+        # ``{input_text}`` / ``{entity_types}`` / ``{language}`` /
+        # ``{max_entities}`` / ``{max_relations}`` to be filled by the
+        # caller (see :func:`aperag.indexing.llm.render_extraction_prompt`).
+        from aperag.indexing.llm import ENTITY_RELATION_EXTRACTION
 
         return ENTITY_RELATION_EXTRACTION
     elif prompt_type == "summary":
