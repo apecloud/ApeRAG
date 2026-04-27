@@ -532,8 +532,71 @@ async def test_description_parts_accumulate_across_distinct_parses(store, collec
     assert parts.get(("doc-A", "v2")) == "from doc-A v2"
 
 
-# --- explicit "method exists" guard ---------------------------------------
-# This file does NOT yet cover ``list_entity_labels()`` — that method
-# lands with PR #1746 (Wave 6 #40 narrow replacement). Once #1746
-# merges, a follow-up adds a parametrized test mirroring the pattern
-# above. Tracked under #测试 task #25 follow-up.
+# --- tests: list_entity_labels (Wave 6 #40 narrow replacement) ------------
+
+
+@pytest.mark.asyncio
+async def test_list_entity_labels_returns_distinct_sorted(store, collection_id):
+    """``list_entity_labels`` MUST return the sorted distinct
+    ``EntityRecord.entity_type`` values present in this collection.
+    Wave 6 #40 contract: collection-scoped per-instance store, no
+    ``collection_id`` parameter at this layer."""
+
+    _, s = store
+    await s.upsert_entity_with_lineage(
+        record=_entity("Alice", entity_type="person"),
+        lineage=_LM_A_V1,
+    )
+    await s.upsert_entity_with_lineage(
+        record=_entity("Bob", entity_type="person"),
+        lineage=_LM_A_V1,
+    )
+    await s.upsert_entity_with_lineage(
+        record=_entity("Acme", entity_type="organization"),
+        lineage=_LM_A_V1,
+    )
+
+    labels = await s.list_entity_labels()
+    # Distinct and sorted (Wave 6 #40 contract).
+    assert labels == sorted(set(labels)), "labels must be distinct + sorted"
+    assert set(labels) == {"person", "organization"}
+
+
+@pytest.mark.asyncio
+async def test_list_entity_labels_empty_collection_returns_empty(store, collection_id):
+    """Empty collection (no entities indexed yet) MUST return ``[]`` —
+    per Protocol docstring "Returns ``[]`` when the collection has not
+    been indexed yet — that is the *correct* answer, not a cue to fall
+    back to the legacy graphindex path." (lines 594-596)."""
+
+    _, s = store
+    labels = await s.list_entity_labels()
+    assert labels == []
+
+
+@pytest.mark.asyncio
+async def test_list_entity_labels_excludes_orphan_after_gc(store, collection_id):
+    """After ``gc_entity_if_orphan`` deletes the only entity of a given
+    type, ``list_entity_labels`` MUST no longer include that type.
+    Pins the read path against a real backend GC interaction (the
+    InMemory reference impl can't catch SQL/Cypher/nGQL-specific
+    DISTINCT-after-DELETE issues)."""
+
+    _, s = store
+    await s.upsert_entity_with_lineage(
+        record=_entity("Alice", entity_type="person"),
+        lineage=_LM_A_V1,
+    )
+    await s.upsert_entity_with_lineage(
+        record=_entity("Acme", entity_type="organization"),
+        lineage=_LM_A_V1,
+    )
+    assert set(await s.list_entity_labels()) == {"person", "organization"}
+
+    # Clear lineage on Acme then GC — collection now has no orgs.
+    await s.remove_entity_lineage_member(entity_name="Acme", document_id="doc-A")
+    deleted = await s.gc_entity_if_orphan("Acme")
+    assert deleted is True
+
+    labels = await s.list_entity_labels()
+    assert labels == ["person"]
