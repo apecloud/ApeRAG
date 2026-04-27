@@ -32,7 +32,6 @@ import asyncio
 import pathlib
 
 from aperag.domains.retrieval.pipeline import (
-    _build_lineage_graph_store_for,
     _render_graph_context_text,
 )
 from aperag.indexing.graph import (
