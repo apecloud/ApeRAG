@@ -939,6 +939,13 @@ export interface paths {
          *     * The response echoes the merged description **after** LLM
          *       summarization, so the frontend can refresh the entity detail
          *       panel without a second fetch.
+         *     * ``edges_redirected`` / ``edges_collapsed`` are always ``0`` by
+         *       design (Wave 7 §K.12 invariant #9) — alias redirect happens at
+         *       indexer write-time via the
+         *       :class:`LineageGraphStoreWithAliasRedirect` decorator, not as
+         *       part of the merge call, so the merge action has no "explicit
+         *       edge re-anchor count" to surface. The fields are kept on the
+         *       response shape for backward-compat with the existing frontend.
          */
         post: operations["knowledge_graph_merge_nodes_view"];
         delete?: never;
@@ -989,6 +996,77 @@ export interface paths {
          * @description Accept or reject a merge suggestion.
          */
         post: operations["knowledge_graph_handle_suggestion_action_view"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/collections/{collection_id}/graphs/entities/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Graph Entities Search View
+         * @description Vector-recall the top-K entities matching ``q`` (Wave 7 §K.12.6).
+         *
+         *     Empty / whitespace ``q`` returns ``entities=[]`` — same convention as
+         *     the underlying :class:`GraphSearchService` so MCP tool callers see
+         *     consistent empty-state behaviour.
+         */
+        get: operations["knowledge_graph_graph_entities_search_view"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/collections/{collection_id}/graphs/subgraph/expand": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Graph Subgraph Expand View
+         * @description Expand neighbours from anchor entities (Wave 7 §K.12.6).
+         *
+         *     Backed by ``LineageGraphStore.expand_neighbors_n_hops`` via
+         *     ``GraphSearchService.get_subgraph``. Backend implementations cap
+         *     the result size — callers MUST not assume an unbounded subgraph.
+         */
+        post: operations["knowledge_graph_graph_subgraph_expand_view"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/collections/{collection_id}/graphs/entities/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Graph Entity Detail View
+         * @description Return the full record for a single entity (Wave 7 §K.12.6).
+         *
+         *     Returns 404 when the entity does not exist in the lineage store
+         *     (gc'd, never extracted, or wrong collection).
+         */
+        get: operations["knowledge_graph_graph_entity_detail_view"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1155,23 +1233,6 @@ export interface paths {
         put?: never;
         /** Cancel Turn View */
         post: operations["agent_runtime_cancel_turn_view"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/agent/artifacts/{artifact_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Artifact View */
-        get: operations["agent_runtime_get_artifact_view"];
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2081,32 +2142,6 @@ export interface components {
             /** Collections */
             collections?: components["schemas"]["Collection-Output"][] | null;
         };
-        /** AgentArtifactEnvelope */
-        AgentArtifactEnvelope: {
-            /**
-             * Schema Version
-             * @default agent-runtime-v3.1
-             */
-            schema_version: string;
-            /** Artifact Id */
-            artifact_id: string;
-            /** Turn Id */
-            turn_id: string;
-            /** Artifact Type */
-            artifact_type: string;
-            /** Summary */
-            summary?: string | null;
-            /** Payload */
-            payload?: {
-                [key: string]: unknown;
-            };
-            /** Storage Ref */
-            storage_ref?: string | null;
-            /** Created At */
-            created_at?: string | null;
-            /** Updated At */
-            updated_at?: string | null;
-        };
         /** AgentTurnEnvelope */
         AgentTurnEnvelope: {
             /**
@@ -2138,10 +2173,6 @@ export interface components {
             error_code?: string | null;
             /** Error Message */
             error_message?: string | null;
-            /** Answer Artifact Id */
-            answer_artifact_id?: string | null;
-            /** Reference Bundle Artifact Id */
-            reference_bundle_artifact_id?: string | null;
             /**
              * Timeline Cursor
              * @default 0
@@ -2612,9 +2643,21 @@ export interface components {
             /**
              * Enable Knowledge Graph
              * @description Whether to enable knowledge graph index
-             * @default true
+             * @default false
              */
             enable_knowledge_graph: boolean | null;
+            /**
+             * Graph Backend Type
+             * @description Lineage graph backend for knowledge graph indexing
+             * @default postgres
+             */
+            graph_backend_type: ("postgres" | "neo4j" | "nebula") | null;
+            /**
+             * Fulltext Backend Type
+             * @description Fulltext search backend for the fulltext modality
+             * @default elasticsearch
+             */
+            fulltext_backend_type: ("elasticsearch" | "opensearch") | null;
             /**
              * Enable Summary
              * @description Whether to enable summary index
@@ -2663,9 +2706,21 @@ export interface components {
             /**
              * Enable Knowledge Graph
              * @description Whether to enable knowledge graph index
-             * @default true
+             * @default false
              */
             enable_knowledge_graph: boolean | null;
+            /**
+             * Graph Backend Type
+             * @description Lineage graph backend for knowledge graph indexing
+             * @default postgres
+             */
+            graph_backend_type: ("postgres" | "neo4j" | "nebula") | null;
+            /**
+             * Fulltext Backend Type
+             * @description Fulltext search backend for the fulltext modality
+             * @default elasticsearch
+             */
+            fulltext_backend_type: ("elasticsearch" | "opensearch") | null;
             /**
              * Enable Summary
              * @description Whether to enable summary index
@@ -3012,15 +3067,15 @@ export interface components {
             /** Status */
             status?: ("UPLOADED" | "EXPIRED" | "PENDING" | "RUNNING" | "COMPLETE" | "FAILED" | "DELETING" | "DELETED") | null;
             /** Vector Index Status */
-            vector_index_status?: ("PENDING" | "CREATING" | "ACTIVE" | "DELETING" | "DELETION_IN_PROGRESS" | "FAILED" | "SKIPPED") | null;
+            vector_index_status?: ("PENDING" | "RUNNING" | "ACTIVE" | "FAILED") | null;
             /** Fulltext Index Status */
-            fulltext_index_status?: ("PENDING" | "CREATING" | "ACTIVE" | "DELETING" | "DELETION_IN_PROGRESS" | "FAILED" | "SKIPPED") | null;
+            fulltext_index_status?: ("PENDING" | "RUNNING" | "ACTIVE" | "FAILED") | null;
             /** Graph Index Status */
-            graph_index_status?: ("PENDING" | "CREATING" | "ACTIVE" | "DELETING" | "DELETION_IN_PROGRESS" | "FAILED" | "SKIPPED") | null;
+            graph_index_status?: ("PENDING" | "RUNNING" | "ACTIVE" | "FAILED") | null;
             /** Summary Index Status */
-            summary_index_status?: ("PENDING" | "CREATING" | "ACTIVE" | "DELETING" | "DELETION_IN_PROGRESS" | "FAILED" | "SKIPPED") | null;
+            summary_index_status?: ("PENDING" | "RUNNING" | "ACTIVE" | "FAILED") | null;
             /** Vision Index Status */
-            vision_index_status?: ("PENDING" | "CREATING" | "ACTIVE" | "DELETING" | "DELETION_IN_PROGRESS" | "FAILED" | "SKIPPED") | null;
+            vision_index_status?: ("PENDING" | "RUNNING" | "ACTIVE" | "FAILED") | null;
             /**
              * Vector Index Updated
              * @description Vector index last updated time
@@ -3907,6 +3962,17 @@ export interface components {
             source_chunk_count?: number | null;
         };
         /**
+         * GraphEntitiesSearchResponse
+         * @description Response for ``GET /graphs/entities/search``.
+         */
+        GraphEntitiesSearchResponse: {
+            /**
+             * Entities
+             * @description Entities returned by vector recall, ordered by descending similarity score
+             */
+            entities: components["schemas"]["GraphSearchEntity"][];
+        };
+        /**
          * GraphLabelsResponse
          * @description Response containing available graph labels
          */
@@ -3981,6 +4047,69 @@ export interface components {
              */
             source_chunk_count?: number | null;
         };
+        /**
+         * GraphRelationView
+         * @description Relation projection used by subgraph expansion responses.
+         */
+        GraphRelationView: {
+            /**
+             * Source
+             * @description Source entity name
+             * @example 李明华
+             */
+            source: string;
+            /**
+             * Target
+             * @description Target entity name
+             * @example 墨香居
+             */
+            target: string;
+            /**
+             * Description
+             * @description Compacted description if available, otherwise joined description parts
+             * @example 李明华经营墨香居
+             */
+            description: string;
+        };
+        /**
+         * GraphSearchEntity
+         * @description Entity returned by ``/graphs/entities/search`` and
+         *     ``/graphs/entities/{name}``.
+         *
+         *     Mirrors :class:`aperag.indexing.graph.EntityWithLineage` projected
+         *     to the public-facing fields. The ``description`` field collapses
+         *     ``compacted_description`` (when present) and ``description_parts``
+         *     using the same rule as :func:`GraphSearchService.compose_context`,
+         *     so MCP callers see one stable text — independent of whether the
+         *     GraphIndexCompactor (task #2) has run yet.
+         */
+        GraphSearchEntity: {
+            /**
+             * Name
+             * @description Canonical entity name
+             * @example 墨香居
+             */
+            name: string;
+            /**
+             * Entity Type
+             * @description Entity type
+             * @example organization
+             */
+            entity_type: string;
+            /**
+             * Description
+             * @description Compacted description if available, otherwise joined description parts
+             * @example 墨香居是这条老巷子里唯一的旧书店。
+             */
+            description: string;
+            /**
+             * Source Chunk Count
+             * @description Number of source chunks supporting this entity
+             * @default 0
+             * @example 3
+             */
+            source_chunk_count: number;
+        };
         /** GraphSearchParams */
         GraphSearchParams: {
             /**
@@ -3988,6 +4117,44 @@ export interface components {
              * @description Top K results
              */
             topk?: number | null;
+        };
+        /**
+         * GraphSubgraphExpandRequest
+         * @description Request body for ``POST /graphs/subgraph/expand``.
+         */
+        GraphSubgraphExpandRequest: {
+            /**
+             * Entity Names
+             * @description Anchor entity names to expand from
+             * @example [
+             *       "墨香居",
+             *       "李明华"
+             *     ]
+             */
+            entity_names: string[];
+            /**
+             * Hops
+             * @description Number of hops to expand (bounded by backend implementation)
+             * @default 1
+             * @example 1
+             */
+            hops: number;
+        };
+        /**
+         * GraphSubgraphExpandResponse
+         * @description Response for ``POST /graphs/subgraph/expand``.
+         */
+        GraphSubgraphExpandResponse: {
+            /**
+             * Entities
+             * @description Entities reachable from the anchor names within ``hops``
+             */
+            entities: components["schemas"]["GraphSearchEntity"][];
+            /**
+             * Relations
+             * @description Relations connecting the returned entities
+             */
+            relations: components["schemas"]["GraphRelationView"][];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -4148,6 +4315,24 @@ export interface components {
              *     ]
              */
             entity_types: string[] | null;
+            /**
+             * Per Chunk Timeout Seconds
+             * @description Per-chunk LLM call timeout (seconds); the extractor uses 60s default if unset. Lift for slow / large-context multimodal models.
+             * @example 120
+             */
+            per_chunk_timeout_seconds?: number | null;
+            /**
+             * Max Entities Per Chunk
+             * @description Cap on entities the extractor accepts per chunk; default 32 if unset. Raise for entity-dense documents (legal / scientific).
+             * @example 64
+             */
+            max_entities_per_chunk?: number | null;
+            /**
+             * Max Relations Per Chunk
+             * @description Cap on relations the extractor accepts per chunk; default 32 if unset. Raise alongside max_entities for relation-dense docs.
+             * @example 64
+             */
+            max_relations_per_chunk?: number | null;
         };
         /** Login */
         Login: {
@@ -4241,6 +4426,11 @@ export interface components {
              * @default false
              */
             supports_tool_calling: boolean;
+            /**
+             * Supports Multimodal Embedding
+             * @default false
+             */
+            supports_multimodal_embedding: boolean;
             /**
              * Status
              * @default ACTIVE
@@ -4379,6 +4569,11 @@ export interface components {
              * @default false
              */
             supports_tool_calling: boolean;
+            /**
+             * Supports Multimodal Embedding
+             * @default false
+             */
+            supports_multimodal_embedding: boolean;
             /** Extra */
             extra?: {
                 [key: string]: unknown;
@@ -4588,6 +4783,8 @@ export interface components {
             supports_vision?: boolean | null;
             /** Supports Tool Calling */
             supports_tool_calling?: boolean | null;
+            /** Supports Multimodal Embedding */
+            supports_multimodal_embedding?: boolean | null;
             /** Status */
             status?: ("ACTIVE" | "INACTIVE") | null;
             /** Extra */
@@ -5179,6 +5376,21 @@ export interface components {
              */
             document_id?: string | null;
             /**
+             * Chunk Id
+             * @description Indexing-layer chunk identifier for follow-up `read_document_chunk` calls (D10 §A.9 R1 LOCKED handle).
+             */
+            chunk_id?: string | null;
+            /**
+             * Section Path
+             * @description Slash-separated section path for follow-up `read_document_section` calls (D10 §A.9 R1 LOCKED handle).
+             */
+            section_path?: string | null;
+            /**
+             * Heading Anchor
+             * @description Slug-style heading anchor (e.g. '#chapter-2-implementation') alternative to section_path (D10 §A.9 R1 LOCKED handle).
+             */
+            heading_anchor?: string | null;
+            /**
              * Asset Id
              * @description Asset identifier for image or binary references
              */
@@ -5203,6 +5415,23 @@ export interface components {
              * @description Public content modality
              */
             modality?: ("text" | "image") | null;
+            /**
+             * Parse Version
+             * @description Indexing-layer parse_version that produced this hit (§G.5). Lets agents detect mixed-version results across modalities in one response and reason about the §F.4 inconsistency window.
+             */
+            parse_version?: string | null;
+            /**
+             * Index Modality
+             * @description Indexer modality that served this hit (§G.5). Named ``index_modality`` to disambiguate from the D10.h-locked content-shape ``modality`` field above; the design pack §G.5 uses bare ``modality`` but the existing public surface already binds that name to the content shape.
+             */
+            index_modality?: ("vector" | "fulltext" | "graph" | "summary" | "vision") | null;
+            /**
+             * Index State Per Modality
+             * @description Per-modality index state for the document this hit belongs to (§G.5). Keys: ``vector`` / ``fulltext`` / ``graph`` / ``summary`` / ``vision``. Values: ``ACTIVE`` / ``FAILED`` / ``NOT_ENABLED`` / ``INDEXING``. Clients can skip a modality currently FAILED or decide whether to wait + retry vs proceed with partial coverage.
+             */
+            index_state_per_modality?: {
+                [key: string]: "ACTIVE" | "FAILED" | "NOT_ENABLED" | "INDEXING";
+            } | null;
         };
         /**
          * Settings
@@ -8014,6 +8243,112 @@ export interface operations {
             };
         };
     };
+    knowledge_graph_graph_entities_search_view: {
+        parameters: {
+            query: {
+                q: string;
+                top_k?: number;
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GraphEntitiesSearchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    knowledge_graph_graph_subgraph_expand_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GraphSubgraphExpandRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GraphSubgraphExpandResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    knowledge_graph_graph_entity_detail_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                collection_id: string;
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GraphSearchEntity"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     chats_list_turn_feedback_view: {
         parameters: {
             query?: {
@@ -8381,39 +8716,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CancelTurnResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    agent_runtime_get_artifact_view: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path: {
-                artifact_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AgentArtifactEnvelope"];
                 };
             };
             /** @description Validation Error */
