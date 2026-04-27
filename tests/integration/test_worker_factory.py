@@ -529,3 +529,52 @@ def test_build_fulltext_backend_elasticsearch_requires_es_host(monkeypatch: pyte
         )
     assert "ES_HOST" in str(exc.value)
     assert "elasticsearch" in str(exc.value)
+
+
+def test_build_fulltext_backend_dispatches_to_opensearch(monkeypatch: pytest.MonkeyPatch):
+    """``backend_type=opensearch`` constructs an ``OpenSearch`` client
+    and wraps it in the **same** ``_ElasticsearchFulltextBackend``
+    adapter — the two backends share a wire-compatible HTTP API, so
+    the index/bulk/delete_by_query call sites do not branch by
+    backend. Patches the client builder so the test does not need a
+    live OpenSearch cluster.
+    """
+
+    import aperag.indexing.worker_factory as wf
+
+    class _FakeOS:
+        def __init__(self, host, **kwargs):
+            self.host = host
+            self.kwargs = kwargs
+
+    monkeypatch.setattr(wf, "_build_opensearch_client", lambda: _FakeOS("http://os:9200"))
+
+    backend = wf._build_fulltext_backend(
+        backend_type="opensearch",
+        index_name="aperag_doc_col-1",
+    )
+    assert isinstance(backend, wf._ElasticsearchFulltextBackend)
+    assert backend._index == "aperag_doc_col-1"
+    assert isinstance(backend._client, _FakeOS)
+
+
+def test_build_fulltext_backend_opensearch_requires_es_host(monkeypatch: pytest.MonkeyPatch):
+    """Mirror of the elasticsearch ``ES_HOST`` gate — the OpenSearch
+    builder reads the same ``settings.es_host`` (operators run one
+    fulltext backend per deployment, so a single env var feeds either
+    driver). An unset ``ES_HOST`` raises a clear
+    :class:`WorkerFactoryError`.
+    """
+
+    import aperag.indexing.worker_factory as wf
+    from aperag.config import settings as _settings
+
+    monkeypatch.setattr(_settings, "es_host", "", raising=False)
+
+    with pytest.raises(WorkerFactoryError) as exc:
+        wf._build_fulltext_backend(
+            backend_type="opensearch",
+            index_name="aperag_doc_col-1",
+        )
+    assert "ES_HOST" in str(exc.value)
+    assert "opensearch" in str(exc.value)
