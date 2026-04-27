@@ -513,6 +513,22 @@ def _build_graph_worker(*, collection: Any, object_store: Any, payload: Dispatch
     lock = _resolve_entity_lock(backend_type=backend_type)
     extractor = build_collection_graph_extractor(collection)
     tenant_scope_key = _resolve_tenant_scope_key(payload=payload)
+
+    # Wave 7 W7-3 wiring: compactor + embedder + vector connector +
+    # merge candidate detector. The Phase 3 sync extension is opt-in —
+    # if any dependency fails to construct (e.g. completion model not
+    # configured for this collection), we degrade to Wave 6
+    # lineage-only sync. Failures are logged and the Wave 4-6 lineage
+    # path stays intact.
+    compactor = _build_collection_graph_compactor(collection)
+    vector_connector, embedder = _build_collection_graph_vector_writer(collection)
+    merge_detector = _build_collection_merge_candidate_detector(
+        collection=collection,
+        store=store,
+        vector_connector=vector_connector,
+        embedder=embedder,
+    )
+
     return _GraphModalityWorker(
         store=store,
         extractor=extractor,
@@ -520,7 +536,117 @@ def _build_graph_worker(*, collection: Any, object_store: Any, payload: Dispatch
         object_store=object_store,
         collection_id=collection.id,
         tenant_scope_key=tenant_scope_key,
+        compactor=compactor,
+        embedder=embedder,
+        vector_connector=vector_connector,
+        merge_detector=merge_detector,
     )
+
+
+def _build_collection_graph_compactor(collection: Any) -> Any:
+    """Build a per-collection :class:`GraphIndexCompactor` if the
+    collection has a completion model configured. Returns ``None``
+    otherwise so :class:`GraphModalityWorker` skips the compaction
+    step gracefully (Phase 3 still runs vector upsert against the
+    raw description fallback)."""
+    from aperag.indexing.graph_compactor import GraphIndexCompactor
+
+    try:
+        from aperag.domains.knowledge_graph.graphindex.integration import (
+            build_collection_llm_callable,
+        )
+
+        llm = build_collection_llm_callable(collection)
+    except Exception:  # noqa: BLE001 — best-effort; missing model is non-fatal.
+        logger.warning(
+            "graph compactor: completion model not configured for collection %s; "
+            "compactor will not run on sync (vector embed falls back to raw description)",
+            getattr(collection, "id", "<unknown>"),
+        )
+        return None
+    return GraphIndexCompactor(llm=llm)
+
+
+def _build_collection_graph_vector_writer(collection: Any) -> tuple[Any, Any]:
+    """Resolve the per-collection vector connector + sync embedder for
+    the graph entity / relation vector path. Returns ``(None, None)``
+    if the embedder fails to resolve (no completion model, broken
+    config) — Phase 3 then degrades to lineage-only sync.
+
+    Reuses :func:`_build_collection_qdrant_connector` so the graph
+    write path shares the exact connector / dimension resolution the
+    vector worker uses (one Qdrant collection per ApeRAG collection,
+    distinguished from chunk vectors by the ``indexer`` payload key).
+    """
+    try:
+        adaptor, embedding_service, _vector_size = _build_collection_qdrant_connector(collection)
+    except Exception:  # noqa: BLE001
+        logger.warning(
+            "graph vector writer: qdrant connector resolve failed for collection %s; "
+            "Phase 3 vector path will be skipped",
+            getattr(collection, "id", "<unknown>"),
+            exc_info=True,
+        )
+        return None, None
+
+    if embedding_service is None:
+        return adaptor.connector, None
+
+    def _embed(text: str) -> list[float]:
+        return embedding_service.embed_query(text)
+
+    return adaptor.connector, _embed
+
+
+def _build_collection_merge_candidate_detector(
+    *,
+    collection: Any,
+    store: Any,
+    vector_connector: Any,
+    embedder: Any,
+) -> Any:
+    """Build the per-collection :class:`MergeCandidateDetector` if
+    both vector connector and embedder resolved. Returns ``None`` when
+    any dependency is missing — the detector is a write-only auxiliary
+    so a missing one degrades cleanly to "no auto-detect candidates
+    written" without breaking the sync."""
+    if vector_connector is None or embedder is None:
+        return None
+
+    from aperag.indexing.merge_candidate_detector import MergeCandidateDetector
+
+    class _SyncEmbedderShim:
+        """Adapt the sync ``(text -> list[float])`` callable used by
+        the graph worker into the ``embed_query`` shape the detector
+        expects (mirrors :class:`EmbeddingService` surface)."""
+
+        def __init__(self, fn: Callable[[str], list[float]]) -> None:
+            self._fn = fn
+
+        def embed_query(self, text: str) -> list[float]:
+            return self._fn(text)
+
+    user_id = _resolve_collection_user_id(collection)
+    return MergeCandidateDetector(
+        store=store,
+        vector_connector=vector_connector,
+        embedder=_SyncEmbedderShim(embedder),
+        collection_id=collection.id,
+        user_id=user_id,
+    )
+
+
+def _resolve_collection_user_id(collection: Any) -> str:
+    """Best-effort recovery of the collection owner's user id, used by
+    :class:`MergeCandidateDetector` to attribute the auto-detect run.
+    Falls back to the literal ``"system"`` so the detector still runs
+    when the field is unavailable (the suggestion's ``source`` already
+    distinguishes auto-detect from user-triggered runs)."""
+    for attr in ("user_id", "user", "owner_id"):
+        value = getattr(collection, attr, None)
+        if isinstance(value, str) and value:
+            return value
+    return "system"
 
 
 # ---------------------------------------------------------------------
