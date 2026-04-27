@@ -1272,3 +1272,661 @@ async def test_w7_delete_relation_returns_false_when_absent():
     store = InMemoryLineageGraphStore()
     deleted = await store.delete_relation("Alice", "Bob", "knows")
     assert deleted is False
+
+
+# ---------------------------------------------------------------------
+# Group 6: Wave 7 W7-3 — ``GraphModalityWorker.sync()`` Phase 3
+# extension (compactor → embed → vector upsert → snapshot-diff
+# delete → merge candidate detector). Covers the InMemory reference
+# store; cross-backend coverage of the storage primitives lives in
+# ``tests/integration/compat/test_lineage_graph_compat.py`` (W7-1).
+# ---------------------------------------------------------------------
+
+
+from uuid import NAMESPACE_DNS, uuid5  # noqa: E402 — Wave 7 W7-3 group section import
+
+from aperag.vectorstore.dto import VectorPoint  # noqa: E402 — same
+
+
+class _StubCompactor:
+    """Stub :class:`GraphIndexCompactor` — returns whatever the test
+    wired into ``response`` (None to opt-out, str to overwrite)."""
+
+    def __init__(self, response: str | None = None, raise_after: int = 0) -> None:
+        self.response = response
+        self.calls: list[list[str]] = []
+        self._raise_after = raise_after
+
+    async def compact_if_oversized(self, parts: list[str]) -> str | None:
+        self.calls.append(list(parts))
+        if self._raise_after and len(self.calls) >= self._raise_after:
+            raise RuntimeError("simulated compactor failure")
+        return self.response
+
+
+class _StubVectorConnector:
+    """Captures upsert / delete calls against a deterministic embedder."""
+
+    def __init__(self, raise_on_upsert: bool = False) -> None:
+        self.upserts: list[list[VectorPoint]] = []
+        self.deletes: list[list[str]] = []
+        self._raise_on_upsert = raise_on_upsert
+
+    def upsert(self, points: list[VectorPoint]) -> list[str]:
+        if self._raise_on_upsert:
+            raise RuntimeError("simulated vector upsert failure")
+        self.upserts.append(list(points))
+        return [p.id for p in points]
+
+    def delete(self, ids: list[str]) -> None:
+        self.deletes.append(list(ids))
+
+
+def _stub_embedder(text: str) -> list[float]:
+    # Deterministic 4-dim embedding so tests can compare equality.
+    h = abs(hash(text)) % 1000
+    return [float(h % 7) / 7.0, float(h % 11) / 11.0, float(h % 13) / 13.0, float(h % 17) / 17.0]
+
+
+class _StubMergeDetector:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, list[str]]] = []
+
+    async def detect_for_sync(self, *, sync_run_id: str, affected_entity_names: Sequence[str]) -> int:
+        self.calls.append((sync_run_id, list(affected_entity_names)))
+        return len(affected_entity_names)
+
+
+def _phase3_worker(
+    *,
+    store: InMemoryLineageGraphStore,
+    entity_lock: EntityLock,
+    object_store: InMemoryObjectStore,
+    document_id: str,
+    entities_per_doc: dict[str, list[EntityRecord]] | None = None,
+    relations_per_doc: dict[str, list[RelationRecord]] | None = None,
+    compactor: Any = None,
+    embedder: Any = None,
+    vector_connector: Any = None,
+    merge_detector: Any = None,
+) -> GraphModalityWorker:
+    async def extractor(
+        chunks: Sequence[dict[str, Any]],
+    ) -> tuple[list[EntityRecord], list[RelationRecord]]:
+        del chunks
+        return (
+            list((entities_per_doc or {}).get(document_id, [])),
+            list((relations_per_doc or {}).get(document_id, [])),
+        )
+
+    return GraphModalityWorker(
+        store=store,
+        extractor=extractor,
+        entity_lock=entity_lock,
+        object_store=object_store,
+        collection_id=COLLECTION_ID,
+        tenant_scope_key=DEFAULT_TENANT,
+        compactor=compactor,
+        embedder=embedder,
+        vector_connector=vector_connector,
+        merge_detector=merge_detector,
+    )
+
+
+def _expected_entity_id(name: str) -> str:
+    return str(uuid5(NAMESPACE_DNS, f"graph_entity:{COLLECTION_ID}:{name}"))
+
+
+def _expected_relation_id(source: str, target: str, type_: str) -> str:
+    return str(uuid5(NAMESPACE_DNS, f"graph_relation:{COLLECTION_ID}:{source}->{target}:{type_}"))
+
+
+@pytest.mark.asyncio
+async def test_w7_phase3_skipped_when_vector_deps_unwired(store, entity_lock, object_store):
+    """Wave 6 backward-compat: a worker with no embedder /
+    vector_connector behaves exactly as the lineage-only Wave 6
+    version — no Phase 3 side effects."""
+    entities_per_doc = {
+        "doc_A": [
+            EntityRecord(
+                name="Linus",
+                entity_type="Person",
+                description="kernel hacker",
+                source_chunk_ids=("doc_A-v1-c0",),
+            )
+        ]
+    }
+    worker = _phase3_worker(
+        store=store,
+        entity_lock=entity_lock,
+        object_store=object_store,
+        document_id="doc_A",
+        entities_per_doc=entities_per_doc,
+        # All Phase 3 deps deliberately None.
+    )
+    await _derive_then_sync(
+        worker=worker,
+        document_id="doc_A",
+        parse_version="v1",
+        object_store=object_store,
+    )
+    # Lineage rebuild still happened (Wave 6 path).
+    entity = await store.get_entity("Linus")
+    assert entity is not None
+    assert entity.compacted_description is None  # Phase 3 skipped — no compactor write.
+
+
+@pytest.mark.asyncio
+async def test_w7_phase3_writes_vector_point_with_3_field_payload(store, entity_lock, object_store):
+    """Spec §K.12.5 lock: vector point payload is 3 fields exactly
+    (``indexer`` / ``entity_name`` / ``entity_type``); no
+    ``collection_id`` payload (that lives in the uuid5 id instead so
+    a shared backing store still has cross-collection unique ids)."""
+    entities_per_doc = {
+        "doc_A": [
+            EntityRecord(
+                name="Linus",
+                entity_type="Person",
+                description="kernel hacker",
+                source_chunk_ids=("doc_A-v1-c0",),
+            )
+        ]
+    }
+    vector = _StubVectorConnector()
+    worker = _phase3_worker(
+        store=store,
+        entity_lock=entity_lock,
+        object_store=object_store,
+        document_id="doc_A",
+        entities_per_doc=entities_per_doc,
+        embedder=_stub_embedder,
+        vector_connector=vector,
+    )
+    await _derive_then_sync(
+        worker=worker,
+        document_id="doc_A",
+        parse_version="v1",
+        object_store=object_store,
+    )
+
+    assert len(vector.upserts) == 1
+    [point] = vector.upserts[0]
+    assert point.id == _expected_entity_id("Linus")
+    assert point.payload == {
+        "indexer": "graph_entity",
+        "entity_name": "Linus",
+        "entity_type": "Person",
+    }
+    # 3 fields strict — no collection_id leakage.
+    assert "collection_id" not in point.payload
+
+
+@pytest.mark.asyncio
+async def test_w7_phase3_uuid5_id_is_deterministic(store, entity_lock, object_store):
+    """Same (collection, name) MUST produce identical uuid5 across
+    calls so vector upsert overwrites the existing point instead of
+    leaving stale duplicates (forward-only retry safety)."""
+    entities_per_doc = {
+        "doc_A": [
+            EntityRecord(
+                name="Linus",
+                entity_type="Person",
+                description="rev1",
+                source_chunk_ids=("c0",),
+            )
+        ]
+    }
+    vector = _StubVectorConnector()
+    worker = _phase3_worker(
+        store=store,
+        entity_lock=entity_lock,
+        object_store=object_store,
+        document_id="doc_A",
+        entities_per_doc=entities_per_doc,
+        embedder=_stub_embedder,
+        vector_connector=vector,
+    )
+    # First sync.
+    await _derive_then_sync(
+        worker=worker,
+        document_id="doc_A",
+        parse_version="v1",
+        object_store=object_store,
+    )
+    first_id = vector.upserts[0][0].id
+    # Re-sync same doc same content — id MUST match (deterministic).
+    await _derive_then_sync(
+        worker=worker,
+        document_id="doc_A",
+        parse_version="v1",
+        object_store=object_store,
+    )
+    assert vector.upserts[1][0].id == first_id
+    assert first_id == _expected_entity_id("Linus")
+
+
+@pytest.mark.asyncio
+async def test_w7_phase3_compactor_runs_before_embed(store, entity_lock, object_store):
+    """Spec §K.12.3 invariant #3 ordering: compactor MUST run before
+    the vector embed step so the embedded text is the LLM-summarised
+    version, not the raw concat. We assert by wiring a compactor that
+    returns ``"COMPACTED"`` and checking that the embed input matches."""
+    entities_per_doc = {
+        "doc_A": [
+            EntityRecord(
+                name="Linus",
+                entity_type="Person",
+                description="raw text",
+                source_chunk_ids=("c0",),
+            )
+        ]
+    }
+    compactor = _StubCompactor(response="COMPACTED")
+    vector = _StubVectorConnector()
+    captured_embed_inputs: list[str] = []
+
+    def capturing_embedder(text: str) -> list[float]:
+        captured_embed_inputs.append(text)
+        return _stub_embedder(text)
+
+    worker = _phase3_worker(
+        store=store,
+        entity_lock=entity_lock,
+        object_store=object_store,
+        document_id="doc_A",
+        entities_per_doc=entities_per_doc,
+        compactor=compactor,
+        embedder=capturing_embedder,
+        vector_connector=vector,
+    )
+    await _derive_then_sync(
+        worker=worker,
+        document_id="doc_A",
+        parse_version="v1",
+        object_store=object_store,
+    )
+    # Compactor was called with the per-doc parts text.
+    assert compactor.calls == [["raw text"]]
+    # Embed input is the compacted summary, not the raw text.
+    assert captured_embed_inputs == ["COMPACTED"]
+    # Storage row also carries the compacted value for downstream readers.
+    entity = await store.get_entity("Linus")
+    assert entity is not None
+    assert entity.compacted_description == "COMPACTED"
+
+
+@pytest.mark.asyncio
+async def test_w7_phase3_compactor_none_falls_back_to_raw_text(store, entity_lock, object_store):
+    """Compactor returning ``None`` (below threshold) leaves the
+    storage column untouched and the embedder gets the
+    ``name + raw parts`` fallback string."""
+    entities_per_doc = {
+        "doc_A": [
+            EntityRecord(
+                name="Linus",
+                entity_type="Person",
+                description="short",
+                source_chunk_ids=("c0",),
+            )
+        ]
+    }
+    compactor = _StubCompactor(response=None)
+    vector = _StubVectorConnector()
+    captured: list[str] = []
+
+    def capturing(text: str) -> list[float]:
+        captured.append(text)
+        return _stub_embedder(text)
+
+    worker = _phase3_worker(
+        store=store,
+        entity_lock=entity_lock,
+        object_store=object_store,
+        document_id="doc_A",
+        entities_per_doc=entities_per_doc,
+        compactor=compactor,
+        embedder=capturing,
+        vector_connector=vector,
+    )
+    await _derive_then_sync(
+        worker=worker,
+        document_id="doc_A",
+        parse_version="v1",
+        object_store=object_store,
+    )
+    assert captured == ["Linus\n\nshort"]
+    entity = await store.get_entity("Linus")
+    assert entity is not None
+    assert entity.compacted_description is None  # COALESCE preserve.
+
+
+@pytest.mark.asyncio
+async def test_w7_phase3_snapshot_diff_deletes_gc_vector_points(store, entity_lock, object_store):
+    """Doc-delete cascade: the entity gc'd by Phase 1 MUST have its
+    vector point deleted in Phase 3 step C — using the lineage-store
+    name set diff (not an ANN list-all per invariant #7)."""
+    # Sync 1: doc_A produces ``Linus``.
+    entities_per_doc_v1 = {
+        "doc_A": [
+            EntityRecord(
+                name="Linus",
+                entity_type="Person",
+                description="kernel hacker",
+                source_chunk_ids=("c0",),
+            )
+        ]
+    }
+    vector = _StubVectorConnector()
+    worker_v1 = _phase3_worker(
+        store=store,
+        entity_lock=entity_lock,
+        object_store=object_store,
+        document_id="doc_A",
+        entities_per_doc=entities_per_doc_v1,
+        embedder=_stub_embedder,
+        vector_connector=vector,
+    )
+    await _derive_then_sync(
+        worker=worker_v1,
+        document_id="doc_A",
+        parse_version="v1",
+        object_store=object_store,
+    )
+    assert len(vector.upserts) == 1  # Linus upserted.
+
+    # Sync 2: doc_A re-parsed but no longer mentions Linus → entity
+    # gc'd → vector point should be deleted by snapshot-diff.
+    entities_per_doc_v2 = {"doc_A": []}
+    worker_v2 = _phase3_worker(
+        store=store,
+        entity_lock=entity_lock,
+        object_store=object_store,
+        document_id="doc_A",
+        entities_per_doc=entities_per_doc_v2,
+        embedder=_stub_embedder,
+        vector_connector=vector,
+    )
+    await _derive_then_sync(
+        worker=worker_v2,
+        document_id="doc_A",
+        parse_version="v2",
+        object_store=object_store,
+    )
+    # No new upsert (kg.jsonl empty).
+    assert len(vector.upserts) == 1
+    # Snapshot-diff issued a delete for Linus' vector point.
+    assert vector.deletes == [[_expected_entity_id("Linus")]]
+
+
+@pytest.mark.asyncio
+async def test_w7_phase3_snapshot_diff_preserves_cross_doc_entity(store, entity_lock, object_store):
+    """Cross-doc shared entity: when doc_A is re-parsed and drops
+    Linus, but doc_B still mentions him, Phase 3 MUST NOT delete the
+    vector point (post_sync set still contains Linus from doc_B)."""
+    # Seed both docs.
+    vector = _StubVectorConnector()
+    entities_per_doc = {
+        "doc_A": [
+            EntityRecord(
+                name="Linus",
+                entity_type="Person",
+                description="kernel hacker per doc_A",
+                source_chunk_ids=("c0",),
+            )
+        ],
+        "doc_B": [
+            EntityRecord(
+                name="Linus",
+                entity_type="Person",
+                description="kernel hacker per doc_B",
+                source_chunk_ids=("c10",),
+            )
+        ],
+    }
+    worker_a = _phase3_worker(
+        store=store,
+        entity_lock=entity_lock,
+        object_store=object_store,
+        document_id="doc_A",
+        entities_per_doc=entities_per_doc,
+        embedder=_stub_embedder,
+        vector_connector=vector,
+    )
+    worker_b = _phase3_worker(
+        store=store,
+        entity_lock=entity_lock,
+        object_store=object_store,
+        document_id="doc_B",
+        entities_per_doc=entities_per_doc,
+        embedder=_stub_embedder,
+        vector_connector=vector,
+    )
+    await _derive_then_sync(
+        worker=worker_a,
+        document_id="doc_A",
+        parse_version="v1",
+        object_store=object_store,
+    )
+    await _derive_then_sync(
+        worker=worker_b,
+        document_id="doc_B",
+        parse_version="v1",
+        object_store=object_store,
+    )
+    # Re-sync doc_A with no entities — Linus survives via doc_B.
+    entities_per_doc_v2 = {"doc_A": [], "doc_B": entities_per_doc["doc_B"]}
+    worker_a_v2 = _phase3_worker(
+        store=store,
+        entity_lock=entity_lock,
+        object_store=object_store,
+        document_id="doc_A",
+        entities_per_doc=entities_per_doc_v2,
+        embedder=_stub_embedder,
+        vector_connector=vector,
+    )
+    await _derive_then_sync(
+        worker=worker_a_v2,
+        document_id="doc_A",
+        parse_version="v2",
+        object_store=object_store,
+    )
+    # No deletes — Linus still alive via doc_B's lineage.
+    assert vector.deletes == []
+
+
+@pytest.mark.asyncio
+async def test_w7_phase3_relation_vector_upsert_payload_and_id(store, entity_lock, object_store):
+    """Relation Phase 3 mirrors entity: 3-field payload with
+    ``indexer="graph_relation"``, uuid5 id formatted
+    ``graph_relation:<cid>:<src>-><tgt>:<type>``."""
+    entities_per_doc = {
+        "doc_A": [
+            EntityRecord(name="Alice", entity_type="Person", description="a", source_chunk_ids=("c0",)),
+            EntityRecord(name="Bob", entity_type="Person", description="b", source_chunk_ids=("c0",)),
+        ]
+    }
+    relations_per_doc = {
+        "doc_A": [
+            RelationRecord(
+                source="Alice",
+                target="Bob",
+                relation_type="knows",
+                description="Alice knows Bob",
+                source_chunk_ids=("c0",),
+            )
+        ]
+    }
+    vector = _StubVectorConnector()
+    worker = _phase3_worker(
+        store=store,
+        entity_lock=entity_lock,
+        object_store=object_store,
+        document_id="doc_A",
+        entities_per_doc=entities_per_doc,
+        relations_per_doc=relations_per_doc,
+        embedder=_stub_embedder,
+        vector_connector=vector,
+    )
+    await _derive_then_sync(
+        worker=worker,
+        document_id="doc_A",
+        parse_version="v1",
+        object_store=object_store,
+    )
+    # 3 upserts: 2 entities + 1 relation.
+    upserted_ids = {pts[0].id for pts in vector.upserts}
+    upserted_payloads = {pts[0].payload["indexer"] for pts in vector.upserts}
+    assert _expected_relation_id("Alice", "Bob", "knows") in upserted_ids
+    assert "graph_relation" in upserted_payloads
+    # Find the relation point and validate payload shape.
+    relation_points = [pts[0] for pts in vector.upserts if pts[0].payload["indexer"] == "graph_relation"]
+    assert len(relation_points) == 1
+    rel_payload = relation_points[0].payload
+    assert rel_payload == {
+        "indexer": "graph_relation",
+        "entity_name": "Alice->Bob",
+        "entity_type": "knows",
+    }
+
+
+@pytest.mark.asyncio
+async def test_w7_phase3_merge_detector_invoked_with_affected_names(store, entity_lock, object_store):
+    """Step D wiring: when a detector is wired, Phase 3 calls
+    ``detect_for_sync`` exactly once per sync, with the entity names
+    just touched by this sync (per D-3 — incremental detection only)."""
+    entities_per_doc = {
+        "doc_A": [
+            EntityRecord(name="Alice", entity_type="Person", description="a", source_chunk_ids=("c0",)),
+            EntityRecord(name="Bob", entity_type="Person", description="b", source_chunk_ids=("c0",)),
+        ]
+    }
+    detector = _StubMergeDetector()
+    worker = _phase3_worker(
+        store=store,
+        entity_lock=entity_lock,
+        object_store=object_store,
+        document_id="doc_A",
+        entities_per_doc=entities_per_doc,
+        embedder=_stub_embedder,
+        vector_connector=_StubVectorConnector(),
+        merge_detector=detector,
+    )
+    await _derive_then_sync(
+        worker=worker,
+        document_id="doc_A",
+        parse_version="v1",
+        object_store=object_store,
+    )
+    assert len(detector.calls) == 1
+    sync_run_id, names = detector.calls[0]
+    assert sync_run_id == f"{COLLECTION_ID}:doc_A:v1"
+    assert sorted(names) == ["Alice", "Bob"]
+
+
+@pytest.mark.asyncio
+async def test_w7_phase3_merge_detector_failure_is_non_fatal(store, entity_lock, object_store):
+    """Detector throwing must NOT abort sync — Phase 3 step D is
+    best-effort (write-only auxiliary, not on the lineage critical
+    path). The lineage rebuild + vector upsert that ran before it
+    must remain intact."""
+
+    class _RaisingDetector:
+        async def detect_for_sync(self, *, sync_run_id, affected_entity_names):
+            raise RuntimeError("simulated detector failure")
+
+    entities_per_doc = {
+        "doc_A": [
+            EntityRecord(name="Linus", entity_type="Person", description="raw", source_chunk_ids=("c0",)),
+        ]
+    }
+    vector = _StubVectorConnector()
+    worker = _phase3_worker(
+        store=store,
+        entity_lock=entity_lock,
+        object_store=object_store,
+        document_id="doc_A",
+        entities_per_doc=entities_per_doc,
+        embedder=_stub_embedder,
+        vector_connector=vector,
+        merge_detector=_RaisingDetector(),
+    )
+    await _derive_then_sync(
+        worker=worker,
+        document_id="doc_A",
+        parse_version="v1",
+        object_store=object_store,
+    )
+    # Lineage + vector upsert succeeded.
+    assert (await store.get_entity("Linus")) is not None
+    assert len(vector.upserts) == 1
+
+
+@pytest.mark.asyncio
+async def test_w7_phase3_compactor_failure_falls_back(store, entity_lock, object_store):
+    """Compactor failing (LLM flake) must NOT abort sync — vector
+    upsert continues with the raw description fallback (forward-only
+    retry safety)."""
+    entities_per_doc = {
+        "doc_A": [
+            EntityRecord(name="Linus", entity_type="Person", description="raw", source_chunk_ids=("c0",)),
+        ]
+    }
+    compactor = _StubCompactor(raise_after=1)
+    vector = _StubVectorConnector()
+    captured: list[str] = []
+
+    def capturing(text: str) -> list[float]:
+        captured.append(text)
+        return _stub_embedder(text)
+
+    worker = _phase3_worker(
+        store=store,
+        entity_lock=entity_lock,
+        object_store=object_store,
+        document_id="doc_A",
+        entities_per_doc=entities_per_doc,
+        compactor=compactor,
+        embedder=capturing,
+        vector_connector=vector,
+    )
+    await _derive_then_sync(
+        worker=worker,
+        document_id="doc_A",
+        parse_version="v1",
+        object_store=object_store,
+    )
+    # Embedder ran with the fallback.
+    assert captured == ["Linus\n\nraw"]
+    # Vector upsert still happened.
+    assert len(vector.upserts) == 1
+
+
+@pytest.mark.asyncio
+async def test_w7_phase3_vector_upsert_failure_is_non_fatal(store, entity_lock, object_store):
+    """Vector connector raising on upsert must NOT abort sync — the
+    failure is logged and lineage state is unaffected."""
+    entities_per_doc = {
+        "doc_A": [
+            EntityRecord(name="Linus", entity_type="Person", description="raw", source_chunk_ids=("c0",)),
+        ]
+    }
+    vector = _StubVectorConnector(raise_on_upsert=True)
+    worker = _phase3_worker(
+        store=store,
+        entity_lock=entity_lock,
+        object_store=object_store,
+        document_id="doc_A",
+        entities_per_doc=entities_per_doc,
+        embedder=_stub_embedder,
+        vector_connector=vector,
+    )
+    await _derive_then_sync(
+        worker=worker,
+        document_id="doc_A",
+        parse_version="v1",
+        object_store=object_store,
+    )
+    # Lineage row still present.
+    assert (await store.get_entity("Linus")) is not None
+    # No upsert recorded (raised before append).
+    assert vector.upserts == []

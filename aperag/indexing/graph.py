@@ -93,7 +93,8 @@ import logging
 from collections.abc import AsyncIterator, Iterable, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Protocol
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Protocol
+from uuid import NAMESPACE_DNS, uuid5
 
 from aperag.indexing.base import DeriveResult, ModalityWorker
 from aperag.indexing.models import Modality
@@ -104,6 +105,11 @@ from aperag.indexing.object_store import (
 )
 from aperag.indexing.parser import read_chunks
 from aperag.objectstore.base import ObjectStore as _SyncObjectStore
+
+if TYPE_CHECKING:  # pragma: no cover — TYPE_CHECKING-only imports avoid circular deps
+    from aperag.indexing.graph_compactor import GraphIndexCompactor
+    from aperag.indexing.merge_candidate_detector import MergeCandidateDetector
+    from aperag.vectorstore.base import VectorStoreConnector
 
 logger = logging.getLogger(__name__)
 
@@ -1118,6 +1124,10 @@ class GraphModalityWorker(ModalityWorker):
         object_store: _SyncObjectStore,
         collection_id: str,
         tenant_scope_key: str,
+        compactor: "GraphIndexCompactor | None" = None,
+        embedder: Callable[[str], list[float]] | None = None,
+        vector_connector: "VectorStoreConnector | None" = None,
+        merge_detector: "MergeCandidateDetector | None" = None,
     ) -> None:
         """Construct a graph worker bound to a single tenant scope.
 
@@ -1127,6 +1137,28 @@ class GraphModalityWorker(ModalityWorker):
         ``sync`` so the SET-level tenant attribution survives the
         artifact round-trip and is available to read-path ACL
         filtering.
+
+        Wave 7 W7-3 dependencies (all optional — when omitted the
+        sync() worker degrades to Wave 6 lineage-only behaviour and
+        skips Phase 3 entirely):
+
+        * ``compactor`` (Wave 7 W7-2): produces a single bounded LLM
+          summary from the per-doc ``description_parts`` list. Skipped
+          when ``None`` — the entity's existing ``compacted_description``
+          (potentially set by a prior sync or curation merge) is left
+          alone.
+        * ``embedder``: sync ``(text -> list[float])`` callable; mirrors
+          the ``EmbeddingService.embed_query`` signature used by the
+          vector worker. Required for Step B (vector upsert) and the
+          merge detector to function.
+        * ``vector_connector``: a :class:`VectorStoreConnector` already
+          per-tenant bound (the connector enforces the tenant guard so
+          the per-point payload is 3-field — see §K.12.5 ratify
+          msg=acbd0003 / msg=d3f4e6f8). Required for Steps B + C.
+        * ``merge_detector`` (Wave 7 W7-4): writes PENDING auto-detect
+          ``GraphCurationSuggestion`` rows. Skipped when ``None`` —
+          the detector is a write-only auxiliary, not on the lineage
+          critical path.
         """
         self._store = store
         self._extractor = extractor
@@ -1134,6 +1166,10 @@ class GraphModalityWorker(ModalityWorker):
         self._object_store = object_store
         self._collection_id = collection_id
         self._tenant_scope_key = tenant_scope_key
+        self._compactor = compactor
+        self._embedder = embedder
+        self._vector_connector = vector_connector
+        self._merge_detector = merge_detector
 
     # ---- derive -----------------------------------------------------
 
@@ -1265,6 +1301,359 @@ class GraphModalityWorker(ModalityWorker):
             len(entities),
             len(relations),
         )
+
+        # ---- Phase 3: Wave 7 W7-3 — compact + embed + vector upsert
+        # + snapshot-diff vector cleanup + merge candidate detect.
+        #
+        # The phase is opt-in: a worker constructed without
+        # ``embedder`` / ``vector_connector`` (e.g. unit tests, dev
+        # scripts) skips all four steps and degrades to Wave 6
+        # lineage-only behaviour. Production deployments wire the
+        # dependencies in ``worker_factory._build_graph_worker``.
+        #
+        # Step ordering (per spec §K.12.3 + huangheng msg=16a38734
+        # 7-invariant): Compactor → embed → vector upsert →
+        # snapshot-diff delete → merge detector. Out-of-order would
+        # break invariant #3 (Compactor must run before vector embed)
+        # or invariant #7 (snapshot-diff entity-name set must be
+        # captured *after* lineage rebuild + gc).
+        await self._post_sync_vector_pipeline(
+            document_id=document_id,
+            parse_version=parse_version,
+            kg_entity_records=entities,
+            kg_relation_records=relations,
+            pre_sync_entity_names=set(affected_entity_ids),
+            pre_sync_relation_keys=set(affected_relation_keys),
+        )
+
+    # ---- Phase 3 helpers (Wave 7 W7-3) ------------------------------
+
+    async def _post_sync_vector_pipeline(
+        self,
+        *,
+        document_id: str,
+        parse_version: str,
+        kg_entity_records: Sequence[EntityRecord],
+        kg_relation_records: Sequence[RelationRecord],
+        pre_sync_entity_names: set[str],
+        pre_sync_relation_keys: set[tuple[str, str, str]],
+    ) -> None:
+        """Phase 3: compact → embed → vector upsert → snapshot-diff
+        delete → merge detector. See ``sync`` docstring for invariant
+        ordering rationale.
+
+        Skips entirely when both ``embedder`` and ``vector_connector``
+        are unwired — the post-Wave-7 production wiring always pairs
+        them, but unit tests for Phase 1+2 algorithm coverage can
+        construct the worker without these dependencies.
+        """
+        if self._vector_connector is None or self._embedder is None:
+            return  # Wave 6 backward-compat: lineage-only sync.
+
+        # Step A — Compactor: write ``compacted_description`` for each
+        # entity / relation that this sync just touched. The
+        # ``upsert_*_with_lineage`` kwarg ``compacted_description``
+        # uses COALESCE-style preserve, so passing ``None`` (when
+        # compactor opts out or is unwired) does NOT clear an existing
+        # cache; only a real summary string overwrites.
+        affected_entities_for_phase3: list[EntityWithLineage] = []
+        for entity_record in kg_entity_records:
+            entity = await self._store.get_entity(entity_record.name)
+            if entity is None:
+                # Entity was extracted in this sync but is not in the
+                # store anymore — should be impossible after Phase 2,
+                # but guard against partial-write races.
+                continue
+            compacted = await self._maybe_compact(entity)
+            if compacted is not None:
+                lineage = LineageMember(
+                    document_id=document_id,
+                    parse_version=parse_version,
+                    tenant_scope_key=self._tenant_scope_key,
+                    chunk_ids=entity_record.source_chunk_ids,
+                )
+                async with self._entity_lock.acquire(entity_record.name):
+                    await self._store.upsert_entity_with_lineage(
+                        record=entity_record,
+                        lineage=lineage,
+                        compacted_description=compacted,
+                    )
+                # Refresh the in-memory copy so Step B embeds the new
+                # compacted string, not the stale read-before-write.
+                entity = EntityWithLineage(
+                    name=entity.name,
+                    entity_type=entity.entity_type,
+                    source_lineage=entity.source_lineage,
+                    description_parts=entity.description_parts,
+                    compacted_description=compacted,
+                )
+            affected_entities_for_phase3.append(entity)
+
+        affected_relations_for_phase3: list[RelationWithLineage] = []
+        for relation_record in kg_relation_records:
+            relation = await self._store.get_relation(
+                relation_record.source,
+                relation_record.target,
+                relation_record.relation_type,
+            )
+            if relation is None:
+                continue
+            compacted_rel = await self._maybe_compact_relation(relation)
+            if compacted_rel is not None:
+                lineage = LineageMember(
+                    document_id=document_id,
+                    parse_version=parse_version,
+                    tenant_scope_key=self._tenant_scope_key,
+                    chunk_ids=relation_record.source_chunk_ids,
+                )
+                lock_key = _relation_lock_key(
+                    relation_record.source,
+                    relation_record.target,
+                    relation_record.relation_type,
+                )
+                async with self._entity_lock.acquire(lock_key):
+                    await self._store.upsert_relation_with_lineage(
+                        record=relation_record,
+                        lineage=lineage,
+                        compacted_description=compacted_rel,
+                    )
+                relation = RelationWithLineage(
+                    source=relation.source,
+                    target=relation.target,
+                    relation_type=relation.relation_type,
+                    evidence_lineage=relation.evidence_lineage,
+                    description_parts=relation.description_parts,
+                    compacted_description=compacted_rel,
+                )
+            affected_relations_for_phase3.append(relation)
+
+        # Step B — Embed + vector upsert (3-field payload, uuid5 id
+        # includes collection_id for cross-collection uniqueness in a
+        # shared backing store; per-tenant guard is the connector's
+        # responsibility — see spec §K.12.5 lock).
+        for entity in affected_entities_for_phase3:
+            await self._upsert_entity_vector_point(entity)
+        for relation in affected_relations_for_phase3:
+            await self._upsert_relation_vector_point(relation)
+
+        # Step C — Snapshot-diff delete: drop vector points for any
+        # entity / relation that pre-sync had a row but post-sync does
+        # not (gc_*_if_orphan deleted it during Phase 1). Computing the
+        # diff on lineage-store names instead of an ANN list-all is
+        # invariant #7 — the vector backend is treated as derivable
+        # state, the lineage store is the source of truth.
+        post_sync_entity_names = await self._capture_entity_names(
+            kg_entity_records=kg_entity_records,
+            pre_sync_entity_names=pre_sync_entity_names,
+        )
+        gc_entity_names = pre_sync_entity_names - post_sync_entity_names
+        if gc_entity_names:
+            ids = [self._entity_vector_id(name) for name in gc_entity_names]
+            await asyncio.to_thread(self._vector_connector.delete, ids)
+
+        post_sync_relation_keys = await self._capture_relation_keys(
+            kg_relation_records=kg_relation_records,
+            pre_sync_relation_keys=pre_sync_relation_keys,
+        )
+        gc_relation_keys = pre_sync_relation_keys - post_sync_relation_keys
+        if gc_relation_keys:
+            ids = [self._relation_vector_id(*key) for key in gc_relation_keys]
+            await asyncio.to_thread(self._vector_connector.delete, ids)
+
+        # Step D — Merge candidate detection (write-only, D-3 lock —
+        # detector writes PENDING ``GraphCurationSuggestion`` rows for
+        # the curator UI; never auto-merges).
+        if self._merge_detector is not None:
+            affected_names = [e.name for e in affected_entities_for_phase3]
+            sync_run_id = f"{self._collection_id}:{document_id}:{parse_version}"
+            try:
+                await self._merge_detector.detect_for_sync(
+                    sync_run_id=sync_run_id,
+                    affected_entity_names=affected_names,
+                )
+            except Exception:  # noqa: BLE001 — detector failure must not break sync
+                logger.warning(
+                    "graph.sync merge_detector failed (non-fatal) collection=%s document=%s",
+                    self._collection_id,
+                    document_id,
+                    exc_info=True,
+                )
+
+    async def _maybe_compact(self, entity: EntityWithLineage) -> str | None:
+        """Run the compactor over an entity's ``description_parts``;
+        return the new summary or ``None`` (caller leaves the column
+        alone — COALESCE preserve)."""
+        if self._compactor is None:
+            return None
+        parts_text = [p.text for p in entity.description_parts if p.text]
+        try:
+            return await self._compactor.compact_if_oversized(parts_text)
+        except Exception:  # noqa: BLE001 — compactor LLM may flake
+            logger.warning(
+                "graph.sync compactor failed for entity=%r (non-fatal)",
+                entity.name,
+                exc_info=True,
+            )
+            return None
+
+    async def _maybe_compact_relation(self, relation: RelationWithLineage) -> str | None:
+        if self._compactor is None:
+            return None
+        parts_text = [p.text for p in relation.description_parts if p.text]
+        try:
+            return await self._compactor.compact_if_oversized(parts_text)
+        except Exception:  # noqa: BLE001
+            logger.warning(
+                "graph.sync compactor failed for relation=%s->%s:%s (non-fatal)",
+                relation.source,
+                relation.target,
+                relation.relation_type,
+                exc_info=True,
+            )
+            return None
+
+    async def _upsert_entity_vector_point(self, entity: EntityWithLineage) -> None:
+        """Embed the entity's compacted description (or fallback to
+        ``name + parts`` concat when compactor declined or unwired) and
+        upsert one Qdrant-style point. Connector handles tenant guard;
+        payload is the 3-field shape locked at spec §K.12.5."""
+        text = self._embed_text_for_entity(entity)
+        if not text:
+            return
+        try:
+            embedding = await asyncio.to_thread(self._embedder, text)
+        except Exception:  # noqa: BLE001
+            logger.warning(
+                "graph.sync embedder failed for entity=%r (non-fatal)",
+                entity.name,
+                exc_info=True,
+            )
+            return
+        from aperag.vectorstore.dto import VectorPoint
+
+        point = VectorPoint(
+            id=self._entity_vector_id(entity.name),
+            vector=list(embedding),
+            payload={
+                "indexer": "graph_entity",
+                "entity_name": entity.name,
+                "entity_type": entity.entity_type,
+            },
+        )
+        try:
+            await asyncio.to_thread(self._vector_connector.upsert, [point])
+        except Exception:  # noqa: BLE001
+            logger.warning(
+                "graph.sync vector upsert failed for entity=%r (non-fatal)",
+                entity.name,
+                exc_info=True,
+            )
+
+    async def _upsert_relation_vector_point(self, relation: RelationWithLineage) -> None:
+        text = self._embed_text_for_relation(relation)
+        if not text:
+            return
+        try:
+            embedding = await asyncio.to_thread(self._embedder, text)
+        except Exception:  # noqa: BLE001
+            logger.warning(
+                "graph.sync embedder failed for relation=%s->%s:%s (non-fatal)",
+                relation.source,
+                relation.target,
+                relation.relation_type,
+                exc_info=True,
+            )
+            return
+        from aperag.vectorstore.dto import VectorPoint
+
+        point = VectorPoint(
+            id=self._relation_vector_id(relation.source, relation.target, relation.relation_type),
+            vector=list(embedding),
+            payload={
+                "indexer": "graph_relation",
+                "entity_name": f"{relation.source}->{relation.target}",
+                "entity_type": relation.relation_type,
+            },
+        )
+        try:
+            await asyncio.to_thread(self._vector_connector.upsert, [point])
+        except Exception:  # noqa: BLE001
+            logger.warning(
+                "graph.sync vector upsert failed for relation=%s->%s:%s (non-fatal)",
+                relation.source,
+                relation.target,
+                relation.relation_type,
+                exc_info=True,
+            )
+
+    @staticmethod
+    def _embed_text_for_entity(entity: EntityWithLineage) -> str:
+        # Prefer compactor's summary; fallback joins ``name`` + raw
+        # description parts so newly-extracted entities (compactor
+        # below threshold) still get vectorised.
+        if entity.compacted_description:
+            return entity.compacted_description
+        body = "\n\n".join(p.text for p in entity.description_parts if p.text)
+        if body:
+            return f"{entity.name}\n\n{body}"
+        return entity.name
+
+    @staticmethod
+    def _embed_text_for_relation(relation: RelationWithLineage) -> str:
+        if relation.compacted_description:
+            return relation.compacted_description
+        body = "\n\n".join(p.text for p in relation.description_parts if p.text)
+        head = f"{relation.source} -[{relation.relation_type}]-> {relation.target}"
+        if body:
+            return f"{head}\n\n{body}"
+        return head
+
+    def _entity_vector_id(self, entity_name: str) -> str:
+        return str(uuid5(NAMESPACE_DNS, f"graph_entity:{self._collection_id}:{entity_name}"))
+
+    def _relation_vector_id(self, source: str, target: str, relation_type: str) -> str:
+        return str(
+            uuid5(
+                NAMESPACE_DNS,
+                f"graph_relation:{self._collection_id}:{source}->{target}:{relation_type}",
+            )
+        )
+
+    async def _capture_entity_names(
+        self,
+        *,
+        kg_entity_records: Sequence[EntityRecord],
+        pre_sync_entity_names: set[str],
+    ) -> set[str]:
+        """Build the post-sync entity-name set: every entity that was
+        in the sync's kg.jsonl plus any pre-existing entity from
+        ``pre_sync_entity_names`` that survived ``gc_entity_if_orphan``
+        (it had lineage from another doc / parse_version)."""
+        post: set[str] = {r.name for r in kg_entity_records}
+        # Pre-existing entities — only include those still present after
+        # Phase 1 gc (other documents' lineage kept them alive).
+        for name in pre_sync_entity_names:
+            if name in post:
+                continue
+            row = await self._store.get_entity(name)
+            if row is not None:
+                post.add(name)
+        return post
+
+    async def _capture_relation_keys(
+        self,
+        *,
+        kg_relation_records: Sequence[RelationRecord],
+        pre_sync_relation_keys: set[tuple[str, str, str]],
+    ) -> set[tuple[str, str, str]]:
+        post: set[tuple[str, str, str]] = {r.relation_key() for r in kg_relation_records}
+        for key in pre_sync_relation_keys:
+            if key in post:
+                continue
+            row = await self._store.get_relation(*key)
+            if row is not None:
+                post.add(key)
+        return post
 
 
 def _relation_lock_key(source: str, target: str, type: str) -> str:
