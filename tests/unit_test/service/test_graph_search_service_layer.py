@@ -69,8 +69,7 @@ def _make_entity(
             for doc, ver, cs in chunks
         ),
         description_parts=tuple(
-            DescriptionPart(document_id=doc, parse_version=ver, text=text)
-            for doc, ver, text in parts
+            DescriptionPart(document_id=doc, parse_version=ver, text=text) for doc, ver, text in parts
         ),
         compacted_description=compacted,
     )
