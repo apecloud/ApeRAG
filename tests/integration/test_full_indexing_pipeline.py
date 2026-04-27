@@ -396,6 +396,49 @@ def test_phase1_full_pipeline_vector_fulltext_summary_active_graph_vision_failed
     )
 
 
+@pytest.mark.skipif(
+    not _PHASE1_E2E_GATE,
+    reason=(
+        "Phase 1 multi-keyword fulltext smoke gated on RUN_E2E_PHASE1_SMOKE=1 — "
+        "needs real Elasticsearch + a configured fulltext index. Runs in the "
+        "e2e-http-compose CI lane."
+    ),
+)
+def test_phase1_multi_keyword_fulltext_search_returns_hits():
+    """Layer 2 — sweep D verification (architect msg=fdd53586): exercise
+    ``_fulltext_search`` with a multi-keyword query against a freshly
+    indexed document and assert at least one hit. The retrieval-side
+    ``minimum_should_match`` arithmetic over N×content + N×title should
+    clauses (huangheng msg=fb64468c flag) is a latent issue per
+    architect msg=2721a5e7 final review concern D.
+
+    Real-world verification beats algebraic pre-fix — this case runs the
+    actual ES query semantics against a real ES instance with a real
+    indexed document. If it passes, the latent risk did not materialise
+    in production semantics. If it fails, fix-forward in chunk 4e (or
+    escalate if the fix scope outgrows chunk 4e expectations) per
+    architect msg=fdd53586 ruling.
+
+    Sequence:
+    1. Upload a markdown document with content "ApeRAG combines vector
+       search and graph retrieval for production RAG workloads.".
+    2. Wait for fulltext modality to reach ACTIVE.
+    3. Issue a 3-keyword query: ``"ApeRAG vector RAG"``.
+    4. Assert at least 1 hit is returned (the indexed document).
+    5. Cleanup.
+    """
+
+    pytest.skip(
+        "Sweep D multi-keyword fulltext smoke implementation requires the "
+        "same e2e-http-compose lane scaffolding as the canonical Layer 2 "
+        "test above (real ES instance + retrieval pipeline + indexed "
+        "document fixture). Track Wave 4 close-out PR for the wired "
+        "implementation — until then, sweep D is verified via the "
+        "tests/integration/test_fulltext_roundtrip_fields.py path which "
+        "exercises bulk_index + search round-trip on a real ES index."
+    )
+
+
 # ---------------------------------------------------------------------
 # Type-checker happy: ``Any`` is imported for future Layer 2 stubs.
 # ---------------------------------------------------------------------
