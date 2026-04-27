@@ -10,25 +10,31 @@ into the periodic loops in ``aperag/indexing/{cleanup,reconciler}.py``
 
 Pattern map (per architect msg=3890c9d7):
 - ``collection_delete_task``           — Pattern A (durability-required;
-                                         must NOT be fire-and-forget; the
-                                         caller calls synchronously +
-                                         cascades through path C cleanup)
+                                         caller invokes synchronously;
+                                         body marks ``Collection.deleted_at``
+                                         and the periodic Path-C
+                                         ``cleanup_for_deleted_collections``
+                                         sweep cascades the deletion)
 - ``collection_init_task``             — Pattern C (idempotent;
-                                         ``asyncio.create_task()`` ok)
+                                         ``asyncio.create_task()`` ok;
+                                         body now only flips
+                                         ``Collection.status=ACTIVE`` —
+                                         per-modality index provisioning
+                                         is implicit lazy in the new
+                                         modality-worker model)
 - ``collection_summary_task``          — Pattern C (regenerable;
                                          ``asyncio.create_task()`` ok)
 - ``export_collection_task``           — Pattern C (resumable; user can
                                          retry on failure;
                                          ``asyncio.create_task()`` ok)
-- ``cleanup_expired_documents_task``   — Pattern B (periodic; commit 5
-                                         wires into 5-min cleanup loop)
-- ``reconcile_collection_summaries_task`` — Pattern B (periodic; commit 5
-                                         wires into 30-s reconciler loop)
-
-The function bodies still call legacy ``aperag/tasks/collection.py:
-collection_task.<method>()`` and ``aperag/tasks/reconciler.py:*``
-helpers; commit 5 moves / inlines those helpers when it deletes the
-legacy ``aperag/tasks/`` layer entirely.
+- ``cleanup_expired_documents_task``   — Pattern B (periodic; wired into
+                                         the 5-min loop in
+                                         ``aperag/indexing/cleanup.py``
+                                         via ``cleanup_expired_documents_hook``)
+- ``reconcile_collection_summaries_task`` — Pattern B (periodic; wired into
+                                         the 30-s loop in
+                                         ``aperag/indexing/reconciler.py``
+                                         via ``reconcile_collection_summaries_hook``)
 """
 
 import concurrent.futures
@@ -43,7 +49,6 @@ import zipfile
 from datetime import timedelta
 from typing import Callable, Optional
 
-from aperag.tasks.collection import collection_task
 from aperag.utils.utils import utc_now
 
 EXPORT_CHUNK_SIZE = 64 * 1024  # 64 KB
@@ -240,19 +245,21 @@ def _validate_collection_summary_relevance(summary_id: str, target_version: int,
 def reconcile_collection_summaries_task() -> None:
     """Pattern B: periodic reconcile of collection summary specs with statuses.
 
-    No longer a Celery task. Commit 5 wires this into the
-    ``aperag/indexing/reconciler.py`` 30-s loop alongside the existing
-    PENDING-dispatch / FAILED-retry / RUNNING-reclaim scans.
+    Wave 3 hard-cut: now a thin sync shim around
+    :func:`aperag.indexing.reconciler.reconcile_collection_summaries_hook`,
+    which is the canonical entry point invoked by the 30-s reconciler
+    loop. The hook is async (Pattern C dispatch via
+    ``asyncio.create_task``); this shim adapts via ``asyncio.run`` for
+    the rare sync-only direct caller. The Celery beat schedule that
+    previously called this is gone.
     """
+    import asyncio
+
     try:
         logger.info("Starting collection summary reconciliation")
+        from aperag.indexing.reconciler import reconcile_collection_summaries_hook
 
-        # Import here to avoid circular dependencies
-        from aperag.tasks.reconciler import collection_summary_reconciler
-
-        # Run reconciliation
-        collection_summary_reconciler.reconcile_all()
-
+        asyncio.run(reconcile_collection_summaries_hook())
         logger.info("Collection summary reconciliation completed")
 
     except Exception as e:
@@ -261,46 +268,82 @@ def reconcile_collection_summaries_task() -> None:
 
 
 def collection_delete_task(collection_id: str) -> dict:
-    """Pattern A: synchronous collection delete + cleanup cascade.
+    """Pattern A: synchronous collection-deletion mark + path-C cascade.
 
-    Caller (``collection_service.py:delete_collection``) invokes this
-    SYNCHRONOUSLY in the HTTP handler — durability-required, NOT
-    fire-and-forget per architect msg=3890c9d7 Pattern A. A failure
-    surfaces as an HTTP 500 + an unfinished delete; the user can retry,
-    and the periodic cleanup loop sweeps any orphaned rows.
+    Per architect msg=3890c9d7 Pattern A spec: HTTP handler invokes this
+    SYNCHRONOUSLY; the body marks the collection ``deleted_at = NOW()``
+    so the periodic cleanup loop (5-min,
+    ``aperag/indexing/cleanup.py:cleanup_for_deleted_collections``)
+    picks it up and cascades through path B per-document cleanup. The
+    cascade is durability-required — losing the mark = orphan rows +
+    storage. The HTTP handler must NOT wrap this in
+    ``asyncio.create_task()``.
 
-    Returns the legacy ``CollectionTask.delete_collection()`` result
-    dict so the HTTP handler can surface success / failure to the
-    client unchanged.
+    The 1-min worst-case cleanup latency is acceptable for the user
+    (collection deletion is a low-frequency op + the user already saw
+    the HTTP 200 by the time the periodic sweep runs).
     """
+    from sqlalchemy import update
+
+    from aperag.config import get_sync_session
+    from aperag.domains.knowledge_base.db.models import Collection, CollectionStatus
+
     try:
-        result = collection_task.delete_collection(collection_id)
-        if not result.success:
-            raise Exception(result.error)
-        logger.info(f"Collection {collection_id} deleted successfully")
-        return result.to_dict()
+        for session in get_sync_session():
+            session.execute(
+                update(Collection)
+                .where(Collection.id == collection_id)
+                .values(
+                    status=CollectionStatus.DELETED,
+                    gmt_deleted=utc_now(),
+                    gmt_updated=utc_now(),
+                )
+            )
+            session.commit()
+        logger.info(f"Collection {collection_id} marked deleted (path-C cascade pending periodic sweep)")
+        return {"success": True, "collection_id": collection_id, "status": "deleted"}
 
     except Exception as e:
         logger.error(f"Collection deletion failed for {collection_id}: {str(e)}")
-        # No Celery retry — caller raises HTTP 500 + the periodic
-        # cleanup loop (path C `cleanup_for_deleted_collections`)
-        # picks up any tombstoned rows on the next 5-min sweep.
         raise
 
 
 def collection_init_task(collection_id: str, document_user_quota: int) -> dict:
     """Pattern C: fire-and-forget collection initialization.
 
-    Caller wraps in ``asyncio.create_task()`` after the HTTP response
-    is returned. Idempotent — re-running on a partially-initialized
-    collection completes the missing pieces.
+    Wave 3 hard-cut: collection-level index initialization is implicit
+    in the new modality-worker model — per-document modality dispatch
+    (via ``aperag.indexing.dispatcher.dispatch_indexing()``) creates
+    the ES index / Qdrant collection lazily on first sync. This task
+    body now only flips ``Collection.status = ACTIVE`` so the HTTP
+    UI can show the collection as ready; the actual index provisioning
+    happens on the first document upload.
+
+    ``document_user_quota`` is preserved in the signature for caller
+    compatibility but is no longer load-bearing in the task body
+    (quota enforcement lives in the T2.2 quota lane, not at
+    collection-init time).
     """
+    from sqlalchemy import update
+
+    from aperag.config import get_sync_session
+    from aperag.domains.knowledge_base.db.models import Collection, CollectionStatus
+
     try:
-        result = collection_task.initialize_collection(collection_id, document_user_quota)
-        if not result.success:
-            raise Exception(result.error)
-        logger.info(f"Collection {collection_id} initialized successfully")
-        return result.to_dict()
+        for session in get_sync_session():
+            session.execute(
+                update(Collection)
+                .where(Collection.id == collection_id)
+                .values(status=CollectionStatus.ACTIVE, gmt_updated=utc_now())
+            )
+            session.commit()
+        logger.info(f"Collection {collection_id} initialized (status=ACTIVE; index provisioning lazy on first upload)")
+        return {
+            "success": True,
+            "collection_id": collection_id,
+            "status": "initialized",
+            "document_user_quota": document_user_quota,
+        }
 
     except Exception as e:
         logger.error(f"Collection initialization failed for {collection_id}: {str(e)}")
@@ -382,18 +425,66 @@ def collection_summary_task(summary_id: str, collection_id: str, target_version:
 def cleanup_expired_documents_task() -> dict:
     """Pattern B: periodic cleanup of expired uploaded documents.
 
-    No longer a Celery task. Commit 5 wires this into the existing
-    ``aperag/indexing/cleanup.py`` 5-min loop alongside the existing
-    orphan-parse-version GC.
+    Wave 3 hard-cut: now an inlined SQL tombstone scan + soft-delete
+    of documents in ``UPLOADED`` status > 1 day old (per legacy
+    ``CollectionTask.cleanup_expired_documents`` contract). The
+    surrounding 5-min loop (``aperag/indexing/cleanup.py``) calls this
+    via :func:`cleanup_expired_documents_hook`.
     """
+    from sqlalchemy import and_, select
+
+    from aperag.config import get_sync_session
+    from aperag.domains.knowledge_base.db.models import Document, DocumentStatus
+    from aperag.objectstore.base import get_object_store
+
     logger.info("Starting cleanup_expired_documents")
 
-    # Import here to avoid circular dependencies
-    from aperag.tasks.reconciler import collection_gc_reconciler
+    expired_count = 0
+    failed_count = 0
+    total_found = 0
+    obj_store = get_object_store()
+    expiration_threshold = utc_now() - timedelta(days=1)
 
-    result = collection_gc_reconciler.reconcile_all()
+    for session in get_sync_session():
+        stmt = select(Document).where(
+            and_(
+                Document.status == DocumentStatus.UPLOADED,
+                Document.gmt_created < expiration_threshold,
+            )
+        )
+        expired_documents = list(session.execute(stmt).scalars().all())
+        total_found = len(expired_documents)
 
-    logger.info(f"Celery task completed with result: {result}")
+        for document in expired_documents:
+            try:
+                # Best-effort object-store cleanup; log + continue on failure
+                # so a transient storage hiccup does not block the DB tombstone.
+                try:
+                    obj_store.delete_objects_by_prefix(document.object_store_base_path())
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning(
+                        "Failed to delete objects for expired document %s from object store: %s",
+                        document.id,
+                        exc,
+                    )
+
+                document.status = DocumentStatus.EXPIRED
+                document.gmt_updated = utc_now()
+                session.add(document)
+                expired_count += 1
+            except Exception as exc:  # noqa: BLE001
+                failed_count += 1
+                logger.error(f"Failed to cleanup expired document {document.id}: {exc}")
+
+        session.commit()
+        break  # only one yielded session per get_sync_session
+
+    result = {
+        "expired_count": expired_count,
+        "failed_count": failed_count,
+        "total_found": total_found,
+    }
+    logger.info(f"cleanup_expired_documents completed: {result}")
     return result
 
 

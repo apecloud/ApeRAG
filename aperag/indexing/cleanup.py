@@ -608,7 +608,15 @@ async def run_cleanup_loop(
     interval_seconds: int = CLEANUP_INTERVAL_SECONDS,
     cooldown_seconds: int = ORPHAN_COOLDOWN_SECONDS,
 ) -> None:
-    """Run :func:`cleanup_orphan_parse_versions` every ``interval_seconds``.
+    """Run cleanup scans every ``interval_seconds``.
+
+    Two scans per cycle (Wave 3 Pattern B integration per architect
+    msg=3890c9d7):
+
+    - :func:`cleanup_orphan_parse_versions` — orphan parse_v GC (path A)
+    - :func:`cleanup_expired_documents_hook` — soft-delete documents
+      stuck in UPLOADED status > 1 day (replaces legacy
+      ``cleanup_expired_documents_task`` Celery beat schedule)
 
     A cycle that throws is logged and the loop continues — DB
     unreachable / Redis blip should not crash the cleanup process.
@@ -630,15 +638,34 @@ async def run_cleanup_loop(
         except Exception as exc:  # noqa: BLE001 — keep loop alive
             logger.exception("cleanup cycle failed: %s", exc)
         try:
+            await cleanup_expired_documents_hook()
+        except Exception as exc:  # noqa: BLE001 — Pattern B hook never crashes loop
+            logger.exception("cleanup_expired_documents_hook failed: %s", exc)
+        try:
             await asyncio.wait_for(shutdown.wait(), timeout=interval_seconds)
         except asyncio.TimeoutError:
             continue
+
+
+async def cleanup_expired_documents_hook() -> None:
+    """Pattern B periodic hook — Wave 3 architect msg=3890c9d7.
+
+    Thin async wrapper over the legacy-equivalent
+    ``aperag.domains.knowledge_base.tasks.cleanup_expired_documents_task``
+    body (sync SQL tombstone scan). Imported lazily to avoid the
+    circular ``cleanup → knowledge_base → cleanup`` dependency at
+    module load time.
+    """
+    from aperag.domains.knowledge_base.tasks import cleanup_expired_documents_task
+
+    await asyncio.to_thread(cleanup_expired_documents_task)
 
 
 __all__ = [
     "CLEANUP_BATCH_SIZE",
     "CLEANUP_INTERVAL_SECONDS",
     "ORPHAN_COOLDOWN_SECONDS",
+    "cleanup_expired_documents_hook",
     "cleanup_for_deleted_collections",
     "cleanup_for_deleted_documents",
     "cleanup_orphan_parse_versions",
