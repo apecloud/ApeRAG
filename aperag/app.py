@@ -269,6 +269,29 @@ async def combined_lifespan(app: FastAPI):
         # — otherwise queue-backlog / failure-rate alerts on the
         # collector side never receive data.
         if settings.indexing_metrics_emitter.lower() == "otlp":
+            # Wave 5 P5B: cross-check that the broader observability
+            # mode is also OTLP-shaped — operators that flip
+            # ``INDEXING_METRICS_EMITTER=otlp`` without configuring
+            # the parent ``APERAG_OBSERVABILITY_MODE`` end up with
+            # an :class:`OTLPMetricsEmitter` whose underlying
+            # ``MeterProvider`` was never installed by
+            # ``aperag.observability.metrics.init_metrics_provider``.
+            # The samples then no-op silently — the same operator-
+            # visible failure mode we explicitly avoided when
+            # making ``noop`` the default.
+            obs_mode = (settings.aperag_observability_mode or "").lower()
+            if obs_mode not in ("otlp", "collector"):
+                import logging as _logging
+
+                _logging.getLogger(__name__).warning(
+                    "INDEXING_METRICS_EMITTER=otlp but APERAG_OBSERVABILITY_MODE=%r "
+                    "(expected 'otlp' or 'collector') — the OTLP MeterProvider "
+                    "may not be installed, indexing SLI samples will silently "
+                    "no-op. Set APERAG_OBSERVABILITY_MODE=otlp to enable real "
+                    "OTLP export, OR revert INDEXING_METRICS_EMITTER=noop to "
+                    "make the gap explicit.",
+                    settings.aperag_observability_mode,
+                )
             metrics_emitter = OTLPMetricsEmitter()
         else:
             metrics_emitter = NoopMetricsEmitter()

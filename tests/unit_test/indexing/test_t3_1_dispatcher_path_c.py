@@ -366,6 +366,7 @@ def test_path_c_handles_empty_input(engine):
         "graph_lineage_cleaned": 0,
         "rows_deleted": 0,
         "backend_skipped": 0,
+        "transient_deferred": 0,
         "collections_cleaned": 0,
     }
 

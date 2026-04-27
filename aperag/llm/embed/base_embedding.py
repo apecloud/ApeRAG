@@ -50,13 +50,22 @@ def get_embedding_service(model_id: str, user_id: str) -> tuple[EmbeddingService
     provider = invocation.runner_config.get("provider")
     if not provider:
         provider = "openai" if invocation.runner_type == "openai_compatible" else invocation.provider_type
+    # Wave 5 P2 chunk 3 (per §G.2.5.1 spec amend item 3): prefer the
+    # typed ``Model.supports_multimodal_embedding`` column when present,
+    # fall back to the legacy ``runner_config["multimodal"]`` JSON dict
+    # entry so collections / models created before the typed column
+    # landed keep working (operators who edited the JSON keep the same
+    # behaviour without re-saving the model row).
+    multimodal = bool(getattr(model, "supports_multimodal_embedding", False)) or bool(
+        invocation.runner_config.get("multimodal", False)
+    )
     embedding_svc = EmbeddingService(
         embedding_provider=provider,
         embedding_model=invocation.provider_model_id,
         embedding_service_url=invocation.base_url,
         embedding_service_api_key=invocation.api_key,
         embedding_max_chunks_in_batch=settings.embedding_max_chunks_in_batch,
-        multimodal=invocation.runner_config.get("multimodal", False),
+        multimodal=multimodal,
     )
     return embedding_svc, _get_embedding_dimension(embedding_svc, model_id, invocation.embedding_dimensions)
 

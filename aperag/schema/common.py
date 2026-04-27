@@ -144,6 +144,35 @@ class KnowledgeGraphConfig(BaseModel):
         description="List of entity types to extract during graph indexing",
         examples=[["organization", "person", "geo", "event"]],
     )
+    # Wave 5 P5A item 1 (per huangheng T1 obs A msg=6b349693): expose
+    # the LightRAG-style extractor's per-chunk caps + timeout as
+    # per-collection overrides so deployments tuning a slow LLM provider
+    # or extracting from very dense chunks can lift the defaults without
+    # patching ``aperag/indexing/graph_extractor.py`` constants.
+    per_chunk_timeout_seconds: Optional[float] = Field(
+        None,
+        description=(
+            "Per-chunk LLM call timeout (seconds); the extractor uses 60s "
+            "default if unset. Lift for slow / large-context multimodal models."
+        ),
+        examples=[120.0],
+    )
+    max_entities_per_chunk: Optional[int] = Field(
+        None,
+        description=(
+            "Cap on entities the extractor accepts per chunk; default 32 "
+            "if unset. Raise for entity-dense documents (legal / scientific)."
+        ),
+        examples=[64],
+    )
+    max_relations_per_chunk: Optional[int] = Field(
+        None,
+        description=(
+            "Cap on relations the extractor accepts per chunk; default 32 "
+            "if unset. Raise alongside max_entities for relation-dense docs."
+        ),
+        examples=[64],
+    )
 
 
 class IndexPrompts(BaseModel):

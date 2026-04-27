@@ -18,7 +18,7 @@ import asyncio
 import hashlib
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Dict, List, Sequence, Tuple
+from typing import Any, Dict, List, Sequence, Tuple
 
 import litellm
 
@@ -152,6 +152,113 @@ class EmbeddingService:
 
     def is_multimodal(self) -> bool:
         return self.multimodal
+
+    def embed_image(self, image_bytes: bytes, alt_text: str = "") -> List[float]:
+        """Embed image bytes into a vector via the configured multimodal model.
+
+        Wave 5 Phase 2 T7 item 1 per §G.2.5.1 amendment: the canonical
+        multimodal embedding API surface that the new vision modality
+        consumes (replacing the Wave 3 placeholder ``embed_query(f"{image_id}|
+        {alt_text}")`` string-concat pattern). Operators wire a real
+        multimodal embedder (CLIP / GPT-4V / etc.) on the collection's
+        embedder spec and set ``multimodal=True``; the chunk 4b vision
+        gate (``is_multimodal()`` check) then self-disables and the
+        worker_factory ``_build_vision_worker._embed`` callsite invokes
+        this method with real image bytes.
+
+        Encodes the image as a base64 data URL and forwards it to the
+        underlying LiteLLM-shaped embedding call via ``input=[{
+        "image_url": {"url": "data:image/...;base64,..."}}]`` — providers
+        that support multimodal embedding (Voyage AI, Jina v3, OpenAI
+        multimodal embeddings, etc.) accept this shape natively. If
+        ``multimodal=False`` (operator opted into vision without
+        configuring a multimodal embedder), raises ``EmbeddingError`` —
+        the worker_factory chunk 4b gate already prevents this state but
+        the runtime check is a defense-in-depth that surfaces clear
+        diagnostics if the gate is bypassed.
+
+        ``alt_text`` is appended as a textual hint for embedders that
+        accept paired text+image inputs (improves retrieval recall on
+        images with meaningful captions / OCR'd alt-text). Embedders
+        that ignore it (image-only embedders) silently drop it.
+
+        Wave 6 follow-up: provider-specific multimodal embedding
+        configuration (per-provider input format, MIME-type detection,
+        size limits) is staged in the cross-cutting refactor batch (per
+        §K.10 Wave 6 backlog). Until then, deployments that configure a
+        multimodal embedder must verify their provider accepts the
+        ``input=[{"image_url": {"url": "data:..."}}]`` shape (LiteLLM-
+        documented multimodal-capable providers).
+        """
+        if not self.multimodal:
+            raise EmbeddingError(
+                "embed_image called on a non-multimodal EmbeddingService — "
+                "set multimodal=True on the collection's embedder spec or "
+                "set collection.config.enable_vision=false until a real "
+                "multimodal embedder is configured (Wave 5 P2 §G.2.5.1)"
+            )
+        if not image_bytes:
+            raise EmptyTextError(1)
+        try:
+            return self._embed_image_via_litellm(image_bytes=image_bytes, alt_text=alt_text)
+        except (EmptyTextError, EmbeddingError):
+            raise
+        except Exception as e:
+            logger.error(f"Image embedding failed: {str(e)}")
+            raise wrap_litellm_error(e, "embedding", self.embedding_provider, self.model) from e
+
+    async def aembed_image(self, image_bytes: bytes, alt_text: str = "") -> List[float]:
+        return await asyncio.to_thread(self.embed_image, image_bytes, alt_text)
+
+    def _embed_image_via_litellm(self, *, image_bytes: bytes, alt_text: str) -> List[float]:
+        """Underlying LiteLLM multimodal embedding call.
+
+        Encodes the image as base64 data URL + builds the LiteLLM
+        ``input`` payload. Provider-specific input shape variations are
+        Wave 6 follow-up (per §K.10 Wave 6 backlog cross-cutting
+        refactor). Currently uses the documented LiteLLM-shaped
+        ``[{"image_url": {"url": "data:..."}}]`` input that
+        multimodal-capable providers (Voyage / Jina v3 / OpenAI multi-
+        modal / etc.) accept natively.
+        """
+        import base64
+        import imghdr
+
+        from litellm import embedding as litellm_embedding
+
+        # Detect MIME type from the image bytes header (avoids relying
+        # on caller-provided alt_text format hints). Falls back to
+        # image/jpeg if detection fails — most providers tolerate
+        # mismatched MIME on data-URL inputs.
+        kind = imghdr.what(None, h=image_bytes) or "jpeg"
+        mime = f"image/{kind}"
+        b64 = base64.b64encode(image_bytes).decode("ascii")
+        data_url = f"data:{mime};base64,{b64}"
+
+        input_payload: List[dict[str, Any]] = [{"image_url": {"url": data_url}}]
+        if alt_text and alt_text.strip():
+            # Pair the image with text for embedders that accept multi-
+            # part inputs; embedders that ignore text simply drop it.
+            input_payload.append({"text": alt_text.strip()})
+
+        response = litellm_embedding(
+            model=f"{self.embedding_provider}/{self.model}" if self.embedding_provider else self.model,
+            input=input_payload,
+            api_key=self.api_key,
+            api_base=self.base_url,
+        )
+        # LiteLLM normalises response shape to OpenAI-style; pull the
+        # embedding from the first (and only) data element.
+        data = getattr(response, "data", None) or response.get("data")  # type: ignore[union-attr]
+        if not data:
+            raise EmbeddingError("multimodal embedding response missing data field")
+        first = data[0]
+        embedding = getattr(first, "embedding", None)
+        if embedding is None and isinstance(first, dict):
+            embedding = first.get("embedding")
+        if embedding is None:
+            raise EmbeddingError("multimodal embedding response missing embedding field")
+        return list(embedding)
 
     def _embed_batch_with_indices(self, batch: Sequence[str], start_idx: int) -> List[Tuple[int, List[float]]]:
         """Process a batch of texts and return embeddings with their original indices."""

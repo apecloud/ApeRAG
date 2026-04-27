@@ -103,6 +103,7 @@ def _model_to_schema(model) -> Model:
         embedding_dimensions=model.embedding_dimensions,
         supports_vision=model.supports_vision,
         supports_tool_calling=model.supports_tool_calling,
+        supports_multimodal_embedding=getattr(model, "supports_multimodal_embedding", False) or False,
         status=model.status,
         extra=model.extra or {},
         created=model.gmt_created,

@@ -154,6 +154,65 @@ def test_resolve_language_handles_json_string_config():
     assert ge._resolve_language(_Stub()) == "ja-JP"
 
 
+def test_resolve_int_kg_config_reads_override():
+    """Wave 5 P5A item 1: per-collection ``max_entities_per_chunk`` /
+    ``max_relations_per_chunk`` overrides should win over the module
+    defaults so deployments tune entity-dense documents without
+    patching constants."""
+
+    class _Stub:
+        config = {
+            "knowledge_graph_config": {
+                "max_entities_per_chunk": 64,
+                "max_relations_per_chunk": 128,
+            }
+        }
+
+    assert ge._resolve_int_kg_config(_Stub(), "max_entities_per_chunk", 32) == 64
+    assert ge._resolve_int_kg_config(_Stub(), "max_relations_per_chunk", 32) == 128
+
+
+def test_resolve_int_kg_config_falls_back_when_missing():
+    class _Stub:
+        config = {"knowledge_graph_config": {}}
+
+    assert ge._resolve_int_kg_config(_Stub(), "max_entities_per_chunk", 32) == 32
+
+
+def test_resolve_int_kg_config_rejects_non_positive():
+    class _Stub:
+        config = {"knowledge_graph_config": {"max_entities_per_chunk": 0}}
+
+    assert ge._resolve_int_kg_config(_Stub(), "max_entities_per_chunk", 32) == 32
+
+
+def test_resolve_float_kg_config_reads_override():
+    """``per_chunk_timeout_seconds`` override lifts the 60s default for
+    slow / large-context multimodal models per huangheng T1 obs A."""
+
+    class _Stub:
+        config = {"knowledge_graph_config": {"per_chunk_timeout_seconds": 180.0}}
+
+    assert ge._resolve_float_kg_config(_Stub(), "per_chunk_timeout_seconds", 60.0) == 180.0
+
+
+def test_resolve_float_kg_config_handles_int_value():
+    """JSON / pydantic may surface integers where floats are expected;
+    the resolver must coerce them rather than fall back."""
+
+    class _Stub:
+        config = {"knowledge_graph_config": {"per_chunk_timeout_seconds": 120}}
+
+    assert ge._resolve_float_kg_config(_Stub(), "per_chunk_timeout_seconds", 60.0) == 120.0
+
+
+def test_resolve_float_kg_config_falls_back_on_garbage():
+    class _Stub:
+        config = {"knowledge_graph_config": {"per_chunk_timeout_seconds": "fast"}}
+
+    assert ge._resolve_float_kg_config(_Stub(), "per_chunk_timeout_seconds", 60.0) == 60.0
+
+
 def test_extractor_skips_chunks_with_empty_text():
     """A chunks dict missing or with empty ``text`` should be skipped
     silently — the LLM isn't called for it. Pin via an extractor
@@ -190,6 +249,7 @@ def test_extractor_skips_chunks_with_empty_text():
                 language="en-US",
                 max_entities=8,
                 max_relations=8,
+                timeout_seconds=60.0,
             )
 
         assert len(calls) == 1, "LLM should be called only once (for the non-empty chunk)"
@@ -213,7 +273,7 @@ def test_extractor_isolates_per_chunk_failures(monkeypatch: pytest.MonkeyPatch):
 
     # Stub the legacy integration so the extractor builder doesn't try
     # to look up a real model provider.
-    import aperag.domains.knowledge_graph.graphindex.integration as _integration
+    import aperag.indexing.llm as _integration
 
     monkeypatch.setattr(
         _integration,
@@ -242,7 +302,7 @@ def test_extractor_builder_raises_when_completion_model_missing(monkeypatch: pyt
     builder wraps the failure in :class:`WorkerFactoryError` so the
     orchestrator can finalise the row FAILED with a clear message."""
 
-    import aperag.domains.knowledge_graph.graphindex.integration as _integration
+    import aperag.indexing.llm as _integration
 
     def _no_llm(_coll):
         raise ValueError("no completion model configured for collection col-x")

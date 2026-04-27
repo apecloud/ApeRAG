@@ -25,13 +25,15 @@ must port cross-backend; this module realises both purely in Cypher
 without requiring APOC.
 
 Storage layout — one row per entity / relation, modelled as a label
-``LineageEntity`` / ``LineageRelation`` node (relations are NOT modelled
-as edges here because the §D.3 Protocol does not require traversal —
-that is a separate retrieval concern owned by the legacy ``GraphStore``;
-keeping relations as their own labelled nodes mirrors the Postgres
-two-table schema exactly):
+``aperag_LineageEntity`` / ``aperag_LineageRelation`` node (relations
+are NOT modelled as edges here because the §D.3 Protocol does not
+require traversal — that is a separate retrieval concern owned by the
+legacy ``GraphStore``; keeping relations as their own labelled nodes
+mirrors the Postgres two-table schema exactly). The ``aperag_`` label
+prefix (Wave 5 P5A item 4) prevents collisions with user-owned graphs
+in shared Neo4j deployments.
 
-    (:LineageEntity {
+    (:aperag_LineageEntity {
         collection_id, name, type,
         source_lineage,                  -- list<string>, JSON-encoded LineageMember
         source_lineage_doc_ids,          -- list<string>, parallel index, dedup + strip-by-doc filter
@@ -42,7 +44,7 @@ two-table schema exactly):
         gmt_created, gmt_updated
     })
 
-    (:LineageRelation {
+    (:aperag_LineageRelation {
         collection_id, source, target, type,
         evidence_lineage,
         evidence_lineage_doc_ids,
@@ -117,11 +119,21 @@ from aperag.indexing.graph import (
 logger = logging.getLogger(__name__)
 
 
-_ENTITY_LABEL = "LineageEntity"
-_RELATION_LABEL = "LineageRelation"
+# Wave 5 P5A item 4 (per `feedback_production_readiness_invariant.md`
+# multi-tenant Neo4j hygiene): namespace the lineage labels with an
+# ``aperag_`` prefix so deployments that share a Neo4j instance with
+# user-owned graphs don't collide on a generic ``LineageEntity`` /
+# ``LineageRelation`` label. Constraint names get the same prefix so
+# ``ensure_schema`` is idempotent against fresh and prefixed-but-already-
+# created clusters alike. Wave 4 graph indexing was gated behind
+# ``enable_knowledge_graph=False`` by default so there is no production
+# data on the legacy unprefixed labels — no data migration needed for
+# the hard-cut second-round bump.
+_ENTITY_LABEL = "aperag_LineageEntity"
+_RELATION_LABEL = "aperag_LineageRelation"
 
-_ENTITY_CONSTRAINT_NAME = "lineage_entity_collection_name_unique"
-_RELATION_CONSTRAINT_NAME = "lineage_relation_collection_triple_unique"
+_ENTITY_CONSTRAINT_NAME = "aperag_lineage_entity_collection_name_unique"
+_RELATION_CONSTRAINT_NAME = "aperag_lineage_relation_collection_triple_unique"
 
 
 # ---------------------------------------------------------------------

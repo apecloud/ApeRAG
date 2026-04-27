@@ -286,6 +286,7 @@ class AsyncLlmProviderRepositoryMixin(AsyncRepositoryProtocol):
         embedding_dimensions: int | None = None,
         supports_vision: bool = False,
         supports_tool_calling: bool = False,
+        supports_multimodal_embedding: bool = False,
         extra: dict | None = None,
     ) -> Model:
         async def _operation(session):
@@ -302,6 +303,7 @@ class AsyncLlmProviderRepositoryMixin(AsyncRepositoryProtocol):
                 embedding_dimensions=embedding_dimensions,
                 supports_vision=supports_vision,
                 supports_tool_calling=supports_tool_calling,
+                supports_multimodal_embedding=supports_multimodal_embedding,
                 extra=extra or {},
             )
             session.add(model)

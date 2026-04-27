@@ -158,9 +158,11 @@ from aperag.indexing.reconciler import (
     HEARTBEAT_STALE_SECONDS,
     RECONCILE_BATCH_SIZE,
     RECONCILE_INTERVAL_SECONDS,
+    STUCK_PARSE_COOLDOWN_SECONDS,
     reconcile_failed_retry,
     reconcile_pending_dispatch,
     reconcile_running_reclaim,
+    reconcile_stuck_documents_for_parse_reenqueue,
     run_reconcile_loop,
 )
 from aperag.indexing.summary import (
@@ -276,13 +278,15 @@ __all__ = [
     "process_one_parse_task",
     "run_parse_worker",
     "run_parse_worker_loop",
-    # Reconciler (T2.1)
+    # Reconciler (T2.1 + Wave 5 P4 stuck-parse re-enqueue)
     "RECONCILE_INTERVAL_SECONDS",
     "RECONCILE_BATCH_SIZE",
     "HEARTBEAT_STALE_SECONDS",
+    "STUCK_PARSE_COOLDOWN_SECONDS",
     "reconcile_pending_dispatch",
     "reconcile_failed_retry",
     "reconcile_running_reclaim",
+    "reconcile_stuck_documents_for_parse_reenqueue",
     "run_reconcile_loop",
     # Cleanup (T2.1 + T3.1 path C)
     "CLEANUP_INTERVAL_SECONDS",

@@ -106,6 +106,15 @@ class Model(BaseModel):
     embedding_dimensions: Optional[int] = None
     supports_vision: bool = False
     supports_tool_calling: bool = False
+    # Wave 5 P2 chunk 3 (per §G.2.5.1 spec amend item 3): a typed
+    # capability flag for embedding models that accept image bytes
+    # (CLIP / Voyage Multimodal / Jina v3 / OpenAI multimodal
+    # embeddings / etc.) and produce a single vector. Distinct from
+    # ``supports_vision`` which describes chat/completion models that
+    # accept images as input. Drives the chunk 4b vision gate's
+    # ``EmbeddingService.is_multimodal()`` runtime check — flip on the
+    # collection's embedder spec model and the gate self-disables.
+    supports_multimodal_embedding: bool = False
     status: Literal["ACTIVE", "INACTIVE"] = "ACTIVE"
     extra: dict[str, Any] = Field(default_factory=dict)
     created: Optional[datetime] = None
@@ -125,6 +134,7 @@ class ModelCreate(BaseModel):
     embedding_dimensions: Optional[int] = None
     supports_vision: bool = False
     supports_tool_calling: bool = False
+    supports_multimodal_embedding: bool = False
     extra: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -139,6 +149,7 @@ class ModelUpdate(BaseModel):
     embedding_dimensions: Optional[int] = None
     supports_vision: Optional[bool] = None
     supports_tool_calling: Optional[bool] = None
+    supports_multimodal_embedding: Optional[bool] = None
     status: Optional[Literal["ACTIVE", "INACTIVE"]] = None
     extra: Optional[dict[str, Any]] = None
 

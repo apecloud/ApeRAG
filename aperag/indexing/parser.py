@@ -166,15 +166,28 @@ class ParseResult:
     """Outcome of :func:`parse_document`.
 
     ``parse_version`` pins the (parser, content, chunking) triple so
-    callers can persist it on the ``DocumentIndex`` row. The three
-    artifact paths are the canonical names downstream modalities
-    expect to find under ``derived/parse_<version>/``.
+    callers can persist it on the ``DocumentIndex`` row. The artifact
+    paths are the canonical names downstream modalities expect to find
+    under ``derived/parse_<version>/``.
+
+    Wave 5 P2 chunk 2 (per §G.2.5.1 spec amend item 2): when DocParser
+    produces ``AssetBinPart`` payloads (PDF page images / single-image
+    inputs / data-URI extracted images), the parser writes each blob to
+    ``derived/parse_<v>/vision/images/<image_id>.<ext>`` and lands a
+    ``vision/source.jsonl`` descriptor enumerating them. The vision
+    worker consumes the descriptor (chunk 4 callsite rewrite) instead
+    of the T1 simulator's synthetic ``images.json`` companion. The
+    descriptor path is empty when the parsed document has no image
+    assets — vision modality short-circuits to the no-image FAILED
+    handling already in place.
     """
 
     parse_version: str
     markdown_path: str
     outline_path: str
     chunks_path: str
+    vision_source_path: str = ""
+    vision_image_count: int = 0
 
 
 # ---------------------------------------------------------------------
@@ -329,28 +342,108 @@ def _document_md5(source_bytes: bytes) -> str:
     return hashlib.md5(source_bytes).hexdigest()
 
 
+def _all_artifacts_present(
+    *,
+    store: _SyncObjectStore,
+    markdown_path: str,
+    outline_path: str,
+    chunks_path: str,
+) -> bool:
+    """Wave 5 P4 short-circuit predicate: all three canonical
+    derived artifacts must exist for the cached parse to be valid.
+
+    Uses ``ObjectStore.obj_exists`` (cheap metadata check) rather
+    than ``read_or_none`` so the predicate stays cost-bounded for
+    every parse call. ``chunks.jsonl`` is checked last because it is
+    the only artifact downstream modality workers actually read; if
+    it is missing the previous parse was interrupted mid-write and
+    re-parsing is required regardless.
+    """
+    try:
+        return store.obj_exists(markdown_path) and store.obj_exists(outline_path) and store.obj_exists(chunks_path)
+    except Exception:  # noqa: BLE001 — predicate fails closed (re-parse)
+        return False
+
+
+# ---------------------------------------------------------------------
+# Vision asset extraction helpers — Wave 5 P2 chunk 2
+# ---------------------------------------------------------------------
+
+
+# MIME-type → file extension lookup. Provider-specific extras (HEIC,
+# AVIF, etc.) drop through to the generic ``.bin`` fallback rather
+# than rejecting the asset — the vision worker uses ``imghdr`` on the
+# image bytes themselves at embed time, so the on-disk filename
+# extension is informational only.
+_MIME_EXTENSION_MAP: dict[str, str] = {
+    "image/jpeg": "jpg",
+    "image/jpg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/gif": "gif",
+    "image/bmp": "bmp",
+    "image/tiff": "tiff",
+    "image/svg+xml": "svg",
+}
+
+
+def _vision_image_extension(mime_type: str | None) -> str:
+    if not mime_type:
+        return "bin"
+    key = mime_type.split(";", 1)[0].strip().lower()
+    return _MIME_EXTENSION_MAP.get(key, "bin")
+
+
+@dataclass(frozen=True)
+class _VisionImageAsset:
+    """Internal carrier for a single extracted image asset.
+
+    Holds enough to land both the blob (under ``vision/images/``) and
+    its row in the ``vision/source.jsonl`` descriptor consumed by the
+    vision worker (chunk 4). ``image_id`` is the canonical ``asset_id``
+    DocParser already computes (md5 of the image bytes), so two parses
+    of the same content produce the same image_id and downstream
+    identity (``vision:<doc_id>:<parse_v>:<image_id>`` Qdrant point id)
+    stays stable across retries.
+    """
+
+    image_id: str
+    data: bytes
+    mime_type: str
+    alt_text: str
+    page_idx: int | None
+    bbox: list[float] | None
+
+
 def _docparser_extract_markdown(
     *,
     source_bytes: bytes,
     extension: str,
     parser_config: dict[str, Any] | None,
-) -> str:
-    """Run :class:`DocParser` on ``source_bytes`` and return concatenated markdown.
+) -> tuple[str, list[_VisionImageAsset]]:
+    """Run :class:`DocParser` on ``source_bytes`` and return both
+    concatenated markdown AND the extracted vision image assets.
+
+    Wave 5 P2 chunk 2 (per §G.2.5.1 item 2): the assets list carries
+    every :class:`AssetBinPart` whose ``mime_type`` is a recognised
+    image type. Audio / video / PDF-data assets are dropped — only
+    images participate in the vision modality. The caller writes the
+    blobs out under ``derived/parse_<v>/vision/images/`` plus a
+    descriptor JSONL line for each.
 
     Materialises the bytes into a tempfile (DocParser only accepts a
     real path on disk because MarkItDown / MinerU / OCR all stream
     from disk), runs the parser chain, then collects every
-    :class:`MarkdownPart` body in order. Non-markdown parts (assets /
-    images / pdf data) are not used here — they belong to the
-    vision modality's ``derive`` step (T1.4) and the cleanup loop's
-    asset GC (T2.1), not the shared markdown contract.
+    :class:`MarkdownPart` body in order. Non-image asset parts (PDF
+    data, audio, etc.) belong to other modalities or to the cleanup
+    loop's asset GC (T2.1), not the shared markdown contract.
 
     DocParser is imported lazily so the indexing package's __init__
     does not pull MarkItDown / MinerU / pikepdf at import time
     (matches the existing T1.1 lazy-import discipline that kept the
     Wave 3 hard-cut circular-import-free).
     """
-    from aperag.docparser.base import MarkdownPart
+    from aperag.docparser.base import AssetBinPart, MarkdownPart
     from aperag.docparser.doc_parser import DocParser
 
     # Use the suffix the caller already normalised so the temp filename
@@ -379,14 +472,44 @@ def _docparser_extract_markdown(
             os.unlink(tmp_path)
 
     markdown_parts = [p.markdown for p in parts if isinstance(p, MarkdownPart) and p.markdown]
+    seen_image_ids: set[str] = set()
+    image_assets: list[_VisionImageAsset] = []
+    for part in parts:
+        if not isinstance(part, AssetBinPart):
+            continue
+        mime = (part.mime_type or "").lower()
+        if not mime.startswith("image/"):
+            continue
+        if not part.data:
+            continue
+        if part.asset_id in seen_image_ids:
+            # Same image referenced twice in the document → keep the
+            # first record + drop the duplicate so the descriptor has a
+            # single canonical row per image_id. The Qdrant point id
+            # would have collided otherwise.
+            continue
+        seen_image_ids.add(part.asset_id)
+        metadata = part.metadata or {}
+        image_assets.append(
+            _VisionImageAsset(
+                image_id=part.asset_id,
+                data=part.data,
+                mime_type=mime,
+                alt_text=str(metadata.get("alt_text") or part.content or ""),
+                page_idx=metadata.get("page_idx") if isinstance(metadata.get("page_idx"), int) else None,
+                bbox=metadata.get("bbox") if isinstance(metadata.get("bbox"), list) else None,
+            )
+        )
+
     if not markdown_parts:
         # Image-only / audio-only inputs (no MarkdownPart) currently
         # have nothing for the outline + chunks pipeline to emit; we
         # return an empty body so the artifacts exist but downstream
-        # vector / fulltext modalities see zero chunks. Vision modality
-        # consumes the original asset directly in its derive step.
-        return ""
-    return "\n\n".join(markdown_parts)
+        # vector / fulltext modalities see zero chunks. Image-only
+        # uploads still land their assets via the descriptor below so
+        # the vision modality has bytes to embed.
+        return ("", image_assets)
+    return ("\n\n".join(markdown_parts), image_assets)
 
 
 def parse_document(
@@ -398,6 +521,7 @@ def parse_document(
     source_filename: str | None = None,
     parser_config: dict[str, Any] | None = None,
     config: ParseConfig | None = None,
+    short_circuit_if_artifacts_exist: bool = True,
 ) -> ParseResult:
     """Parse the source bytes and persist the three shared artifacts.
 
@@ -405,6 +529,16 @@ def parse_document(
     identical inputs produces identical artifacts (and overwrites
     them atomically). The artifact paths are the canonical
     ``derived/parse_<version>/`` layout per design pack §C.1.
+
+    Wave 5 P4 short-circuit: when ``short_circuit_if_artifacts_exist``
+    is True (default) and all three derived artifacts (``markdown.md``
+    / ``outline.json`` / ``chunks.jsonl``) already exist in the object
+    store under the canonical ``derived/parse_<version>/`` path, the
+    parser **skips DocParser + writes entirely** and returns the
+    existing :class:`ParseResult`. This eliminates the ~30s OCR / Word
+    rerun cost when a document is re-uploaded with identical content
+    or a rebuild is dispatched against an already-parsed version
+    (per huangheng T3 chunk 2 obs B + architect Wave 5 P4 lock).
 
     Dispatch (Wave 4 T3 chunk 1):
     - ``source_filename`` ends in a known text extension (``.md`` /
@@ -433,6 +567,12 @@ def parse_document(
             to the real parser chain. Ignored on the simulator path.
         config: Parsing knobs that influence the parse_version. Pass
             ``None`` to use simulator defaults.
+        short_circuit_if_artifacts_exist: When True (default), reuse
+            existing canonical artifacts if all three are already in
+            the object store under the resolved
+            ``derived/parse_<version>/`` path. Pass ``False`` to force
+            a re-parse + re-write (used by tests pinning DocParser
+            invocation count).
     """
     from aperag.mcp.tools.parse_version import compute_parse_version
 
@@ -445,30 +585,6 @@ def parse_document(
         document_md5=document_md5,
         chunking_config=cfg.chunking.serialize(),
     )
-
-    if extension is None or extension in _SIMULATOR_EXTENSIONS:
-        try:
-            markdown = source_bytes.decode("utf-8")
-        except UnicodeDecodeError as exc:
-            # Caller passed text-extension or no extension hint but the
-            # bytes are not UTF-8. Surface the contract gap clearly so
-            # the upload route logs a real cause; production callers
-            # always pass an accurate ``source_filename`` so this only
-            # fires on test misuse.
-            raise ValueError(
-                f"simulator parser path requires UTF-8 markdown bytes "
-                f"(extension={extension or 'none'}); pass source_filename "
-                f"with the real extension to dispatch to DocParser"
-            ) from exc
-    else:
-        markdown = _docparser_extract_markdown(
-            source_bytes=source_bytes,
-            extension=extension,
-            parser_config=parser_config,
-        )
-
-    outline = _build_outline(markdown)
-    chunks = _split_chunks(markdown, cfg.chunking)
 
     markdown_path = derived_artifact(
         collection_id=collection_id,
@@ -489,6 +605,51 @@ def parse_document(
         filename="chunks.jsonl",
     )
 
+    if short_circuit_if_artifacts_exist and _all_artifacts_present(
+        store=store,
+        markdown_path=markdown_path,
+        outline_path=outline_path,
+        chunks_path=chunks_path,
+    ):
+        logger.info(
+            "indexing parser short-circuit collection=%s document=%s parse_version=%s "
+            "(all derived artifacts already present; skipping DocParser + writes)",
+            collection_id,
+            document_id,
+            parse_version,
+        )
+        return ParseResult(
+            parse_version=parse_version,
+            markdown_path=markdown_path,
+            outline_path=outline_path,
+            chunks_path=chunks_path,
+        )
+
+    image_assets: list[_VisionImageAsset] = []
+    if extension is None or extension in _SIMULATOR_EXTENSIONS:
+        try:
+            markdown = source_bytes.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            # Caller passed text-extension or no extension hint but the
+            # bytes are not UTF-8. Surface the contract gap clearly so
+            # the upload route logs a real cause; production callers
+            # always pass an accurate ``source_filename`` so this only
+            # fires on test misuse.
+            raise ValueError(
+                f"simulator parser path requires UTF-8 markdown bytes "
+                f"(extension={extension or 'none'}); pass source_filename "
+                f"with the real extension to dispatch to DocParser"
+            ) from exc
+    else:
+        markdown, image_assets = _docparser_extract_markdown(
+            source_bytes=source_bytes,
+            extension=extension,
+            parser_config=parser_config,
+        )
+
+    outline = _build_outline(markdown)
+    chunks = _split_chunks(markdown, cfg.chunking)
+
     write_atomic(store, markdown_path, markdown.encode("utf-8"))
     write_atomic(
         store,
@@ -501,14 +662,25 @@ def parse_document(
         ("\n".join(json.dumps(c, ensure_ascii=False) for c in chunks) + "\n").encode("utf-8"),
     )
 
+    vision_source_path = ""
+    if image_assets:
+        vision_source_path = _write_vision_assets(
+            store=store,
+            collection_id=collection_id,
+            document_id=document_id,
+            parse_version=parse_version,
+            assets=image_assets,
+        )
+
     logger.info(
         "indexing parser produced derived artifacts collection=%s document=%s "
-        "parse_version=%s outline_size=%d chunk_count=%d",
+        "parse_version=%s outline_size=%d chunk_count=%d vision_image_count=%d",
         collection_id,
         document_id,
         parse_version,
         len(outline),
         len(chunks),
+        len(image_assets),
     )
 
     return ParseResult(
@@ -516,7 +688,61 @@ def parse_document(
         markdown_path=markdown_path,
         outline_path=outline_path,
         chunks_path=chunks_path,
+        vision_source_path=vision_source_path,
+        vision_image_count=len(image_assets),
     )
+
+
+def _write_vision_assets(
+    *,
+    store: _SyncObjectStore,
+    collection_id: str,
+    document_id: str,
+    parse_version: str,
+    assets: list[_VisionImageAsset],
+) -> str:
+    """Persist extracted image bytes + descriptor under
+    ``derived/parse_<v>/vision/``.
+
+    Each asset is written to ``vision/images/<image_id>.<ext>`` and
+    enumerated in a ``vision/source.jsonl`` descriptor (one record per
+    line, schema ``{image_id, image_path, mime_type, alt_text,
+    page_idx, bbox}``). Returns the descriptor path so the caller can
+    pin it on :class:`ParseResult` and the orchestrator can hand it to
+    the vision worker (chunk 4 callsite rewrite).
+    """
+    descriptor_lines: list[str] = []
+    for asset in assets:
+        ext = _vision_image_extension(asset.mime_type)
+        image_path = derived_artifact(
+            collection_id=collection_id,
+            document_id=document_id,
+            parse_version=parse_version,
+            filename=f"vision/images/{asset.image_id}.{ext}",
+        )
+        write_atomic(store, image_path, asset.data)
+        descriptor_lines.append(
+            json.dumps(
+                {
+                    "image_id": asset.image_id,
+                    "image_path": image_path,
+                    "mime_type": asset.mime_type,
+                    "alt_text": asset.alt_text,
+                    "page_idx": asset.page_idx,
+                    "bbox": asset.bbox,
+                },
+                ensure_ascii=False,
+            )
+        )
+
+    descriptor_path = derived_artifact(
+        collection_id=collection_id,
+        document_id=document_id,
+        parse_version=parse_version,
+        filename="vision/source.jsonl",
+    )
+    write_atomic(store, descriptor_path, ("\n".join(descriptor_lines) + "\n").encode("utf-8"))
+    return descriptor_path
 
 
 def read_chunks(store: _SyncObjectStore, chunks_path: str) -> list[dict[str, Any]]:

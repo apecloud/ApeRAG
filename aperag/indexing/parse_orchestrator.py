@@ -442,6 +442,57 @@ async def run_parse_worker(
     )
 
 
+def resolve_tenant_scope_key(*, document: Any, collection: Any = None) -> str:
+    """Wave 5 P5B forward-compat helper for tenant_scope_key construction.
+
+    Centralises the prefix logic so all enqueue producers (upload
+    handler, reconciler stuck-doc re-enqueue, future org-tenant
+    bootstrap) share the same source of truth. Pre-Wave-5 the prefix
+    was hard-coded as ``f"user:{document.user}"`` at every callsite —
+    this helper unifies the construction so a future Wave 6/7
+    organisation-tenant rollout flips one place.
+
+    Resolution order:
+
+    1. ``collection.config.tenant_scope_prefix == "org"`` AND
+       ``document.org_id`` (or ``collection.org_id``) populated →
+       ``f"org:<org_id>"``
+    2. Otherwise → ``f"user:<document.user>"`` (Wave 4 default,
+       per §H.2 forward-compat)
+
+    The org branch stays inert for Wave 5 because ``Document`` /
+    ``Collection`` schemas do not yet carry ``org_id``; the helper
+    just *makes the seam explicit* so a future PR landing the org
+    column can flip behaviour without grepping for hard-coded
+    ``user:`` prefixes.
+    """
+    org_prefix_active = False
+    org_id: str | None = None
+    if collection is not None:
+        config_obj = getattr(collection, "config", None)
+        if config_obj is not None:
+            cfg_dict: dict[str, Any] | None = None
+            if isinstance(config_obj, str):
+                try:
+                    cfg_dict = json.loads(config_obj)
+                except (TypeError, ValueError):
+                    cfg_dict = None
+            elif isinstance(config_obj, Mapping):
+                cfg_dict = dict(config_obj)
+            elif hasattr(config_obj, "tenant_scope_prefix"):
+                cfg_dict = {"tenant_scope_prefix": getattr(config_obj, "tenant_scope_prefix", None)}
+            if cfg_dict and cfg_dict.get("tenant_scope_prefix") == "org":
+                org_prefix_active = True
+        if not org_id:
+            org_id = getattr(collection, "org_id", None)
+    if not org_id:
+        org_id = getattr(document, "org_id", None)
+
+    if org_prefix_active and org_id:
+        return f"org:{org_id}"
+    return f"user:{getattr(document, 'user', '')}"
+
+
 __all__ = [
     "DEFAULT_PARSE_CONCURRENCY",
     "DEFAULT_POLL_TIMEOUT_SECONDS",
@@ -449,6 +500,7 @@ __all__ = [
     "ParseDispatchPayload",
     "ParseOrchestratorConfig",
     "process_one_parse_task",
+    "resolve_tenant_scope_key",
     "run_parse_worker",
     "run_parse_worker_loop",
 ]

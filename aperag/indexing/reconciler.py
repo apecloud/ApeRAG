@@ -80,6 +80,14 @@ HEARTBEAT_STALE_SECONDS = 60
 # cycle will pick up the rest.
 RECONCILE_BATCH_SIZE = 100
 
+# Wave 5 P4: cooldown before a document with zero ``document_index``
+# rows is considered "stuck after upload" and re-enqueued onto
+# ``q:parse``. Set to 5 minutes so a normal parse run (PDF ~30s,
+# Office ~60s, OCR ~3min) never trips it. Operators can shorten the
+# cooldown via ``stuck_parse_cooldown_seconds`` for tighter recovery
+# on small-document workloads.
+STUCK_PARSE_COOLDOWN_SECONDS = 300
+
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
@@ -256,11 +264,6 @@ def reconcile_running_reclaim(
 
 
 # ---------------------------------------------------------------------
-# Run loop — production entrypoint.
-# ---------------------------------------------------------------------
-
-
-# ---------------------------------------------------------------------
 # Pattern B periodic hook — collection summary reconciliation.
 # ---------------------------------------------------------------------
 #
@@ -418,6 +421,249 @@ async def reconcile_collection_summaries_hook(
 
 
 # ---------------------------------------------------------------------
+# Wave 5 P4 — stuck-document parse re-enqueue (closes T3 chunk 2 obs A
+# silent-drop loop).
+# ---------------------------------------------------------------------
+#
+# T3 chunk 2 q:parse async promotion logs + drops parse failures
+# (DocParser raise / source missing) without persisting any
+# ``document_index`` row. Pre-Wave-5 this surfaced as ``document.status
+# == PENDING`` forever — the operator had no signal to re-trigger.
+# This reconciler scan closes the loop by detecting documents that
+# uploaded > N minutes ago but never sprouted a ``document_index``
+# row, then re-enqueueing a parse job.
+#
+# Architectural note: the scan is **at-most-once-per-cooldown**, not
+# per cycle: every re-enqueue advances ``Document.gmt_updated`` so
+# consecutive cycles do not multi-push. Without that throttle a
+# stuck document would re-queue every 30s, drowning the parse
+# worker pool.
+
+
+async def reconcile_stuck_documents_for_parse_reenqueue(
+    *,
+    engine: Engine,
+    queue: WorkQueue,
+    cooldown_seconds: int = STUCK_PARSE_COOLDOWN_SECONDS,
+    batch_size: int = RECONCILE_BATCH_SIZE,
+) -> int:
+    """Re-enqueue ``q:parse`` for documents stuck without ``document_index`` rows.
+
+    A document is "stuck" when:
+
+    * ``Document.gmt_deleted IS NULL`` (still active)
+    * ``Document.gmt_created < now - cooldown_seconds`` (uploaded long
+      enough ago that a normal parse should have completed and
+      dispatched)
+    * **zero** ``document_index`` rows reference its ``document_id``
+      (parse never reached :func:`dispatch_indexing` — the parse worker
+      either died, the source was missing, or DocParser raised)
+    * ``Document.gmt_updated < now - cooldown_seconds`` (haven't
+      already been re-enqueued this cooldown window — prevents the
+      30-s reconciler tick from drowning ``q:parse`` with the same
+      stuck doc on every cycle)
+
+    For each stuck document the function pushes a fresh
+    :class:`ParseDispatchPayload` matching the upload handler's
+    contract (per ``document_service._create_or_update_document_indexes``).
+    The parse worker handles retries via its existing log-and-drop
+    semantics; this scan is the **producer-side recovery loop** that
+    closes T3 chunk 2 obs A.
+
+    Returns the number of stuck documents re-enqueued. Failure to
+    reach Redis logs + bumps to next cycle (queue may be transiently
+    unhealthy; we never crash the loop).
+    """
+    payloads = await asyncio.to_thread(
+        _select_stuck_documents_for_reenqueue,
+        engine,
+        cooldown_seconds,
+        batch_size,
+    )
+    if not payloads:
+        return 0
+
+    pushed_ids: list[str] = []
+    for payload_dict in payloads:
+        try:
+            await queue.push_parse(payload=payload_dict)
+        except Exception as exc:  # noqa: BLE001 — transient Redis fault, retry next cycle
+            logger.warning(
+                "stuck-document parse re-enqueue failed for document=%s: %s — will retry next cycle",
+                payload_dict.get("document_id", "<unknown>"),
+                exc,
+            )
+            continue
+        pushed_ids.append(str(payload_dict["document_id"]))
+
+    if pushed_ids:
+        await asyncio.to_thread(_mark_stuck_documents_reenqueued, engine, pushed_ids)
+        logger.info(
+            "reconciler stuck-parse: re-enqueued %d documents to q:parse",
+            len(pushed_ids),
+        )
+    return len(pushed_ids)
+
+
+def _select_stuck_documents_for_reenqueue(
+    engine: Engine,
+    cooldown_seconds: int,
+    batch_size: int,
+) -> list[dict[str, object]]:
+    """Sync DB scan for stuck documents. Returns a list of fully-formed
+    parse payload dicts ready for ``queue.push_parse``.
+
+    Runs through ``asyncio.to_thread`` from the async caller so the
+    SQLAlchemy / collection-config decoding cost does not block the
+    event loop.
+    """
+    from aperag.domains.knowledge_base.db.models import Document
+
+    threshold = _utcnow() - timedelta(seconds=cooldown_seconds)
+    stuck_dicts: list[dict[str, object]] = []
+    with Session(engine) as session:
+        rows_for_doc = select(DocumentIndex.document_id).where(DocumentIndex.document_id == Document.id).exists()
+        stmt = (
+            select(Document)
+            .where(
+                and_(
+                    Document.gmt_deleted.is_(None),
+                    Document.gmt_created < threshold,
+                    Document.gmt_updated < threshold,
+                    ~rows_for_doc,
+                )
+            )
+            .order_by(Document.gmt_created)
+            .limit(batch_size)
+        )
+        for document in session.scalars(stmt):
+            payload = _build_parse_payload_for_document(session, document)
+            if payload is None:
+                continue
+            stuck_dicts.append(payload.to_dict())
+    return stuck_dicts
+
+
+def _build_parse_payload_for_document(session: Session, document):
+    """Reconstruct the parse payload the upload handler would have
+    pushed. Mirrors
+    :func:`aperag.domains.knowledge_base.service.document_service._create_or_update_document_indexes`
+    so the parse worker sees identical data shape regardless of which
+    producer enqueued the job. Returns ``None`` to signal an
+    unrecoverable document (missing object_path / no enabled modalities).
+    """
+    import json as _json
+
+    from aperag.domains.knowledge_base.db.models import Collection
+    from aperag.indexing.parse_orchestrator import ParseDispatchPayload
+
+    metadata: dict[str, object] = {}
+    if document.doc_metadata:
+        try:
+            metadata = _json.loads(document.doc_metadata) or {}
+        except (TypeError, ValueError):
+            metadata = {}
+    object_path = metadata.get("object_path")
+    if not object_path:
+        logger.warning(
+            "stuck-document parse re-enqueue: skipping document=%s — doc_metadata.object_path missing",
+            document.id,
+        )
+        return None
+
+    collection = session.get(Collection, document.collection_id) if document.collection_id else None
+    parser_config = _resolve_collection_parser_config(collection)
+    modalities = _resolve_collection_modalities(collection)
+    if not modalities:
+        logger.warning(
+            "stuck-document parse re-enqueue: skipping document=%s — collection has no enabled modalities",
+            document.id,
+        )
+        return None
+
+    from aperag.indexing.parse_orchestrator import resolve_tenant_scope_key
+
+    return ParseDispatchPayload(
+        document_id=document.id,
+        collection_id=document.collection_id or "",
+        object_path=str(object_path),
+        tenant_scope_key=resolve_tenant_scope_key(document=document, collection=collection),
+        modalities=tuple(modalities),
+        parser_config=parser_config,
+        purge_existing_triples=True,
+    )
+
+
+def _resolve_collection_parser_config(collection) -> dict | None:
+    """Mirror ``document_service._resolve_parser_config_for_collection``
+    in sync context. Defensive on every shape (None / non-JSON /
+    non-dict).
+    """
+    import json as _json
+
+    if collection is None or not collection.config:
+        return None
+    try:
+        config_dict = _json.loads(collection.config)
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(config_dict, dict):
+        return None
+    parser_config = config_dict.get("parser_config")
+    if parser_config is None or not isinstance(parser_config, dict):
+        return None
+    return parser_config
+
+
+def _resolve_collection_modalities(collection) -> list[str]:
+    """Walk ``collection.config.{enable_vector, enable_fulltext,
+    enable_knowledge_graph, enable_summary, enable_vision}`` to derive
+    the modality list. Default to vector + fulltext + summary (the
+    always-Wave-3-real subset) when the collection's config is
+    missing or malformed.
+    """
+    import json as _json
+
+    defaults = ["vector", "fulltext", "summary"]
+    if collection is None or not collection.config:
+        return defaults
+    try:
+        cfg = _json.loads(collection.config)
+    except (TypeError, ValueError):
+        return defaults
+    if not isinstance(cfg, dict):
+        return defaults
+
+    modalities: list[str] = []
+    if cfg.get("enable_vector", True):
+        modalities.append("vector")
+    if cfg.get("enable_fulltext", True):
+        modalities.append("fulltext")
+    if cfg.get("enable_knowledge_graph", False):
+        modalities.append("graph")
+    if cfg.get("enable_summary", False):
+        modalities.append("summary")
+    if cfg.get("enable_vision", False):
+        modalities.append("vision")
+    return modalities or defaults
+
+
+def _mark_stuck_documents_reenqueued(engine: Engine, document_ids: list[str]) -> None:
+    """Bump ``Document.gmt_updated`` for the re-enqueued documents so
+    the next reconciler tick does not pick the same documents up
+    again until the next cooldown window. Re-using ``gmt_updated``
+    keeps the scan single-table and avoids an alembic migration for
+    a recovery-loop bookkeeping field.
+    """
+    if not document_ids:
+        return
+    from aperag.domains.knowledge_base.db.models import Document
+
+    with Session(engine) as session, session.begin():
+        session.execute(update(Document).where(Document.id.in_(document_ids)).values(gmt_updated=_utcnow()))
+
+
+# ---------------------------------------------------------------------
 # Run loop — production entrypoint.
 # ---------------------------------------------------------------------
 
@@ -450,12 +696,17 @@ async def run_reconcile_loop(
                 engine=engine,
                 stale_seconds=stale_seconds,
             )
-            if pushed or retried or reclaimed:
+            stuck_reenqueued = await reconcile_stuck_documents_for_parse_reenqueue(
+                engine=engine,
+                queue=queue,
+            )
+            if pushed or retried or reclaimed or stuck_reenqueued:
                 logger.info(
-                    "reconciler cycle: dispatched=%d retried=%d reclaimed=%d",
+                    "reconciler cycle: dispatched=%d retried=%d reclaimed=%d stuck_reenqueued=%d",
                     pushed,
                     retried,
                     reclaimed,
+                    stuck_reenqueued,
                 )
         except Exception as exc:  # noqa: BLE001 — keep the loop alive
             logger.exception("reconciler cycle failed: %s", exc)
@@ -473,9 +724,11 @@ __all__ = [
     "HEARTBEAT_STALE_SECONDS",
     "RECONCILE_BATCH_SIZE",
     "RECONCILE_INTERVAL_SECONDS",
+    "STUCK_PARSE_COOLDOWN_SECONDS",
     "reconcile_collection_summaries_hook",
     "reconcile_failed_retry",
     "reconcile_pending_dispatch",
     "reconcile_running_reclaim",
+    "reconcile_stuck_documents_for_parse_reenqueue",
     "run_reconcile_loop",
 ]

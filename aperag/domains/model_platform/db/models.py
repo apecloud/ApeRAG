@@ -112,6 +112,11 @@ class Model(Base):
     embedding_dimensions = Column(Integer, nullable=True)
     supports_vision = Column(Boolean, default=False, nullable=False)
     supports_tool_calling = Column(Boolean, default=False, nullable=False)
+    # Wave 5 P2 chunk 3: typed capability flag for embedding models
+    # that accept image bytes; surfaced through the v3 model API +
+    # consumed by ``base_embedding.get_embedding_service`` to set
+    # ``EmbeddingService.multimodal=True``.
+    supports_multimodal_embedding = Column(Boolean, default=False, nullable=False)
     status = Column(_enum_column(ModelStatus), default=ModelStatus.ACTIVE.value, nullable=False, index=True)
     extra = Column(JSON, default=lambda: {}, nullable=False)
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)

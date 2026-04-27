@@ -39,7 +39,6 @@ import logging
 from typing import Any, Awaitable, Optional
 
 from aperag.config import async_engine, build_graph_db_context, settings
-from aperag.db.ops import db_ops
 from aperag.domains.knowledge_graph.graphindex.config import GraphIndexConfig
 from aperag.domains.knowledge_graph.graphindex.dto import (
     DeleteDocumentResult,
@@ -48,7 +47,13 @@ from aperag.domains.knowledge_graph.graphindex.dto import (
 from aperag.domains.knowledge_graph.graphindex.service import GraphIndexService
 from aperag.domains.knowledge_graph.graphindex.storage.connector import GraphStoreAdaptor
 from aperag.domains.knowledge_graph.ports import CollectionRow
-from aperag.schema.utils import parseCollectionConfig
+
+# Wave 5 P1 chunk 1 (`aperag/indexing/llm.py` relocate per §K.9.1 item 3):
+# the canonical home for ``build_collection_llm_callable`` is now
+# :mod:`aperag.indexing.llm`. Re-exported here so legacy callers that
+# still import from this module keep working during the Wave 5
+# deprecation window.
+from aperag.indexing.llm import build_collection_llm_callable  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -89,55 +94,6 @@ _DEFAULT_STORE = _build_store()
 # ---------------------------------------------------------------------------
 # Per-collection LLM wiring
 # ---------------------------------------------------------------------------
-
-
-def build_collection_llm_callable(collection: CollectionRow):
-    """Construct the ``LLMCall`` for a specific collection.
-
-    Reads the collection's completion config (provider, model, base_url,
-    api key from the user's provider record) and returns an async
-    function ``(prompt) -> str``. The function is closure-bound to the
-    config so multiple concurrent calls can share it safely without
-    serialising on a global LLM client.
-
-    The ``CompletionService`` is instantiated once per callable and
-    reused across every chunk extraction for the same document. Before
-    this, each per-chunk call rebuilt the client (litellm import, HTTP
-    session, etc.) — a meaningful overhead on high-chunk documents.
-    """
-    config = parseCollectionConfig(collection.config)
-    if not config.completion or not config.completion.model_id:
-        raise RuntimeError(f"graphindex: completion model not configured (collection {collection.id})")
-    row = db_ops.query_model_runtime(config.completion.model_id, collection.user)
-    if not row:
-        raise RuntimeError(f"graphindex: model not found {config.completion.model_id!r} (collection {collection.id})")
-    model, account = row
-
-    # Local import: CompletionService pulls in litellm which is heavy at
-    # import time and we don't want to pay it just for ``import aperag.domains.knowledge_graph.graphindex``.
-    from aperag.llm.completion.completion_service import CompletionService
-    from aperag.llm.runtime.resolver import resolve_model_invocation_from_records
-
-    invocation = resolve_model_invocation_from_records(model=model, account=account)
-    provider = invocation.runner_config.get("provider")
-    if not provider:
-        provider = "openai" if invocation.runner_type == "openai_compatible" else invocation.provider_type
-
-    svc = CompletionService(
-        provider=provider,
-        model=invocation.provider_model_id,
-        base_url=invocation.base_url,
-        api_key=invocation.api_key,
-        temperature=0.0,  # deterministic output for extraction
-        max_tokens=None,
-        caching=False,
-    )
-
-    async def _llm(prompt: str) -> str:
-        # No history, no images, no memory. Single-turn JSON request.
-        return await svc.agenerate(history=[], prompt=prompt, images=[], memory=False)
-
-    return _llm
 
 
 def build_collection_embed_callables(collection: CollectionRow):

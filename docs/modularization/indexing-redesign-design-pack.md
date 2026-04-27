@@ -1614,6 +1614,156 @@ v2 把 v1 的 7 个细粒度 PR 收成 **3 个 wave**（≈3 个大 PR）。每�
 - W5 cleanup builder share helpers with dispatch builders (T2 obs B drift risk)
 - W5 e2e-http-compose lane stub model-provider fixture + Layer 2 full-pipeline test activation (chunk 4e Layer 2 tests are currently `pytest.skip(...)` stubs because vector/fulltext/summary embedders need a configured model-provider that local dev does not have; the e2e-http-compose lane has the scaffolding but the stub fixture must be wired so Layer 2 can run for real instead of skip — per architect msg=87e2b187 chunk 4d/4e ratify decision condition #3)
 
+### K.9. Wave 5 — Indexing program close-out + 16 backlog items（per architect msg=11442bbf reframe + earayu2 msg=eced858d "大PR 快速落地" directive）
+
+**目标**: 把 Wave 4 close-out 后剩余 16 backlog items 一次性 implement，single Wave 5 PR with 5-phase chunked-rotation commits。Wave 4 同款 batch pattern (PR #1731 推 11 items)。
+
+**5-phase commit roadmap (16 acceptance items)**:
+
+#### Phase 1 (narrowed scope per architect ruling 2026-04-27 post-cascade scope check) — `aperag/indexing/llm.py` relocate + import re-route
+
+**Scope evolution** (per Bryce scope reality check msg=30c7e994 + architect ruling Option (a) adoption msg-post-2026-04-27-18:10):
+
+The original Phase 1 scope (delete legacy ``graphindex/{storage, service, integration, engine, __init__}.py`` + migrate retrieval/curation callers to §G.5 read primitives) collided with an unresolved design gap: legacy ``GraphIndexService.query_context()`` is a 24-method LightRAG-style query API, while the new ``LineageGraphStore`` Protocol exposes only 4 read methods (``find_entity_ids_with_lineage`` / ``find_relation_keys_with_lineage`` / ``get_entity`` / ``get_relation``) bound to ``(document_id, parse_version)`` lineage scans + single-key fetches. There is no by-keyword / by-semantic / by-graph-traversal API surface on the new pipeline yet — that is itself a 1-2 week design + implementation effort (build LightRAG-style query layer on ``LineageGraphStore`` with vector recall + traversal).
+
+Per architect Option (a) ruling: **Phase 1 narrowed to relocate-only scope**. Full legacy ``graphindex`` package elimination and retrieval/curation cascade migration are deferred to **Wave 6** as a coordinated cross-cutting refactor PR alongside the new query layer design.
+
+**Phase 1 actual scope (Wave 5 chunks 1+2 already shipped)**:
+
+- relocate ``build_collection_llm_callable`` + ``render_extraction_prompt`` + ``ENTITY_RELATION_EXTRACTION`` template + ``LLMCall`` type alias → new ``aperag/indexing/llm.py`` (Wave 5 PR commit ``11113acb``)
+- legacy ``graphindex/integration.py`` and ``graphindex/prompts.py`` keep deprecation-shim re-exports during the Wave 6 deprecation window so legacy retrieval/curation callers do not break mid-Wave-5
+- migrate ``aperag/indexing/graph_extractor.py`` import to new location (Wave 5 PR commit ``11113acb``)
+- migrate ``aperag/service/prompt_template_service.py`` ``get_default_prompt(prompt_type="graph")`` import to new location (Wave 5 PR commit ``e0707165``)
+
+**production-readiness 三类 layer (revised)**:
+- must-be-real: ``aperag.indexing.llm`` is the canonical home for the relocated helpers; Wave 4 indexing pipeline (``graph_extractor`` + ``worker_factory`` chunk 4b graph dispatch) imports from new location, no transitive legacy dependency
+- may-be-gated: legacy ``graphindex/{integration,prompts}.py`` re-export shims are intentional Wave 6 deprecation-window devices, not gated defaults
+- fully-resolves: §K.8 Wave 5 backlog item 3 (``aperag/indexing/llm.py`` relocate). Wave 5 backlog item 1 (legacy graphindex package elimination) **deferred to Wave 6** — see §K.10.
+
+**Wave 6 entry condition** (per architect Option (a) ruling): a separate Wave 6 PR covers the legacy graphindex retrieval-side query layer migration. Phase 1 narrowed scope avoids the Wave 3 lesson #10 anti-pattern (silent regression by forcing a 1-week design refactor into a high-throughput PR) and follows the chunk 4d Option C precedent (narrowed scope + Wave N+1 cross-cutting refactor batch).
+
+**pre-check pattern** (per `feedback_spec_lock_grep_verify_caller.md` Pattern 1):
+- ``grep -rn "from aperag.domains.knowledge_graph.graphindex" aperag/indexing/`` → 0 matches (chunk 4d invariant maintained ✅)
+- legacy callers (``retrieval/pipeline.py`` / ``knowledge_graph/service.py`` / ``graph_curation/*``) **intentionally** still import from legacy modules pending Wave 6 migration
+
+**architect direct ratify scope**: chunk 1 (``11113acb``) ratified ✅; chunk 2 (``e0707165``) huangheng pass-1 ✅. No further Phase 1 architect direct ratify gate needed in Wave 5 — the cascade chunks (3-7) move to Wave 6 with their own architect ratify lane (cascade caller migration spec + completeness verify).
+
+#### Phase 2 (post-Phase-1) — T7 multimodal vision-LLM 3-item bundle
+
+per §G.2.5.1 spec amendment (Wave 4 chunk 4e follow-up `da576f62`):
+
+- **item 1**: `aperag/llm/embed/embedding_service.py` 加 `embed_image(image_bytes: bytes, alt_text: str = "") -> list[float]` API surface; provider implementation 通过 v3 router resolve
+- **item 2**: parser pipeline 加 image extraction → write `derived/parse_<v>/vision/images/<image_id>.<ext>` (per-page image bytes for PDF / single-image-input passthrough); 同 batch 实施 chunk_id schema unification (per huangheng T1 obs B)
+- **item 3**: `aperag/domains/model_platform/api/providers_v3_routes.py` 加 multimodal capability flag (`is_multimodal=True` source of truth); operator can set on collection embedder spec
+- chunk 4b vision gate **self-disables** when `is_multimodal()` flips True + provider flag set
+
+**production-readiness 三类**:
+- must-be-real: real multimodal LLM provider integration (CLIP / LLaVA / GPT-4V / etc. via v3 router)
+- may-be-gated: 无 (full implementation lands)
+- fully-resolves: §K.8 Wave 5 backlog item 4 (T7 multimodal full impl 3-item bundle)
+
+**pre-check** (per Pattern 2): grep `embed_image` / `is_multimodal` 全 verify 现 code binding (chunk 4b gate `is_multimodal()` call site already exists)
+
+**architect direct ratify scope**: §G.2.5.1 spec ↔ implementation align (3-item bundle full impl) + chunk 4b vision gate self-disable verify (`is_multimodal=True` 实测 + Layer 1 test rename `test_phase1_vision_modality_*` 改 expect ACTIVE)
+
+#### Phase 3 (parallel with Phase 2) — Layer 2 e2e fixture wiring + sweep D activation
+
+per chunk 4d+4e ratify msg=c279a0ff + sweep D Layer 2 stub (`4d36c7fb`):
+
+- e2e-http-compose lane stub model-provider fixture wire
+- activate `test_phase1_full_pipeline_vector_fulltext_summary_active_graph_vision_failed` Layer 2 stub
+- activate `test_phase1_multi_keyword_fulltext_search_returns_hits` Layer 2 stub (sweep D minimum_should_match real verify)
+
+**production-readiness 三类**:
+- must-be-real: real Postgres / Redis / Qdrant / ES / OTel SDK + stub model-provider fixture
+- may-be-gated: 无 (Layer 2 真激活)
+- fully-resolves: §K.8 Wave 5 backlog item 2 (Layer 2 e2e fixture wiring)
+
+**architect direct ratify scope**: Layer 2 fixture wiring canonical contract (vector+fulltext+summary ACTIVE + chunk 4b vision gate FAILED in Phase 2 deferred state until Phase 2 lands flips to ACTIVE) + delete+cleanup roundtrip backend artefact 0-count verify
+
+#### Phase 4 (parallel with Phase 1) — P1 production robustness 3-pack
+
+3 commits in same phase batch:
+
+1. **T2 cleanup `_resolve_cleanup_worker` transient-vs-intentional error split** (per T2 architect ratify msg=6aa8ca88):
+   - `WorkerFactoryError` (intentional gate, drop row) vs 其他 `Exception` (transient, NOT drop row, retry next cycle)
+2. **T3 chunk 2 parse_orchestrator parse_version short-circuit** (per huangheng T3 chunk 2 obs B):
+   - `if derived/parse_<v>/chunks.jsonl 已存在 → skip DocParser，直接 dispatch`
+3. **T2 reconciler "document N min 无 document_index rows → re-enqueue parse"** (per huangheng T3 chunk 2 obs A):
+   - cleanup loop 加 stuck document detection + parse re-enqueue
+
+**production-readiness 三类**:
+- must-be-real: 3 production fault-tolerance fixes (real e2e flow benefit)
+- may-be-gated: 无
+- fully-resolves: §K.8 Wave 5 backlog items 7 + 9 + 10
+
+#### Phase 5A (post-Phase-4, Bryce batch) — P2 batch graph + perf polish
+
+5 commits in same phase batch (Bryce ownership per Wave 4 chunk 4 / T1 / T8 expertise):
+
+1. **T1 graph extractor per-collection config tunability** (per huangheng T1 obs A): `collection.config.knowledge_graph_config.{per_chunk_timeout, max_entities_per_chunk, max_relations_per_chunk}` per-collection override — **shipped `f5e454ed`**
+2. ~~chunk 4b `_no_op_extractor` identity check → attribute marker~~ — **N/A: resolved by Wave 4 T1 land**. The placeholder was deleted when `build_collection_graph_extractor` replaced `_no_op_extractor` (see commit `19d3d70f`); there is no surviving identity-check site to harden, so this item is moot in current code.
+3. ~~W5-perf-graph-lineage parallel-list O(N) alternative encoding~~ — **deferred to Wave 6**. Cross-backend perf rewrite touches Postgres / Nebula schema (Postgres switching from JSONB-array-of-objects to parallel `text[]` columns; Nebula re-modelling tags) plus alembic migration. High-cardinality (>10k docs/entity) is not a Wave 5 acceptance criterion — defer to dedicated perf wave once observed in real deployments.
+4. **W5-neo4j-label-namespace prefix `aperag_LineageEntity` / `aperag_LineageRelation`** to avoid user-namespace collision — **shipped `42b5fa6a`** (Neo4j-only constant + comment rename, no schema migration needed since Wave 4 default-gated graph indexing meant no production data on legacy labels).
+5. ~~W5-cypher-type-keyword rename `n.type` property~~ — **deferred to Wave 6**. Although `TYPE(n)` is a Cypher built-in for relationships not nodes (so node-property `n.type` is technically unambiguous), a forward-compat rename across all 3 backends (Postgres column rename + alembic migration + Cypher property rename + Nebula tag-prop rename + `EntityRecord.type` / `RelationRecord.type` Protocol surface) is non-trivial. Keep current naming until Wave 6 dedicated cross-backend rename batch.
+
+**fully-resolves**: §K.8 P5A items 1 + 4 (items 2 / 3 / 5 redirected as noted)
+
+#### Phase 5B (post-Phase-4, chenyexuan batch) — P2 batch infra + cleanup polish
+
+5 commits in same phase batch (chenyexuan ownership per Wave 4 T2 / T3 / T9 expertise):
+
+1. **T1 chunk_id schema unification on parser layer** (per huangheng T1 obs B; partially overlap with Phase 2 item 2)
+2. **T2 cleanup builder share helper with dispatch builders** (per huangheng T2 obs B drift risk refactor)
+3. **T3 chunk 2 `tenant_scope_key` org-prefix forward-compat** (per T3 chunk 2 obs C)
+4. **chunk 4a `utc_now` Python default vs `CURRENT_TIMESTAMP` server_default unification** (per huangheng chunk 4a obs A)
+5. **W5-otlp-config-cross-check** lifespan startup cross-check `INDEXING_METRICS_EMITTER=otlp` ⇔ `APERAG_OBSERVABILITY_MODE=otlp` (per huangheng T6 chunk 1 obs)
+
+**fully-resolves**: §K.8 Wave 5 backlog items 6 + 8 + 11 + remaining accumulated obs
+
+#### K.9.1. Wave 5 acceptance summary (16 items)
+
+| # | Item | Phase | Owner |
+|---|---|---|---|
+| 1 | Legacy graphindex package 整体淘汰 | 1 | Bryce |
+| 2 | Layer 2 e2e fixture wiring | 3 | chenyexuan |
+| 3 | `aperag/indexing/llm.py` relocate | 1 | Bryce |
+| 4 | T7 multimodal vision-LLM 3-item bundle | 2 | Bryce |
+| 5 | T1 graph extractor per-collection config tunability | 5A | Bryce |
+| 6 | T1 chunk_id schema unification | 2 / 5B | Bryce / chenyexuan |
+| 7 | T2 cleanup transient-vs-intentional error split | 4 | chenyexuan |
+| 8 | T2 cleanup builder share helper | 5B | chenyexuan |
+| 9 | T2 reconciler stuck-document re-enqueue | 4 | chenyexuan |
+| 10 | T3 chunk 2 parse_version short-circuit | 4 | chenyexuan |
+| 11 | T3 chunk 2 tenant_scope_key org-prefix | 5B | chenyexuan |
+| 12 | fulltext additional backends extension | 5A | Bryce |
+| 13 | chunk 4a utc_now vs CURRENT_TIMESTAMP unify | 5B | chenyexuan |
+| 14 | chunk 4b _no_op_extractor identity check robust | 5A | Bryce |
+| 15 | W5-perf-graph-lineage parallel-list O(N) | 5A | Bryce |
+| 16 | W5-otlp-config-cross-check + Neo4j label namespace + Cypher type rename | 5A / 5B | Bryce / chenyexuan |
+
+#### K.9.2. Wave 5 architect direct ratify lane
+
+per Wave 4 lane lock (chunk 4 / T1 / T5 / T7 ratify trail), Wave 5 architect direct ratify scope:
+
+- **Phase 1**: legacy graphindex elimination caller migration completeness verify (grep-zero post-Phase-1 + `aperag/indexing/llm.py` relocate clean)
+- **Phase 2**: T7 §G.2.5.1 spec ↔ implementation align (3-item bundle full impl) + chunk 4b vision gate self-disable verify
+- **Phase 3**: Layer 2 e2e fixture wiring canonical activation
+- **Phase 4 / 5A / 5B**: 走 huangheng pass-1 lane only; architect spot-check on architectural soundness。如出现 spec/state-binding drift → architect direct ratify trigger (per Wave 4 T5 §H.5.1 fix-forward 教训)
+
+#### K.9.3. Pre-check pattern lock (per `feedback_spec_lock_grep_verify_caller.md` 双 pattern)
+
+- **Pattern 1** (caller cascade): Phase 1 必跑 — grep `from aperag.domains.knowledge_graph.graphindex` 全 caller list verify migration scope
+- **Pattern 2** (state binding): 任何新 `collection.config.*` field / `settings.*` setting / logical db / port / path lock — 必跑 grep `from settings import` / `getattr(cfg,...)` 现 code binding verify
+
+#### K.9.4. Layer 1 same-session continuation directive (per `feedback_no_refresh_complete_all_tasks.md`)
+
+Wave 5 implementation 同 Wave 4 directive:
+- earayu2 不再 帮 fresh-restart agent session
+- 各 implementer same-session continuation push 节奏 maintained
+- Layer 1 metric goal: ≥ 90% same-session ratio (Wave 4 verified 65% same-session + 100% pass-1 一次过率)
+- chunked-rotation within PR (multiple commits in same branch / same session)
+
 ### K.7. 测试策略
 
 - **Unit tests**: 每个 modality 配幂等自测（Wave 1 gate）
@@ -1627,6 +1777,60 @@ PM (燧木) 决定。架构师建议参考 D10 模式：
 - 架构师 (符炫炜) — design canon、wave scope、line-by-line review、跨 modality 对齐
 - 单 modality 写手（5 人 × Wave 1 一人一个 modality + Wave 2 worker / reconciler 等）
 - Bryce — graph modality（最复杂的那个，且修 nebula append bug）+ idempotency 自测把关
+
+### K.10. Wave 6 — Legacy graphindex elimination + retrieval/curation migration（per architect Option (a) ruling 2026-04-27 + Wave 5 Phase 1 scope-narrow handoff）
+
+**目标**: 完成 Wave 5 Phase 1 narrowed scope 推迟的 legacy ``graphindex`` package 整体淘汰 + retrieval/curation flows 迁移。这是 cross-cutting refactor，与 Wave 5 single-PR 风格不同 — 需先设计新查询层 (LightRAG-style query layer on ``LineageGraphStore``)，再 cascade migrate 调用方。
+
+**Wave 6 acceptance items** (per Wave 5 §K.9 scope-narrow handoff):
+
+1. **Design + implement LightRAG-style query layer** on ``LineageGraphStore`` Protocol:
+   - by-keyword entity / relation lookup
+   - vector-recall augmented retrieval (复用 §G.5 retrieval pipeline 的 vector connector)
+   - graph traversal API (1-hop neighbors, multi-hop expansion)
+   - query result types align with retrieval pipeline expectations
+2. **Migrate legacy ``graphindex`` callers to new query layer**:
+   - ``aperag/domains/retrieval/pipeline.py:_fulltext_search`` etc. — 用新 query API 替 ``GraphIndexService.query_context()``
+   - ``aperag/domains/knowledge_graph/service.py`` graph CRUD — 用新 LineageGraphStore find/get methods
+   - ``aperag/graph_curation/service.py`` + ``integration.py`` + ``candidate_generation.py`` — 用新 query API + Entity DTO relocation
+3. **Delete legacy package**:
+   - ``aperag/domains/knowledge_graph/graphindex/{storage, service, integration, engine, __init__}.py``
+   - ``graphindex/{config, dto, prompts, models}.py`` (DTOs may relocate to canonical home)
+4. **Delete legacy tests**:
+   - ``tests/unit_test/graphindex/test_connector.py``
+   - ``tests/unit_test/graphindex/test_nebula_store.py``
+   - ``tests/integration/compat/test_graph_compat.py``
+5. **Final grep-zero verify**: post-Wave-6, ``aperag/`` 全树无 ``from aperag.domains.knowledge_graph.graphindex`` import
+
+**Cross-backend lineage polish folded from Wave 5 P5A** (per Wave 5 P5A close-out
+2026-04-27):
+
+6. **W5-perf-graph-lineage parallel-list O(N) cross-backend** — Postgres
+   switches the JSONB-array-of-objects to parallel ``text[]`` columns
+   (matching Neo4j parallel-list encoding); Nebula re-models tags to
+   parallel-list semantics; alembic migration for the column-shape
+   change. Trigger when a deployment observes >10k docs/entity (per
+   architect msg=39a74026 high-cardinality threshold).
+7. **W5-cypher-type-keyword cross-backend rename** — rename
+   ``EntityRecord.type`` / ``RelationRecord.type`` (and
+   ``EntityWithLineage`` / ``RelationWithLineage``) to ``entity_type`` /
+   ``relation_type`` across the §D.3 Protocol; Postgres column rename via
+   alembic; Cypher ``n.type`` / ``r.type`` rewrite; Nebula tag-prop
+   rename. Forward-compat hygiene (Cypher ``TYPE(r)`` is for relationships
+   only so current code is technically unambiguous, but Protocol-surface
+   rename frees future use of ``TYPE`` as a true Cypher keyword without
+   ambiguity).
+
+**production-readiness 三类 layer**:
+- must-be-real: 新 LightRAG-style query layer ships behavior-equivalent retrieval (existing graph search results within ε tolerance)
+- may-be-gated: 无 (full hard-cut)
+- fully-resolves: §K.8 Wave 5 backlog item 1 deferred (legacy graphindex elimination) + supplementary cascade items
+
+**effort estimate**: 1-2 weeks single-implementer or 0.5-1 week 2-implementer parallel (query layer design + migration + test rewrite + e2e behavior preservation verify)。
+
+**architect direct ratify lane**: full Wave 6 — query layer Protocol design + migration completeness verify + behavior-preservation validation against retrieval / curation existing behaviors。
+
+**why Wave 6 separate PR (not Wave 5 fold)**: Wave 5 PR (#1733) targets 16 polish items in single-PR fast-landing style. Wave 6 cross-cutting refactor needs (a) new design work upstream, (b) careful behavior validation against existing retrieval flows, (c) phased migration to avoid silent regression. Bundling into Wave 5 risked Wave 3 lesson #10 anti-pattern (rushed cross-cutting refactor in high-throughput PR → silent broken paths). Wave 6 separate PR with its own architect ratify lane is the disciplined path.
 
 ---
 

@@ -76,3 +76,46 @@ def test_model_provider_and_model_use_are_explicit():
 
     assert provider.supported_capabilities == [ModelCapability.CHAT, ModelCapability.EMBEDDING]
     assert ModelUseScenario.AGENT_CHAT.value == "agent_chat"
+
+
+def test_model_create_supports_multimodal_embedding_flag_defaults_false():
+    """Wave 5 P2 chunk 3 (per §G.2.5.1 spec amend item 3): the
+    ``supports_multimodal_embedding`` capability flag defaults to
+    False so existing model rows / pre-Wave-5 callers see no
+    behaviour change."""
+    model = ModelCreate(
+        account_id="acct_1",
+        provider_model_id="text-embedding-3-large",
+        display_name="OpenAI text-embedding-3-large",
+        capability=ModelCapability.EMBEDDING,
+    )
+    assert model.supports_multimodal_embedding is False
+
+
+def test_model_create_supports_multimodal_embedding_flag_can_be_set():
+    """Operators register a real multimodal embedder (Voyage Multimodal /
+    CLIP / Jina v3 / etc.) by setting this flag — it surfaces through
+    the v3 ``/models`` route so a UI can render a checkbox."""
+    model = ModelCreate(
+        account_id="acct_1",
+        provider_model_id="voyage-multimodal-3",
+        display_name="Voyage Multimodal 3",
+        capability=ModelCapability.EMBEDDING,
+        supports_multimodal_embedding=True,
+    )
+    assert model.supports_multimodal_embedding is True
+
+
+def test_model_v3_openapi_exposes_supports_multimodal_embedding():
+    """The v3 routes' OpenAPI schema must surface the new capability
+    flag so the API contract stays discoverable for UI clients."""
+    spec = _provider_v3_spec()
+    schemas = spec["components"]["schemas"]
+    # All three model schemas (read / create / update) must carry
+    # the field so a UI can read + modify it consistently.
+    for schema_name in ("Model", "ModelCreate", "ModelUpdate"):
+        assert schema_name in schemas, f"{schema_name} schema missing from v3 OpenAPI"
+        properties = schemas[schema_name].get("properties", {})
+        assert "supports_multimodal_embedding" in properties, (
+            f"{schema_name} missing supports_multimodal_embedding capability flag"
+        )
