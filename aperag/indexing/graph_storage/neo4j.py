@@ -331,14 +331,54 @@ class Neo4jLineageGraphStore:
             rec = await result.single()
             return bool(rec and rec["deleted"] > 0)
 
+    # -- unconditional delete (Wave 7 W7-1, used by curation merge) ---
+
+    async def delete_entity(self, entity_name: str) -> bool:
+        query = (
+            f"MATCH (n:{_ENTITY_LABEL} {{collection_id: $collection_id, name: $name}}) "
+            f"DELETE n "
+            f"RETURN count(n) AS deleted"
+        )
+        async with self._session() as session:
+            result = await session.run(query, collection_id=self._collection_id, name=entity_name)
+            rec = await result.single()
+            return bool(rec and rec["deleted"] > 0)
+
+    async def delete_relation(self, source: str, target: str, type: str) -> bool:
+        query = (
+            f"MATCH (r:{_RELATION_LABEL} "
+            f"  {{collection_id: $collection_id, source: $source, target: $target, relation_type: $relation_type}}) "
+            f"DELETE r "
+            f"RETURN count(r) AS deleted"
+        )
+        async with self._session() as session:
+            result = await session.run(
+                query,
+                collection_id=self._collection_id,
+                source=source,
+                target=target,
+                relation_type=type,
+            )
+            rec = await result.single()
+            return bool(rec and rec["deleted"] > 0)
+
     # -- upserts (rebuild phase) --------------------------------------
 
-    async def upsert_entity_with_lineage(self, *, record: EntityRecord, lineage: LineageMember) -> None:
+    async def upsert_entity_with_lineage(
+        self,
+        *,
+        record: EntityRecord,
+        lineage: LineageMember,
+        compacted_description: str | None = None,
+    ) -> None:
         """Add (or replace by ``(document_id, parse_version)`` key) the
         lineage member + its description part. Single Cypher statement
         so two concurrent rebuilds against the same entity cannot race
         on read-modify-write — Neo4j MERGE locks the merged row for the
         duration of the trailing SET.
+
+        Wave 7 W7-1: ``compacted_description=None`` (default) preserves
+        any existing column value via ``COALESCE``; non-None overwrites.
         """
         member_json = _lineage_member_json(lineage)
         part_json = _description_part_json(
@@ -352,6 +392,10 @@ class Neo4jLineageGraphStore:
             f"MERGE (n:{_ENTITY_LABEL} {{collection_id: $collection_id, name: $name}}) "
             # initialise on create — start with empty parallel lists so
             # the strip-then-append below has a defined input list.
+            # ``compacted_description`` initialises to NULL on create
+            # (W7-1: derived field; the trailing ``COALESCE`` SET below
+            # writes a non-None value if ``$compacted_description`` is
+            # supplied).
             f"ON CREATE SET "
             f"  n.source_lineage = [], "
             f"  n.source_lineage_doc_ids = [], "
@@ -359,6 +403,7 @@ class Neo4jLineageGraphStore:
             f"  n.description_parts = [], "
             f"  n.description_parts_doc_ids = [], "
             f"  n.description_parts_parse_versions = [], "
+            f"  n.compacted_description = NULL, "
             f"  n.gmt_created = datetime() "
             f"WITH n, "
             f"  [i IN range(0, size(n.source_lineage_doc_ids) - 1) "
@@ -377,6 +422,9 @@ class Neo4jLineageGraphStore:
             f"      [i IN dp_keep | n.description_parts_doc_ids[i]] + [$document_id], "
             f"    n.description_parts_parse_versions = "
             f"      [i IN dp_keep | n.description_parts_parse_versions[i]] + [$parse_version], "
+            # W7-1: COALESCE preserves existing if param is NULL, else
+            # overwrites. On CREATE both sides are NULL → still NULL.
+            f"    n.compacted_description = COALESCE($compacted_description, n.compacted_description), "
             f"    n.gmt_updated = datetime()"
         )
         async with self._session() as session:
@@ -389,9 +437,16 @@ class Neo4jLineageGraphStore:
                 parse_version=lineage.parse_version,
                 member_json=member_json,
                 part_json=part_json,
+                compacted_description=compacted_description,
             )
 
-    async def upsert_relation_with_lineage(self, *, record: RelationRecord, lineage: LineageMember) -> None:
+    async def upsert_relation_with_lineage(
+        self,
+        *,
+        record: RelationRecord,
+        lineage: LineageMember,
+        compacted_description: str | None = None,
+    ) -> None:
         member_json = _lineage_member_json(lineage)
         part_json = _description_part_json(
             DescriptionPart(
@@ -410,6 +465,7 @@ class Neo4jLineageGraphStore:
             f"  r.description_parts = [], "
             f"  r.description_parts_doc_ids = [], "
             f"  r.description_parts_parse_versions = [], "
+            f"  r.compacted_description = NULL, "
             f"  r.gmt_created = datetime() "
             f"WITH r, "
             f"  [i IN range(0, size(r.evidence_lineage_doc_ids) - 1) "
@@ -428,6 +484,7 @@ class Neo4jLineageGraphStore:
             f"      [i IN dp_keep | r.description_parts_doc_ids[i]] + [$document_id], "
             f"    r.description_parts_parse_versions = "
             f"      [i IN dp_keep | r.description_parts_parse_versions[i]] + [$parse_version], "
+            f"    r.compacted_description = COALESCE($compacted_description, r.compacted_description), "
             f"    r.gmt_updated = datetime()"
         )
         async with self._session() as session:
@@ -441,6 +498,7 @@ class Neo4jLineageGraphStore:
                 parse_version=lineage.parse_version,
                 member_json=member_json,
                 part_json=part_json,
+                compacted_description=compacted_description,
             )
 
     # -- read-path ----------------------------------------------------
@@ -450,7 +508,8 @@ class Neo4jLineageGraphStore:
             f"MATCH (n:{_ENTITY_LABEL} {{collection_id: $collection_id, name: $name}}) "
             f"RETURN n.name AS name, n.entity_type AS entity_type, "
             f"       n.source_lineage AS source_lineage, "
-            f"       n.description_parts AS description_parts"
+            f"       n.description_parts AS description_parts, "
+            f"       n.compacted_description AS compacted_description"
         )
         async with self._session() as session:
             result = await session.run(query, collection_id=self._collection_id, name=entity_name)
@@ -464,6 +523,7 @@ class Neo4jLineageGraphStore:
                 description_parts=tuple(
                     DescriptionPart.from_dict(json.loads(s)) for s in (rec["description_parts"] or [])
                 ),
+                compacted_description=rec["compacted_description"],
             )
 
     async def get_relation(self, source: str, target: str, type: str) -> RelationWithLineage | None:
@@ -472,7 +532,8 @@ class Neo4jLineageGraphStore:
             f"  {{collection_id: $collection_id, source: $source, target: $target, relation_type: $relation_type}}) "
             f"RETURN r.source AS source, r.target AS target, r.relation_type AS relation_type, "
             f"       r.evidence_lineage AS evidence_lineage, "
-            f"       r.description_parts AS description_parts"
+            f"       r.description_parts AS description_parts, "
+            f"       r.compacted_description AS compacted_description"
         )
         async with self._session() as session:
             result = await session.run(
@@ -493,6 +554,7 @@ class Neo4jLineageGraphStore:
                 description_parts=tuple(
                     DescriptionPart.from_dict(json.loads(s)) for s in (rec["description_parts"] or [])
                 ),
+                compacted_description=rec["compacted_description"],
             )
 
     # -- LightRAG-style query layer (Wave 6 #33 chunk 2) --------------
@@ -520,7 +582,8 @@ class Neo4jLineageGraphStore:
             f"WHERE toLower(n.name) CONTAINS toLower($keyword) "
             f"RETURN n.name AS name, n.entity_type AS entity_type, "
             f"       n.source_lineage AS source_lineage, "
-            f"       n.description_parts AS description_parts "
+            f"       n.description_parts AS description_parts, "
+            f"       n.compacted_description AS compacted_description "
             f"ORDER BY n.name "
             f"LIMIT $top_k"
         )
@@ -539,6 +602,7 @@ class Neo4jLineageGraphStore:
                     description_parts=tuple(
                         DescriptionPart.from_dict(json.loads(s)) for s in (rec["description_parts"] or [])
                     ),
+                    compacted_description=rec["compacted_description"],
                 )
                 async for rec in result
             ]
@@ -563,7 +627,8 @@ class Neo4jLineageGraphStore:
                 f"WHERE n.name IN $names "
                 f"RETURN n.name AS name, n.entity_type AS entity_type, "
                 f"       n.source_lineage AS source_lineage, "
-                f"       n.description_parts AS description_parts"
+                f"       n.description_parts AS description_parts, "
+                f"       n.compacted_description AS compacted_description"
             )
             result = await session.run(cypher, collection_id=self._collection_id, names=names)
             async for rec in result:
@@ -576,6 +641,7 @@ class Neo4jLineageGraphStore:
                     description_parts=tuple(
                         DescriptionPart.from_dict(json.loads(s)) for s in (rec["description_parts"] or [])
                     ),
+                    compacted_description=rec["compacted_description"],
                 )
 
         async def _fetch_relations_touching(session, names: list[str]) -> set[str]:
@@ -586,7 +652,8 @@ class Neo4jLineageGraphStore:
                 f"WHERE r.source IN $names OR r.target IN $names "
                 f"RETURN r.source AS source, r.target AS target, r.relation_type AS relation_type, "
                 f"       r.evidence_lineage AS evidence_lineage, "
-                f"       r.description_parts AS description_parts"
+                f"       r.description_parts AS description_parts, "
+                f"       r.compacted_description AS compacted_description"
             )
             result = await session.run(cypher, collection_id=self._collection_id, names=names)
             next_frontier: set[str] = set()
@@ -603,6 +670,7 @@ class Neo4jLineageGraphStore:
                         description_parts=tuple(
                             DescriptionPart.from_dict(json.loads(s)) for s in (rec["description_parts"] or [])
                         ),
+                        compacted_description=rec["compacted_description"],
                     )
                 for endpoint in (rec["source"], rec["target"]):
                     if endpoint not in seen_entities and endpoint not in next_frontier:

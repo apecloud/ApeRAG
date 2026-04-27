@@ -158,6 +158,28 @@ def _is_schema_visibility_error(exc: BaseException) -> bool:
     return any(fragment in msg for fragment in _SCHEMA_VISIBILITY_ERROR_FRAGMENTS)
 
 
+# Wave 7 W7-1: Nebula has no ``IF NOT EXISTS`` for ``ALTER TAG ADD``;
+# running ADD against a column that already exists raises an error
+# whose text differs by version ("Column already exists" / "Duplicated
+# property"). The fragments below cover both 3.x phrasings so the
+# idempotent ALTER survives both fresh deploys (column added by CREATE
+# TAG, ALTER raises duplicate) and upgrades (column missing, ALTER
+# adds).
+_DUPLICATE_PROPERTY_ERROR_FRAGMENTS = (
+    "Existed",
+    "existed",
+    "already exist",
+    "Duplicated",
+    "duplicated",
+    "duplicate",
+)
+
+
+def _is_duplicate_property_error(exc: BaseException) -> bool:
+    msg = str(exc)
+    return any(fragment in msg for fragment in _DUPLICATE_PROPERTY_ERROR_FRAGMENTS)
+
+
 # ---------------------------------------------------------------------
 # Helpers — VID encoding, JSON SET manipulation, escaping.
 # ---------------------------------------------------------------------
@@ -351,16 +373,32 @@ class NebulaLineageGraphStore:
                 # Wave 6 #36: tag-prop renamed ``type`` → ``entity_type`` /
                 # ``relation_type`` per architect Pattern 3 ruling.
                 # Hard-cut per earayu2 msg=30c81478 (no production data).
+                #
+                # Wave 7 W7-1: ``compacted_description`` is the
+                # GraphIndexCompactor-derived unified description (W7-2).
+                # Nullable; new deployments get it via CREATE TAG, older
+                # deployments via ALTER TAG ADD below (idempotent).
                 f"CREATE TAG IF NOT EXISTS `{_ENTITY_TAG}`("
                 f"name string, entity_type string, "
                 f"source_lineage_json string, description_parts_json string, "
+                f"compacted_description string NULL, "
                 f"gmt_created datetime, gmt_updated datetime)",
                 f"CREATE TAG IF NOT EXISTS `{_RELATION_TAG}`("
                 f"source string, target string, relation_type string, "
                 f"evidence_lineage_json string, description_parts_json string, "
+                f"compacted_description string NULL, "
                 f"gmt_created datetime, gmt_updated datetime)",
                 f"CREATE TAG INDEX IF NOT EXISTS `idx_{_ENTITY_TAG}_name` ON `{_ENTITY_TAG}`(name(256))",
                 f"CREATE TAG INDEX IF NOT EXISTS `idx_{_RELATION_TAG}_source` ON `{_RELATION_TAG}`(source(256))",
+            ]
+            # Wave 7 W7-1 backfill: ALTER TAG ADD for tags created on a
+            # pre-Wave-7 schema. Nebula has no ``IF NOT EXISTS`` for ALTER
+            # TAG ADD; running it on a tag that already has the column
+            # raises a "field already exists" / "duplicated property"
+            # error which we swallow (idempotent contract).
+            alter_stmts = [
+                f"ALTER TAG `{_ENTITY_TAG}` ADD (compacted_description string NULL)",
+                f"ALTER TAG `{_RELATION_TAG}` ADD (compacted_description string NULL)",
             ]
             last_error: RuntimeError | None = None
             for _ in range(_SCHEMA_VISIBILITY_RETRIES):
@@ -370,6 +408,16 @@ class NebulaLineageGraphStore:
                         continue
                     for stmt in tag_stmts:
                         self._execute(self._space, stmt)
+                    # Wave 7 W7-1: idempotent ALTER TAG for pre-Wave-7
+                    # schemas. Swallow "duplicate property" errors so
+                    # fresh tags (which already have the column from
+                    # CREATE TAG above) don't trip the migration.
+                    for stmt in alter_stmts:
+                        try:
+                            self._execute(self._space, stmt)
+                        except RuntimeError as alter_exc:
+                            if not _is_duplicate_property_error(alter_exc):
+                                raise
                     # Allow heartbeat to propagate the new tags before
                     # any caller writes; otherwise the first INSERT
                     # races schema visibility.
@@ -391,15 +439,22 @@ class NebulaLineageGraphStore:
 
     # -- read helpers (sync-blocking, called via to_thread) -----------
 
-    def _read_entity_lineage(self, entity_name: str) -> tuple[str, list[LineageMember], list[DescriptionPart]] | None:
-        """Return ``(type, source_lineage, description_parts)`` for the
-        entity, or ``None`` if the vertex doesn't exist yet."""
+    def _read_entity_lineage(
+        self, entity_name: str
+    ) -> tuple[str, list[LineageMember], list[DescriptionPart], str | None] | None:
+        """Return ``(type, source_lineage, description_parts, compacted_description)``
+        for the entity, or ``None`` if the vertex doesn't exist yet.
+
+        Wave 7 W7-1: ``compacted_description`` is ``None`` if not yet
+        computed (NULL column) or the empty string was never written.
+        """
         vid = _entity_vid(entity_name)
         stmt = (
             f'FETCH PROP ON `{_ENTITY_TAG}` "{_escape_str(vid)}" '
             f"YIELD `{_ENTITY_TAG}`.entity_type AS entity_type, "
             f"`{_ENTITY_TAG}`.source_lineage_json AS sl, "
-            f"`{_ENTITY_TAG}`.description_parts_json AS dp"
+            f"`{_ENTITY_TAG}`.description_parts_json AS dp, "
+            f"`{_ENTITY_TAG}`.compacted_description AS cd"
         )
         result = self._execute_with_schema_retry(self._space, stmt)
         if result.row_size() == 0:
@@ -408,16 +463,18 @@ class NebulaLineageGraphStore:
         type_value = row[0].as_string() if row[0].is_string() else ""
         sl_raw = row[1].as_string() if row[1].is_string() else ""
         dp_raw = row[2].as_string() if row[2].is_string() else ""
-        return type_value, _members_from_json(sl_raw), _parts_from_json(dp_raw)
+        compacted = row[3].as_string() if row[3].is_string() else None
+        return type_value, _members_from_json(sl_raw), _parts_from_json(dp_raw), compacted
 
     def _read_relation_lineage(
         self, source: str, target: str, type: str
-    ) -> tuple[list[LineageMember], list[DescriptionPart]] | None:
+    ) -> tuple[list[LineageMember], list[DescriptionPart], str | None] | None:
         vid = _relation_vid(source, target, type)
         stmt = (
             f'FETCH PROP ON `{_RELATION_TAG}` "{_escape_str(vid)}" '
             f"YIELD `{_RELATION_TAG}`.evidence_lineage_json AS el, "
-            f"`{_RELATION_TAG}`.description_parts_json AS dp"
+            f"`{_RELATION_TAG}`.description_parts_json AS dp, "
+            f"`{_RELATION_TAG}`.compacted_description AS cd"
         )
         result = self._execute_with_schema_retry(self._space, stmt)
         if result.row_size() == 0:
@@ -425,7 +482,8 @@ class NebulaLineageGraphStore:
         row = result.row_values(0)
         el_raw = row[0].as_string() if row[0].is_string() else ""
         dp_raw = row[1].as_string() if row[1].is_string() else ""
-        return _members_from_json(el_raw), _parts_from_json(dp_raw)
+        compacted = row[2].as_string() if row[2].is_string() else None
+        return _members_from_json(el_raw), _parts_from_json(dp_raw), compacted
 
     def _list_all_entity_vids(self) -> list[str]:
         """Return all VIDs tagged with ``lineage_entity`` in the
@@ -478,15 +536,19 @@ class NebulaLineageGraphStore:
         type_value: str,
         source_lineage: list[LineageMember],
         description_parts: list[DescriptionPart],
+        compacted_description: str | None,
     ) -> None:
         vid = _entity_vid(name)
+        compacted_literal = "NULL" if compacted_description is None else f'"{_escape_str(compacted_description)}"'
         stmt = (
             f"INSERT VERTEX `{_ENTITY_TAG}`"
-            f"(name, entity_type, source_lineage_json, description_parts_json, gmt_created, gmt_updated) "
+            f"(name, entity_type, source_lineage_json, description_parts_json, "
+            f"compacted_description, gmt_created, gmt_updated) "
             f'VALUES "{_escape_str(vid)}":('
             f'"{_escape_str(name)}", "{_escape_str(type_value)}", '
             f'"{_escape_str(_members_to_json(source_lineage))}", '
             f'"{_escape_str(_parts_to_json(description_parts))}", '
+            f"{compacted_literal}, "
             f"datetime(), datetime())"
         )
         self._execute_with_schema_retry(self._space, stmt)
@@ -499,16 +561,20 @@ class NebulaLineageGraphStore:
         type_value: str,
         evidence_lineage: list[LineageMember],
         description_parts: list[DescriptionPart],
+        compacted_description: str | None,
     ) -> None:
         vid = _relation_vid(source, target, type_value)
+        compacted_literal = "NULL" if compacted_description is None else f'"{_escape_str(compacted_description)}"'
         stmt = (
             f"INSERT VERTEX `{_RELATION_TAG}`"
             f"(source, target, relation_type, "
-            f"evidence_lineage_json, description_parts_json, gmt_created, gmt_updated) "
+            f"evidence_lineage_json, description_parts_json, "
+            f"compacted_description, gmt_created, gmt_updated) "
             f'VALUES "{_escape_str(vid)}":('
             f'"{_escape_str(source)}", "{_escape_str(target)}", "{_escape_str(type_value)}", '
             f'"{_escape_str(_members_to_json(evidence_lineage))}", '
             f'"{_escape_str(_parts_to_json(description_parts))}", '
+            f"{compacted_literal}, "
             f"datetime(), datetime())"
         )
         self._execute_with_schema_retry(self._space, stmt)
@@ -534,7 +600,7 @@ class NebulaLineageGraphStore:
                 row = self._read_entity_lineage_by_vid(vid)
                 if row is None:
                     continue
-                name, _type, members, _parts = row
+                name, _type, members, _parts, _compacted = row
                 if any(m.document_id == document_id for m in members):
                     names.append(name)
             return names
@@ -550,7 +616,7 @@ class NebulaLineageGraphStore:
                 row = self._read_relation_lineage_by_vid(vid)
                 if row is None:
                     continue
-                source, target, type_value, members, _parts = row
+                source, target, type_value, members, _parts, _compacted = row
                 if any(m.document_id == document_id for m in members):
                     keys.append((source, target, type_value))
             return keys
@@ -561,13 +627,14 @@ class NebulaLineageGraphStore:
     # lineage so the doc-scan helpers don't have to re-parse the VID.
     def _read_entity_lineage_by_vid(
         self, vid: str
-    ) -> tuple[str, str, list[LineageMember], list[DescriptionPart]] | None:
+    ) -> tuple[str, str, list[LineageMember], list[DescriptionPart], str | None] | None:
         stmt = (
             f'FETCH PROP ON `{_ENTITY_TAG}` "{_escape_str(vid)}" '
             f"YIELD `{_ENTITY_TAG}`.name AS name, "
             f"`{_ENTITY_TAG}`.entity_type AS entity_type, "
             f"`{_ENTITY_TAG}`.source_lineage_json AS sl, "
-            f"`{_ENTITY_TAG}`.description_parts_json AS dp"
+            f"`{_ENTITY_TAG}`.description_parts_json AS dp, "
+            f"`{_ENTITY_TAG}`.compacted_description AS cd"
         )
         result = self._execute_with_schema_retry(self._space, stmt)
         if result.row_size() == 0:
@@ -577,18 +644,20 @@ class NebulaLineageGraphStore:
         type_value = row[1].as_string() if row[1].is_string() else ""
         sl_raw = row[2].as_string() if row[2].is_string() else ""
         dp_raw = row[3].as_string() if row[3].is_string() else ""
-        return name, type_value, _members_from_json(sl_raw), _parts_from_json(dp_raw)
+        compacted = row[4].as_string() if row[4].is_string() else None
+        return name, type_value, _members_from_json(sl_raw), _parts_from_json(dp_raw), compacted
 
     def _read_relation_lineage_by_vid(
         self, vid: str
-    ) -> tuple[str, str, str, list[LineageMember], list[DescriptionPart]] | None:
+    ) -> tuple[str, str, str, list[LineageMember], list[DescriptionPart], str | None] | None:
         stmt = (
             f'FETCH PROP ON `{_RELATION_TAG}` "{_escape_str(vid)}" '
             f"YIELD `{_RELATION_TAG}`.source AS source, "
             f"`{_RELATION_TAG}`.target AS target, "
             f"`{_RELATION_TAG}`.relation_type AS relation_type, "
             f"`{_RELATION_TAG}`.evidence_lineage_json AS el, "
-            f"`{_RELATION_TAG}`.description_parts_json AS dp"
+            f"`{_RELATION_TAG}`.description_parts_json AS dp, "
+            f"`{_RELATION_TAG}`.compacted_description AS cd"
         )
         result = self._execute_with_schema_retry(self._space, stmt)
         if result.row_size() == 0:
@@ -599,12 +668,14 @@ class NebulaLineageGraphStore:
         type_value = row[2].as_string() if row[2].is_string() else ""
         el_raw = row[3].as_string() if row[3].is_string() else ""
         dp_raw = row[4].as_string() if row[4].is_string() else ""
+        compacted = row[5].as_string() if row[5].is_string() else None
         return (
             source,
             target,
             type_value,
             _members_from_json(el_raw),
             _parts_from_json(dp_raw),
+            compacted,
         )
 
     # -- strip-by-document (pre-rebuild phase) ------------------------
@@ -617,7 +688,7 @@ class NebulaLineageGraphStore:
                 row = self._read_entity_lineage(entity_name)
                 if row is None:
                     return
-                type_value, members, parts = row
+                type_value, members, parts, compacted = row
                 new_members = [m for m in members if m.document_id != document_id]
                 new_parts = [p for p in parts if p.document_id != document_id]
                 if len(new_members) == len(members) and len(new_parts) == len(parts):
@@ -627,6 +698,10 @@ class NebulaLineageGraphStore:
                     type_value=type_value,
                     source_lineage=new_members,
                     description_parts=new_parts,
+                    # W7-1: strip preserves compacted_description so a
+                    # subsequent re-sync of the SAME doc keeps the
+                    # cache; compactor decides when to recompute.
+                    compacted_description=compacted,
                 )
 
             await asyncio.to_thread(_strip)
@@ -639,7 +714,7 @@ class NebulaLineageGraphStore:
                 row = self._read_relation_lineage(source, target, type)
                 if row is None:
                     return
-                members, parts = row
+                members, parts, compacted = row
                 new_members = [m for m in members if m.document_id != document_id]
                 new_parts = [p for p in parts if p.document_id != document_id]
                 if len(new_members) == len(members) and len(new_parts) == len(parts):
@@ -650,6 +725,7 @@ class NebulaLineageGraphStore:
                     type_value=type,
                     evidence_lineage=new_members,
                     description_parts=new_parts,
+                    compacted_description=compacted,
                 )
 
             await asyncio.to_thread(_strip)
@@ -664,7 +740,7 @@ class NebulaLineageGraphStore:
                 row = self._read_entity_lineage(entity_name)
                 if row is None:
                     return False
-                _type_value, members, _parts = row
+                _type_value, members, _parts, _compacted = row
                 if members:
                     return False
                 self._delete_entity_vertex(entity_name)
@@ -680,7 +756,7 @@ class NebulaLineageGraphStore:
                 row = self._read_relation_lineage(source, target, type)
                 if row is None:
                     return False
-                members, _parts = row
+                members, _parts, _compacted = row
                 if members:
                     return False
                 self._delete_relation_vertex(source, target, type)
@@ -688,9 +764,43 @@ class NebulaLineageGraphStore:
 
             return await asyncio.to_thread(_gc)
 
+    # -- unconditional delete (Wave 7 W7-1, used by curation merge) ---
+
+    async def delete_entity(self, entity_name: str) -> bool:
+        await self.ensure_schema()
+        async with self._entity_lock.acquire(entity_name):
+
+            def _delete() -> bool:
+                row = self._read_entity_lineage(entity_name)
+                if row is None:
+                    return False
+                self._delete_entity_vertex(entity_name)
+                return True
+
+            return await asyncio.to_thread(_delete)
+
+    async def delete_relation(self, source: str, target: str, type: str) -> bool:
+        await self.ensure_schema()
+        async with self._entity_lock.acquire(_relation_vid(source, target, type)):
+
+            def _delete() -> bool:
+                row = self._read_relation_lineage(source, target, type)
+                if row is None:
+                    return False
+                self._delete_relation_vertex(source, target, type)
+                return True
+
+            return await asyncio.to_thread(_delete)
+
     # -- upserts (rebuild phase) --------------------------------------
 
-    async def upsert_entity_with_lineage(self, *, record: EntityRecord, lineage: LineageMember) -> None:
+    async def upsert_entity_with_lineage(
+        self,
+        *,
+        record: EntityRecord,
+        lineage: LineageMember,
+        compacted_description: str | None = None,
+    ) -> None:
         """Add (or replace by ``(document_id, parse_version)`` key) the
         lineage member + corresponding description part.
 
@@ -699,6 +809,11 @@ class NebulaLineageGraphStore:
         same entity serialise. Without this serialisation, Nebula's
         property-update semantics (no native list ops) would race —
         per architect msg=f2921ae0.
+
+        Wave 7 W7-1: ``compacted_description=None`` (default) preserves
+        the existing column; non-None overwrites. The Postgres COALESCE
+        equivalent is implemented in Python here because Nebula has no
+        native COALESCE on INSERT VERTEX (full-row overwrite semantics).
         """
         await self.ensure_schema()
         new_part = DescriptionPart(
@@ -713,20 +828,30 @@ class NebulaLineageGraphStore:
                 if row is None:
                     new_members = [lineage]
                     new_parts = [new_part]
+                    existing_compacted: str | None = None
                 else:
-                    _existing_type, members, parts = row
+                    _existing_type, members, parts, existing_compacted = row
                     new_members = [m for m in members if m.key() != lineage.key()] + [lineage]
                     new_parts = [p for p in parts if p.key() != new_part.key()] + [new_part]
+                # W7-1: preserve existing if param is None.
+                final_compacted = compacted_description if compacted_description is not None else existing_compacted
                 self._write_entity_vertex(
                     name=record.name,
                     type_value=record.entity_type,
                     source_lineage=new_members,
                     description_parts=new_parts,
+                    compacted_description=final_compacted,
                 )
 
             await asyncio.to_thread(_upsert)
 
-    async def upsert_relation_with_lineage(self, *, record: RelationRecord, lineage: LineageMember) -> None:
+    async def upsert_relation_with_lineage(
+        self,
+        *,
+        record: RelationRecord,
+        lineage: LineageMember,
+        compacted_description: str | None = None,
+    ) -> None:
         await self.ensure_schema()
         new_part = DescriptionPart(
             document_id=lineage.document_id,
@@ -740,16 +865,19 @@ class NebulaLineageGraphStore:
                 if row is None:
                     new_members = [lineage]
                     new_parts = [new_part]
+                    existing_compacted: str | None = None
                 else:
-                    members, parts = row
+                    members, parts, existing_compacted = row
                     new_members = [m for m in members if m.key() != lineage.key()] + [lineage]
                     new_parts = [p for p in parts if p.key() != new_part.key()] + [new_part]
+                final_compacted = compacted_description if compacted_description is not None else existing_compacted
                 self._write_relation_vertex(
                     source=record.source,
                     target=record.target,
                     type_value=record.relation_type,
                     evidence_lineage=new_members,
                     description_parts=new_parts,
+                    compacted_description=final_compacted,
                 )
 
             await asyncio.to_thread(_upsert)
@@ -763,12 +891,13 @@ class NebulaLineageGraphStore:
             row = self._read_entity_lineage(entity_name)
             if row is None:
                 return None
-            type_value, members, parts = row
+            type_value, members, parts, compacted = row
             return EntityWithLineage(
                 name=entity_name,
                 entity_type=type_value,
                 source_lineage=tuple(members),
                 description_parts=tuple(parts),
+                compacted_description=compacted,
             )
 
         return await asyncio.to_thread(_read)
@@ -780,13 +909,14 @@ class NebulaLineageGraphStore:
             row = self._read_relation_lineage(source, target, type)
             if row is None:
                 return None
-            members, parts = row
+            members, parts, compacted = row
             return RelationWithLineage(
                 source=source,
                 target=target,
                 relation_type=type,
                 evidence_lineage=tuple(members),
                 description_parts=tuple(parts),
+                compacted_description=compacted,
             )
 
         return await asyncio.to_thread(_read)
@@ -817,7 +947,7 @@ class NebulaLineageGraphStore:
                 row = self._read_entity_lineage_by_vid(vid)
                 if row is None:
                     continue
-                name, type_value, members, parts = row
+                name, type_value, members, parts, compacted = row
                 if needle not in name.lower():
                     continue
                 matches.append(
@@ -826,6 +956,7 @@ class NebulaLineageGraphStore:
                         entity_type=type_value,
                         source_lineage=tuple(members),
                         description_parts=tuple(parts),
+                        compacted_description=compacted,
                     )
                 )
             matches.sort(key=lambda e: e.name)
@@ -853,12 +984,13 @@ class NebulaLineageGraphStore:
                 row = self._read_entity_lineage(name)
                 if row is None:
                     return
-                type_value, members, parts = row
+                type_value, members, parts, compacted = row
                 seen_entities[name] = EntityWithLineage(
                     name=name,
                     entity_type=type_value,
                     source_lineage=tuple(members),
                     description_parts=tuple(parts),
+                    compacted_description=compacted,
                 )
 
             current = {n for n in entity_names if n}
@@ -877,7 +1009,7 @@ class NebulaLineageGraphStore:
                     row = self._read_relation_lineage_by_vid(vid)
                     if row is None:
                         continue
-                    src, tgt, rtype, members, parts = row
+                    src, tgt, rtype, members, parts, compacted = row
                     if src not in current and tgt not in current:
                         continue
                     key = (src, tgt, rtype)
@@ -888,6 +1020,7 @@ class NebulaLineageGraphStore:
                             relation_type=rtype,
                             evidence_lineage=tuple(members),
                             description_parts=tuple(parts),
+                            compacted_description=compacted,
                         )
                     for endpoint in (src, tgt):
                         if endpoint not in seen_entities and endpoint not in next_frontier:
@@ -919,7 +1052,7 @@ class NebulaLineageGraphStore:
                 row = self._read_entity_lineage_by_vid(vid)
                 if row is None:
                     continue
-                _, type_value, _, _ = row
+                _, type_value, _, _, _ = row
                 if type_value:
                     labels.add(type_value)
             return sorted(labels)
