@@ -1075,6 +1075,53 @@ sync(manifest.jsonl, document_id, parse_version, qdrant) →
     2. for each entry: qdrant.upsert(...)
 ```
 
+##### G.2.5.1. Vision modality T7 wiring scope (Wave 4 backlog T7 + Wave 5 follow-up)
+
+`worker_factory._build_vision_worker` currently raises
+:class:`WorkerFactoryError` when the collection's embedding service is
+not multimodal (`embedding_service.is_multimodal()` returns False —
+the operator opted into vision but the configured embedder is text-
+only). The Wave 3 lesson #10 explicit-gate pattern still applies; T7
+**self-disables** the gate when `is_multimodal()` flips True.
+
+T7 wiring requires three coordinated pieces beyond what chunk 4 ships:
+
+1. **Multimodal embedding API surface** — extend
+   :class:`aperag.llm.embed.embedding_service.EmbeddingService` with
+   an `embed_image(image_bytes: bytes, alt_text: str = "") -> list[float]`
+   method that the multimodal provider (CLIP / LLaVA / GPT-4V / etc.)
+   resolves to a real visual embedding. Without this, `_embed` is
+   forced into the existing `embed_query(str)` path which only
+   handles text — the Wave 1+2 implementation papered over this with
+   a string-concat ``f"{image_id}|{alt_text}"`` (Wave 3 lesson #10
+   broken pattern; chunk 4 gate prevents production opt-in).
+
+2. **Real PDF / image-source extraction in the parser pipeline** —
+   the T1 simulator's `<source>.images.json` companion (a JSON list
+   of image_id + alt_text records) does not include actual image
+   bytes; chenyexuan T3 chunk 1 wired DocParser for markdown / PDF /
+   Word / image inputs, but the per-image bytes path
+   (``derived/parse_<v>/vision/images/<image_id>.<ext>``) is not yet
+   produced by any parser branch. T7 needs the parser to land
+   per-page image extraction (or single-image-input passthrough)
+   before the vision worker has any image bytes to embed.
+
+3. **Provider-specific multimodal model registration** — the model
+   platform v3 router (``aperag/domains/model_platform/api/providers_v3_routes.py``)
+   needs to surface the multimodal capability flag so operators can
+   set `is_multimodal=True` on the collection's embedder spec. The
+   capability flag is the source of truth for the chunk 4b gate.
+
+Per architect msg=87e2b187 chunk 4d Option C ruling, T7 wiring closes
+items 1+3 in Wave 4 (gate self-disables + API surface + provider
+flag) and defers item 2 to Wave 5 alongside the parser canonical
+schema unification (per huangheng T1 obs B). Until item 2 lands, T7
+ships the embedder API surface + gate behaviour but the actual
+``vision/images/<image_id>.<ext>`` reads gracefully fallback to
+alt_text-based embedding (which is still NOT a faithful visual
+embedding — operators see a clean ``error_message`` in the
+DocumentIndex row noting the parser-side gap).
+
 ### G.3. Deriver / syncer interfaces (Python)
 
 ```python

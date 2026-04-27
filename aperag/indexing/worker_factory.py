@@ -712,9 +712,10 @@ def _nebula_pool_singleton() -> tuple[Any, str, str, str]:
 
 
 def _redis_entity_lock_singleton() -> Any | None:
-    """Return a :class:`RedisEntityLock` bound to the indexing-queue
-    Redis logical DB if configured, ``None`` otherwise (the caller
-    falls back to :class:`InMemoryEntityLock`)."""
+    """Return a :class:`RedisEntityLock` bound to the quota / EntityLock
+    Redis logical DB (chunk 4e §H.5.1 lock: db=3) if configured,
+    ``None`` otherwise (the caller falls back to
+    :class:`InMemoryEntityLock`)."""
     global _REDIS_ENTITY_LOCK
     if _REDIS_ENTITY_LOCK is not None:
         return _REDIS_ENTITY_LOCK
@@ -723,7 +724,7 @@ def _redis_entity_lock_singleton() -> Any | None:
             return _REDIS_ENTITY_LOCK
         from aperag.config import settings
 
-        url = settings.indexing_queue_redis_url
+        url = settings.indexing_quota_redis_url
         if not url:
             return None
         try:

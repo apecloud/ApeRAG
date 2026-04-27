@@ -295,7 +295,7 @@ async def combined_lifespan(app: FastAPI):
             except ImportError as exc:  # pragma: no cover — redis is a base dep
                 raise RuntimeError("INDEXING_QUOTA_BACKEND=redis but redis package not installed") from exc
             quota_redis = redis_asyncio.from_url(
-                settings.indexing_queue_redis_url,
+                settings.indexing_quota_redis_url,
                 encoding="utf-8",
                 decode_responses=False,
             )

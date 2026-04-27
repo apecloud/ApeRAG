@@ -175,6 +175,13 @@ class Config(BaseSettings):
     #                exhausting capacity independently).
     indexing_quota_backend: str = Field("inmemory", alias="INDEXING_QUOTA_BACKEND")
 
+    # Indexing quota / EntityLock Redis URL (chunk 4e §H.5.1 lock: db=3
+    # for `quota:<class>:<tenant>:tokens` + `indexing:graph:entity:<slot>`
+    # — separate from broker (db=0) / memory (db=1) / WorkQueue (db=2)).
+    # When unset the default-derive chain in ``_apply_defaults`` builds
+    # `redis://USER:PASS@HOST:PORT/3` from the same Redis credentials.
+    indexing_quota_redis_url: Optional[str] = Field(None, alias="INDEXING_QUOTA_REDIS_URL")
+
     # Model configs
     model_configs: Dict[str, Any] = {}
 
@@ -331,6 +338,13 @@ class Config(BaseSettings):
         if not self.indexing_queue_redis_url:
             self.indexing_queue_redis_url = (
                 f"redis://{self.redis_user}:{self.redis_password}@{self.redis_host}:{self.redis_port}/2"
+            )
+        # INDEXING_QUOTA_REDIS_URL — chunk 4e §H.5.1 lock: separate
+        # logical DB (db=3) for quota token-bucket + EntityLock keyspace
+        # (broker=0 / memory=1 / WorkQueue=2 / Quota+EntityLock=3).
+        if not self.indexing_quota_redis_url:
+            self.indexing_quota_redis_url = (
+                f"redis://{self.redis_user}:{self.redis_password}@{self.redis_host}:{self.redis_port}/3"
             )
         # ES_HOST
         if not self.es_host:
