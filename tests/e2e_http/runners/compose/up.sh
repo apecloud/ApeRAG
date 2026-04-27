@@ -8,10 +8,59 @@ E2E_BASE_URL="${E2E_BASE_URL:-http://127.0.0.1:8000}"
 E2E_HEALTH_ATTEMPTS="${E2E_HEALTH_ATTEMPTS:-90}"
 E2E_HEALTH_SLEEP_SECONDS="${E2E_HEALTH_SLEEP_SECONDS:-2}"
 
-# Backend selection. Defaults preserve historical behavior (Qdrant + PG-graph).
-VECTOR_DB_TYPE="${VECTOR_DB_TYPE:-qdrant}"
-GRAPH_DB_TYPE="${GRAPH_DB_TYPE:-postgresql}"
+# SHAPE is the canonical knob — it sources tests/e2e_http/shapes/<shape>.env
+# which declares the (vector backend, graph backend, service set, compose
+# profiles) combination as a single named deployment form. Adding a new
+# shape is one new file under tests/e2e_http/shapes/.
+#
+# For backward compatibility, callers may instead set VECTOR_DB_TYPE
+# and/or GRAPH_DB_TYPE directly (PR #1740 entry point); the service list
+# and profiles are then derived from those choices.
+SHAPE="${SHAPE:-}"
 
+if [[ -n "${SHAPE}" ]]; then
+  SHAPE_FILE="${ROOT_DIR}/tests/e2e_http/shapes/${SHAPE}.env"
+  if [[ ! -f "${SHAPE_FILE}" ]]; then
+    echo "Unknown SHAPE='${SHAPE}': ${SHAPE_FILE} not found." >&2
+    echo "Available shapes:" >&2
+    ls "${ROOT_DIR}/tests/e2e_http/shapes/" 2>/dev/null \
+      | sed 's/\.env$//' | sed 's/^/  - /' >&2
+    exit 2
+  fi
+  # shellcheck disable=SC1090
+  source "${SHAPE_FILE}"
+  VECTOR_DB_TYPE="${SHAPE_VECTOR_DB_TYPE}"
+  GRAPH_DB_TYPE="${SHAPE_GRAPH_DB_TYPE}"
+  E2E_COMPOSE_SERVICES="${E2E_COMPOSE_SERVICES:-${SHAPE_COMPOSE_SERVICES}}"
+  E2E_COMPOSE_PROFILES="${E2E_COMPOSE_PROFILES:-${SHAPE_COMPOSE_PROFILES}}"
+else
+  VECTOR_DB_TYPE="${VECTOR_DB_TYPE:-qdrant}"
+  GRAPH_DB_TYPE="${GRAPH_DB_TYPE:-postgresql}"
+
+  case "${VECTOR_DB_TYPE}" in
+    qdrant)   default_services="postgres redis es qdrant api" ;;
+    pgvector) default_services="postgres redis es api" ;;
+    *)
+      echo "VECTOR_DB_TYPE must be one of: qdrant, pgvector (got '${VECTOR_DB_TYPE}')" >&2
+      exit 2
+      ;;
+  esac
+
+  case "${GRAPH_DB_TYPE}" in
+    postgresql) default_profiles="" ;;
+    neo4j)      default_profiles="--profile neo4j" ;;
+    nebula)     default_profiles="--profile nebula" ;;
+    *)
+      echo "GRAPH_DB_TYPE must be one of: postgresql, neo4j, nebula (got '${GRAPH_DB_TYPE}')" >&2
+      exit 2
+      ;;
+  esac
+
+  E2E_COMPOSE_SERVICES="${E2E_COMPOSE_SERVICES:-${default_services}}"
+  E2E_COMPOSE_PROFILES="${E2E_COMPOSE_PROFILES:-${default_profiles}}"
+fi
+
+# Final validation (catches bad values inside shape files too).
 case "${VECTOR_DB_TYPE}" in
   qdrant|pgvector) ;;
   *)
@@ -19,25 +68,12 @@ case "${VECTOR_DB_TYPE}" in
     exit 2
     ;;
 esac
-
 case "${GRAPH_DB_TYPE}" in
   postgresql|neo4j|nebula) ;;
   *)
     echo "GRAPH_DB_TYPE must be one of: postgresql, neo4j, nebula (got '${GRAPH_DB_TYPE}')" >&2
     exit 2
     ;;
-esac
-
-# Always include qdrant in the service set: the api container's depends_on
-# requires it healthy regardless of which vector backend is selected. Leaving
-# qdrant idle in pgvector mode is cheap and avoids docker-compose surgery.
-DEFAULT_SERVICES="postgres redis qdrant es api"
-E2E_COMPOSE_SERVICES="${E2E_COMPOSE_SERVICES:-${DEFAULT_SERVICES}}"
-
-profile_flags=()
-case "${GRAPH_DB_TYPE}" in
-  neo4j)  profile_flags=(--profile neo4j) ;;
-  nebula) profile_flags=(--profile nebula) ;;
 esac
 
 if [[ ! -f "${ROOT_DIR}/.env" ]]; then
@@ -62,14 +98,15 @@ update_env_var() {
 update_env_var VECTOR_DB_TYPE "${VECTOR_DB_TYPE}"
 update_env_var GRAPH_DB_TYPE "${GRAPH_DB_TYPE}"
 
-echo "Compose runner starting (vector=${VECTOR_DB_TYPE}, graph=${GRAPH_DB_TYPE}, profiles='${profile_flags[*]:-}')"
+label="${SHAPE:-vector=${VECTOR_DB_TYPE},graph=${GRAPH_DB_TYPE}}"
+echo "Compose runner starting (shape=${label}, services='${E2E_COMPOSE_SERVICES}', profiles='${E2E_COMPOSE_PROFILES}')"
 
-# `${array[@]+"${array[@]}"}` is the set -u-safe expansion for an empty array.
-docker compose ${profile_flags[@]+"${profile_flags[@]}"} -f docker-compose.yml up -d --build ${E2E_COMPOSE_SERVICES}
+# shellcheck disable=SC2086
+docker compose ${E2E_COMPOSE_PROFILES} -f docker-compose.yml up -d --build ${E2E_COMPOSE_SERVICES}
 
 for ((i = 1; i <= E2E_HEALTH_ATTEMPTS; i++)); do
   if curl --silent --show-error --fail "${E2E_BASE_URL}/health" >/dev/null; then
-    echo "Compose runner ready at ${E2E_BASE_URL} (vector=${VECTOR_DB_TYPE}, graph=${GRAPH_DB_TYPE})"
+    echo "Compose runner ready at ${E2E_BASE_URL} (shape=${label})"
     exit 0
   fi
   sleep "${E2E_HEALTH_SLEEP_SECONDS}"
