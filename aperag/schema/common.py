@@ -184,6 +184,17 @@ class CollectionConfig(BaseModel):
         "postgres",
         description="Lineage graph backend for knowledge graph indexing",
     )
+    # Wave 4 T9: fulltext backend dispatch. ``elasticsearch`` is the
+    # default + reference backend (the global ``ES_HOST`` already wired
+    # through ``settings``); ``opensearch`` is the open-licence
+    # alternative for deployments that cannot run Elastic Stack. The
+    # worker factory reads this field to construct the right
+    # ``FulltextBackend`` per collection — new collections default to
+    # ``elasticsearch`` so behaviour is unchanged for existing setups.
+    fulltext_backend_type: Optional[Literal["elasticsearch", "opensearch"]] = Field(
+        "elasticsearch",
+        description="Fulltext search backend for the fulltext modality",
+    )
     enable_summary: Optional[bool] = Field(False, description="Whether to enable summary index")
     enable_vision: Optional[bool] = Field(False, description="Whether to enable vision index")
     knowledge_graph_config: Optional[KnowledgeGraphConfig] = Field(

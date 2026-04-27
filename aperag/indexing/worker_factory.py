@@ -249,20 +249,91 @@ def _build_vector_worker(*, collection: Any, object_store: Any) -> ModalityWorke
 
 
 def _build_fulltext_worker(*, collection: Any, object_store: Any) -> ModalityWorker:
-    """Wire :class:`FulltextModality` to a real Elasticsearch index.
+    """Wire :class:`FulltextModality` to a real fulltext backend per
+    ``collection.config.fulltext_backend_type`` (Wave 4 T9).
 
     Uses the same physical index name the retrieval pipeline reads
     from (``generate_fulltext_index_name``) so writes and reads are
-    symmetric.
+    symmetric. The fulltext backend dispatch mirrors the graph backend
+    dispatch landed in T8 chunk 4b — the backend is selected per
+    collection so a deployment can mix Elasticsearch (existing) and
+    OpenSearch (open-licence alternative) without code changes.
+    """
+    from aperag.indexing.fulltext import FulltextModality
+    from aperag.utils.utils import generate_fulltext_index_name
+
+    backend_type = _resolve_fulltext_backend_type(collection)
+    index_name = generate_fulltext_index_name(collection.id)
+    backend = _build_fulltext_backend(backend_type=backend_type, index_name=index_name)
+    # Pass ``collection.id`` so ``FulltextModality.sync`` can write
+    # ``collection_id`` into every fulltext document — the retrieval
+    # pipeline ``_fulltext_search`` filters on this field. Without
+    # it, search returns 0 hits silently.
+    return FulltextModality(backend=backend, store=object_store, collection_id=collection.id)
+
+
+_VALID_FULLTEXT_BACKENDS = ("elasticsearch", "opensearch")
+
+
+def _resolve_fulltext_backend_type(collection: Any) -> str:
+    """Read ``collection.config.fulltext_backend_type`` from the
+    collection's persisted config. Defaults to ``"elasticsearch"`` if
+    the field is absent (older collections created before T9)."""
+    cfg = getattr(collection, "config", None)
+    raw: Any = None
+    if cfg is None:
+        return "elasticsearch"
+    if hasattr(cfg, "fulltext_backend_type"):
+        raw = cfg.fulltext_backend_type
+    elif isinstance(cfg, Mapping):
+        raw = cfg.get("fulltext_backend_type")
+    elif isinstance(cfg, str):
+        # ``Collection.config`` may be persisted as a JSON string by
+        # SQLAlchemy when the column type is Text; parse defensively.
+        import json
+
+        try:
+            parsed = json.loads(cfg)
+        except (TypeError, ValueError):
+            parsed = None
+        if isinstance(parsed, Mapping):
+            raw = parsed.get("fulltext_backend_type")
+    backend = raw or "elasticsearch"
+    if backend not in _VALID_FULLTEXT_BACKENDS:
+        raise WorkerFactoryError(
+            f"unknown fulltext_backend_type {backend!r} on collection "
+            f"{getattr(collection, 'id', '<unknown>')}; expected one of {_VALID_FULLTEXT_BACKENDS}"
+        )
+    return backend
+
+
+def _build_fulltext_backend(*, backend_type: str, index_name: str) -> Any:
+    """Construct the per-backend fulltext adapter. The two supported
+    backends share the wire-compatible Elasticsearch HTTP API surface
+    used by ``_ElasticsearchFulltextBackend`` (index / bulk /
+    delete_by_query), so the same adapter class wraps both clients —
+    only the underlying client driver differs.
+    """
+    if backend_type == "elasticsearch":
+        client = _build_elasticsearch_client()
+        return _ElasticsearchFulltextBackend(client=client, index_name=index_name)
+    if backend_type == "opensearch":
+        client = _build_opensearch_client()
+        return _ElasticsearchFulltextBackend(client=client, index_name=index_name)
+    raise WorkerFactoryError(f"unsupported fulltext_backend_type {backend_type!r}")
+
+
+def _build_elasticsearch_client() -> Any:
+    """Construct the Elasticsearch client from the global ``ES_HOST``
+    + auth + timeout settings. Raises :class:`WorkerFactoryError` if
+    ``ES_HOST`` is not configured.
     """
     from elasticsearch import Elasticsearch
 
     from aperag.config import settings
-    from aperag.indexing.fulltext import FulltextModality
-    from aperag.utils.utils import generate_fulltext_index_name
 
     if not settings.es_host:
-        raise WorkerFactoryError("fulltext: ES_HOST not configured (settings.es_host empty)")
+        raise WorkerFactoryError("fulltext backend=elasticsearch: ES_HOST not configured (settings.es_host empty)")
 
     es_kwargs: dict[str, Any] = {}
     if getattr(settings, "es_basic_auth_username", None):
@@ -273,14 +344,42 @@ def _build_fulltext_worker(*, collection: Any, object_store: Any) -> ModalityWor
     if getattr(settings, "es_timeout", None):
         es_kwargs["request_timeout"] = settings.es_timeout
 
-    client = Elasticsearch(settings.es_host, **es_kwargs)
-    index_name = generate_fulltext_index_name(collection.id)
-    backend = _ElasticsearchFulltextBackend(client=client, index_name=index_name)
-    # Pass ``collection.id`` so ``FulltextModality.sync`` can write
-    # ``collection_id`` into every ES document — the retrieval
-    # pipeline ``_fulltext_search`` filters on this field. Without
-    # it, search returns 0 hits silently.
-    return FulltextModality(backend=backend, store=object_store, collection_id=collection.id)
+    return Elasticsearch(settings.es_host, **es_kwargs)
+
+
+def _build_opensearch_client() -> Any:
+    """Construct the OpenSearch client from the global ``ES_HOST`` +
+    auth + timeout settings (same env vars as Elasticsearch — there
+    is no separate ``OPENSEARCH_HOST`` because operators run one
+    fulltext backend per deployment).
+
+    Raises :class:`WorkerFactoryError` when the optional
+    ``opensearch-py`` dependency is not installed — mirrors the way
+    chunk 4b gates the Neo4j / Nebula drivers behind the graph-{neo4j,
+    nebula} extras.
+    """
+    from aperag.config import settings
+
+    if not settings.es_host:
+        raise WorkerFactoryError("fulltext backend=opensearch: ES_HOST not configured (settings.es_host empty)")
+
+    try:
+        from opensearchpy import OpenSearch
+    except ImportError as exc:  # pragma: no cover — fulltext-opensearch extra
+        raise WorkerFactoryError(
+            "fulltext backend=opensearch: opensearch-py not installed; install the fulltext-opensearch extra"
+        ) from exc
+
+    os_kwargs: dict[str, Any] = {}
+    if getattr(settings, "es_basic_auth_username", None):
+        os_kwargs["http_auth"] = (
+            settings.es_basic_auth_username,
+            getattr(settings, "es_basic_auth_password", "") or "",
+        )
+    if getattr(settings, "es_timeout", None):
+        os_kwargs["timeout"] = settings.es_timeout
+
+    return OpenSearch(hosts=[settings.es_host], **os_kwargs)
 
 
 def _build_summary_worker(*, collection: Any, object_store: Any) -> ModalityWorker:
@@ -989,27 +1088,17 @@ def _build_qdrant_cleanup_backend(collection: Any) -> Any:
 
 
 def _build_es_cleanup_backend(collection: Any) -> Any:
-    """Construct the ES ``_backend`` adapter for fulltext cleanup."""
-    from elasticsearch import Elasticsearch
-
-    from aperag.config import settings
+    """Construct the fulltext ``_backend`` adapter for cleanup,
+    dispatching on ``collection.config.fulltext_backend_type``
+    (T9). Reuses the same dispatch + client builders as the
+    dispatch path so an operator who switched the collection from
+    Elasticsearch to OpenSearch still cleans up the right index.
+    """
     from aperag.utils.utils import generate_fulltext_index_name
 
-    if not settings.es_host:
-        raise WorkerFactoryError("fulltext cleanup: ES_HOST not configured (settings.es_host empty)")
-
-    es_kwargs: dict[str, Any] = {}
-    if getattr(settings, "es_basic_auth_username", None):
-        es_kwargs["basic_auth"] = (
-            settings.es_basic_auth_username,
-            getattr(settings, "es_basic_auth_password", "") or "",
-        )
-    if getattr(settings, "es_timeout", None):
-        es_kwargs["request_timeout"] = settings.es_timeout
-
-    client = Elasticsearch(settings.es_host, **es_kwargs)
+    backend_type = _resolve_fulltext_backend_type(collection)
     index_name = generate_fulltext_index_name(collection.id)
-    return _ElasticsearchFulltextBackend(client=client, index_name=index_name)
+    return _build_fulltext_backend(backend_type=backend_type, index_name=index_name)
 
 
 def _build_cleanup_view_sync(collection: Any, modality: Modality) -> CleanupWorkerView:
