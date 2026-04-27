@@ -1930,3 +1930,101 @@ async def test_w7_phase3_vector_upsert_failure_is_non_fatal(store, entity_lock, 
     assert (await store.get_entity("Linus")) is not None
     # No upsert recorded (raised before append).
     assert vector.upserts == []
+
+
+# ---------------------------------------------------------------------
+# Group 7: Wave 7 W7-10 — ``LineageGraphStore.list_entities`` Protocol
+# method (paginated entity list with optional label filter).
+# ---------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_w7_list_entities_returns_empty_for_fresh_store():
+    s = InMemoryLineageGraphStore()
+    assert await s.list_entities() == []
+
+
+@pytest.mark.asyncio
+async def test_w7_list_entities_sorted_alphabetically():
+    s = InMemoryLineageGraphStore()
+    await s.upsert_entity_with_lineage(
+        record=EntityRecord(name="Zara", entity_type="Person", description="z", source_chunk_ids=("c0",)),
+        lineage=_LINEAGE_W7_DOC_A_V1,
+    )
+    await s.upsert_entity_with_lineage(
+        record=EntityRecord(name="Alice", entity_type="Person", description="a", source_chunk_ids=("c0",)),
+        lineage=_LINEAGE_W7_DOC_A_V1,
+    )
+    await s.upsert_entity_with_lineage(
+        record=EntityRecord(name="Bob", entity_type="Person", description="b", source_chunk_ids=("c0",)),
+        lineage=_LINEAGE_W7_DOC_A_V1,
+    )
+    rows = await s.list_entities()
+    assert [r.name for r in rows] == ["Alice", "Bob", "Zara"]
+
+
+@pytest.mark.asyncio
+async def test_w7_list_entities_label_filter():
+    s = InMemoryLineageGraphStore()
+    await s.upsert_entity_with_lineage(
+        record=EntityRecord(name="Alice", entity_type="Person", description="a", source_chunk_ids=("c0",)),
+        lineage=_LINEAGE_W7_DOC_A_V1,
+    )
+    await s.upsert_entity_with_lineage(
+        record=EntityRecord(name="Acme", entity_type="Organization", description="o", source_chunk_ids=("c0",)),
+        lineage=_LINEAGE_W7_DOC_A_V1,
+    )
+    persons = await s.list_entities(label="Person")
+    assert [r.name for r in persons] == ["Alice"]
+    orgs = await s.list_entities(label="Organization")
+    assert [r.name for r in orgs] == ["Acme"]
+
+
+@pytest.mark.asyncio
+async def test_w7_list_entities_pagination_via_offset_limit():
+    s = InMemoryLineageGraphStore()
+    for name in ("Alice", "Bob", "Carol", "Dave", "Eve"):
+        await s.upsert_entity_with_lineage(
+            record=EntityRecord(name=name, entity_type="Person", description=name, source_chunk_ids=("c0",)),
+            lineage=_LINEAGE_W7_DOC_A_V1,
+        )
+    page1 = await s.list_entities(limit=2, offset=0)
+    page2 = await s.list_entities(limit=2, offset=2)
+    page3 = await s.list_entities(limit=2, offset=4)
+    assert [r.name for r in page1] == ["Alice", "Bob"]
+    assert [r.name for r in page2] == ["Carol", "Dave"]
+    assert [r.name for r in page3] == ["Eve"]
+
+
+@pytest.mark.asyncio
+async def test_w7_list_entities_zero_or_negative_limit_returns_empty():
+    s = InMemoryLineageGraphStore()
+    await s.upsert_entity_with_lineage(
+        record=EntityRecord(name="Alice", entity_type="Person", description="a", source_chunk_ids=("c0",)),
+        lineage=_LINEAGE_W7_DOC_A_V1,
+    )
+    assert await s.list_entities(limit=0) == []
+    assert await s.list_entities(limit=-5) == []
+
+
+@pytest.mark.asyncio
+async def test_w7_list_entities_negative_offset_treated_as_zero():
+    s = InMemoryLineageGraphStore()
+    await s.upsert_entity_with_lineage(
+        record=EntityRecord(name="Alice", entity_type="Person", description="a", source_chunk_ids=("c0",)),
+        lineage=_LINEAGE_W7_DOC_A_V1,
+    )
+    rows = await s.list_entities(offset=-10)
+    assert len(rows) == 1
+
+
+@pytest.mark.asyncio
+async def test_w7_list_entities_returns_compacted_description():
+    s = InMemoryLineageGraphStore()
+    await s.upsert_entity_with_lineage(
+        record=EntityRecord(name="Alice", entity_type="Person", description="raw", source_chunk_ids=("c0",)),
+        lineage=_LINEAGE_W7_DOC_A_V1,
+        compacted_description="LLM summary",
+    )
+    [row] = await s.list_entities()
+    assert row.compacted_description == "LLM summary"

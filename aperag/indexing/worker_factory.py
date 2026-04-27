@@ -550,12 +550,9 @@ def _build_collection_graph_compactor(collection: Any) -> Any:
     step gracefully (Phase 3 still runs vector upsert against the
     raw description fallback)."""
     from aperag.indexing.graph_compactor import GraphIndexCompactor
+    from aperag.indexing.llm import build_collection_llm_callable
 
     try:
-        from aperag.domains.knowledge_graph.graphindex.integration import (
-            build_collection_llm_callable,
-        )
-
         llm = build_collection_llm_callable(collection)
     except Exception:  # noqa: BLE001 — best-effort; missing model is non-fatal.
         logger.warning(
@@ -930,9 +927,7 @@ def _build_collection_summarizer(collection: Any) -> Callable[[str], str]:
     explicit LLM wiring.
     """
     try:
-        from aperag.domains.knowledge_graph.graphindex.integration import (
-            build_collection_llm_callable,
-        )
+        from aperag.indexing.llm import build_collection_llm_callable
 
         llm = build_collection_llm_callable(collection)
     except Exception:  # noqa: BLE001 — best-effort

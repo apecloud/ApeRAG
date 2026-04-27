@@ -21,7 +21,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, Sequence
 
-from aperag.domains.knowledge_graph.graphindex.dto import Entity
+from aperag.graph_curation.dto import CurationEntity as Entity
 
 _WORD_RE = re.compile(r"[a-z0-9]+", re.IGNORECASE)
 _NON_ALNUM_RE = re.compile(r"[^0-9a-zA-Z]+")

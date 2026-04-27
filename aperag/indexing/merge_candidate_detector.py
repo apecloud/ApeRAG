@@ -46,11 +46,11 @@ from aperag.domains.knowledge_graph.db.models import (
     GraphCurationSuggestion,
     GraphCurationSuggestionStatus,
 )
-from aperag.domains.knowledge_graph.graphindex.dto import Entity as LegacyEntity
 from aperag.graph_curation.candidate_generation import (
     CandidatePair,
     build_candidate_pairs,
 )
+from aperag.graph_curation.dto import CurationEntity as LegacyEntity
 from aperag.indexing.graph import EntityWithLineage, LineageGraphStore
 from aperag.utils.utils import utc_now
 from aperag.vectorstore.base import VectorStoreConnector

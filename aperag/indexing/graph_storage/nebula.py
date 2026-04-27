@@ -1059,6 +1059,51 @@ class NebulaLineageGraphStore:
 
         return await asyncio.to_thread(_scan)
 
+    # -- Wave 7 W7-10: paginated entity list ---------------------------
+
+    async def list_entities(
+        self,
+        *,
+        label: str | None = None,
+        limit: int = 1000,
+        offset: int = 0,
+    ) -> list[EntityWithLineage]:
+        if limit <= 0:
+            return []
+        offset = max(0, offset)
+        await self.ensure_schema()
+
+        def _scan() -> list[EntityWithLineage]:
+            # Nebula has no JSON / property-equality index we can rely
+            # on across versions, so we enumerate all entity VIDs via
+            # LOOKUP, fetch + filter in Python, then apply
+            # ``ORDER BY name SKIP offset LIMIT limit`` semantics on the
+            # in-Python result set. Matches the
+            # ``query_entities_by_keyword`` approach (acceptable per
+            # simple-stable directive — operators don't manage a
+            # per-collection text-index infra).
+            rows: list[EntityWithLineage] = []
+            for vid in self._list_all_entity_vids():
+                row = self._read_entity_lineage_by_vid(vid)
+                if row is None:
+                    continue
+                name, type_value, members, parts, compacted = row
+                if label is not None and type_value != label:
+                    continue
+                rows.append(
+                    EntityWithLineage(
+                        name=name,
+                        entity_type=type_value,
+                        source_lineage=tuple(members),
+                        description_parts=tuple(parts),
+                        compacted_description=compacted,
+                    )
+                )
+            rows.sort(key=lambda e: e.name)
+            return rows[offset : offset + limit]
+
+        return await asyncio.to_thread(_scan)
+
 
 __all__ = [
     "NebulaLineageGraphStore",

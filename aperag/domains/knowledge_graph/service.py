@@ -42,8 +42,6 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, Dict, List
 
 from aperag.db.ops import async_db_ops
-from aperag.domains.knowledge_graph.graphindex.dto import Entity as GraphIndexEntity
-from aperag.domains.knowledge_graph.graphindex.dto import Relation as GraphIndexRelation
 from aperag.domains.knowledge_graph.ports import CollectionRow
 from aperag.domains.knowledge_graph.schemas import GraphLabelsResponse, KnowledgeGraph
 from aperag.exceptions import CollectionNotFoundException
@@ -113,26 +111,58 @@ class GraphService:
         degree-based picker so the visualiser gets well-connected
         nodes; the subsequent truncation sets ``is_truncated`` on the
         response.
+
+        Wave 7 W7-10 cutover (per architect Q1 ratify msg=838d57c3):
+        2-step pipeline replacing the legacy
+        ``GraphIndexService.get_knowledge_graph``:
+
+        1. ``store.list_entities(label, limit=query_max_nodes)`` —
+           label-filtered entity list (primary work; new Protocol
+           method shipped in this PR).
+        2. ``GraphSearchService.get_subgraph(names, hops=max_depth)`` —
+           optional edge expansion when ``max_depth > 0``.
+
+        Each layer has clean semantics (W7-5 ``get_subgraph`` is
+        anchor-expansion, NOT label-filter; using it as the primary
+        entry point would force a wrapper that re-list_entities just
+        to compute anchors — drift the architect catches in
+        msg=838d57c3 own-up).
         """
         db_collection = await self._get_and_validate_collection(user_id, collection_id)
-
-        from aperag.domains.knowledge_graph.graphindex.integration import make_service_for_collection
-
-        svc = make_service_for_collection(db_collection)
 
         normalized_label = None if not label or label == "*" else label
         query_max_nodes = max_nodes * 2 if normalized_label is None else max_nodes
         mode_description = "overview" if normalized_label is None else f"subgraph from '{label}'"
 
-        kg = await svc.get_knowledge_graph(
-            collection_id=collection_id,
-            label=normalized_label,
-            max_depth=max_depth,
-            max_nodes=query_max_nodes,
+        # Lazy imports keep the service module free of indexing-layer
+        # dependencies at import time (mirror ``get_graph_labels``).
+        from aperag.indexing.graph_search_service import build_graph_search_service_for
+        from aperag.indexing.worker_factory import (
+            _build_lineage_graph_store,
+            _resolve_graph_backend_type,
         )
-        raw_nodes = _adapt_nodes(kg.nodes)
-        raw_edges = _adapt_edges(kg.edges)
-        is_truncated = bool(getattr(kg, "is_truncated", False))
+
+        backend_type = _resolve_graph_backend_type(db_collection)
+        store = _build_lineage_graph_store(backend_type=backend_type, collection=db_collection)
+        # Step 1 — label-filtered entity list (paged single call; UI
+        # asks for at most ``query_max_nodes`` so one page suffices).
+        entities = await store.list_entities(label=normalized_label, limit=query_max_nodes)
+        # Step 2 — optional edge expansion. ``get_subgraph`` walks
+        # 1+ hops from the seed entities and returns relations that
+        # touch them; we keep only those edges whose endpoints are in
+        # the requested entity set so the UI does not show stray
+        # neighbours past the ``label`` filter.
+        relations: list[Any] = []
+        if entities and max_depth > 0:
+            search = build_graph_search_service_for(db_collection)
+            seed_names = [entity.name for entity in entities]
+            subgraph = await search.get_subgraph(entity_names=seed_names, hops=max_depth)
+            allowed = set(seed_names)
+            relations = [rel for rel in subgraph.relations if rel.source in allowed and rel.target in allowed]
+
+        raw_nodes = _adapt_lineage_entities(entities)
+        raw_edges = _adapt_lineage_relations(relations)
+        is_truncated = False
 
         # Overview mode: prune to top-degree nodes when we asked the
         # storage for more than the UI limit. Sub-label mode passes
@@ -343,9 +373,7 @@ class GraphService:
 
         db_collection = await self._get_and_validate_collection(user_id, collection_id)
         backend_type = _resolve_graph_backend_type(db_collection)
-        store = await asyncio.to_thread(
-            _build_lineage_graph_store, backend_type=backend_type, collection=db_collection
-        )
+        store = await asyncio.to_thread(_build_lineage_graph_store, backend_type=backend_type, collection=db_collection)
         entity = await store.get_entity(entity_name)
         if entity is None:
             return None
@@ -462,61 +490,89 @@ class GraphService:
 # contract unchanged and the adapter isolated in one place.
 
 
-def _adapt_nodes(nodes: List[GraphIndexEntity]) -> List[SimpleNamespace]:
-    """Wrap ``graphindex.Entity`` for the UI dict builder."""
+def _adapt_lineage_entities(entities: list[Any]) -> List[SimpleNamespace]:
+    """Wave 7 W7-10: project ``EntityWithLineage`` rows into the
+    ``SimpleNamespace`` shape ``_to_ui_dict`` consumes.
+
+    Mirrors the legacy ``_adapt_nodes`` projection so the UI dict
+    builder's contract stays unchanged. ``description`` prefers
+    ``compacted_description`` (W7-1 derived cache) and falls back to
+    the joined per-doc parts so freshly-indexed entities (compactor
+    not yet run) still show usable text. ``source_chunk_count``
+    aggregates chunk ids across every lineage member.
+    """
     out: List[SimpleNamespace] = []
-    for n in nodes:
-        if not isinstance(n, GraphIndexEntity):
-            # Already in legacy shape (defensive; should not happen after
-            # the LightRAG removal but cheap to keep).
-            out.append(n)  # type: ignore[arg-type]
-            continue
+    for entity in entities:
+        compacted = getattr(entity, "compacted_description", None)
+        if compacted:
+            description = compacted
+        else:
+            parts = getattr(entity, "description_parts", ()) or ()
+            description = "\n\n".join(p.text for p in parts if getattr(p, "text", ""))
+        chunk_ids: set[str] = set()
+        for member in getattr(entity, "source_lineage", ()) or ():
+            for cid in getattr(member, "chunk_ids", ()) or ():
+                chunk_ids.add(str(cid))
         props = {
-            "entity_id": n.entity_id,
-            "entity_name": n.name,
-            "entity_type": n.type,
-            "description": n.description,
-            "source_chunk_count": len(n.source_chunk_ids),
+            "entity_id": entity.name,
+            "entity_name": entity.name,
+            "entity_type": entity.entity_type,
+            "description": description,
+            "source_chunk_count": len(chunk_ids),
         }
         out.append(
             SimpleNamespace(
-                id=n.entity_id,
-                labels=[n.type] if n.type else [n.name],
+                id=entity.name,
+                labels=[entity.entity_type] if entity.entity_type else [entity.name],
                 properties=props,
-                entity_id=n.entity_id,
-                entity_name=n.name,
-                entity_type=n.type,
-                description=n.description,
-                source_chunk_count=props["source_chunk_count"],
+                entity_id=entity.name,
+                entity_name=entity.name,
+                entity_type=entity.entity_type,
+                description=description,
+                source_chunk_count=len(chunk_ids),
             )
         )
     return out
 
 
-def _adapt_edges(edges: List[GraphIndexRelation]) -> List[SimpleNamespace]:
-    """Wrap ``graphindex.Relation`` for the UI dict builder."""
+def _adapt_lineage_relations(relations: list[Any]) -> List[SimpleNamespace]:
+    """Wave 7 W7-10: project ``RelationWithLineage`` rows into the
+    ``SimpleNamespace`` shape ``_to_ui_dict`` consumes.
+
+    The lineage relation has no ``weight`` field (legacy LightRAG
+    artefact) — we surface ``1.0`` constant so the UI dict builder
+    keeps a stable shape. Description prefers ``compacted_description``
+    over the joined per-doc parts (mirror ``_adapt_lineage_entities``).
+    """
     out: List[SimpleNamespace] = []
-    for e in edges:
-        if not isinstance(e, GraphIndexRelation):
-            out.append(e)  # type: ignore[arg-type]
-            continue
+    for rel in relations:
+        compacted = getattr(rel, "compacted_description", None)
+        if compacted:
+            description = compacted
+        else:
+            parts = getattr(rel, "description_parts", ()) or ()
+            description = "\n\n".join(p.text for p in parts if getattr(p, "text", ""))
+        chunk_ids: set[str] = set()
+        for member in getattr(rel, "evidence_lineage", ()) or ():
+            for cid in getattr(member, "chunk_ids", ()) or ():
+                chunk_ids.add(str(cid))
         props = {
-            "weight": float(e.weight),
-            "description": e.description,
+            "weight": 1.0,
+            "description": description,
             "keywords": "",
-            "source_chunk_count": len(e.source_chunk_ids),
+            "source_chunk_count": len(chunk_ids),
         }
         out.append(
             SimpleNamespace(
-                id=f"{e.source_id}->{e.target_id}",
+                id=f"{rel.source}->{rel.target}",
                 type="DIRECTED",
-                source=e.source_id,
-                target=e.target_id,
+                source=rel.source,
+                target=rel.target,
                 properties=props,
-                weight=props["weight"],
-                description=e.description,
+                weight=1.0,
+                description=description,
                 keywords="",
-                source_chunk_count=props["source_chunk_count"],
+                source_chunk_count=len(chunk_ids),
             )
         )
     return out

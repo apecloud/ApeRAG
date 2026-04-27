@@ -762,6 +762,42 @@ class PostgresLineageGraphStore:
             )
             return [row.entity_type for row in result if row.entity_type]
 
+    # -- Wave 7 W7-10: paginated entity list (UI graph view + curation
+    # full-collection enumerate paths) ---------------------------------
+
+    async def list_entities(
+        self,
+        *,
+        label: str | None = None,
+        limit: int = 1000,
+        offset: int = 0,
+    ) -> list[EntityWithLineage]:
+        if limit <= 0:
+            return []
+        offset = max(0, offset)
+        stmt = select(
+            _LineageEntityRow.name,
+            _LineageEntityRow.entity_type,
+            _LineageEntityRow.source_lineage,
+            _LineageEntityRow.description_parts,
+            _LineageEntityRow.compacted_description,
+        ).where(_LineageEntityRow.collection_id == self._collection_id)
+        if label is not None:
+            stmt = stmt.where(_LineageEntityRow.entity_type == label)
+        stmt = stmt.order_by(_LineageEntityRow.name).limit(limit).offset(offset)
+        async with self._engine.connect() as conn:
+            result = await conn.execute(stmt)
+            return [
+                EntityWithLineage(
+                    name=row.name,
+                    entity_type=row.entity_type,
+                    source_lineage=tuple(LineageMember.from_dict(elem) for elem in (row.source_lineage or [])),
+                    description_parts=tuple(DescriptionPart.from_dict(part) for part in (row.description_parts or [])),
+                    compacted_description=row.compacted_description,
+                )
+                for row in result
+            ]
+
 
 __all__ = [
     "ENTITY_TABLE",

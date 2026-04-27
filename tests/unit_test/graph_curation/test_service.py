@@ -7,9 +7,9 @@
 #     http://www.apache.org/licenses/LICENSE-2.0
 
 
-from aperag.domains.knowledge_graph.graphindex.dto import Entity
 from aperag.domains.knowledge_graph.schemas import SuggestionActionRequest
 from aperag.graph_curation.candidate_generation import CandidatePair
+from aperag.graph_curation.dto import CurationEntity as Entity
 from aperag.graph_curation.service import GraphCurationService, MergeJudgement
 
 

@@ -706,6 +706,63 @@ class Neo4jLineageGraphStore:
             result = await session.run(cypher, collection_id=self._collection_id)
             return [rec["label"] async for rec in result if rec["label"]]
 
+    # -- Wave 7 W7-10: paginated entity list ---------------------------
+
+    async def list_entities(
+        self,
+        *,
+        label: str | None = None,
+        limit: int = 1000,
+        offset: int = 0,
+    ) -> list[EntityWithLineage]:
+        if limit <= 0:
+            return []
+        offset = max(0, offset)
+        if label is None:
+            cypher = (
+                f"MATCH (n:{_ENTITY_LABEL} {{collection_id: $collection_id}}) "
+                f"RETURN n.name AS name, n.entity_type AS entity_type, "
+                f"       n.source_lineage AS source_lineage, "
+                f"       n.description_parts AS description_parts, "
+                f"       n.compacted_description AS compacted_description "
+                f"ORDER BY n.name SKIP $offset LIMIT $limit"
+            )
+            params: dict[str, Any] = {
+                "collection_id": self._collection_id,
+                "offset": int(offset),
+                "limit": int(limit),
+            }
+        else:
+            cypher = (
+                f"MATCH (n:{_ENTITY_LABEL} {{collection_id: $collection_id}}) "
+                f"WHERE n.entity_type = $label "
+                f"RETURN n.name AS name, n.entity_type AS entity_type, "
+                f"       n.source_lineage AS source_lineage, "
+                f"       n.description_parts AS description_parts, "
+                f"       n.compacted_description AS compacted_description "
+                f"ORDER BY n.name SKIP $offset LIMIT $limit"
+            )
+            params = {
+                "collection_id": self._collection_id,
+                "label": label,
+                "offset": int(offset),
+                "limit": int(limit),
+            }
+        async with self._session() as session:
+            result = await session.run(cypher, **params)
+            return [
+                EntityWithLineage(
+                    name=rec["name"],
+                    entity_type=rec["entity_type"] or "",
+                    source_lineage=tuple(LineageMember.from_dict(json.loads(s)) for s in (rec["source_lineage"] or [])),
+                    description_parts=tuple(
+                        DescriptionPart.from_dict(json.loads(s)) for s in (rec["description_parts"] or [])
+                    ),
+                    compacted_description=rec["compacted_description"],
+                )
+                async for rec in result
+            ]
+
 
 __all__ = [
     "Neo4jLineageGraphStore",
