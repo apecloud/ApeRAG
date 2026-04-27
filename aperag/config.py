@@ -20,7 +20,7 @@ from typing import Annotated, Any, AsyncGenerator, Dict, Generator, Optional
 
 from dotenv import load_dotenv
 from fastapi import Depends
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
 from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -275,6 +275,23 @@ class Config(BaseSettings):
     cache_llm_ttl_seconds: Optional[int] = Field(None, alias="CACHE_LLM_TTL_SECONDS")
     cache_embedding_ttl_seconds: Optional[int] = Field(None, alias="CACHE_EMBEDDING_TTL_SECONDS")
     cache_rerank_ttl_seconds: Optional[int] = Field(None, alias="CACHE_RERANK_TTL_SECONDS")
+
+    @field_validator(
+        "cache_llm_ttl_seconds",
+        "cache_embedding_ttl_seconds",
+        "cache_rerank_ttl_seconds",
+        mode="before",
+    )
+    @classmethod
+    def _empty_str_to_none(cls, value: Any) -> Any:
+        # env.template ships these as ``CACHE_*_TTL_SECONDS=`` (empty
+        # string) so operators see them in the file and override only
+        # what they want; pydantic-settings would otherwise try to
+        # int-parse ``""`` and fail container startup.
+        if isinstance(value, str) and value.strip() == "":
+            return None
+        return value
+
     cache_web_search_ttl_seconds: int = Field(600, alias="CACHE_WEB_SEARCH_TTL_SECONDS")
     cache_web_read_ttl_seconds: int = Field(3600, alias="CACHE_WEB_READ_TTL_SECONDS")
     cache_parser_preflight_ttl_seconds: int = Field(60, alias="CACHE_PARSER_PREFLIGHT_TTL_SECONDS")
