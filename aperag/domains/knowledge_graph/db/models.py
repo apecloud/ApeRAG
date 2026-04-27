@@ -133,9 +133,36 @@ class GraphCurationSuggestion(Base):
     gmt_operated = Column(DateTime(timezone=True), nullable=True)
 
 
+class LineageEntityAlias(Base):
+    """Persistent record of a user-driven entity merge — Wave 7 §K.12.7
+    + §K.12.10b. ``(collection_id, alias_name)`` is unique; the row
+    points the alias at the (already-flattened) ``canonical_name``.
+
+    Survives the canonical entity's GC: a future indexer write to the
+    alias name still resolves to the (now-empty) canonical, preserving
+    user intent (spec §K.12.7 decision X)."""
+
+    __tablename__ = "aperag_lineage_entity_alias"
+    __table_args__ = (
+        Index(
+            "ix_aperag_lineage_entity_alias_canonical",
+            "collection_id",
+            "canonical_name",
+        ),
+    )
+
+    collection_id = Column(String(64), primary_key=True, nullable=False)
+    alias_name = Column(String(512), primary_key=True, nullable=False)
+    canonical_name = Column(String(512), nullable=False)
+    merged_by = Column(String(256), nullable=True)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+
 __all__ = [
     "GraphCurationRun",
     "GraphCurationRunStatus",
     "GraphCurationSuggestion",
     "GraphCurationSuggestionStatus",
+    "LineageEntityAlias",
 ]
