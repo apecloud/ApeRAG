@@ -1556,6 +1556,7 @@ v2 把 v1 的 7 个细粒度 PR 收成 **3 个 wave**（≈3 个大 PR）。每�
 - W5 `tenant_scope_key` org-prefix forward-compat (T3 chunk 2 obs C)
 - W5 `_resolve_cleanup_worker` narrow exception types (T2 obs A)
 - W5 cleanup builder share helpers with dispatch builders (T2 obs B drift risk)
+- W5 e2e-http-compose lane stub model-provider fixture + Layer 2 full-pipeline test activation (chunk 4e Layer 2 tests are currently `pytest.skip(...)` stubs because vector/fulltext/summary embedders need a configured model-provider that local dev does not have; the e2e-http-compose lane has the scaffolding but the stub fixture must be wired so Layer 2 can run for real instead of skip — per architect msg=87e2b187 chunk 4d/4e ratify decision condition #3)
 
 ### K.7. 测试策略
 
