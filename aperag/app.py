@@ -366,6 +366,17 @@ async def combined_lifespan(app: FastAPI):
         if queue_obj is not None and hasattr(queue_obj, "close"):
             with contextlib.suppress(Exception):
                 await queue_obj.close()
+        # Wave 4 T6: flush + shut down the OTLP MeterProvider so the
+        # PeriodicExportingMetricReader drains any pending metric
+        # samples before the process exits. Mirrors the T4 graceful
+        # shutdown pattern and addresses huangheng pass-1 observation A
+        # (msg=5d450300). ``shutdown_metrics_provider`` is a no-op when
+        # the SDK MeterProvider was never installed (default
+        # ``noop`` emitter / OTLP endpoint missing).
+        from aperag.observability.metrics import shutdown_metrics_provider
+
+        with contextlib.suppress(Exception):
+            await asyncio.to_thread(shutdown_metrics_provider)
 
 
 # Create the main FastAPI app with combined lifespan
