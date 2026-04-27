@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import hashlib
 import json
 import logging
 from dataclasses import dataclass
@@ -20,6 +21,7 @@ from typing import List
 import httpx
 import litellm
 
+from aperag.cache import NAMESPACE_RERANK, application_cache_policy, get_application_cache
 from aperag.llm.llm_error_types import (
     InvalidDocumentError,
     RerankError,
@@ -133,6 +135,33 @@ class RerankService:
             raise wrap_litellm_error(e, "rerank", self.rerank_provider, self.model) from e
 
     async def _rank_texts(self, query: str, texts: List[str]) -> List[_RankedResult]:
+        if not self.caching:
+            return await self._rank_texts_uncached(query, texts)
+
+        async def compute() -> list[dict]:
+            ranked = await self._rank_texts_uncached(query, texts)
+            return [{"index": item.index, "relevance_score": item.relevance_score} for item in ranked]
+
+        cache = await get_application_cache()
+        cached = await cache.get_or_compute(
+            namespace=NAMESPACE_RERANK,
+            key_data={
+                "provider": self.rerank_provider,
+                "model": self.model,
+                "api_base": self.api_base,
+                "api_key_hash": hashlib.sha256((self.api_key or "").encode("utf-8")).hexdigest(),
+                "query": query,
+                "documents": texts,
+                "return_documents": False,
+            },
+            compute=compute,
+            policy=application_cache_policy(NAMESPACE_RERANK),
+        )
+        return [
+            _RankedResult(index=int(item["index"]), relevance_score=float(item["relevance_score"])) for item in cached
+        ]
+
+    async def _rank_texts_uncached(self, query: str, texts: List[str]) -> List[_RankedResult]:
         try:
             # Handle different providers
             if self.rerank_provider == "alibabacloud" or "alibabacloud" in self.rerank_provider.lower():
@@ -148,7 +177,7 @@ class RerankService:
                     api_key=self.api_key,
                     api_base=self.api_base,
                     return_documents=False,
-                    caching=self.caching,
+                    caching=False,
                 )
 
             # Validate response

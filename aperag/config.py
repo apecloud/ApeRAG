@@ -20,7 +20,7 @@ from typing import Annotated, Any, AsyncGenerator, Dict, Generator, Optional
 
 from dotenv import load_dotenv
 from fastapi import Depends
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
 from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -271,15 +271,37 @@ class Config(BaseSettings):
     # Cache
     cache_enabled: bool = Field(True, alias="CACHE_ENABLED")
     cache_ttl: int = Field(86400, alias="CACHE_TTL")
+    cache_redis_url: Optional[str] = Field(None, alias="CACHE_REDIS_URL")
+    cache_llm_ttl_seconds: Optional[int] = Field(None, alias="CACHE_LLM_TTL_SECONDS")
+    cache_embedding_ttl_seconds: Optional[int] = Field(None, alias="CACHE_EMBEDDING_TTL_SECONDS")
+    cache_rerank_ttl_seconds: Optional[int] = Field(None, alias="CACHE_RERANK_TTL_SECONDS")
 
-    # D10.g read-primitive cache (task #99): L1 in-process LRU + L2 Redis
-    # parse_version-keyed cache for §A read primitives. Per architect
-    # msg=a67974b3 Q2 lock these are operator-tunable knobs (`maxsize=256`
-    # is the §E.4 starting default; L2 TTL `3600s` matches §C.4 cursor
-    # default 1h). The cache layer never bypasses tenancy/authorization
-    # gates (§E.7 hard lock).
-    d10_cache_l1_size: int = Field(256, alias="D10_CACHE_L1_SIZE")
-    d10_cache_l2_ttl_seconds: int = Field(3600, alias="D10_CACHE_L2_TTL_SECONDS")
+    @field_validator(
+        "cache_llm_ttl_seconds",
+        "cache_embedding_ttl_seconds",
+        "cache_rerank_ttl_seconds",
+        mode="before",
+    )
+    @classmethod
+    def _empty_str_to_none(cls, value: Any) -> Any:
+        # env.template ships these as ``CACHE_*_TTL_SECONDS=`` (empty
+        # string) so operators see them in the file and override only
+        # what they want; pydantic-settings would otherwise try to
+        # int-parse ``""`` and fail container startup.
+        if isinstance(value, str) and value.strip() == "":
+            return None
+        return value
+
+    cache_web_search_ttl_seconds: int = Field(600, alias="CACHE_WEB_SEARCH_TTL_SECONDS")
+    cache_web_read_ttl_seconds: int = Field(3600, alias="CACHE_WEB_READ_TTL_SECONDS")
+    cache_parser_preflight_ttl_seconds: int = Field(60, alias="CACHE_PARSER_PREFLIGHT_TTL_SECONDS")
+    cache_remote_parser_ttl_seconds: int = Field(604800, alias="CACHE_REMOTE_PARSER_TTL_SECONDS")
+    cache_max_value_bytes: int = Field(8 * 1024 * 1024, alias="CACHE_MAX_VALUE_BYTES")
+
+    # Read-primitive cache: L1 in-process LRU + L2 Redis over parse-version-keyed
+    # read responses. It never bypasses tenancy/authorization gates.
+    read_primitive_cache_l1_size: int = Field(256, alias="READ_PRIMITIVE_CACHE_L1_SIZE")
+    read_primitive_cache_l2_ttl_seconds: int = Field(3600, alias="READ_PRIMITIVE_CACHE_L2_TTL_SECONDS")
 
     # Observability
     aperag_observability_mode: str = Field("local", alias="APERAG_OBSERVABILITY_MODE")

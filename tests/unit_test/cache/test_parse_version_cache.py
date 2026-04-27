@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""L1 / L2 cache layer contract tests for D10.g (task #99)."""
+"""L1 / L2 cache layer contract tests for read-primitive ."""
 
 from __future__ import annotations
 
@@ -76,18 +76,18 @@ async def test_l1_delete_removes_key():
 @pytest.mark.asyncio
 async def test_l1_delete_namespace_only_purges_matching_prefix():
     cache = L1Cache(maxsize=8)
-    await cache.set("d10:outline:doc-1:v1", "x")
-    await cache.set("d10:outline:doc-2:v1", "y")
-    await cache.set("d10:section:doc-1:v1::a", "z")
-    await cache.set("d10:chunk:c-1", "k")
+    await cache.set("read_primitive:outline:doc-1:v1", "x")
+    await cache.set("read_primitive:outline:doc-2:v1", "y")
+    await cache.set("read_primitive:section:doc-1:v1::a", "z")
+    await cache.set("read_primitive:chunk:c-1", "k")
 
     await cache.delete_namespace("outline")
 
-    assert await cache.get("d10:outline:doc-1:v1") is None
-    assert await cache.get("d10:outline:doc-2:v1") is None
+    assert await cache.get("read_primitive:outline:doc-1:v1") is None
+    assert await cache.get("read_primitive:outline:doc-2:v1") is None
     # Other namespaces unaffected.
-    assert await cache.get("d10:section:doc-1:v1::a") == "z"
-    assert await cache.get("d10:chunk:c-1") == "k"
+    assert await cache.get("read_primitive:section:doc-1:v1::a") == "z"
+    assert await cache.get("read_primitive:chunk:c-1") == "k"
 
 
 @pytest.mark.asyncio
@@ -127,7 +127,7 @@ class _FakeRedis:
         return n
 
     async def scan_iter(self, match: Optional[str] = None) -> Any:
-        # Match on simple "prefix*" form — sufficient for D10.g key shape.
+        # Match on simple "prefix*" form — sufficient for read-primitive key shape.
         if match is None:
             keys = list(self.store.keys())
         else:
@@ -165,17 +165,17 @@ async def test_l2_get_missing_returns_none():
 async def test_l2_delete_namespace_purges_matching_prefix_only():
     fake = _FakeRedis()
     l2 = L2Cache(redis=fake, ttl_seconds=60)
-    await l2.set("d10:outline:doc-1:v1", "x")
-    await l2.set("d10:outline:doc-2:v1", "y")
-    await l2.set("d10:section:doc-1:v1::a", "z")
-    await l2.set("d10:chunk:c-1", "k")
+    await l2.set("read_primitive:outline:doc-1:v1", "x")
+    await l2.set("read_primitive:outline:doc-2:v1", "y")
+    await l2.set("read_primitive:section:doc-1:v1::a", "z")
+    await l2.set("read_primitive:chunk:c-1", "k")
 
     await l2.delete_namespace("outline")
 
-    assert await l2.get("d10:outline:doc-1:v1") is None
-    assert await l2.get("d10:outline:doc-2:v1") is None
-    assert await l2.get("d10:section:doc-1:v1::a") == "z"
-    assert await l2.get("d10:chunk:c-1") == "k"
+    assert await l2.get("read_primitive:outline:doc-1:v1") is None
+    assert await l2.get("read_primitive:outline:doc-2:v1") is None
+    assert await l2.get("read_primitive:section:doc-1:v1::a") == "z"
+    assert await l2.get("read_primitive:chunk:c-1") == "k"
 
 
 @pytest.mark.asyncio

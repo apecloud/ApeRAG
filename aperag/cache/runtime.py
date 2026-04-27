@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Production wiring helper for the D10.g read-primitive cache.
+"""Production wiring helper for the read-primitive cache.
 
 The four parse_version-keyed primitives in :mod:`aperag.mcp.tools` call
 :func:`get_read_primitive_cache` once they have already passed tenancy
@@ -20,8 +20,8 @@ The four parse_version-keyed primitives in :mod:`aperag.mcp.tools` call
 :class:`~aperag.cache.read_primitive_cache.ReadPrimitiveCache` per
 process, wiring it to:
 
-* the L1 size knob at :attr:`aperag.config.Config.d10_cache_l1_size`,
-* the L2 TTL knob at :attr:`aperag.config.Config.d10_cache_l2_ttl_seconds`,
+* the L1 size knob at :attr:`aperag.config.Config.read_primitive_cache_l1_size`,
+* the L2 TTL knob at :attr:`aperag.config.Config.read_primitive_cache_l2_ttl_seconds`,
 * the existing memory-redis client (via
   :class:`aperag.db.redis_manager.RedisConnectionManager` —
   ``settings.memory_redis_url``).
@@ -91,8 +91,8 @@ async def _build_singleton() -> ReadPrimitiveCache:
     redis = await _resolve_memory_redis_client()
     return build_read_primitive_cache(
         redis=redis,
-        l1_size=settings.d10_cache_l1_size,
-        l2_ttl_seconds=settings.d10_cache_l2_ttl_seconds,
+        l1_size=settings.read_primitive_cache_l1_size,
+        l2_ttl_seconds=settings.read_primitive_cache_l2_ttl_seconds,
     )
 
 
@@ -103,7 +103,7 @@ async def _resolve_memory_redis_client():
     refused, etc.) degrades to L1-only — the cache layer remains
     available and still amortizes parse cost within one worker. We
     log at WARNING so the operator can see the degradation; we do
-    NOT raise, because §E.7 fail-open invariant explicitly says the
+    NOT raise, because the fail-open invariant says the
     cache must never block authoritative reads.
     """
 
@@ -113,7 +113,7 @@ async def _resolve_memory_redis_client():
         return await RedisConnectionManager.get_async_client()
     except Exception as e:
         logger.warning(
-            "D10.g cache: memory-redis client unavailable, degrading L2 to noop: %s",
+            "Read-primitive cache: memory-redis client unavailable, degrading L2 to noop: %s",
             e,
         )
         return None

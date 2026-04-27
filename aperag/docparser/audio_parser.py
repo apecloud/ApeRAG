@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import hashlib
 from pathlib import Path
 from typing import Any
 
 import requests
 
+from aperag.cache import NAMESPACE_REMOTE_PARSER, application_cache_policy, get_sync_application_cache
 from aperag.config import settings
 from aperag.docparser.base import BaseParser, FallbackError, ParserError, Part, TextPart
 
@@ -63,7 +65,21 @@ class AudioParser(BaseParser):
             "word_timestamps": "true",
             "output": "txt",
         }
+        cache = get_sync_application_cache()
+        return cache.get_or_compute(
+            namespace=NAMESPACE_REMOTE_PARSER,
+            key_data={
+                "parser": self.name,
+                "file_hash": _file_sha256(path),
+                "endpoint": settings.whisper_host,
+                "params": params,
+            },
+            compute=lambda: self._recognize_speech_uncached(path, params),
+            policy=application_cache_policy(NAMESPACE_REMOTE_PARSER),
+            should_cache=lambda value: bool(value),
+        )
 
+    def _recognize_speech_uncached(self, path: Path, params: dict[str, str]) -> str:
         headers = {
             "Accept": "application/json",
         }
@@ -89,3 +105,11 @@ class AudioParser(BaseParser):
                 code="service_unreachable",
                 detail=str(e),
             ) from e
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()

@@ -15,12 +15,14 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Sequence, Tuple
 
 import litellm
 
+from aperag.cache import NAMESPACE_EMBEDDING, application_cache_policy, get_sync_application_cache
 from aperag.llm.llm_error_types import (
     BatchProcessingError,
     EmbeddingError,
@@ -163,6 +165,24 @@ class EmbeddingService:
             raise wrap_litellm_error(e, "embedding", self.embedding_provider, self.model) from e
 
     def _embed_batch(self, batch: Sequence[str]) -> List[List[float]]:
+        if not self.caching:
+            return self._embed_batch_uncached(batch)
+
+        cache = get_sync_application_cache()
+
+        def compute_missing(missing_items: list[str]) -> dict[str, List[float]]:
+            embeddings = self._embed_batch_uncached(missing_items)
+            return dict(zip(missing_items, embeddings))
+
+        return cache.get_many_or_compute_missing(
+            namespace=NAMESPACE_EMBEDDING,
+            items=list(batch),
+            key_data_for_item=self._cache_key_for_input,
+            compute_missing=compute_missing,
+            policy=application_cache_policy(NAMESPACE_EMBEDDING),
+        )
+
+    def _embed_batch_uncached(self, batch: Sequence[str]) -> List[List[float]]:
         """
         Embed a batch of contents using litellm.
 
@@ -183,7 +203,7 @@ class EmbeddingService:
                 api_base=self.api_base,
                 api_key=self.api_key,
                 input=list(batch),
-                caching=self.caching,
+                caching=False,
                 # Pin ``encoding_format="float"`` so LiteLLM does not forward
                 # an OpenAI-default that Alibaba DashScope's
                 # ``compatible-mode/v1/embeddings`` rejects with
@@ -214,3 +234,14 @@ class EmbeddingService:
             logger.error(f"Batch embedding API call failed: {str(e)}")
             # Convert litellm errors to our custom types
             raise wrap_litellm_error(e, "embedding", self.embedding_provider, self.model) from e
+
+    def _cache_key_for_input(self, text: str) -> dict:
+        return {
+            "provider": self.embedding_provider,
+            "model": self.model,
+            "api_base": self.api_base,
+            "api_key_hash": hashlib.sha256((self.api_key or "").encode("utf-8")).hexdigest(),
+            "input": text,
+            "multimodal": self.multimodal,
+            "encoding_format": "float",
+        }

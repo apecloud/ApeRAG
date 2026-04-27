@@ -12,139 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-LiteLLM Cache Configuration
+"""Legacy LiteLLM cache compatibility.
 
-This module configures LiteLLM's built-in caching functionality with:
-- Local in-memory cache storage
-- Custom cache key generation
-- Cache hit/miss tracking
-- Cache statistics
+ApeRAG owns caching in :mod:`aperag.cache`. This module remains as a
+compatibility facade for older imports but intentionally does not enable
+LiteLLM's built-in cache.
 """
 
 import logging
 from typing import Any, Dict
 
 import litellm
-from litellm.types.caching import LiteLLMCacheType
+
+from aperag.cache import application_cache_metrics
 
 logger = logging.getLogger(__name__)
 
-# Local in-memory statistics
-# Note: These are simple integer operations that may not be thread-safe
-# in multi-threaded environments, but are acceptable for monitoring purposes.
-# In multi-process environments (e.g., Celery prefork), each process maintains its own stats.
-_cache_stats = {
-    "hits": 0,
-    "misses": 0,
-    "added": 0,
-    "total_requests": 0,
-}
+
+def setup_litellm_cache(*_args, **_kwargs) -> None:
+    logger.info("LiteLLM built-in cache is disabled; ApeRAG application cache is authoritative")
 
 
-# doc: https://docs.litellm.ai/docs/caching/all_caches#enabling-cache
-# All parameters for cache: https://docs.litellm.ai/docs/caching/all_caches#cache-initialization-parameters
-def setup_litellm_cache(default_type=LiteLLMCacheType.LOCAL):
-    from litellm.caching.caching import CacheMode
-
-    from aperag.config import settings
-
-    if not settings.cache_enabled:
-        return
-
-    litellm.enable_cache(
-        type=default_type,
-        mode=CacheMode.default_on,
-        host=settings.redis_host,
-        port=settings.redis_port,
-        password=settings.redis_password,
-        ttl=settings.cache_ttl,
-        disk_cache_dir="/tmp/litellm_cache",
-    )
-    # Setup custom cache handlers with local stats tracking
-    # Note: Only setup if cache was successfully initialized
-    if litellm.cache is not None:
-        setup_custom_get_cache()
-        setup_custom_add_cache()
-        logger.info("LiteLLM cache with local statistics initialized")
-
-
-def disable_litellm_cache():
+def disable_litellm_cache() -> None:
     litellm.disable_cache()
-
-
-def setup_custom_get_cache_key():
-    def custom_get_cache_key(*args, **kwargs):
-        # return key to use for your cache:
-        key = (
-            kwargs.get("model", "")
-            + str(kwargs.get("messages", ""))
-            + str(kwargs.get("temperature", ""))
-            + str(kwargs.get("logit_bias", ""))
-        )
-        print("key for cache", key)
-        return key
-
-    if litellm.cache is not None:
-        litellm.cache.get_cache_key = custom_get_cache_key
-
-
-def setup_custom_add_cache():
-    """
-    Wraps litellm.cache.add_cache to include local statistics for cache additions.
-    """
-    if litellm.cache is None:
-        return
-
-    # Store the original method
-    original_add_cache = litellm.cache.add_cache
-
-    def custom_add_cache(result, *args, **kwargs):
-        # Update local stats - simple increment, may not be atomic in multi-threaded env
-        global _cache_stats
-        _cache_stats["added"] += 1
-        logger.debug("LiteLLM Cache ADD")
-
-        # Call the original caching function
-        return original_add_cache(result, *args, **kwargs)
-
-    # Replace the method
-    litellm.cache.add_cache = custom_add_cache
-
-
-def setup_custom_get_cache():
-    """
-    Wraps litellm.cache.get_cache to include local hit/miss statistics.
-    """
-    if litellm.cache is None:
-        return
-
-    # Store the original method
-    original_get_cache = litellm.cache.get_cache
-
-    def custom_get_cache(*args, **kwargs):
-        # Call the original function to get the result from cache
-        result = original_get_cache(*args, **kwargs)
-
-        # Update local stats - simple increment, may not be atomic in multi-threaded env
-        global _cache_stats
-        _cache_stats["total_requests"] += 1
-        if result is not None:
-            _cache_stats["hits"] += 1
-            logger.debug("LiteLLM Cache HIT")
-            if _cache_stats["hits"] % 100 == 0:
-                logger.info(
-                    f"Cache HIT count: {_cache_stats['hits']}, total requests: {_cache_stats['total_requests']}"
-                )
-                logger.info(f"Cache HIT rate: {_cache_stats['hits'] / _cache_stats['total_requests']:.2%}")
-        else:
-            _cache_stats["misses"] += 1
-            logger.debug("LiteLLM Cache MISS")
-
-        return result
-
-    # Replace the method
-    litellm.cache.get_cache = custom_get_cache
 
 
 def get_cache_stats() -> Dict[str, Any]:
@@ -154,29 +44,14 @@ def get_cache_stats() -> Dict[str, Any]:
     Returns:
         Dict containing cache statistics including hit rate calculation.
     """
-    # Create a copy to avoid modification during read
-    stats = _cache_stats.copy()
-
-    # Calculate hit rate
-    if stats["total_requests"] > 0:
-        stats["hit_rate"] = round(stats["hits"] / stats["total_requests"], 4)
-    else:
-        stats["hit_rate"] = 0.0
-
-    # Add metadata
-    stats["cache_type"] = "local_memory"
-    stats["note"] = "Process-specific stats, not thread-safe"
-
-    return stats
+    return {
+        "cache_type": "aperag_application_cache",
+        "namespaces": application_cache_metrics.snapshot(),
+        "note": "LiteLLM built-in cache is disabled; stats come from aperag.cache metrics.",
+    }
 
 
 def clear_cache_stats() -> None:
     """Reset local in-memory cache statistics for the current process."""
-    global _cache_stats
-    _cache_stats = {
-        "hits": 0,
-        "misses": 0,
-        "added": 0,
-        "total_requests": 0,
-    }
-    logger.info("Local cache statistics cleared")
+    application_cache_metrics.clear()
+    logger.info("Application cache statistics cleared")

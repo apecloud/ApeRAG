@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Explicit invalidation helpers for D10.g (task #99)."""
+"""Explicit invalidation helpers for read-primitive ."""
 
 from __future__ import annotations
 
@@ -31,30 +31,30 @@ def _make_cache() -> ReadPrimitiveCache:
 async def test_invalidate_document_purges_parse_version_namespaces():
     cache = _make_cache()
     # Pre-populate L1 with sample entries across all namespaces.
-    await cache.l1.set("d10:outline:doc-1:0000000000000001:6", "x")
-    await cache.l1.set("d10:section:doc-1:0000000000000001::a", "y")
-    await cache.l1.set("d10:content:doc-1:0000000000000001", "z")
-    await cache.l1.set("d10:chunk:col-1:doc-1:c-1", "k")
+    await cache.l1.set("read_primitive:outline:doc-1:0000000000000001:6", "x")
+    await cache.l1.set("read_primitive:section:doc-1:0000000000000001::a", "y")
+    await cache.l1.set("read_primitive:content:doc-1:0000000000000001", "z")
+    await cache.l1.set("read_primitive:chunk:col-1:doc-1:c-1", "k")
 
     await invalidate_document(cache, document_id="doc-1")
 
-    assert await cache.l1.get("d10:outline:doc-1:0000000000000001:6") is None
-    assert await cache.l1.get("d10:section:doc-1:0000000000000001::a") is None
-    assert await cache.l1.get("d10:content:doc-1:0000000000000001") is None
-    assert await cache.l1.get("d10:chunk:col-1:doc-1:c-1") is None
+    assert await cache.l1.get("read_primitive:outline:doc-1:0000000000000001:6") is None
+    assert await cache.l1.get("read_primitive:section:doc-1:0000000000000001::a") is None
+    assert await cache.l1.get("read_primitive:content:doc-1:0000000000000001") is None
+    assert await cache.l1.get("read_primitive:chunk:col-1:doc-1:c-1") is None
 
 
 @pytest.mark.asyncio
 async def test_invalidate_collection_purges_parse_version_namespaces():
     cache = _make_cache()
-    await cache.l1.set("d10:outline:doc-1:0000000000000001:6", "x")
-    await cache.l1.set("d10:section:doc-2:0000000000000002::a", "y")
-    await cache.l1.set("d10:content:doc-3:0000000000000003", "z")
-    await cache.l1.set("d10:chunk:col-1:doc-1:c-1", "k")
+    await cache.l1.set("read_primitive:outline:doc-1:0000000000000001:6", "x")
+    await cache.l1.set("read_primitive:section:doc-2:0000000000000002::a", "y")
+    await cache.l1.set("read_primitive:content:doc-3:0000000000000003", "z")
+    await cache.l1.set("read_primitive:chunk:col-1:doc-1:c-1", "k")
 
     await invalidate_collection(cache, collection_id="col-1")
 
-    assert await cache.l1.get("d10:outline:doc-1:0000000000000001:6") is None
-    assert await cache.l1.get("d10:section:doc-2:0000000000000002::a") is None
-    assert await cache.l1.get("d10:content:doc-3:0000000000000003") is None
-    assert await cache.l1.get("d10:chunk:col-1:doc-1:c-1") is None
+    assert await cache.l1.get("read_primitive:outline:doc-1:0000000000000001:6") is None
+    assert await cache.l1.get("read_primitive:section:doc-2:0000000000000002::a") is None
+    assert await cache.l1.get("read_primitive:content:doc-3:0000000000000003") is None
+    assert await cache.l1.get("read_primitive:chunk:col-1:doc-1:c-1") is None

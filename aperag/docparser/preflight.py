@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import time
 from pathlib import Path
 from typing import Any
 
+from aperag.cache import NAMESPACE_PARSER_PREFLIGHT, application_cache_policy, get_application_cache
 from aperag.config import settings
 from aperag.docparser.audio_parser import AudioParser
 from aperag.docparser.base import ParserAttempt, ParserChainError, ParserError
@@ -27,23 +27,20 @@ from aperag.docparser.mineru_parser import MinerUParser
 from aperag.docparser.utils import get_soffice_cmd
 from aperag.objectstore.base import get_object_store
 
-_PREFLIGHT_CACHE_TTL_SECONDS = 60
-_preflight_cache: dict[tuple[str, str], tuple[float, tuple[str, str]]] = {}
-
 
 def _cache_key(name: str, value: str) -> tuple[str, str]:
     return (name, value)
 
 
 async def _cached_probe(key: tuple[str, str], probe):
-    now = time.monotonic()
-    cached = _preflight_cache.get(key)
-    if cached and now - cached[0] < _PREFLIGHT_CACHE_TTL_SECONDS:
-        return cached[1]
-
-    result = await probe()
-    _preflight_cache[key] = (now, result)
-    return result
+    cache = await get_application_cache()
+    result = await cache.get_or_compute(
+        namespace=NAMESPACE_PARSER_PREFLIGHT,
+        key_data={"probe": key[0], "target": key[1]},
+        compute=probe,
+        policy=application_cache_policy(NAMESPACE_PARSER_PREFLIGHT),
+    )
+    return tuple(result)
 
 
 def _preflight_error(

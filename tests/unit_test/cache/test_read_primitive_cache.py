@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""ReadPrimitiveCache facade contract tests for D10.g (task #99)."""
+"""ReadPrimitiveCache facade contract tests for read-primitive ."""
 
 from __future__ import annotations
 
@@ -184,7 +184,7 @@ async def test_chunk_cache_key_includes_collection_document_and_chunk_id():
         compute=compute,
         model_cls=_Payload,
     )
-    raw_key = "d10:chunk:col-1:doc-1:c-1"
+    raw_key = "read_primitive:chunk:col-1:doc-1:c-1"
     assert await cache.l1.get(raw_key) is not None
 
 
@@ -241,7 +241,7 @@ async def test_compute_must_return_declared_model_class():
 @pytest.mark.asyncio
 async def test_undecodable_l1_entry_falls_back_to_compute():
     cache = _make_cache()
-    bad_key = f"d10:{NAMESPACE_OUTLINE}:doc:0000000000000001:6"
+    bad_key = f"read_primitive:{NAMESPACE_OUTLINE}:doc:0000000000000001:6"
     # Manually inject corrupted JSON to simulate a partial deploy with a
     # newer model_cls than the stored payload was serialized for.
     await cache.l1.set(bad_key, "{not valid json")
