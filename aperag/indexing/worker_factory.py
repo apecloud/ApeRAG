@@ -469,31 +469,19 @@ def _build_vision_worker(*, collection: Any, object_store: Any) -> ModalityWorke
     return VisionModality(backend=backend, store=object_store, embedder=_embed)
 
 
-async def _no_op_extractor(_chunks):
-    """Wave 4 placeholder extractor — replaced by the real LightRAG-style
-    LLM extractor in T1 (Wave 4 backlog #17).
-
-    Identity-checked in :func:`_build_graph_worker` to keep the
-    "Wave 4 wiring (T1 extractor)" gate explicit until T1 lands; the
-    gate self-disables when this symbol is replaced with the real one.
-    """
-    return ([], [])
-
-
 def _build_graph_worker(*, collection: Any, object_store: Any, payload: DispatchPayload) -> ModalityWorker:
     """Wire :class:`GraphModalityWorker` for the §D.3 lineage pipeline.
 
-    Per Wave 4 T8 chunk 4b: the worker is built around a real
-    backend-specific :class:`LineageGraphStore` (Postgres / Neo4j /
-    Nebula) selected by ``collection.config.graph_backend_type``. The
-    Wave 3 ``InMemoryLineageGraphStore raise`` gate is dissolved by the
-    backend dispatch; what remains is an explicit "T1 extractor not
-    wired yet" gate so a collection that opts into knowledge graph
-    today still surfaces a clean :class:`WorkerFactoryError` (and lands
-    on §I.2 retry-with-backoff) instead of a silent
-    ACTIVE-with-empty-graph (Wave 3 lesson #10).
+    Wave 4 T1 lands the real LightRAG-style LLM extractor — the chunk
+    4b "Wave 4 wiring T1" gate is now self-disabled because
+    :func:`build_collection_graph_extractor` returns a real LLM-driven
+    closure. A collection that has no completion model configured
+    surfaces a clear :class:`WorkerFactoryError` from the extractor
+    builder itself, so the orchestrator finalises the row FAILED with
+    operator-facing diagnostics (no silent ACTIVE-with-empty-graph,
+    Wave 3 lesson #10 still honoured).
 
-    Backend dispatch:
+    Backend dispatch (Wave 4 T8 chunk 4b):
 
     * ``postgres`` → :class:`PostgresLineageGraphStore` bound to the
       shared async engine; tenant isolation is per-row (collection_id
@@ -522,20 +510,12 @@ def _build_graph_worker(*, collection: Any, object_store: Any, payload: Dispatch
     from aperag.indexing.graph import (
         GraphModalityWorker as _GraphModalityWorker,
     )
+    from aperag.indexing.graph_extractor import build_collection_graph_extractor
 
     backend_type = _resolve_graph_backend_type(collection)
     store = _build_lineage_graph_store(backend_type=backend_type, collection=collection)
     lock = _resolve_entity_lock(backend_type=backend_type)
-    extractor = _no_op_extractor  # Wave 4 T1 will replace this symbol.
-
-    if extractor is _no_op_extractor:
-        raise WorkerFactoryError(
-            "graph modality requires a real LightRAG-style LLM extractor "
-            "(Wave 4 wiring T1 — backend chunk 4b is wired but extractor "
-            "stub still in place); set collection.config.enable_knowledge_graph=false "
-            "until T1 lands or wait for the T1 extractor PR"
-        )
-
+    extractor = build_collection_graph_extractor(collection)
     tenant_scope_key = _resolve_tenant_scope_key(payload=payload)
     return _GraphModalityWorker(
         store=store,

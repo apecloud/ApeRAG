@@ -149,20 +149,30 @@ def _reset_singletons_between_tests() -> None:
     _reset_graph_backend_singletons_for_tests()
 
 
-def test_phase1_graph_modality_raises_wave4_wiring_t1_gate(monkeypatch: pytest.MonkeyPatch):
-    """Layer 1 gate invariant: even with chunk 4b backend dispatch
-    wired, the graph modality MUST raise ``WorkerFactoryError`` with
-    ``"Wave 4 wiring"`` + ``"T1"`` in the message because the LLM
-    extractor stub is still in place. The orchestrator finalises the
-    row to FAILED with this message — Phase 1 e2e smoke can pin it.
+def test_phase1_graph_modality_raises_when_completion_model_missing(monkeypatch: pytest.MonkeyPatch):
+    """Layer 1 gate invariant (post-T1): chunk 4b backend dispatch is
+    wired AND T1 has landed the real LLM extractor — the prior
+    ``"Wave 4 wiring T1"`` symbol-identity gate has self-disabled.
+    The new Phase 1 invariant: a collection that opts into knowledge
+    graph but lacks a configured completion model surfaces a clear
+    :class:`WorkerFactoryError` from the extractor builder so the
+    orchestrator finalises the row FAILED with operator-facing
+    diagnostics.
+
+    Wave 3 lesson #10 ship-incomplete-but-don't-silently-lie still
+    honoured — silent ACTIVE-with-empty-graph never happens; the gate
+    just moved from "extractor symbol" to "completion model not
+    configured" after T1.
     """
 
     from aperag.indexing import worker_factory as wf
     from aperag.indexing.graph import InMemoryEntityLock, InMemoryLineageGraphStore
 
     # Stub the backend client singleton so the gate is reached without
-    # needing a live Postgres/Neo4j/Nebula. The store / lock identity
-    # is irrelevant — the gate compares the EXTRACTOR symbol.
+    # needing a live Postgres/Neo4j/Nebula. The graph extractor builder
+    # is reached after the store + lock are constructed — and the
+    # extractor builder raises because the seeded collection has no
+    # ``completion`` config (only ``embedding``).
     monkeypatch.setattr(
         wf,
         "_build_lineage_graph_store",
@@ -192,8 +202,9 @@ def test_phase1_graph_modality_raises_wave4_wiring_t1_gate(monkeypatch: pytest.M
             with pytest.raises(WorkerFactoryError) as exc:
                 await factory(payload)
             msg = str(exc.value)
-            assert "Wave 4 wiring" in msg
-            assert "T1" in msg
+            # Post-T1 the message is "completion model not configured"
+            # (T1 self-disable). Pre-T1 was "Wave 4 wiring T1".
+            assert "completion model" in msg or "Wave 4 wiring" in msg
 
         asyncio.run(_run())
     finally:

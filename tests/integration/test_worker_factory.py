@@ -306,19 +306,24 @@ def test_resolve_entity_lock_returns_inmemory_for_postgres_and_neo4j():
         _reset_graph_backend_singletons_for_tests()
 
 
-def test_build_graph_worker_raises_t1_wiring_gate(monkeypatch: pytest.MonkeyPatch):
-    """Even with a valid backend wired (chunk 4b), the graph worker
-    builder still raises :class:`WorkerFactoryError` because the LLM
-    extractor is the no-op stub until T1 lands. The error message must
-    name "Wave 4 wiring T1" so the e2e Phase 1 smoke can pin it.
+def test_build_graph_worker_raises_when_completion_model_missing(monkeypatch: pytest.MonkeyPatch):
+    """Post-T1 invariant: the chunk 4b ``"Wave 4 wiring T1"``
+    extractor-symbol-identity gate has self-disabled because T1 wired
+    the real LLM extractor. The new gate covers a Wave 3 lesson #10
+    failure mode: a collection that opts into knowledge graph but
+    lacks a configured completion model now surfaces a clear
+    :class:`WorkerFactoryError` from the extractor builder so the
+    orchestrator finalises the graph row FAILED with operator-facing
+    diagnostics (no silent ACTIVE-with-empty-graph).
     """
 
     from aperag.indexing import worker_factory as wf
     from aperag.indexing.graph import InMemoryEntityLock, InMemoryLineageGraphStore
 
-    # Stub the backend dispatch so the gate is reached without needing
-    # a live Postgres / Neo4j / Nebula. The store / lock identity is
-    # irrelevant to the gate — the gate compares the EXTRACTOR.
+    # Stub the backend dispatch so the extractor builder is reached
+    # without needing a live Postgres / Neo4j / Nebula. The collection
+    # stub has no ``completion`` config so ``build_collection_llm_callable``
+    # fails — the extractor builder wraps it in WorkerFactoryError.
     wf._reset_graph_backend_singletons_for_tests()
     monkeypatch.setattr(
         wf,
@@ -344,13 +349,14 @@ def test_build_graph_worker_raises_t1_wiring_gate(monkeypatch: pytest.MonkeyPatc
         collection_id="col-4b",
     )
 
-    # Stub tenant-scope-key resolution so the gate is the only failure mode.
+    # Stub tenant-scope-key resolution so the extractor builder is the
+    # only failure mode reachable.
     monkeypatch.setattr(wf, "_resolve_tenant_scope_key", lambda *, payload: "user:t")
 
     with pytest.raises(WorkerFactoryError) as exc:
         wf._build_graph_worker(collection=collection, object_store=object(), payload=payload)
-    assert "Wave 4 wiring" in str(exc.value)
-    assert "T1" in str(exc.value)
+    msg = str(exc.value)
+    assert "completion model" in msg or "graph extractor" in msg
 
 
 def test_production_factory_raises_when_collection_id_missing():
