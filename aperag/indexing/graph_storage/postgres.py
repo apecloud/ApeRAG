@@ -62,6 +62,7 @@ from sqlalchemy import (
     DateTime,
     Index,
     String,
+    Text,
     select,
     text,
 )
@@ -124,6 +125,13 @@ class _LineageEntityRow(_LineageGraphBase):
     entity_type = Column(String(64), nullable=False)
     source_lineage = Column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
     description_parts = Column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
+    # Wave 7 W7-1: derived cache column written by ``GraphIndexCompactor``
+    # (W7-2) when ``description_parts`` aggregate text grows past
+    # threshold. Nullable: ``NULL`` means "not yet compacted" — readers
+    # fall back to joining ``description_parts.text``. PostgreSQL
+    # ``Text`` is unlimited; the application layer (Compactor) enforces
+    # ``max_description_chars`` (default 8000) per spec §K.12.5.
+    compacted_description = Column(Text, nullable=True)
     # Wave 5 P5B: ORM uses the same ``server_default=CURRENT_TIMESTAMP``
     # the alembic migration declares — strict ORM↔migration mirror so
     # ``alembic check`` cannot drift on schema-touching follow-ups.
@@ -164,6 +172,8 @@ class _LineageRelationRow(_LineageGraphBase):
     # standalone ``description`` field so the column had no consumer.
     evidence_lineage = Column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
     description_parts = Column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
+    # Wave 7 W7-1: derived cache column, semantics mirror entity row.
+    compacted_description = Column(Text, nullable=True)
     # Wave 5 P5B: same ORM↔migration mirror discipline as
     # ``_LineageEntityRow`` above.
     gmt_created = Column(
@@ -365,12 +375,59 @@ class PostgresLineageGraphStore:
             )
             return (result.rowcount or 0) > 0
 
+    # -- unconditional delete (Wave 7 W7-1, used by curation merge) ---
+
+    async def delete_entity(self, entity_name: str) -> bool:
+        sql = text(
+            f"""
+            DELETE FROM {ENTITY_TABLE}
+            WHERE collection_id = :collection_id AND name = :name
+            """
+        )
+        async with self._engine.begin() as conn:
+            result = await conn.execute(sql, {"collection_id": self._collection_id, "name": entity_name})
+            return (result.rowcount or 0) > 0
+
+    async def delete_relation(self, source: str, target: str, type: str) -> bool:
+        sql = text(
+            f"""
+            DELETE FROM {RELATION_TABLE}
+            WHERE collection_id = :collection_id
+              AND source = :source AND target = :target AND relation_type = :relation_type
+            """
+        )
+        async with self._engine.begin() as conn:
+            result = await conn.execute(
+                sql,
+                {
+                    "collection_id": self._collection_id,
+                    "source": source,
+                    "target": target,
+                    "relation_type": type,
+                },
+            )
+            return (result.rowcount or 0) > 0
+
     # -- upserts (rebuild phase) --------------------------------------
 
-    async def upsert_entity_with_lineage(self, *, record: EntityRecord, lineage: LineageMember) -> None:
+    async def upsert_entity_with_lineage(
+        self,
+        *,
+        record: EntityRecord,
+        lineage: LineageMember,
+        compacted_description: str | None = None,
+    ) -> None:
         """Add (or replace by `(document_id, parse_version)` key)
         the lineage member + a corresponding description part. Single
-        statement so concurrent rebuilds do not race."""
+        statement so concurrent rebuilds do not race.
+
+        Wave 7 W7-1: ``compacted_description=None`` (default) preserves
+        any existing column value via ``COALESCE``; non-None overwrites.
+        This keeps the Wave 4 indexer hot path (per-chunk upserts that
+        don't compute compacted summaries) idempotent across syncs —
+        only ``GraphIndexCompactor`` (W7-2) actually populates the
+        column with a non-None value.
+        """
         member_json = _lineage_to_json_array(lineage)
         part_json = _description_part_to_json(
             DescriptionPart(
@@ -383,12 +440,14 @@ class PostgresLineageGraphStore:
             f"""
             INSERT INTO {ENTITY_TABLE} (
                 collection_id, name, entity_type, source_lineage, description_parts,
+                compacted_description,
                 gmt_created, gmt_updated
             )
             VALUES (
                 :collection_id, :name, :entity_type,
                 jsonb_build_array(CAST(:member_json AS jsonb)),
                 jsonb_build_array(CAST(:part_json AS jsonb)),
+                :compacted_description,
                 NOW(), NOW()
             )
             ON CONFLICT (collection_id, name) DO UPDATE
@@ -410,6 +469,11 @@ class PostgresLineageGraphStore:
                         '[]'::jsonb
                     ) || jsonb_build_array(CAST(:part_json AS jsonb))
                 ),
+                -- W7-1: preserve existing if param is NULL, else overwrite.
+                compacted_description = COALESCE(
+                    EXCLUDED.compacted_description,
+                    {ENTITY_TABLE}.compacted_description
+                ),
                 gmt_updated = NOW()
             """
         )
@@ -424,10 +488,17 @@ class PostgresLineageGraphStore:
                     "parse_version": lineage.parse_version,
                     "member_json": member_json,
                     "part_json": part_json,
+                    "compacted_description": compacted_description,
                 },
             )
 
-    async def upsert_relation_with_lineage(self, *, record: RelationRecord, lineage: LineageMember) -> None:
+    async def upsert_relation_with_lineage(
+        self,
+        *,
+        record: RelationRecord,
+        lineage: LineageMember,
+        compacted_description: str | None = None,
+    ) -> None:
         member_json = _lineage_to_json_array(lineage)
         part_json = _description_part_to_json(
             DescriptionPart(
@@ -441,12 +512,14 @@ class PostgresLineageGraphStore:
             INSERT INTO {RELATION_TABLE} (
                 collection_id, source, target, relation_type,
                 evidence_lineage, description_parts,
+                compacted_description,
                 gmt_created, gmt_updated
             )
             VALUES (
                 :collection_id, :source, :target, :relation_type,
                 jsonb_build_array(CAST(:member_json AS jsonb)),
                 jsonb_build_array(CAST(:part_json AS jsonb)),
+                :compacted_description,
                 NOW(), NOW()
             )
             ON CONFLICT (collection_id, source, target, relation_type) DO UPDATE
@@ -464,6 +537,11 @@ class PostgresLineageGraphStore:
                         '[]'::jsonb
                     ) || jsonb_build_array(CAST(:part_json AS jsonb))
                 ),
+                -- W7-1: preserve existing if param is NULL, else overwrite.
+                compacted_description = COALESCE(
+                    EXCLUDED.compacted_description,
+                    {RELATION_TABLE}.compacted_description
+                ),
                 gmt_updated = NOW()
             """
         )
@@ -479,6 +557,7 @@ class PostgresLineageGraphStore:
                     "parse_version": lineage.parse_version,
                     "member_json": member_json,
                     "part_json": part_json,
+                    "compacted_description": compacted_description,
                 },
             )
 
@@ -492,6 +571,7 @@ class PostgresLineageGraphStore:
                     _LineageEntityRow.entity_type,
                     _LineageEntityRow.source_lineage,
                     _LineageEntityRow.description_parts,
+                    _LineageEntityRow.compacted_description,
                 ).where(
                     _LineageEntityRow.collection_id == self._collection_id,
                     _LineageEntityRow.name == entity_name,
@@ -505,6 +585,7 @@ class PostgresLineageGraphStore:
                 entity_type=row.entity_type,
                 source_lineage=tuple(LineageMember.from_dict(elem) for elem in (row.source_lineage or [])),
                 description_parts=tuple(DescriptionPart.from_dict(part) for part in (row.description_parts or [])),
+                compacted_description=row.compacted_description,
             )
 
     async def get_relation(self, source: str, target: str, type: str) -> RelationWithLineage | None:
@@ -516,6 +597,7 @@ class PostgresLineageGraphStore:
                     _LineageRelationRow.relation_type,
                     _LineageRelationRow.evidence_lineage,
                     _LineageRelationRow.description_parts,
+                    _LineageRelationRow.compacted_description,
                 ).where(
                     _LineageRelationRow.collection_id == self._collection_id,
                     _LineageRelationRow.source == source,
@@ -532,6 +614,7 @@ class PostgresLineageGraphStore:
                 relation_type=row.relation_type,
                 evidence_lineage=tuple(LineageMember.from_dict(elem) for elem in (row.evidence_lineage or [])),
                 description_parts=tuple(DescriptionPart.from_dict(part) for part in (row.description_parts or [])),
+                compacted_description=row.compacted_description,
             )
 
     # -- LightRAG-style query layer (Wave 6 #33 chunk 2) --------------
@@ -554,6 +637,7 @@ class PostgresLineageGraphStore:
                     _LineageEntityRow.entity_type,
                     _LineageEntityRow.source_lineage,
                     _LineageEntityRow.description_parts,
+                    _LineageEntityRow.compacted_description,
                 )
                 .where(
                     _LineageEntityRow.collection_id == self._collection_id,
@@ -568,6 +652,7 @@ class PostgresLineageGraphStore:
                     entity_type=row.entity_type,
                     source_lineage=tuple(LineageMember.from_dict(elem) for elem in (row.source_lineage or [])),
                     description_parts=tuple(DescriptionPart.from_dict(part) for part in (row.description_parts or [])),
+                    compacted_description=row.compacted_description,
                 )
                 for row in result
             ]
@@ -593,6 +678,7 @@ class PostgresLineageGraphStore:
                     _LineageEntityRow.entity_type,
                     _LineageEntityRow.source_lineage,
                     _LineageEntityRow.description_parts,
+                    _LineageEntityRow.compacted_description,
                 ).where(
                     _LineageEntityRow.collection_id == self._collection_id,
                     _LineageEntityRow.name.in_(list(names)),
@@ -606,6 +692,7 @@ class PostgresLineageGraphStore:
                     entity_type=row.entity_type,
                     source_lineage=tuple(LineageMember.from_dict(elem) for elem in (row.source_lineage or [])),
                     description_parts=tuple(DescriptionPart.from_dict(part) for part in (row.description_parts or [])),
+                    compacted_description=row.compacted_description,
                 )
 
         async def _fetch_relations_touching(names: set[str]) -> set[str]:
@@ -621,6 +708,7 @@ class PostgresLineageGraphStore:
                     _LineageRelationRow.relation_type,
                     _LineageRelationRow.evidence_lineage,
                     _LineageRelationRow.description_parts,
+                    _LineageRelationRow.compacted_description,
                 ).where(
                     _LineageRelationRow.collection_id == self._collection_id,
                     (_LineageRelationRow.source.in_(list(names))) | (_LineageRelationRow.target.in_(list(names))),
@@ -638,6 +726,7 @@ class PostgresLineageGraphStore:
                         description_parts=tuple(
                             DescriptionPart.from_dict(part) for part in (row.description_parts or [])
                         ),
+                        compacted_description=row.compacted_description,
                     )
                 for endpoint in (row.source, row.target):
                     if endpoint not in seen_entities and endpoint not in next_frontier:

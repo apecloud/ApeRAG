@@ -600,3 +600,241 @@ async def test_list_entity_labels_excludes_orphan_after_gc(store, collection_id)
 
     labels = await s.list_entity_labels()
     assert labels == ["person"]
+
+
+# --- tests: Wave 7 W7-1 ``compacted_description`` field --------------------
+#
+# These pin the cross-backend behaviour of the new W7-1 column added by
+# the alembic migration (Postgres) / Neo4j property / Nebula tag-prop:
+#
+#   - default value is ``None`` after a Wave 4-style indexer upsert
+#     (kwarg not supplied)
+#   - explicit non-None kwarg writes through and is read back
+#   - ``None`` kwarg on a subsequent upsert PRESERVES the existing
+#     compacted value (the COALESCE invariant — the per-chunk indexer
+#     hot path MUST NOT clobber a Compactor-written value)
+#   - 100k-char roundtrip (huangheng safety gate: verifies driver
+#     buffers don't truncate / corrupt at large sizes)
+#   - lineage-preserve safety gate (huangheng msg=828c83cc 1131981c):
+#     setting compacted via upsert MUST NOT clobber other lineage state
+#   - ``delete_entity`` / ``delete_relation`` unconditional remove
+
+
+@pytest.mark.asyncio
+async def test_compacted_description_defaults_to_none_when_kwarg_omitted(store, collection_id):
+    """A Wave 4-style upsert (no ``compacted_description`` kwarg)
+    leaves the column at its default ``None``."""
+
+    _, s = store
+    await s.upsert_entity_with_lineage(
+        record=_entity("Alice", description="raw extracted text"),
+        lineage=_LM_A_V1,
+    )
+    got = await s.get_entity("Alice")
+    assert got is not None
+    assert got.compacted_description is None
+
+
+@pytest.mark.asyncio
+async def test_compacted_description_round_trip_when_supplied(store, collection_id):
+    """Explicit non-None kwarg writes through and reads back unchanged."""
+
+    _, s = store
+    summary = "Alice is a senior engineer working on graph indexing."
+    await s.upsert_entity_with_lineage(
+        record=_entity("Alice"),
+        lineage=_LM_A_V1,
+        compacted_description=summary,
+    )
+    got = await s.get_entity("Alice")
+    assert got is not None
+    assert got.compacted_description == summary
+
+
+@pytest.mark.asyncio
+async def test_compacted_description_preserved_on_subsequent_none_upsert(store, collection_id):
+    """The COALESCE invariant: once the Compactor writes a non-None
+    value, a subsequent Wave 4 indexer upsert (no kwarg → ``None``
+    default) MUST preserve it. Without this contract every per-chunk
+    upsert in the indexer hot path would clear the Compactor cache and
+    force a re-summary on every doc add. This test pins the
+    cross-backend behaviour (Postgres COALESCE, Neo4j COALESCE,
+    Nebula in-Python preserve)."""
+
+    _, s = store
+    summary = "compacted v1 — synthesised by GraphIndexCompactor"
+    await s.upsert_entity_with_lineage(
+        record=_entity("Alice"),
+        lineage=_LM_A_V1,
+        compacted_description=summary,
+    )
+    # Indexer-side upsert with the same lineage key but no compacted
+    # kwarg — emulates a re-sync of the same doc/parse_version.
+    await s.upsert_entity_with_lineage(
+        record=_entity("Alice", description="re-extracted text"),
+        lineage=_LM_A_V1,
+    )
+    got = await s.get_entity("Alice")
+    assert got is not None
+    assert got.compacted_description == summary  # preserved
+
+
+@pytest.mark.asyncio
+async def test_compacted_description_overwritten_on_subsequent_non_none_upsert(store, collection_id):
+    """The Compactor refreshing a stale summary MUST overwrite the
+    existing value. (Compactor passes a non-None kwarg deliberately.)"""
+
+    _, s = store
+    await s.upsert_entity_with_lineage(
+        record=_entity("Alice"),
+        lineage=_LM_A_V1,
+        compacted_description="v1 summary",
+    )
+    await s.upsert_entity_with_lineage(
+        record=_entity("Alice"),
+        lineage=_LM_A_V1,
+        compacted_description="v2 summary",
+    )
+    got = await s.get_entity("Alice")
+    assert got is not None
+    assert got.compacted_description == "v2 summary"
+
+
+@pytest.mark.asyncio
+async def test_compacted_description_supports_100k_chars_roundtrip(store, collection_id):
+    """100k-char roundtrip safety gate (per huangheng msg=4d93a6c5
+    gate #1). The Postgres ``Text`` / Neo4j ``STRING`` / Nebula
+    ``string`` types are theoretically unbounded but driver-level
+    buffers (asyncpg / neo4j-python-driver / nebula-python) have
+    historically clipped large payloads silently. The application
+    layer caps at 8000 chars (per spec §K.12.5), but the schema layer
+    MUST tolerate the 12.5× margin — otherwise a Compactor bug that
+    drops the cap could surface as a database-level corruption rather
+    than an obvious truncation. This test pins the schema-side margin
+    cross-backend."""
+
+    _, s = store
+    big = "x" * 100_000
+    await s.upsert_entity_with_lineage(
+        record=_entity("Bob"),
+        lineage=_LM_A_V1,
+        compacted_description=big,
+    )
+    got = await s.get_entity("Bob")
+    assert got is not None
+    assert got.compacted_description is not None
+    assert len(got.compacted_description) == 100_000
+    assert got.compacted_description == big
+
+
+@pytest.mark.asyncio
+async def test_compacted_description_does_not_clobber_lineage_on_compactor_write(store, collection_id):
+    """huangheng safety gate (msg=828c83cc): writing
+    ``compacted_description`` via the existing
+    ``upsert_*_with_lineage`` kwarg path MUST preserve every other
+    lineage field on the row. This is the principal risk of Option B
+    (chosen over Option A's separate ``set_compacted_description``
+    method): a Compactor that mis-constructs the EntityRecord could
+    silently drop ``description_parts`` from other (doc, parse_v)
+    slices. The test seeds multi-doc lineage, then simulates a
+    Compactor write (re-passing the same lineage), and asserts ALL
+    fields intact."""
+
+    _, s = store
+    # Seed two distinct (doc, parse_v) lineage slices with distinct
+    # description text. The compactor will be invoked once, with
+    # lineage A-v1; A-v2 must remain untouched.
+    await s.upsert_entity_with_lineage(
+        record=_entity("Alice", description="from doc-A v1"),
+        lineage=_LM_A_V1,
+    )
+    await s.upsert_entity_with_lineage(
+        record=_entity("Alice", description="from doc-A v2"),
+        lineage=_LM_A_V2,
+    )
+    pre = await s.get_entity("Alice")
+    assert pre is not None
+    pre_lineage = sorted(pre.source_lineage, key=lambda m: (m.document_id, m.parse_version))
+    pre_parts = sorted(pre.description_parts, key=lambda p: (p.document_id, p.parse_version))
+    assert {(m.document_id, m.parse_version) for m in pre_lineage} == {("doc-A", "v1"), ("doc-A", "v2")}
+
+    # Compactor write — passes the EXISTING (doc-A, v1) record (text
+    # unchanged) plus a compacted_description. After this, both
+    # lineage slices MUST still be present, neither description_parts
+    # text has changed, and compacted_description is set.
+    await s.upsert_entity_with_lineage(
+        record=_entity("Alice", description="from doc-A v1"),
+        lineage=_LM_A_V1,
+        compacted_description="LLM-merged summary across both v1 and v2",
+    )
+    after = await s.get_entity("Alice")
+    assert after is not None
+    after_lineage = sorted(after.source_lineage, key=lambda m: (m.document_id, m.parse_version))
+    after_parts = sorted(after.description_parts, key=lambda p: (p.document_id, p.parse_version))
+    assert after_lineage == pre_lineage
+    # description_parts text values for v1/v2 must be unchanged.
+    assert {(p.document_id, p.parse_version, p.text) for p in after_parts} == {
+        (p.document_id, p.parse_version, p.text) for p in pre_parts
+    }
+    assert after.compacted_description == "LLM-merged summary across both v1 and v2"
+
+
+@pytest.mark.asyncio
+async def test_compacted_description_relation_round_trip(store, collection_id):
+    """Symmetric coverage for relations — the W7-1 schema is added on
+    both ``aperag_lineage_entity`` and ``aperag_lineage_relation``."""
+
+    _, s = store
+    await s.upsert_relation_with_lineage(
+        record=_relation("Alice", "Bob"),
+        lineage=_LM_A_V1,
+        compacted_description="Alice and Bob co-authored the paper.",
+    )
+    got = await s.get_relation("Alice", "Bob", "knows")
+    assert got is not None
+    assert got.compacted_description == "Alice and Bob co-authored the paper."
+
+
+# --- tests: Wave 7 W7-1 ``delete_entity`` / ``delete_relation`` ------------
+
+
+@pytest.mark.asyncio
+async def test_delete_entity_unconditionally_removes(store, collection_id):
+    """``delete_entity`` removes the row regardless of lineage state.
+    Distinguishes from ``gc_entity_if_orphan`` which only deletes when
+    ``source_lineage`` is empty."""
+
+    _, s = store
+    await s.upsert_entity_with_lineage(record=_entity("Alice"), lineage=_LM_A_V1)
+    deleted = await s.delete_entity("Alice")
+    assert deleted is True
+    assert await s.get_entity("Alice") is None
+    # Idempotent: a second delete returns False (row no longer exists).
+    again = await s.delete_entity("Alice")
+    assert again is False
+
+
+@pytest.mark.asyncio
+async def test_delete_entity_returns_false_when_absent(store, collection_id):
+    """``delete_entity`` is idempotent: returns False when the row was
+    not present to begin with."""
+
+    _, s = store
+    deleted = await s.delete_entity("DoesNotExist")
+    assert deleted is False
+
+
+@pytest.mark.asyncio
+async def test_delete_relation_unconditionally_removes(store, collection_id):
+    _, s = store
+    await s.upsert_relation_with_lineage(record=_relation("Alice", "Bob"), lineage=_LM_A_V1)
+    deleted = await s.delete_relation("Alice", "Bob", "knows")
+    assert deleted is True
+    assert await s.get_relation("Alice", "Bob", "knows") is None
+
+
+@pytest.mark.asyncio
+async def test_delete_relation_returns_false_when_absent(store, collection_id):
+    _, s = store
+    deleted = await s.delete_relation("Alice", "Bob", "knows")
+    assert deleted is False

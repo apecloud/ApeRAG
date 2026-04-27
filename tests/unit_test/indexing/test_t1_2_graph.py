@@ -1084,3 +1084,191 @@ async def test_end_to_end_with_real_parser_chunks():
     entities, _relations = parse_kg_jsonl(body.read())
     assert len(entities) >= 1
     assert all(e.name.startswith("E_") for e in entities)
+
+
+# ---------------------------------------------------------------------
+# Group 5: Wave 7 W7-1 — ``compacted_description`` field + unconditional
+# ``delete_entity`` / ``delete_relation`` against the InMemory reference
+# implementation. The cross-backend versions of these tests live in
+# ``tests/integration/compat/test_lineage_graph_compat.py``; the unit
+# tests here pin the reference oracle (the InMemory store is the
+# canonical correctness target every backend must match).
+# ---------------------------------------------------------------------
+
+
+_LINEAGE_W7_DOC_A_V1 = LineageMember(
+    document_id="doc_A",
+    parse_version="v1",
+    tenant_scope_key="tenant-X",
+    chunk_ids=("c0",),
+)
+
+_LINEAGE_W7_DOC_A_V2 = LineageMember(
+    document_id="doc_A",
+    parse_version="v2",
+    tenant_scope_key="tenant-X",
+    chunk_ids=("c1",),
+)
+
+
+def _record(name: str = "Alice", *, description: str = "raw text", chunk: str = "c0") -> EntityRecord:
+    return EntityRecord(
+        name=name,
+        entity_type="Person",
+        description=description,
+        source_chunk_ids=(chunk,),
+    )
+
+
+def _relation_record(
+    source: str = "Alice",
+    target: str = "Bob",
+    *,
+    relation_type: str = "knows",
+    description: str = "they know each other",
+    chunk: str = "c0",
+) -> RelationRecord:
+    return RelationRecord(
+        source=source,
+        target=target,
+        relation_type=relation_type,
+        description=description,
+        source_chunk_ids=(chunk,),
+    )
+
+
+@pytest.mark.asyncio
+async def test_w7_compacted_description_defaults_to_none():
+    store = InMemoryLineageGraphStore()
+    await store.upsert_entity_with_lineage(record=_record(), lineage=_LINEAGE_W7_DOC_A_V1)
+    got = await store.get_entity("Alice")
+    assert got is not None
+    assert got.compacted_description is None
+
+
+@pytest.mark.asyncio
+async def test_w7_compacted_description_round_trip():
+    store = InMemoryLineageGraphStore()
+    await store.upsert_entity_with_lineage(
+        record=_record(),
+        lineage=_LINEAGE_W7_DOC_A_V1,
+        compacted_description="LLM summary text",
+    )
+    got = await store.get_entity("Alice")
+    assert got is not None
+    assert got.compacted_description == "LLM summary text"
+
+
+@pytest.mark.asyncio
+async def test_w7_compacted_description_preserved_on_subsequent_none_kwarg():
+    """COALESCE invariant on the InMemory reference store — ``None``
+    kwarg on a subsequent upsert MUST preserve the existing value."""
+    store = InMemoryLineageGraphStore()
+    await store.upsert_entity_with_lineage(
+        record=_record(),
+        lineage=_LINEAGE_W7_DOC_A_V1,
+        compacted_description="v1 summary",
+    )
+    # Indexer-side re-sync — same lineage key, no compacted kwarg.
+    await store.upsert_entity_with_lineage(
+        record=_record(description="re-extracted"),
+        lineage=_LINEAGE_W7_DOC_A_V1,
+    )
+    got = await store.get_entity("Alice")
+    assert got is not None
+    assert got.compacted_description == "v1 summary"
+
+
+@pytest.mark.asyncio
+async def test_w7_compacted_description_overwritten_on_non_none_kwarg():
+    store = InMemoryLineageGraphStore()
+    await store.upsert_entity_with_lineage(
+        record=_record(),
+        lineage=_LINEAGE_W7_DOC_A_V1,
+        compacted_description="v1",
+    )
+    await store.upsert_entity_with_lineage(
+        record=_record(),
+        lineage=_LINEAGE_W7_DOC_A_V1,
+        compacted_description="v2",
+    )
+    got = await store.get_entity("Alice")
+    assert got is not None
+    assert got.compacted_description == "v2"
+
+
+@pytest.mark.asyncio
+async def test_w7_compacted_write_does_not_clobber_lineage_state():
+    """huangheng safety gate (msg=828c83cc): the Compactor write path
+    must preserve every other lineage field on the row."""
+    store = InMemoryLineageGraphStore()
+    await store.upsert_entity_with_lineage(record=_record(description="v1 text"), lineage=_LINEAGE_W7_DOC_A_V1)
+    await store.upsert_entity_with_lineage(
+        record=_record(description="v2 text", chunk="c1"),
+        lineage=_LINEAGE_W7_DOC_A_V2,
+    )
+    pre = await store.get_entity("Alice")
+    assert pre is not None
+    pre_lineage_keys = {(m.document_id, m.parse_version) for m in pre.source_lineage}
+    pre_part_keys = {(p.document_id, p.parse_version, p.text) for p in pre.description_parts}
+
+    # Compactor-style write — passes the v1 record again with a
+    # compacted summary covering both v1 and v2.
+    await store.upsert_entity_with_lineage(
+        record=_record(description="v1 text"),
+        lineage=_LINEAGE_W7_DOC_A_V1,
+        compacted_description="v1+v2 unified summary",
+    )
+    after = await store.get_entity("Alice")
+    assert after is not None
+    after_lineage_keys = {(m.document_id, m.parse_version) for m in after.source_lineage}
+    after_part_keys = {(p.document_id, p.parse_version, p.text) for p in after.description_parts}
+
+    assert after_lineage_keys == pre_lineage_keys
+    assert after_part_keys == pre_part_keys
+    assert after.compacted_description == "v1+v2 unified summary"
+
+
+@pytest.mark.asyncio
+async def test_w7_relation_compacted_description_round_trip():
+    store = InMemoryLineageGraphStore()
+    await store.upsert_relation_with_lineage(
+        record=_relation_record(),
+        lineage=_LINEAGE_W7_DOC_A_V1,
+        compacted_description="rel summary",
+    )
+    got = await store.get_relation("Alice", "Bob", "knows")
+    assert got is not None
+    assert got.compacted_description == "rel summary"
+
+
+@pytest.mark.asyncio
+async def test_w7_delete_entity_unconditionally_removes():
+    store = InMemoryLineageGraphStore()
+    await store.upsert_entity_with_lineage(record=_record(), lineage=_LINEAGE_W7_DOC_A_V1)
+    deleted = await store.delete_entity("Alice")
+    assert deleted is True
+    assert await store.get_entity("Alice") is None
+
+
+@pytest.mark.asyncio
+async def test_w7_delete_entity_returns_false_when_absent():
+    store = InMemoryLineageGraphStore()
+    deleted = await store.delete_entity("DoesNotExist")
+    assert deleted is False
+
+
+@pytest.mark.asyncio
+async def test_w7_delete_relation_unconditionally_removes():
+    store = InMemoryLineageGraphStore()
+    await store.upsert_relation_with_lineage(record=_relation_record(), lineage=_LINEAGE_W7_DOC_A_V1)
+    deleted = await store.delete_relation("Alice", "Bob", "knows")
+    assert deleted is True
+    assert await store.get_relation("Alice", "Bob", "knows") is None
+
+
+@pytest.mark.asyncio
+async def test_w7_delete_relation_returns_false_when_absent():
+    store = InMemoryLineageGraphStore()
+    deleted = await store.delete_relation("Alice", "Bob", "knows")
+    assert deleted is False
