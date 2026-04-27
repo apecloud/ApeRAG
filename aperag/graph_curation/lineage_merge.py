@@ -495,10 +495,8 @@ def build_lineage_entity_merger_for(collection: Any) -> "LineageEntityMerger":
     # Lazy imports keep this module free of worker_factory at import
     # time so worker_factory's own ``from .lineage_merge`` import (if
     # ever added) wouldn't form a cycle.
-    from aperag.domains.knowledge_graph.graphindex.integration import (
-        build_collection_llm_callable,
-    )
     from aperag.indexing.graph_compactor import GraphIndexCompactor
+    from aperag.indexing.llm import build_collection_llm_callable
     from aperag.indexing.worker_factory import (
         WorkerFactoryError,
         _build_collection_graph_vector_writer,

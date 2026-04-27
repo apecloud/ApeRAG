@@ -18,24 +18,66 @@ import asyncio
 from typing import Any, Awaitable
 
 from aperag.db.ops import db_ops
-from aperag.domains.knowledge_graph.graphindex.integration import (
-    build_collection_llm_callable,
-    make_service_for_collection,
-)
 from aperag.graph_curation.service import graph_curation_service
+from aperag.indexing.llm import build_collection_llm_callable
 
 
 def run_graph_curation_run_sync(run_id: str, collection_id: str) -> None:
+    """Wave 7 W7-10: Celery sync entry point for the user-triggered
+    curation run.
+
+    Resolves the four Wave 7 dependencies (``LineageGraphStore``,
+    ``VectorStoreConnector``, sync embedder, async LLM callable) via
+    the same factories the indexer / curation merger use, so the
+    user-driven sweep + the sync-driven detector + the user-driven
+    merge all converge on a single set of resources.
+    """
     collection = db_ops.query_collection_by_id(collection_id, ignore_deleted=False)
     if collection is None:
         raise ValueError(f"Collection {collection_id!r} not found")
 
     async def _run() -> None:
-        graph_service = make_service_for_collection(collection)
+        # Lazy imports keep the integration module free of indexing /
+        # vectorstore deps at import time (mirrors the same pattern in
+        # ``aperag/domains/knowledge_graph/service.py``).
+        from aperag.indexing.worker_factory import (
+            _build_collection_graph_vector_writer,
+            _build_lineage_graph_store_inner,
+            _resolve_graph_backend_type,
+        )
+
+        backend_type = _resolve_graph_backend_type(collection)
+        # Use the *inner* (non-decorated) store: the curation sweep
+        # walks canonical names directly, so the alias-redirect
+        # decorator (which the indexer hot path needs) would only add
+        # latency without changing semantics.
+        store = _build_lineage_graph_store_inner(backend_type=backend_type, collection=collection)
+        vector_connector, embedder = _build_collection_graph_vector_writer(collection)
+        if vector_connector is None or embedder is None:
+            raise RuntimeError(
+                f"graph_curation: could not resolve vector connector / embedder for collection "
+                f"{getattr(collection, 'id', '<unknown>')} — curation sweep needs the same "
+                f"per-collection vector + embedder bound to the indexer Phase 3 write path"
+            )
+
+        class _SyncEmbedderShim:
+            """Adapt the sync ``(text -> list[float])`` callable into
+            the ``embed_query`` shape the curation service expects
+            (mirrors the shim in ``worker_factory`` for the merge
+            candidate detector)."""
+
+            def __init__(self, fn: Any) -> None:
+                self._fn = fn
+
+            def embed_query(self, text: str) -> list[float]:
+                return self._fn(text)
+
         await graph_curation_service.generate_run(
             run_id=run_id,
             collection=collection,
-            graph_service=graph_service,
+            store=store,
+            vector_connector=vector_connector,
+            embedder=_SyncEmbedderShim(embedder),
             llm=build_collection_llm_callable(collection),
         )
 

@@ -49,12 +49,12 @@ import aperag.domains.identity.db.models  # noqa: F401
 # autogen-registration reason).
 import aperag.domains.knowledge_base.db.models  # noqa: F401
 import aperag.domains.knowledge_graph.db.models  # noqa: F401
-
-# graphindex declares GraphIndexNode / GraphIndexEdge / GraphIndexChunk
-# against the same Base but lives outside any domain ``db/models``, so it
-# needs its own explicit import. Keep until Alembic autogen would pick it
-# up transitively.
-import aperag.domains.knowledge_graph.graphindex.models  # noqa: F401
+# Wave 7 W7-10: legacy ``aperag.domains.knowledge_graph.graphindex.models``
+# (GraphIndexNode / GraphIndexEdge / GraphIndexChunk) was deleted along
+# with the rest of the graphindex package; the alembic drop migration
+# ``c7e3a1b9f4d6`` removes the corresponding tables. No replacement
+# import is needed — ``aperag_lineage_*`` tables are autogen-discovered
+# via the ``aperag.indexing.graph_storage.postgres`` module already.
 import aperag.domains.marketplace.db.models  # noqa: F401
 import aperag.domains.model_platform.db.models  # noqa: F401
 import aperag.domains.retrieval.db.models  # noqa: F401

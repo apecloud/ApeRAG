@@ -661,6 +661,37 @@ class LineageGraphStore(Protocol):
         ``collection_id`` parameter is needed at this layer.
         """
 
+    async def list_entities(
+        self,
+        *,
+        label: str | None = None,
+        limit: int = 1000,
+        offset: int = 0,
+    ) -> list[EntityWithLineage]:
+        """Wave 7 W7-10: paginated list of entities in this collection,
+        optionally filtered by ``entity_type`` (label).
+
+        Sorted deterministically by ``name`` so paged callers
+        (``offset += limit`` loop) never miss / duplicate rows. ``limit
+        <= 0`` returns ``[]``; ``offset < 0`` is treated as 0.
+
+        Replaces the legacy
+        ``GraphIndexService.list_entities_for_curation`` /
+        ``GraphIndexService.get_knowledge_graph`` enumerate-by-label
+        paths now that the legacy package is being deleted. Used by:
+
+        * ``aperag/domains/knowledge_graph/service.py:get_knowledge_graph``
+          — UI graph view, single-page call with ``limit=max_nodes``
+          followed by ``GraphSearchService.get_subgraph`` for the
+          edge expansion (per architect Q1 ratify msg=f3216dfc).
+        * ``aperag/graph_curation/service.py:start_run`` —
+          user-triggered cross-doc candidate sweep, paged loop with
+          ``limit=1000`` until fewer than ``limit`` rows return.
+
+        Mirror ``query_entities_by_keyword`` / ``expand_neighbors_n_hops``
+        Protocol pattern (W6 #33 chunk 2).
+        """
+
 
 # ---------------------------------------------------------------------
 # In-memory reference implementation — usable by tests and as the
@@ -992,6 +1023,32 @@ class InMemoryLineageGraphStore:
         async with self._guard:
             labels = {row.entity_type for row in self._entities.values() if row.entity_type}
         return sorted(labels)
+
+    async def list_entities(
+        self,
+        *,
+        label: str | None = None,
+        limit: int = 1000,
+        offset: int = 0,
+    ) -> list[EntityWithLineage]:
+        if limit <= 0:
+            return []
+        offset = max(0, offset)
+        async with self._guard:
+            rows = sorted(self._entities.values(), key=lambda r: r.name)
+            if label is not None:
+                rows = [r for r in rows if r.entity_type == label]
+            sliced = rows[offset : offset + limit]
+            return [
+                EntityWithLineage(
+                    name=row.name,
+                    entity_type=row.entity_type,
+                    source_lineage=tuple(_sorted_lineage(row.source_lineage.values())),
+                    description_parts=tuple(_sorted_description_parts(row.description_parts.values())),
+                    compacted_description=row.compacted_description,
+                )
+                for row in sliced
+            ]
 
 
 def _sorted_lineage(members: Iterable[LineageMember]) -> list[LineageMember]:

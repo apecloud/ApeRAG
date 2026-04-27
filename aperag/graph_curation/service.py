@@ -33,16 +33,20 @@ from aperag.domains.knowledge_graph.db.models import (
     GraphCurationSuggestion,
     GraphCurationSuggestionStatus,
 )
-from aperag.domains.knowledge_graph.graphindex.dto import Entity
-from aperag.domains.knowledge_graph.graphindex.service import GraphIndexService, LLMCall
 from aperag.exceptions import CollectionNotFoundException
 from aperag.graph_curation.candidate_generation import (
     CandidatePair,
     build_candidate_pairs,
     entity_snapshot,
 )
+from aperag.graph_curation.dto import CurationEntity as Entity
 from aperag.graph_curation.prompts import render_merge_adjudication_prompt
+from aperag.indexing.graph import LineageGraphStore
+from aperag.indexing.llm import LLMCall
 from aperag.utils.utils import utc_now
+from aperag.vectorstore.base import VectorStoreConnector
+from aperag.vectorstore.dto import QueryRequest
+from aperag.vectorstore.filters import Eq
 
 logger = logging.getLogger(__name__)
 
@@ -196,17 +200,27 @@ class GraphCurationService(AsyncBaseRepository):
                 "merge_result": None,
             }
 
-        from aperag.domains.knowledge_graph.graphindex.integration import make_service_for_collection
+        # Wave 7 W7-10 cutover: route the curation accept-merge through
+        # the new ``LineageEntityMerger`` (W7-6, PR #1758). Same merger
+        # the W7-8 cutover wired into ``GraphService.merge_entities``
+        # for ``POST /graphs/nodes/merge`` (PR #1762) — both surfaces
+        # converge on a single merge path so user-merge-from-curation
+        # vs user-merge-from-graph-view never diverge.
+        from aperag.graph_curation.alias_map import AliasCycleError
+        from aperag.graph_curation.lineage_merge import build_lineage_entity_merger_for
 
-        graph_service = make_service_for_collection(collection)
+        merger = build_lineage_entity_merger_for(collection)
         entity_ids = list(suggestion.entity_ids or [])
         target_entity_id = suggestion.target_entity_id
         source_entity_ids = [entity_id for entity_id in entity_ids if entity_id != target_entity_id]
-        merge_result = await graph_service.merge_entities(
-            collection_id=collection_id,
-            target_entity_id=target_entity_id,
-            source_entity_ids=source_entity_ids,
-        )
+        try:
+            merge_result = await merger.merge_entities(
+                target_name=target_entity_id,
+                source_names=source_entity_ids,
+                merged_by=user_id,
+            )
+        except AliasCycleError as exc:
+            raise ValueError(str(exc)) from exc
 
         await self._accept_and_supersede(
             collection_id=collection_id,
@@ -215,18 +229,32 @@ class GraphCurationService(AsyncBaseRepository):
             operated_by=user_id,
         )
 
+        # Backward-compat response shape (mirrors
+        # ``domains/knowledge_graph/service.py:merge_entities`` cutover
+        # in W7-8). ``edges_redirected`` / ``edges_collapsed`` are 0
+        # by design — alias redirect happens at indexer write-time via
+        # the decorator, not as a per-merge count we can surface.
+        merge_description = merge_result.compacted_description or merge_result.unified_description
+        chunk_ids: set[str] = set()
+        target_after = await merger._store.get_entity(merge_result.final_target)  # noqa: SLF001
+        if target_after is not None:
+            for member in target_after.source_lineage or ():
+                for cid in getattr(member, "chunk_ids", ()) or ():
+                    if cid:
+                        chunk_ids.add(str(cid))
+
         return {
             "status": "success",
             "suggestion_id": suggestion_id,
             "action": "accept",
             "suggestion_status": GraphCurationSuggestionStatus.ACCEPTED.value,
             "merge_result": {
-                "target_entity_id": merge_result.target_entity_id,
+                "target_entity_id": merge_result.final_target,
                 "merged_source_ids": list(merge_result.merged_source_ids),
-                "description": merge_result.description,
-                "source_chunk_ids": list(merge_result.source_chunk_ids),
-                "edges_redirected": merge_result.edges_redirected,
-                "edges_collapsed": merge_result.edges_collapsed,
+                "description": merge_description,
+                "source_chunk_ids": sorted(chunk_ids),
+                "edges_redirected": 0,
+                "edges_collapsed": 0,
             },
         }
 
@@ -235,21 +263,39 @@ class GraphCurationService(AsyncBaseRepository):
         *,
         run_id: str,
         collection: Collection,
-        graph_service: GraphIndexService,
+        store: LineageGraphStore,
+        vector_connector: VectorStoreConnector,
+        embedder: Any,
         llm: LLMCall,
     ) -> None:
+        """Wave 7 W7-10 cutover: drive the user-triggered candidate
+        sweep over the four new injected dependencies (per architect
+        Q3 ratify msg=838d57c3) instead of the legacy
+        ``GraphIndexService`` bundle.
+
+        ``store`` — :class:`LineageGraphStore` per-collection-bound
+        (Wave 4 lineage table backing).
+        ``vector_connector`` — shared :class:`VectorStoreConnector`
+        (Qdrant / pgvector) carrying the Wave 7 W7-3
+        ``indexer="graph_entity"`` payload.
+        ``embedder`` — any object exposing ``embed_query(text) ->
+        list[float]`` (matches :class:`EmbeddingService`).
+        ``llm`` — async ``(prompt) -> str`` adjudication callable.
+        """
         collection_id = str(collection.id)
         await self._mark_run_running(run_id)
 
         try:
-            entities = await graph_service.list_entities_for_curation(
+            entities = await self._enumerate_curation_entities(
+                store=store,
                 collection_id=collection_id,
                 limit=DEFAULT_MAX_ENTITIES,
             )
             entities_by_id = {entity.entity_id: entity for entity in entities}
-            vector_neighbors = await graph_service.find_entity_shadow_neighbors(
-                collection_id=collection_id,
-                entity_ids=list(entities_by_id.keys()),
+            vector_neighbors = await self._fetch_shadow_neighbors(
+                vector_connector=vector_connector,
+                embedder=embedder,
+                entities=entities,
                 top_k_per_entity=DEFAULT_VECTOR_TOP_K,
                 score_threshold=DEFAULT_VECTOR_SCORE_THRESHOLD,
             )
@@ -697,6 +743,107 @@ class GraphCurationService(AsyncBaseRepository):
         if start < 0 or end <= start:
             raise ValueError("LLM did not return a JSON object")
         return json.loads(raw_text[start : end + 1])
+
+    # ------------------------------------------------------------------
+    # Wave 7 W7-10: helper methods replacing the legacy
+    # ``GraphIndexService.list_entities_for_curation`` /
+    # ``GraphIndexService.find_entity_shadow_neighbors`` calls.
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    async def _enumerate_curation_entities(
+        *,
+        store: LineageGraphStore,
+        collection_id: str,
+        limit: int,
+    ) -> list[Entity]:
+        """Page through ``store.list_entities`` until the requested
+        ``limit`` is hit (or the collection is exhausted), and adapt to
+        :class:`CurationEntity`.
+
+        Replaces legacy ``list_entities_for_curation`` (per architect
+        Q1 ratify msg=838d57c3 — ``list_entities`` is the new primary
+        full-collection enumeration entry point).
+        """
+        if limit <= 0:
+            return []
+        page_size = min(1000, limit)
+        out: list[Entity] = []
+        offset = 0
+        while len(out) < limit:
+            remaining = limit - len(out)
+            batch_size = min(page_size, remaining)
+            batch = await store.list_entities(limit=batch_size, offset=offset)
+            if not batch:
+                break
+            for lineage_entity in batch:
+                out.append(Entity.from_lineage(lineage_entity, collection_id=collection_id))
+            if len(batch) < batch_size:
+                break
+            offset += len(batch)
+        return out
+
+    @staticmethod
+    async def _fetch_shadow_neighbors(
+        *,
+        vector_connector: VectorStoreConnector,
+        embedder: Any,
+        entities: Sequence[Entity],
+        top_k_per_entity: int,
+        score_threshold: float,
+    ) -> dict[str, list[tuple[str, float]]]:
+        """Vector-recall nearest neighbours by entity description, scoped
+        to ``indexer="graph_entity"`` Wave 7 W7-3 vector points.
+
+        Replaces legacy ``find_entity_shadow_neighbors`` (which filtered
+        by legacy ``entity_id`` payload field; Wave 7 vector points
+        carry the 3-field payload ``{indexer, entity_name, entity_type}``
+        per spec §K.12.5 lock).
+        """
+        if not entities or top_k_per_entity <= 0:
+            return {}
+
+        flt = Eq("indexer", "graph_entity")
+        out: dict[str, list[tuple[str, float]]] = {}
+        for entity in entities:
+            text = entity.description or entity.name
+            if not text:
+                continue
+            try:
+                embedding = await asyncio.to_thread(embedder.embed_query, text)
+            except Exception:  # noqa: BLE001 — embedder flake non-fatal
+                logger.warning(
+                    "graph_curation: embed failed for entity=%r (skipping shadow neighbours)",
+                    entity.entity_id,
+                    exc_info=True,
+                )
+                continue
+            request = QueryRequest(
+                embedding=embedding,
+                top_k=top_k_per_entity + 1,
+                flt=flt,
+                score_threshold=score_threshold,
+            )
+            try:
+                hits = await asyncio.to_thread(vector_connector.search, request)
+            except Exception:  # noqa: BLE001
+                logger.warning(
+                    "graph_curation: vector search failed for entity=%r (skipping shadow neighbours)",
+                    entity.entity_id,
+                    exc_info=True,
+                )
+                continue
+            neighbours: list[tuple[str, float]] = []
+            for hit in hits:
+                neighbour_name = (hit.payload or {}).get("entity_name")
+                if not neighbour_name or neighbour_name == entity.entity_id:
+                    continue
+                neighbours.append((str(neighbour_name), float(hit.score)))
+                if len(neighbours) >= top_k_per_entity:
+                    break
+            if neighbours:
+                out[entity.entity_id] = neighbours
+        return out
 
 
 graph_curation_service = GraphCurationService()

@@ -1,9 +1,18 @@
 from types import SimpleNamespace
 
-from aperag.domains.knowledge_graph.graphindex.dto import Entity, Relation
 from aperag.domains.knowledge_graph.schemas import KnowledgeGraph
-from aperag.domains.knowledge_graph.service import GraphService, _adapt_edges, _adapt_nodes
+from aperag.domains.knowledge_graph.service import (
+    GraphService,
+    _adapt_lineage_entities,
+    _adapt_lineage_relations,
+)
 from aperag.domains.retrieval.schemas import SearchResultItem
+from aperag.indexing.graph import (
+    DescriptionPart,
+    EntityWithLineage,
+    LineageMember,
+    RelationWithLineage,
+)
 
 
 def test_search_result_metadata_is_public_allowlist():
@@ -50,33 +59,58 @@ def test_search_result_metadata_is_public_allowlist():
     }
 
 
-def test_graphindex_adapter_exposes_public_graph_properties_only():
-    node = Entity(
-        entity_id="entity-1",
-        collection_id="col-1",
-        name="ApeRAG",
-        type="product",
-        description="Graph RAG product",
-        source_chunk_ids=("chunk-1", "chunk-2"),
+def test_lineage_adapter_exposes_public_graph_properties_only():
+    """Wave 7 W7-10: pin the ``EntityWithLineage`` /
+    ``RelationWithLineage`` → UI properties projection so the public
+    ``KnowledgeGraph`` shape stays stable across the legacy-graphindex
+    deletion (``_adapt_nodes`` / ``_adapt_edges`` removed; new
+    ``_adapt_lineage_entities`` / ``_adapt_lineage_relations`` take
+    over)."""
+    lineage_member = LineageMember(
+        document_id="doc-1",
+        parse_version="v1",
+        tenant_scope_key="tenant-X",
+        chunk_ids=("chunk-1", "chunk-2"),
     )
-    edge = Relation(
-        collection_id="col-1",
-        source_id="entity-1",
-        target_id="entity-2",
-        description="relates to",
-        weight=8,
-        source_chunk_ids=("chunk-3",),
+    description_part = DescriptionPart(
+        document_id="doc-1",
+        parse_version="v1",
+        text="Graph RAG product",
+    )
+    node = EntityWithLineage(
+        name="ApeRAG",
+        entity_type="product",
+        source_lineage=(lineage_member,),
+        description_parts=(description_part,),
+    )
+    edge_evidence = LineageMember(
+        document_id="doc-1",
+        parse_version="v1",
+        tenant_scope_key="tenant-X",
+        chunk_ids=("chunk-3",),
+    )
+    edge_part = DescriptionPart(document_id="doc-1", parse_version="v1", text="relates to")
+    edge = RelationWithLineage(
+        source="ApeRAG",
+        target="entity-2",
+        relation_type="related_to",
+        evidence_lineage=(edge_evidence,),
+        description_parts=(edge_part,),
     )
 
     service = GraphService.__new__(GraphService)
     graph = KnowledgeGraph.model_validate(
-        service._to_ui_dict(_adapt_nodes([node]), _adapt_edges([edge]), is_truncated=False)
+        service._to_ui_dict(
+            _adapt_lineage_entities([node]),
+            _adapt_lineage_relations([edge]),
+            is_truncated=False,
+        )
     )
     dumped = graph.model_dump(exclude_none=True)
 
     node_props = dumped["nodes"][0]["properties"]
     assert node_props == {
-        "entity_id": "entity-1",
+        "entity_id": "ApeRAG",
         "entity_name": "ApeRAG",
         "entity_type": "product",
         "description": "Graph RAG product",
@@ -85,7 +119,7 @@ def test_graphindex_adapter_exposes_public_graph_properties_only():
 
     edge_props = dumped["edges"][0]["properties"]
     assert edge_props == {
-        "weight": 8.0,
+        "weight": 1.0,
         "description": "relates to",
         "keywords": "",
         "source_chunk_count": 1,
