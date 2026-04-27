@@ -126,22 +126,40 @@ async def _create_or_update_document_indexes(
     """Replacement for legacy ``document_index_manager.
     create_or_update_document_indexes``.
 
-    Wave 3 T3.1 chunk 3: dispatches via the new
+    Wave 3 T3.1 chunk 3 + post-pass-8 parser-wiring fix
+    (architect msg=c605037e ruling on the chunks.jsonl-never-written
+    gap): dispatches via the new
     :func:`aperag.indexing.dispatcher.dispatch_indexing` ASYNC mode.
-    The ``parse_version`` is computed deterministically from the
-    document content hash + canonical chunking config so the worker's
-    re-derive path lands on the same value (per §E.2 hash). The
-    ``source_path`` points at the document's object-store base path;
-    the worker derives the per-modality artifact (chunks.jsonl /
-    markdown.md / vision/manifest.jsonl) underneath.
+
+    Parsing runs **synchronously inside this dispatch** (option 1
+    minimal scope per architect). Celery used to spin a separate
+    ``process_document_task`` that wrote the canonical
+    ``derived/parse_<version>/{markdown.md,outline.json,chunks.jsonl}``
+    artifacts; chunk 2 deleted that task layer but no replacement
+    caller invoked :func:`aperag.indexing.parse_document`, so every
+    modality worker hit ``derive-incomplete`` and rescheduled
+    forever — the symptom that broke
+    e2e-http-provider's ``wait_for_document_indexes`` assertion.
+
+    Sync parse here keeps the §E.2 "parse-as-first-stage" data flow
+    intact; the parse step happens inside the request task instead of
+    a separate ``parse_worker`` queue. Wave 4 follow-up may promote
+    parse to ``q:parse`` once parse latency starts blocking HTTP
+    requests; the sync path is acceptable for current latencies.
+
+    The dispatcher's ``source_path`` is now ``parsed.chunks_path`` —
+    the canonical location modality workers read chunks from. The
+    parse_version returned by the parser pins ``(parser, content,
+    chunking)`` per the §C.3 idempotency contract; we use it
+    verbatim instead of recomputing locally.
     """
     if not index_types:
         return
 
     from aperag.indexing import DispatchRequest, IndexingMode, dispatch_indexing
-    from aperag.indexing.parser import DEFAULT_PARSER_PIPELINE, ChunkingConfig
+    from aperag.indexing.parser import ParseConfig, parse_document
     from aperag.indexing.runtime import get_runtime
-    from aperag.mcp.tools.parse_version import compute_parse_version
+    from aperag.objectstore.base import get_object_store
 
     runtime = get_runtime()
     if runtime is None:
@@ -160,12 +178,41 @@ async def _create_or_update_document_indexes(
         )
         return
 
-    parse_version = compute_parse_version(
-        parser_pipeline=DEFAULT_PARSER_PIPELINE,
-        document_md5=document.content_hash or "",
-        chunking_config=ChunkingConfig().serialize(),
+    # Resolve the upload object path (``user-<u>/<col>/<doc>/original<ext>``)
+    # from the document metadata the upload handler stashed there. The
+    # base path alone is a directory prefix, not the file we need to
+    # parse.
+    metadata = json.loads(document.doc_metadata) if document.doc_metadata else {}
+    object_path = metadata.get("object_path")
+    if not object_path:
+        logger.warning(
+            "_create_or_update_document_indexes(document=%s): doc_metadata.object_path missing; "
+            "cannot parse — skipping dispatch",
+            document_id,
+        )
+        return
+
+    object_store = get_object_store()
+
+    def _read_source_bytes() -> bytes:
+        stream = object_store.get(object_path)
+        if stream is None:
+            raise FileNotFoundError(f"document source not found in object store: {object_path}")
+        with stream:
+            return stream.read()
+
+    source_bytes = await asyncio.to_thread(_read_source_bytes)
+
+    parsed = await asyncio.to_thread(
+        parse_document,
+        store=object_store,
+        collection_id=document.collection_id,
+        document_id=document.id,
+        source_bytes=source_bytes,
+        config=ParseConfig(),
     )
-    source_path = document.object_store_base_path()
+    parse_version = parsed.parse_version
+    source_path = parsed.chunks_path
     tenant_scope_key = f"user:{document.user}"
 
     # Wave 3 T3.1 chunk 3 fix-forward: ``rebuild_indexes`` re-invokes
