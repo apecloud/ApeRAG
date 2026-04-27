@@ -609,23 +609,12 @@ async def update_llm_provider_model(
     # Check edit permission for the provider
     _check_edit_permission(user_id, is_admin, provider.user_id, provider_name)
 
-    # Resolve custom_llm_provider from provider dialect, not the UI label
-    dialect = (
-        provider.completion_dialect if api == "completion"
-        else provider.embedding_dialect if api == "embedding"
-        else provider.rerank_dialect
-    )
-    resolved_custom_llm_provider = _resolve_custom_llm_provider(
-        dialect,
-        update_data.get("custom_llm_provider"),
-    )
-
     # Update model using the DatabaseOps method
     model_obj = await async_db_ops.update_llm_provider_model(
         provider_name=provider_name,
         api=api,
         model=model,
-        custom_llm_provider=resolved_custom_llm_provider,
+        custom_llm_provider=update_data.get("custom_llm_provider"),
         context_window=update_data.get("context_window"),
         max_input_tokens=update_data.get("max_input_tokens"),
         max_output_tokens=update_data.get("max_output_tokens"),

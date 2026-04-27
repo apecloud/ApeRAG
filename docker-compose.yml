@@ -18,6 +18,7 @@ services:
       context: .
       dockerfile: ./Dockerfile
     image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-v0.0.0-nightly}
+    restart: unless-stopped
     container_name: aperag-api
     depends_on:
       redis:
@@ -49,6 +50,7 @@ services:
       context: ./web
       dockerfile: ./Dockerfile
     image: ${REGISTRY:-docker.io}/apecloud/aperag-frontend:${VERSION:-v0.0.0-nightly}
+    restart: unless-stopped
     container_name: aperag-frontend
     depends_on:
       api:
@@ -63,6 +65,7 @@ services:
 
   celeryworker:
     image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-v0.0.0-nightly}
+    restart: unless-stopped
     build:
       context: .
       dockerfile: ./Dockerfile
@@ -90,6 +93,7 @@ services:
 
   celerybeat:
     image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-v0.0.0-nightly}
+    restart: unless-stopped
     build:
       context: .
       dockerfile: ./Dockerfile
@@ -108,6 +112,7 @@ services:
 
   flower:
     image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-v0.0.0-nightly}
+    restart: unless-stopped
     build:
       context: .
       dockerfile: ./Dockerfile
@@ -131,6 +136,7 @@ services:
   # ==============================================
   postgres:
     image: ${REGISTRY:-docker.io}/apecloud/pgvector:pg16
+    restart: unless-stopped    
     container_name: aperag-postgres
     volumes:
       - aperag-postgres-data:/var/lib/postgresql/data
@@ -149,6 +155,7 @@ services:
 
   redis:
     image: ${REGISTRY:-docker.io}/apecloud/redis:6
+    restart: unless-stopped
     container_name: aperag-redis
     volumes:
       - aperag-redis-data:/data
@@ -163,6 +170,7 @@ services:
 
   qdrant:
     image: ${REGISTRY:-docker.io}/apecloud/qdrant:v1.13.4
+    restart: unless-stopped
     container_name: aperag-qdrant
     volumes:
       - aperag-qdrant-data:/qdrant/storage
