@@ -47,10 +47,10 @@ from sqlalchemy.pool import StaticPool
 
 from aperag.indexing import (
     DispatchRequest,
+    IndexingMode,
     InMemoryObjectStore,
     InMemoryVectorBackend,
     InMemoryWorkQueue,
-    IndexingMode,
     Modality,
     VectorModality,
     cleanup_for_deleted_collections,

@@ -442,22 +442,10 @@ def test_worker_module_source_has_no_benchmark_or_dataset_version_references():
 # ---------------------------------------------------------------------------
 
 
-def test_evaluation_run_service_launch_run_dispatches_celery_task(monkeypatch):
-    from aperag.domains.evaluation import services as services_module
-    from aperag.domains.evaluation import tasks as tasks_module
-
-    calls: list[str] = []
-
-    class _FakeTask:
-        name = "aperag.evaluation_v2.tasks.run_evaluation_run"
-
-        def delay(self, run_id: str):
-            calls.append(run_id)
-
-    fake_task = _FakeTask()
-    monkeypatch.setattr(tasks_module, "run_evaluation_run", fake_task)
-
-    svc = services_module.EvaluationRunService(db_ops=object())
-    asyncio.run(svc.launch_run("run_abc123"))
-
-    assert calls == ["run_abc123"]
+# Wave 3 T3.1 chunk 3 (per architect msg=3890c9d7 Item 4): the legacy
+# ``test_evaluation_run_service_launch_run_dispatches_celery_task`` test
+# was deleted alongside the Celery decorators on
+# ``aperag.domains.evaluation.tasks.run_evaluation_run``. The launch_run
+# method now uses ``asyncio.create_task(asyncio.to_thread(...))`` (Pattern
+# C fire-and-forget) and the underlying worker behaviour is already
+# locked in by the 13 ``test_execute_evaluation_run_*`` tests above.

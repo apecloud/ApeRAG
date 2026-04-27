@@ -296,9 +296,21 @@ async def combined_lifespan(app: FastAPI):
         # same queue / engine the workers consume.
         app.state.indexing_queue = queue
         app.state.indexing_engine = engine
+
+        # Service-layer callers (aperag/domains/**) consume the same
+        # triple through the process-wide IndexingRuntime singleton —
+        # they don't have a Request handle for app.state. Workers map
+        # is empty in the async-default deployment; T3.3 follow-up
+        # populates concrete factories per modality.
+        from aperag.indexing.runtime import IndexingRuntime, set_runtime
+
+        set_runtime(IndexingRuntime(engine=engine, queue=queue, workers={}))
     else:
         app.state.indexing_queue = None
         app.state.indexing_engine = None
+        from aperag.indexing.runtime import set_runtime
+
+        set_runtime(None)
 
     try:
         async with mcp_app.lifespan(app):

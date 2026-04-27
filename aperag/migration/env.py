@@ -42,7 +42,11 @@ import aperag.domains.conversation.db.models  # noqa: F401
 import aperag.domains.evaluation.db.models  # noqa: F401
 import aperag.domains.governance.db.models  # noqa: F401
 import aperag.domains.identity.db.models  # noqa: F401
-import aperag.domains.indexing.db.models  # noqa: F401
+
+# Wave 3 T3.1 chunk 2: ``aperag.domains.indexing.db.models`` was hard-
+# deleted; the canonical ``DocumentIndex`` ORM now lives at
+# ``aperag.indexing.models`` (imported a few lines down for the same
+# autogen-registration reason).
 import aperag.domains.knowledge_base.db.models  # noqa: F401
 import aperag.domains.knowledge_graph.db.models  # noqa: F401
 

@@ -101,36 +101,124 @@ from aperag.utils.utils import calculate_file_hash, generate_vector_db_collectio
 logger = logging.getLogger(__name__)
 
 
-# Wave 3 T3.1 chunk 2 placeholder. The legacy
-# ``aperag.domains.indexing.manager:document_index_manager`` ABC was hard-
-# deleted alongside the entire Celery indexing layer. Chunk 3 wires the
-# 5 call sites (search for ``document_index_manager``) to the new
-# ``aperag.indexing.dispatcher.dispatch_indexing()`` async helper +
-# ``aperag.indexing.cleanup.cleanup_for_deleted_documents()``. Until
-# then, this stub keeps the surrounding HTTP routes importable; calls
-# log a warning + no-op so the unit-test surface (which doesn't exercise
-# real indexing) keeps loading.
-class _DocumentIndexManagerStub:
-    async def create_or_update_document_indexes(self, *args, **kwargs):  # noqa: D401
+# ---------------------------------------------------------------------
+# New-API wrappers — celery T3.1 chunk 3 (replace legacy
+# ``document_index_manager.{create_or_update,delete}_document_indexes``).
+# ---------------------------------------------------------------------
+#
+# The legacy ABC was hard-deleted in chunk 2; these two helpers are the
+# minimum-blast-radius adapters that keep the existing 5 call sites
+# compiling while routing to the new ``aperag.indexing`` surface
+# (``dispatch_indexing()`` for INSERT, ``cleanup_for_deleted_documents()``
+# for DELETE). Both consume the process-local
+# :class:`aperag.indexing.runtime.IndexingRuntime` populated by the
+# FastAPI lifespan; if the runtime is absent (test environment, or
+# ``INDEXING_MODE != async``), they log + no-op rather than crash.
+
+
+async def _create_or_update_document_indexes(
+    *,
+    document_id: str,
+    index_types: list[Modality],
+    session: AsyncSession,
+) -> None:
+    """Replacement for legacy ``document_index_manager.
+    create_or_update_document_indexes``.
+
+    Wave 3 T3.1 chunk 3: dispatches via the new
+    :func:`aperag.indexing.dispatcher.dispatch_indexing` ASYNC mode.
+    The ``parse_version`` is computed deterministically from the
+    document content hash + canonical chunking config so the worker's
+    re-derive path lands on the same value (per §E.2 hash). The
+    ``source_path`` points at the document's object-store base path;
+    the worker derives the per-modality artifact (chunks.jsonl /
+    markdown.md / vision/manifest.jsonl) underneath.
+    """
+    if not index_types:
+        return
+
+    from aperag.indexing import DispatchRequest, IndexingMode, dispatch_indexing
+    from aperag.indexing.parser import DEFAULT_PARSER_PIPELINE, ChunkingConfig
+    from aperag.indexing.runtime import get_runtime
+    from aperag.mcp.tools.parse_version import compute_parse_version
+
+    runtime = get_runtime()
+    if runtime is None:
         logger.warning(
-            "document_index_manager.create_or_update_document_indexes called pre-chunk-3 wiring — no-op stub"
+            "_create_or_update_document_indexes(document=%s): IndexingRuntime not installed "
+            "(INDEXING_MODE != async or pre-startup); skipping dispatch",
+            document_id,
         )
+        return
 
-    async def delete_document_indexes(self, *args, **kwargs):  # noqa: D401
-        logger.warning("document_index_manager.delete_document_indexes called pre-chunk-3 wiring — no-op stub")
+    document = await session.get(Document, document_id)
+    if document is None:
+        logger.warning(
+            "_create_or_update_document_indexes(document=%s): Document row not found; skipping",
+            document_id,
+        )
+        return
+
+    parse_version = compute_parse_version(
+        parser_pipeline=DEFAULT_PARSER_PIPELINE,
+        document_md5=document.content_hash or "",
+        chunking_config=ChunkingConfig().serialize(),
+    )
+    source_path = document.object_store_base_path()
+    tenant_scope_key = f"user:{document.user}"
+
+    await dispatch_indexing(
+        engine=runtime.engine,
+        queue=runtime.queue,
+        workers=runtime.workers,
+        request=DispatchRequest(
+            collection_id=document.collection_id,
+            document_id=document.id,
+            parse_version=parse_version,
+            source_path=source_path,
+            tenant_scope_key=tenant_scope_key,
+            modalities=tuple(index_types),
+        ),
+        mode=IndexingMode.ASYNC,
+    )
 
 
-document_index_manager = _DocumentIndexManagerStub()
+async def _delete_document_indexes(*, document_id: str) -> None:
+    """Replacement for legacy ``document_index_manager.
+    delete_document_indexes``.
+
+    Wave 3 T3.1 chunk 3: routes to
+    :func:`aperag.indexing.cleanup.cleanup_for_deleted_documents` which
+    handles the modality fan-out (graph lineage cleanup vs flat
+    backend delete) + DELETEs the ``document_index`` rows.
+    """
+    from aperag.indexing.cleanup import cleanup_for_deleted_documents
+    from aperag.indexing.runtime import get_runtime
+
+    runtime = get_runtime()
+    if runtime is None:
+        logger.warning(
+            "_delete_document_indexes(document=%s): IndexingRuntime not installed; skipping cleanup",
+            document_id,
+        )
+        return
+
+    await cleanup_for_deleted_documents(
+        engine=runtime.engine,
+        workers=runtime.workers,
+        document_ids=[document_id],
+    )
 
 
 def _trigger_index_reconciliation():
-    """No-op stub — Wave 3 T3.1 chunk 2.
+    """No-op — Wave 3 T3.1 chunk 3.
 
     The legacy Celery beat-driven ``reconcile_indexes_task`` is gone;
     the new ``aperag.indexing.reconciler.run_reconcile_loop`` runs
     continuously inside the FastAPI process so manual triggering is
-    unnecessary. Kept as a no-op so the existing call sites compile
-    until chunk 3 deletes them entirely.
+    unnecessary. Kept as a no-op shim so the existing call sites
+    compile; the periodic 30-s loop picks up any newly-PENDING rows
+    immediately.
     """
     return None
 
@@ -528,8 +616,9 @@ class DocumentService:
                     content_hash=file_info["file_hash"],
                 )
 
-                # Create indexes
-                await document_index_manager.create_or_update_document_indexes(
+                # Create indexes (Wave 3 T3.1 chunk 3: dispatch via new
+                # ``aperag.indexing.dispatcher.dispatch_indexing``).
+                await _create_or_update_document_indexes(
                     document_id=document_instance.id, index_types=index_types, session=session
                 )
 
@@ -683,8 +772,11 @@ class DocumentService:
             logger.warning(f"Document {document_id} not found for deletion, skipping.")
             return
 
-        # Use index manager to mark all related indexes for deletion
-        await document_index_manager.delete_document_indexes(document_id=document.id, index_types=None, session=session)
+        # Cleanup all per-modality index rows + backend state (Wave 3
+        # T3.1 chunk 3: routes to ``aperag.indexing.cleanup.
+        # cleanup_for_deleted_documents`` which handles the modality
+        # fan-out + DELETEs the ``document_index`` rows).
+        await _delete_document_indexes(document_id=document.id)
 
         # Delete from object store
         async_obj_store = get_async_object_store()
@@ -783,8 +875,11 @@ class DocumentService:
             collection_config = json.loads(collection.config)
             if not collection_config.get("enable_knowledge_graph", False) and Modality.GRAPH in index_type_enums:
                 index_type_enums.remove(Modality.GRAPH)
-            # 支持 SUMMARY 类型的重建
-            await document_index_manager.create_or_update_document_indexes(session, document_id, index_type_enums)
+            # Trigger rebuild for the requested modalities (Wave 3 T3.1
+            # chunk 3: dispatch via the new dispatcher).
+            await _create_or_update_document_indexes(
+                document_id=document_id, index_types=index_type_enums, session=session
+            )
             logger.info(f"Successfully triggered rebuild for document {document_id} indexes: {index_types}")
             return {"code": "200", "message": f"Index rebuild initiated for types: {', '.join(index_types)}"}
 
@@ -828,7 +923,15 @@ class DocumentService:
                     rebuild_types = [t for t in failed_index_types if t != Modality.GRAPH.value]
 
                 if rebuild_types:
-                    await document_index_manager.create_or_update_document_indexes(session, document_id, rebuild_types)
+                    # Wave 3 T3.1 chunk 3: dispatch failed-rebuild via
+                    # the new dispatcher. ``rebuild_types`` originates as
+                    # raw enum-string values; coerce to ``Modality``.
+                    rebuild_modalities = [rt if isinstance(rt, Modality) else Modality(rt) for rt in rebuild_types]
+                    await _create_or_update_document_indexes(
+                        document_id=document_id,
+                        index_types=rebuild_modalities,
+                        session=session,
+                    )
                     affected_documents += 1
                     logger.info(f"Triggered rebuild for document {document_id} indexes: {[t for t in rebuild_types]}")
 
@@ -1342,8 +1445,9 @@ class DocumentService:
                     document.status = DocumentStatus.PENDING
                     session.add(document)
 
-                    # Create indexes
-                    await document_index_manager.create_or_update_document_indexes(
+                    # Create indexes (Wave 3 T3.1 chunk 3: dispatch via
+                    # new dispatcher post-confirm).
+                    await _create_or_update_document_indexes(
                         document_id=document.id, index_types=index_types, session=session
                     )
 

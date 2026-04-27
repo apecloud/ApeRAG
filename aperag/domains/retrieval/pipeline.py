@@ -289,21 +289,124 @@ class SearchPipelineService:
         user_id: str,
         chat_id: Optional[str] = None,
     ) -> List[DocumentWithScore]:
-        # Wave 3 T3.1 chunk 2: ``aperag/domains/indexing/fulltext_index.py``
-        # was hard-deleted alongside the Celery indexing layer. The Wave-3
-        # T3.2 search lane (Bryce) wires this method to the new
-        # ``aperag.indexing.fulltext`` modality backend; until that lands,
-        # fulltext recall returns empty so the rest of the retrieval
-        # pipeline (vector / graph / web) keeps working.
+        """Fulltext recall (Wave 3 T3.1 chunk 3 — inline ES query).
+
+        Wave 3 hard-cut deleted the legacy
+        ``aperag/domains/indexing/fulltext_index.py:FulltextIndexer.
+        search_document``; this method now talks to Elasticsearch
+        directly through the same query shape (the retrieval-side
+        query is stateless against whatever
+        ``aperag.indexing.fulltext.FulltextModality.sync()`` wrote).
+        T3.2 search-lane work (Bryce) is purely additive on
+        ``SearchResultMetadata`` and does not introduce a new search
+        backend abstraction; the inline query is the canonical path.
+        """
+        from elasticsearch import AsyncElasticsearch
+
+        from aperag.indexing.keyword_extract import extract_keywords
+        from aperag.utils.utils import generate_fulltext_index_name
+
         config = parseCollectionConfig(collection.config)
         if config.enable_fulltext is False:
             logger.info("Skipping fulltext search for collection %s because enable_fulltext=false", collection.id)
             return []
-        logger.warning(
-            "Fulltext recall stubbed (Wave 3 T3.2 wiring pending) for collection %s — returning no docs",
-            collection.id,
-        )
-        return []
+
+        index_name = generate_fulltext_index_name(collection.id)
+        final_keywords = list(keywords or [])
+        if not final_keywords:
+            extractor_ctx = {
+                "index_name": index_name,
+                "es_host": settings.es_host,
+                "es_timeout": settings.es_timeout,
+                "es_max_retries": settings.es_max_retries,
+                "user_id": user_id,
+            }
+            final_keywords = await extract_keywords(query, extractor_ctx)
+
+        final_keywords = list(set(final_keywords))
+        if not final_keywords:
+            logger.warning(
+                "Fulltext keyword extraction degraded for collection %s; falling back to raw query token",
+                collection.id,
+            )
+            final_keywords = [query]
+
+        es_config = {
+            "request_timeout": settings.es_timeout,
+            "max_retries": settings.es_max_retries,
+            "retry_on_timeout": True,
+        }
+        async_es = AsyncElasticsearch(settings.es_host, **es_config)
+
+        try:
+            exists = await async_es.indices.exists(index=index_name)
+            if not exists.body:
+                return []
+
+            es_query = {
+                "bool": {
+                    "should": [{"match": {"content": kw}} for kw in final_keywords]
+                    + [{"match": {"title": kw}} for kw in final_keywords],
+                    "minimum_should_match": "80%",
+                    "filter": [{"term": {"collection_id": str(collection.id)}}],
+                }
+            }
+            if chat_id:
+                es_query["bool"]["filter"].append(
+                    {
+                        "bool": {
+                            "should": [
+                                {"term": {"chat_id": str(chat_id)}},
+                                {"term": {"metadata.chat_id": str(chat_id)}},
+                            ],
+                            "minimum_should_match": 1,
+                        }
+                    }
+                )
+
+            resp = await async_es.search(
+                index=index_name,
+                query=es_query,
+                sort=[{"_score": {"order": "desc"}}],
+                size=top_k * 3,
+                routing=str(collection.id),
+            )
+            hits = resp.body["hits"]["hits"]
+        except Exception as exc:
+            logger.warning("Fulltext search degraded for collection %s: %s", collection.id, exc)
+            try:
+                await async_es.close()
+            except Exception:  # noqa: BLE001
+                pass
+            return []
+
+        try:
+            await async_es.close()
+        except Exception:  # noqa: BLE001
+            pass
+
+        results: List[DocumentWithScore] = []
+        for hit in hits:
+            source = hit.get("_source", {})
+            metadata = {
+                "source": source.get("name", ""),
+                "document_id": source.get("document_id"),
+                "chunk_id": source.get("chunk_id"),
+                "recall_type": "fulltext_search",
+            }
+            if source.get("title"):
+                metadata["title"] = source["title"]
+            if source.get("metadata"):
+                metadata.update(source["metadata"])
+                metadata["recall_type"] = "fulltext_search"
+            results.append(
+                DocumentWithScore(
+                    text=source.get("content", ""),
+                    score=hit.get("_score", 0.0),
+                    metadata=metadata,
+                )
+            )
+        return results
 
     async def _graph_search(
         self,

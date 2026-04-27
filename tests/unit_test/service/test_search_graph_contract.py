@@ -43,6 +43,10 @@ def test_search_result_metadata_is_public_allowlist():
         "page_idx": 2,
         "url": "https://example.com/doc.pdf",
         "modality": "image",
+        # Wave 3 T3.2 (Bryce commit 5325788) §G.5 SearchResultMetadata
+        # extension: ``index_modality`` is derived from the raw
+        # ``indexer`` field via ``SearchResultMetadata.from_raw``.
+        "index_modality": "vision",
     }
 
 
