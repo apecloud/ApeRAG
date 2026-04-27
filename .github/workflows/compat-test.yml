@@ -139,7 +139,10 @@ jobs:
         if: matrix.backend == 'postgresql'
         run: |
           COMPAT_PG_URL="postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/postgres" \
-          uv run pytest tests/integration/compat/test_graph_compat.py -v --tb=short
+          uv run pytest \
+            tests/integration/compat/test_graph_compat.py \
+            tests/integration/compat/test_lineage_graph_compat.py \
+            -v --tb=short
 
       - name: Run graph compat tests (Neo4j)
         if: matrix.backend == 'neo4j'
@@ -147,13 +150,19 @@ jobs:
           COMPAT_NEO4J_URI="bolt://127.0.0.1:7687" \
           COMPAT_NEO4J_USER="neo4j" \
           COMPAT_NEO4J_PASS="password" \
-          uv run pytest tests/integration/compat/test_graph_compat.py -v --tb=short
+          uv run pytest \
+            tests/integration/compat/test_graph_compat.py \
+            tests/integration/compat/test_lineage_graph_compat.py \
+            -v --tb=short
 
       - name: Run graph compat tests (Nebula)
         if: matrix.backend == 'nebula'
         run: |
           COMPAT_NEBULA_HOSTS="127.0.0.1:9669" \
-          uv run pytest tests/integration/compat/test_graph_compat.py -v --tb=short
+          uv run pytest \
+            tests/integration/compat/test_graph_compat.py \
+            tests/integration/compat/test_lineage_graph_compat.py \
+            -v --tb=short
 
   # ───────────────────────────────────────────────────────
   # Job 2: Vector store compatibility (Qdrant + pgvector)

@@ -222,7 +222,10 @@ test-compat-graph:
 	COMPAT_NEO4J_USER=$${COMPAT_NEO4J_USER:-neo4j} \
 	COMPAT_NEO4J_PASS=$${COMPAT_NEO4J_PASS:-password} \
 	COMPAT_NEBULA_HOSTS=$${COMPAT_NEBULA_HOSTS:-} \
-	uv run pytest tests/integration/compat/test_graph_compat.py -v
+	uv run pytest \
+		tests/integration/compat/test_graph_compat.py \
+		tests/integration/compat/test_lineage_graph_compat.py \
+		-v
 
 test-compat-vector:
 	COMPAT_QDRANT_URL=$${COMPAT_QDRANT_URL:-http://127.0.0.1:6333} \
