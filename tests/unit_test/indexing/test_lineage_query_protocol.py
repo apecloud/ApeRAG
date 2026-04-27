@@ -212,3 +212,112 @@ def test_in_memory_expand_neighbors_unknown_seed_returns_empty_entities():
         assert relations == []
 
     asyncio.run(_run())
+
+
+# ---------------------------------------------------------------------
+# Wave 6 #40 — ``list_entity_labels`` Protocol method (narrow
+# replacement for the legacy ``GraphIndexService.list_labels`` UI path
+# per architect ruling msg=3efdf906 / Option B). Pin the surface +
+# in-memory semantics; backend integration tests cover the SQL/Cypher
+# path against real engines.
+# ---------------------------------------------------------------------
+
+
+def test_list_entity_labels_protocol_method_exists():
+    """The narrow-replacement Protocol method MUST exist on
+    ``LineageGraphStore`` after Wave 6 #40 — pinned so future Protocol
+    refactors can't silently drop it.
+    """
+
+    assert "list_entity_labels" in LineageGraphStore.__dict__
+
+
+def test_list_entity_labels_signature_takes_no_args():
+    """``LineageGraphStore`` is collection-scoped per-instance, so
+    ``list_entity_labels`` does NOT take a ``collection_id`` argument
+    (unlike the legacy ``GraphIndexService.list_labels(collection_id)``
+    which was global).
+    """
+
+    sig = inspect.signature(LineageGraphStore.list_entity_labels)
+    # Only ``self`` — no other parameters.
+    assert list(sig.parameters) == ["self"]
+
+
+def test_in_memory_list_entity_labels_returns_sorted_distinct_types():
+    """Three entities (Alice/Bob/Carol) all of type ``person`` → one
+    label. Then upsert one entity of a different type → two sorted
+    labels.
+    """
+
+    store = InMemoryLineageGraphStore()
+    _seed_minimal_graph(store)
+
+    async def _run() -> None:
+        labels = await store.list_entity_labels()
+        assert labels == ["person"]
+
+        # Add a new entity with a different type — list must update
+        # to reflect the new distinct value, sorted lexicographically.
+        await store.upsert_entity_with_lineage(
+            record=EntityRecord(
+                name="ACME Corp",
+                entity_type="organization",
+                description="company",
+                source_chunk_ids=("chunk-1",),
+            ),
+            lineage=LineageMember(
+                document_id="doc-1",
+                parse_version="v1",
+                tenant_scope_key="user:test",
+                chunk_ids=("chunk-1",),
+            ),
+        )
+        labels = await store.list_entity_labels()
+        assert labels == ["organization", "person"]
+
+    asyncio.run(_run())
+
+
+def test_in_memory_list_entity_labels_returns_empty_for_fresh_store():
+    """A collection that has not been indexed yet returns ``[]`` — that
+    is the correct answer per docstring contract, NOT a cue to fall
+    back to legacy graphindex.
+    """
+
+    store = InMemoryLineageGraphStore()
+
+    async def _run() -> None:
+        labels = await store.list_entity_labels()
+        assert labels == []
+
+    asyncio.run(_run())
+
+
+def test_in_memory_list_entity_labels_skips_empty_type_values():
+    """Defensive: an entity row whose ``type`` is the empty string
+    must not pollute the dropdown — UI label list shows only
+    meaningful values.
+    """
+
+    store = InMemoryLineageGraphStore()
+
+    async def _run() -> None:
+        await store.upsert_entity_with_lineage(
+            record=EntityRecord(
+                name="Mystery",
+                entity_type="",
+                description="no type",
+                source_chunk_ids=("chunk-1",),
+            ),
+            lineage=LineageMember(
+                document_id="doc-1",
+                parse_version="v1",
+                tenant_scope_key="user:test",
+                chunk_ids=("chunk-1",),
+            ),
+        )
+        labels = await store.list_entity_labels()
+        assert labels == []
+
+    asyncio.run(_run())

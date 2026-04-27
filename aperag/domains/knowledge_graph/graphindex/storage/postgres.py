@@ -781,16 +781,6 @@ class PostgresGraphStore:
         relations = [_row_to_relation(r, collection_id) for r in rel_rows]
         return entities, relations
 
-    async def list_labels(self, collection_id: str) -> list[str]:
-        async with self._engine.connect() as conn:
-            rows = (
-                await conn.execute(
-                    text(f"SELECT DISTINCT type FROM {NODES_TABLE} WHERE collection_id = :cid ORDER BY type"),
-                    {"cid": collection_id},
-                )
-            ).all()
-        return [r.type for r in rows]
-
     async def list_subgraph(
         self,
         collection_id: str,

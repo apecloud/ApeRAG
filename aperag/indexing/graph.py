@@ -586,6 +586,22 @@ class LineageGraphStore(Protocol):
         ``entity_names`` returns ``([], [])``.
         """
 
+    async def list_entity_labels(self) -> list[str]:
+        """Return the sorted distinct ``EntityRecord.type`` values
+        present in this collection.
+
+        Used by the UI ``GET /collections/{id}/graphs/labels`` endpoint
+        to populate the entity-type filter. Returns ``[]`` when the
+        collection has not been indexed yet — that is the *correct*
+        answer, not a cue to fall back to the legacy graphindex path.
+
+        Wave 6 #40 narrow-replacement (per architect ruling
+        msg=3efdf906): replaces the legacy
+        ``GraphIndexService.list_labels(collection_id)`` call. The
+        store is already collection-scoped per-instance so no
+        ``collection_id`` parameter is needed at this layer.
+        """
+
 
 # ---------------------------------------------------------------------
 # In-memory reference implementation — usable by tests and as the
@@ -879,6 +895,11 @@ class InMemoryLineageGraphStore:
         entities = sorted(seen_entities.values(), key=lambda e: e.name)
         relations = sorted(seen_relations.values(), key=lambda r: (r.source, r.target, r.relation_type))
         return (entities, relations)
+
+    async def list_entity_labels(self) -> list[str]:
+        async with self._guard:
+            labels = {row.entity_type for row in self._entities.values() if row.entity_type}
+        return sorted(labels)
 
 
 def _sorted_lineage(members: Iterable[LineageMember]) -> list[LineageMember]:

@@ -619,6 +619,19 @@ class Neo4jLineageGraphStore:
         relations = sorted(seen_relations.values(), key=lambda r: (r.source, r.target, r.relation_type))
         return (entities, relations)
 
+    # -- UI label list (Wave 6 #40 narrow replacement) -----------------
+
+    async def list_entity_labels(self) -> list[str]:
+        cypher = (
+            f"MATCH (n:{_ENTITY_LABEL} {{collection_id: $collection_id}}) "
+            f"WHERE n.entity_type IS NOT NULL "
+            f"RETURN DISTINCT n.entity_type AS label "
+            f"ORDER BY label"
+        )
+        async with self._session() as session:
+            result = await session.run(cypher, collection_id=self._collection_id)
+            return [rec["label"] async for rec in result if rec["label"]]
+
 
 __all__ = [
     "Neo4jLineageGraphStore",

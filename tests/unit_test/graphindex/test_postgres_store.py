@@ -278,27 +278,12 @@ async def test_rebuild_cycle_does_not_accumulate_chunk_ids(store):
 
 
 # ---------------------------------------------------------------------------
-# list_labels / list_subgraph
+# list_subgraph
+# (legacy ``list_labels`` deleted in Wave 6 #40 narrow replacement —
+# distinct entity-type listing now lives on
+# ``LineageGraphStore.list_entity_labels`` per architect ruling
+# msg=3efdf906)
 # ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_list_labels_returns_distinct_types(store):
-    cid = "col-lbl"
-    c = _mk_chunk(cid, "d", 0, "x")
-    await store.upsert_chunks(cid, [c])
-    e1 = _mk_entity(cid, "e1", "A", [c.chunk_id])
-    e2 = Entity(
-        entity_id="e2",
-        collection_id=cid,
-        name="B",
-        type="organization",
-        description="",
-        source_chunk_ids=(c.chunk_id,),
-    )
-    await store.upsert_entities(cid, [e1, e2])
-    labels = await store.list_labels(cid)
-    assert labels == ["organization", "person"]
 
 
 @pytest.mark.asyncio

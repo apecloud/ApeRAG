@@ -637,14 +637,6 @@ class Neo4jGraphStore:
                         continue
                 return entities, relations
 
-    async def list_labels(self, collection_id: str) -> list[str]:
-        async with self._driver.session() as session:
-            result = await session.run(
-                f"MATCH (n:{_ENTITY_LABEL} {{collection_id: $cid}}) RETURN DISTINCT n.type AS t ORDER BY t",
-                cid=collection_id,
-            )
-            return [rec["t"] async for rec in result if rec["t"]]
-
     async def list_subgraph(
         self,
         collection_id: str,

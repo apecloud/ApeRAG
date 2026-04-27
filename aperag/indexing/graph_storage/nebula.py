@@ -904,6 +904,28 @@ class NebulaLineageGraphStore:
 
         return await asyncio.to_thread(_walk)
 
+    # -- UI label list (Wave 6 #40 narrow replacement) -----------------
+
+    async def list_entity_labels(self) -> list[str]:
+        await self.ensure_schema()
+
+        def _scan() -> list[str]:
+            # Same scan-and-collect approach as ``query_entities_by_keyword``:
+            # Nebula has no native distinct-by-property aggregation that
+            # we can rely on across versions, and the entity row count
+            # for a single collection is bounded by application use.
+            labels: set[str] = set()
+            for vid in self._list_all_entity_vids():
+                row = self._read_entity_lineage_by_vid(vid)
+                if row is None:
+                    continue
+                _, type_value, _, _ = row
+                if type_value:
+                    labels.add(type_value)
+            return sorted(labels)
+
+        return await asyncio.to_thread(_scan)
+
 
 __all__ = [
     "NebulaLineageGraphStore",

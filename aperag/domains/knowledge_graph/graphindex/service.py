@@ -417,9 +417,6 @@ class GraphIndexService:
         text = _render_context_block(entities=entities, relations=relations, chunks=chunks)
         return GraphContext(text=text, entities=entities, relations=relations, chunks=chunks)
 
-    async def get_labels(self, *, collection_id: str) -> list[str]:
-        return await self._store.list_labels(collection_id)
-
     async def get_knowledge_graph(
         self,
         *,

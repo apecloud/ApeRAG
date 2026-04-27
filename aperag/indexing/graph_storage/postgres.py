@@ -661,6 +661,18 @@ class PostgresLineageGraphStore:
         relations = sorted(seen_relations.values(), key=lambda r: (r.source, r.target, r.relation_type))
         return (entities, relations)
 
+    # -- UI label list (Wave 6 #40 narrow replacement) -----------------
+
+    async def list_entity_labels(self) -> list[str]:
+        async with self._engine.connect() as conn:
+            result = await conn.execute(
+                select(_LineageEntityRow.entity_type)
+                .where(_LineageEntityRow.collection_id == self._collection_id)
+                .distinct()
+                .order_by(_LineageEntityRow.entity_type)
+            )
+            return [row.entity_type for row in result if row.entity_type]
+
 
 __all__ = [
     "ENTITY_TABLE",

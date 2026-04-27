@@ -195,12 +195,6 @@ class GraphStore(Protocol):
         connect"). ``max_hop == 1`` is the standard RAG setting.
         """
 
-    async def list_labels(self, collection_id: str) -> list[str]:
-        """Distinct entity types seen in the collection, stable ordered.
-
-        Backing the UI label dropdown; cheap query, cache-friendly.
-        """
-
     async def list_subgraph(
         self,
         collection_id: str,
