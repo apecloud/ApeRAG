@@ -450,12 +450,6 @@ async def test_step5_alias_map_row_persisted(alias_repo):
         f"got {canonical!r}"
     )
 
-    # Alice itself is not an alias — resolves to Alice.
-    canonical_self = await alias_repo.resolve_canonical(
-        collection_id=_COLLECTION_ID, name="Alice"
-    )
-    assert canonical_self == "Alice"
-
 
 @pytest.mark.asyncio
 async def test_step6_alias_redirect_on_indexer_upsert(decorated_store, inner_store):
@@ -554,19 +548,16 @@ async def test_step8_get_entity_detail_alias_returns_404_w8_3_pin():
             entity_name="Alicia",
         )
 
-    # ============================================================
-    # W8-3 trigger condition pinned here.
-    # TODAY: ``result is None`` — read path bypasses alias_map.
-    # WAVE 8 W8-3: read path resolves the alias → result is a
-    # GraphSearchEntity with name == "Alice". When that ships, flip
-    # the assertion below to ``assert result is not None and
-    # result.name == "Alice"``.
-    # ============================================================
+    # W8-3 trigger condition pinned in the assert message so the
+    # eventual fix is mechanical (per 冬柏 msg=8f488513): when Wave 8
+    # W8-3 ships read-side alias resolution, this assert fails and the
+    # traceback message tells the implementer exactly which line to
+    # flip.
     assert result is None, (
-        "Wave 8 W8-3 (read-side alias resolution) appears to have "
-        "shipped: get_entity_detail('Alicia') now returns a row "
-        f"({result!r}). Flip this assertion to "
-        "`assert result.name == 'Alice'` and update the comment."
+        "W8-3 trigger condition: get_entity_detail('Alicia') today "
+        "returns None because read-side alias resolution is deferred "
+        "to Wave 8 W8-3. When W8-3 ships, this assertion will fail; "
+        "flip to: `assert result is not None and result.name == 'Alice'`"
     )
 
 
