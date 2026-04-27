@@ -77,25 +77,87 @@ spot rows that hit the LLM-unavailable path."""
 PART_SEPARATOR: str = "\n\n"
 
 
-_SUMMARIZE_PROMPT_TEMPLATE: str = (
-    "请将以下知识图谱节点 / 关系的多段描述压缩为一段连贯的中文总结，"
-    "目标长度约 {target} 字以内。要求：\n"
-    "1. 保留所有事实信息（实体、属性、时间、来源等），不要遗漏关键细节。\n"
-    "2. 去重重复表述，合并语义相近的句子。\n"
-    "3. 不要编造原文未出现的内容。\n"
-    "4. 直接输出总结正文，不要加任何前言、标题或解释。\n\n"
-    "原始描述片段：\n"
-    "{joined}\n"
-)
+DEFAULT_LANGUAGE: str = "Chinese"
+"""Default natural language for the summary output. Callers (worker /
+curation service) override per collection language config."""
+
+DESCRIPTION_SUMMARIZATION: str = """\
+You are consolidating a knowledge-graph entry.
+
+Below are {fragment_count} short descriptions of the same
+{subject_kind}, extracted from different chunks of a document. Your job
+is to produce ONE coherent summary in {language} that preserves every
+fact mentioned.
+
+**Rules**
+
+1. Output ONLY the summary text. No preamble, no JSON, no markdown.
+2. Target length: around {target_chars} characters (one or two
+   paragraphs). Go longer if the fragments genuinely require it; never
+   omit a fact to hit the target.
+3. Merge duplicate facts into one sentence. Keep conflicting facts
+   both — the downstream pipeline will flag contradictions, so do not
+   silently pick a winner.
+4. Do not add information that isn't in the fragments.
+5. For a relation, keep the subject–predicate–object framing clear
+   ("<source> <verb> <target> because ...").
+
+**Subject**: {subject_label}
+
+**Fragments** (separated by "---"):
+
+---
+{fragments_block}
+---
+
+Summary (plain text, {language}):"""
+"""Description summarization prompt — ported verbatim from legacy
+``aperag/domains/knowledge_graph/graphindex/prompts.py:DESCRIPTION_SUMMARIZATION``
+to preserve the five behaviours the legacy pipeline relied on:
+``subject_kind`` framing, ``subject_label`` anchoring, ``language``
+control, relation S-P-O guidance, and contradiction-keep-both. Per
+earayu2 ``msg=421c4223`` directive (新老对比，不要丢失好的算法)."""
+
+
+def render_summarization_prompt(
+    *,
+    subject_kind: str,
+    subject_label: str,
+    fragments: list[str],
+    language: str,
+    target_chars: int,
+) -> str:
+    """Render the description-summarization prompt for one entity or
+    relation.
+
+    Mirrors the legacy ``render_summarization_prompt`` so prompt-level
+    A/B testing can swap implementations without changing callers.
+    """
+    block = "\n---\n".join(f.strip() for f in fragments if f and f.strip())
+    cleaned_count = len([f for f in fragments if f and f.strip()])
+    return DESCRIPTION_SUMMARIZATION.format(
+        subject_kind=subject_kind,
+        subject_label=subject_label,
+        fragments_block=block,
+        fragment_count=cleaned_count,
+        language=language,
+        target_chars=target_chars,
+    )
 
 
 class GraphIndexCompactor:
     """Compact long description-part lists for one entity / relation.
 
-    Caller usage (task #3 ``GraphModalityWorker.sync()``)::
+    Caller usage (task #3 ``GraphModalityWorker.sync()`` and task #6
+    ``GraphCurationService.merge_entities``)::
 
         compactor = GraphIndexCompactor(llm)
-        compacted = await compactor.compact_if_oversized(entity.parts_text)
+        compacted = await compactor.compact_if_oversized(
+            entity.description_parts_text,
+            subject_kind="entity",
+            subject_label=entity.name,
+            language=collection.config.extraction_language,
+        )
         if compacted is not None:
             await store.set_compacted_description(entity_id, compacted)
 
@@ -108,9 +170,22 @@ class GraphIndexCompactor:
     def __init__(self, llm: LLMCall) -> None:
         self._llm = llm
 
-    async def compact_if_oversized(self, parts: list[str]) -> str | None:
+    async def compact_if_oversized(
+        self,
+        parts: list[str],
+        *,
+        subject_kind: str,
+        subject_label: str,
+        language: str = DEFAULT_LANGUAGE,
+    ) -> str | None:
         """Return a compacted description, or ``None`` if compaction is
         not warranted.
+
+        ``subject_kind`` is ``"entity"`` or ``"relation"``;
+        ``subject_label`` is the entity name (e.g. ``"OpenAI"``) or a
+        ``"<source> → <target>"`` rendering for a relation. Both flow
+        into the LLM prompt so the model can frame the summary
+        correctly. ``language`` controls the output natural language.
 
         Empty / whitespace-only parts are dropped before evaluation —
         an empty ``parts`` list returns ``None`` (nothing to compact).
@@ -124,22 +199,37 @@ class GraphIndexCompactor:
         if len(cleaned) < SUMMARIZE_AT_FRAGMENTS and len(joined) < MAX_DESCRIPTION_CHARS:
             return None
 
-        summary = await self._summarize_via_llm(joined)
+        summary = await self._summarize_via_llm(
+            cleaned,
+            subject_kind=subject_kind,
+            subject_label=subject_label,
+            language=language,
+        )
         if summary is not None:
             return summary
 
         return self._fallback_truncate(joined)
 
-    async def _summarize_via_llm(self, joined: str) -> str | None:
+    async def _summarize_via_llm(
+        self,
+        cleaned_parts: list[str],
+        *,
+        subject_kind: str,
+        subject_label: str,
+        language: str,
+    ) -> str | None:
         """Call the LLM to produce a compacted summary.
 
         Returns ``None`` if the call fails, returns empty text, or the
         response exceeds the hard char cap (so ``compact_if_oversized``
         falls through to the truncator instead of writing an oversize
         row)."""
-        prompt = _SUMMARIZE_PROMPT_TEMPLATE.format(
-            target=TARGET_SUMMARY_CHARS,
-            joined=joined,
+        prompt = render_summarization_prompt(
+            subject_kind=subject_kind,
+            subject_label=subject_label,
+            fragments=cleaned_parts,
+            language=language,
+            target_chars=TARGET_SUMMARY_CHARS,
         )
         try:
             raw = await self._llm(prompt)
@@ -189,4 +279,7 @@ __all__ = [
     "SUMMARIZE_AT_FRAGMENTS",
     "TARGET_SUMMARY_CHARS",
     "FALLBACK_TRUNCATE_MARK",
+    "DEFAULT_LANGUAGE",
+    "DESCRIPTION_SUMMARIZATION",
+    "render_summarization_prompt",
 ]
