@@ -788,6 +788,119 @@ class NebulaLineageGraphStore:
 
         return await asyncio.to_thread(_read)
 
+    # -- LightRAG-style query layer (Wave 6 #33 chunk 2) --------------
+
+    async def query_entities_by_keyword(
+        self,
+        *,
+        query: str,
+        top_k: int,
+    ) -> list[EntityWithLineage]:
+        if not query or not query.strip() or top_k <= 0:
+            return []
+        await self.ensure_schema()
+
+        needle = query.strip().lower()
+
+        def _scan() -> list[EntityWithLineage]:
+            # Nebula has no JSON / text-search index on tag string
+            # properties; we enumerate all entity VIDs via LOOKUP and
+            # filter substring-match in Python. For collections with
+            # very large entity counts this is slower than the
+            # SQL/Cypher equivalents — acceptable per simple-stable
+            # directive (no per-collection text-index infra to manage).
+            matches: list[EntityWithLineage] = []
+            for vid in self._list_all_entity_vids():
+                row = self._read_entity_lineage_by_vid(vid)
+                if row is None:
+                    continue
+                name, type_value, members, parts = row
+                if needle not in name.lower():
+                    continue
+                matches.append(
+                    EntityWithLineage(
+                        name=name,
+                        type=type_value,
+                        source_lineage=tuple(members),
+                        description_parts=tuple(parts),
+                    )
+                )
+            matches.sort(key=lambda e: e.name)
+            return matches[:top_k]
+
+        return await asyncio.to_thread(_scan)
+
+    async def expand_neighbors_n_hops(
+        self,
+        *,
+        entity_names: list[str],
+        hops: int = 1,
+    ) -> tuple[list[EntityWithLineage], list[RelationWithLineage]]:
+        if not entity_names:
+            return ([], [])
+        await self.ensure_schema()
+
+        def _walk() -> tuple[list[EntityWithLineage], list[RelationWithLineage]]:
+            seen_entities: dict[str, EntityWithLineage] = {}
+            seen_relations: dict[tuple[str, str, str], RelationWithLineage] = {}
+
+            def _add_entity(name: str) -> None:
+                if name in seen_entities:
+                    return
+                row = self._read_entity_lineage(name)
+                if row is None:
+                    return
+                type_value, members, parts = row
+                seen_entities[name] = EntityWithLineage(
+                    name=name,
+                    type=type_value,
+                    source_lineage=tuple(members),
+                    description_parts=tuple(parts),
+                )
+
+            current = {n for n in entity_names if n}
+            for name in current:
+                _add_entity(name)
+
+            # Nebula has no edge type for relations (relations are
+            # tag-vertices). Walk by enumerating all relation VIDs and
+            # filtering by source/target ∈ current — same approach as
+            # ``find_relation_keys_with_lineage``.
+            for _ in range(max(hops, 0)):
+                next_frontier: set[str] = set()
+                if not current:
+                    break
+                for vid in self._list_all_relation_vids():
+                    row = self._read_relation_lineage_by_vid(vid)
+                    if row is None:
+                        continue
+                    src, tgt, rtype, members, parts = row
+                    if src not in current and tgt not in current:
+                        continue
+                    key = (src, tgt, rtype)
+                    if key not in seen_relations:
+                        seen_relations[key] = RelationWithLineage(
+                            source=src,
+                            target=tgt,
+                            type=rtype,
+                            evidence_lineage=tuple(members),
+                            description_parts=tuple(parts),
+                        )
+                    for endpoint in (src, tgt):
+                        if endpoint not in seen_entities and endpoint not in next_frontier:
+                            next_frontier.add(endpoint)
+                if not next_frontier:
+                    break
+                for name in next_frontier:
+                    _add_entity(name)
+                current = next_frontier
+
+            entities = sorted(seen_entities.values(), key=lambda e: e.name)
+            relations = sorted(seen_relations.values(), key=lambda r: (r.source, r.target, r.type))
+            return (entities, relations)
+
+        return await asyncio.to_thread(_walk)
+
 
 __all__ = [
     "NebulaLineageGraphStore",

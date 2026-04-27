@@ -508,25 +508,29 @@ class LineageGraphStore(Protocol):
         """Read-path helper for relations."""
 
     # ------------------------------------------------------------------
-    # Wave 6 #33 chunk 1 — LightRAG-style retrieval query layer (Protocol
-    # stubs; cross-backend implementations land in chunk 2 per
-    # §K.11.11). The retrieval pipeline (§G.5) and graph-curation flows
-    # consume these to compose a graph-recall context for a user query
-    # without going through the legacy ``GraphIndexService.query_context``.
+    # Wave 6 #33 — LightRAG-style retrieval query layer. The retrieval
+    # pipeline (§G.5) and graph-curation flows consume these to compose
+    # a graph-recall context for a user query without going through the
+    # legacy ``GraphIndexService.query_context``.
     #
     # Design notes:
     # * Returns are the canonical :class:`EntityWithLineage` /
     #   :class:`RelationWithLineage` shapes already used by ``get_*`` —
     #   keeps the read surface uniform; callers compose context text
     #   themselves rather than relying on a backend-formatted string.
-    # * ``query_by_vector`` takes a pre-computed embedding so backends
-    #   stay agnostic of the embedding model; the retrieval pipeline
-    #   already owns the embedder.
     # * ``expand_neighbors_n_hops`` returns BOTH neighbour entities and
     #   the relation edges that connect them (1-hop or multi-hop). Per
     #   simple-stable directive the multi-hop frontier is bounded by
     #   ``hops`` (caller picks; default 1) so backends don't need a
     #   query planner.
+    # * Vector-recall (``query_entities_by_vector``) was originally
+    #   declared in chunk 1 but dropped per architect ruling
+    #   msg=54eac595 (Option A): the Wave 4 lineage schema does not
+    #   carry an entity-vector column, so a Protocol method on this
+    #   store would either invite a Qdrant cross-concern coupling or
+    #   silently no-op. Wave 7+ may add it via a separate
+    #   ``LightRAGQueryService`` if real evidence surfaces; until then
+    #   no dead code lives here. See §K.11 amend.
     # ------------------------------------------------------------------
 
     async def query_entities_by_keyword(
@@ -541,30 +545,8 @@ class LineageGraphStore(Protocol):
         Match semantics are backend-defined (case-insensitive substring
         on Postgres / Cypher CONTAINS on Neo4j / etc.); the contract
         is "best-effort lexical recall, not strict equality". An empty
-        ``query`` returns ``[]`` (no spurious recall).
-
-        Wave 6 #33 chunk 1 — Protocol stub; backend implementations
-        land chunk 2.
-        """
-
-    async def query_entities_by_vector(
-        self,
-        *,
-        embedding: list[float],
-        top_k: int,
-    ) -> list[EntityWithLineage]:
-        """Return up to ``top_k`` entities ranked by similarity of
-        ``embedding`` against an entity-vector index the backend
-        maintains. Backends without a native vector index may compose
-        this against the collection's existing Qdrant collection
-        (entity-name-keyed points) — chunk 2 picks the per-backend
-        approach.
-
-        Empty ``embedding`` is invalid and raises ``ValueError`` (the
-        retrieval pipeline always passes a real vector — the embedder
-        has already validated the query upstream).
-
-        Wave 6 #33 chunk 1 — Protocol stub.
+        or whitespace-only ``query`` returns ``[]`` (no spurious recall).
+        ``top_k <= 0`` returns ``[]``.
         """
 
     async def expand_neighbors_n_hops(
@@ -585,9 +567,9 @@ class LineageGraphStore(Protocol):
         Implementations MUST bound the result by ``hops`` to keep the
         traversal cost predictable; per simple-stable directive
         operators don't manage tunable per-collection traversal
-        budgets — this is the only knob.
-
-        Wave 6 #33 chunk 1 — Protocol stub.
+        budgets — this is the only knob. ``hops <= 0`` returns just
+        the requested seed entities (no relations). Empty
+        ``entity_names`` returns ``([], [])``.
         """
 
 
@@ -789,13 +771,7 @@ class InMemoryLineageGraphStore:
             )
 
     # ------------------------------------------------------------------
-    # Wave 6 #33 chunk 1 — LightRAG-style query layer stubs.
-    # Real implementations land chunk 2 (per §K.11.11 3-chunk
-    # decomposition). The in-memory store also defers to chunk 2 so
-    # tests that assert the Protocol surface can pin the
-    # NotImplementedError contract today and switch to the real
-    # behaviour when chunk 2 ships — without rewriting the test
-    # scaffolding.
+    # Wave 6 #33 chunk 2 — LightRAG-style query layer real impls.
     # ------------------------------------------------------------------
 
     async def query_entities_by_keyword(
@@ -804,15 +780,25 @@ class InMemoryLineageGraphStore:
         query: str,
         top_k: int,
     ) -> list[EntityWithLineage]:
-        raise NotImplementedError("Wave 6 #33 chunk 2 — query_entities_by_keyword pending implementation")
-
-    async def query_entities_by_vector(
-        self,
-        *,
-        embedding: list[float],
-        top_k: int,
-    ) -> list[EntityWithLineage]:
-        raise NotImplementedError("Wave 6 #33 chunk 2 — query_entities_by_vector pending implementation")
+        if not query or not query.strip() or top_k <= 0:
+            return []
+        needle = query.strip().lower()
+        matches: list[EntityWithLineage] = []
+        async with self._guard:
+            for name, row in self._entities.items():
+                if needle not in name.lower():
+                    continue
+                matches.append(
+                    EntityWithLineage(
+                        name=row.name,
+                        type=row.type,
+                        source_lineage=tuple(_sorted_lineage(row.source_lineage.values())),
+                        description_parts=tuple(_sorted_description_parts(row.description_parts.values())),
+                    )
+                )
+        # Deterministic ordering for stable test output.
+        matches.sort(key=lambda e: e.name)
+        return matches[:top_k]
 
     async def expand_neighbors_n_hops(
         self,
@@ -820,7 +806,61 @@ class InMemoryLineageGraphStore:
         entity_names: list[str],
         hops: int = 1,
     ) -> tuple[list[EntityWithLineage], list[RelationWithLineage]]:
-        raise NotImplementedError("Wave 6 #33 chunk 2 — expand_neighbors_n_hops pending implementation")
+        if not entity_names:
+            return ([], [])
+
+        seen_entities: dict[str, EntityWithLineage] = {}
+        seen_relations: dict[tuple[str, str, str], RelationWithLineage] = {}
+        frontier: set[str] = {n for n in entity_names if n}
+
+        async with self._guard:
+            # Always include the seed entities (whether or not they
+            # exist in the store).
+            for name in frontier:
+                row = self._entities.get(name)
+                if row is None:
+                    continue
+                seen_entities[name] = EntityWithLineage(
+                    name=row.name,
+                    type=row.type,
+                    source_lineage=tuple(_sorted_lineage(row.source_lineage.values())),
+                    description_parts=tuple(_sorted_description_parts(row.description_parts.values())),
+                )
+
+            current = set(frontier)
+            for _ in range(max(hops, 0)):
+                next_frontier: set[str] = set()
+                for rel_key, rel_row in self._relations.items():
+                    src, tgt, rtype = rel_key
+                    if src in current or tgt in current:
+                        if rel_key not in seen_relations:
+                            seen_relations[rel_key] = RelationWithLineage(
+                                source=rel_row.source,
+                                target=rel_row.target,
+                                type=rel_row.type,
+                                evidence_lineage=tuple(_sorted_lineage(rel_row.evidence_lineage.values())),
+                                description_parts=tuple(_sorted_description_parts(rel_row.description_parts.values())),
+                            )
+                        for neighbour in (src, tgt):
+                            if neighbour in seen_entities:
+                                continue
+                            row = self._entities.get(neighbour)
+                            if row is None:
+                                continue
+                            seen_entities[neighbour] = EntityWithLineage(
+                                name=row.name,
+                                type=row.type,
+                                source_lineage=tuple(_sorted_lineage(row.source_lineage.values())),
+                                description_parts=tuple(_sorted_description_parts(row.description_parts.values())),
+                            )
+                            next_frontier.add(neighbour)
+                if not next_frontier:
+                    break
+                current = next_frontier
+
+        entities = sorted(seen_entities.values(), key=lambda e: e.name)
+        relations = sorted(seen_relations.values(), key=lambda r: (r.source, r.target, r.type))
+        return (entities, relations)
 
 
 def _sorted_lineage(members: Iterable[LineageMember]) -> list[LineageMember]:
