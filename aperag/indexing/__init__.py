@@ -100,6 +100,7 @@ from aperag.indexing.observability import (
     InMemoryMetricsEmitter,
     MetricsEmitter,
     NoopMetricsEmitter,
+    OTLPMetricsEmitter,
     emit_index_failure,
     emit_index_lag,
     emit_index_success,
@@ -114,6 +115,7 @@ from aperag.indexing.orchestrator import (
     InMemoryWorkQueue,
     ModalityWorkerFactory,
     OrchestratorConfig,
+    RedisWorkQueue,
     WorkQueue,
     drain_queue_sync,
     process_one_task,
@@ -123,6 +125,16 @@ from aperag.indexing.orchestrator import (
     run_vector_worker,
     run_vision_worker,
     run_worker_loop,
+)
+from aperag.indexing.parse_orchestrator import (
+    DEFAULT_PARSE_CONCURRENCY,
+    DEFAULT_POLL_TIMEOUT_SECONDS,
+    ObjectStoreFactory,
+    ParseDispatchPayload,
+    ParseOrchestratorConfig,
+    process_one_parse_task,
+    run_parse_worker,
+    run_parse_worker_loop,
 )
 from aperag.indexing.parser import (
     DEFAULT_CHUNK_OVERLAP,
@@ -225,6 +237,7 @@ __all__ = [
     # Observability (T1.5)
     "MetricsEmitter",
     "NoopMetricsEmitter",
+    "OTLPMetricsEmitter",
     "InMemoryMetricsEmitter",
     "INDEX_LAG_METRIC",
     "INDEX_FAILURE_METRIC",
@@ -239,6 +252,7 @@ __all__ = [
     # Orchestrator (T2.1)
     "DispatchPayload",
     "InMemoryWorkQueue",
+    "RedisWorkQueue",
     "WorkQueue",
     "OrchestratorConfig",
     "ModalityWorkerFactory",
@@ -253,6 +267,15 @@ __all__ = [
     "run_summary_worker",
     "run_vision_worker",
     "drain_queue_sync",
+    # Parse orchestrator (Wave 4 T3 chunk 2)
+    "DEFAULT_PARSE_CONCURRENCY",
+    "DEFAULT_POLL_TIMEOUT_SECONDS",
+    "ObjectStoreFactory",
+    "ParseDispatchPayload",
+    "ParseOrchestratorConfig",
+    "process_one_parse_task",
+    "run_parse_worker",
+    "run_parse_worker_loop",
     # Reconciler (T2.1)
     "RECONCILE_INTERVAL_SECONDS",
     "RECONCILE_BATCH_SIZE",

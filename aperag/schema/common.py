@@ -172,6 +172,29 @@ class CollectionConfig(BaseModel):
     # by accident; Wave 4 release flips it back to True. Per architect
     # msg=c79e9a3f.
     enable_knowledge_graph: Optional[bool] = Field(False, description="Whether to enable knowledge graph index")
+    # Wave 4 T8 chunk 4b: lineage graph backend dispatch.
+    # ``postgres`` is the §D.3.5 reference adapter (no extra
+    # infrastructure needed beyond the application's own PostgreSQL);
+    # ``neo4j`` and ``nebula`` are the production graph databases for
+    # deployments that already run them. ``worker_factory`` reads this
+    # field to construct the right :class:`LineageGraphStore` per
+    # collection. New collections that opt into knowledge graph default
+    # to ``postgres`` since it shares the existing app DB.
+    graph_backend_type: Optional[Literal["postgres", "neo4j", "nebula"]] = Field(
+        "postgres",
+        description="Lineage graph backend for knowledge graph indexing",
+    )
+    # Wave 4 T9: fulltext backend dispatch. ``elasticsearch`` is the
+    # default + reference backend (the global ``ES_HOST`` already wired
+    # through ``settings``); ``opensearch`` is the open-licence
+    # alternative for deployments that cannot run Elastic Stack. The
+    # worker factory reads this field to construct the right
+    # ``FulltextBackend`` per collection — new collections default to
+    # ``elasticsearch`` so behaviour is unchanged for existing setups.
+    fulltext_backend_type: Optional[Literal["elasticsearch", "opensearch"]] = Field(
+        "elasticsearch",
+        description="Fulltext search backend for the fulltext modality",
+    )
     enable_summary: Optional[bool] = Field(False, description="Whether to enable summary index")
     enable_vision: Optional[bool] = Field(False, description="Whether to enable vision index")
     knowledge_graph_config: Optional[KnowledgeGraphConfig] = Field(

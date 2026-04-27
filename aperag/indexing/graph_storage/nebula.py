@@ -1,0 +1,794 @@
+# Copyright 2025 ApeCloud, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Nebula Graph implementation of :class:`LineageGraphStore` — Wave 4 T8 chunk 3.
+
+Mirrors :class:`PostgresLineageGraphStore` (chunk 1 reference) and
+:class:`Neo4jLineageGraphStore` (chunk 2) over Nebula 3.x. The §D.3.5
+lineage SET dedup-by-``(document_id, parse_version)`` semantic ports
+to Nebula via a **JSON STRING property** encoding because Nebula's
+property model does not support list-of-MAP and has only limited
+list ops (per architect msg=95179f2a). Each lineage SET is serialised
+into a single ``string`` column holding a JSON array; reads parse the
+JSON, writes mutate in Python and write the new JSON back.
+
+That round-trip is **inherently a read-modify-write loop** — two
+concurrent ``upsert_*_with_lineage`` against the same row will race
+unless serialised. Per architect msg=f2921ae0, the Nebula backend
+**must** acquire an :class:`EntityLock` keyed by entity name (or
+relation triple) for every read-modify-write; the Postgres / Neo4j
+backends don't need this because they have native single-statement
+strip-then-append. The :class:`EntityLock` is injected at construction
+time so callers control the lock scope (``InMemoryEntityLock`` for
+single-process tests, ``RedisEntityLock`` for multi-process production
+worker pools).
+
+Storage layout — one Nebula SPACE per ``collection_id`` (the natural
+Nebula tenancy boundary, mirroring how the legacy ``NebulaGraphStore``
+isolates collections; cheap and cleaner than a per-row collection_id
+filter on a single space):
+
+    SPACE ``{space_prefix}_{collection_id}``
+        TAG ``lineage_entity(
+            name string,
+            type string,
+            source_lineage_json string,
+            description_parts_json string,
+            gmt_created datetime,
+            gmt_updated datetime
+        )``
+        TAG ``lineage_relation(
+            source string,
+            target string,
+            type string,
+            description string,
+            evidence_lineage_json string,
+            description_parts_json string,
+            gmt_created datetime,
+            gmt_updated datetime
+        )``
+
+Vertex VID convention (Nebula needs every vertex to have a string VID
+that fits ``FIXED_STRING(N)``):
+
+* entity vertex VID = ``"e|" + name``
+* relation vertex VID = ``"r|" + source + "|" + target + "|" + type``
+
+The ``|`` separator is escaped in inputs (URL-encode style) so the VID
+parse is unambiguous. ``r|`` and ``e|`` prefixes guarantee no VID
+collision between entity and relation rows even when an entity
+happens to share its name with a relation triple component.
+
+Every public method is async to honour the Protocol; the underlying
+``nebula3-python`` SDK is sync and CPU/IO blocking, so each method
+funnels its work through ``asyncio.to_thread`` (matching the legacy
+adapter pattern). The :class:`EntityLock` acquisition is async so it
+composes correctly across the thread boundary.
+
+§D.3.5 Protocol semantics → nGQL:
+
+* ``find_entity_ids_with_lineage(document_id)`` → ``LOOKUP ON
+  lineage_entity`` to enumerate all entities, then in-Python filter
+  on JSON for the ``document_id`` match. Without a JSON containment
+  index, this is O(N) over the entity tag — acceptable for the
+  lineage SET cardinality the §D.3 design pack describes (typically
+  < 100 docs/entity); high-cardinality entities are a Wave 5 perf
+  optimisation candidate.
+* ``remove_entity_lineage_member(name, document_id)`` → FETCH PROP
+  + JSON parse + filter members where ``document_id != X`` + UPDATE
+  VERTEX with the new JSON. The whole block is wrapped in
+  ``EntityLock.acquire(name)`` so two concurrent strips on the same
+  row serialise.
+* ``upsert_entity_with_lineage`` → MERGE-style: FETCH (or initialise
+  empty) + remove any existing member with same
+  ``(document_id, parse_version)`` key + append new member +
+  INSERT/UPDATE VERTEX. Lock-protected.
+* ``gc_*_if_orphan`` → FETCH lineage; if empty list, ``DELETE
+  VERTEX``. Returns True if the delete actually happened. Also
+  lock-protected so a concurrent re-upsert on the same key does not
+  resurrect-then-delete.
+
+Hard-cut second round: this module is the new Nebula adapter. The
+legacy ``aperag/domains/knowledge_graph/graphindex/storage/nebula.py``
+is deleted in chunk 4 of the same Wave 4 PR.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import re
+import threading
+import time
+from typing import Any
+
+from aperag.indexing.graph import (
+    DescriptionPart,
+    EntityLock,
+    EntityRecord,
+    EntityWithLineage,
+    LineageMember,
+    RelationRecord,
+    RelationWithLineage,
+)
+
+logger = logging.getLogger(__name__)
+
+
+_ENTITY_TAG = "lineage_entity"
+_RELATION_TAG = "lineage_relation"
+_ENTITY_VID_PREFIX = "e|"
+_RELATION_VID_PREFIX = "r|"
+
+# Schema-visibility retry settings: Nebula metad propagates new tags /
+# spaces to storaged on a heartbeat; freshly-created tag/space writes
+# can briefly raise ``SpaceNotFound`` / ``No schema found for`` /
+# ``TagNotFound`` before the heartbeat catches up.
+_SCHEMA_VISIBILITY_RETRIES = 30
+_SCHEMA_VISIBILITY_DELAY_SECONDS = 1.0
+_SCHEMA_VISIBILITY_ERROR_FRAGMENTS = (
+    "No schema found for",
+    "TagNotFound",
+    "EdgeNotFound",
+    "SpaceNotFound",
+    # Storage-side variant (text spelling differs from metad's): the
+    # storaged process emits ``Storage Error: Tag not found`` /
+    # ``Edge not found`` while metad emits the camelCased forms above.
+    # Wave 4 chunk 4c surfaced this on rapid space-drop/recreate
+    # cycles (cross-backend contract fixture's per-test SPACE setup).
+    "Tag not found",
+    "Edge not found",
+)
+
+
+def _is_schema_visibility_error(exc: BaseException) -> bool:
+    msg = str(exc)
+    return any(fragment in msg for fragment in _SCHEMA_VISIBILITY_ERROR_FRAGMENTS)
+
+
+# ---------------------------------------------------------------------
+# Helpers — VID encoding, JSON SET manipulation, escaping.
+# ---------------------------------------------------------------------
+
+
+def _escape_str(s: str) -> str:
+    """Escape a Python string for embedding inside an nGQL string
+    literal. Uses ``json.dumps`` and strips the surrounding quotes so
+    the embedded backslash / quote / unicode handling matches what the
+    Nebula parser expects."""
+    return json.dumps(s, ensure_ascii=False)[1:-1]
+
+
+def _vid_escape_segment(s: str) -> str:
+    """Escape ``|`` and backslash inside a VID segment so the
+    ``r|<source>|<target>|<type>`` decomposition is unambiguous."""
+    return s.replace("\\", "\\\\").replace("|", "\\p")
+
+
+def _entity_vid(name: str) -> str:
+    return _ENTITY_VID_PREFIX + _vid_escape_segment(name)
+
+
+def _relation_vid(source: str, target: str, type: str) -> str:
+    return (
+        _RELATION_VID_PREFIX
+        + _vid_escape_segment(source)
+        + "|"
+        + _vid_escape_segment(target)
+        + "|"
+        + _vid_escape_segment(type)
+    )
+
+
+def _space_name(prefix: str, collection_id: str) -> str:
+    """Sanitise the collection_id so it can be embedded in a Nebula
+    SPACE name (Nebula identifiers must match ``[a-zA-Z0-9_]``)."""
+    safe_id = re.sub(r"[^a-zA-Z0-9_]", "_", collection_id)
+    return f"{prefix}_{safe_id}"
+
+
+def _members_to_json(members: list[LineageMember]) -> str:
+    return json.dumps([m.to_dict() for m in members])
+
+
+def _parts_to_json(parts: list[DescriptionPart]) -> str:
+    return json.dumps([p.to_dict() for p in parts])
+
+
+def _members_from_json(raw: str) -> list[LineageMember]:
+    if not raw:
+        return []
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return []
+    if not isinstance(data, list):
+        return []
+    return [LineageMember.from_dict(item) for item in data if isinstance(item, dict)]
+
+
+def _parts_from_json(raw: str) -> list[DescriptionPart]:
+    if not raw:
+        return []
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return []
+    if not isinstance(data, list):
+        return []
+    return [DescriptionPart.from_dict(item) for item in data if isinstance(item, dict)]
+
+
+# ---------------------------------------------------------------------
+# Public adapter.
+# ---------------------------------------------------------------------
+
+
+class NebulaLineageGraphStore:
+    """:class:`LineageGraphStore` implementation backed by Nebula 3.x.
+
+    Key design decisions (per architect msg=95179f2a + msg=f2921ae0):
+
+    1. **JSON STRING property** for the lineage SET — Nebula property
+       types are scalars + ``string``; no list-of-map. Each SET is one
+       ``string`` column holding a JSON array.
+    2. **Per-entity / per-relation lock for read-modify-write** — JSON
+       round-trip is inherently racy across concurrent syncs;
+       :class:`EntityLock` makes the serialisation explicit.
+    3. **One SPACE per collection_id** — natural Nebula tenancy
+       (cheap; ``DROP SPACE`` is the fastest way to wipe a collection).
+       The store-instance binds to a ``collection_id`` at construction
+       time, mirroring the per-store-instance binding pattern used by
+       :class:`PostgresLineageGraphStore` and
+       :class:`Neo4jLineageGraphStore` (per architect msg=95179f2a
+       Design point 2).
+
+    The constructor accepts a Nebula 3.x ``ConnectionPool`` (the
+    caller — typically the worker_factory — controls pool lifecycle)
+    plus username / password / collection_id / entity_lock. Production
+    deployments inject a :class:`RedisEntityLock` so the lock
+    serialises across worker processes; tests inject the
+    :class:`InMemoryEntityLock` reference impl.
+    """
+
+    def __init__(
+        self,
+        *,
+        pool: Any,
+        username: str,
+        password: str,
+        collection_id: str,
+        entity_lock: EntityLock,
+        space_prefix: str = "aperag_lineage",
+    ) -> None:
+        self._pool = pool
+        self._username = username
+        self._password = password
+        self._collection_id = collection_id
+        self._entity_lock = entity_lock
+        self._space_prefix = space_prefix
+        self._space = _space_name(space_prefix, collection_id)
+        self._schema_init_lock = threading.Lock()
+        self._schema_initialised = False
+
+    # -- low-level session execution ----------------------------------
+
+    def _execute(self, space: str, stmt: str) -> Any:
+        """Run a single nGQL statement in a sync session. Raises
+        ``RuntimeError`` on Nebula-side failure; the caller is
+        responsible for translating known transient errors (e.g.
+        schema-visibility) into retries."""
+        session = self._pool.get_session(self._username, self._password)
+        try:
+            if space:
+                use_result = session.execute(f"USE `{space}`")
+                if not use_result.is_succeeded():
+                    raise RuntimeError(f"Nebula USE failed: {use_result.error_msg()}")
+            result = session.execute(stmt)
+            if not result.is_succeeded():
+                raise RuntimeError(f"Nebula query failed: {result.error_msg()}\nStatement: {stmt}")
+            return result
+        finally:
+            session.release()
+
+    def _execute_with_schema_retry(self, space: str, stmt: str) -> Any:
+        last_error: RuntimeError | None = None
+        for _ in range(_SCHEMA_VISIBILITY_RETRIES):
+            try:
+                return self._execute(space, stmt)
+            except RuntimeError as exc:
+                if not _is_schema_visibility_error(exc):
+                    raise
+                last_error = exc
+                time.sleep(_SCHEMA_VISIBILITY_DELAY_SECONDS)
+        if last_error is not None:
+            raise last_error
+        raise RuntimeError("Nebula schema retry loop exited without a result")
+
+    def _space_exists(self, space: str) -> bool:
+        try:
+            result = self._execute("", "SHOW SPACES")
+        except Exception:
+            return False
+        for i in range(result.row_size()):
+            row = result.row_values(i)
+            if row and row[0].is_string() and row[0].as_string() == space:
+                return True
+        return False
+
+    # -- schema -------------------------------------------------------
+
+    def _ensure_schema_sync(self) -> None:
+        """Create SPACE + TAGs if absent. Idempotent; uses a process
+        lock so concurrent `__init__`-then-`upsert` from multiple
+        coroutines don't double-create.
+        """
+        if self._schema_initialised:
+            return
+        with self._schema_init_lock:
+            if self._schema_initialised:
+                return
+
+            self._execute(
+                "",
+                f"CREATE SPACE IF NOT EXISTS `{self._space}` "
+                f"(vid_type=FIXED_STRING(256), partition_num=1, replica_factor=1)",
+            )
+
+            tag_stmts = [
+                f"CREATE TAG IF NOT EXISTS `{_ENTITY_TAG}`("
+                f"name string, type string, "
+                f"source_lineage_json string, description_parts_json string, "
+                f"gmt_created datetime, gmt_updated datetime)",
+                f"CREATE TAG IF NOT EXISTS `{_RELATION_TAG}`("
+                f"source string, target string, type string, "
+                f"evidence_lineage_json string, description_parts_json string, "
+                f"gmt_created datetime, gmt_updated datetime)",
+                f"CREATE TAG INDEX IF NOT EXISTS `idx_{_ENTITY_TAG}_name` ON `{_ENTITY_TAG}`(name(256))",
+                f"CREATE TAG INDEX IF NOT EXISTS `idx_{_RELATION_TAG}_source` ON `{_RELATION_TAG}`(source(256))",
+            ]
+            last_error: RuntimeError | None = None
+            for _ in range(_SCHEMA_VISIBILITY_RETRIES):
+                try:
+                    if not self._space_exists(self._space):
+                        time.sleep(_SCHEMA_VISIBILITY_DELAY_SECONDS)
+                        continue
+                    for stmt in tag_stmts:
+                        self._execute(self._space, stmt)
+                    # Allow heartbeat to propagate the new tags before
+                    # any caller writes; otherwise the first INSERT
+                    # races schema visibility.
+                    time.sleep(_SCHEMA_VISIBILITY_DELAY_SECONDS)
+                    self._schema_initialised = True
+                    return
+                except RuntimeError as exc:
+                    if not _is_schema_visibility_error(exc):
+                        raise
+                    last_error = exc
+                    time.sleep(_SCHEMA_VISIBILITY_DELAY_SECONDS)
+
+            if last_error is not None:
+                raise last_error
+            raise RuntimeError("Nebula schema visibility never converged for space %s" % self._space)
+
+    async def ensure_schema(self) -> None:
+        await asyncio.to_thread(self._ensure_schema_sync)
+
+    # -- read helpers (sync-blocking, called via to_thread) -----------
+
+    def _read_entity_lineage(self, entity_name: str) -> tuple[str, list[LineageMember], list[DescriptionPart]] | None:
+        """Return ``(type, source_lineage, description_parts)`` for the
+        entity, or ``None`` if the vertex doesn't exist yet."""
+        vid = _entity_vid(entity_name)
+        stmt = (
+            f'FETCH PROP ON `{_ENTITY_TAG}` "{_escape_str(vid)}" '
+            f"YIELD `{_ENTITY_TAG}`.type AS type, "
+            f"`{_ENTITY_TAG}`.source_lineage_json AS sl, "
+            f"`{_ENTITY_TAG}`.description_parts_json AS dp"
+        )
+        result = self._execute_with_schema_retry(self._space, stmt)
+        if result.row_size() == 0:
+            return None
+        row = result.row_values(0)
+        type_value = row[0].as_string() if row[0].is_string() else ""
+        sl_raw = row[1].as_string() if row[1].is_string() else ""
+        dp_raw = row[2].as_string() if row[2].is_string() else ""
+        return type_value, _members_from_json(sl_raw), _parts_from_json(dp_raw)
+
+    def _read_relation_lineage(
+        self, source: str, target: str, type: str
+    ) -> tuple[list[LineageMember], list[DescriptionPart]] | None:
+        vid = _relation_vid(source, target, type)
+        stmt = (
+            f'FETCH PROP ON `{_RELATION_TAG}` "{_escape_str(vid)}" '
+            f"YIELD `{_RELATION_TAG}`.evidence_lineage_json AS el, "
+            f"`{_RELATION_TAG}`.description_parts_json AS dp"
+        )
+        result = self._execute_with_schema_retry(self._space, stmt)
+        if result.row_size() == 0:
+            return None
+        row = result.row_values(0)
+        el_raw = row[0].as_string() if row[0].is_string() else ""
+        dp_raw = row[1].as_string() if row[1].is_string() else ""
+        return _members_from_json(el_raw), _parts_from_json(dp_raw)
+
+    def _list_all_entity_vids(self) -> list[str]:
+        """Return all VIDs tagged with ``lineage_entity`` in the
+        bound space. Used by the doc-id scan in
+        ``find_entity_ids_with_lineage`` — Nebula has no JSON
+        containment index, so we enumerate then filter in Python.
+        """
+        # ``LOOKUP ON tag YIELD id(vertex)`` returns the VID of every
+        # vertex that carries the tag — independent of the property
+        # values. The ``WHERE`` clause filtering by JSON content
+        # would need a column index Nebula can't build for a string,
+        # so we paginate-via-LIMIT-only to keep the query simple.
+        stmt = f"LOOKUP ON `{_ENTITY_TAG}` YIELD id(vertex) AS vid | LIMIT 100000"
+        try:
+            result = self._execute_with_schema_retry(self._space, stmt)
+        except RuntimeError as exc:
+            # Empty space / no vertices yet → some Nebula versions
+            # raise instead of returning 0 rows. Treat as empty.
+            if "not exist" in str(exc).lower() or "no vertex" in str(exc).lower():
+                return []
+            raise
+        out = []
+        for i in range(result.row_size()):
+            row = result.row_values(i)
+            if row and row[0].is_string():
+                out.append(row[0].as_string())
+        return out
+
+    def _list_all_relation_vids(self) -> list[str]:
+        stmt = f"LOOKUP ON `{_RELATION_TAG}` YIELD id(vertex) AS vid | LIMIT 100000"
+        try:
+            result = self._execute_with_schema_retry(self._space, stmt)
+        except RuntimeError as exc:
+            if "not exist" in str(exc).lower() or "no vertex" in str(exc).lower():
+                return []
+            raise
+        out = []
+        for i in range(result.row_size()):
+            row = result.row_values(i)
+            if row and row[0].is_string():
+                out.append(row[0].as_string())
+        return out
+
+    # -- write helpers ------------------------------------------------
+
+    def _write_entity_vertex(
+        self,
+        *,
+        name: str,
+        type_value: str,
+        source_lineage: list[LineageMember],
+        description_parts: list[DescriptionPart],
+    ) -> None:
+        vid = _entity_vid(name)
+        stmt = (
+            f"INSERT VERTEX `{_ENTITY_TAG}`"
+            f"(name, type, source_lineage_json, description_parts_json, gmt_created, gmt_updated) "
+            f'VALUES "{_escape_str(vid)}":('
+            f'"{_escape_str(name)}", "{_escape_str(type_value)}", '
+            f'"{_escape_str(_members_to_json(source_lineage))}", '
+            f'"{_escape_str(_parts_to_json(description_parts))}", '
+            f"datetime(), datetime())"
+        )
+        self._execute_with_schema_retry(self._space, stmt)
+
+    def _write_relation_vertex(
+        self,
+        *,
+        source: str,
+        target: str,
+        type_value: str,
+        evidence_lineage: list[LineageMember],
+        description_parts: list[DescriptionPart],
+    ) -> None:
+        vid = _relation_vid(source, target, type_value)
+        stmt = (
+            f"INSERT VERTEX `{_RELATION_TAG}`"
+            f"(source, target, type, "
+            f"evidence_lineage_json, description_parts_json, gmt_created, gmt_updated) "
+            f'VALUES "{_escape_str(vid)}":('
+            f'"{_escape_str(source)}", "{_escape_str(target)}", "{_escape_str(type_value)}", '
+            f'"{_escape_str(_members_to_json(evidence_lineage))}", '
+            f'"{_escape_str(_parts_to_json(description_parts))}", '
+            f"datetime(), datetime())"
+        )
+        self._execute_with_schema_retry(self._space, stmt)
+
+    def _delete_entity_vertex(self, name: str) -> None:
+        vid = _entity_vid(name)
+        stmt = f'DELETE VERTEX "{_escape_str(vid)}" WITH EDGE'
+        self._execute_with_schema_retry(self._space, stmt)
+
+    def _delete_relation_vertex(self, source: str, target: str, type: str) -> None:
+        vid = _relation_vid(source, target, type)
+        stmt = f'DELETE VERTEX "{_escape_str(vid)}" WITH EDGE'
+        self._execute_with_schema_retry(self._space, stmt)
+
+    # -- find-by-document scans (pre-rebuild phase) -------------------
+
+    async def find_entity_ids_with_lineage(self, *, document_id: str) -> list[str]:
+        await self.ensure_schema()
+
+        def _scan() -> list[str]:
+            names: list[str] = []
+            for vid in self._list_all_entity_vids():
+                row = self._read_entity_lineage_by_vid(vid)
+                if row is None:
+                    continue
+                name, _type, members, _parts = row
+                if any(m.document_id == document_id for m in members):
+                    names.append(name)
+            return names
+
+        return await asyncio.to_thread(_scan)
+
+    async def find_relation_keys_with_lineage(self, *, document_id: str) -> list[tuple[str, str, str]]:
+        await self.ensure_schema()
+
+        def _scan() -> list[tuple[str, str, str]]:
+            keys: list[tuple[str, str, str]] = []
+            for vid in self._list_all_relation_vids():
+                row = self._read_relation_lineage_by_vid(vid)
+                if row is None:
+                    continue
+                source, target, type_value, members, _parts = row
+                if any(m.document_id == document_id for m in members):
+                    keys.append((source, target, type_value))
+            return keys
+
+        return await asyncio.to_thread(_scan)
+
+    # Variants that return the natural-key columns alongside the
+    # lineage so the doc-scan helpers don't have to re-parse the VID.
+    def _read_entity_lineage_by_vid(
+        self, vid: str
+    ) -> tuple[str, str, list[LineageMember], list[DescriptionPart]] | None:
+        stmt = (
+            f'FETCH PROP ON `{_ENTITY_TAG}` "{_escape_str(vid)}" '
+            f"YIELD `{_ENTITY_TAG}`.name AS name, "
+            f"`{_ENTITY_TAG}`.type AS type, "
+            f"`{_ENTITY_TAG}`.source_lineage_json AS sl, "
+            f"`{_ENTITY_TAG}`.description_parts_json AS dp"
+        )
+        result = self._execute_with_schema_retry(self._space, stmt)
+        if result.row_size() == 0:
+            return None
+        row = result.row_values(0)
+        name = row[0].as_string() if row[0].is_string() else ""
+        type_value = row[1].as_string() if row[1].is_string() else ""
+        sl_raw = row[2].as_string() if row[2].is_string() else ""
+        dp_raw = row[3].as_string() if row[3].is_string() else ""
+        return name, type_value, _members_from_json(sl_raw), _parts_from_json(dp_raw)
+
+    def _read_relation_lineage_by_vid(
+        self, vid: str
+    ) -> tuple[str, str, str, list[LineageMember], list[DescriptionPart]] | None:
+        stmt = (
+            f'FETCH PROP ON `{_RELATION_TAG}` "{_escape_str(vid)}" '
+            f"YIELD `{_RELATION_TAG}`.source AS source, "
+            f"`{_RELATION_TAG}`.target AS target, "
+            f"`{_RELATION_TAG}`.type AS type, "
+            f"`{_RELATION_TAG}`.evidence_lineage_json AS el, "
+            f"`{_RELATION_TAG}`.description_parts_json AS dp"
+        )
+        result = self._execute_with_schema_retry(self._space, stmt)
+        if result.row_size() == 0:
+            return None
+        row = result.row_values(0)
+        source = row[0].as_string() if row[0].is_string() else ""
+        target = row[1].as_string() if row[1].is_string() else ""
+        type_value = row[2].as_string() if row[2].is_string() else ""
+        el_raw = row[3].as_string() if row[3].is_string() else ""
+        dp_raw = row[4].as_string() if row[4].is_string() else ""
+        return (
+            source,
+            target,
+            type_value,
+            _members_from_json(el_raw),
+            _parts_from_json(dp_raw),
+        )
+
+    # -- strip-by-document (pre-rebuild phase) ------------------------
+
+    async def remove_entity_lineage_member(self, *, entity_name: str, document_id: str) -> None:
+        await self.ensure_schema()
+        async with self._entity_lock.acquire(entity_name):
+
+            def _strip() -> None:
+                row = self._read_entity_lineage(entity_name)
+                if row is None:
+                    return
+                type_value, members, parts = row
+                new_members = [m for m in members if m.document_id != document_id]
+                new_parts = [p for p in parts if p.document_id != document_id]
+                if len(new_members) == len(members) and len(new_parts) == len(parts):
+                    return
+                self._write_entity_vertex(
+                    name=entity_name,
+                    type_value=type_value,
+                    source_lineage=new_members,
+                    description_parts=new_parts,
+                )
+
+            await asyncio.to_thread(_strip)
+
+    async def remove_relation_lineage_member(self, *, source: str, target: str, type: str, document_id: str) -> None:
+        await self.ensure_schema()
+        async with self._entity_lock.acquire(_relation_vid(source, target, type)):
+
+            def _strip() -> None:
+                row = self._read_relation_lineage(source, target, type)
+                if row is None:
+                    return
+                members, parts = row
+                new_members = [m for m in members if m.document_id != document_id]
+                new_parts = [p for p in parts if p.document_id != document_id]
+                if len(new_members) == len(members) and len(new_parts) == len(parts):
+                    return
+                self._write_relation_vertex(
+                    source=source,
+                    target=target,
+                    type_value=type,
+                    evidence_lineage=new_members,
+                    description_parts=new_parts,
+                )
+
+            await asyncio.to_thread(_strip)
+
+    # -- GC (post-rebuild) --------------------------------------------
+
+    async def gc_entity_if_orphan(self, entity_name: str) -> bool:
+        await self.ensure_schema()
+        async with self._entity_lock.acquire(entity_name):
+
+            def _gc() -> bool:
+                row = self._read_entity_lineage(entity_name)
+                if row is None:
+                    return False
+                _type_value, members, _parts = row
+                if members:
+                    return False
+                self._delete_entity_vertex(entity_name)
+                return True
+
+            return await asyncio.to_thread(_gc)
+
+    async def gc_relation_if_orphan(self, source: str, target: str, type: str) -> bool:
+        await self.ensure_schema()
+        async with self._entity_lock.acquire(_relation_vid(source, target, type)):
+
+            def _gc() -> bool:
+                row = self._read_relation_lineage(source, target, type)
+                if row is None:
+                    return False
+                members, _parts = row
+                if members:
+                    return False
+                self._delete_relation_vertex(source, target, type)
+                return True
+
+            return await asyncio.to_thread(_gc)
+
+    # -- upserts (rebuild phase) --------------------------------------
+
+    async def upsert_entity_with_lineage(self, *, record: EntityRecord, lineage: LineageMember) -> None:
+        """Add (or replace by ``(document_id, parse_version)`` key) the
+        lineage member + corresponding description part.
+
+        The whole read-modify-write is wrapped in
+        ``EntityLock.acquire(name)`` so two concurrent rebuilds for the
+        same entity serialise. Without this serialisation, Nebula's
+        property-update semantics (no native list ops) would race —
+        per architect msg=f2921ae0.
+        """
+        await self.ensure_schema()
+        new_part = DescriptionPart(
+            document_id=lineage.document_id,
+            parse_version=lineage.parse_version,
+            text=record.description,
+        )
+        async with self._entity_lock.acquire(record.name):
+
+            def _upsert() -> None:
+                row = self._read_entity_lineage(record.name)
+                if row is None:
+                    new_members = [lineage]
+                    new_parts = [new_part]
+                else:
+                    _existing_type, members, parts = row
+                    new_members = [m for m in members if m.key() != lineage.key()] + [lineage]
+                    new_parts = [p for p in parts if p.key() != new_part.key()] + [new_part]
+                self._write_entity_vertex(
+                    name=record.name,
+                    type_value=record.type,
+                    source_lineage=new_members,
+                    description_parts=new_parts,
+                )
+
+            await asyncio.to_thread(_upsert)
+
+    async def upsert_relation_with_lineage(self, *, record: RelationRecord, lineage: LineageMember) -> None:
+        await self.ensure_schema()
+        new_part = DescriptionPart(
+            document_id=lineage.document_id,
+            parse_version=lineage.parse_version,
+            text=record.description,
+        )
+        async with self._entity_lock.acquire(_relation_vid(record.source, record.target, record.type)):
+
+            def _upsert() -> None:
+                row = self._read_relation_lineage(record.source, record.target, record.type)
+                if row is None:
+                    new_members = [lineage]
+                    new_parts = [new_part]
+                else:
+                    members, parts = row
+                    new_members = [m for m in members if m.key() != lineage.key()] + [lineage]
+                    new_parts = [p for p in parts if p.key() != new_part.key()] + [new_part]
+                self._write_relation_vertex(
+                    source=record.source,
+                    target=record.target,
+                    type_value=record.type,
+                    evidence_lineage=new_members,
+                    description_parts=new_parts,
+                )
+
+            await asyncio.to_thread(_upsert)
+
+    # -- read-path ----------------------------------------------------
+
+    async def get_entity(self, entity_name: str) -> EntityWithLineage | None:
+        await self.ensure_schema()
+
+        def _read() -> EntityWithLineage | None:
+            row = self._read_entity_lineage(entity_name)
+            if row is None:
+                return None
+            type_value, members, parts = row
+            return EntityWithLineage(
+                name=entity_name,
+                type=type_value,
+                source_lineage=tuple(members),
+                description_parts=tuple(parts),
+            )
+
+        return await asyncio.to_thread(_read)
+
+    async def get_relation(self, source: str, target: str, type: str) -> RelationWithLineage | None:
+        await self.ensure_schema()
+
+        def _read() -> RelationWithLineage | None:
+            row = self._read_relation_lineage(source, target, type)
+            if row is None:
+                return None
+            members, parts = row
+            return RelationWithLineage(
+                source=source,
+                target=target,
+                type=type,
+                evidence_lineage=tuple(members),
+                description_parts=tuple(parts),
+            )
+
+        return await asyncio.to_thread(_read)
+
+
+__all__ = [
+    "NebulaLineageGraphStore",
+]

@@ -363,6 +363,12 @@ collections/<collection_id>/documents/<document_id>/
 
 5. **Backend swap is cheap.** Switch Nebula → Neo4j → PostgreSQL graph without touching the deriver. Re-run "sync" against the new backend, reading the same `kg.jsonl`.
 
+#### C.3.1. Per-collection parser override（Wave 4 T3 chunk 2 amendment, architect msg=9a6de002）
+
+`collection.config.parser_config` is an optional dict forwarded verbatim to `DocParser` dispatch (`parse_document(parser_config=...)`). Operators / private deployments can opt into MinerU / per-collection OCR engines without touching code. The async parse worker reads it via `_resolve_parser_config_for_collection(collection_id)` (Wave 4 T3 chunk 2) and pins it onto the `ParseDispatchPayload` so a re-parse N minutes later still uses the collection's chosen parser config.
+
+Shape: any JSON-serialisable dict; the chosen parser (`docparser` family) decides what keys it understands. Ill-formed values are graceful — the parse worker logs a warning and falls back to no-op `parser_config=None` rather than failing the parse.
+
 ### C.4. Object store choice
 
 The object store is whatever ApeRAG already uses (S3 / MinIO / local filesystem in dev). This design pack does not impose a new dependency — the directory layout overlays the existing object store.
@@ -619,6 +625,28 @@ D.1 "DELETE-by-(doc, parse_version) THEN INSERT" 对 graph 模态需要 reinterp
 - **Neo4j**: Cypher 原生支持 list filtering（`[s IN n.source_lineage WHERE ...]`），上面伪 Cypher 直接可执行。
 - **Nebula**: nGQL 支持 LIST 类型 (Nebula 3.x)，但 list 操作语法不如 Cypher 直接；需要在应用层 read-modify-write（拉 lineage list → Python filter → 写回）。这增加 race condition 风险。**因此**：sync_graph 必须对单 entity 的更新串行化（per-entity lock，按 entity_name hash 路由到固定 worker，或者 Nebula transaction 范围 lock）。Wave 2 的 graph_worker 实现要含这条 invariant。
 - 两个后端都需要 `(name, type)` 复合主键做 entity dedup（已有）。
+
+##### D.3.5.1. Lineage SET 元素 dedup key — 三 backend 必 align（Wave 4 T8 chunk 4 amendment, architect msg=baf6618e）
+
+`source_lineage` / `evidence_lineage` SET 元素 dedup key **MUST** 是 `(document_id, parse_version)` 复合，**三 backend (Postgres / Neo4j / Nebula) 必须 align**。`upsert_*_with_lineage` 操作的语义是：
+
+1. 如果 SET 中已有元素满足 `elem.document_id == lineage.document_id AND elem.parse_version == lineage.parse_version`，**replace** 该元素。
+2. 否则 **append** 新元素。
+
+**关键 invariant**：同一 `(document_id, parse_version)` 不能在 SET 内共存两份。这覆盖三类场景：
+- doc_A v1 同 entity 多 chunk 抽取重复触发 upsert（同 key → replace，幂等）。
+- 同一 worker 因 retry 重新调用 upsert（同 key → replace，幂等）。
+- doc_A v2 取代 doc_A v1（先 `remove_*_lineage_member(document_id="doc_A")` 全 strip 含 v1，再 upsert(v2)），不依赖 dedup-by-doc only。
+
+**为什么这条必须显式声明**：§D.3.6 step 3 描述 "doc_A v2 写入（覆盖 doc_A 旧 lineage）" 的 narrative 是 orchestrator-level 行为（remove + upsert two-step），不是 single-upsert 的 dedup-by-doc 语义。不显式声明 composite key 容易让 backend implementer 误把 `document_id` 单独当 dedup key（导致同 doc 不同 parse_version 互相覆盖，丢 lineage 历史；或者 LightRAG-style 多 chunk 抽取被错误 collapse）。Wave 4 T8 三 backend 的 chunks 1-3 实施都按此 composite key 实现：
+
+| Backend | Composite key 实现 |
+|---|---|
+| Postgres | `WHERE NOT (elem->>'document_id' = $d AND elem->>'parse_version' = $v)` 在 `jsonb_agg` 内 strip 后 append |
+| Neo4j | parallel-list 三 list（lineage / doc_ids / parse_versions）+ `[i IN range \| WHERE NOT (doc_ids[i] = $d AND parse_versions[i] = $v)]` keep-index |
+| Nebula | JSON STRING property + Python `[m for m in members if m.key() != lineage.key()] + [lineage]` （`LineageMember.key()` 返 `(document_id, parse_version)` 二元组） |
+
+跨 backend contract test (`tests/integration/test_lineage_graph_store_contract.py` case 3 `test_doc_re_parse_replaces_old_parse_version_member`) 锁此 invariant — 任何 backend drift 即 fail。
 
 #### D.3.6. 自测扩展
 
@@ -984,6 +1012,17 @@ sync(chunks.jsonl, document_id, parse_version, es) →
 
 Note: vector and fulltext can **share `chunks.jsonl`**. The difference is just which fields ES consumes vs Qdrant consumes. This collapses duplicate chunking logic.
 
+##### G.2.2.1. Fulltext backend dispatch（Wave 4 T9 amendment, architect msg=eba26fc2）
+
+`collection.config.fulltext_backend_type` is a `Literal["elasticsearch", "opensearch"]` field (default `"elasticsearch"`) wired through `worker_factory._build_fulltext_backend(backend_type, index_name)`. The two backends share the same `_ElasticsearchFulltextBackend` adapter because OpenSearch (forked from Elasticsearch 7.10) preserves wire-compatible HTTP API for `index` / `bulk` / `delete_by_query`. Only the client-construction step differs:
+
+| Backend | Driver | Client kwargs |
+|---|---|---|
+| `elasticsearch` | `elasticsearch` (always available) | `Elasticsearch(host, basic_auth=(user, pass), request_timeout=N)` |
+| `opensearch` | `opensearchpy` (lazy import — `WorkerFactoryError` if missing, points at `fulltext-opensearch` extra) | `OpenSearch(hosts=[host], http_auth=(user, pass), timeout=N)` |
+
+**Single `ES_HOST` env var serves both backends** — operators run one fulltext cluster per deployment. When choosing OpenSearch, configure `ES_HOST` to the OpenSearch endpoint (e.g. `https://opensearch.internal:9200`) — the adapter does not introspect server-side identity, only wire protocol. New backends (Solr / Typesense / MeiliSearch) plug in via the same dispatch by extending `_VALID_FULLTEXT_BACKENDS` + adding a `_build_*_client` helper.
+
 #### G.2.3. Graph modality
 
 ```
@@ -1035,6 +1074,62 @@ sync(manifest.jsonl, document_id, parse_version, qdrant) →
     1. qdrant.delete(filter={document_id: X, parse_version: Y, modality: 'vision'})
     2. for each entry: qdrant.upsert(...)
 ```
+
+##### G.2.5.1. Vision modality T7 wiring scope (Wave 4 backlog T7 + Wave 5 follow-up)
+
+`worker_factory._build_vision_worker` currently raises
+:class:`WorkerFactoryError` when the collection's embedding service is
+not multimodal (`embedding_service.is_multimodal()` returns False —
+the operator opted into vision but the configured embedder is text-
+only). The Wave 3 lesson #10 explicit-gate pattern still applies; T7
+**self-disables** the gate when `is_multimodal()` flips True.
+
+T7 wiring requires three coordinated pieces beyond what chunk 4 ships:
+
+1. **Multimodal embedding API surface** — extend
+   :class:`aperag.llm.embed.embedding_service.EmbeddingService` with
+   an `embed_image(image_bytes: bytes, alt_text: str = "") -> list[float]`
+   method that the multimodal provider (CLIP / LLaVA / GPT-4V / etc.)
+   resolves to a real visual embedding. Without this, `_embed` is
+   forced into the existing `embed_query(str)` path which only
+   handles text — the Wave 1+2 implementation papered over this with
+   a string-concat ``f"{image_id}|{alt_text}"`` (Wave 3 lesson #10
+   broken pattern; chunk 4 gate prevents production opt-in).
+
+2. **Real PDF / image-source extraction in the parser pipeline** —
+   the T1 simulator's `<source>.images.json` companion (a JSON list
+   of image_id + alt_text records) does not include actual image
+   bytes; chenyexuan T3 chunk 1 wired DocParser for markdown / PDF /
+   Word / image inputs, but the per-image bytes path
+   (``derived/parse_<v>/vision/images/<image_id>.<ext>``) is not yet
+   produced by any parser branch. T7 needs the parser to land
+   per-page image extraction (or single-image-input passthrough)
+   before the vision worker has any image bytes to embed.
+
+3. **Provider-specific multimodal model registration** — the model
+   platform v3 router (``aperag/domains/model_platform/api/providers_v3_routes.py``)
+   needs to surface the multimodal capability flag so operators can
+   set `is_multimodal=True` on the collection's embedder spec. The
+   capability flag is the source of truth for the chunk 4b gate.
+
+Per architect msg=87e2b187 chunk 4d Option C ruling + Bryce
+honest-scope clarification msg=bad51f10: T7 in PR #1731 is **doc-
+only** — this §G.2.5.1 spec amendment locks the wiring contract
+across all three pieces, but **none of items 1 / 2 / 3 ship code
+in Wave 4**. The three pieces are tightly coupled (multimodal API
+surface needs a provider flag to be useful + a parser branch to
+have any image bytes to embed); splitting them across PRs risks the
+Wave 3 lesson #10 broken-pattern (e.g., ship API surface with no
+caller, ship provider flag with no API surface, etc.). The whole
+T7 implementation defers to a single Wave 5 PR that bundles all
+three.
+
+Wave 4 close-out invariant: the chunk 4b vision gate stays
+effective. Operators that opt into vision without a multimodal
+embedder configured see a clean ``WorkerFactoryError`` with the
+"Wave 4 wiring" message — which after T7 doc-only ships still
+points at the same actionable status: configure a multimodal
+embedder OR set ``enable_vision=false``.
 
 ### G.3. Deriver / syncer interfaces (Python)
 
@@ -1159,6 +1254,27 @@ Single-knob 实现：
 #   capacity     = e.g. 60 tokens (60 LLM calls / minute)
 #   refill_rate  = e.g. 1 token / second
 ```
+
+#### H.5.1. Redis logical db assignment（Wave 4 T8 chunk 4 amendment, architect msg=baf6618e）
+
+ApeRAG 在多个 subsystem 用 Redis，单一 host 共享 keyspace 有 key collision 风险（celery / Wave 1 entity lock / Wave 4 WorkQueue / Wave 4 Quota）。chunk 4 lock 以下 logical-db 分隔：
+
+| Logical DB | Subsystem | Key prefix |
+|---|---|---|
+| 0 | Celery broker (`CELERY_BROKER_URL`) | `celery-task-meta-*` etc. |
+| 1 | Memory backend (`MEMORY_REDIS_URL`) | `memory:*` |
+| 2 | Indexing WorkQueue (`INDEXING_QUEUE_REDIS_URL`) | `q:parse`, `q:vector`, `q:fulltext`, `q:graph`, `q:summary`, `q:vision` |
+| 3 | Quota / EntityLock | `quota:<class>:<tenant>:tokens`, `indexing:graph:entity:<slot>` |
+
+`aperag/config.py` 的 default-derive 路径会从单个 `REDIS_HOST` / `REDIS_PORT` 自动衍生这四个 URL，分别绑定 db=0/1/2/3。Operator 可以单独覆盖任一 URL 走外部 Redis 集群。**production 部署必须保 4 个 logical db 不重叠**，否则 BLPOP queues 会和 cache / broker 互相 RPOP/RPUSH。
+
+#### H.5.2. Nebula graph backend multi-process EntityLock invariant（Wave 4 T8 chunk 4 amendment, architect msg=87e2b187）
+
+如 `collection.config.graph_backend_type == "nebula"` 且 worker pool 是 multi-process（worker pool concurrency >= 2 进程）, **`INDEXING_QUEUE_REDIS_URL` MUST be set** — Nebula 缺乏 native list ops，`upsert_*_with_lineage` 必须 read-modify-write，多进程并发 upsert 同一 entity 必须 serialise 才不丢 lineage 元素。`worker_factory._resolve_entity_lock(backend_type="nebula")` 走 `RedisEntityLock`（绑定 `indexing_queue_redis_url`）保证 cross-process 锁定。
+
+如 Redis 未配，fallback 到 `InMemoryEntityLock`（process-local `asyncio.Lock`），仅适用于 single-process test/dev — production multi-process 跑 Nebula 会丢 lineage 元素（race window）。
+
+Postgres + Neo4j backend **不需要** Redis EntityLock — 它们的 `upsert_*_with_lineage` 单 SQL/Cypher 语句下 strip-then-append（PG `INSERT ON CONFLICT … COALESCE + jsonb_agg` / Neo4j `MERGE … WITH … SET` 都在 row-lock 内 atomic），cross-process race 由 backend native row-lock 兜底。
 
 Worker 在调用 LLM / embedding 之前 `acquire_token(scope, resource_class)`：
 - 优先从 `quota:<class>:<tenant_scope_key>:tokens` 拿
@@ -1440,6 +1556,63 @@ v2 把 v1 的 7 个细粒度 PR 收成 **3 个 wave**（≈3 个大 PR）。每�
 - 少 PR：3 次 review cycle vs 7 次
 - 并行不冲突：5 modality 各自独立文件，不动同一个文件，git 合并干净
 - Hard cut 一次到位：Wave 3 一个 PR 删 3000 行老代码，没有半程共存的复杂度
+
+### K.7. Wave 4 — Production-readiness（Wave 3 fix-cycle 教训, architect msg=baf6618e amendment）
+
+**目标**: 把 Wave 1+2 ship 的 placeholder layers (InMemoryWorkQueue / InMemoryQuotaBackend / NoopMetricsEmitter / InMemoryLineageGraphStore / no-op LLM extractor / no-op multimodal vision-LLM) wire 到真后端，让新 indexing pipeline 真正 production-ready。
+
+**Wave 4 11 项 backlog (PR #1731)**:
+
+1. T1 — Real graph LLM extractor (chunks → entities/relations)
+2. T2 — Cleanup loop 5 modality singleton fan-out（per-row worker_factory）
+3. T3 — Real parser (PDF/Word/image via DocParser/Marker/OCR)
+4. T4 — Real Redis WorkQueue backend (替 InMemoryWorkQueue)
+5. T5 — Real Redis QuotaBackend Lua atomic (替 InMemoryQuotaBackend)
+6. T6 — OTLP MetricsEmitter wire-in production (替 NoopMetricsEmitter)
+7. T7 — Real multimodal vision-LLM + vision modality production wiring
+8. T8 — graph 3 backend adapter wiring (Postgres / Neo4j / Nebula `LineageGraphStore`)
+9. T9 — fulltext multi-backend adapter dispatch (`collection.config.fulltext_backend_type`)
+
+**T8 chunk 4 acceptance 9 项**：alembic ORM mirror / drop relation `description` / async cross-event-loop / 6-case cross-backend contract test / EntityLock injection / factory dispatch on `graph_backend_type` / **grep-zero verify (narrowed scope, architect msg=87e2b187 chunk 4d ruling)** / spec amendments §C.1+§D.3.5+§H.5×2 / Phase 1 e2e production smoke。
+
+**chunk 4d narrowed scope (architect msg=87e2b187 ruling Option C)**：grep-zero verify NEW indexing pipeline (`aperag/indexing/*`) **不 cross-reference** legacy `aperag/domains/knowledge_graph/graphindex/storage/{base,postgres,neo4j,nebula,connector}.py`。**不删 legacy file** — legacy `graphindex` package 整体淘汰是 cross-cutting refactor，移交 Wave 5。Wave 4 chunk 4d 只 lock invariant：新 pipeline 内部不能再回头依赖 legacy storage。
+
+**Wave 4 production-readiness invariant pattern (per `feedback_production_readiness_invariant.md`)**: each layer 在 Wave-close 前 spec 显式列出 must-be-real / may-be-gated / fully-resolves，gate placeholder 用 `WorkerFactoryError` + self-disable detection（chunk 4b T1-extractor gate / vision multimodal gate 是这条 pattern 的现行实例）。
+
+### K.8. Wave 5 — Legacy graphindex 淘汰 + retrieval/curation 迁移（Wave 4 close-out 后 follow-up）
+
+**目标**: 完成 Wave 4 chunk 4d 推迟的 legacy `graphindex` package 整体淘汰 + retrieval/curation 调用迁移到 §G.5 read primitives。
+
+**scope (per architect msg=87e2b187 chunk 4d ruling Option C deferral)**:
+
+- delete `aperag/domains/knowledge_graph/graphindex/storage/{base,postgres,neo4j,nebula,connector}.py` (Wave 3 hard-cut 第二轮 deferred)
+- delete `aperag/domains/knowledge_graph/graphindex/{__init__,service,integration}.py` + `engine/`
+- migrate callers:
+  - `aperag/domains/retrieval/pipeline.py:85` → §G.5 read primitives
+  - `aperag/domains/knowledge_graph/service.py:69+` → graph CRUD via new `LineageGraphStore` find/get methods
+  - `aperag/graph_curation/service.py:37` + `integration.py:21` → curation reads via §D.3 lineage-aware path
+  - `aperag/indexing/worker_factory.py:696` `build_collection_llm_callable` → relocate to `aperag/indexing/llm.py`
+  - `aperag/service/prompt_template_service.py:161` `ENTITY_RELATION_EXTRACTION` → relocate to T1 LLM extractor module
+- delete tests:
+  - `tests/unit_test/graphindex/test_connector.py`
+  - `tests/unit_test/graphindex/test_nebula_store.py`
+  - `tests/integration/compat/test_graph_compat.py`
+
+**为什么 Wave 5 而非 Wave 4 chunk 4d**: legacy `GraphStore` Protocol (24-method LightRAG-style flat-graph) 与新 `LineageGraphStore` Protocol (10-method §D.3 lineage-aware) **API 不同**，不是 1-to-1 替换。retrieval/curation 调用迁移涉及 LightRAG-style flow → §G.5 lineage-aware read primitives 的语义重写，是 cross-cutting refactor 而非 hard-cut。Wave 4 chunk 4d 强行做会触发 Wave 3 fix-cycle 同款 risk (per huangheng msg=87e2b187 CR analysis lesson #9 reference)。
+
+**Wave 5 其他 backlog**（accumulated during Wave 4）:
+
+- per-collection store-instance TTL cache (when collection count > 10K; architect msg=95179f2a Design point 2)
+- W5-perf-graph-lineage: parallel-list O(N) alternative encoding for high-cardinality entities (>10k docs/entity)
+- W5-neo4j-label-namespace: prefix `aperag_LineageEntity` / `aperag_LineageRelation` to avoid user-namespace collision
+- W5-cypher-type-keyword: rename `n.type` property (Cypher `TYPE()` keyword shadow); cross-backend rename also in Postgres/Nebula
+- W5-otlp-config-cross-check: lifespan startup cross-check `INDEXING_METRICS_EMITTER=otlp` ⇔ `APERAG_OBSERVABILITY_MODE=otlp`
+- W5 reconciler "document 创建 N 分钟无 document_index rows → re-enqueue parse" (T3 chunk 2 obs A failure semantic)
+- W5 parse_orchestrator short-circuit on existing parse_version artefact (T3 chunk 2 obs B)
+- W5 `tenant_scope_key` org-prefix forward-compat (T3 chunk 2 obs C)
+- W5 `_resolve_cleanup_worker` narrow exception types (T2 obs A)
+- W5 cleanup builder share helpers with dispatch builders (T2 obs B drift risk)
+- W5 e2e-http-compose lane stub model-provider fixture + Layer 2 full-pipeline test activation (chunk 4e Layer 2 tests are currently `pytest.skip(...)` stubs because vector/fulltext/summary embedders need a configured model-provider that local dev does not have; the e2e-http-compose lane has the scaffolding but the stub fixture must be wired so Layer 2 can run for real instead of skip — per architect msg=87e2b187 chunk 4d/4e ratify decision condition #3)
 
 ### K.7. 测试策略
 

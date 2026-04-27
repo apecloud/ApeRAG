@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import asyncio  # noqa: E402
+import contextlib  # noqa: E402
 
 from aperag.config import settings
 from aperag.observability import (
@@ -232,9 +233,13 @@ async def combined_lifespan(app: FastAPI):
         from aperag.config import sync_engine
         from aperag.indexing import (
             InMemoryWorkQueue,
+            NoopMetricsEmitter,
+            OTLPMetricsEmitter,
+            RedisWorkQueue,
             run_cleanup_loop,
             run_fulltext_worker,
             run_graph_worker,
+            run_parse_worker,
             run_reconcile_loop,
             run_summary_worker,
             run_vector_worker,
@@ -242,12 +247,62 @@ async def combined_lifespan(app: FastAPI):
         )
 
         indexing_shutdown = asyncio.Event()
-        # Single process-local InMemoryWorkQueue is the default
-        # transport for the in-process topology. Tier-3 production
-        # swaps this for a Redis-backed WorkQueue (RPUSH / BLPOP) by
-        # injecting via app state at deploy time — Wave 3 follow-up.
-        queue = InMemoryWorkQueue()
+        # Wave 4 T4: dispatch on ``INDEXING_QUEUE_BACKEND`` setting
+        # (default ``inmemory`` for backward-compat single-pod
+        # deployments; production multi-pod sets ``redis`` to enable
+        # BLPOP transport per design pack §E.2). InMemoryWorkQueue is
+        # process-local — multi-pod deployments lose tasks pushed to
+        # one process and BLPOP'd by another, so production must run
+        # ``INDEXING_QUEUE_BACKEND=redis`` for correctness.
+        if settings.indexing_queue_backend.lower() == "redis":
+            queue = RedisWorkQueue(redis_url=settings.indexing_queue_redis_url)
+        else:
+            queue = InMemoryWorkQueue()
         engine = sync_engine
+
+        # Wave 4 T6: dispatch on ``INDEXING_METRICS_EMITTER`` setting
+        # (default ``noop`` for backward-compat; production multi-pod
+        # sets ``otlp`` to wire the four §J.1 SLIs onto the
+        # ``MeterProvider`` configured by ``aperag.observability``).
+        # NoopMetricsEmitter silently drops every sample, so operators
+        # running Tier 2/3 production must explicitly opt into ``otlp``
+        # — otherwise queue-backlog / failure-rate alerts on the
+        # collector side never receive data.
+        if settings.indexing_metrics_emitter.lower() == "otlp":
+            metrics_emitter = OTLPMetricsEmitter()
+        else:
+            metrics_emitter = NoopMetricsEmitter()
+
+        # Wave 4 T5: dispatch on ``INDEXING_QUOTA_BACKEND`` setting
+        # (default ``inmemory`` for backward-compat single-pod
+        # deployments; production multi-pod sets ``redis`` so worker
+        # processes share §H.5 token-bucket state via Redis logical
+        # db=3 per §H.5.1 amendment). InMemoryQuotaBackend is process-
+        # local — multi-pod deployments running ``inmemory`` would
+        # have each pod's worker independently exhaust its tenant
+        # quota, which silently breaks the per-tenant rate limit
+        # invariant (§H.5).
+        from aperag.indexing.quota import (
+            InMemoryQuotaBackend,
+            QuotaPolicyRegistry,
+            RedisQuotaBackend,
+        )
+
+        quota_registry = QuotaPolicyRegistry()
+        if settings.indexing_quota_backend.lower() == "redis":
+            try:
+                from redis import asyncio as redis_asyncio
+            except ImportError as exc:  # pragma: no cover — redis is a base dep
+                raise RuntimeError("INDEXING_QUOTA_BACKEND=redis but redis package not installed") from exc
+            quota_redis = redis_asyncio.from_url(
+                settings.indexing_quota_redis_url,
+                encoding="utf-8",
+                decode_responses=False,
+            )
+            quota_backend = RedisQuotaBackend(quota_redis, quota_registry)
+        else:
+            quota_redis = None
+            quota_backend = InMemoryQuotaBackend(quota_registry)
 
         # Worker factory — per-task lazy construction. The async
         # worker entrypoints (``run_*_worker``) call this closure on
@@ -278,6 +333,32 @@ async def combined_lifespan(app: FastAPI):
         indexing_runtime_tasks.append(asyncio.create_task(run_graph_worker(**worker_kwargs)))
         indexing_runtime_tasks.append(asyncio.create_task(run_summary_worker(**worker_kwargs)))
         indexing_runtime_tasks.append(asyncio.create_task(run_vision_worker(**worker_kwargs)))
+
+        # Wave 4 T3 chunk 2: parse worker reads ``q:parse``, runs
+        # :class:`DocParser`, and dispatches the per-modality jobs.
+        # Without this, the upload handler's :func:`push_parse` call
+        # would land in Redis with no consumer — the per-modality
+        # rows would never get inserted and documents would stay
+        # PENDING forever. The object store factory is async per the
+        # production resolver signature; this closure adapts the
+        # synchronous ``get_object_store`` helper into the
+        # ``ObjectStoreFactory`` shape :func:`run_parse_worker`
+        # expects.
+        from aperag.objectstore.base import get_object_store
+
+        async def _resolve_object_store():
+            return await asyncio.to_thread(get_object_store)
+
+        indexing_runtime_tasks.append(
+            asyncio.create_task(
+                run_parse_worker(
+                    engine=engine,
+                    queue=queue,
+                    object_store_factory=_resolve_object_store,
+                    shutdown=indexing_shutdown,
+                )
+            )
+        )
         indexing_runtime_tasks.append(
             asyncio.create_task(
                 run_reconcile_loop(
@@ -287,11 +368,17 @@ async def combined_lifespan(app: FastAPI):
                 )
             )
         )
+        # Wave 4 T2: cleanup loop now consumes a per-row worker
+        # factory so each ``DocumentIndex`` row is cleaned against the
+        # right per-(collection, modality) backend. Without this the
+        # cleanup loop ran with ``workers={}`` and silently skipped
+        # every backend delete (Qdrant points / ES docs / graph
+        # entities leaked forever after document or collection delete).
         indexing_runtime_tasks.append(
             asyncio.create_task(
                 run_cleanup_loop(
                     engine=engine,
-                    workers={},  # T3.3 follow-up: pass concrete worker registry
+                    worker_factory=worker_factory.build_for_cleanup_row,
                     shutdown=indexing_shutdown,
                 )
             )
@@ -301,6 +388,13 @@ async def combined_lifespan(app: FastAPI):
         # same queue / engine the workers consume.
         app.state.indexing_queue = queue
         app.state.indexing_engine = engine
+        app.state.indexing_metrics_emitter = metrics_emitter
+        app.state.indexing_quota_backend = quota_backend
+        # Wave 4 T5: stash the underlying Redis client (only when
+        # ``INDEXING_QUOTA_BACKEND=redis``) so the lifespan finally
+        # block can close it on shutdown — mirrors the T4 RedisWorkQueue
+        # close lifecycle.
+        app.state.indexing_quota_redis = quota_redis
 
         # Service-layer callers (aperag/domains/**) consume the same
         # triple through the process-wide IndexingRuntime singleton —
@@ -309,10 +403,20 @@ async def combined_lifespan(app: FastAPI):
         # populates concrete factories per modality.
         from aperag.indexing.runtime import IndexingRuntime, set_runtime
 
-        set_runtime(IndexingRuntime(engine=engine, queue=queue, workers={}))
+        set_runtime(
+            IndexingRuntime(
+                engine=engine,
+                queue=queue,
+                workers={},
+                metrics_emitter=metrics_emitter,
+                cleanup_worker_factory=worker_factory.build_for_cleanup_row,
+                quota_backend=quota_backend,
+            )
+        )
     else:
         app.state.indexing_queue = None
         app.state.indexing_engine = None
+        app.state.indexing_metrics_emitter = None
         from aperag.indexing.runtime import set_runtime
 
         set_runtime(None)
@@ -327,6 +431,31 @@ async def combined_lifespan(app: FastAPI):
             # Drain in-flight worker / reconciler / cleanup loops with
             # a short grace window so a SIGTERM does not abort mid-task.
             await asyncio.gather(*indexing_runtime_tasks, return_exceptions=True)
+        # Wave 4 T4: release the indexing queue's underlying connection
+        # pool (Redis client owns one); InMemoryWorkQueue has no
+        # ``close`` so guard with hasattr.
+        queue_obj = getattr(app.state, "indexing_queue", None)
+        if queue_obj is not None and hasattr(queue_obj, "close"):
+            with contextlib.suppress(Exception):
+                await queue_obj.close()
+        # Wave 4 T5: release the quota Redis client (only present when
+        # ``INDEXING_QUOTA_BACKEND=redis`` was selected at startup).
+        # ``InMemoryQuotaBackend`` has no underlying client.
+        quota_redis_obj = getattr(app.state, "indexing_quota_redis", None)
+        if quota_redis_obj is not None:
+            with contextlib.suppress(Exception):
+                await quota_redis_obj.aclose()
+        # Wave 4 T6: flush + shut down the OTLP MeterProvider so the
+        # PeriodicExportingMetricReader drains any pending metric
+        # samples before the process exits. Mirrors the T4 graceful
+        # shutdown pattern and addresses huangheng pass-1 observation A
+        # (msg=5d450300). ``shutdown_metrics_provider`` is a no-op when
+        # the SDK MeterProvider was never installed (default
+        # ``noop`` emitter / OTLP endpoint missing).
+        from aperag.observability.metrics import shutdown_metrics_provider
+
+        with contextlib.suppress(Exception):
+            await asyncio.to_thread(shutdown_metrics_provider)
 
 
 # Create the main FastAPI app with combined lifespan

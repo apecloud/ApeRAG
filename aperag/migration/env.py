@@ -66,9 +66,18 @@ import aperag.domains.retrieval.db.models  # noqa: F401
 # target). The new ``aperag.indexing.models`` is the canonical home;
 # import explicitly so autogen sees the table.
 import aperag.indexing.models  # noqa: F401
+
+# Phase celery T8 chunk 4a — PostgresLineageGraphStore (T8 chunk 1
+# msg=f0571f98) declares its tables on a private ``_LineageGraphBase``
+# so the adapter owns ``ensure_schema`` (test/dev fallback) without
+# polluting the application's main ``Base.metadata``. Production
+# schema is owned by alembic, so the autogen pass needs visibility
+# into both metadatas — ``target_metadata`` accepts a list so each
+# ``include_object`` / ``compare_metadata`` walk visits every table.
+from aperag.indexing.graph_storage.postgres import _LineageGraphBase  # noqa: F401
 from aperag.db.models import Base
 
-target_metadata = Base.metadata
+target_metadata = [Base.metadata, _LineageGraphBase.metadata]
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:

@@ -44,6 +44,7 @@ external services):
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 
 import pytest
 from sqlalchemy import Engine, create_engine, insert
@@ -199,6 +200,165 @@ def test_production_factory_raises_when_collection_missing():
     asyncio.run(_run())
 
 
+# ---------------------------------------------------------------------
+# Wave 4 T8 chunk 4b — graph_backend_type dispatch + T1-extractor gate.
+# ---------------------------------------------------------------------
+
+
+def _make_collection_stub(*, config_obj: Any = None) -> Any:
+    """Lightweight stub that the dispatch helpers can read off."""
+
+    class _Stub:
+        id = "col-4b"
+        config = config_obj
+
+    return _Stub()
+
+
+def test_resolve_graph_backend_type_defaults_to_postgres():
+    """A collection with no ``config`` or no ``graph_backend_type`` field
+    falls back to the default ``postgres`` backend (the §D.3.5 reference
+    adapter; new collections that opt into knowledge graph automatically
+    use the application's own PostgreSQL without extra infra).
+    """
+
+    from aperag.indexing.worker_factory import _resolve_graph_backend_type
+
+    assert _resolve_graph_backend_type(_make_collection_stub(config_obj=None)) == "postgres"
+
+    class _ConfigNoBackend:
+        graph_backend_type = None
+
+    assert _resolve_graph_backend_type(_make_collection_stub(config_obj=_ConfigNoBackend())) == "postgres"
+
+
+@pytest.mark.parametrize("backend", ["postgres", "neo4j", "nebula"])
+def test_resolve_graph_backend_type_reads_from_pydantic_attr(backend: str):
+    """A pydantic-shaped ``CollectionConfig`` exposes
+    ``graph_backend_type`` as an attribute; the resolver reads it
+    straight off."""
+
+    from aperag.indexing.worker_factory import _resolve_graph_backend_type
+
+    class _Config:
+        graph_backend_type = backend
+
+    assert _resolve_graph_backend_type(_make_collection_stub(config_obj=_Config())) == backend
+
+
+def test_resolve_graph_backend_type_reads_from_dict_config():
+    """``Collection.config`` may be persisted as a JSON dict;
+    the resolver also handles the Mapping shape."""
+
+    from aperag.indexing.worker_factory import _resolve_graph_backend_type
+
+    cfg = {"graph_backend_type": "neo4j"}
+    assert _resolve_graph_backend_type(_make_collection_stub(config_obj=cfg)) == "neo4j"
+
+
+def test_resolve_graph_backend_type_reads_from_json_string():
+    """Some legacy rows persisted ``Collection.config`` as a JSON
+    string; the resolver decodes it."""
+
+    from aperag.indexing.worker_factory import _resolve_graph_backend_type
+
+    cfg = '{"graph_backend_type": "nebula"}'
+    assert _resolve_graph_backend_type(_make_collection_stub(config_obj=cfg)) == "nebula"
+
+
+def test_resolve_graph_backend_type_rejects_unknown():
+    """Typos / unsupported backends raise a clear
+    :class:`WorkerFactoryError` so the orchestrator finalises FAILED
+    with operator-facing diagnostics."""
+
+    from aperag.indexing.worker_factory import _resolve_graph_backend_type
+
+    class _Config:
+        graph_backend_type = "duckdb"
+
+    with pytest.raises(WorkerFactoryError) as exc:
+        _resolve_graph_backend_type(_make_collection_stub(config_obj=_Config()))
+    assert "duckdb" in str(exc.value)
+    assert "postgres" in str(exc.value)
+
+
+def test_resolve_entity_lock_returns_inmemory_for_postgres_and_neo4j():
+    """Postgres + Neo4j use single-statement strip-then-append under
+    native row locks, so an in-process :class:`InMemoryEntityLock` is
+    sufficient. Tests asserting "no Redis dependency for these
+    backends" pin the architect msg=f2921ae0 invariant.
+    """
+
+    from aperag.indexing.graph import InMemoryEntityLock
+    from aperag.indexing.worker_factory import (
+        _reset_graph_backend_singletons_for_tests,
+        _resolve_entity_lock,
+    )
+
+    _reset_graph_backend_singletons_for_tests()
+    try:
+        for backend in ("postgres", "neo4j"):
+            lock = _resolve_entity_lock(backend_type=backend)
+            assert isinstance(lock, InMemoryEntityLock), (
+                f"backend={backend} must use InMemoryEntityLock (no Redis dependency)"
+            )
+    finally:
+        _reset_graph_backend_singletons_for_tests()
+
+
+def test_build_graph_worker_raises_when_completion_model_missing(monkeypatch: pytest.MonkeyPatch):
+    """Post-T1 invariant: the chunk 4b ``"Wave 4 wiring T1"``
+    extractor-symbol-identity gate has self-disabled because T1 wired
+    the real LLM extractor. The new gate covers a Wave 3 lesson #10
+    failure mode: a collection that opts into knowledge graph but
+    lacks a configured completion model now surfaces a clear
+    :class:`WorkerFactoryError` from the extractor builder so the
+    orchestrator finalises the graph row FAILED with operator-facing
+    diagnostics (no silent ACTIVE-with-empty-graph).
+    """
+
+    from aperag.indexing import worker_factory as wf
+    from aperag.indexing.graph import InMemoryEntityLock, InMemoryLineageGraphStore
+
+    # Stub the backend dispatch so the extractor builder is reached
+    # without needing a live Postgres / Neo4j / Nebula. The collection
+    # stub has no ``completion`` config so ``build_collection_llm_callable``
+    # fails — the extractor builder wraps it in WorkerFactoryError.
+    wf._reset_graph_backend_singletons_for_tests()
+    monkeypatch.setattr(
+        wf,
+        "_build_lineage_graph_store",
+        lambda *, backend_type, collection: InMemoryLineageGraphStore(),
+    )
+    monkeypatch.setattr(
+        wf,
+        "_resolve_entity_lock",
+        lambda *, backend_type: InMemoryEntityLock(),
+    )
+
+    class _Config:
+        graph_backend_type = "postgres"
+
+    collection = _make_collection_stub(config_obj=_Config())
+    payload = DispatchPayload(
+        index_id=1,
+        document_id="doc",
+        parse_version="parse-v1",
+        modality=Modality.GRAPH,
+        source_path="source/path",
+        collection_id="col-4b",
+    )
+
+    # Stub tenant-scope-key resolution so the extractor builder is the
+    # only failure mode reachable.
+    monkeypatch.setattr(wf, "_resolve_tenant_scope_key", lambda *, payload: "user:t")
+
+    with pytest.raises(WorkerFactoryError) as exc:
+        wf._build_graph_worker(collection=collection, object_store=object(), payload=payload)
+    msg = str(exc.value)
+    assert "completion model" in msg or "graph extractor" in msg
+
+
 def test_production_factory_raises_when_collection_id_missing():
     """A payload without ``collection_id`` cannot resolve the
     collection-specific embedder / Qdrant tenant — the factory must
@@ -225,3 +385,147 @@ def test_production_factory_raises_when_collection_id_missing():
             engine.dispose()
 
     asyncio.run(_run())
+
+
+# ---------------------------------------------------------------------
+# Wave 4 T9 — fulltext_backend_type dispatch (mirrors chunk 4b shape).
+# ---------------------------------------------------------------------
+
+
+def test_resolve_fulltext_backend_type_defaults_to_elasticsearch():
+    """A collection with no ``config`` or no ``fulltext_backend_type``
+    field falls back to ``elasticsearch`` so existing collections (created
+    before T9) keep their pre-T9 behaviour without any migration step.
+    """
+
+    from aperag.indexing.worker_factory import _resolve_fulltext_backend_type
+
+    assert _resolve_fulltext_backend_type(_make_collection_stub(config_obj=None)) == "elasticsearch"
+
+    class _ConfigNoBackend:
+        fulltext_backend_type = None
+
+    assert _resolve_fulltext_backend_type(_make_collection_stub(config_obj=_ConfigNoBackend())) == "elasticsearch"
+
+
+@pytest.mark.parametrize("backend", ["elasticsearch", "opensearch"])
+def test_resolve_fulltext_backend_type_reads_from_pydantic_attr(backend: str):
+    """A pydantic-shaped ``CollectionConfig`` exposes
+    ``fulltext_backend_type`` as an attribute; the resolver reads it
+    straight off."""
+
+    from aperag.indexing.worker_factory import _resolve_fulltext_backend_type
+
+    class _Config:
+        fulltext_backend_type = backend
+
+    assert _resolve_fulltext_backend_type(_make_collection_stub(config_obj=_Config())) == backend
+
+
+def test_resolve_fulltext_backend_type_reads_from_dict_config():
+    """Dict-shaped ``Collection.config`` also resolves; mirrors the
+    chunk 4b graph dispatch handling for legacy persisted forms."""
+
+    from aperag.indexing.worker_factory import _resolve_fulltext_backend_type
+
+    cfg = {"fulltext_backend_type": "opensearch"}
+    assert _resolve_fulltext_backend_type(_make_collection_stub(config_obj=cfg)) == "opensearch"
+
+
+def test_resolve_fulltext_backend_type_reads_from_json_string():
+    """JSON-string ``Collection.config`` (legacy persisted shape)
+    decoded defensively just like the graph dispatch resolver."""
+
+    from aperag.indexing.worker_factory import _resolve_fulltext_backend_type
+
+    cfg = '{"fulltext_backend_type": "opensearch"}'
+    assert _resolve_fulltext_backend_type(_make_collection_stub(config_obj=cfg)) == "opensearch"
+
+
+def test_resolve_fulltext_backend_type_rejects_unknown():
+    """Unknown values raise a clear :class:`WorkerFactoryError` with
+    the supported backends embedded so the operator can fix the
+    collection config without log-spelunking."""
+
+    from aperag.indexing.worker_factory import _resolve_fulltext_backend_type
+
+    class _Config:
+        fulltext_backend_type = "meilisearch"
+
+    with pytest.raises(WorkerFactoryError) as exc:
+        _resolve_fulltext_backend_type(_make_collection_stub(config_obj=_Config()))
+    assert "meilisearch" in str(exc.value)
+    assert "elasticsearch" in str(exc.value)
+
+
+def test_build_fulltext_backend_dispatches_to_elasticsearch(monkeypatch: pytest.MonkeyPatch):
+    """``backend_type=elasticsearch`` constructs the
+    :class:`Elasticsearch` client and wraps it in the shared
+    ``_ElasticsearchFulltextBackend`` adapter. Patches the client
+    constructor so the test does not need a live ES cluster.
+    """
+
+    import aperag.indexing.worker_factory as wf
+
+    class _FakeES:
+        def __init__(self, host, **kwargs):
+            self.host = host
+            self.kwargs = kwargs
+
+    monkeypatch.setattr(wf, "_build_elasticsearch_client", lambda: _FakeES("http://es:9200"))
+
+    backend = wf._build_fulltext_backend(
+        backend_type="elasticsearch",
+        index_name="aperag_doc_col-1",
+    )
+    assert isinstance(backend, wf._ElasticsearchFulltextBackend)
+    assert backend._index == "aperag_doc_col-1"
+    assert isinstance(backend._client, _FakeES)
+
+
+def test_build_fulltext_backend_opensearch_gates_on_missing_driver(monkeypatch: pytest.MonkeyPatch):
+    """``backend_type=opensearch`` requires the optional ``opensearch-py``
+    dependency. When it is absent (the default for this repo's lock
+    file) the factory raises a clear :class:`WorkerFactoryError`
+    pointing operators at the ``fulltext-opensearch`` extra — mirrors
+    the ``graph-neo4j`` / ``graph-nebula`` extras gating in chunk 4b.
+    """
+
+    import sys
+
+    import aperag.indexing.worker_factory as wf
+    from aperag.config import settings as _settings
+
+    monkeypatch.setattr(_settings, "es_host", "http://os:9200", raising=False)
+    # Force the lazy import to fail even if the test host happens to
+    # have ``opensearch-py`` installed (CI runners usually do not).
+    monkeypatch.setitem(sys.modules, "opensearchpy", None)
+
+    with pytest.raises(WorkerFactoryError) as exc:
+        wf._build_fulltext_backend(
+            backend_type="opensearch",
+            index_name="aperag_doc_col-1",
+        )
+    assert "opensearch-py" in str(exc.value)
+    assert "fulltext-opensearch" in str(exc.value)
+
+
+def test_build_fulltext_backend_elasticsearch_requires_es_host(monkeypatch: pytest.MonkeyPatch):
+    """Both backends gate on ``settings.es_host`` since the same env
+    variable feeds either driver. An unset ``ES_HOST`` raises a clear
+    :class:`WorkerFactoryError` so the operator never gets a confusing
+    half-built client.
+    """
+
+    import aperag.indexing.worker_factory as wf
+    from aperag.config import settings as _settings
+
+    monkeypatch.setattr(_settings, "es_host", "", raising=False)
+
+    with pytest.raises(WorkerFactoryError) as exc:
+        wf._build_fulltext_backend(
+            backend_type="elasticsearch",
+            index_name="aperag_doc_col-1",
+        )
+    assert "ES_HOST" in str(exc.value)
+    assert "elasticsearch" in str(exc.value)

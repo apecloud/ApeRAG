@@ -109,6 +109,21 @@ class WorkQueue(Protocol):
     Production wires this to a Redis-backed queue (``RPUSH`` enqueue +
     ``BLPOP`` dequeue keyed by ``q:<modality>``). Tests inject
     :class:`InMemoryWorkQueue` for synchronous deterministic dispatch.
+
+    The protocol covers two queue families:
+
+    * **Per-modality queues** (``push`` / ``pop``) — keyed by
+      :class:`Modality`. The 5 modality worker pools (vector / fulltext
+      / graph / summary / vision) consume these. Backed by Redis lists
+      named ``q:indexing:<modality>``.
+
+    * **Parse queue** (``push_parse`` / ``pop_parse``) — un-keyed
+      single queue feeding the parse worker pool (Wave 4 T3 chunk 2,
+      design pack §E.2). Parse jobs are dispatched here by the upload
+      handler so the HTTP request returns 202 immediately instead of
+      blocking on a 30s+ DocParser run; the parse worker pops, parses,
+      and then fans out to the per-modality queues. Backed by a Redis
+      list named ``q:parse``.
     """
 
     async def pop(self, *, modality: Modality, timeout_seconds: float) -> dict[str, Any] | None:
@@ -120,16 +135,34 @@ class WorkQueue(Protocol):
     async def push(self, *, modality: Modality, payload: Mapping[str, Any]) -> None:
         """Enqueue a payload for the given modality (reconciler dispatch path)."""
 
+    async def push_parse(self, *, payload: Mapping[str, Any]) -> None:
+        """Enqueue a parse payload onto ``q:parse`` (Wave 4 T3 chunk 2).
+
+        Called from the upload handler (``_create_or_update_document_indexes``)
+        to hand the document off to the parse worker pool without
+        blocking the HTTP request on parse latency.
+        """
+
+    async def pop_parse(self, *, timeout_seconds: float) -> dict[str, Any] | None:
+        """Block up to ``timeout_seconds`` for the next parse payload.
+
+        Consumed by the parse worker run loop. Returns the deserialised
+        payload dict (matching :class:`ParseDispatchPayload.to_dict`) or
+        ``None`` on timeout.
+        """
+
 
 class InMemoryWorkQueue:
     """Process-local asyncio queue mirror of the :class:`WorkQueue` protocol.
 
-    One ``asyncio.Queue`` per modality. Suitable for unit / contract
-    tests that want to drive the orchestrator without standing up Redis.
+    One ``asyncio.Queue`` per modality plus a single un-keyed parse
+    queue. Suitable for unit / contract tests that want to drive the
+    orchestrator without standing up Redis.
     """
 
     def __init__(self) -> None:
         self._queues: dict[Modality, asyncio.Queue[dict[str, Any]]] = {}
+        self._parse_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
 
     def _q(self, modality: Modality) -> asyncio.Queue[dict[str, Any]]:
         if modality not in self._queues:
@@ -145,10 +178,143 @@ class InMemoryWorkQueue:
     async def push(self, *, modality: Modality, payload: Mapping[str, Any]) -> None:
         await self._q(modality).put(dict(payload))
 
+    async def push_parse(self, *, payload: Mapping[str, Any]) -> None:
+        await self._parse_queue.put(dict(payload))
+
+    async def pop_parse(self, *, timeout_seconds: float) -> dict[str, Any] | None:
+        try:
+            return await asyncio.wait_for(self._parse_queue.get(), timeout=timeout_seconds)
+        except asyncio.TimeoutError:
+            return None
+
     def qsize(self, modality: Modality) -> int:
         if modality not in self._queues:
             return 0
         return self._queues[modality].qsize()
+
+    def parse_qsize(self) -> int:
+        return self._parse_queue.qsize()
+
+
+class RedisWorkQueue:
+    """Redis-backed :class:`WorkQueue` — celery T2.1 + Wave 4 T4.
+
+    Production multi-process worker pool transport per design pack §E.2:
+    each modality gets a Redis list keyed ``q:indexing:<modality>``;
+    enqueue is ``RPUSH`` of a JSON-serialized payload, dequeue is
+    ``BLPOP`` with a timeout. Multiple worker processes BLPOP'ing the
+    same key are atomically demuxed by Redis — at most one worker
+    receives any given payload.
+
+    Replaces the Wave 1+2 default :class:`InMemoryWorkQueue` which is
+    process-local (multi-pod / multi-worker deployments lose tasks
+    that get pushed to one process and BLPOP'd by another). Wave 4
+    follow-up #6 per architect msg=fab88774 (Wave 1+2 gap report).
+
+    Lazy-connects on first ``push`` / ``pop``; the underlying
+    ``redis.asyncio.Redis`` client owns its own pool. Production
+    deployments share one client per process (FastAPI lifespan
+    instantiates one and stashes on app.state.indexing_queue).
+    """
+
+    #: Redis list key template — keyed by modality so each modality
+    #: has its own BLPOP queue.
+    KEY_TEMPLATE = "q:indexing:{modality}"
+
+    #: Redis list key for the parse worker pool (Wave 4 T3 chunk 2).
+    #: Matches the design pack §E.2 ASCII diagram (``q:parse``).
+    PARSE_KEY = "q:parse"
+
+    def __init__(self, redis_url: str) -> None:
+        if not redis_url:
+            raise ValueError("RedisWorkQueue requires a non-empty redis_url")
+        self._url = redis_url
+        self._client: Any | None = None  # redis.asyncio.Redis, lazy
+
+    async def _get_client(self) -> Any:
+        if self._client is None:
+            from redis import asyncio as redis_asyncio
+
+            self._client = redis_asyncio.from_url(self._url, encoding="utf-8", decode_responses=True)
+        return self._client
+
+    @classmethod
+    def _key(cls, modality: Modality) -> str:
+        return cls.KEY_TEMPLATE.format(modality=modality.value)
+
+    async def push(self, *, modality: Modality, payload: Mapping[str, Any]) -> None:
+        client = await self._get_client()
+        await client.rpush(self._key(modality), json.dumps(dict(payload)))
+
+    async def pop(self, *, modality: Modality, timeout_seconds: float) -> dict[str, Any] | None:
+        client = await self._get_client()
+        # ``BLPOP`` blocks server-side for ``timeout`` seconds (0 = forever);
+        # we always pass a positive bound so the worker loop can periodically
+        # check ``shutdown`` between BLPOP calls. Floor sub-second timeouts
+        # to 1 — Redis BLPOP's resolution is integer seconds.
+        timeout = max(1, int(timeout_seconds))
+        result = await client.blpop(self._key(modality), timeout=timeout)
+        if result is None:
+            return None
+        # ``result`` is ``(key, value)``; we only care about the value.
+        _key, raw = result
+        try:
+            return json.loads(raw)
+        except (TypeError, ValueError) as exc:
+            logger.error(
+                "RedisWorkQueue.pop got non-JSON payload on key=%s: %s; dropping",
+                _key,
+                exc,
+            )
+            return None
+
+    async def push_parse(self, *, payload: Mapping[str, Any]) -> None:
+        client = await self._get_client()
+        await client.rpush(self.PARSE_KEY, json.dumps(dict(payload)))
+
+    async def pop_parse(self, *, timeout_seconds: float) -> dict[str, Any] | None:
+        client = await self._get_client()
+        timeout = max(1, int(timeout_seconds))
+        result = await client.blpop(self.PARSE_KEY, timeout=timeout)
+        if result is None:
+            return None
+        _key, raw = result
+        try:
+            return json.loads(raw)
+        except (TypeError, ValueError) as exc:
+            logger.error(
+                "RedisWorkQueue.pop_parse got non-JSON payload on key=%s: %s; dropping",
+                _key,
+                exc,
+            )
+            return None
+
+    async def parse_qsize(self) -> int:
+        """Inspector helper for the parse queue — current backlog length.
+        Mirrors :meth:`qsize` for the per-modality queues.
+        """
+        client = await self._get_client()
+        return int(await client.llen(self.PARSE_KEY))
+
+    async def qsize(self, modality: Modality) -> int:
+        """Inspector helper — returns the current backlog length for
+        the modality. Useful for §J.1 ``queue_depth`` SLI emission and
+        for tests that want to assert payloads landed.
+        """
+        client = await self._get_client()
+        return int(await client.llen(self._key(modality)))
+
+    async def close(self) -> None:
+        """Release the underlying Redis client. Called on FastAPI
+        lifespan shutdown so the connection pool drains cleanly.
+        """
+        if self._client is not None:
+            client = self._client
+            self._client = None
+            try:
+                await client.aclose()
+            except AttributeError:  # pragma: no cover — older redis-py
+                await client.close()
 
 
 # ---------------------------------------------------------------------
