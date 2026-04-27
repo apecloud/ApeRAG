@@ -325,9 +325,7 @@ async def test_step1_seed_initial_entities(inner_store):
     narrative does not depend on a non-deterministic extractor; the
     wiring under test is the storage + vector + alias paths, not the
     extractor prompt."""
-    lineage = _make_lineage(
-        document_id=_DOC_ID_PRIMARY, parse_version="v1", chunk_ids=("chunk-a-1",)
-    )
+    lineage = _make_lineage(document_id=_DOC_ID_PRIMARY, parse_version="v1", chunk_ids=("chunk-a-1",))
     await inner_store.upsert_entity_with_lineage(record=_alice_record(), lineage=lineage)
     await inner_store.upsert_entity_with_lineage(
         record=_bob_record(),
@@ -407,9 +405,7 @@ async def test_step4_service_merge_route_path_persists_alias_map(inner_store):
     """
     # Seed Alicia first — she is a separate doc / chunk so the alias
     # map can later collapse her into Alice.
-    alicia_lineage = _make_lineage(
-        document_id=_DOC_ID_PRIMARY, parse_version="v1", chunk_ids=("chunk-a-4",)
-    )
+    alicia_lineage = _make_lineage(document_id=_DOC_ID_PRIMARY, parse_version="v1", chunk_ids=("chunk-a-4",))
     await inner_store.upsert_entity_with_lineage(record=_alicia_record(), lineage=alicia_lineage)
 
     from aperag.domains.knowledge_graph.service import GraphService
@@ -442,13 +438,8 @@ async def test_step5_alias_map_row_persisted(alias_repo):
     """Read the alias_map: assert ``{Alicia: Alice}`` persisted via
     :class:`AliasMapRepository`. The merge in step 4 should have
     written the row before step 8 of its 8-step orchestration."""
-    canonical = await alias_repo.resolve_canonical(
-        collection_id=_COLLECTION_ID, name="Alicia"
-    )
-    assert canonical == "Alice", (
-        f"expected alias 'Alicia' to resolve to canonical 'Alice', "
-        f"got {canonical!r}"
-    )
+    canonical = await alias_repo.resolve_canonical(collection_id=_COLLECTION_ID, name="Alicia")
+    assert canonical == "Alice", f"expected alias 'Alicia' to resolve to canonical 'Alice', got {canonical!r}"
 
 
 @pytest.mark.asyncio
@@ -460,12 +451,8 @@ async def test_step6_alias_redirect_on_indexer_upsert(decorated_store, inner_sto
     Assert that no separate Alicia row exists in the lineage table —
     the decorator silently redirected the write to Alice.
     """
-    lineage = _make_lineage(
-        document_id=_DOC_ID_ALICIA, parse_version="v1", chunk_ids=("chunk-b-1",)
-    )
-    await decorated_store.upsert_entity_with_lineage(
-        record=_alicia_record(), lineage=lineage
-    )
+    lineage = _make_lineage(document_id=_DOC_ID_ALICIA, parse_version="v1", chunk_ids=("chunk-b-1",))
+    await decorated_store.upsert_entity_with_lineage(record=_alicia_record(), lineage=lineage)
 
     # The raw inner store sees the canonical row only — Alicia was
     # silently redirected to Alice on the upsert path.
@@ -484,12 +471,10 @@ async def test_step6_alias_redirect_on_indexer_upsert(decorated_store, inner_sto
     # The new lineage member from this re-extraction shows up under
     # the canonical name with the original chunk ids preserved.
     new_member_present = any(
-        m.document_id == _DOC_ID_ALICIA and m.parse_version == "v1"
-        for m in (alice_row.source_lineage or ())
+        m.document_id == _DOC_ID_ALICIA and m.parse_version == "v1" for m in (alice_row.source_lineage or ())
     )
     assert new_member_present, (
-        "alias redirect did not propagate the new lineage member to "
-        "the canonical entity — re-extraction lineage lost"
+        "alias redirect did not propagate the new lineage member to the canonical entity — re-extraction lineage lost"
     )
 
 
@@ -510,10 +495,7 @@ async def test_step7_re_search_after_merge_returns_canonical():
     # a payload-redirected write, not a separate point.
     if hits:
         names = {h.name for h in hits}
-        assert "Alicia" not in names, (
-            "alias name leaked into vector recall — wiring #1 + #3 "
-            "interaction broke"
-        )
+        assert "Alicia" not in names, "alias name leaked into vector recall — wiring #1 + #3 interaction broke"
 
 
 @pytest.mark.asyncio
