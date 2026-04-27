@@ -2026,6 +2026,234 @@ Wave 6 close-out (revised 2026-04-27 post-Option C chunk 3 ruling msg=6fccd9ab)�
 
 **why 双 PR 是 simple-stable**: 拒绝 single-PR 24-day land cycle (#33 阻 polish 6 items)；6 polish items 1 周 land + #33 设计完成后再 ship — 用户视角 "尽快上线" 实质化 (PR-B 各 modality 改进可下周即用)。
 
+### K.12. Wave 7 — Legacy graphindex 全删 + 共享 graph 层最终态（启动于 2026-04-28，per earayu2 msg=3d3b2e68 "最后一波 graph 和 index 层修改" directive）
+
+**目标**：删除整个 `aperag/domains/knowledge_graph/graphindex/` legacy 包，把 LightRAG 风格的语义召回（向量 + 图遍历）真正接通到新的 `LineageGraphStore` 体系，提供 UI 实体合并能力 + kg.jsonl 阶段自动检测合并候选，全链路（上传/索引/MCP/Agent/UI）打通。这是 graph + index 层最后一波修改，ship 后系统达到最终态。
+
+**Wave 7 与 Wave 6 关系**：Wave 6 §K.10/§K.11 narrowed scope 把 retrieval-side cutover ship 了，但 UI/curation flows 与 LightRAG-style vector recall 都 deferred。Wave 7 是把这些 deferred 项一次性收口 + 删除 legacy。
+
+#### K.12.1. 现状分析（2026-04-28 grep 验证的事实）
+
+per architect msg=ccfc6114 grep 调研 + huangheng msg=f1e695a0 grep 验证：
+
+1. **legacy `graphindex/` 包**：
+   - 三套图数据库实现（postgres/neo4j/nebula），各自在 `graphindex_nodes` + `graphindex_edges` 表（与 `aperag_lineage_*` 表完全独立，不共享 schema）
+   - `GraphIndexService.query_context()`（line 760-870）实施完整 LightRAG 风格查询：嵌入 query → Qdrant 向量召回（payload filter `indexer="graph_entity"`/`"graph_relation"`）→ 图遍历 → context text 渲染
+   - `_sync_entity_relation_vectors()`（line 573）实施 entity/relation embedding 写入 Qdrant
+   - `_delete_removed_shadow_vectors()`（snapshot diff 算法）实施 doc lifecycle vector 清理
+   - `_compact_oversized_descriptions()`（line 158）+ `_summarize_description()` + `_fallback_truncate()` 实施 description 长度治理（LLM summary + 字符截断 fallback）
+   - `merge_entities()` 实施用户合并（store-side topology + LLM 生成 unified description）
+   - `get_knowledge_graph()` / `list_labels()`（已 #40 narrow-replace）实施 UI methods
+
+2. **新 `LineageGraphStore` 体系（Wave 4-6）**：
+   - per-doc lineage 追踪：每个 entity/relation 的 `description_parts` 自带 `(document_id, parse_version, chunk_ids)` 标签
+   - 三个新 backend（`aperag/indexing/graph_storage/{postgres,neo4j,nebula}.py`），写入 `aperag_lineage_*` 表
+   - Wave 6 #33 加 keyword + 1-hop traversal + chunk_id schema
+   - **没** entity vector embedding（vector 完全没在新体系里）
+
+3. **隐藏的功能性回归**：
+   - 自 Wave 4 hard-cut 后 legacy `run_index_document_sync` 0 callers → Qdrant entity index 自 Wave 4 起一直空表
+   - Wave 6 chunk 3 retrieval cutover 切到新 keyword + traversal，没接通向量召回
+   - 老 `query_context` 一直查空 vector index → fallback 到 keyword
+   - `enable_knowledge_graph=False` 默认值掩护着这个事实
+   - **LightRAG-style 向量召回从 Wave 4 起在生产环境下缺席**
+
+4. **UI 接口实际状态**：
+   - `/graphs/labels` (`get_labels`) → Wave 6 #40 已迁，读新表 ✅
+   - `/graphs?label=...` (`get_knowledge_graph`) → 仍走 legacy，老表空 → UI 看到空图谱 ❌
+   - `/graphs/merge` (`merge_entities`) → 仍走 legacy，老表空 → 没东西可合并 ❌
+
+5. **ApeRAG 已有的可复用基础设施**：
+   - `aperag/vectorstore/connector.py` `VectorStoreConnectorAdaptor` 已抽象 Qdrant + pgvector + 未来其他 backend
+   - `VectorPoint` / `QueryRequest` / `VectorFilter` / `Eq` filter DTO vector-store-agnostic
+   - `aperag/domains/agent_runtime/tools/registry.py` MCP server registry 基础设施已 ship
+
+Wave 7 实质：**激活向量召回写入 + 替换查询服务 + 加用户合并能力 + 删除 legacy 包**。Migrate-not-invent 模式（不重新设计，参考 legacy 算法 + 新组件命名 + 复用基础设施）。
+
+#### K.12.2. 设计哲学：四层分离
+
+per `feedback_simple_stable_zero_maintenance.md` 4 guardrail（不无限扩范围 / 尽快上线 / 简单稳定 / 私有化部署免维护）+ earayu2 msg=cf5186e2 + msg=f92b2584 + msg=aac6053d directive：
+
+| 层 | Source of truth | 职责 | Doc lifecycle 行为 |
+|---|---|---|---|
+| **图数据层** | 图数据库 (`aperag_lineage_*` 表 / Neo4j 节点边 / Nebula tag) | 结构化数据 + per-doc lineage 追踪 (Wave 4 §C.3 契约) + 新加 `compacted_description` 字段 (LLM-summarized 派生) | strip per-doc parts → empty entity gc_orphan 自动级联 |
+| **向量层** | 向量数据库 (Qdrant / pgvector / 未来其他, 通过 `VectorStoreConnectorAdaptor` 调度) | 与 chunk 向量同 collection, 靠 payload `indexer="graph_entity"/"graph_relation"/"chunk"` 区分 | snapshot-diff 删 + 重 embed 自动跟随 |
+| **用户意图层** | `aperag_lineage_entity_alias` 表 | 持久化用户主动合并意图, 不被 doc lifecycle 影响 (orphan 保留, lossy resurrection acceptable) | 不变 — alias_map 独立 |
+| **合并候选检测层** | `aperag_merge_candidate` 表 (新加) | kg.jsonl 生成完跑 detection, 综合字符串 + vector + (可选) LLM judge → 写候选给 UI | 候选过期/过时由 UI 端 dismiss |
+
+**关键 invariant**：图数据层永远是 source of truth + 向量层和候选层是派生数据可重算 + 用户意图层独立持久化。文档 add/update/delete 时图数据层按 §C.3 自动级联 → 向量层通过 snapshot-diff 自动跟随 → 候选层重新检测。
+
+#### K.12.3. 核心组件（去 LightRAG 命名）
+
+- **`GraphSearchService`**（替代老 `GraphIndexService.query_context`）
+  - 聚合 `LineageGraphStore` + `VectorStoreConnectorAdaptor` + `Embedder` + `LLMCall`
+  - 接口：`search_entities(query, top_k)` / `search_relations(query, top_k)` / `get_subgraph(label, max_depth, max_nodes)` / `compose_context(query, top_k)`
+  - 算法参考老 `query_context` line 760-870：embed query → Qdrant 召回 entity（payload filter `Eq("indexer", "graph_entity")`）→ Qdrant 召回 relation → 拿 entity_names 调 `LineageGraphStore.expand_neighbors_n_hops` → 组装 context
+
+- **`GraphCurationService`**（替代老 `merge_entities`）
+  - 聚合 `LineageGraphStore` + `VectorStoreConnectorAdaptor` + `Embedder` + `LLMCall`
+  - 接口：`merge_entities(target, sources)` / `find_merge_candidates(entity_name, top_k)`（thin wrapper 走 store keyword search）
+  - merge 流程（4 步幂等）：
+    1. 写 alias_map（A→C, B→C），cycle flatten 1-hop redirect
+    2. UNION：`C.description_parts = A.parts ∪ B.parts`，`C.source_lineage = A.lineage ∪ B.lineage`
+    3. 调 LLM 生成 unified description → 触发 `GraphIndexCompactor` 长度治理 → 写 `compacted_description`
+    4. embed `compacted_description` → upsert vector point + 删 A、B 的 vector point + 删 A、B lineage rows
+
+- **`GraphIndexCompactor`**（新组件，移植老 `_compact_oversized_descriptions` 算法 + 去 LightRAG 命名）
+  - 在 `GraphModalityWorker.sync()` 末尾跑（也被 `GraphCurationService.merge_entities` 调用）
+  - 触发条件：`len(description_parts) >= summarize_at_fragments (默认 8)` 或 `total chars >= max_description_chars (默认 8000)`
+  - LLM summary：调用 `render_summarization_prompt`（参考老 prompt 模板），target_chars ~3000
+  - LLM 失败 fallback：字符截断 + 末尾 ` … [truncated]` 标记
+  - 写到 `compacted_description` 字段（不污染 `description_parts` per-doc tracking）
+
+- **`MergeCandidateDetector`**（新组件，老代码无对应）
+  - 在 `GraphModalityWorker.sync()` 末尾跑（kg.jsonl 生成完）
+  - 算法（综合三种信号）：
+    1. 字符串相似度：lower-case + token-set Jaccard >= 0.6 双方都触发
+    2. Vector 相似度：embed entity name + compacted_description → ANN top-5 → cosine >= 0.85
+    3. 取并集，按 `max(string_score, vector_score)` 降序
+    4. （可选 tier）LLM judge：高 confidence (vector >= 0.95) 才触发 LLM 二次确认；默认 off
+  - 写候选到 `aperag_merge_candidate` 表 `(collection_id, entity_a, entity_b, similarity_score, source: 'string'|'vector'|'llm', detected_at)`
+  - **不自动合并** — UI curator 主动决策
+
+- **`GraphModalityWorker`**（扩展 Wave 4 现有组件）
+  - `sync()` 末尾增加四步：
+    1. 跑 `GraphIndexCompactor` → 长度超阈值的 entity 写 `compacted_description`
+    2. 嵌入 entity / relation description（用 `compacted_description` 优先, 否则 `name + " " + concat(description_parts.text)`）→ 通过 `VectorStoreConnectorAdaptor.upsert` 写 Qdrant point
+    3. snapshot-diff 删除 gc 的 entity/relation 对应 vector point（参考老 `_delete_removed_shadow_vectors`）
+    4. 跑 `MergeCandidateDetector` → 写候选
+
+#### K.12.4. 数据 schema 改动
+
+**新加字段**（item 1）：
+
+- `aperag_lineage_entity` 加 `compacted_description: TEXT NULL`
+- `aperag_lineage_relation` 加 `compacted_description: TEXT NULL`
+- 三个 backend（postgres/neo4j/nebula）各自的存储支持
+- **DTO 落点**（lock 2026-04-28，per huangheng msg=4d93a6c5 + Bryce pre-check msg=2dbd5a6b + architect ratify msg=6926f1ff）:
+  - 字段加在 `EntityWithLineage` / `RelationWithLineage`（storage view DTO），**不**改 `EntityRecord` / `RelationRecord`（kg.jsonl raw 抽取契约）
+  - 理由: `compacted_description` 是 sync 末尾 GraphIndexCompactor 派生写入，属于 storage 层；kg.jsonl 是 graph_extractor raw 抽取输出，不应被派生数据污染（architecture invariant: L1 storage layer derived field, NOT L0 extraction layer）
+- **写入路径**（Option B locked）: 走现有 `upsert_entity_with_lineage(..., compacted_description: str | None = None)` / `upsert_relation_with_lineage(...)` 加 nullable kwarg；**不**新增 Protocol method
+  - 理由: 不扩 Protocol 表面（simple-stable directive #3）+ atomic single-write（forward-only retry safety）+ Wave 6 chunk 2 spec-impl gap 教训（不必要的 Protocol method 是 spec drift 高发区）
+  - kwarg sentinel 语义: 不传 = 保留 existing；传 None = 显式清空；传 str = 写入；implementer 自选 sentinel 实现细节，但行为契约固定
+- **safety gate test**（per huangheng msg=828c83cc，3 backend 各 1 case）: `test_compactor_write_preserves_all_lineage_fields` — 验证 compactor read-modify-write 不丢 `source_lineage` / `description_parts`，是 Option B 的 invariant 守门员
+
+**新加表**（item 4 + item 6）：
+
+- `aperag_lineage_entity_alias`：`(collection_id, alias_name, canonical_name, merged_at, merged_by)` PK `(collection_id, alias_name)` + index `(collection_id, canonical_name)`（反向查询用）
+- `aperag_merge_candidate`：`(collection_id, entity_a, entity_b, similarity_score, source, detected_at)` PK `(collection_id, entity_a, entity_b)`，`entity_a < entity_b` lexicographic 强制（防 (A,B) 与 (B,A) 重复）
+
+**alembic migration**：item 1 + item 4 + item 6 各 1 个 migration（链式）。
+
+**老表 drop**（item 10 last）：alembic drop `graphindex_nodes` + `graphindex_edges`（hard-cut，无生产数据）。
+
+#### K.12.5. Application-layer 长度治理（不是 DB schema CHECK）
+
+per earayu2 msg=421c4223 "不能很随意写代码，导致超列长度报错" + huangheng msg=11e95fb2 wording fix：
+
+**关键澄清**: 下表所列限制是 **application-layer caps**（Compactor + graph_extractor + Curation Service 在写入前 enforce），**不是** DB schema CHECK constraint。Postgres TEXT / Neo4j string property / Nebula tag-prop string 在 schema 层都不写长度约束；application 层 truncate-not-fail 保证写入永远 ≤ 限制值。
+
+| 限制项 | 默认值 | enforcement 位置 | 理由 |
+|---|---|---|---|
+| per-part 最大字符数 | 5000 chars | `graph_extractor` 输出阶段 truncate (kg.jsonl 写入前) | Nebula tag-prop string 兼容 boundary |
+| per-entity 最大 parts 数 | 100 parts | `graph_extractor` 已 tunable knob (Wave 6 P5A) | 累积 description 总量上限保护 |
+| `compacted_description` 最大字符数 | 8000 chars | `GraphIndexCompactor.compact_if_oversized` LLM target_chars 3000 + fallback truncate cap 8000 | embedder input safe |
+| 全部超限处理 | truncate + ` … [truncated]` 标记 + log warn | 各 enforcement layer 内部 | 不让 production 因 oversize 报错 (per `feedback_simple_stable_zero_maintenance.md` directive #3) |
+
+#### K.12.6. MCP 接口
+
+注册到 `aperag/domains/agent_runtime/tools/registry.py`（item 7）：
+
+- `query_graph_entities(query: str, top_k: int) -> list[Entity]` — 走 `GraphSearchService.search_entities`
+- `expand_graph_subgraph(entity_names: list[str], hops: int) -> dict` — 走 `LineageGraphStore.expand_neighbors_n_hops`
+- `get_entity_detail(name: str) -> Entity` — 走 `LineageGraphStore.get_entity` + 必要时 `get_unified_description_for_ui`
+
+Agent 通过这三个 tool 实现 LightRAG 风格 RAG over graph：semantic search → traversal → detail lookup。
+
+#### K.12.7. 4 项关键决策（locked）
+
+| 决策 | 选项 | 选择 | 理由 |
+|---|---|---|---|
+| 索引时是否自动合并相似实体 | 自动合并 / 仅检测候选 / 完全不动 | **仅检测候选 (β option / Option K2)** | 自动合并 LLM 误判不可逆；检测候选给 UI 让用户决策 (per simple-stable directive #1 + #4) |
+| alias_map 在 canonical entity gc 时如何处理 | 保留 orphan / 级联删除 | **保留 orphan (option X)** | 用户合并意图比 doc lifecycle 优先级高；alias 表行数极小；同名 doc 重传可自动恢复 |
+| 合并时是否调 LLM | 调 / 不调 | **调 LLM 生成 unified description + 触发 compaction (option α)** | 这是 vector embedding 质量来源；description 长度治理紧跟其后；与 LightRAG eager merge pattern 一致 |
+| Vector store 选型 | Qdrant only / 用 ApeRAG 现有 abstraction | **复用 `VectorStoreConnectorAdaptor`** | per earayu2 msg=aac6053d "图 DB 不装 vector 插件"；已有抽象层覆盖 Qdrant + pgvector + 未来 backend；操作员部署一份 vector store 即可 |
+
+#### K.12.8. Wave 7 acceptance items（10 项）
+
+| # | 内容 | 负责人 | ETA |
+|---|---|---|---|
+| 1 | `LineageGraphStore` schema 加 `compacted_description: TEXT NULL` 字段 + alembic migration（Postgres）+ 三个 backend 各自存储支持 | Bryce | 1 天 |
+| 2 | `GraphIndexCompactor` 组件：移植老 `_compact_oversized_descriptions` + `_summarize_description` + `_fallback_truncate` + `_should_summarize` 算法到新代码树（去 LightRAG 命名）+ unit tests | 明书 | 1 天 |
+| 3 | `GraphModalityWorker.sync()` 扩展末尾四步（compactor → embed → vector upsert via `VectorStoreConnectorAdaptor` + snapshot-diff delete → 跑 detector）+ integration tests | Bryce（依赖 #1）| 2 天 |
+| 4 | `MergeCandidateDetector` 组件：字符串 Jaccard + vector ANN + 可选 LLM judge → 写 `aperag_merge_candidate` 表 + alembic + unit tests | 明书 | 1-2 天 |
+| 5 | `GraphSearchService` 实现：聚合 + `search_entities` + `search_relations` + `get_subgraph` + `compose_context`，参考老 `query_context` line 760-870 算法 + unit tests | 明书 + architect | 2-3 天 |
+| 6 | `GraphCurationService` 实现：alias_map 表（含 alembic + cycle flatten + per-collection cache）+ `merge_entities`（UNION + LLM unified + compaction + vector re-embed + remove sources）+ `find_merge_candidates`（thin wrapper）+ chunk 2 critical inseparability：`upsert_entity` 内部透明 alias redirect + integration tests | 明书 + Bryce 协助 graph backend（依赖 #1）| 2-3 天 |
+| 7 | MCP 接口注册：`query_graph_entities` / `expand_graph_subgraph` / `get_entity_detail` 进 `agent_runtime/tools/registry.py` + integration tests | 明书 或 chenyexuan（依赖 #5）| 1 天 |
+| 8 | `retrieval/pipeline.py:_graph_search` 升级走 `GraphSearchService`（恢复向量召回，不是 keyword-only）+ `aperag/graph_curation/*` 4 文件迁移（用 alias 替代老 Entity DTO）+ REST API `/graphs/merge`、`/graphs/merge-candidates`、`/graphs/{id}` | chenyexuan（依赖 #5 + #6）| 1-2 天 |
+| 9 | 前端验证 + OpenAPI 重新生成（response shape 不变则 0 工作量；否则 UI 微调显示 `compacted_description` / 候选合并 UI）| cuiwenbo（如需）| 0-1 天 |
+| 10 | 删除整个 `aperag/domains/knowledge_graph/graphindex/` 包 + `tests/unit_test/graphindex/` 整目录 + `tests/integration/compat/test_graph_compat.py`（已被 `test_lineage_graph_compat.py` 替代）+ alembic drop `graphindex_nodes` + `graphindex_edges` 表 + grep-zero verify。**这步必须最后做** | Bryce（依赖前 9 项全 merged）| 0.5 天 |
+
+**Total**：1.5-2 周（多人并行：item 1+2+4+5 可同时启动；item 3 + 6 依赖 item 1；item 7 + 8 依赖 item 5；item 9 依赖 item 8；item 10 必 last）。
+
+#### K.12.9. Pre-check pattern lock（per `feedback_spec_lock_grep_verify_caller.md` + `feedback_architect_design_impl_gap_monitor.md`）
+
+每个 acceptance item 实施前必跑（implementer 自我审计 + post pre-check matrix gap analysis 给 architect 验证）：
+
+- **Pattern 1 v1 + v2**: 
+  - `grep -rn "from aperag.domains.knowledge_graph.graphindex" aperag/ tests/` — caller import-level
+  - FOR EACH caller, enumerate `GraphIndexService.METHOD(` calls — method coverage matrix
+- **Pattern 2** (state binding): 
+  - `grep -rn "graphindex_nodes\|graphindex_edges" aperag/` — legacy table refs
+  - `grep -rn "compacted_description\|aperag_merge_candidate\|aperag_lineage_entity_alias" aperag/migration/` — 新 schema binding
+- **Pattern 3** (Protocol method state): 
+  - `grep -rn "indexer.*graph_entity\|indexer.*graph_relation" aperag/vectorstore/` — Qdrant payload filter binding
+  - 验证 `description_parts.text` 列累积长度 vs `max_description_chars` 阈值
+
+#### K.12.10. 命名约定（去 LightRAG）
+
+| 老命名 | 新命名 |
+|---|---|
+| `LightRAGQueryService` (architect 早期 draft) | **`GraphSearchService`** |
+| `LightRAGCurationService` (architect 早期 draft) | **`GraphCurationService`** |
+| LightRAG-style query | "图谱搜索" / "vector + traversal 召回" |
+| 注释里 LightRAG 引用 | 移除 |
+| 老 `legacy graphindex` 类名 | 整个包删掉 |
+
+代码 + REST API + MCP tool name 中完全去掉 LightRAG。仅本节"现状分析"提及"灵感来自 LightRAG 设计"。
+
+#### K.12.11. Architect direct ratify lane（per §K.9.2 / §K.11.8 lane lock pattern）
+
+Wave 7 architect direct ratify scope：
+- **Item 6**（GraphCurationService chunk 2 inseparability）：alias_map 表 + indexer integration + merge atomic 4-step orchestration —— 因 critical-path 且涉及 user intent 持久化
+- **Item 5**（GraphSearchService）：聚合 4 个组件，是 retrieval / MCP / UI 共同入口 —— 因 system-wide query path
+- **Item 10**（删 legacy 包）：grep-zero verify + alembic drop 老表 —— 因 hard-cut 不可逆
+- 其它 item 走 huangheng pass-1 lane only（小 bounded items），但 huangheng 主动 CR 全部 PR
+
+如出现 spec / state-binding drift 或 chunk-内 scope creep → architect direct ratify trigger（per Wave 6 #33 chunks 2/3 经验）。
+
+#### K.12.12. Wave 7 close-out gate
+
+Wave 7 close-out 必须满足：
+- 全 10 acceptance items 全 merged（item 10 是 last）
+- 全 PR CI 全绿
+- task board 全 done
+- grep-zero verify: `grep -rn "from aperag.domains.knowledge_graph.graphindex" aperag/ tests/` → 0 matches in production code
+- alembic head 含 `graphindex_*` 老表 drop migration
+- 架构师发 Wave 7 final review（mirror Wave 5/6 close-out msg pattern）含 "graph 层最终态" declaration
+- earayu2 不再介入（per msg=3d3b2e68 directive），团队自驱完成
+
+**Wave 7 完成态**：
+- ✅ legacy `aperag/domains/knowledge_graph/graphindex/` 包 0 行代码
+- ✅ alembic drop `graphindex_*` 老表
+- ✅ 全 graph 功能（read + curation + visualization + indexing）走新 Protocol + Service
+- ✅ LightRAG 风格语义召回真实接通生产环境
+- ✅ UI 实体合并 + 候选自动检测体验完整
+- ✅ Doc lifecycle add/update/delete 自动级联（per Wave 4 §C.3 + snapshot-diff vector cleanup）
+- ✅ 私有化部署免维护（vector store 抽象 + 不依赖图 DB vector 插件）
+- ✅ MCP 接口完整，agent 直接 LightRAG 风格查询
+- ✅ Frontend backward-compat
+
 ---
 
 ## §L. Private / on-premise deployment — "deploy-and-forget"
