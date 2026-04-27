@@ -2126,28 +2126,39 @@ per `feedback_simple_stable_zero_maintenance.md` 4 guardrail（不无限扩范�
 #### K.12.4. 数据 schema 改动
 
 **新加字段**（item 1）：
+
 - `aperag_lineage_entity` 加 `compacted_description: TEXT NULL`
 - `aperag_lineage_relation` 加 `compacted_description: TEXT NULL`
 - 三个 backend（postgres/neo4j/nebula）各自的存储支持
+- **DTO 落点**（lock 2026-04-28，per huangheng msg=4d93a6c5 + Bryce pre-check msg=2dbd5a6b + architect ratify msg=6926f1ff）:
+  - 字段加在 `EntityWithLineage` / `RelationWithLineage`（storage view DTO），**不**改 `EntityRecord` / `RelationRecord`（kg.jsonl raw 抽取契约）
+  - 理由: `compacted_description` 是 sync 末尾 GraphIndexCompactor 派生写入，属于 storage 层；kg.jsonl 是 graph_extractor raw 抽取输出，不应被派生数据污染（architecture invariant: L1 storage layer derived field, NOT L0 extraction layer）
+- **写入路径**（Option B locked）: 走现有 `upsert_entity_with_lineage(..., compacted_description: str | None = None)` / `upsert_relation_with_lineage(...)` 加 nullable kwarg；**不**新增 Protocol method
+  - 理由: 不扩 Protocol 表面（simple-stable directive #3）+ atomic single-write（forward-only retry safety）+ Wave 6 chunk 2 spec-impl gap 教训（不必要的 Protocol method 是 spec drift 高发区）
+  - kwarg sentinel 语义: 不传 = 保留 existing；传 None = 显式清空；传 str = 写入；implementer 自选 sentinel 实现细节，但行为契约固定
+- **safety gate test**（per huangheng msg=828c83cc，3 backend 各 1 case）: `test_compactor_write_preserves_all_lineage_fields` — 验证 compactor read-modify-write 不丢 `source_lineage` / `description_parts`，是 Option B 的 invariant 守门员
 
 **新加表**（item 4 + item 6）：
+
 - `aperag_lineage_entity_alias`：`(collection_id, alias_name, canonical_name, merged_at, merged_by)` PK `(collection_id, alias_name)` + index `(collection_id, canonical_name)`（反向查询用）
-- `aperag_merge_candidate`：`(collection_id, entity_a, entity_b, similarity_score, source, detected_at)` PK `(collection_id, entity_a, entity_b)`
+- `aperag_merge_candidate`：`(collection_id, entity_a, entity_b, similarity_score, source, detected_at)` PK `(collection_id, entity_a, entity_b)`，`entity_a < entity_b` lexicographic 强制（防 (A,B) 与 (B,A) 重复）
 
 **alembic migration**：item 1 + item 4 + item 6 各 1 个 migration（链式）。
 
 **老表 drop**（item 10 last）：alembic drop `graphindex_nodes` + `graphindex_edges`（hard-cut，无生产数据）。
 
-#### K.12.5. DB column 长度防护
+#### K.12.5. Application-layer 长度治理（不是 DB schema CHECK）
 
-per earayu2 msg=421c4223 "不能很随意写代码，导致超列长度报错"：
+per earayu2 msg=421c4223 "不能很随意写代码，导致超列长度报错" + huangheng msg=11e95fb2 wording fix：
 
-| 限制项 | 默认值 | 理由 |
-|---|---|---|
-| per-part 最大字符数 | 5000 chars | Nebula tag-prop string 限制兼容 |
-| per-entity 最大 parts 数 | 100 parts | Wave 6 P5A graph_extractor knob 已可 tunable |
-| unified description 最大字符数 | 8000 chars | embedder input safe |
-| 全部超限处理 | truncate + log warn | 不让 production 因 oversize 报错 (per `feedback_simple_stable_zero_maintenance.md` directive #3) |
+**关键澄清**: 下表所列限制是 **application-layer caps**（Compactor + graph_extractor + Curation Service 在写入前 enforce），**不是** DB schema CHECK constraint。Postgres TEXT / Neo4j string property / Nebula tag-prop string 在 schema 层都不写长度约束；application 层 truncate-not-fail 保证写入永远 ≤ 限制值。
+
+| 限制项 | 默认值 | enforcement 位置 | 理由 |
+|---|---|---|---|
+| per-part 最大字符数 | 5000 chars | `graph_extractor` 输出阶段 truncate (kg.jsonl 写入前) | Nebula tag-prop string 兼容 boundary |
+| per-entity 最大 parts 数 | 100 parts | `graph_extractor` 已 tunable knob (Wave 6 P5A) | 累积 description 总量上限保护 |
+| `compacted_description` 最大字符数 | 8000 chars | `GraphIndexCompactor.compact_if_oversized` LLM target_chars 3000 + fallback truncate cap 8000 | embedder input safe |
+| 全部超限处理 | truncate + ` … [truncated]` 标记 + log warn | 各 enforcement layer 内部 | 不让 production 因 oversize 报错 (per `feedback_simple_stable_zero_maintenance.md` directive #3) |
 
 #### K.12.6. MCP 接口
 
