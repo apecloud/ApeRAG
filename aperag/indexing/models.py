@@ -97,16 +97,16 @@ class DocumentIndex(Base):
     last_heartbeat: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     derived_artifact_path: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # T2.1 dispatch columns (alembic c2e8d5a1f3b9). collection_id scopes
-    # cleanup-worker GC + tenant queries without needing to parse the
-    # canonical layout out of source_path; source_path is the modality's
-    # ``derive`` input artifact path (chunks.jsonl for vector/fulltext/
-    # graph; markdown.md for summary; modality-specific for vision).
-    # Both nullable for back-compat with Wave 1 fixtures; the
-    # orchestrator skips rows missing source_path (leaves PENDING for
-    # the next reconciler cycle).
-    collection_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    source_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # T2.1 dispatch columns (alembic c2e8d5a1f3b9 + Wave 3 NOT-NULL
+    # promotion in d0f4c1b9a8e2). collection_id scopes cleanup-worker GC
+    # + tenant queries without needing to parse the canonical layout out
+    # of source_path; source_path is the modality's ``derive`` input
+    # artifact path (chunks.jsonl for vector/fulltext/graph; markdown.md
+    # for summary; modality-specific for vision). Both promoted to NOT
+    # NULL in Wave 3 — the orchestrator + reconciler always populate
+    # them at INSERT time per architect msg=498b12f0.
+    collection_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_path: Mapped[str] = mapped_column(Text, nullable=False)
 
     # §H.2 multi-tenant isolation: tenant_scope_key is the rate-limit /
     # quota / bulkhead partition key (e.g. ``"user:<uid>"`` or

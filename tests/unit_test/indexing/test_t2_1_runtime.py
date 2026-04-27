@@ -395,18 +395,16 @@ def test_reconciler_pending_dispatch_pushes_to_per_modality_queues(engine):
     assert pushed_again == 2, "PENDING dispatch is idempotent across cycles"
 
 
-def test_reconciler_skips_pending_rows_missing_source_path(engine):
-    queue = InMemoryWorkQueue()
-    _insert_row(
-        engine,
-        document_id="doc-orphan",
-        parse_version="cccccccccccccccc",
-        modality=Modality.VECTOR,
-        source_path=None,  # legacy / partial fixture row
-    )
-    pushed = asyncio.run(reconcile_pending_dispatch(engine=engine, queue=queue))
-    assert pushed == 0
-    assert drain_queue_sync(queue, Modality.VECTOR) == []
+# Wave 3 T3.1 (alembic d0f4c1b9a8e2 + model NOT-NULL flip): the
+# ``test_reconciler_skips_pending_rows_missing_source_path`` test was
+# deleted alongside the ``source_path`` NULL → NOT NULL promotion. The
+# scenario it exercised (a PENDING row with ``source_path IS NULL``)
+# is now impossible at the schema layer, so the test fixture's
+# ``_insert_row(... source_path=None)`` raises an ``IntegrityError``
+# before the reconciler is even called. The defensive ``if not row.
+# source_path`` branch in ``reconcile_pending_dispatch`` is kept as a
+# zero-cost guard against malformed rows but is no longer reachable
+# from a clean schema.
 
 
 # ---------------------------------------------------------------------
