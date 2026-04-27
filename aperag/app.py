@@ -239,6 +239,7 @@ async def combined_lifespan(app: FastAPI):
             run_cleanup_loop,
             run_fulltext_worker,
             run_graph_worker,
+            run_parse_worker,
             run_reconcile_loop,
             run_summary_worker,
             run_vector_worker,
@@ -301,6 +302,32 @@ async def combined_lifespan(app: FastAPI):
         indexing_runtime_tasks.append(asyncio.create_task(run_graph_worker(**worker_kwargs)))
         indexing_runtime_tasks.append(asyncio.create_task(run_summary_worker(**worker_kwargs)))
         indexing_runtime_tasks.append(asyncio.create_task(run_vision_worker(**worker_kwargs)))
+
+        # Wave 4 T3 chunk 2: parse worker reads ``q:parse``, runs
+        # :class:`DocParser`, and dispatches the per-modality jobs.
+        # Without this, the upload handler's :func:`push_parse` call
+        # would land in Redis with no consumer — the per-modality
+        # rows would never get inserted and documents would stay
+        # PENDING forever. The object store factory is async per the
+        # production resolver signature; this closure adapts the
+        # synchronous ``get_object_store`` helper into the
+        # ``ObjectStoreFactory`` shape :func:`run_parse_worker`
+        # expects.
+        from aperag.objectstore.base import get_object_store
+
+        async def _resolve_object_store():
+            return await asyncio.to_thread(get_object_store)
+
+        indexing_runtime_tasks.append(
+            asyncio.create_task(
+                run_parse_worker(
+                    engine=engine,
+                    queue=queue,
+                    object_store_factory=_resolve_object_store,
+                    shutdown=indexing_shutdown,
+                )
+            )
+        )
         indexing_runtime_tasks.append(
             asyncio.create_task(
                 run_reconcile_loop(

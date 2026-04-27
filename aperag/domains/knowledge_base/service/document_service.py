@@ -33,7 +33,6 @@ the same G1 boundary pass Step 5b2b applied to ``collection_service``:
   continue to resolve via the ``view_models`` dual-hook re-export shim.
 """
 
-import asyncio
 import json
 import logging
 import mimetypes
@@ -126,46 +125,45 @@ async def _create_or_update_document_indexes(
     """Replacement for legacy ``document_index_manager.
     create_or_update_document_indexes``.
 
-    Wave 3 T3.1 chunk 3 + post-pass-8 parser-wiring fix
-    (architect msg=c605037e ruling on the chunks.jsonl-never-written
-    gap): dispatches via the new
-    :func:`aperag.indexing.dispatcher.dispatch_indexing` ASYNC mode.
+    Wave 4 T3 chunk 2 (q:parse async promotion): the upload handler
+    no longer blocks on :func:`aperag.indexing.parse_document` (a 30s+
+    DocParser run for PDF / Word / image inputs would freeze the HTTP
+    request). Instead, this adapter pushes a :class:`ParseDispatchPayload`
+    onto ``q:parse`` and returns immediately; the parse worker pool
+    (``aperag.indexing.parse_orchestrator.run_parse_worker``) consumes
+    the payload, runs DocParser, then fans out the 5 per-modality
+    PENDING rows + queue payloads via :func:`dispatch_indexing`.
 
-    Parsing runs **synchronously inside this dispatch** (option 1
-    minimal scope per architect). Celery used to spin a separate
-    ``process_document_task`` that wrote the canonical
-    ``derived/parse_<version>/{markdown.md,outline.json,chunks.jsonl}``
-    artifacts; chunk 2 deleted that task layer but no replacement
-    caller invoked :func:`aperag.indexing.parse_document`, so every
-    modality worker hit ``derive-incomplete`` and rescheduled
-    forever — the symptom that broke
-    e2e-http-provider's ``wait_for_document_indexes`` assertion.
+    Net effect: the upload route becomes a 202-equivalent (pending
+    state visible via ``document.status``) instead of a 30s+ blocked
+    request. The async roundtrip — upload → parse worker → modality
+    workers → ``ACTIVE`` — is exercised by
+    ``tests/integration/test_parse_async_roundtrip.py``.
 
-    Sync parse here keeps the §E.2 "parse-as-first-stage" data flow
-    intact; the parse step happens inside the request task instead of
-    a separate ``parse_worker`` queue. Wave 4 follow-up may promote
-    parse to ``q:parse`` once parse latency starts blocking HTTP
-    requests; the sync path is acceptable for current latencies.
-
-    The dispatcher's ``source_path`` is now ``parsed.chunks_path`` —
-    the canonical location modality workers read chunks from. The
-    parse_version returned by the parser pins ``(parser, content,
-    chunking)`` per the §C.3 idempotency contract; we use it
-    verbatim instead of recomputing locally.
+    The rebuild path (``rebuild_indexes``) sets ``purge_existing_triples=True``
+    on the payload so the parse worker can DELETE any prior
+    ``(document_id, parse_version, modality)`` rows immediately
+    before dispatch. Without this, a same-content rebuild (parse_version
+    unchanged) would trip ``uq_document_index_triple`` mid-INSERT.
     """
     if not index_types:
         return
 
-    from aperag.indexing import DispatchRequest, IndexingMode, dispatch_indexing
-    from aperag.indexing.parser import ParseConfig, parse_document
+    from aperag.indexing.parse_orchestrator import ParseDispatchPayload
     from aperag.indexing.runtime import get_runtime
-    from aperag.objectstore.base import get_object_store
 
     runtime = get_runtime()
     if runtime is None:
         logger.warning(
             "_create_or_update_document_indexes(document=%s): IndexingRuntime not installed "
             "(INDEXING_MODE != async or pre-startup); skipping dispatch",
+            document_id,
+        )
+        return
+    if runtime.queue is None:
+        logger.warning(
+            "_create_or_update_document_indexes(document=%s): runtime.queue is None "
+            "(INLINE mode does not run a parse worker); skipping dispatch",
             document_id,
         )
         return
@@ -179,9 +177,7 @@ async def _create_or_update_document_indexes(
         return
 
     # Resolve the upload object path (``user-<u>/<col>/<doc>/original<ext>``)
-    # from the document metadata the upload handler stashed there. The
-    # base path alone is a directory prefix, not the file we need to
-    # parse.
+    # from the document metadata the upload handler stashed there.
     metadata = json.loads(document.doc_metadata) if document.doc_metadata else {}
     object_path = metadata.get("object_path")
     if not object_path:
@@ -192,77 +188,59 @@ async def _create_or_update_document_indexes(
         )
         return
 
-    object_store = get_object_store()
+    parser_config = await _resolve_parser_config_for_collection(document.collection_id, session)
 
-    def _read_source_bytes() -> bytes:
-        stream = object_store.get(object_path)
-        if stream is None:
-            raise FileNotFoundError(f"document source not found in object store: {object_path}")
-        with stream:
-            return stream.read()
-
-    source_bytes = await asyncio.to_thread(_read_source_bytes)
-
-    # Wave 4 T3 chunk 1: pass the upload's filename so ``parse_document``
-    # dispatches to the real ``DocParser`` chain on PDF / Office /
-    # image inputs instead of falling through the simulator's UTF-8
-    # markdown decode (which would raise on binary bytes).
-    parsed = await asyncio.to_thread(
-        parse_document,
-        store=object_store,
-        collection_id=document.collection_id,
+    payload = ParseDispatchPayload(
         document_id=document.id,
-        source_bytes=source_bytes,
-        source_filename=object_path,
-        config=ParseConfig(),
+        collection_id=document.collection_id,
+        object_path=object_path,
+        tenant_scope_key=f"user:{document.user}",
+        modalities=tuple(m.value for m in index_types),
+        parser_config=parser_config,
+        purge_existing_triples=True,
     )
-    parse_version = parsed.parse_version
-    source_path = parsed.chunks_path
-    tenant_scope_key = f"user:{document.user}"
-
-    # Wave 3 T3.1 chunk 3 fix-forward: ``rebuild_indexes`` re-invokes
-    # this adapter with the same ``(document_id, parse_version,
-    # modality)`` triple that already exists (content unchanged →
-    # parse_version unchanged). The §F.1 ``uq_document_index_triple``
-    # UNIQUE constraint then fails the dispatcher's INSERT with an
-    # IntegrityError → 500 DATABASE_ERROR. Pre-DELETE matching rows
-    # (any status / serving state) so the INSERT lands cleanly. The
-    # cutover-on-sync-completion (§F.3) re-establishes the serving
-    # state once the new dispatch's worker finishes; brief
-    # unavailability between DELETE and cutover is acceptable for an
-    # explicit rebuild op.
-    from sqlalchemy import delete as sa_delete
-
-    from aperag.indexing.models import DocumentIndex
-
-    def _purge_existing_triples() -> None:
-        from sqlalchemy.orm import Session
-
-        with Session(runtime.engine) as sync_session, sync_session.begin():
-            sync_session.execute(
-                sa_delete(DocumentIndex).where(
-                    DocumentIndex.document_id == document.id,
-                    DocumentIndex.parse_version == parse_version,
-                    DocumentIndex.modality.in_([m.value for m in index_types]),
-                )
-            )
-
-    await asyncio.to_thread(_purge_existing_triples)
-
-    await dispatch_indexing(
-        engine=runtime.engine,
-        queue=runtime.queue,
-        workers=runtime.workers,
-        request=DispatchRequest(
-            collection_id=document.collection_id,
-            document_id=document.id,
-            parse_version=parse_version,
-            source_path=source_path,
-            tenant_scope_key=tenant_scope_key,
-            modalities=tuple(index_types),
-        ),
-        mode=IndexingMode.ASYNC,
+    await runtime.queue.push_parse(payload=payload.to_dict())
+    logger.info(
+        "parse-queue dispatch document=%s collection=%s modalities=%d object_path=%s",
+        document.id,
+        document.collection_id,
+        len(index_types),
+        object_path,
     )
+
+
+async def _resolve_parser_config_for_collection(collection_id: str, session: AsyncSession) -> dict | None:
+    """Look up the optional collection-level ``parser_config`` dict.
+
+    The upload handler hands it to the parse worker through the
+    :class:`ParseDispatchPayload`. The parse worker forwards it to
+    :class:`DocParser` so a collection can opt into MinerU / a
+    specific OCR engine without a code change.
+
+    Returns ``None`` when the collection's config does not surface
+    one — :class:`DocParser` falls back to env vars in that case
+    (matching the legacy behaviour).
+    """
+    collection = await session.get(Collection, collection_id)
+    if collection is None or not collection.config:
+        return None
+    try:
+        config_dict = json.loads(collection.config)
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(config_dict, dict):
+        return None
+    parser_config = config_dict.get("parser_config")
+    if parser_config is None:
+        return None
+    if not isinstance(parser_config, dict):
+        logger.warning(
+            "collection=%s collection.config.parser_config is not a dict (got %s); ignoring",
+            collection_id,
+            type(parser_config).__name__,
+        )
+        return None
+    return parser_config
 
 
 async def _delete_document_indexes(*, document_id: str) -> None:
