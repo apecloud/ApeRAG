@@ -29,7 +29,6 @@ from __future__ import annotations
 
 import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.dialects import postgresql
 
 revision = "a1b2c3d4e5f7"
 down_revision = "f2c3d4e5b6a8"
@@ -46,9 +45,13 @@ def upgrade() -> None:
         "evaluation_runs",
         sa.Column("judge_model", sa.String(length=64), nullable=True),
     )
+    # Match the ORM column (``Column(JSON, ...)``); the rest of the
+    # evaluation tables (``judge_config``, ``judge_result``,
+    # ``model_config_snapshot``, etc.) all use ``JSON`` rather than
+    # ``JSONB`` so the alembic drift check stays clean.
     op.add_column(
         "evaluation_run_items",
-        sa.Column("judge_breakdown", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column("judge_breakdown", sa.JSON(), nullable=True),
     )
 
 
