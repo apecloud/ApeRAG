@@ -1,13 +1,11 @@
 'use client';
 import { getDocumentStatusColor } from '@/app/workspace/collections/tools';
 import { FormatDate } from '@/components/format-date';
-import { Markdown } from '@/components/markdown';
 import { useCollectionContext } from '@/components/providers/collection-provider';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { buildDocumentObjectUrl } from '@/features/document/client-api';
 import type { Document, DocumentPreview } from '@/features/document/types';
 import { cn } from '@/lib/utils';
@@ -24,6 +22,27 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
+
+const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
+
+// PDF.js asset URLs for non-Latin glyph rendering. ``cMapUrl`` is the
+// directory PDF.js fetches per-encoding character maps from (Adobe-GB1
+// / Adobe-CNS1 / Adobe-Japan1 / etc.) at runtime — without it,
+// non-ASCII text in the source PDF (CJK, Cyrillic, Arabic, …) renders
+// as blanks because PDF.js cannot reverse-resolve the embedded
+// glyph IDs to Unicode. ``standardFontDataUrl`` provides Adobe Type 1
+// base font data (Helvetica / Times / Courier) for PDFs that
+// reference those fonts without embedding them. Both directories are
+// copied from ``node_modules/pdfjs-dist/`` into ``web/public/`` by
+// ``scripts/copy-pdf-assets.mjs`` (wired into the ``dev`` / ``build``
+// / ``postinstall`` scripts), so they're served as Next.js static
+// assets at the same origin — no CDN dependency, works offline / in
+// CN / private-cloud deploys.
+const PDF_OPTIONS = {
+  cMapUrl: `${BASE_PATH}/cmaps/`,
+  cMapPacked: true,
+  standardFontDataUrl: `${BASE_PATH}/standard_fonts/`,
+} as const;
 
 const PDFDocument = dynamic(() => import('react-pdf').then((r) => r.Document), {
   ssr: false,
@@ -42,8 +61,6 @@ const IMAGE_EXTENSIONS = new Set([
   'tif',
   'tiff',
 ]);
-
-const MARKDOWN_TEXT_EXTENSIONS = new Set(['md', 'markdown', 'txt']);
 
 const getExtension = (filename?: string | null) =>
   filename?.split('.').pop()?.toLowerCase() ?? '';
@@ -96,21 +113,9 @@ export const DocumentDetail = ({
 
   const isPdf = extension === 'pdf';
   const isImage = IMAGE_EXTENSIONS.has(extension);
-  const isMarkdownText = MARKDOWN_TEXT_EXTENSIONS.has(extension);
-  const markdownContent = documentPreview.markdown_content?.trim();
-  const hasParsedText = Boolean(markdownContent);
   const pdfPreviewUrl = isPdf
     ? originalObjectUrl || convertedPdfUrl
     : undefined;
-  const hasOriginalPreview = Boolean(
-    pdfPreviewUrl || (isImage && originalObjectUrl),
-  );
-  const defaultTab =
-    hasOriginalPreview || !isMarkdownText
-      ? 'original'
-      : hasParsedText
-        ? 'parsed'
-        : 'original';
 
   useEffect(() => {
     const loadPDF = async () => {
@@ -129,10 +134,7 @@ export const DocumentDetail = ({
   }, [pdfPreviewUrl]);
 
   return (
-    <Tabs
-      defaultValue={defaultTab}
-      className="border-border/70 bg-card gap-0 overflow-hidden rounded-xl border shadow-sm"
-    >
+    <div className="border-border/70 bg-card flex flex-col gap-0 overflow-hidden rounded-xl border shadow-sm">
       <div className="grid gap-4 border-b p-4 lg:grid-cols-[1fr_auto] lg:items-center">
         <div className="flex min-w-0 flex-row items-start gap-3">
           <Button asChild variant="outline" size="icon" className="shrink-0">
@@ -177,23 +179,20 @@ export const DocumentDetail = ({
             </div>
           </div>
         </div>
-
-        <TabsList className="w-fit justify-start">
-          <TabsTrigger value="original">
-            {documentText('preview_original')}
-          </TabsTrigger>
-          {hasParsedText && (
-            <TabsTrigger value="parsed">
-              {documentText('preview_parsed_text')}
-            </TabsTrigger>
-          )}
-        </TabsList>
       </div>
 
-      <TabsContent value="original" className="bg-background/50 m-0 p-4">
+      {/* Parsed-text tab removed per earayu2 directive msg=153f4b85
+          ("把解析文档从前端隐藏，目前效果不好，干脆别展示了") — the
+          parsed markdown is still produced + persisted by the BE
+          indexing pipeline and consumed by retrieval / agent / graph
+          flows; only the user-facing preview tab is hidden. The
+          original document (PDF / image / fallback download CTA)
+          remains the single content surface here. */}
+      <div className="bg-background/50 m-0 p-4">
         {pdfPreviewUrl ? (
           <PDFDocument
             file={pdfPreviewUrl}
+            options={PDF_OPTIONS}
             onLoadSuccess={({ numPages }: { numPages: number }) => {
               setNumPages(numPages);
             }}
@@ -230,9 +229,6 @@ export const DocumentDetail = ({
                 <div className="text-foreground text-sm font-medium">
                   {documentText('original_preview_unavailable')}
                 </div>
-                {hasParsedText ? (
-                  <div>{documentText('parsed_text_available_hint')}</div>
-                ) : null}
               </div>
               {downloadUrl ? (
                 <Button asChild variant="outline">
@@ -245,21 +241,7 @@ export const DocumentDetail = ({
             </CardContent>
           </Card>
         )}
-      </TabsContent>
-
-      {hasParsedText && (
-        <TabsContent value="parsed" className="bg-background/50 m-0 p-4">
-          <Card className="border-border/70 py-0 shadow-sm">
-            <CardContent className="space-y-4 p-5">
-              <div className="text-muted-foreground text-xs">
-                {documentText('parsed_text_notice')}
-              </div>
-              <Markdown>{markdownContent}</Markdown>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      )}
-
-    </Tabs>
+      </div>
+    </div>
   );
 };
