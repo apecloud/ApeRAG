@@ -19,6 +19,8 @@ import { CANVAS_DARK, COLORS } from '@/lib/design-tokens';
 import { cn } from '@/lib/utils';
 import {
   ArrowRight,
+  ChevronDown,
+  ChevronUp,
   ChevronsLeft,
   ChevronsRight,
   GitBranch,
@@ -74,6 +76,7 @@ const INITIAL_FIT_ZOOM_BOOST = 1.22;
 const LABEL_RADIUS = 5;
 const NODE_MIN = 8;
 const NODE_MAX = 22;
+const CLUSTER_FILTER_COLLAPSED_LIMIT = 24;
 const RESIZE_EPSILON_PX = 2;
 
 const getErrorMessage = (error: unknown, fallback: string) => {
@@ -177,6 +180,7 @@ export const CollectionGraphHybrid = () => {
   const [activeNode, setActiveNode] = useState<HybridNode>();
   const [activeEdge, setActiveEdge] = useState<GraphEdge>();
   const [detailCollapsed, setDetailCollapsed] = useState(false);
+  const [clusterFilterExpanded, setClusterFilterExpanded] = useState(false);
 
   // Path mode — pick two nodes and surface every shortest path between
   // them. Cap at 12 paths so hub-heavy graphs don't explode the
@@ -269,10 +273,12 @@ export const CollectionGraphHybrid = () => {
       }
       setClusterLabels(labels);
       setActiveClusters(Object.keys(labels).map(Number));
+      setClusterFilterExpanded(false);
     } catch (error: unknown) {
       setGraphData({ nodes: [], links: [] });
       setClusterLabels({});
       setActiveClusters([]);
+      setClusterFilterExpanded(false);
       setGraphError(getErrorMessage(error, page_graph('load_failed')));
     }
   }, [page_graph, params.collectionId]);
@@ -711,6 +717,16 @@ export const CollectionGraphHybrid = () => {
   }, [activeNode, activeNodeEdges, graphData?.nodes]);
 
   const allClusterIds = Object.keys(clusterLabels).map(Number);
+  const hasOverflowClusters =
+    allClusterIds.length > CLUSTER_FILTER_COLLAPSED_LIMIT;
+  const visibleClusterIds =
+    clusterFilterExpanded || !hasOverflowClusters
+      ? allClusterIds
+      : allClusterIds.slice(0, CLUSTER_FILTER_COLLAPSED_LIMIT);
+  const hiddenClusterCount = Math.max(
+    allClusterIds.length - visibleClusterIds.length,
+    0,
+  );
   const allActive =
     allClusterIds.length > 0 && activeClusters.length === allClusterIds.length;
 
@@ -893,7 +909,8 @@ export const CollectionGraphHybrid = () => {
           </div>
         </div>
 
-        {/* Cluster filter chips — horizontal row above the canvas. */}
+        {/* Cluster filter chips — collapsed by default so high-cardinality
+            type sets don't push the canvas down. */}
         {allClusterIds.length > 0 && (
           <div className="flex flex-wrap items-center gap-1 border-b px-3 py-2">
             <span className="text-muted-foreground mr-1 text-[10px] tracking-wider uppercase">
@@ -907,7 +924,7 @@ export const CollectionGraphHybrid = () => {
             >
               全选
             </Button>
-            {allClusterIds.map((c) => {
+            {visibleClusterIds.map((c) => {
               const enabled = activeClusters.includes(c);
               const label = clusterLabels[c] || `Cluster ${c}`;
               return (
@@ -935,6 +952,25 @@ export const CollectionGraphHybrid = () => {
                 </Button>
               );
             })}
+            {hasOverflowClusters && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-muted-foreground hover:text-foreground h-6 px-2 text-[10px]"
+                onClick={() => setClusterFilterExpanded((prev) => !prev)}
+              >
+                {clusterFilterExpanded ? (
+                  <>
+                    <ChevronUp className="mr-1 size-3" /> 收起
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="mr-1 size-3" /> 展开{' '}
+                    {hiddenClusterCount} 个
+                  </>
+                )}
+              </Button>
+            )}
           </div>
         )}
 
