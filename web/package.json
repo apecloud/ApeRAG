@@ -11,6 +11,7 @@
     "lint": "next lint",
     "prettier": "prettier --cache --write ./ && yarn lint",
     "start": "next start",
+    "type-check": "tsc --noEmit",
     "i18n:watch": "node scripts/i18n-watch.mjs --watch"
   },
   "dependencies": {

@@ -20,11 +20,10 @@ dmypy.json
 aperag.egg-info/
 
 # Frontend development files (keep dist and deploy for production builds)
-frontend/node_modules
-frontend/.umi
-frontend/.umi-production
-frontend/yarn-error.log
-frontend/npm-debug.log*
+web/node_modules
+web/.next
+web/yarn-error.log
+web/npm-debug.log*
 
 # Development and build artifacts
 *.egg-info/
