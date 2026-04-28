@@ -203,13 +203,12 @@ async def regen_collection_summary_view(
 
     outcome = await regen_summary(collection_id)
     if outcome is RegenOutcome.LEASE_BUSY:
+        # Per @earayu2 msg=744a6441: keep the user-facing message
+        # neutral (no lease/internals jargon) — the FE renders this
+        # body verbatim.
         raise HTTPException(
             status_code=409,
-            detail=(
-                "Summary regen is already running for this collection — "
-                "another request holds the lease. Refresh the settings "
-                "page in a moment to see the new summary."
-            ),
+            detail="正在生成中，请稍候",
         )
     if outcome is not RegenOutcome.SUCCESS:
         raise HTTPException(
@@ -267,13 +266,10 @@ async def regen_collection_description_view(
 
     outcome = await regen_description(collection_id)
     if outcome is RegenOutcome.LEASE_BUSY:
+        # Per @earayu2 msg=744a6441: same neutral wording as summary.
         raise HTTPException(
             status_code=409,
-            detail=(
-                "Description regen is already running for this collection — "
-                "another request holds the lease. Refresh the settings "
-                "page in a moment to see the new description."
-            ),
+            detail="正在生成中，请稍候",
         )
     if outcome is not RegenOutcome.SUCCESS:
         raise HTTPException(
