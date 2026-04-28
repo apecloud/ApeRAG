@@ -1,4 +1,4 @@
-import { AppLogo } from '@/components/app-topbar';
+import { AppLocaleDropdownMenu, AppLogo } from '@/components/app-topbar';
 import { Button } from '@/components/ui/button';
 import {
   ArrowRight,
@@ -19,7 +19,6 @@ const navLinks = [
   { href: '#agent', key: 'nav.agent' },
   { href: '#graph', key: 'nav.graph' },
   { href: '#deployment', key: 'nav.deployment' },
-  { href: '/docs', key: 'nav.docs' },
 ] as const;
 
 const capabilityKeys = ['hybrid', 'graph', 'agent', 'deployment'] as const;
@@ -51,10 +50,7 @@ export default async function Home() {
           }}
         />
         <div className="flex flex-col justify-center">
-          <div className="bg-card text-muted-foreground mb-7 inline-flex w-fit items-center gap-2 rounded-full border px-2 py-1 pr-3 text-xs shadow-xs">
-            <span className="bg-primary text-primary-foreground rounded-full px-2 py-0.5 font-mono text-[10px] tracking-[0.16em] uppercase">
-              {t('hero.badge')}
-            </span>
+          <div className="bg-card text-muted-foreground mb-7 inline-flex w-fit items-center rounded-full border px-3 py-1 text-xs shadow-xs">
             <span>{t('hero.badge_text')}</span>
           </div>
           <h1 className="max-w-3xl font-serif text-5xl leading-[1.02] font-normal tracking-[-0.045em] text-balance md:text-6xl lg:text-7xl">
@@ -84,8 +80,8 @@ export default async function Home() {
               <Link href="/marketplace">{t('hero.secondary_cta')}</Link>
             </Button>
           </div>
-          <div className="text-muted-foreground mt-9 grid gap-3 text-sm sm:grid-cols-3">
-            {(['private', 'models', 'license'] as const).map((key) => (
+          <div className="text-muted-foreground mt-9 grid gap-3 text-sm sm:grid-cols-2">
+            {(['private', 'models'] as const).map((key) => (
               <div key={key} className="flex items-center gap-2">
                 <span className="bg-accent-soft text-accent-ink grid size-5 place-items-center rounded-full">
                   <Check className="size-3" />
@@ -243,11 +239,9 @@ function LandingNav({ t }: { t: LandingTranslations }) {
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-2">
+          <AppLocaleDropdownMenu />
           <Button asChild variant="ghost" size="sm" className="rounded-full">
             <Link href="/auth/signin">{t('nav.signin')}</Link>
-          </Button>
-          <Button asChild size="sm" className="rounded-full">
-            <Link href="/workspace/collections">{t('nav.start')}</Link>
           </Button>
         </div>
       </div>
@@ -287,42 +281,50 @@ function HeroAgentTrace({ t }: { t: LandingTranslations }) {
           </div>
           <p className="mt-2 text-sm leading-6">{t('hero_trace.prompt')}</p>
         </div>
-        <div className="bg-secondary/55 border-t px-6 py-5">
-          <div className="mb-4 flex items-center gap-2">
-            <Sparkles className="text-primary size-4" />
-            <span className="text-muted-foreground font-mono text-[11px] tracking-[0.16em] uppercase">
-              {t('hero_trace.title')}
-            </span>
-            <span className="text-muted-foreground ml-auto font-mono text-[11px]">
-              {t('hero_trace.meta')}
-            </span>
-          </div>
-          <div className="space-y-4">
-            {traceSteps.map((key, index) => (
-              <div key={key} className="grid grid-cols-[1.5rem_1fr] gap-3">
-                <div className="bg-card text-primary mt-1 grid size-6 place-items-center rounded-full shadow-xs">
-                  {index === 0 ? (
-                    <Sparkles className="size-3.5" />
-                  ) : index === 1 ? (
-                    <Network className="size-3.5" />
-                  ) : index === 2 ? (
-                    <BookOpenText className="size-3.5" />
-                  ) : index === 3 ? (
-                    <GitBranch className="size-3.5" />
-                  ) : (
-                    <Check className="size-3.5" />
-                  )}
-                </div>
-                <div>
-                  <div className="text-muted-foreground font-mono text-[10px] tracking-[0.14em] uppercase">
-                    {t(`hero_trace.steps.${key}.label`)}
+        <div className="border-t p-4">
+          <div className="bg-muted border-border/70 overflow-hidden rounded-xl border">
+            <div className="text-muted-foreground flex items-center gap-2 px-3.5 py-2.5">
+              <Sparkles className="text-primary size-3" />
+              <span className="font-mono text-[10.5px] tracking-[0.08em] uppercase">
+                {t('hero_trace.title')}
+              </span>
+              <span className="text-muted-foreground/80 ml-2 truncate text-[11px]">
+                {t('hero_trace.meta')}
+              </span>
+            </div>
+            <div className="border-border/70 border-t px-4 py-3.5">
+              <div className="relative flex flex-col gap-3.5">
+                <div className="bg-border absolute top-3 bottom-3 left-[11px] w-px" />
+                {traceSteps.map((key, index) => (
+                  <div
+                    key={key}
+                    className="relative grid grid-cols-[1.5rem_1fr] gap-3"
+                  >
+                    <div className="bg-card text-primary z-10 grid size-6 place-items-center rounded-full shadow-xs">
+                      {index === 0 ? (
+                        <Sparkles className="size-3.5" />
+                      ) : index === 1 ? (
+                        <Network className="size-3.5" />
+                      ) : index === 2 ? (
+                        <BookOpenText className="size-3.5" />
+                      ) : index === 3 ? (
+                        <GitBranch className="size-3.5" />
+                      ) : (
+                        <Check className="size-3.5" />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-muted-foreground font-mono text-[10px] tracking-[0.14em] uppercase">
+                        {t(`hero_trace.steps.${key}.label`)}
+                      </div>
+                      <p className="text-foreground/85 mt-1 text-sm leading-6">
+                        {t(`hero_trace.steps.${key}.text`)}
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-foreground/85 mt-1 text-sm leading-6">
-                    {t(`hero_trace.steps.${key}.text`)}
-                  </p>
-                </div>
+                ))}
               </div>
-            ))}
+            </div>
           </div>
         </div>
       </div>
@@ -484,7 +486,7 @@ function GraphVisual({ t }: { t: LandingTranslations }) {
           {t('graph.legend')}
         </div>
         <div className="text-muted-foreground mt-3 grid grid-cols-2 gap-x-5 gap-y-2 text-xs">
-          {['Person', 'Org', 'Product', 'Event'].map((item, index) => (
+          {['person', 'org', 'product', 'event'].map((item, index) => (
             <div key={item} className="flex items-center gap-2">
               <span
                 className={`size-2 rounded-full ${
@@ -497,7 +499,7 @@ function GraphVisual({ t }: { t: LandingTranslations }) {
                         : 'bg-chart-5'
                 }`}
               />
-              {item}
+              {t(`graph.legend_items.${item}`)}
             </div>
           ))}
         </div>

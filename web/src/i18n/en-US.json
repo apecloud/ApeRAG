@@ -968,7 +968,6 @@
       "start": "Open workspace"
     },
     "hero": {
-      "badge": "v2",
       "badge_text": "GraphRAG x Agent runtime · private deployment",
       "title": "Turn enterprise knowledge into",
       "title_accent": "traceable answers.",
@@ -977,13 +976,12 @@
       "secondary_cta": "Browse marketplace",
       "points": {
         "private": "Private deployment",
-        "models": "Works with mainstream models",
-        "license": "Apache 2.0"
+        "models": "Works with mainstream models"
       }
     },
     "hero_trace": {
       "status": "running",
-      "user": "Operator",
+      "user": "User",
       "prompt": "SMT-03 on line 3 reported E-047 this morning. Help me narrow down the likely cause.",
       "title": "Agent trace",
       "meta": "sources tracked",
@@ -1052,6 +1050,12 @@
       "title": "Dense relationships, rendered with restraint.",
       "description": "The graph view keeps entity types, neighbors, search, and merge suggestions available while using a quieter warm palette for daily work.",
       "legend": "Entity types",
+      "legend_items": {
+        "person": "Person",
+        "org": "Org",
+        "product": "Product",
+        "event": "Event"
+      },
       "nodes": {
         "center": "SMT",
         "org": "ORG",
