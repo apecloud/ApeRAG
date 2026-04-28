@@ -52,6 +52,7 @@ import {
   type AgentCitationPart,
   type AgentElicitationPart,
   type AgentMessagePart,
+  type AgentReasoningPart,
   type AgentSourceDocumentPart,
   type AgentSourceUrlPart,
   type AgentStreamStatus,
@@ -148,6 +149,7 @@ const STATUS_BADGE_TONE: Record<
 
 function partitionParts(parts: AgentMessagePart[]) {
   const text: AgentTextPart[] = [];
+  const reasoning: AgentReasoningPart[] = [];
   const tool: AgentToolPart[] = [];
   const sourceUrl: AgentSourceUrlPart[] = [];
   const sourceDoc: AgentSourceDocumentPart[] = [];
@@ -156,6 +158,7 @@ function partitionParts(parts: AgentMessagePart[]) {
   const elicitation: AgentElicitationPart[] = [];
   for (const part of parts) {
     if (part.type === 'text') text.push(part);
+    else if (part.type === 'reasoning') reasoning.push(part);
     else if (part.type === 'source-url') sourceUrl.push(part);
     else if (part.type === 'source-document') sourceDoc.push(part);
     else if (part.type === 'data-citation') citation.push(part);
@@ -163,7 +166,16 @@ function partitionParts(parts: AgentMessagePart[]) {
     else if (part.type === 'data-elicitation') elicitation.push(part);
     else if (part.type.startsWith('tool-')) tool.push(part as AgentToolPart);
   }
-  return { text, tool, sourceUrl, sourceDoc, citation, consent, elicitation };
+  return {
+    text,
+    reasoning,
+    tool,
+    sourceUrl,
+    sourceDoc,
+    citation,
+    consent,
+    elicitation,
+  };
 }
 
 function joinTextParts(parts: AgentTextPart[]): string {
@@ -382,6 +394,51 @@ function toolBehaviorDetail(
 function isVisibleToolActivity(part: AgentToolPart): boolean {
   const kind = toolBehaviorKind(part);
   return !(kind === 'generic' && part.state === 'output-available');
+}
+
+// ---------------------------------------------------------------------------
+
+function ReasoningActivityItem({
+  part,
+  ordinal,
+}: {
+  part: AgentReasoningPart;
+  ordinal: number;
+}) {
+  const pageChat = useTranslations('page_chat');
+  const text = part.text.trim();
+  if (!text) return null;
+  const streaming = part.state === 'streaming';
+
+  return (
+    <div className="flex gap-2.5">
+      <div className="flex pt-[3px]">
+        <Sparkles
+          className={cn(
+            'size-3.5 flex-none',
+            streaming ? 'text-primary animate-pulse' : 'text-muted-foreground/70',
+          )}
+        />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="mb-1 text-[13px] leading-snug">
+          <span className="text-foreground/80 font-medium">
+            {pageChat('activity_stream.reasoning.title', {
+              index: String(ordinal),
+            })}
+          </span>
+          {streaming && (
+            <span className="text-muted-foreground ml-2 text-[12px]">
+              {pageChat('activity_stream.reasoning.streaming')}
+            </span>
+          )}
+        </div>
+        <div className="text-muted-foreground border-border/60 bg-background/70 rounded-md border px-3 py-2 text-[12.5px] leading-relaxed whitespace-pre-wrap">
+          {text}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -629,6 +686,13 @@ export function AgentTurnRenderer({
     Boolean(errorText || turn.error_code || turn.error_message);
   const copyText = answerText || errorText || turn.error_message || '';
   const traceMetaParts: string[] = [];
+  if (grouped.reasoning.length > 0) {
+    traceMetaParts.push(
+      pageChat('activity_stream.meta.thoughts', {
+        count: grouped.reasoning.length,
+      }),
+    );
+  }
   if (visibleToolParts.length > 0) {
     traceMetaParts.push(
       pageChat('activity_stream.meta.steps', {
@@ -644,7 +708,8 @@ export function AgentTurnRenderer({
   const traceMeta = traceMetaParts.join(' · ');
 
   const hasActivity =
-    visibleToolParts.length +
+    grouped.reasoning.length +
+      visibleToolParts.length +
       grouped.consent.length +
       grouped.elicitation.length >
     0;
@@ -708,6 +773,19 @@ export function AgentTurnRenderer({
               {parts.map((part, index) => {
                 if (part.type === 'text') {
                   return null;
+                }
+                if (part.type === 'reasoning') {
+                  const ordinal =
+                    parts
+                      .slice(0, index + 1)
+                      .filter((item) => item.type === 'reasoning').length || 1;
+                  return (
+                    <ReasoningActivityItem
+                      key={`reasoning-${part.id ?? index}`}
+                      part={part}
+                      ordinal={ordinal}
+                    />
+                  );
                 }
                 if (part.type.startsWith('tool-')) {
                   return (

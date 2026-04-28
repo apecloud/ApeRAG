@@ -122,6 +122,10 @@ export type StreamPart =
   | { type: 'text-start'; id: string }
   | { type: 'text-delta'; id: string; delta: string }
   | { type: 'text-end'; id: string }
+  | { type: 'reasoning'; id?: string | null; text: string }
+  | { type: 'reasoning-start'; id: string }
+  | { type: 'reasoning-delta'; id?: string | null; delta: string }
+  | { type: 'reasoning-end'; id?: string | null }
   | {
       type: 'tool-input-start';
       toolCallId: string;
@@ -168,6 +172,18 @@ export type AgentTextPart = {
   id: string;
   text: string;
   state: 'streaming' | 'done';
+};
+
+export type AgentReasoningPart = {
+  type: 'reasoning';
+  /**
+   * Reloaded at-rest reasoning parts do not need an id. Live
+   * `reasoning-delta` frames synthesize one so deltas append to the
+   * current thinking block until a tool call closes it.
+   */
+  id?: string;
+  text: string;
+  state?: 'streaming' | 'done';
 };
 
 /**
@@ -234,6 +250,7 @@ export type AgentElicitationPart = {
 
 export type AgentMessagePart =
   | AgentTextPart
+  | AgentReasoningPart
   | AgentToolPart
   | AgentSourceUrlPart
   | AgentSourceDocumentPart
