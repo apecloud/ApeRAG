@@ -34,6 +34,7 @@
 import type {
   ActivityData,
   AgentMessagePart,
+  AgentReasoningPart,
   AgentStreamStatus,
   AgentTextPart,
   AgentToolPart,
@@ -72,12 +73,21 @@ export function applyPart(
       // more parts; status stays streaming.
       return advanceStatus(state, state.status, eventId);
     case 'finish':
-      return advanceStatus(state, 'completed', eventId);
+      return advanceStatus(
+        { ...state, parts: closeReasoning(state.parts, null) },
+        'completed',
+        eventId,
+      );
     case 'abort':
-      return advanceStatus(state, 'aborted', eventId);
+      return advanceStatus(
+        { ...state, parts: closeReasoning(state.parts, null) },
+        'aborted',
+        eventId,
+      );
     case 'error':
       return {
         ...state,
+        parts: closeReasoning(state.parts, null),
         status: 'failed',
         errorText: part.errorText,
         lastSequence: maxSeq(state.lastSequence, eventId),
@@ -107,10 +117,47 @@ export function applyPart(
         lastSequence: maxSeq(state.lastSequence, eventId),
       };
 
+    case 'reasoning':
+      return {
+        ...state,
+        status: state.status === 'idle' ? 'streaming' : state.status,
+        parts: upsertReasoning(
+          state.parts,
+          part.id ?? reasoningIdFromEvent(eventId, state.parts.length),
+          part.text,
+          'done',
+        ),
+        lastSequence: maxSeq(state.lastSequence, eventId),
+      };
+    case 'reasoning-start':
+      return {
+        ...state,
+        status: state.status === 'idle' ? 'streaming' : state.status,
+        parts: upsertReasoning(state.parts, part.id, '', 'streaming'),
+        lastSequence: maxSeq(state.lastSequence, eventId),
+      };
+    case 'reasoning-delta':
+      return {
+        ...state,
+        status: state.status === 'idle' ? 'streaming' : state.status,
+        parts: appendReasoningDelta(
+          state.parts,
+          part.id ?? reasoningIdFromEvent(eventId, state.parts.length),
+          part.delta,
+        ),
+        lastSequence: maxSeq(state.lastSequence, eventId),
+      };
+    case 'reasoning-end':
+      return {
+        ...state,
+        parts: closeReasoning(state.parts, part.id ?? null),
+        lastSequence: maxSeq(state.lastSequence, eventId),
+      };
+
     case 'tool-input-start':
       return {
         ...state,
-        parts: upsertTool(state.parts, part.toolCallId, {
+        parts: upsertTool(closeReasoning(state.parts, null), part.toolCallId, {
           toolName: part.toolName,
           metadata: part.metadata,
           state: 'input-streaming',
@@ -124,7 +171,7 @@ export function applyPart(
       // streaming…" affordances.
       return {
         ...state,
-        parts: upsertTool(state.parts, part.toolCallId, {
+        parts: upsertTool(closeReasoning(state.parts, null), part.toolCallId, {
           state: 'input-streaming',
         }),
         lastSequence: maxSeq(state.lastSequence, eventId),
@@ -132,7 +179,7 @@ export function applyPart(
     case 'tool-input-available':
       return {
         ...state,
-        parts: upsertTool(state.parts, part.toolCallId, {
+        parts: upsertTool(closeReasoning(state.parts, null), part.toolCallId, {
           toolName: part.toolName,
           input: part.input,
           summary: nullToUndefined(part.summary),
@@ -292,6 +339,65 @@ function closeText(parts: AgentMessagePart[], id: string): AgentMessagePart[] {
   return replaceAt(parts, index, { ...existing, state: 'done' });
 }
 
+// -- reasoning helpers ------------------------------------------------------
+
+function isReasoningPart(
+  part: AgentMessagePart,
+): part is AgentReasoningPart {
+  return part.type === 'reasoning';
+}
+
+function reasoningIdFromEvent(
+  eventId: number | null,
+  partCount: number,
+): string {
+  return `reasoning-${eventId ?? partCount}`;
+}
+
+function upsertReasoning(
+  parts: AgentMessagePart[],
+  id: string,
+  text: string,
+  state: AgentReasoningPart['state'],
+): AgentMessagePart[] {
+  const index = parts.findIndex((p) => isReasoningPart(p) && p.id === id);
+  if (index >= 0) {
+    const existing = parts[index] as AgentReasoningPart;
+    return replaceAt(parts, index, { ...existing, text, state });
+  }
+  return [...parts, { type: 'reasoning', id, text, state }];
+}
+
+function appendReasoningDelta(
+  parts: AgentMessagePart[],
+  id: string,
+  delta: string,
+): AgentMessagePart[] {
+  if (!delta) return parts;
+  const last = parts.at(-1);
+  if (last && isReasoningPart(last) && last.state === 'streaming') {
+    return replaceAt(parts, parts.length - 1, {
+      ...last,
+      text: last.text + delta,
+      state: 'streaming',
+    });
+  }
+  return [...parts, { type: 'reasoning', id, text: delta, state: 'streaming' }];
+}
+
+function closeReasoning(
+  parts: AgentMessagePart[],
+  id: string | null,
+): AgentMessagePart[] {
+  const index =
+    id == null
+      ? parts.findLastIndex((p) => isReasoningPart(p) && p.state === 'streaming')
+      : parts.findIndex((p) => isReasoningPart(p) && p.id === id);
+  if (index < 0) return parts;
+  const existing = parts[index] as AgentReasoningPart;
+  return replaceAt(parts, index, { ...existing, state: 'done' });
+}
+
 // -- tool helpers ---------------------------------------------------------
 
 type ToolPatch = Partial<
@@ -325,6 +431,7 @@ function upsertTool(
       input: patch.input,
       output: patch.output,
       errorText: patch.errorText,
+      summary: patch.summary,
       state: patch.state ?? 'input-streaming',
     };
     return [...parts, created];

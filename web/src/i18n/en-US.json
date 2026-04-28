@@ -370,7 +370,8 @@
       "repeated": "Repeated {count} times while this step stayed active.",
       "meta": {
         "steps": "{count, plural, one {# step} other {# steps}}",
-        "sources": "{count, plural, one {# source} other {# sources}}"
+        "sources": "{count, plural, one {# source} other {# sources}}",
+        "thoughts": "{count, plural, one {# thought} other {# thoughts}}"
       },
       "status": {
         "queued": "Queued",
@@ -490,6 +491,10 @@
         "status": "Status",
         "error_code": "Error code",
         "error_message": "Error message"
+      },
+      "reasoning": {
+        "title": "Thought {index}",
+        "streaming": "thinking…"
       }
     },
     "answer_section": {

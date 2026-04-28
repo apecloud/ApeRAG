@@ -370,7 +370,8 @@
       "repeated": "该步骤保持激活期间重复了 {count} 次。",
       "meta": {
         "steps": "{count} 步",
-        "sources": "{count} 处引用"
+        "sources": "{count} 处引用",
+        "thoughts": "{count} 段思考"
       },
       "status": {
         "queued": "排队中",
@@ -490,6 +491,10 @@
         "status": "状态",
         "error_code": "错误码",
         "error_message": "错误信息"
+      },
+      "reasoning": {
+        "title": "思考 {index}",
+        "streaming": "正在展开…"
       }
     },
     "answer_section": {

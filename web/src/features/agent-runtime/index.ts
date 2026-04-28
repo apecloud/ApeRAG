@@ -6,6 +6,7 @@ export type {
   AgentCitationPart,
   AgentElicitationPart,
   AgentMessagePart,
+  AgentReasoningPart,
   AgentSourceDocumentPart,
   AgentSourceUrlPart,
   AgentStreamStatus,
