@@ -4,9 +4,45 @@ import { browserApiClient } from '@/lib/api/typed/browser';
 
 import type {
   EvaluationDatasetCreate,
+  EvaluationDatasetGeneratePreviewRequest,
+  EvaluationDatasetGeneratePreviewResponse,
   EvaluationDatasetItemCreate,
   EvaluationRunCreate,
 } from './types';
+
+// Re-export the canonical names so existing callers that imported via
+// `@/features/evaluation/client-api` keep working. Domain consumers
+// should still prefer importing from `@/features/evaluation/types`.
+export type {
+  EvaluationDatasetGeneratePreviewRequest as GenerateEvaluationDatasetItemsPreviewRequest,
+  EvaluationDatasetGeneratePreviewResponse as GenerateEvaluationDatasetItemsPreviewResponse,
+  EvaluationDatasetItemDraft,
+} from './types';
+
+/**
+ * Generate AI draft questions from collection content. The endpoint
+ * does not write to the dataset — it only returns drafts; the caller
+ * lets the user prune/edit and then bulk-creates via
+ * `appendEvaluationDatasetItems`.
+ */
+export async function generateEvaluationDatasetItemsPreview(
+  datasetId: string,
+  body: EvaluationDatasetGeneratePreviewRequest,
+): Promise<EvaluationDatasetGeneratePreviewResponse> {
+  const { data } = await browserApiClient.POST(
+    '/api/v2/evaluation-datasets/{dataset_id}/items/generate-preview',
+    {
+      params: {
+        path: { dataset_id: datasetId },
+      },
+      body,
+    },
+  );
+  if (!data) {
+    throw new Error('Generate preview returned an empty response');
+  }
+  return data;
+}
 
 export async function createEvaluationDataset(input: EvaluationDatasetCreate) {
   const { data } = await browserApiClient.POST('/api/v2/evaluation-datasets', {
