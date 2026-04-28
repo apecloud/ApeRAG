@@ -42,7 +42,11 @@ from aperag.mcp.tools._d9_base import (
     resolve_authenticated_user,
     tenancy_gate,
 )
-from aperag.mcp.tools.list_documents import _DOCUMENT_STATUS_TO_INDEXING, _aggregate_index_status
+from aperag.mcp.tools.list_documents import (
+    _DOCUMENT_STATUS_TO_INDEXING,
+    _aggregate_index_status,
+    _count_chunks_from_indexes,
+)
 from aperag.mcp.tools.schemas import DocumentMetadata
 
 
@@ -76,16 +80,6 @@ async def get_document_metadata(
         if not document:
             raise DocumentNotFoundException(document_id)
 
-        # Wave 3 hard-cut: legacy ``DocumentIndex.index_data`` JSON
-        # blob is gone (the new §F.1 schema decomposes that
-        # information across per-modality rows + the ``derived/`` /
-        # backend stores). Chunk count is no longer a per-document
-        # scalar; surface 0 here to keep the
-        # :class:`DocumentMetadata` shape stable. Future T3.x can
-        # plumb a real chunk count through the parser /
-        # ``chunks.jsonl`` artifact when an MCP client actually
-        # consumes the field.
-        chunk_count = 0
         # Fetch ALL DocumentIndex rows for this doc so we can compute
         # the aggregate document-level status truthfully.
         # ``Document.status`` is a stale ``PENDING`` after confirm
@@ -96,6 +90,7 @@ async def get_document_metadata(
         idx_stmt = select(DocumentIndex).where(DocumentIndex.document_id == document_id)
         all_indexes = list((await session.execute(idx_stmt)).scalars().all())
         overall_status = _aggregate_index_status(all_indexes, fallback=document.status)
+        chunk_count = await _count_chunks_from_indexes(all_indexes)
         break
 
     media_type, _ = mimetypes.guess_type(document.name or "")
