@@ -121,10 +121,15 @@ class JinaSearchProvider(BaseSearchProvider):
                 accept_language = locale.replace("_", "-")
                 request_headers["Accept-Language"] = accept_language
 
-            # Add Jina-specific headers for better control
-            # X-Return-Format controls response format
-            request_headers["X-Return-Format"] = "json"
-            # X-Target-Selector for better content extraction (if supported)
+            # ``Accept: application/json`` (set in ``__init__``) is what
+            # Jina actually honours to return JSON. The previously-set
+            # ``X-Return-Format: json`` header was misnamed: with a
+            # valid API key Jina interprets it as a markdown-format hint
+            # and serves ``text/plain`` instead, which then fails
+            # ``await response.json()`` below → silent fallback. Per
+            # huangheng empirical curl matrix, removing it lets Accept
+            # win and Jina returns ``application/json``.
+            # X-Target-Domain still applies for site-specific search.
             if target_domain:
                 request_headers["X-Target-Domain"] = target_domain
 

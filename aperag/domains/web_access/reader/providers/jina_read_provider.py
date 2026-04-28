@@ -103,9 +103,14 @@ class JinaReaderProvider(BaseReaderProvider):
                 # Set X-Locale for browser rendering (important for region-specific content)
                 request_headers["X-Locale"] = locale
 
-            # Add Jina Reader specific headers based on documentation
-            # X-Return-Format controls response format (json, text, markdown)
-            request_headers["X-Return-Format"] = "json"
+            # Add Jina Reader specific headers based on documentation.
+            # ``Accept: application/json`` (set in ``__init__``) is the
+            # canonical signal; ``X-Return-Format: json`` is misnamed
+            # and on ``s.jina.ai`` it actually triggers a markdown
+            # response (huangheng empirical matrix). The reader
+            # endpoint historically tolerated it, but mirror the
+            # search-provider hot-fix and rely on ``Accept`` here too
+            # to keep the two providers consistent.
             # X-Retain-Images set to none to remove all images from response
             request_headers["X-Retain-Images"] = "none"
             # X-With-Links-Summary for link extraction
