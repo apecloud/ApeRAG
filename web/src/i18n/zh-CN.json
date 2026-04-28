@@ -647,8 +647,6 @@
     "ai_generate_language_ja-JP": "日本語",
     "ai_generate_language_ko-KR": "한국어",
     "ai_generate_advanced": "高级选项",
-    "ai_generate_model_label": "大模型",
-    "ai_generate_model_placeholder": "留空使用知识库默认模型",
     "ai_generate_prompt_label": "Prompt 模板",
     "ai_generate_submit": "生成预览",
     "ai_generate_back": "返回",
