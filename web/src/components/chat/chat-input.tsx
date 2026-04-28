@@ -83,6 +83,9 @@ const modelSelectLabel = (model: ModelSpec) =>
 
 const CHAT_FILE_UPLOAD_ENABLED = false;
 
+const normalizeMentionSearchText = (value: string) =>
+  value.trim().toLocaleLowerCase();
+
 export const ChatInput = ({
   chat,
   welcome,
@@ -317,6 +320,33 @@ export const ChatInput = ({
     return collections.filter((c) => !selectedCollections.includes(c.id || ''));
   }, [collections, selectedCollections]);
 
+  const collectionMentionLabelById = useMemo(() => {
+    return new Map(
+      collections
+        .filter((collection) => collection.id)
+        .map((collection) => [
+          collection.id as string,
+          collection.title || collection.id || '',
+        ]),
+    );
+  }, [collections]);
+
+  const handleCollectionMentionFilter = useCallback(
+    (options: string[], term: string) => {
+      const search = normalizeMentionSearchText(term);
+      if (!search) return options;
+
+      return options.filter((collectionId) => {
+        const label = collectionMentionLabelById.get(collectionId) || '';
+        return (
+          normalizeMentionSearchText(collectionId).includes(search) ||
+          normalizeMentionSearchText(label).includes(search)
+        );
+      });
+    },
+    [collectionMentionLabelById],
+  );
+
   return (
     <div
       className={cn(
@@ -433,6 +463,7 @@ export const ChatInput = ({
               inputValue={query}
               onInputValueChange={setQuery}
               onValueChange={setSelectedCollections}
+              onFilter={handleCollectionMentionFilter}
               onCompositionStart={() => setIsComposing(true)}
               onCompositionEnd={() => setIsComposing(false)}
               onKeyDown={(e) => {
@@ -456,6 +487,11 @@ export const ChatInput = ({
                     <MentionItem
                       key={collection.id}
                       value={collection.id || ''}
+                      label={
+                        collectionMentionLabelById.get(collection.id || '') ||
+                        collection.id ||
+                        ''
+                      }
                       className="flex-col items-start gap-0.5"
                       disabled={collection.status !== 'ACTIVE'}
                     >
