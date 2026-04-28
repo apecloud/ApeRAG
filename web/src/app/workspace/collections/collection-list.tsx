@@ -10,7 +10,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import type { CollectionView } from '@/features/collection/types';
 import { cn } from '@/lib/utils';
 import _ from 'lodash';
@@ -21,7 +20,6 @@ import {
   Database,
   Lock,
   Plus,
-  Search,
   Share2,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -41,7 +39,6 @@ export const CollectionList = ({
 }: {
   collections: CollectionView[];
 }) => {
-  const [searchValue, setSearchValue] = useState<string>('');
   const [filter, setFilter] = useState<CollectionFilter>('all');
   const page_collections = useTranslations('page_collections');
   const page_collection_new = useTranslations('page_collection_new');
@@ -59,24 +56,14 @@ export const CollectionList = ({
   }, [collections]);
 
   const filteredCollections = useMemo(() => {
-    const normalizedSearch = searchValue.trim().toLowerCase();
     return collections.filter((collection) => {
       if (filter === 'mine' && collection.subscription_id) return false;
       if (filter === 'published' && !collection.is_published) return false;
       if (filter === 'subscribed' && !collection.subscription_id) return false;
 
-      if (!normalizedSearch) return true;
-      const searchableText = [
-        collection.title,
-        collection.description,
-        collection.owner_username,
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase();
-      return searchableText.includes(normalizedSearch);
+      return true;
     });
-  }, [collections, filter, searchValue]);
+  }, [collections, filter]);
 
   const filterOptions: Array<{
     key: CollectionFilter;
@@ -107,18 +94,6 @@ export const CollectionList = ({
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="border-border/70 bg-card rounded-xl border p-4 shadow-sm">
-        <div className="relative max-w-xl">
-          <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-          <Input
-            className="bg-background/70 h-10 rounded-lg pl-9"
-            placeholder={page_collections('search')}
-            value={searchValue}
-            onChange={(e) => setSearchValue(e.currentTarget.value)}
-          />
-        </div>
-      </div>
-
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
         <div className="bg-muted inline-flex w-fit flex-wrap gap-1 rounded-xl p-1">
           {filterOptions.map((option) => {
