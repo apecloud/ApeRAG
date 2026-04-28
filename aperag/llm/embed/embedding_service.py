@@ -17,6 +17,8 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import logging
+import random
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Sequence, Tuple
 
@@ -27,10 +29,21 @@ from aperag.llm.llm_error_types import (
     BatchProcessingError,
     EmbeddingError,
     EmptyTextError,
+    is_retryable_error,
     wrap_litellm_error,
 )
 
 logger = logging.getLogger(__name__)
+
+# Inline retry budget for ``_embed_batch_uncached``. Reduces user-
+# visible "FAILED → reconciler 30s flip → re-running" latency cycles
+# when a provider returns transient 429 / 5xx / timeout. The
+# orchestrator-level row retry (5 attempts × 30/60/120/240/480s
+# backoff in ``aperag/indexing/orchestrator.py:_finalize_failed``)
+# remains the outer safety net for genuine outages or persistent rate
+# saturation past this small budget.
+_EMBED_INLINE_MAX_ATTEMPTS: int = 3
+_EMBED_INLINE_BASE_DELAY_SECONDS: float = 1.0
 
 
 class EmbeddingService:
@@ -310,6 +323,19 @@ class EmbeddingService:
         """
         Embed a batch of contents using litellm.
 
+        On a retryable provider error (429 RateLimit / TimeoutError /
+        5xx ServerError per :func:`is_retryable_error`), we retry up
+        to :data:`_EMBED_INLINE_MAX_ATTEMPTS` times with exponential
+        backoff (1s, 2s, 4s base) plus jitter, before propagating to
+        the orchestrator's row-level retry path. Inline retries
+        absorb short-lived rate-limit hiccups without burning a
+        ``DocumentIndex`` row's 5-attempt budget + 30s reconciler
+        cycle, which is the user-visible "vector occasionally fails
+        and re-runs" symptom this addresses.
+
+        Non-retryable errors (auth / quota / config / validation)
+        propagate immediately — no point in retrying.
+
         Args:
             batch: Sequence of contents to embed
 
@@ -320,44 +346,72 @@ class EmbeddingService:
             EmbeddingError: If embedding fails
         """
 
-        try:
-            response = litellm.embedding(
-                custom_llm_provider=self.embedding_provider,
-                model=self.model,
-                api_base=self.api_base,
-                api_key=self.api_key,
-                input=list(batch),
-                caching=False,
-                # Pin ``encoding_format="float"`` so LiteLLM does not forward
-                # an OpenAI-default that Alibaba DashScope's
-                # ``compatible-mode/v1/embeddings`` rejects with
-                # ``'encoding_format' only support with [float, base64]``
-                # (observed as ``litellm.BadRequestError`` 400 in task #11
-                # Phase B). ``"float"`` is accepted by every OpenAI-compat
-                # provider we call here and matches the wire shape
-                # ``response["data"][i]["embedding"]`` we already consume.
-                # See task #15.
-                encoding_format="float",
-            )
-
-            if not response or "data" not in response:
-                raise EmbeddingError(
-                    "Invalid response format from embedding API",
-                    {"provider": self.embedding_provider, "model": self.model, "batch_size": len(batch)},
+        last_wrapped: Exception | None = None
+        for attempt in range(1, _EMBED_INLINE_MAX_ATTEMPTS + 1):
+            try:
+                response = litellm.embedding(
+                    custom_llm_provider=self.embedding_provider,
+                    model=self.model,
+                    api_base=self.api_base,
+                    api_key=self.api_key,
+                    input=list(batch),
+                    caching=False,
+                    # Pin ``encoding_format="float"`` so LiteLLM does not forward
+                    # an OpenAI-default that Alibaba DashScope's
+                    # ``compatible-mode/v1/embeddings`` rejects with
+                    # ``'encoding_format' only support with [float, base64]``
+                    # (observed as ``litellm.BadRequestError`` 400 in task #11
+                    # Phase B). ``"float"`` is accepted by every OpenAI-compat
+                    # provider we call here and matches the wire shape
+                    # ``response["data"][i]["embedding"]`` we already consume.
+                    # See task #15.
+                    encoding_format="float",
                 )
 
-            embeddings = [item["embedding"] for item in response["data"]]
+                if not response or "data" not in response:
+                    raise EmbeddingError(
+                        "Invalid response format from embedding API",
+                        {"provider": self.embedding_provider, "model": self.model, "batch_size": len(batch)},
+                    )
 
-            # Validate embedding dimensions
-            if embeddings and len(set(len(emb) for emb in embeddings)) > 1:
-                dimensions = [len(emb) for emb in embeddings]
-                logger.warning(f"Inconsistent embedding dimensions: {set(dimensions)}")
+                embeddings = [item["embedding"] for item in response["data"]]
 
-            return embeddings
-        except Exception as e:
-            logger.error(f"Batch embedding API call failed: {str(e)}")
-            # Convert litellm errors to our custom types
-            raise wrap_litellm_error(e, "embedding", self.embedding_provider, self.model) from e
+                # Validate embedding dimensions
+                if embeddings and len(set(len(emb) for emb in embeddings)) > 1:
+                    dimensions = [len(emb) for emb in embeddings]
+                    logger.warning(f"Inconsistent embedding dimensions: {set(dimensions)}")
+
+                return embeddings
+            except Exception as e:
+                wrapped = wrap_litellm_error(e, "embedding", self.embedding_provider, self.model)
+                last_wrapped = wrapped
+                if attempt < _EMBED_INLINE_MAX_ATTEMPTS and is_retryable_error(wrapped):
+                    delay = _EMBED_INLINE_BASE_DELAY_SECONDS * (2 ** (attempt - 1))
+                    delay += random.uniform(0, delay)  # full-jitter on top of exponential base
+                    logger.warning(
+                        "Embedding API retryable error on attempt %s/%s "
+                        "(provider=%s model=%s batch_size=%s err=%s); "
+                        "sleeping %.2fs before retry",
+                        attempt,
+                        _EMBED_INLINE_MAX_ATTEMPTS,
+                        self.embedding_provider,
+                        self.model,
+                        len(batch),
+                        type(wrapped).__name__,
+                        delay,
+                    )
+                    time.sleep(delay)
+                    continue
+                logger.error(f"Batch embedding API call failed: {str(e)}")
+                raise wrapped from e
+
+        # Exhausted budget on retryable errors — propagate the last
+        # wrapped error so the orchestrator can take its row-level
+        # retry. Unreachable in practice (the loop either returns
+        # embeddings or raises inside the except branch), but kept
+        # for type-checker correctness.
+        assert last_wrapped is not None
+        raise last_wrapped
 
     def _cache_key_for_input(self, text: str) -> dict:
         return {
