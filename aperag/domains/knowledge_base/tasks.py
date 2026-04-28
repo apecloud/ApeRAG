@@ -22,8 +22,6 @@ Pattern map (per architect msg=3890c9d7):
                                          per-modality index provisioning
                                          is implicit lazy in the new
                                          modality-worker model)
-- ``collection_summary_task``          — Pattern C (regenerable;
-                                         ``asyncio.create_task()`` ok)
 - ``export_collection_task``           — Pattern C (resumable; user can
                                          retry on failure;
                                          ``asyncio.create_task()`` ok)
@@ -31,10 +29,14 @@ Pattern map (per architect msg=3890c9d7):
                                          the 5-min loop in
                                          ``aperag/indexing/cleanup.py``
                                          via ``cleanup_expired_documents_hook``)
-- ``reconcile_collection_summaries_task`` — Pattern B (periodic; wired into
-                                         the 30-s loop in
-                                         ``aperag/indexing/reconciler.py``
-                                         via ``reconcile_collection_summaries_hook``)
+
+Wave 10 §K.13 hard-cut: ``collection_summary_task`` /
+``reconcile_collection_summaries_task`` removed alongside the
+``collection_summary_service`` deletion. The Wave 10 regen pipeline
+(Chunks C-E) dispatches directly from ``reconciler.py`` via Pattern C
+``asyncio.create_task`` and persists its lease on the ``Collection``
+row itself (``regen_lease_owner`` + ``regen_lease_expires_at``), so
+no extra task wrapper is needed.
 """
 
 import concurrent.futures
@@ -140,131 +142,19 @@ def _handle_ownership_lost(*, payload_factory: Callable[[], dict], log_message: 
     return payload_factory()
 
 
-def _renew_collection_summary_lease(summary_id: str, target_version: int, processing_token: str) -> bool:
-    from sqlalchemy import and_, update
-
-    from aperag.config import get_sync_session
-    from aperag.domains.knowledge_base.db.models import (
-        CollectionSummary,
-        CollectionSummaryStatus,
-    )
-
-    current_time = utc_now()
-    next_expiry = build_lease_expires_at(DEFAULT_PROCESSING_LEASE_TTL_SECONDS)
-
-    for session in get_sync_session():
-        renew_stmt = (
-            update(CollectionSummary)
-            .where(
-                and_(
-                    CollectionSummary.id == summary_id,
-                    CollectionSummary.status == CollectionSummaryStatus.GENERATING,
-                    CollectionSummary.version == target_version,
-                    CollectionSummary.processing_token == processing_token,
-                )
-            )
-            .values(
-                lease_expires_at=next_expiry,
-                gmt_updated=current_time,
-            )
-        )
-        result = session.execute(renew_stmt)
-        if result.rowcount == 0:
-            session.rollback()
-            return False
-
-        session.commit()
-        return True
-    return False
-
-
-def _make_collection_summary_lease_renewer(
-    summary_id: str, target_version: int, processing_token: str
-) -> ProcessingLeaseRenewer:
-    return ProcessingLeaseRenewer(
-        lambda: _renew_collection_summary_lease(summary_id, target_version, processing_token),
-        interval_seconds=DEFAULT_PROCESSING_LEASE_RENEW_INTERVAL_SECONDS,
-        description=f"collection-summary:{summary_id}",
-    )
-
-
-def _validate_collection_summary_relevance(summary_id: str, target_version: int, processing_token: str):
-    from sqlalchemy import select
-
-    from aperag.config import get_sync_session
-    from aperag.domains.knowledge_base.db.models import (
-        CollectionSummary,
-        CollectionSummaryStatus,
-    )
-
-    for session in get_sync_session():
-        stmt = select(CollectionSummary).where(CollectionSummary.id == summary_id)
-        result = session.execute(stmt)
-        summary = result.scalar_one_or_none()
-
-        if not summary:
-            logger.info("Collection summary %s not found, skipping task.", summary_id)
-            return _build_skipped_payload("summary_record_not_found", summary_id=summary_id)
-
-        if summary.status != CollectionSummaryStatus.GENERATING:
-            logger.info(
-                "Collection summary %s status changed to %s (expected %s), skipping task.",
-                summary_id,
-                summary.status,
-                CollectionSummaryStatus.GENERATING,
-            )
-            return _build_skipped_payload(f"status_changed_to_{summary.status}", summary_id=summary_id)
-
-        if summary.version != target_version:
-            logger.info(
-                "Collection summary %s version mismatch, expected %s current %s, skipping task.",
-                summary_id,
-                target_version,
-                summary.version,
-            )
-            return _build_skipped_payload(
-                f"version_mismatch_expected_{target_version}_current_{summary.version}",
-                summary_id=summary_id,
-            )
-
-        if summary.processing_token != processing_token:
-            logger.info(
-                "Collection summary %s token mismatch, expected %s current %s, skipping task.",
-                summary_id,
-                processing_token,
-                summary.processing_token,
-            )
-            return _build_skipped_payload("token_mismatch", summary_id=summary_id)
-
-        return None
+# Wave 10 §K.13: ``_renew_collection_summary_lease`` /
+# ``_make_collection_summary_lease_renewer`` /
+# ``_validate_collection_summary_relevance`` /
+# ``reconcile_collection_summaries_task`` removed alongside the
+# ``collection_summary_service`` hard-cut. The Wave 10 lease lives on
+# the ``Collection`` row itself (``regen_lease_owner`` /
+# ``regen_lease_expires_at``) and is managed by
+# ``collection_regen_service`` (Chunk C) — no Pattern C task wrapper
+# needed because Wave 10 regen is fire-and-forget per Pattern C
+# directly from the reconciler hook.
 
 
 # ========== Collection Tasks ==========
-
-
-def reconcile_collection_summaries_task() -> None:
-    """Pattern B: periodic reconcile of collection summary specs with statuses.
-
-    Wave 3 hard-cut: now a thin sync shim around
-    :func:`aperag.indexing.reconciler.reconcile_collection_summaries_hook`,
-    which is the canonical entry point invoked by the 30-s reconciler
-    loop. The hook is async (Pattern C dispatch via
-    ``asyncio.create_task``); this shim adapts via ``asyncio.run`` for
-    the rare sync-only direct caller. The Celery beat schedule that
-    previously called this is gone.
-    """
-    import asyncio
-
-    try:
-        logger.info("Starting collection summary reconciliation")
-        from aperag.indexing.reconciler import reconcile_collection_summaries_hook
-
-        asyncio.run(reconcile_collection_summaries_hook())
-        logger.info("Collection summary reconciliation completed")
-
-    except Exception as e:
-        logger.error(f"Collection summary reconciliation failed: {e}", exc_info=True)
-        raise
 
 
 def collection_delete_task(collection_id: str) -> dict:
@@ -350,76 +240,11 @@ def collection_init_task(collection_id: str, document_user_quota: int) -> dict:
         raise
 
 
-def collection_summary_task(summary_id: str, collection_id: str, target_version: int, processing_token: str) -> dict:
-    """
-    Generate collection summary task entry point
-
-    Args:
-        summary_id: Summary ID to generate
-        collection_id: Collection ID to generate summary for
-    """
-    renewer = None
-
-    try:
-        from aperag.domains.knowledge_base.service.collection_summary_service import collection_summary_service
-
-        skip_reason = _validate_collection_summary_relevance(summary_id, target_version, processing_token)
-        if skip_reason:
-            return skip_reason
-
-        renewer = _make_collection_summary_lease_renewer(summary_id, target_version, processing_token)
-        renewer.start()
-
-        collection_summary_service.generate_collection_summary_task(
-            summary_id,
-            collection_id,
-            target_version,
-            processing_token,
-            callback_allowed=lambda: not renewer.ownership_lost,
-        )
-
-        if renewer.ownership_lost:
-            return _handle_ownership_lost(
-                payload_factory=lambda: _build_skipped_payload(
-                    "ownership_lost",
-                    summary_id=summary_id,
-                    collection_id=collection_id,
-                ),
-                log_message=(
-                    f"Processing ownership lost for collection summary {summary_id}; suppressing success handling"
-                ),
-            )
-
-        logger.info(f"Collection summary task completed for {collection_id}")
-        return {"success": True, "collection_id": collection_id}
-
-    except Exception as e:
-        if renewer and renewer.ownership_lost:
-            return _handle_ownership_lost(
-                payload_factory=lambda: _build_skipped_payload(
-                    "ownership_lost",
-                    summary_id=summary_id,
-                    collection_id=collection_id,
-                ),
-                log_message=(
-                    f"Processing ownership lost for collection summary {summary_id}; suppressing failure callback"
-                ),
-            )
-
-        logger.error(f"Collection summary generation failed for {collection_id}: {str(e)}")
-
-        # Pattern C: no auto-retry. Mark failed via callback so the
-        # reconciler picks up; commit 5 wires this into the periodic
-        # ``aperag/indexing/reconciler.py`` 30-s loop.
-        from aperag.domains.knowledge_base.service.collection_summary_service import (
-            collection_summary_callbacks,
-        )
-
-        collection_summary_callbacks.on_summary_failed(summary_id, str(e), target_version, processing_token)
-        raise
-    finally:
-        if renewer:
-            renewer.stop()
+# Wave 10 §K.13: ``collection_summary_task`` (Pattern C wrapper for
+# the legacy ``collection_summary_service.generate_collection_summary_task``)
+# removed alongside the service hard-cut. Wave 10 regen is dispatched
+# directly from the reconciler hook (Chunk E) via fire-and-forget
+# ``asyncio.create_task``, no extra task wrapper needed.
 
 
 def cleanup_expired_documents_task() -> dict:

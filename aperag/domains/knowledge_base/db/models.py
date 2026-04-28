@@ -14,10 +14,11 @@
 
 """Knowledge-base-domain SQLAlchemy models.
 
-Owns ``Collection`` + ``CollectionSummary`` + ``Document`` — the three
-entities the knowledge_base domain is responsible for — plus their
-lifecycle / classification enums (``CollectionStatus`` /
-``CollectionSummaryStatus`` / ``CollectionType`` / ``DocumentStatus``).
+Owns ``Collection`` + ``Document`` (Wave 10 §K.13 hard-cut removed
+``CollectionSummary``; collection-level summary state now lives on
+``Collection`` itself via 5 new columns) plus their lifecycle /
+classification enums (``CollectionStatus`` / ``CollectionType`` /
+``DocumentStatus``).
 Phase 8 Task #39 carved ``ExportTask`` (+ ``ExportTaskStatus`` enum)
 here too — ``export_collection_task`` (now in
 ``aperag/domains/knowledge_base/tasks.py``) packages files inside a
@@ -50,7 +51,6 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
-    UniqueConstraint,
     select,
     text,
 )
@@ -94,11 +94,11 @@ class CollectionStatus(str, Enum):
     DELETED = "DELETED"
 
 
-class CollectionSummaryStatus(str, Enum):
-    PENDING = "PENDING"
-    GENERATING = "GENERATING"
-    COMPLETE = "COMPLETE"
-    FAILED = "FAILED"
+# Wave 10 §K.13 hard-cut: ``CollectionSummaryStatus`` removed alongside
+# the ``CollectionSummary`` ORM. Wave 10 replaces the explicit state
+# machine with implicit timestamp-driven flow on the ``Collection`` row
+# itself (``summary_updated_at`` / ``description_updated_at`` /
+# ``regen_lease_*``); see Chunk A schema migration.
 
 
 class CollectionType(str, Enum):
@@ -129,39 +129,28 @@ class Collection(Base):
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)
-
-
-class CollectionSummary(Base):
-    __tablename__ = "collection_summary"
-    __table_args__ = (
-        UniqueConstraint("collection_id", name="uq_collection_summary"),
-        Index("idx_collection_summary_status_lease", "status", "lease_expires_at"),
-    )
-
-    id = Column(String(24), primary_key=True, default=lambda: "cs" + _random_id())
-    collection_id = Column(String(24), nullable=False, index=True)
-
-    status = Column(
-        _enum_column(CollectionSummaryStatus), nullable=False, default=CollectionSummaryStatus.PENDING, index=True
-    )
-    version = Column(Integer, nullable=False, default=1)
-    observed_version = Column(Integer, nullable=False, default=0)
-
+    # Wave 10 — auto-description (collection summary + description) §K.13
+    # ``summary`` is the long-form canonical content produced by Stage 1
+    # agent-runtime free-explore (5000-10000 chars). ``description`` is
+    # the short derived form (200-500 chars) produced by Stage 2 from
+    # ``summary``. ``description`` predates this wave (used to be user-
+    # editable); Wave 10 changes its semantic to auto-generated only.
     summary = Column(Text, nullable=True)
-    error_message = Column(Text, nullable=True)
-    processing_token = Column(String(64), nullable=True)
-    lease_expires_at = Column(DateTime(timezone=True), nullable=True)
+    summary_updated_at = Column(DateTime(timezone=True), nullable=True)
+    description_updated_at = Column(DateTime(timezone=True), nullable=True)
+    # Cluster-level lease — single scope shared by both Stage 1 and
+    # Stage 2 regen (description depends on summary, can't run in
+    # parallel). ``regen_lease_owner`` is a UUID hex token; expiry lets
+    # the next reconciler reclaim a stale lease after a crash.
+    regen_lease_owner = Column(String(64), nullable=True)
+    regen_lease_expires_at = Column(DateTime(timezone=True), nullable=True)
 
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_last_reconciled = Column(DateTime(timezone=True), nullable=True)
 
-    def __repr__(self):
-        return f"<CollectionSummary(id={self.id}, collection_id={self.collection_id}, status={self.status}, version={self.version})>"
-
-    def update_version(self):
-        self.version += 1
-        self.gmt_updated = utc_now()
+# Wave 10 §K.13 hard-cut: ``CollectionSummary`` ORM removed. Replaced
+# by 5 columns on ``Collection`` itself (Chunk A schema migration) +
+# the new ``collection_regen_service`` (Chunk C) + reconciler hook
+# (Chunk E). The legacy ``collection_summary`` table is dropped by
+# alembic migration ``e1a2b3c4d5f6`` (Chunk B).
 
 
 class Document(Base):
@@ -281,8 +270,6 @@ class ExportTask(Base):
 __all__ = [
     "Collection",
     "CollectionStatus",
-    "CollectionSummary",
-    "CollectionSummaryStatus",
     "CollectionType",
     "Document",
     "DocumentStatus",
