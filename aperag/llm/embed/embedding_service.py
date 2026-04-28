@@ -41,6 +41,7 @@ class EmbeddingService:
         embedding_service_url: str,
         embedding_service_api_key: str,
         embedding_max_chunks_in_batch: int,
+        embedding_max_workers: int = 1,
         multimodal: bool = False,
         caching: bool = True,
     ):
@@ -49,7 +50,7 @@ class EmbeddingService:
         self.api_base = embedding_service_url
         self.api_key = embedding_service_api_key
         self.max_chunks = embedding_max_chunks_in_batch
-        self.max_workers = 8
+        self.max_workers = max(1, embedding_max_workers)
         self.multimodal = multimodal
         self.caching = caching
 

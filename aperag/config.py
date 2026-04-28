@@ -179,6 +179,7 @@ class Config(BaseSettings):
 
     # Embedding
     embedding_max_chunks_in_batch: int = Field(10, alias="EMBEDDING_MAX_CHUNKS_IN_BATCH")
+    embedding_max_workers: int = Field(1, alias="EMBEDDING_MAX_WORKERS")
 
     # Memory backend
     memory_redis_url: Optional[str] = Field(None, alias="MEMORY_REDIS_URL")

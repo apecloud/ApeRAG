@@ -241,6 +241,47 @@ def test_vector_payload_carries_modality_discriminator():
         assert point["payload"]["modality"] == Modality.VECTOR.value
 
 
+def test_vector_sync_uses_batch_embedder_when_available():
+    """Production vector sync should batch embeddings instead of issuing one
+    external embedding request per chunk.
+
+    Large PDFs can produce hundreds of chunks; calling ``embed_query`` for
+    each chunk overwhelms OpenAI-compatible providers such as DashScope. The
+    vector modality keeps the single-item embedder for simulator tests, but
+    production wiring should be able to pass a batch embedder.
+    """
+
+    store = InMemoryObjectStore()
+    backend = InMemoryVectorBackend()
+    from aperag.indexing import ChunkingConfig, ParseConfig
+
+    parsed = parse_document(
+        store=store,
+        collection_id="col-1",
+        document_id="doc-batch",
+        source_bytes=SAMPLE_MARKDOWN.encode("utf-8"),
+        config=ParseConfig(chunking=ChunkingConfig(chunk_size=80, chunk_overlap=0)),
+    )
+    calls: list[list[str]] = []
+
+    def batch_embedder(texts: list[str]) -> list[list[float]]:
+        calls.append(list(texts))
+        return [[float(i)] for i, _ in enumerate(texts)]
+
+    asyncio.run(
+        VectorModality(backend=backend, store=store, batch_embedder=batch_embedder).sync(
+            document_id="doc-batch",
+            parse_version=parsed.parse_version,
+            derived_artifact_path=parsed.chunks_path,
+        )
+    )
+
+    points = backend.points_for_document("doc-batch", parsed.parse_version)
+    assert len(points) > 1
+    assert len(calls) == 1
+    assert len(calls[0]) == len(points)
+
+
 def test_fulltext_payload_carries_modality_discriminator():
     store = InMemoryObjectStore()
     backend = InMemoryFulltextBackend()
