@@ -88,6 +88,8 @@ export type ToolConsentRisk =
 export type ToolConsentData = {
   toolCallId: string;
   toolName: string;
+  /** User-visible short summary extracted by the backend (query/url/title). */
+  summary?: string;
   metadata?: Record<string, unknown>;
   argsPreview: string;
   argsHash: string;
@@ -132,6 +134,7 @@ export type StreamPart =
       toolCallId: string;
       toolName: string;
       input: unknown;
+      summary?: string | null;
     }
   | {
       type: 'tool-output-available';
@@ -181,6 +184,8 @@ export type AgentToolPart = {
   input?: unknown;
   output?: unknown;
   errorText?: string;
+  /** User-visible short summary extracted by the backend (query/url/title). */
+  summary?: string;
   state:
     | 'input-streaming'
     | 'input-available'
@@ -245,10 +250,10 @@ export type AgentMessagePart =
 // guards would silently misclassify our parts at runtime.
 
 import type {
-  TextUIPart as _SDKTextUIPart,
-  SourceUrlUIPart as _SDKSourceUrlUIPart,
-  SourceDocumentUIPart as _SDKSourceDocumentUIPart,
   DataUIPart as _SDKDataUIPart,
+  SourceDocumentUIPart as _SDKSourceDocumentUIPart,
+  SourceUrlUIPart as _SDKSourceUrlUIPart,
+  TextUIPart as _SDKTextUIPart,
 } from 'ai';
 
 // The data discriminators we actually emit. Used to parameterize
@@ -260,22 +265,17 @@ export type ApeRAGUIDataTypes = {
 };
 
 type _AssertText = AgentTextPart extends _SDKTextUIPart ? true : never;
-type _AssertSourceUrl =
-  AgentSourceUrlPart extends _SDKSourceUrlUIPart ? true : never;
+type _AssertSourceUrl = AgentSourceUrlPart extends _SDKSourceUrlUIPart
+  ? true
+  : never;
 type _AssertSourceDocument =
   AgentSourceDocumentPart extends _SDKSourceDocumentUIPart ? true : never;
 type _AssertCitation =
-  AgentCitationPart extends _SDKDataUIPart<ApeRAGUIDataTypes>
-    ? true
-    : never;
+  AgentCitationPart extends _SDKDataUIPart<ApeRAGUIDataTypes> ? true : never;
 type _AssertToolConsent =
-  AgentToolConsentPart extends _SDKDataUIPart<ApeRAGUIDataTypes>
-    ? true
-    : never;
+  AgentToolConsentPart extends _SDKDataUIPart<ApeRAGUIDataTypes> ? true : never;
 type _AssertElicitation =
-  AgentElicitationPart extends _SDKDataUIPart<ApeRAGUIDataTypes>
-    ? true
-    : never;
+  AgentElicitationPart extends _SDKDataUIPart<ApeRAGUIDataTypes> ? true : never;
 // Tool parts are intentionally not asserted against `ToolUIPart<TOOLS>`
 // (which requires a static `TOOLS` schema) — the SDK's `isToolUIPart`
 // guard branches on `type.startsWith('tool-')`, which our

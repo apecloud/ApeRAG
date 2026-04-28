@@ -135,6 +135,7 @@ export function applyPart(
         parts: upsertTool(state.parts, part.toolCallId, {
           toolName: part.toolName,
           input: part.input,
+          summary: nullToUndefined(part.summary),
           state: 'input-available',
         }),
         lastSequence: maxSeq(state.lastSequence, eventId),
@@ -296,7 +297,13 @@ function closeText(parts: AgentMessagePart[], id: string): AgentMessagePart[] {
 type ToolPatch = Partial<
   Pick<
     AgentToolPart,
-    'toolName' | 'metadata' | 'input' | 'output' | 'errorText' | 'state'
+    | 'toolName'
+    | 'metadata'
+    | 'input'
+    | 'output'
+    | 'errorText'
+    | 'summary'
+    | 'state'
   >
 >;
 
