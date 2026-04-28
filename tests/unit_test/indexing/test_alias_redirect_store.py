@@ -12,21 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Unit tests for ``aperag.indexing.alias_redirect_store`` — Wave 7 §K.12.4
-invariant #3 (transparent alias redirect on the indexer hot path).
+"""Unit tests for ``aperag.indexing.alias_redirect_store`` — Wave 7
+§K.12.4 invariant #3 (write-side) + Wave 8 W8-3 task #14 (read-side).
 
 Pinned cases:
 
-* Indexer write to an alias name lands on the canonical entity name
-  in the underlying lineage store. This is the core invariant —
-  ``test_indexer_upsert_after_merge_redirects_to_canonical``.
-* Relation writes redirect *both* endpoints when either has been
+* **Write-side redirect** (Wave 7): indexer write to an alias name
+  lands on the canonical entity name in the underlying lineage store
+  (``test_indexer_upsert_after_merge_redirects_to_canonical``).
+  Relation writes redirect *both* endpoints when either has been
   merged.
-* Decorator passthrough (huangheng CR lock,
-  ``test_decorator_passthrough_for_non_upsert_methods``): every
-  ``LineageGraphStore`` Protocol method that is NOT an
-  ``upsert_*`` write forwards to ``_inner`` byte-for-byte. Pin this
-  so a future Protocol method addition cannot slip past unnoticed.
+* **Read-side redirect** (Wave 8 task #14): ``get_entity`` /
+  ``get_relation`` / ``expand_neighbors_n_hops`` all rewrite anchor
+  names through the alias map before calling the inner store, so MCP
+  / REST / curation surfaces see canonical data even when the caller
+  passed the alias.
+* **Decorator passthrough** (huangheng CR lock,
+  ``test_decorator_passthrough_for_non_redirected_methods``): every
+  ``LineageGraphStore`` Protocol method that does NOT redirect must
+  forward to ``_inner`` byte-for-byte. Pinned so a future Protocol
+  method addition cannot slip past unnoticed. With an empty alias
+  map, the redirected methods also passthrough byte-for-byte (since
+  ``resolve_canonical`` returns the input unchanged) — this test
+  verifies BOTH groups in the no-alias steady state.
 """
 
 from __future__ import annotations
@@ -172,16 +180,135 @@ async def test_relation_write_redirects_only_one_endpoint():
 
 
 # ---------------------------------------------------------------------
+# Read-side redirect (Wave 8 W8-3 task #14)
+# ---------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_entity_after_alias_returns_canonical_data():
+    """Wave 8 W8-3: when user has merged ``Alicia → Alice``,
+    ``get_entity('Alicia')`` returns the canonical Alice entity. This
+    is the W8-3 trigger pin flipped: task #11 step 8 used to assert
+    ``result is None`` (Wave 7 decorator only intercepted writes); now
+    it asserts ``result.name == 'Alice'``."""
+    inner = AsyncMock()
+    canonical_entity = object()  # any sentinel — passthrough check
+    inner.get_entity = AsyncMock(return_value=canonical_entity)
+    decorator = LineageGraphStoreWithAliasRedirect(
+        inner=inner,
+        alias_repo=_FakeAliasRepo({"Alicia": "Alice"}),
+        collection_id="col-1",
+    )
+    result = await decorator.get_entity("Alicia")
+    assert result is canonical_entity
+    inner.get_entity.assert_awaited_once_with("Alice")
+
+
+@pytest.mark.asyncio
+async def test_get_entity_no_alias_passes_through_unchanged():
+    inner = AsyncMock()
+    inner.get_entity = AsyncMock(return_value=None)
+    decorator = LineageGraphStoreWithAliasRedirect(
+        inner=inner,
+        alias_repo=_FakeAliasRepo(),  # empty
+        collection_id="col-1",
+    )
+    await decorator.get_entity("Untouched")
+    inner.get_entity.assert_awaited_once_with("Untouched")
+
+
+@pytest.mark.asyncio
+async def test_get_relation_redirects_both_endpoints():
+    """Mirror the write-side
+    ``test_relation_write_redirects_both_endpoints`` — both endpoints
+    of a relation may have been merged independently; resolve
+    symmetrically before calling the inner store."""
+    inner = AsyncMock()
+    inner.get_relation = AsyncMock(return_value=None)
+    decorator = LineageGraphStoreWithAliasRedirect(
+        inner=inner,
+        alias_repo=_FakeAliasRepo({"Alicia": "Alice", "Bobby": "Bob"}),
+        collection_id="col-1",
+    )
+    await decorator.get_relation("Alicia", "Bobby", "knows")
+    inner.get_relation.assert_awaited_once_with("Alice", "Bob", "knows")
+
+
+@pytest.mark.asyncio
+async def test_get_relation_redirects_only_one_endpoint():
+    inner = AsyncMock()
+    inner.get_relation = AsyncMock(return_value=None)
+    decorator = LineageGraphStoreWithAliasRedirect(
+        inner=inner,
+        alias_repo=_FakeAliasRepo({"Alicia": "Alice"}),  # only source aliased
+        collection_id="col-1",
+    )
+    await decorator.get_relation("Alicia", "Bob", "knows")
+    inner.get_relation.assert_awaited_once_with("Alice", "Bob", "knows")
+
+
+@pytest.mark.asyncio
+async def test_expand_neighbors_redirects_alias_anchor():
+    """Anchor names in ``expand_neighbors_n_hops`` resolve through the
+    alias map before traversal so a caller seeding ``["Alicia"]``
+    walks the canonical Alice neighbourhood."""
+    inner = AsyncMock()
+    inner.expand_neighbors_n_hops = AsyncMock(return_value=([], []))
+    decorator = LineageGraphStoreWithAliasRedirect(
+        inner=inner,
+        alias_repo=_FakeAliasRepo({"Alicia": "Alice", "Bobby": "Bob"}),
+        collection_id="col-1",
+    )
+    await decorator.expand_neighbors_n_hops(entity_names=["Alicia", "Bobby", "Charlie"], hops=2)
+    inner.expand_neighbors_n_hops.assert_awaited_once_with(entity_names=["Alice", "Bob", "Charlie"], hops=2)
+
+
+@pytest.mark.asyncio
+async def test_expand_neighbors_dedupes_alias_and_canonical_in_anchors():
+    """If the caller passes both the alias and the canonical
+    (``["Alicia", "Alice"]``), redirect collapses to one anchor so
+    the traversal isn't double-walked."""
+    inner = AsyncMock()
+    inner.expand_neighbors_n_hops = AsyncMock(return_value=([], []))
+    decorator = LineageGraphStoreWithAliasRedirect(
+        inner=inner,
+        alias_repo=_FakeAliasRepo({"Alicia": "Alice"}),
+        collection_id="col-1",
+    )
+    await decorator.expand_neighbors_n_hops(entity_names=["Alicia", "Alice"], hops=1)
+    inner.expand_neighbors_n_hops.assert_awaited_once_with(entity_names=["Alice"], hops=1)
+
+
+@pytest.mark.asyncio
+async def test_expand_neighbors_empty_seeds_passes_through():
+    inner = AsyncMock()
+    inner.expand_neighbors_n_hops = AsyncMock(return_value=([], []))
+    decorator = LineageGraphStoreWithAliasRedirect(
+        inner=inner,
+        alias_repo=_FakeAliasRepo({"x": "y"}),
+        collection_id="col-1",
+    )
+    await decorator.expand_neighbors_n_hops(entity_names=[], hops=1)
+    inner.expand_neighbors_n_hops.assert_awaited_once_with(entity_names=[], hops=1)
+
+
+# ---------------------------------------------------------------------
 # Decorator passthrough invariant (huangheng CR lock)
 # ---------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_decorator_passthrough_for_non_upsert_methods():
-    """Every ``LineageGraphStore`` Protocol method that is NOT an
-    ``upsert_*`` write must forward to ``_inner`` byte-for-byte. Spelled
-    out one method at a time so a future Protocol addition can't slip
-    past without an explicit decorator update."""
+async def test_decorator_passthrough_for_non_redirected_methods():
+    """Every ``LineageGraphStore`` Protocol method that does NOT
+    redirect must forward to ``_inner`` byte-for-byte. Spelled out one
+    method at a time so a future Protocol addition can't slip past
+    without an explicit decorator update.
+
+    With an empty alias map, the redirected methods (``get_entity`` /
+    ``get_relation`` / ``expand_neighbors_n_hops``) ALSO passthrough
+    byte-for-byte (resolve_canonical returns input unchanged); we
+    re-assert that here so the no-alias steady state is pinned across
+    BOTH groups."""
     inner = AsyncMock()
     decorator = LineageGraphStoreWithAliasRedirect(
         inner=inner,
