@@ -45,29 +45,22 @@ import type {
 import { EvaluationApiNotice } from './api-notice';
 
 type ItemFormState = {
-  caseKey: string;
   inputMessage: string;
   expectedAnswer: string;
-  referenceContext: string;
 };
 
 const defaultItemForm: ItemFormState = {
-  caseKey: '',
   inputMessage: '',
   expectedAnswer: '',
-  referenceContext: '',
 };
 
 const matchesSearch = (item: EvaluationDatasetItem, searchValue: string) => {
   const query = searchValue.trim().toLowerCase();
   if (!query) return true;
 
-  return [
-    item.case_key,
-    item.input_message,
-    item.expected_answer,
-    item.reference_context,
-  ].some((value) => String(value ?? '').toLowerCase().includes(query));
+  return [item.case_key, item.input_message, item.expected_answer].some(
+    (value) => String(value ?? '').toLowerCase().includes(query),
+  );
 };
 
 export const EvaluationDatasetItemsPanel = ({
@@ -107,10 +100,14 @@ export const EvaluationDatasetItemsPanel = ({
     try {
       await appendEvaluationDatasetItems(dataset.id, [
         {
-          case_key: itemForm.caseKey.trim() || undefined,
           input_message: itemForm.inputMessage.trim(),
           expected_answer: itemForm.expectedAnswer.trim() || undefined,
-          reference_context: itemForm.referenceContext.trim() || undefined,
+          // case_key + reference_context are intentionally omitted from
+          // the form per earayu2 msg=64ff1a52 + Weston msg=f92ba261:
+          // Manual-add and AI-auto-generate datasets share the same
+          // shape (question + expected_answer); case_key is generated
+          // server-side, reference_context is Phase 3 plumbing the BE
+          // does not consume yet.
           sort_key: items.length,
         },
       ]);
@@ -259,21 +256,6 @@ export const EvaluationDatasetItemsPanel = ({
           <div className="grid gap-4">
             <div className="grid gap-2">
               <label className="text-sm font-medium text-slate-900">
-                {t('case_key_label')}
-              </label>
-              <Input
-                value={itemForm.caseKey}
-                placeholder={t('case_key_placeholder')}
-                onChange={(event) =>
-                  setItemForm((prev) => ({
-                    ...prev,
-                    caseKey: event.currentTarget.value,
-                  }))
-                }
-              />
-            </div>
-            <div className="grid gap-2">
-              <label className="text-sm font-medium text-slate-900">
                 {t('input_message_label')}
               </label>
               <Textarea
@@ -300,22 +282,6 @@ export const EvaluationDatasetItemsPanel = ({
                   setItemForm((prev) => ({
                     ...prev,
                     expectedAnswer: event.currentTarget.value,
-                  }))
-                }
-              />
-            </div>
-            <div className="grid gap-2">
-              <label className="text-sm font-medium text-slate-900">
-                {t('reference_context_label')}
-              </label>
-              <Textarea
-                rows={3}
-                value={itemForm.referenceContext}
-                placeholder={t('reference_context_placeholder')}
-                onChange={(event) =>
-                  setItemForm((prev) => ({
-                    ...prev,
-                    referenceContext: event.currentTarget.value,
                   }))
                 }
               />
