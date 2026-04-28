@@ -29,7 +29,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
-import { FilePlus2, Trash2 } from 'lucide-react';
+import { FilePlus2, Sparkles, Trash2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -42,6 +42,7 @@ import type {
   EvaluationDataset,
   EvaluationDatasetItem,
 } from '@/features/evaluation/types';
+import { EvaluationAIGenerateDialog } from './evaluation-ai-generate-dialog';
 import { EvaluationApiNotice } from './api-notice';
 
 type ItemFormState = {
@@ -78,6 +79,7 @@ export const EvaluationDatasetItemsPanel = ({
   const router = useRouter();
   const [searchValue, setSearchValue] = useState('');
   const [addItemOpen, setAddItemOpen] = useState(false);
+  const [aiGenerateOpen, setAiGenerateOpen] = useState(false);
   const [itemForm, setItemForm] = useState<ItemFormState>(defaultItemForm);
   const [isPending, startTransition] = useTransition();
 
@@ -174,6 +176,17 @@ export const EvaluationDatasetItemsPanel = ({
               value={searchValue}
               onChange={(event) => setSearchValue(event.currentTarget.value)}
             />
+            <Button
+              variant="outline"
+              onClick={() => setAiGenerateOpen(true)}
+              disabled={isPending || !dataset.collection_id}
+              title={
+                dataset.collection_id ? undefined : t('ai_generate_no_collection')
+              }
+            >
+              <Sparkles className="size-4" />
+              {t('ai_generate_button')}
+            </Button>
             <Button onClick={() => setAddItemOpen(true)} disabled={isPending}>
               <FilePlus2 className="size-4" />
               {t('add_question')}
@@ -301,6 +314,18 @@ export const EvaluationDatasetItemsPanel = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {dataset.collection_id && (
+        <EvaluationAIGenerateDialog
+          open={aiGenerateOpen}
+          onOpenChange={setAiGenerateOpen}
+          datasetId={dataset.id}
+          collectionId={dataset.collection_id}
+          collectionLanguage={null}
+          existingItemCount={items.length}
+          onSaved={refreshPage}
+        />
+      )}
     </>
   );
 };
