@@ -131,11 +131,20 @@ class ChatService:
 
         return history
 
-    async def create_chat(self, user: str, bot_id: str) -> Chat:
-        bot = await self.db_ops.query_bot(user, bot_id)
+    async def create_chat(self, user: str, bot_id: str, *, _allow_system_bot: bool = False) -> Chat:
+        # Wave 10 §K.13 — ``_allow_system_bot=True`` is the trusted
+        # internal seam used by ``collection_regen_service`` Stage 1
+        # Tier 1 to create a chat under the per-user hidden
+        # ``BotType.SUMMARY`` bot. Bypass the default-deny ``is_system``
+        # filter and accept SUMMARY in addition to AGENT — both share
+        # the agent-runtime infrastructure (the SUMMARY toolset is
+        # restricted by ``aperag/domains/agent_runtime`` based on
+        # ``bot.type``). User-facing path keeps the original guards.
+        bot = await self.db_ops.query_bot(user, bot_id, exclude_system=not _allow_system_bot)
         if bot is None:
             raise ResourceNotFoundException("Bot", bot_id)
-        if bot.type != BotType.AGENT:
+        allowed_types = {BotType.AGENT, BotType.SUMMARY} if _allow_system_bot else {BotType.AGENT}
+        if bot.type not in allowed_types:
             raise ValidationException("Only agent bots are supported")
 
         chat = await self.db_ops.create_chat(user=user, bot_id=bot_id)

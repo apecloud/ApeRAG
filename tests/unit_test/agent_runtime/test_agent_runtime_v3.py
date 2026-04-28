@@ -102,7 +102,9 @@ class _FakeCreateTurnDbOps:
     async def query_chat_by_id(self, _user, _chat_id):
         return SimpleNamespace(id="chat-1", bot_id="bot-1")
 
-    async def query_bot(self, _user, _bot_id):
+    async def query_bot(self, _user, _bot_id, *, exclude_system: bool = True):
+        # ``exclude_system`` ignored — the legacy AGENT bot used in this
+        # fixture is non-system and would pass either filter.
         return SimpleNamespace(id="bot-1", type="agent")
 
     async def query_agent_turn_by_idempotency(self, _user, _chat_id, _idempotency_key):

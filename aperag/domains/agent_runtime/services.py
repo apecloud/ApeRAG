@@ -308,21 +308,31 @@ class TurnService:
         self.redis_store = redis_store or AgentRuntimeRedisStore()
         self.uimessage_store = uimessage_store
 
-    async def get_chat_and_bot(self, user: str, chat_id: str):
+    async def get_chat_and_bot(self, user: str, chat_id: str, *, _allow_system_bot: bool = False):
+        # Wave 10 §K.13 — ``_allow_system_bot=True`` is the trusted
+        # internal seam used by ``collection_regen_service`` Stage 1
+        # Tier 1 to drive the per-user hidden ``BotType.SUMMARY`` bot
+        # through the same agent-runtime pipeline. Bypass the
+        # default-deny ``is_system`` filter and accept SUMMARY in
+        # addition to AGENT. User-facing turn endpoints keep the
+        # original guards.
         chat = await self.db_ops.query_chat_by_id(user, chat_id)
         if not chat:
             raise ChatNotFoundException(chat_id)
 
-        bot = await self.db_ops.query_bot(user, chat.bot_id)
+        bot = await self.db_ops.query_bot(user, chat.bot_id, exclude_system=not _allow_system_bot)
         if not bot:
             raise ResourceNotFoundException("Bot", chat.bot_id)
-        if bot.type != BotType.AGENT:
+        allowed_types = {BotType.AGENT, BotType.SUMMARY} if _allow_system_bot else {BotType.AGENT}
+        if bot.type not in allowed_types:
             raise ValidationException("Only agent bots are supported")
 
         return chat, bot
 
-    async def create_or_get_turn(self, user: str, chat_id: str, request: CreateTurnRequest):
-        chat, bot = await self.get_chat_and_bot(user, chat_id)
+    async def create_or_get_turn(
+        self, user: str, chat_id: str, request: CreateTurnRequest, *, _allow_system_bot: bool = False
+    ):
+        chat, bot = await self.get_chat_and_bot(user, chat_id, _allow_system_bot=_allow_system_bot)
         idempotency_key = request.client_idempotency_key or uuid.uuid4().hex
         existing = await self.db_ops.query_agent_turn_by_idempotency(user, chat_id, idempotency_key)
         if existing:

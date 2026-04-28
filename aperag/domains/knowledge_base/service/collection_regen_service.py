@@ -278,7 +278,12 @@ async def _invoke_summary_agent(collection: Collection) -> str | None:
         return None
 
     user_id = collection.user
-    chat_view = await chat_service_global.create_chat(user_id, bot.id)
+    # Wave 10 §K.13 — opt into the trusted internal seam on both
+    # ``chat_service`` and ``TurnService``. Without this, the public
+    # APIs reject the SUMMARY bot under the default-deny ``is_system``
+    # filter (PR #1786) + the AGENT-only type guard, surfacing as
+    # ``Bot not found: bot…`` toasts on the FE Regen button.
+    chat_view = await chat_service_global.create_chat(user_id, bot.id, _allow_system_bot=True)
     chat_id = chat_view.id
 
     title = collection.title or collection.id
@@ -292,7 +297,7 @@ async def _invoke_summary_agent(collection: Collection) -> str | None:
     )
 
     chat, bot_orm, turn, _created = await agent_runtime_manager.turn_service.create_or_get_turn(
-        user_id, chat_id, turn_request
+        user_id, chat_id, turn_request, _allow_system_bot=True
     )
 
     lease_owner = await agent_runtime_manager.claim_turn(turn.id)
