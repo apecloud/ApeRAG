@@ -109,20 +109,55 @@ def resolve_parse_version(document, collection) -> str:
     )
 
 
-async def read_parsed_markdown(document) -> str:
-    """Return the parsed markdown for ``document`` from the object store.
+async def _resolve_serving_markdown_path(document_id: str) -> Optional[str]:
+    """Look up the canonical post-Wave 3 markdown path for a document.
 
-    Returns an empty string when the parsed.md blob is missing — that
-    matches the behavior of ``DocumentService.get_document_preview``
-    (warns + continues with empty content rather than 500ing).
+    The new parser writes the per-parse-version markdown blob at
+    ``{base}/derived/parse_<v>/markdown.md`` and stores the
+    ``derived_artifact_path`` on the per-modality
+    :class:`DocumentIndex` row. The serving VECTOR row is the
+    canonical handle the FE
+    (``DocumentService.get_document_preview``) uses via
+    ``_markdown_path_from_derived_artifact``; we mirror that exactly
+    so MCP and FE return the same content.
+
+    Returns ``None`` when no serving VECTOR index row exists yet —
+    the caller then falls back to the legacy ``{base}/parsed.md``
+    blob (still written by the old writer for backward compat) so
+    documents that haven't migrated to the new derived/ layout still
+    resolve.
     """
+
+    import os
+
+    from sqlalchemy import select
+
+    from aperag.config import get_async_session
+    from aperag.indexing.models import DocumentIndex, Modality
+
+    async for session in get_async_session():
+        stmt = select(DocumentIndex.derived_artifact_path).where(
+            DocumentIndex.document_id == document_id,
+            DocumentIndex.modality == Modality.VECTOR.value,
+            DocumentIndex.is_serving.is_(True),
+        )
+        derived_path = (await session.execute(stmt)).scalars().first()
+        break
+
+    if not derived_path:
+        return None
+    return f"{os.path.dirname(derived_path)}/markdown.md"
+
+
+async def _read_object_store_text(path: str) -> str:
+    """Stream a UTF-8 text blob from the object store. Returns ``""``
+    on miss / read error so callers can fall back gracefully."""
 
     from aperag.objectstore.base import get_async_object_store
 
     async_obj_store = get_async_object_store()
-    markdown_path = f"{document.object_store_base_path()}/parsed.md"
     try:
-        result = await async_obj_store.get(markdown_path)
+        result = await async_obj_store.get(path)
     except Exception:
         return ""
     if not result:
@@ -135,6 +170,39 @@ async def read_parsed_markdown(document) -> str:
         return content.decode("utf-8")
     except UnicodeDecodeError:
         return content.decode("utf-8", errors="replace")
+
+
+async def read_parsed_markdown(document) -> str:
+    """Return the parsed markdown for ``document`` from the object store.
+
+    Resolution order (must match the FE preview path):
+
+    1. Canonical Wave 3+ location:
+       ``dirname(DocumentIndex.derived_artifact_path)/markdown.md``
+       (per-parse-version, written by the new parser, surfaced by
+       ``DocumentService.get_document_preview`` →
+       ``_markdown_path_from_derived_artifact``).
+    2. Legacy fallback: ``{document.object_store_base_path()}/parsed.md``
+       — still produced by the old writer (``document_parser.py:181``
+       dual-writes it), so older docs and the parser's compat path
+       still resolve.
+
+    Returns ``""`` only when both paths are unavailable. Without the
+    derived path lookup, MCP would always fall through to the legacy
+    blob — which doesn't exist for newer collections that bypassed
+    the legacy writer (earayu2 bug msg=dec8bcff: agent saw
+    ``parsed_markdown is empty for all documents`` even though the
+    docs were fully indexed).
+    """
+
+    derived_path = await _resolve_serving_markdown_path(document.id)
+    if derived_path:
+        content = await _read_object_store_text(derived_path)
+        if content:
+            return content
+
+    legacy_path = f"{document.object_store_base_path()}/parsed.md"
+    return await _read_object_store_text(legacy_path)
 
 
 # --- outline derivation ------------------------------------------------------
