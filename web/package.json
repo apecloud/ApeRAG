@@ -17,6 +17,8 @@
   },
   "dependencies": {
     "@ai-sdk/react": "^2.0.0",
+    "@cosmograph/cosmograph": "^2.3.0",
+    "@cosmograph/react": "^2.3.0",
     "@diceui/mention": "^0.7.1",
     "@hookform/resolvers": "^5.2.1",
     "@jsdevtools/rehype-toc": "^3.0.2",
