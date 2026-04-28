@@ -40,6 +40,7 @@ import uuid
 from enum import Enum
 
 from sqlalchemy import (
+    Boolean,
     Column,
     DateTime,
     Index,
@@ -82,6 +83,12 @@ class BotType(str, Enum):
     KNOWLEDGE = "knowledge"
     COMMON = "common"
     AGENT = "agent"
+    # Wave 10 §K.13: hidden per-user bot used by
+    # ``collection_regen_service`` to drive Stage 1 agent-runtime
+    # free-explore. ``is_system=True`` rows are filtered out of UI
+    # listings. Tool subset is hardcoded (13 read-only tools) by the
+    # agent runtime layer based on ``bot.type == SUMMARY``.
+    SUMMARY = "summary"
 
 
 class ChatStatus(str, Enum):
@@ -113,6 +120,22 @@ class TurnFeedbackTag(str, Enum):
 
 class Bot(Base):
     __tablename__ = "bot"
+    __table_args__ = (
+        # Wave 10 §K.13: at most one ``is_system=True`` bot of a given
+        # type per user. Defends against race conditions during
+        # register-time creation (main path) and lazy-create fallback
+        # (defense-in-depth path). The partial index is over active
+        # rows only (``gmt_deleted IS NULL``) so a soft-deleted system
+        # bot does not block re-creation.
+        Index(
+            "uq_bot_user_type_system_active",
+            "user",
+            "type",
+            "is_system",
+            unique=True,
+            postgresql_where=text("gmt_deleted IS NULL AND is_system = TRUE"),
+        ),
+    )
 
     id = Column(String(24), primary_key=True, default=lambda: "bot" + _random_id())
     user = Column(String(256), nullable=False, index=True)
@@ -121,6 +144,10 @@ class Bot(Base):
     description = Column(Text, nullable=True)
     status = Column(_enum_column(BotStatus), nullable=False, index=True)
     config = Column(Text, nullable=False)
+    # Wave 10 §K.13: ``True`` for system-managed bots that are hidden
+    # from user-facing UI listings. Mirrors existing
+    # ``ApiKey.is_system`` precedent (``governance/db/models.py:98``).
+    is_system = Column(Boolean, default=False, nullable=False, index=True)
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)
