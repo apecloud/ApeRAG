@@ -134,10 +134,17 @@ class BotService:
         return await self.build_bot_response(bot)
 
     async def list_bots(self, user: str) -> BotList:
+        # Wave 10 §K.13 — ``exclude_system`` defaults to True at the
+        # ``db_ops`` layer so system bots (Wave 10 hidden per-user
+        # summary bot) never reach the response builder. Filtering at
+        # the DB layer (vs. service-layer post-filter) keeps the query
+        # narrow as the per-user bot count grows.
         bots = await self.db_ops.query_bots([user])
         return BotList(items=[await self.build_bot_response(bot) for bot in bots])
 
     async def get_bot(self, user: str, bot_id: str) -> Bot:
+        # ``query_bot`` defaults to ``exclude_system=True`` so a system
+        # bot returns None here — caller sees a 404, not the bot.
         bot = await self.db_ops.query_bot(user, bot_id)
         if bot is None:
             raise ResourceNotFoundException("Bot", bot_id)
@@ -145,6 +152,9 @@ class BotService:
         return await self.build_bot_response(bot)
 
     async def update_bot(self, user: str, bot_id: str, bot_in: BotUpdate) -> Bot:
+        # ``query_bot`` defaults to excluding system bots, so a user
+        # can never update / mutate the hidden summary bot via this
+        # path; they get a 404 instead.
         bot = await self.db_ops.query_bot(user, bot_id)
         if bot is None:
             raise ResourceNotFoundException("Bot", bot_id)
