@@ -1,5 +1,4 @@
 import { ChatMessages } from '@/components/chat/chat-messages';
-import { BotSectionNav } from '@/components/evaluation/bot-section-nav';
 import {
   PageContainer,
   PageContent,
@@ -47,9 +46,6 @@ export default async function Page({
           },
         ]}
       />
-      <PageContent className="pb-0">
-        <BotSectionNav botId={botId} active="chats" />
-      </PageContent>
       <PageContent>
         <ChatMessages chat={chat} />
       </PageContent>

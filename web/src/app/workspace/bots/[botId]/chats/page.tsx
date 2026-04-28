@@ -1,4 +1,3 @@
-import { BotSectionNav } from '@/components/evaluation/bot-section-nav';
 import {
   PageContainer,
   PageContent,
@@ -30,9 +29,6 @@ export default async function Page({
         breadcrumbs={[{ title: page_chat('metadata.title') }]}
         extra=""
       />
-      <PageContent className="pb-0">
-        <BotSectionNav botId={botId} active="chats" />
-      </PageContent>
       <PageContent></PageContent>
     </PageContainer>
   );

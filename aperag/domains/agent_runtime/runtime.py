@@ -458,20 +458,25 @@ class PydanticAIRuntime(AgentRuntime):
 
                     if isinstance(event, pai_messages.FunctionToolCallEvent):
                         tool_name = event.part.tool_name
+                        tool_call_id = event.part.tool_call_id
                         tool_summaries.append(f"Calling tool: {tool_name}")
                         await emit(
                             "agent.state.changed",
                             actor=AgentEventActor.AGENT,
                             label=self._tool_label(tool_name),
                             status="calling_tool",
-                            data={"tool_name": tool_name},
+                            data={"tool_name": tool_name, "tool_call_id": tool_call_id},
                         )
                         await emit(
                             "tool.started",
                             actor=AgentEventActor.TOOL,
                             label=tool_name,
                             status="started",
-                            data={"tool_name": tool_name, "args": self._normalize_jsonish(event.part.args)},
+                            data={
+                                "tool_name": tool_name,
+                                "tool_call_id": tool_call_id,
+                                "args": self._normalize_jsonish(event.part.args),
+                            },
                         )
                         if self._is_external_action(tool_name):
                             await emit(
@@ -479,12 +484,13 @@ class PydanticAIRuntime(AgentRuntime):
                                 actor=AgentEventActor.TOOL,
                                 label=tool_name,
                                 status="started",
-                                data={"tool_name": tool_name},
+                                data={"tool_name": tool_name, "tool_call_id": tool_call_id},
                             )
                         continue
 
                     if isinstance(event, pai_messages.FunctionToolResultEvent):
                         tool_name = event.result.tool_name
+                        tool_call_id = event.result.tool_call_id
                         normalized = self._normalize_jsonish(event.result.content)
                         reference_items.extend(self._extract_reference_items(tool_name, normalized))
                         outcome = getattr(event.result, "outcome", "success")
@@ -494,7 +500,7 @@ class PydanticAIRuntime(AgentRuntime):
                             actor=AgentEventActor.TOOL,
                             label=tool_name,
                             status=outcome,
-                            data={"tool_name": tool_name, "result": normalized},
+                            data={"tool_name": tool_name, "tool_call_id": tool_call_id, "result": normalized},
                         )
                         if self._is_external_action(tool_name):
                             await emit(
@@ -502,14 +508,14 @@ class PydanticAIRuntime(AgentRuntime):
                                 actor=AgentEventActor.TOOL,
                                 label=tool_name,
                                 status="finished",
-                                data={"tool_name": tool_name},
+                                data={"tool_name": tool_name, "tool_call_id": tool_call_id},
                             )
                         await emit(
                             "agent.state.changed",
                             actor=AgentEventActor.AGENT,
                             label=VisibleAgentState.READING_RESULT.value,
                             status="reading_result",
-                            data={"tool_name": tool_name},
+                            data={"tool_name": tool_name, "tool_call_id": tool_call_id},
                         )
                         continue
 

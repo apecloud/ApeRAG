@@ -76,11 +76,18 @@ export const BotProvider = ({
       listCollections(),
     ]);
 
-    const items: ProviderModels = models.map((m) => ({
-      label: 'Chat Models',
-      name: 'chat',
-      models: [{ model_id: m.id, temperature: 0.1, tags: [] }],
-    }));
+    const items: ProviderModels = [
+      {
+        label: 'Chat Models',
+        name: 'chat',
+        models: models.map((m) => ({
+          model_id: m.id,
+          display_name: m.display_name || m.provider_model_id || m.id,
+          temperature: 0.1,
+          tags: [],
+        })),
+      },
+    ];
     setCollections(collectionsRes?.items ?? []);
     setProviderModels(items);
   }, []);

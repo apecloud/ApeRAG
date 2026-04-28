@@ -452,5 +452,10 @@ async def stream_turn_events_view(
     return StreamingResponse(
         event_stream(),
         media_type="text/event-stream",
-        headers={AI_SDK_V5_HEADER: AI_SDK_V5_HEADER_VALUE},
+        headers={
+            AI_SDK_V5_HEADER: AI_SDK_V5_HEADER_VALUE,
+            "Cache-Control": "no-cache, no-transform",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
     )

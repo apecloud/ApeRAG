@@ -231,7 +231,9 @@ function ToolActivityItem({ part }: { part: AgentToolPart }) {
   const outputPreview = part.errorText
     ? part.errorText
     : previewJson(part.output, 280);
-  const hasDebug = inputPreview != null || outputPreview != null;
+  const hasDebug =
+    part.state === 'output-error' &&
+    (inputPreview != null || outputPreview != null);
 
   return (
     <div className="flex gap-2.5">
@@ -472,6 +474,10 @@ export function AgentTurnRenderer({
     Boolean(answerText) || TERMINAL_STATUSES.has(status);
   const showReferences =
     references.length > 0 && !(status === 'completed' && Boolean(answerText));
+  const hasTurnDebugDetails =
+    status === 'failed' ||
+    Boolean(errorText || turn.error_code || turn.error_message);
+  const copyText = answerText || errorText || turn.error_message || '';
 
   const traceMetaParts: string[] = [];
   if (grouped.tool.length > 0) {
@@ -641,57 +647,59 @@ export function AgentTurnRenderer({
             </Card>
           ))}
 
-        <Collapsible className="group/details">
-          <CollapsibleTrigger asChild>
-            <button
-              type="button"
-              className="text-muted-foreground/80 hover:text-foreground flex items-center gap-1.5 text-left text-[11px] transition-colors"
-            >
-              <ChevronRight className="size-3 transition-transform group-data-[state=open]/details:rotate-90" />
-              <span>{pageChat('activity_stream.debug.title')}</span>
-            </button>
-          </CollapsibleTrigger>
-          <CollapsibleContent className="mt-1.5">
-            <div className="border-border/60 bg-background/60 grid gap-2 rounded-md border px-3 py-2 text-[11px]">
-              <div className="grid gap-0.5">
-                <div className="text-muted-foreground/80">
-                  {pageChat('activity_stream.debug.turn_id')}
-                </div>
-                <div className="font-mono break-all">{turn.turn_id}</div>
-              </div>
-              <div className="grid gap-0.5">
-                <div className="text-muted-foreground/80">
-                  {pageChat('activity_stream.debug.request_id')}
-                </div>
-                <div className="font-mono break-all">{turn.request_id}</div>
-              </div>
-              <div className="grid gap-0.5">
-                <div className="text-muted-foreground/80">
-                  {pageChat('activity_stream.debug.status')}
-                </div>
-                <div>{statusKey}</div>
-              </div>
-              {turn.error_code && (
+        {hasTurnDebugDetails && (
+          <Collapsible className="group/details">
+            <CollapsibleTrigger asChild>
+              <button
+                type="button"
+                className="text-muted-foreground/80 hover:text-foreground flex items-center gap-1.5 text-left text-[11px] transition-colors"
+              >
+                <ChevronRight className="size-3 transition-transform group-data-[state=open]/details:rotate-90" />
+                <span>{pageChat('activity_stream.debug.title')}</span>
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-1.5">
+              <div className="border-border/60 bg-background/60 grid gap-2 rounded-md border px-3 py-2 text-[11px]">
                 <div className="grid gap-0.5">
                   <div className="text-muted-foreground/80">
-                    {pageChat('activity_stream.debug.error_code')}
+                    {pageChat('activity_stream.debug.turn_id')}
                   </div>
-                  <div className="font-mono">{turn.error_code}</div>
+                  <div className="font-mono break-all">{turn.turn_id}</div>
                 </div>
-              )}
-              {(errorText || turn.error_message) && (
                 <div className="grid gap-0.5">
                   <div className="text-muted-foreground/80">
-                    {pageChat('activity_stream.debug.error_message')}
+                    {pageChat('activity_stream.debug.request_id')}
                   </div>
-                  <div className="break-all">
-                    {errorText || turn.error_message}
-                  </div>
+                  <div className="font-mono break-all">{turn.request_id}</div>
                 </div>
-              )}
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
+                <div className="grid gap-0.5">
+                  <div className="text-muted-foreground/80">
+                    {pageChat('activity_stream.debug.status')}
+                  </div>
+                  <div>{statusKey}</div>
+                </div>
+                {turn.error_code && (
+                  <div className="grid gap-0.5">
+                    <div className="text-muted-foreground/80">
+                      {pageChat('activity_stream.debug.error_code')}
+                    </div>
+                    <div className="font-mono">{turn.error_code}</div>
+                  </div>
+                )}
+                {(errorText || turn.error_message) && (
+                  <div className="grid gap-0.5">
+                    <div className="text-muted-foreground/80">
+                      {pageChat('activity_stream.debug.error_message')}
+                    </div>
+                    <div className="break-all">
+                      {errorText || turn.error_message}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        )}
 
         <div className="flex flex-row items-center gap-1">
           {showReferences && (
@@ -756,11 +764,11 @@ export function AgentTurnRenderer({
             onFeedback={onFeedback}
           />
 
-          {answerText && (
+          {copyText && (
             <CopyToClipboard
               variant="ghost"
               className="text-muted-foreground hover:text-foreground h-7 px-2"
-              text={answerText}
+              text={copyText}
             />
           )}
         </div>

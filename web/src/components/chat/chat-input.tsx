@@ -78,6 +78,11 @@ export type Attachment = {
   status?: UploadDocumentStatus;
 };
 
+const modelSelectLabel = (model: ModelSpec) =>
+  (model.display_name?.trim() || model.model_id || '').trim();
+
+const CHAT_FILE_UPLOAD_ENABLED = false;
+
 export const ChatInput = ({
   chat,
   welcome,
@@ -236,10 +241,6 @@ export const ChatInput = ({
     if (_.isEmpty(_query) || isComposing || loading || mentionOpen) return;
 
     let model: ModelSpec | undefined;
-    const provider = providerModels?.find((p) =>
-      p.models?.some((m) => m.model_id === modelName),
-    );
-
     providerModels?.forEach((provider) => {
       provider.models?.forEach((m) => {
         if (m.model_id === modelName) {
@@ -263,12 +264,14 @@ export const ChatInput = ({
       },
       web_search_enabled: webSearchEnabled,
       language: locale,
-      files: attachments
-        .filter((attachment) => attachment.progress_status === 'success')
-        .map((attachment) => ({
-          id: attachment.document_id || '',
-          name: attachment.file.name,
-        })),
+      files: CHAT_FILE_UPLOAD_ENABLED
+        ? attachments
+            .filter((attachment) => attachment.progress_status === 'success')
+            .map((attachment) => ({
+              id: attachment.document_id || '',
+              name: attachment.file.name,
+            }))
+        : [],
     };
 
     setQuery('');
@@ -377,8 +380,9 @@ export const ChatInput = ({
           }}
           className="relative flex flex-col gap-2"
         >
-          <div className="flex flex-wrap gap-2">
-            {attachments.map((attachment) => {
+          {CHAT_FILE_UPLOAD_ENABLED && (
+            <div className="flex flex-wrap gap-2">
+              {attachments.map((attachment) => {
               const extension = _.last(attachment.file.type.split('/')) || '';
               return (
                 <div
@@ -415,8 +419,9 @@ export const ChatInput = ({
                   </div>
                 </div>
               );
-            })}
-          </div>
+              })}
+            </div>
+          )}
 
           <Label>
             <Mention
@@ -471,41 +476,43 @@ export const ChatInput = ({
             <div className="absolute bottom-0 flex w-full flex-row items-center justify-between p-4">
               <div></div>
               <div className="flex gap-2">
-                <FileUpload
-                  maxFiles={10}
-                  maxSize={100 * 1024 * 1024}
-                  accept=".pdf,.doc,.docx,.txt,.md,.ppt,.pptx,.xls,.xlsx"
-                  value={attachments.map((f) => f.file)}
-                  onFileReject={onFileReject}
-                  onFileValidate={onFileValidate}
-                  onValueChange={(files) => {
-                    setAttachments((attachments) => {
-                      const data: Attachment[] = [];
-                      files.forEach((file) => {
-                        const attachment = attachments.find((attachment) =>
-                          _.isEqual(attachment.file, file),
-                        );
-                        data.push({
-                          id: String(Math.random()),
-                          file,
-                          progress_status: 'pending',
-                          ...attachment,
+                {CHAT_FILE_UPLOAD_ENABLED && (
+                  <FileUpload
+                    maxFiles={10}
+                    maxSize={100 * 1024 * 1024}
+                    accept=".pdf,.doc,.docx,.txt,.md,.ppt,.pptx,.xls,.xlsx"
+                    value={attachments.map((f) => f.file)}
+                    onFileReject={onFileReject}
+                    onFileValidate={onFileValidate}
+                    onValueChange={(files) => {
+                      setAttachments((attachments) => {
+                        const data: Attachment[] = [];
+                        files.forEach((file) => {
+                          const attachment = attachments.find((attachment) =>
+                            _.isEqual(attachment.file, file),
+                          );
+                          data.push({
+                            id: String(Math.random()),
+                            file,
+                            progress_status: 'pending',
+                            ...attachment,
+                          });
                         });
+                        return data;
                       });
-                      return data;
-                    });
-                  }}
-                >
-                  <FileUploadTrigger asChild>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="cursor-pointer"
-                    >
-                      <Paperclip />
-                    </Button>
-                  </FileUploadTrigger>
-                </FileUpload>
+                    }}
+                  >
+                    <FileUploadTrigger asChild>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="cursor-pointer"
+                      >
+                        <Paperclip />
+                      </Button>
+                    </FileUploadTrigger>
+                  </FileUpload>
+                )}
 
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -556,7 +563,7 @@ export const ChatInput = ({
                                   key={model.model_id}
                                   value={model.model_id || ''}
                                 >
-                                  {model.model_id}
+                                  {modelSelectLabel(model)}
                                 </SelectItem>
                               );
                             })}

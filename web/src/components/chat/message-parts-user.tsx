@@ -1,7 +1,8 @@
 import type { ChatMessage } from '@/features/bot/types';
 import { Markdown } from '@/components/markdown';
+import { useAppContext } from '@/components/providers/app-provider';
 import { useBotContext } from '@/components/providers/bot-provider';
-import { UserRound } from 'lucide-react';
+import { UserAvatar } from '@/components/user-avatar';
 import { useMemo } from 'react';
 import { MessageTimestamp } from './message-timestamp';
 
@@ -60,6 +61,7 @@ const replaceCollectionMentions = (
 
 export const MessagePartsUser = ({ parts }: { parts: ChatMessage[] }) => {
   const { collections } = useBotContext();
+  const { user } = useAppContext();
 
   const message = useMemo(() => {
     const rawMessage = parts?.map((part) => part.data || '').join('') || '';
@@ -87,9 +89,7 @@ export const MessagePartsUser = ({ parts }: { parts: ChatMessage[] }) => {
         <MessageTimestamp parts={parts} />
       </div>
       <div>
-        <div className="bg-muted text-muted-foreground flex size-12 flex-col justify-center rounded-full">
-          <UserRound className="size-5 self-center" />
-        </div>
+        <UserAvatar user={user} className="size-12 text-base" />
       </div>
     </div>
   );
