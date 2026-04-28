@@ -157,7 +157,7 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
                   <Badge
                     className={cn(
                       'rounded-sm border',
-                      statusClassName[collection.status],
+                      statusClassName[collection.status as CollectionStatus],
                     )}
                     variant="outline"
                   >
