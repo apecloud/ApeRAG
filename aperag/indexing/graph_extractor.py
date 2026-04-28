@@ -15,7 +15,7 @@
 """Real LLM-driven graph extractor — Wave 4 T1.
 
 Replaces the chunk 4b ``_no_op_extractor`` placeholder with an actual
-LightRAG-style entity/relation extractor that calls the collection's
+LLM-driven entity/relation extractor that calls the collection's
 configured completion model for each chunk and parses the JSON output
 into the new ``aperag.indexing.graph.EntityRecord`` /
 ``RelationRecord`` shapes.
@@ -36,7 +36,7 @@ silently-lie):
   cryptic LLM-side error.
 * Per-chunk LLM call failures (malformed JSON, transient backend
   errors, etc.) log a warning and skip the chunk's entities/relations.
-  The other chunks still contribute. This matches the legacy LightRAG
+  The other chunks still contribute. This matches the prior reference
   extractor's failure semantics — one bad chunk does not poison the
   whole document.
 
@@ -276,7 +276,7 @@ def _entity_from_dict(raw: Mapping[str, Any], *, chunk_id: str) -> EntityRecord:
     if not name:
         raise ValueError("entity name cannot be empty")
     # The LLM extraction prompt still emits ``type`` in its JSON output
-    # (LightRAG-style template); we accept either the canonical
+    # (legacy template shape); we accept either the canonical
     # ``entity_type`` field (post-Wave-6 #36 rename) or the legacy
     # ``type`` field for backward compat with prompt templates.
     entity_type = str(raw.get("entity_type") or raw.get("type") or "")

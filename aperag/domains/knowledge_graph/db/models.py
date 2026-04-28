@@ -15,7 +15,7 @@
 """Knowledge-graph-domain SQLAlchemy models.
 
 Owns ``GraphCurationRun`` / ``GraphCurationSuggestion`` (the curation
-audit rows produced by the LightRAG-path graph-entity reviewer) plus
+audit rows produced by the graph-entity reviewer) plus
 their lifecycle enums. The table bodies were moved here from
 ``aperag.db.models`` in Phase 3 step 3 as part of the knowledge_graph
 domain split; the legacy aggregate module re-exports the three class

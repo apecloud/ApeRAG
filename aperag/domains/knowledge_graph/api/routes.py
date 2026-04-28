@@ -268,7 +268,7 @@ async def handle_suggestion_action_view(
 
 
 # Historical ``GET /api/v1/collections/{id}/graphs/export/kg-eval``
-# endpoint was removed together with the LightRAG-era graph workflow.
+# endpoint was removed together with the legacy graph workflow.
 # The ``aperag/views/graph.py`` 410-Gone shim that used to reply on the
 # v1 path was deleted by the Phase 2 hard-cut; v1 KG paths now 404 at
 # the FastAPI level, matching every other v1 KG URL. The canonical v2

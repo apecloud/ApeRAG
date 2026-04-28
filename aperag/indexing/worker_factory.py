@@ -468,7 +468,7 @@ def _build_vision_worker(*, collection: Any, object_store: Any) -> ModalityWorke
 def _build_graph_worker(*, collection: Any, object_store: Any, payload: DispatchPayload) -> ModalityWorker:
     """Wire :class:`GraphModalityWorker` for the §D.3 lineage pipeline.
 
-    Wave 4 T1 lands the real LightRAG-style LLM extractor — the chunk
+    Wave 4 T1 lands the real LLM-driven graph extractor — the chunk
     4b "Wave 4 wiring T1" gate is now self-disabled because
     :func:`build_collection_graph_extractor` returns a real LLM-driven
     closure. A collection that has no completion model configured

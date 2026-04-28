@@ -921,7 +921,7 @@ class NebulaLineageGraphStore:
 
         return await asyncio.to_thread(_read)
 
-    # -- LightRAG-style query layer (Wave 6 #33 chunk 2) --------------
+    # -- Graph-RAG query layer (Wave 6 #33 chunk 2) -------------------
 
     async def query_entities_by_keyword(
         self,

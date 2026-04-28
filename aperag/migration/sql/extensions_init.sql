@@ -3,7 +3,7 @@
 -- Extensions must be created before schema tables that use them
 
 -- Create pgvector extension for vector operations
--- Used by LightRAG tables: lightrag_doc_chunks, lightrag_vdb_entity, lightrag_vdb_relation
+-- Used by chunk-vector / graph-entity-vector / fulltext sidecar tables
 CREATE EXTENSION IF NOT EXISTS vector;
 
 -- Optional: Create other useful extensions

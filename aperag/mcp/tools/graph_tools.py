@@ -33,7 +33,7 @@ Wire shape:
 
 Per spec §K.12 invariant #11 (D-3 candidate detection writes only)
 none of these tools mutate state — they are read-only. Per invariant
-#12 the tool names are LightRAG-grep-zero clean.
+#12 the tool names are grep-zero clean for legacy naming.
 """
 
 from __future__ import annotations

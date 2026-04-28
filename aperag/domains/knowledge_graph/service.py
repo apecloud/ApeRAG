@@ -484,8 +484,8 @@ class GraphService:
 # ---------------------------------------------------------------------------
 #
 # ``_to_ui_dict`` and ``_optimize_graph_for_visualization`` were originally
-# written for the LightRAG ``KnowledgeGraph`` schema. Rather than rewrite
-# the UI contract, we wrap graphindex DTOs in lightweight proxy objects
+# written for the legacy ``KnowledgeGraph`` schema. Rather than rewrite
+# the UI contract, we wrap lineage DTOs in lightweight proxy objects
 # that expose the attributes those helpers read. Keeps the frontend
 # contract unchanged and the adapter isolated in one place.
 
@@ -539,7 +539,7 @@ def _adapt_lineage_relations(relations: list[Any]) -> List[SimpleNamespace]:
     """Wave 7 W7-10: project ``RelationWithLineage`` rows into the
     ``SimpleNamespace`` shape ``_to_ui_dict`` consumes.
 
-    The lineage relation has no ``weight`` field (legacy LightRAG
+    The lineage relation has no ``weight`` field (legacy
     artefact) — we surface ``1.0`` constant so the UI dict builder
     keeps a stable shape. Description prefers ``compacted_description``
     over the joined per-doc parts (mirror ``_adapt_lineage_entities``).

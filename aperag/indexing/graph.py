@@ -62,7 +62,7 @@ modality output — re-running ``derive`` would reissue every LLM
 extraction call. So ``derive`` writes once and ``sync`` only ever
 reads. The actual entity / relation extraction is provided by a
 :class:`GraphExtractor` callable injected at construction time so that
-T2.x can wire the production LightRAG-based extractor without
+T2.x can wire the production LLM-driven extractor without
 touching this module.
 
 T1.2 ships:
@@ -581,7 +581,7 @@ class LineageGraphStore(Protocol):
         """Read-path helper for relations."""
 
     # ------------------------------------------------------------------
-    # Wave 6 #33 — LightRAG-style retrieval query layer. The retrieval
+    # Wave 6 #33 — graph-RAG retrieval query layer. The retrieval
     # pipeline (§G.5) and graph-curation flows consume these to compose
     # a graph-recall context for a user query without going through the
     # legacy ``GraphIndexService.query_context``.
@@ -602,7 +602,7 @@ class LineageGraphStore(Protocol):
     #   carry an entity-vector column, so a Protocol method on this
     #   store would either invite a Qdrant cross-concern coupling or
     #   silently no-op. Wave 7+ may add it via a separate
-    #   ``LightRAGQueryService`` if real evidence surfaces; until then
+    #   dedicated query service if real evidence surfaces; until then
     #   no dead code lives here. See §K.11 amend.
     # ------------------------------------------------------------------
 
@@ -924,7 +924,7 @@ class InMemoryLineageGraphStore:
             )
 
     # ------------------------------------------------------------------
-    # Wave 6 #33 chunk 2 — LightRAG-style query layer real impls.
+    # Wave 6 #33 chunk 2 — graph-RAG query layer real impls.
     # ------------------------------------------------------------------
 
     async def query_entities_by_keyword(
@@ -1072,7 +1072,7 @@ GraphExtractor = Callable[
 ``chunks.jsonl`` and gets back the raw entity / relation list to
 serialise into ``kg.jsonl``.
 
-The production extractor (LightRAG-based, LLM-driven) is wired in
+The production extractor (LLM-driven, per-chunk) is wired in
 T2.x; tests pass deterministic stubs so the §D.3.6 self-test does not
 depend on any LLM.
 """

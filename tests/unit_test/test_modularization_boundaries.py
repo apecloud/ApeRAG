@@ -586,7 +586,7 @@ def test_no_legacy_retrieval_or_graph_routes_remain():
 
     The only explicitly allowed graph route left in ``views/graph.py``
     is the ``GET /collections/{id}/graphs/export/kg-eval`` 410-Gone
-    shim (kept for out-of-tree callers hitting the deleted LightRAG
+    shim (kept for out-of-tree callers hitting the deleted legacy
     endpoint). The regex above carves out that exception with a
     negative lookahead.
     """

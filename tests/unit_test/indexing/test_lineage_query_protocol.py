@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """Wave 6 #33 — Protocol surface + in-memory implementation for the
-LightRAG-style query layer on :class:`aperag.indexing.graph.LineageGraphStore`.
+graph-RAG query layer on :class:`aperag.indexing.graph.LineageGraphStore`.
 
 Pin the Protocol method signatures so chunk 3 caller migration can
 rely on a stable surface, and pin the in-memory query/traversal
@@ -26,7 +26,7 @@ Per architect ruling msg=54eac595 (Option A) the read API is:
 ``query_entities_by_vector`` was originally declared in chunk 1 but
 dropped in chunk 2 because the Wave 4 lineage schema does not carry an
 entity-vector column. Wave 7 may re-introduce vector recall via a
-separate ``LightRAGQueryService`` if real evidence surfaces.
+dedicated query service if real evidence surfaces.
 """
 
 from __future__ import annotations
@@ -45,7 +45,7 @@ from aperag.indexing.graph import (
 
 def test_lineage_query_protocol_exposes_two_read_methods():
     """The new query layer surface must declare exactly the two
-    LightRAG-style read methods agreed in §K.11.11 amend."""
+    graph-RAG read methods agreed in §K.11.11 amend."""
 
     members = set(LineageGraphStore.__dict__)
     assert "query_entities_by_keyword" in members
