@@ -108,7 +108,7 @@ export const CollectionList = ({
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="border-border/70 bg-card grid gap-4 rounded-xl border p-4 shadow-sm md:grid-cols-[1fr_auto] md:items-center">
+      <div className="border-border/70 bg-card rounded-xl border p-4 shadow-sm">
         <div className="relative max-w-xl">
           <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
           <Input
@@ -117,14 +117,6 @@ export const CollectionList = ({
             value={searchValue}
             onChange={(e) => setSearchValue(e.currentTarget.value)}
           />
-        </div>
-        <div className="flex flex-wrap items-center gap-2 md:justify-end">
-          <Button asChild>
-            <Link href="/workspace/collections/new">
-              <Plus className="size-4" />
-              {page_collection_new('metadata.title')}
-            </Link>
-          </Button>
         </div>
       </div>
 

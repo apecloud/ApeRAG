@@ -3,15 +3,13 @@ import {
   PageContent,
   PageHeader,
 } from '@/components/page-container';
-import { Button } from '@/components/ui/button';
 
 import { listCollections } from '@/features/collection/server-api';
 import type { CollectionView } from '@/features/collection/types';
 import { toJson } from '@/lib/utils';
-import { Database, Plus } from 'lucide-react';
+import { Database } from 'lucide-react';
 import { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
-import Link from 'next/link';
 import { CollectionList } from './collection-list';
 
 export const dynamic = 'force-dynamic';
@@ -45,8 +43,8 @@ export default async function Page() {
         breadcrumbs={[{ title: page_collections('metadata.title') }]}
       />
       <PageContent className="max-w-7xl px-5 py-8 md:px-8 md:py-10">
-        <div className="mb-9 flex flex-col gap-5 lg:flex-row lg:items-end">
-          <div className="min-w-0 flex-1">
+        <div className="mb-9">
+          <div className="min-w-0">
             <div className="text-muted-foreground font-mono text-[11px] tracking-[0.12em] uppercase">
               {page_collections('workspace_label')}
             </div>
@@ -56,14 +54,6 @@ export default async function Page() {
             <p className="text-muted-foreground mt-3 max-w-2xl text-sm leading-6">
               {page_collections('metadata.description')}
             </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button asChild>
-              <Link href="/workspace/collections/new">
-                <Plus className="size-4" />
-                {page_collections('create_collection')}
-              </Link>
-            </Button>
           </div>
         </div>
         <div className="border-border/70 bg-card mb-6 flex items-center gap-3 rounded-xl border px-4 py-3 shadow-sm">
