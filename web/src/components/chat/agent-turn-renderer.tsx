@@ -80,7 +80,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { useFormatter, useTranslations } from 'next-intl';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MessageCollapseContent } from './message-collapse-content';
 import { MessageFeedback } from './message-feedback';
 
@@ -781,6 +781,7 @@ export function AgentTurnRenderer({
   const answerText = useMemo(() => joinTextParts(grouped.text), [grouped.text]);
   const [activityOpen, setActivityOpen] = useState(true);
   const autoCollapsedRef = useRef(false);
+  const userControlledActivityRef = useRef(false);
   const visibleToolParts = useMemo(
     () => grouped.tool.filter(isVisibleToolActivity),
     [grouped.tool],
@@ -859,12 +860,14 @@ export function AgentTurnRenderer({
 
   useEffect(() => {
     autoCollapsedRef.current = false;
+    userControlledActivityRef.current = false;
     setActivityOpen(true);
   }, [turn.turn_id]);
 
   useEffect(() => {
     if (
       autoCollapsedRef.current ||
+      userControlledActivityRef.current ||
       !answerText.trim() ||
       hasStreamingReasoning ||
       hasRunningTool
@@ -874,6 +877,11 @@ export function AgentTurnRenderer({
     autoCollapsedRef.current = true;
     setActivityOpen(false);
   }, [answerText, hasRunningTool, hasStreamingReasoning]);
+
+  const handleActivityOpenChange = useCallback((open: boolean) => {
+    userControlledActivityRef.current = true;
+    setActivityOpen(open);
+  }, []);
 
   return (
     <div className="flex w-full flex-row gap-3.5">
@@ -901,7 +909,7 @@ export function AgentTurnRenderer({
 
         <Collapsible
           open={activityOpen}
-          onOpenChange={setActivityOpen}
+          onOpenChange={handleActivityOpenChange}
           className="group/activity-stream bg-muted border-border/70 overflow-hidden rounded-xl border"
         >
           <CollapsibleTrigger asChild>
@@ -994,7 +1002,7 @@ export function AgentTurnRenderer({
         </Collapsible>
 
         {showAnswerSection &&
-          (status === 'completed' ? (
+          (status === 'completed' || (pending && hasAnswerText) ? (
             <div className="text-[15px] leading-[1.65] tracking-[-0.003em]">
               {answerText ? (
                 <Markdown>{answerText}</Markdown>
