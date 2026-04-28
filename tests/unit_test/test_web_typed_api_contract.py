@@ -542,13 +542,23 @@ def test_bot_feature_uses_v2_typed_api_boundary():
     # Positive: features/bot/types exposes the schema-derived chat shell
     # aliases + the runtime `FEEDBACK_TAGS` const (constrained by
     # `satisfies readonly FeedbackTag[]`), matching the locked gate.
+    #
+    # ``ChatMessage`` and ``Reference`` were originally schema-derived
+    # but the underlying OpenAPI components were removed/refactored in
+    # Wave 8 D8.5+ (history → ``AgentTurnSnapshot``; reference →
+    # ``DataCitationPart`` / ``SourceDocumentPart`` / ``SourceUrlPart``).
+    # PR #1774 swept the broken ``components['schemas'][...]`` lookups
+    # and replaced them with FE-local types pending a proper renderer
+    # migration (TODO W9-3). Pin the FE-local shape so a future
+    # contributor doesn't silently re-introduce the broken schema
+    # lookup.
     bot_types = (REPO_ROOT / "web/src/features/bot/types.ts").read_text()
-    assert "components['schemas']['ChatMessage']" in bot_types
     assert "components['schemas']['Feedback']" in bot_types
-    assert "components['schemas']['Reference']" in bot_types
     assert "NonNullable<Feedback['tag']>" in bot_types
     assert "NonNullable<Feedback['type']>" in bot_types
     assert "satisfies readonly FeedbackTag[]" in bot_types
+    assert "export type ChatMessage = {" in bot_types
+    assert "export type Reference = {" in bot_types
 
 
 def test_collection_feature_uses_v2_typed_api_boundary():
