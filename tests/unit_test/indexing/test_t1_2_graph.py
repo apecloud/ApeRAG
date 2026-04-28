@@ -2028,3 +2028,141 @@ async def test_w7_list_entities_returns_compacted_description():
     )
     [row] = await s.list_entities()
     assert row.compacted_description == "LLM summary"
+
+
+# ---------------------------------------------------------------------
+# Wave 8 W8-2 — bulk_upsert_entity_with_lineage_parts contract on the
+# InMemory reference store. Cross-backend integration tests live in
+# the separate ``tests/integration/graph_storage`` cross-backend
+# fixture and reuse the same scenarios.
+# ---------------------------------------------------------------------
+
+
+_LINEAGE_DOC_B_V1 = LineageMember(
+    document_id="doc_B",
+    parse_version="v1",
+    tenant_scope_key="tenant-X",
+    chunk_ids=("c2",),
+)
+
+
+@pytest.mark.asyncio
+async def test_w8_bulk_upsert_empty_parts_is_noop():
+    s = InMemoryLineageGraphStore()
+    await s.bulk_upsert_entity_with_lineage_parts(parts=[])
+    assert await s.list_entities() == []
+
+
+@pytest.mark.asyncio
+async def test_w8_bulk_upsert_creates_entity_with_all_parts():
+    s = InMemoryLineageGraphStore()
+    await s.bulk_upsert_entity_with_lineage_parts(
+        parts=[
+            (_record(description="part-A"), _LINEAGE_W7_DOC_A_V1),
+            (_record(description="part-B"), _LINEAGE_W7_DOC_A_V2),
+            (_record(description="part-C"), _LINEAGE_DOC_B_V1),
+        ],
+    )
+    got = await s.get_entity("Alice")
+    assert got is not None
+    lineage_keys = {(m.document_id, m.parse_version) for m in got.source_lineage}
+    assert lineage_keys == {("doc_A", "v1"), ("doc_A", "v2"), ("doc_B", "v1")}
+    part_texts = {(p.document_id, p.parse_version, p.text) for p in got.description_parts}
+    assert part_texts == {
+        ("doc_A", "v1", "part-A"),
+        ("doc_A", "v2", "part-B"),
+        ("doc_B", "v1", "part-C"),
+    }
+
+
+@pytest.mark.asyncio
+async def test_w8_bulk_upsert_replaces_existing_keys_and_keeps_others():
+    """Strip-then-append semantic — same dedup key as single upsert."""
+    s = InMemoryLineageGraphStore()
+    # Seed with two pre-existing parts.
+    await s.upsert_entity_with_lineage(record=_record(description="old-A"), lineage=_LINEAGE_W7_DOC_A_V1)
+    await s.upsert_entity_with_lineage(record=_record(description="old-B"), lineage=_LINEAGE_W7_DOC_A_V2)
+    # Bulk re-upsert hits ``doc_A/v1`` (replaces) + adds ``doc_B/v1``.
+    await s.bulk_upsert_entity_with_lineage_parts(
+        parts=[
+            (_record(description="new-A"), _LINEAGE_W7_DOC_A_V1),
+            (_record(description="new-B"), _LINEAGE_DOC_B_V1),
+        ],
+    )
+    got = await s.get_entity("Alice")
+    assert got is not None
+    part_texts = {(p.document_id, p.parse_version, p.text) for p in got.description_parts}
+    assert part_texts == {
+        # Original ``doc_A/v1`` replaced with ``new-A``.
+        ("doc_A", "v1", "new-A"),
+        # ``doc_A/v2`` untouched.
+        ("doc_A", "v2", "old-B"),
+        # ``doc_B/v1`` newly added.
+        ("doc_B", "v1", "new-B"),
+    }
+
+
+@pytest.mark.asyncio
+async def test_w8_bulk_upsert_rejects_mismatched_names():
+    s = InMemoryLineageGraphStore()
+    with pytest.raises(ValueError):
+        await s.bulk_upsert_entity_with_lineage_parts(
+            parts=[
+                (_record(name="Alice"), _LINEAGE_W7_DOC_A_V1),
+                (_record(name="Bob"), _LINEAGE_W7_DOC_A_V2),
+            ],
+        )
+
+
+@pytest.mark.asyncio
+async def test_w8_bulk_upsert_dedups_within_input_last_wins():
+    """Two parts in ``parts`` sharing the same dedup key — last one wins."""
+    s = InMemoryLineageGraphStore()
+    await s.bulk_upsert_entity_with_lineage_parts(
+        parts=[
+            (_record(description="first"), _LINEAGE_W7_DOC_A_V1),
+            (_record(description="second"), _LINEAGE_W7_DOC_A_V1),
+        ],
+    )
+    got = await s.get_entity("Alice")
+    assert got is not None
+    [part] = got.description_parts
+    assert part.text == "second"
+
+
+@pytest.mark.asyncio
+async def test_w8_bulk_upsert_does_not_clobber_compacted_description():
+    """Bulk path NEVER touches compacted_description (preserves existing)."""
+    s = InMemoryLineageGraphStore()
+    await s.upsert_entity_with_lineage(
+        record=_record(description="seed"),
+        lineage=_LINEAGE_W7_DOC_A_V1,
+        compacted_description="LLM summary survives bulk",
+    )
+    await s.bulk_upsert_entity_with_lineage_parts(
+        parts=[(_record(description="bulk-add"), _LINEAGE_DOC_B_V1)],
+    )
+    got = await s.get_entity("Alice")
+    assert got is not None
+    assert got.compacted_description == "LLM summary survives bulk"
+
+
+@pytest.mark.asyncio
+async def test_w8_bulk_upsert_picks_up_last_entity_type():
+    """Mirror single-upsert "most recently observed type wins" rule."""
+    s = InMemoryLineageGraphStore()
+    await s.bulk_upsert_entity_with_lineage_parts(
+        parts=[
+            (
+                EntityRecord(name="Alice", entity_type="Person", description="d1", source_chunk_ids=("c0",)),
+                _LINEAGE_W7_DOC_A_V1,
+            ),
+            (
+                EntityRecord(name="Alice", entity_type="Researcher", description="d2", source_chunk_ids=("c1",)),
+                _LINEAGE_W7_DOC_A_V2,
+            ),
+        ],
+    )
+    got = await s.get_entity("Alice")
+    assert got is not None
+    assert got.entity_type == "Researcher"

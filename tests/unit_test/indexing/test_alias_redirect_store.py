@@ -180,6 +180,65 @@ async def test_relation_write_redirects_only_one_endpoint():
 
 
 # ---------------------------------------------------------------------
+# Bulk write redirect (Wave 8 W8-2 task #13)
+# ---------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_bulk_upsert_redirects_each_part_record_name():
+    """Wave 8 W8-2: bulk path mirrors single-upsert redirect — every
+    ``(record, lineage)`` tuple's ``record.name`` resolves through the
+    alias map before forwarding to the inner store."""
+    inner = AsyncMock()
+    inner.bulk_upsert_entity_with_lineage_parts = AsyncMock(return_value=None)
+    decorator = LineageGraphStoreWithAliasRedirect(
+        inner=inner,
+        alias_repo=_FakeAliasRepo({"A": "C"}),
+        collection_id="col-1",
+    )
+    parts = [
+        (_record("A"), _member()),
+        (_record("A"), _member()),
+    ]
+    await decorator.bulk_upsert_entity_with_lineage_parts(parts=parts)
+    inner.bulk_upsert_entity_with_lineage_parts.assert_awaited_once()
+    forwarded_parts = inner.bulk_upsert_entity_with_lineage_parts.call_args.kwargs["parts"]
+    assert len(forwarded_parts) == 2
+    for record, _lineage in forwarded_parts:
+        assert record.name == "C"
+
+
+@pytest.mark.asyncio
+async def test_bulk_upsert_no_alias_pass_through():
+    """Empty alias map → bulk forwards records unchanged."""
+    inner = AsyncMock()
+    inner.bulk_upsert_entity_with_lineage_parts = AsyncMock(return_value=None)
+    decorator = LineageGraphStoreWithAliasRedirect(
+        inner=inner,
+        alias_repo=_FakeAliasRepo(),
+        collection_id="col-1",
+    )
+    parts = [(_record("Untouched"), _member())]
+    await decorator.bulk_upsert_entity_with_lineage_parts(parts=parts)
+    forwarded_parts = inner.bulk_upsert_entity_with_lineage_parts.call_args.kwargs["parts"]
+    assert forwarded_parts[0][0].name == "Untouched"
+
+
+@pytest.mark.asyncio
+async def test_bulk_upsert_empty_parts_short_circuits():
+    """Empty input is a no-op — the inner store is never called."""
+    inner = AsyncMock()
+    inner.bulk_upsert_entity_with_lineage_parts = AsyncMock(return_value=None)
+    decorator = LineageGraphStoreWithAliasRedirect(
+        inner=inner,
+        alias_repo=_FakeAliasRepo({"A": "C"}),
+        collection_id="col-1",
+    )
+    await decorator.bulk_upsert_entity_with_lineage_parts(parts=[])
+    inner.bulk_upsert_entity_with_lineage_parts.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------
 # Read-side redirect (Wave 8 W8-3 task #14)
 # ---------------------------------------------------------------------
 

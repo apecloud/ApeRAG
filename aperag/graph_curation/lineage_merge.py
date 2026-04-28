@@ -260,28 +260,35 @@ class LineageEntityMerger:
 
         # Step 6a — re-anchor source parts under the target name,
         # preserving their original lineage so per-doc tracking is not
-        # lost (invariant #1). DescriptionPart carries no chunk_ids of
-        # its own; we look up the matching LineageMember by
-        # ``(document_id, parse_version)`` to recover them.
+        # lost (invariant #1). Wave 8 W8-2: the N×M loop is folded
+        # into a single ``bulk_upsert_entity_with_lineage_parts`` call
+        # so the whole consolidation is one transaction / one round-
+        # trip per backend, not N×M sequential upserts.
+        bulk_parts: list[tuple[EntityRecord, LineageMember]] = []
         for src in source_entities:
             lineage_by_key = {m.key(): m for m in src.source_lineage}
+            tenant = self._tenant_scope_key_for(src)
             for part in src.description_parts:
                 member = lineage_by_key.get(part.key())
                 chunk_ids = tuple(member.chunk_ids) if member is not None else ()
-                await self._store.upsert_entity_with_lineage(
-                    record=EntityRecord(
-                        name=final_target,
-                        entity_type=target_entity.entity_type,
-                        description=part.text,
-                        source_chunk_ids=chunk_ids,
-                    ),
-                    lineage=LineageMember(
-                        document_id=part.document_id,
-                        parse_version=part.parse_version,
-                        tenant_scope_key=self._tenant_scope_key_for(src),
-                        chunk_ids=chunk_ids,
-                    ),
+                bulk_parts.append(
+                    (
+                        EntityRecord(
+                            name=final_target,
+                            entity_type=target_entity.entity_type,
+                            description=part.text,
+                            source_chunk_ids=chunk_ids,
+                        ),
+                        LineageMember(
+                            document_id=part.document_id,
+                            parse_version=part.parse_version,
+                            tenant_scope_key=tenant,
+                            chunk_ids=chunk_ids,
+                        ),
+                    )
                 )
+        if bulk_parts:
+            await self._store.bulk_upsert_entity_with_lineage_parts(parts=bulk_parts)
 
         # Step 6b — final write with unified text + compacted_description
         # under the curation-merge sentinel lineage.

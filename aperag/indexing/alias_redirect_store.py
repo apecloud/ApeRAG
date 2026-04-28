@@ -163,6 +163,34 @@ class LineageGraphStoreWithAliasRedirect:
             compacted_description=compacted_description,
         )
 
+    async def bulk_upsert_entity_with_lineage_parts(self, *, parts) -> None:
+        # Wave 8 W8-2: alias-redirect on the bulk write surface,
+        # mirror of the single-upsert path. Resolve each ``record.name``
+        # through the alias map; if any tuple's name redirects, the
+        # whole bulk write retargets to the canonical name. The
+        # ``LineageEntityMerger`` is the only known caller and always
+        # passes records already pinned to the canonical
+        # ``final_target`` so the redirect is a no-op in that flow —
+        # but we apply it here for symmetry with the single upsert
+        # contract (a future caller writing to an aliased name still
+        # gets the right behaviour).
+        if not parts:
+            return
+        redirected: list[tuple[EntityRecord, LineageMember]] = []
+        for record, lineage in parts:
+            canonical = await self._alias_repo.resolve_canonical(collection_id=self._collection_id, name=record.name)
+            if canonical != record.name:
+                logger.debug(
+                    "alias_redirect: bulk entity part %r → %r (collection=%s)",
+                    record.name,
+                    canonical,
+                    self._collection_id,
+                )
+                redirected.append((replace(record, name=canonical), lineage))
+            else:
+                redirected.append((record, lineage))
+        await self._inner.bulk_upsert_entity_with_lineage_parts(parts=redirected)
+
     # ------------------------------------------------------------------
     # Passthrough — forward every non-redirected Protocol method
     # unchanged. Pinned by
