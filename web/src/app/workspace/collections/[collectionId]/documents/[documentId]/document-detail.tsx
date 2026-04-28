@@ -1,6 +1,7 @@
 'use client';
 import { getDocumentStatusColor } from '@/app/workspace/collections/tools';
 import { FormatDate } from '@/components/format-date';
+import { Markdown } from '@/components/markdown';
 import { useCollectionContext } from '@/components/providers/collection-provider';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -22,6 +23,15 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
+
+// Plain-text / markdown extensions whose ``markdown_content`` field on
+// the BE-side ``DocumentPreview`` IS the original file content (the
+// indexing pipeline copies the upload through verbatim — there's no
+// "parse" step to hide). Keep this surface so .txt / .md / .markdown
+// uploads still display in the original-preview pane after PR #1815
+// removed the parsed-text tab (parsed-text was only suppressed for
+// PDFs, where the parsed render quality was poor).
+const TEXT_PREVIEW_EXTENSIONS = new Set(['txt', 'md', 'markdown']);
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
 
@@ -113,6 +123,8 @@ export const DocumentDetail = ({
 
   const isPdf = extension === 'pdf';
   const isImage = IMAGE_EXTENSIONS.has(extension);
+  const isTextPreview = TEXT_PREVIEW_EXTENSIONS.has(extension);
+  const markdownContent = documentPreview.markdown_content?.trim();
   const pdfPreviewUrl = isPdf
     ? originalObjectUrl || convertedPdfUrl
     : undefined;
@@ -221,6 +233,12 @@ export const DocumentDetail = ({
               className="border-border/70 bg-background max-h-[75vh] max-w-full rounded-lg border object-contain shadow-sm"
             />
           </div>
+        ) : isTextPreview && markdownContent ? (
+          <Card className="border-border/70 py-0 shadow-sm">
+            <CardContent className="p-5">
+              <Markdown>{markdownContent}</Markdown>
+            </CardContent>
+          </Card>
         ) : (
           <Card className="border-border/70 py-0 shadow-sm">
             <CardContent className="text-muted-foreground flex min-h-72 flex-col items-center justify-center gap-4 p-8 text-center text-sm">
