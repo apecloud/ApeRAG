@@ -100,9 +100,10 @@ async def test_jina_search_does_not_send_x_return_format(stub_response_ok, monke
 
     captured: dict[str, Any] = {}
 
-    def _client_session_factory(timeout=None):
+    def _client_session_factory(**kwargs):
         session = _StubSession(stub_response_ok)
         captured["session"] = session
+        captured["session_kwargs"] = kwargs
         return session
 
     monkeypatch.setattr(aiohttp, "ClientSession", _client_session_factory)
@@ -128,7 +129,7 @@ async def test_jina_search_parses_valid_json_response(stub_response_ok, monkeypa
     parsed into ``WebSearchResultItem`` entries with ranks 1-N."""
     provider = JinaSearchProvider(config={"api_key": "test-key"})
 
-    def _client_session_factory(timeout=None):
+    def _client_session_factory(**kwargs):
         return _StubSession(stub_response_ok)
 
     monkeypatch.setattr(aiohttp, "ClientSession", _client_session_factory)
@@ -153,7 +154,7 @@ async def test_jina_search_propagates_target_domain_header(stub_response_ok, mon
 
     captured: dict[str, Any] = {}
 
-    def _client_session_factory(timeout=None):
+    def _client_session_factory(**kwargs):
         session = _StubSession(stub_response_ok)
         captured["session"] = session
         return session
@@ -166,3 +167,25 @@ async def test_jina_search_propagates_target_domain_header(stub_response_ok, mon
     assert headers is not None
     assert headers.get("X-Target-Domain") == "example.com"
     assert "X-Return-Format" not in headers
+
+
+@pytest.mark.asyncio
+async def test_jina_search_session_uses_trust_env(stub_response_ok, monkeypatch):
+    """``aiohttp.ClientSession(..., trust_env=True)`` is required so
+    deployments behind a regional proxy honour ``HTTPS_PROXY`` /
+    ``HTTP_PROXY`` env vars (libcurl-equivalent behaviour). Without
+    this flag, ``s.jina.ai`` direct route gets RST'd from CN deploys
+    while ``curl`` from the same host succeeds via the proxy."""
+    provider = JinaSearchProvider(config={"api_key": "test-key"})
+
+    captured: dict[str, Any] = {}
+
+    def _client_session_factory(**kwargs):
+        captured["session_kwargs"] = kwargs
+        return _StubSession(stub_response_ok)
+
+    monkeypatch.setattr(aiohttp, "ClientSession", _client_session_factory)
+
+    await provider.search(query="test", max_results=1, timeout=10)
+
+    assert captured["session_kwargs"].get("trust_env") is True

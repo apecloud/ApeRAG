@@ -184,7 +184,12 @@ class TrafilaturaProvider(BaseReaderProvider):
         }
 
         try:
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout), headers=headers) as session:
+            # See ``jina_search_provider.py`` for the ``trust_env=True``
+            # rationale — same proxy-from-env story for arbitrary URLs
+            # this provider fetches as a fallback to readability.
+            async with aiohttp.ClientSession(
+                timeout=aiohttp.ClientTimeout(total=timeout), headers=headers, trust_env=True
+            ) as session:
                 async with session.get(url) as response:
                     if response.status == 200:
                         return await response.text()

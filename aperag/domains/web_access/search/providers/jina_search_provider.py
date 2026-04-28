@@ -144,7 +144,16 @@ class JinaSearchProvider(BaseSearchProvider):
             logger.info(f"Jina search request: {search_url}")
             logger.debug(f"Request headers: {request_headers}")
 
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout)) as session:
+            # ``trust_env=True`` makes aiohttp honor ``HTTPS_PROXY`` /
+            # ``HTTP_PROXY`` env vars the way libcurl does by default.
+            # Without it, deployments behind a regional / corporate
+            # proxy (common for CN deploys reaching ``s.jina.ai``) get
+            # ``ClientConnectorError: Cannot connect to host ...
+            # [Connection reset by peer]`` on the direct route, while
+            # ``curl`` from the same host succeeds via the proxy.
+            async with aiohttp.ClientSession(
+                timeout=aiohttp.ClientTimeout(total=timeout), trust_env=True
+            ) as session:
                 async with session.get(search_url, headers=request_headers) as response:
                     if response.status != 200:
                         response_text = await response.text()
