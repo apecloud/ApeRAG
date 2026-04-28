@@ -26,8 +26,12 @@ export type CollectionStatus = NonNullable<CollectionView['status']>;
 
 export type SharingStatusResponse =
   components['schemas']['SharingStatusResponse'];
-export type CollectionSummaryTriggerResponse =
-  components['schemas']['CollectionSummaryTriggerResponse'];
+// Wave 10 §K.13 Chunk D — explicit operator override regen response
+// for the ``/summary/regen`` and ``/description/regen`` endpoints. The
+// pre-Wave-10 ``CollectionSummaryTriggerResponse`` shape was removed
+// alongside the old ``CollectionSummary`` ORM (Wave 10 §K.13 hard-cut).
+export type CollectionRegenTriggerResponse =
+  components['schemas']['CollectionRegenTriggerResponse'];
 
 export type MineruTokenTestRequest =
   components['schemas']['MineruTokenTestRequest'];

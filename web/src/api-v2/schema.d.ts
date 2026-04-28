@@ -1870,7 +1870,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/collections/{collection_id}/summary/generate": {
+    "/api/v2/collections/{collection_id}/summary/regen": {
         parameters: {
             query?: never;
             header?: never;
@@ -1880,10 +1880,49 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Generate Collection Summary View
-         * @description Trigger background summary generation for one collection.
+         * Regen Collection Summary View
+         * @description Trigger Stage 1 summary regen for ``collection_id``.
+         *
+         *     Runs agent-runtime free-explore over the collection (3-tier
+         *     fallback chain) inline and writes the result to
+         *     ``Collection.summary``.
+         *
+         *     Returns 404 if collection doesn't exist or caller doesn't own it,
+         *     503 if all tiers returned invalid output (input not ready or
+         *     LLM/agent unavailable — the reconciler will retry on its next
+         *     sweep), 200 with task_id on success.
          */
-        post: operations["collections_v2_generate_collection_summary_view"];
+        post: operations["collections_v2_regen_collection_summary_view"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/collections/{collection_id}/description/regen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Regen Collection Description View
+         * @description Trigger Stage 2 description derive from existing
+         *     ``Collection.summary``.
+         *
+         *     Cheap path — single LLM call, no agent multi-turn (~10s). Useful
+         *     when the summary is current but you want to refresh description
+         *     formatting / language / length.
+         *
+         *     Returns 400 if ``Collection.summary IS NULL`` (must regen summary
+         *     first), 404 if collection doesn't exist or caller doesn't own it,
+         *     503 if the LLM call fails the quality gate, 200 with task_id on
+         *     success.
+         */
+        post: operations["collections_v2_regen_collection_description_view"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2756,31 +2795,31 @@ export interface components {
             description?: string | null;
         };
         /**
-         * CollectionSummaryTriggerResponse
-         * @description Trigger-response envelope for POST /collections/{collection_id}/summary/generate.
+         * CollectionRegenTriggerResponse
+         * @description ``202 Accepted`` envelope for collection regen triggers.
          */
-        CollectionSummaryTriggerResponse: {
+        CollectionRegenTriggerResponse: {
             /**
              * Collection Id
-             * @description Collection id whose summary generation was triggered
+             * @description Collection id whose regen was triggered
              */
             collection_id: string;
             /**
-             * Success
-             * @description Whether the background job was scheduled
-             */
-            success: boolean;
-            /**
-             * Message
-             * @description Human-readable status message
-             */
-            message: string;
-            /**
-             * Summary Status
-             * @description Server-side summary state after the trigger call
+             * Stage
+             * @description Which stage of the regen pipeline was triggered
              * @enum {string}
              */
-            summary_status: "PENDING" | "GENERATING";
+            stage: "summary" | "description";
+            /**
+             * Task Id
+             * @description Opaque tracking token for the dispatched async task
+             */
+            task_id: string;
+            /**
+             * Estimated Completion Seconds
+             * @description Best-effort latency estimate (Stage 1 ~60s agent explore, Stage 2 ~10s LLM derive)
+             */
+            estimated_completion_seconds: number;
         };
         /** CollectionUpdate */
         CollectionUpdate: {
@@ -4297,24 +4336,13 @@ export interface components {
             /**
              * Entity Types
              * @description List of entity types to extract during graph indexing
-             * @default [
-             *       "organization",
-             *       "person",
-             *       "geo",
-             *       "event",
-             *       "product",
-             *       "technology",
-             *       "date",
-             *       "category"
-             *     ]
              * @example [
-             *       "organization",
-             *       "person",
-             *       "geo",
-             *       "event"
+             *       "人物",
+             *       "组织",
+             *       "疾病"
              *     ]
              */
-            entity_types: string[] | null;
+            entity_types?: string[];
             /**
              * Per Chunk Timeout Seconds
              * @description Per-chunk LLM call timeout (seconds); the extractor uses 60s default if unset. Lift for slow / large-context multimodal models.
@@ -10431,7 +10459,7 @@ export interface operations {
             };
         };
     };
-    collections_v2_generate_collection_summary_view: {
+    collections_v2_regen_collection_summary_view: {
         parameters: {
             query?: {
                 engine?: unknown;
@@ -10450,7 +10478,40 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CollectionSummaryTriggerResponse"];
+                    "application/json": components["schemas"]["CollectionRegenTriggerResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    collections_v2_regen_collection_description_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionRegenTriggerResponse"];
                 };
             };
             /** @description Validation Error */
