@@ -5,10 +5,64 @@ import { browserApiClient } from '@/lib/api/typed/browser';
 import type {
   GraphLabelsResponse,
   KnowledgeGraph,
+  MergeSuggestionItem,
   MergeSuggestionsResponse,
   SuggestionActionRequest,
   SuggestionActionResponse,
 } from './types';
+
+const createEmptyMergeSuggestionsResponse = (): MergeSuggestionsResponse => ({
+  suggestions: [],
+  total_analyzed_nodes: 0,
+  processing_time_seconds: 0,
+  from_cache: false,
+  generated_at: '',
+  total_suggestions: 0,
+  pending_count: 0,
+  accepted_count: 0,
+  rejected_count: 0,
+});
+
+const countSuggestionsByStatus = (
+  suggestions: MergeSuggestionItem[],
+  status: MergeSuggestionItem['status'],
+) => suggestions.filter((suggestion) => suggestion.status === status).length;
+
+const normalizeMergeSuggestionsResponse = (
+  data: unknown,
+): MergeSuggestionsResponse | undefined => {
+  if (!data || typeof data !== 'object') {
+    return undefined;
+  }
+
+  const raw = data as Partial<MergeSuggestionsResponse> &
+    Record<string, unknown>;
+  const suggestions = Array.isArray(raw.suggestions)
+    ? (raw.suggestions as MergeSuggestionItem[])
+    : [];
+
+  return {
+    ...createEmptyMergeSuggestionsResponse(),
+    ...raw,
+    suggestions,
+    total_suggestions:
+      typeof raw.total_suggestions === 'number'
+        ? raw.total_suggestions
+        : suggestions.length,
+    pending_count:
+      typeof raw.pending_count === 'number'
+        ? raw.pending_count
+        : countSuggestionsByStatus(suggestions, 'PENDING'),
+    accepted_count:
+      typeof raw.accepted_count === 'number'
+        ? raw.accepted_count
+        : countSuggestionsByStatus(suggestions, 'ACCEPTED'),
+    rejected_count:
+      typeof raw.rejected_count === 'number'
+        ? raw.rejected_count
+        : countSuggestionsByStatus(suggestions, 'REJECTED'),
+  };
+};
 
 export async function getGraphLabels(
   collectionId: string,
@@ -83,7 +137,7 @@ export async function getMergeSuggestions(
       params: { path: { collection_id: collectionId } },
     },
   );
-  return data as MergeSuggestionsResponse | undefined;
+  return normalizeMergeSuggestionsResponse(data);
 }
 
 export async function runMergeSuggestions(
@@ -96,7 +150,7 @@ export async function runMergeSuggestions(
       body: {},
     },
   );
-  return data as MergeSuggestionsResponse | undefined;
+  return normalizeMergeSuggestionsResponse(data);
 }
 
 export async function handleSuggestionAction(

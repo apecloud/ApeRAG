@@ -46,14 +46,10 @@ const SuggestionItem = ({
         accept: action === 'accept',
         reject: action === 'reject',
       });
-      const res = await dispatchSuggestionAction(
-        item.collection_id,
-        item.id,
-        {
-          action,
-          target_entity_data: item.suggested_target_entity,
-        },
-      );
+      const res = await dispatchSuggestionAction(item.collection_id, item.id, {
+        action,
+        target_entity_data: item.suggested_target_entity,
+      });
       if (res?.status === 'success' && action === 'reject') {
         await afterRejectMergeSuggestion();
       }
@@ -161,6 +157,13 @@ export const CollectionGraphNodeMerge = ({
   const [activeStatus, setActiveStatus] =
     useState<MergeSuggestionStatus>('PENDING');
   const page_graph = useTranslations('page_graph');
+  const suggestions = Array.isArray(dataSource.suggestions)
+    ? dataSource.suggestions
+    : [];
+  const filteredSuggestions = suggestions.filter(
+    (suggestion) => suggestion.status === activeStatus,
+  );
+
   return (
     <Drawer
       direction="right"
@@ -193,9 +196,12 @@ export const CollectionGraphNodeMerge = ({
           </Tabs>
         </DrawerHeader>
         <div className="flex flex-1 flex-col gap-2 overflow-auto p-2 select-text">
-          {dataSource.suggestions
-            .filter((s) => s.status === activeStatus)
-            .map((suggestion) => {
+          {filteredSuggestions.length === 0 ? (
+            <div className="text-muted-foreground flex flex-1 items-center justify-center px-6 text-center text-sm">
+              {page_graph('no_nodes_found')}
+            </div>
+          ) : (
+            filteredSuggestions.map((suggestion) => {
               return (
                 <SuggestionItem
                   key={suggestion.id}
@@ -205,7 +211,8 @@ export const CollectionGraphNodeMerge = ({
                   afterAcceptMergeSuggestion={onRefresh}
                 />
               );
-            })}
+            })
+          )}
         </div>
       </DrawerContent>
     </Drawer>

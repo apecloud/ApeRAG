@@ -156,9 +156,12 @@ class GraphService:
         if entities and max_depth > 0:
             search = build_graph_search_service_for(db_collection)
             seed_names = [entity.name for entity in entities]
-            subgraph = await search.get_subgraph(entity_names=seed_names, hops=max_depth)
+            _, subgraph_relations = await search.get_subgraph(
+                entity_names=seed_names,
+                hops=max_depth,
+            )
             allowed = set(seed_names)
-            relations = [rel for rel in subgraph.relations if rel.source in allowed and rel.target in allowed]
+            relations = [rel for rel in subgraph_relations if rel.source in allowed and rel.target in allowed]
 
         raw_nodes = _adapt_lineage_entities(entities)
         raw_edges = _adapt_lineage_relations(relations)
