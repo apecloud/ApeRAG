@@ -315,6 +315,44 @@ def test_translate_tool_started_finished():
     assert not hasattr(finished[0], "error_text")
 
 
+def test_translate_tool_started_forwards_resolved_titles_in_metadata():
+    """The runtime resolves ``document_title`` / ``collection_title``
+    from opaque IDs in the tool args (earayu2 directive: 都展示名称
+    而不是 id) and emits them on ``tool.started.data.titles``. The
+    translator must merge those into ``ToolInputStartPart.metadata``
+    so the FE renderer (PR #1826 ``agent-turn-renderer.tsx``) shows
+    real names DURING streaming, not just after refresh."""
+
+    state = TranslatorState()
+    parts = translate_envelope(
+        _envelope(
+            "tool.started",
+            sequence=2,
+            event_id="event-tool-titles",
+            label="read_document",
+            status="started",
+            actor="tool",
+            data={
+                "tool_name": "read_document",
+                "args": {
+                    "collection_id": "colf922365f64d169fd",
+                    "document_id": "doc12a626b4821d6c4e",
+                },
+                "titles": {
+                    "document_title": "03-非洲猪瘟常态化防控技术指南.md",
+                    "collection_title": "技术文档库",
+                },
+            },
+        ),
+        state,
+    )
+    assert isinstance(parts[0], ToolInputStartPart)
+    assert parts[0].metadata == {
+        "document_title": "03-非洲猪瘟常态化防控技术指南.md",
+        "collection_title": "技术文档库",
+    }
+
+
 def test_translate_tool_lifecycle_uses_runtime_tool_call_id():
     state = TranslatorState()
     started = translate_envelope(
