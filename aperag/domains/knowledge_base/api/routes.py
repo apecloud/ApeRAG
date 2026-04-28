@@ -173,7 +173,6 @@ async def delete_collection_view(
 @router.post(
     "/collections/{collection_id}/summary/regen",
     response_model=CollectionRegenTriggerResponse,
-    status_code=202,
 )
 @audit(resource_type="collection", api_name="RegenCollectionSummaryV2")
 async def regen_collection_summary_view(
@@ -183,38 +182,43 @@ async def regen_collection_summary_view(
     """Trigger Stage 1 summary regen for ``collection_id``.
 
     Runs agent-runtime free-explore over the collection (3-tier
-    fallback chain) and writes the result to ``Collection.summary``.
-    Stage 2 (description derive) is automatically picked up by the
-    reconciler hook on the next sweep — callers don't need a
-    separate trigger unless they want to re-derive description with
-    summary unchanged (use ``/description/regen`` for that).
+    fallback chain) inline and writes the result to
+    ``Collection.summary``.
 
     Returns 404 if collection doesn't exist or caller doesn't own it,
-    409 if the regen lease is already held (concurrent regen in
-    flight), 202 with task_id otherwise.
+    503 if all tiers returned invalid output (input not ready or
+    LLM/agent unavailable — the reconciler will retry on its next
+    sweep), 200 with task_id on success.
     """
-    import asyncio
-
     from aperag.domains.knowledge_base.service.collection_regen_service import regen_summary
 
     collection = await collection_service.get_collection(str(user.id), collection_id)
     if not collection:
         raise HTTPException(status_code=404, detail="Collection not found")
 
+    success = await regen_summary(collection_id)
+    if not success:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Summary regen could not produce a valid output (lease busy "
+                "or all tiers fell through). The reconciler will retry on "
+                "its next sweep."
+            ),
+        )
+
     task_id = uuid_lib.uuid4().hex
-    asyncio.create_task(regen_summary(collection_id))
     return CollectionRegenTriggerResponse(
         collection_id=collection_id,
         stage="summary",
         task_id=task_id,
-        estimated_completion_seconds=60,
+        estimated_completion_seconds=0,
     )
 
 
 @router.post(
     "/collections/{collection_id}/description/regen",
     response_model=CollectionRegenTriggerResponse,
-    status_code=202,
 )
 @audit(resource_type="collection", api_name="RegenCollectionDescriptionV2")
 async def regen_collection_description_view(
@@ -230,10 +234,9 @@ async def regen_collection_description_view(
 
     Returns 400 if ``Collection.summary IS NULL`` (must regen summary
     first), 404 if collection doesn't exist or caller doesn't own it,
-    409 if regen lease is held, 202 with task_id otherwise.
+    503 if the LLM call fails the quality gate, 200 with task_id on
+    success.
     """
-    import asyncio
-
     from aperag.domains.knowledge_base.service.collection_regen_service import regen_description
 
     collection = await collection_service.get_collection(str(user.id), collection_id)
@@ -245,13 +248,23 @@ async def regen_collection_description_view(
             detail="Collection has no summary yet — call /summary/regen first.",
         )
 
+    success = await regen_description(collection_id)
+    if not success:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Description regen could not produce a valid output (lease "
+                "busy or LLM call failed quality gate). The reconciler will "
+                "retry on its next sweep."
+            ),
+        )
+
     task_id = uuid_lib.uuid4().hex
-    asyncio.create_task(regen_description(collection_id))
     return CollectionRegenTriggerResponse(
         collection_id=collection_id,
         stage="description",
         task_id=task_id,
-        estimated_completion_seconds=10,
+        estimated_completion_seconds=0,
     )
 
 
