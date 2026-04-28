@@ -23,23 +23,14 @@ Both stages share a **single cluster-level lease** (``regen_lease_owner``
 + ``regen_lease_expires_at`` columns on ``Collection``) so a multi-
 instance deployment cannot run summary + description in parallel
 against the same row (description depends on summary).
-
-Wave 10 follow-up note: the Stage 1 agent-runtime invocation goes
-through a clearly-marked extension hook
-(``_invoke_summary_agent``) that today returns ``None``,
-forcing the chunks.jsonl Tier-2 fallback. Filling in the actual
-``agent_runtime_manager.launch_turn`` integration (per design appendix
-A — fake Turn/Chat/Bot ORM construction) is staged as a Wave 10.1
-follow-up to avoid coupling this PR to agent-runtime headless API
-formalisation (huangheng N2 sediment, Wave 11 candidate).
 """
 
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import re
+import time
 import uuid
 from typing import Awaitable, Callable
 
@@ -48,15 +39,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from aperag.config import get_async_session
-from aperag.domains.knowledge_base.db.models import Collection
+from aperag.domains.knowledge_base.db.models import Collection, Document
 from aperag.domains.knowledge_base.service.regen_constants import (
+    CHUNKS_FALLBACK_MAX_CHARS,
+    CHUNKS_FALLBACK_MAX_DOCUMENTS,
+    CHUNKS_FALLBACK_PROMPT_EN,
+    CHUNKS_FALLBACK_PROMPT_ZH,
     DESCRIPTION_DERIVE_PROMPT_EN,
     DESCRIPTION_DERIVE_PROMPT_ZH,
     DESCRIPTION_MIN_CHARS,
     DESCRIPTION_TIMEOUT_SECONDS,
     INVALID_OUTPUT_FRAGMENTS,
     LEASE_TTL,
+    SUMMARY_AGENT_SYSTEM_PROMPT,
     SUMMARY_MIN_CHARS,
+    SUMMARY_TIMEOUT_SECONDS,
 )
 from aperag.utils.utils import utc_now
 
@@ -262,23 +259,108 @@ async def get_or_create_summary_bot_for_user(user_id: str):
 async def _invoke_summary_agent(collection: Collection) -> str | None:
     """Stage 1 Tier 1: agent-runtime free-explore.
 
-    Wave 10 follow-up: full ``agent_runtime_manager.launch_turn``
-    integration mirroring ``aperag/domains/evaluation/worker.py:114-180``
-    (real Bot/Chat/AgentTurn ORMs, poll terminal status,
-    UIMessage-store extraction). Bot infrastructure (this PR) is
-    in place; the launch_turn invocation lands in the next commit
-    on this same PR. Until that ships, this returns ``None`` so
-    the caller falls through to Tier 2.
+    Mirrors ``aperag/domains/evaluation/worker.py:114-180`` —
+    real ``Bot`` / ``Chat`` / ``AgentTurn`` ORMs, fire-and-forget
+    ``launch_turn``, poll terminal status, extract UIMessage parts.
+
+    Returns the summary text on success, ``None`` if the agent didn't
+    produce a usable output (failed / cancelled / lease conflict /
+    empty answer); the caller falls through to Tier 2.
     """
-    # Verify bot infrastructure is reachable — fail-fast diagnostic
-    # for the lazy-create branch + register-hook race.
+    from aperag.domains.agent_runtime.db.models import AgentTurnStatus
+    from aperag.domains.agent_runtime.runtime import agent_runtime_manager
+    from aperag.domains.agent_runtime.schemas import CreateTurnRequest
+    from aperag.domains.conversation.service.chat_service import chat_service_global
+    from aperag.domains.knowledge_base.schemas import Collection as CollectionSchema
+
     bot = await get_or_create_summary_bot_for_user(collection.user)
-    if bot is None:  # pragma: no cover — get_or_create raises on
-        # transient failure rather than returning None
+    if bot is None:  # pragma: no cover — get_or_create raises on transient failure
         return None
-    # TODO(Wave 10 follow-up commit): replace this fall-through with
-    # the full launch_turn flow. Bot is now reachable and ready.
-    return None
+
+    user_id = collection.user
+    chat_view = await chat_service_global.create_chat(user_id, bot.id)
+    chat_id = chat_view.id
+
+    title = collection.title or collection.id
+    query = (
+        f"请为 collection `{title}` (id={collection.id}) 生成一段详细丰富的 summary。"
+        f" 用提供的 read-only 工具自由探索 collection 内容后, 输出最终 summary 文本。"
+    )
+    turn_request = CreateTurnRequest(
+        query=query,
+        collections=[CollectionSchema(id=collection.id, title=title)],
+    )
+
+    chat, bot_orm, turn, _created = await agent_runtime_manager.turn_service.create_or_get_turn(
+        user_id, chat_id, turn_request
+    )
+
+    lease_owner = await agent_runtime_manager.claim_turn(turn.id)
+    if not lease_owner:
+        logger.info(
+            "_invoke_summary_agent: could not claim agent turn %s for collection %s",
+            turn.id,
+            collection.id,
+        )
+        return None
+
+    agent_runtime_manager.launch_turn(
+        turn=turn,
+        chat=chat,
+        bot=bot_orm,
+        user=user_id,
+        request=turn_request,
+        lease_owner=lease_owner,
+    )
+
+    terminal_statuses = {
+        AgentTurnStatus.COMPLETED.value,
+        AgentTurnStatus.FAILED.value,
+        AgentTurnStatus.CANCELLED.value,
+    }
+
+    deadline = time.monotonic() + SUMMARY_TIMEOUT_SECONDS
+    final_status: str | None = None
+    while True:
+        current = await agent_runtime_manager.turn_service.db_ops.query_agent_turn(user_id, chat_id, turn.id)
+        status_value = (
+            current.status.value if current and hasattr(current.status, "value") else (current and current.status)
+        )
+        if status_value in terminal_statuses:
+            final_status = status_value
+            break
+        if time.monotonic() >= deadline:
+            try:
+                await agent_runtime_manager.cancel_turn(turn.id)
+            except Exception:
+                logger.exception("cancel_turn failed for summary turn %s", turn.id)
+            logger.info(
+                "_invoke_summary_agent timed out after %ss for collection %s",
+                SUMMARY_TIMEOUT_SECONDS,
+                collection.id,
+            )
+            return None
+        await asyncio.sleep(2)
+
+    if final_status != AgentTurnStatus.COMPLETED.value:
+        logger.info(
+            "_invoke_summary_agent terminal=%s for collection %s",
+            final_status,
+            collection.id,
+        )
+        return None
+
+    persisted = await agent_runtime_manager.uimessage_store.read(turn.id)
+    parts = list(persisted.parts) if persisted and persisted.parts else []
+    return _extract_answer_text(parts) or None
+
+
+def _extract_answer_text(parts) -> str:
+    """Join the assistant's ``TextPart`` contents into a single string."""
+    from aperag.domains.agent_runtime.uimessage import TextPart
+
+    chunks = [part.text for part in parts if isinstance(part, TextPart) and part.text]
+    return "".join(chunks).strip()
 
 
 async def _invoke_summary_chunks_fallback(
@@ -286,18 +368,129 @@ async def _invoke_summary_chunks_fallback(
     *,
     llm: LLMCall,
 ) -> str | None:
-    """Stage 1 Tier 2: read the first substantive chunk of an arbitrary
-    indexed document in the collection, feed to LLM with a summary
-    prompt, return the result.
+    """Stage 1 Tier 2: read substantive chunks from active vector
+    indexes for documents in the collection, stitch them, and feed
+    to a single LLM call to produce a summary.
 
-    Scaffolded to demonstrate the contract; full chunks.jsonl wiring
-    (object-store read + chunk filter + multi-doc aggregation) lands
-    in Wave 10.1 follow-up alongside the agent-runtime upgrade.
-    Today returns ``None`` so the caller falls through to Tier 3
-    (transient skip) — the reconciler will retry on the next sweep
-    once Wave 10.1 ships either tier.
+    Returns the LLM output on success, ``None`` if no chunks are
+    available (parse hasn't completed) or the LLM call itself fails.
+    The caller falls through to Tier 3 (transient skip) so the
+    reconciler retries on the next sweep.
     """
-    return None
+    chunks_text = await _stitch_collection_chunks(collection)
+    if not chunks_text:
+        logger.info(
+            "_invoke_summary_chunks_fallback: no chunks available yet for %s",
+            collection.id,
+        )
+        return None
+
+    language = _detect_language(chunks_text)
+    template = CHUNKS_FALLBACK_PROMPT_ZH if language == "zh" else CHUNKS_FALLBACK_PROMPT_EN
+    prompt = template.format(
+        collection_title=collection.title or collection.id,
+        chunks_text=chunks_text,
+    )
+
+    try:
+        result = await asyncio.wait_for(llm(prompt), timeout=SUMMARY_TIMEOUT_SECONDS)
+    except (asyncio.TimeoutError, Exception):
+        logger.exception(
+            "_invoke_summary_chunks_fallback LLM call failed for %s",
+            collection.id,
+        )
+        return None
+    return result.strip() if result else None
+
+
+async def _stitch_collection_chunks(collection: Collection) -> str:
+    """Read ``chunks.jsonl`` for documents in the collection and stitch
+    a representative concatenation, capped at ``CHUNKS_FALLBACK_MAX_CHARS``.
+
+    Picks documents in deterministic order (by ``Document.id``), reads
+    each document's active vector ``DocumentIndex.source_path``, and
+    pulls the first substantive chunk (length > 200 chars) from each.
+    Returns ``""`` if no chunks are available.
+    """
+    from aperag.indexing.models import DocumentIndex, IndexStatus, Modality
+    from aperag.indexing.parser import read_chunks
+    from aperag.objectstore.base import get_object_store
+
+    async for session in get_async_session():
+        doc_stmt = (
+            select(Document.id)
+            .where(
+                and_(
+                    Document.collection_id == collection.id,
+                    Document.gmt_deleted.is_(None),
+                )
+            )
+            .order_by(Document.id)
+            .limit(CHUNKS_FALLBACK_MAX_DOCUMENTS)
+        )
+        doc_rows = (await session.execute(doc_stmt)).all()
+        if not doc_rows:
+            return ""
+
+        document_ids = [row[0] for row in doc_rows]
+        index_stmt = select(DocumentIndex.document_id, DocumentIndex.source_path).where(
+            and_(
+                DocumentIndex.document_id.in_(document_ids),
+                DocumentIndex.modality == Modality.VECTOR.value,
+                DocumentIndex.status == IndexStatus.ACTIVE.value,
+                DocumentIndex.is_serving.is_(True),
+            )
+        )
+        index_rows = (await session.execute(index_stmt)).all()
+        # Deterministic order: re-key by document_id so ordering matches
+        # the doc_stmt sort.
+        path_by_doc = {doc_id: src for doc_id, src in index_rows}
+        if not path_by_doc:
+            return ""
+
+        store = get_object_store()
+        collected: list[str] = []
+        total = 0
+        for doc_id in document_ids:
+            chunks_path = path_by_doc.get(doc_id)
+            if not chunks_path:
+                continue
+            try:
+                chunks = await asyncio.to_thread(read_chunks, store, chunks_path)
+            except Exception:
+                logger.exception(
+                    "_stitch_collection_chunks: read_chunks failed for %s (doc %s)",
+                    chunks_path,
+                    doc_id,
+                )
+                continue
+            chunk_text = _pick_substantive_chunk_text(chunks)
+            if not chunk_text:
+                continue
+            remaining = CHUNKS_FALLBACK_MAX_CHARS - total
+            if remaining <= 0:
+                break
+            snippet = chunk_text[:remaining]
+            collected.append(snippet)
+            total += len(snippet)
+
+        return "\n\n---\n\n".join(collected) if collected else ""
+    return ""
+
+
+def _pick_substantive_chunk_text(chunks: list[dict]) -> str | None:
+    """Return the first chunk whose ``text`` is at least 200 chars."""
+    for chunk in chunks:
+        text = chunk.get("text")
+        if isinstance(text, str) and len(text) >= 200:
+            return text
+    # Fall back to the longest available chunk if none cross the
+    # threshold — a small collection still produces a usable signal.
+    candidates = [c.get("text") for c in chunks if isinstance(c.get("text"), str)]
+    candidates = [t for t in candidates if t]
+    if not candidates:
+        return None
+    return max(candidates, key=len)
 
 
 async def regen_summary(
@@ -468,26 +661,21 @@ async def regen_description(
 
 
 def _default_llm_factory(collection: Collection) -> LLMCall:
-    """Build an ``LLMCall`` closure from the collection's completion
-    model config (mirror ``aperag.indexing.llm.build_collection_llm_callable``).
+    """Return the collection's configured async LLM callable.
 
-    Kept thin so unit tests can pass a stub factory and exercise the
-    quality-gate / fallback / lease logic without an LLM dependency.
+    ``build_collection_llm_callable`` already returns an async
+    ``(prompt) -> str`` closure (per ``aperag/indexing/llm.py``);
+    we surface it directly so the regen service can ``await`` it
+    uniformly across Stage 1 / Stage 2.
     """
     from aperag.indexing.llm import build_collection_llm_callable
 
-    # ``build_collection_llm_callable`` returns a sync callable (no
-    # awaitable wrapper); wrap it so the regen service can ``await``
-    # uniformly across Stage 1 / Stage 2.
-    sync_call = build_collection_llm_callable(collection)
-
-    async def _async_llm(prompt: str) -> str:
-        return await asyncio.to_thread(sync_call, prompt)
-
-    return _async_llm
+    return build_collection_llm_callable(collection)
 
 
 __all__ = [
+    "SUMMARY_AGENT_SYSTEM_PROMPT",
+    "get_or_create_summary_bot_for_user",
     "is_valid_description",
     "is_valid_summary",
     "regen_description",
@@ -495,6 +683,5 @@ __all__ = [
 ]
 
 
-# Silence unused imports for now — these will be wired in subsequent
-# chunks (json: response envelope serialisation; Awaitable: typing).
-_ = (Awaitable, json)
+# Silence unused imports flagged by ruff that are only used for typing.
+_ = Awaitable

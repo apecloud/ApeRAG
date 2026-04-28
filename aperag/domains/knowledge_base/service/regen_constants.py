@@ -111,6 +111,55 @@ get_collection_metadata, get_document_metadata。**只读, 不修改**。
 """
 
 # ---------------------------------------------------------------------
+# Stage 1 Tier 2 — chunks.jsonl fallback (LLM-only, no agent multi-turn)
+# ---------------------------------------------------------------------
+
+#: Cap on total characters concatenated from chunks before truncation.
+#: Sized so the resulting prompt fits comfortably under typical 32k /
+#: 128k context windows after the system prompt + instructions.
+CHUNKS_FALLBACK_MAX_CHARS: int = 24000
+
+#: Maximum number of documents to sample chunks from. Sampling is
+#: round-robin so a 1000-doc collection still gets diverse coverage.
+CHUNKS_FALLBACK_MAX_DOCUMENTS: int = 12
+
+#: Tier 2 prompt — single-shot summary from a stitched chunk corpus.
+#: Mirror the agent prompt's voice + length contract so the FE never
+#: sees a Tier-1 vs Tier-2 difference in tone or structure.
+CHUNKS_FALLBACK_PROMPT_ZH: str = """\
+你是 ApeRAG 的 collection summary 生成助手 (Tier 2 — agent 不可用时降级路径)。
+
+下面是 collection ``{collection_title}`` 的代表性文档片段拼接结果。请根据这些片段
+写出一段详细丰富的 summary。
+
+要求:
+- 长度: 5000-10000 字
+- 客观介绍 collection 包含哪些主题、覆盖哪些场景、对哪些用户有价值
+- 不假设用户场景, 不夸大效果
+- 仅输出 summary 文本, 无 preamble, 无 markdown headings, plain prose
+
+文档片段:
+{chunks_text}
+"""
+
+CHUNKS_FALLBACK_PROMPT_EN: str = """\
+You are ApeRAG's collection summary assistant (Tier 2 — fallback path used
+when the agent path is unavailable).
+
+Below are representative chunks stitched from documents in collection
+``{collection_title}``. Write a detailed summary based on these chunks.
+
+Requirements:
+- Length: 3000-7000 words
+- Objective coverage of themes, scenarios, and user value
+- No speculation about user scenarios; no exaggerated claims
+- Output summary text only, no preamble, no markdown headings, plain prose
+
+Chunks:
+{chunks_text}
+"""
+
+# ---------------------------------------------------------------------
 # Stage 2 — Description derive
 # ---------------------------------------------------------------------
 
