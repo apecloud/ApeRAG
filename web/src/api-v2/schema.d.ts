@@ -3678,6 +3678,16 @@ export interface components {
             bot_id?: string | null;
             /** Name */
             name?: string | null;
+            /**
+             * Answer Model
+             * @description Override the LLM used to generate the answer (RAG / agent). Defaults to the collection's completion model.
+             */
+            answer_model?: string | null;
+            /**
+             * Judge Model
+             * @description Override the LLM used by LLM-as-judge for scoring. Defaults to the collection's completion model.
+             */
+            judge_model?: string | null;
             judge?: components["schemas"]["JudgeConfig"] | null;
             /** Bot Config Snapshot */
             bot_config_snapshot?: {
@@ -3712,6 +3722,10 @@ export interface components {
             name?: string | null;
             status: components["schemas"]["EvaluationRunStatus"];
             summary?: components["schemas"]["EvaluationRunSummary"] | null;
+            /** Answer Model */
+            answer_model?: string | null;
+            /** Judge Model */
+            judge_model?: string | null;
             judge_config?: components["schemas"]["JudgeConfig"] | null;
             /** Bot Config Snapshot */
             bot_config_snapshot?: {
@@ -3823,6 +3837,10 @@ export interface components {
             latest_attempt?: components["schemas"]["EvaluationRunItemAttemptEnvelope"] | null;
             /** Attempt Count */
             attempt_count: number;
+            /** Judge Breakdown */
+            judge_breakdown?: {
+                [key: string]: unknown;
+            } | null;
             /** Error */
             error?: string | null;
             /**
