@@ -240,7 +240,14 @@ async def test_compactor_invoked_with_locked_kwargs():
 async def test_source_parts_reanchored_preserving_doc_lineage():
     """Invariant #1: per-doc tracking must survive the merge — each
     source part is re-upserted under the target name with the original
-    ``(document_id, parse_version, chunk_ids)`` lineage."""
+    ``(document_id, parse_version, chunk_ids)`` lineage.
+
+    Wave 8 W8-2 cutover: step 6a now folds the per-part loop into a
+    single ``bulk_upsert_entity_with_lineage_parts`` call (1 transaction
+    per backend instead of N×M), and step 6b's unified+compacted final
+    write still goes through the single ``upsert_entity_with_lineage``
+    surface so the ``compacted_description`` column is set.
+    """
     target = _entity(
         "Apple Inc.",
         parts=[("docT", "v1", "target initial", ("ct",))],
@@ -256,25 +263,30 @@ async def test_source_parts_reanchored_preserving_doc_lineage():
 
     await merger.merge_entities(target_name="Apple Inc.", source_names=["Apple"], merged_by="u")
 
+    # Step 6a — bulk re-anchor of the source parts.
+    bulk_calls = store.bulk_upsert_entity_with_lineage_parts.call_args_list
+    assert len(bulk_calls) == 1
+    bulk_parts = bulk_calls[0].kwargs["parts"]
+    assert len(bulk_parts) == 2
+
+    first_record, first_lineage = bulk_parts[0]
+    assert first_record.name == "Apple Inc."
+    assert first_record.description == "fragment A"
+    assert first_lineage.document_id == "docA"
+    assert first_lineage.parse_version == "v1"
+    assert first_lineage.chunk_ids == ("ca1",)
+
+    second_record, second_lineage = bulk_parts[1]
+    assert second_record.name == "Apple Inc."
+    assert second_record.description == "fragment B"
+    assert second_lineage.document_id == "docB"
+    assert second_lineage.parse_version == "v2"
+    assert second_lineage.chunk_ids == ("cb1", "cb2")
+
+    # Step 6b — single sentinel write with unified+compacted text.
     upsert_calls = store.upsert_entity_with_lineage.call_args_list
-    # The first 2 upserts are the source parts re-anchored under the
-    # target name (in order of the source's description_parts), then
-    # the final unified+compacted write.
-    assert len(upsert_calls) == 3
-    first_call = upsert_calls[0].kwargs
-    assert first_call["record"].name == "Apple Inc."
-    assert first_call["record"].description == "fragment A"
-    assert first_call["lineage"].document_id == "docA"
-    assert first_call["lineage"].parse_version == "v1"
-
-    second_call = upsert_calls[1].kwargs
-    assert second_call["record"].name == "Apple Inc."
-    assert second_call["record"].description == "fragment B"
-    assert second_call["lineage"].document_id == "docB"
-    assert second_call["lineage"].parse_version == "v2"
-
-    # Final write is the unified+compacted with sentinel.
-    final = upsert_calls[2].kwargs
+    assert len(upsert_calls) == 1
+    final = upsert_calls[0].kwargs
     assert final["lineage"].document_id == CURATION_MERGE_DOCUMENT_ID
 
 

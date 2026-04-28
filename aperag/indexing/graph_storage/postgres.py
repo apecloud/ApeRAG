@@ -492,6 +492,102 @@ class PostgresLineageGraphStore:
                 },
             )
 
+    async def bulk_upsert_entity_with_lineage_parts(
+        self,
+        *,
+        parts,
+    ) -> None:
+        """Wave 8 W8-2: bulk variant of :meth:`upsert_entity_with_lineage`.
+
+        One ``INSERT … ON CONFLICT DO UPDATE`` statement applies the
+        whole ``parts`` list atomically. Strips any existing lineage /
+        description-part rows whose ``(document_id, parse_version)``
+        key matches *any* incoming part, then appends the new parts —
+        same dedup-by-key contract as the single upsert. ``parts``
+        sharing the same key collapse last-wins (caller's contract).
+        """
+        if not parts:
+            return
+        target_name = parts[0][0].name
+        if any(record.name != target_name for record, _ in parts):
+            raise ValueError("bulk_upsert_entity_with_lineage_parts: all records must share the same name")
+
+        # Dedup last-wins by (document_id, parse_version) so the JSON
+        # arrays we send don't carry duplicates the SQL would have to
+        # tolerate.
+        deduped: dict[tuple[str, str], tuple[EntityRecord, LineageMember]] = {}
+        for record, lineage in parts:
+            deduped[(lineage.document_id, lineage.parse_version)] = (record, lineage)
+
+        new_members: list[dict] = []
+        new_parts: list[dict] = []
+        last_entity_type: str = parts[0][0].entity_type
+        for record, lineage in deduped.values():
+            new_members.append(lineage.to_dict())
+            new_parts.append(
+                DescriptionPart(
+                    document_id=lineage.document_id,
+                    parse_version=lineage.parse_version,
+                    text=record.description,
+                ).to_dict()
+            )
+            last_entity_type = record.entity_type
+
+        strip_keys = [{"doc_id": doc_id, "pv": parse_version} for (doc_id, parse_version) in deduped.keys()]
+
+        sql = text(
+            f"""
+            INSERT INTO {ENTITY_TABLE} (
+                collection_id, name, entity_type, source_lineage, description_parts,
+                compacted_description, gmt_created, gmt_updated
+            )
+            VALUES (
+                :collection_id, :name, :entity_type,
+                CAST(:new_members_json AS jsonb),
+                CAST(:new_parts_json AS jsonb),
+                NULL,
+                NOW(), NOW()
+            )
+            ON CONFLICT (collection_id, name) DO UPDATE
+            SET entity_type = EXCLUDED.entity_type,
+                source_lineage = (
+                    COALESCE(
+                        (SELECT jsonb_agg(elem) FROM jsonb_array_elements({ENTITY_TABLE}.source_lineage) elem
+                         WHERE NOT EXISTS (
+                            SELECT 1 FROM jsonb_array_elements(CAST(:strip_keys_json AS jsonb)) k
+                            WHERE k->>'doc_id' = elem->>'document_id'
+                              AND k->>'pv' = elem->>'parse_version'
+                         )),
+                        '[]'::jsonb
+                    ) || CAST(:new_members_json AS jsonb)
+                ),
+                description_parts = (
+                    COALESCE(
+                        (SELECT jsonb_agg(part) FROM jsonb_array_elements({ENTITY_TABLE}.description_parts) part
+                         WHERE NOT EXISTS (
+                            SELECT 1 FROM jsonb_array_elements(CAST(:strip_keys_json AS jsonb)) k
+                            WHERE k->>'doc_id' = part->>'document_id'
+                              AND k->>'pv' = part->>'parse_version'
+                         )),
+                        '[]'::jsonb
+                    ) || CAST(:new_parts_json AS jsonb)
+                ),
+                gmt_updated = NOW()
+            """
+        )
+        async with self._engine.begin() as conn:
+            await conn.execute(
+                sql,
+                {
+                    "collection_id": self._collection_id,
+                    "name": target_name,
+                    "entity_type": last_entity_type,
+                    "new_members_json": json.dumps(new_members),
+                    "new_parts_json": json.dumps(new_parts),
+                    "strip_keys_json": json.dumps(strip_keys),
+                },
+            )
+
     async def upsert_relation_with_lineage(
         self,
         *,

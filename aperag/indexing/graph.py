@@ -572,6 +572,39 @@ class LineageGraphStore(Protocol):
         a non-None string overwrites.
         """
 
+    async def bulk_upsert_entity_with_lineage_parts(
+        self,
+        *,
+        parts: Sequence[tuple[EntityRecord, LineageMember]],
+    ) -> None:
+        """Wave 8 W8-2: atomic bulk variant of
+        :meth:`upsert_entity_with_lineage`.
+
+        Each ``(record, lineage)`` tuple lands as a separate description
+        part with the same ``(document_id, parse_version)`` dedup key
+        the single upsert uses; semantically equivalent to looping
+        :meth:`upsert_entity_with_lineage` but executed in **one
+        transaction / one round-trip** so callers consolidating N×M
+        parts (e.g. :class:`LineageEntityMerger.merge_entities` step 6a)
+        get O(1) network round-trips instead of O(N×M).
+
+        Contract:
+
+        * All ``record.name`` values MUST share the same string —
+          backends MAY assert and raise ``ValueError`` if they don't.
+        * Empty ``parts`` is a no-op.
+        * Per-part ``record.entity_type`` follows the single-upsert
+          "most recently observed value wins" rule (last tuple's type
+          is the post-write entity_type for the row).
+        * ``compacted_description`` is intentionally **not** a
+          parameter — the bulk path never touches the column. Callers
+          that need to set it run a separate single
+          :meth:`upsert_entity_with_lineage` afterwards (the merger's
+          step 6b sentinel write does exactly this).
+        * Forward-only retry safety: the dedup key is per-part, so a
+          mid-flight crash + retry replays each tuple idempotently.
+        """
+
     async def get_entity(self, entity_name: str) -> EntityWithLineage | None:
         """Read-path helper used by tests / read primitives. Returns
         the canonical lineage view, or ``None`` if the row was GC'd.
@@ -892,6 +925,32 @@ class InMemoryLineageGraphStore:
             # Wave 7 W7-1: ``None`` preserves; non-None overwrites.
             if compacted_description is not None:
                 row.compacted_description = compacted_description
+
+    async def bulk_upsert_entity_with_lineage_parts(
+        self,
+        *,
+        parts: Sequence[tuple[EntityRecord, LineageMember]],
+    ) -> None:
+        if not parts:
+            return
+        target_name = parts[0][0].name
+        if any(record.name != target_name for record, _ in parts):
+            raise ValueError("bulk_upsert_entity_with_lineage_parts: all records must share the same name")
+        async with self._guard:
+            row = self._entities.get(target_name)
+            if row is None:
+                row = _InMemoryEntityRow(name=target_name, entity_type=parts[0][0].entity_type)
+                self._entities[target_name] = row
+            for record, lineage in parts:
+                # Type may evolve as new docs refine the entity; keep
+                # the most recently observed value (mirror single upsert).
+                row.entity_type = record.entity_type
+                row.source_lineage[lineage.key()] = lineage
+                row.description_parts[lineage.key()] = DescriptionPart(
+                    document_id=lineage.document_id,
+                    parse_version=lineage.parse_version,
+                    text=record.description,
+                )
 
     # ---- read path --------------------------------------------------
 

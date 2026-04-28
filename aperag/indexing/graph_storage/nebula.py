@@ -845,6 +845,72 @@ class NebulaLineageGraphStore:
 
             await asyncio.to_thread(_upsert)
 
+    async def bulk_upsert_entity_with_lineage_parts(
+        self,
+        *,
+        parts,
+    ) -> None:
+        """Wave 8 W8-2: Nebula bulk variant — single ``EntityLock``
+        acquire + single read-modify-write applies the whole ``parts``
+        list. Reuses the read/Python-merge/write pattern of
+        :meth:`upsert_entity_with_lineage` but folds the strip-then-
+        append over the **set** of incoming keys, so N×M parts collapse
+        to one write.
+        """
+        if not parts:
+            return
+        target_name = parts[0][0].name
+        if any(record.name != target_name for record, _ in parts):
+            raise ValueError("bulk_upsert_entity_with_lineage_parts: all records must share the same name")
+
+        # Dedup last-wins by (document_id, parse_version).
+        deduped: dict[tuple[str, str], tuple[EntityRecord, LineageMember]] = {}
+        for record, lineage in parts:
+            deduped[(lineage.document_id, lineage.parse_version)] = (record, lineage)
+
+        new_members_in: list[LineageMember] = []
+        new_parts_in: list[DescriptionPart] = []
+        last_entity_type: str = parts[0][0].entity_type
+        for record, lineage in deduped.values():
+            new_members_in.append(lineage)
+            new_parts_in.append(
+                DescriptionPart(
+                    document_id=lineage.document_id,
+                    parse_version=lineage.parse_version,
+                    text=record.description,
+                )
+            )
+            last_entity_type = record.entity_type
+
+        keys_to_strip = set(deduped.keys())
+
+        await self.ensure_schema()
+        async with self._entity_lock.acquire(target_name):
+
+            def _upsert() -> None:
+                row = self._read_entity_lineage(target_name)
+                if row is None:
+                    merged_members = list(new_members_in)
+                    merged_parts = list(new_parts_in)
+                    existing_compacted: str | None = None
+                else:
+                    _existing_type, members, parts_existing, existing_compacted = row
+                    kept_members = [m for m in members if m.key() not in keys_to_strip]
+                    kept_parts = [p for p in parts_existing if p.key() not in keys_to_strip]
+                    merged_members = kept_members + new_members_in
+                    merged_parts = kept_parts + new_parts_in
+                self._write_entity_vertex(
+                    name=target_name,
+                    type_value=last_entity_type,
+                    source_lineage=merged_members,
+                    description_parts=merged_parts,
+                    # Bulk path never touches compacted_description
+                    # (preserves existing, mirror Postgres / Neo4j).
+                    compacted_description=existing_compacted,
+                )
+
+            await asyncio.to_thread(_upsert)
+
     async def upsert_relation_with_lineage(
         self,
         *,

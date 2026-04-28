@@ -440,6 +440,98 @@ class Neo4jLineageGraphStore:
                 compacted_description=compacted_description,
             )
 
+    async def bulk_upsert_entity_with_lineage_parts(
+        self,
+        *,
+        parts,
+    ) -> None:
+        """Wave 8 W8-2: bulk variant — single Cypher statement covers
+        the whole ``parts`` list. Strip-then-append is expressed against
+        the **set** of incoming ``(document_id, parse_version)`` keys
+        rather than a single key, so the MERGE row-lock still serialises
+        concurrent bulk ops against the same entity.
+        """
+        if not parts:
+            return
+        target_name = parts[0][0].name
+        if any(record.name != target_name for record, _ in parts):
+            raise ValueError("bulk_upsert_entity_with_lineage_parts: all records must share the same name")
+
+        # Dedup last-wins by (document_id, parse_version).
+        deduped: dict[tuple[str, str], tuple[EntityRecord, LineageMember]] = {}
+        for record, lineage in parts:
+            deduped[(lineage.document_id, lineage.parse_version)] = (record, lineage)
+
+        new_member_jsons: list[str] = []
+        new_part_jsons: list[str] = []
+        new_doc_ids: list[str] = []
+        new_parse_versions: list[str] = []
+        last_entity_type: str = parts[0][0].entity_type
+        for record, lineage in deduped.values():
+            new_member_jsons.append(_lineage_member_json(lineage))
+            new_part_jsons.append(
+                _description_part_json(
+                    DescriptionPart(
+                        document_id=lineage.document_id,
+                        parse_version=lineage.parse_version,
+                        text=record.description,
+                    )
+                )
+            )
+            new_doc_ids.append(lineage.document_id)
+            new_parse_versions.append(lineage.parse_version)
+            last_entity_type = record.entity_type
+
+        # ``strip_keys`` is a list of strings ``"<doc_id>|<parse_version>"`` —
+        # Cypher list-of-string membership is the easiest way to express
+        # "drop element if its key matches *any* incoming key" without
+        # nested list-comprehensions over a list of maps (which is harder
+        # to read and the same complexity).
+        strip_keys = [f"{doc_id}|{parse_version}" for (doc_id, parse_version) in deduped.keys()]
+
+        query = (
+            f"MERGE (n:{_ENTITY_LABEL} {{collection_id: $collection_id, name: $name}}) "
+            f"ON CREATE SET "
+            f"  n.source_lineage = [], "
+            f"  n.source_lineage_doc_ids = [], "
+            f"  n.source_lineage_parse_versions = [], "
+            f"  n.description_parts = [], "
+            f"  n.description_parts_doc_ids = [], "
+            f"  n.description_parts_parse_versions = [], "
+            f"  n.compacted_description = NULL, "
+            f"  n.gmt_created = datetime() "
+            f"WITH n, "
+            f"  [i IN range(0, size(n.source_lineage_doc_ids) - 1) "
+            f"   WHERE NOT (n.source_lineage_doc_ids[i] + '|' + n.source_lineage_parse_versions[i]) "
+            f"             IN $strip_keys] AS sl_keep, "
+            f"  [i IN range(0, size(n.description_parts_doc_ids) - 1) "
+            f"   WHERE NOT (n.description_parts_doc_ids[i] + '|' + n.description_parts_parse_versions[i]) "
+            f"             IN $strip_keys] AS dp_keep "
+            f"SET n.entity_type = $entity_type, "
+            f"    n.source_lineage = [i IN sl_keep | n.source_lineage[i]] + $new_member_jsons, "
+            f"    n.source_lineage_doc_ids = [i IN sl_keep | n.source_lineage_doc_ids[i]] + $new_doc_ids, "
+            f"    n.source_lineage_parse_versions = "
+            f"      [i IN sl_keep | n.source_lineage_parse_versions[i]] + $new_parse_versions, "
+            f"    n.description_parts = [i IN dp_keep | n.description_parts[i]] + $new_part_jsons, "
+            f"    n.description_parts_doc_ids = "
+            f"      [i IN dp_keep | n.description_parts_doc_ids[i]] + $new_doc_ids, "
+            f"    n.description_parts_parse_versions = "
+            f"      [i IN dp_keep | n.description_parts_parse_versions[i]] + $new_parse_versions, "
+            f"    n.gmt_updated = datetime()"
+        )
+        async with self._session() as session:
+            await session.run(
+                query,
+                collection_id=self._collection_id,
+                name=target_name,
+                entity_type=last_entity_type,
+                strip_keys=strip_keys,
+                new_member_jsons=new_member_jsons,
+                new_part_jsons=new_part_jsons,
+                new_doc_ids=new_doc_ids,
+                new_parse_versions=new_parse_versions,
+            )
+
     async def upsert_relation_with_lineage(
         self,
         *,
