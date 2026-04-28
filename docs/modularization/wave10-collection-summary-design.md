@@ -301,7 +301,7 @@ async def find_collections_needing_regen() -> list[Collection]:
 
 ## 9. OpenAPI 端点
 
-### `POST /api/v1/collections/{id}/summary/regen`
+### `POST /api/v2/collections/{id}/summary/regen`
 
 手动触发 regen summary。
 
@@ -311,7 +311,7 @@ async def find_collections_needing_regen() -> list[Collection]:
 
 成功 = 任务真完成 + DB 写入。**不允许返回 202 但 DB 不写**（supplementary #2 silent failure 修复）。
 
-### `POST /api/v1/collections/{id}/description/regen`
+### `POST /api/v2/collections/{id}/description/regen`
 
 手动触发派生 description（Stage 2）。
 
