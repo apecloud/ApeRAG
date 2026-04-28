@@ -133,18 +133,21 @@ object.
 
 1. Output language: {language}. Names keep their original script and
    case (e.g. English names capitalized, Chinese names unchanged).
-2. Use only these entity types: {entity_types}. If no provided type
-   fits, skip the entity rather than invent a new type.
-3. Every entity needs a short, self-contained description in
+2. Prefer existing entity types from this collection list:
+   {entity_types}
+3. If no existing entity type fits, create a concise new entity type
+   string in {language}. Do not skip a valid entity only because its
+   type is not already listed.
+4. Every entity needs a short, self-contained description in
    {language}. Do not add information that isn't in the text.
-4. Every relation must reference entities by the exact ``name`` you put
+5. Every relation must reference entities by the exact ``name`` you put
    in the ``entities`` list. No self-loops (source != target).
-5. ``weight`` is an integer 1-10 expressing how strongly the text
+6. ``weight`` is an integer 1-10 expressing how strongly the text
    supports the relation; default to 5 when unsure.
-6. Cap: at most {max_entities} entities and {max_relations} relations.
+7. Cap: at most {max_entities} entities and {max_relations} relations.
    If the text contains more, prefer the most specific and the
    most-mentioned.
-7. If the text has no extractable entities, return
+8. If the text has no extractable entities, return
    ``{{"entities": [], "relations": []}}``.
 
 **JSON schema**
@@ -152,17 +155,18 @@ object.
 ```
 {{
   "entities": [
-    {{"name": "<string>", "type": "<one of the allowed types>",
+    {{"name": "<string>", "entity_type": "<existing or new type string>",
       "description": "<string>"}}
   ],
   "relations": [
     {{"source": "<entity name>", "target": "<entity name>",
+      "relation_type": "<short relation type>",
       "description": "<string>", "weight": <int 1-10>}}
   ]
 }}
 ```
 
-**Example** (English, types=[person, organization]):
+**Example** (English):
 
 Text:
 ```
@@ -173,18 +177,20 @@ Output:
 ```
 {{
   "entities": [
-    {{"name": "Alice", "type": "person",
+    {{"name": "Alice", "entity_type": "Person",
       "description": "A researcher at Acme Labs."}},
-    {{"name": "Bob", "type": "person",
+    {{"name": "Bob", "entity_type": "Person",
       "description": "A collaborator on the project."}},
-    {{"name": "Acme Labs", "type": "organization",
+    {{"name": "Acme Labs", "entity_type": "Organization",
       "description": "Research organization where Alice works."}}
   ],
   "relations": [
     {{"source": "Alice", "target": "Bob",
+      "relation_type": "collaborated_with",
       "description": "Alice and Bob collaborated on a project.",
       "weight": 7}},
     {{"source": "Alice", "target": "Acme Labs",
+      "relation_type": "works_for",
       "description": "Alice is a researcher employed by Acme Labs.",
       "weight": 8}}
   ]
@@ -216,9 +222,11 @@ def render_extraction_prompt(
     identical to the legacy ``graphindex.prompts.ENTITY_RELATION_EXTRACTION``
     text (relocated here verbatim during Wave 5 P1).
     """
+    from aperag.indexing.entity_types import format_entity_types_for_prompt
+
     return ENTITY_RELATION_EXTRACTION.format(
         input_text=input_text,
-        entity_types=", ".join(entity_types),
+        entity_types=format_entity_types_for_prompt(entity_types),
         language=language,
         max_entities=max_entities,
         max_relations=max_relations,

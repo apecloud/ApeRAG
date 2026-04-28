@@ -1136,6 +1136,16 @@ T2.x; tests pass deterministic stubs so the §D.3.6 self-test does not
 depend on any LLM.
 """
 
+EntityTypeMerger = Callable[
+    [str, Sequence[str]],
+    Awaitable[list[str]],
+]
+"""Per-document hook that persists newly observed entity_type strings.
+
+The first argument is ``document_id`` for diagnostics; the second is
+the first-seen list of entity type strings extracted for that document.
+"""
+
 
 # ---------------------------------------------------------------------
 # kg.jsonl serialization
@@ -1244,6 +1254,7 @@ class GraphModalityWorker(ModalityWorker):
         embedder: Callable[[str], list[float]] | None = None,
         vector_connector: "VectorStoreConnector | None" = None,
         merge_detector: "MergeCandidateDetector | None" = None,
+        entity_type_merger: EntityTypeMerger | None = None,
     ) -> None:
         """Construct a graph worker bound to a single tenant scope.
 
@@ -1286,6 +1297,7 @@ class GraphModalityWorker(ModalityWorker):
         self._embedder = embedder
         self._vector_connector = vector_connector
         self._merge_detector = merge_detector
+        self._entity_type_merger = entity_type_merger
 
     # ---- derive -----------------------------------------------------
 
@@ -1318,6 +1330,7 @@ class GraphModalityWorker(ModalityWorker):
             filename=KG_ARTIFACT_FILENAME,
         )
         await write_atomic_async(self._object_store, kg_path, body)
+        await self._merge_document_entity_types(document_id=document_id, entities=entities)
         logger.info(
             "graph.derive collection=%s document=%s parse_version=%s entities=%d relations=%d",
             self._collection_id,
@@ -1327,6 +1340,25 @@ class GraphModalityWorker(ModalityWorker):
             len(relations),
         )
         return DeriveResult(derived_artifact_path=kg_path)
+
+    async def _merge_document_entity_types(self, *, document_id: str, entities: Sequence[EntityRecord]) -> None:
+        if self._entity_type_merger is None:
+            return
+        from aperag.indexing.entity_types import collect_entity_types_from_entities
+
+        entity_types = collect_entity_types_from_entities(entities)
+        if not entity_types:
+            return
+        try:
+            await self._entity_type_merger(document_id, entity_types)
+        except Exception as exc:  # noqa: BLE001 — config merge must not poison graph output
+            logger.warning(
+                "graph entity type merge failed collection=%s document=%s error=%r entity_types=%s",
+                self._collection_id,
+                document_id,
+                exc,
+                entity_types,
+            )
 
     # ---- sync -------------------------------------------------------
 
@@ -1799,6 +1831,7 @@ __all__ = [
     "InMemoryLineageGraphStore",
     # Extractor injection point
     "GraphExtractor",
+    "EntityTypeMerger",
     # kg.jsonl helpers
     "KG_ARTIFACT_FILENAME",
     "serialize_kg_jsonl",

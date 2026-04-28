@@ -60,7 +60,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, Callable, Mapping, Optional
+from typing import Any, Callable, Mapping, Optional, Sequence
 
 from sqlalchemy import Engine
 from sqlalchemy.orm import Session
@@ -467,7 +467,12 @@ def _build_vision_worker(*, collection: Any, object_store: Any) -> ModalityWorke
     return VisionModality(backend=backend, store=object_store, embedder=_embed)
 
 
-def _build_graph_worker(*, collection: Any, object_store: Any, payload: DispatchPayload) -> ModalityWorker:
+def _build_graph_worker(
+    *,
+    collection: Any,
+    object_store: Any,
+    payload: DispatchPayload,
+) -> ModalityWorker:
     """Wire :class:`GraphModalityWorker` for the §D.3 lineage pipeline.
 
     Wave 4 T1 lands the real LLM-driven graph extractor — the chunk
@@ -515,6 +520,7 @@ def _build_graph_worker(*, collection: Any, object_store: Any, payload: Dispatch
     lock = _resolve_entity_lock(backend_type=backend_type)
     extractor = build_collection_graph_extractor(collection)
     tenant_scope_key = _resolve_tenant_scope_key(payload=payload)
+    entity_type_merger = _build_graph_type_merger(collection)
 
     # Wave 7 W7-3 wiring: compactor + embedder + vector connector +
     # merge candidate detector. The Phase 3 sync extension is opt-in —
@@ -542,7 +548,22 @@ def _build_graph_worker(*, collection: Any, object_store: Any, payload: Dispatch
         embedder=embedder,
         vector_connector=vector_connector,
         merge_detector=merge_detector,
+        entity_type_merger=entity_type_merger,
     )
+
+
+def _build_graph_type_merger(collection: Any):
+    collection_id = str(getattr(collection, "id", ""))
+
+    async def _merge(_document_id: str, entity_types: Sequence[str]) -> list[str]:
+        from aperag.config import get_async_session
+        from aperag.indexing.entity_types import merge_entity_types
+
+        async for session in get_async_session():
+            return await merge_entity_types(session, collection_id, entity_types)
+        return []
+
+    return _merge
 
 
 def _build_collection_graph_compactor(collection: Any) -> Any:

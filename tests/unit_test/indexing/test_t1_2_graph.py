@@ -51,6 +51,7 @@ this suite.
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import Sequence
 from typing import Any
 
@@ -182,6 +183,7 @@ def _make_worker(
     entities_per_doc: dict[str, list[EntityRecord]] | None = None,
     relations_per_doc: dict[str, list[RelationRecord]] | None = None,
     tenant_scope_key: str = DEFAULT_TENANT,
+    entity_type_merger=None,
 ) -> GraphModalityWorker:
     async def extractor(
         chunks: Sequence[dict[str, Any]],
@@ -199,6 +201,7 @@ def _make_worker(
         object_store=object_store,
         collection_id=COLLECTION_ID,
         tenant_scope_key=tenant_scope_key,
+        entity_type_merger=entity_type_merger,
     )
 
 
@@ -234,6 +237,59 @@ def _lineage_keys(entity: EntityWithLineage) -> set[tuple[str, str]]:
 
 def _description_keys(entity: EntityWithLineage) -> set[tuple[str, str]]:
     return {part.key() for part in entity.description_parts}
+
+
+@pytest.mark.asyncio
+async def test_derive_merges_entity_types_once_per_document(store, entity_lock, object_store):
+    calls: list[tuple[str, list[str]]] = []
+
+    async def _merge(document_id: str, entity_types: Sequence[str]) -> list[str]:
+        calls.append((document_id, list(entity_types)))
+        return list(entity_types)
+
+    worker = _make_worker(
+        store=store,
+        entity_lock=entity_lock,
+        object_store=object_store,
+        document_id="doc_A",
+        entities_per_doc={
+            "doc_A": [
+                EntityRecord(name="Alice", entity_type="Person", description="a", source_chunk_ids=("c0",)),
+                EntityRecord(name="Bob", entity_type="person", description="b", source_chunk_ids=("c1",)),
+                EntityRecord(name="Acme", entity_type="组织", description="o", source_chunk_ids=("c1",)),
+            ]
+        },
+        entity_type_merger=_merge,
+    )
+
+    _write_doc_chunks_jsonl(object_store=object_store, document_id="doc_A", parse_version="v1")
+    await worker.derive(document_id="doc_A", parse_version="v1", source_path="<irrelevant>")
+
+    assert calls == [("doc_A", ["Person", "组织"])]
+
+
+@pytest.mark.asyncio
+async def test_derive_entity_type_merge_failure_is_non_fatal(store, entity_lock, object_store, caplog):
+    async def _merge(_document_id: str, _entity_types: Sequence[str]) -> list[str]:
+        raise RuntimeError("merge unavailable")
+
+    worker = _make_worker(
+        store=store,
+        entity_lock=entity_lock,
+        object_store=object_store,
+        document_id="doc_A",
+        entities_per_doc={
+            "doc_A": [EntityRecord(name="Alice", entity_type="Person", description="a", source_chunk_ids=("c0",))]
+        },
+        entity_type_merger=_merge,
+    )
+
+    _write_doc_chunks_jsonl(object_store=object_store, document_id="doc_A", parse_version="v1")
+    with caplog.at_level(logging.WARNING):
+        result = await worker.derive(document_id="doc_A", parse_version="v1", source_path="<irrelevant>")
+
+    assert object_store.obj_exists(result.derived_artifact_path)
+    assert "graph entity type merge failed" in caplog.text
 
 
 # ---------------------------------------------------------------------
