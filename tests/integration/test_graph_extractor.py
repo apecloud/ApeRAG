@@ -124,6 +124,38 @@ def test_parse_extraction_response_skips_individual_malformed_records():
     assert relation_types == ["rel1"]
 
 
+def test_parse_extraction_response_accepts_unknown_entity_type():
+    raw = (
+        '{"entities": ['
+        '{"name": "糖尿病", "entity_type": "疾病", "description": "慢性代谢性疾病"},'
+        '{"name": "Bad Type", "entity_type": "' + ("x" * 65) + '"}'
+        "],"
+        '"relations": []}'
+    )
+    entities, relations = ge._parse_extraction_response(raw=raw, chunk_id="c-1")
+    assert [entity.name for entity in entities] == ["糖尿病", "Bad Type"]
+    assert entities[0].entity_type == "疾病"
+    assert entities[1].entity_type == ""
+    assert relations == []
+
+
+def test_render_prompt_allows_dynamic_entity_types():
+    from aperag.indexing.llm import render_extraction_prompt
+
+    prompt = render_extraction_prompt(
+        input_text="OpenAI released GPT-4o.",
+        entity_types=[],
+        language="Chinese (Simplified)",
+        max_entities=8,
+        max_relations=8,
+    )
+    assert "If no existing entity type fits" in prompt
+    assert "Do not skip a valid entity" in prompt
+    assert "Use only these entity types" not in prompt
+    assert "skip the entity rather than invent" not in prompt
+    assert "Chinese (Simplified)" in prompt
+
+
 def test_resolve_entity_types_uses_collection_kg_config():
     collection = _make_collection()
     types = ge._resolve_entity_types(collection)
@@ -135,9 +167,7 @@ def test_resolve_entity_types_falls_back_to_default():
         config = {"language": "en-US"}
 
     types = ge._resolve_entity_types(_NoKG())
-    assert "person" in types
-    assert "organization" in types
-    assert len(types) == len(ge._DEFAULT_ENTITY_TYPES)
+    assert list(types) == []
 
 
 def test_resolve_language_reads_from_config_dict():
@@ -225,7 +255,7 @@ def test_extractor_skips_chunks_with_empty_text():
         return '{"entities": [], "relations": []}'
 
     async def _run() -> None:
-        from aperag.indexing.graph_extractor import _DEFAULT_ENTITY_TYPES, _extract_one_chunk
+        from aperag.indexing.graph_extractor import _extract_one_chunk
 
         # Empty text ⇒ extract_one_chunk would call LLM, so we route
         # via the closure-style filter that lives inside the actual
@@ -245,8 +275,8 @@ def test_extractor_skips_chunks_with_empty_text():
                 llm=_stub_llm,
                 text=str(chunk["text"]),
                 chunk_id=str(chunk["chunk_id"]),
-                entity_types=_DEFAULT_ENTITY_TYPES,
-                language="en-US",
+                entity_types=(),
+                language="English",
                 max_entities=8,
                 max_relations=8,
                 timeout_seconds=60.0,
@@ -321,8 +351,6 @@ def test_extractor_returns_empty_on_empty_chunks():
     LLM calls — pin the no-op fast path."""
 
     async def _run() -> None:
-        from aperag.indexing.graph_extractor import _DEFAULT_ENTITY_TYPES
-
         # Bypass the builder by constructing a tiny extractor inline.
         async def _extractor(chunks):
             if not chunks:
@@ -332,9 +360,5 @@ def test_extractor_returns_empty_on_empty_chunks():
         entities, relations = await _extractor([])
         assert entities == []
         assert relations == []
-
-        # Also make sure the public API symbols exist (no need for
-        # production LLM here).
-        assert _DEFAULT_ENTITY_TYPES
 
     asyncio.run(_run())

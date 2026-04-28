@@ -130,19 +130,10 @@ class KnowledgeGraphConfig(BaseModel):
     Configuration for knowledge graph generation
     """
 
-    entity_types: Optional[list[str]] = Field(
-        [
-            "organization",
-            "person",
-            "geo",
-            "event",
-            "product",
-            "technology",
-            "date",
-            "category",
-        ],
+    entity_types: list[str] = Field(
+        default_factory=list,
         description="List of entity types to extract during graph indexing",
-        examples=[["organization", "person", "geo", "event"]],
+        examples=[["人物", "组织", "疾病"]],
     )
     # Wave 5 P5A item 1 (per huangheng T1 obs A msg=6b349693): expose
     # the graph extractor's per-chunk caps + timeout as
@@ -226,22 +217,7 @@ class CollectionConfig(BaseModel):
     )
     enable_summary: Optional[bool] = Field(False, description="Whether to enable summary index")
     enable_vision: Optional[bool] = Field(False, description="Whether to enable vision index")
-    knowledge_graph_config: Optional[KnowledgeGraphConfig] = Field(
-        default_factory=lambda: KnowledgeGraphConfig.model_validate(
-            {
-                "entity_types": [
-                    "organization",
-                    "person",
-                    "geo",
-                    "event",
-                    "product",
-                    "technology",
-                    "date",
-                    "category",
-                ]
-            }
-        )
-    )
+    knowledge_graph_config: Optional[KnowledgeGraphConfig] = Field(default_factory=KnowledgeGraphConfig)
     index_prompts: Optional[IndexPrompts] = None
     language: Optional[Literal["zh-CN", "en-US", "ja-JP", "ko-KR"]] = Field(
         "zh-CN",

@@ -58,6 +58,11 @@ import logging
 import re
 from typing import Any, Awaitable, Callable, Mapping, Sequence
 
+from aperag.indexing.entity_types import (
+    merge_entity_type_values,
+    normalize_entity_type,
+    prompt_language_name,
+)
 from aperag.indexing.graph import (
     EntityRecord,
     GraphExtractor,
@@ -67,17 +72,7 @@ from aperag.indexing.graph import (
 logger = logging.getLogger(__name__)
 
 
-_DEFAULT_ENTITY_TYPES: tuple[str, ...] = (
-    "organization",
-    "person",
-    "geo",
-    "event",
-    "product",
-    "technology",
-    "date",
-    "category",
-)
-_DEFAULT_LANGUAGE = "en-US"
+_DEFAULT_LANGUAGE = "zh-CN"
 _DEFAULT_MAX_ENTITIES_PER_CHUNK = 32
 _DEFAULT_MAX_RELATIONS_PER_CHUNK = 32
 _DEFAULT_PER_CHUNK_TIMEOUT_SECONDS = 60.0
@@ -112,8 +107,8 @@ def build_collection_graph_extractor(collection: Any) -> GraphExtractor:
             f"the collection's completion model"
         ) from exc
 
+    prompt_language = prompt_language_name(_resolve_language(collection))
     entity_types = tuple(_resolve_entity_types(collection))
-    language = _resolve_language(collection)
     max_entities = _resolve_int_kg_config(collection, "max_entities_per_chunk", _DEFAULT_MAX_ENTITIES_PER_CHUNK)
     max_relations = _resolve_int_kg_config(collection, "max_relations_per_chunk", _DEFAULT_MAX_RELATIONS_PER_CHUNK)
     per_chunk_timeout = _resolve_float_kg_config(
@@ -127,6 +122,7 @@ def build_collection_graph_extractor(collection: Any) -> GraphExtractor:
 
         entities: list[EntityRecord] = []
         relations: list[RelationRecord] = []
+        active_entity_types = list(entity_types)
         for chunk in chunks:
             chunk_id = str(chunk.get("chunk_id") or chunk.get("id") or "")
             text = str(chunk.get("text") or "")
@@ -137,8 +133,8 @@ def build_collection_graph_extractor(collection: Any) -> GraphExtractor:
                     llm=llm,
                     text=text,
                     chunk_id=chunk_id,
-                    entity_types=entity_types,
-                    language=language,
+                    entity_types=tuple(active_entity_types),
+                    language=prompt_language,
                     max_entities=max_entities,
                     max_relations=max_relations,
                     timeout_seconds=per_chunk_timeout,
@@ -153,6 +149,10 @@ def build_collection_graph_extractor(collection: Any) -> GraphExtractor:
                 continue
             entities.extend(ents)
             relations.extend(rels)
+            active_entity_types = merge_entity_type_values(
+                active_entity_types,
+                [entity.entity_type for entity in ents],
+            )
         return entities, relations
 
     return _extractor
@@ -275,11 +275,9 @@ def _entity_from_dict(raw: Mapping[str, Any], *, chunk_id: str) -> EntityRecord:
     name = str(raw["name"]).strip()
     if not name:
         raise ValueError("entity name cannot be empty")
-    # The LLM extraction prompt still emits ``type`` in its JSON output
-    # (legacy template shape); we accept either the canonical
-    # ``entity_type`` field (post-Wave-6 #36 rename) or the legacy
-    # ``type`` field for backward compat with prompt templates.
-    entity_type = str(raw.get("entity_type") or raw.get("type") or "")
+    # Keep accepting legacy ``type`` for custom prompts, but store the
+    # canonical Wave 11 string field as ``entity_type``.
+    entity_type = normalize_entity_type(raw.get("entity_type") or raw.get("type") or "")
     description = str(raw.get("description") or "")
     return EntityRecord(
         name=name,
@@ -314,14 +312,14 @@ def _relation_from_dict(raw: Mapping[str, Any], *, chunk_id: str) -> RelationRec
 def _resolve_entity_types(collection: Any) -> Sequence[str]:
     cfg = _resolve_config(collection)
     if cfg is None:
-        return _DEFAULT_ENTITY_TYPES
+        return []
     kg_config: Any = None
     if hasattr(cfg, "knowledge_graph_config"):
         kg_config = cfg.knowledge_graph_config
     elif isinstance(cfg, Mapping):
         kg_config = cfg.get("knowledge_graph_config")
     if kg_config is None:
-        return _DEFAULT_ENTITY_TYPES
+        return []
     if hasattr(kg_config, "entity_types"):
         types = kg_config.entity_types
     elif isinstance(kg_config, Mapping):
@@ -329,8 +327,8 @@ def _resolve_entity_types(collection: Any) -> Sequence[str]:
     else:
         types = None
     if not types:
-        return _DEFAULT_ENTITY_TYPES
-    return [str(t) for t in types]
+        return []
+    return merge_entity_type_values((), types)
 
 
 def _resolve_language(collection: Any) -> str:
