@@ -6,7 +6,7 @@
     "api:build": "yarn api:v2:types",
     "api:v2:types": "mkdir -p ./src/api-v2 && openapi-typescript ../openapi.public.json -o ./src/api-v2/schema.d.ts",
     "build": "yarn install && yarn i18n:sync && next build && ts-node scripts/build.mjs",
-    "dev": "cp ./deploy/env.local.template ./.env && yarn install && yarn i18n:sync && next dev",
+    "dev": "cp ./deploy/env.local.template ./.env && yarn install && yarn i18n:sync && next dev --turbopack",
     "i18n:sync": "node scripts/i18n-watch.mjs",
     "lint": "next lint",
     "prettier": "prettier --cache --write ./ && yarn lint",
