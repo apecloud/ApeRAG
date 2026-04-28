@@ -189,9 +189,7 @@ def seeded_collection(db_engine) -> Any:
     # Best-effort cleanup — failed runs keep rows (operator triages).
     try:
         with Session(db_engine) as session:
-            session.execute(
-                Document.__table__.delete().where(Document.collection_id == _COLLECTION_ID)
-            )
+            session.execute(Document.__table__.delete().where(Document.collection_id == _COLLECTION_ID))
             session.execute(Collection.__table__.delete().where(Collection.id == _COLLECTION_ID))
             session.commit()
     except Exception:  # noqa: BLE001 — narrative already passed/failed
@@ -391,11 +389,7 @@ async def test_step7_reconciler_hook_dispatches_after_document_edit(seeded_colle
     # Back-date one document so the stale-doc subquery hits.
     backdated = datetime.now(tz=timezone.utc) - MIN_STALE_AGE - timedelta(minutes=1)
     with Session(db_engine) as session:
-        session.execute(
-            update(Document)
-            .where(Document.id == f"{_COLLECTION_ID}-doc0")
-            .values(gmt_updated=backdated)
-        )
+        session.execute(update(Document).where(Document.id == f"{_COLLECTION_ID}-doc0").values(gmt_updated=backdated))
         session.commit()
 
     # Also back-date the collection's summary_updated_at so the
@@ -499,9 +493,7 @@ async def test_step9_failure_mode_llm_down_returns_false_no_silent_write(seeded_
     assert success is False, "LLM failure must NOT silently report success"
 
     post = _read_collection(db_engine, _COLLECTION_ID)
-    assert post.description == pre_description, (
-        "service must NOT overwrite description on LLM failure"
-    )
+    assert post.description == pre_description, "service must NOT overwrite description on LLM failure"
     assert post.description_updated_at == pre_updated_at, (
         "service must NOT advance description_updated_at on LLM failure"
     )
