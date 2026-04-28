@@ -6,6 +6,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import {
   getGraphEmbeddingMap,
   getKnowledgeGraph,
+  getMarketplaceGraphEmbeddingMap,
+  getMarketplaceKnowledgeGraph,
+  searchMarketplaceGraphEntities,
   searchGraphEntities,
 } from '@/features/knowledge-graph/client-api';
 import type {
@@ -141,7 +144,11 @@ type GraphCamera = {
   zoom: number;
 };
 
-export const CollectionGraphHybrid = () => {
+export const CollectionGraphHybrid = ({
+  marketplace = false,
+}: {
+  marketplace?: boolean;
+}) => {
   const params = useParams();
   const [fullscreen, setFullscreen] = useState<boolean>(false);
   const { resolvedTheme } = useTheme();
@@ -207,10 +214,14 @@ export const CollectionGraphHybrid = () => {
 
     try {
       const [embedding, topology] = await Promise.all([
-        getGraphEmbeddingMap(params.collectionId, 1000),
-        getKnowledgeGraph(params.collectionId) as Promise<
-          KnowledgeGraph | undefined
-        >,
+        marketplace
+          ? getMarketplaceGraphEmbeddingMap(params.collectionId, 1000)
+          : getGraphEmbeddingMap(params.collectionId, 1000),
+        marketplace
+          ? getMarketplaceKnowledgeGraph(params.collectionId)
+          : (getKnowledgeGraph(params.collectionId) as Promise<
+              KnowledgeGraph | undefined
+            >),
       ]);
 
       if (!embedding || embedding.points.length === 0) {
@@ -281,7 +292,7 @@ export const CollectionGraphHybrid = () => {
       setClusterFilterExpanded(false);
       setGraphError(getErrorMessage(error, page_graph('load_failed')));
     }
-  }, [page_graph, params.collectionId]);
+  }, [marketplace, page_graph, params.collectionId]);
 
   const handleCloseDetail = useCallback(() => {
     setActiveNode(undefined);
@@ -597,7 +608,10 @@ export const CollectionGraphHybrid = () => {
     let cancelled = false;
     setSearchPending(true);
     const handle = setTimeout(() => {
-      searchGraphEntities(cid, searchTerm.trim(), 12)
+      const search = marketplace
+        ? searchMarketplaceGraphEntities
+        : searchGraphEntities;
+      search(cid, searchTerm.trim(), 12)
         .then((results) => {
           if (cancelled) return;
           setSearchResults(results);
@@ -613,7 +627,7 @@ export const CollectionGraphHybrid = () => {
       cancelled = true;
       clearTimeout(handle);
     };
-  }, [params.collectionId, searchOpen, searchTerm]);
+  }, [marketplace, params.collectionId, searchOpen, searchTerm]);
 
   // Disable every d3-force so the simulation can't pull nodes — the
   // PCA layout already places everything via fx/fy. Without this the
