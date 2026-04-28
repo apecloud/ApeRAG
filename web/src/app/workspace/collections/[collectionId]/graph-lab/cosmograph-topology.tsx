@@ -70,17 +70,28 @@ export function CosmographTopology() {
       points: dataset.points,
       links: dataset.links,
       pointIdBy: 'id',
+      pointIndexBy: 'index',
       pointLabelBy: 'label',
       pointClusterBy: 'cluster',
       pointColorBy: 'cluster',
       linkSourceBy: 'source',
       linkTargetBy: 'target',
+      linkSourceIndexBy: 'sourceIndex',
+      linkTargetIndexBy: 'targetIndex',
       backgroundColor: 'transparent',
       enableSimulation: true,
-      simulationGravity: 0.25,
-      simulationRepulsion: 1.0,
-      pointDefaultSize: 8,
+      // Tune the force-directed sim for a denser visible cloud. Defaults
+      // collapse points to the near-origin pixel and `fitView` then
+      // snaps the camera onto a 1×1 region. A modest gravity + low
+      // repulsion + long decay lets the sim settle into a graph that
+      // reads at 1000-node scale.
+      simulationGravity: 0.05,
+      simulationRepulsion: 2.0,
+      simulationLinkDistance: 12,
+      simulationDecay: 4000,
+      pointDefaultSize: 10,
       fitViewOnInit: true,
+      fitViewDelay: 1500,
       onPointClick: (index: number) => {
         const point = dataset.points[index];
         if (point) setSelected(point);

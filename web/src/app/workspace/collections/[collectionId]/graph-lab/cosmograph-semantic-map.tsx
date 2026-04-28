@@ -47,6 +47,7 @@ export function CosmographSemanticMap() {
     return {
       points: dataset.points,
       pointIdBy: 'id',
+      pointIndexBy: 'index',
       pointLabelBy: 'label',
       pointClusterBy: 'cluster',
       pointColorBy: 'cluster',

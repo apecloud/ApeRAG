@@ -24,6 +24,11 @@ import type {
 
 export type CosmographPoint = {
   id: string;
+  /**
+   * Sequential integer starting from 0 — Cosmograph requires this as
+   * `pointIndexBy` for efficient lookups. The adapter assigns it.
+   */
+  index: number;
   label: string;
   /** Numeric cluster id Cosmograph uses for color quantization. */
   cluster: number;
@@ -39,6 +44,12 @@ export type CosmographPoint = {
 export type CosmographLink = {
   source: string;
   target: string;
+  /**
+   * Sequential integer index of the source/target points. Cosmograph
+   * requires both `linkSource(Index)By` columns for fast lookup.
+   */
+  sourceIndex: number;
+  targetIndex: number;
   /** Edge weight; falls back to 1 when the API does not surface one. */
   weight?: number;
   description?: string | null;
@@ -64,7 +75,7 @@ export function toTopologyDataset(graph: KnowledgeGraph): CosmographDataset {
   const typeToCluster = new Map<string, number>();
   const clusterLabels: Record<number, string> = {};
 
-  const points: CosmographPoint[] = nodes.map((node) => {
+  const points: CosmographPoint[] = nodes.map((node, idx) => {
     const entityType = (node.properties?.entity_type ?? 'unknown') as string;
     let cluster = typeToCluster.get(entityType);
     if (cluster === undefined) {
@@ -76,6 +87,7 @@ export function toTopologyDataset(graph: KnowledgeGraph): CosmographDataset {
       (node.properties?.description as string | undefined) ?? null;
     return {
       id: String(node.id),
+      index: idx,
       label:
         (node.labels?.[0] as string | undefined) ??
         (node.properties?.entity_name as string | undefined) ??
@@ -86,16 +98,24 @@ export function toTopologyDataset(graph: KnowledgeGraph): CosmographDataset {
     };
   });
 
-  const validIds = new Set(points.map((p) => p.id));
-  const links: CosmographLink[] = edges
-    .filter((edge) => validIds.has(String(edge.source)) && validIds.has(String(edge.target)))
-    .map((edge) => ({
-      source: String(edge.source),
-      target: String(edge.target),
+  const idToIndex = new Map(points.map((p) => [p.id, p.index]));
+  const links: CosmographLink[] = [];
+  for (const edge of edges) {
+    const src = String(edge.source);
+    const tgt = String(edge.target);
+    const sourceIndex = idToIndex.get(src);
+    const targetIndex = idToIndex.get(tgt);
+    if (sourceIndex === undefined || targetIndex === undefined) continue;
+    links.push({
+      source: src,
+      target: tgt,
+      sourceIndex,
+      targetIndex,
       weight: 1,
       description:
         (edge.properties?.description as string | undefined) ?? null,
-    }));
+    });
+  }
 
   return { points, links, clusterLabels };
 }
@@ -158,6 +178,7 @@ export function buildSyntheticSemanticDataset(
     const theta = u2 * Math.PI * 2;
     return {
       id: `synthetic-${i}`,
+      index: i,
       label: `Document ${i}`,
       cluster,
       x: center.cx + radius * Math.cos(theta),
