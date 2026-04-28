@@ -239,10 +239,13 @@ async def test_step2_regen_summary_writes_canonical_summary(seeded_collection, d
     ``summary`` becomes non-NULL with length > 50 (quality gate
     ``is_valid_summary``).
     """
-    from aperag.domains.knowledge_base.service.collection_regen_service import regen_summary
+    from aperag.domains.knowledge_base.service.collection_regen_service import (
+        RegenOutcome,
+        regen_summary,
+    )
 
-    success = await regen_summary(_COLLECTION_ID)
-    assert success is True, "Tier 1 / Tier 2 should produce a valid summary on a seeded collection"
+    outcome = await regen_summary(_COLLECTION_ID)
+    assert outcome is RegenOutcome.SUCCESS, "Tier 1 / Tier 2 should produce a valid summary on a seeded collection"
 
     row = _read_collection(db_engine, _COLLECTION_ID)
     assert row.summary is not None
@@ -281,10 +284,13 @@ async def test_step4_regen_description_derives_short_form(seeded_collection, db_
     ``Collection.summary``. Cheap path — single LLM call, no agent
     multi-turn. The row's ``description`` becomes non-NULL passing
     ``is_valid_description``."""
-    from aperag.domains.knowledge_base.service.collection_regen_service import regen_description
+    from aperag.domains.knowledge_base.service.collection_regen_service import (
+        RegenOutcome,
+        regen_description,
+    )
 
-    success = await regen_description(_COLLECTION_ID)
-    assert success is True
+    outcome = await regen_description(_COLLECTION_ID)
+    assert outcome is RegenOutcome.SUCCESS
 
     row = _read_collection(db_engine, _COLLECTION_ID)
     assert row.description is not None

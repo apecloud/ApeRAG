@@ -186,24 +186,37 @@ async def regen_collection_summary_view(
     ``Collection.summary``.
 
     Returns 404 if collection doesn't exist or caller doesn't own it,
+    409 if a regen is already running on this collection (the FE
+    should render "正在生成中, 请稍候" rather than an error),
     503 if all tiers returned invalid output (input not ready or
     LLM/agent unavailable — the reconciler will retry on its next
     sweep), 200 with task_id on success.
     """
-    from aperag.domains.knowledge_base.service.collection_regen_service import regen_summary
+    from aperag.domains.knowledge_base.service.collection_regen_service import (
+        RegenOutcome,
+        regen_summary,
+    )
 
     collection = await collection_service.get_collection(str(user.id), collection_id)
     if not collection:
         raise HTTPException(status_code=404, detail="Collection not found")
 
-    success = await regen_summary(collection_id)
-    if not success:
+    outcome = await regen_summary(collection_id)
+    if outcome is RegenOutcome.LEASE_BUSY:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Summary regen is already running for this collection — "
+                "another request holds the lease. Refresh the settings "
+                "page in a moment to see the new summary."
+            ),
+        )
+    if outcome is not RegenOutcome.SUCCESS:
         raise HTTPException(
             status_code=503,
             detail=(
-                "Summary regen could not produce a valid output (lease busy "
-                "or all tiers fell through). The reconciler will retry on "
-                "its next sweep."
+                "Summary regen could not produce a valid output (all tiers "
+                "fell through). The reconciler will retry on its next sweep."
             ),
         )
 
@@ -234,10 +247,14 @@ async def regen_collection_description_view(
 
     Returns 400 if ``Collection.summary IS NULL`` (must regen summary
     first), 404 if collection doesn't exist or caller doesn't own it,
-    503 if the LLM call fails the quality gate, 200 with task_id on
-    success.
+    409 if a regen is already running on this collection (FE should
+    render "正在生成中, 请稍候"), 503 if the LLM call fails the
+    quality gate, 200 with task_id on success.
     """
-    from aperag.domains.knowledge_base.service.collection_regen_service import regen_description
+    from aperag.domains.knowledge_base.service.collection_regen_service import (
+        RegenOutcome,
+        regen_description,
+    )
 
     collection = await collection_service.get_collection(str(user.id), collection_id)
     if not collection:
@@ -248,14 +265,23 @@ async def regen_collection_description_view(
             detail="Collection has no summary yet — call /summary/regen first.",
         )
 
-    success = await regen_description(collection_id)
-    if not success:
+    outcome = await regen_description(collection_id)
+    if outcome is RegenOutcome.LEASE_BUSY:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Description regen is already running for this collection — "
+                "another request holds the lease. Refresh the settings "
+                "page in a moment to see the new description."
+            ),
+        )
+    if outcome is not RegenOutcome.SUCCESS:
         raise HTTPException(
             status_code=503,
             detail=(
-                "Description regen could not produce a valid output (lease "
-                "busy or LLM call failed quality gate). The reconciler will "
-                "retry on its next sweep."
+                "Description regen could not produce a valid output (LLM "
+                "call failed quality gate). The reconciler will retry on "
+                "its next sweep."
             ),
         )
 

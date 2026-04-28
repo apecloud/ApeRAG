@@ -28,6 +28,7 @@ against the same row (description depends on summary).
 from __future__ import annotations
 
 import asyncio
+import enum
 import logging
 import re
 import time
@@ -58,6 +59,28 @@ from aperag.domains.knowledge_base.service.regen_constants import (
 from aperag.utils.utils import utc_now
 
 logger = logging.getLogger(__name__)
+
+
+class RegenOutcome(str, enum.Enum):
+    """Tri-state outcome of a regen call.
+
+    Pre-fix the helpers returned ``bool`` and the API endpoint
+    conflated all non-success paths into one 503 toast — the user
+    saw the same "all tiers fell through" string for both lease
+    contention (a concurrent regen is already running and will
+    succeed) and an actual model-side failure. Per @earayu2
+    msg=11b26190 (2026-04-29): when a regen is in progress, the
+    response should say "正在生成中" rather than "失败".
+
+    The helpers now return one of these three outcomes; the route
+    maps them to 200 / 409 / 503 so the FE can render a friendly
+    "正在生成中, 请稍候" instead of an error toast on the conflict
+    branch.
+    """
+
+    SUCCESS = "success"
+    LEASE_BUSY = "lease_busy"
+    FALLTHROUGH = "fallthrough"
 
 
 # ---------------------------------------------------------------------
@@ -534,12 +557,18 @@ async def regen_summary(
     collection_id: str,
     *,
     llm_factory: Callable[[Collection], LLMCall] | None = None,
-) -> bool:
+) -> RegenOutcome:
     """Stage 1: regenerate ``Collection.summary`` for ``collection_id``.
 
-    Returns ``True`` if a new summary was successfully written,
-    ``False`` if the call was skipped (lease busy / collection deleted
-    / all 3 tiers fell through to transient skip).
+    Returns one of:
+
+    * :attr:`RegenOutcome.SUCCESS` — a fresh summary was written.
+    * :attr:`RegenOutcome.LEASE_BUSY` — another regen is already
+      running on this collection. The route surfaces this as 409 so
+      the FE can render "正在生成中" instead of an error toast.
+    * :attr:`RegenOutcome.FALLTHROUGH` — collection missing/deleted
+      or all 3 tiers returned invalid output. The route surfaces this
+      as 503 and the reconciler retries on its next sweep.
 
     Lease-protected: acquires the regen lease, runs the 3-tier
     fallback chain, writes ``summary`` + ``summary_updated_at``
@@ -550,7 +579,7 @@ async def regen_summary(
         lease_token = await _try_acquire_lease(session, collection_id=collection_id)
         if lease_token is None:
             logger.debug("regen_summary skipped: lease busy for %s", collection_id)
-            return False
+            return RegenOutcome.LEASE_BUSY
 
         try:
             # Step 2: load collection (post-lease so we see latest state)
@@ -562,7 +591,7 @@ async def regen_summary(
                     "regen_summary skipped: collection %s missing or deleted",
                     collection_id,
                 )
-                return False
+                return RegenOutcome.FALLTHROUGH
 
             # Step 3: 3-tier fallback chain
             summary: str | None = await _invoke_summary_agent(collection)
@@ -584,7 +613,7 @@ async def regen_summary(
                     collection_id,
                     tier_used,
                 )
-                return False
+                return RegenOutcome.FALLTHROUGH
 
             # Step 4: atomic writeback
             now = utc_now()
@@ -604,10 +633,10 @@ async def regen_summary(
                 tier_used,
                 len(summary),
             )
-            return True
+            return RegenOutcome.SUCCESS
         finally:
             await _release_lease(session, collection_id=collection_id, lease_token=lease_token)
-    return False
+    return RegenOutcome.FALLTHROUGH
 
 
 # ---------------------------------------------------------------------
@@ -619,10 +648,11 @@ async def regen_description(
     collection_id: str,
     *,
     llm_factory: Callable[[Collection], LLMCall] | None = None,
-) -> bool:
+) -> RegenOutcome:
     """Stage 2: derive ``Collection.description`` from existing
-    ``Collection.summary``. Returns ``True`` on success, ``False`` on
-    skip (lease busy, summary missing, or LLM output invalid).
+    ``Collection.summary``. See :func:`regen_summary` for the
+    outcome-mapping contract — same tri-state semantics, same
+    409 vs 503 split downstream.
 
     Cheap path — single LLM call, no agent multi-turn. Caller MUST
     ensure ``summary`` is already populated; the OpenAPI handler returns
@@ -632,21 +662,21 @@ async def regen_description(
         lease_token = await _try_acquire_lease(session, collection_id=collection_id)
         if lease_token is None:
             logger.debug("regen_description skipped: lease busy for %s", collection_id)
-            return False
+            return RegenOutcome.LEASE_BUSY
 
         try:
             stmt = select(Collection).where(Collection.id == collection_id)
             result = await session.execute(stmt)
             collection = result.scalar_one_or_none()
             if collection is None or collection.gmt_deleted is not None:
-                return False
+                return RegenOutcome.FALLTHROUGH
 
             if not collection.summary:
                 logger.info(
                     "regen_description skipped: collection %s has no summary yet",
                     collection_id,
                 )
-                return False
+                return RegenOutcome.FALLTHROUGH
 
             language = _detect_language(collection.summary)
             template = DESCRIPTION_DERIVE_PROMPT_ZH if language == "zh" else DESCRIPTION_DERIVE_PROMPT_EN
@@ -660,14 +690,14 @@ async def regen_description(
                     "regen_description LLM call failed for %s; transient skip",
                     collection_id,
                 )
-                return False
+                return RegenOutcome.FALLTHROUGH
 
             if not is_valid_description(description):
                 logger.info(
                     "regen_description quality gate failed for %s; transient skip",
                     collection_id,
                 )
-                return False
+                return RegenOutcome.FALLTHROUGH
 
             now = utc_now()
             await session.execute(
@@ -686,10 +716,10 @@ async def regen_description(
                 len(description),
                 language,
             )
-            return True
+            return RegenOutcome.SUCCESS
         finally:
             await _release_lease(session, collection_id=collection_id, lease_token=lease_token)
-    return False
+    return RegenOutcome.FALLTHROUGH
 
 
 # ---------------------------------------------------------------------
@@ -711,6 +741,7 @@ def _default_llm_factory(collection: Collection) -> LLMCall:
 
 
 __all__ = [
+    "RegenOutcome",
     "SUMMARY_AGENT_SYSTEM_PROMPT",
     "get_or_create_summary_bot_for_user",
     "is_valid_description",
