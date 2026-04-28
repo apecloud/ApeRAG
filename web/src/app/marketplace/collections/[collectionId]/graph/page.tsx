@@ -1,4 +1,4 @@
-import { CollectionGraph } from '@/app/workspace/collections/[collectionId]/graph/collection-graph';
+import { CollectionGraphHybrid } from '@/app/workspace/collections/[collectionId]/graph-hybrid/collection-graph-hybrid';
 import { PageContainer, PageContent } from '@/components/page-container';
 import { getMarketplaceCollection } from '@/features/marketplace/server-api';
 import { notFound } from 'next/navigation';
@@ -17,10 +17,10 @@ export default async function Page({
 
   return (
     <PageContainer>
-      <div className="flex h-[calc(100vh-48px)] flex-col px-0">
+      <div className="flex min-h-[calc(100vh-48px)] flex-col px-0">
         <CollectionHeader collection={collection} className="w-full" />
-        <PageContent className="flex w-full flex-1 flex-col">
-          <CollectionGraph marketplace={true} />
+        <PageContent className="flex min-h-[720px] w-full flex-1 flex-col">
+          <CollectionGraphHybrid marketplace />
         </PageContent>
       </div>
     </PageContainer>

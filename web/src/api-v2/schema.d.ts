@@ -570,6 +570,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/marketplace/collections/{collection_id}/graph/embedding-map": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Marketplace Collection Graph Embedding Map
+         * @description Get projected entity coordinates for MarketplaceCollection (read-only).
+         */
+        get: operations["marketplace_get_marketplace_collection_graph_embedding_map"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/marketplace/collections/{collection_id}/graph/entities/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search Marketplace Collection Graph Entities
+         * @description Vector-recall graph entities for MarketplaceCollection (read-only).
+         */
+        get: operations["marketplace_search_marketplace_collection_graph_entities"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/settings": {
         parameters: {
             query?: never;
@@ -1523,6 +1563,36 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/evaluation-datasets/{dataset_id}/items/generate-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate Evaluation Dataset Items Preview View
+         * @description AI auto-generate QA pairs for the dataset (preview-only).
+         *
+         *     Walks the collection's serving chunks, fires one LLM call per
+         *     substantive chunk, and returns the produced ``{question,
+         *     expected_answer, reference_context}`` items without writing to the
+         *     dataset. The caller (FE) lets the user select / edit and POSTs the
+         *     chosen rows to the existing ``/items`` append endpoint.
+         *
+         *     Architect lock ``msg=05c3ec83`` + ``msg=a9fb7efd``; ``count``
+         *     defaults to 10 and is capped at 100; ``language`` falls back to
+         *     ``Collection.config.language``.
+         */
+        post: operations["evaluation_v2_generate_evaluation_dataset_items_preview_view"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/evaluation-datasets/{dataset_id}/items/{item_id}": {
         parameters: {
             query?: never;
@@ -1908,6 +1978,8 @@ export interface paths {
          *     ``Collection.summary``.
          *
          *     Returns 404 if collection doesn't exist or caller doesn't own it,
+         *     409 if a regen is already running on this collection (the FE
+         *     should render "正在生成中, 请稍候" rather than an error),
          *     503 if all tiers returned invalid output (input not ready or
          *     LLM/agent unavailable — the reconciler will retry on its next
          *     sweep), 200 with task_id on success.
@@ -1939,8 +2011,9 @@ export interface paths {
          *
          *     Returns 400 if ``Collection.summary IS NULL`` (must regen summary
          *     first), 404 if collection doesn't exist or caller doesn't own it,
-         *     503 if the LLM call fails the quality gate, 200 with task_id on
-         *     success.
+         *     409 if a regen is already running on this collection (FE should
+         *     render "正在生成中, 请稍候"), 503 if the LLM call fails the
+         *     quality gate, 200 with task_id on success.
          */
         post: operations["collections_v2_regen_collection_description_view"];
         delete?: never;
@@ -2303,7 +2376,7 @@ export interface components {
             /** Status */
             status: string;
             /** Parts */
-            parts?: (components["schemas"]["TextPart"] | components["schemas"]["ToolPart"] | components["schemas"]["SourceUrlPart"] | components["schemas"]["SourceDocumentPart"] | components["schemas"]["DataCitationPart"] | components["schemas"]["DataActivityPart"] | components["schemas"]["DataToolConsentPart"] | components["schemas"]["DataElicitationPart"])[];
+            parts?: (components["schemas"]["TextPart"] | components["schemas"]["ReasoningPart"] | components["schemas"]["ToolPart"] | components["schemas"]["SourceUrlPart"] | components["schemas"]["SourceDocumentPart"] | components["schemas"]["DataCitationPart"] | components["schemas"]["DataActivityPart"] | components["schemas"]["DataToolConsentPart"] | components["schemas"]["DataElicitationPart"])[];
             /** Error Text */
             error_text?: string | null;
             /**
@@ -2627,6 +2700,11 @@ export interface components {
             type?: string | null;
             /** Description */
             description?: string | null;
+            /**
+             * Summary
+             * @description Auto-generated long-form knowledge-base summary
+             */
+            summary?: string | null;
             config?: components["schemas"]["CollectionConfig-Input"] | null;
             /** Status */
             status?: ("ACTIVE" | "INACTIVE" | "DELETED") | null;
@@ -2659,6 +2737,11 @@ export interface components {
             type?: string | null;
             /** Description */
             description?: string | null;
+            /**
+             * Summary
+             * @description Auto-generated long-form knowledge-base summary
+             */
+            summary?: string | null;
             config?: components["schemas"]["CollectionConfig-Output"] | null;
             /** Status */
             status?: ("ACTIVE" | "INACTIVE" | "DELETED") | null;
@@ -3006,7 +3089,7 @@ export interface components {
             web_search_enabled: boolean;
             /**
              * Language
-             * @default en-US
+             * @default zh-CN
              */
             language: ("en-US" | "zh-CN" | "zh-TW" | "ja-JP" | "ko-KR" | "fr-FR" | "de-DE" | "es-ES" | "it-IT" | "pt-BR" | "ru-RU") | null;
             /** Files */
@@ -3416,6 +3499,44 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+        };
+        /** EvaluationDatasetGeneratePreviewRequest */
+        EvaluationDatasetGeneratePreviewRequest: {
+            /** Collection Id */
+            collection_id: string;
+            /**
+             * Count
+             * @description Number of QA pairs to generate (default 10, max 100).
+             * @default 10
+             */
+            count: number;
+            /**
+             * Language
+             * @description ISO locale (zh-CN / en-US / ja-JP / ko-KR). When omitted the BE falls back to ``Collection.config.language``.
+             */
+            language?: string | null;
+            /**
+             * Prompt Template
+             * @description Override the default per-chunk QA generation prompt. The default ships an explicit instruction to emit JSON with ``question`` and ``expected_answer`` fields in the resolved language.
+             */
+            prompt_template?: string | null;
+        };
+        /** EvaluationDatasetGeneratePreviewResponse */
+        EvaluationDatasetGeneratePreviewResponse: {
+            /** Items */
+            items?: components["schemas"]["GeneratedDatasetItem"][];
+            /**
+             * Requested Count
+             * @default 0
+             */
+            requested_count: number;
+            /**
+             * Delivered Count
+             * @default 0
+             */
+            delivered_count: number;
+            /** Language */
+            language?: string | null;
         };
         /** EvaluationDatasetItemCreate */
         EvaluationDatasetItemCreate: {
@@ -3957,6 +4078,15 @@ export interface components {
              */
             keywords?: string[] | null;
         };
+        /** GeneratedDatasetItem */
+        GeneratedDatasetItem: {
+            /** Question */
+            question: string;
+            /** Expected Answer */
+            expected_answer: string;
+            /** Reference Context */
+            reference_context?: string | null;
+        };
         /**
          * GraphEdge
          * @description Knowledge graph edge representing a relationship
@@ -4019,17 +4149,6 @@ export interface components {
              * @example 2
              */
             source_chunk_count?: number | null;
-        };
-        /**
-         * GraphEntitiesSearchResponse
-         * @description Response for ``GET /graphs/entities/search``.
-         */
-        GraphEntitiesSearchResponse: {
-            /**
-             * Entities
-             * @description Entities returned by vector recall, ordered by descending similarity score
-             */
-            entities: components["schemas"]["GraphSearchEntity"][];
         };
         /**
          * GraphEmbeddingMapRelation
@@ -4100,6 +4219,17 @@ export interface components {
              * @default 0
              */
             source_chunk_count: number;
+        };
+        /**
+         * GraphEntitiesSearchResponse
+         * @description Response for ``GET /graphs/entities/search``.
+         */
+        GraphEntitiesSearchResponse: {
+            /**
+             * Entities
+             * @description Entities returned by vector recall, ordered by descending similarity score
+             */
+            entities: components["schemas"]["GraphSearchEntity"][];
         };
         /**
          * GraphLabelsResponse
@@ -5252,6 +5382,39 @@ export interface components {
              */
             updated_quotas: components["schemas"]["UpdatedQuota"][];
         };
+        /**
+         * ReasoningPart
+         * @description Persisted multi-step reasoning text the model emitted between
+         *     tool calls — the "how the agent got there" trace, distinct from
+         *     :class:`TextPart` (final answer body).
+         *
+         *     Architect ratify msg=2639aeea: separate first-class type vs reusing
+         *     ``TextPart`` with a ``role`` meta field. Keeping reasoning as its
+         *     own type makes downstream serialisation / aggregation / UI
+         *     rendering unambiguous (a reader can tell "this is reasoning" vs
+         *     "this is the final answer" by ``type`` alone).
+         *
+         *     ``transient=False`` (default) so reasoning survives reload — Wave 8
+         *     D8.6 chunk-3 design originally pinned reasoning as fully transient
+         *     via :class:`DataActivityPart`, but earayu2 explicitly asked for
+         *     Claude-style chronological timeline (思考1 → 工具a → 思考2 → 工具b
+         *     → 最终回答) so persistence is the canonical user-priority amend.
+         *
+         *     Length cap: ``MAX_REASONING_PART_CHARS`` per part — the runtime
+         *     opens a new ReasoningPart when the buffer fills OR when a tool
+         *     call interrupts, giving the chronological chunking the FE renders
+         *     as discrete thinking blocks interleaved with tool actions.
+         */
+        ReasoningPart: {
+            /**
+             * Type
+             * @default reasoning
+             * @constant
+             */
+            type: "reasoning";
+            /** Text */
+            text: string;
+        };
         /** RebuildIndexesRequest */
         RebuildIndexesRequest: {
             /**
@@ -5778,25 +5941,25 @@ export interface components {
             /**
              * Max Collection Count
              * @description Default maximum collection count
-             * @example 10
+             * @example 20
              */
             max_collection_count: number;
             /**
              * Max Document Count
              * @description Default maximum document count
-             * @example 1000
+             * @example 4000
              */
             max_document_count: number;
             /**
              * Max Document Count Per Collection
              * @description Default maximum documents per collection
-             * @example 100
+             * @example 200
              */
             max_document_count_per_collection: number;
             /**
              * Max Bot Count
              * @description Default maximum bot count
-             * @example 5
+             * @example 10
              */
             max_bot_count: number;
         };
@@ -5936,6 +6099,8 @@ export interface components {
             output?: unknown | null;
             /** Errortext */
             errorText?: string | null;
+            /** Summary */
+            summary?: string | null;
             /** Metadata */
             metadata?: {
                 [key: string]: unknown;
@@ -7568,6 +7733,75 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["KnowledgeGraph"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    marketplace_get_marketplace_collection_graph_embedding_map: {
+        parameters: {
+            query?: {
+                max_entities?: number;
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GraphEmbeddingMapResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    marketplace_search_marketplace_collection_graph_entities: {
+        parameters: {
+            query: {
+                q: string;
+                top_k?: number;
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GraphEntitiesSearchResponse"];
                 };
             };
             /** @description Validation Error */
@@ -9600,6 +9834,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EvaluationDatasetItemsAppendResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    evaluation_v2_generate_evaluation_dataset_items_preview_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EvaluationDatasetGeneratePreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvaluationDatasetGeneratePreviewResponse"];
                 };
             };
             /** @description Validation Error */
