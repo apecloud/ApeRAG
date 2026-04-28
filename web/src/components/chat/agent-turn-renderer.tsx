@@ -72,7 +72,9 @@ import {
   Globe2,
   HandCoins,
   HelpCircle,
+  Library,
   LoaderCircle,
+  Network,
   Search,
   Sparkles,
   XCircle,
@@ -229,8 +231,16 @@ function sourceDocToReference(part: AgentSourceDocumentPart): Reference {
 type ToolBehaviorKind =
   | 'web_search'
   | 'web_read'
+  | 'collection_list'
+  | 'collection_metadata'
+  | 'document_list'
+  | 'document_metadata'
   | 'knowledge_search'
+  | 'graph_lookup'
   | 'document_read'
+  | 'document_outline'
+  | 'document_section'
+  | 'document_chunk'
   | 'generic';
 
 type ToolBehaviorPhase = 'running' | 'done' | 'error';
@@ -248,6 +258,16 @@ function toolDisplayName(part: AgentToolPart): string {
   );
 }
 
+function matchesToolName(name: string, ...tools: string[]): boolean {
+  return tools.some(
+    (tool) =>
+      name === tool ||
+      name.endsWith(`_${tool}`) ||
+      name.endsWith(`-${tool}`) ||
+      name.includes(tool),
+  );
+}
+
 function toolBehaviorKind(part: AgentToolPart): ToolBehaviorKind {
   const name = toolDisplayName(part).toLowerCase();
   if (name.includes('web_search') || name.includes('search_web')) {
@@ -261,13 +281,40 @@ function toolBehaviorKind(part: AgentToolPart): ToolBehaviorKind {
   ) {
     return 'web_read';
   }
-  if (
-    name.includes('read_document') ||
-    name.includes('document_read') ||
-    name.includes('read_section') ||
-    name.includes('read_chunk')
-  ) {
+  if (matchesToolName(name, 'read_document_chunk', 'read_chunk')) {
+    return 'document_chunk';
+  }
+  if (matchesToolName(name, 'read_document_section', 'read_section')) {
+    return 'document_section';
+  }
+  if (matchesToolName(name, 'read_document_outline', 'read_outline')) {
+    return 'document_outline';
+  }
+  if (matchesToolName(name, 'read_document', 'document_read')) {
     return 'document_read';
+  }
+  if (matchesToolName(name, 'get_document_metadata')) {
+    return 'document_metadata';
+  }
+  if (matchesToolName(name, 'list_documents')) {
+    return 'document_list';
+  }
+  if (matchesToolName(name, 'get_collection_metadata')) {
+    return 'collection_metadata';
+  }
+  if (matchesToolName(name, 'list_collections')) {
+    return 'collection_list';
+  }
+  if (
+    matchesToolName(
+      name,
+      'graph_search',
+      'query_graph_entities',
+      'expand_graph_subgraph',
+      'get_entity_detail',
+    )
+  ) {
+    return 'graph_lookup';
   }
   if (
     name.includes('knowledge') ||
@@ -296,10 +343,20 @@ function toolBehaviorIcon(kind: ToolBehaviorKind, phase: ToolBehaviorPhase) {
     case 'web_search':
     case 'knowledge_search':
       return Search;
+    case 'graph_lookup':
+      return Network;
     case 'web_read':
       return Globe2;
     case 'document_read':
+    case 'document_outline':
+    case 'document_section':
+    case 'document_chunk':
+    case 'document_metadata':
+    case 'document_list':
       return BookOpen;
+    case 'collection_list':
+    case 'collection_metadata':
+      return Library;
     default:
       return Sparkles;
   }
@@ -326,6 +383,12 @@ function extractStringField(
     const candidate = record[key];
     if (typeof candidate === 'string' && candidate.trim()) {
       return candidate.trim();
+    }
+    if (Array.isArray(candidate)) {
+      const first = candidate.find(
+        (item): item is string => typeof item === 'string' && !!item.trim(),
+      );
+      if (first) return first.trim();
     }
   }
   if (depth <= 0) return undefined;
@@ -360,6 +423,76 @@ function toolBehaviorDetail(
     extractStringField(part.metadata, ['query', 'q', 'keyword', 'keywords']) ||
     extractStringField(part.input, ['query', 'q', 'keyword', 'keywords']) ||
     extractStringField(part.output, ['query', 'q', 'keyword', 'keywords']);
+  const document =
+    extractStringField(part.metadata, [
+      'document_title',
+      'document_name',
+      'filename',
+      'file_name',
+      'title',
+      'name',
+    ]) ||
+    extractStringField(part.input, [
+      'document_title',
+      'document_name',
+      'filename',
+      'file_name',
+      'title',
+      'name',
+    ]) ||
+    extractStringField(part.output, [
+      'document_title',
+      'document_name',
+      'filename',
+      'file_name',
+      'title',
+      'name',
+    ]);
+  const collection =
+    extractStringField(part.metadata, ['collection_title', 'collection_name']) ||
+    extractStringField(part.input, ['collection_title', 'collection_name']) ||
+    extractStringField(part.output, ['collection_title', 'collection_name']);
+  const section =
+    extractStringField(part.metadata, ['section_path', 'heading_anchor']) ||
+    extractStringField(part.input, ['section_path', 'heading_anchor']) ||
+    extractStringField(part.output, ['section_path', 'heading_anchor']);
+  const chunk =
+    extractStringField(part.metadata, ['chunk_id']) ||
+    extractStringField(part.input, ['chunk_id']) ||
+    extractStringField(part.output, ['chunk_id']);
+  const entity =
+    extractStringField(part.metadata, ['entity_name', 'entity_names']) ||
+    extractStringField(part.input, ['entity_name', 'entity_names']) ||
+    extractStringField(part.output, ['entity_name', 'entity_names']);
+
+  if (kind === 'document_section' && section) {
+    return pageChat('activity_stream.tool.detail.document_section_ref', {
+      section,
+    });
+  }
+  if (
+    (kind === 'document_read' ||
+      kind === 'document_outline' ||
+      kind === 'document_metadata') &&
+    document
+  ) {
+    return pageChat('activity_stream.tool.detail.document', { document });
+  }
+  if (
+    (kind === 'collection_list' ||
+      kind === 'collection_metadata' ||
+      kind === 'document_list') &&
+    collection
+  ) {
+    return pageChat('activity_stream.tool.detail.collection', { collection });
+  }
+  if (kind === 'graph_lookup' && entity) {
+    return pageChat('activity_stream.tool.detail.graph_entity', { entity });
+  }
+  if (kind === 'graph_lookup' && query) {
+    return pageChat('activity_stream.tool.detail.graph_query', { query });
+  }
+
   if (query) {
     return pageChat('activity_stream.tool.detail.search_query', { query });
   }
