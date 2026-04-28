@@ -108,7 +108,7 @@ def test_build_lineage_graph_store_inner_returns_raw_backend():
 async def test_graph_search_pipeline_composes_search_entities_and_get_subgraph():
     """Wave 7 §K.12.5 / §K.12.8 task #8 cutover: the retrieval pipeline
     must call ``search_entities`` (vector recall) + ``get_subgraph``
-    (1-hop traversal) + ``compose_context`` (LightRAG-style render),
+    (1-hop traversal) + ``compose_context`` (graph-RAG render),
     not the Wave 6 keyword-only ``query_entities_by_keyword`` path.
     """
     from aperag.domains.retrieval.pipeline import SearchPipelineService

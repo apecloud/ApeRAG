@@ -18,14 +18,14 @@ Activates vector recall against the lineage graph. The Wave 6 #33 chunk
 3 retrieval cutover only wired keyword recall via
 ``LineageGraphStore.query_entities_by_keyword`` (chunk 2 vector recall
 was deferred); this service finally adds the vector path and composes
-both into the LightRAG-style context block the retrieval pipeline
+both into the graph-RAG context block the retrieval pipeline
 already consumes (so task #8's wiring is a one-line swap).
 
 Per-collection bound — caller wires the four dependencies (lineage
 store, vector connector, embedder, optional LLM) to the collection
 being searched before constructing the service. The constructor does
 no I/O. ``llm`` is reserved for follow-up high-level / low-level
-keyword extraction (LightRAG hybrid recall); v1 PR does not invoke it.
+keyword extraction (hybrid keyword recall); v1 PR does not invoke it.
 """
 
 from __future__ import annotations
@@ -90,7 +90,7 @@ class GraphSearchService:
     * :meth:`get_subgraph` — wrap ``expand_neighbors_n_hops`` as a
       stable read primitive for MCP tools (task #7).
     * :meth:`compose_context` — render the ``EntityWithLineage`` /
-      ``RelationWithLineage`` lists into the legacy LightRAG-style
+      ``RelationWithLineage`` lists into the canonical graph-RAG
       ``-----Entities (KG)----- / -----Relationships (KG)-----`` text
       block so the retrieval pipeline (task #8) gets a drop-in
       replacement for the keyword-only path.
@@ -102,8 +102,8 @@ class GraphSearchService:
         store: LineageGraphStore,
         vector_connector: VectorStoreConnector,
         embedder: Any,
-        # Reserved for follow-up: LightRAG-style high/low-level
-        # keyword extraction from the user query. Not invoked in v1.
+        # Reserved for follow-up: hybrid high/low-level keyword
+        # extraction from the user query. Not invoked in v1.
         llm: Callable[[str], Awaitable[str]] | None = None,
         top_k: int = DEFAULT_TOP_K,
         score_threshold: float = DEFAULT_SCORE_THRESHOLD,
@@ -331,7 +331,7 @@ class GraphSearchService:
         entities: Sequence[EntityWithLineage],
         relations: Sequence[RelationWithLineage],
     ) -> str:
-        """Render entities + relations into the LightRAG-style block
+        """Render entities + relations into the graph-RAG context block
         the retrieval pipeline already expects.
 
         Mirrors :func:`aperag.domains.retrieval.pipeline._render_graph_context_text`

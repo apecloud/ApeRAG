@@ -202,7 +202,7 @@ class PromptTemplateService:
 
     This service provides:
     1. User configuration management (for View layer)
-    2. Prompt resolution with 3-tier priority (for Agent/LightRAG)
+    2. Prompt resolution with 3-tier priority (for Agent / graph indexing)
     3. Helper utilities (preview, validate)
     """
 
@@ -399,7 +399,7 @@ class PromptTemplateService:
 
             return result
 
-    # === Prompt resolution (for Agent/LightRAG) ===
+    # === Prompt resolution (for Agent / graph indexing) ===
 
     async def resolve_agent_system_prompt(self, bot, user_id: str) -> str:
         """

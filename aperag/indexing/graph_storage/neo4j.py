@@ -557,7 +557,7 @@ class Neo4jLineageGraphStore:
                 compacted_description=rec["compacted_description"],
             )
 
-    # -- LightRAG-style query layer (Wave 6 #33 chunk 2) --------------
+    # -- Graph-RAG query layer (Wave 6 #33 chunk 2) -------------------
 
     async def query_entities_by_keyword(
         self,

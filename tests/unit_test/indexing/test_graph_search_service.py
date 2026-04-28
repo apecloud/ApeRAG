@@ -32,7 +32,7 @@ Pins the vector-recall contract:
   writing relation vectors.
 * ``get_subgraph`` is a thin pass-through to
   ``expand_neighbors_n_hops`` for MCP / retrieval callers.
-* ``compose_context`` renders byte-for-byte the same LightRAG-style
+* ``compose_context`` renders byte-for-byte the same graph-RAG context
   block ``aperag/domains/retrieval/pipeline.py:_render_graph_context_text``
   produces today (so task #8's swap is zero-functional-change), and
   prefers ``compacted_description`` when present.

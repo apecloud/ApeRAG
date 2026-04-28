@@ -354,7 +354,7 @@ class SuggestionActionResponse(BaseModel):
 # them — but they appear in OpenAPI regen so SDK callers can bind to
 # them statically.
 #
-# Per §K.12 invariant #12 (grep-zero LightRAG) the names are
+# Per §K.12 invariant #12 (grep-zero on legacy naming) the names are
 # ``Graph*`` only; per invariant #11 (D-3 candidate detection writes
 # only) these are read-only shapes — no mutation surface.
 

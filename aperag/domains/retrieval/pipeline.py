@@ -78,7 +78,7 @@ class CollectionRow(Protocol):
 
 
 def _render_graph_context_text(entities: list[Any], relations: list[Any]) -> str:
-    """Compose a LightRAG-style text block from entities + relations.
+    """Compose a graph-RAG text block from entities + relations.
 
     Mirrors the legacy ``GraphIndexService.query_context`` rendering
     convention so downstream RAG prompts that expect the
@@ -120,7 +120,7 @@ def _build_lineage_graph_store_for(collection: CollectionRow) -> Any:
     import tax unless a graph recall is actually requested.
 
     Wave 6 #33 chunk 3 (per architect Option C ruling msg=6fccd9ab):
-    retrieval-side LightRAG-style query routes through the new
+    retrieval-side graph-RAG query routes through the new
     LineageGraphStore Protocol (`query_entities_by_keyword` +
     `expand_neighbors_n_hops`) instead of the legacy
     ``GraphIndexService.query_context``.

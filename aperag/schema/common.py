@@ -145,7 +145,7 @@ class KnowledgeGraphConfig(BaseModel):
         examples=[["organization", "person", "geo", "event"]],
     )
     # Wave 5 P5A item 1 (per huangheng T1 obs A msg=6b349693): expose
-    # the LightRAG-style extractor's per-chunk caps + timeout as
+    # the graph extractor's per-chunk caps + timeout as
     # per-collection overrides so deployments tuning a slow LLM provider
     # or extracting from very dense chunks can lift the defaults without
     # patching ``aperag/indexing/graph_extractor.py`` constants.
@@ -196,7 +196,7 @@ class CollectionConfig(BaseModel):
     # Wave 3 ships graph modality structurally implemented but gated
     # in :class:`aperag.indexing.worker_factory.ProductionWorkerFactory`
     # because the §D.3.6 Nebula / Postgres ``LineageGraphStore`` adapter
-    # + LightRAG-style LLM extractor are Wave 4 scope. Default flipped
+    # + LLM-driven graph extractor are Wave 4 scope. Default flipped
     # to False so new collections do not opt into the placeholder path
     # by accident; Wave 4 release flips it back to True. Per architect
     # msg=c79e9a3f.
