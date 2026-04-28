@@ -145,6 +145,15 @@ class ToolPart(BaseModel):
     input: Optional[Any] = None
     output: Optional[Any] = None
     error_text: Optional[str] = Field(default=None, alias="errorText")
+    # First-class user-facing one-line summary (e.g. "搜索:张飞牛肉",
+    # "阅读:example.com/page"). Per-tool-call free-form ≤ 200 chars
+    # extracted by the runtime from the raw input dict. Rendered by the
+    # FE as the activity-step subtitle so users see "what was searched
+    # / read" even after refresh — when raw ``input`` is intentionally
+    # not persisted (D9 §A7). Architect ratify msg=2639aeea pinned this
+    # as a first-class field rather than nested under ``metadata`` so
+    # FE doesn't fish through a catch-all dict for user-facing copy.
+    summary: Optional[str] = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     model_config = ConfigDict(populate_by_name=True)

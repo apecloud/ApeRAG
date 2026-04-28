@@ -1,5 +1,7 @@
 from aperag.domains.agent_runtime.runtime import (
+    _TOOL_SUMMARY_MAX_LEN,
     _compose_assistant_parts,
+    _extract_tool_summary,
     _PersistedToolCall,
 )
 from aperag.domains.agent_runtime.schemas import ReferenceBundleItem
@@ -72,3 +74,64 @@ def test_compose_assistant_parts_persists_tool_error_state():
     assert parts[0].type == "tool-knowledge_base_read_document"
     assert parts[0].state == "output-error"
     assert parts[0].error_text == "read timed out"
+
+
+def test_compose_assistant_parts_persists_tool_summary():
+    """Reload paths must surface the user-visible activity subtitle
+    (e.g. "搜索:张飞牛肉") via ``ToolPart.summary``. Without it the FE
+    can only show generic "已完成网页搜索" copy after refresh because
+    ``input`` is intentionally not persisted (D9 §A7)."""
+    parts = _compose_assistant_parts(
+        turn_id="turn-1",
+        answer_text="",
+        references=[],
+        tool_calls=[
+            _PersistedToolCall(
+                tool_call_id="call-1",
+                tool_name="web.search",
+                state="output-available",
+                summary="搜索:张飞牛肉",
+            )
+        ],
+    )
+    assert len(parts) == 1
+    assert isinstance(parts[0], ToolPart)
+    assert parts[0].summary == "搜索:张飞牛肉"
+    assert parts[0].input is None, "raw tool args must not be persisted (D9 §A7)"
+
+
+def test_extract_tool_summary_search_query():
+    assert _extract_tool_summary({"query": "张飞牛肉"}) == "搜索:张飞牛肉"
+    assert _extract_tool_summary({"q": "beekeeping"}) == "搜索:beekeeping"
+    assert _extract_tool_summary({"keyword": "wave 9"}) == "搜索:wave 9"
+    # Whitespace-only / missing → None (FE falls back to generic copy)
+    assert _extract_tool_summary({"query": "   "}) is None
+    assert _extract_tool_summary({"unrelated": "x"}) is None
+
+
+def test_extract_tool_summary_url_fields_compact_to_host_path():
+    assert _extract_tool_summary({"url": "https://example.com/foo/bar"}) == "阅读:example.com/foo/bar"
+    assert _extract_tool_summary({"uri": "https://example.com/"}) == "阅读:example.com"
+    # Schemeless string passes through unchanged (still useful for FE).
+    assert _extract_tool_summary({"link": "example.com/page"}) == "阅读:example.com/page"
+
+
+def test_extract_tool_summary_truncates_long_values_with_ellipsis():
+    long_query = "x" * (_TOOL_SUMMARY_MAX_LEN + 50)
+    out = _extract_tool_summary({"query": long_query})
+    assert out is not None
+    assert len(out) == _TOOL_SUMMARY_MAX_LEN
+    assert out.endswith("…")
+
+
+def test_extract_tool_summary_query_takes_precedence_over_url():
+    """A tool that takes both ``query`` and ``url`` (e.g. a hybrid
+    search-with-fallback) prefers the human-readable query string."""
+    out = _extract_tool_summary({"query": "张飞牛肉", "url": "https://example.com"})
+    assert out == "搜索:张飞牛肉"
+
+
+def test_extract_tool_summary_non_dict_returns_none():
+    assert _extract_tool_summary(None) is None
+    assert _extract_tool_summary("just a string") is None
+    assert _extract_tool_summary(["a", "b"]) is None
