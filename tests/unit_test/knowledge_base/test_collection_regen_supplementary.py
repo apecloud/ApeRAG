@@ -30,6 +30,7 @@ import aperag.domains.agent_runtime.schemas  # noqa: F401
 from aperag.domains.agent_runtime.uimessage import TextPart
 from aperag.domains.knowledge_base.service import collection_regen_service
 from aperag.domains.knowledge_base.service.collection_regen_service import (
+    RegenOutcome,
     _extract_answer_text,
     _invoke_summary_agent,
     _pick_substantive_chunk_text,
@@ -148,7 +149,7 @@ async def test_regen_summary_returns_false_when_lease_busy(monkeypatch: pytest.M
 
     monkeypatch.setattr(collection_regen_service, "_release_lease", _release)
 
-    assert await regen_summary("col_test") is False
+    assert await regen_summary("col_test") is RegenOutcome.LEASE_BUSY
     # Lease never acquired → release helper never invoked.
     assert released == []
 
@@ -170,7 +171,7 @@ async def test_regen_summary_returns_false_when_collection_missing(monkeypatch: 
 
     monkeypatch.setattr(collection_regen_service, "_release_lease", _release)
 
-    assert await regen_summary("col_test") is False
+    assert await regen_summary("col_test") is RegenOutcome.FALLTHROUGH
     # Lease was acquired so release MUST run in the finally branch.
     assert released == [("col_test", "lease-token")]
 
@@ -212,8 +213,8 @@ async def test_regen_summary_falls_through_to_tier3_when_both_invokers_invalid(
         lambda _c: lambda _p: None,
     )
 
-    # All tiers fall through → transient skip → False (no DB write).
-    assert await regen_summary("col_test") is False
+    # All tiers fall through → transient skip → FALLTHROUGH (no DB write).
+    assert await regen_summary("col_test") is RegenOutcome.FALLTHROUGH
     assert session.commits == 0  # only commits we counted came from execute mocks
 
 
@@ -247,7 +248,7 @@ async def test_regen_summary_writes_back_when_tier1_succeeds(monkeypatch: pytest
         lambda _c: lambda _p: None,
     )
 
-    assert await regen_summary("col_test") is True
+    assert await regen_summary("col_test") is RegenOutcome.SUCCESS
     # Collection load + writeback (lease/release helpers are mocked away).
     assert len(session.executed) >= 2
 
@@ -280,7 +281,7 @@ async def test_regen_summary_falls_through_tier1_to_tier2(monkeypatch: pytest.Mo
         lambda _c: lambda _p: None,
     )
 
-    assert await regen_summary("col_test") is True
+    assert await regen_summary("col_test") is RegenOutcome.SUCCESS
 
 
 # ---------------------------------------------------------------------
@@ -301,7 +302,7 @@ async def test_regen_description_skips_when_summary_missing(monkeypatch: pytest.
     monkeypatch.setattr(collection_regen_service, "_try_acquire_lease", lambda *a, **k: _async_value("lease"))
     monkeypatch.setattr(collection_regen_service, "_release_lease", lambda *a, **k: _async_value(None))
 
-    assert await regen_description("col_test") is False
+    assert await regen_description("col_test") is RegenOutcome.FALLTHROUGH
 
 
 @pytest.mark.asyncio
@@ -325,7 +326,41 @@ async def test_regen_description_succeeds_with_valid_llm_output(monkeypatch: pyt
 
     monkeypatch.setattr(collection_regen_service, "_default_llm_factory", lambda _c: _llm)
 
-    assert await regen_description("col_test") is True
+    assert await regen_description("col_test") is RegenOutcome.SUCCESS
+
+
+# ---------------------------------------------------------------------
+# Tri-state outcome contract — LEASE_BUSY is distinguishable from
+# FALLTHROUGH so the route can return 409 vs 503 (per @earayu2
+# msg=11b26190 directive: a concurrent regen should surface as
+# "正在生成中" instead of an error toast).
+# ---------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_regen_summary_distinguishes_lease_busy_from_fallthrough(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    session = _FakeSession(collection=object())
+    _patch_session(monkeypatch, session)
+    monkeypatch.setattr(collection_regen_service, "_try_acquire_lease", lambda *a, **k: _async_value(None))
+
+    outcome = await regen_summary("col_test")
+    assert outcome is RegenOutcome.LEASE_BUSY
+    assert outcome is not RegenOutcome.FALLTHROUGH
+
+
+@pytest.mark.asyncio
+async def test_regen_description_distinguishes_lease_busy_from_fallthrough(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    session = _FakeSession(collection=object())
+    _patch_session(monkeypatch, session)
+    monkeypatch.setattr(collection_regen_service, "_try_acquire_lease", lambda *a, **k: _async_value(None))
+
+    outcome = await regen_description("col_test")
+    assert outcome is RegenOutcome.LEASE_BUSY
+    assert outcome is not RegenOutcome.FALLTHROUGH
 
 
 # ---------------------------------------------------------------------
