@@ -13,18 +13,23 @@
 # limitations under the License.
 
 """Unit tests for ``aperag.indexing.graph_search_service`` — Wave 7
-task #5.
+task #5 + Wave 8 W8-1 task #12.
 
-Pins the Wave 7 vector-recall contract:
+Pins the vector-recall contract:
 
 * ``search_entities`` embeds the query, ANN-searches the
   ``graph_entity`` indexer slice (filter + threshold pinned), then
   fetches matching ``EntityWithLineage`` rows via per-name
   ``get_entity`` (asyncio.gather). De-dups payload names so an aliased
   entity returned twice doesn't double-fetch.
-* ``search_relations`` derives relations as the 1-hop expansion of the
-  vector-recalled entities — vector store carries no per-relation
-  vectors in Wave 7.
+* ``search_relations`` (Wave 8 W8-1 upgrade) embeds the query,
+  ANN-searches the ``graph_relation`` indexer slice, parses each hit's
+  ``entity_name="src->tgt"`` + ``entity_type=relation_type`` payload
+  per the task #3 writer, then reverse-looks-up
+  ``RelationWithLineage`` via ``store.get_relation``. Hits whose
+  payload doesn't parse cleanly are skipped silently. Replaces the
+  Wave 7 conservative 1-hop expansion path now that task #3 is
+  writing relation vectors.
 * ``get_subgraph`` is a thin pass-through to
   ``expand_neighbors_n_hops`` for MCP / retrieval callers.
 * ``compose_context`` renders byte-for-byte the same LightRAG-style
@@ -124,14 +129,21 @@ class _FakeStore:
         self,
         entities: dict[str, EntityWithLineage] | None = None,
         expansions: dict[tuple[str, ...], tuple[list[EntityWithLineage], list[RelationWithLineage]]] | None = None,
+        relations: dict[tuple[str, str, str], RelationWithLineage] | None = None,
     ) -> None:
         self._entities = entities or {}
         self._expansions = expansions or {}
+        self._relations = relations or {}
         self.get_entity_calls: list[str] = []
+        self.get_relation_calls: list[tuple[str, str, str]] = []
 
     async def get_entity(self, entity_name: str) -> EntityWithLineage | None:
         self.get_entity_calls.append(entity_name)
         return self._entities.get(entity_name)
+
+    async def get_relation(self, source: str, target: str, type: str) -> RelationWithLineage | None:
+        self.get_relation_calls.append((source, target, type))
+        return self._relations.get((source, target, type))
 
     async def expand_neighbors_n_hops(
         self,
@@ -185,13 +197,14 @@ def _make_service(
     *,
     entities: dict[str, EntityWithLineage] | None = None,
     expansions: dict[tuple[str, ...], tuple[list[EntityWithLineage], list[RelationWithLineage]]] | None = None,
+    relations: dict[tuple[str, str, str], RelationWithLineage] | None = None,
     hits: list[SearchHit] | None = None,
     embedder: Any | None = None,
     connector: Any | None = None,
     top_k: int = 10,
     score_threshold: float = 0.0,
 ) -> tuple[GraphSearchService, _FakeStore, _FakeVectorConnector | Any, _FakeEmbedder | Any]:
-    store = _FakeStore(entities=entities, expansions=expansions)
+    store = _FakeStore(entities=entities, expansions=expansions, relations=relations)
     connector = connector if connector is not None else _FakeVectorConnector(hits=hits)
     embedder = embedder if embedder is not None else _FakeEmbedder()
     service = GraphSearchService(
@@ -322,31 +335,147 @@ async def test_search_entities_swallows_vector_store_failure():
 
 
 # ---------------------------------------------------------------------
-# search_relations
+# search_relations (Wave 8 W8-1 vector recall path)
 # ---------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_search_relations_empty_when_no_entities_match():
-    service, _, _, _ = _make_service(entities={}, hits=[])
+async def test_search_relations_empty_query_returns_empty():
+    service, _, connector, embedder = _make_service(entities={})
+    assert await service.search_relations("") == []
+    assert await service.search_relations("   ") == []
+    assert connector.searches == []
+    assert embedder.calls == []
+
+
+@pytest.mark.asyncio
+async def test_search_relations_zero_topk_returns_empty():
+    service, _, connector, embedder = _make_service(entities={})
+    assert await service.search_relations("query", top_k=0) == []
+    assert connector.searches == []
+    assert embedder.calls == []
+
+
+@pytest.mark.asyncio
+async def test_search_relations_uses_graph_relation_filter():
+    """Wave 8 W8-1: filter pinned to ``Eq("indexer", "graph_relation")``
+    so the ANN never bleeds into entity / chunk vectors sharing the
+    physical collection."""
+    service, _, connector, _ = _make_service(entities={}, hits=[], score_threshold=0.42, top_k=5)
+    await service.search_relations("query")
+    assert len(connector.searches) == 1
+    request = connector.searches[0].request
+    from aperag.indexing.graph_search_service import GRAPH_RELATION_INDEXER
+
+    assert request.flt == Eq("indexer", GRAPH_RELATION_INDEXER)
+    assert request.score_threshold == 0.42
+    assert request.top_k == 5
+
+
+@pytest.mark.asyncio
+async def test_search_relations_parses_payload_and_resolves_via_get_relation():
+    """Hit payload carries ``entity_name="src->tgt"`` +
+    ``entity_type=relation_type`` (per task #3 writer
+    ``aperag/indexing/graph.py:1631``); we split, reverse-lookup via
+    ``store.get_relation`` and return the full ``RelationWithLineage``
+    so :meth:`compose_context` keeps its byte-parity rendering."""
+    rel = _relation("Alpha", "Beta", relation_type="founded")
+    service, store, _, _ = _make_service(
+        relations={("Alpha", "Beta", "founded"): rel},
+        hits=[
+            SearchHit(
+                id="1",
+                score=0.9,
+                payload={"entity_name": "Alpha->Beta", "entity_type": "founded"},
+            ),
+        ],
+    )
+    relations = await service.search_relations("query")
+    assert relations == [rel]
+    assert store.get_relation_calls == [("Alpha", "Beta", "founded")]
+
+
+@pytest.mark.asyncio
+async def test_search_relations_preserves_hit_order_and_dedupes():
+    rel_ab = _relation("Alpha", "Beta", relation_type="founded")
+    rel_bc = _relation("Beta", "Gamma", relation_type="acquired")
+    service, store, _, _ = _make_service(
+        relations={
+            ("Alpha", "Beta", "founded"): rel_ab,
+            ("Beta", "Gamma", "acquired"): rel_bc,
+        },
+        hits=[
+            SearchHit(id="1", score=0.9, payload={"entity_name": "Beta->Gamma", "entity_type": "acquired"}),
+            SearchHit(id="2", score=0.8, payload={"entity_name": "Alpha->Beta", "entity_type": "founded"}),
+            # Duplicate of the first hit (e.g. alias-redirect side-effect)
+            # — must dedupe so we don't double-fetch the same edge.
+            SearchHit(id="3", score=0.7, payload={"entity_name": "Beta->Gamma", "entity_type": "acquired"}),
+        ],
+    )
+    relations = await service.search_relations("query")
+    assert [(r.source, r.target) for r in relations] == [
+        ("Beta", "Gamma"),
+        ("Alpha", "Beta"),
+    ]
+    assert store.get_relation_calls == [("Beta", "Gamma", "acquired"), ("Alpha", "Beta", "founded")]
+
+
+@pytest.mark.asyncio
+async def test_search_relations_skips_payload_missing_arrow_or_type():
+    """A hit whose payload doesn't parse cleanly is dropped silently —
+    better to skip than to surface an edge we can't reconstruct."""
+    rel_ab = _relation("Alpha", "Beta", relation_type="founded")
+    service, store, _, _ = _make_service(
+        relations={("Alpha", "Beta", "founded"): rel_ab},
+        hits=[
+            SearchHit(id="ghost1", score=1.0, payload={}),  # no payload at all
+            SearchHit(
+                id="ghost2", score=0.99, payload={"entity_name": "AlphaBeta", "entity_type": "founded"}
+            ),  # missing arrow
+            SearchHit(id="ghost3", score=0.98, payload={"entity_name": "Alpha->Beta"}),  # missing entity_type
+            SearchHit(
+                id="ghost4", score=0.97, payload={"entity_name": "->Beta", "entity_type": "founded"}
+            ),  # empty source
+            SearchHit(
+                id="ghost5", score=0.96, payload={"entity_name": "Alpha->", "entity_type": "founded"}
+            ),  # empty target
+            SearchHit(id="real", score=0.9, payload={"entity_name": "Alpha->Beta", "entity_type": "founded"}),
+        ],
+    )
+    relations = await service.search_relations("query")
+    assert [(r.source, r.target) for r in relations] == [("Alpha", "Beta")]
+    # Only the real hit hit the store.
+    assert store.get_relation_calls == [("Alpha", "Beta", "founded")]
+
+
+@pytest.mark.asyncio
+async def test_search_relations_drops_edge_gced_from_store():
+    """Vector hit for an edge that was deleted between sync and search
+    → store.get_relation returns None → drop from result, no exception."""
+    service, _, _, _ = _make_service(
+        relations={},  # store empty: every get_relation returns None
+        hits=[
+            SearchHit(id="1", score=0.9, payload={"entity_name": "Alpha->Beta", "entity_type": "founded"}),
+        ],
+    )
     assert await service.search_relations("query") == []
 
 
 @pytest.mark.asyncio
-async def test_search_relations_returns_one_hop_expansion_of_entity_results():
-    a = _entity("Alpha")
-    b = _entity("Beta")
-    rel = _relation("Alpha", "Beta")
-    service, _, _, _ = _make_service(
-        entities={"Alpha": a, "Beta": b},
-        hits=[
-            SearchHit(id="1", score=0.9, payload={"entity_name": "Alpha"}),
-            SearchHit(id="2", score=0.8, payload={"entity_name": "Beta"}),
-        ],
-        expansions={("Alpha", "Beta"): ([a, b], [rel])},
-    )
-    relations = await service.search_relations("query")
-    assert relations == [rel]
+async def test_search_relations_swallows_embedder_failure():
+    service, store, connector, _ = _make_service(entities={}, embedder=_FailingEmbedder())
+    assert await service.search_relations("query") == []
+    assert connector.searches == []
+    assert store.get_relation_calls == []
+
+
+@pytest.mark.asyncio
+async def test_search_relations_swallows_vector_store_failure():
+    service, store, connector, embedder = _make_service(entities={}, connector=_FailingVectorConnector())
+    assert await service.search_relations("query") == []
+    assert embedder.calls == ["query"]
+    assert len(connector.searches) == 1
+    assert store.get_relation_calls == []
 
 
 # ---------------------------------------------------------------------

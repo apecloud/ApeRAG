@@ -57,12 +57,21 @@ The detector (task #4) tightens this to ``0.72`` because false-positive
 candidates are more expensive than false-positive recall."""
 
 
-# Vector point indexer tag — pinned by §K.12 invariant #5. Task #3
+# Vector point indexer tags — pinned by §K.12 invariant #5. Task #3
 # writes graph-entity vectors with ``payload["indexer"] ==
-# "graph_entity"``; this service filters on the same tag so chunk /
-# summary vectors sharing the physical collection never bleed into
-# graph recall.
+# "graph_entity"`` and graph-relation vectors with
+# ``payload["indexer"] == "graph_relation"``; this service filters on
+# the matching tag so chunk / summary vectors sharing the physical
+# collection never bleed into graph recall.
 GRAPH_ENTITY_INDEXER: str = "graph_entity"
+GRAPH_RELATION_INDEXER: str = "graph_relation"
+
+
+# ``entity_name`` payload field for ``graph_relation`` points carries the
+# composite ``f"{source}->{target}"`` per the task #3 writer
+# (``aperag/indexing/graph.py:1631``). The arrow has no surrounding
+# whitespace; we split exactly once to recover the endpoints.
+RELATION_PAYLOAD_ARROW: str = "->"
 
 
 class GraphSearchService:
@@ -73,8 +82,11 @@ class GraphSearchService:
 
     * :meth:`search_entities` — embed the query, ANN-search the entity
       vector index, fetch the matching ``EntityWithLineage`` rows.
-    * :meth:`search_relations` — derive relations attached to the
-      vector-recalled entities (1-hop expansion).
+    * :meth:`search_relations` — embed the query, ANN-search the
+      relation vector index, fetch the matching ``RelationWithLineage``
+      rows. Wave 8 W8-1 (task #12) replaced the Wave 7 conservative
+      1-hop expansion with direct vector recall now that task #3 is
+      writing relation vectors.
     * :meth:`get_subgraph` — wrap ``expand_neighbors_n_hops`` as a
       stable read primitive for MCP tools (task #7).
     * :meth:`compose_context` — render the ``EntityWithLineage`` /
@@ -184,7 +196,7 @@ class GraphSearchService:
         return [e for e in results if e is not None]
 
     # ------------------------------------------------------------------
-    # search_relations — derived from search_entities
+    # search_relations — vector recall path (Wave 8 W8-1 task #12)
     # ------------------------------------------------------------------
 
     async def search_relations(
@@ -192,23 +204,99 @@ class GraphSearchService:
         query: str,
         top_k: int | None = None,
     ) -> list[RelationWithLineage]:
-        """Recall relations attached to the entities that vector-search
-        retrieved for ``query``.
+        """Vector-recall the top-K relations matching ``query``.
 
-        Vector store does not carry separate relation vectors (Wave 7
-        scope: only entity vectors are written by task #3; per-relation
-        vectors are out-of-scope per architect msg=acbd0003 §K.12.5).
-        We therefore derive relations as the 1-hop expansion of the
-        entity-search result.
+        Wave 8 W8-1 (architect ratify task #12): replaces the Wave 7
+        conservative 1-hop expansion with a direct ANN search filtered
+        on ``Eq("indexer", "graph_relation")`` — task #3 (PR #1757) has
+        been writing relation vectors all along; this is finally the
+        consumer side. Mirrors :meth:`search_entities` shape for
+        symmetry.
+
+        Hits resolve to full :class:`RelationWithLineage` rows via
+        per-hit ``store.get_relation`` reverse lookup so
+        :meth:`compose_context` keeps its byte-parity with the legacy
+        rendering (per task #5 invariant). Hits whose payload doesn't
+        parse cleanly (missing arrow / empty endpoints / no
+        ``entity_type``) are dropped silently — better to skip a hit
+        than to surface a relation we can't reconstruct.
         """
-        entities = await self.search_entities(query, top_k=top_k)
-        if not entities:
+        text = (query or "").strip()
+        if not text:
             return []
-        _neighbour_entities, relations = await self._store.expand_neighbors_n_hops(
-            entity_names=[e.name for e in entities],
-            hops=1,
+        k = top_k if top_k is not None else self._top_k
+        if k <= 0:
+            return []
+
+        try:
+            embedding = await asyncio.to_thread(self._embedder.embed_query, text)
+        except Exception:
+            logger.warning(
+                "graph_search_service: embed failed for relation query=%r",
+                text,
+                exc_info=True,
+            )
+            return []
+
+        request = QueryRequest(
+            embedding=embedding,
+            top_k=k,
+            flt=Eq("indexer", GRAPH_RELATION_INDEXER),
+            score_threshold=self._score_threshold or None,
         )
-        return relations
+        try:
+            hits = await asyncio.to_thread(self._vector_connector.search, request)
+        except Exception:
+            logger.warning(
+                "graph_search_service: vector search failed for relation query=%r",
+                text,
+                exc_info=True,
+            )
+            return []
+
+        keys = self._relation_keys_from_hits(hits)
+        if not keys:
+            return []
+        return await self._batch_get_relations(keys)
+
+    @staticmethod
+    def _relation_keys_from_hits(
+        hits: Iterable[SearchHit],
+    ) -> list[tuple[str, str, str]]:
+        # Preserve hit order (vector store ranked by score) and de-dup
+        # so the same edge returned twice (e.g. alias-redirect side-effect)
+        # only fetches once.
+        seen: set[tuple[str, str, str]] = set()
+        ordered: list[tuple[str, str, str]] = []
+        for hit in hits:
+            payload = hit.payload or {}
+            composite = payload.get("entity_name") or payload.get("name")
+            relation_type = payload.get("entity_type") or payload.get("relation_type")
+            if not composite or not relation_type:
+                continue
+            composite_str = str(composite)
+            if RELATION_PAYLOAD_ARROW not in composite_str:
+                continue
+            source, _, target = composite_str.partition(RELATION_PAYLOAD_ARROW)
+            if not source or not target:
+                continue
+            key = (source, target, str(relation_type))
+            if key in seen:
+                continue
+            seen.add(key)
+            ordered.append(key)
+        return ordered
+
+    async def _batch_get_relations(self, keys: Sequence[tuple[str, str, str]]) -> list[RelationWithLineage]:
+        # Same ``asyncio.gather`` shape as :meth:`_batch_get_entities`:
+        # N is bounded by ``top_k`` (≤ 10 in practice) so per-key
+        # round-trip cost is acceptable, and the Protocol surface stays
+        # narrow (no batch-get method).
+        results = await asyncio.gather(
+            *(self._store.get_relation(s, t, ty) for s, t, ty in keys),
+            return_exceptions=False,
+        )
+        return [r for r in results if r is not None]
 
     # ------------------------------------------------------------------
     # get_subgraph — MCP-facing read primitive (task #7)
@@ -338,5 +426,7 @@ __all__ = [
     "DEFAULT_TOP_K",
     "DEFAULT_SCORE_THRESHOLD",
     "GRAPH_ENTITY_INDEXER",
+    "GRAPH_RELATION_INDEXER",
+    "RELATION_PAYLOAD_ARROW",
     "build_graph_search_service_for",
 ]
