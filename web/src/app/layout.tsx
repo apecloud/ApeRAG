@@ -7,6 +7,7 @@ import NextTopLoader from 'nextjs-toploader';
 
 import { AppProvider } from '@/components/providers/app-provider';
 import { ThemeProvider } from '@/components/providers/theme-provider';
+import { getLocale } from '@/services/cookies';
 import 'highlight.js/styles/github-dark.css';
 import './globals.css';
 
@@ -56,9 +57,10 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const user = (await getCurrentUser()) ?? undefined;
+  const locale = await getLocale();
 
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <body
         className={`${fontSans.variable} ${fontSerif.variable} ${fontMono.variable} font-sans antialiased`}
       >

@@ -968,7 +968,6 @@
       "start": "进入工作区"
     },
     "hero": {
-      "badge": "v2",
       "badge_text": "GraphRAG × Agent 运行时 · 私有化部署",
       "title": "让企业知识变成",
       "title_accent": "可追溯的答案。",
@@ -977,13 +976,12 @@
       "secondary_cta": "浏览市场",
       "points": {
         "private": "私有化部署",
-        "models": "兼容主流模型",
-        "license": "Apache 2.0"
+        "models": "兼容主流模型"
       }
     },
     "hero_trace": {
       "status": "运行中",
-      "user": "操作员",
+      "user": "用户",
       "prompt": "3 号线 SMT-03 今早报 E-047，帮我判断最可能的原因。",
       "title": "Agent 轨迹",
       "meta": "来源已记录",
@@ -1052,6 +1050,12 @@
       "title": "复杂关系，也要克制呈现。",
       "description": "图谱页保留实体类型、邻居高亮、搜索和合并建议，同时用更安静的暖色体系服务日常使用。",
       "legend": "实体类型",
+      "legend_items": {
+        "person": "人员",
+        "org": "组织",
+        "product": "产品",
+        "event": "事件"
+      },
       "nodes": {
         "center": "SMT",
         "org": "组织",

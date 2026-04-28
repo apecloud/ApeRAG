@@ -9,7 +9,7 @@ const locales = ['en-US', 'zh-CN'] as const;
 export type LocaleEnum = (typeof locales)[number];
 
 const defaultLocale: LocaleEnum = (process.env.NEXT_PUBLIC_DEFAULT_LOCALE ||
-  'en-US') as LocaleEnum;
+  'zh-CN') as LocaleEnum;
 
 /**
  * get locale
