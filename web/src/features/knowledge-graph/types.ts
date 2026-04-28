@@ -14,6 +14,15 @@ export type GraphNodeProperties = NonNullable<
 export type GraphEdgeProperties = NonNullable<
   components['schemas']['GraphEdgeProperties']
 >;
+export type GraphSearchEntity = NonNullable<
+  components['schemas']['GraphSearchEntity']
+>;
+export type GraphEmbeddingMapResponse = NonNullable<
+  components['schemas']['GraphEmbeddingMapResponse']
+>;
+export type GraphEmbeddingPoint = NonNullable<
+  components['schemas']['GraphEmbeddingPoint']
+>;
 
 export type MergeSuggestionsRequest = NonNullable<
   components['schemas']['MergeSuggestionsRequest']
@@ -31,7 +40,9 @@ export type SuggestionActionRequest = RawSuggestionActionRequest & {
   target_entity_data?: MergeSuggestionTargetEntity;
 };
 
-export type SuggestionAction = NonNullable<RawSuggestionActionRequest['action']>;
+export type SuggestionAction = NonNullable<
+  RawSuggestionActionRequest['action']
+>;
 
 export const SUGGESTION_ACTIONS = [
   'accept',

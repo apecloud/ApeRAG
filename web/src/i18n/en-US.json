@@ -868,6 +868,8 @@
     "node_group": "Node Group",
     "entity_count": "Entities {count}",
     "relation_count": "Relations {count}",
+    "hybrid_entity_count": "{count} entities",
+    "hybrid_relation_count": "{count} relations",
     "node_search": "Node search",
     "load_failed": "Failed to load knowledge graph",
     "no_nodes_found": "No node information found",

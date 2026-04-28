@@ -67,7 +67,7 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
       documents: `/workspace/collections/${collection.id}/documents`,
       evaluations: `/workspace/collections/${collection.id}/evaluations`,
       search: `/workspace/collections/${collection.id}/search`,
-      graph: `/workspace/collections/${collection.id}/graph`,
+      graph: `/workspace/collections/${collection.id}/graph-hybrid`,
       settings: `/workspace/collections/${collection.id}/settings`,
     };
   }, [collection.id]);

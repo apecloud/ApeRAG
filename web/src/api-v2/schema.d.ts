@@ -1073,6 +1073,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/collections/{collection_id}/graphs/embedding-map": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Graph Embedding Map View
+         * @description Return projected entity coordinates for the hybrid graph view.
+         */
+        get: operations["knowledge_graph_graph_embedding_map_view"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/chats/{chat_id}/feedback": {
         parameters: {
             query?: never;
@@ -4010,6 +4030,76 @@ export interface components {
              * @description Entities returned by vector recall, ordered by descending similarity score
              */
             entities: components["schemas"]["GraphSearchEntity"][];
+        };
+        /**
+         * GraphEmbeddingMapRelation
+         * @description Edge in the embedding-map view.
+         */
+        GraphEmbeddingMapRelation: {
+            /**
+             * Source
+             * @description Source entity name
+             */
+            source: string;
+            /**
+             * Target
+             * @description Target entity name
+             */
+            target: string;
+        };
+        /**
+         * GraphEmbeddingMapResponse
+         * @description Response for ``GET /graphs/embedding-map``.
+         */
+        GraphEmbeddingMapResponse: {
+            /** Points */
+            points: components["schemas"]["GraphEmbeddingPoint"][];
+            /** Relations */
+            relations: components["schemas"]["GraphEmbeddingMapRelation"][];
+            /**
+             * Cluster Labels
+             * @description cluster index -> entity_type label (1:1 mapping)
+             */
+            cluster_labels: {
+                [key: string]: string;
+            };
+        };
+        /**
+         * GraphEmbeddingPoint
+         * @description Single point in the 2-D projection of entity vectors.
+         */
+        GraphEmbeddingPoint: {
+            /**
+             * Name
+             * @description Canonical entity name
+             */
+            name: string;
+            /**
+             * Entity Type
+             * @description Entity type bucket
+             */
+            entity_type: string;
+            /**
+             * Cluster
+             * @description entity_type bucket index (sequential, not k-means clustering)
+             */
+            cluster: number;
+            /**
+             * X
+             * @description X coordinate in the 2-D projection of the entity vectors
+             */
+            x: number;
+            /**
+             * Y
+             * @description Y coordinate in the 2-D projection of the entity vectors
+             */
+            y: number;
+            /**
+             * Source Chunk Count
+             * @description Number of source chunks supporting this entity
+             * @default 0
+             */
+            source_chunk_count: number;
         };
         /**
          * GraphLabelsResponse
@@ -8364,6 +8454,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GraphSearchEntity"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    knowledge_graph_graph_embedding_map_view: {
+        parameters: {
+            query?: {
+                max_entities?: number;
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GraphEmbeddingMapResponse"];
                 };
             };
             /** @description Validation Error */
