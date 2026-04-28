@@ -389,7 +389,9 @@ class NebulaLineageGraphStore:
                 f"compacted_description string NULL, "
                 f"gmt_created datetime, gmt_updated datetime)",
                 f"CREATE TAG INDEX IF NOT EXISTS `idx_{_ENTITY_TAG}_name` ON `{_ENTITY_TAG}`(name(256))",
+                f"CREATE TAG INDEX IF NOT EXISTS `idx_{_ENTITY_TAG}_entity_type` ON `{_ENTITY_TAG}`(entity_type(128))",
                 f"CREATE TAG INDEX IF NOT EXISTS `idx_{_RELATION_TAG}_source` ON `{_RELATION_TAG}`(source(256))",
+                f"CREATE TAG INDEX IF NOT EXISTS `idx_{_RELATION_TAG}_target` ON `{_RELATION_TAG}`(target(256))",
             ]
             # Wave 7 W7-1 backfill: ALTER TAG ADD for tags created on a
             # pre-Wave-7 schema. Nebula has no ``IF NOT EXISTS`` for ALTER
@@ -520,6 +522,54 @@ class NebulaLineageGraphStore:
             if "not exist" in str(exc).lower() or "no vertex" in str(exc).lower():
                 return []
             raise
+        out = []
+        for i in range(result.row_size()):
+            row = result.row_values(i)
+            if row and row[0].is_string():
+                out.append(row[0].as_string())
+        return out
+
+    def _lookup_relation_vids_by_endpoint(self, *, property_name: str, names: set[str]) -> list[str]:
+        if property_name not in {"source", "target"}:
+            raise ValueError(f"unsupported relation endpoint property {property_name!r}")
+        if not names:
+            return []
+        names_literal = ", ".join(f'"{_escape_str(name)}"' for name in sorted(names))
+        stmt = (
+            f"LOOKUP ON `{_RELATION_TAG}` "
+            f"WHERE `{_RELATION_TAG}`.`{property_name}` IN [{names_literal}] "
+            f"YIELD id(vertex) AS vid | LIMIT 100000"
+        )
+        try:
+            result = self._execute_with_schema_retry(self._space, stmt)
+        except RuntimeError:
+            logger.exception(
+                "Nebula indexed relation lookup failed; falling back to relation VID scan property=%s space=%s",
+                property_name,
+                self._space,
+            )
+            return self._list_all_relation_vids()
+        out = []
+        for i in range(result.row_size()):
+            row = result.row_values(i)
+            if row and row[0].is_string():
+                out.append(row[0].as_string())
+        return out
+
+    def _lookup_entity_vids_by_type(self, *, entity_type: str) -> list[str]:
+        stmt = (
+            f"LOOKUP ON `{_ENTITY_TAG}` "
+            f'WHERE `{_ENTITY_TAG}`.`entity_type` == "{_escape_str(entity_type)}" '
+            f"YIELD id(vertex) AS vid | LIMIT 100000"
+        )
+        try:
+            result = self._execute_with_schema_retry(self._space, stmt)
+        except RuntimeError:
+            logger.exception(
+                "Nebula indexed entity type lookup failed; falling back to entity VID scan space=%s",
+                self._space,
+            )
+            return self._list_all_entity_vids()
         out = []
         for i in range(result.row_size()):
             row = result.row_values(i)
@@ -1071,7 +1121,9 @@ class NebulaLineageGraphStore:
                 next_frontier: set[str] = set()
                 if not current:
                     break
-                for vid in self._list_all_relation_vids():
+                candidate_vids = set(self._lookup_relation_vids_by_endpoint(property_name="source", names=current))
+                candidate_vids.update(self._lookup_relation_vids_by_endpoint(property_name="target", names=current))
+                for vid in candidate_vids:
                     row = self._read_relation_lineage_by_vid(vid)
                     if row is None:
                         continue
@@ -1140,16 +1192,17 @@ class NebulaLineageGraphStore:
         await self.ensure_schema()
 
         def _scan() -> list[EntityWithLineage]:
-            # Nebula has no JSON / property-equality index we can rely
-            # on across versions, so we enumerate all entity VIDs via
-            # LOOKUP, fetch + filter in Python, then apply
-            # ``ORDER BY name SKIP offset LIMIT limit`` semantics on the
-            # in-Python result set. Matches the
-            # ``query_entities_by_keyword`` approach (acceptable per
-            # simple-stable directive — operators don't manage a
-            # per-collection text-index infra).
+            # If ``label`` is provided, try the entity_type tag index
+            # first; otherwise enumerate all entity VIDs. Fetch + sort
+            # in Python to preserve the cross-backend
+            # ``ORDER BY name SKIP offset LIMIT limit`` contract.
             rows: list[EntityWithLineage] = []
-            for vid in self._list_all_entity_vids():
+            candidate_vids = (
+                self._lookup_entity_vids_by_type(entity_type=label)
+                if label is not None
+                else self._list_all_entity_vids()
+            )
+            for vid in candidate_vids:
                 row = self._read_entity_lineage_by_vid(vid)
                 if row is None:
                     continue

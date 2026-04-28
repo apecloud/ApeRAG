@@ -676,21 +676,44 @@ def _resolve_collection_user_id(collection: Any) -> str:
 
 
 _VALID_GRAPH_BACKENDS = ("postgres", "neo4j", "nebula")
+_GRAPH_BACKEND_ALIASES = {
+    "postgres": "postgres",
+    "postgresql": "postgres",
+    "neo4j": "neo4j",
+    "nebula": "nebula",
+}
+
+
+def _default_graph_backend_type() -> str:
+    from aperag.config import settings
+
+    return settings.graph_db_type or "postgresql"
+
+
+def _normalise_graph_backend_type(raw: Any, *, collection: Any) -> str:
+    backend = str(raw).strip().lower()
+    normalised = _GRAPH_BACKEND_ALIASES.get(backend)
+    if normalised is None:
+        raise WorkerFactoryError(
+            f"unknown graph_backend_type {backend!r} on collection "
+            f"{getattr(collection, 'id', '<unknown>')}; expected one of "
+            f"{tuple(_GRAPH_BACKEND_ALIASES)}"
+        )
+    return normalised
 
 
 def _resolve_graph_backend_type(collection: Any) -> str:
     """Read ``collection.config.graph_backend_type`` from the
-    collection's persisted config. Defaults to ``"postgres"`` if the
-    field is absent (older collections created before chunk 4b)."""
+    collection's persisted config. If absent, fall back to deployment
+    level ``GRAPH_DB_TYPE`` (``postgresql`` normalises to the internal
+    ``postgres`` adapter name)."""
     cfg = getattr(collection, "config", None)
     raw: Any = None
-    if cfg is None:
-        return "postgres"
-    if hasattr(cfg, "graph_backend_type"):
+    if cfg is not None and hasattr(cfg, "graph_backend_type"):
         raw = cfg.graph_backend_type
-    elif isinstance(cfg, Mapping):
+    elif cfg is not None and isinstance(cfg, Mapping):
         raw = cfg.get("graph_backend_type")
-    elif isinstance(cfg, str):
+    elif cfg is not None and isinstance(cfg, str):
         # ``Collection.config`` may be persisted as a JSON string by
         # SQLAlchemy when the column type is Text; parse defensively.
         import json
@@ -701,13 +724,7 @@ def _resolve_graph_backend_type(collection: Any) -> str:
             parsed = None
         if isinstance(parsed, Mapping):
             raw = parsed.get("graph_backend_type")
-    backend = raw or "postgres"
-    if backend not in _VALID_GRAPH_BACKENDS:
-        raise WorkerFactoryError(
-            f"unknown graph_backend_type {backend!r} on collection "
-            f"{getattr(collection, 'id', '<unknown>')}; expected one of {_VALID_GRAPH_BACKENDS}"
-        )
-    return backend
+    return _normalise_graph_backend_type(raw or _default_graph_backend_type(), collection=collection)
 
 
 def _build_lineage_graph_store_inner(*, backend_type: str, collection: Any) -> Any:
