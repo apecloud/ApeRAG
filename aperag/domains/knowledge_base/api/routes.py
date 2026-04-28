@@ -35,6 +35,7 @@ Two consumer-owned Protocols are relied on here:
 """
 
 import logging
+import uuid as uuid_lib
 from typing import Literal
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile
@@ -45,6 +46,7 @@ from aperag.domains.knowledge_base.ports import AuthenticatedUser
 from aperag.domains.knowledge_base.schemas import (
     Collection,
     CollectionCreate,
+    CollectionRegenTriggerResponse,
     CollectionUpdate,
     CollectionViewList,
     ConfirmDocumentsRequest,
@@ -156,14 +158,114 @@ async def delete_collection_view(
     return Response(status_code=204)
 
 
-# Wave 10 §K.13: legacy ``POST /collections/{id}/summary/generate``
-# endpoint removed alongside the ``collection_summary_service`` /
-# ``CollectionSummary`` ORM hard-cut. Replacement endpoints land in
-# Chunk D — ``POST /collections/{id}/summary/regen`` (Stage 1, agent-
-# runtime explore) + ``POST /collections/{id}/description/regen``
-# (Stage 2, cheap derive). Both are invoked by the reconciler hook
-# (Chunk E) automatically; the explicit POSTs are operator/external
-# overrides that bypass debounce.
+# ---------------------------------------------------------------------
+# Wave 10 §K.13 — collection auto-description endpoints (Chunk C+D).
+# ---------------------------------------------------------------------
+#
+# These two endpoints are explicit operator/external overrides that
+# bypass the debounce / min-stale guards in
+# ``reconcile_collection_descriptions_hook`` (Chunk E). Both return
+# 202 Accepted and dispatch the regen as a fire-and-forget asyncio
+# task; lease conflict is surfaced as 409 to keep the contract honest
+# (per huangheng API contract — no silent ignore).
+
+
+@router.post(
+    "/collections/{collection_id}/summary/regen",
+    response_model=CollectionRegenTriggerResponse,
+)
+@audit(resource_type="collection", api_name="RegenCollectionSummaryV2")
+async def regen_collection_summary_view(
+    collection_id: str,
+    user: AuthenticatedUser = Depends(required_user),
+) -> CollectionRegenTriggerResponse:
+    """Trigger Stage 1 summary regen for ``collection_id``.
+
+    Runs agent-runtime free-explore over the collection (3-tier
+    fallback chain) inline and writes the result to
+    ``Collection.summary``.
+
+    Returns 404 if collection doesn't exist or caller doesn't own it,
+    503 if all tiers returned invalid output (input not ready or
+    LLM/agent unavailable — the reconciler will retry on its next
+    sweep), 200 with task_id on success.
+    """
+    from aperag.domains.knowledge_base.service.collection_regen_service import regen_summary
+
+    collection = await collection_service.get_collection(str(user.id), collection_id)
+    if not collection:
+        raise HTTPException(status_code=404, detail="Collection not found")
+
+    success = await regen_summary(collection_id)
+    if not success:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Summary regen could not produce a valid output (lease busy "
+                "or all tiers fell through). The reconciler will retry on "
+                "its next sweep."
+            ),
+        )
+
+    task_id = uuid_lib.uuid4().hex
+    return CollectionRegenTriggerResponse(
+        collection_id=collection_id,
+        stage="summary",
+        task_id=task_id,
+        estimated_completion_seconds=0,
+    )
+
+
+@router.post(
+    "/collections/{collection_id}/description/regen",
+    response_model=CollectionRegenTriggerResponse,
+)
+@audit(resource_type="collection", api_name="RegenCollectionDescriptionV2")
+async def regen_collection_description_view(
+    collection_id: str,
+    user: AuthenticatedUser = Depends(required_user),
+) -> CollectionRegenTriggerResponse:
+    """Trigger Stage 2 description derive from existing
+    ``Collection.summary``.
+
+    Cheap path — single LLM call, no agent multi-turn (~10s). Useful
+    when the summary is current but you want to refresh description
+    formatting / language / length.
+
+    Returns 400 if ``Collection.summary IS NULL`` (must regen summary
+    first), 404 if collection doesn't exist or caller doesn't own it,
+    503 if the LLM call fails the quality gate, 200 with task_id on
+    success.
+    """
+    from aperag.domains.knowledge_base.service.collection_regen_service import regen_description
+
+    collection = await collection_service.get_collection(str(user.id), collection_id)
+    if not collection:
+        raise HTTPException(status_code=404, detail="Collection not found")
+    if not getattr(collection, "summary", None):
+        raise HTTPException(
+            status_code=400,
+            detail="Collection has no summary yet — call /summary/regen first.",
+        )
+
+    success = await regen_description(collection_id)
+    if not success:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Description regen could not produce a valid output (lease "
+                "busy or LLM call failed quality gate). The reconciler will "
+                "retry on its next sweep."
+            ),
+        )
+
+    task_id = uuid_lib.uuid4().hex
+    return CollectionRegenTriggerResponse(
+        collection_id=collection_id,
+        stage="description",
+        task_id=task_id,
+        estimated_completion_seconds=0,
+    )
 
 
 @router.get(

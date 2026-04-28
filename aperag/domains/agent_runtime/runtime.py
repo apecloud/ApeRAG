@@ -32,6 +32,7 @@ from pydantic_ai import messages as pai_messages
 from pydantic_ai.mcp import MCPServerStreamableHTTP
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
+from pydantic_ai.toolsets.filtered import FilteredToolset
 
 from aperag.config import get_async_session
 from aperag.db.ops import async_db_ops
@@ -104,6 +105,54 @@ def _get_prompt_template_ops() -> PromptTemplateOps:
 logger = logging.getLogger(__name__)
 
 DEFAULT_AGENT_TURN_LEASE_RENEW_INTERVAL_SECONDS = int(os.getenv("APERAG_AGENT_TURN_LEASE_RENEW_INTERVAL_SECONDS", "30"))
+
+
+# Wave 10 §K.13: hardcoded read-only tool subset for ``BotType.SUMMARY``.
+# Mapping by bot type lives in the runtime layer (per design doc) so we
+# do not introduce a ``Bot.tool_subset`` column. New bot types that need
+# narrowed tools register here; everything else gets the full toolset.
+_BOT_TYPE_ALLOWED_TOOLS: dict[str, frozenset[str]] = {
+    "summary": frozenset(
+        {
+            "list_collections",
+            "vector_search",
+            "fulltext_search",
+            "graph_search",
+            "query_graph_entities",
+            "expand_graph_subgraph",
+            "get_entity_detail",
+            "read_document",
+            "read_document_section",
+            "read_document_outline",
+            "read_document_chunk",
+            "get_collection_metadata",
+            "get_document_metadata",
+        }
+    ),
+}
+
+
+def _allowed_tool_names_for_bot(bot) -> frozenset[str] | None:
+    """Return the allowed tool name set for ``bot``, or ``None`` for the
+    full toolset (no filtering)."""
+    bot_type = getattr(bot, "type", None)
+    if bot_type is None:
+        return None
+    type_value = getattr(bot_type, "value", bot_type)
+    return _BOT_TYPE_ALLOWED_TOOLS.get(str(type_value))
+
+
+def _wrap_toolset_for_bot(toolset, bot):
+    """Wrap ``toolset`` in a :class:`FilteredToolset` if ``bot.type`` has
+    a hardcoded subset; otherwise return ``toolset`` unchanged."""
+    allowed = _allowed_tool_names_for_bot(bot)
+    if not allowed:
+        return toolset
+
+    def _filter(_ctx, tool_def) -> bool:
+        return tool_def.name in allowed
+
+    return FilteredToolset(toolset, _filter)
 
 
 def _compose_assistant_parts(
@@ -390,10 +439,17 @@ class PydanticAIRuntime(AgentRuntime):
                 timeout=30,
                 read_timeout=300,
             ) as toolset:
+                # Wave 10 §K.13: hardcoded read-only tool subset for
+                # ``BotType.SUMMARY`` — bots created by the
+                # collection-summary regen pipeline must not call
+                # write/mutating tools. The filter is applied at the
+                # toolset layer (not the agent prompt) so the LLM
+                # cannot route around it via tool-name confusion.
+                effective_toolset = _wrap_toolset_for_bot(toolset, bot)
                 agent = Agent(
                     model=model,
                     system_prompt=resolved_request.system_prompt,
-                    toolsets=[toolset],
+                    toolsets=[effective_toolset],
                     tool_timeout=120,
                 )
 

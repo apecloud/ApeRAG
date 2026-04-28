@@ -518,6 +518,161 @@ def _mark_stuck_documents_reenqueued(engine: Engine, document_ids: list[str]) ->
 
 
 # ---------------------------------------------------------------------
+# Wave 10 §K.13 Chunk E — collection auto-description reconciler hook.
+# ---------------------------------------------------------------------
+#
+# Scans ``Collection`` rows directly using the new columns added in
+# Chunk A (``summary_updated_at`` / ``description_updated_at`` /
+# ``regen_lease_*``) and dispatches Stage 1 / Stage 2 regen via fire-
+# and-forget ``asyncio.create_task``. Three scenarios covered:
+#
+# 1. Collection has no summary → Stage 1 (build initial summary)
+# 2. A document was added/edited/deleted after the last successful
+#    Stage 1 run AND the most recent edit is at least
+#    ``MIN_STALE_AGE`` old → Stage 1 (re-build summary)
+# 3. Summary is newer than description → Stage 2 (refresh description)
+#
+# Lease conflict / collection-deleted / quality-gate failure are all
+# absorbed by ``regen_summary`` / ``regen_description`` (return ``False``
+# without raising). The reconciler only schedules; it never blocks on
+# the regen result.
+
+
+async def reconcile_collection_descriptions_hook(
+    *,
+    engine: Engine,
+    batch_size: int = RECONCILE_BATCH_SIZE,
+) -> int:
+    """Wave 10 §K.13 Chunk E — dispatch Stage 1 / Stage 2 regen for
+    collections whose summary or description is stale.
+
+    Returns the total number of regen tasks dispatched (Stage 1 +
+    Stage 2). The hook itself is best-effort: it dispatches via
+    ``asyncio.create_task`` and returns immediately, so a failed
+    regen does not block subsequent cycles.
+    """
+    from aperag.domains.knowledge_base.service.collection_regen_service import (
+        regen_description,
+        regen_summary,
+    )
+    from aperag.domains.knowledge_base.service.regen_constants import MIN_STALE_AGE
+
+    summary_ids, description_ids = await asyncio.to_thread(
+        _select_collections_needing_regen,
+        engine,
+        MIN_STALE_AGE,
+        batch_size,
+    )
+
+    dispatched = 0
+    for collection_id in summary_ids:
+        asyncio.create_task(regen_summary(collection_id))
+        dispatched += 1
+    for collection_id in description_ids:
+        asyncio.create_task(regen_description(collection_id))
+        dispatched += 1
+    if dispatched:
+        logger.info(
+            "reconciler collection-regen: scheduled stage1=%d stage2=%d",
+            len(summary_ids),
+            len(description_ids),
+        )
+    return dispatched
+
+
+def _select_collections_needing_regen(
+    engine: Engine,
+    min_stale_age: timedelta,
+    batch_size: int,
+) -> tuple[list[str], list[str]]:
+    """Sync DB scan for collections needing Stage 1 or Stage 2 regen.
+
+    Returns ``(stage1_ids, stage2_ids)``. Lease ownership is treated
+    as "in flight" — the regen service handles its own lease
+    semantics, but skipping owned-lease rows here saves a wasted
+    ``regen_*`` call per cycle. Soft-deleted collections are
+    excluded.
+    """
+    from aperag.domains.knowledge_base.db.models import Collection, Document
+
+    now = _utcnow()
+    stale_threshold = now - min_stale_age
+
+    with Session(engine) as session:
+        # Stage 1 scenario 1: summary is missing entirely.
+        missing_summary_stmt = (
+            select(Collection.id)
+            .where(
+                and_(
+                    Collection.gmt_deleted.is_(None),
+                    Collection.summary.is_(None),
+                    # No active or unexpired lease (someone else is
+                    # working on it — skip this cycle).
+                    (Collection.regen_lease_owner.is_(None)) | (Collection.regen_lease_expires_at < now),
+                )
+            )
+            .order_by(Collection.gmt_created)
+            .limit(batch_size)
+        )
+        stage1_ids: list[str] = list(session.scalars(missing_summary_stmt))
+
+        # Stage 1 scenario 2: summary exists but a document edit
+        # happened after summary_updated_at AND the latest edit is at
+        # least MIN_STALE_AGE old (so we don't fire while the user is
+        # still editing). Bound by batch_size so a single cycle never
+        # explodes.
+        if len(stage1_ids) < batch_size:
+            stale_doc_subq = select(Document.collection_id).where(
+                and_(
+                    Document.gmt_deleted.is_(None),
+                    Document.gmt_updated > Collection.summary_updated_at,
+                    Document.gmt_updated < stale_threshold,
+                )
+            )
+            stale_summary_stmt = (
+                select(Collection.id)
+                .where(
+                    and_(
+                        Collection.gmt_deleted.is_(None),
+                        Collection.summary.is_not(None),
+                        Collection.summary_updated_at.is_not(None),
+                        (Collection.regen_lease_owner.is_(None)) | (Collection.regen_lease_expires_at < now),
+                        Collection.id.in_(stale_doc_subq),
+                    )
+                )
+                .order_by(Collection.summary_updated_at)
+                .limit(batch_size - len(stage1_ids))
+            )
+            stage1_ids.extend(session.scalars(stale_summary_stmt))
+
+        # Stage 2: summary newer than description (or description
+        # missing while summary exists). Skip if Stage 1 already
+        # picked the collection up — we'll dispatch Stage 2 next cycle
+        # once Stage 1 finishes.
+        stage1_set = set(stage1_ids)
+        stage2_stmt = (
+            select(Collection.id)
+            .where(
+                and_(
+                    Collection.gmt_deleted.is_(None),
+                    Collection.summary.is_not(None),
+                    Collection.summary_updated_at.is_not(None),
+                    (Collection.regen_lease_owner.is_(None)) | (Collection.regen_lease_expires_at < now),
+                    (
+                        (Collection.description_updated_at.is_(None))
+                        | (Collection.description_updated_at < Collection.summary_updated_at)
+                    ),
+                )
+            )
+            .order_by(Collection.summary_updated_at)
+            .limit(batch_size)
+        )
+        stage2_ids = [cid for cid in session.scalars(stage2_stmt) if cid not in stage1_set]
+
+    return stage1_ids, stage2_ids
+
+
+# ---------------------------------------------------------------------
 # Run loop — production entrypoint.
 # ---------------------------------------------------------------------
 
@@ -537,11 +692,9 @@ async def run_reconcile_loop(
     bombs entirely (e.g. DB unreachable) sleeps the interval and
     retries — better to keep the loop alive than to crash the process.
 
-    Wave 10 §K.13: the legacy ``reconcile_collection_summaries_hook``
-    (Pattern B around the ``CollectionSummary`` state machine) is
-    removed. The Wave 10 replacement
-    (``reconcile_collection_descriptions_hook``) lands in Chunk E and
-    will be wired into this same loop.
+    Wave 10 §K.13 Chunk E: ``reconcile_collection_descriptions_hook``
+    is wired here as the fourth scan; it dispatches collection-summary
+    + description regen via fire-and-forget ``asyncio.create_task``.
     """
     while not shutdown.is_set():
         try:
@@ -556,13 +709,15 @@ async def run_reconcile_loop(
                 engine=engine,
                 queue=queue,
             )
-            if pushed or retried or reclaimed or stuck_reenqueued:
+            collection_regens = await reconcile_collection_descriptions_hook(engine=engine)
+            if pushed or retried or reclaimed or stuck_reenqueued or collection_regens:
                 logger.info(
-                    "reconciler cycle: dispatched=%d retried=%d reclaimed=%d stuck_reenqueued=%d",
+                    "reconciler cycle: dispatched=%d retried=%d reclaimed=%d stuck_reenqueued=%d collection_regens=%d",
                     pushed,
                     retried,
                     reclaimed,
                     stuck_reenqueued,
+                    collection_regens,
                 )
         except Exception as exc:  # noqa: BLE001 — keep the loop alive
             logger.exception("reconciler cycle failed: %s", exc)
@@ -577,6 +732,7 @@ __all__ = [
     "RECONCILE_BATCH_SIZE",
     "RECONCILE_INTERVAL_SECONDS",
     "STUCK_PARSE_COOLDOWN_SECONDS",
+    "reconcile_collection_descriptions_hook",
     "reconcile_failed_retry",
     "reconcile_pending_dispatch",
     "reconcile_running_reclaim",

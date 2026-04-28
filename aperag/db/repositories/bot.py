@@ -25,29 +25,42 @@ from aperag.utils.utils import utc_now
 
 
 class AsyncBotRepositoryMixin(AsyncRepositoryProtocol):
-    async def query_bot(self, user: str, bot_id: str):
+    async def query_bot(self, user: str, bot_id: str, *, exclude_system: bool = True):
+        # ``exclude_system`` defaults to True so user-facing read paths
+        # never accidentally surface the Wave 10 §K.13 hidden summary
+        # bot. Internal regen plumbing fetches its system bot via the
+        # dedicated ``get_or_create_summary_bot_for_user`` helper which
+        # talks directly to the ``Bot`` ORM, bypassing this method.
         async def _query(session):
-            stmt = select(Bot).where(Bot.id == bot_id, Bot.user == user, Bot.status != BotStatus.DELETED)
+            conds = [Bot.id == bot_id, Bot.user == user, Bot.status != BotStatus.DELETED]
+            if exclude_system:
+                conds.append(Bot.is_system.is_(False))
+            stmt = select(Bot).where(*conds)
             result = await session.execute(stmt)
             return result.scalars().first()
 
         return await self._execute_query(_query)
 
-    async def query_bots(self, users: List[str]):
+    async def query_bots(self, users: List[str], *, exclude_system: bool = True):
+        # See ``query_bot`` — same default for the same reason.
         async def _query(session):
-            stmt = (
-                select(Bot).where(Bot.user.in_(users), Bot.status != BotStatus.DELETED).order_by(desc(Bot.gmt_created))
-            )
+            conds = [Bot.user.in_(users), Bot.status != BotStatus.DELETED]
+            if exclude_system:
+                conds.append(Bot.is_system.is_(False))
+            stmt = select(Bot).where(*conds).order_by(desc(Bot.gmt_created))
             result = await session.execute(stmt)
             return result.scalars().all()
 
         return await self._execute_query(_query)
 
-    async def query_bots_count(self, user: str):
+    async def query_bots_count(self, user: str, *, exclude_system: bool = True):
         async def _query(session):
             from sqlalchemy import func
 
-            stmt = select(func.count()).select_from(Bot).where(Bot.user == user, Bot.status != BotStatus.DELETED)
+            conds = [Bot.user == user, Bot.status != BotStatus.DELETED]
+            if exclude_system:
+                conds.append(Bot.is_system.is_(False))
+            stmt = select(func.count()).select_from(Bot).where(*conds)
             return await session.scalar(stmt)
 
         return await self._execute_query(_query)

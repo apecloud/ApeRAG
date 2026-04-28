@@ -185,6 +185,50 @@ class _BotInitOpsAdapter:
         )
         await bot_service.create_bot(user=user_id, bot_in=bot_create, skip_quota_check=True)
 
+        # Wave 10 §K.13: register-time creation of the per-user
+        # hidden summary bot used by ``collection_regen_service``
+        # Stage 1. Same transaction as the user's default agent bot
+        # so a successful registration always provides both. The
+        # ``collection_regen_service`` keeps a defense-in-depth
+        # ``get_or_create_summary_bot_for_user`` lazy fallback for
+        # the edge case where this hook fails (registration does
+        # not roll back on init-hook errors per
+        # ``user_manager.py:137``).
+        await self._create_summary_bot_for_user(user_id)
+
+    @staticmethod
+    async def _create_summary_bot_for_user(user_id: str) -> None:
+        """Create the hidden ``BotType.SUMMARY, is_system=True`` row
+        for ``user_id``. Bypasses the user-facing ``bot_service.create_bot``
+        because (a) ``BotCreate.type`` is ``Literal["agent"]`` so
+        the public schema can't express ``"summary"``, and (b) system
+        bots intentionally skip user-quota / user-visibility logic.
+        """
+        from aperag.config import get_async_session
+        from aperag.domains.conversation.db.models import Bot, BotStatus, BotType
+
+        bot = Bot(
+            user=user_id,
+            title="Summary Generation Bot",
+            type=BotType.SUMMARY,
+            description="System-managed bot for collection summary regen (Wave 10 §K.13).",
+            status=BotStatus.ACTIVE,
+            config='{"agent": {"system_prompt_template": null}}',
+            is_system=True,
+        )
+        async for session in get_async_session():
+            session.add(bot)
+            try:
+                await session.commit()
+            except Exception:  # noqa: BLE001
+                # Concurrent register-time race or backfill migration
+                # already created the row — let the partial unique
+                # index reject silently. The lazy fallback in the
+                # regen service will fetch the existing row on first
+                # use.
+                await session.rollback()
+            return
+
 
 class _ChatInitOpsAdapter:
     async def create_default_chat_for_user(self, user_id: str) -> None:
