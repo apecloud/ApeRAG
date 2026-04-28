@@ -175,7 +175,7 @@ async def test_generate_preview_items_returns_empty_when_no_chunks(monkeypatch):
         count=5,
         language="zh-CN",
         prompt_template=None,
-        llm_factory=lambda _c: (lambda _p: None),
+        llm_factory=lambda _c: lambda _p: None,
     )
     assert items == []
     assert language == "zh-CN"
