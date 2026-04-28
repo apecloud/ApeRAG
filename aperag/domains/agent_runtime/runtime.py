@@ -53,8 +53,10 @@ from aperag.domains.agent_runtime.services import (
 from aperag.domains.agent_runtime.storage import DEFAULT_AGENT_TURN_LEASE_TTL_SECONDS, AgentRuntimeRedisStore
 from aperag.domains.agent_runtime.tools.safe_name import sanitize_tool_name
 from aperag.domains.agent_runtime.uimessage import (
+    MAX_REASONING_PART_CHARS,
     CitationData,
     DataCitationPart,
+    ReasoningPart,
     SourceUrlPart,
     TextPart,
     ToolPart,
@@ -174,6 +176,24 @@ class _PersistedToolCall:
     summary: Optional[str] = None
 
 
+@dataclass
+class _PersistedReasoning:
+    """One reasoning chunk (the model's thinking text emitted between
+    tool calls). Lives on the chronological timeline alongside
+    :class:`_PersistedToolCall` entries so the FE can render
+    Claude/Cursor-style "思考1 → 工具a → 思考2 → 工具b" interleaving.
+
+    The runtime accumulates ``ThinkingPartDelta.content_delta`` into
+    a buffer; ``_close_reasoning_chunk`` flushes the buffer into a
+    ``_PersistedReasoning`` entry and appends it to the timeline:
+    when a tool call interrupts the reasoning stream, OR when the
+    buffer reaches ``MAX_REASONING_PART_CHARS``, OR when the turn
+    completes.
+    """
+
+    text: str
+
+
 # Maximum length of the user-facing tool-call summary written to
 # ``ToolPart.summary``. Keeps ``agent_message.parts`` size bounded (per
 # architect msg=2639aeea size-budget concern); long URLs / queries
@@ -247,30 +267,56 @@ def _compose_assistant_parts(
     answer_text: str,
     references: list[ReferenceBundleItem],
     tool_calls: list[_PersistedToolCall] | None = None,
+    timeline: list[Any] | None = None,
 ) -> list[UIMessagePart]:
     """Project the runtime's accumulated answer + references into a
     canonical at-rest ``UIMessagePart`` list for ``UIMessageStore.write``.
 
-    Order: collapsed ``ToolPart`` records first, ``TextPart`` (answer)
-    next, then ``SourceUrlPart`` / ``DataCitationPart`` pairs from
-    each reference. Items without a URI surface as ``DataCitationPart``
-    only — same shape the FE renderer expects from the live SSE stream
-    (D8 §2 byte-equal).
+    Order:
+    - ``timeline`` entries first, in their original chronological order
+      — interleaved ``ReasoningPart`` / ``ToolPart`` records so FE
+      renders Claude/Cursor-style "思考1 → 工具a → 思考2 → 工具b" flow
+      (Wave 9 task #2 followup #2, architect ratify msg=2639aeea).
+    - ``TextPart`` (final answer) next.
+    - ``SourceUrlPart`` / ``DataCitationPart`` pairs from each reference.
+
+    ``tool_calls`` is the legacy parameter (Wave 9 PR #1798); when
+    ``timeline`` is supplied it takes precedence and ``tool_calls`` is
+    ignored. Callers that don't track reasoning (older / test paths)
+    can keep using ``tool_calls`` for backward compat.
     """
 
     parts: list[UIMessagePart] = []
-    for call in tool_calls or []:
-        parts.append(
-            ToolPart(
-                type=_tool_part_type(call.tool_name),
-                tool_call_id=call.tool_call_id,
-                state=call.state,
-                output=call.output,
-                error_text=call.error_text,
-                summary=call.summary,
-                metadata={"mcpToolName": call.tool_name},
+    if timeline is not None:
+        for entry in timeline:
+            if isinstance(entry, _PersistedReasoning):
+                if entry.text and entry.text.strip():
+                    parts.append(ReasoningPart(text=entry.text))
+            elif isinstance(entry, _PersistedToolCall):
+                parts.append(
+                    ToolPart(
+                        type=_tool_part_type(entry.tool_name),
+                        tool_call_id=entry.tool_call_id,
+                        state=entry.state,
+                        output=entry.output,
+                        error_text=entry.error_text,
+                        summary=entry.summary,
+                        metadata={"mcpToolName": entry.tool_name},
+                    )
+                )
+    else:
+        for call in tool_calls or []:
+            parts.append(
+                ToolPart(
+                    type=_tool_part_type(call.tool_name),
+                    tool_call_id=call.tool_call_id,
+                    state=call.state,
+                    output=call.output,
+                    error_text=call.error_text,
+                    summary=call.summary,
+                    metadata={"mcpToolName": call.tool_name},
+                )
             )
-        )
     if answer_text:
         parts.append(TextPart(text=answer_text))
     for index, ref in enumerate(references):
@@ -476,6 +522,30 @@ class PydanticAIRuntime(AgentRuntime):
         tool_summaries: list[str] = []
         persisted_tool_calls: list[_PersistedToolCall] = []
         persisted_tool_index: dict[str, _PersistedToolCall] = {}
+        # Chronological timeline of reasoning chunks + tool calls.
+        # ``_compose_assistant_parts`` reads this in order so the FE
+        # gets Claude/Cursor-style "思考1 → 工具a → 思考2 → 工具b"
+        # interleaving (Wave 9 task #2 followup #2).
+        persisted_timeline: list[Any] = []
+        # Reasoning text accumulator: ThinkingPartDelta deltas append
+        # here; a flush (tool-call interrupt / size cap / turn end)
+        # converts the buffer into a ``_PersistedReasoning`` entry on
+        # ``persisted_timeline`` and resets the buffer.
+        reasoning_buffer: list[str] = []
+
+        def _flush_reasoning_chunk() -> None:
+            """Push the accumulated reasoning text onto the timeline as
+            a ``_PersistedReasoning`` entry, then reset the buffer.
+
+            Called on tool-call interrupt, size cap, and turn end —
+            the chunk boundaries are what give the FE its discrete
+            "思考N" blocks rather than one ever-growing reasoning
+            block at the bottom."""
+            text = "".join(reasoning_buffer).strip()
+            reasoning_buffer.clear()
+            if text:
+                persisted_timeline.append(_PersistedReasoning(text=text))
+
         lease_guard = TurnLeaseGuard(turn_service=self.turn_service, turn_id=turn.id, owner_token=lease_owner)
 
         async def emit(
@@ -561,6 +631,11 @@ class PydanticAIRuntime(AgentRuntime):
                     if isinstance(event, pai_messages.FunctionToolCallEvent):
                         tool_name = event.part.tool_name
                         tool_call_id = event.part.tool_call_id
+                        # Tool call interrupts the reasoning stream —
+                        # close the current chunk so the FE renders
+                        # this thinking block before the upcoming tool
+                        # action card.
+                        _flush_reasoning_chunk()
                         tool_call = _PersistedToolCall(
                             tool_call_id=tool_call_id,
                             tool_name=tool_name,
@@ -569,6 +644,7 @@ class PydanticAIRuntime(AgentRuntime):
                         )
                         persisted_tool_calls.append(tool_call)
                         persisted_tool_index[tool_call_id] = tool_call
+                        persisted_timeline.append(tool_call)
                         tool_summaries.append(f"Calling tool: {tool_name}")
                         await emit(
                             "agent.state.changed",
@@ -612,6 +688,7 @@ class PydanticAIRuntime(AgentRuntime):
                             )
                             persisted_tool_calls.append(tool_call)
                             persisted_tool_index[tool_call_id] = tool_call
+                            persisted_timeline.append(tool_call)
                         if _is_tool_failure_status(outcome):
                             tool_call.state = "output-error"
                             tool_call.error_text = (
@@ -648,12 +725,36 @@ class PydanticAIRuntime(AgentRuntime):
 
                     if isinstance(event, pai_messages.PartDeltaEvent):
                         if isinstance(event.delta, pai_messages.ThinkingPartDelta):
-                            await emit(
-                                "agent.state.changed",
-                                actor=AgentEventActor.AGENT,
-                                label=VisibleAgentState.THINKING.value,
-                                status="thinking",
-                            )
+                            delta_text = event.delta.content_delta or ""
+                            if delta_text:
+                                # Capture the actual reasoning text so
+                                # we can persist it as a ReasoningPart
+                                # (not just emit a status badge).
+                                reasoning_buffer.append(delta_text)
+                                # Auto-flush when the chunk fills the
+                                # per-part budget — keeps any single
+                                # ReasoningPart small enough for
+                                # incremental FE rendering.
+                                if sum(len(s) for s in reasoning_buffer) >= MAX_REASONING_PART_CHARS:
+                                    _flush_reasoning_chunk()
+                                # Live SSE: emit a reasoning delta so
+                                # the FE renderer can stream the
+                                # current reasoning chunk text — same
+                                # convention as ``text.delta``.
+                                await emit(
+                                    "reasoning.delta",
+                                    actor=AgentEventActor.AGENT,
+                                    label=VisibleAgentState.THINKING.value,
+                                    status="thinking",
+                                    data={"delta": delta_text},
+                                )
+                            else:
+                                await emit(
+                                    "agent.state.changed",
+                                    actor=AgentEventActor.AGENT,
+                                    label=VisibleAgentState.THINKING.value,
+                                    status="thinking",
+                                )
                             continue
 
                         if isinstance(event.delta, pai_messages.TextPartDelta):
@@ -688,6 +789,13 @@ class PydanticAIRuntime(AgentRuntime):
             lease_guard.ensure_owned()
             answer_text = "".join(text_chunks).strip()
 
+            # Final flush — the model may have emitted reasoning text
+            # after its last tool call (the close-out thinking that
+            # leads into the answer). Without this, that trailing
+            # block would be silently dropped from the persisted
+            # timeline.
+            _flush_reasoning_chunk()
+
             await self.uimessage_store.write(
                 turn_id=turn.id,
                 chat_id=chat.id,
@@ -698,7 +806,7 @@ class PydanticAIRuntime(AgentRuntime):
                         turn_id=turn.id,
                         answer_text=answer_text,
                         references=reference_items,
-                        tool_calls=persisted_tool_calls,
+                        timeline=persisted_timeline,
                     ),
                 ),
             )

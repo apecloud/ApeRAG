@@ -114,6 +114,40 @@ class TextPart(BaseModel):
     text: str
 
 
+# Per-part length budget for ReasoningPart. Keeps any single part
+# small enough to render incrementally on the FE; the runtime opens a
+# new part when the buffer fills (or when a tool call interrupts the
+# reasoning stream).
+MAX_REASONING_PART_CHARS: int = 4096
+
+
+class ReasoningPart(BaseModel):
+    """Persisted multi-step reasoning text the model emitted between
+    tool calls — the "how the agent got there" trace, distinct from
+    :class:`TextPart` (final answer body).
+
+    Architect ratify msg=2639aeea: separate first-class type vs reusing
+    ``TextPart`` with a ``role`` meta field. Keeping reasoning as its
+    own type makes downstream serialisation / aggregation / UI
+    rendering unambiguous (a reader can tell "this is reasoning" vs
+    "this is the final answer" by ``type`` alone).
+
+    ``transient=False`` (default) so reasoning survives reload — Wave 8
+    D8.6 chunk-3 design originally pinned reasoning as fully transient
+    via :class:`DataActivityPart`, but earayu2 explicitly asked for
+    Claude-style chronological timeline (思考1 → 工具a → 思考2 → 工具b
+    → 最终回答) so persistence is the canonical user-priority amend.
+
+    Length cap: ``MAX_REASONING_PART_CHARS`` per part — the runtime
+    opens a new ReasoningPart when the buffer fills OR when a tool
+    call interrupts, giving the chronological chunking the FE renders
+    as discrete thinking blocks interleaved with tool actions.
+    """
+
+    type: Literal["reasoning"] = "reasoning"
+    text: str = Field(max_length=MAX_REASONING_PART_CHARS)
+
+
 _TOOL_TYPE_PATTERN = r"^tool-[A-Za-z0-9_-]+$"
 
 
@@ -273,6 +307,7 @@ class DataElicitationPart(BaseModel):
 
 UIMessagePart = Union[
     TextPart,
+    ReasoningPart,
     ToolPart,
     SourceUrlPart,
     SourceDocumentPart,
