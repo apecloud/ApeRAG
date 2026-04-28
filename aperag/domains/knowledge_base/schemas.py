@@ -58,6 +58,7 @@ __all__ = [
     "DocumentPreview",
     "RebuildIndexesRequest",
     "RebuildIndexesResponse",
+    "CollectionRegenTriggerResponse",  # Wave 10 §K.13
     # Step 5b3: document-upload / confirm / fetch-url envelope schemas
     # moved from ``aperag.schema.view_models`` so the KB
     # ``document_service`` does not have to bind to the aggregate.
@@ -213,11 +214,25 @@ class DocumentPreview(BaseModel):
     vision_chunks: Optional[list[VisionChunk]] = None
 
 
-# Wave 10 §K.13: ``CollectionSummaryTriggerResponse`` removed alongside
-# the legacy ``POST /collections/{id}/summary/generate`` endpoint hard-
-# cut. New Wave 10 endpoints (``/summary/regen`` + ``/description/regen``)
-# return a different envelope (task_id + estimated_completion_seconds);
-# their schema lands in Chunk C-D.
+# Wave 10 §K.13: replacement envelope for the new
+# ``/collections/{id}/summary/regen`` + ``/description/regen``
+# endpoints. Returned with ``202 Accepted`` to signal that regen
+# was scheduled (lease acquired, async task launched). Lease busy
+# is surfaced as ``409 Conflict`` (no envelope; standard FastAPI
+# detail body).
+class CollectionRegenTriggerResponse(BaseModel):
+    """``202 Accepted`` envelope for collection regen triggers."""
+
+    collection_id: str = Field(..., description="Collection id whose regen was triggered")
+    stage: Literal["summary", "description"] = Field(
+        ...,
+        description="Which stage of the regen pipeline was triggered",
+    )
+    task_id: str = Field(..., description="Opaque tracking token for the dispatched async task")
+    estimated_completion_seconds: int = Field(
+        ...,
+        description="Best-effort latency estimate (Stage 1 ~60s agent explore, Stage 2 ~10s LLM derive)",
+    )
 
 
 # ---------- Document upload / confirm / fetch-url envelopes (Step 5b3) ---------- #
