@@ -4,6 +4,7 @@ import type {
 } from '@/features/document/types';
 import { cn } from '@/lib/utils';
 import _ from 'lodash';
+import { useTranslations } from 'next-intl';
 
 const getIndexStatusBg = (status?: DocumentIndexStatusType | null) => {
   const data: Record<DocumentIndexStatusType, string> = {
@@ -22,12 +23,40 @@ export const DocumentIndexStatus = ({
   document: Document;
   accessorKey: string;
 }) => {
-  const status = _.get(document, accessorKey);
+  const page_documents = useTranslations('page_documents');
+  const status = _.get(document, accessorKey) as
+    | DocumentIndexStatusType
+    | null
+    | undefined;
+  // See workspace mirror (../../../workspace/.../document-index-status.tsx)
+  // for the rationale — null/undefined index_status maps to localized
+  // "not started" so freshly-uploaded PENDING documents don't render
+  // an empty cell next to a gray dot. Explicit switch keeps each
+  // i18n key compile-time verifiable by ``next-intl``.
+  let label: string;
+  switch (status) {
+    case 'ACTIVE':
+      label = page_documents('index_status_active');
+      break;
+    case 'RUNNING':
+      label = page_documents('index_status_running');
+      break;
+    case 'PENDING':
+      label = page_documents('index_status_pending');
+      break;
+    case 'FAILED':
+      label = page_documents('index_status_failed');
+      break;
+    default:
+      label = page_documents('index_status_not_started');
+  }
   const color = getIndexStatusBg(status);
   return (
     <div className="flex flex-row items-center gap-2">
       <div className={cn('size-1.5 rounded-4xl', color)}></div>
-      <div className="text-xs">{_.capitalize(status)}</div>
+      <div className={cn('text-xs', !status && 'text-muted-foreground')}>
+        {label}
+      </div>
     </div>
   );
 };
