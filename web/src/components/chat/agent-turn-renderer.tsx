@@ -800,6 +800,12 @@ export function AgentTurnRenderer({
     visibleToolParts.findLast(
       (part) => toolBehaviorPhase(part.state) === 'running',
     ) || visibleToolParts.at(-1);
+  const hasStreamingReasoning = grouped.reasoning.some(
+    (part) => part.state === 'streaming',
+  );
+  const hasRunningTool = visibleToolParts.some(
+    (part) => toolBehaviorPhase(part.state) === 'running',
+  );
   const headerStatusLabel =
     (pending && activityLabel(transientActivity, pageChat)) ||
     (pending && activeToolPart
@@ -850,10 +856,22 @@ export function AgentTurnRenderer({
     0;
 
   useEffect(() => {
-    if (autoCollapsedRef.current || !answerText.trim()) return;
+    autoCollapsedRef.current = false;
+    setActivityOpen(true);
+  }, [turn.turn_id]);
+
+  useEffect(() => {
+    if (
+      autoCollapsedRef.current ||
+      !answerText.trim() ||
+      hasStreamingReasoning ||
+      hasRunningTool
+    ) {
+      return;
+    }
     autoCollapsedRef.current = true;
     setActivityOpen(false);
-  }, [answerText]);
+  }, [answerText, hasRunningTool, hasStreamingReasoning]);
 
   return (
     <div className="flex w-full flex-row gap-3.5">
