@@ -1,6 +1,4 @@
 'use client';
-
-import { AppUserDropdownMenu } from '@/components/app-topbar';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,10 +10,8 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
-  SidebarSeparator,
   useSidebar,
 } from '@/components/ui/sidebar';
 import {
@@ -36,7 +32,6 @@ export const MenuFooter = () => {
   return (
     <SidebarFooter>
       <SidebarGroup className="p-0">
-        <SidebarGroupLabel>{sidebar_workspace('more')}</SidebarGroupLabel>
         <SidebarGroupContent>
           <SidebarMenu>
             <DropdownMenu>
@@ -92,9 +87,6 @@ export const MenuFooter = () => {
           </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>
-
-      <SidebarSeparator className="mx-0" />
-      <AppUserDropdownMenu />
     </SidebarFooter>
   );
 };

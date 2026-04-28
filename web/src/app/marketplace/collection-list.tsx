@@ -1,5 +1,6 @@
 'use client';
 
+import { useAppContext } from '@/components/providers/app-provider';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -10,7 +11,6 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { useAppContext } from '@/components/providers/app-provider';
 import {
   subscribeMarketplaceCollection,
   unsubscribeMarketplaceCollection,
@@ -20,20 +20,22 @@ import { cn } from '@/lib/utils';
 import {
   ArrowUpRight,
   Database,
-  Filter,
+  FileText,
+  Network,
   Search,
   Share2,
   Sparkles,
   Star,
   User,
   VectorSquare,
+  type LucideIcon,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState, useTransition } from 'react';
 
-type MarketplaceFilter = 'all' | 'subscribed' | 'mine' | 'graph';
+type MarketplaceFilter = 'all' | 'subscribed' | 'mine';
 
 export const CollectionList = ({
   collections,
@@ -50,10 +52,8 @@ export const CollectionList = ({
       total: collections.length,
       subscribed: collections.filter((collection) => collection.subscription_id)
         .length,
-      mine: collections.filter((collection) => collection.owner_user_id === user?.id)
-        .length,
-      graph: collections.filter(
-        (collection) => collection.config?.enable_knowledge_graph,
+      mine: collections.filter(
+        (collection) => collection.owner_user_id === user?.id,
       ).length,
     };
   }, [collections, user?.id]);
@@ -63,9 +63,6 @@ export const CollectionList = ({
     return collections.filter((collection) => {
       if (filter === 'subscribed' && !collection.subscription_id) return false;
       if (filter === 'mine' && collection.owner_user_id !== user?.id) {
-        return false;
-      }
-      if (filter === 'graph' && !collection.config?.enable_knowledge_graph) {
         return false;
       }
 
@@ -102,16 +99,11 @@ export const CollectionList = ({
       label: page_marketplace('filter_mine'),
       count: stats.mine,
     },
-    {
-      key: 'graph',
-      label: page_marketplace('filter_graph'),
-      count: stats.graph,
-    },
   ];
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="border-border/70 bg-card grid gap-4 rounded-xl border p-4 shadow-sm lg:grid-cols-[1fr_auto] lg:items-center">
+      <div className="border-border/70 bg-card rounded-xl border p-4 shadow-sm">
         <div className="relative max-w-xl">
           <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
           <Input
@@ -120,12 +112,6 @@ export const CollectionList = ({
             value={searchValue}
             onChange={(e) => setSearchValue(e.currentTarget.value)}
           />
-        </div>
-        <div className="text-muted-foreground flex items-center gap-2 text-sm">
-          <Filter className="size-4" />
-          {page_marketplace('collection_count', {
-            count: filteredCollections.length,
-          })}
         </div>
       </div>
 
@@ -233,46 +219,9 @@ const MarketplaceCollectionCard = ({
   };
 
   return (
-    <Card className="group hover:border-border hover:shadow-md min-h-64 gap-0 overflow-hidden rounded-xl border-border/70 py-0 transition-all hover:-translate-y-0.5">
-      <CardHeader className="gap-4 px-5 pt-5 pb-4">
-        <div className="flex items-start gap-3">
-          <div className="bg-accent-soft text-accent-ink flex size-10 shrink-0 items-center justify-center rounded-lg">
-            <Database className="size-5" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 items-center gap-2">
-              <CardTitle className="truncate text-[15px] leading-5 font-medium">
-                {collection.title}
-              </CardTitle>
-              <ArrowUpRight className="text-muted-foreground group-hover:text-foreground size-3.5 shrink-0 transition-colors" />
-            </div>
-            <div className="text-muted-foreground mt-1 flex items-center gap-1 text-xs">
-              <User className="size-3.5" />
-              <span className="truncate">
-                {collection.owner_username ||
-                  page_marketplace('owner_unknown')}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <CardDescription className="line-clamp-3 min-h-15 text-[13px] leading-5">
-          {collection.description ||
-            page_marketplace('no_description_available')}
-        </CardDescription>
-
-        <CapabilityChips collection={collection} />
-      </CardHeader>
-
-      <CardFooter className="border-border/70 mt-auto flex-col items-stretch gap-3 border-t px-5 py-3 text-xs">
-        <div className="text-muted-foreground flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Star className="size-3.5" />
-            <span className="font-mono tabular-nums">
-              {collection.subscription_count || 0}
-            </span>
-            <span>{page_marketplace('subscriptions')}</span>
-          </div>
+    <Card className="group hover:border-border border-border/70 relative min-h-64 gap-0 overflow-hidden rounded-xl py-0 transition-all hover:-translate-y-0.5 hover:shadow-md">
+      <CardHeader className="gap-4 px-5 pt-5 pb-3">
+        <div className="absolute top-5 right-5">
           {isOwner ? (
             <Badge className="bg-accent-soft text-accent-ink border-accent-soft rounded-sm border">
               {page_collections('mine')}
@@ -284,7 +233,44 @@ const MarketplaceCollectionCard = ({
             </Badge>
           ) : null}
         </div>
+        <div className="flex items-start gap-3">
+          <div className="bg-accent-soft text-accent-ink flex size-10 shrink-0 items-center justify-center rounded-lg">
+            <Database className="size-5" />
+          </div>
+          <div className="min-w-0 flex-1 pr-16">
+            <div className="flex min-w-0 items-center gap-2">
+              <CardTitle className="truncate text-[15px] leading-5 font-medium">
+                {collection.title}
+              </CardTitle>
+              <ArrowUpRight className="text-muted-foreground group-hover:text-foreground size-3.5 shrink-0 transition-colors" />
+            </div>
+            <div className="text-muted-foreground mt-1 flex items-center gap-1 text-xs">
+              <User className="size-3.5" />
+              <span className="truncate">
+                {collection.owner_username || page_marketplace('owner_unknown')}
+              </span>
+            </div>
+          </div>
+        </div>
 
+        {collection.description && (
+          <CardDescription className="line-clamp-3 min-h-15 text-[13px] leading-5">
+            {collection.description}
+          </CardDescription>
+        )}
+
+        <CapabilityChips collection={collection} />
+
+        <div className="text-muted-foreground flex items-center gap-2 text-xs">
+          <Star className="size-3.5" />
+          <span className="font-mono tabular-nums">
+            {collection.subscription_count || 0}
+          </span>
+          <span>{page_marketplace('subscriptions')}</span>
+        </div>
+      </CardHeader>
+
+      <CardFooter className="mt-auto flex-col items-stretch gap-3 px-5 pt-1 pb-4 text-xs">
         <div className="flex gap-2">
           <Button asChild variant="outline" className="flex-1">
             <Link href={`/marketplace/collections/${collection.id}/documents`}>
@@ -316,34 +302,46 @@ const MarketplaceCollectionCard = ({
   );
 };
 
-const CapabilityChips = ({
-  collection,
-}: {
-  collection: SharedCollection;
-}) => {
+const CapabilityChips = ({ collection }: { collection: SharedCollection }) => {
   const page_marketplace = useTranslations('page_marketplace');
+  type CapabilityChip = {
+    key: string;
+    label: string;
+    Icon: LucideIcon;
+  };
   const chips = [
-    collection.config?.enable_vector && page_marketplace('capability_vector'),
-    collection.config?.enable_fulltext &&
-      page_marketplace('capability_fulltext'),
-    collection.config?.enable_knowledge_graph &&
-      page_marketplace('capability_graph'),
-    collection.config?.enable_summary && page_marketplace('capability_summary'),
-    collection.config?.enable_vision && page_marketplace('capability_vision'),
-  ].filter(Boolean);
+    collection.config?.enable_vector && {
+      key: 'vector',
+      label: page_marketplace('capability_vector'),
+      Icon: VectorSquare,
+    },
+    collection.config?.enable_fulltext && {
+      key: 'fulltext',
+      label: page_marketplace('capability_fulltext'),
+      Icon: FileText,
+    },
+    collection.config?.enable_knowledge_graph && {
+      key: 'graph',
+      label: page_marketplace('capability_graph'),
+      Icon: Network,
+    },
+  ].filter((chip): chip is CapabilityChip => Boolean(chip));
 
   return (
     <div className="flex flex-wrap gap-1.5">
-      {chips.map((chip) => (
-        <Badge
-          key={String(chip)}
-          variant="outline"
-          className="bg-background gap-1 rounded-sm"
-        >
-          <VectorSquare className="size-3" />
-          {chip}
-        </Badge>
-      ))}
+      {chips.map((chip) => {
+        const Icon = chip.Icon;
+        return (
+          <Badge
+            key={chip.key}
+            variant="outline"
+            className="bg-background gap-1 rounded-sm"
+          >
+            <Icon className="size-3" />
+            {chip.label}
+          </Badge>
+        );
+      })}
       {chips.length === 0 && (
         <Badge variant="secondary" className="gap-1 rounded-sm">
           <Sparkles className="size-3" />

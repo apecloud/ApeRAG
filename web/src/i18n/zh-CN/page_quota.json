@@ -19,7 +19,7 @@
   },
   "document_count": {
     "title": "总文档数量",
-    "description": "限定所有集合中文档的总数量，统筹管理整体存储容量。"
+    "description": "限定所有知识库中文档的总数量，统筹管理整体存储容量。"
   },
   "documents_per_collection": {
     "title": "单知识库文档数",

@@ -186,6 +186,12 @@ function buildStreamUrl(rawUrl: string, lastEventId?: number): string {
   } catch {
     return rawUrl;
   }
+  if (
+    url.origin !== window.location.origin &&
+    /^\/api\/v[12]\//.test(url.pathname)
+  ) {
+    url = new URL(`${url.pathname}${url.search}`, window.location.origin);
+  }
   if (lastEventId != null && lastEventId > 0) {
     url.searchParams.set('after_sequence', String(lastEventId));
   }

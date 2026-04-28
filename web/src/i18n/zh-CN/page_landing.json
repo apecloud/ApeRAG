@@ -122,8 +122,8 @@
   },
   "cta": {
     "eyebrow": "从现有数据开始",
-    "title": "打开 Collection，问一个问题，再检查答案路径。",
-    "description": "新界面围绕 ApeRAG 已经支持的工作流展开：Collection、文档、图谱可视化、Agent Chat、市场发布和运营控制。",
+    "title": "打开知识库，问一个问题，再检查答案路径。",
+    "description": "新界面围绕 ApeRAG 已经支持的工作流展开：知识库、文档、图谱可视化、Agent Chat、市场发布和运营控制。",
     "primary_cta": "进入工作区",
     "secondary_cta": "联系 ApeCloud"
   }

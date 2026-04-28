@@ -168,15 +168,13 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
                   </Badge>
                 )}
               </div>
-              <CardDescription className="mt-2 max-w-3xl leading-6">
-                {_.truncate(
-                  collection.description ||
-                    page_collections('no_description_available'),
-                  {
+              {collection.description && (
+                <CardDescription className="mt-2 max-w-3xl leading-6">
+                  {_.truncate(collection.description, {
                     length: 220,
-                  },
-                )}
-              </CardDescription>
+                  })}
+                </CardDescription>
+              )}
               {collection.created && (
                 <div className="text-muted-foreground mt-3 flex items-center gap-1.5 text-xs">
                   <Calendar className="size-3.5" />

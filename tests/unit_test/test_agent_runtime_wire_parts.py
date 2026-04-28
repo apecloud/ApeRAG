@@ -210,6 +210,49 @@ def test_translate_tool_started_finished():
     assert not hasattr(finished[0], "error_text")
 
 
+def test_translate_tool_lifecycle_uses_runtime_tool_call_id():
+    state = TranslatorState()
+    started = translate_envelope(
+        _envelope(
+            "tool.started",
+            sequence=2,
+            event_id="event-tool-start",
+            label="search_collection",
+            status="started",
+            actor="tool",
+            data={
+                "tool_name": "search_collection",
+                "tool_call_id": "call-runtime-1",
+                "args": {"query": "rag pipelines"},
+            },
+        ),
+        state,
+    )
+    finished = translate_envelope(
+        _envelope(
+            "tool.finished",
+            sequence=3,
+            event_id="event-tool-finish",
+            label="search_collection",
+            status="success",
+            actor="tool",
+            data={
+                "tool_name": "search_collection",
+                "tool_call_id": "call-runtime-1",
+                "result": {"items": [{"id": "doc-1"}]},
+            },
+        ),
+        state,
+    )
+
+    assert isinstance(started[0], ToolInputStartPart)
+    assert started[0].tool_call_id == "call-runtime-1"
+    assert isinstance(started[1], ToolInputAvailablePart)
+    assert started[1].tool_call_id == "call-runtime-1"
+    assert isinstance(finished[0], ToolOutputAvailablePart)
+    assert finished[0].tool_call_id == "call-runtime-1"
+
+
 def test_translate_tool_failure():
     state = TranslatorState()
     parts = translate_envelope(

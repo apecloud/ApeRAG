@@ -283,17 +283,19 @@ def _translate_artifact(envelope: AgentTimelineEventEnvelope, state: TranslatorS
 
 
 def _translate_tool_started(envelope: AgentTimelineEventEnvelope, state: TranslatorState) -> list[StreamPart]:
-    raw_tool_name = (envelope.data or {}).get("tool_name") or envelope.label or "tool"
+    data = envelope.data or {}
+    raw_tool_name = data.get("tool_name") or envelope.label or "tool"
+    tool_call_id = str(data.get("tool_call_id") or envelope.event_id)
     safe_name, metadata = _resolve_tool_name(str(raw_tool_name), state.safe_tool_name_resolver)
     tool_input = _extract_tool_input(envelope)
     return [
         ToolInputStartPart(
-            tool_call_id=envelope.event_id,
+            tool_call_id=tool_call_id,
             tool_name=safe_name,
             metadata=metadata,
         ),
         ToolInputAvailablePart(
-            tool_call_id=envelope.event_id,
+            tool_call_id=tool_call_id,
             tool_name=safe_name,
             input=tool_input,
         ),
@@ -301,6 +303,8 @@ def _translate_tool_started(envelope: AgentTimelineEventEnvelope, state: Transla
 
 
 def _translate_tool_finished(envelope: AgentTimelineEventEnvelope) -> list[StreamPart]:
+    data = envelope.data or {}
+    tool_call_id = str(data.get("tool_call_id") or envelope.event_id)
     if _is_failure_status(envelope.status):
         # Per AI SDK v5 strict spec the failure path emits a separate
         # ``tool-output-error`` event, not ``tool-output-available`` with
@@ -308,7 +312,6 @@ def _translate_tool_finished(envelope: AgentTimelineEventEnvelope) -> list[Strea
         # to the envelope label so the FE always has something to
         # render even when the tool didn't surface an explicit error
         # message.
-        data = envelope.data or {}
         error_text = (
             str(data.get("error"))
             if data.get("error")
@@ -316,13 +319,13 @@ def _translate_tool_finished(envelope: AgentTimelineEventEnvelope) -> list[Strea
         )
         return [
             ToolOutputErrorPart(
-                tool_call_id=envelope.event_id,
+                tool_call_id=tool_call_id,
                 error_text=error_text,
             )
         ]
     return [
         ToolOutputAvailablePart(
-            tool_call_id=envelope.event_id,
+            tool_call_id=tool_call_id,
             output=_extract_tool_output(envelope),
         )
     ]

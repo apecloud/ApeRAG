@@ -4,11 +4,10 @@ import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarMenu,
-  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { BookOpen, ExternalLink, LayoutGrid } from 'lucide-react';
+import { BookOpen, LayoutGrid } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -22,14 +21,11 @@ export const MenuMain = () => {
       <SidebarMenu>
         <SidebarMenuItem>
           <SidebarMenuButton className="data-[active=true]:font-normal" asChild>
-            <Link href="/marketplace" target="_blank">
+            <Link href="/marketplace">
               <LayoutGrid />
               {sidebar_workspace('marketplace')}
             </Link>
           </SidebarMenuButton>
-          <SidebarMenuAction>
-            <ExternalLink className="text-muted-foreground" />
-          </SidebarMenuAction>
         </SidebarMenuItem>
         <SidebarMenuItem>
           <SidebarMenuButton
