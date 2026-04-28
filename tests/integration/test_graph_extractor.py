@@ -362,3 +362,115 @@ def test_extractor_returns_empty_on_empty_chunks():
         assert relations == []
 
     asyncio.run(_run())
+
+
+# ---------------------------------------------------------------------
+# Two-pass concurrency (per huangheng spec msg=80b01696)
+# ---------------------------------------------------------------------
+
+
+def _stub_integration(monkeypatch: pytest.MonkeyPatch, llm_callable):
+    """Patch ``build_collection_llm_callable`` so the extractor builder
+    short-circuits to the test stub."""
+    import aperag.indexing.llm as _integration
+
+    monkeypatch.setattr(_integration, "build_collection_llm_callable", lambda _coll: llm_callable)
+
+
+def _entity_response(name: str, etype: str = "thing") -> str:
+    return f'{{"entities": [{{"name": "{name}", "type": "{etype}"}}], "relations": []}}'
+
+
+def test_extractor_runs_all_serially_when_at_or_below_bootstrap_count(monkeypatch: pytest.MonkeyPatch):
+    """Documents with ≤``_BOOTSTRAP_CHUNK_COUNT`` chunks must remain
+    on the strictly-serial path, preserving the Wave 11 dynamic-types
+    feedback loop end-to-end (no parallel pass kicks in)."""
+
+    in_flight = {"current": 0, "peak": 0, "calls": 0}
+
+    async def _stub_llm(_prompt: str) -> str:
+        in_flight["current"] += 1
+        in_flight["peak"] = max(in_flight["peak"], in_flight["current"])
+        in_flight["calls"] += 1
+        # Yield so any concurrent runner could overlap if the
+        # implementation accidentally launched parallel calls.
+        await asyncio.sleep(0)
+        in_flight["current"] -= 1
+        return _entity_response(f"Entity_{in_flight['calls']}")
+
+    _stub_integration(monkeypatch, _stub_llm)
+
+    async def _run() -> None:
+        extractor = ge.build_collection_graph_extractor(_make_collection())
+        # 5 chunks — well under the 20-chunk bootstrap threshold.
+        chunks = [{"chunk_id": f"c-{i}", "text": f"chunk text {i}"} for i in range(5)]
+        entities, _relations = await extractor(chunks)
+        assert len(entities) == 5
+        assert in_flight["peak"] == 1, "must remain serial when chunks ≤ bootstrap"
+
+    asyncio.run(_run())
+
+
+def test_extractor_main_pass_runs_remaining_chunks_in_parallel(monkeypatch: pytest.MonkeyPatch):
+    """With more than ``_BOOTSTRAP_CHUNK_COUNT`` chunks, the main pass
+    must dispatch the remainder concurrently via ``asyncio.gather``,
+    bounded by the semaphore at
+    :data:`_DEFAULT_EXTRACTOR_LLM_CONCURRENCY`. Pin both: (a) bootstrap
+    is serial, (b) main pass crosses 1-in-flight."""
+
+    in_flight = {"current": 0, "peak": 0, "calls": 0}
+    bootstrap_peak: dict[str, int] = {}
+
+    async def _stub_llm(_prompt: str) -> str:
+        in_flight["current"] += 1
+        in_flight["peak"] = max(in_flight["peak"], in_flight["current"])
+        in_flight["calls"] += 1
+        # Snapshot peak at end of bootstrap so we can prove main-pass
+        # parallelism happened *after* the serial section.
+        if in_flight["calls"] == ge._BOOTSTRAP_CHUNK_COUNT:
+            bootstrap_peak["value"] = in_flight["peak"]
+        await asyncio.sleep(0.01)
+        in_flight["current"] -= 1
+        return '{"entities": [], "relations": []}'
+
+    _stub_integration(monkeypatch, _stub_llm)
+
+    async def _run() -> None:
+        extractor = ge.build_collection_graph_extractor(_make_collection())
+        # 30 chunks → 20 bootstrap + 10 parallel.
+        chunks = [{"chunk_id": f"c-{i}", "text": f"chunk text {i}"} for i in range(30)]
+        await extractor(chunks)
+        assert in_flight["calls"] == 30
+        assert bootstrap_peak.get("value") == 1, "bootstrap pass must remain serial"
+        assert in_flight["peak"] >= 2, "main pass must overlap at least 2 LLM calls (true parallel dispatch)"
+        assert in_flight["peak"] <= ge._DEFAULT_EXTRACTOR_LLM_CONCURRENCY, (
+            "semaphore must cap main-pass concurrency at the configured width"
+        )
+
+    asyncio.run(_run())
+
+
+def test_extractor_main_pass_isolates_chunk_failures(monkeypatch: pytest.MonkeyPatch):
+    """Per-chunk failures in the parallel pass must not poison sibling
+    chunks' entities. Same isolation contract as the original serial
+    loop, just exercised through ``asyncio.gather``."""
+
+    fail_at = ge._BOOTSTRAP_CHUNK_COUNT + 2  # second chunk of main pass
+    counter = {"n": 0}
+
+    async def _stub_llm(_prompt: str) -> str:
+        counter["n"] += 1
+        if counter["n"] == fail_at:
+            raise RuntimeError("transient LLM failure mid-document")
+        return _entity_response(f"E{counter['n']}")
+
+    _stub_integration(monkeypatch, _stub_llm)
+
+    async def _run() -> None:
+        extractor = ge.build_collection_graph_extractor(_make_collection())
+        chunks = [{"chunk_id": f"c-{i}", "text": f"chunk text {i}"} for i in range(25)]
+        entities, _ = await extractor(chunks)
+        # 25 chunks total, 1 fails → 24 entities recovered.
+        assert len(entities) == 24
+
+    asyncio.run(_run())

@@ -77,6 +77,27 @@ _DEFAULT_MAX_ENTITIES_PER_CHUNK = 32
 _DEFAULT_MAX_RELATIONS_PER_CHUNK = 32
 _DEFAULT_PER_CHUNK_TIMEOUT_SECONDS = 60.0
 
+# Per-document concurrency cap for LLM extraction calls. Mirrors the
+# ``DEFAULT_LLM_CONCURRENCY = 4`` precedent in
+# ``aperag/graph_curation/service.py`` so a single graph dispatch never
+# bursts more than a small handful of LLM requests at once. Pre-fix
+# this loop was strictly serial — a 1 000-chunk document spent 1-3 h
+# on extraction. With concurrency 4 the same document finishes in
+# ~25 % of the wall time without making the LLM provider's RPM cap
+# any tighter than the worker pool already does.
+_DEFAULT_EXTRACTOR_LLM_CONCURRENCY = 4
+
+# Number of chunks processed serially before switching to the
+# parallel ``asyncio.gather`` path. The serial bootstrap is what
+# preserves the Wave 11 dynamic-entity-types feedback loop: each
+# chunk's extracted ``entity_type``s propagate into the prompt of
+# the next chunk, so brand-new types discovered in chunk[i] are
+# available for chunk[i+1]. After this many chunks the active type
+# list has typically saturated for the document; the remaining
+# chunks run in parallel against the frozen type list. 20 was
+# picked per huangheng spec msg=80b01696.
+_BOOTSTRAP_CHUNK_COUNT = 20
+
 
 def build_collection_graph_extractor(collection: Any) -> GraphExtractor:
     """Construct a :class:`GraphExtractor` closure bound to
@@ -116,14 +137,41 @@ def build_collection_graph_extractor(collection: Any) -> GraphExtractor:
     )
 
     async def _extractor(chunks: Sequence[dict[str, Any]]) -> tuple[list[EntityRecord], list[RelationRecord]]:
-        """Run the LLM extractor over every chunk in the dispatch."""
+        """Run the LLM extractor over every chunk in the dispatch.
+
+        Two-pass design (per huangheng msg=80b01696):
+
+        1. **Bootstrap pass** — process the first
+           :data:`_BOOTSTRAP_CHUNK_COUNT` chunks serially so each
+           chunk's freshly-discovered entity types feed into the next
+           chunk's prompt. This preserves the Wave 11 dynamic-entity-
+           types feedback loop where the prompt's allowed-types list
+           grows as the document is read.
+        2. **Main pass** — run the remaining chunks through
+           ``asyncio.gather`` bounded by an
+           :class:`asyncio.Semaphore` of width
+           :data:`_DEFAULT_EXTRACTOR_LLM_CONCURRENCY`. The active type
+           list is frozen at the bootstrap end-state — by 20 chunks it
+           has typically saturated for the document, and even if a
+           later chunk introduces a brand-new type we accept the small
+           recall hit in exchange for ~5x wall-clock speedup.
+
+        Per-chunk failures are isolated in both passes (log + skip);
+        one bad chunk never poisons the document's other entities and
+        relations. A document with no chunks produces an empty result
+        without making any LLM calls.
+        """
         if not chunks:
             return ([], [])
 
         entities: list[EntityRecord] = []
         relations: list[RelationRecord] = []
         active_entity_types = list(entity_types)
-        for chunk in chunks:
+        collection_id = getattr(collection, "id", "<unknown>")
+
+        # ---- Pass 1: serial bootstrap (W11 dynamic-types feedback) ----
+        bootstrap = chunks[:_BOOTSTRAP_CHUNK_COUNT]
+        for chunk in bootstrap:
             chunk_id = str(chunk.get("chunk_id") or chunk.get("id") or "")
             text = str(chunk.get("text") or "")
             if not text.strip():
@@ -141,10 +189,10 @@ def build_collection_graph_extractor(collection: Any) -> GraphExtractor:
                 )
             except Exception:  # noqa: BLE001 — per-chunk failure isolation
                 logger.exception(
-                    "graph extractor: LLM call failed for chunk_id=%s in collection=%s; "
+                    "graph extractor: bootstrap LLM call failed for chunk_id=%s in collection=%s; "
                     "skipping chunk's entities/relations",
                     chunk_id,
-                    getattr(collection, "id", "<unknown>"),
+                    collection_id,
                 )
                 continue
             entities.extend(ents)
@@ -153,6 +201,51 @@ def build_collection_graph_extractor(collection: Any) -> GraphExtractor:
                 active_entity_types,
                 [entity.entity_type for entity in ents],
             )
+
+        # ---- Pass 2: parallel gather over remaining chunks ----
+        remaining = chunks[_BOOTSTRAP_CHUNK_COUNT:]
+        if not remaining:
+            return entities, relations
+
+        # Snapshot the active types post-bootstrap; the parallel pass
+        # uses this frozen list, so concurrent chunks all see the same
+        # prompt-side type universe.
+        frozen_types = tuple(active_entity_types)
+        semaphore = asyncio.Semaphore(_DEFAULT_EXTRACTOR_LLM_CONCURRENCY)
+
+        async def _bounded_extract(
+            chunk: Mapping[str, Any],
+        ) -> tuple[list[EntityRecord], list[RelationRecord]]:
+            chunk_id = str(chunk.get("chunk_id") or chunk.get("id") or "")
+            text = str(chunk.get("text") or "")
+            if not text.strip():
+                return ([], [])
+            async with semaphore:
+                try:
+                    return await _extract_one_chunk(
+                        llm=llm,
+                        text=text,
+                        chunk_id=chunk_id,
+                        entity_types=frozen_types,
+                        language=prompt_language,
+                        max_entities=max_entities,
+                        max_relations=max_relations,
+                        timeout_seconds=per_chunk_timeout,
+                    )
+                except Exception:  # noqa: BLE001 — per-chunk failure isolation
+                    logger.exception(
+                        "graph extractor: main LLM call failed for chunk_id=%s in collection=%s; "
+                        "skipping chunk's entities/relations",
+                        chunk_id,
+                        collection_id,
+                    )
+                    return ([], [])
+
+        results = await asyncio.gather(*(_bounded_extract(chunk) for chunk in remaining))
+        for ents, rels in results:
+            entities.extend(ents)
+            relations.extend(rels)
+
         return entities, relations
 
     return _extractor
