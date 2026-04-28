@@ -1,18 +1,6 @@
 import createMDXPlugin from '@next/mdx';
-import { h } from 'hastscript';
 import type { NextConfig } from 'next';
 import createNextIntlPlugin from 'next-intl/plugin';
-import remarkDirective from 'remark-directive';
-import remarkFrontmatter from 'remark-frontmatter';
-import remarkGfm from 'remark-gfm';
-import remarkGithubAdmonitionsToDirectives from 'remark-github-admonitions-to-directives';
-import remarkHeaderId from 'remark-heading-id';
-import { visit } from 'unist-util-visit';
-// import remarkMdxFrontmatter from "remark-mdx-frontmatter";
-// import rehypeToc from '@jsdevtools/rehype-toc';
-import rehypeHighlight from 'rehype-highlight';
-
-// import rehypeHighlightLines from 'rehype-highlight-code-lines';
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
 
@@ -57,51 +45,24 @@ const withNextIntl = createNextIntlPlugin({
 /**
  * https://nextjs.org/docs/app/guides/mdx
  * https://github.com/vercel/next.js/issues/71819#issuecomment-2461802968
+ *
+ * No JS remark/rehype plugins are wired here on purpose: there are
+ * currently zero `.mdx` pages in the tree, so any plugin chain would be
+ * dead code at compile time. Runtime markdown rendering goes through
+ * `web/src/components/markdown.tsx`, which keeps its own React-side
+ * `react-markdown` plugin pipeline (gfm, highlight, directives,
+ * frontmatter, headerId).
+ *
+ * Keeping the chain empty makes the loader options worker-serializable,
+ * which is what `next dev --turbopack` requires (custom inline closures
+ * break the Turbopack worker pool with "loader options are not
+ * serializable"). If `.mdx` pages are introduced later, prefer
+ * `experimental.mdxRs: true` (Rust-based MDX) for Turbopack
+ * compatibility, or extract any JS plugins into their own modules so
+ * each one can be passed as an importable reference.
  */
 const withNextMDX = createMDXPlugin({
-  // Add markdown plugins here, as desired
   extension: /\.(md|mdx)$/,
-  options: {
-    remarkPlugins: [
-      remarkGfm,
-      remarkFrontmatter,
-      // remarkMdxFrontmatter,
-      remarkGithubAdmonitionsToDirectives,
-      remarkDirective,
-      () => {
-        return (tree) => {
-          visit(tree, (node) => {
-            if (node.type === 'containerDirective') {
-              const data = node.data || (node.data = {});
-              const tagName = 'div';
-              data.hName = tagName;
-              data.hProperties = h(tagName, {
-                ...node.attributes,
-                class: node.name,
-              }).properties;
-            }
-          });
-        };
-      },
-      [
-        remarkHeaderId,
-        {
-          defaults: true,
-        },
-      ],
-    ],
-    rehypePlugins: [
-      rehypeHighlight,
-      // rehypeHighlightLines,
-      // [
-      //   rehypeToc,
-      //   {
-      //     // position: 'beforebegin', // "beforebegin" | "afterbegin" | "beforeend" | "afterend"
-      //     headings: ['h2', 'h3', 'h4', 'h5', 'h6'],
-      //   },
-      // ],
-    ],
-  },
 });
 
 export default withNextMDX(withNextIntl(nextConfig));
