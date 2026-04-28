@@ -21,7 +21,7 @@
   "activity_stream": {
     "label": "Agent trace",
     "empty": "Thinking…",
-    "completed_empty": "This run did not invoke any tools.",
+    "completed_empty": "This run answered directly without looking up extra material.",
     "pending_empty": "This run ended before any answer was produced.",
     "repeated": "Repeated {count} times while this step stayed active.",
     "meta": {
@@ -48,12 +48,44 @@
       "chat_history": "chat history"
     },
     "tool": {
-      "title": "Calling tool: {name}",
-      "state": {
-        "input-streaming": "Preparing arguments…",
-        "input-available": "Arguments ready",
-        "output-available": "Done",
-        "output-error": "Failed"
+      "behavior": {
+        "web_search": {
+          "running": "Searching the web",
+          "done": "Finished web search",
+          "error": "Web search did not complete"
+        },
+        "web_read": {
+          "running": "Reading a web page",
+          "done": "Read the web page",
+          "error": "Web page read did not complete"
+        },
+        "knowledge_search": {
+          "running": "Searching the knowledge base",
+          "done": "Found relevant knowledge",
+          "error": "Knowledge search did not complete"
+        },
+        "document_read": {
+          "running": "Reading source material",
+          "done": "Read the source material",
+          "error": "Source reading did not complete"
+        },
+        "generic": {
+          "running": "Working through one step",
+          "done": "Completed one step",
+          "error": "This step did not complete"
+        }
+      },
+      "detail": {
+        "search_query": "Search: {query}",
+        "source_title": "Source: {title}",
+        "web_url": "Reading: {url}",
+        "web_search": "Looking for useful information on the web",
+        "web_read": "Opening and reading a relevant page",
+        "knowledge_search": "Filtering relevant content from the knowledge base",
+        "document_read": "Extracting key points from existing documents",
+        "generic": "Organizing intermediate information",
+        "done": "Used the result in the answer",
+        "error": "This step failed; continuing with available information"
       }
     },
     "transient": {

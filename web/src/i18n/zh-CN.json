@@ -365,7 +365,7 @@
     "activity_stream": {
       "label": "推理过程",
       "empty": "正在思考…",
-      "completed_empty": "本次运行没有产生工具调用。",
+      "completed_empty": "本次运行直接生成了回答，没有额外查找资料。",
       "pending_empty": "本次运行在生成回答前就结束了。",
       "repeated": "该步骤保持激活期间重复了 {count} 次。",
       "meta": {
@@ -392,12 +392,44 @@
         "chat_history": "聊天记录"
       },
       "tool": {
-        "title": "调用工具：{name}",
-        "state": {
-          "input-streaming": "正在准备参数…",
-          "input-available": "参数就绪",
-          "output-available": "已完成",
-          "output-error": "调用失败"
+        "behavior": {
+          "web_search": {
+            "running": "正在搜索网页",
+            "done": "已完成网页搜索",
+            "error": "网页搜索没有成功"
+          },
+          "web_read": {
+            "running": "正在阅读网页",
+            "done": "已阅读网页内容",
+            "error": "网页阅读没有成功"
+          },
+          "knowledge_search": {
+            "running": "正在检索知识库",
+            "done": "已找到相关知识",
+            "error": "知识库检索没有成功"
+          },
+          "document_read": {
+            "running": "正在阅读资料",
+            "done": "已阅读资料",
+            "error": "资料阅读没有成功"
+          },
+          "generic": {
+            "running": "正在处理信息",
+            "done": "已完成一步处理",
+            "error": "这一步没有成功"
+          }
+        },
+        "detail": {
+          "search_query": "搜索：{query}",
+          "source_title": "来源：{title}",
+          "web_url": "阅读：{url}",
+          "web_search": "正在从网页中寻找可用信息",
+          "web_read": "正在打开并阅读相关页面",
+          "knowledge_search": "正在从知识库中筛选相关内容",
+          "document_read": "正在从已有文档中提取要点",
+          "generic": "正在整理中间信息",
+          "done": "已把结果用于回答",
+          "error": "这一步失败，已继续处理可用信息"
         }
       },
       "transient": {

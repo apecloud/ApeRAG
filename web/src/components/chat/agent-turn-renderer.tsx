@@ -32,27 +32,9 @@
 
 import { CopyToClipboard } from '@/components/copy-to-clipboard';
 import { Markdown } from '@/components/markdown';
-import {
-  type AgentCitationPart,
-  type AgentElicitationPart,
-  type AgentMessagePart,
-  type AgentSourceDocumentPart,
-  type AgentSourceUrlPart,
-  type AgentStreamStatus,
-  type AgentTextPart,
-  type AgentToolConsentPart,
-  type AgentToolPart,
-  type AgentTurnEnvelope,
-  type ActivityData,
-  type CitationLocation,
-} from '@/features/agent-runtime';
-import type { Feedback, Reference } from '@/features/bot/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-} from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Collapsible,
   CollapsibleContent,
@@ -65,20 +47,33 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
+import {
+  type ActivityData,
+  type AgentCitationPart,
+  type AgentElicitationPart,
+  type AgentMessagePart,
+  type AgentSourceDocumentPart,
+  type AgentSourceUrlPart,
+  type AgentStreamStatus,
+  type AgentTextPart,
+  type AgentToolConsentPart,
+  type AgentToolPart,
+  type AgentTurnEnvelope,
+  type CitationLocation,
+} from '@/features/agent-runtime';
+import type { Feedback, Reference } from '@/features/bot/types';
 import { cn } from '@/lib/utils';
 import {
-  AlertTriangle,
   BookOpen,
-  Brain,
   CheckCircle2,
   ChevronRight,
-  Clock3,
   CornerDownRight,
+  Globe2,
   HandCoins,
   HelpCircle,
   LoaderCircle,
+  Search,
   Sparkles,
-  Wrench,
   XCircle,
 } from 'lucide-react';
 import { useFormatter, useTranslations } from 'next-intl';
@@ -172,7 +167,10 @@ function partitionParts(parts: AgentMessagePart[]) {
 }
 
 function joinTextParts(parts: AgentTextPart[]): string {
-  return parts.map((p) => p.text).filter(Boolean).join('\n\n');
+  return parts
+    .map((p) => p.text)
+    .filter(Boolean)
+    .join('\n\n');
 }
 
 function citationToReference(part: AgentCitationPart): Reference {
@@ -216,17 +214,185 @@ function sourceDocToReference(part: AgentSourceDocumentPart): Reference {
   };
 }
 
+type ToolBehaviorKind =
+  | 'web_search'
+  | 'web_read'
+  | 'knowledge_search'
+  | 'document_read'
+  | 'generic';
+
+type ToolBehaviorPhase = 'running' | 'done' | 'error';
+
 function toolDisplayName(part: AgentToolPart): string {
-  return part.toolName || part.type.replace(/^tool-/, '') || 'tool';
+  const metadataToolName =
+    typeof part.metadata?.mcpToolName === 'string'
+      ? part.metadata.mcpToolName
+      : undefined;
+  return (
+    part.toolName ||
+    metadataToolName ||
+    part.type.replace(/^tool-/, '') ||
+    'tool'
+  );
+}
+
+function toolBehaviorKind(part: AgentToolPart): ToolBehaviorKind {
+  const name = toolDisplayName(part).toLowerCase();
+  if (name.includes('web_search') || name.includes('search_web')) {
+    return 'web_search';
+  }
+  if (
+    name.includes('web_read') ||
+    name.includes('read_web') ||
+    name.includes('fetch_url') ||
+    name.includes('read_url')
+  ) {
+    return 'web_read';
+  }
+  if (
+    name.includes('read_document') ||
+    name.includes('document_read') ||
+    name.includes('read_section') ||
+    name.includes('read_chunk')
+  ) {
+    return 'document_read';
+  }
+  if (
+    name.includes('knowledge') ||
+    name.includes('collection') ||
+    name.includes('vector') ||
+    name.includes('fulltext') ||
+    name.includes('hybrid') ||
+    name.includes('graph') ||
+    name.includes('search')
+  ) {
+    return 'knowledge_search';
+  }
+  return 'generic';
+}
+
+function toolBehaviorPhase(state: AgentToolPart['state']): ToolBehaviorPhase {
+  if (state === 'output-error') return 'error';
+  if (state === 'output-available') return 'done';
+  return 'running';
+}
+
+function toolBehaviorIcon(kind: ToolBehaviorKind, phase: ToolBehaviorPhase) {
+  if (phase === 'error') return XCircle;
+  if (phase === 'done') return CheckCircle2;
+  switch (kind) {
+    case 'web_search':
+    case 'knowledge_search':
+      return Search;
+    case 'web_read':
+      return Globe2;
+    case 'document_read':
+      return BookOpen;
+    default:
+      return Sparkles;
+  }
+}
+
+function extractStringField(
+  value: unknown,
+  keys: string[],
+  depth = 3,
+): string | undefined {
+  if (Array.isArray(value)) {
+    if (depth <= 0) return undefined;
+    for (const item of value) {
+      const found = extractStringField(item, keys, depth - 1);
+      if (found) return found;
+    }
+    return undefined;
+  }
+  if (value == null || typeof value !== 'object') {
+    return undefined;
+  }
+  const record = value as Record<string, unknown>;
+  for (const key of keys) {
+    const candidate = record[key];
+    if (typeof candidate === 'string' && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+  if (depth <= 0) return undefined;
+  for (const candidate of Object.values(record)) {
+    const found = extractStringField(candidate, keys, depth - 1);
+    if (found) return found;
+  }
+  return undefined;
+}
+
+function compactUrlLabel(value: string): string {
+  try {
+    const url = new URL(value);
+    const path = url.pathname === '/' ? '' : url.pathname;
+    return `${url.hostname}${path}`.replace(/\/$/, '');
+  } catch {
+    return value;
+  }
+}
+
+function toolBehaviorDetail(
+  part: AgentToolPart,
+  kind: ToolBehaviorKind,
+  pageChat: ReturnType<typeof useTranslations<'page_chat'>>,
+): string {
+  if (part.summary?.trim()) return part.summary.trim();
+
+  const display = extractStringField(part.metadata, ['display'], 1);
+  if (display) return display;
+
+  const query =
+    extractStringField(part.metadata, ['query', 'q', 'keyword', 'keywords']) ||
+    extractStringField(part.input, ['query', 'q', 'keyword', 'keywords']) ||
+    extractStringField(part.output, ['query', 'q', 'keyword', 'keywords']);
+  if (query) {
+    return pageChat('activity_stream.tool.detail.search_query', { query });
+  }
+
+  const title =
+    extractStringField(part.metadata, ['title', 'name']) ||
+    extractStringField(part.input, ['title', 'name']) ||
+    extractStringField(part.output, ['title', 'name']);
+  if (title) {
+    return pageChat('activity_stream.tool.detail.source_title', { title });
+  }
+
+  const url =
+    extractStringField(part.metadata, ['url', 'uri', 'link']) ||
+    extractStringField(part.input, ['url', 'uri', 'link']) ||
+    extractStringField(part.output, ['url', 'uri', 'link']);
+  if (url) {
+    return pageChat('activity_stream.tool.detail.web_url', {
+      url: compactUrlLabel(url),
+    });
+  }
+
+  if (part.state === 'output-error') {
+    return pageChat('activity_stream.tool.detail.error');
+  }
+  if (part.state === 'output-available') {
+    return pageChat('activity_stream.tool.detail.done');
+  }
+  return pageChat(`activity_stream.tool.detail.${kind}` as never, {} as never);
+}
+
+function isVisibleToolActivity(part: AgentToolPart): boolean {
+  const kind = toolBehaviorKind(part);
+  return !(kind === 'generic' && part.state === 'output-available');
 }
 
 // ---------------------------------------------------------------------------
 
 function ToolActivityItem({ part }: { part: AgentToolPart }) {
   const pageChat = useTranslations('page_chat');
+  if (!isVisibleToolActivity(part)) return null;
+  const kind = toolBehaviorKind(part);
+  const phase = toolBehaviorPhase(part.state);
   const tone = toolStateTone(part.state);
-  const Icon = toolStateIcon(part.state);
-  const name = toolDisplayName(part);
+  const Icon = toolBehaviorIcon(kind, phase);
   const inputPreview = previewJson(part.input, 220);
   const outputPreview = part.errorText
     ? part.errorText
@@ -246,15 +412,19 @@ function ToolActivityItem({ part }: { part: AgentToolPart }) {
             className={cn(
               'font-medium',
               tone.title,
-              part.state === 'input-streaming' || part.state === 'input-available'
+              part.state === 'input-streaming' ||
+                part.state === 'input-available'
                 ? 'animate-pulse'
                 : '',
             )}
           >
-            {pageChat('activity_stream.tool.title', { name })}
+            {pageChat(
+              `activity_stream.tool.behavior.${kind}.${phase}` as never,
+              {} as never,
+            )}
           </span>
           <span className={cn('break-words', tone.subtitle)}>
-            {pageChat(`activity_stream.tool.state.${part.state}`)}
+            {toolBehaviorDetail(part, kind, pageChat)}
           </span>
         </div>
         {hasDebug && (
@@ -275,7 +445,7 @@ function ToolActivityItem({ part }: { part: AgentToolPart }) {
                     <div className="text-muted-foreground/80">
                       {pageChat('activity_stream.debug.command_input')}
                     </div>
-                    <pre className="bg-background/80 border-border/40 overflow-x-auto rounded border px-2 py-1 whitespace-pre-wrap break-all">
+                    <pre className="bg-background/80 border-border/40 overflow-x-auto rounded border px-2 py-1 break-all whitespace-pre-wrap">
                       {inputPreview}
                     </pre>
                   </div>
@@ -287,7 +457,7 @@ function ToolActivityItem({ part }: { part: AgentToolPart }) {
                     </div>
                     <pre
                       className={cn(
-                        'bg-background/80 border-border/40 overflow-x-auto rounded border px-2 py-1 whitespace-pre-wrap break-all',
+                        'bg-background/80 border-border/40 overflow-x-auto rounded border px-2 py-1 break-all whitespace-pre-wrap',
                         part.state === 'output-error' && 'text-destructive',
                       )}
                     >
@@ -302,20 +472,6 @@ function ToolActivityItem({ part }: { part: AgentToolPart }) {
       </div>
     </div>
   );
-}
-
-function toolStateIcon(state: AgentToolPart['state']) {
-  switch (state) {
-    case 'input-streaming':
-    case 'input-available':
-      return Wrench;
-    case 'output-available':
-      return CheckCircle2;
-    case 'output-error':
-      return XCircle;
-    default:
-      return Wrench;
-  }
 }
 
 function toolStateTone(state: AgentToolPart['state']) {
@@ -362,40 +518,16 @@ function isTransientIntent(value: unknown): value is TransientIntent {
   );
 }
 
-function ActivityIndicator({ activity }: { activity: ActivityData | null }) {
-  const pageChat = useTranslations('page_chat');
+function activityLabel(
+  activity: ActivityData | null,
+  pageChat: ReturnType<typeof useTranslations<'page_chat'>>,
+): string | null {
   if (!activity) return null;
   const rawIntent = activity.activity?.intent || activity.intent;
   const intent: TransientIntent = isTransientIntent(rawIntent)
     ? rawIntent
     : 'thinking';
-  const Icon = activityIntentIcon(intent);
-  const label = pageChat(`activity_stream.transient.${intent}` as const);
-  return (
-    <div className="flex items-center gap-2 px-3.5 pt-2 pb-1 text-[12px]">
-      <Icon className="text-primary size-3.5 animate-pulse" />
-      <span className="text-muted-foreground italic">{label}</span>
-    </div>
-  );
-}
-
-function activityIntentIcon(intent: string) {
-  switch (intent) {
-    case 'searching_knowledge':
-      return Sparkles;
-    case 'reading_source':
-      return BookOpen;
-    case 'comparing_results':
-      return Brain;
-    case 'writing_answer':
-      return Sparkles;
-    case 'completed':
-      return CheckCircle2;
-    case 'error':
-      return AlertTriangle;
-    default:
-      return Clock3;
-  }
+  return pageChat(`activity_stream.transient.${intent}` as const);
 }
 
 // ---------------------------------------------------------------------------
@@ -457,6 +589,10 @@ export function AgentTurnRenderer({
 
   const grouped = useMemo(() => partitionParts(parts), [parts]);
   const answerText = useMemo(() => joinTextParts(grouped.text), [grouped.text]);
+  const visibleToolParts = useMemo(
+    () => grouped.tool.filter(isVisibleToolActivity),
+    [grouped.tool],
+  );
   const references = useMemo<Reference[]>(() => {
     const fromUrls = grouped.sourceUrl.map(sourceUrlToReference);
     const fromDocs = grouped.sourceDoc.map(sourceDocToReference);
@@ -468,21 +604,36 @@ export function AgentTurnRenderer({
   const statusKey = STATUS_LABEL_KEY[status];
   const statusTone = STATUS_BADGE_TONE[status];
   const showHeaderStatus = status !== 'completed';
+  const activeToolPart =
+    visibleToolParts.findLast(
+      (part) => toolBehaviorPhase(part.state) === 'running',
+    ) || visibleToolParts.at(-1);
+  const headerStatusLabel =
+    (pending && activityLabel(transientActivity, pageChat)) ||
+    (pending && activeToolPart
+      ? pageChat(
+          `activity_stream.tool.behavior.${toolBehaviorKind(activeToolPart)}.running` as never,
+          {} as never,
+        )
+      : pageChat(`activity_stream.status.${statusKey}` as never, {} as never));
 
   const timestamp = turn.finished_at || turn.started_at;
   const showAnswerSection =
-    Boolean(answerText) || TERMINAL_STATUSES.has(status);
+    TERMINAL_STATUSES.has(status) ||
+    ((status === 'failed' || status === 'cancelled' || status === 'aborted') &&
+      Boolean(answerText));
   const showReferences =
     references.length > 0 && !(status === 'completed' && Boolean(answerText));
   const hasTurnDebugDetails =
     status === 'failed' ||
     Boolean(errorText || turn.error_code || turn.error_message);
   const copyText = answerText || errorText || turn.error_message || '';
-
   const traceMetaParts: string[] = [];
-  if (grouped.tool.length > 0) {
+  if (visibleToolParts.length > 0) {
     traceMetaParts.push(
-      pageChat('activity_stream.meta.steps', { count: grouped.tool.length }),
+      pageChat('activity_stream.meta.steps', {
+        count: visibleToolParts.length,
+      }),
     );
   }
   if (references.length > 0) {
@@ -493,7 +644,7 @@ export function AgentTurnRenderer({
   const traceMeta = traceMetaParts.join(' · ');
 
   const hasActivity =
-    grouped.tool.length +
+    visibleToolParts.length +
       grouped.consent.length +
       grouped.elicitation.length >
     0;
@@ -508,17 +659,11 @@ export function AgentTurnRenderer({
           <Sparkles className="size-3.5" />
         </div>
       </div>
-      <div className="flex min-w-0 max-w-sm flex-1 flex-col gap-3 sm:max-w-lg md:max-w-2xl lg:max-w-3xl xl:max-w-4xl">
+      <div className="flex max-w-sm min-w-0 flex-1 flex-col gap-3 sm:max-w-lg md:max-w-2xl lg:max-w-3xl xl:max-w-4xl">
         {showHeaderStatus && (
           <div className="flex flex-row items-center gap-2">
-            <Badge
-              variant={statusTone}
-              className="h-5 px-2 text-[10px]"
-            >
-              {pageChat(
-                `activity_stream.status.${statusKey}` as never,
-                {} as never,
-              )}
+            <Badge variant={statusTone} className="h-5 px-2 text-[10px]">
+              {headerStatusLabel}
             </Badge>
             {timestamp && (
               <div className="text-muted-foreground font-mono text-[11px]">
@@ -550,7 +695,6 @@ export function AgentTurnRenderer({
             </button>
           </CollapsibleTrigger>
           <CollapsibleContent>
-            <ActivityIndicator activity={transientActivity} />
             <div className="border-border/70 flex flex-col gap-2.5 border-t px-4 py-3.5">
               {!hasActivity && (
                 <div className="text-muted-foreground py-1 text-[13px]">
@@ -561,33 +705,50 @@ export function AgentTurnRenderer({
                       : pageChat('activity_stream.pending_empty' as const)}
                 </div>
               )}
-              {grouped.tool.map((part) => (
-                <ToolActivityItem key={part.toolCallId} part={part} />
-              ))}
-              {grouped.consent.map((part) =>
-                ConsentSlot ? (
-                  <ConsentSlot
-                    key={part.id}
-                    chatId={chatId}
-                    turnId={turn.turn_id}
-                    part={part}
-                  />
-                ) : (
-                  <ConsentPlaceholder key={part.id} part={part} />
-                ),
-              )}
-              {grouped.elicitation.map((part) =>
-                ElicitationSlot ? (
-                  <ElicitationSlot
-                    key={part.id}
-                    chatId={chatId}
-                    turnId={turn.turn_id}
-                    part={part}
-                  />
-                ) : (
-                  <ElicitationPlaceholder key={part.id} part={part} />
-                ),
-              )}
+              {parts.map((part, index) => {
+                if (part.type === 'text') {
+                  return null;
+                }
+                if (part.type.startsWith('tool-')) {
+                  return (
+                    <ToolActivityItem
+                      key={`tool-${(part as AgentToolPart).toolCallId}-${index}`}
+                      part={part as AgentToolPart}
+                    />
+                  );
+                }
+                if (part.type === 'data-tool-consent') {
+                  return ConsentSlot ? (
+                    <ConsentSlot
+                      key={`consent-${part.id}`}
+                      chatId={chatId}
+                      turnId={turn.turn_id}
+                      part={part}
+                    />
+                  ) : (
+                    <ConsentPlaceholder
+                      key={`consent-${part.id}`}
+                      part={part}
+                    />
+                  );
+                }
+                if (part.type === 'data-elicitation') {
+                  return ElicitationSlot ? (
+                    <ElicitationSlot
+                      key={`elicitation-${part.id}`}
+                      chatId={chatId}
+                      turnId={turn.turn_id}
+                      part={part}
+                    />
+                  ) : (
+                    <ElicitationPlaceholder
+                      key={`elicitation-${part.id}`}
+                      part={part}
+                    />
+                  );
+                }
+                return null;
+              })}
             </div>
           </CollapsibleContent>
         </Collapsible>
@@ -607,13 +768,15 @@ export function AgentTurnRenderer({
             <Card
               className={cn(
                 'gap-0 overflow-hidden rounded-xl py-0',
-                status === 'failed' || status === 'cancelled' || status === 'aborted'
+                status === 'failed' ||
+                  status === 'cancelled' ||
+                  status === 'aborted'
                   ? 'border-destructive/20 bg-destructive/5 shadow-none'
                   : 'border-border/60 bg-background/80',
               )}
             >
               <CardContent className="px-4 py-4 text-sm">
-                <div className="text-muted-foreground font-mono mb-2 text-[10.5px] tracking-[0.08em] uppercase">
+                <div className="text-muted-foreground mb-2 font-mono text-[10.5px] tracking-[0.08em] uppercase">
                   {pageChat(
                     answerSectionTitleKey(status, Boolean(answerText)) as never,
                     {} as never,
@@ -634,7 +797,10 @@ export function AgentTurnRenderer({
                   </div>
                 ) : (
                   <div className="text-muted-foreground text-sm">
-                    {pageChat(emptyAnswerStateKey(status) as never, {} as never)}
+                    {pageChat(
+                      emptyAnswerStateKey(status) as never,
+                      {} as never,
+                    )}
                   </div>
                 )}
                 {errorText && (
@@ -775,7 +941,6 @@ export function AgentTurnRenderer({
       </div>
     </div>
   );
-
 }
 
 function answerSectionTitleKey(
