@@ -129,6 +129,21 @@ class Collection(Base):
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)
+    # Wave 10 — auto-description (collection summary + description) §K.13
+    # ``summary`` is the long-form canonical content produced by Stage 1
+    # agent-runtime free-explore (5000-10000 chars). ``description`` is
+    # the short derived form (200-500 chars) produced by Stage 2 from
+    # ``summary``. ``description`` predates this wave (used to be user-
+    # editable); Wave 10 changes its semantic to auto-generated only.
+    summary = Column(Text, nullable=True)
+    summary_updated_at = Column(DateTime(timezone=True), nullable=True)
+    description_updated_at = Column(DateTime(timezone=True), nullable=True)
+    # Cluster-level lease — single scope shared by both Stage 1 and
+    # Stage 2 regen (description depends on summary, can't run in
+    # parallel). ``regen_lease_owner`` is a UUID hex token; expiry lets
+    # the next reconciler reclaim a stale lease after a crash.
+    regen_lease_owner = Column(String(64), nullable=True)
+    regen_lease_expires_at = Column(DateTime(timezone=True), nullable=True)
 
 
 class CollectionSummary(Base):
