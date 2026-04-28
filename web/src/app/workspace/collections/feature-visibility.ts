@@ -4,6 +4,9 @@ import type {
   SearchResultItem,
 } from '@/features/retrieval/types';
 
+/** When false, hide the collection "retrieval test" UI (nav tab + /search page). */
+export const showRetrievalTestModule = false;
+
 const hiddenCollectionConfigKeys = new Set([
   'config.enable_summary',
   'config.enable_vision',

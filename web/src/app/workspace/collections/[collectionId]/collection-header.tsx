@@ -45,6 +45,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
+import { showRetrievalTestModule } from '../feature-visibility';
 import { CollectionDelete } from './collection-delete';
 
 export const CollectionHeader = ({ className }: { className?: string }) => {
@@ -111,12 +112,14 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
               label: page_graph('metadata.title'),
             }
           : null,
-        {
-          href: urls.search,
-          active: Boolean(pathname.match(urls.search)),
-          icon: FolderSearch,
-          label: page_search('metadata.title'),
-        },
+        showRetrievalTestModule
+          ? {
+              href: urls.search,
+              active: Boolean(pathname.match(urls.search)),
+              icon: FolderSearch,
+              label: page_search('metadata.title'),
+            }
+          : null,
         {
           href: urls.settings,
           active: Boolean(pathname.match(urls.settings)),

@@ -82,6 +82,7 @@ from aperag.exceptions import (
 )
 from aperag.indexing.models import (
     DocumentIndex,
+    IndexStatus,
     Modality,
 )
 from aperag.objectstore.base import get_async_object_store
@@ -99,6 +100,27 @@ from aperag.utils.uncompress import SUPPORTED_COMPRESSED_EXTENSIONS
 from aperag.utils.utils import calculate_file_hash, generate_vector_db_collection_name, utc_now
 
 logger = logging.getLogger(__name__)
+
+
+def _index_statuses_to_document_status(indexes: dict, fallback: DocumentStatus) -> DocumentStatus:
+    enabled_indexes = [index for index in indexes.values() if index]
+    if not enabled_indexes:
+        return fallback
+
+    statuses = [index.get("status") for index in enabled_indexes]
+    if any(status == IndexStatus.FAILED.value for status in statuses):
+        return DocumentStatus.FAILED
+    if any(status in (IndexStatus.PENDING.value, IndexStatus.RUNNING.value) for status in statuses):
+        return DocumentStatus.RUNNING
+    if all(index.get("status") == IndexStatus.ACTIVE.value and index.get("is_serving") for index in enabled_indexes):
+        return DocumentStatus.COMPLETE
+    return fallback
+
+
+def _markdown_path_from_derived_artifact(derived_artifact_path: str | None) -> str | None:
+    if not derived_artifact_path:
+        return None
+    return f"{os.path.dirname(derived_artifact_path)}/markdown.md"
 
 
 # ---------------------------------------------------------------------
@@ -515,6 +537,7 @@ class DocumentService:
                     DocumentIndex.created_at.label("index_created_at"),
                     DocumentIndex.updated_at.label("index_updated_at"),
                     DocumentIndex.error_message.label("index_error_message"),
+                    DocumentIndex.is_serving.label("index_is_serving"),
                 )
                 .select_from(
                     outerjoin(
@@ -564,6 +587,7 @@ class DocumentService:
                         "created_at": row.index_created_at,
                         "updated_at": row.index_updated_at,
                         "error_message": row.index_error_message,
+                        "is_serving": row.index_is_serving,
                         "index_data": None,
                     }
 
@@ -594,7 +618,7 @@ class DocumentService:
         return DocumentSchema(
             id=document.id,
             name=document.name,
-            status=document.status,
+            status=_index_statuses_to_document_status(indexes, document.status),
             # Per-modality status: ``None`` when the row does not exist
             # (modality not enabled for this collection — the dispatcher
             # never created a document_index row). Wave 3 §F.2 hard-cut
@@ -800,6 +824,7 @@ class DocumentService:
                         "created_at": index.created_at,
                         "updated_at": index.updated_at,
                         "error_message": index.error_message,
+                        "is_serving": index.is_serving,
                         "index_data": None,
                     }
 
@@ -1198,10 +1223,15 @@ class DocumentService:
             # 3. Get markdown content
             async_obj_store = get_async_object_store()
             markdown_content = ""
-            # The parsed markdown file is stored with the name "parsed.md"
-            markdown_path = f"{document.object_store_base_path()}/parsed.md"
+            vector_index_stmt = select(DocumentIndex.derived_artifact_path).filter(
+                DocumentIndex.document_id == document_id,
+                DocumentIndex.modality == Modality.VECTOR.value,
+                DocumentIndex.is_serving.is_(True),
+            )
+            vector_index_result = await session.execute(vector_index_stmt)
+            markdown_path = _markdown_path_from_derived_artifact(vector_index_result.scalars().first())
             try:
-                md_obj_result = await async_obj_store.get(markdown_path)
+                md_obj_result = await async_obj_store.get(markdown_path) if markdown_path else None
                 if md_obj_result:
                     md_stream, _ = md_obj_result
                     content = b""

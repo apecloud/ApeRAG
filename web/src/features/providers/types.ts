@@ -84,6 +84,8 @@ export type ModelPlatformViewModel = {
 
 export type ModelSpec = {
   model_id?: string | null;
+  /** UI label from model platform; form values stay `model_id`. */
+  display_name?: string | null;
   temperature?: number | null;
   max_tokens?: number | null;
   max_completion_tokens?: number | null;

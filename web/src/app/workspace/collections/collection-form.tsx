@@ -56,6 +56,9 @@ import { toast } from 'sonner';
 import * as z from 'zod';
 import { isVisibleCollectionConfigKey } from './feature-visibility';
 
+const modelSelectLabel = (m: ModelSpec) =>
+  (m.display_name?.trim() || m.model_id || '').trim();
+
 const collectionModelSchema = z
   .object({
     model_id: z.string(),
@@ -197,10 +200,36 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
   const loadModels = useCallback(async () => {
     const models = await getAvailableModels(['chat', 'embedding']);
     setCompletionModels(
-      [{ label: page_collections('completion_model'), name: 'chat', models: models.filter((m) => m.capability === 'chat').map((m) => ({ model_id: m.id, temperature: 0.1, tags: [] })) }],
+      [
+        {
+          label: page_collections('completion_model'),
+          name: 'chat',
+          models: models
+            .filter((m) => m.capability === 'chat')
+            .map((m) => ({
+              model_id: m.id,
+              display_name: m.display_name,
+              temperature: 0.1,
+              tags: [],
+            })),
+        },
+      ],
     );
     setEmbeddingModels(
-      [{ label: page_collections('embedding_model'), name: 'embedding', models: models.filter((m) => m.capability === 'embedding').map((m) => ({ model_id: m.id, temperature: 0.1, tags: [] })) }],
+      [
+        {
+          label: page_collections('embedding_model'),
+          name: 'embedding',
+          models: models
+            .filter((m) => m.capability === 'embedding')
+            .map((m) => ({
+              model_id: m.id,
+              display_name: m.display_name,
+              temperature: 0.1,
+              tags: [],
+            })),
+        },
+      ],
     );
   }, [page_collections]);
 
@@ -510,7 +539,7 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
                                           key={model.model_id}
                                           value={model.model_id || ''}
                                         >
-                                          {model.model_id}
+                                          {modelSelectLabel(model)}
                                         </SelectItem>
                                       );
                                     })}
@@ -562,7 +591,7 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
                                         key={model.model_id}
                                         value={model.model_id || ''}
                                       >
-                                        {model.model_id}
+                                        {modelSelectLabel(model)}
                                       </SelectItem>
                                     );
                                   })}
