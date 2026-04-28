@@ -29,7 +29,12 @@ const traceSteps = [
   'compare',
   'answer',
 ] as const;
-const graphLegendItems = ['person', 'org', 'product', 'event'] as const;
+const graphLegendItems = [
+  { labelKey: 'graph.legend_items.person', className: 'bg-chart-1' },
+  { labelKey: 'graph.legend_items.org', className: 'bg-chart-2' },
+  { labelKey: 'graph.legend_items.product', className: 'bg-chart-4' },
+  { labelKey: 'graph.legend_items.event', className: 'bg-chart-5' },
+] as const;
 const agentFeatureKeys = ['runtime', 'mcp', 'audit'] as const;
 const deploymentFeatureKeys = ['private', 'models', 'management'] as const;
 
@@ -487,20 +492,10 @@ function GraphVisual({ t }: { t: LandingTranslations }) {
           {t('graph.legend')}
         </div>
         <div className="text-muted-foreground mt-3 grid grid-cols-2 gap-x-5 gap-y-2 text-xs">
-          {graphLegendItems.map((item, index) => (
-            <div key={item} className="flex items-center gap-2">
-              <span
-                className={`size-2 rounded-full ${
-                  index === 0
-                    ? 'bg-chart-1'
-                    : index === 1
-                      ? 'bg-chart-2'
-                      : index === 2
-                        ? 'bg-chart-4'
-                        : 'bg-chart-5'
-                }`}
-              />
-              {t(`graph.legend_items.${item}`)}
+          {graphLegendItems.map((item) => (
+            <div key={item.labelKey} className="flex items-center gap-2">
+              <span className={`size-2 rounded-full ${item.className}`} />
+              {t(item.labelKey)}
             </div>
           ))}
         </div>
