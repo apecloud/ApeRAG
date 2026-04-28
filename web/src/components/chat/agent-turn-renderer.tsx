@@ -793,6 +793,7 @@ export function AgentTurnRenderer({
   }, [grouped.citation, grouped.sourceDoc, grouped.sourceUrl]);
 
   const pending = !TERMINAL_STATUSES.has(status);
+  const hasAnswerText = Boolean(answerText.trim());
   const statusKey = STATUS_LABEL_KEY[status];
   const statusTone = STATUS_BADGE_TONE[status];
   const showHeaderStatus = status !== 'completed';
@@ -811,9 +812,10 @@ export function AgentTurnRenderer({
 
   const timestamp = turn.finished_at || turn.started_at;
   const showAnswerSection =
+    hasAnswerText ||
     TERMINAL_STATUSES.has(status) ||
     ((status === 'failed' || status === 'cancelled' || status === 'aborted') &&
-      Boolean(answerText));
+      hasAnswerText);
   const showReferences =
     references.length > 0 && !(status === 'completed' && Boolean(answerText));
   const hasTurnDebugDetails =
