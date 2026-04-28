@@ -79,7 +79,8 @@ export function CosmographTopology() {
       enableSimulation: true,
       simulationGravity: 0.25,
       simulationRepulsion: 1.0,
-      pointSize: 6,
+      pointDefaultSize: 8,
+      fitViewOnInit: true,
       onPointClick: (index: number) => {
         const point = dataset.points[index];
         if (point) setSelected(point);

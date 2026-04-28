@@ -55,7 +55,8 @@ export function CosmographSemanticMap() {
       backgroundColor: 'transparent',
       // Semantic mode: positions are pre-baked, suppress the simulation.
       enableSimulation: false,
-      pointSize: 4,
+      pointDefaultSize: 4,
+      fitViewOnInit: true,
       onPointClick: (index: number) => {
         const point = dataset.points[index];
         if (point) setSelected(point);

@@ -39,11 +39,6 @@ const EXTERNAL_LINKS: Array<{
     title: 'Current · /graph',
     description: 'Production page, react-force-graph-2d.',
   },
-  {
-    href: (id) => `/workspace/collections/${id}/graph-showcase`,
-    title: 'Showcase · /graph-showcase',
-    description: 'Existing alternate visual exploration page.',
-  },
 ];
 
 export function GraphLabNav({ active, onChange }: Props) {

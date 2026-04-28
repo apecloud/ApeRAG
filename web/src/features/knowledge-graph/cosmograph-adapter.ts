@@ -128,11 +128,17 @@ export function buildSyntheticSemanticDataset(
     };
   })();
 
+  // Cosmograph's default `spaceSize` is 4096; sub-unit coordinates would
+  // collapse the whole point cloud onto a single pixel. Scale the cluster
+  // ring + Gaussian spread to roughly fill a 2000-unit window, which
+  // fitView can then zoom to comfortably.
+  const ringRadius = 900;
+  const gaussianSpread = 90;
   const clusterCenters = Array.from({ length: clusterCount }, (_, k) => {
     const angle = (k / clusterCount) * Math.PI * 2;
     return {
-      cx: Math.cos(angle) * 0.6,
-      cy: Math.sin(angle) * 0.6,
+      cx: Math.cos(angle) * ringRadius,
+      cy: Math.sin(angle) * ringRadius,
     };
   });
 
@@ -148,7 +154,7 @@ export function buildSyntheticSemanticDataset(
     // cluster cores with sparse outliers that the reference visual has.
     const u1 = Math.max(prng(), 1e-9);
     const u2 = prng();
-    const radius = Math.sqrt(-2 * Math.log(u1)) * 0.06;
+    const radius = Math.sqrt(-2 * Math.log(u1)) * gaussianSpread;
     const theta = u2 * Math.PI * 2;
     return {
       id: `synthetic-${i}`,
