@@ -440,6 +440,48 @@ class GraphSubgraphExpandResponse(BaseModel):
     )
 
 
+class GraphEmbeddingPoint(BaseModel):
+    """Single point in the 2-D projection of entity vectors."""
+
+    name: str = Field(..., description="Canonical entity name")
+    entity_type: str = Field(..., description="Entity type bucket")
+    cluster: int = Field(
+        ...,
+        description="Sequential cluster index derived from entity_type",
+    )
+    x: float = Field(
+        ...,
+        description="X coordinate in the 2-D projection of the entity vectors",
+    )
+    y: float = Field(
+        ...,
+        description="Y coordinate in the 2-D projection of the entity vectors",
+    )
+    source_chunk_count: int = Field(
+        0,
+        description="Number of source chunks supporting this entity",
+        ge=0,
+    )
+
+
+class GraphEmbeddingMapRelation(BaseModel):
+    """Edge in the embedding-map view."""
+
+    source: str = Field(..., description="Source entity name")
+    target: str = Field(..., description="Target entity name")
+
+
+class GraphEmbeddingMapResponse(BaseModel):
+    """Response for ``GET /graphs/embedding-map``."""
+
+    points: list[GraphEmbeddingPoint] = Field(...)
+    relations: list[GraphEmbeddingMapRelation] = Field(...)
+    cluster_labels: dict[str, str] = Field(
+        ...,
+        description="Mapping from numeric cluster index to entity_type label",
+    )
+
+
 __all__ = [
     "GraphLabelsResponse",
     "GraphNodeProperties",
@@ -461,4 +503,7 @@ __all__ = [
     "GraphEntitiesSearchResponse",
     "GraphSubgraphExpandRequest",
     "GraphSubgraphExpandResponse",
+    "GraphEmbeddingPoint",
+    "GraphEmbeddingMapRelation",
+    "GraphEmbeddingMapResponse",
 ]

@@ -3,7 +3,9 @@
 import { browserApiClient } from '@/lib/api/typed/browser';
 
 import type {
+  GraphEmbeddingMapResponse,
   GraphLabelsResponse,
+  GraphSearchEntity,
   KnowledgeGraph,
   MergeSuggestionItem,
   MergeSuggestionsResponse,
@@ -100,6 +102,40 @@ export async function getKnowledgeGraph(
     },
   );
   return data;
+}
+
+export async function getGraphEmbeddingMap(
+  collectionId: string,
+  maxEntities = 1000,
+): Promise<GraphEmbeddingMapResponse | null> {
+  const { data } = await browserApiClient.GET(
+    '/api/v2/collections/{collection_id}/graphs/embedding-map',
+    {
+      params: {
+        path: { collection_id: collectionId },
+        query: { max_entities: maxEntities },
+      },
+    },
+  );
+  return data ?? null;
+}
+
+export async function searchGraphEntities(
+  collectionId: string,
+  q: string,
+  topK = 8,
+): Promise<GraphSearchEntity[]> {
+  if (!q.trim()) return [];
+  const { data } = await browserApiClient.GET(
+    '/api/v2/collections/{collection_id}/graphs/entities/search',
+    {
+      params: {
+        path: { collection_id: collectionId },
+        query: { q, top_k: topK },
+      },
+    },
+  );
+  return data?.entities ?? [];
 }
 
 export async function getMarketplaceKnowledgeGraph(

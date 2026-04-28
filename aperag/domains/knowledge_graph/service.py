@@ -48,6 +48,7 @@ from aperag.exceptions import CollectionNotFoundException
 
 if TYPE_CHECKING:
     from aperag.domains.knowledge_graph.schemas import (
+        GraphEmbeddingMapResponse,
         GraphEntitiesSearchResponse,
         GraphRelationView,
         GraphSearchEntity,
@@ -381,6 +382,148 @@ class GraphService:
         if entity is None:
             return None
         return _entity_to_search_view(entity)
+
+    async def get_embedding_map(
+        self,
+        user_id: str,
+        collection_id: str,
+        *,
+        max_entities: int = 1000,
+    ) -> "GraphEmbeddingMapResponse":
+        """Return a 2-D PCA projection of graph entity vectors.
+
+        The hybrid graph view joins these stable coordinates with the
+        existing topology response. Keeping coordinates and topology
+        separate lets the frontend reuse the normal graph endpoint for
+        edge metadata while this endpoint stays bounded to vector-backed
+        entities only.
+        """
+        import asyncio
+        import math
+        import uuid as _uuid
+
+        import numpy as np
+
+        from aperag.domains.knowledge_graph.schemas import (
+            GraphEmbeddingMapResponse,
+            GraphEmbeddingPoint,
+        )
+        from aperag.indexing.worker_factory import (
+            _build_collection_qdrant_connector,
+            _build_lineage_graph_store,
+            _resolve_graph_backend_type,
+        )
+
+        db_collection = await self._get_and_validate_collection(user_id, collection_id)
+        backend_type = _resolve_graph_backend_type(db_collection)
+        store = await asyncio.to_thread(
+            _build_lineage_graph_store,
+            backend_type=backend_type,
+            collection=db_collection,
+        )
+        adaptor, _embedder, _vector_size = await asyncio.to_thread(
+            _build_collection_qdrant_connector,
+            db_collection,
+        )
+        connector = adaptor.connector
+
+        max_entities = max(1, min(int(max_entities), 5000))
+        entities = await store.list_entities(limit=max_entities, offset=0)
+        if not entities:
+            return GraphEmbeddingMapResponse(points=[], relations=[], cluster_labels={})
+
+        ids: list[str] = []
+        id_to_entity: dict[str, Any] = {}
+        seen_names: set[str] = set()
+        for entity in entities:
+            if entity.name in seen_names:
+                continue
+            seen_names.add(entity.name)
+            point_id = str(
+                _uuid.uuid5(
+                    _uuid.NAMESPACE_DNS,
+                    f"graph_entity:{collection_id}:{entity.name}",
+                )
+            )
+            ids.append(point_id)
+            id_to_entity[point_id] = entity
+
+        retrieved = await asyncio.to_thread(connector.retrieve, ids, with_vectors=True)
+        if not retrieved:
+            return GraphEmbeddingMapResponse(points=[], relations=[], cluster_labels={})
+
+        vectors: list[list[float]] = []
+        kept_entities: list[Any] = []
+        for vector_point in retrieved:
+            if vector_point.vector is None:
+                continue
+            vector = list(vector_point.vector)
+            if not vector:
+                continue
+            entity = id_to_entity.get(str(vector_point.id))
+            if entity is None:
+                continue
+            vectors.append(vector)
+            kept_entities.append(entity)
+        if not vectors:
+            return GraphEmbeddingMapResponse(points=[], relations=[], cluster_labels={})
+
+        matrix = np.asarray(vectors, dtype=np.float32)
+        centered = matrix - matrix.mean(axis=0, keepdims=True)
+        try:
+            _u, _s, vh = np.linalg.svd(centered, full_matrices=False)
+        except np.linalg.LinAlgError:
+            return GraphEmbeddingMapResponse(points=[], relations=[], cluster_labels={})
+
+        components = vh[:2]
+        coords = centered @ components.T
+        if coords.shape[1] == 0:
+            coords = np.zeros((len(kept_entities), 2), dtype=np.float32)
+        elif coords.shape[1] == 1:
+            coords = np.column_stack([coords[:, 0], np.zeros(coords.shape[0], dtype=coords.dtype)])
+
+        coords_min = coords.min(axis=0)
+        coords_max = coords.max(axis=0)
+        span = np.maximum(coords_max - coords_min, 1e-6)
+        scale = 2000.0 / float(span.max())
+
+        cluster_for_type: dict[str, int] = {}
+        cluster_labels: dict[str, str] = {}
+        points: list[GraphEmbeddingPoint] = []
+        for entity, xy in zip(kept_entities, coords, strict=True):
+            entity_type = (entity.entity_type or "unknown") or "unknown"
+            cluster_idx = cluster_for_type.get(entity_type)
+            if cluster_idx is None:
+                cluster_idx = len(cluster_for_type)
+                cluster_for_type[entity_type] = cluster_idx
+                cluster_labels[str(cluster_idx)] = entity_type
+
+            x = float(xy[0]) * scale
+            y = float(xy[1]) * scale
+            if not math.isfinite(x) or not math.isfinite(y):
+                continue
+
+            chunk_ids: set[str] = set()
+            for member in entity.source_lineage or ():
+                for chunk_id in getattr(member, "chunk_ids", ()) or ():
+                    chunk_ids.add(str(chunk_id))
+
+            points.append(
+                GraphEmbeddingPoint(
+                    name=entity.name,
+                    entity_type=entity_type,
+                    cluster=cluster_idx,
+                    x=x,
+                    y=y,
+                    source_chunk_count=len(chunk_ids),
+                )
+            )
+
+        return GraphEmbeddingMapResponse(
+            points=points,
+            relations=[],
+            cluster_labels=cluster_labels,
+        )
 
     # --------------------------------------------------------- internal helpers
     def _optimize_graph_for_visualization(self, nodes, edges, max_nodes):
