@@ -219,6 +219,19 @@ class EvaluationRunCreate(BaseModel):
         ),
     )
     name: Optional[str] = Field(None, max_length=255)
+    # Architect spec ``msg=2424afe2``: per-run model overrides. When
+    # ``None`` the worker falls back to ``Collection.config.completion``
+    # for both phases.
+    answer_model: Optional[str] = Field(
+        None,
+        max_length=64,
+        description="Override the LLM used to generate the answer (RAG / agent). Defaults to the collection's completion model.",
+    )
+    judge_model: Optional[str] = Field(
+        None,
+        max_length=64,
+        description="Override the LLM used by LLM-as-judge for scoring. Defaults to the collection's completion model.",
+    )
     judge: Optional[JudgeConfig] = None
     bot_config_snapshot: Optional[dict[str, Any]] = None
     model_config_snapshot: Optional[dict[str, Any]] = None
@@ -254,6 +267,8 @@ class EvaluationRunEnvelope(BaseModel):
     name: Optional[str] = None
     status: EvaluationRunStatus
     summary: Optional[EvaluationRunSummary] = None
+    answer_model: Optional[str] = None
+    judge_model: Optional[str] = None
     judge_config: Optional[JudgeConfig] = None
     bot_config_snapshot: Optional[dict[str, Any]] = None
     model_config_snapshot: Optional[dict[str, Any]] = None
@@ -287,6 +302,14 @@ class EvaluationRunItemEnvelope(BaseModel):
     latest_attempt_id: Optional[str] = None
     latest_attempt: Optional["EvaluationRunItemAttemptEnvelope"] = None
     attempt_count: int
+    # Architect spec ``msg=2424afe2`` — Phase 5 forward-compat: the
+    # multi-dim judge writes
+    # ``{"correctness": int, "completeness": int|null,
+    #   "faithfulness": int|null, "relevance": int|null}`` here. The
+    # MVP single-dim Correctness leaves three of the four ``null``;
+    # the FE renders only the populated dimensions in the run-item
+    # detail panel.
+    judge_breakdown: Optional[dict[str, Any]] = None
     error: Optional[str] = Field(default=None, validation_alias="error_message")
     created_at: datetime = Field(validation_alias="gmt_created")
     updated_at: datetime = Field(validation_alias="gmt_updated")

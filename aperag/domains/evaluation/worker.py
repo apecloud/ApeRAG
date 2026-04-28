@@ -291,21 +291,33 @@ async def execute_evaluation_run(
     user_id = run.user_id
     bot_id = run.bot_id
 
-    # Resolve the answer-side completion model spec once per run from
-    # the collection config — agent runtime v3 (Wave 10) raises
-    # ``Model specification is required`` if neither the bot nor the
-    # request carries a ``completion`` block. The user's bot config
-    # is empty by default and the runtime is not allowed to fall back
-    # to a global model, so the worker pulls
-    # ``collection.config.completion`` and threads it through every
-    # turn dispatch. ``None`` means the collection itself has no LLM
-    # configured; the dispatch will surface the original runtime error
-    # so the operator knows to configure one (mirror PR #1825 ``_invoke
-    # _summary_agent`` fall-through pattern).
+    # Resolve the answer-side completion model spec once per run.
+    # Priority: ``run.answer_model`` (FE override) → ``collection.config.completion``
+    # → ``None`` (let the runtime raise its own missing-model error).
     completion = await _resolve_run_completion(
         user_id=user_id,
         collection_id=getattr(run, "collection_id", None),
+        run_model_id=getattr(run, "answer_model", None),
     )
+
+    # Build the judge once per run. ``judge_config.mode`` selects the
+    # branch; ``LLM_AS_JUDGE`` resolves a per-run LLM callable from
+    # ``run.judge_model`` → ``collection.config.completion`` and falls
+    # through to ``ExactMatchJudge`` if the collection has no LLM
+    # configured (so the run still finishes; operators see the score
+    # collapse to 0/1 and can fix the config).
+    from aperag.domains.evaluation.judges import build_judge
+    from aperag.domains.evaluation.schemas import JudgeConfig
+
+    judge_config = run.judge_config
+    if isinstance(judge_config, dict):
+        judge_config = JudgeConfig(**judge_config)
+    judge_llm = await _resolve_judge_llm(
+        user_id=user_id,
+        collection_id=getattr(run, "collection_id", None),
+        run_model_id=getattr(run, "judge_model", None),
+    )
+    judge = build_judge(judge_config, llm=judge_llm)
 
     for item in items:
         current_run = await ops.get_run_for_worker(run_id)
@@ -327,6 +339,7 @@ async def execute_evaluation_run(
             user_id=user_id,
             bot_id=bot_id,
             completion=completion,
+            judge=judge,
             summary=summary,
             ops=ops,
             dispatch=dispatch,
@@ -346,23 +359,30 @@ async def _resolve_run_completion(
     *,
     user_id: str,
     collection_id: Optional[str],
+    run_model_id: Optional[str] = None,
 ):
-    """Return the answer-side ``ModelSpec`` for the run, copied from the
-    collection's configured completion model.
+    """Return the answer-side ``ModelSpec`` for the run.
 
-    Returns ``None`` when the run has no associated collection, or the
-    collection cannot be loaded, or its config carries no completion
-    binding — the caller passes that ``None`` straight through and the
-    runtime surfaces its native ``Model specification is required for
-    agent runtime v3`` error so the operator knows to configure one.
+    Resolution priority (architect spec ``msg=2424afe2``):
+
+    1. ``run_model_id`` — the FE-provided ``run.answer_model`` override
+    2. ``collection.config.completion`` — the collection's default LLM
+    3. ``None`` — let the runtime raise its native missing-model error
+
     Mirrors the ``_invoke_summary_agent`` pattern from PR #1825.
     """
-    if not collection_id:
-        return None
-
     from aperag.db.ops import async_db_ops as _db_ops
     from aperag.schema.common import ModelSpec
     from aperag.schema.utils import parseCollectionConfig
+
+    if run_model_id:
+        # FE override path — answer model is whatever the operator
+        # picked when launching the run. Temperature is not part of the
+        # ``run.answer_model`` storage; default to the same value the
+        # collection-default branch uses (None → runtime default).
+        return ModelSpec(model_id=run_model_id)
+    if not collection_id:
+        return None
 
     collection = await _db_ops.query_collection(user_id, collection_id)
     if collection is None:
@@ -394,6 +414,103 @@ async def _resolve_run_completion(
     )
 
 
+async def _resolve_judge_llm(
+    *,
+    user_id: str,
+    collection_id: Optional[str],
+    run_model_id: Optional[str] = None,
+):
+    """Build the per-run async ``(prompt) -> str`` callable for the
+    LLM-as-judge MVP, or ``None`` when no judge model can be resolved.
+
+    Resolution mirrors ``_resolve_run_completion``: ``run.judge_model``
+    override → ``collection.config.completion`` → ``None``. ``None``
+    causes ``build_judge`` to fall back to ``ExactMatchJudge`` so the
+    run still finishes deterministically; operators see the
+    ``judge_score`` collapse to ``0`` / ``1`` and can fix config.
+    """
+    from aperag.db.ops import async_db_ops as _db_ops
+
+    if run_model_id:
+        # Looking up an arbitrary model_id without a collection context
+        # requires a model-resolver helper that we do not have today.
+        # When the FE provides an override but no collection, fall back
+        # to ``None`` and let ``ExactMatchJudge`` run — the override
+        # branch only fires once Phase 6 ratifies a global resolver.
+        if not collection_id:
+            logger.info(
+                "evaluation worker: judge_model override set but run has no "
+                "collection_id — cannot resolve model runtime, falling back to "
+                "exact-match judge"
+            )
+            return None
+        # Build a callable from the override model_id. Reuse the same
+        # ``build_collection_llm_callable`` machinery by stuffing the
+        # override into a copy of the collection's config.
+        collection = await _db_ops.query_collection(user_id, collection_id)
+        if collection is None:
+            return None
+        return _build_collection_llm_with_override(collection, run_model_id)
+
+    if not collection_id:
+        return None
+    collection = await _db_ops.query_collection(user_id, collection_id)
+    if collection is None:
+        return None
+    try:
+        from aperag.indexing.llm import build_collection_llm_callable
+
+        return build_collection_llm_callable(collection)
+    except RuntimeError:
+        logger.info(
+            "evaluation worker: collection %s has no completion model for the "
+            "judge LLM either; LlmAsJudge will fall back to ExactMatch",
+            collection_id,
+        )
+        return None
+    except Exception:  # noqa: BLE001 — judge LLM build must never poison the run
+        logger.exception("evaluation worker: build_collection_llm_callable raised for judge LLM")
+        return None
+
+
+def _build_collection_llm_with_override(collection, override_model_id: str):
+    """Mint an async LLM callable bound to ``override_model_id`` while
+    reusing the collection's provider/account/api-key resolution
+    machinery. Returns ``None`` if the override model cannot be
+    resolved.
+    """
+    import json
+
+    try:
+        config_dict = json.loads(collection.config or "{}")
+    except json.JSONDecodeError:
+        return None
+    completion = config_dict.setdefault("completion", {})
+    completion["model_id"] = override_model_id
+    completion.pop("temperature", None)  # use override defaults
+
+    # Attach a shallow clone with the patched config so the helper sees
+    # ``override_model_id`` without mutating the persisted row.
+    from types import SimpleNamespace
+
+    patched = SimpleNamespace(
+        id=getattr(collection, "id", None),
+        user=getattr(collection, "user", None),
+        config=json.dumps(config_dict),
+    )
+    try:
+        from aperag.indexing.llm import build_collection_llm_callable
+
+        return build_collection_llm_callable(patched)
+    except Exception:  # noqa: BLE001 — same fall-through as above
+        logger.exception(
+            "evaluation worker: failed to bind judge_model override %s on collection %s",
+            override_model_id,
+            getattr(collection, "id", None),
+        )
+        return None
+
+
 async def _process_run_item(
     *,
     run,
@@ -401,11 +518,18 @@ async def _process_run_item(
     user_id: str,
     bot_id: str,
     completion,
+    judge,
     summary: EvaluationRunSummary,
     ops: AsyncDatabaseOps,
     dispatch: DispatchFn,
 ) -> None:
-    """Drive one item through the state machine and persist its attempt."""
+    """Drive one item through the state machine and persist its attempt.
+
+    Architect spec ``msg=2424afe2``: after a successful turn dispatch
+    we run the configured ``judge`` to compute ``judge_score`` /
+    ``judge_reason`` / ``judge_breakdown`` and persist them on the
+    attempt + finalize_run_item rows.
+    """
 
     updated = await ops.mark_run_item_running(item.id)
     attempt_no = updated.attempt_count if updated else 1
@@ -428,6 +552,38 @@ async def _process_run_item(
             error_message=f"dispatch crashed: {exc}",
         )
 
+    judge_score: Optional[float] = None
+    judge_result: Optional[dict] = None
+    judge_breakdown: Optional[dict] = None
+
+    if outcome.status == EvaluationRunItemAttemptStatus.COMPLETED and judge is not None:
+        from aperag.domains.evaluation.judges import JudgeInput
+
+        try:
+            verdict = await judge.judge(
+                JudgeInput(
+                    case_key=item.case_key,
+                    question=item.input_message,
+                    expected_answer=item.expected_answer,
+                    reference_context=item.reference_context,
+                    actual_answer=outcome.answer_text or "",
+                )
+            )
+        except Exception:  # noqa: BLE001 — judge failure must not corrupt the attempt
+            logger.exception(
+                "judge crashed for run_item %s; persisting attempt without score",
+                item.id,
+            )
+        else:
+            judge_score = float(verdict.score)
+            judge_result = {
+                "score": judge_score,
+                "reason": verdict.reasoning,
+                "passed": verdict.passed,
+                "raw": verdict.raw,
+            }
+            judge_breakdown = verdict.breakdown
+
     attempt = await ops.create_run_item_attempt(
         run_id=run.id,
         run_item_id=item.id,
@@ -438,6 +594,8 @@ async def _process_run_item(
         answer_text=outcome.answer_text,
         error_message=outcome.error_message,
         latency_ms=outcome.latency_ms,
+        score=judge_score,
+        judge_result=judge_result,
     )
 
     final_item_status = _ITEM_STATUS_BY_ATTEMPT.get(outcome.status, EvaluationRunItemStatus.FAILED)
@@ -446,6 +604,8 @@ async def _process_run_item(
         status=final_item_status,
         latest_attempt_id=attempt.id,
         error_message=outcome.error_message,
+        best_score=judge_score,
+        judge_breakdown=judge_breakdown,
     )
 
     summary.running = max(0, summary.running - 1)
