@@ -1,6 +1,7 @@
 import createMDXPlugin from '@next/mdx';
 import type { NextConfig } from 'next';
 import createNextIntlPlugin from 'next-intl/plugin';
+import path from 'node:path';
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
 
@@ -23,6 +24,29 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: '100mb',
     },
+  },
+
+  // The compiled `@cosmograph/cosmograph` bundle hardcodes
+  // `import e from "@/cosmograph/style.module.css"`, but the package
+  // does not actually ship that CSS file. Without an explicit alias
+  // Next.js resolves `@/...` against the consuming project's tsconfig
+  // (`@/* → ./src/*`) and the build crashes with "Module not found".
+  // Map the orphan import to a stub that satisfies the licensing
+  // manager's class-name lookup. Using a relative-path string keeps
+  // both Webpack and Turbopack happy.
+  turbopack: {
+    resolveAlias: {
+      '@/cosmograph/style.module.css':
+        './src/cosmograph/style.module.css',
+    },
+  },
+  webpack: (config) => {
+    config.resolve = config.resolve ?? {};
+    config.resolve.alias = config.resolve.alias ?? {};
+    (config.resolve.alias as Record<string, string>)[
+      '@/cosmograph/style.module.css'
+    ] = path.resolve(__dirname, 'src/cosmograph/style.module.css');
+    return config;
   },
 
   // Will only be available on the server side

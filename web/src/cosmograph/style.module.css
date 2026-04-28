@@ -1,0 +1,28 @@
+/*
+ * Stub for `@cosmograph/cosmograph` package's hardcoded
+ * `import e from "@/cosmograph/style.module.css"` reference. The
+ * package ships a compiled bundle that imports the CSS module via the
+ * `@/` alias — which Next.js maps to `./src/*` — but the package does
+ * not actually ship the file. Without this stub the licensing manager
+ * crash takes the whole graph-lab page down.
+ *
+ * Only the `.attribution` class is consumed (see the licensing manager
+ * `_addAttribution` method). Style is kept neutral; Tailwind already
+ * handles the rest of the visual.
+ */
+
+.attribution {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity 0.15s ease-in-out;
+}
+
+.attribution:hover {
+  opacity: 1;
+}
