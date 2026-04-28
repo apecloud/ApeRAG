@@ -4058,7 +4058,7 @@ export interface components {
             relations: components["schemas"]["GraphEmbeddingMapRelation"][];
             /**
              * Cluster Labels
-             * @description Mapping from numeric cluster index to entity_type label
+             * @description cluster index -> entity_type label (1:1 mapping)
              */
             cluster_labels: {
                 [key: string]: string;
@@ -4081,7 +4081,7 @@ export interface components {
             entity_type: string;
             /**
              * Cluster
-             * @description Sequential cluster index derived from entity_type
+             * @description entity_type bucket index (sequential, not k-means clustering)
              */
             cluster: number;
             /**

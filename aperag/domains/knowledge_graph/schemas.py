@@ -447,7 +447,7 @@ class GraphEmbeddingPoint(BaseModel):
     entity_type: str = Field(..., description="Entity type bucket")
     cluster: int = Field(
         ...,
-        description="Sequential cluster index derived from entity_type",
+        description="entity_type bucket index (sequential, not k-means clustering)",
     )
     x: float = Field(
         ...,
@@ -478,7 +478,7 @@ class GraphEmbeddingMapResponse(BaseModel):
     relations: list[GraphEmbeddingMapRelation] = Field(...)
     cluster_labels: dict[str, str] = Field(
         ...,
-        description="Mapping from numeric cluster index to entity_type label",
+        description="cluster index -> entity_type label (1:1 mapping)",
     )
 
 
