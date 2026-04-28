@@ -8,12 +8,9 @@ import _ from 'lodash';
 const getIndexStatusBg = (status?: DocumentIndexStatusType | null) => {
   const data: Record<DocumentIndexStatusType, string> = {
     ACTIVE: 'bg-green-500',
-    CREATING: 'bg-sky-500',
-    DELETING: 'bg-pink-500',
-    DELETION_IN_PROGRESS: 'bg-cyan-500',
+    RUNNING: 'bg-sky-500',
     FAILED: 'bg-red-500',
     PENDING: 'bg-amber-500',
-    SKIPPED: 'bg-gray-500',
   };
   return status ? data[status] : 'bg-gray-500';
 };
