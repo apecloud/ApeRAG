@@ -69,9 +69,7 @@ const NON_TERMINAL_DOCUMENT_STATUSES = new Set([
 
 const NON_TERMINAL_INDEX_STATUSES = new Set([
   'PENDING',
-  'CREATING',
-  'DELETING',
-  'DELETION_IN_PROGRESS',
+  'RUNNING',
 ]);
 
 const DOCUMENT_STATUS_CLASS: Record<string, string> = {
