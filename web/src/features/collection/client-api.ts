@@ -5,6 +5,7 @@ import { browserApiClient } from '@/lib/api/typed/browser';
 import type {
   Collection,
   CollectionCreate,
+  CollectionRegenTriggerResponse,
   CollectionUpdate,
   CollectionViewList,
   ExportTaskResponse,
@@ -69,6 +70,34 @@ export async function deleteCollection(collectionId: string): Promise<void> {
   await browserApiClient.DELETE('/api/v2/collections/{collection_id}', {
     params: { path: { collection_id: collectionId } },
   });
+}
+
+// Wave 10 §K.13 Chunk D — explicit operator override regen endpoints.
+// Both await inline (server returns 200 on success / 503 if all tiers
+// transient-skipped) so the UI can surface success/failure to the
+// user immediately after the click.
+export async function regenCollectionSummary(
+  collectionId: string,
+): Promise<CollectionRegenTriggerResponse | undefined> {
+  const { data } = await browserApiClient.POST(
+    '/api/v2/collections/{collection_id}/summary/regen',
+    {
+      params: { path: { collection_id: collectionId } },
+    },
+  );
+  return data;
+}
+
+export async function regenCollectionDescription(
+  collectionId: string,
+): Promise<CollectionRegenTriggerResponse | undefined> {
+  const { data } = await browserApiClient.POST(
+    '/api/v2/collections/{collection_id}/description/regen',
+    {
+      params: { path: { collection_id: collectionId } },
+    },
+  );
+  return data;
 }
 
 export async function testMineruToken(
