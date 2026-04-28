@@ -91,7 +91,7 @@ env-dev: env-install
 	@echo "   1. Activate virtual environment: source .venv/bin/activate"
 	@echo "   2. Start databases: make infra-up"
 	@echo "   3. Apply migrations: make db-migrate"
-	@echo "   4. Run services: make serve-api, make serve-worker"
+	@echo "   4. Run services: make serve-api, make serve-web"
 
 # Environment cleanup
 env-clean:
@@ -146,23 +146,23 @@ endif
 .PHONY: stack-up stack-down stack-logs infra-up
 # Full application startup
 stack-up:
-	$(_EXTRA_ENVS) docker-compose $(_PROFILES_TO_ACTIVATE) -f docker-compose.yml up -d
+	$(_EXTRA_ENVS) docker compose $(_PROFILES_TO_ACTIVATE) -f docker-compose.yml up -d
 
 # Infrastructure only (databases + supporting services)
 # Optional services like Neo4j and Nebula will ONLY start if explicitly enabled:
 #   make infra-up WITH_NEO4J=1    # adds Neo4j
 #   make infra-up WITH_NEBULA=1   # adds Nebula Graph
 infra-up:
-	docker-compose $(_PROFILES_TO_ACTIVATE) -f docker-compose.yml up -d \
+	docker compose $(_PROFILES_TO_ACTIVATE) -f docker-compose.yml up -d \
 		postgres redis qdrant es \
 		$(if $(filter 1,$(WITH_NEO4J)),neo4j,) \
 		$(if $(filter 1,$(WITH_NEBULA)),nebula-metad nebula-storaged nebula-graphd nebula-storage-activator,)
 
 stack-down:
-	docker-compose --profile neo4j --profile nebula -f docker-compose.yml down $(_COMPOSE_DOWN_FLAGS)
+	docker compose --profile neo4j --profile nebula -f docker-compose.yml down $(_COMPOSE_DOWN_FLAGS)
 
 stack-logs:
-	docker-compose -f docker-compose.yml logs -f
+	docker compose -f docker-compose.yml logs -f
 
 ##################################################
 # Development Services

@@ -96,14 +96,6 @@ class Config(BaseSettings):
     logto_domain: str = Field("aperag.authing.cn", alias="LOGTO_DOMAIN")
     logto_app_id: str = Field("", alias="LOGTO_APP_ID")
 
-    # Celery
-    celery_broker_url: Optional[str] = Field(None, alias="CELERY_BROKER_URL")
-    celery_result_backend: Optional[str] = None  # Will be set in __post_init__
-    celery_beat_scheduler: str = "django_celery_beat.schedulers:DatabaseScheduler"
-    celery_worker_send_task_events: bool = True
-    celery_task_send_sent_event: bool = True
-    celery_task_track_started: bool = True
-
     local_queue_name: str = Field("", alias="LOCAL_QUEUE_NAME")
 
     # Indexing mode (Wave 3 T3.1 — replaces Celery dispatch path).
@@ -339,16 +331,6 @@ class Config(BaseSettings):
                 f"postgresql://{self.postgres_user}:{self.postgres_password}"
                 f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
             )
-        # CELERY_BROKER_URL
-        if not self.celery_broker_url:
-            self.celery_broker_url = (
-                f"redis://{self.redis_user}:{self.redis_password}@{self.redis_host}:{self.redis_port}/0"
-            )
-
-        # CELERY_RESULT_BACKEND
-        if not self.celery_result_backend:
-            self.celery_result_backend = self.celery_broker_url
-
         # MEMORY_REDIS_URL
         if not self.memory_redis_url:
             self.memory_redis_url = (
