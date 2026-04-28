@@ -12,6 +12,7 @@ import type {
   KnowledgeGraph,
   MergeSuggestionsResponse,
 } from '@/features/knowledge-graph/types';
+import { ApiClientError } from '@/lib/api/typed/errors';
 import { cn } from '@/lib/utils';
 
 import { Badge } from '@/components/ui/badge';
@@ -29,6 +30,12 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Tooltip, TooltipContent } from '@/components/ui/tooltip';
+import {
+  CANVAS_DARK,
+  COLORS,
+  ENTITY_PALETTE,
+  entityTypeToPaletteKey,
+} from '@/lib/design-tokens';
 import { TooltipTrigger } from '@radix-ui/react-tooltip';
 import _ from 'lodash';
 import {
@@ -43,12 +50,6 @@ import { useTheme } from 'next-themes';
 import dynamic from 'next/dynamic';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  CANVAS_DARK,
-  COLORS,
-  ENTITY_PALETTE,
-  entityTypeToPaletteKey,
-} from '@/lib/design-tokens';
 import { CollectionGraphNodeDetail } from './collection-graph-node-detail';
 import { CollectionGraphNodeMerge } from './collection-graph-node-merge';
 
@@ -61,6 +62,13 @@ const ForceGraph2D = dynamic(
 
 const resolveEntityColor = (entityType: string | null | undefined): string =>
   ENTITY_PALETTE[entityTypeToPaletteKey(entityType)];
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (error instanceof ApiClientError || error instanceof Error) {
+    return error.message || fallback;
+  }
+  return fallback;
+};
 
 export const CollectionGraph = ({
   marketplace = false,
@@ -80,6 +88,7 @@ export const CollectionGraph = ({
     nodes: GraphNode[];
     links: GraphEdge[];
   }>();
+  const [graphError, setGraphError] = useState<string>();
   const [mergeSuggestion, setMergeSuggestion] =
     useState<MergeSuggestionsResponse>();
   const [mergeSuggestionOpen, setMergeSuggestionOpen] =
@@ -108,39 +117,51 @@ export const CollectionGraph = ({
   const getGraphData = useCallback(async () => {
     if (typeof params.collectionId !== 'string') return;
     setLoading(true);
+    setGraphError(undefined);
 
-    const data: KnowledgeGraph | undefined = marketplace
-      ? await getMarketplaceKnowledgeGraph(params.collectionId)
-      : await getKnowledgeGraph(params.collectionId);
+    try {
+      const data: KnowledgeGraph | undefined = marketplace
+        ? await getMarketplaceKnowledgeGraph(params.collectionId)
+        : await getKnowledgeGraph(params.collectionId);
 
-    if (!data) {
+      if (!data) {
+        setGraphData({ nodes: [], links: [] });
+        return;
+      }
+
+      const edges = data.edges || [];
+      const nodes =
+        data.nodes?.map((n) => {
+          const targetCount = edges.filter((edg) => edg.target === n.id).length;
+          const sourceCount = edges.filter((edg) => edg.source === n.id).length;
+          return {
+            ...n,
+            value: Math.max(targetCount, sourceCount, NODE_MIN),
+          };
+        }) || [];
+      const links = edges;
+
+      setGraphData({ nodes, links });
+
+      setAllEntities(_.groupBy(nodes, (n) => n.properties.entity_type));
+    } catch (error: unknown) {
+      setGraphData({ nodes: [], links: [] });
+      setAllEntities({});
+      setActiveEntities([]);
+      setGraphError(getErrorMessage(error, page_graph('load_failed')));
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const edges = data.edges || [];
-    const nodes =
-      data.nodes?.map((n) => {
-        const targetCount = edges.filter((edg) => edg.target === n.id).length;
-        const sourceCount = edges.filter((edg) => edg.source === n.id).length;
-        return {
-          ...n,
-          value: Math.max(targetCount, sourceCount, NODE_MIN),
-        };
-      }) || [];
-    const links = edges;
-
-    setGraphData({ nodes, links });
-
-    setAllEntities(_.groupBy(nodes, (n) => n.properties.entity_type));
-
-    setLoading(false);
-  }, [NODE_MIN, marketplace, params.collectionId]);
+  }, [NODE_MIN, marketplace, page_graph, params.collectionId]);
 
   const getMergeSuggestions = useCallback(async () => {
     if (typeof params.collectionId !== 'string' || marketplace) return;
-    const suggestionRes = await runMergeSuggestions(params.collectionId);
-    setMergeSuggestion(suggestionRes);
+    try {
+      const suggestionRes = await runMergeSuggestions(params.collectionId);
+      setMergeSuggestion(suggestionRes);
+    } catch {
+      setMergeSuggestion(undefined);
+    }
   }, [marketplace, params.collectionId]);
 
   const handleCloseDetail = useCallback(() => {
@@ -249,7 +270,11 @@ export const CollectionGraph = ({
         <div className="flex flex-row items-center gap-2">
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="w-40 justify-between">
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-40 justify-between"
+              >
                 {page_graph('node_search')}
                 <ChevronDown />
               </Button>
@@ -343,7 +368,7 @@ export const CollectionGraph = ({
         ref={containerRef}
         className="bg-card/0 relative flex flex-1 gap-0 overflow-hidden py-0"
       >
-        {graphData === undefined && (
+        {graphData === undefined && !graphError && (
           <div className="absolute top-4/12 left-6/12">
             <div className="flex flex-row gap-2 py-2">
               <div className="bg-muted-foreground animate-caret-blink size-2 rounded-full delay-0"></div>
@@ -353,13 +378,28 @@ export const CollectionGraph = ({
           </div>
         )}
 
-        {graphData !== undefined && _.isEmpty(graphData?.nodes) && (
-          <div className="absolute top-4/12 w-full">
-            <div className="text-muted-foreground text-center">
-              {page_graph('no_nodes_found')}
+        {graphError && (
+          <div className="absolute top-4/12 w-full px-6">
+            <div className="mx-auto max-w-md text-center">
+              <div className="text-foreground text-sm font-medium">
+                {page_graph('load_failed')}
+              </div>
+              <div className="text-muted-foreground mt-2 text-xs">
+                {graphError}
+              </div>
             </div>
           </div>
         )}
+
+        {!graphError &&
+          graphData !== undefined &&
+          _.isEmpty(graphData?.nodes) && (
+            <div className="absolute top-4/12 w-full">
+              <div className="text-muted-foreground text-center">
+                {page_graph('no_nodes_found')}
+              </div>
+            </div>
+          )}
 
         <ForceGraph2D
           graphData={graphData}
@@ -425,8 +465,7 @@ export const CollectionGraph = ({
             if (node === hoverNode) size += 1;
 
             const entityColor = resolveEntityColor(node.properties.entity_type);
-            const isDim =
-              highlightNodes.size > 0 && !highlightNodes.has(node);
+            const isDim = highlightNodes.size > 0 && !highlightNodes.has(node);
             const isActive = activeNode?.id === node.id;
 
             // soft halo under large / active nodes
@@ -470,7 +509,8 @@ export const CollectionGraph = ({
             // adaptive label
             let fontSize = 13;
             const offset = 2;
-            const fontFamily = 'var(--font-sans), Manrope, system-ui, sans-serif';
+            const fontFamily =
+              'var(--font-sans), Manrope, system-ui, sans-serif';
             ctx.font = `500 ${fontSize}px ${fontFamily}`;
             let textWidth = ctx.measureText(String(node.id)).width - offset;
             while (textWidth > size * 1.6 && fontSize > 1) {
@@ -526,7 +566,7 @@ export const CollectionGraph = ({
             className="bg-card absolute bottom-4 left-4 z-10 rounded-xl border p-3 shadow-sm"
             style={{ minWidth: 180 }}
           >
-            <div className="text-muted-foreground mb-2 font-mono text-[10px] uppercase tracking-wider">
+            <div className="text-muted-foreground mb-2 font-mono text-[10px] tracking-wider uppercase">
               {page_graph('node_group')}
             </div>
             <div className="grid grid-cols-1 gap-1.5">
