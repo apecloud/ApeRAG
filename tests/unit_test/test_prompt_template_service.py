@@ -83,6 +83,9 @@ def test_build_agent_query_prompt_respects_chat_level_file_override():
 
 
 def test_build_agent_query_prompt_handles_default_scope_and_language_fallback():
+    """When ``language`` is None the prompt must fall back to the
+    documented default — Simplified Chinese — instead of leaving the
+    LLM to guess. Pins earayu2's "默认中文" requirement (msg=4d8373a4)."""
     agent_message = AgentMessage(
         query="Summarize the available sources",
         collections=[],
@@ -101,4 +104,39 @@ def test_build_agent_query_prompt_handles_default_scope_and_language_fallback():
     assert "Collection rule: Discover and select relevant collections automatically." in prompt
     assert "Web search: disabled" in prompt
     assert "Chat files: No chat files are available." in prompt
-    assert "Answer in the user's language" in prompt
+    assert "请使用简体中文回答。" in prompt
+    assert "do not switch languages mid-response" in prompt
+
+
+def test_build_agent_query_prompt_emits_native_language_directive_for_known_locales():
+    """Each supported BCP-47 code injects a *native-language* directive
+    so the model can't fall back to its training-default language. The
+    explicit native-script string is the lever — generic "respond in
+    the user's language" copy does not survive provider hot-paths."""
+    expectations = {
+        "en-US": "Please answer in English.",
+        "zh-CN": "请使用简体中文回答。",
+        "zh-TW": "請使用繁體中文回答。",
+        "ja-JP": "日本語で回答してください。",
+        "ko-KR": "한국어로 답변해 주세요.",
+        "fr-FR": "Veuillez répondre en français.",
+        "de-DE": "Bitte antworten Sie auf Deutsch.",
+        "es-ES": "Por favor, responda en español.",
+        "it-IT": "Si prega di rispondere in italiano.",
+        "pt-BR": "Por favor, responda em português.",
+        "ru-RU": "Пожалуйста, ответьте на русском языке.",
+    }
+    for code, directive in expectations.items():
+        agent_message = AgentMessage(
+            query="dummy",
+            collections=[],
+            web_search_enabled=False,
+            language=code,
+        )
+        prompt = pts.build_agent_query_prompt(
+            chat_id=None,
+            agent_message=agent_message,
+            user="user-1",
+            template=pts.DEFAULT_AGENT_QUERY_PROMPT,
+        )
+        assert directive in prompt, f"language={code} prompt missing expected directive {directive!r}"

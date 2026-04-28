@@ -108,6 +108,8 @@ def test_compose_assistant_parts_persists_tool_summary():
 
 
 def test_extract_tool_summary_search_query():
+    """Default (no language) must produce Chinese labels — earayu2
+    msg=4d8373a4 directive: 默认中文."""
     assert _extract_tool_summary({"query": "张飞牛肉"}) == "搜索:张飞牛肉"
     assert _extract_tool_summary({"q": "beekeeping"}) == "搜索:beekeeping"
     assert _extract_tool_summary({"keyword": "wave 9"}) == "搜索:wave 9"
@@ -142,6 +144,45 @@ def test_extract_tool_summary_non_dict_returns_none():
     assert _extract_tool_summary(None) is None
     assert _extract_tool_summary("just a string") is None
     assert _extract_tool_summary(["a", "b"]) is None
+
+
+# ---------------------------------------------------------------------
+# Language-aware tool summary (earayu2 msg=4d8373a4 全链路打通)
+# ---------------------------------------------------------------------
+
+
+def test_extract_tool_summary_english_locale_uses_english_labels():
+    """User selects English → tool subtitles must read 'Search:' /
+    'Read:' instead of '搜索:' / '阅读:'. Without this the FE picks
+    up ``ToolPart.summary`` (always Chinese before the fix) and bypasses
+    its own i18n fallback chain."""
+    assert _extract_tool_summary({"query": "beekeeping"}, language="en-US") == "Search:beekeeping"
+    assert _extract_tool_summary({"url": "https://example.com/foo"}, language="en-US") == "Read:example.com/foo"
+
+
+def test_extract_tool_summary_chinese_locale_keeps_native_labels():
+    assert _extract_tool_summary({"query": "张飞牛肉"}, language="zh-CN") == "搜索:张飞牛肉"
+    assert _extract_tool_summary({"query": "蜜蜂"}, language="zh-TW") == "搜尋:蜜蜂"
+
+
+def test_extract_tool_summary_localised_for_known_locales():
+    """Spot-check non-English-non-Chinese locales also localise so the
+    FE i18n contract holds end-to-end."""
+    assert _extract_tool_summary({"query": "ハチミツ"}, language="ja-JP") == "検索:ハチミツ"
+    assert _extract_tool_summary({"query": "꿀벌"}, language="ko-KR") == "검색:꿀벌"
+    assert _extract_tool_summary({"query": "abeille"}, language="fr-FR") == "Recherche:abeille"
+
+
+def test_extract_tool_summary_unknown_locale_falls_back_to_default_chinese():
+    """Unrecognised / future BCP-47 codes must fall back to the
+    documented default (Chinese), not to English. Pins earayu2's
+    "默认中文" requirement (msg=4d8373a4)."""
+    # ``language=None`` is the FE-omitted-the-field path.
+    assert _extract_tool_summary({"query": "x"}, language=None) == "搜索:x"
+    # Unknown explicit code → still default Chinese.
+    assert _extract_tool_summary({"query": "x"}, language="xx-YY") == "搜索:x"
+    # Empty string is treated as "no preference" → default Chinese.
+    assert _extract_tool_summary({"query": "x"}, language="") == "搜索:x"
 
 
 # ---------------------------------------------------------------------
