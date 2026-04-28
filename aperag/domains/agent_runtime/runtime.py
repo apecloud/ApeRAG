@@ -723,6 +723,40 @@ class PydanticAIRuntime(AgentRuntime):
                         )
                         continue
 
+                    if isinstance(event, pai_messages.PartStartEvent):
+                        # pydantic-ai emits PartStartEvent when the model
+                        # opens a new ThinkingPart / TextPart, often
+                        # carrying the FIRST chunk of content as
+                        # ``part.content``. Subsequent chunks arrive via
+                        # PartDeltaEvent. Without this branch the leading
+                        # character of every NEW thinking/text part is
+                        # silently dropped (visible as reasoning blocks
+                        # and final answers starting with "，..." after
+                        # tool boundaries — earayu2 bug report
+                        # msg=193eeb7c on PR #1804/#1807 deploy).
+                        if isinstance(event.part, pai_messages.ThinkingPart) and event.part.content:
+                            delta_text = event.part.content
+                            if sum(len(s) for s in reasoning_buffer) + len(delta_text) > MAX_REASONING_PART_CHARS:
+                                _flush_reasoning_chunk()
+                            reasoning_buffer.append(delta_text)
+                            await emit(
+                                "reasoning.delta",
+                                actor=AgentEventActor.AGENT,
+                                label=VisibleAgentState.THINKING.value,
+                                status="thinking",
+                                data={"delta": delta_text},
+                            )
+                        elif isinstance(event.part, pai_messages.TextPart) and event.part.content:
+                            text_chunks.append(event.part.content)
+                            await emit(
+                                "text.delta",
+                                actor=AgentEventActor.AGENT,
+                                label=VisibleAgentState.STREAMING_ANSWER.value,
+                                status="streaming",
+                                data={"delta": event.part.content},
+                            )
+                        continue
+
                     if isinstance(event, pai_messages.PartDeltaEvent):
                         if isinstance(event.delta, pai_messages.ThinkingPartDelta):
                             delta_text = event.delta.content_delta or ""

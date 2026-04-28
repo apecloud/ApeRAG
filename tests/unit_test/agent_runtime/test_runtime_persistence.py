@@ -329,3 +329,64 @@ def test_reasoning_buffer_pre_flush_avoids_part_overflow():
     assert rejoined == "".join(deltas), (
         "joined text must equal input concatenation (no data lost across flush boundaries)"
     )
+
+
+# ---------------------------------------------------------------------
+# PartStartEvent first-chunk preservation (earayu2 bug msg=193eeb7c)
+# ---------------------------------------------------------------------
+
+
+def test_part_start_event_initial_content_is_persisted():
+    """pydantic-ai opens each new ThinkingPart / TextPart with a
+    ``PartStartEvent`` whose ``part.content`` carries the FIRST chunk
+    of text. Before this fix the runtime only handled
+    ``PartDeltaEvent``, silently dropping the leading character of
+    every reasoning/text part that opens after a tool call boundary —
+    visible in the UI as 思考2 / final answer paragraphs starting with
+    "，..." (the model's natural "嗯" / "好的" leading character was
+    eaten).
+
+    Replays the runtime's two-event sequence (start + delta) and
+    asserts the joined buffer starts with the start-event content.
+    """
+    from aperag.domains.agent_runtime.runtime import _PersistedReasoning
+
+    # Sequence: PartStartEvent(ThinkingPart(content="嗯")) followed by
+    # PartDeltaEvent(ThinkingPartDelta(content_delta="，知识库..."))
+    start_content = "嗯"
+    delta_content = "，知识库中只有一个 'test' 集合"
+
+    buffer: list[str] = []
+    timeline: list = []
+
+    def _flush():
+        text = "".join(buffer).strip()
+        buffer.clear()
+        if text:
+            timeline.append(_PersistedReasoning(text=text))
+
+    # PartStartEvent handler (the new branch).
+    if start_content:
+        buffer.append(start_content)
+    # PartDeltaEvent handler (existing branch).
+    if delta_content:
+        buffer.append(delta_content)
+    _flush()
+
+    parts = _compose_assistant_parts(
+        turn_id="turn-1",
+        answer_text="",
+        references=[],
+        timeline=timeline,
+    )
+
+    reasoning_parts = [p for p in parts if isinstance(p, ReasoningPart)]
+    assert len(reasoning_parts) == 1
+    assert reasoning_parts[0].text == start_content + delta_content, (
+        "PartStartEvent.part.content must be preserved — without it the "
+        "leading character of every new ThinkingPart is silently dropped"
+    )
+    assert reasoning_parts[0].text.startswith("嗯"), (
+        "regression marker: leading '嗯' (or any first-chunk char) must "
+        "survive the start→delta transition (earayu2 bug msg=193eeb7c)"
+    )
