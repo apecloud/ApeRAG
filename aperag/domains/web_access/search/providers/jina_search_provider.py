@@ -151,9 +151,7 @@ class JinaSearchProvider(BaseSearchProvider):
             # ``ClientConnectorError: Cannot connect to host ...
             # [Connection reset by peer]`` on the direct route, while
             # ``curl`` from the same host succeeds via the proxy.
-            async with aiohttp.ClientSession(
-                timeout=aiohttp.ClientTimeout(total=timeout), trust_env=True
-            ) as session:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout), trust_env=True) as session:
                 async with session.get(search_url, headers=request_headers) as response:
                     if response.status != 200:
                         response_text = await response.text()

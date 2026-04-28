@@ -132,9 +132,7 @@ class JinaReaderProvider(BaseReaderProvider):
 
             # See ``jina_search_provider.py`` for the ``trust_env=True``
             # rationale — same proxy-from-env story for ``r.jina.ai``.
-            async with aiohttp.ClientSession(
-                timeout=aiohttp.ClientTimeout(total=timeout), trust_env=True
-            ) as session:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout), trust_env=True) as session:
                 async with session.get(reader_url, headers=request_headers) as response:
                     if response.status != 200:
                         response_text = await response.text()
