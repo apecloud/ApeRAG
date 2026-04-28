@@ -68,7 +68,7 @@ const pickClusterColor = (cluster: number) => {
   return HYBRID_CLUSTER_PALETTE[((cluster % len) + len) % len];
 };
 
-const IMPORTANT_LABEL_SIZE = 16;
+const IMPORTANT_LABEL_SIZE = 13;
 const INITIAL_FIT_PADDING = 0;
 const INITIAL_FIT_ZOOM_BOOST = 1.22;
 const LABEL_RADIUS = 5;
