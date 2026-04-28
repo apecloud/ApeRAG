@@ -1,8 +1,6 @@
 'use client';
-import { Markdown } from '@/components/markdown';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { DocumentPreview } from '@/features/document/types';
 import { cn } from '@/lib/utils';
 import _ from 'lodash';
@@ -19,6 +17,18 @@ import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
+
+const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
+
+// See workspace mirror (../../../../workspace/.../document-detail.tsx)
+// for the full PDF.js options rationale — same cMapUrl + standard
+// font URL config so non-Latin glyphs render in the marketplace
+// preview too.
+const PDF_OPTIONS = {
+  cMapUrl: `${BASE_PATH}/cmaps/`,
+  cMapPacked: true,
+  standardFontDataUrl: `${BASE_PATH}/standard_fonts/`,
+} as const;
 
 const PDFDocument = dynamic(() => import('react-pdf').then((r) => r.Document), {
   ssr: false,
@@ -37,8 +47,6 @@ const IMAGE_EXTENSIONS = new Set([
   'tif',
   'tiff',
 ]);
-
-const MARKDOWN_TEXT_EXTENSIONS = new Set(['md', 'markdown', 'txt']);
 
 const getExtension = (filename?: string | null) =>
   filename?.split('.').pop()?.toLowerCase() ?? '';
@@ -92,21 +100,9 @@ export const DocumentDetail = ({
       : undefined;
   const isPdf = extension === 'pdf';
   const isImage = IMAGE_EXTENSIONS.has(extension);
-  const isMarkdownText = MARKDOWN_TEXT_EXTENSIONS.has(extension);
-  const markdownContent = documentPreview.markdown_content?.trim();
-  const hasParsedText = Boolean(markdownContent);
   const pdfPreviewUrl = isPdf
     ? originalObjectUrl || convertedPdfUrl
     : undefined;
-  const hasOriginalPreview = Boolean(
-    pdfPreviewUrl || (isImage && originalObjectUrl),
-  );
-  const defaultTab =
-    hasOriginalPreview || !isMarkdownText
-      ? 'original'
-      : hasParsedText
-        ? 'parsed'
-        : 'original';
 
   useEffect(() => {
     const loadPDF = async () => {
@@ -125,7 +121,7 @@ export const DocumentDetail = ({
   }, [pdfPreviewUrl]);
 
   return (
-    <Tabs defaultValue={defaultTab} className="gap-4">
+    <div className="flex flex-col gap-4">
       <div className="border-border/70 bg-card grid gap-4 rounded-xl border p-4 shadow-sm lg:grid-cols-[1fr_auto] lg:items-center">
         <div className="flex min-w-0 items-center gap-3">
           <Button asChild variant="outline" size="icon">
@@ -147,25 +143,16 @@ export const DocumentDetail = ({
             </div>
           </div>
         </div>
-
-        <div className="flex justify-start lg:justify-end">
-          <TabsList className="bg-muted rounded-xl">
-            <TabsTrigger value="original">
-              {marketplaceText('preview_original')}
-            </TabsTrigger>
-            {hasParsedText && (
-              <TabsTrigger value="parsed">
-                {marketplaceText('preview_parsed_text')}
-              </TabsTrigger>
-            )}
-          </TabsList>
-        </div>
       </div>
 
-      <TabsContent value="original">
+      {/* Parsed-text tab removed per earayu2 directive msg=153f4b85 —
+          parsed markdown stays available for retrieval / agent /
+          graph backends; only the user-facing preview tab is hidden. */}
+      <div>
         {pdfPreviewUrl ? (
           <PDFDocument
             file={pdfPreviewUrl}
+            options={PDF_OPTIONS}
             onLoadSuccess={({ numPages }: { numPages: number }) => {
               setNumPages(numPages);
             }}
@@ -202,9 +189,6 @@ export const DocumentDetail = ({
                 <div className="text-foreground text-sm font-medium">
                   {marketplaceText('original_preview_unavailable')}
                 </div>
-                {hasParsedText ? (
-                  <div>{marketplaceText('parsed_text_available_hint')}</div>
-                ) : null}
               </div>
               {originalObjectUrl ? (
                 <Button asChild variant="outline">
@@ -217,21 +201,7 @@ export const DocumentDetail = ({
             </CardContent>
           </Card>
         )}
-      </TabsContent>
-
-      {hasParsedText && (
-        <TabsContent value="parsed">
-          <Card className="border-border/70 rounded-xl">
-            <CardContent className="space-y-4 p-5 md:p-6">
-              <div className="text-muted-foreground text-xs">
-                {marketplaceText('parsed_text_notice')}
-              </div>
-              <Markdown>{markdownContent}</Markdown>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      )}
-
-    </Tabs>
+      </div>
+    </div>
   );
 };
