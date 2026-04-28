@@ -166,6 +166,69 @@ class _PersistedToolCall:
     state: Literal["input-available", "output-available", "output-error"] = "input-available"
     output: Any = None
     error_text: Optional[str] = None
+    # User-facing one-line summary extracted from the tool's input args
+    # (e.g. "搜索：张飞牛肉" / "阅读：example.com/page"). Persisted as
+    # ``ToolPart.summary`` so the FE can render the activity subtitle
+    # post-refresh, when the raw ``input`` is intentionally NOT
+    # persisted (D9 §A7). Bounded to ``_TOOL_SUMMARY_MAX_LEN`` chars.
+    summary: Optional[str] = None
+
+
+# Maximum length of the user-facing tool-call summary written to
+# ``ToolPart.summary``. Keeps ``agent_message.parts`` size bounded (per
+# architect msg=2639aeea size-budget concern); long URLs / queries
+# truncate with an ellipsis at extraction.
+_TOOL_SUMMARY_MAX_LEN: int = 200
+
+
+def _truncate_summary(value: str) -> str:
+    if len(value) <= _TOOL_SUMMARY_MAX_LEN:
+        return value
+    keep = max(_TOOL_SUMMARY_MAX_LEN - 1, 1)
+    return value[:keep] + "…"
+
+
+def _compact_url_label(value: str) -> str:
+    """Mirror the FE ``compactUrlLabel`` (agent-turn-renderer.tsx) so
+    the persisted summary reads identical to live SSE rendering — same
+    user-visible string in both paths."""
+    try:
+        from urllib.parse import urlparse
+
+        parsed = urlparse(value)
+        if not parsed.scheme or not parsed.netloc:
+            return value
+        path = "" if parsed.path in ("", "/") else parsed.path
+        label = f"{parsed.netloc}{path}".rstrip("/")
+        return label or value
+    except Exception:
+        return value
+
+
+def _extract_tool_summary(args: Any) -> Optional[str]:
+    """Project the raw tool input into a small user-facing summary.
+
+    Recognises common tool-input shapes and returns ``"搜索：…"`` /
+    ``"阅读：…"`` style copy. Returns ``None`` when the args don't fit
+    a recognised shape — the FE falls back to its generic per-tool
+    label in that case.
+
+    Bounded to ``_TOOL_SUMMARY_MAX_LEN`` chars so persisted rows stay
+    small. Raw args are NEVER persisted in full (D9 §A7) — this
+    function intentionally reads only the keys needed for the visible
+    summary.
+    """
+    if not isinstance(args, dict):
+        return None
+    for key in ("query", "q", "keyword", "keywords"):
+        value = args.get(key)
+        if isinstance(value, str) and value.strip():
+            return _truncate_summary(f"搜索:{value.strip()}")
+    for key in ("url", "uri", "link"):
+        value = args.get(key)
+        if isinstance(value, str) and value.strip():
+            return _truncate_summary(f"阅读:{_compact_url_label(value.strip())}")
+    return None
 
 
 def _tool_part_type(tool_name: str) -> str:
@@ -204,6 +267,7 @@ def _compose_assistant_parts(
                 state=call.state,
                 output=call.output,
                 error_text=call.error_text,
+                summary=call.summary,
                 metadata={"mcpToolName": call.tool_name},
             )
         )
@@ -501,6 +565,7 @@ class PydanticAIRuntime(AgentRuntime):
                             tool_call_id=tool_call_id,
                             tool_name=tool_name,
                             state="input-available",
+                            summary=_extract_tool_summary(self._normalize_jsonish(event.part.args)),
                         )
                         persisted_tool_calls.append(tool_call)
                         persisted_tool_index[tool_call_id] = tool_call
