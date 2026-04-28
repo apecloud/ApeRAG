@@ -84,6 +84,7 @@ async def dispatch_evaluation_turn(
     user_id: str,
     bot_id: str,
     input_message: str,
+    completion=None,
     timeout_seconds: float = 300.0,
     poll_interval_seconds: float = 0.25,
 ) -> TurnDispatchOutcome:
@@ -97,6 +98,14 @@ async def dispatch_evaluation_turn(
     The implementation MUST stay runtime-API-only: no HTTP side-channel
     back to the bot router, no synchronous shortcut around
     ``agent_runtime_manager`` — per the ``#13 agent-runtime`` contract.
+
+    ``completion`` (a ``ModelSpec``) is the answer-side model the agent
+    runtime v3 needs after PR #1697 / Wave 10. The caller resolves it
+    from the run's ``collection_id`` → ``collection.config.completion``
+    so each evaluation case is answered by the same LLM the collection
+    is configured with — without it the runtime raises ``Model
+    specification is required for agent runtime v3`` and every case in
+    the run fails (regression caught via @earayu2 msg=c44beebc).
     """
 
     # Local imports: keep the module import-safe for tests that do not
@@ -115,7 +124,7 @@ async def dispatch_evaluation_turn(
     chat_view = await chat_service_global.create_chat(user_id, bot_id)
     chat_id = chat_view.id
 
-    turn_request = CreateTurnRequest(query=input_message)
+    turn_request = CreateTurnRequest(query=input_message, completion=completion)
     _chat, _bot, turn, _created = await agent_runtime_manager.turn_service.create_or_get_turn(
         user_id, chat_id, turn_request
     )
@@ -282,6 +291,22 @@ async def execute_evaluation_run(
     user_id = run.user_id
     bot_id = run.bot_id
 
+    # Resolve the answer-side completion model spec once per run from
+    # the collection config — agent runtime v3 (Wave 10) raises
+    # ``Model specification is required`` if neither the bot nor the
+    # request carries a ``completion`` block. The user's bot config
+    # is empty by default and the runtime is not allowed to fall back
+    # to a global model, so the worker pulls
+    # ``collection.config.completion`` and threads it through every
+    # turn dispatch. ``None`` means the collection itself has no LLM
+    # configured; the dispatch will surface the original runtime error
+    # so the operator knows to configure one (mirror PR #1825 ``_invoke
+    # _summary_agent`` fall-through pattern).
+    completion = await _resolve_run_completion(
+        user_id=user_id,
+        collection_id=getattr(run, "collection_id", None),
+    )
+
     for item in items:
         current_run = await ops.get_run_for_worker(run_id)
         if current_run is None:
@@ -301,6 +326,7 @@ async def execute_evaluation_run(
             item=item,
             user_id=user_id,
             bot_id=bot_id,
+            completion=completion,
             summary=summary,
             ops=ops,
             dispatch=dispatch,
@@ -316,12 +342,65 @@ async def execute_evaluation_run(
     return final_status
 
 
+async def _resolve_run_completion(
+    *,
+    user_id: str,
+    collection_id: Optional[str],
+):
+    """Return the answer-side ``ModelSpec`` for the run, copied from the
+    collection's configured completion model.
+
+    Returns ``None`` when the run has no associated collection, or the
+    collection cannot be loaded, or its config carries no completion
+    binding — the caller passes that ``None`` straight through and the
+    runtime surfaces its native ``Model specification is required for
+    agent runtime v3`` error so the operator knows to configure one.
+    Mirrors the ``_invoke_summary_agent`` pattern from PR #1825.
+    """
+    if not collection_id:
+        return None
+
+    from aperag.db.ops import async_db_ops as _db_ops
+    from aperag.schema.common import ModelSpec
+    from aperag.schema.utils import parseCollectionConfig
+
+    collection = await _db_ops.query_collection(user_id, collection_id)
+    if collection is None:
+        logger.info(
+            "evaluation worker: collection %s for run vanished or unauthorized; "
+            "agent runtime will surface its own missing-model error",
+            collection_id,
+        )
+        return None
+    try:
+        parsed = parseCollectionConfig(collection.config)
+    except ValueError:
+        logger.exception(
+            "evaluation worker: failed to parse collection %s config; falling through",
+            collection_id,
+        )
+        return None
+    completion = parsed.completion if parsed else None
+    if completion is None or not completion.model_id:
+        logger.info(
+            "evaluation worker: collection %s has no completion model — agent runtime "
+            "will surface its own missing-model error",
+            collection_id,
+        )
+        return None
+    return ModelSpec(
+        model_id=completion.model_id,
+        temperature=completion.temperature,
+    )
+
+
 async def _process_run_item(
     *,
     run,
     item: EvaluationRunItem,
     user_id: str,
     bot_id: str,
+    completion,
     summary: EvaluationRunSummary,
     ops: AsyncDatabaseOps,
     dispatch: DispatchFn,
@@ -340,6 +419,7 @@ async def _process_run_item(
             user_id=user_id,
             bot_id=bot_id,
             input_message=item.input_message,
+            completion=completion,
         )
     except Exception as exc:  # noqa: BLE001 - translate runtime errors to FAILED attempt
         logger.exception("dispatch_evaluation_turn crashed for run_item %s", item.id)

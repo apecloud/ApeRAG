@@ -430,6 +430,68 @@ def test_execute_evaluation_run_short_circuits_when_run_already_terminal():
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Wave 10-style answer-model injection: the worker must thread
+# ``collection.config.completion`` into every dispatch as
+# ``CreateTurnRequest.completion``, otherwise agent runtime v3 raises
+# ``Model specification is required for agent runtime v3`` and every
+# case in the run fails (regression caught via @earayu2 msg=c44beebc).
+# ---------------------------------------------------------------------------
+
+
+def test_execute_evaluation_run_threads_collection_completion_into_dispatch(monkeypatch):
+    run, items = _make_run_and_items(item_count=2)
+    run.collection_id = "col_eval"
+    ops = _FakeOps(run, items)
+
+    captured_completions: list[object] = []
+
+    async def fake_dispatch(*, user_id, bot_id, input_message, completion=None, **_kwargs):
+        captured_completions.append(completion)
+        return TurnDispatchOutcome(status=EvaluationRunItemAttemptStatus.COMPLETED, answer_text="ok")
+
+    async def fake_resolve(**_kwargs):
+        from aperag.schema.common import ModelSpec
+
+        return ModelSpec(model_id="mdl_collection_default", temperature=0.1)
+
+    monkeypatch.setattr(worker, "_resolve_run_completion", fake_resolve)
+
+    asyncio.run(execute_evaluation_run(run.id, db_ops=ops, dispatch_fn=fake_dispatch))
+
+    assert len(captured_completions) == 2, "every item must receive the run-scoped completion"
+    for spec in captured_completions:
+        assert spec is not None
+        assert getattr(spec, "model_id", None) == "mdl_collection_default"
+
+
+def test_execute_evaluation_run_passes_none_completion_when_collection_has_no_llm(monkeypatch):
+    """When the collection has no completion model configured, the
+    worker must still call dispatch with ``completion=None`` so the
+    runtime surfaces its own native error (not silently swallow)."""
+    run, items = _make_run_and_items(item_count=1)
+    run.collection_id = "col_no_llm"
+    ops = _FakeOps(run, items)
+
+    captured_completion = []
+
+    async def fake_dispatch(*, user_id, bot_id, input_message, completion=None, **_kwargs):
+        captured_completion.append(completion)
+        return TurnDispatchOutcome(
+            status=EvaluationRunItemAttemptStatus.FAILED,
+            error_message="Model specification is required for agent runtime v3",
+        )
+
+    async def fake_resolve(**_kwargs):
+        return None
+
+    monkeypatch.setattr(worker, "_resolve_run_completion", fake_resolve)
+
+    asyncio.run(execute_evaluation_run(run.id, db_ops=ops, dispatch_fn=fake_dispatch))
+
+    assert captured_completion == [None]
+
+
 def test_worker_module_source_has_no_benchmark_or_dataset_version_references():
     source = Path(worker.__file__).read_text(encoding="utf-8").lower()
     forbidden = ("benchmark_", "dataset_version_id", "/api/v2/bots", "httpx")
