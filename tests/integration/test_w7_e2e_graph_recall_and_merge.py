@@ -499,23 +499,19 @@ async def test_step7_re_search_after_merge_returns_canonical():
 
 
 @pytest.mark.asyncio
-async def test_step8_get_entity_detail_alias_returns_404_w8_3_pin():
-    """W8-3 trigger pin (per huangheng msg=0b48af2b + architect ratify).
+async def test_step8_get_entity_detail_alias_returns_canonical_w8_3_landed():
+    """W8-3 landed (Wave 8 task #14, PR for this branch).
 
-    ``GraphService.get_entity_detail`` (the function the route
-    ``GET /collections/{cid}/graphs/entities/{name}`` delegates to,
-    per task #7) currently bypasses the alias_map on reads — looking
-    up ``Alicia`` returns ``None`` and the route surfaces 404.
+    ``GraphService.get_entity_detail`` delegates to the alias-redirect
+    decorator's ``get_entity``, which per Wave 8 W8-3 (task #14) now
+    resolves alias names to their canonical before reading the inner
+    store. Looking up ``Alicia`` returns the Alice row.
 
-    When Wave 8 W8-3 ships read-side alias resolution, this test will
-    fail (the lookup will start returning the Alice payload). The fix
-    is to flip the assertion: that flip is the physical evidence that
-    W8-3 shipped + the trigger condition is pinned in the repo.
-
-    Per architect ratify: the assertion shape is "today returns None
-    / 404; Wave 8 will flip to a real row" — encoding the future
-    expectation as a comment so the eventual fix is mechanical.
-    """
+    Flip history: this test was the **W8-3 trigger pin** (Wave 7 task
+    #11) — it asserted ``result is None`` to encode the deferred
+    behaviour as a future-flip marker. Wave 8 task #14 ships the
+    decorator extension; this test now pins the post-flip behaviour
+    so any regression in read-side redirect breaks here first."""
     from aperag.domains.knowledge_graph.service import GraphService
 
     svc = GraphService()
@@ -530,16 +526,16 @@ async def test_step8_get_entity_detail_alias_returns_404_w8_3_pin():
             entity_name="Alicia",
         )
 
-    # W8-3 trigger condition pinned in the assert message so the
-    # eventual fix is mechanical (per 冬柏 msg=8f488513): when Wave 8
-    # W8-3 ships read-side alias resolution, this assert fails and the
-    # traceback message tells the implementer exactly which line to
-    # flip.
-    assert result is None, (
-        "W8-3 trigger condition: get_entity_detail('Alicia') today "
-        "returns None because read-side alias resolution is deferred "
-        "to Wave 8 W8-3. When W8-3 ships, this assertion will fail; "
-        "flip to: `assert result is not None and result.name == 'Alice'`"
+    assert result is not None, (
+        "W8-3 read-side alias resolution should redirect 'Alicia' to "
+        "the canonical 'Alice' row — got None instead. Check that "
+        "``LineageGraphStoreWithAliasRedirect.get_entity`` is wrapping "
+        "``_inner.get_entity`` calls (Wave 8 task #14)."
+    )
+    assert result.name == "Alice", (
+        f"W8-3 redirect resolved to {result.name!r}; expected 'Alice'. "
+        "alias_map row may have been corrupted or the decorator's "
+        "redirect logic returned the wrong canonical."
     )
 
 

@@ -14,32 +14,60 @@
 
 """Lineage graph store decorator that applies user-driven alias redirect.
 
-Wave 7 §K.12.4 invariant #3: when the indexer writes
-``upsert_entity_with_lineage(record=EntityRecord(name="A"))`` and the
-user previously merged ``A → C``, the write should land on ``C``
-transparently — the indexer hot path is not aware of curation merges.
+Wave 7 §K.12.4 invariant #3 (write-side) + Wave 8 W8-3 (read-side):
+when the user has merged ``A → C``, every reference to ``A`` should
+silently resolve to ``C`` — both writes (indexer hot path) and reads
+(MCP / REST / curation surfaces).
 
-Implementation strategy (architect ratify msg=cf860ae4 + huangheng
-endorse msg=22816e0d / msg=93d9add1, **Option (b)**): write a thin
-decorator class that wraps any concrete
+Implementation strategy (architect ratify Wave 7 msg=cf860ae4 +
+huangheng endorse msg=22816e0d / msg=93d9add1, **Option (b)**): a
+thin decorator class wraps any concrete
 :class:`aperag.indexing.graph.LineageGraphStore` plus an
-:class:`aperag.graph_curation.alias_map.AliasMapRepository`, intercepts
-the write methods to rewrite entity names through the alias map, and
-forwards every other Protocol method unchanged. This keeps the three
-backend implementations (Postgres / Neo4j / Nebula) untouched —
-critical for landing task #6 in one PR without rippling into Bryce's
-storage territory.
+:class:`aperag.graph_curation.alias_map.AliasMapRepository`,
+intercepts the methods that take entity names as inputs (writes +
+direct reads + traversals seeded by entity names) and rewrites them
+through the alias map. Methods whose inputs aren't entity names
+(``query_entities_by_keyword``, ``list_entity_labels``,
+``find_*_with_lineage``) forward unchanged — they either operate on
+opaque tokens or already return canonical names.
+
+Read-side methods that DO redirect (Wave 8 task #14):
+
+* ``get_entity(name)`` — direct lookup by name.
+* ``get_relation(source, target, type)`` — both endpoints redirected
+  symmetrically (mirror :meth:`upsert_relation_with_lineage` write
+  redirect).
+* ``expand_neighbors_n_hops(entity_names, hops)`` — anchor names
+  redirected before traversal so an alias seed walks the canonical
+  neighbourhood.
+
+Read-side methods that do NOT redirect:
+
+* ``query_entities_by_keyword`` — keyword is not an entity name; the
+  matched rows are themselves canonical (alias rows live in
+  ``aperag_lineage_entity_alias``, not in the entity table).
+* ``list_entity_labels`` — returns a label set, not entity names.
+* ``find_entity_ids_with_lineage`` / ``find_relation_keys_with_lineage`` —
+  filter by ``document_id`` (lineage source), not by name.
+* ``gc_entity_if_orphan`` / ``gc_relation_if_orphan`` — gc operates on
+  the canonical row already; an alias name as input would no-op
+  silently (canonical row doesn't carry the alias as its name).
+* ``delete_entity`` / ``delete_relation`` — explicit user/admin
+  intent; redirecting would silently drop the canonical when the
+  caller asked for the alias. We surface ``False`` (no row deleted)
+  by passing through unchanged.
 
 Decorator passthrough invariant (huangheng CR lock,
 ``test_decorator_passthrough_for_non_upsert_methods``): every method
-declared on :class:`LineageGraphStore` that is NOT an ``upsert_*``
-write must forward to ``_inner`` byte-for-byte — no silent behaviour
-change. Tests pin this so a future Protocol method addition can't slip
-past without an explicit decorator update.
+declared on :class:`LineageGraphStore` that does NOT redirect must
+forward to ``_inner`` byte-for-byte — no silent behaviour change.
+Tests pin this so a future Protocol method addition can't slip past
+without an explicit decorator update.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import replace
 from typing import TYPE_CHECKING
@@ -136,8 +164,9 @@ class LineageGraphStoreWithAliasRedirect:
         )
 
     # ------------------------------------------------------------------
-    # Passthrough — forward every non-write Protocol method unchanged.
-    # Pinned by ``test_decorator_passthrough_for_non_upsert_methods``.
+    # Passthrough — forward every non-redirected Protocol method
+    # unchanged. Pinned by
+    # ``test_decorator_passthrough_for_non_redirected_methods``.
     # ------------------------------------------------------------------
 
     async def find_entity_ids_with_lineage(self, *, document_id: str) -> list[str]:
@@ -166,19 +195,76 @@ class LineageGraphStoreWithAliasRedirect:
     async def delete_relation(self, source: str, target: str, type: str) -> bool:
         return await self._inner.delete_relation(source, target, type)
 
+    # ------------------------------------------------------------------
+    # Intercepted read paths — Wave 8 W8-3 task #14
+    # ------------------------------------------------------------------
+
     async def get_entity(self, entity_name: str) -> EntityWithLineage | None:
-        return await self._inner.get_entity(entity_name)
+        canonical = await self._alias_repo.resolve_canonical(collection_id=self._collection_id, name=entity_name)
+        if canonical != entity_name:
+            logger.debug(
+                "alias_redirect: get_entity %r → %r (collection=%s)",
+                entity_name,
+                canonical,
+                self._collection_id,
+            )
+        return await self._inner.get_entity(canonical)
 
     async def get_relation(self, source: str, target: str, type: str) -> RelationWithLineage | None:
-        return await self._inner.get_relation(source, target, type)
-
-    async def query_entities_by_keyword(self, *, query: str, top_k: int) -> list[EntityWithLineage]:
-        return await self._inner.query_entities_by_keyword(query=query, top_k=top_k)
+        # Both endpoints may have been merged independently; resolve
+        # symmetrically (mirror write-side redirect in
+        # ``upsert_relation_with_lineage``).
+        new_source = await self._alias_repo.resolve_canonical(collection_id=self._collection_id, name=source)
+        new_target = await self._alias_repo.resolve_canonical(collection_id=self._collection_id, name=target)
+        if new_source != source or new_target != target:
+            logger.debug(
+                "alias_redirect: get_relation (%r→%r) → (%r→%r) (collection=%s)",
+                source,
+                target,
+                new_source,
+                new_target,
+                self._collection_id,
+            )
+        return await self._inner.get_relation(new_source, new_target, type)
 
     async def expand_neighbors_n_hops(
         self, *, entity_names: list[str], hops: int = 1
     ) -> tuple[list[EntityWithLineage], list[RelationWithLineage]]:
-        return await self._inner.expand_neighbors_n_hops(entity_names=entity_names, hops=hops)
+        if not entity_names:
+            return await self._inner.expand_neighbors_n_hops(entity_names=entity_names, hops=hops)
+        # Resolve every anchor through the alias map so a caller seeding
+        # ``["Alicia"]`` walks the canonical ``Alice`` neighbourhood.
+        # ``asyncio.gather`` keeps the per-anchor lookup cost flat —
+        # N is bounded by the caller (typically small).
+        resolved = await asyncio.gather(
+            *(self._alias_repo.resolve_canonical(collection_id=self._collection_id, name=n) for n in entity_names),
+            return_exceptions=False,
+        )
+        # De-dup so ``["Alicia", "Alice"]`` (alias + canonical mixed)
+        # doesn't double-traverse the same anchor; preserve input order
+        # for deterministic output.
+        seen: set[str] = set()
+        canonical_anchors: list[str] = []
+        for original, canonical in zip(entity_names, resolved):
+            if canonical not in seen:
+                seen.add(canonical)
+                canonical_anchors.append(canonical)
+            if canonical != original:
+                logger.debug(
+                    "alias_redirect: expand anchor %r → %r (collection=%s)",
+                    original,
+                    canonical,
+                    self._collection_id,
+                )
+        return await self._inner.expand_neighbors_n_hops(entity_names=canonical_anchors, hops=hops)
+
+    # ------------------------------------------------------------------
+    # Read paths that do NOT redirect — passthrough (see module
+    # docstring for the rationale per method).
+    # ------------------------------------------------------------------
+
+    async def query_entities_by_keyword(self, *, query: str, top_k: int) -> list[EntityWithLineage]:
+        return await self._inner.query_entities_by_keyword(query=query, top_k=top_k)
 
     async def list_entity_labels(self) -> list[str]:
         return await self._inner.list_entity_labels()
