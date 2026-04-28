@@ -4,32 +4,20 @@ import { browserApiClient } from '@/lib/api/typed/browser';
 
 import type {
   EvaluationDatasetCreate,
+  EvaluationDatasetGeneratePreviewRequest,
+  EvaluationDatasetGeneratePreviewResponse,
   EvaluationDatasetItemCreate,
   EvaluationRunCreate,
 } from './types';
 
-import type { components } from '@/api-v2/schema';
-
-/**
- * Draft item returned by the AI auto-generate preview endpoint
- * (`POST .../{dataset_id}/items/generate-preview`). The BE writes
- * `reference_context` from the source chunk text so Phase 3
- * LLM-as-judge has the ground-truth retrieval context ready without
- * the user having to type it. Shape is intentionally aligned with
- * `EvaluationDatasetItemCreate` so the bulk-create endpoint can
- * consume the same items unchanged.
- */
-export type EvaluationDatasetItemDraft = NonNullable<
-  components['schemas']['GeneratedDatasetItem']
->;
-
-export type GenerateEvaluationDatasetItemsPreviewRequest = NonNullable<
-  components['schemas']['EvaluationDatasetGeneratePreviewRequest']
->;
-
-export type GenerateEvaluationDatasetItemsPreviewResponse = NonNullable<
-  components['schemas']['EvaluationDatasetGeneratePreviewResponse']
->;
+// Re-export the canonical names so existing callers that imported via
+// `@/features/evaluation/client-api` keep working. Domain consumers
+// should still prefer importing from `@/features/evaluation/types`.
+export type {
+  EvaluationDatasetGeneratePreviewRequest as GenerateEvaluationDatasetItemsPreviewRequest,
+  EvaluationDatasetGeneratePreviewResponse as GenerateEvaluationDatasetItemsPreviewResponse,
+  EvaluationDatasetItemDraft,
+} from './types';
 
 /**
  * Generate AI draft questions from collection content. The endpoint
@@ -39,8 +27,8 @@ export type GenerateEvaluationDatasetItemsPreviewResponse = NonNullable<
  */
 export async function generateEvaluationDatasetItemsPreview(
   datasetId: string,
-  body: GenerateEvaluationDatasetItemsPreviewRequest,
-): Promise<GenerateEvaluationDatasetItemsPreviewResponse> {
+  body: EvaluationDatasetGeneratePreviewRequest,
+): Promise<EvaluationDatasetGeneratePreviewResponse> {
   const { data } = await browserApiClient.POST(
     '/api/v2/evaluation-datasets/{dataset_id}/items/generate-preview',
     {

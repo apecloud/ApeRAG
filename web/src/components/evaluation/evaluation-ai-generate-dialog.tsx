@@ -29,8 +29,8 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   appendEvaluationDatasetItems,
   generateEvaluationDatasetItemsPreview,
-  type EvaluationDatasetItemDraft,
 } from '@/features/evaluation/client-api';
+import type { EvaluationDatasetItemDraft } from '@/features/evaluation/types';
 import { ChevronDown, ChevronRight, Loader2, Sparkles } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { toast } from 'sonner';
@@ -169,7 +169,7 @@ export const EvaluationAIGenerateDialog = ({
         selected.map((row, i) => ({
           input_message: row.question.trim(),
           expected_answer: row.expected_answer.trim() || undefined,
-          reference_context: row.reference_context.trim() || undefined,
+          reference_context: row.reference_context?.trim() || undefined,
           sort_key: existingItemCount + i,
         })),
       );
