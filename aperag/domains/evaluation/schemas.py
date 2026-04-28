@@ -32,7 +32,6 @@ from typing import Any, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 from aperag.domains.evaluation.db.models import (
-    EvaluationDatasetSourceType,
     EvaluationJudgeMode,
     EvaluationRunItemAttemptStatus,
     EvaluationRunItemStatus,
@@ -72,7 +71,6 @@ class EvaluationDatasetCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = None
     collection_id: Optional[str] = None
-    source_type: EvaluationDatasetSourceType = EvaluationDatasetSourceType.MANUAL
     schema_hint: Optional[dict[str, Any]] = None
     items: Optional[list[EvaluationDatasetItemCreate]] = None
 
@@ -106,7 +104,6 @@ class EvaluationDatasetEnvelope(BaseModel):
     collection_id: Optional[str] = None
     name: str
     description: Optional[str] = None
-    source_type: EvaluationDatasetSourceType
     schema_hint: Optional[dict[str, Any]] = None
     item_count: int = 0
     created_at: datetime = Field(validation_alias="gmt_created")

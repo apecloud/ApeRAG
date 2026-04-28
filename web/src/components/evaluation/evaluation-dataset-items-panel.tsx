@@ -36,6 +36,7 @@ import { toast } from 'sonner';
 
 import {
   appendEvaluationDatasetItems,
+  deleteEvaluationDataset,
   deleteEvaluationDatasetItem,
 } from '@/features/evaluation/client-api';
 import type {
@@ -59,16 +60,21 @@ const matchesSearch = (item: EvaluationDatasetItem, searchValue: string) => {
   if (!query) return true;
 
   return [item.case_key, item.input_message, item.expected_answer].some(
-    (value) => String(value ?? '').toLowerCase().includes(query),
+    (value) =>
+      String(value ?? '')
+        .toLowerCase()
+        .includes(query),
   );
 };
 
 export const EvaluationDatasetItemsPanel = ({
+  collectionId,
   dataset,
   items,
   unavailable,
   error,
 }: {
+  collectionId: string;
   dataset: EvaluationDataset;
   items: EvaluationDatasetItem[];
   unavailable: boolean;
@@ -141,6 +147,23 @@ export const EvaluationDatasetItemsPanel = ({
     }
   };
 
+  const handleDeleteDataset = async () => {
+    if (!window.confirm(t('delete_dataset_confirm'))) return;
+
+    try {
+      await deleteEvaluationDataset(dataset.id);
+      toast.success(t('delete_dataset_success'));
+      router.push(`/workspace/collections/${collectionId}/evaluations`);
+      router.refresh();
+    } catch (actionError) {
+      toast.error(
+        actionError instanceof Error
+          ? actionError.message
+          : t('delete_dataset_failed'),
+      );
+    }
+  };
+
   if (unavailable) {
     return (
       <EvaluationApiNotice
@@ -177,6 +200,15 @@ export const EvaluationDatasetItemsPanel = ({
             <Button onClick={() => setAddItemOpen(true)} disabled={isPending}>
               <FilePlus2 className="size-4" />
               {t('add_question')}
+            </Button>
+            <Button
+              variant="outline"
+              className="text-rose-700 hover:text-rose-800"
+              onClick={handleDeleteDataset}
+              disabled={isPending}
+            >
+              <Trash2 className="size-4" />
+              {t('delete_dataset')}
             </Button>
           </div>
         </CardHeader>

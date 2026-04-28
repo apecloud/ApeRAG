@@ -28,7 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { FlaskConical, PlayCircle } from 'lucide-react';
+import { PlayCircle } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -60,7 +60,10 @@ const matchesSearch = (run: EvaluationRun, searchValue: string) => {
   if (!query) return true;
 
   return [run.id, run.dataset_name, run.dataset_id, run.status, run.name].some(
-    (value) => String(value ?? '').toLowerCase().includes(query),
+    (value) =>
+      String(value ?? '')
+        .toLowerCase()
+        .includes(query),
   );
 };
 
@@ -195,10 +198,6 @@ export const CollectionRunsPanel = ({
       <section className="flex flex-col gap-4 rounded-[1.75rem] border border-slate-200/80 bg-white/90 p-6 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.4)]">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-2">
-            <div className="flex items-center gap-2 text-xs tracking-[0.18em] text-slate-500 uppercase">
-              <FlaskConical className="size-4" />
-              {t('runs_badge')}
-            </div>
             <h2 className="text-3xl leading-none font-semibold tracking-[-0.03em] text-slate-950">
               {t('runs_section_title')}
             </h2>

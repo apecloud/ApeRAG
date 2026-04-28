@@ -3,7 +3,6 @@
 import { useMemo, useState, useTransition } from 'react';
 
 import { FormatDate } from '@/components/format-date';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -22,16 +21,13 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Database, FolderPlus, Trash2 } from 'lucide-react';
+import { Clock3, FolderPlus, ListChecks } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
-import {
-  createEvaluationDataset,
-  deleteEvaluationDataset,
-} from '@/features/evaluation/client-api';
+import { createEvaluationDataset } from '@/features/evaluation/client-api';
 import type { EvaluationDataset } from '@/features/evaluation/types';
 import { EvaluationApiNotice } from './api-notice';
 
@@ -39,23 +35,11 @@ const matchesSearch = (dataset: EvaluationDataset, searchValue: string) => {
   const query = searchValue.trim().toLowerCase();
   if (!query) return true;
 
-  return [dataset.name, dataset.description, dataset.source_type].some(
-    (value) => String(value ?? '').toLowerCase().includes(query),
+  return [dataset.name, dataset.description].some((value) =>
+    String(value ?? '')
+      .toLowerCase()
+      .includes(query),
   );
-};
-
-const sourceTypeLabelKey = (
-  source_type: EvaluationDataset['source_type'],
-): 'source_type.manual' | 'source_type.import' | 'source_type.generated' => {
-  switch (source_type) {
-    case 'import':
-      return 'source_type.import';
-    case 'generated':
-      return 'source_type.generated';
-    case 'manual':
-    default:
-      return 'source_type.manual';
-  }
 };
 
 type DatasetFormState = {
@@ -67,6 +51,9 @@ const defaultDatasetForm: DatasetFormState = {
   name: '',
   description: '',
 };
+
+const datasetMetaIconClass =
+  'mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm';
 
 export const EvaluationDatasetsPanel = ({
   collectionId,
@@ -108,7 +95,6 @@ export const EvaluationDatasetsPanel = ({
         name: datasetForm.name.trim(),
         description: datasetForm.description.trim() || undefined,
         collection_id: collectionId,
-        source_type: 'manual',
       });
 
       if (!payload?.id) {
@@ -124,23 +110,6 @@ export const EvaluationDatasetsPanel = ({
         actionError instanceof Error
           ? actionError.message
           : t('create_dataset_failed'),
-      );
-    }
-  };
-
-  const handleDeleteDataset = async (dataset: EvaluationDataset) => {
-    if (!dataset.id) return;
-    if (!window.confirm(t('delete_dataset_confirm'))) return;
-
-    try {
-      await deleteEvaluationDataset(dataset.id);
-      toast.success(t('delete_dataset_success'));
-      refreshPage();
-    } catch (actionError) {
-      toast.error(
-        actionError instanceof Error
-          ? actionError.message
-          : t('delete_dataset_failed'),
       );
     }
   };
@@ -168,10 +137,6 @@ export const EvaluationDatasetsPanel = ({
       <section className="flex flex-col gap-4 rounded-[1.75rem] border border-slate-200/80 bg-white/90 p-6 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.4)]">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-2">
-            <div className="flex items-center gap-2 text-xs tracking-[0.18em] text-slate-500 uppercase">
-              <Database className="size-4" />
-              {t('datasets_badge')}
-            </div>
             <h2 className="text-3xl leading-none font-semibold tracking-[-0.03em] text-slate-950">
               {t('datasets_section_title')}
             </h2>
@@ -217,84 +182,68 @@ export const EvaluationDatasetsPanel = ({
         ) : (
           <div className="grid gap-4 xl:grid-cols-2">
             {filteredItems.map((dataset) => (
-              <Card
+              <Link
                 key={dataset.id}
-                className="h-full overflow-hidden border-slate-200/80 bg-white shadow-[0_22px_60px_-40px_rgba(15,23,42,0.35)]"
+                className="block focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 focus-visible:outline-none"
+                href={`/workspace/collections/${collectionId}/evaluations/datasets/${dataset.id}`}
               >
-                <CardHeader className="gap-4">
-                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <Card className="h-full overflow-hidden border-slate-200/80 bg-white shadow-[0_22px_60px_-40px_rgba(15,23,42,0.35)] transition-colors hover:bg-slate-50/80">
+                  <CardHeader className="gap-4">
                     <div className="space-y-1">
                       <CardTitle className="text-2xl tracking-[-0.03em]">
                         {dataset.name || dataset.id || '--'}
                       </CardTitle>
-                      <CardDescription className="max-w-2xl text-sm leading-7">
-                        {dataset.description || t('no_description')}
-                      </CardDescription>
+                      {dataset.description ? (
+                        <CardDescription className="max-w-2xl text-sm leading-7">
+                          {dataset.description}
+                        </CardDescription>
+                      ) : null}
                     </div>
-                    <Badge
-                      variant="outline"
-                      className="rounded-full border-slate-200 bg-white px-3 py-1 text-xs"
-                    >
-                      {t(sourceTypeLabelKey(dataset.source_type))}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="grid gap-4">
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4">
-                      <div className="text-xs tracking-[0.16em] text-slate-500 uppercase">
-                        {t('dataset_item_count')}
+                  </CardHeader>
+                  <CardContent className="grid gap-4">
+                    <dl className="grid gap-4 border-y border-slate-100 py-4 sm:grid-cols-2 sm:gap-0">
+                      <div className="flex gap-3 sm:border-r sm:border-slate-100 sm:pr-5">
+                        <span
+                          className={datasetMetaIconClass}
+                          aria-hidden="true"
+                        >
+                          <ListChecks className="size-4" />
+                        </span>
+                        <div className="min-w-0">
+                          <dt className="text-xs font-medium text-slate-500">
+                            {t('dataset_item_count')}
+                          </dt>
+                          <dd className="mt-1 text-lg leading-6 font-semibold text-slate-950">
+                            {dataset.item_count ?? 0}
+                          </dd>
+                        </div>
                       </div>
-                      <div className="mt-2 font-medium text-slate-900">
-                        {dataset.item_count ?? 0}
+                      <div className="flex gap-3 sm:pl-5">
+                        <span
+                          className={datasetMetaIconClass}
+                          aria-hidden="true"
+                        >
+                          <Clock3 className="size-4" />
+                        </span>
+                        <div className="min-w-0">
+                          <dt className="text-xs font-medium text-slate-500">
+                            {t('dataset_created_at')}
+                          </dt>
+                          <dd className="mt-1 truncate text-lg leading-6 font-semibold text-slate-950">
+                            {dataset.created_at ? (
+                              <FormatDate
+                                datetime={new Date(dataset.created_at)}
+                              />
+                            ) : (
+                              '--'
+                            )}
+                          </dd>
+                        </div>
                       </div>
-                    </div>
-                    <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4">
-                      <div className="text-xs tracking-[0.16em] text-slate-500 uppercase">
-                        {t('dataset_source_type')}
-                      </div>
-                      <div className="mt-2 font-medium text-slate-900">
-                        {t(sourceTypeLabelKey(dataset.source_type))}
-                      </div>
-                    </div>
-                    <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4">
-                      <div className="text-xs tracking-[0.16em] text-slate-500 uppercase">
-                        {t('dataset_created_at')}
-                      </div>
-                      <div className="mt-2 font-medium text-slate-900">
-                        {dataset.created_at ? (
-                          <FormatDate datetime={new Date(dataset.created_at)} />
-                        ) : (
-                          '--'
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap justify-end gap-2">
-                    <Button
-                      asChild
-                      variant="outline"
-                      className="rounded-full"
-                      disabled={isPending}
-                    >
-                      <Link
-                        href={`/workspace/collections/${collectionId}/evaluations/datasets/${dataset.id}`}
-                      >
-                        {t('manage_dataset_items')}
-                      </Link>
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="rounded-full text-rose-700 hover:text-rose-800"
-                      disabled={isPending}
-                      onClick={() => handleDeleteDataset(dataset)}
-                    >
-                      <Trash2 className="size-4" />
-                      {t('delete_dataset')}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+                    </dl>
+                  </CardContent>
+                </Card>
+              </Link>
             ))}
           </div>
         )}

@@ -147,7 +147,6 @@ class EvaluationDatasetService:
             collection_id=request.collection_id,
             name=request.name,
             description=request.description,
-            source_type=request.source_type,
             schema_hint=request.schema_hint,
             item_count=0,
         )

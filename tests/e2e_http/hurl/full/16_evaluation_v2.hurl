@@ -52,7 +52,6 @@ Content-Type: application/json
   "name": "Evaluation Dataset {{run_id}}",
   "description": "Evaluation dataset contract coverage",
   "collection_id": "{{collection_id}}",
-  "source_type": "manual",
   "schema_hint": {
     "language": "en-US",
     "contract": "evaluation-v3"
@@ -89,7 +88,6 @@ dataset_id: jsonpath "$.id"
 jsonpath "$.id" == "{{dataset_id}}"
 jsonpath "$.collection_id" == "{{collection_id}}"
 jsonpath "$.name" == "Evaluation Dataset {{run_id}}"
-jsonpath "$.source_type" == "manual"
 jsonpath "$.item_count" == 2
 jsonpath "$.schema_hint.language" == "en-US"
 
