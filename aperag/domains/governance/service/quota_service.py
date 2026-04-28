@@ -337,12 +337,14 @@ class QuotaService:
                 except json.JSONDecodeError:
                     pass
 
-            # Return hardcoded defaults if not found in config
+            # Return settings-backed defaults if not found in config.
+            from aperag.config import settings
+
             return {
-                "max_collection_count": 10,
-                "max_document_count": 1000,
-                "max_document_count_per_collection": 100,
-                "max_bot_count": 5,
+                "max_collection_count": settings.max_collection_count,
+                "max_document_count": settings.max_document_count,
+                "max_document_count_per_collection": settings.max_document_count_per_collection,
+                "max_bot_count": settings.max_bot_count,
             }
 
         return await self.db_ops._execute_query(_query)
