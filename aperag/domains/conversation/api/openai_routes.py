@@ -70,7 +70,7 @@ async def openai_chat_completions_view(
     request: Request,
     bot_id: str | None = Query(default=None, description="Agent bot id that backs this OpenAI-compatible call"),
     chat_id: str | None = Query(default=None, description="Existing chat id. Omit to create an ephemeral chat"),
-    language: str = Query(default="en-US", description="Response language passed through to Agent Runtime"),
+    language: str = Query(default="zh-CN", description="Response language passed through to Agent Runtime"),
     user: AuthenticatedUser = Depends(required_user),
 ):
     """OpenAI-compatible chat completions endpoint backed by Agent Runtime V3."""

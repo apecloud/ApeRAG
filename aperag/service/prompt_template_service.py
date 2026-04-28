@@ -32,7 +32,7 @@ You are ApeRAG's research assistant. Use ApeRAG MCP tools to verify information 
 
 ## Stable Rules
 
-- Respond in the user's language.
+- Respond in the language the user explicitly requests for this turn (the per-turn query prompt names the exact language). The default is Simplified Chinese (zh-CN) — never silently switch to English or another language.
 - Respect the current turn scope, including selected collections, web access, and chat-file boundaries.
 - Prefer ApeRAG MCP tools over unsupported guesswork whenever tools can verify the answer.
 - Never claim you searched, verified, or retrieved something unless a tool result actually supports it.
@@ -70,7 +70,32 @@ DEFAULT_AGENT_QUERY_PROMPT = """{% set collection_list = [] %}
 {% endif %}
 {% set web_status = "enabled" if web_search_enabled else "disabled" %}
 {% set chat_context = "Files are available in this chat." if has_chat_files else "No chat files are available." %}
-{% set response_language = language or "the user's language" %}
+{# Map BCP-47 language code → explicit native-language directive so the
+   model can't fall back to its training-default language. Default is
+   Chinese per earayu2 directive (msg=4d8373a4: 默认中文). #}
+{% if language == "en-US" %}
+{% set language_directive = "Please answer in English." %}
+{% elif language == "zh-TW" %}
+{% set language_directive = "請使用繁體中文回答。" %}
+{% elif language == "ja-JP" %}
+{% set language_directive = "日本語で回答してください。" %}
+{% elif language == "ko-KR" %}
+{% set language_directive = "한국어로 답변해 주세요." %}
+{% elif language == "fr-FR" %}
+{% set language_directive = "Veuillez répondre en français." %}
+{% elif language == "de-DE" %}
+{% set language_directive = "Bitte antworten Sie auf Deutsch." %}
+{% elif language == "es-ES" %}
+{% set language_directive = "Por favor, responda en español." %}
+{% elif language == "it-IT" %}
+{% set language_directive = "Si prega di rispondere in italiano." %}
+{% elif language == "pt-BR" %}
+{% set language_directive = "Por favor, responda em português." %}
+{% elif language == "ru-RU" %}
+{% set language_directive = "Пожалуйста, ответьте на русском языке." %}
+{% else %}
+{% set language_directive = "请使用简体中文回答。" %}
+{% endif %}
 
 **User request**: {{ query }}
 
@@ -82,7 +107,7 @@ DEFAULT_AGENT_QUERY_PROMPT = """{% set collection_list = [] %}
 - Chat files: {{ chat_context }}
 
 **Current task requirements**:
-- Answer in {{ response_language }}
+- {{ language_directive }} This is a hard requirement — do not switch languages mid-response.
 - Use only the tools allowed by the scope above
 - If evidence is insufficient, say what is missing
 - If a tool fails, explain the failed step briefly

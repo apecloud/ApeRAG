@@ -162,7 +162,7 @@ class CreateTurnRequest(BaseModel):
             "pt-BR",
             "ru-RU",
         ]
-    ] = "en-US"
+    ] = "zh-CN"
     files: list[File] = Field(default_factory=list)
     client_idempotency_key: Optional[str] = None
 
@@ -222,7 +222,7 @@ class AgentMessage(BaseModel):
             "pt-BR",
             "ru-RU",
         ]
-    ] = Field("en-US", description="Language preference for the response", examples=["en-US"])
+    ] = Field("zh-CN", description="Language preference for the response", examples=["zh-CN"])
     files: Optional[list[File]] = None
 
 

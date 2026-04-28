@@ -197,7 +197,7 @@ class ChatCompletionService:
             payload = OpenAIChatCompletionRequest.model_validate(body_data or {})
             bot_id = str(query_params.get("bot_id") or "").strip()
             chat_id = str(query_params.get("chat_id") or "").strip() or None
-            language = str(query_params.get("language") or "en-US").strip() or "en-US"
+            language = str(query_params.get("language") or "zh-CN").strip() or "zh-CN"
             if language not in _SUPPORTED_LANGUAGES:
                 raise ValidationException(f"Unsupported language '{language}'")
             if not bot_id:

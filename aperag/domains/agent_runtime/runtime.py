@@ -225,13 +225,41 @@ def _compact_url_label(value: str) -> str:
         return value
 
 
-def _extract_tool_summary(args: Any) -> Optional[str]:
+# Per-language label pair for the tool-call activity subtitle:
+# ``(search_verb, read_verb)``. New ``CreateTurnRequest.language``
+# values must add an entry here. Unknown / missing language falls back
+# to ``_DEFAULT_TOOL_SUMMARY_LABELS`` (Chinese) — earayu2 directive
+# msg=4d8373a4: 默认中文。
+_TOOL_SUMMARY_LABELS: dict[str, tuple[str, str]] = {
+    "zh-CN": ("搜索", "阅读"),
+    "zh-TW": ("搜尋", "閱讀"),
+    "en-US": ("Search", "Read"),
+    "ja-JP": ("検索", "閲覧"),
+    "ko-KR": ("검색", "읽기"),
+    "fr-FR": ("Recherche", "Lecture"),
+    "de-DE": ("Suche", "Lesen"),
+    "es-ES": ("Buscar", "Leer"),
+    "it-IT": ("Cerca", "Leggi"),
+    "pt-BR": ("Buscar", "Ler"),
+    "ru-RU": ("Поиск", "Чтение"),
+}
+_DEFAULT_TOOL_SUMMARY_LABELS: tuple[str, str] = _TOOL_SUMMARY_LABELS["zh-CN"]
+
+
+def _tool_summary_labels(language: Optional[str]) -> tuple[str, str]:
+    if not language:
+        return _DEFAULT_TOOL_SUMMARY_LABELS
+    return _TOOL_SUMMARY_LABELS.get(language, _DEFAULT_TOOL_SUMMARY_LABELS)
+
+
+def _extract_tool_summary(args: Any, language: Optional[str] = None) -> Optional[str]:
     """Project the raw tool input into a small user-facing summary.
 
-    Recognises common tool-input shapes and returns ``"搜索：…"`` /
-    ``"阅读：…"`` style copy. Returns ``None`` when the args don't fit
-    a recognised shape — the FE falls back to its generic per-tool
-    label in that case.
+    Recognises common tool-input shapes and returns a localized
+    ``"<verb>:<value>"`` string (e.g. ``"搜索:张飞牛肉"`` /
+    ``"Search:beekeeping"``) honouring the user's selected language.
+    Returns ``None`` when the args don't fit a recognised shape — the
+    FE falls back to its generic per-tool label in that case.
 
     Bounded to ``_TOOL_SUMMARY_MAX_LEN`` chars so persisted rows stay
     small. Raw args are NEVER persisted in full (D9 §A7) — this
@@ -240,14 +268,15 @@ def _extract_tool_summary(args: Any) -> Optional[str]:
     """
     if not isinstance(args, dict):
         return None
+    search_verb, read_verb = _tool_summary_labels(language)
     for key in ("query", "q", "keyword", "keywords"):
         value = args.get(key)
         if isinstance(value, str) and value.strip():
-            return _truncate_summary(f"搜索:{value.strip()}")
+            return _truncate_summary(f"{search_verb}:{value.strip()}")
     for key in ("url", "uri", "link"):
         value = args.get(key)
         if isinstance(value, str) and value.strip():
-            return _truncate_summary(f"阅读:{_compact_url_label(value.strip())}")
+            return _truncate_summary(f"{read_verb}:{_compact_url_label(value.strip())}")
     return None
 
 
@@ -640,7 +669,10 @@ class PydanticAIRuntime(AgentRuntime):
                             tool_call_id=tool_call_id,
                             tool_name=tool_name,
                             state="input-available",
-                            summary=_extract_tool_summary(self._normalize_jsonish(event.part.args)),
+                            summary=_extract_tool_summary(
+                                self._normalize_jsonish(event.part.args),
+                                language=resolved_request.agent_message.language,
+                            ),
                         )
                         persisted_tool_calls.append(tool_call)
                         persisted_tool_index[tool_call_id] = tool_call
