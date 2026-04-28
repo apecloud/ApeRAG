@@ -85,7 +85,7 @@ export default async function Home() {
             </Button>
           </div>
           <div className="text-muted-foreground mt-9 grid gap-3 text-sm sm:grid-cols-3">
-            {['private', 'models', 'license'].map((key) => (
+            {(['private', 'models', 'license'] as const).map((key) => (
               <div key={key} className="flex items-center gap-2">
                 <span className="bg-accent-soft text-accent-ink grid size-5 place-items-center rounded-full">
                   <Check className="size-3" />

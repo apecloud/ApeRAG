@@ -64,6 +64,19 @@ jobs:
         run: |
           make test-unit
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "yarn"
+          cache-dependency-path: web/yarn.lock
+
+      - name: Frontend type-check
+        working-directory: web
+        run: |
+          yarn install --frozen-lockfile
+          yarn type-check
+
       - name: Upload unit coverage artifacts
         if: always()
         uses: actions/upload-artifact@v4
