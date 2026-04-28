@@ -120,14 +120,15 @@ class GraphService:
         1. ``store.list_entities(label, limit=query_max_nodes)`` —
            label-filtered entity list (primary work; new Protocol
            method shipped in this PR).
-        2. ``GraphSearchService.get_subgraph(names, hops=max_depth)`` —
-           optional edge expansion when ``max_depth > 0``.
+        2. ``store.expand_neighbors_n_hops(names, hops=1)`` — optional
+           edge expansion when ``max_depth > 0``.
 
-        Each layer has clean semantics (W7-5 ``get_subgraph`` is
-        anchor-expansion, NOT label-filter; using it as the primary
-        entry point would force a wrapper that re-list_entities just
-        to compute anchors — drift the architect catches in
-        msg=838d57c3 own-up).
+        The public ``max_depth`` query parameter is kept for API
+        compatibility, but this visualization endpoint only returns
+        relations whose source AND target are both in the seed entity
+        set. Under that filter, 1-hop expansion already discovers every
+        relation the endpoint can return; deeper expansion only walks
+        external neighbours that are discarded afterwards.
         """
         db_collection = await self._get_and_validate_collection(user_id, collection_id)
 
@@ -137,7 +138,6 @@ class GraphService:
 
         # Lazy imports keep the service module free of indexing-layer
         # dependencies at import time (mirror ``get_graph_labels``).
-        from aperag.indexing.graph_search_service import build_graph_search_service_for
         from aperag.indexing.worker_factory import (
             _build_lineage_graph_store,
             _resolve_graph_backend_type,
@@ -155,11 +155,10 @@ class GraphService:
         # neighbours past the ``label`` filter.
         relations: list[Any] = []
         if entities and max_depth > 0:
-            search = build_graph_search_service_for(db_collection)
             seed_names = [entity.name for entity in entities]
-            _, subgraph_relations = await search.get_subgraph(
+            _, subgraph_relations = await store.expand_neighbors_n_hops(
                 entity_names=seed_names,
-                hops=max_depth,
+                hops=1,
             )
             allowed = set(seed_names)
             relations = [rel for rel in subgraph_relations if rel.source in allowed and rel.target in allowed]
