@@ -1624,7 +1624,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v3/model-providers": {
+    "/api/v2/model-providers": {
         parameters: {
             query?: never;
             header?: never;
@@ -1641,7 +1641,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v3/model-accounts": {
+    "/api/v2/model-accounts": {
         parameters: {
             query?: never;
             header?: never;
@@ -1659,7 +1659,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v3/model-accounts/{account_id}": {
+    "/api/v2/model-accounts/{account_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -1677,7 +1677,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v3/model-accounts/{account_id}/validate": {
+    "/api/v2/model-accounts/{account_id}/validate": {
         parameters: {
             query?: never;
             header?: never;
@@ -1694,7 +1694,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v3/model-accounts/{account_id}/models": {
+    "/api/v2/model-accounts/{account_id}/models": {
         parameters: {
             query?: never;
             header?: never;
@@ -1711,7 +1711,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v3/models": {
+    "/api/v2/models": {
         parameters: {
             query?: never;
             header?: never;
@@ -1729,7 +1729,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v3/models/{model_id}": {
+    "/api/v2/models/{model_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -1747,7 +1747,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v3/models/{model_id}/validate": {
+    "/api/v2/models/{model_id}/validate": {
         parameters: {
             query?: never;
             header?: never;
@@ -1764,7 +1764,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v3/model-uses": {
+    "/api/v2/model-uses": {
         parameters: {
             query?: never;
             header?: never;
@@ -1781,7 +1781,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v3/model-uses/{scenario}": {
+    "/api/v2/model-uses/{scenario}": {
         parameters: {
             query?: never;
             header?: never;
@@ -3264,7 +3264,7 @@ export interface components {
          *     surface — see Weston msg=80e873c1 / PR #1697 Blocker A. The
          *     triple is resolved to a ``model_id`` server-side via
          *     ``resolve_legacy_model_id`` before the runtime lookup runs.
-         *     Routes that are post-#1697-only (``/api/v3/...``) require
+         *     Routes that are post-#1697-only (``/api/v2/...``) require
          *     ``model_id`` and never accept the triple.
          */
         EmbeddingRequest: {

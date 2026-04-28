@@ -85,7 +85,7 @@ from aperag.domains.marketplace.service.marketplace_service import (
 from aperag.domains.model_platform.api.llm_routes import router as llm_router
 from aperag.domains.model_platform.api.prompts_routes import router as prompts_router
 from aperag.domains.model_platform.api.prompts_routes import set_prompt_crud_ops as _set_prompt_crud_ops
-from aperag.domains.model_platform.api.providers_v3_routes import router as providers_v3_router
+from aperag.domains.model_platform.api.providers_v2_routes import router as providers_v2_router
 from aperag.domains.retrieval.api.routes import router as retrieval_router
 from aperag.domains.web_access.api.routes import router as web_access_router
 from aperag.exception_handlers import register_exception_handlers
@@ -543,7 +543,7 @@ app.include_router(config_router, prefix="/api/v2/config")
 app.include_router(agent_runtime_router, prefix="/api/v2")
 app.include_router(bots_v2_router, prefix="/api/v2")
 app.include_router(evaluation_v2_router, prefix="/api/v2")
-app.include_router(providers_v3_router, prefix="/api/v3")  # Model platform: model accounts / models / model uses
+app.include_router(providers_v2_router, prefix="/api/v2")  # Model platform: model accounts / models / model uses
 app.include_router(knowledge_base_router, prefix="/api/v2")  # KB domain router (collections_v2 + documents_v2)
 
 # Mount the MCP server at /mcp path

@@ -6,9 +6,9 @@ Content-Type: application/json
 }
 HTTP 200
 
-# v3 model-platform setup — ``ModelSpec`` only accepts ``model_id``
+# v2 model-platform setup — ``ModelSpec`` only accepts ``model_id``
 # now, so the bot config below references a freshly-seeded chat model.
-POST {{base_url}}/api/v3/model-accounts
+POST {{base_url}}/api/v2/model-accounts
 Content-Type: application/json
 {
   "provider_type": "openai_compatible",
@@ -21,7 +21,7 @@ HTTP 200
 [Captures]
 openrouter_account_id: jsonpath "$.id"
 
-POST {{base_url}}/api/v3/models
+POST {{base_url}}/api/v2/models
 Content-Type: application/json
 {
   "account_id": "{{openrouter_account_id}}",

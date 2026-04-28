@@ -285,8 +285,8 @@ def test_provider_feature_uses_v2_typed_api_boundary():
     # and not fall back to the old `@/api` generated SDK or raw fetch.
     assert "from '@/api'" not in feature_sources
     assert "fetch(" not in feature_sources
-    assert "'/api/v3/models'" in feature_sources
-    assert "'/api/v3/model-providers'" in feature_sources
+    assert "'/api/v2/models'" in feature_sources
+    assert "'/api/v2/model-providers'" in feature_sources
 
     # Positive: the migrated caller wires through the feature adapter and
     # imports the domain-scoped `ModelSpec` alias from `features/providers`.

@@ -16,10 +16,10 @@ Content-Type: application/json
 }
 HTTP 200
 
-# v3 model-platform setup — every file is run independently and
+# v2 model-platform setup — every file is run independently and
 # ``ModelSpec`` only accepts ``model_id`` now, so the collection config
 # below references freshly-seeded embedding / completion models.
-POST {{base_url}}/api/v3/model-accounts
+POST {{base_url}}/api/v2/model-accounts
 Content-Type: application/json
 {
   "provider_type": "dashscope",
@@ -32,7 +32,7 @@ HTTP 200
 [Captures]
 dashscope_account_id: jsonpath "$.id"
 
-POST {{base_url}}/api/v3/model-accounts
+POST {{base_url}}/api/v2/model-accounts
 Content-Type: application/json
 {
   "provider_type": "openai_compatible",
@@ -45,7 +45,7 @@ HTTP 200
 [Captures]
 openrouter_account_id: jsonpath "$.id"
 
-POST {{base_url}}/api/v3/models
+POST {{base_url}}/api/v2/models
 Content-Type: application/json
 {
   "account_id": "{{dashscope_account_id}}",
@@ -58,7 +58,7 @@ HTTP 200
 [Captures]
 embedding_model_id: jsonpath "$.id"
 
-POST {{base_url}}/api/v3/models
+POST {{base_url}}/api/v2/models
 Content-Type: application/json
 {
   "account_id": "{{openrouter_account_id}}",

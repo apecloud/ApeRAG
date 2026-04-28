@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from aperag.domains.model_platform.api.providers_v3_routes import router
+from aperag.domains.model_platform.api.providers_v2_routes import router
 from aperag.domains.model_platform.schemas import (
     ModelAccountCreate,
     ModelCapability,
@@ -11,29 +11,29 @@ from aperag.domains.model_platform.schemas import (
 from aperag.openapi_spec import build_full_openapi_spec, custom_generate_unique_id, filter_public_openapi
 
 
-def _provider_v3_spec():
+def _provider_v2_spec():
     app = FastAPI(generate_unique_id_function=custom_generate_unique_id)
-    app.include_router(router, prefix="/api/v3")
+    app.include_router(router, prefix="/api/v2")
     return filter_public_openapi(build_full_openapi_spec(app))
 
 
-def test_model_platform_v3_routes_use_product_language():
-    spec = _provider_v3_spec()
+def test_model_platform_v2_routes_use_product_language():
+    spec = _provider_v2_spec()
     paths = spec["paths"]
 
-    assert "/api/v3/model-providers" in paths
-    assert "/api/v3/model-accounts" in paths
-    assert "/api/v3/model-accounts/{account_id}/validate" in paths
-    assert "/api/v3/model-accounts/{account_id}/models" in paths
-    assert "/api/v3/models" in paths
-    assert "/api/v3/models/{model_id}" in paths
-    assert "/api/v3/models/{model_id}/validate" in paths
-    assert "/api/v3/model-uses" in paths
-    assert "/api/v3/model-uses/{scenario}" in paths
+    assert "/api/v2/model-providers" in paths
+    assert "/api/v2/model-accounts" in paths
+    assert "/api/v2/model-accounts/{account_id}/validate" in paths
+    assert "/api/v2/model-accounts/{account_id}/models" in paths
+    assert "/api/v2/models" in paths
+    assert "/api/v2/models/{model_id}" in paths
+    assert "/api/v2/models/{model_id}/validate" in paths
+    assert "/api/v2/model-uses" in paths
+    assert "/api/v2/model-uses/{scenario}" in paths
 
 
-def test_model_platform_v3_schemas_do_not_expose_litellm_dialects():
-    spec = _provider_v3_spec()
+def test_model_platform_v2_schemas_do_not_expose_litellm_dialects():
+    spec = _provider_v2_spec()
     forbidden = {
         "completion_dialect",
         "embedding_dialect",
@@ -95,7 +95,7 @@ def test_model_create_supports_multimodal_embedding_flag_defaults_false():
 def test_model_create_supports_multimodal_embedding_flag_can_be_set():
     """Operators register a real multimodal embedder (Voyage Multimodal /
     CLIP / Jina v3 / etc.) by setting this flag — it surfaces through
-    the v3 ``/models`` route so a UI can render a checkbox."""
+    the v2 ``/models`` route so a UI can render a checkbox."""
     model = ModelCreate(
         account_id="acct_1",
         provider_model_id="voyage-multimodal-3",
@@ -106,15 +106,15 @@ def test_model_create_supports_multimodal_embedding_flag_can_be_set():
     assert model.supports_multimodal_embedding is True
 
 
-def test_model_v3_openapi_exposes_supports_multimodal_embedding():
-    """The v3 routes' OpenAPI schema must surface the new capability
+def test_model_v2_openapi_exposes_supports_multimodal_embedding():
+    """The v2 routes' OpenAPI schema must surface the new capability
     flag so the API contract stays discoverable for UI clients."""
-    spec = _provider_v3_spec()
+    spec = _provider_v2_spec()
     schemas = spec["components"]["schemas"]
     # All three model schemas (read / create / update) must carry
     # the field so a UI can read + modify it consistently.
     for schema_name in ("Model", "ModelCreate", "ModelUpdate"):
-        assert schema_name in schemas, f"{schema_name} schema missing from v3 OpenAPI"
+        assert schema_name in schemas, f"{schema_name} schema missing from v2 OpenAPI"
         properties = schemas[schema_name].get("properties", {})
         assert "supports_multimodal_embedding" in properties, (
             f"{schema_name} missing supports_multimodal_embedding capability flag"

@@ -1107,7 +1107,7 @@ T7 wiring requires three coordinated pieces beyond what chunk 4 ships:
    before the vision worker has any image bytes to embed.
 
 3. **Provider-specific multimodal model registration** — the model
-   platform v3 router (``aperag/domains/model_platform/api/providers_v3_routes.py``)
+   platform v2 router (`aperag/domains/model_platform/api/providers_v2_routes.py`)
    needs to surface the multimodal capability flag so operators can
    set `is_multimodal=True` on the collection's embedder spec. The
    capability flag is the source of truth for the chunk 4b gate.
@@ -1654,7 +1654,7 @@ per §G.2.5.1 spec amendment (Wave 4 chunk 4e follow-up `da576f62`):
 
 - **item 1**: `aperag/llm/embed/embedding_service.py` 加 `embed_image(image_bytes: bytes, alt_text: str = "") -> list[float]` API surface; provider implementation 通过 v3 router resolve
 - **item 2**: parser pipeline 加 image extraction → write `derived/parse_<v>/vision/images/<image_id>.<ext>` (per-page image bytes for PDF / single-image-input passthrough); 同 batch 实施 chunk_id schema unification (per huangheng T1 obs B)
-- **item 3**: `aperag/domains/model_platform/api/providers_v3_routes.py` 加 multimodal capability flag (`is_multimodal=True` source of truth); operator can set on collection embedder spec
+- **item 3**: `aperag/domains/model_platform/api/providers_v2_routes.py` 加 multimodal capability flag (`is_multimodal=True` source of truth); operator can set on collection embedder spec
 - chunk 4b vision gate **self-disables** when `is_multimodal()` flips True + provider flag set
 
 **production-readiness 三类**:
