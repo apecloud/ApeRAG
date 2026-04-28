@@ -450,6 +450,61 @@ def test_extractor_main_pass_runs_remaining_chunks_in_parallel(monkeypatch: pyte
     asyncio.run(_run())
 
 
+def test_extractor_main_pass_uses_chunked_gather_batches(monkeypatch: pytest.MonkeyPatch):
+    """Pin the bounded coroutine fan-out invariant: the main pass
+    dispatches at most ``_MAIN_PASS_BATCH_SIZE`` coroutines per
+    ``asyncio.gather`` round, regardless of document size. Pre-fix
+    the extractor scheduled all post-bootstrap chunks at once, which
+    wedged the BE process around 2 395 chunks (Harry Potter txt,
+    observed 2026-04-28).
+
+    We instrument ``asyncio.gather`` so we can assert each invocation
+    receives no more than the configured batch size, and that the
+    sum of all dispatched coroutines equals the post-bootstrap
+    remainder.
+    """
+
+    in_flight = {"calls": 0}
+
+    async def _stub_llm(_prompt: str) -> str:
+        in_flight["calls"] += 1
+        return _entity_response("e")
+
+    _stub_integration(monkeypatch, _stub_llm)
+
+    real_gather = asyncio.gather
+    gather_batch_sizes: list[int] = []
+
+    def _instrumented_gather(*coros, **kwargs):
+        gather_batch_sizes.append(len(coros))
+        return real_gather(*coros, **kwargs)
+
+    monkeypatch.setattr(asyncio, "gather", _instrumented_gather)
+
+    async def _run() -> None:
+        extractor = ge.build_collection_graph_extractor(_make_collection())
+        # Pick a count well above the batch size so we get multiple
+        # gather rounds (bootstrap 20 + 130 main = 150 total → 3 main
+        # batches of 50 with the default ``_MAIN_PASS_BATCH_SIZE``).
+        total_chunks = ge._BOOTSTRAP_CHUNK_COUNT + (3 * ge._MAIN_PASS_BATCH_SIZE - 20)
+        chunks = [{"chunk_id": f"c-{i}", "text": f"chunk text {i}"} for i in range(total_chunks)]
+        await extractor(chunks)
+
+    asyncio.run(_run())
+
+    # Every gather invocation must be ≤ the batch size.
+    assert gather_batch_sizes, "main pass must invoke asyncio.gather at least once"
+    for size in gather_batch_sizes:
+        assert 0 < size <= ge._MAIN_PASS_BATCH_SIZE, (
+            f"main pass gather batch size {size} exceeds cap {ge._MAIN_PASS_BATCH_SIZE}"
+        )
+
+    # The sum of all gather coroutines must equal the post-bootstrap
+    # remainder — proves no chunk is dropped or double-dispatched.
+    expected_main_coros = (3 * ge._MAIN_PASS_BATCH_SIZE) - 20  # remainder after bootstrap
+    assert sum(gather_batch_sizes) == expected_main_coros
+
+
 def test_extractor_main_pass_isolates_chunk_failures(monkeypatch: pytest.MonkeyPatch):
     """Per-chunk failures in the parallel pass must not poison sibling
     chunks' entities. Same isolation contract as the original serial
