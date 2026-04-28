@@ -58,7 +58,6 @@ __all__ = [
     "DocumentPreview",
     "RebuildIndexesRequest",
     "RebuildIndexesResponse",
-    "CollectionSummaryTriggerResponse",
     # Step 5b3: document-upload / confirm / fetch-url envelope schemas
     # moved from ``aperag.schema.view_models`` so the KB
     # ``document_service`` does not have to bind to the aggregate.
@@ -214,16 +213,11 @@ class DocumentPreview(BaseModel):
     vision_chunks: Optional[list[VisionChunk]] = None
 
 
-class CollectionSummaryTriggerResponse(BaseModel):
-    """Trigger-response envelope for POST /collections/{collection_id}/summary/generate."""
-
-    collection_id: str = Field(..., description="Collection id whose summary generation was triggered")
-    success: bool = Field(..., description="Whether the background job was scheduled")
-    message: str = Field(..., description="Human-readable status message")
-    summary_status: Literal["PENDING", "GENERATING"] = Field(
-        ...,
-        description="Server-side summary state after the trigger call",
-    )
+# Wave 10 §K.13: ``CollectionSummaryTriggerResponse`` removed alongside
+# the legacy ``POST /collections/{id}/summary/generate`` endpoint hard-
+# cut. New Wave 10 endpoints (``/summary/regen`` + ``/description/regen``)
+# return a different envelope (task_id + estimated_completion_seconds);
+# their schema lands in Chunk C-D.
 
 
 # ---------- Document upload / confirm / fetch-url envelopes (Step 5b3) ---------- #

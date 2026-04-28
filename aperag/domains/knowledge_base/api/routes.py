@@ -45,7 +45,6 @@ from aperag.domains.knowledge_base.ports import AuthenticatedUser
 from aperag.domains.knowledge_base.schemas import (
     Collection,
     CollectionCreate,
-    CollectionSummaryTriggerResponse,
     CollectionUpdate,
     CollectionViewList,
     ConfirmDocumentsRequest,
@@ -68,9 +67,6 @@ from aperag.domains.knowledge_base.schemas import (
 from aperag.domains.knowledge_base.service.collection_service import (
     _get_marketplace_ops,
     collection_service,
-)
-from aperag.domains.knowledge_base.service.collection_summary_service import (
-    collection_summary_service,
 )
 from aperag.domains.knowledge_base.service.document_service import document_service
 from aperag.exceptions import CollectionNotFoundException, PermissionDeniedError
@@ -160,35 +156,14 @@ async def delete_collection_view(
     return Response(status_code=204)
 
 
-@router.post(
-    "/collections/{collection_id}/summary/generate",
-    response_model=CollectionSummaryTriggerResponse,
-)
-@audit(resource_type="collection", api_name="GenerateCollectionSummaryV2")
-async def generate_collection_summary_view(
-    collection_id: str,
-    user: AuthenticatedUser = Depends(required_user),
-) -> CollectionSummaryTriggerResponse:
-    """Trigger background summary generation for one collection."""
-
-    collection = await collection_service.get_collection(str(user.id), collection_id)
-    if not collection:
-        raise HTTPException(status_code=404, detail="Collection not found")
-
-    task_triggered = await collection_summary_service.trigger_collection_summary_generation(collection)
-    if task_triggered:
-        return CollectionSummaryTriggerResponse(
-            collection_id=collection_id,
-            success=True,
-            message="Collection summary generation started",
-            summary_status="PENDING",
-        )
-    return CollectionSummaryTriggerResponse(
-        collection_id=collection_id,
-        success=False,
-        message="Collection summary generation already in progress or disabled",
-        summary_status="GENERATING",
-    )
+# Wave 10 §K.13: legacy ``POST /collections/{id}/summary/generate``
+# endpoint removed alongside the ``collection_summary_service`` /
+# ``CollectionSummary`` ORM hard-cut. Replacement endpoints land in
+# Chunk D — ``POST /collections/{id}/summary/regen`` (Stage 1, agent-
+# runtime explore) + ``POST /collections/{id}/description/regen``
+# (Stage 2, cheap derive). Both are invoked by the reconciler hook
+# (Chunk E) automatically; the explicit POSTs are operator/external
+# overrides that bypass debounce.
 
 
 @router.get(

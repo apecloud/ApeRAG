@@ -25,9 +25,12 @@ COLLECTION_V1_GHOST_PATHS = frozenset(
         "/api/v2/collections/test-mineru-token",
         "/api/v2/collections/{collection_id}",
         "/api/v2/collections/{collection_id}/sharing",
-        "/api/v2/collections/{collection_id}/summary/generate",
     }
 )
+# Wave 10 §K.13: ``POST /collections/{id}/summary/generate`` removed
+# alongside the legacy ``collection_summary_service`` hard-cut. Wave
+# 10 replacement endpoints (``/summary/regen`` + ``/description/regen``)
+# land in Chunk D.
 
 
 def _collection_v1_ghosts(spec: dict) -> set[str]:
@@ -38,7 +41,6 @@ REQUIRED_PATHS = {
     "/api/v2/collections",
     "/api/v2/collections/{collection_id}",
     "/api/v2/collections/test-mineru-token",
-    "/api/v2/collections/{collection_id}/summary/generate",
     "/api/v2/collections/{collection_id}/sharing",
 }
 
@@ -49,11 +51,6 @@ JSON_ROUTES = [
     ("/api/v2/collections/{collection_id}", "get", "Collection"),
     ("/api/v2/collections/{collection_id}", "put", "Collection"),
     ("/api/v2/collections/test-mineru-token", "post", "MineruTokenTestResponse"),
-    (
-        "/api/v2/collections/{collection_id}/summary/generate",
-        "post",
-        "CollectionSummaryTriggerResponse",
-    ),
     ("/api/v2/collections/{collection_id}/sharing", "get", "SharingStatusResponse"),
 ]
 

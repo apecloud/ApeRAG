@@ -69,7 +69,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 PHASE3_DB_CLASSES = (
     "Collection",
-    "CollectionSummary",
+    # Wave 10 §K.13: ``CollectionSummary`` ORM hard-cut removed.
     "Document",
     "DocumentIndex",
     "SearchHistory",
@@ -79,7 +79,8 @@ PHASE3_DB_CLASSES = (
 
 PHASE3_ENUMS = (
     "CollectionStatus",
-    "CollectionSummaryStatus",
+    # Wave 10 §K.13: ``CollectionSummaryStatus`` removed alongside
+    # ``CollectionSummary`` ORM hard-cut.
     "CollectionType",
     "DocumentStatus",
     "GraphCurationRunStatus",
@@ -94,7 +95,8 @@ PHASE3_ENUMS = (
 
 PHASE3_TABLES = (
     "collection",
-    "collection_summary",
+    # Wave 10 §K.13: ``collection_summary`` table dropped via alembic
+    # migration ``e1a2b3c4d5f6`` (Chunk B).
     "document",
     "document_index",
     "searchhistory",
@@ -109,7 +111,7 @@ PHASE3_TABLES = (
 # same names.
 PHASE3_SYMBOL_TO_MODULE = {
     "Collection": "aperag.domains.knowledge_base.db.models",
-    "CollectionSummary": "aperag.domains.knowledge_base.db.models",
+    # Wave 10 §K.13: ``CollectionSummary`` removed.
     "Document": "aperag.domains.knowledge_base.db.models",
     # Wave 3 T3.1: the canonical ``DocumentIndex`` ORM lives in
     # ``aperag/indexing/models.py`` (the celery-redesign §F.1 row).
@@ -120,7 +122,7 @@ PHASE3_SYMBOL_TO_MODULE = {
     "GraphCurationRun": "aperag.domains.knowledge_graph.db.models",
     "GraphCurationSuggestion": "aperag.domains.knowledge_graph.db.models",
     "CollectionStatus": "aperag.domains.knowledge_base.db.models",
-    "CollectionSummaryStatus": "aperag.domains.knowledge_base.db.models",
+    # Wave 10 §K.13: ``CollectionSummaryStatus`` removed.
     "CollectionType": "aperag.domains.knowledge_base.db.models",
     "DocumentStatus": "aperag.domains.knowledge_base.db.models",
     "GraphCurationRunStatus": "aperag.domains.knowledge_graph.db.models",
