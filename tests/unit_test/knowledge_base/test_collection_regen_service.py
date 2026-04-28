@@ -22,7 +22,6 @@ from aperag.domains.knowledge_base.service.collection_regen_service import (
     is_valid_summary,
 )
 
-
 # ---------------------------------------------------------------------
 # Quality gates — summary
 # ---------------------------------------------------------------------
