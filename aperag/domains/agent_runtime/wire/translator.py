@@ -297,6 +297,13 @@ def _translate_tool_started(envelope: AgentTimelineEventEnvelope, state: Transla
     raw_tool_name = data.get("tool_name") or envelope.label or "tool"
     tool_call_id = str(data.get("tool_call_id") or envelope.event_id)
     safe_name, metadata = _resolve_tool_name(str(raw_tool_name), state.safe_tool_name_resolver)
+    # Forward resolved titles (document_title / collection_title) on
+    # the wire so the FE renderer surfaces real names DURING streaming
+    # too — not only after refresh from the at-rest ToolPart.metadata.
+    # Mirrors the at-rest composition in ``_compose_assistant_parts``.
+    resolved_titles = data.get("titles")
+    if isinstance(resolved_titles, dict) and resolved_titles:
+        metadata = {**metadata, **resolved_titles}
     tool_input = _extract_tool_input(envelope)
     return [
         ToolInputStartPart(

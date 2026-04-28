@@ -24,7 +24,7 @@ import os
 # helper 到 agent_runtime 自己 module").
 import uuid as _uuid
 from contextlib import suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal, Optional
 
 from pydantic_ai import Agent, AgentRunResultEvent
@@ -174,6 +174,15 @@ class _PersistedToolCall:
     # post-refresh, when the raw ``input`` is intentionally NOT
     # persisted (D9 §A7). Bounded to ``_TOOL_SUMMARY_MAX_LEN`` chars.
     summary: Optional[str] = None
+    # Resolved human-readable titles for any opaque IDs in the tool
+    # input — populated by ``_resolve_tool_titles`` from the DB
+    # (Document.name, Collection.title) so the FE shows
+    # "已阅读文档：03-非洲猪瘟常态化防控技术指南.md" instead of the raw
+    # ``doc12a626b4...`` ID. Keys mirror the FE renderer's
+    # ``extractStringField`` lookup list (``document_title`` /
+    # ``collection_title``) so dongdong's ``agent-turn-renderer.tsx``
+    # picks them up via ``part.metadata`` automatically.
+    titles: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -280,6 +289,65 @@ def _extract_tool_summary(args: Any, language: Optional[str] = None) -> Optional
     return None
 
 
+async def _resolve_tool_titles(args: Any) -> dict[str, str]:
+    """Look up the human-readable titles for any opaque IDs in tool args.
+
+    earayu2 directive (msg=077c88fd 都展示名称而不是 id): the FE
+    activity narration should never expose ``doc12a626b4...`` /
+    ``colf922365f...`` raw IDs to users. The MCP read primitives
+    (``read_document``, ``get_document_metadata``,
+    ``get_collection_metadata``, ...) take only IDs, so without a
+    BE-side lookup the FE has nothing readable to display.
+
+    Returns a dict shaped to match the FE renderer's
+    ``extractStringField(part.metadata, [...])`` lookup keys
+    (``document_title`` / ``collection_title``) so dongdong's
+    PR #1826 ``agent-turn-renderer.tsx`` picks the values up
+    transparently — no FE change needed for new tools that follow
+    the same args shape.
+
+    Returns ``{}`` for anything that doesn't match the recognised
+    args shape OR when the row is gone (deleted document, etc.) —
+    the FE then falls back to its generic per-kind copy
+    ("已查看文档信息" / "已查看知识库信息" etc.).
+
+    Best-effort: never raises (a stray DB error must not break a
+    tool call's user-facing summary). One DB roundtrip per opaque
+    ID found, opening a short-lived async session.
+    """
+
+    if not isinstance(args, dict):
+        return {}
+    document_id = args.get("document_id")
+    collection_id = args.get("collection_id")
+    if not document_id and not collection_id:
+        return {}
+
+    from sqlalchemy import select
+
+    from aperag.config import get_async_session
+    from aperag.domains.knowledge_base.db.models import Collection, Document
+
+    titles: dict[str, str] = {}
+    try:
+        async for session in get_async_session():
+            if isinstance(document_id, str) and document_id.strip():
+                stmt = select(Document.name).where(Document.id == document_id)
+                name = (await session.execute(stmt)).scalars().first()
+                if name:
+                    titles["document_title"] = name
+            if isinstance(collection_id, str) and collection_id.strip():
+                stmt = select(Collection.title).where(Collection.id == collection_id)
+                title = (await session.execute(stmt)).scalars().first()
+                if title:
+                    titles["collection_title"] = title
+            break
+    except Exception:
+        # Title resolution is decorative — never fail the turn over it.
+        return titles
+    return titles
+
+
 def _tool_part_type(tool_name: str) -> str:
     safe = sanitize_tool_name(tool_name or "tool") or "tool"
     return f"tool-{safe}"
@@ -330,7 +398,7 @@ def _compose_assistant_parts(
                         output=entry.output,
                         error_text=entry.error_text,
                         summary=entry.summary,
-                        metadata={"mcpToolName": entry.tool_name},
+                        metadata={"mcpToolName": entry.tool_name, **entry.titles},
                     )
                 )
     else:
@@ -343,7 +411,7 @@ def _compose_assistant_parts(
                     output=call.output,
                     error_text=call.error_text,
                     summary=call.summary,
-                    metadata={"mcpToolName": call.tool_name},
+                    metadata={"mcpToolName": call.tool_name, **call.titles},
                 )
             )
     if answer_text:
@@ -665,14 +733,23 @@ class PydanticAIRuntime(AgentRuntime):
                         # this thinking block before the upcoming tool
                         # action card.
                         _flush_reasoning_chunk()
+                        normalized_args = self._normalize_jsonish(event.part.args)
+                        # Resolve human-readable titles for any opaque
+                        # IDs in the args (document_id / collection_id)
+                        # so the FE activity narration can show real
+                        # names instead of "doc12a626b4..." raw IDs
+                        # (earayu2 directive msg=077c88fd: 都展示名称
+                        # 而不是 id).
+                        resolved_titles = await _resolve_tool_titles(normalized_args)
                         tool_call = _PersistedToolCall(
                             tool_call_id=tool_call_id,
                             tool_name=tool_name,
                             state="input-available",
                             summary=_extract_tool_summary(
-                                self._normalize_jsonish(event.part.args),
+                                normalized_args,
                                 language=resolved_request.agent_message.language,
                             ),
+                            titles=resolved_titles,
                         )
                         persisted_tool_calls.append(tool_call)
                         persisted_tool_index[tool_call_id] = tool_call
@@ -693,7 +770,11 @@ class PydanticAIRuntime(AgentRuntime):
                             data={
                                 "tool_name": tool_name,
                                 "tool_call_id": tool_call_id,
-                                "args": self._normalize_jsonish(event.part.args),
+                                "args": normalized_args,
+                                # Pass titles down on the live stream
+                                # too so FE shows real names during
+                                # streaming, not just after reload.
+                                "titles": resolved_titles,
                             },
                         )
                         if self._is_external_action(tool_name):
