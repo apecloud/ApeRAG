@@ -201,7 +201,7 @@ class EmbeddingRequest(BaseModel):
     surface — see Weston msg=80e873c1 / PR #1697 Blocker A. The
     triple is resolved to a ``model_id`` server-side via
     ``resolve_legacy_model_id`` before the runtime lookup runs.
-    Routes that are post-#1697-only (``/api/v3/...``) require
+    Routes that are post-#1697-only (``/api/v2/...``) require
     ``model_id`` and never accept the triple.
     """
 

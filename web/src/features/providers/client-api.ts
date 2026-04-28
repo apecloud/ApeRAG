@@ -15,39 +15,39 @@ import type {
 const api = browserApiClient as any;
 
 export async function getModelProviders(): Promise<ModelProvider[]> {
-  const { data } = await api.GET('/api/v3/model-providers');
+  const { data } = await api.GET('/api/v2/model-providers');
   return data?.items ?? [];
 }
 
 export async function getModelAccounts(): Promise<ModelAccount[]> {
-  const { data } = await api.GET('/api/v3/model-accounts');
+  const { data } = await api.GET('/api/v2/model-accounts');
   return data?.items ?? [];
 }
 
 export async function createModelAccount(input: ModelAccountCreateInput) {
-  const { data } = await api.POST('/api/v3/model-accounts', { body: input });
+  const { data } = await api.POST('/api/v2/model-accounts', { body: input });
   return data;
 }
 
 export async function validateModelAccount(accountId: string) {
-  const { data } = await api.POST('/api/v3/model-accounts/{account_id}/validate', {
+  const { data } = await api.POST('/api/v2/model-accounts/{account_id}/validate', {
     params: { path: { account_id: accountId } },
   });
   return data;
 }
 
 export async function getModels(): Promise<Model[]> {
-  const { data } = await api.GET('/api/v3/models');
+  const { data } = await api.GET('/api/v2/models');
   return data?.items ?? [];
 }
 
 export async function createModel(input: ModelCreateInput) {
-  const { data } = await api.POST('/api/v3/models', { body: input });
+  const { data } = await api.POST('/api/v2/models', { body: input });
   return data;
 }
 
 export async function getModelUses(): Promise<ModelUse[]> {
-  const { data } = await api.GET('/api/v3/model-uses');
+  const { data } = await api.GET('/api/v2/model-uses');
   return data?.items ?? [];
 }
 
@@ -60,7 +60,7 @@ export async function updateModelUse(
     enabled?: boolean;
   },
 ) {
-  const { data } = await api.PUT('/api/v3/model-uses/{scenario}', {
+  const { data } = await api.PUT('/api/v2/model-uses/{scenario}', {
     params: { path: { scenario } },
     body: {
       strategy: 'single',

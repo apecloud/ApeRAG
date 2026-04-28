@@ -153,9 +153,9 @@ request_json POST "/api/v2/auth/login" "$(jq -nc \
   --arg password "${E2E_PASSWORD}" \
   '{username: $username, password: $password}')"
 
-# v3 model-platform setup — ``ModelSpec`` only accepts ``model_id`` now,
+# v2 model-platform setup — ``ModelSpec`` only accepts ``model_id`` now,
 # so the collection config below references freshly-seeded models.
-dashscope_account_body="$(request_json POST "/api/v3/model-accounts" "$(jq -nc \
+dashscope_account_body="$(request_json POST "/api/v2/model-accounts" "$(jq -nc \
   --arg run_id "${E2E_RUN_ID}" \
   --arg api_key "${E2E_ALIBABACLOUD_API_KEY}" \
   '{
@@ -167,7 +167,7 @@ dashscope_account_body="$(request_json POST "/api/v3/model-accounts" "$(jq -nc \
   }')")"
 dashscope_account_id="$(jq -r '.id' <<<"${dashscope_account_body}")"
 
-openrouter_account_body="$(request_json POST "/api/v3/model-accounts" "$(jq -nc \
+openrouter_account_body="$(request_json POST "/api/v2/model-accounts" "$(jq -nc \
   --arg run_id "${E2E_RUN_ID}" \
   --arg api_key "${E2E_OPENROUTER_API_KEY}" \
   '{
@@ -179,7 +179,7 @@ openrouter_account_body="$(request_json POST "/api/v3/model-accounts" "$(jq -nc 
   }')")"
 openrouter_account_id="$(jq -r '.id' <<<"${openrouter_account_body}")"
 
-embedding_model_body="$(request_json POST "/api/v3/models" "$(jq -nc \
+embedding_model_body="$(request_json POST "/api/v2/models" "$(jq -nc \
   --arg account_id "${dashscope_account_id}" \
   '{
     account_id: $account_id,
@@ -190,7 +190,7 @@ embedding_model_body="$(request_json POST "/api/v3/models" "$(jq -nc \
   }')")"
 embedding_model_id="$(jq -r '.id' <<<"${embedding_model_body}")"
 
-completion_model_body="$(request_json POST "/api/v3/models" "$(jq -nc \
+completion_model_body="$(request_json POST "/api/v2/models" "$(jq -nc \
   --arg account_id "${openrouter_account_id}" \
   '{
     account_id: $account_id,

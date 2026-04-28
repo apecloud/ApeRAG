@@ -10,10 +10,10 @@ import type {
 export async function getModelPlatform(): Promise<ModelPlatformViewModel> {
   const client = (await createServerApiClient()) as any;
   const [providers, accounts, models, uses] = await Promise.all([
-    client.GET('/api/v3/model-providers'),
-    client.GET('/api/v3/model-accounts'),
-    client.GET('/api/v3/models'),
-    client.GET('/api/v3/model-uses'),
+    client.GET('/api/v2/model-providers'),
+    client.GET('/api/v2/model-accounts'),
+    client.GET('/api/v2/models'),
+    client.GET('/api/v2/model-uses'),
   ]);
 
   return {

@@ -6,13 +6,13 @@ Content-Type: application/json
 }
 HTTP 200
 
-# v3 model-platform setup — every file is run independently, so the
+# v2 model-platform setup — every file is run independently, so the
 # embedding / completion ``model_id`` references in the collection
 # config must be resolved per file. ``ModelSpec`` no longer accepts
 # ``model`` / ``model_service_provider`` / ``custom_llm_provider``
 # — Pydantic silently drops extras, so any old-shape blob would parse
 # as ``model_id=None`` and the indexing pipeline would break silently.
-POST {{base_url}}/api/v3/model-accounts
+POST {{base_url}}/api/v2/model-accounts
 Content-Type: application/json
 {
   "provider_type": "dashscope",
@@ -25,7 +25,7 @@ HTTP 200
 [Captures]
 dashscope_account_id: jsonpath "$.id"
 
-POST {{base_url}}/api/v3/model-accounts
+POST {{base_url}}/api/v2/model-accounts
 Content-Type: application/json
 {
   "provider_type": "openai_compatible",
@@ -38,7 +38,7 @@ HTTP 200
 [Captures]
 openrouter_account_id: jsonpath "$.id"
 
-POST {{base_url}}/api/v3/models
+POST {{base_url}}/api/v2/models
 Content-Type: application/json
 {
   "account_id": "{{dashscope_account_id}}",
@@ -51,7 +51,7 @@ HTTP 200
 [Captures]
 embedding_model_id: jsonpath "$.id"
 
-POST {{base_url}}/api/v3/models
+POST {{base_url}}/api/v2/models
 Content-Type: application/json
 {
   "account_id": "{{openrouter_account_id}}",
