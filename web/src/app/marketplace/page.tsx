@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { listMarketplaceCollections } from '@/features/marketplace/server-api';
 import type { SharedCollection } from '@/features/marketplace/types';
 import { ENTITY_PALETTE } from '@/lib/design-tokens';
-import { BookOpen, Database, Plus, Star } from 'lucide-react';
+import { BookOpen, Plus, Star } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 import Link from 'next/link';
 import { CollectionList } from './collection-list';
@@ -27,13 +27,6 @@ export default async function Page() {
   const featured = [...collections].sort(
     (a, b) => (b.subscription_count || 0) - (a.subscription_count || 0),
   )[0];
-  const totalSubscriptions = collections.reduce(
-    (sum, collection) => sum + (collection.subscription_count || 0),
-    0,
-  );
-  const graphEnabledCount = collections.filter(
-    (collection) => collection.config?.enable_knowledge_graph,
-  ).length;
 
   return (
     <PageContainer>
@@ -69,10 +62,11 @@ export default async function Page() {
               <h2 className="font-serif mt-3 max-w-2xl text-3xl leading-tight font-normal md:text-[40px]">
                 {featured.title}
               </h2>
-              <p className="text-background/70 mt-3 max-w-2xl text-sm leading-6">
-                {featured.description ||
-                  page_marketplace('no_description_available')}
-              </p>
+              {featured.description && (
+                <p className="text-background/70 mt-3 max-w-2xl text-sm leading-6">
+                  {featured.description}
+                </p>
+              )}
               <div className="mt-6 flex flex-wrap items-center gap-6">
                 <div>
                   <div className="font-mono text-2xl tabular-nums">
@@ -80,14 +74,6 @@ export default async function Page() {
                   </div>
                   <div className="text-background/50 mt-1 font-mono text-[11px] tracking-[0.08em] uppercase">
                     {page_marketplace('subscriptions')}
-                  </div>
-                </div>
-                <div>
-                  <div className="font-mono text-2xl tabular-nums">
-                    {enabledCapabilityCount(featured)}
-                  </div>
-                  <div className="text-background/50 mt-1 font-mono text-[11px] tracking-[0.08em] uppercase">
-                    {page_marketplace('capabilities')}
                   </div>
                 </div>
                 <div className="text-background/60 text-sm">
@@ -128,64 +114,11 @@ export default async function Page() {
           </div>
         )}
 
-        <div className="mb-6 grid gap-3 md:grid-cols-3">
-          <MarketplaceMetric
-            icon={<Database className="size-4" />}
-            label={page_marketplace('metric_collections')}
-            value={collections.length}
-          />
-          <MarketplaceMetric
-            icon={<Star className="size-4" />}
-            label={page_marketplace('metric_subscriptions')}
-            value={totalSubscriptions}
-          />
-          <MarketplaceMetric
-            icon={<BookOpen className="size-4" />}
-            label={page_marketplace('metric_graph_ready')}
-            value={graphEnabledCount}
-          />
-        </div>
-
         <CollectionList collections={collections} />
       </PageContent>
     </PageContainer>
   );
 }
-
-const enabledCapabilityCount = (collection: SharedCollection) => {
-  const config = collection.config;
-  return [
-    config?.enable_vector,
-    config?.enable_fulltext,
-    config?.enable_knowledge_graph,
-    config?.enable_summary,
-    config?.enable_vision,
-  ].filter(Boolean).length;
-};
-
-const MarketplaceMetric = ({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: number;
-}) => {
-  return (
-    <div className="border-border/70 bg-card flex items-center gap-3 rounded-xl border px-4 py-3 shadow-sm">
-      <div className="bg-accent-soft text-accent-ink flex size-9 items-center justify-center rounded-lg">
-        {icon}
-      </div>
-      <div>
-        <div className="font-mono text-xl leading-none tabular-nums">
-          {value}
-        </div>
-        <div className="text-muted-foreground mt-1 text-xs">{label}</div>
-      </div>
-    </div>
-  );
-};
 
 const MarketplaceGraphMotif = () => {
   const nodes = [

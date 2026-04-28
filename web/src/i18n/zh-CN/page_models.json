@@ -56,7 +56,7 @@
     "name_placeholder": "请输入模型名称",
     "llm_params": "LLM参数",
     "agent": "会话",
-    "collection": "知识集合",
+    "collection": "知识库",
     "api_type": "API类型",
     "creation_time": "创建时间",
     "edit": "编辑",

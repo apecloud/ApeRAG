@@ -12,7 +12,7 @@
 
   "signin": "登录",
   "signin_eyebrow": "安全工作区",
-  "signin_description": "登录后可以查看 Collection、追踪 Agent 执行，并管理你的 ApeRAG 工作区。",
+  "signin_description": "登录后可以查看知识库、追踪 Agent 执行，并管理你的 ApeRAG 工作区。",
   "login_in_with_a_third_party_account": "使用第三方账号登录",
   "login_with_google": "Google账号",
   "login_with_github": "GitHub账号",

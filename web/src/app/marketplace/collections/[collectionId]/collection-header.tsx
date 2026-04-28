@@ -19,12 +19,11 @@ import type { SharedCollection } from '@/features/marketplace/types';
 import { cn } from '@/lib/utils';
 import {
   BookOpen,
-  Database,
   Files,
+  Network,
   Share2,
   Star,
   User,
-  VectorSquare,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
@@ -124,10 +123,11 @@ export const CollectionHeader = ({
             <h1 className="font-serif mt-3 text-3xl leading-tight font-normal md:text-[40px]">
               {collection.title}
             </h1>
-            <p className="text-muted-foreground mt-3 max-w-3xl text-sm leading-6">
-              {collection.description ||
-                page_marketplace('no_description_available')}
-            </p>
+            {collection.description && (
+              <p className="text-muted-foreground mt-3 max-w-3xl text-sm leading-6">
+                {collection.description}
+              </p>
+            )}
             <div className="text-muted-foreground mt-4 flex flex-wrap items-center gap-4 text-sm">
               <span className="flex items-center gap-1.5">
                 <User className="size-4" />
@@ -140,12 +140,6 @@ export const CollectionHeader = ({
                   {collection.subscription_count || 0}
                 </span>
                 {page_marketplace('subscriptions')}
-              </span>
-              <span className="flex items-center gap-1.5">
-                <Database className="size-4" />
-                {page_marketplace('capability_count', {
-                  count: enabledCapabilityCount(collection),
-                })}
               </span>
             </div>
           </div>
@@ -192,7 +186,7 @@ export const CollectionHeader = ({
                 ),
               )}
               href={`/marketplace/collections/${collection.id}/graph`}
-              icon={<VectorSquare className="size-4" />}
+              icon={<Network className="size-4" />}
               label={page_graph('metadata.title')}
             />
           )}
@@ -226,15 +220,4 @@ const TabLink = ({
       </Link>
     </Button>
   );
-};
-
-const enabledCapabilityCount = (collection: SharedCollection) => {
-  const config = collection.config;
-  return [
-    config?.enable_vector,
-    config?.enable_fulltext,
-    config?.enable_knowledge_graph,
-    config?.enable_summary,
-    config?.enable_vision,
-  ].filter(Boolean).length;
 };

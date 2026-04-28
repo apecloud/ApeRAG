@@ -7,7 +7,6 @@ import {
 import { listCollections } from '@/features/collection/server-api';
 import type { CollectionView } from '@/features/collection/types';
 import { toJson } from '@/lib/utils';
-import { Database } from 'lucide-react';
 import { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
 import { CollectionList } from './collection-list';
@@ -54,19 +53,6 @@ export default async function Page() {
             <p className="text-muted-foreground mt-3 max-w-2xl text-sm leading-6">
               {page_collections('metadata.description')}
             </p>
-          </div>
-        </div>
-        <div className="border-border/70 bg-card mb-6 flex items-center gap-3 rounded-xl border px-4 py-3 shadow-sm">
-          <div className="bg-accent-soft text-accent-ink flex size-9 items-center justify-center rounded-lg">
-            <Database className="size-4" />
-          </div>
-          <div className="min-w-0">
-            <div className="text-sm font-medium">
-              {page_collections('collection_flow_title')}
-            </div>
-            <div className="text-muted-foreground text-xs leading-5">
-              {page_collections('collection_flow_description')}
-            </div>
           </div>
         </div>
         <CollectionList collections={toJson(collections)} />

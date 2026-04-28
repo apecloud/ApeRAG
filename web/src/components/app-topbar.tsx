@@ -13,7 +13,6 @@ import {
 import {
   Check,
   ChevronsUpDown,
-  CircleQuestionMark,
   Globe,
   Moon,
   ShieldUser,
@@ -58,11 +57,14 @@ export const AppShortLogo = () => {
   );
 };
 
-export const AppUserDropdownMenu = () => {
+export const AppUserDropdownMenu = ({
+  avatarOnly = false,
+}: {
+  avatarOnly?: boolean;
+}) => {
   const { user, signIn, signOut } = useAppContext();
   const username = user?.username || user?.email?.split('@')[0];
   const isMobile = useIsMobile();
-  const locale = useLocale();
   const page_auth = useTranslations('page_auth');
 
   return (
@@ -70,13 +72,25 @@ export const AppUserDropdownMenu = () => {
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          className="data-[state=open]:bg-accent h-auto has-[>svg]:px-2"
+          size={avatarOnly ? 'icon' : undefined}
+          className={cn(
+            'data-[state=open]:bg-accent h-auto',
+            avatarOnly ? 'size-9 rounded-full p-0' : 'has-[>svg]:px-2',
+          )}
         >
-          <UserAvatar user={user} />
-          <div className="grid flex-1 text-left text-sm leading-tight">
-            <span className="max-w-30 truncate font-medium">{username}</span>
-          </div>
-          <ChevronsUpDown className="ml-auto size-4" />
+          <UserAvatar user={user} className={avatarOnly ? 'size-7' : ''} />
+          {avatarOnly ? (
+            <span className="sr-only">{username}</span>
+          ) : (
+            <>
+              <div className="grid flex-1 text-left text-sm leading-tight">
+                <span className="max-w-30 truncate font-medium">
+                  {username}
+                </span>
+              </div>
+              <ChevronsUpDown className="ml-auto size-4" />
+            </>
+          )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
@@ -93,25 +107,6 @@ export const AppUserDropdownMenu = () => {
             <DropdownMenuSeparator />
           </>
         )}
-
-        <DropdownMenuGroup>
-          <DropdownMenuItem onClick={() => setLocale('en-US')}>
-            <Check
-              data-active={locale === 'en-US'}
-              className="opacity-0 data-[active=true]:opacity-100"
-            />
-            English
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setLocale('zh-CN')}>
-            <Check
-              data-active={locale === 'zh-CN'}
-              className="opacity-0 data-[active=true]:opacity-100"
-            />
-            简体中文
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
-
-        <DropdownMenuSeparator />
 
         {user && (
           <>
@@ -213,15 +208,6 @@ export const AppLocaleDropdownMenu = () => {
   );
 };
 
-export const AppDocs = () => (
-  <Button variant="ghost" size="icon" asChild>
-    <Link href="/docs">
-      <CircleQuestionMark />
-      <span className="sr-only">Documents</span>
-    </Link>
-  </Button>
-);
-
 export const AppTopbar = ({ className }: React.ComponentProps<'div'>) => {
   return (
     <>
@@ -235,7 +221,6 @@ export const AppTopbar = ({ className }: React.ComponentProps<'div'>) => {
           <AppLogo />
         </div>
         <div className="flex flex-row items-center gap-2">
-          <AppDocs />
           <AppThemeDropdownMenu />
           <AppUserDropdownMenu />
         </div>

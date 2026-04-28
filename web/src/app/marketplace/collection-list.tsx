@@ -20,20 +20,22 @@ import { cn } from '@/lib/utils';
 import {
   ArrowUpRight,
   Database,
-  Filter,
+  FileText,
+  Network,
   Search,
   Share2,
   Sparkles,
   Star,
   User,
   VectorSquare,
+  type LucideIcon,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState, useTransition } from 'react';
 
-type MarketplaceFilter = 'all' | 'subscribed' | 'mine' | 'graph';
+type MarketplaceFilter = 'all' | 'subscribed' | 'mine';
 
 export const CollectionList = ({
   collections,
@@ -52,9 +54,6 @@ export const CollectionList = ({
         .length,
       mine: collections.filter((collection) => collection.owner_user_id === user?.id)
         .length,
-      graph: collections.filter(
-        (collection) => collection.config?.enable_knowledge_graph,
-      ).length,
     };
   }, [collections, user?.id]);
 
@@ -63,9 +62,6 @@ export const CollectionList = ({
     return collections.filter((collection) => {
       if (filter === 'subscribed' && !collection.subscription_id) return false;
       if (filter === 'mine' && collection.owner_user_id !== user?.id) {
-        return false;
-      }
-      if (filter === 'graph' && !collection.config?.enable_knowledge_graph) {
         return false;
       }
 
@@ -102,16 +98,11 @@ export const CollectionList = ({
       label: page_marketplace('filter_mine'),
       count: stats.mine,
     },
-    {
-      key: 'graph',
-      label: page_marketplace('filter_graph'),
-      count: stats.graph,
-    },
   ];
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="border-border/70 bg-card grid gap-4 rounded-xl border p-4 shadow-sm lg:grid-cols-[1fr_auto] lg:items-center">
+      <div className="border-border/70 bg-card rounded-xl border p-4 shadow-sm">
         <div className="relative max-w-xl">
           <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
           <Input
@@ -120,12 +111,6 @@ export const CollectionList = ({
             value={searchValue}
             onChange={(e) => setSearchValue(e.currentTarget.value)}
           />
-        </div>
-        <div className="text-muted-foreground flex items-center gap-2 text-sm">
-          <Filter className="size-4" />
-          {page_marketplace('collection_count', {
-            count: filteredCollections.length,
-          })}
         </div>
       </div>
 
@@ -256,10 +241,11 @@ const MarketplaceCollectionCard = ({
           </div>
         </div>
 
-        <CardDescription className="line-clamp-3 min-h-15 text-[13px] leading-5">
-          {collection.description ||
-            page_marketplace('no_description_available')}
-        </CardDescription>
+        {collection.description && (
+          <CardDescription className="line-clamp-3 min-h-15 text-[13px] leading-5">
+            {collection.description}
+          </CardDescription>
+        )}
 
         <CapabilityChips collection={collection} />
       </CardHeader>
@@ -322,28 +308,44 @@ const CapabilityChips = ({
   collection: SharedCollection;
 }) => {
   const page_marketplace = useTranslations('page_marketplace');
+  type CapabilityChip = {
+    key: string;
+    label: string;
+    Icon: LucideIcon;
+  };
   const chips = [
-    collection.config?.enable_vector && page_marketplace('capability_vector'),
-    collection.config?.enable_fulltext &&
-      page_marketplace('capability_fulltext'),
-    collection.config?.enable_knowledge_graph &&
-      page_marketplace('capability_graph'),
-    collection.config?.enable_summary && page_marketplace('capability_summary'),
-    collection.config?.enable_vision && page_marketplace('capability_vision'),
-  ].filter(Boolean);
+    collection.config?.enable_vector && {
+      key: 'vector',
+      label: page_marketplace('capability_vector'),
+      Icon: VectorSquare,
+    },
+    collection.config?.enable_fulltext && {
+      key: 'fulltext',
+      label: page_marketplace('capability_fulltext'),
+      Icon: FileText,
+    },
+    collection.config?.enable_knowledge_graph && {
+      key: 'graph',
+      label: page_marketplace('capability_graph'),
+      Icon: Network,
+    },
+  ].filter((chip): chip is CapabilityChip => Boolean(chip));
 
   return (
     <div className="flex flex-wrap gap-1.5">
-      {chips.map((chip) => (
+      {chips.map((chip) => {
+        const Icon = chip.Icon;
+        return (
         <Badge
-          key={String(chip)}
+          key={chip.key}
           variant="outline"
           className="bg-background gap-1 rounded-sm"
         >
-          <VectorSquare className="size-3" />
-          {chip}
+          <Icon className="size-3" />
+          {chip.label}
         </Badge>
-      ))}
+        );
+      })}
       {chips.length === 0 && (
         <Badge variant="secondary" className="gap-1 rounded-sm">
           <Sparkles className="size-3" />

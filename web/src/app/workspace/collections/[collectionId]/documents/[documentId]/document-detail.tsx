@@ -1,7 +1,7 @@
 'use client';
 import { getDocumentStatusColor } from '@/app/workspace/collections/tools';
 import { FormatDate } from '@/components/format-date';
-import { buildDocumentAssetUrl, Markdown } from '@/components/markdown';
+import { Markdown } from '@/components/markdown';
 import { useCollectionContext } from '@/components/providers/collection-provider';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,7 +16,6 @@ import {
   ArrowLeft,
   Download,
   FileText,
-  ImageIcon,
   LoaderCircle,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -100,8 +99,6 @@ export const DocumentDetail = ({
   const isMarkdownText = MARKDOWN_TEXT_EXTENSIONS.has(extension);
   const markdownContent = documentPreview.markdown_content?.trim();
   const hasParsedText = Boolean(markdownContent);
-  const visionChunks = documentPreview.vision_chunks || [];
-  const hasVisionPreview = visionChunks.length > 0;
   const pdfPreviewUrl = isPdf
     ? originalObjectUrl || convertedPdfUrl
     : undefined;
@@ -190,11 +187,6 @@ export const DocumentDetail = ({
               {documentText('preview_parsed_text')}
             </TabsTrigger>
           )}
-          {hasVisionPreview && (
-            <TabsTrigger value="vision">
-              {documentText('preview_image_analysis')}
-            </TabsTrigger>
-          )}
         </TabsList>
       </div>
 
@@ -268,68 +260,6 @@ export const DocumentDetail = ({
         </TabsContent>
       )}
 
-      {hasVisionPreview && (
-        <TabsContent value="vision" className="bg-background/50 m-0 p-4">
-          <div className="grid gap-4 lg:grid-cols-2">
-            {visionChunks.map((chunk, index) => {
-              const imageUrl = chunk.asset_id
-                ? buildDocumentAssetUrl(
-                    `asset://${chunk.asset_id}?collection_id=${collection.id}&document_id=${document.id}`,
-                    {
-                      collectionId: collection.id ?? '',
-                      documentId: document.id ?? '',
-                      mode: 'workspace',
-                    },
-                  )
-                : undefined;
-              const pageIdx =
-                typeof chunk.metadata === 'object' &&
-                chunk.metadata &&
-                'page_idx' in chunk.metadata
-                  ? Number(chunk.metadata.page_idx) + 1
-                  : undefined;
-
-              return (
-                <Card
-                  key={chunk.id || chunk.asset_id || index}
-                  className="border-border/70 gap-0 overflow-hidden py-0 shadow-sm"
-                >
-                  <CardContent className="space-y-4 p-4">
-                    {imageUrl ? (
-                      <img
-                        src={imageUrl}
-                        alt={documentText('image_alt', {
-                          number: String(index + 1),
-                        })}
-                        className="border-border/70 bg-background w-full rounded-lg border"
-                      />
-                    ) : (
-                      <div className="text-muted-foreground bg-muted flex min-h-48 items-center justify-center rounded-lg">
-                        <ImageIcon className="size-8" />
-                      </div>
-                    )}
-                    <div className="space-y-2">
-                      <div className="text-sm font-medium">
-                        {pageIdx
-                          ? documentText('page_label', {
-                              number: String(pageIdx),
-                            })
-                          : documentText('image_label', {
-                              number: String(index + 1),
-                            })}
-                      </div>
-                      <div className="text-muted-foreground text-sm whitespace-pre-wrap">
-                        {chunk.text ||
-                          documentText('image_summary_unavailable')}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        </TabsContent>
-      )}
     </Tabs>
   );
 };

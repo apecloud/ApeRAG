@@ -19,7 +19,6 @@ import {
   Calendar,
   Circle,
   Database,
-  LayoutGrid,
   Lock,
   Plus,
   Search,
@@ -144,12 +143,6 @@ export const CollectionList = ({
             );
           })}
         </div>
-        <div className="text-muted-foreground flex items-center gap-2 text-sm lg:ml-auto">
-          <LayoutGrid className="size-4" />
-          {page_collections('collection_count', {
-            count: filteredCollections.length,
-          })}
-        </div>
       </div>
 
       {collections.length === 0 ? (
@@ -175,7 +168,6 @@ export const CollectionList = ({
               )}
             />
           ))}
-          <CreateCollectionCard label={page_collection_new('metadata.title')} />
         </div>
       )}
     </div>
@@ -257,10 +249,11 @@ const CollectionCard = ({
             </div>
           </div>
 
-          <CardDescription className="line-clamp-2 min-h-10 text-[13px] leading-5">
-            {collection.description ||
-              page_collections('no_description_available')}
-          </CardDescription>
+          {collection.description && (
+            <CardDescription className="line-clamp-2 text-[13px] leading-5">
+              {collection.description}
+            </CardDescription>
+          )}
         </CardHeader>
 
         <CardFooter className="border-border/70 mt-auto justify-between border-t px-5 py-3 text-xs">
@@ -295,24 +288,6 @@ const CollectionCard = ({
           )}
         </CardFooter>
       </Card>
-    </Link>
-  );
-};
-
-const CreateCollectionCard = ({ label }: { label: string }) => {
-  const page_collections = useTranslations('page_collections');
-
-  return (
-    <Link href="/workspace/collections/new">
-      <div className="border-border hover:border-primary/40 hover:bg-accent-soft/30 flex min-h-56 flex-col items-center justify-center rounded-xl border border-dashed px-6 py-10 text-center transition-colors">
-        <div className="bg-card text-foreground flex size-10 items-center justify-center rounded-full border shadow-xs">
-          <Plus className="size-4" />
-        </div>
-        <div className="mt-4 text-sm font-medium">{label}</div>
-        <div className="text-muted-foreground mt-1 max-w-48 text-xs leading-5">
-          {page_collections('new_collection_card_description')}
-        </div>
-      </div>
     </Link>
   );
 };

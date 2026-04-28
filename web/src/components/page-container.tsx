@@ -11,9 +11,9 @@ import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import React, { useMemo } from 'react';
 import {
-  AppDocs,
   AppLocaleDropdownMenu,
   AppThemeDropdownMenu,
+  AppUserDropdownMenu,
 } from './app-topbar';
 import { Separator } from './ui/separator';
 import { SidebarTrigger, useSidebar } from './ui/sidebar';
@@ -84,9 +84,9 @@ export const PageHeader = ({
             extra
           ) : (
             <>
-              <AppDocs />
               <AppLocaleDropdownMenu />
               <AppThemeDropdownMenu />
+              <AppUserDropdownMenu avatarOnly />
             </>
           )}
         </div>

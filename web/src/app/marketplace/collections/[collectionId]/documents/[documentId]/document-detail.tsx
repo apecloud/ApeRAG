@@ -1,5 +1,5 @@
 'use client';
-import { buildDocumentAssetUrl, Markdown } from '@/components/markdown';
+import { Markdown } from '@/components/markdown';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -10,7 +10,6 @@ import {
   ArrowLeft,
   Download,
   FileText,
-  ImageIcon,
   LoaderCircle,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -96,8 +95,6 @@ export const DocumentDetail = ({
   const isMarkdownText = MARKDOWN_TEXT_EXTENSIONS.has(extension);
   const markdownContent = documentPreview.markdown_content?.trim();
   const hasParsedText = Boolean(markdownContent);
-  const visionChunks = documentPreview.vision_chunks || [];
-  const hasVisionPreview = visionChunks.length > 0;
   const pdfPreviewUrl = isPdf
     ? originalObjectUrl || convertedPdfUrl
     : undefined;
@@ -159,11 +156,6 @@ export const DocumentDetail = ({
             {hasParsedText && (
               <TabsTrigger value="parsed">
                 {marketplaceText('preview_parsed_text')}
-              </TabsTrigger>
-            )}
-            {hasVisionPreview && (
-              <TabsTrigger value="vision">
-                {marketplaceText('preview_image_analysis')}
               </TabsTrigger>
             )}
           </TabsList>
@@ -240,66 +232,6 @@ export const DocumentDetail = ({
         </TabsContent>
       )}
 
-      {hasVisionPreview && (
-        <TabsContent value="vision">
-          <div className="grid gap-4 lg:grid-cols-2">
-            {visionChunks.map((chunk, index) => {
-              const imageUrl =
-                chunk.asset_id && collectionIdValue && documentIdValue
-                  ? buildDocumentAssetUrl(
-                      `asset://${chunk.asset_id}?collection_id=${collectionIdValue}&document_id=${documentIdValue}`,
-                      {
-                        collectionId: collectionIdValue,
-                        documentId: documentIdValue,
-                        mode: 'marketplace',
-                      },
-                    )
-                  : undefined;
-              const pageIdx =
-                typeof chunk.metadata === 'object' &&
-                chunk.metadata &&
-                'page_idx' in chunk.metadata
-                  ? Number(chunk.metadata.page_idx) + 1
-                  : undefined;
-
-              return (
-                <Card
-                  key={chunk.id || chunk.asset_id || index}
-                  className="border-border/70 rounded-xl"
-                >
-                  <CardContent className="space-y-4 p-4">
-                    {imageUrl ? (
-                      <img
-                        src={imageUrl}
-                        alt={marketplaceText('image_alt', {
-                          number: String(index + 1),
-                        })}
-                        className="w-full rounded-lg border"
-                      />
-                    ) : null}
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-sm font-medium">
-                        <ImageIcon className="text-muted-foreground size-4" />
-                        {pageIdx
-                          ? marketplaceText('page_label', {
-                              number: String(pageIdx),
-                            })
-                          : marketplaceText('image_label', {
-                              number: String(index + 1),
-                            })}
-                      </div>
-                      <div className="text-muted-foreground text-sm whitespace-pre-wrap">
-                        {chunk.text ||
-                          marketplaceText('image_summary_unavailable')}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        </TabsContent>
-      )}
     </Tabs>
   );
 };

@@ -1,26 +1,26 @@
 {
   "metadata": {
-    "title": "知识集合",
-    "description": "把企业文档整理成可检索、可构图、可被 Agent 引用的知识集合。发布后，其他用户可以在知识市场中发现并订阅。"
+    "title": "知识库",
+    "description": "把企业文档整理成可检索、可构图、可被 Agent 引用的知识库。发布后，其他用户可以在知识市场中发现并订阅。"
   },
   "workspace_label": "工作区",
-  "collection_flow_title": "知识集合会连接对话与图谱工作流",
-  "collection_flow_description": "先创建集合并配置索引能力，再进入详情页上传文档、构建检索和图谱。",
-  "search": "搜索知识集合",
-  "no_collections_found": "还没有知识集合",
-  "empty_description": "创建第一个知识集合，用来整理文档、构建检索索引，并为 Agent 准备可引用的知识。",
-  "no_filter_results": "没有匹配的知识集合",
-  "no_filter_results_description": "换一个关键词，或切换筛选条件查看更多集合。",
+  "collection_flow_title": "知识库会连接对话与图谱工作流",
+  "collection_flow_description": "先创建知识库并配置索引能力，再进入详情页上传文档、构建检索和图谱。",
+  "search": "搜索知识库",
+  "no_collections_found": "还没有知识库",
+  "empty_description": "创建第一个知识库，用来整理文档、构建检索索引，并为 Agent 准备可引用的知识。",
+  "no_filter_results": "没有匹配的知识库",
+  "no_filter_results_description": "换一个关键词，或切换筛选条件查看更多知识库。",
   "new_collection_card_description": "先设置检索与图谱能力，再上传文档。",
   "filter_all": "全部",
   "filter_published": "已发布",
-  "collection_count": "{count} 个集合",
+  "collection_count": "{count} 个知识库",
   "no_date": "暂无日期",
-  "untitled_collection": "未命名集合",
+  "untitled_collection": "未命名知识库",
   "import_documents": "导入文档",
 
   "general": "基础信息",
-  "general_description": "设置集合名称、描述，以及用于标题生成和文档处理的语言。",
+  "general_description": "设置知识库名称、描述，以及用于标题生成和文档处理的语言。",
 
   "settings": "设置",
 
@@ -33,19 +33,19 @@
 
   "no_description_available": "没有可用的描述",
 
-  "create_collection": "创建知识集合",
-  "update_collection": "更新知识集合",
-  "delete_collection": "删除知识集合",
-  "delete_collection_confirm": "此操作不可撤销。系统将永久删除该知识集合，并从服务器中移除所有相关文档。",
+  "create_collection": "创建知识库",
+  "update_collection": "更新知识库",
+  "delete_collection": "删除知识库",
+  "delete_collection_confirm": "此操作不可撤销。系统将永久删除该知识库，并从服务器中移除所有相关文档。",
   "publish_collection": "发布至市场",
-  "publish_collection_description": "允许用户发现并订阅您的知识集合",
+  "publish_collection_description": "允许用户发现并订阅您的知识库",
   "unpublish_collection": "从市场下架",
-  "unpublish_collection_description": "将此知识集合从市场中移除，转为私有状态",
+  "unpublish_collection_description": "将此知识库从市场中移除，转为私有状态",
   "published_success": "已发布到市场",
   "unpublished_success": "已从市场下架",
 
   "name": "名称",
-  "name_placeholder": "知识集合显示名称",
+  "name_placeholder": "知识库显示名称",
 
   "language": "处理语言",
   "language_zh_CN": "中文",
@@ -98,7 +98,7 @@
   "embedding_model": "嵌入模型（Embedding Model）",
   "embedding_model_description": "嵌入模型能够将数据转换为数值向量，这些向量能够捕捉数据的语义信息及其相互关系。",
   "embedding_model_locked_badge": "创建后不可修改",
-  "embedding_model_locked_description": "嵌入模型在 Collection 创建后不可修改。不同嵌入模型产生的向量维度或语义分布不兼容，切换会导致原有向量变为孤儿数据、检索失效。如需使用其他模型，请新建 Collection 并重新导入文档。",
+  "embedding_model_locked_description": "嵌入模型在知识库创建后不可修改。不同嵌入模型产生的向量维度或语义分布不兼容，切换会导致原有向量变为孤儿数据、检索失效。如需使用其他模型，请新建知识库 并重新导入文档。",
 
   "completion_model": "补全模型（Completion Model）",
   "completion_model_description": "补全模型能根据给定输入预测最可能的下文内容，从而生成新的文本。",

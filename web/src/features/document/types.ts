@@ -18,8 +18,6 @@ export const DOCUMENT_INDEX_TYPES = [
   'VECTOR',
   'FULLTEXT',
   'GRAPH',
-  'SUMMARY',
-  'VISION',
 ] as const satisfies readonly DocumentIndexType[];
 
 export type DeleteDocumentsRequest =

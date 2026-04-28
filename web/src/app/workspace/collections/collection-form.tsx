@@ -109,9 +109,7 @@ const collectionSchema = z
   .refine(
     ({ config }) => {
       if (
-        config.enable_knowledge_graph ||
-        config.enable_summary ||
-        config.enable_vision
+        config.enable_knowledge_graph
       ) {
         return !_.isEmpty(config.completion?.model_id);
       }
@@ -289,16 +287,6 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
       title: page_collections('index_type_GRAPH.title'),
       description: page_collections('index_type_GRAPH.description'),
     },
-    'config.enable_summary': {
-      disabled: false,
-      title: page_collections('index_type_SUMMARY.title'),
-      description: page_collections('index_type_SUMMARY.description'),
-    },
-    'config.enable_vision': {
-      disabled: false,
-      title: page_collections('index_type_VISION.title'),
-      description: page_collections('index_type_VISION.description'),
-    },
   };
 
   const form = useForm<FormValueType>({
@@ -352,16 +340,24 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
    */
   const handleCreateOrUpdate = useCallback(
     async (values: FormValueType) => {
+      const payload = {
+        ...values,
+        config: {
+          ...values.config,
+          enable_summary: false,
+          enable_vision: false,
+        },
+      };
       if (action === 'edit') {
         if (!collection?.id) return;
-        const data = await updateCollection(collection.id, values);
+        const data = await updateCollection(collection.id, payload);
         if (data?.id) {
           toast.success(common_tips('update_success'));
           loadCollection();
         }
       }
       if (action === 'add') {
-        const data = await createCollection(values);
+        const data = await createCollection(payload);
         if (data?.id) {
           toast.success(common_tips('create_success'));
           router.push('/workspace/collections');

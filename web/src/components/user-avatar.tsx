@@ -1,31 +1,62 @@
 import type { User } from '@/features/identity/types';
 import { cn } from '@/lib/utils';
-// import { Avatar, AvatarFallback, AvatarImage } from '@radix-ui/react-avatar';
 
-import { FaCircleUser } from 'react-icons/fa6';
+const avatarPalette = [
+  { background: '#E8EEF8', foreground: '#28466F' },
+  { background: '#E7F0EA', foreground: '#2F5C46' },
+  { background: '#F2EBDD', foreground: '#6A4B24' },
+  { background: '#F3E7E3', foreground: '#7A3F31' },
+  { background: '#EAE7F2', foreground: '#4E4275' },
+  { background: '#E5EEF0', foreground: '#315A61' },
+] as const;
+
+const getAvatarSeed = (user?: User) =>
+  user?.username || user?.email?.split('@')[0] || user?.email || '';
+
+const getAvatarText = (seed: string) => {
+  const normalized = seed.trim();
+  if (!normalized) return '?';
+
+  const [first = '', second = ''] = normalized
+    .split(/[\s._-]+/)
+    .filter(Boolean);
+
+  if (second) return `${first[0] ?? ''}${second[0] ?? ''}`.toUpperCase();
+  return Array.from(first)[0]?.toUpperCase() ?? '?';
+};
+
+const getPaletteIndex = (seed: string) => {
+  let hash = 0;
+  for (const char of seed) {
+    hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  }
+  return hash % avatarPalette.length;
+};
 
 export const UserAvatar = ({
+  user,
   className,
 }: {
   user?: User;
   className?: string;
 }) => {
-  const UserIcon = () => (
-    <FaCircleUser className={cn('text-muted-foreground size-8', className)} />
+  const seed = getAvatarSeed(user);
+  const palette = avatarPalette[getPaletteIndex(seed)];
+
+  return (
+    <div
+      className={cn(
+        'flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold',
+        className,
+      )}
+      style={{
+        backgroundColor: palette.background,
+        color: palette.foreground,
+      }}
+    >
+      {getAvatarText(seed)}
+    </div>
   );
-
-  return <UserIcon />;
-
-  // return user?.image ? (
-  //   <Avatar className="h-8 w-8 overflow-hidden rounded-4xl">
-  //     <AvatarImage src={user.image} />
-  //     <AvatarFallback>
-  //       <UserIcon />
-  //     </AvatarFallback>
-  //   </Avatar>
-  // ) : (
-  //   <UserIcon />
-  // );
 };
 
 export const UserAvatarProfile = ({ user }: { user?: User }) => {
