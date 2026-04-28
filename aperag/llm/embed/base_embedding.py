@@ -65,6 +65,7 @@ def get_embedding_service(model_id: str, user_id: str) -> tuple[EmbeddingService
         embedding_service_url=invocation.base_url,
         embedding_service_api_key=invocation.api_key,
         embedding_max_chunks_in_batch=settings.embedding_max_chunks_in_batch,
+        embedding_max_workers=settings.embedding_max_workers,
         multimodal=multimodal,
     )
     return embedding_svc, _get_embedding_dimension(embedding_svc, model_id, invocation.embedding_dimensions)

@@ -166,6 +166,7 @@ class VectorModality(ModalityWorker):
         backend: VectorBackend,
         store: _SyncObjectStore,
         embedder: callable | None = None,
+        batch_embedder: callable | None = None,
     ) -> None:
         self._backend = backend
         self._store = store
@@ -173,6 +174,7 @@ class VectorModality(ModalityWorker):
         # for the real embedding service without changing the
         # ``ModalityWorker`` interface.
         self._embedder = embedder or _placeholder_embedding
+        self._batch_embedder = batch_embedder
 
     async def derive(
         self,
@@ -221,10 +223,13 @@ class VectorModality(ModalityWorker):
             )
             return
 
-        for chunk in chunks:
+        texts = [chunk.get("text", "") for chunk in chunks]
+        embeddings = self._batch_embedder(texts) if self._batch_embedder is not None else None
+
+        for index, chunk in enumerate(chunks):
             chunk_id = chunk["chunk_id"]
-            text = chunk.get("text", "")
-            embedding = self._embedder(text)
+            text = texts[index]
+            embedding = embeddings[index] if embeddings is not None else self._embedder(text)
             payload = {
                 "document_id": document_id,
                 "parse_version": parse_version,

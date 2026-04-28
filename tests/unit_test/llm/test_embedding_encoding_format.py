@@ -114,3 +114,26 @@ def test_embedding_service_source_pins_encoding_format_float():
         'embedding_service.py must keep the literal encoding_format="float" '
         "pin in the litellm.embedding(...) call. See task #15."
     )
+
+
+def test_embedding_service_accepts_configurable_worker_count():
+    """Embedding concurrency must be configurable for providers that reset
+    connections under high parallel batch load.
+
+    DashScope-compatible embeddings can handle a single request but reset
+    connections when a large document fans out into many concurrent batches.
+    The service should not hard-code eight workers; callers need to pass a
+    safer concurrency value from settings.
+    """
+
+    service = EmbeddingService(
+        embedding_provider="alibabacloud",
+        embedding_model="text-embedding-v3",
+        embedding_service_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        embedding_service_api_key="sk-test-not-used",
+        embedding_max_chunks_in_batch=10,
+        embedding_max_workers=2,
+        caching=False,
+    )
+
+    assert service.max_workers == 2

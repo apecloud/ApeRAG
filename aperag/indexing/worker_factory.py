@@ -234,10 +234,12 @@ def _build_vector_worker(*, collection: Any, object_store: Any) -> ModalityWorke
     adaptor, embedding_service, _ = _build_collection_qdrant_connector(collection)
     backend = _QdrantPointBackend(connector=adaptor.connector)
 
-    def _embed(text: str) -> list[float]:
-        return embedding_service.embed_query(text)
-
-    return VectorModality(backend=backend, store=object_store, embedder=_embed)
+    return VectorModality(
+        backend=backend,
+        store=object_store,
+        embedder=embedding_service.embed_query,
+        batch_embedder=embedding_service.embed_documents,
+    )
 
 
 def _build_fulltext_worker(*, collection: Any, object_store: Any) -> ModalityWorker:
