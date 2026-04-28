@@ -199,17 +199,85 @@ def _detect_language(text: str) -> str:
 LLMCall = Callable[[str], Awaitable[str]]
 
 
+async def get_or_create_summary_bot_for_user(user_id: str):
+    """Wave 10 §K.13 — fetch (or lazy-create) the user's hidden
+    summary bot.
+
+    Main path: register-time creation in
+    ``aperag.app._BotInitOpsAdapter.create_default_bot_for_user``
+    (per c1-extend-hide design ratify). Lazy fallback here is
+    defense-in-depth: the register hook only logs on failure
+    (``user_manager.py:137`` does not roll back the user), so a
+    successful registration could still leave a user without a
+    summary bot.
+
+    Returns the bot row (always — raises only on transient DB
+    failure, in which case the caller's lease/transient-skip
+    handling takes over).
+    """
+    from sqlalchemy import and_
+
+    from aperag.config import get_async_session
+    from aperag.domains.conversation.db.models import Bot, BotStatus, BotType
+
+    async for session in get_async_session():
+        stmt = select(Bot).where(
+            and_(
+                Bot.user == user_id,
+                Bot.type == BotType.SUMMARY,
+                Bot.is_system.is_(True),
+                Bot.gmt_deleted.is_(None),
+            )
+        )
+        result = await session.execute(stmt)
+        existing = result.scalar_one_or_none()
+        if existing is not None:
+            return existing
+
+        # Lazy create — register-time hook missed this user. Same
+        # transaction; partial unique index guards against races.
+        bot = Bot(
+            user=user_id,
+            title="Summary Generation Bot",
+            type=BotType.SUMMARY,
+            description="System-managed bot for collection summary regen (Wave 10 §K.13).",
+            status=BotStatus.ACTIVE,
+            config='{"agent": {"system_prompt_template": null}}',
+            is_system=True,
+        )
+        session.add(bot)
+        try:
+            await session.commit()
+            await session.refresh(bot)
+            return bot
+        except Exception:
+            # Concurrent caller raced us through the lazy path — one
+            # of us wins, the other fetches the winner's row.
+            await session.rollback()
+            result = await session.execute(stmt)
+            return result.scalar_one()
+    raise RuntimeError("collection_regen_service: failed to acquire DB session for summary bot lookup")
+
+
 async def _invoke_summary_agent(collection: Collection) -> str | None:
     """Stage 1 Tier 1: agent-runtime free-explore.
 
-    Wave 10 follow-up scaffold: returns ``None`` today so the caller
-    falls through to Tier 2 (``_invoke_summary_chunks_fallback``).
-    Filling this in requires the headless agent-runtime invocation
-    pattern documented in design appendix A (fake Turn/Chat/Bot ORM
-    construction via ``agent_runtime_manager.launch_turn``); that
-    integration is sediment as Wave 10.1 follow-up + Wave 11 "agent
-    runtime headless invocation API formalize" candidate.
+    Wave 10 follow-up: full ``agent_runtime_manager.launch_turn``
+    integration mirroring ``aperag/domains/evaluation/worker.py:114-180``
+    (real Bot/Chat/AgentTurn ORMs, poll terminal status,
+    UIMessage-store extraction). Bot infrastructure (this PR) is
+    in place; the launch_turn invocation lands in the next commit
+    on this same PR. Until that ships, this returns ``None`` so
+    the caller falls through to Tier 2.
     """
+    # Verify bot infrastructure is reachable — fail-fast diagnostic
+    # for the lazy-create branch + register-hook race.
+    bot = await get_or_create_summary_bot_for_user(collection.user)
+    if bot is None:  # pragma: no cover — get_or_create raises on
+        # transient failure rather than returning None
+        return None
+    # TODO(Wave 10 follow-up commit): replace this fall-through with
+    # the full launch_turn flow. Bot is now reachable and ready.
     return None
 
 
