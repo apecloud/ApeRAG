@@ -25,7 +25,7 @@ import os
 import uuid as _uuid
 from contextlib import suppress
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic_ai import Agent, AgentRunResultEvent
 from pydantic_ai import messages as pai_messages
@@ -51,11 +51,13 @@ from aperag.domains.agent_runtime.services import (
     _parse_bot_config,
 )
 from aperag.domains.agent_runtime.storage import DEFAULT_AGENT_TURN_LEASE_TTL_SECONDS, AgentRuntimeRedisStore
+from aperag.domains.agent_runtime.tools.safe_name import sanitize_tool_name
 from aperag.domains.agent_runtime.uimessage import (
     CitationData,
     DataCitationPart,
     SourceUrlPart,
     TextPart,
+    ToolPart,
     UIMessage,
     UIMessagePart,
     UrlCitationLocation,
@@ -155,22 +157,56 @@ def _wrap_toolset_for_bot(toolset, bot):
     return FilteredToolset(toolset, _filter)
 
 
+@dataclass
+class _PersistedToolCall:
+    """Collapsed tool lifecycle for durable UIMessage reload."""
+
+    tool_call_id: str
+    tool_name: str
+    state: Literal["input-available", "output-available", "output-error"] = "input-available"
+    output: Any = None
+    error_text: Optional[str] = None
+
+
+def _tool_part_type(tool_name: str) -> str:
+    safe = sanitize_tool_name(tool_name or "tool") or "tool"
+    return f"tool-{safe}"
+
+
+def _is_tool_failure_status(status: Any) -> bool:
+    raw = getattr(status, "value", status)
+    return str(raw or "").lower() in {"error", "failed", "failure"}
+
+
 def _compose_assistant_parts(
     *,
     turn_id: str,
     answer_text: str,
     references: list[ReferenceBundleItem],
+    tool_calls: list[_PersistedToolCall] | None = None,
 ) -> list[UIMessagePart]:
     """Project the runtime's accumulated answer + references into a
     canonical at-rest ``UIMessagePart`` list for ``UIMessageStore.write``.
 
-    Order: ``TextPart`` (answer) first, then ``SourceUrlPart`` /
-    ``DataCitationPart`` pairs from each reference. Items without a
-    URI surface as ``DataCitationPart`` only — same shape the FE
-    renderer expects from the live SSE stream (D8 §2 byte-equal).
+    Order: collapsed ``ToolPart`` records first, ``TextPart`` (answer)
+    next, then ``SourceUrlPart`` / ``DataCitationPart`` pairs from
+    each reference. Items without a URI surface as ``DataCitationPart``
+    only — same shape the FE renderer expects from the live SSE stream
+    (D8 §2 byte-equal).
     """
 
     parts: list[UIMessagePart] = []
+    for call in tool_calls or []:
+        parts.append(
+            ToolPart(
+                type=_tool_part_type(call.tool_name),
+                tool_call_id=call.tool_call_id,
+                state=call.state,
+                output=call.output,
+                error_text=call.error_text,
+                metadata={"mcpToolName": call.tool_name},
+            )
+        )
     if answer_text:
         parts.append(TextPart(text=answer_text))
     for index, ref in enumerate(references):
@@ -374,6 +410,8 @@ class PydanticAIRuntime(AgentRuntime):
         text_chunks: list[str] = []
         reference_items: list[ReferenceBundleItem] = []
         tool_summaries: list[str] = []
+        persisted_tool_calls: list[_PersistedToolCall] = []
+        persisted_tool_index: dict[str, _PersistedToolCall] = {}
         lease_guard = TurnLeaseGuard(turn_service=self.turn_service, turn_id=turn.id, owner_token=lease_owner)
 
         async def emit(
@@ -459,6 +497,13 @@ class PydanticAIRuntime(AgentRuntime):
                     if isinstance(event, pai_messages.FunctionToolCallEvent):
                         tool_name = event.part.tool_name
                         tool_call_id = event.part.tool_call_id
+                        tool_call = _PersistedToolCall(
+                            tool_call_id=tool_call_id,
+                            tool_name=tool_name,
+                            state="input-available",
+                        )
+                        persisted_tool_calls.append(tool_call)
+                        persisted_tool_index[tool_call_id] = tool_call
                         tool_summaries.append(f"Calling tool: {tool_name}")
                         await emit(
                             "agent.state.changed",
@@ -494,6 +539,23 @@ class PydanticAIRuntime(AgentRuntime):
                         normalized = self._normalize_jsonish(event.result.content)
                         reference_items.extend(self._extract_reference_items(tool_name, normalized))
                         outcome = getattr(event.result, "outcome", "success")
+                        tool_call = persisted_tool_index.get(tool_call_id)
+                        if tool_call is None:
+                            tool_call = _PersistedToolCall(
+                                tool_call_id=tool_call_id,
+                                tool_name=tool_name,
+                            )
+                            persisted_tool_calls.append(tool_call)
+                            persisted_tool_index[tool_call_id] = tool_call
+                        if _is_tool_failure_status(outcome):
+                            tool_call.state = "output-error"
+                            tool_call.error_text = (
+                                normalized
+                                if isinstance(normalized, str)
+                                else json.dumps(normalized, ensure_ascii=False, default=str)
+                            )
+                        else:
+                            tool_call.state = "output-available"
                         tool_summaries.append(f"Tool {tool_name} finished with status: {outcome}")
                         await emit(
                             "tool.finished",
@@ -568,7 +630,10 @@ class PydanticAIRuntime(AgentRuntime):
                     id=f"msg-{turn.id}",
                     role="assistant",
                     parts=_compose_assistant_parts(
-                        turn_id=turn.id, answer_text=answer_text, references=reference_items
+                        turn_id=turn.id,
+                        answer_text=answer_text,
+                        references=reference_items,
+                        tool_calls=persisted_tool_calls,
                     ),
                 ),
             )
