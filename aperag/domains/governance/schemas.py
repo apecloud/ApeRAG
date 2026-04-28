@@ -144,12 +144,12 @@ class SystemDefaultQuotas(BaseModel):
     System default quota configuration
     """
 
-    max_collection_count: conint(ge=0) = Field(..., description="Default maximum collection count", examples=[10])
-    max_document_count: conint(ge=0) = Field(..., description="Default maximum document count", examples=[1000])
+    max_collection_count: conint(ge=0) = Field(..., description="Default maximum collection count", examples=[20])
+    max_document_count: conint(ge=0) = Field(..., description="Default maximum document count", examples=[4000])
     max_document_count_per_collection: conint(ge=0) = Field(
-        ..., description="Default maximum documents per collection", examples=[100]
+        ..., description="Default maximum documents per collection", examples=[200]
     )
-    max_bot_count: conint(ge=0) = Field(..., description="Default maximum bot count", examples=[5])
+    max_bot_count: conint(ge=0) = Field(..., description="Default maximum bot count", examples=[10])
 
 
 class SystemDefaultQuotasResponse(BaseModel):

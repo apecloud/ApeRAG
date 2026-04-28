@@ -234,8 +234,9 @@ class Config(BaseSettings):
 
     # Limits
     max_bot_count: int = Field(10, alias="MAX_BOT_COUNT")
-    max_collection_count: int = Field(50, alias="MAX_COLLECTION_COUNT")
-    max_document_count: int = Field(1000, alias="MAX_DOCUMENT_COUNT")
+    max_collection_count: int = Field(20, alias="MAX_COLLECTION_COUNT")
+    max_document_count: int = Field(4000, alias="MAX_DOCUMENT_COUNT")
+    max_document_count_per_collection: int = Field(200, alias="MAX_DOCUMENT_COUNT_PER_COLLECTION")
     max_document_size: int = Field(100 * 1024 * 1024, alias="MAX_DOCUMENT_SIZE")
     max_conversation_count: int = Field(100, alias="MAX_CONVERSATION_COUNT")
 

@@ -17,10 +17,10 @@ ApeRAG 使用**每用户配额**来限制可创建的核心资源数量。配额
 
 | Key | 含义 | 默认值 |
 | --- | --- | --- |
-| `max_collection_count` | 每用户知识库数量上限 | 10 |
-| `max_document_count` | 每用户跨所有知识库的文档总数上限 | 1000 |
-| `max_document_count_per_collection` | 每个知识库内的文档数量上限 | 100 |
-| `max_bot_count` | 每用户智能体（Bot）数量上限，不含系统默认 bot | 5 |
+| `max_collection_count` | 每用户知识库数量上限 | 20 |
+| `max_document_count` | 每用户跨所有知识库的文档总数上限 | 4000 |
+| `max_document_count_per_collection` | 每个知识库内的文档数量上限 | 200 |
+| `max_bot_count` | 每用户智能体（Bot）数量上限，不含系统默认 bot | 10 |
 
 > 默认值存在 `ConfigModel` 表中 key 为 `system_default_quotas` 的一行 JSON；若该行不存在则回退到代码里的硬编码默认（上表）。
 
@@ -47,10 +47,10 @@ ApeRAG 使用**每用户配额**来限制可创建的核心资源数量。配额
 
 ```json
 {
-  "max_collection_count": 10,
-  "max_document_count": 1000,
-  "max_document_count_per_collection": 100,
-  "max_bot_count": 5
+  "max_collection_count": 20,
+  "max_document_count": 4000,
+  "max_document_count_per_collection": 200,
+  "max_bot_count": 10
 }
 ```
 
