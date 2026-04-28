@@ -99,6 +99,8 @@ class _FakeOps:
         answer_text=None,
         error_message=None,
         latency_ms=None,
+        score=None,
+        judge_result=None,
     ):
         record = {
             "id": f"attempt_{len(self.attempts) + 1:04d}",
@@ -111,6 +113,8 @@ class _FakeOps:
             "answer_text": answer_text,
             "error_message": error_message,
             "latency_ms": latency_ms,
+            "score": score,
+            "judge_result": judge_result,
         }
         self.attempts.append(record)
         return types.SimpleNamespace(**record)
@@ -122,12 +126,16 @@ class _FakeOps:
         status,
         latest_attempt_id=None,
         error_message=None,
+        best_score=None,
+        judge_breakdown=None,
     ):
-        self.finalized.append((item_id, status, latest_attempt_id, error_message))
+        self.finalized.append((item_id, status, latest_attempt_id, error_message, best_score, judge_breakdown))
         item = self._items[item_id]
         item.status = status
         item.latest_attempt_id = latest_attempt_id
         item.error_message = error_message
+        item.best_score = best_score
+        item.judge_breakdown = judge_breakdown
         return item
 
     # --- absence guard ------------------------------------------------------
@@ -455,7 +463,11 @@ def test_execute_evaluation_run_threads_collection_completion_into_dispatch(monk
 
         return ModelSpec(model_id="mdl_collection_default", temperature=0.1)
 
+    async def fake_judge_llm(**_kwargs):
+        return None  # exact-match fall-through; not under test here
+
     monkeypatch.setattr(worker, "_resolve_run_completion", fake_resolve)
+    monkeypatch.setattr(worker, "_resolve_judge_llm", fake_judge_llm)
 
     asyncio.run(execute_evaluation_run(run.id, db_ops=ops, dispatch_fn=fake_dispatch))
 
@@ -485,7 +497,11 @@ def test_execute_evaluation_run_passes_none_completion_when_collection_has_no_ll
     async def fake_resolve(**_kwargs):
         return None
 
+    async def fake_judge_llm(**_kwargs):
+        return None
+
     monkeypatch.setattr(worker, "_resolve_run_completion", fake_resolve)
+    monkeypatch.setattr(worker, "_resolve_judge_llm", fake_judge_llm)
 
     asyncio.run(execute_evaluation_run(run.id, db_ops=ops, dispatch_fn=fake_dispatch))
 

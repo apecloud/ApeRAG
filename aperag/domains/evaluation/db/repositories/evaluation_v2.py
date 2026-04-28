@@ -266,8 +266,15 @@ class AsyncEvaluationV2RepositoryMixin(AsyncRepositoryProtocol):
         answer_text: Optional[str] = None,
         error_message: Optional[str] = None,
         latency_ms: Optional[int] = None,
+        score: Optional[float] = None,
+        judge_result: Optional[dict] = None,
     ) -> EvaluationRunItemAttempt:
-        """Persist the outcome of a single worker turn dispatch."""
+        """Persist the outcome of a single worker turn dispatch.
+
+        ``score`` and ``judge_result`` are populated when LLM-as-judge
+        ran (architect spec ``msg=2424afe2``); they stay ``NULL`` for
+        Noop / ExactMatch judges so historical rows are unchanged.
+        """
 
         async def _operation(session: AsyncSession):
             now = utc_now()
@@ -291,6 +298,8 @@ class AsyncEvaluationV2RepositoryMixin(AsyncRepositoryProtocol):
                 answer_text=answer_text,
                 error_message=error_message,
                 latency_ms=latency_ms,
+                score=score,
+                judge_result=judge_result,
                 gmt_started=now,
                 gmt_finished=finished,
             )
@@ -308,6 +317,8 @@ class AsyncEvaluationV2RepositoryMixin(AsyncRepositoryProtocol):
         status: EvaluationRunItemStatus,
         latest_attempt_id: Optional[str] = None,
         error_message: Optional[str] = None,
+        best_score: Optional[float] = None,
+        judge_breakdown: Optional[dict] = None,
     ) -> Optional[EvaluationRunItem]:
         async def _operation(session: AsyncSession):
             stmt = select(EvaluationRunItem).where(EvaluationRunItem.id == item_id)
@@ -318,6 +329,10 @@ class AsyncEvaluationV2RepositoryMixin(AsyncRepositoryProtocol):
             if latest_attempt_id is not None:
                 item.latest_attempt_id = latest_attempt_id
             item.error_message = error_message
+            if best_score is not None:
+                item.best_score = best_score
+            if judge_breakdown is not None:
+                item.judge_breakdown = judge_breakdown
             item.gmt_updated = utc_now()
             await session.flush()
             await session.refresh(item)

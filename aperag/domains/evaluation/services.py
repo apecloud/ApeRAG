@@ -288,6 +288,8 @@ class EvaluationRunService:
             collection_id=dataset.collection_id,
             dataset_name=dataset.name,
             name=request.name,
+            answer_model=request.answer_model,
+            judge_model=request.judge_model,
             bot_config_snapshot=request.bot_config_snapshot,
             model_config_snapshot=request.model_config_snapshot,
             judge_config=judge_payload,

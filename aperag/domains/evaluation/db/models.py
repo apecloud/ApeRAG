@@ -210,6 +210,14 @@ class EvaluationRun(Base):
     name = Column(String(255), nullable=True)
     bot_config_snapshot = Column(JSON, nullable=True)
     model_config_snapshot = Column(JSON, nullable=True)
+    # Run-scoped LLM model overrides (architect spec msg=2424afe2). Both
+    # are model_id strings; ``NULL`` means "fall back to the collection's
+    # ``Collection.config.completion`` model". The worker resolves these
+    # once per run (``_resolve_run_completion`` for ``answer_model``,
+    # ``_resolve_run_judge_completion`` for ``judge_model``) so each
+    # case-attempt sees a consistent ``ModelSpec``.
+    answer_model = Column(String(64), nullable=True)
+    judge_model = Column(String(64), nullable=True)
     judge_config = Column(JSON, nullable=True)
     status = Column(
         _enum_column(EvaluationRunStatus),
@@ -255,6 +263,14 @@ class EvaluationRunItem(Base):
     latest_attempt_id = Column(String(32), nullable=True)
     attempt_count = Column(Integer, nullable=False, default=0)
     error_message = Column(Text, nullable=True)
+    # Forward-compat (architect spec msg=2424afe2): the Phase 5 multi-
+    # dimensional judge writes
+    # ``{"correctness": int, "completeness": int|null,
+    #   "faithfulness": int|null, "relevance": int|null}`` here. The
+    # MVP single-dim Correctness writes only ``correctness`` and leaves
+    # the rest ``null`` — the column lands in this round so a Phase 5
+    # bump does not need another alembic migration.
+    judge_breakdown = Column(JSON, nullable=True)
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_updated = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 
