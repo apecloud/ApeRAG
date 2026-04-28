@@ -969,6 +969,19 @@ export const CollectionGraphHybrid = () => {
                 userInteractedRef.current = true;
                 rememberCamera();
               }}
+              onBackgroundClick={() => {
+                // Click on empty canvas — dismiss any current
+                // selection (entity / edge / path pick / path result)
+                // so the user can return to the overview without
+                // hunting for an X button.
+                userInteractedRef.current = true;
+                rememberCamera();
+                if (interactionMode === 'path') {
+                  setPathPicks([]);
+                  setPathPaths([]);
+                }
+                handleCloseDetail();
+              }}
               onNodeClick={(node) => {
                 userInteractedRef.current = true;
                 rememberCamera();
@@ -1041,7 +1054,7 @@ export const CollectionGraphHybrid = () => {
                 setActiveNode(undefined);
                 setActiveEdge(link as GraphEdge);
               }}
-              nodeCanvasObject={(node, ctx) => {
+              nodeCanvasObject={(node, ctx, globalScale) => {
                 const n = node as HybridNode;
                 const x = n.x ?? 0;
                 const y = n.y ?? 0;
@@ -1052,11 +1065,27 @@ export const CollectionGraphHybrid = () => {
                 const fillColor = pickClusterColor(n.cluster);
                 const isDim = highlightNodes.size > 0 && !highlightNodes.has(n);
                 const isActive = activeNode?.id === n.id;
+                // Path mode: highlight the picked start node the same
+                // way as a single click selection so the user always
+                // sees which node is "anchored".
+                const isPathStart =
+                  interactionMode === 'path' &&
+                  pathPicks.length === 1 &&
+                  pathPicks[0] === n.id;
+                const isSelected = isActive || isPathStart;
+                // Zoom-aware label gating — at default zoom (~1) only
+                // the biggest hubs get labels; as the user zooms in the
+                // threshold drops so more labels appear progressively.
+                // Clamp the divisor so very high zoom levels show
+                // labels for every node and very zoomed-out views
+                // suppress them aggressively.
+                const labelSizeThreshold =
+                  IMPORTANT_LABEL_SIZE / Math.max(globalScale, 0.5);
                 const shouldShowLabel =
-                  isActive ||
+                  isSelected ||
                   n === hoverNode ||
                   highlightNodes.has(n) ||
-                  (!isDim && size >= IMPORTANT_LABEL_SIZE);
+                  (!isDim && size >= labelSizeThreshold);
 
                 // Non-highlighted nodes recede so the active selection
                 // or path stands out clearly.
@@ -1074,6 +1103,30 @@ export const CollectionGraphHybrid = () => {
                 ctx.globalAlpha = isDim ? 0.12 : 1;
                 ctx.stroke();
                 ctx.globalAlpha = 1;
+
+                // Selection halo — paints a soft white ring around any
+                // currently-selected node (entity click or path-mode
+                // start pick). Sized just outside the fill so it reads
+                // as an outer outline without occluding the colour.
+                if (isSelected) {
+                  const haloOuter = size + 4;
+                  ctx.beginPath();
+                  ctx.arc(x, y, haloOuter, 0, 2 * Math.PI, false);
+                  ctx.lineWidth = 2.5;
+                  ctx.strokeStyle = isDark
+                    ? 'rgba(255, 255, 255, 0.95)'
+                    : 'rgba(255, 255, 255, 0.98)';
+                  ctx.globalAlpha = 1;
+                  ctx.stroke();
+                  // Soft outer glow for extra emphasis.
+                  ctx.beginPath();
+                  ctx.arc(x, y, haloOuter + 2, 0, 2 * Math.PI, false);
+                  ctx.lineWidth = 1;
+                  ctx.strokeStyle = isDark
+                    ? 'rgba(255, 255, 255, 0.35)'
+                    : 'rgba(255, 255, 255, 0.55)';
+                  ctx.stroke();
+                }
 
                 if (shouldShowLabel) {
                   let fontSize = 13;
