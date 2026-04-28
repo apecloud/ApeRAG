@@ -186,7 +186,7 @@ serve-web:
 ##################################################
 
 # Code quality checks
-.PHONY: format lint static-check add-license
+.PHONY: format lint static-check
 format:
 	uvx ruff check --fix ./aperag ./tests
 	uvx ruff format ./aperag ./tests
@@ -197,9 +197,6 @@ lint:
 
 static-check:
 	uvx mypy ./aperag
-
-add-license:
-	@echo "License headers are maintained in source files."
 
 # Testing suite
 .PHONY: test-all test-unit test-integration test-e2e test-e2e-perf \
