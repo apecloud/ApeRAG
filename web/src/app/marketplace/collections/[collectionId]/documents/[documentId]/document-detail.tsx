@@ -1,4 +1,5 @@
 'use client';
+import { Markdown } from '@/components/markdown';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import type { DocumentPreview } from '@/features/document/types';
@@ -47,6 +48,13 @@ const IMAGE_EXTENSIONS = new Set([
   'tif',
   'tiff',
 ]);
+
+// See workspace mirror for the rationale — .txt / .md / .markdown
+// uploads have their original content surfaced via
+// ``DocumentPreview.markdown_content`` and should still display in
+// the preview pane after PR #1815 hid the parsed-text tab (which was
+// only meant to suppress poor PDF parses).
+const TEXT_PREVIEW_EXTENSIONS = new Set(['txt', 'md', 'markdown']);
 
 const getExtension = (filename?: string | null) =>
   filename?.split('.').pop()?.toLowerCase() ?? '';
@@ -100,6 +108,8 @@ export const DocumentDetail = ({
       : undefined;
   const isPdf = extension === 'pdf';
   const isImage = IMAGE_EXTENSIONS.has(extension);
+  const isTextPreview = TEXT_PREVIEW_EXTENSIONS.has(extension);
+  const markdownContent = documentPreview.markdown_content?.trim();
   const pdfPreviewUrl = isPdf
     ? originalObjectUrl || convertedPdfUrl
     : undefined;
@@ -181,6 +191,12 @@ export const DocumentDetail = ({
               className="border-border/70 bg-background max-h-[75vh] max-w-full rounded-lg border object-contain shadow-sm"
             />
           </div>
+        ) : isTextPreview && markdownContent ? (
+          <Card className="border-border/70 rounded-xl">
+            <CardContent className="p-5 md:p-6">
+              <Markdown>{markdownContent}</Markdown>
+            </CardContent>
+          </Card>
         ) : (
           <Card className="border-border/70 rounded-xl">
             <CardContent className="text-muted-foreground flex min-h-72 flex-col items-center justify-center gap-4 p-8 text-center text-sm">
