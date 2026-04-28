@@ -3,6 +3,7 @@ import { Markdown } from '@/components/markdown';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import _ from 'lodash';
 import { AlertCircleIcon } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useCallback } from 'react';
 import { MessageCollapseContent } from './message-collapse-content';
 
@@ -13,6 +14,7 @@ export const MessagePartAi = ({
   part: ChatMessage;
   loading: boolean;
 }) => {
+  const pageChat = useTranslations('page_chat');
   const parseToolCall = useCallback(
     (content: string): { title: string; body: string } => {
       const lines = content.split('\n');
@@ -37,7 +39,10 @@ export const MessagePartAi = ({
       );
     case 'thinking':
       return (
-        <MessageCollapseContent title="Thinking" animate={loading}>
+        <MessageCollapseContent
+          title={pageChat('activity_stream.transient.thinking')}
+          animate={loading}
+        >
           <Markdown>{part.data ?? ''}</Markdown>
         </MessageCollapseContent>
       );

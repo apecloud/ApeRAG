@@ -78,7 +78,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { useFormatter, useTranslations } from 'next-intl';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { MessageCollapseContent } from './message-collapse-content';
 import { MessageFeedback } from './message-feedback';
 
@@ -646,6 +646,8 @@ export function AgentTurnRenderer({
 
   const grouped = useMemo(() => partitionParts(parts), [parts]);
   const answerText = useMemo(() => joinTextParts(grouped.text), [grouped.text]);
+  const [activityOpen, setActivityOpen] = useState(true);
+  const autoCollapsedRef = useRef(false);
   const visibleToolParts = useMemo(
     () => grouped.tool.filter(isVisibleToolActivity),
     [grouped.tool],
@@ -714,6 +716,12 @@ export function AgentTurnRenderer({
       grouped.elicitation.length >
     0;
 
+  useEffect(() => {
+    if (autoCollapsedRef.current || !answerText.trim()) return;
+    autoCollapsedRef.current = true;
+    setActivityOpen(false);
+  }, [answerText]);
+
   return (
     <div className="flex w-full flex-row gap-3.5">
       <div>
@@ -739,7 +747,8 @@ export function AgentTurnRenderer({
         )}
 
         <Collapsible
-          defaultOpen
+          open={activityOpen}
+          onOpenChange={setActivityOpen}
           className="group/activity-stream bg-muted border-border/70 overflow-hidden rounded-xl border"
         >
           <CollapsibleTrigger asChild>
