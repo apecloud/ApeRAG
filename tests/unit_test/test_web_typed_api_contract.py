@@ -410,9 +410,10 @@ def test_evaluation_feature_uses_v2_typed_api_boundary():
     assert "/api/v2/evaluation-runs" in feature_sources
 
     # Positive: the new datasets panel search predicate keeps the null-safe
-    # cast so `undefined` description or source_type values do not throw.
+    # cast so `undefined` description values do not throw.
     datasets_panel = (REPO_ROOT / "web/src/components/evaluation/evaluation-datasets-panel.tsx").read_text()
-    assert "String(value ?? '').toLowerCase()" in datasets_panel
+    assert "String(value ?? '')" in datasets_panel
+    assert ".includes(query)" in datasets_panel
 
     # Positive: Start Evaluation is gated on `dataset.item_count > 0` so a
     # freshly-created empty dataset cannot be run, matching msg=38d7e74d

@@ -80,11 +80,10 @@ def _enum_column(enum_class):
 
 
 class EvaluationDatasetSourceType(str, Enum):
-    """Origin of an ``EvaluationDataset``.
+    """Legacy persisted dataset origin.
 
-    The simplified evaluation model exposes only ``Dataset`` + ``Run`` to
-    users. ``source_type`` lets the backend distinguish how the items were
-    created (manual entry, file import, LLM-generated).
+    Kept for existing rows and the database default; the public API treats a
+    dataset as a mixed collection of questions and no longer exposes source.
     """
 
     MANUAL = "manual"

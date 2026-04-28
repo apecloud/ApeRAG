@@ -23,7 +23,11 @@ export default async function Page({
     listEvaluationDatasetItems(datasetId),
   ]);
 
-  if (!datasetState.payload && !datasetState.unavailable && !datasetState.error) {
+  if (
+    !datasetState.payload &&
+    !datasetState.unavailable &&
+    !datasetState.error
+  ) {
     notFound();
   }
 
@@ -52,6 +56,7 @@ export default async function Page({
       <PageContent>
         {dataset ? (
           <EvaluationDatasetItemsPanel
+            collectionId={collectionId}
             dataset={dataset}
             items={itemsState.items}
             unavailable={itemsState.unavailable}

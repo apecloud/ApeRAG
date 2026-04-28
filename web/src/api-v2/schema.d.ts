@@ -3458,8 +3458,6 @@ export interface components {
             description?: string | null;
             /** Collection Id */
             collection_id?: string | null;
-            /** @default manual */
-            source_type: components["schemas"]["EvaluationDatasetSourceType"];
             /** Schema Hint */
             schema_hint?: {
                 [key: string]: unknown;
@@ -3479,7 +3477,6 @@ export interface components {
             name: string;
             /** Description */
             description?: string | null;
-            source_type: components["schemas"]["EvaluationDatasetSourceType"];
             /** Schema Hint */
             schema_hint?: {
                 [key: string]: unknown;
@@ -3637,16 +3634,6 @@ export interface components {
             items?: components["schemas"]["EvaluationDatasetEnvelope"][];
             pagination?: components["schemas"]["EvaluationPagination"];
         };
-        /**
-         * EvaluationDatasetSourceType
-         * @description Origin of an ``EvaluationDataset``.
-         *
-         *     The simplified evaluation model exposes only ``Dataset`` + ``Run`` to
-         *     users. ``source_type`` lets the backend distinguish how the items were
-         *     created (manual entry, file import, LLM-generated).
-         * @enum {string}
-         */
-        EvaluationDatasetSourceType: "manual" | "import" | "generated";
         /** EvaluationDatasetUpdate */
         EvaluationDatasetUpdate: {
             /** Name */

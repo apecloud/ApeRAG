@@ -8,9 +8,6 @@ export type EvaluationRunItemStatus =
 export type EvaluationAttemptStatus =
   components['schemas']['EvaluationRunItemAttemptStatus'];
 
-export type EvaluationDatasetSourceType =
-  components['schemas']['EvaluationDatasetSourceType'];
-
 export type EvaluationDataset =
   components['schemas']['EvaluationDatasetEnvelope'];
 
