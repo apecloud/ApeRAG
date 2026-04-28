@@ -1094,7 +1094,6 @@
       "description": "Browse published collections from the workspace, preview their documents, and subscribe the useful ones into your own collection list."
     },
     "workspace_label": "Workspace",
-    "featured_label": "Featured collection",
     "published_collection": "Published collection",
     "published_by": "Published by {owner}",
     "owner_unknown": "Unknown owner",
