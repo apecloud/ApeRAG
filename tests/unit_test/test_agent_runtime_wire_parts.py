@@ -60,6 +60,9 @@ from aperag.domains.agent_runtime.wire.parts import (
     ErrorPart,
     FinishPart,
     FinishStepPart,
+    ReasoningDeltaPart,
+    ReasoningEndPart,
+    ReasoningStartPart,
     SourceUrlPart,
     StartPart,
     StartStepPart,
@@ -158,6 +161,108 @@ def test_translate_text_delta_lifecycle():
     assert isinstance(answer_artifact[0], TextEndPart)
     assert answer_artifact[0].id == "turn-1"
     assert state.text_block_open is False
+
+
+def test_translate_reasoning_delta_lifecycle():
+    """Wave 9 task #2 followup #2 + dongdong gap msg=4c5f4f0e: live SSE
+    stream must surface reasoning text so the FE renders incrementally.
+
+    The first ``reasoning.delta`` opens a reasoning block; subsequent
+    deltas reuse the open block's id; a non-reasoning event (text
+    delta, tool start, turn end) closes the block."""
+    state = TranslatorState()
+
+    first = translate_envelope(
+        _envelope(
+            "reasoning.delta",
+            sequence=2,
+            event_id="evt-r1",
+            data={"delta": "I need"},
+        ),
+        state,
+    )
+    assert len(first) == 2
+    assert isinstance(first[0], ReasoningStartPart)
+    assert first[0].id == "reasoning-evt-r1"
+    assert isinstance(first[1], ReasoningDeltaPart)
+    assert first[1].id == "reasoning-evt-r1"
+    assert first[1].delta == "I need"
+
+    second = translate_envelope(
+        _envelope(
+            "reasoning.delta",
+            sequence=3,
+            event_id="evt-r2",
+            data={"delta": " to look it up."},
+        ),
+        state,
+    )
+    # Reuses the open block's id (NOT the new envelope's event_id).
+    assert len(second) == 1
+    assert isinstance(second[0], ReasoningDeltaPart)
+    assert second[0].id == "reasoning-evt-r1"
+    assert second[0].delta == " to look it up."
+
+
+def test_translate_text_delta_closes_open_reasoning_block():
+    """Reasoning → text transition closes the reasoning block before
+    opening the text block. Without this the FE sees a dangling
+    reasoning-start without a matching reasoning-end."""
+    state = TranslatorState()
+    translate_envelope(
+        _envelope("reasoning.delta", sequence=2, event_id="evt-r1", data={"delta": "thinking"}),
+        state,
+    )
+    parts = translate_envelope(
+        _envelope("text.delta", sequence=3, data={"delta": "answer"}),
+        state,
+    )
+    types = [type(p).__name__ for p in parts]
+    assert types == ["ReasoningEndPart", "TextStartPart", "TextDeltaPart"]
+    assert parts[0].id == "reasoning-evt-r1"
+
+
+def test_translate_tool_started_closes_open_reasoning_block():
+    """Tool call interrupts reasoning — close the reasoning block so
+    each "思考N" block ends cleanly before the upcoming tool action
+    card. Mirror of the runtime's at-rest chunk-on-tool-call boundary
+    (huangheng PR #1804 BLOCKER fix made the BE side work; this is the
+    wire-side equivalent)."""
+    state = TranslatorState()
+    translate_envelope(
+        _envelope("reasoning.delta", sequence=2, event_id="evt-r1", data={"delta": "thinking"}),
+        state,
+    )
+    parts = translate_envelope(
+        _envelope(
+            "tool.started",
+            sequence=3,
+            event_id="evt-t1",
+            label="web.search",
+            data={"tool_name": "web.search", "tool_call_id": "call-1"},
+        ),
+        state,
+    )
+    # First part must be the reasoning-end before the tool-input-* parts.
+    assert isinstance(parts[0], ReasoningEndPart)
+    assert parts[0].id == "reasoning-evt-r1"
+
+
+def test_translate_turn_completed_closes_open_reasoning_block():
+    """Trailing reasoning that didn't end with a tool call (or a text
+    delta) still gets a clean close at turn end."""
+    state = TranslatorState()
+    translate_envelope(
+        _envelope("reasoning.delta", sequence=2, event_id="evt-r1", data={"delta": "final thinking"}),
+        state,
+    )
+    parts = translate_envelope(
+        _envelope("turn.completed", sequence=3, status="completed"),
+        state,
+    )
+    types = [type(p).__name__ for p in parts]
+    assert types == ["ReasoningEndPart", "FinishStepPart", "FinishPart"]
+    assert parts[0].id == "reasoning-evt-r1"
 
 
 def test_translate_tool_started_finished():
