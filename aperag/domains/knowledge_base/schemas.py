@@ -90,6 +90,13 @@ class Collection(BaseModel):
     title: Optional[str] = None
     type: Optional[str] = None
     description: Optional[str] = None
+    # Wave 10 §K.13: long-form auto-generated summary (~5-10 K chars).
+    # The settings page renders it in the read-only textarea right
+    # under ``description``; without this field on the response schema
+    # the FE always sees ``summary=null`` and shows the placeholder
+    # even after a successful regen (regression caught via @earayu2
+    # msg=e4120886 reproducer).
+    summary: Optional[str] = Field(None, description="Auto-generated long-form knowledge-base summary")
     config: Optional[CollectionConfig] = None
     status: Optional[Literal["ACTIVE", "INACTIVE", "DELETED"]] = None
     created: Optional[datetime] = None
