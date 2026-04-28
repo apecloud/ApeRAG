@@ -29,6 +29,7 @@ const traceSteps = [
   'compare',
   'answer',
 ] as const;
+const graphLegendItems = ['person', 'org', 'product', 'event'] as const;
 const agentFeatureKeys = ['runtime', 'mcp', 'audit'] as const;
 const deploymentFeatureKeys = ['private', 'models', 'management'] as const;
 
@@ -486,7 +487,7 @@ function GraphVisual({ t }: { t: LandingTranslations }) {
           {t('graph.legend')}
         </div>
         <div className="text-muted-foreground mt-3 grid grid-cols-2 gap-x-5 gap-y-2 text-xs">
-          {['person', 'org', 'product', 'event'].map((item, index) => (
+          {graphLegendItems.map((item, index) => (
             <div key={item} className="flex items-center gap-2">
               <span
                 className={`size-2 rounded-full ${
