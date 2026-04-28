@@ -19,6 +19,8 @@ import { CANVAS_DARK, COLORS } from '@/lib/design-tokens';
 import { cn } from '@/lib/utils';
 import {
   ArrowRight,
+  ChevronsLeft,
+  ChevronsRight,
   GitBranch,
   Loader2,
   Maximize2,
@@ -67,9 +69,12 @@ const pickClusterColor = (cluster: number) => {
 };
 
 const IMPORTANT_LABEL_SIZE = 16;
+const INITIAL_FIT_PADDING = 0;
+const INITIAL_FIT_ZOOM_BOOST = 1.22;
 const LABEL_RADIUS = 5;
 const NODE_MIN = 8;
 const NODE_MAX = 22;
+const RESIZE_EPSILON_PX = 2;
 
 const getErrorMessage = (error: unknown, fallback: string) => {
   if (error instanceof ApiClientError || error instanceof Error) {
@@ -127,6 +132,12 @@ type HybridNode = GraphNode & {
   cluster: number;
 };
 
+type GraphCamera = {
+  x: number;
+  y: number;
+  zoom: number;
+};
+
 export const CollectionGraphHybrid = () => {
   const params = useParams();
   const [fullscreen, setFullscreen] = useState<boolean>(false);
@@ -137,6 +148,8 @@ export const CollectionGraphHybrid = () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const graphRef = useRef<any>(null);
   const didInitialFitRef = useRef(false);
+  const cameraRef = useRef<GraphCamera | null>(null);
+  const userInteractedRef = useRef(false);
   const [graphData, setGraphData] = useState<{
     nodes: HybridNode[];
     links: GraphEdge[];
@@ -163,6 +176,7 @@ export const CollectionGraphHybrid = () => {
   const [hoverNode, setHoverNode] = useState<HybridNode>();
   const [activeNode, setActiveNode] = useState<HybridNode>();
   const [activeEdge, setActiveEdge] = useState<GraphEdge>();
+  const [detailCollapsed, setDetailCollapsed] = useState(false);
 
   // Path mode — pick two nodes and surface every shortest path between
   // them. Cap at 12 paths so hub-heavy graphs don't explode the
@@ -183,6 +197,8 @@ export const CollectionGraphHybrid = () => {
   const getGraphData = useCallback(async () => {
     if (typeof params.collectionId !== 'string') return;
     didInitialFitRef.current = false;
+    userInteractedRef.current = false;
+    cameraRef.current = null;
     setGraphError(undefined);
 
     try {
@@ -265,6 +281,7 @@ export const CollectionGraphHybrid = () => {
     setActiveNode(undefined);
     setActiveEdge(undefined);
     setHoverNode(undefined);
+    setDetailCollapsed(false);
     setHighlightNodes(new Set());
     setHighlightLinks(new Set());
   }, []);
@@ -335,12 +352,49 @@ export const CollectionGraphHybrid = () => {
     const container = containerRef.current;
     if (!container) return;
     const rect = container.getBoundingClientRect();
-    const width = Math.floor(rect.width);
-    const height = Math.floor(rect.height);
+    const width = Math.round(rect.width);
+    const height = Math.round(rect.height);
     setDimensions((prev) => {
       if (prev.width === width && prev.height === height) return prev;
+      if (
+        prev.width > 0 &&
+        prev.height > 0 &&
+        Math.abs(prev.width - width) <= RESIZE_EPSILON_PX &&
+        Math.abs(prev.height - height) <= RESIZE_EPSILON_PX
+      ) {
+        return prev;
+      }
       return { width, height };
     });
+  }, []);
+
+  const readCamera = useCallback((): GraphCamera | null => {
+    const graph = graphRef.current;
+    if (!graph?.centerAt || !graph?.zoom) return null;
+    const center = graph.centerAt();
+    const zoom = graph.zoom();
+    if (
+      !center ||
+      !Number.isFinite(center.x) ||
+      !Number.isFinite(center.y) ||
+      !Number.isFinite(zoom)
+    ) {
+      return null;
+    }
+    return { x: center.x, y: center.y, zoom };
+  }, []);
+
+  const rememberCamera = useCallback(() => {
+    const camera = readCamera();
+    if (camera) cameraRef.current = camera;
+    return camera;
+  }, [readCamera]);
+
+  const restoreCamera = useCallback((camera: GraphCamera | null) => {
+    const graph = graphRef.current;
+    if (!graph?.centerAt || !graph?.zoom || !camera) return;
+    graph.centerAt(camera.x, camera.y, 0);
+    graph.zoom(camera.zoom, 0);
   }, []);
 
   // Measure synchronously after layout (`useLayoutEffect`) so the
@@ -501,6 +555,27 @@ export const CollectionGraphHybrid = () => {
     pathPicks,
   ]);
 
+  // ForceGraph may internally adjust its camera when canvas dimensions
+  // or paint callbacks update. During node/link/path interactions, keep
+  // the user's current camera fixed so selection never nudges the whole
+  // map. Real viewport/fullscreen resizes still update dimensions; this
+  // guard only restores after interaction state changes.
+  useLayoutEffect(() => {
+    if (!didInitialFitRef.current) return;
+    restoreCamera(cameraRef.current);
+  }, [
+    activeClusters,
+    activeEdge,
+    activeNode,
+    highlightLinks,
+    highlightNodes,
+    hoverNode,
+    interactionMode,
+    pathPaths,
+    pathPicks,
+    restoreCamera,
+  ]);
+
   useEffect(() => {
     getGraphData();
   }, [getGraphData]);
@@ -558,6 +633,10 @@ export const CollectionGraphHybrid = () => {
 
     const fit = () => {
       if (didInitialFitRef.current) return;
+      if (userInteractedRef.current) {
+        didInitialFitRef.current = true;
+        return;
+      }
       const graph = graphRef.current;
       if (!graph?.centerAt || !graph?.zoom) return;
 
@@ -571,7 +650,7 @@ export const CollectionGraphHybrid = () => {
       const maxY = Math.max(...ys);
       const rangeX = Math.max(maxX - minX, 1);
       const rangeY = Math.max(maxY - minY, 1);
-      const padding = 72;
+      const padding = INITIAL_FIT_PADDING;
       const zoom = Math.max(
         0.05,
         Math.min(
@@ -579,11 +658,14 @@ export const CollectionGraphHybrid = () => {
           Math.min(
             Math.max(dimensions.width - padding * 2, 1) / rangeX,
             Math.max(dimensions.height - padding * 2, 1) / rangeY,
-          ),
+          ) * INITIAL_FIT_ZOOM_BOOST,
         ),
       );
-      graph.centerAt((minX + maxX) / 2, (minY + maxY) / 2, 0);
+      const x = (minX + maxX) / 2;
+      const y = (minY + maxY) / 2;
+      graph.centerAt(x, y, 0);
       graph.zoom(zoom, 0);
+      cameraRef.current = { x, y, zoom };
       didInitialFitRef.current = true;
     };
 
@@ -632,6 +714,31 @@ export const CollectionGraphHybrid = () => {
   const allActive =
     allClusterIds.length > 0 && activeClusters.length === allClusterIds.length;
 
+  const nodeVisibility = useCallback(
+    (node: unknown) => {
+      const cluster = (node as HybridNode).cluster;
+      return activeClusters.length === 0 || activeClusters.includes(cluster);
+    },
+    [activeClusters],
+  );
+
+  const linkVisibility = useCallback(
+    (link: unknown) => {
+      const edge = link as GraphEdge;
+      const sId = endpointId(edge.source);
+      const tId = endpointId(edge.target);
+      const s = nodesById.get(sId);
+      const t = nodesById.get(tId);
+      if (!s || !t) return false;
+      return (
+        activeClusters.length === 0 ||
+        (activeClusters.includes(s.cluster) &&
+          activeClusters.includes(t.cluster))
+      );
+    },
+    [activeClusters, nodesById],
+  );
+
   if (graphError && !graphData) {
     return (
       <div className="text-destructive flex h-full items-center justify-center px-4 text-center text-sm">
@@ -642,19 +749,18 @@ export const CollectionGraphHybrid = () => {
 
   if (!graphData) {
     return (
-      <div className="grid h-full grid-cols-[1fr_20rem] gap-4">
-        <Skeleton className="h-full w-full" />
+      <div className="h-full min-h-0 overflow-hidden">
         <Skeleton className="h-full w-full" />
       </div>
     );
   }
 
-  // Outer grid with fixed 20rem right panel, canvas on the left, and
-  // inline controls above the graph.
+  // Single full-width graph surface. Details float over the canvas so
+  // long entity descriptions cannot resize the graph viewport.
   return (
     <div
       className={cn(
-        'top-0 right-0 bottom-0 left-0 grid h-full flex-1 grid-cols-[1fr_20rem] gap-4',
+        'relative top-0 right-0 bottom-0 left-0 h-full min-h-0 flex-1 overflow-hidden',
         {
           fixed: fullscreen,
           'bg-background': fullscreen,
@@ -663,7 +769,7 @@ export const CollectionGraphHybrid = () => {
         },
       )}
     >
-      <div className="bg-card relative flex h-full flex-col overflow-hidden rounded-lg border">
+      <div className="bg-card relative flex h-full min-h-0 flex-col overflow-hidden rounded-lg border">
         {/* Top toolbar — Hybrid badge + counts on the left, mode +
             fullscreen + search controls on the right. */}
         <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
@@ -833,7 +939,7 @@ export const CollectionGraphHybrid = () => {
         )}
 
         {/* Canvas + overlays */}
-        <div ref={containerRef} className="relative flex-1">
+        <div ref={containerRef} className="relative min-h-0 flex-1">
           {graphData?.nodes.length === 0 && !graphError && (
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
               <div className="text-muted-foreground text-sm">
@@ -854,14 +960,18 @@ export const CollectionGraphHybrid = () => {
               warmupTicks={0}
               d3AlphaDecay={1}
               enableNodeDrag={false}
-              nodeVisibility={(node) => {
-                const cluster = (node as HybridNode).cluster;
-                return (
-                  activeClusters.length === 0 ||
-                  activeClusters.includes(cluster)
-                );
+              nodeVisibility={nodeVisibility}
+              onZoom={() => {
+                userInteractedRef.current = true;
+                rememberCamera();
+              }}
+              onZoomEnd={() => {
+                userInteractedRef.current = true;
+                rememberCamera();
               }}
               onNodeClick={(node) => {
+                userInteractedRef.current = true;
+                rememberCamera();
                 const n = node as HybridNode;
                 if (interactionMode === 'path') {
                   setActiveNode(undefined);
@@ -921,6 +1031,8 @@ export const CollectionGraphHybrid = () => {
                 setHighlightLinks(nextHighlightLinks);
               }}
               onLinkClick={(link) => {
+                userInteractedRef.current = true;
+                rememberCamera();
                 if (interactionMode === 'path') return;
                 if (activeEdge?.id === link.id) {
                   handleCloseDetail();
@@ -1032,18 +1144,7 @@ export const CollectionGraphHybrid = () => {
               linkDirectionalParticles={(link) =>
                 highlightLinks.has(link as GraphEdge) ? 2 : 0
               }
-              linkVisibility={(link) => {
-                const sId = endpointId(link.source);
-                const tId = endpointId(link.target);
-                const s = nodesById.get(sId);
-                const t = nodesById.get(tId);
-                if (!s || !t) return false;
-                return (
-                  activeClusters.length === 0 ||
-                  (activeClusters.includes(s.cluster) &&
-                    activeClusters.includes(t.cluster))
-                );
-              }}
+              linkVisibility={linkVisibility}
             />
           )}
 
@@ -1094,40 +1195,46 @@ export const CollectionGraphHybrid = () => {
               )}
             </div>
           )}
+          {(activeNode || activeEdge || pathPaths.length > 0) && (
+            <HybridFloatingDetail
+              collapsed={detailCollapsed}
+              interactionMode={interactionMode}
+              activeNode={activeNode}
+              activeEdge={activeEdge}
+              pathPaths={pathPaths}
+              activeNodeEdges={activeNodeEdges}
+              activeNodeNeighbors={activeNodeNeighbors}
+              nodes={graphData?.nodes ?? []}
+              linksByPair={linksByPair}
+              onClose={handleCloseDetail}
+              onCollapsedChange={setDetailCollapsed}
+              onSelectNode={(nodeId) => {
+                const match = nodesById.get(nodeId);
+                if (!match) return;
+                setDetailCollapsed(false);
+                setActiveEdge(undefined);
+                setActiveNode(match);
+                if (interactionMode === 'path') {
+                  setInteractionMode('entity');
+                  setPathPicks([]);
+                  setPathPaths([]);
+                }
+              }}
+              onSelectEdge={(edge) => {
+                setDetailCollapsed(false);
+                setActiveNode(undefined);
+                setActiveEdge(edge);
+              }}
+            />
+          )}
         </div>
       </div>
-
-      {/* Right column — fixed always-visible side panel. */}
-      <HybridSidePanel
-        interactionMode={interactionMode}
-        activeNode={activeNode}
-        activeEdge={activeEdge}
-        pathPaths={pathPaths}
-        activeNodeEdges={activeNodeEdges}
-        activeNodeNeighbors={activeNodeNeighbors}
-        nodes={graphData?.nodes ?? []}
-        linksByPair={linksByPair}
-        onSelectNode={(nodeId) => {
-          const match = nodesById.get(nodeId);
-          if (!match) return;
-          setActiveEdge(undefined);
-          setActiveNode(match);
-          if (interactionMode === 'path') {
-            setInteractionMode('entity');
-            setPathPicks([]);
-            setPathPaths([]);
-          }
-        }}
-        onSelectEdge={(edge) => {
-          setActiveNode(undefined);
-          setActiveEdge(edge);
-        }}
-      />
     </div>
   );
 };
 
-const HybridSidePanel = ({
+const HybridFloatingDetail = ({
+  collapsed,
   interactionMode,
   activeNode,
   activeEdge,
@@ -1136,9 +1243,12 @@ const HybridSidePanel = ({
   activeNodeNeighbors,
   nodes,
   linksByPair,
+  onClose,
+  onCollapsedChange,
   onSelectNode,
   onSelectEdge,
 }: {
+  collapsed: boolean;
   interactionMode: 'entity' | 'path';
   activeNode?: HybridNode;
   activeEdge?: GraphEdge;
@@ -1147,6 +1257,8 @@ const HybridSidePanel = ({
   activeNodeNeighbors: HybridNode[];
   nodes: HybridNode[];
   linksByPair: Map<string, GraphEdge>;
+  onClose: () => void;
+  onCollapsedChange: (collapsed: boolean) => void;
   onSelectNode: (nodeId: string) => void;
   onSelectEdge: (edge: GraphEdge) => void;
 }) => {
@@ -1156,43 +1268,90 @@ const HybridSidePanel = ({
     for (const n of nodes) m.set(n.id, n);
     return m;
   }, [nodes]);
+  const title = showPaths
+    ? `${pathPaths.length} 条路径`
+    : activeNode?.id ||
+      (activeEdge
+        ? `${endpointId(activeEdge.source)} → ${endpointId(activeEdge.target)}`
+        : '详情');
+
+  if (collapsed) {
+    return (
+      <button
+        type="button"
+        className="bg-card/95 hover:bg-card absolute top-3 right-3 z-20 flex max-w-72 items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs shadow-lg backdrop-blur-md transition-colors"
+        onClick={() => onCollapsedChange(false)}
+        title="展开详情"
+      >
+        <ChevronsLeft className="text-muted-foreground size-4" />
+        <span className="min-w-0 flex-1 truncate font-medium">{title}</span>
+      </button>
+    );
+  }
 
   return (
-    <aside className="bg-card flex h-full w-80 shrink-0 flex-col gap-5 overflow-y-auto border-l p-5">
-      {showPaths && (
-        <PathListContent
-          paths={pathPaths}
-          nodesById={nodesById}
-          linksByPair={linksByPair}
-          onSelectNode={onSelectNode}
-        />
-      )}
+    <aside className="bg-card/95 absolute top-3 right-3 bottom-3 z-20 flex w-[22rem] max-w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-lg border shadow-xl backdrop-blur-md">
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b px-3 py-2">
+        <div className="min-w-0 truncate text-sm font-medium">{title}</div>
+        <div className="flex items-center gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-7"
+            onClick={() => onCollapsedChange(true)}
+            title="折叠详情"
+          >
+            <ChevronsRight className="size-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-7"
+            onClick={onClose}
+            title="关闭详情"
+          >
+            <X className="size-4" />
+          </Button>
+        </div>
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-5">
+        {showPaths && (
+          <PathListContent
+            paths={pathPaths}
+            nodesById={nodesById}
+            linksByPair={linksByPair}
+            onSelectNode={onSelectNode}
+          />
+        )}
 
-      {!showPaths && activeNode && (
-        <EntityContent
-          node={activeNode}
-          edges={activeNodeEdges}
-          neighbors={activeNodeNeighbors}
-          onSelectNode={onSelectNode}
-          onSelectEdge={onSelectEdge}
-        />
-      )}
+        {!showPaths && activeNode && (
+          <EntityContent
+            node={activeNode}
+            edges={activeNodeEdges}
+            neighbors={activeNodeNeighbors}
+            onSelectNode={onSelectNode}
+            onSelectEdge={onSelectEdge}
+          />
+        )}
 
-      {!showPaths && !activeNode && activeEdge && (
-        <EdgeContent
-          edge={activeEdge}
-          nodesById={nodesById}
-          onSelectNode={onSelectNode}
-        />
-      )}
+        {!showPaths && !activeNode && activeEdge && (
+          <EdgeContent
+            edge={activeEdge}
+            nodesById={nodesById}
+            onSelectNode={onSelectNode}
+          />
+        )}
 
-      {!showPaths && !activeNode && !activeEdge && (
-        <p className="text-muted-foreground text-xs">
-          {interactionMode === 'path'
-            ? '路径模式: 点击两个节点查看它们之间的最短路径。'
-            : '点击画布上的节点或边查看详情。'}
-        </p>
-      )}
+        {!showPaths && !activeNode && !activeEdge && (
+          <p className="text-muted-foreground text-xs">
+            {interactionMode === 'path'
+              ? '路径模式: 点击两个节点查看它们之间的最短路径。'
+              : '点击画布上的节点或边查看详情。'}
+          </p>
+        )}
+      </div>
     </aside>
   );
 };
