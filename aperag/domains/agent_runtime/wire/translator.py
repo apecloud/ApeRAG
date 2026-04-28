@@ -67,6 +67,9 @@ from aperag.domains.agent_runtime.wire.parts import (
     ErrorPart,
     FinishPart,
     FinishStepPart,
+    ReasoningDeltaPart,
+    ReasoningEndPart,
+    ReasoningStartPart,
     SourceUrlPart,
     StartPart,
     StartStepPart,
@@ -105,6 +108,13 @@ class TranslatorState:
 
     text_block_open: bool = False
     text_block_id: Optional[str] = None
+    # Reasoning block state — mirror of text-block bookkeeping. Open on
+    # first ``reasoning.delta``, closed when a non-reasoning event
+    # arrives (tool call / text delta / turn end). Lets the FE
+    # accumulate one chunk per "thinking N" block without each delta
+    # spawning a new one.
+    reasoning_block_open: bool = False
+    reasoning_block_id: Optional[str] = None
     safe_tool_name_resolver: Optional[SafeToolNameResolver] = None
     _user_activities: dict[int, UserActivityEnvelope] = field(default_factory=dict)
 
@@ -334,6 +344,12 @@ def _translate_tool_finished(envelope: AgentTimelineEventEnvelope) -> list[Strea
 def _translate_text_delta(envelope: AgentTimelineEventEnvelope, state: TranslatorState) -> list[StreamPart]:
     delta = (envelope.data or {}).get("delta") or ""
     parts: list[StreamPart] = []
+    # Close any open reasoning block before opening / continuing the
+    # text block. The runtime's chunk-on-tool-call boundary already
+    # handles closing reasoning at tool starts; this catches the
+    # transition from reasoning straight to the answer text (no tool
+    # call between them).
+    parts.extend(_close_reasoning_block_if_open(state))
     if not state.text_block_open:
         text_id = envelope.turn_id
         state.text_block_open = True
@@ -341,6 +357,50 @@ def _translate_text_delta(envelope: AgentTimelineEventEnvelope, state: Translato
         parts.append(TextStartPart(id=text_id))
     assert state.text_block_id is not None  # invariant: opened above
     parts.append(TextDeltaPart(id=state.text_block_id, delta=str(delta)))
+    return parts
+
+
+def _close_reasoning_block_if_open(state: TranslatorState) -> list[StreamPart]:
+    """Emit a ``reasoning-end`` if a reasoning block is currently open
+    and reset the state. Called by anything that interrupts reasoning
+    (text delta, tool start, turn end, artifact, ...). Idempotent —
+    no-op when no block is open."""
+    if state.reasoning_block_open and state.reasoning_block_id is not None:
+        block_id = state.reasoning_block_id
+        state.reasoning_block_open = False
+        state.reasoning_block_id = None
+        return [ReasoningEndPart(id=block_id)]
+    return []
+
+
+def _translate_reasoning_delta(envelope: AgentTimelineEventEnvelope, state: TranslatorState) -> list[StreamPart]:
+    """Mirror of :func:`_translate_text_delta` for reasoning streams.
+
+    Wave 9 task #2 followup #2: the runtime now emits
+    ``reasoning.delta`` events carrying the model's actual thinking
+    text (not just status badges). The FE consumes these as
+    AI SDK v5 ``reasoning-start`` / ``reasoning-delta`` / ``reasoning-end``
+    parts so the activity timeline can render Claude/Cursor-style
+    "思考N" blocks at the right chronological position.
+
+    The block stays open across consecutive ``reasoning.delta`` events
+    and closes when any other event type arrives (tool start / text
+    delta / turn end), so each persisted ``ReasoningPart`` chunk maps
+    cleanly to one wire reasoning block.
+    """
+    delta = (envelope.data or {}).get("delta") or ""
+    parts: list[StreamPart] = []
+    if not state.reasoning_block_open:
+        # Use a per-block id derived from turn_id + sequence so
+        # multiple reasoning blocks in one turn don't collide on the
+        # FE side. ``envelope.event_id`` is unique per emit and stable
+        # for the duration of one block's first delta — good enough.
+        block_id = f"reasoning-{envelope.event_id}"
+        state.reasoning_block_open = True
+        state.reasoning_block_id = block_id
+        parts.append(ReasoningStartPart(id=block_id))
+    assert state.reasoning_block_id is not None  # invariant: opened above
+    parts.append(ReasoningDeltaPart(id=state.reasoning_block_id, delta=str(delta)))
     return parts
 
 
@@ -395,10 +455,27 @@ def translate_envelope(
         if effective_state is not state:
             state.text_block_open = effective_state.text_block_open
             state.text_block_id = effective_state.text_block_id
+            state.reasoning_block_open = effective_state.reasoning_block_open
+            state.reasoning_block_id = effective_state.reasoning_block_id
+        return parts
+
+    if event_type == "reasoning.delta":
+        parts = _translate_reasoning_delta(envelope, effective_state)
+        if effective_state is not state:
+            state.reasoning_block_open = effective_state.reasoning_block_open
+            state.reasoning_block_id = effective_state.reasoning_block_id
         return parts
 
     if event_type in {"tool.started", "external_action.started"}:
-        return _translate_tool_started(envelope, effective_state)
+        # A tool call interrupts any open reasoning block — close it
+        # so the FE sees one chunk per "thinking N" block, mirroring
+        # the runtime's at-rest chunk-on-tool-call boundary.
+        parts = _close_reasoning_block_if_open(effective_state)
+        parts.extend(_translate_tool_started(envelope, effective_state))
+        if effective_state is not state:
+            state.reasoning_block_open = effective_state.reasoning_block_open
+            state.reasoning_block_id = effective_state.reasoning_block_id
+        return parts
 
     if event_type in {"tool.finished", "external_action.finished"}:
         return _translate_tool_finished(envelope)
@@ -411,14 +488,32 @@ def translate_envelope(
         return parts
 
     if event_type == "turn.completed":
-        return [FinishStepPart(), FinishPart()]
+        # Close any open reasoning block on turn end so the FE never
+        # sees a dangling reasoning-start without a matching
+        # reasoning-end (mirrors how text blocks close at turn end).
+        parts = _close_reasoning_block_if_open(effective_state)
+        if effective_state is not state:
+            state.reasoning_block_open = effective_state.reasoning_block_open
+            state.reasoning_block_id = effective_state.reasoning_block_id
+        parts.extend([FinishStepPart(), FinishPart()])
+        return parts
 
     if event_type == "turn.failed":
         message = (envelope.data or {}).get("error") or envelope.label or "turn failed"
-        return [ErrorPart(error_text=str(message)), FinishPart()]
+        parts = _close_reasoning_block_if_open(effective_state)
+        if effective_state is not state:
+            state.reasoning_block_open = effective_state.reasoning_block_open
+            state.reasoning_block_id = effective_state.reasoning_block_id
+        parts.extend([ErrorPart(error_text=str(message)), FinishPart()])
+        return parts
 
     if event_type == "turn.cancelled":
-        return [AbortPart(), FinishPart()]
+        parts = _close_reasoning_block_if_open(effective_state)
+        if effective_state is not state:
+            state.reasoning_block_open = effective_state.reasoning_block_open
+            state.reasoning_block_id = effective_state.reasoning_block_id
+        parts.extend([AbortPart(), FinishPart()])
+        return parts
 
     return []
 

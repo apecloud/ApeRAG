@@ -727,16 +727,24 @@ class PydanticAIRuntime(AgentRuntime):
                         if isinstance(event.delta, pai_messages.ThinkingPartDelta):
                             delta_text = event.delta.content_delta or ""
                             if delta_text:
+                                # Pre-flight overflow check: flush
+                                # BEFORE appending if this delta would
+                                # push the buffer past the per-part
+                                # budget. Post-append flush would
+                                # produce a ReasoningPart whose text
+                                # exceeds ``MAX_REASONING_PART_CHARS``
+                                # and trip the Pydantic validator,
+                                # crashing the whole turn write
+                                # (huangheng PR #1804 BLOCKER fix
+                                # msg=e609d5c9). With the pre-check
+                                # the next ReasoningPart starts cleanly
+                                # at the boundary, no part overflows.
+                                if sum(len(s) for s in reasoning_buffer) + len(delta_text) > MAX_REASONING_PART_CHARS:
+                                    _flush_reasoning_chunk()
                                 # Capture the actual reasoning text so
                                 # we can persist it as a ReasoningPart
                                 # (not just emit a status badge).
                                 reasoning_buffer.append(delta_text)
-                                # Auto-flush when the chunk fills the
-                                # per-part budget — keeps any single
-                                # ReasoningPart small enough for
-                                # incremental FE rendering.
-                                if sum(len(s) for s in reasoning_buffer) >= MAX_REASONING_PART_CHARS:
-                                    _flush_reasoning_chunk()
                                 # Live SSE: emit a reasoning delta so
                                 # the FE renderer can stream the
                                 # current reasoning chunk text — same

@@ -130,6 +130,38 @@ class TextEndPart(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Reasoning parts (live SSE only — at-rest persistence uses the
+# ``ReasoningPart`` UIMessagePart shape; see uimessage.py)
+# ---------------------------------------------------------------------------
+
+
+class ReasoningStartPart(BaseModel):
+    """Opens a streaming reasoning block; subsequent
+    ``reasoning-delta`` parts must reuse the same ``id`` until a
+    ``reasoning-end`` closes the block. Mirrors the AI SDK v5 reasoning
+    part shape so FE renderers that already consume that protocol can
+    drop the wire stream straight into the same code path."""
+
+    type: Literal["reasoning-start"] = "reasoning-start"
+    id: str
+
+
+class ReasoningDeltaPart(BaseModel):
+    """Incremental reasoning text chunk for an open reasoning block."""
+
+    type: Literal["reasoning-delta"] = "reasoning-delta"
+    id: str
+    delta: str
+
+
+class ReasoningEndPart(BaseModel):
+    """Closes the reasoning block opened by ``reasoning-start``."""
+
+    type: Literal["reasoning-end"] = "reasoning-end"
+    id: str
+
+
+# ---------------------------------------------------------------------------
 # Tool lifecycle parts
 # ---------------------------------------------------------------------------
 
@@ -388,6 +420,9 @@ StreamPart = Annotated[
         TextStartPart,
         TextDeltaPart,
         TextEndPart,
+        ReasoningStartPart,
+        ReasoningDeltaPart,
+        ReasoningEndPart,
         ToolInputStartPart,
         ToolInputDeltaPart,
         ToolInputAvailablePart,
@@ -457,6 +492,9 @@ __all__ = [
     "StreamPartAdapter",
     "TextDeltaPart",
     "TextEndPart",
+    "ReasoningStartPart",
+    "ReasoningDeltaPart",
+    "ReasoningEndPart",
     "TextStartPart",
     "ToolInputAvailablePart",
     "ToolInputDeltaPart",

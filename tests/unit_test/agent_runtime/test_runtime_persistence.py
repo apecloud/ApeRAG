@@ -270,3 +270,62 @@ def test_compose_assistant_parts_timeline_takes_precedence_over_tool_calls():
     assert len(parts) == 1
     assert isinstance(parts[0], ToolPart)
     assert parts[0].tool_call_id == "from-timeline"
+
+
+# ---------------------------------------------------------------------
+# ThinkingPartDelta overflow handling (huangheng PR #1804 BLOCKER fix)
+# ---------------------------------------------------------------------
+
+
+def test_reasoning_buffer_pre_flush_avoids_part_overflow():
+    """huangheng PR #1804 BLOCKER (msg=e609d5c9): the pre-flight
+    overflow check must run BEFORE appending so no single
+    ``ReasoningPart`` exceeds ``MAX_REASONING_PART_CHARS``.
+
+    Replays the runtime's exact buffer-management logic against a
+    stream of 30 × 200-char deltas (typical for long reasoning
+    streams from large models) and asserts:
+      1. No produced ReasoningPart exceeds the per-part cap.
+      2. Joined text equals the input concatenation (no data loss
+         across flush boundaries).
+      3. Multiple parts are produced (proves chunking actually fires
+         instead of silently dropping data).
+    """
+    from aperag.domains.agent_runtime.runtime import _PersistedReasoning
+    from aperag.domains.agent_runtime.uimessage import MAX_REASONING_PART_CHARS
+
+    deltas = ["x" * 200] * 30  # 6000 chars total > 4096 cap
+    timeline: list = []
+    buffer: list[str] = []
+
+    def _flush():
+        text = "".join(buffer).strip()
+        buffer.clear()
+        if text:
+            timeline.append(_PersistedReasoning(text=text))
+
+    # Mirror the runtime's pre-flight check exactly.
+    for delta in deltas:
+        if sum(len(s) for s in buffer) + len(delta) > MAX_REASONING_PART_CHARS:
+            _flush()
+        buffer.append(delta)
+    _flush()  # trailing flush at turn end
+
+    parts = _compose_assistant_parts(
+        turn_id="turn-overflow",
+        answer_text="",
+        references=[],
+        timeline=timeline,
+    )
+
+    reasoning_parts = [p for p in parts if isinstance(p, ReasoningPart)]
+    assert len(reasoning_parts) >= 2, "buffer cap must produce multiple parts on overflow"
+    for rp in reasoning_parts:
+        assert len(rp.text) <= MAX_REASONING_PART_CHARS, (
+            f"ReasoningPart text length {len(rp.text)} exceeds cap {MAX_REASONING_PART_CHARS} — "
+            "Pydantic validator would reject this part and crash the turn write"
+        )
+    rejoined = "".join(rp.text for rp in reasoning_parts)
+    assert rejoined == "".join(deltas), (
+        "joined text must equal input concatenation (no data lost across flush boundaries)"
+    )
