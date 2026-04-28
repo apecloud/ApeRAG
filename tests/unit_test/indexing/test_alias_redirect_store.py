@@ -438,3 +438,41 @@ async def test_decorator_passthrough_for_non_redirected_methods():
     inner.list_entity_labels = AsyncMock(return_value=["a", "b"])
     assert await decorator.list_entity_labels() == ["a", "b"]
     inner.list_entity_labels.assert_awaited_once_with()
+
+    # list_entities (W7-10)
+    inner.list_entities = AsyncMock(return_value=[])
+    assert await decorator.list_entities(label="Person", limit=100, offset=0) == []
+    inner.list_entities.assert_awaited_once_with(label="Person", limit=100, offset=0)
+
+
+@pytest.mark.asyncio
+async def test_decorator_covers_every_lineage_graph_store_method():
+    """Meta-invariant: introspect ``LineageGraphStore`` Protocol and
+    assert the decorator class implements every public async method.
+
+    The spelled-out
+    ``test_decorator_passthrough_for_non_redirected_methods`` only
+    covers the methods that existed when it was written — adding a new
+    Protocol method without updating both decorator + spelled-out test
+    silently passes. This meta-test catches the "decorator missing
+    method" half of that gap (e.g. the W7-10 ``list_entities`` miss
+    that broke ``GET /collections/{id}/graphs`` on production).
+    """
+    from aperag.indexing.graph import LineageGraphStore
+
+    protocol_methods = {
+        name
+        for name in dir(LineageGraphStore)
+        if not name.startswith("_") and callable(getattr(LineageGraphStore, name))
+    }
+    decorator_methods = {
+        name
+        for name in dir(LineageGraphStoreWithAliasRedirect)
+        if not name.startswith("_") and callable(getattr(LineageGraphStoreWithAliasRedirect, name))
+    }
+    missing = protocol_methods - decorator_methods
+    assert not missing, (
+        f"LineageGraphStoreWithAliasRedirect missing Protocol method(s): {sorted(missing)}. "
+        f"Add either a redirect (if the input takes an entity name) or a passthrough "
+        f"(see module docstring rationale) to alias_redirect_store.py."
+    )

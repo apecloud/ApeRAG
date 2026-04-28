@@ -47,6 +47,9 @@ Read-side methods that do NOT redirect:
   matched rows are themselves canonical (alias rows live in
   ``aperag_lineage_entity_alias``, not in the entity table).
 * ``list_entity_labels`` — returns a label set, not entity names.
+* ``list_entities`` (W7-10) — filter is by ``label`` + pagination,
+  not by name; rows are already canonical for the same reason as
+  ``query_entities_by_keyword``.
 * ``find_entity_ids_with_lineage`` / ``find_relation_keys_with_lineage`` —
   filter by ``document_id`` (lineage source), not by name.
 * ``gc_entity_if_orphan`` / ``gc_relation_if_orphan`` — gc operates on
@@ -296,6 +299,20 @@ class LineageGraphStoreWithAliasRedirect:
 
     async def list_entity_labels(self) -> list[str]:
         return await self._inner.list_entity_labels()
+
+    async def list_entities(
+        self,
+        *,
+        label: str | None = None,
+        limit: int = 1000,
+        offset: int = 0,
+    ) -> list[EntityWithLineage]:
+        # Filter is by ``label`` (entity type) + pagination, not by name —
+        # rows returned are already canonical (alias rows live in
+        # ``aperag_lineage_entity_alias``, not in the entity table).
+        # Same passthrough rationale as ``list_entity_labels`` /
+        # ``query_entities_by_keyword``.
+        return await self._inner.list_entities(label=label, limit=limit, offset=offset)
 
 
 __all__ = ["LineageGraphStoreWithAliasRedirect"]
