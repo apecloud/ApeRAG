@@ -63,6 +63,41 @@ _DOCUMENT_STATUS_TO_INDEXING = {
 }
 
 
+def _aggregate_index_status(
+    indexes: list[DocumentIndex],
+    *,
+    fallback: DocumentStatus,
+) -> DocumentStatus:
+    """Aggregate per-modality :class:`DocumentIndex` rows into one
+    document-level status — async-session-friendly twin of
+    :meth:`Document.get_overall_index_status`.
+
+    The ORM helper executes a SELECT inline (sync API), so it cannot
+    be called against the async session used by the MCP tool layer.
+    This function operates on rows the caller has already fetched, so
+    the aggregation logic stays exactly the same as the FE-side
+    ``_index_statuses_to_document_status`` (document_service.py:105) —
+    both surfaces (FE list + MCP list) now report the same thing.
+
+    Why this matters: ``Document.status`` is set to ``PENDING`` at
+    confirm time and never updated by the indexing pipeline (no
+    writer in reconciler / index workers). Reading the raw column
+    surfaces stale "pending" forever. The truth lives in the
+    per-modality ``DocumentIndex`` rows.
+    """
+
+    if not indexes:
+        return fallback
+    statuses = [idx.status for idx in indexes]
+    if any(s == IndexStatus.FAILED.value for s in statuses):
+        return DocumentStatus.FAILED
+    if any(s in (IndexStatus.PENDING.value, IndexStatus.RUNNING.value) for s in statuses):
+        return DocumentStatus.RUNNING
+    if all(idx.status == IndexStatus.ACTIVE.value and idx.is_serving for idx in indexes):
+        return DocumentStatus.COMPLETE
+    return fallback
+
+
 def _media_type_for(name: Optional[str]) -> str:
     if not name:
         return "application/octet-stream"
@@ -162,18 +197,30 @@ async def list_documents(
         # ``chunks.jsonl`` artifact when an MCP client actually
         # consumes the field.
         chunk_counts: dict[str, int] = {}
+        overall_statuses: dict[str, DocumentStatus] = {}
         if documents:
             doc_ids = [d.id for d in documents]
-            # Run a serving-row query so the §F.1 partial-unique
-            # invariant is exercised through this caller path even
-            # though we no longer compose chunk_count from it.
-            idx_stmt = select(DocumentIndex.document_id).where(
-                DocumentIndex.document_id.in_(doc_ids),
-                DocumentIndex.status == IndexStatus.ACTIVE.value,
-                DocumentIndex.is_serving.is_(True),
-            )
-            for doc_id in (await session.execute(idx_stmt)).scalars().all():
-                chunk_counts.setdefault(doc_id, 0)
+            # Fetch ALL DocumentIndex rows for these docs (any status)
+            # so we can aggregate the document-level status truthfully —
+            # ``Document.status`` is a stale ``PENDING`` for everything
+            # past confirm-time (no writer in the index pipeline).
+            all_idx_stmt = select(DocumentIndex).where(DocumentIndex.document_id.in_(doc_ids))
+            indexes_by_doc: dict[str, list[DocumentIndex]] = {}
+            for idx in (await session.execute(all_idx_stmt)).scalars().all():
+                indexes_by_doc.setdefault(idx.document_id, []).append(idx)
+            for d in documents:
+                overall_statuses[d.id] = _aggregate_index_status(
+                    indexes_by_doc.get(d.id, []),
+                    fallback=d.status,
+                )
+                # Preserve the ACTIVE+is_serving signal that the §F.1
+                # partial-unique invariant relies on (caller-path
+                # exercise — chunk_count placeholder until T3.x plumbs
+                # a real chunk count through ``chunks.jsonl``).
+                if any(
+                    idx.status == IndexStatus.ACTIVE.value and idx.is_serving for idx in indexes_by_doc.get(d.id, [])
+                ):
+                    chunk_counts.setdefault(d.id, 0)
         break
 
     items = [
@@ -184,7 +231,7 @@ async def list_documents(
             media_type=_media_type_for(d.name),
             size_bytes=int(d.size or 0),
             indexed_chunks_count=int(chunk_counts.get(d.id, 0)),
-            indexing_status=_DOCUMENT_STATUS_TO_INDEXING.get(d.status, "pending"),
+            indexing_status=_DOCUMENT_STATUS_TO_INDEXING.get(overall_statuses.get(d.id, d.status), "pending"),
             failure_reason=None,
             created_at=d.gmt_created,
             updated_at=d.gmt_updated,

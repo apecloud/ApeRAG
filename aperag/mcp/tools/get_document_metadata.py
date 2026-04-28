@@ -36,14 +36,13 @@ from aperag.domains.knowledge_base.db.models import (
 from aperag.exceptions import DocumentNotFoundException
 from aperag.indexing.models import (
     DocumentIndex,
-    IndexStatus,
 )
 from aperag.mcp.tools._d9_base import (
     authorization_gate,
     resolve_authenticated_user,
     tenancy_gate,
 )
-from aperag.mcp.tools.list_documents import _DOCUMENT_STATUS_TO_INDEXING
+from aperag.mcp.tools.list_documents import _DOCUMENT_STATUS_TO_INDEXING, _aggregate_index_status
 from aperag.mcp.tools.schemas import DocumentMetadata
 
 
@@ -87,16 +86,16 @@ async def get_document_metadata(
         # ``chunks.jsonl`` artifact when an MCP client actually
         # consumes the field.
         chunk_count = 0
-        idx_stmt = select(DocumentIndex.id).where(
-            DocumentIndex.document_id == document_id,
-            DocumentIndex.status == IndexStatus.ACTIVE.value,
-            DocumentIndex.is_serving.is_(True),
-        )
-        # Run the query so the Wave 3 §F.1 partial-unique invariant
-        # is exercised through this caller path; the result is used
-        # only as a "the document has at least one serving modality"
-        # signal, not for the dropped index_data.
-        _ = (await session.execute(idx_stmt)).scalars().first()
+        # Fetch ALL DocumentIndex rows for this doc so we can compute
+        # the aggregate document-level status truthfully.
+        # ``Document.status`` is a stale ``PENDING`` after confirm
+        # (no writer in the index pipeline) so reading it directly
+        # would always say "pending" even when every modality is
+        # ACTIVE+is_serving. Mirrors the FE aggregation
+        # (document_service.py:105 ``_index_statuses_to_document_status``).
+        idx_stmt = select(DocumentIndex).where(DocumentIndex.document_id == document_id)
+        all_indexes = list((await session.execute(idx_stmt)).scalars().all())
+        overall_status = _aggregate_index_status(all_indexes, fallback=document.status)
         break
 
     media_type, _ = mimetypes.guess_type(document.name or "")
@@ -107,7 +106,7 @@ async def get_document_metadata(
         media_type=media_type or "application/octet-stream",
         size_bytes=int(document.size or 0),
         indexed_chunks_count=chunk_count,
-        indexing_status=_DOCUMENT_STATUS_TO_INDEXING.get(document.status, "pending"),
+        indexing_status=_DOCUMENT_STATUS_TO_INDEXING.get(overall_status, "pending"),
         failure_reason=None,
         created_at=document.gmt_created,
         updated_at=document.gmt_updated,
