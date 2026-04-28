@@ -215,25 +215,36 @@ def _make_collection_stub(*, config_obj: Any = None) -> Any:
     return _Stub()
 
 
-def test_resolve_graph_backend_type_defaults_to_postgres():
+def test_resolve_graph_backend_type_defaults_to_deployment_graph_db_type(monkeypatch: pytest.MonkeyPatch):
     """A collection with no ``config`` or no ``graph_backend_type`` field
-    falls back to the default ``postgres`` backend (the §D.3.5 reference
-    adapter; new collections that opt into knowledge graph automatically
-    use the application's own PostgreSQL without extra infra).
+    falls back to the deployment-level ``GRAPH_DB_TYPE`` setting. This
+    keeps UI-created collections (which send ``null`` unless explicitly
+    configured) aligned with Neo4j / Nebula deployments.
     """
 
+    from aperag.config import settings
     from aperag.indexing.worker_factory import _resolve_graph_backend_type
 
-    assert _resolve_graph_backend_type(_make_collection_stub(config_obj=None)) == "postgres"
+    monkeypatch.setattr(settings, "graph_db_type", "neo4j")
+    assert _resolve_graph_backend_type(_make_collection_stub(config_obj=None)) == "neo4j"
 
     class _ConfigNoBackend:
         graph_backend_type = None
 
-    assert _resolve_graph_backend_type(_make_collection_stub(config_obj=_ConfigNoBackend())) == "postgres"
+    assert _resolve_graph_backend_type(_make_collection_stub(config_obj=_ConfigNoBackend())) == "neo4j"
+
+    monkeypatch.setattr(settings, "graph_db_type", "nebula")
+    assert _resolve_graph_backend_type(_make_collection_stub(config_obj=None)) == "nebula"
+
+    monkeypatch.setattr(settings, "graph_db_type", "postgresql")
+    assert _resolve_graph_backend_type(_make_collection_stub(config_obj=None)) == "postgres"
 
 
-@pytest.mark.parametrize("backend", ["postgres", "neo4j", "nebula"])
-def test_resolve_graph_backend_type_reads_from_pydantic_attr(backend: str):
+@pytest.mark.parametrize(
+    ("backend", "expected"),
+    [("postgres", "postgres"), ("postgresql", "postgres"), ("neo4j", "neo4j"), ("nebula", "nebula")],
+)
+def test_resolve_graph_backend_type_reads_from_pydantic_attr(backend: str, expected: str):
     """A pydantic-shaped ``CollectionConfig`` exposes
     ``graph_backend_type`` as an attribute; the resolver reads it
     straight off."""
@@ -243,7 +254,7 @@ def test_resolve_graph_backend_type_reads_from_pydantic_attr(backend: str):
     class _Config:
         graph_backend_type = backend
 
-    assert _resolve_graph_backend_type(_make_collection_stub(config_obj=_Config())) == backend
+    assert _resolve_graph_backend_type(_make_collection_stub(config_obj=_Config())) == expected
 
 
 def test_resolve_graph_backend_type_reads_from_dict_config():
@@ -280,6 +291,20 @@ def test_resolve_graph_backend_type_rejects_unknown():
         _resolve_graph_backend_type(_make_collection_stub(config_obj=_Config()))
     assert "duckdb" in str(exc.value)
     assert "postgres" in str(exc.value)
+
+
+def test_resolve_graph_backend_type_rejects_unknown_deployment_default(monkeypatch: pytest.MonkeyPatch):
+    """Deployment-level ``GRAPH_DB_TYPE`` typos are surfaced when the
+    collection does not override the backend."""
+
+    from aperag.config import settings
+    from aperag.indexing.worker_factory import _resolve_graph_backend_type
+
+    monkeypatch.setattr(settings, "graph_db_type", "duckdb")
+    with pytest.raises(WorkerFactoryError) as exc:
+        _resolve_graph_backend_type(_make_collection_stub(config_obj=None))
+    assert "duckdb" in str(exc.value)
+    assert "postgresql" in str(exc.value)
 
 
 def test_resolve_entity_lock_returns_inmemory_for_postgres_and_neo4j():

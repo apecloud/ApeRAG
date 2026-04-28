@@ -134,6 +134,9 @@ _RELATION_LABEL = "aperag_LineageRelation"
 
 _ENTITY_CONSTRAINT_NAME = "aperag_lineage_entity_collection_name_unique"
 _RELATION_CONSTRAINT_NAME = "aperag_lineage_relation_collection_triple_unique"
+_ENTITY_TYPE_NAME_INDEX_NAME = "aperag_lineage_entity_collection_type_name_idx"
+_RELATION_SOURCE_INDEX_NAME = "aperag_lineage_relation_collection_source_idx"
+_RELATION_TARGET_INDEX_NAME = "aperag_lineage_relation_collection_target_idx"
 
 
 # ---------------------------------------------------------------------
@@ -209,6 +212,18 @@ class Neo4jLineageGraphStore:
                 f"CREATE CONSTRAINT {_RELATION_CONSTRAINT_NAME} IF NOT EXISTS "
                 f"FOR (r:{_RELATION_LABEL}) "
                 f"REQUIRE (r.collection_id, r.source, r.target, r.relation_type) IS UNIQUE"
+            )
+            await session.run(
+                f"CREATE INDEX {_ENTITY_TYPE_NAME_INDEX_NAME} IF NOT EXISTS "
+                f"FOR (n:{_ENTITY_LABEL}) ON (n.collection_id, n.entity_type, n.name)"
+            )
+            await session.run(
+                f"CREATE INDEX {_RELATION_SOURCE_INDEX_NAME} IF NOT EXISTS "
+                f"FOR (r:{_RELATION_LABEL}) ON (r.collection_id, r.source)"
+            )
+            await session.run(
+                f"CREATE INDEX {_RELATION_TARGET_INDEX_NAME} IF NOT EXISTS "
+                f"FOR (r:{_RELATION_LABEL}) ON (r.collection_id, r.target)"
             )
 
     # -- find-by-document scans (pre-rebuild phase) -------------------
@@ -739,34 +754,51 @@ class Neo4jLineageGraphStore:
         async def _fetch_relations_touching(session, names: list[str]) -> set[str]:
             if not names:
                 return set()
-            cypher = (
+            relation_query = (
                 f"MATCH (r:{_RELATION_LABEL} {{collection_id: $collection_id}}) "
-                f"WHERE r.source IN $names OR r.target IN $names "
+                f"WHERE {{endpoint_predicate}} "
                 f"RETURN r.source AS source, r.target AS target, r.relation_type AS relation_type, "
                 f"       r.evidence_lineage AS evidence_lineage, "
                 f"       r.description_parts AS description_parts, "
                 f"       r.compacted_description AS compacted_description"
             )
-            result = await session.run(cypher, collection_id=self._collection_id, names=names)
             next_frontier: set[str] = set()
-            async for rec in result:
-                key = (rec["source"], rec["target"], rec["relation_type"])
-                if key not in seen_relations:
-                    seen_relations[key] = RelationWithLineage(
-                        source=rec["source"],
-                        target=rec["target"],
-                        relation_type=rec["relation_type"],
-                        evidence_lineage=tuple(
-                            LineageMember.from_dict(json.loads(s)) for s in (rec["evidence_lineage"] or [])
-                        ),
-                        description_parts=tuple(
-                            DescriptionPart.from_dict(json.loads(s)) for s in (rec["description_parts"] or [])
-                        ),
-                        compacted_description=rec["compacted_description"],
-                    )
-                for endpoint in (rec["source"], rec["target"]):
-                    if endpoint not in seen_entities and endpoint not in next_frontier:
-                        next_frontier.add(endpoint)
+
+            async def _consume(result) -> None:
+                async for rec in result:
+                    key = (rec["source"], rec["target"], rec["relation_type"])
+                    if key not in seen_relations:
+                        seen_relations[key] = RelationWithLineage(
+                            source=rec["source"],
+                            target=rec["target"],
+                            relation_type=rec["relation_type"],
+                            evidence_lineage=tuple(
+                                LineageMember.from_dict(json.loads(s)) for s in (rec["evidence_lineage"] or [])
+                            ),
+                            description_parts=tuple(
+                                DescriptionPart.from_dict(json.loads(s)) for s in (rec["description_parts"] or [])
+                            ),
+                            compacted_description=rec["compacted_description"],
+                        )
+                    for endpoint in (rec["source"], rec["target"]):
+                        if endpoint not in seen_entities and endpoint not in next_frontier:
+                            next_frontier.add(endpoint)
+
+            # Split source and target lookups so Neo4j can use the
+            # matching composite index instead of evaluating an OR over
+            # the full per-collection relation label set.
+            source_result = await session.run(
+                relation_query.format(endpoint_predicate="r.source IN $names"),
+                collection_id=self._collection_id,
+                names=names,
+            )
+            await _consume(source_result)
+            target_result = await session.run(
+                relation_query.format(endpoint_predicate="r.target IN $names"),
+                collection_id=self._collection_id,
+                names=names,
+            )
+            await _consume(target_result)
             return next_frontier
 
         async with self._session() as session:

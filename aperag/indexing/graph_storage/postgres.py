@@ -113,6 +113,12 @@ class _LineageEntityRow(_LineageGraphBase):
             "source_lineage",
             postgresql_using="gin",
         ),
+        Index(
+            "idx_lineage_entity_collection_type_name",
+            "collection_id",
+            "entity_type",
+            "name",
+        ),
     )
 
     collection_id = Column(String(64), primary_key=True)
@@ -158,6 +164,16 @@ class _LineageRelationRow(_LineageGraphBase):
             "idx_lineage_relation_evidence_lineage_gin",
             "evidence_lineage",
             postgresql_using="gin",
+        ),
+        # The composite PK already covers ``collection_id + source``.
+        # This target-leading index keeps neighbour expansion indexed
+        # in both directions once the OR predicate is split below.
+        Index(
+            "idx_lineage_relation_collection_target_source_type",
+            "collection_id",
+            "target",
+            "source",
+            "relation_type",
         ),
     )
 
@@ -797,36 +813,46 @@ class PostgresLineageGraphStore:
             already in ``names``) for the next-hop frontier."""
             if not names:
                 return set()
-            result = await conn.execute(
-                select(
-                    _LineageRelationRow.source,
-                    _LineageRelationRow.target,
-                    _LineageRelationRow.relation_type,
-                    _LineageRelationRow.evidence_lineage,
-                    _LineageRelationRow.description_parts,
-                    _LineageRelationRow.compacted_description,
-                ).where(
-                    _LineageRelationRow.collection_id == self._collection_id,
-                    (_LineageRelationRow.source.in_(list(names))) | (_LineageRelationRow.target.in_(list(names))),
-                )
+            relation_stmt = select(
+                _LineageRelationRow.source,
+                _LineageRelationRow.target,
+                _LineageRelationRow.relation_type,
+                _LineageRelationRow.evidence_lineage,
+                _LineageRelationRow.description_parts,
+                _LineageRelationRow.compacted_description,
+            ).where(
+                _LineageRelationRow.collection_id == self._collection_id,
             )
-            next_frontier: set[str] = set()
-            for row in result:
-                key = (row.source, row.target, row.relation_type)
-                if key not in seen_relations:
-                    seen_relations[key] = RelationWithLineage(
-                        source=row.source,
-                        target=row.target,
-                        relation_type=row.relation_type,
-                        evidence_lineage=tuple(LineageMember.from_dict(elem) for elem in (row.evidence_lineage or [])),
-                        description_parts=tuple(
-                            DescriptionPart.from_dict(part) for part in (row.description_parts or [])
-                        ),
-                        compacted_description=row.compacted_description,
-                    )
-                for endpoint in (row.source, row.target):
-                    if endpoint not in seen_entities and endpoint not in next_frontier:
-                        next_frontier.add(endpoint)
+
+            def _consume(result) -> None:
+                for row in result:
+                    key = (row.source, row.target, row.relation_type)
+                    if key not in seen_relations:
+                        seen_relations[key] = RelationWithLineage(
+                            source=row.source,
+                            target=row.target,
+                            relation_type=row.relation_type,
+                            evidence_lineage=tuple(
+                                LineageMember.from_dict(elem) for elem in (row.evidence_lineage or [])
+                            ),
+                            description_parts=tuple(
+                                DescriptionPart.from_dict(part) for part in (row.description_parts or [])
+                            ),
+                            compacted_description=row.compacted_description,
+                        )
+                    for endpoint in (row.source, row.target):
+                        if endpoint not in seen_entities and endpoint not in next_frontier:
+                            next_frontier.add(endpoint)
+
+            # Split the bidirectional lookup so PostgreSQL can use the
+            # source-leading primary key for one branch and the
+            # target-leading index for the other. A single OR predicate
+            # can degrade to a broad per-collection scan on larger
+            # lineage tables.
+            source_result = await conn.execute(relation_stmt.where(_LineageRelationRow.source.in_(list(names))))
+            _consume(source_result)
+            target_result = await conn.execute(relation_stmt.where(_LineageRelationRow.target.in_(list(names))))
+            _consume(target_result)
             return next_frontier
 
         async with self._engine.connect() as conn:
