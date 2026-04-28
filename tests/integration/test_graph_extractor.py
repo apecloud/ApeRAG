@@ -95,6 +95,55 @@ def test_parse_extraction_response_handles_fenced_json():
     assert entities[0].name == "Acme"
 
 
+def test_parse_extraction_response_warns_on_clean_json_with_zero_entities_and_relations(caplog):
+    """Bryce 2026-04-29 incident (msg=358bb68f) — DeepSeek V4 Flash
+    via OpenRouter returned ``{"entities":[],"relations":[]}`` for
+    every chunk, silently producing an empty knowledge graph for
+    every doc indexed after the model swap (status flipped to ACTIVE
+    because nothing raised). The runtime now emits a single
+    ``warning`` per empty extraction so ops can grep
+    ``empty extraction result`` + cross-reference the model timeline
+    when a "graph index ran but produced nothing" pattern recurs.
+    """
+    raw = '{"entities": [], "relations": []}'
+    with caplog.at_level("WARNING", logger="aperag.indexing.graph_extractor"):
+        entities, relations = ge._parse_extraction_response(raw=raw, chunk_id="c-empty")
+    assert entities == []
+    assert relations == []
+    matching = [r for r in caplog.records if "empty extraction result" in r.getMessage()]
+    assert len(matching) == 1, (
+        "expected exactly one warn line for the model-prompt-incompatibility scenario; "
+        f"got {[r.getMessage() for r in caplog.records]}"
+    )
+    msg = matching[0].getMessage()
+    assert "c-empty" in msg, "warn line must include the chunk_id for cross-reference"
+    assert repr(raw) in msg, "warn line must include the raw response prefix for ops grep"
+
+
+def test_parse_extraction_response_does_not_warn_when_entities_were_extracted(caplog):
+    """The empty-result warn must NOT fire on the success path —
+    otherwise every successful chunk doubles the log volume.
+    """
+    raw = '{"entities": [{"name": "Linus", "type": "person", "description": "x"}], "relations": []}'
+    with caplog.at_level("WARNING", logger="aperag.indexing.graph_extractor"):
+        entities, _ = ge._parse_extraction_response(raw=raw, chunk_id="c-1")
+    assert len(entities) == 1
+    matching = [r for r in caplog.records if "empty extraction result" in r.getMessage()]
+    assert matching == [], "must not warn when extraction produced entities"
+
+
+def test_parse_extraction_response_does_not_warn_on_relations_only(caplog):
+    """Boundary: relations alone (no entities) is still a successful
+    extraction — warn must not fire.
+    """
+    raw = '{"entities": [], "relations": [{"source": "A", "target": "B", "type": "rel", "description": "x"}]}'
+    with caplog.at_level("WARNING", logger="aperag.indexing.graph_extractor"):
+        _entities, relations = ge._parse_extraction_response(raw=raw, chunk_id="c-1")
+    assert len(relations) == 1
+    matching = [r for r in caplog.records if "empty extraction result" in r.getMessage()]
+    assert matching == [], "must not warn when extraction produced relations (even with 0 entities)"
+
+
 def test_parse_extraction_response_returns_empty_on_malformed_json():
     raw = "not valid json — model rambled"
     entities, relations = ge._parse_extraction_response(raw=raw, chunk_id="c-1")

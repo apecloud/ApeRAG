@@ -315,6 +315,55 @@ async def _extract_one_chunk(
     return _parse_extraction_response(raw=raw, chunk_id=chunk_id)
 
 
+# Cap on raw-response prefix written to the empty-result warn log —
+# enough to recognise a model's error / empty payload pattern at a
+# glance without bloating the log file. Bounded exactly the way Wave
+# 7 task #11 narrative logs are bounded.
+_EMPTY_RESULT_LOG_RAW_PREFIX_CHARS: int = 500
+
+
+def _log_empty_extraction_if_applicable(
+    *,
+    raw: str,
+    chunk_id: str,
+    entities_count: int,
+    relations_count: int,
+) -> None:
+    """Emit a single ``warning`` line when the LLM produced valid JSON
+    that parsed cleanly but contained zero entities AND zero relations.
+
+    Why this exists: Bryce 2026-04-29 incident (msg=358bb68f) — a
+    user switched a collection's completion model to one whose
+    instruction-following degraded against ApeRAG's extraction prompt
+    (DeepSeek V4 Flash via OpenRouter returned ``{"entities":[],
+    "relations":[]}`` for every chunk). The graph index status went
+    ACTIVE per Wave 3 §F.1 semantics (no error → success), but the
+    knowledge graph was silently empty for every doc indexed after
+    the model swap. Diagnosing took several hours of grep + cross-
+    reference because nothing in the logs flagged "extractor ran but
+    produced nothing for THIS many chunks".
+
+    Per-chunk warn level (not error) so it does not page on-call;
+    each line carries the raw response prefix so an ops scan
+    immediately reveals the model-prompt incompatibility pattern. If
+    the same pattern recurs (every chunk in a doc empties out),
+    grep ``graph extractor: empty extraction result`` returns N
+    matches and the model swap timeline lines up with the failure
+    window.
+    """
+    if entities_count > 0 or relations_count > 0:
+        return
+    raw_prefix = raw[:_EMPTY_RESULT_LOG_RAW_PREFIX_CHARS]
+    logger.warning(
+        "graph extractor: empty extraction result for chunk_id=%s "
+        "(LLM response parsed cleanly but produced 0 entities + 0 relations); "
+        "raw response prefix (%d chars max): %r",
+        chunk_id,
+        _EMPTY_RESULT_LOG_RAW_PREFIX_CHARS,
+        raw_prefix,
+    )
+
+
 def _parse_extraction_response(
     *,
     raw: str,
@@ -375,6 +424,12 @@ def _parse_extraction_response(
                 exc,
             )
 
+    _log_empty_extraction_if_applicable(
+        raw=raw,
+        chunk_id=chunk_id,
+        entities_count=len(entities),
+        relations_count=len(relations),
+    )
     return entities, relations
 
 
