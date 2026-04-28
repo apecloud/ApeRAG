@@ -75,6 +75,7 @@ jobs:
         working-directory: web
         run: |
           yarn install --frozen-lockfile
+          yarn i18n:check
           yarn type-check
 
       - name: Upload unit coverage artifacts

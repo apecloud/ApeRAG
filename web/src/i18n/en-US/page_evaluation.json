@@ -19,6 +19,10 @@
   "evaluation_name": "Evaluation name",
   "evaluation_name_placeholder": "Enter the evaluation name",
 
+  "collection": "Collection",
+  "collection_placeholder": "Select a collection",
+  "add_collection": "Add Collection",
+
   "question_set": "Question Set",
   "question_set_placeholder": "Select a question set",
   "add_question_set": "Add Question Set",

@@ -1,6 +1,7 @@
 {
   "metadata": {
-    "title": "Question Sets"
+    "title": "Question Sets",
+    "description": "Question sets are targeted evaluation questions used to measure system performance and impact"
   },
   "search": "Search",
   "add_question_set": "Add Question Set",
