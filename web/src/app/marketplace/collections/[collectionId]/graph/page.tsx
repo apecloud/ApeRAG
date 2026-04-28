@@ -17,9 +17,9 @@ export default async function Page({
 
   return (
     <PageContainer>
-      <div className="flex min-h-[calc(100vh-48px)] flex-col px-0">
+      <div className="flex h-[calc(100vh-48px)] min-h-[720px] flex-col px-0">
         <CollectionHeader collection={collection} className="w-full" />
-        <PageContent className="flex min-h-[720px] w-full flex-1 flex-col">
+        <PageContent className="flex min-h-0 w-full flex-1 flex-col">
           <CollectionGraphHybrid marketplace />
         </PageContent>
       </div>
