@@ -4,7 +4,6 @@
     "description": "浏览工作区中已发布的知识库，预览文档内容，并把有用的知识库订阅到自己的列表。"
   },
   "workspace_label": "工作区",
-  "featured_label": "精选知识库",
   "published_collection": "已发布知识库",
   "published_by": "由 {owner} 发布",
   "owner_unknown": "未知发布者",
