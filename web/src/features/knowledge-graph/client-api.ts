@@ -164,6 +164,40 @@ export async function getMarketplaceKnowledgeGraph(
   return data;
 }
 
+export async function getMarketplaceGraphEmbeddingMap(
+  collectionId: string,
+  maxEntities = 1000,
+): Promise<GraphEmbeddingMapResponse | null> {
+  const { data } = await browserApiClient.GET(
+    '/api/v2/marketplace/collections/{collection_id}/graph/embedding-map',
+    {
+      params: {
+        path: { collection_id: collectionId },
+        query: { max_entities: maxEntities },
+      },
+    },
+  );
+  return data ?? null;
+}
+
+export async function searchMarketplaceGraphEntities(
+  collectionId: string,
+  q: string,
+  topK = 8,
+): Promise<GraphSearchEntity[]> {
+  if (!q.trim()) return [];
+  const { data } = await browserApiClient.GET(
+    '/api/v2/marketplace/collections/{collection_id}/graph/entities/search',
+    {
+      params: {
+        path: { collection_id: collectionId },
+        query: { q, top_k: topK },
+      },
+    },
+  );
+  return data?.entities ?? [];
+}
+
 export async function getMergeSuggestions(
   collectionId: string,
 ): Promise<MergeSuggestionsResponse | undefined> {

@@ -37,7 +37,11 @@ from typing import Any, Dict
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from aperag.domains.identity.service.auth_dependencies import optional_user, required_user
-from aperag.domains.knowledge_graph.schemas import KnowledgeGraph
+from aperag.domains.knowledge_graph.schemas import (
+    GraphEmbeddingMapResponse,
+    GraphEntitiesSearchResponse,
+    KnowledgeGraph,
+)
 from aperag.domains.knowledge_graph.service import graph_service
 from aperag.domains.marketplace.ports import AuthenticatedUser
 from aperag.domains.marketplace.schemas import SharedCollection, SharedCollectionList
@@ -289,4 +293,70 @@ async def get_marketplace_collection_graph(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error getting marketplace collection graph {collection_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get(
+    "/marketplace/collections/{collection_id}/graph/embedding-map",
+    tags=["graph"],
+    response_model=GraphEmbeddingMapResponse,
+)
+async def get_marketplace_collection_graph_embedding_map(
+    request: Request,
+    collection_id: str,
+    max_entities: int = Query(1000, ge=1, le=5000),
+    user: AuthenticatedUser = Depends(optional_user),
+) -> GraphEmbeddingMapResponse:
+    """Get projected entity coordinates for MarketplaceCollection (read-only)."""
+    try:
+        user_id = str(user.id) if user else ""
+        marketplace_info = await marketplace_collection_service.check_marketplace_access(user_id, collection_id)
+        owner_user_id = marketplace_info["owner_user_id"]
+        return await graph_service.get_embedding_map(
+            str(owner_user_id),
+            collection_id,
+            max_entities=max_entities,
+        )
+    except CollectionNotPublishedError:
+        raise HTTPException(status_code=404, detail="Collection not found or not published")
+    except CollectionMarketplaceAccessDeniedError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error getting marketplace collection graph embedding map {collection_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get(
+    "/marketplace/collections/{collection_id}/graph/entities/search",
+    tags=["graph"],
+    response_model=GraphEntitiesSearchResponse,
+)
+async def search_marketplace_collection_graph_entities(
+    request: Request,
+    collection_id: str,
+    q: str,
+    top_k: int = Query(10, ge=1, le=100),
+    user: AuthenticatedUser = Depends(optional_user),
+) -> GraphEntitiesSearchResponse:
+    """Vector-recall graph entities for MarketplaceCollection (read-only)."""
+    try:
+        user_id = str(user.id) if user else ""
+        marketplace_info = await marketplace_collection_service.check_marketplace_access(user_id, collection_id)
+        owner_user_id = marketplace_info["owner_user_id"]
+        return await graph_service.search_entities(
+            str(owner_user_id),
+            collection_id,
+            query=q,
+            top_k=top_k,
+        )
+    except CollectionNotPublishedError:
+        raise HTTPException(status_code=404, detail="Collection not found or not published")
+    except CollectionMarketplaceAccessDeniedError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error searching marketplace collection graph entities {collection_id}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
