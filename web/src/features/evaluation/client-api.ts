@@ -8,6 +8,8 @@ import type {
   EvaluationRunCreate,
 } from './types';
 
+import type { components } from '@/api-v2/schema';
+
 /**
  * Draft item returned by the AI auto-generate preview endpoint
  * (`POST .../{dataset_id}/items/generate-preview`). The BE writes
@@ -17,62 +19,41 @@ import type {
  * `EvaluationDatasetItemCreate` so the bulk-create endpoint can
  * consume the same items unchanged.
  */
-export type EvaluationDatasetItemDraft = {
-  question: string;
-  expected_answer: string;
-  reference_context: string;
-};
+export type EvaluationDatasetItemDraft = NonNullable<
+  components['schemas']['GeneratedDatasetItem']
+>;
 
-export type GenerateEvaluationDatasetItemsPreviewRequest = {
-  collection_id: string;
-  count?: number;
-  language?: string;
-  prompt_template?: string;
-};
+export type GenerateEvaluationDatasetItemsPreviewRequest = NonNullable<
+  components['schemas']['EvaluationDatasetGeneratePreviewRequest']
+>;
 
-export type GenerateEvaluationDatasetItemsPreviewResponse = {
-  items: EvaluationDatasetItemDraft[];
-  requested_count?: number;
-  delivered_count?: number;
-  language?: string;
-};
+export type GenerateEvaluationDatasetItemsPreviewResponse = NonNullable<
+  components['schemas']['EvaluationDatasetGeneratePreviewResponse']
+>;
 
 /**
  * Generate AI draft questions from collection content. The endpoint
  * does not write to the dataset — it only returns drafts; the caller
  * lets the user prune/edit and then bulk-creates via
  * `appendEvaluationDatasetItems`.
- *
- * Uses raw fetch (not the typed browserApiClient) because the BE
- * endpoint is currently being added in a parallel PR; this wrapper
- * lets the FE land the UI in parallel and switches to the typed
- * client once the OpenAPI schema regenerates.
  */
 export async function generateEvaluationDatasetItemsPreview(
   datasetId: string,
   body: GenerateEvaluationDatasetItemsPreviewRequest,
 ): Promise<GenerateEvaluationDatasetItemsPreviewResponse> {
-  const url = `${process.env.NEXT_PUBLIC_BASE_PATH || ''}/api/v2/evaluation-datasets/${encodeURIComponent(
-    datasetId,
-  )}/items/generate-preview`;
-  const resp = await fetch(url, {
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
+  const { data } = await browserApiClient.POST(
+    '/api/v2/evaluation-datasets/{dataset_id}/items/generate-preview',
+    {
+      params: {
+        path: { dataset_id: datasetId },
+      },
+      body,
     },
-    body: JSON.stringify(body),
-  });
-  if (!resp.ok) {
-    const detail = await resp.text().catch(() => '');
-    throw new Error(
-      `Generate preview failed: ${resp.status} ${resp.statusText}${
-        detail ? ` — ${detail}` : ''
-      }`,
-    );
+  );
+  if (!data) {
+    throw new Error('Generate preview returned an empty response');
   }
-  return (await resp.json()) as GenerateEvaluationDatasetItemsPreviewResponse;
+  return data;
 }
 
 export async function createEvaluationDataset(input: EvaluationDatasetCreate) {
