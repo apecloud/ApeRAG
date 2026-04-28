@@ -76,6 +76,8 @@ const collectionSchema = z
       enable_summary: z.boolean(),
       enable_vector: z.boolean(),
       enable_vision: z.boolean(),
+      graph_backend_type: z.enum(['postgres', 'neo4j', 'nebula']).nullable(),
+      fulltext_backend_type: z.enum(['elasticsearch', 'opensearch']).nullable(),
       completion: collectionModelSchema,
       embedding: collectionModelSchema,
       language: z.enum(TITLE_LANGUAGES),
@@ -138,6 +140,8 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
       enable_vector: true,
       enable_summary: false,
       enable_vision: false,
+      graph_backend_type: null,
+      fulltext_backend_type: null,
       completion: {
         model_id: '',
         temperature: 0.1,
