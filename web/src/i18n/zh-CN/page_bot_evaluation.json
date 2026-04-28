@@ -51,10 +51,12 @@
   "actions": "操作",
   "retry_item": "重试条目",
   "open_chat": "打开聊天",
-  "status.queued": "排队中",
-  "status.pending": "待处理",
-  "status.running": "运行中",
-  "status.completed": "已完成",
-  "status.failed": "失败",
-  "status.cancelled": "已取消"
+  "status": {
+    "queued": "排队中",
+    "pending": "待处理",
+    "running": "运行中",
+    "completed": "已完成",
+    "failed": "失败",
+    "cancelled": "已取消"
+  }
 }

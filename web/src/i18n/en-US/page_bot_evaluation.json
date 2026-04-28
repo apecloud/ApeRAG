@@ -51,10 +51,12 @@
   "actions": "Actions",
   "retry_item": "Retry item",
   "open_chat": "Open chat",
-  "status.queued": "Queued",
-  "status.pending": "Pending",
-  "status.running": "Running",
-  "status.completed": "Completed",
-  "status.failed": "Failed",
-  "status.cancelled": "Cancelled"
+  "status": {
+    "queued": "Queued",
+    "pending": "Pending",
+    "running": "Running",
+    "completed": "Completed",
+    "failed": "Failed",
+    "cancelled": "Cancelled"
+  }
 }

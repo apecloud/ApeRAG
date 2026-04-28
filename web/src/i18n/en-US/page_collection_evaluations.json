@@ -25,9 +25,11 @@
   "dataset_created_at": "Created at",
   "dataset_item_count": "Questions",
   "dataset_source_type": "Source",
-  "source_type.manual": "Manual",
-  "source_type.import": "Import",
-  "source_type.generated": "Generated",
+  "source_type": {
+    "manual": "Manual",
+    "import": "Import",
+    "generated": "Generated"
+  },
   "open_dataset": "Manage questions",
   "manage_dataset_items": "Manage questions",
   "delete_dataset": "Delete dataset",
