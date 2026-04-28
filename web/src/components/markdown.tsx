@@ -52,6 +52,30 @@ const parseAssetUrl = (src: string) => {
   };
 };
 
+const EXTERNAL_URL_PATTERN = /^https?:\/\//i;
+const CJK_URL_TERMINATOR_PATTERN = /[）。，；：！？、》】」』（]/u;
+const TRAILING_URL_PUNCTUATION_PATTERN = /[\s)\]}.,;:!?，。；：！？、）】》」』]+$/u;
+
+const normalizeMarkdownHref = (href?: string) => {
+  let url = href?.replace(/\.md(?=($|[#?]))/, '') || '/';
+
+  try {
+    const decoded = decodeURI(url);
+    if (EXTERNAL_URL_PATTERN.test(decoded)) {
+      const terminatorIndex = decoded.search(CJK_URL_TERMINATOR_PATTERN);
+      if (terminatorIndex > 0) {
+        url = decoded.slice(0, terminatorIndex);
+      } else {
+        url = decoded;
+      }
+    }
+  } catch {
+    // Keep the original href if it is not a valid percent-encoded string.
+  }
+
+  return url.trim().replace(TRAILING_URL_PUNCTUATION_PATTERN, '') || '/';
+};
+
 export const buildDocumentAssetUrl = (src: string, context?: AssetContext) => {
   if (!src.startsWith('asset://')) {
     return src;
@@ -78,8 +102,9 @@ export const buildDocumentAssetUrl = (src: string, context?: AssetContext) => {
 };
 
 const securityLink = (props: JSX.IntrinsicElements['a']) => {
-  const target = props.href?.match(/^http/) ? '_blank' : '_self';
-  const url = props.href?.replace(/\.md/, '');
+  const url = normalizeMarkdownHref(props.href);
+  const isExternal = EXTERNAL_URL_PATTERN.test(url);
+  const target = isExternal ? '_blank' : '_self';
 
   const isNavLink = props.className?.includes('toc-link');
   return isNavLink ? (
@@ -91,6 +116,16 @@ const securityLink = (props: JSX.IntrinsicElements['a']) => {
         {props.children}
       </TooltipContent>
     </Tooltip>
+  ) : isExternal ? (
+    <a
+      {...props}
+      href={url}
+      target={target}
+      rel="noopener noreferrer"
+      className="underline"
+    >
+      {props.children}
+    </a>
   ) : (
     <Link {...props} href={url || '/'} target={target} className="underline">
       {props.children}
@@ -99,10 +134,11 @@ const securityLink = (props: JSX.IntrinsicElements['a']) => {
 };
 
 const unSecurityLink = (props: JSX.IntrinsicElements['a']) => {
-  const url = props.href?.replace(/\.md/, '') || '/';
+  const url = normalizeMarkdownHref(props.href);
+  const isExternal = EXTERNAL_URL_PATTERN.test(url);
   const isNavLink = props.className?.includes('toc-link');
   const handleLinkClick: MouseEventHandler<HTMLAnchorElement> = (e) => {
-    if (!url.match(/http/)) {
+    if (!isExternal) {
       e.preventDefault();
       e.stopPropagation();
     }
@@ -121,6 +157,17 @@ const unSecurityLink = (props: JSX.IntrinsicElements['a']) => {
         {props.children}
       </TooltipContent>
     </Tooltip>
+  ) : isExternal ? (
+    <a
+      {...props}
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="underline"
+      onClick={handleLinkClick}
+    >
+      {props.children}
+    </a>
   ) : (
     <Link
       {...props}
