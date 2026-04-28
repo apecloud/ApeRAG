@@ -33,11 +33,16 @@ earayu2 bug report (msg=dec8bcff): UI shows complete, agent says
 
 from __future__ import annotations
 
+import importlib
 from dataclasses import dataclass
 
+import pytest
+
 from aperag.domains.knowledge_base.db.models import DocumentStatus
-from aperag.indexing.models import IndexStatus
-from aperag.mcp.tools.list_documents import _aggregate_index_status
+from aperag.indexing.models import IndexStatus, Modality
+from aperag.mcp.tools.list_documents import _aggregate_index_status, _count_chunks_from_indexes
+
+list_documents_module = importlib.import_module("aperag.mcp.tools.list_documents")
 
 
 @dataclass
@@ -47,6 +52,9 @@ class _FakeIndex:
 
     status: str
     is_serving: bool = False
+    modality: str = Modality.VECTOR.value
+    source_path: str | None = None
+    derived_artifact_path: str | None = None
 
 
 def test_aggregate_returns_complete_when_all_modalities_active_and_serving():
@@ -125,3 +133,45 @@ def test_failed_takes_precedence_over_running():
         _FakeIndex(status=IndexStatus.FAILED.value),
     ]
     assert _aggregate_index_status(indexes, fallback=DocumentStatus.PENDING) is DocumentStatus.FAILED
+
+
+@pytest.mark.asyncio
+async def test_chunk_count_reads_serving_vector_chunks_jsonl(monkeypatch):
+    """A complete document must not report ``indexed_chunks_count=0`` when
+    its serving vector index points at a real chunks artifact. Agents use
+    this field to decide whether content is available, so a placeholder 0
+    is user-visible misinformation."""
+
+    reads: list[str] = []
+
+    async def _fake_read(path: str) -> str:
+        reads.append(path)
+        return '{"chunk_id":"c1","text":"one"}\n\n{"chunk_id":"c2","text":"two"}\n'
+
+    monkeypatch.setattr(list_documents_module, "_read_object_store_text", _fake_read)
+
+    count = await _count_chunks_from_indexes(
+        [
+            _FakeIndex(status=IndexStatus.ACTIVE.value, is_serving=True, source_path="derived/parse_1/chunks.jsonl"),
+        ]
+    )
+
+    assert count == 2
+    assert reads == ["derived/parse_1/chunks.jsonl"]
+
+
+@pytest.mark.asyncio
+async def test_chunk_count_ignores_non_serving_or_non_vector_indexes(monkeypatch):
+    async def _fake_read(path: str) -> str:  # pragma: no cover - should not be called
+        raise AssertionError("non-serving/non-vector indexes must not be read")
+
+    monkeypatch.setattr(list_documents_module, "_read_object_store_text", _fake_read)
+
+    count = await _count_chunks_from_indexes(
+        [
+            _FakeIndex(status=IndexStatus.ACTIVE.value, is_serving=True, modality=Modality.FULLTEXT.value),
+            _FakeIndex(status=IndexStatus.ACTIVE.value, is_serving=False, source_path="chunks.jsonl"),
+        ]
+    )
+
+    assert count == 0

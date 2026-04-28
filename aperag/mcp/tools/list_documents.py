@@ -43,12 +43,14 @@ from aperag.domains.knowledge_base.db.models import (
 from aperag.indexing.models import (
     DocumentIndex,
     IndexStatus,
+    Modality,
 )
 from aperag.mcp.tools._d9_base import (
     authorization_gate,
     resolve_authenticated_user,
     tenancy_gate,
 )
+from aperag.mcp.tools._parsed_doc import _read_object_store_text
 from aperag.mcp.tools.schemas import DocumentList, DocumentMetadata
 from aperag.service.pagination import decode_offset_cursor, encode_offset_cursor
 
@@ -103,6 +105,34 @@ def _media_type_for(name: Optional[str]) -> str:
         return "application/octet-stream"
     mt, _ = mimetypes.guess_type(name)
     return mt or "application/octet-stream"
+
+
+def _serving_chunks_path(indexes: list[DocumentIndex]) -> str | None:
+    """Return the canonical chunks artifact path for the serving vector index.
+
+    Vector/fulltext/graph sync all consume the parser-produced
+    ``chunks.jsonl`` artifact. For the vector modality, the serving
+    ``DocumentIndex.source_path`` is that chunks path; older transitional
+    rows may also carry it as ``derived_artifact_path``. MCP metadata must
+    surface the real chunk count from this artifact instead of the previous
+    placeholder ``0`` — otherwise agents incorrectly infer that a complete
+    document has no searchable content.
+    """
+
+    for idx in indexes:
+        if idx.modality == Modality.VECTOR.value and idx.status == IndexStatus.ACTIVE.value and idx.is_serving:
+            return idx.source_path or idx.derived_artifact_path
+    return None
+
+
+async def _count_chunks_from_indexes(indexes: list[DocumentIndex]) -> int:
+    chunks_path = _serving_chunks_path(indexes)
+    if not chunks_path:
+        return 0
+    body = await _read_object_store_text(chunks_path)
+    if not body:
+        return 0
+    return sum(1 for line in body.splitlines() if line.strip())
 
 
 _SORT_COLS = {
@@ -188,14 +218,6 @@ async def list_documents(
             page_stmt = select(Document).where(and_(*base_filters)).order_by(sort_clause).offset(offset).limit(limit)
             documents = list((await session.execute(page_stmt)).scalars().all())
 
-        # Wave 3 hard-cut: legacy ``DocumentIndex.index_data`` JSON
-        # blob is gone (the new §F.1 schema decomposes that
-        # information across per-modality rows + the ``derived/`` /
-        # backend stores). Chunk count is no longer a per-document
-        # scalar; surface 0 here to keep the page response shape
-        # stable. Future T3.x can plumb a real chunk count through
-        # ``chunks.jsonl`` artifact when an MCP client actually
-        # consumes the field.
         chunk_counts: dict[str, int] = {}
         overall_statuses: dict[str, DocumentStatus] = {}
         if documents:
@@ -213,14 +235,7 @@ async def list_documents(
                     indexes_by_doc.get(d.id, []),
                     fallback=d.status,
                 )
-                # Preserve the ACTIVE+is_serving signal that the §F.1
-                # partial-unique invariant relies on (caller-path
-                # exercise — chunk_count placeholder until T3.x plumbs
-                # a real chunk count through ``chunks.jsonl``).
-                if any(
-                    idx.status == IndexStatus.ACTIVE.value and idx.is_serving for idx in indexes_by_doc.get(d.id, [])
-                ):
-                    chunk_counts.setdefault(d.id, 0)
+                chunk_counts[d.id] = await _count_chunks_from_indexes(indexes_by_doc.get(d.id, []))
         break
 
     items = [
