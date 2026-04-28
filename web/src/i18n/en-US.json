@@ -404,15 +404,55 @@
             "done": "Read the web page",
             "error": "Web page read did not complete"
           },
+          "collection_list": {
+            "running": "Checking available knowledge bases",
+            "done": "Checked available knowledge bases",
+            "error": "Knowledge base check did not complete"
+          },
+          "collection_metadata": {
+            "running": "Checking knowledge base details",
+            "done": "Checked knowledge base details",
+            "error": "Knowledge base details were not available"
+          },
+          "document_list": {
+            "running": "Checking documents in the knowledge base",
+            "done": "Checked documents in the knowledge base",
+            "error": "Document list was not available"
+          },
+          "document_metadata": {
+            "running": "Checking document details",
+            "done": "Checked document details",
+            "error": "Document details were not available"
+          },
           "knowledge_search": {
             "running": "Searching the knowledge base",
             "done": "Found relevant knowledge",
             "error": "Knowledge search did not complete"
           },
+          "graph_lookup": {
+            "running": "Reading the knowledge graph",
+            "done": "Read the knowledge graph",
+            "error": "Knowledge graph lookup did not complete"
+          },
           "document_read": {
             "running": "Reading source material",
             "done": "Read the source material",
             "error": "Source reading did not complete"
+          },
+          "document_outline": {
+            "running": "Checking the document outline",
+            "done": "Checked the document outline",
+            "error": "Document outline was not available"
+          },
+          "document_section": {
+            "running": "Reading a document section",
+            "done": "Read a document section",
+            "error": "Document section was not available"
+          },
+          "document_chunk": {
+            "running": "Reading a document passage",
+            "done": "Read a document passage",
+            "error": "Document passage was not available"
           },
           "generic": {
             "running": "Working through one step",
@@ -424,10 +464,24 @@
           "search_query": "Search: {query}",
           "source_title": "Source: {title}",
           "web_url": "Reading: {url}",
+          "collection": "Knowledge base: {collection}",
+          "document": "Document: {document}",
+          "document_section_ref": "Section: {section}",
+          "document_chunk_ref": "Passage: {chunk}",
+          "graph_query": "Graph query: {query}",
+          "graph_entity": "Entity: {entity}",
           "web_search": "Looking for useful information on the web",
           "web_read": "Opening and reading a relevant page",
           "knowledge_search": "Filtering relevant content from the knowledge base",
+          "collection_list": "Checking which knowledge bases are available",
+          "collection_metadata": "Checking knowledge base settings and metadata",
+          "document_list": "Checking which documents are available",
+          "document_metadata": "Checking document status and metadata",
+          "graph_lookup": "Inspecting entities and relations in the knowledge graph",
           "document_read": "Extracting key points from existing documents",
+          "document_outline": "Reading the document structure",
+          "document_section": "Reading a specific section",
+          "document_chunk": "Reading a specific passage",
           "generic": "Organizing intermediate information",
           "done": "Used the result in the answer",
           "error": "This step failed; continuing with available information"

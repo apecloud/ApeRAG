@@ -404,15 +404,55 @@
             "done": "已阅读网页内容",
             "error": "网页阅读没有成功"
           },
+          "collection_list": {
+            "running": "正在查看可用知识库",
+            "done": "已查看可用知识库",
+            "error": "知识库列表没有成功获取"
+          },
+          "collection_metadata": {
+            "running": "正在查看知识库信息",
+            "done": "已查看知识库信息",
+            "error": "知识库信息没有成功获取"
+          },
+          "document_list": {
+            "running": "正在查看知识库文档",
+            "done": "已查看知识库文档",
+            "error": "文档列表没有成功获取"
+          },
+          "document_metadata": {
+            "running": "正在查看文档信息",
+            "done": "已查看文档信息",
+            "error": "文档信息没有成功获取"
+          },
           "knowledge_search": {
             "running": "正在检索知识库",
             "done": "已找到相关知识",
             "error": "知识库检索没有成功"
           },
+          "graph_lookup": {
+            "running": "正在查看知识图谱",
+            "done": "已查看知识图谱",
+            "error": "知识图谱没有成功读取"
+          },
           "document_read": {
             "running": "正在阅读资料",
             "done": "已阅读资料",
             "error": "资料阅读没有成功"
+          },
+          "document_outline": {
+            "running": "正在查看文档大纲",
+            "done": "已查看文档大纲",
+            "error": "文档大纲没有成功获取"
+          },
+          "document_section": {
+            "running": "正在阅读文档章节",
+            "done": "已阅读文档章节",
+            "error": "文档章节没有成功读取"
+          },
+          "document_chunk": {
+            "running": "正在阅读文档片段",
+            "done": "已阅读文档片段",
+            "error": "文档片段没有成功读取"
           },
           "generic": {
             "running": "正在处理信息",
@@ -424,10 +464,24 @@
           "search_query": "搜索：{query}",
           "source_title": "来源：{title}",
           "web_url": "阅读：{url}",
+          "collection": "知识库：{collection}",
+          "document": "文档：{document}",
+          "document_section_ref": "章节：{section}",
+          "document_chunk_ref": "片段：{chunk}",
+          "graph_query": "图谱查询：{query}",
+          "graph_entity": "实体：{entity}",
           "web_search": "正在从网页中寻找可用信息",
           "web_read": "正在打开并阅读相关页面",
           "knowledge_search": "正在从知识库中筛选相关内容",
+          "collection_list": "正在确认可用知识库",
+          "collection_metadata": "正在查看知识库配置和元信息",
+          "document_list": "正在确认知识库里有哪些文档",
+          "document_metadata": "正在查看文档状态和元信息",
+          "graph_lookup": "正在查看知识图谱中的实体和关系",
           "document_read": "正在从已有文档中提取要点",
+          "document_outline": "正在查看文档结构",
+          "document_section": "正在阅读指定章节",
+          "document_chunk": "正在阅读指定片段",
           "generic": "正在整理中间信息",
           "done": "已把结果用于回答",
           "error": "这一步失败，已继续处理可用信息"
