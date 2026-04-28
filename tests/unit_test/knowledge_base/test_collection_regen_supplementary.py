@@ -31,6 +31,7 @@ from aperag.domains.agent_runtime.uimessage import TextPart
 from aperag.domains.knowledge_base.service import collection_regen_service
 from aperag.domains.knowledge_base.service.collection_regen_service import (
     _extract_answer_text,
+    _invoke_summary_agent,
     _pick_substantive_chunk_text,
     regen_description,
     regen_summary,
@@ -334,3 +335,100 @@ async def test_regen_description_succeeds_with_valid_llm_output(monkeypatch: pyt
 
 async def _async_value(value):
     return value
+
+
+# ---------------------------------------------------------------------
+# _invoke_summary_agent — Tier 1 collection.config.completion contract
+# (per @earayu2 directive msg=107cbfa3: use the collection's LLM, not
+# a default on the summary bot)
+# ---------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_invoke_summary_agent_returns_none_when_collection_has_no_completion(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Collection with no ``completion.model_id`` → Tier 1 short-circuits
+    without touching the agent runtime. ``regen_summary`` then falls
+    through to Tier 2."""
+    from types import SimpleNamespace
+
+    collection = SimpleNamespace(
+        id="col_no_llm",
+        user="user-1",
+        title="Collection without LLM",
+        config=(
+            '{"source":"system","enable_vector":true,"enable_fulltext":true,'
+            '"enable_knowledge_graph":false,"enable_summary":false,'
+            '"enable_vision":false,"language":"zh-CN"}'
+        ),
+    )
+
+    # If Tier 1 didn't short-circuit, ``get_or_create_summary_bot_for_user``
+    # would be invoked next — fail loudly so the test pins the early
+    # return contract.
+    async def _should_not_be_called(*_a, **_kw):
+        raise AssertionError("Tier 1 must short-circuit before bot/chat creation")
+
+    monkeypatch.setattr(
+        collection_regen_service,
+        "get_or_create_summary_bot_for_user",
+        _should_not_be_called,
+    )
+
+    assert await _invoke_summary_agent(collection) is None
+
+
+@pytest.mark.asyncio
+async def test_invoke_summary_agent_returns_none_when_completion_model_id_blank(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """``completion`` block present but ``model_id`` empty → same
+    short-circuit as the missing-completion case."""
+    from types import SimpleNamespace
+
+    collection = SimpleNamespace(
+        id="col_blank_model",
+        user="user-1",
+        title="Collection with blank model_id",
+        config=('{"source":"system","language":"zh-CN","completion":{"model_id":"","temperature":0.1}}'),
+    )
+
+    async def _should_not_be_called(*_a, **_kw):
+        raise AssertionError("Tier 1 must short-circuit before bot/chat creation")
+
+    monkeypatch.setattr(
+        collection_regen_service,
+        "get_or_create_summary_bot_for_user",
+        _should_not_be_called,
+    )
+
+    assert await _invoke_summary_agent(collection) is None
+
+
+@pytest.mark.asyncio
+async def test_invoke_summary_agent_returns_none_on_unparseable_config(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """A corrupt ``collection.config`` string must not propagate as a
+    crash — it must be logged and degraded to ``None`` so Tier 2 can
+    still run."""
+    from types import SimpleNamespace
+
+    collection = SimpleNamespace(
+        id="col_bad_config",
+        user="user-1",
+        title="Collection with corrupt config",
+        config="{not json",
+    )
+
+    async def _should_not_be_called(*_a, **_kw):
+        raise AssertionError("Tier 1 must short-circuit before bot/chat creation")
+
+    monkeypatch.setattr(
+        collection_regen_service,
+        "get_or_create_summary_bot_for_user",
+        _should_not_be_called,
+    )
+
+    assert await _invoke_summary_agent(collection) is None

@@ -273,6 +273,34 @@ async def _invoke_summary_agent(collection: Collection) -> str | None:
     from aperag.domains.conversation.service.chat_service import chat_service_global
     from aperag.domains.knowledge_base.schemas import Collection as CollectionSchema
 
+    # Per @earayu2 directive (msg=107cbfa3): "用 collection 的大语言模型，
+    # 没配就不支持". The summary bot is a hidden runtime owner — it does
+    # not carry its own ``completion`` config. Resolve the model_id from
+    # ``collection.config.completion`` and hand it to the agent runtime
+    # via ``CreateTurnRequest.completion``. If the collection has no
+    # completion model configured, Tier 1 returns ``None`` so the caller
+    # falls through to Tier 2 (which itself reads the same collection
+    # LLM via ``build_collection_llm_callable`` — both tiers share the
+    # invariant "model state is bound to ``collection.config``").
+    from aperag.schema.common import ModelSpec
+    from aperag.schema.utils import parseCollectionConfig
+
+    try:
+        parsed_config = parseCollectionConfig(collection.config)
+    except ValueError:
+        logger.exception(
+            "_invoke_summary_agent: failed to parse collection.config for %s",
+            collection.id,
+        )
+        return None
+    collection_completion = parsed_config.completion if parsed_config else None
+    if collection_completion is None or not collection_completion.model_id:
+        logger.info(
+            "_invoke_summary_agent: collection %s has no completion model — Tier 1 skipped, Tier 2 will run",
+            collection.id,
+        )
+        return None
+
     bot = await get_or_create_summary_bot_for_user(collection.user)
     if bot is None:  # pragma: no cover — get_or_create raises on transient failure
         return None
@@ -294,6 +322,10 @@ async def _invoke_summary_agent(collection: Collection) -> str | None:
     turn_request = CreateTurnRequest(
         query=query,
         collections=[CollectionSchema(id=collection.id, title=title)],
+        completion=ModelSpec(
+            model_id=collection_completion.model_id,
+            temperature=collection_completion.temperature,
+        ),
     )
 
     chat, bot_orm, turn, _created = await agent_runtime_manager.turn_service.create_or_get_turn(
