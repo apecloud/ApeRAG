@@ -98,6 +98,21 @@ _DEFAULT_EXTRACTOR_LLM_CONCURRENCY = 4
 # picked per huangheng spec msg=80b01696.
 _BOOTSTRAP_CHUNK_COUNT = 20
 
+# Maximum number of chunks dispatched per ``asyncio.gather`` batch
+# in the main pass. Pre-fix the main pass called
+# ``asyncio.gather(*[N coroutines])`` over the entire post-bootstrap
+# remainder, so a 2 395-chunk document scheduled 2 375 simultaneous
+# task objects on the event loop. Even with a Semaphore(4) limiting
+# concurrent execution, the event loop still tracked the 2 375 task
+# references and pumped them through the scheduler — at scale this
+# wedged the BE process during a real user upload (Harry Potter txt,
+# observed 2026-04-28). Bounded gather batches cap the coroutine
+# fan-out per round so memory + scheduler pressure stays flat
+# regardless of document size. 50 was picked per architect ratify
+# msg=cec8b206 — produces ~48 batches for the 2 395-chunk doc and
+# overlaps cleanly with the 4-way semaphore.
+_MAIN_PASS_BATCH_SIZE = 50
+
 
 def build_collection_graph_extractor(collection: Any) -> GraphExtractor:
     """Construct a :class:`GraphExtractor` closure bound to
@@ -148,12 +163,17 @@ def build_collection_graph_extractor(collection: Any) -> GraphExtractor:
            types feedback loop where the prompt's allowed-types list
            grows as the document is read.
         2. **Main pass** — run the remaining chunks through
-           ``asyncio.gather`` bounded by an
-           :class:`asyncio.Semaphore` of width
-           :data:`_DEFAULT_EXTRACTOR_LLM_CONCURRENCY`. The active type
-           list is frozen at the bootstrap end-state — by 20 chunks it
-           has typically saturated for the document, and even if a
-           later chunk introduces a brand-new type we accept the small
+           ``asyncio.gather`` in fixed-size batches of
+           :data:`_MAIN_PASS_BATCH_SIZE`, bounded inside each batch
+           by an :class:`asyncio.Semaphore` of width
+           :data:`_DEFAULT_EXTRACTOR_LLM_CONCURRENCY`. The batched
+           form bounds coroutine fan-out per round so a 2 000+ chunk
+           document does not schedule thousands of simultaneous task
+           references onto the event loop (which previously wedged
+           the BE process at ~2 395 chunks). The active type list is
+           frozen at the bootstrap end-state — by 20 chunks it has
+           typically saturated for the document, and even if a later
+           chunk introduces a brand-new type we accept the small
            recall hit in exchange for ~5x wall-clock speedup.
 
         Per-chunk failures are isolated in both passes (log + skip);
@@ -202,7 +222,7 @@ def build_collection_graph_extractor(collection: Any) -> GraphExtractor:
                 [entity.entity_type for entity in ents],
             )
 
-        # ---- Pass 2: parallel gather over remaining chunks ----
+        # ---- Pass 2: parallel gather over remaining chunks (chunked) ----
         remaining = chunks[_BOOTSTRAP_CHUNK_COUNT:]
         if not remaining:
             return entities, relations
@@ -241,10 +261,17 @@ def build_collection_graph_extractor(collection: Any) -> GraphExtractor:
                     )
                     return ([], [])
 
-        results = await asyncio.gather(*(_bounded_extract(chunk) for chunk in remaining))
-        for ents, rels in results:
-            entities.extend(ents)
-            relations.extend(rels)
+        # Process the remainder in fixed-size gather batches so the
+        # event loop never holds more than ``_MAIN_PASS_BATCH_SIZE``
+        # task references at once. The Semaphore still caps actual
+        # concurrent LLM calls within each batch; the outer batching
+        # is only there to bound coroutine fan-out.
+        for batch_start in range(0, len(remaining), _MAIN_PASS_BATCH_SIZE):
+            batch = remaining[batch_start : batch_start + _MAIN_PASS_BATCH_SIZE]
+            batch_results = await asyncio.gather(*(_bounded_extract(chunk) for chunk in batch))
+            for ents, rels in batch_results:
+                entities.extend(ents)
+                relations.extend(rels)
 
         return entities, relations
 
