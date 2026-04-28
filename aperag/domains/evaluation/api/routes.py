@@ -21,6 +21,8 @@ from aperag.domains.evaluation.schemas import (
     CancelRunResponse,
     EvaluationDatasetCreate,
     EvaluationDatasetEnvelope,
+    EvaluationDatasetGeneratePreviewRequest,
+    EvaluationDatasetGeneratePreviewResponse,
     EvaluationDatasetItemEnvelope,
     EvaluationDatasetItemListResponse,
     EvaluationDatasetItemsAppendRequest,
@@ -154,6 +156,53 @@ async def append_evaluation_dataset_items_view(
 ) -> EvaluationDatasetItemsAppendResponse:
     created = await evaluation_dataset_service.append_items(str(user.id), dataset_id, list(body.items))
     return EvaluationDatasetItemsAppendResponse(items=created)
+
+
+@router.post(
+    "/evaluation-datasets/{dataset_id}/items/generate-preview",
+    response_model=EvaluationDatasetGeneratePreviewResponse,
+)
+async def generate_evaluation_dataset_items_preview_view(
+    dataset_id: str,
+    body: EvaluationDatasetGeneratePreviewRequest,
+    user: AuthenticatedUser = Depends(required_user),
+) -> EvaluationDatasetGeneratePreviewResponse:
+    """AI auto-generate QA pairs for the dataset (preview-only).
+
+    Walks the collection's serving chunks, fires one LLM call per
+    substantive chunk, and returns the produced ``{question,
+    expected_answer, reference_context}`` items without writing to the
+    dataset. The caller (FE) lets the user select / edit and POSTs the
+    chosen rows to the existing ``/items`` append endpoint.
+
+    Architect lock ``msg=05c3ec83`` + ``msg=a9fb7efd``; ``count``
+    defaults to 10 and is capped at 100; ``language`` falls back to
+    ``Collection.config.language``.
+    """
+    user_id = str(user.id)
+    # Ensure the caller owns the dataset before we burn LLM credits.
+    await evaluation_dataset_service._require_dataset(user_id, dataset_id)
+
+    from aperag.db.ops import async_db_ops
+    from aperag.domains.evaluation.dataset_generator import generate_preview_items
+    from aperag.exceptions import ResourceNotFoundException
+
+    collection = await async_db_ops.query_collection(user_id, body.collection_id)
+    if collection is None:
+        raise ResourceNotFoundException("Collection", body.collection_id)
+
+    items, resolved_language = await generate_preview_items(
+        collection=collection,
+        count=body.count,
+        language=body.language,
+        prompt_template=body.prompt_template,
+    )
+    return EvaluationDatasetGeneratePreviewResponse(
+        items=items,
+        requested_count=body.count,
+        delivered_count=len(items),
+        language=resolved_language,
+    )
 
 
 @router.put(

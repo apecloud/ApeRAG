@@ -138,6 +138,65 @@ class EvaluationDatasetItemsAppendResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# AI auto-generate QA pairs (preview-then-confirm flow). Per architect lock
+# msg=05c3ec83 / earayu2 msg=6e354b8e:
+#
+#   * BE walks the collection's chunks.jsonl, picks ``count`` substantive
+#     chunks, calls the configured LLM once per chunk, parses each
+#     ``{question, expected_answer}`` pair.
+#   * BE returns each preview item with ``reference_context`` populated
+#     from the source chunk (FE keeps it hidden in the main list and
+#     surfaces it under a per-row "source" disclosure; bulk-create
+#     transparently persists all three fields).
+#   * No DB write here — the caller picks/edits and POSTs to the existing
+#     ``/items`` append endpoint.
+# ---------------------------------------------------------------------------
+
+
+_GENERATE_PREVIEW_DEFAULT_COUNT = 10
+_GENERATE_PREVIEW_MAX_COUNT = 100
+
+
+class EvaluationDatasetGeneratePreviewRequest(BaseModel):
+    collection_id: str = Field(..., min_length=1)
+    count: int = Field(
+        default=_GENERATE_PREVIEW_DEFAULT_COUNT,
+        ge=1,
+        le=_GENERATE_PREVIEW_MAX_COUNT,
+        description="Number of QA pairs to generate (default 10, max 100).",
+    )
+    language: Optional[str] = Field(
+        None,
+        description=(
+            "ISO locale (zh-CN / en-US / ja-JP / ko-KR). When omitted the "
+            "BE falls back to ``Collection.config.language``."
+        ),
+    )
+    prompt_template: Optional[str] = Field(
+        None,
+        description=(
+            "Override the default per-chunk QA generation prompt. The "
+            "default ships an explicit instruction to emit JSON with "
+            "``question`` and ``expected_answer`` fields in the resolved "
+            "language."
+        ),
+    )
+
+
+class GeneratedDatasetItem(BaseModel):
+    question: str
+    expected_answer: str
+    reference_context: Optional[str] = None
+
+
+class EvaluationDatasetGeneratePreviewResponse(BaseModel):
+    items: list[GeneratedDatasetItem] = Field(default_factory=list)
+    requested_count: int = 0
+    delivered_count: int = 0
+    language: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
 # EvaluationRun lifecycle
 # ---------------------------------------------------------------------------
 
