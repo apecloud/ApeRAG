@@ -11,7 +11,7 @@ import { getLocale } from '@/services/cookies';
 import 'highlight.js/styles/github-dark.css';
 import './globals.css';
 
-import { getTranslations } from 'next-intl/server';
+import { getMessages, getTranslations } from 'next-intl/server';
 
 const fontSans = Manrope({
   variable: '--font-sans',
@@ -58,6 +58,7 @@ export default async function RootLayout({
 }>) {
   const user = (await getCurrentUser()) ?? undefined;
   const locale = await getLocale();
+  const messages = await getMessages();
 
   return (
     <html lang={locale} suppressHydrationWarning>
@@ -70,7 +71,7 @@ export default async function RootLayout({
           showSpinner={false}
           crawl={false}
         />
-        <NextIntlClientProvider>
+        <NextIntlClientProvider messages={messages}>
           <ThemeProvider
             attribute="class"
             defaultTheme={process.env.NEXT_PUBLIC_DEFAULT_THEME || 'light'}
