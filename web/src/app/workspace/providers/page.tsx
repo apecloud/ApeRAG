@@ -10,7 +10,7 @@ import { ModelPlatformPanel } from './model-platform-panel';
 
 export async function generateMetadata(): Promise<Metadata> {
   return {
-    title: '大模型配置',
+    title: '模型配置',
   };
 }
 
@@ -29,11 +29,8 @@ export default async function Page() {
             Model Platform
           </div>
           <h1 className="font-serif mt-2 text-4xl leading-none font-normal tracking-normal md:text-[44px]">
-            大模型配置
+            模型配置
           </h1>
-          <p className="text-muted-foreground mt-3 max-w-2xl text-sm leading-6">
-            配置模型服务商、模型账号、模型和模型用途。这里不再要求填写 LiteLLM dialect 或内部 provider 路由名。
-          </p>
         </div>
         <ModelPlatformPanel data={data} />
       </PageContent>

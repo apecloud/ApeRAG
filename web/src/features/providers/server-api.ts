@@ -8,7 +8,7 @@ import type {
 } from './types';
 
 export async function getModelPlatform(): Promise<ModelPlatformViewModel> {
-  const client = (await createServerApiClient()) as any;
+  const client = await createServerApiClient();
   const [providers, accounts, models, uses] = await Promise.all([
     client.GET('/api/v2/model-providers'),
     client.GET('/api/v2/model-accounts'),

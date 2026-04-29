@@ -1241,7 +1241,7 @@
       "custom_llm_provider_placeholder": "请选择LLM提供商"
     },
     "default_model": {
-      "config": "默认模型配置",
+      "config": "默认模型",
       "help": "清除选择将删除此场景的默认模型配置"
     }
   },

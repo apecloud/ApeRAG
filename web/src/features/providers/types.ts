@@ -34,6 +34,7 @@ export type Model = {
   embedding_dimensions?: number | null;
   supports_vision?: boolean;
   supports_tool_calling?: boolean;
+  supports_multimodal_embedding?: boolean;
   status?: 'ACTIVE' | 'INACTIVE';
 };
 
@@ -61,6 +62,14 @@ export type ModelAccountCreateInput = {
   api_key: string;
 };
 
+export type ModelAccountUpdateInput = {
+  name?: string;
+  display_name?: string;
+  base_url?: string;
+  api_key?: string;
+  status?: 'ACTIVE' | 'INACTIVE';
+};
+
 export type ModelCreateInput = {
   account_id: string;
   provider_model_id: string;
@@ -73,6 +82,7 @@ export type ModelCreateInput = {
   embedding_dimensions?: number | null;
   supports_vision?: boolean;
   supports_tool_calling?: boolean;
+  supports_multimodal_embedding?: boolean;
 };
 
 export type ModelPlatformViewModel = {
