@@ -118,10 +118,16 @@ async def dispatch_evaluation_turn(
     from aperag.domains.agent_runtime.db.models import AgentTurnStatus
     from aperag.domains.agent_runtime.runtime import agent_runtime_manager
     from aperag.domains.agent_runtime.schemas import CreateTurnRequest
+    from aperag.domains.conversation.db.models import ChatPeerType
     from aperag.domains.conversation.service.chat_service import chat_service_global
 
     start = time.monotonic()
-    chat_view = await chat_service_global.create_chat(user_id, bot_id)
+    # ``peer_type=EVALUATION`` flags this chat as internally-spawned
+    # so it does not surface in the bot's user-facing chat list (per
+    # @earayu2 msg=92d6fb21 + Weston msg=387ce23d). Run-detail trace
+    # links can still resolve the row by passing
+    # ``include_internal=True`` on the chat-list query.
+    chat_view = await chat_service_global.create_chat(user_id, bot_id, peer_type=ChatPeerType.EVALUATION)
     chat_id = chat_view.id
 
     turn_request = CreateTurnRequest(query=input_message, completion=completion)

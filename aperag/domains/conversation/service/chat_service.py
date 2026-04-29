@@ -131,7 +131,14 @@ class ChatService:
 
         return history
 
-    async def create_chat(self, user: str, bot_id: str, *, _allow_system_bot: bool = False) -> Chat:
+    async def create_chat(
+        self,
+        user: str,
+        bot_id: str,
+        *,
+        peer_type=None,
+        _allow_system_bot: bool = False,
+    ) -> Chat:
         # Wave 10 §K.13 — ``_allow_system_bot=True`` is the trusted
         # internal seam used by ``collection_regen_service`` Stage 1
         # Tier 1 to create a chat under the per-user hidden
@@ -147,7 +154,11 @@ class ChatService:
         if bot.type not in allowed_types:
             raise ValidationException("Only agent bots are supported")
 
-        chat = await self.db_ops.create_chat(user=user, bot_id=bot_id)
+        # ``peer_type`` defaults to ``SYSTEM`` (set in the repo layer)
+        # for normal user-driven chats. Internal call sites — e.g. the
+        # evaluation worker — pass ``ChatPeerType.EVALUATION`` so the
+        # row is filtered out of the bot's chat list by default.
+        chat = await self.db_ops.create_chat(user=user, bot_id=bot_id, peer_type=peer_type)
         return self.build_chat_response(chat)
 
     async def list_chats(
@@ -156,8 +167,18 @@ class ChatService:
         bot_id: str,
         page: int = 1,
         page_size: int = 50,
+        *,
+        include_internal: bool = False,
     ):
-        """List chats with pagination, sorting and search capabilities."""
+        """List chats with pagination, sorting and search capabilities.
+
+        ``include_internal`` defaults to ``False`` so chats created by
+        internal flows (e.g. the evaluation worker, which spawns one
+        ``Chat`` per case via ``ChatPeerType.EVALUATION``) stay out of
+        the bot's user-facing chat list. Run-detail trace links and
+        other internal call sites pass ``include_internal=True`` to see
+        the full set.
+        """
 
         sort_mapping = {
             "created": ChatRow.gmt_created,
@@ -168,13 +189,16 @@ class ChatService:
         async def _execute_paginated_query(session):
             from sqlalchemy import and_, desc, select
 
-            query = select(ChatRow).where(
-                and_(
-                    ChatRow.user == user,
-                    ChatRow.bot_id == bot_id,
-                    ChatRow.status != ChatStatus.DELETED,
-                )
-            )
+            from aperag.domains.conversation.db.models import ChatPeerType
+
+            conds = [
+                ChatRow.user == user,
+                ChatRow.bot_id == bot_id,
+                ChatRow.status != ChatStatus.DELETED,
+            ]
+            if not include_internal:
+                conds.append(ChatRow.peer_type != ChatPeerType.EVALUATION)
+            query = select(ChatRow).where(and_(*conds))
 
             from aperag.utils.pagination import ListParams, PaginationHelper, PaginationParams, SortParams
 
