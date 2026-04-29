@@ -122,6 +122,7 @@ def test_lineage_adapter_exposes_public_graph_properties_only():
         "weight": 1.0,
         "description": "relates to",
         "keywords": "",
+        "relation_type": "related_to",
         "source_chunk_count": 1,
     }
 

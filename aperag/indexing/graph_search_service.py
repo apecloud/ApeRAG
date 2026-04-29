@@ -116,7 +116,7 @@ class GraphSearchService:
         self._score_threshold = score_threshold
 
     # ------------------------------------------------------------------
-    # search_entities — vector recall path
+    # search_entities — lexical fallback + vector recall path
     # ------------------------------------------------------------------
 
     async def search_entities(
@@ -124,10 +124,13 @@ class GraphSearchService:
         query: str,
         top_k: int | None = None,
     ) -> list[EntityWithLineage]:
-        """Vector-recall the top-K entities matching ``query``.
+        """Recall the top-K entities matching ``query``.
 
-        Empty / whitespace-only query returns ``[]`` (no spurious
-        recall — same convention as
+        The graph state split can make vector recall temporarily
+        unavailable while the facts layer is already serving. Keep the
+        name-driven path useful by trying exact and lexical matches
+        before the vector layer. Empty / whitespace-only query returns
+        ``[]`` (no spurious recall — same convention as
         :meth:`LineageGraphStore.query_entities_by_keyword`).
         """
         text = (query or "").strip()
@@ -137,15 +140,32 @@ class GraphSearchService:
         if k <= 0:
             return []
 
+        results: list[EntityWithLineage] = []
+        seen_names: set[str] = set()
+
+        exact = await self._safe_get_exact_entity(text)
+        if exact is not None:
+            results.append(exact)
+            seen_names.add(exact.name)
+
+        lexical_matches = await self._safe_query_entities_by_keyword(text, max(k - len(results), 0))
+        for entity in lexical_matches:
+            if entity.name in seen_names:
+                continue
+            results.append(entity)
+            seen_names.add(entity.name)
+            if len(results) >= k:
+                return results
+
         try:
             embedding = await asyncio.to_thread(self._embedder.embed_query, text)
         except Exception:
             logger.warning("graph_search_service: embed failed for query=%r", text, exc_info=True)
-            return []
+            return results
 
         request = QueryRequest(
             embedding=embedding,
-            top_k=k,
+            top_k=max(k, k - len(results)),
             flt=Eq("indexer", GRAPH_ENTITY_INDEXER),
             score_threshold=self._score_threshold or None,
         )
@@ -157,12 +177,39 @@ class GraphSearchService:
                 text,
                 exc_info=True,
             )
-            return []
+            return results
 
         names = self._entity_names_from_hits(hits)
         if not names:
+            return results
+        vector_entities = await self._batch_get_entities(names)
+        for entity in vector_entities:
+            if entity.name in seen_names:
+                continue
+            results.append(entity)
+            seen_names.add(entity.name)
+            if len(results) >= k:
+                break
+        return results
+
+    async def _safe_get_exact_entity(self, text: str) -> EntityWithLineage | None:
+        try:
+            return await self._store.get_entity(text)
+        except Exception:
+            logger.warning("graph_search_service: exact entity lookup failed for query=%r", text, exc_info=True)
+            return None
+
+    async def _safe_query_entities_by_keyword(self, text: str, top_k: int) -> list[EntityWithLineage]:
+        if top_k <= 0:
             return []
-        return await self._batch_get_entities(names)
+        query = getattr(self._store, "query_entities_by_keyword", None)
+        if query is None:
+            return []
+        try:
+            return await query(query=text, top_k=top_k)
+        except Exception:
+            logger.warning("graph_search_service: lexical entity lookup failed for query=%r", text, exc_info=True)
+            return []
 
     @staticmethod
     def _entity_names_from_hits(hits: Iterable[SearchHit]) -> list[str]:

@@ -4,8 +4,10 @@ import { browserApiClient } from '@/lib/api/typed/browser';
 
 import type {
   GraphEmbeddingMapResponse,
+  GraphEvidenceResponse,
   GraphHybridResponse,
   GraphLabelsResponse,
+  GraphRelationEvidenceRequest,
   GraphSearchEntity,
   KnowledgeGraph,
   MergeSuggestionItem,
@@ -155,6 +157,37 @@ export async function searchGraphEntities(
   return data?.entities ?? [];
 }
 
+export async function getGraphEntityEvidence(
+  collectionId: string,
+  name: string,
+  limit = 5,
+): Promise<GraphEvidenceResponse | null> {
+  const { data } = await browserApiClient.GET(
+    '/api/v2/collections/{collection_id}/graphs/entities/{name}/evidence',
+    {
+      params: {
+        path: { collection_id: collectionId, name },
+        query: { limit },
+      },
+    },
+  );
+  return data ?? null;
+}
+
+export async function getGraphRelationEvidence(
+  collectionId: string,
+  input: GraphRelationEvidenceRequest,
+): Promise<GraphEvidenceResponse | null> {
+  const { data } = await browserApiClient.POST(
+    '/api/v2/collections/{collection_id}/graphs/relations/evidence',
+    {
+      params: { path: { collection_id: collectionId } },
+      body: input,
+    },
+  );
+  return data ?? null;
+}
+
 export async function getMarketplaceKnowledgeGraph(
   collectionId: string,
   options?: {
@@ -229,6 +262,37 @@ export async function searchMarketplaceGraphEntities(
     },
   );
   return data?.entities ?? [];
+}
+
+export async function getMarketplaceGraphEntityEvidence(
+  collectionId: string,
+  name: string,
+  limit = 5,
+): Promise<GraphEvidenceResponse | null> {
+  const { data } = await browserApiClient.GET(
+    '/api/v2/marketplace/collections/{collection_id}/graph/entities/{name}/evidence',
+    {
+      params: {
+        path: { collection_id: collectionId, name },
+        query: { limit },
+      },
+    },
+  );
+  return data ?? null;
+}
+
+export async function getMarketplaceGraphRelationEvidence(
+  collectionId: string,
+  input: GraphRelationEvidenceRequest,
+): Promise<GraphEvidenceResponse | null> {
+  const { data } = await browserApiClient.POST(
+    '/api/v2/marketplace/collections/{collection_id}/graph/relations/evidence',
+    {
+      params: { path: { collection_id: collectionId } },
+      body: input,
+    },
+  );
+  return data ?? null;
 }
 
 export async function getMergeSuggestions(

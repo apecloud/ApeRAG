@@ -4,13 +4,18 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
+  getGraphEntityEvidence,
   getGraphHybrid,
+  getGraphRelationEvidence,
+  getMarketplaceGraphEntityEvidence,
   getMarketplaceGraphHybrid,
+  getMarketplaceGraphRelationEvidence,
   searchMarketplaceGraphEntities,
   searchGraphEntities,
 } from '@/features/knowledge-graph/client-api';
 import type {
   GraphEdge,
+  GraphEvidenceResponse,
   GraphHybridNode,
   GraphSearchEntity,
 } from '@/features/knowledge-graph/types';
@@ -122,6 +127,37 @@ const endpointId = (endpoint: unknown) => {
   return String(endpoint || '');
 };
 
+const relationTypeOf = (edge: GraphEdge | undefined) => {
+  if (!edge) return '';
+  const relationType = edge.properties.relation_type;
+  if (typeof relationType === 'string' && relationType.trim()) {
+    return relationType;
+  }
+  return edge.type && edge.type !== 'DIRECTED' ? edge.type : '';
+};
+
+const loadEdgeEvidence = async ({
+  collectionId,
+  edge,
+  marketplace,
+}: {
+  collectionId: string;
+  edge?: GraphEdge;
+  marketplace: boolean;
+}) => {
+  const relationType = relationTypeOf(edge);
+  if (!edge || !relationType) return null;
+  const input = {
+    source: endpointId(edge.source),
+    target: endpointId(edge.target),
+    relation_type: relationType,
+    limit: 5,
+  };
+  return marketplace
+    ? getMarketplaceGraphRelationEvidence(collectionId, input)
+    : getGraphRelationEvidence(collectionId, input);
+};
+
 // PCA-positioned hybrid node — extends the backend hybrid DTO with the
 // d3-force pinned coordinates. fx/fy are
 // the d3-force "pinned" coordinates, which short-circuits the
@@ -161,6 +197,9 @@ export const CollectionGraphHybrid = ({
   const [clusterLabels, setClusterLabels] = useState<Record<number, string>>(
     {},
   );
+  const [layoutSource, setLayoutSource] = useState<'embedding' | 'facts'>(
+    'embedding',
+  );
 
   // Keep the canvas at 0×0 until the real graph container exists. The
   // graph is conditionally rendered only after useLayoutEffect measures
@@ -179,6 +218,9 @@ export const CollectionGraphHybrid = ({
   const [hoverNode, setHoverNode] = useState<HybridNode>();
   const [activeNode, setActiveNode] = useState<HybridNode>();
   const [activeEdge, setActiveEdge] = useState<GraphEdge>();
+  const [activeEvidence, setActiveEvidence] =
+    useState<GraphEvidenceResponse | null>(null);
+  const [evidencePending, setEvidencePending] = useState(false);
   const [detailCollapsed, setDetailCollapsed] = useState(false);
   const [clusterFilterExpanded, setClusterFilterExpanded] = useState(false);
 
@@ -191,8 +233,8 @@ export const CollectionGraphHybrid = ({
   const [pathPicks, setPathPicks] = useState<string[]>([]);
   const [pathPaths, setPathPaths] = useState<string[][]>([]);
 
-  // Vector search — opens an inline input + result overlay when a query
-  // is typed. Debounced so we don't hammer the search endpoint.
+  // Entity search — backend falls back to exact/fuzzy matching when graph
+  // vectors are not ready. Debounced so we don't hammer the endpoint.
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<GraphSearchEntity[]>([]);
@@ -213,6 +255,7 @@ export const CollectionGraphHybrid = ({
       if (!hybrid || hybrid.nodes.length === 0) {
         setGraphData({ nodes: [], links: [] });
         setClusterLabels({});
+        setLayoutSource('embedding');
         return;
       }
 
@@ -225,6 +268,7 @@ export const CollectionGraphHybrid = ({
       const links: GraphEdge[] = hybrid.edges ?? [];
 
       setGraphData({ nodes, links });
+      setLayoutSource(hybrid.layout_source ?? 'embedding');
 
       const labels: Record<number, string> = {};
       for (const [k, v] of Object.entries(hybrid.cluster_labels)) {
@@ -237,6 +281,7 @@ export const CollectionGraphHybrid = ({
       setGraphData({ nodes: [], links: [] });
       setClusterLabels({});
       setActiveClusters([]);
+      setLayoutSource('embedding');
       setClusterFilterExpanded(false);
       setGraphError(getErrorMessage(error, page_graph('load_failed')));
     }
@@ -245,11 +290,53 @@ export const CollectionGraphHybrid = ({
   const handleCloseDetail = useCallback(() => {
     setActiveNode(undefined);
     setActiveEdge(undefined);
+    setActiveEvidence(null);
+    setEvidencePending(false);
     setHoverNode(undefined);
     setDetailCollapsed(false);
     setHighlightNodes(new Set());
     setHighlightLinks(new Set());
   }, []);
+
+  useEffect(() => {
+    if (typeof params.collectionId !== 'string') return;
+    const cid = params.collectionId;
+    let cancelled = false;
+
+    const loadEvidence = async () => {
+      if (!activeNode && !activeEdge) {
+        setActiveEvidence(null);
+        setEvidencePending(false);
+        return;
+      }
+
+      setActiveEvidence(null);
+      setEvidencePending(true);
+      try {
+        const evidence = activeNode
+          ? marketplace
+            ? await getMarketplaceGraphEntityEvidence(cid, activeNode.id, 5)
+            : await getGraphEntityEvidence(cid, activeNode.id, 5)
+          : await loadEdgeEvidence({
+              collectionId: cid,
+              edge: activeEdge,
+              marketplace,
+            });
+        if (cancelled) return;
+        setActiveEvidence(evidence);
+      } catch {
+        if (cancelled) return;
+        setActiveEvidence(null);
+      } finally {
+        if (!cancelled) setEvidencePending(false);
+      }
+    };
+
+    loadEvidence();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeEdge, activeNode, marketplace, params.collectionId]);
 
   // BFS — every shortest path between two node ids. Tracks `parents`
   // for each node at the discovered distance so the enumeration walks
@@ -752,6 +839,11 @@ export const CollectionGraphHybrid = ({
             fullscreen + search controls on the right. */}
         <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
           <div className="text-muted-foreground flex items-center gap-1.5 text-xs">
+            {layoutSource === 'facts' && (
+              <span className="rounded-md border border-amber-300/70 bg-amber-50 px-1.5 py-0.5 text-amber-700">
+                事实层布局
+              </span>
+            )}
             <span className="bg-muted/60 rounded-md px-1.5 py-0.5">
               {page_graph('hybrid_entity_count', {
                 count: totalNodes.toLocaleString(),
@@ -853,7 +945,7 @@ export const CollectionGraphHybrid = ({
                   autoFocus
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="向量搜索 …"
+                  placeholder="搜索实体 …"
                   className="h-7 w-56 pr-6 pl-7 text-xs"
                 />
                 <button
@@ -1255,6 +1347,8 @@ export const CollectionGraphHybrid = ({
               pathPaths={pathPaths}
               activeNodeEdges={activeNodeEdges}
               activeNodeNeighbors={activeNodeNeighbors}
+              evidence={activeEvidence}
+              evidencePending={evidencePending}
               nodes={graphData?.nodes ?? []}
               linksByPair={linksByPair}
               onClose={handleCloseDetail}
@@ -1292,6 +1386,8 @@ const HybridFloatingDetail = ({
   pathPaths,
   activeNodeEdges,
   activeNodeNeighbors,
+  evidence,
+  evidencePending,
   nodes,
   linksByPair,
   onClose,
@@ -1306,6 +1402,8 @@ const HybridFloatingDetail = ({
   pathPaths: string[][];
   activeNodeEdges: GraphEdge[];
   activeNodeNeighbors: HybridNode[];
+  evidence: GraphEvidenceResponse | null;
+  evidencePending: boolean;
   nodes: HybridNode[];
   linksByPair: Map<string, GraphEdge>;
   onClose: () => void;
@@ -1382,6 +1480,8 @@ const HybridFloatingDetail = ({
             node={activeNode}
             edges={activeNodeEdges}
             neighbors={activeNodeNeighbors}
+            evidence={evidence}
+            evidencePending={evidencePending}
             onSelectNode={onSelectNode}
             onSelectEdge={onSelectEdge}
           />
@@ -1390,6 +1490,8 @@ const HybridFloatingDetail = ({
         {!showPaths && !activeNode && activeEdge && (
           <EdgeContent
             edge={activeEdge}
+            evidence={evidence}
+            evidencePending={evidencePending}
             nodesById={nodesById}
             onSelectNode={onSelectNode}
           />
@@ -1438,16 +1540,72 @@ const InfoTile = ({
   </div>
 );
 
+const EvidenceSection = ({
+  evidence,
+  pending,
+}: {
+  evidence: GraphEvidenceResponse | null;
+  pending: boolean;
+}) => (
+  <section className="space-y-2">
+    <div className="flex items-center justify-between gap-2">
+      <div className="text-muted-foreground text-xs font-medium">证据片段</div>
+      {pending ? (
+        <Loader2 className="text-muted-foreground size-3.5 animate-spin" />
+      ) : (
+        evidence && <Badge variant="secondary">{evidence.chunks.length}</Badge>
+      )}
+    </div>
+    {pending ? (
+      <div className="space-y-2">
+        <Skeleton className="h-12 w-full" />
+        <Skeleton className="h-12 w-full" />
+      </div>
+    ) : evidence && evidence.chunks.length > 0 ? (
+      <div className="space-y-2">
+        {evidence.chunks.map((chunk) => (
+          <div
+            key={`${chunk.document_id}:${chunk.parse_version}:${chunk.chunk_id}`}
+            className="rounded-lg border p-2"
+          >
+            <div className="text-muted-foreground mb-1 flex items-center justify-between gap-2 text-[10px]">
+              <span className="min-w-0 truncate">
+                {chunk.document_name || chunk.document_id}
+              </span>
+              <span className="shrink-0 font-mono">{chunk.chunk_id}</span>
+            </div>
+            <p className="text-foreground/90 line-clamp-5 text-xs leading-relaxed">
+              {chunk.text}
+            </p>
+          </div>
+        ))}
+        {evidence.total_source_chunks > evidence.chunks.length && (
+          <div className="text-muted-foreground text-[10px]">
+            仅显示前 {evidence.chunks.length} 条，共{' '}
+            {evidence.total_source_chunks} 条
+          </div>
+        )}
+      </div>
+    ) : (
+      <p className="text-muted-foreground text-xs italic">暂无证据片段</p>
+    )}
+  </section>
+);
+
 const EntityContent = ({
   node,
   edges,
   neighbors,
+  evidence,
+  evidencePending,
   onSelectNode,
   onSelectEdge,
 }: {
   node: HybridNode;
   edges: GraphEdge[];
   neighbors: HybridNode[];
+  evidence: GraphEvidenceResponse | null;
+  evidencePending: boolean;
   onSelectNode: (nodeId: string) => void;
   onSelectEdge: (edge: GraphEdge) => void;
 }) => {
@@ -1488,6 +1646,8 @@ const EntityContent = ({
         <InfoTile label="关系" value={edges.length} />
         <InfoTile label="证据片段" value={sourceChunkCount} />
       </section>
+
+      <EvidenceSection evidence={evidence} pending={evidencePending} />
 
       {neighbors.length > 0 && (
         <section className="space-y-2">
@@ -1569,10 +1729,14 @@ const EntityContent = ({
 
 const EdgeContent = ({
   edge,
+  evidence,
+  evidencePending,
   nodesById,
   onSelectNode,
 }: {
   edge: GraphEdge;
+  evidence: GraphEvidenceResponse | null;
+  evidencePending: boolean;
   nodesById: Map<string, HybridNode>;
   onSelectNode: (nodeId: string) => void;
 }) => {
@@ -1581,6 +1745,7 @@ const EdgeContent = ({
   const sNode = nodesById.get(sId);
   const tNode = nodesById.get(tId);
   const description = edge.properties.description ?? null;
+  const relationType = relationTypeOf(edge);
   const weight = edge.properties.weight;
 
   return (
@@ -1598,7 +1763,7 @@ const EdgeContent = ({
 
       <section className="grid grid-cols-2 gap-2">
         <InfoTile label="权重" value={weight ?? '-'} />
-        <InfoTile label="关系类型" value={edge.type ?? '-'} />
+        <InfoTile label="关系类型" value={relationType || edge.type || '-'} />
       </section>
 
       <section className="space-y-2">
@@ -1613,6 +1778,8 @@ const EdgeContent = ({
           <p className="text-muted-foreground text-xs italic">无描述</p>
         )}
       </section>
+
+      <EvidenceSection evidence={evidence} pending={evidencePending} />
 
       <section className="space-y-2">
         <div className="text-muted-foreground text-xs font-medium">

@@ -34,8 +34,10 @@ from aperag.domains.identity.service.auth_dependencies import required_user
 from aperag.domains.knowledge_graph.schemas import (
     GraphEmbeddingMapResponse,
     GraphEntitiesSearchResponse,
+    GraphEvidenceResponse,
     GraphHybridResponse,
     GraphLabelsResponse,
+    GraphRelationEvidenceRequest,
     GraphSearchEntity,
     GraphSubgraphExpandRequest,
     GraphSubgraphExpandResponse,
@@ -378,6 +380,61 @@ async def graph_entity_detail_view(
     if result is None:
         raise HTTPException(status_code=404, detail="Entity not found")
     return result
+
+
+@router.get(
+    "/collections/{collection_id}/graphs/entities/{name}/evidence",
+    tags=["graph"],
+    response_model=GraphEvidenceResponse,
+)
+async def graph_entity_evidence_view(
+    request: Request,
+    collection_id: str,
+    name: str,
+    limit: int = 5,
+    user: AuthenticatedUser = Depends(required_user),
+) -> GraphEvidenceResponse:
+    """Return bounded source chunks for a selected graph entity."""
+    if not (1 <= limit <= 20):
+        raise HTTPException(status_code=400, detail="limit must be between 1 and 20")
+    try:
+        return await graph_service.get_entity_evidence(
+            str(user.id),
+            collection_id,
+            entity_name=name,
+            limit=limit,
+        )
+    except CollectionNotFoundException:
+        raise HTTPException(status_code=404, detail="Collection not found")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post(
+    "/collections/{collection_id}/graphs/relations/evidence",
+    tags=["graph"],
+    response_model=GraphEvidenceResponse,
+)
+async def graph_relation_evidence_view(
+    request: Request,
+    collection_id: str,
+    payload: GraphRelationEvidenceRequest = Body(...),
+    user: AuthenticatedUser = Depends(required_user),
+) -> GraphEvidenceResponse:
+    """Return bounded source chunks for a selected graph relation."""
+    try:
+        return await graph_service.get_relation_evidence(
+            str(user.id),
+            collection_id,
+            source=payload.source,
+            target=payload.target,
+            relation_type=payload.relation_type,
+            limit=payload.limit,
+        )
+    except CollectionNotFoundException:
+        raise HTTPException(status_code=404, detail="Collection not found")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @router.get(

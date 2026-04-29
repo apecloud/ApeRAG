@@ -130,12 +130,15 @@ class _FakeStore:
         entities: dict[str, EntityWithLineage] | None = None,
         expansions: dict[tuple[str, ...], tuple[list[EntityWithLineage], list[RelationWithLineage]]] | None = None,
         relations: dict[tuple[str, str, str], RelationWithLineage] | None = None,
+        keyword_matches: list[EntityWithLineage] | None = None,
     ) -> None:
         self._entities = entities or {}
         self._expansions = expansions or {}
         self._relations = relations or {}
+        self._keyword_matches = keyword_matches
         self.get_entity_calls: list[str] = []
         self.get_relation_calls: list[tuple[str, str, str]] = []
+        self.query_entities_by_keyword_calls: list[tuple[str, int]] = []
 
     async def get_entity(self, entity_name: str) -> EntityWithLineage | None:
         self.get_entity_calls.append(entity_name)
@@ -144,6 +147,13 @@ class _FakeStore:
     async def get_relation(self, source: str, target: str, type: str) -> RelationWithLineage | None:
         self.get_relation_calls.append((source, target, type))
         return self._relations.get((source, target, type))
+
+    async def query_entities_by_keyword(self, *, query: str, top_k: int) -> list[EntityWithLineage]:
+        self.query_entities_by_keyword_calls.append((query, top_k))
+        if self._keyword_matches is not None:
+            return self._keyword_matches[:top_k]
+        needle = query.lower()
+        return [entity for name, entity in sorted(self._entities.items()) if needle in name.lower()][:top_k]
 
     async def expand_neighbors_n_hops(
         self,
@@ -198,13 +208,19 @@ def _make_service(
     entities: dict[str, EntityWithLineage] | None = None,
     expansions: dict[tuple[str, ...], tuple[list[EntityWithLineage], list[RelationWithLineage]]] | None = None,
     relations: dict[tuple[str, str, str], RelationWithLineage] | None = None,
+    keyword_matches: list[EntityWithLineage] | None = None,
     hits: list[SearchHit] | None = None,
     embedder: Any | None = None,
     connector: Any | None = None,
     top_k: int = 10,
     score_threshold: float = 0.0,
 ) -> tuple[GraphSearchService, _FakeStore, _FakeVectorConnector | Any, _FakeEmbedder | Any]:
-    store = _FakeStore(entities=entities, expansions=expansions, relations=relations)
+    store = _FakeStore(
+        entities=entities,
+        expansions=expansions,
+        relations=relations,
+        keyword_matches=keyword_matches,
+    )
     connector = connector if connector is not None else _FakeVectorConnector(hits=hits)
     embedder = embedder if embedder is not None else _FakeEmbedder()
     service = GraphSearchService(
@@ -272,7 +288,8 @@ async def test_search_entities_returns_entities_in_hit_order():
     result = await service.search_entities("query")
     assert [e.name for e in result] == ["Beta", "Alpha", "Gamma"]
     # Each name fetched exactly once.
-    assert sorted(store.get_entity_calls) == ["Alpha", "Beta", "Gamma"]
+    assert store.get_entity_calls[0] == "query"
+    assert sorted(store.get_entity_calls[1:]) == ["Alpha", "Beta", "Gamma"]
 
 
 @pytest.mark.asyncio
@@ -287,7 +304,7 @@ async def test_search_entities_dedupes_repeated_payload_names():
     )
     result = await service.search_entities("query")
     assert len(result) == 1
-    assert store.get_entity_calls == ["Alpha"]
+    assert store.get_entity_calls == ["query", "Alpha"]
 
 
 @pytest.mark.asyncio
@@ -321,7 +338,7 @@ async def test_search_entities_swallows_embedder_failure():
     service, store, connector, _ = _make_service(entities={}, embedder=_FailingEmbedder())
     assert await service.search_entities("query") == []
     assert connector.searches == []
-    assert store.get_entity_calls == []
+    assert store.get_entity_calls == ["query"]
 
 
 @pytest.mark.asyncio
@@ -331,7 +348,34 @@ async def test_search_entities_swallows_vector_store_failure():
     # Embedder still called; the failure happened on vector search.
     assert embedder.calls == ["query"]
     assert len(connector.searches) == 1
-    assert store.get_entity_calls == []
+    assert store.get_entity_calls == ["query"]
+
+
+@pytest.mark.asyncio
+async def test_search_entities_exact_match_works_when_embedder_fails():
+    exact = _entity("Alice")
+    service, store, connector, _ = _make_service(
+        entities={"Alice": exact},
+        embedder=_FailingEmbedder(),
+    )
+    result = await service.search_entities("Alice")
+    assert [entity.name for entity in result] == ["Alice"]
+    assert connector.searches == []
+    assert store.get_entity_calls == ["Alice"]
+
+
+@pytest.mark.asyncio
+async def test_search_entities_keyword_fallback_works_when_vector_store_fails():
+    alpha = _entity("Alpha")
+    service, store, connector, _ = _make_service(
+        entities={},
+        keyword_matches=[alpha],
+        connector=_FailingVectorConnector(),
+    )
+    result = await service.search_entities("alp")
+    assert [entity.name for entity in result] == ["Alpha"]
+    assert len(connector.searches) == 1
+    assert store.query_entities_by_keyword_calls == [("alp", 10)]
 
 
 # ---------------------------------------------------------------------
