@@ -282,6 +282,8 @@ async def combined_lifespan(app: FastAPI):
             RedisWorkQueue,
             run_cleanup_loop,
             run_fulltext_worker,
+            run_graph_facts_worker,
+            run_graph_vectors_worker,
             run_graph_worker,
             run_parse_worker,
             run_reconcile_loop,
@@ -398,6 +400,8 @@ async def combined_lifespan(app: FastAPI):
         indexing_runtime_tasks.append(asyncio.create_task(run_vector_worker(**worker_kwargs)))
         indexing_runtime_tasks.append(asyncio.create_task(run_fulltext_worker(**worker_kwargs)))
         indexing_runtime_tasks.append(asyncio.create_task(run_graph_worker(**worker_kwargs)))
+        indexing_runtime_tasks.append(asyncio.create_task(run_graph_facts_worker(**worker_kwargs)))
+        indexing_runtime_tasks.append(asyncio.create_task(run_graph_vectors_worker(**worker_kwargs)))
         indexing_runtime_tasks.append(asyncio.create_task(run_summary_worker(**worker_kwargs)))
         indexing_runtime_tasks.append(asyncio.create_task(run_vision_worker(**worker_kwargs)))
 
