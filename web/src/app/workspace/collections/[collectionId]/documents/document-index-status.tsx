@@ -3,7 +3,6 @@ import type {
   DocumentIndexStatus as DocumentIndexStatusType,
 } from '@/features/document/types';
 import { cn } from '@/lib/utils';
-import _ from 'lodash';
 import { useTranslations } from 'next-intl';
 
 const getIndexStatusBg = (status?: DocumentIndexStatusType | null) => {
@@ -24,7 +23,7 @@ export const DocumentIndexStatus = ({
   accessorKey: string;
 }) => {
   const page_documents = useTranslations('page_documents');
-  const status = _.get(document, accessorKey) as
+  const status = document[accessorKey as keyof Document] as
     | DocumentIndexStatusType
     | null
     | undefined;

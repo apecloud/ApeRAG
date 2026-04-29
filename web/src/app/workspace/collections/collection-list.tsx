@@ -12,7 +12,6 @@ import {
 } from '@/components/ui/card';
 import type { CollectionView } from '@/features/collection/types';
 import { cn } from '@/lib/utils';
-import _ from 'lodash';
 import {
   ArrowUpRight,
   Calendar,
@@ -32,6 +31,15 @@ const statusClasses: Record<string, string> = {
   ACTIVE: 'text-primary',
   INACTIVE: 'text-muted-foreground',
   DELETED: 'text-destructive',
+};
+
+const formatStatusLabel = (status?: string | null) => {
+  const label = (status ?? '')
+    .toLowerCase()
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return label ? label.charAt(0).toUpperCase() + label.slice(1) : '';
 };
 
 export const CollectionList = ({
@@ -138,9 +146,7 @@ export const CollectionList = ({
             <CollectionCard
               key={collection.id}
               collection={collection}
-              statusLabel={_.upperFirst(
-                _.lowerCase(collection.status ?? undefined),
-              )}
+              statusLabel={formatStatusLabel(collection.status)}
             />
           ))}
         </div>
@@ -194,7 +200,7 @@ const CollectionCard = ({
 
   return (
     <Link href={href} target={isSubscribed ? '_blank' : '_self'}>
-      <Card className="group hover:border-border hover:shadow-md min-h-56 cursor-pointer gap-0 overflow-hidden rounded-xl border-border/70 py-0 transition-all hover:-translate-y-0.5">
+      <Card className="group hover:border-border border-border/70 min-h-56 cursor-pointer gap-0 overflow-hidden rounded-xl py-0 transition-all hover:-translate-y-0.5 hover:shadow-md">
         <CardHeader className="gap-4 px-5 pt-5 pb-4">
           <div className="flex items-start gap-3">
             <div className="bg-accent-soft text-accent-ink flex size-10 shrink-0 items-center justify-center rounded-lg">
@@ -237,9 +243,9 @@ const CollectionCard = ({
             <span className="truncate">
               {collection.updated || collection.created ? (
                 <FormatDate
-                  datetime={new Date(
-                    collection.updated || collection.created || '',
-                  )}
+                  datetime={
+                    new Date(collection.updated || collection.created || '')
+                  }
                 />
               ) : (
                 page_collections('no_date')
