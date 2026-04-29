@@ -22,6 +22,7 @@ import type {
 import { ApiClientError } from '@/lib/api/typed/errors';
 import { CANVAS_DARK, COLORS } from '@/lib/design-tokens';
 import { cn } from '@/lib/utils';
+import * as d3 from 'd3';
 import {
   ArrowRight,
   ChevronDown,
@@ -83,6 +84,11 @@ const NODE_MIN = 8;
 const NODE_MAX = 22;
 const CLUSTER_FILTER_COLLAPSED_LIMIT = 24;
 const RESIZE_EPSILON_PX = 2;
+const FACTS_FORCE_WARMUP_TICKS = 120;
+const FACTS_FORCE_COOLDOWN_TICKS = 80;
+const FACTS_FORCE_LINK_DISTANCE = 86;
+const FACTS_FORCE_CHARGE = -95;
+const FACTS_FORCE_COLLISION_PADDING = 8;
 
 const getErrorMessage = (error: unknown, fallback: string) => {
   if (error instanceof ApiClientError || error instanceof Error) {
@@ -158,13 +164,12 @@ const loadEdgeEvidence = async ({
     : getGraphRelationEvidence(collectionId, input);
 };
 
-// PCA-positioned hybrid node — extends the backend hybrid DTO with the
-// d3-force pinned coordinates. fx/fy are
-// the d3-force "pinned" coordinates, which short-circuits the
-// simulation so the visual reflects the real PCA projection.
+// Hybrid nodes use backend x/y as their starting position. Embedding
+// layouts additionally set fx/fy to pin the PCA projection; facts
+// fallback layouts leave them unset so d3 can relax the topology.
 type HybridNode = GraphHybridNode & {
-  fx: number;
-  fy: number;
+  fx?: number;
+  fy?: number;
 };
 
 type GraphCamera = {
@@ -259,16 +264,28 @@ export const CollectionGraphHybrid = ({
         return;
       }
 
-      const nodes: HybridNode[] = hybrid.nodes.map((node) => ({
-        ...node,
-        value: Math.max(NODE_MIN, Math.min(node.value, NODE_MAX)),
-        fx: node.x,
-        fy: node.y,
-      }));
+      const nextLayoutSource = hybrid.layout_source ?? 'embedding';
+      const nodes: HybridNode[] = hybrid.nodes.map((node) => {
+        const value = Math.max(NODE_MIN, Math.min(node.value, NODE_MAX));
+        if (nextLayoutSource === 'embedding') {
+          return {
+            ...node,
+            value,
+            fx: node.x,
+            fy: node.y,
+          };
+        }
+        return {
+          ...node,
+          value,
+          fx: undefined,
+          fy: undefined,
+        };
+      });
       const links: GraphEdge[] = hybrid.edges ?? [];
 
       setGraphData({ nodes, links });
-      setLayoutSource(hybrid.layout_source ?? 'embedding');
+      setLayoutSource(nextLayoutSource);
 
       const labels: Record<number, string> = {};
       for (const [k, v] of Object.entries(hybrid.cluster_labels)) {
@@ -665,19 +682,39 @@ export const CollectionGraphHybrid = ({
     };
   }, [marketplace, params.collectionId, searchOpen, searchTerm]);
 
-  // Disable every d3-force so the simulation can't pull nodes — the
-  // PCA layout already places everything via fx/fy. Without this the
-  // default charge/center forces still tick once after each render,
-  // visibly drifting the cloud whenever React re-renders (every
-  // selection click triggers it).
+  // Embedding layout is already positioned by PCA, so keep it pinned.
+  // Facts fallback has no vector coordinates; let a bounded force
+  // simulation relax topology from the backend's deterministic starting
+  // points instead of preserving the old multi-circle layout.
   useEffect(() => {
     if (!graphRef.current || !graphData?.nodes.length) return;
     const ref = graphRef.current;
-    ref.d3Force?.('center', null);
-    ref.d3Force?.('charge', null);
-    ref.d3Force?.('link', null);
-    ref.d3Force?.('collide', null);
-  }, [graphData]);
+    if (layoutSource === 'embedding') {
+      ref.d3Force?.('center', null);
+      ref.d3Force?.('charge', null);
+      ref.d3Force?.('link', null);
+      ref.d3Force?.('collide', null);
+      return;
+    }
+
+    ref.d3Force?.('center', d3.forceCenter(0, 0));
+    const charge = ref.d3Force?.('charge');
+    charge?.strength?.(FACTS_FORCE_CHARGE);
+    const link = ref.d3Force?.('link');
+    link?.distance?.(FACTS_FORCE_LINK_DISTANCE);
+    link?.strength?.(0.35);
+    ref.d3Force?.(
+      'collide',
+      d3
+        .forceCollide((node) => {
+          const size = Math.min(getNodeSize(node), NODE_MAX);
+          return size + FACTS_FORCE_COLLISION_PADDING;
+        })
+        .strength(0.75)
+        .iterations(2),
+    );
+    ref.d3ReheatSimulation?.();
+  }, [graphData, layoutSource]);
 
   // First-fit only: when data lands AND the canvas has real dimensions,
   // fit once. Subsequent clicks/highlights don't re-fit, so selection
@@ -688,7 +725,9 @@ export const CollectionGraphHybrid = ({
     if (dimensions.width === 0 || dimensions.height === 0) return;
 
     const fit = () => {
-      if (didInitialFitRef.current) return;
+      const factsLayoutStillSettling =
+        layoutSource === 'facts' && !userInteractedRef.current;
+      if (didInitialFitRef.current && !factsLayoutStillSettling) return;
       if (userInteractedRef.current) {
         didInitialFitRef.current = true;
         return;
@@ -725,9 +764,11 @@ export const CollectionGraphHybrid = ({
       didInitialFitRef.current = true;
     };
 
-    const timers = [0, 80, 200, 500].map((delay) => setTimeout(fit, delay));
+    const delays =
+      layoutSource === 'facts' ? [0, 120, 360, 900, 1500] : [0, 80, 200, 500];
+    const timers = delays.map((delay) => setTimeout(fit, delay));
     return () => timers.forEach(clearTimeout);
-  }, [graphData?.nodes, dimensions.width, dimensions.height]);
+  }, [graphData?.nodes, dimensions.width, dimensions.height, layoutSource]);
 
   const isDark = resolvedTheme === 'dark';
   const nodeStroke = isDark ? CANVAS_DARK.nodeStroke : COLORS.bg;
@@ -1047,9 +1088,14 @@ export const CollectionGraphHybrid = ({
               nodeLabel={(nod) => String(nod.id)}
               ref={graphRef}
               backgroundColor="transparent"
-              cooldownTicks={0}
-              warmupTicks={0}
-              d3AlphaDecay={1}
+              cooldownTicks={
+                layoutSource === 'facts' ? FACTS_FORCE_COOLDOWN_TICKS : 0
+              }
+              warmupTicks={
+                layoutSource === 'facts' ? FACTS_FORCE_WARMUP_TICKS : 0
+              }
+              d3AlphaDecay={layoutSource === 'facts' ? 0.035 : 1}
+              d3VelocityDecay={layoutSource === 'facts' ? 0.34 : 1}
               enableNodeDrag={false}
               nodeVisibility={nodeVisibility}
               onZoom={() => {
@@ -1059,6 +1105,15 @@ export const CollectionGraphHybrid = ({
               onZoomEnd={() => {
                 userInteractedRef.current = true;
                 rememberCamera();
+              }}
+              onEngineStop={() => {
+                if (layoutSource !== 'facts') return;
+                for (const node of graphData.nodes) {
+                  if (Number.isFinite(node.x) && Number.isFinite(node.y)) {
+                    node.fx = node.x;
+                    node.fy = node.y;
+                  }
+                }
               }}
               onBackgroundClick={() => {
                 // Click on empty canvas — dismiss any current
