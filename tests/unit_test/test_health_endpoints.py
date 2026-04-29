@@ -6,7 +6,7 @@ from aperag.server import health
 
 def _client() -> TestClient:
     app = FastAPI()
-    app.include_router(health.router)
+    app.include_router(health.router, prefix="/health")
     return TestClient(app)
 
 
@@ -59,4 +59,3 @@ def test_diagnostics_uses_isolated_probe_when_authorized(monkeypatch):
 
     assert response.status_code == 200
     assert response.json()["checks"]["database"] == {"ok": True, "elapsed_ms": 1.0}
-

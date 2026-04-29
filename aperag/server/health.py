@@ -32,23 +32,23 @@ DIAGNOSTICS_DB_CONNECT_TIMEOUT_SECONDS = 1
 router = APIRouter(tags=["health"])
 
 
-@router.get("/health")
+@router.get("/")
 async def health_check() -> dict[str, str]:
     """Legacy compatibility endpoint for existing probes."""
     return {"status": "healthy", "service": "aperag-api"}
 
 
-@router.get("/health/live")
+@router.get("/live")
 async def live_check() -> dict[str, str]:
     return {"status": "live", "service": "aperag-api"}
 
 
-@router.get("/health/ready")
+@router.get("/ready")
 async def ready_check() -> dict[str, str]:
     return {"status": "ready", "service": "aperag-api"}
 
 
-@router.get("/health/diagnostics", include_in_schema=False)
+@router.get("/diagnostics", include_in_schema=False)
 async def diagnostics_check(x_internal_token: str | None = Header(default=None)) -> JSONResponse:
     token = os.getenv(DIAGNOSTICS_TOKEN_ENV)
     if not token:

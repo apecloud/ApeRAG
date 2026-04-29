@@ -496,7 +496,7 @@ register_exception_handlers(app)
 register_custom_llm_track()
 
 
-app.include_router(health_router)
+app.include_router(health_router, prefix="/health")
 app.include_router(auth_router, prefix="/api/v2/auth")
 app.include_router(export_router, prefix="/api/v2")  # KB-domain export router (Phase 8 #47 G1, D7 v2 hard-cut)
 app.include_router(audit_router, prefix="/api/v2")  # Governance: audit-logs (hard-cut to v2 in #50)
