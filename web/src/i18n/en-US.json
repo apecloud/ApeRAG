@@ -1246,7 +1246,7 @@
       "custom_llm_provider_placeholder": "Enter the llm provider"
     },
     "default_model": {
-      "config": "Default models configuration",
+      "config": "Default models",
       "help": "Clearing selection will delete the default model configuration for this scenario"
     }
   },

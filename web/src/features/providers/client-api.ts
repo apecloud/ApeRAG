@@ -5,6 +5,7 @@ import type {
   Model,
   ModelAccount,
   ModelAccountCreateInput,
+  ModelAccountUpdateInput,
   ModelCapability,
   ModelCreateInput,
   ModelProvider,
@@ -12,43 +13,68 @@ import type {
   ModelUseScenario,
 } from './types';
 
-const api = browserApiClient as any;
-
 export async function getModelProviders(): Promise<ModelProvider[]> {
-  const { data } = await api.GET('/api/v2/model-providers');
-  return data?.items ?? [];
+  const { data } = await browserApiClient.GET('/api/v2/model-providers');
+  return (data?.items ?? []) as ModelProvider[];
 }
 
 export async function getModelAccounts(): Promise<ModelAccount[]> {
-  const { data } = await api.GET('/api/v2/model-accounts');
-  return data?.items ?? [];
+  const { data } = await browserApiClient.GET('/api/v2/model-accounts');
+  return (data?.items ?? []) as ModelAccount[];
 }
 
 export async function createModelAccount(input: ModelAccountCreateInput) {
-  const { data } = await api.POST('/api/v2/model-accounts', { body: input });
-  return data;
-}
-
-export async function validateModelAccount(accountId: string) {
-  const { data } = await api.POST('/api/v2/model-accounts/{account_id}/validate', {
-    params: { path: { account_id: accountId } },
+  const { data } = await browserApiClient.POST('/api/v2/model-accounts', {
+    body: input,
   });
   return data;
 }
 
+export async function updateModelAccount(
+  accountId: string,
+  input: ModelAccountUpdateInput,
+) {
+  const { data } = await browserApiClient.PUT(
+    '/api/v2/model-accounts/{account_id}',
+    {
+      params: { path: { account_id: accountId } },
+      body: input,
+    },
+  );
+  return data;
+}
+
+export async function deleteModelAccount(accountId: string) {
+  await browserApiClient.DELETE('/api/v2/model-accounts/{account_id}', {
+    params: { path: { account_id: accountId } },
+  });
+}
+
+export async function validateModelAccount(accountId: string) {
+  const { data } = await browserApiClient.POST(
+    '/api/v2/model-accounts/{account_id}/validate',
+    {
+      params: { path: { account_id: accountId } },
+    },
+  );
+  return data;
+}
+
 export async function getModels(): Promise<Model[]> {
-  const { data } = await api.GET('/api/v2/models');
-  return data?.items ?? [];
+  const { data } = await browserApiClient.GET('/api/v2/models');
+  return (data?.items ?? []) as Model[];
 }
 
 export async function createModel(input: ModelCreateInput) {
-  const { data } = await api.POST('/api/v2/models', { body: input });
+  const { data } = await browserApiClient.POST('/api/v2/models', {
+    body: input as never,
+  });
   return data;
 }
 
 export async function getModelUses(): Promise<ModelUse[]> {
-  const { data } = await api.GET('/api/v2/model-uses');
-  return data?.items ?? [];
+  const { data } = await browserApiClient.GET('/api/v2/model-uses');
+  return (data?.items ?? []) as ModelUse[];
 }
 
 export async function updateModelUse(
@@ -60,7 +86,7 @@ export async function updateModelUse(
     enabled?: boolean;
   },
 ) {
-  const { data } = await api.PUT('/api/v2/model-uses/{scenario}', {
+  const { data } = await browserApiClient.PUT('/api/v2/model-uses/{scenario}', {
     params: { path: { scenario } },
     body: {
       strategy: 'single',
@@ -68,7 +94,7 @@ export async function updateModelUse(
       primary_model_id: input.primary_model_id,
       fallback_model_ids: input.fallback_model_ids ?? [],
       capability: input.capability,
-    },
+    } as never,
   });
   return data;
 }
