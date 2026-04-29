@@ -5119,7 +5119,7 @@ export interface components {
          * ModelCapability
          * @enum {string}
          */
-        ModelCapability: "chat" | "completion" | "embedding" | "rerank";
+        ModelCapability: "chat" | "completion" | "embedding";
         /** ModelCreate */
         ModelCreate: {
             /** Account Id */

@@ -64,13 +64,13 @@ def test_model_account_and_model_create_are_user_level_concepts():
     )
     model = ModelCreate(
         account_id="acct_1",
-        provider_model_id="gte-rerank-v2",
-        display_name="通义重排",
-        capability=ModelCapability.RERANK,
+        provider_model_id="text-embedding-v3",
+        display_name="通义嵌入",
+        capability=ModelCapability.EMBEDDING,
     )
 
     assert account.provider_type == "dashscope"
-    assert model.capability == ModelCapability.RERANK
+    assert model.capability == ModelCapability.EMBEDDING
     assert "dialect" not in account.model_dump()
     assert "custom_llm_provider" not in model.model_dump()
 
@@ -154,7 +154,6 @@ def test_allowed_scenarios_default_by_capability():
     assert default_allowed_scenarios(ModelCapability.EMBEDDING) == [
         ModelUseScenario.COLLECTION_EMBEDDING,
     ]
-    assert default_allowed_scenarios(ModelCapability.RERANK) == []
 
 
 def test_allowed_scenarios_missing_key_uses_default_but_empty_list_is_explicit():

@@ -15,7 +15,6 @@ class ModelCapability(str, Enum):
     CHAT = "chat"
     COMPLETION = "completion"
     EMBEDDING = "embedding"
-    RERANK = "rerank"
 
 
 class ModelUseScenario(str, Enum):

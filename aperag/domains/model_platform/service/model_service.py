@@ -36,7 +36,6 @@ CAPABILITY_SCENARIOS: dict[ModelCapability, tuple[ModelUseScenario, ...]] = {
         ModelUseScenario.BACKGROUND_TASK,
     ),
     ModelCapability.EMBEDDING: (ModelUseScenario.COLLECTION_EMBEDDING,),
-    ModelCapability.RERANK: (),
 }
 
 SCENARIO_CAPABILITY: dict[ModelUseScenario, ModelCapability] = {
@@ -128,14 +127,14 @@ BUILTIN_PROVIDERS = [
     ModelProvider(
         provider_type="dashscope",
         display_name="阿里百炼",
-        supported_capabilities=[ModelCapability.CHAT, ModelCapability.EMBEDDING, ModelCapability.RERANK],
+        supported_capabilities=[ModelCapability.CHAT, ModelCapability.EMBEDDING],
         default_base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
         sort_order=20,
     ),
     ModelProvider(
         provider_type="jina",
         display_name="Jina AI",
-        supported_capabilities=[ModelCapability.EMBEDDING, ModelCapability.RERANK],
+        supported_capabilities=[ModelCapability.EMBEDDING],
         default_base_url="https://api.jina.ai/v1",
         sort_order=30,
     ),
