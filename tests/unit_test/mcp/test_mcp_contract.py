@@ -36,7 +36,7 @@ from pathlib import Path
 
 from aperag.mcp import server as mcp_server
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 MCP_SERVER_PATH = REPO_ROOT / "aperag" / "mcp" / "server.py"
 
 
