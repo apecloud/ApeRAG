@@ -12,9 +12,6 @@ class ModelRunner(Protocol):
     async def embed(self, invocation: ResolvedModelInvocation, inputs: list[str]):
         raise NotImplementedError()
 
-    async def rerank(self, invocation: ResolvedModelInvocation, query: str, documents: list[str], **kwargs):
-        raise NotImplementedError()
-
 
 class ModelRunnerRegistry:
     def __init__(self):

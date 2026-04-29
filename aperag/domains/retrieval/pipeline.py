@@ -48,9 +48,7 @@ from aperag.exceptions import ValidationException
 from aperag.llm.embed.base_embedding import get_collection_embedding_service_sync
 from aperag.llm.llm_error_types import (
     EmbeddingError,
-    InvalidConfigurationError,
     ProviderNotFoundError,
-    RerankError,
 )
 from aperag.observability import start_span
 from aperag.platform.query.query import DocumentWithScore
@@ -262,15 +260,10 @@ class SearchPipelineService:
 
             recall_results = await asyncio.gather(*recall_tasks)
             merged_docs = self._merge_results(recall_results)
-            reranked_docs = await self._rerank(
-                query=query,
-                docs=merged_docs,
-                user_id=search_user_id,
-                use_rerank=bool(data.rerank),
-            )
+            ranked_docs = self._apply_ranking_strategy(merged_docs)
 
             items = []
-            for idx, doc in enumerate(reranked_docs):
+            for idx, doc in enumerate(ranked_docs):
                 metadata = doc.metadata or {}
                 public_metadata = SearchResultMetadata.from_raw(metadata)
                 source = public_metadata.source if public_metadata and public_metadata.source else ""
@@ -285,7 +278,7 @@ class SearchPipelineService:
                     )
                 )
 
-            return items, "rerank"
+            return items, "ranked"
 
     async def _vector_search(
         self,
@@ -614,60 +607,16 @@ class SearchPipelineService:
             unique_docs.append(doc)
         return unique_docs
 
-    async def _rerank(
-        self,
-        query: str,
-        docs: List[DocumentWithScore],
-        user_id: str,
-        use_rerank: bool,
-    ) -> List[DocumentWithScore]:
-        if not docs:
-            return []
+    def _apply_ranking_strategy(self, docs: List[DocumentWithScore]) -> List[DocumentWithScore]:
+        """Final ranking applied to merged multi-recall candidates.
 
-        if not use_rerank:
-            return self._apply_fallback_strategy(docs)
-
-        model_id = await self._resolve_default_rerank_model_id(user_id)
-        if not model_id:
-            return self._apply_fallback_strategy(docs)
-
-        try:
-            from aperag.llm.runtime.invocation_service import model_invocation_service
-
-            ranked = await model_invocation_service.rerank(model_id, user_id, query, [doc.text for doc in docs])
-            reranked_docs = []
-            for item in ranked:
-                idx = item["index"]
-                if 0 <= idx < len(docs):
-                    reranked_docs.append(
-                        DocumentWithScore(
-                            text=docs[idx].text,
-                            score=float(item.get("relevance_score", item.get("score", 0.0))),
-                            metadata=docs[idx].metadata,
-                        )
-                    )
-            return reranked_docs
-        except (InvalidConfigurationError, ProviderNotFoundError, RerankError) as e:
-            logger.warning(f"Rerank configuration/runtime issue, using fallback strategy: {str(e)}")
-            return self._apply_fallback_strategy(docs)
-        except Exception as e:
-            logger.error(f"Unexpected rerank failure, using fallback strategy: {str(e)}")
-            return self._apply_fallback_strategy(docs)
-
-    async def _resolve_default_rerank_model_id(self, user_id: str) -> Optional[str]:
-        """Resolve the user's configured retrieval rerank model id."""
-        try:
-            model_uses = await async_db_ops.query_model_uses(user_id)
-        except Exception:
-            logger.warning("retrieval: default rerank lookup failed; using fallback strategy", exc_info=True)
-            return None
-
-        for item in model_uses or []:
-            if item.scenario == "retrieval_rerank" and item.primary_model_id:
-                return item.primary_model_id
-        return None
-
-    def _apply_fallback_strategy(self, docs: List[DocumentWithScore]) -> List[DocumentWithScore]:
+        Graph-search hits keep their orchestrator order (entity / relation
+        path provenance is the ranking signal); the rest sort by recall
+        score descending. This is the single ranking stage now that the
+        rerank model layer is gone — search interfaces are
+        per-index, so each recall already carries its own ranking
+        semantics and no aggregator-layer rerank is needed.
+        """
         graph_results = []
         other_results = []
 

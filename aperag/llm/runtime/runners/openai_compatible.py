@@ -17,6 +17,3 @@ class OpenAICompatibleRunner:
     async def embed(self, invocation: ResolvedModelInvocation, inputs: list[str]):
         client = AsyncOpenAI(api_key=invocation.api_key, base_url=invocation.base_url)
         return await client.embeddings.create(model=invocation.provider_model_id, input=inputs)
-
-    async def rerank(self, invocation: ResolvedModelInvocation, query: str, documents: list[str], **kwargs):
-        raise NotImplementedError("OpenAI-compatible runner does not define a standard rerank endpoint")

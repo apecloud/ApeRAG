@@ -18,7 +18,6 @@ ItemT = TypeVar("ItemT")
 NAMESPACE_LLM_COMPLETION = "llm_completion"
 NAMESPACE_EMBEDDING = "embedding"
 NAMESPACE_EMBEDDING_DIMENSION = "embedding_dimension"
-NAMESPACE_RERANK = "rerank"
 NAMESPACE_WEB_SEARCH = "web_search"
 NAMESPACE_WEB_READ = "web_read"
 NAMESPACE_PARSER_PREFLIGHT = "parser_preflight"

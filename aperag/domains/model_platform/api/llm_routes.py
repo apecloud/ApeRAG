@@ -10,10 +10,6 @@ from aperag.domains.model_platform.schemas import (
     EmbeddingResponse,
     EmbeddingUsage,
     ModelCapability,
-    RerankDocument,
-    RerankRequest,
-    RerankResponse,
-    RerankUsage,
 )
 from aperag.domains.model_platform.service.model_service import model_platform_service
 from aperag.llm.runtime.invocation_service import model_invocation_service
@@ -95,56 +91,4 @@ async def create_embeddings(
         raise HTTPException(status_code=404, detail=str(exc))
     except Exception as exc:
         logger.exception("Embedding generation failed")
-        raise HTTPException(status_code=500, detail=str(exc))
-
-
-@router.post("/rerank", response_model=RerankResponse, tags=["llm"])
-@audit(resource_type="llm", api_name="CreateRerank")
-async def create_rerank(
-    http_request: Request, request: RerankRequest, user: AuthenticatedUser = Depends(required_user)
-):
-    try:
-        model_id = await _resolve_model_id(
-            user_id=str(user.id),
-            body_model_id=request.model_id,
-            legacy_model=request.model,
-            legacy_provider=request.model_service_provider,
-            legacy_custom_llm_provider=request.custom_llm_provider,
-            capability=ModelCapability.RERANK,
-        )
-        documents = [doc if isinstance(doc, str) else doc.text for doc in request.documents]
-        ranked = await model_invocation_service.rerank(
-            model_id,
-            str(user.id),
-            request.query,
-            documents,
-            top_n=request.top_k or len(documents),
-        )
-        ranked = ranked[: request.top_k or len(ranked)]
-        data = []
-        for item in ranked:
-            idx = item["index"]
-            document = None
-            if request.return_documents:
-                document = {"text": documents[idx], "metadata": {}}
-            data.append(
-                RerankDocument(
-                    index=idx,
-                    relevance_score=float(item.get("relevance_score", item.get("score", 0.0))),
-                    document=document,
-                )
-            )
-        total_tokens = len(request.query.split()) + sum(len(doc.split()) for doc in documents)
-        return RerankResponse(
-            object="list",
-            data=data,
-            model=model_id,
-            usage=RerankUsage(total_tokens=total_tokens),
-        )
-    except HTTPException:
-        raise
-    except ModelUnavailableError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
-    except Exception as exc:
-        logger.exception("Rerank failed")
         raise HTTPException(status_code=500, detail=str(exc))

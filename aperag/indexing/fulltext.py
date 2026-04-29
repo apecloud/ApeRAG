@@ -26,7 +26,7 @@ against an Elasticsearch-shaped backend:
 Vector + Fulltext share the parser's ``chunks.jsonl`` artifact (§C.6
 conscious trade-off). Hybrid dedup at the search layer keys on
 ``chunk_id`` so a chunk that hits both modalities is not double-
-counted (existing rerank dedup logic — see test).
+counted (see test).
 """
 
 from __future__ import annotations

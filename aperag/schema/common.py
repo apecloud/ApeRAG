@@ -77,7 +77,7 @@ class ModelSpec(BaseModel):
         examples=[4096],
     )
     timeout: Optional[conint(ge=1)] = Field(None, description="Maximum execution time in seconds for the API request")
-    top_n: Optional[conint(ge=1)] = Field(None, description="Number of top results to return when reranking documents")
+    top_n: Optional[conint(ge=1)] = Field(None, description="Number of top results to return")
     tags: Optional[list[str]] = Field(
         [],
         description="Tags for model categorization",

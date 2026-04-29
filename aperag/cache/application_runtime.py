@@ -10,7 +10,6 @@ from aperag.cache.application import (
     NAMESPACE_LLM_COMPLETION,
     NAMESPACE_PARSER_PREFLIGHT,
     NAMESPACE_REMOTE_PARSER,
-    NAMESPACE_RERANK,
     NAMESPACE_WEB_READ,
     NAMESPACE_WEB_SEARCH,
     ApplicationCache,
@@ -157,8 +156,6 @@ def _ttl_for_namespace(namespace: str) -> int:
         return settings.cache_llm_ttl_seconds or settings.cache_ttl
     if namespace in (NAMESPACE_EMBEDDING, NAMESPACE_EMBEDDING_DIMENSION):
         return settings.cache_embedding_ttl_seconds or settings.cache_ttl
-    if namespace == NAMESPACE_RERANK:
-        return settings.cache_rerank_ttl_seconds or settings.cache_ttl
     if namespace == NAMESPACE_WEB_SEARCH:
         return settings.cache_web_search_ttl_seconds
     if namespace == NAMESPACE_WEB_READ:

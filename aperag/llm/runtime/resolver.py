@@ -12,10 +12,6 @@ def _get_value(record: Any, key: str, default=None):
 
 
 def infer_runner_type(*, provider_type: str, capability: str) -> str:
-    if provider_type == "dashscope" and capability == ModelCapability.RERANK.value:
-        return "dashscope_rerank"
-    if provider_type == "jina" and capability == ModelCapability.RERANK.value:
-        return "jina_rerank"
     if provider_type == "pydantic_ai":
         return "pydantic_ai"
     return "openai_compatible"

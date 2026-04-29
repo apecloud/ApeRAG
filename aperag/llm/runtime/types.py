@@ -10,7 +10,6 @@ class ModelCapability(str, Enum):
     CHAT = "chat"
     COMPLETION = "completion"
     EMBEDDING = "embedding"
-    RERANK = "rerank"
 
 
 class ResolvedModelInvocation(BaseModel):

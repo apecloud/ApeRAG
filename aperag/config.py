@@ -268,12 +268,10 @@ class Config(BaseSettings):
     cache_redis_url: Optional[str] = Field(None, alias="CACHE_REDIS_URL")
     cache_llm_ttl_seconds: Optional[int] = Field(None, alias="CACHE_LLM_TTL_SECONDS")
     cache_embedding_ttl_seconds: Optional[int] = Field(None, alias="CACHE_EMBEDDING_TTL_SECONDS")
-    cache_rerank_ttl_seconds: Optional[int] = Field(None, alias="CACHE_RERANK_TTL_SECONDS")
 
     @field_validator(
         "cache_llm_ttl_seconds",
         "cache_embedding_ttl_seconds",
-        "cache_rerank_ttl_seconds",
         mode="before",
     )
     @classmethod

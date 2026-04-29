@@ -24,10 +24,5 @@ class ModelInvocationService:
         runner = runner_registry.get(invocation.runner_type)
         return await runner.embed(invocation, inputs)
 
-    async def rerank(self, model_id: str, user_id: str, query: str, documents: list[str], **kwargs):
-        invocation = await self.resolve(model_id, user_id)
-        runner = runner_registry.get(invocation.runner_type)
-        return await runner.rerank(invocation, query, documents, **kwargs)
-
 
 model_invocation_service = ModelInvocationService()
