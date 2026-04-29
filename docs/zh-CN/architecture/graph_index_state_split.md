@@ -83,44 +83,69 @@ class Modality(str, Enum):
 
 ### 4.3 同步主流程改造 (task #5)
 
-`GraphModalityWorker.sync()` 拆成两个独立 worker:
+`GraphModalityWorker.sync()` 拆成两个独立 worker, 都消费**同一份** `kg.jsonl` derived 工件 (`graph.derive` 在抽取阶段产出, 不在两个 worker 范围内).
 
-#### `GraphFactsWorker.sync()` (新, 替换原 `GraphModalityWorker` 的 Phase 1+2)
+#### `GraphFactsWorker.sync()` (新, 处理 Phase 1+2 的 lineage 写入)
 
+- 输入: `kg.jsonl` (从 `graph.derive` 派生工件读取)
 - Phase 1: 清理旧 lineage
 - Phase 2: 写新 lineage (实体, 关系, chunk 关联)
 - 完成 → `DocumentIndex(modality=graph_facts).status = ACTIVE`
-- **不调** compactor, **不写** 描述, **不调** embedder, **不写** 向量
-- merge_detector 仍然在 Phase 2 末尾跑 (它写 `GraphCurationSuggestion` 表, 跟描述/向量无关)
+- **不调** compactor, **不写** 描述, **不调** embedder, **不写** 向量, **不调** merge_detector
 
-#### `GraphVectorsWorker.sync()` (新, 处理原 Phase 3 的向量部分)
+#### `GraphVectorsWorker.sync()` (新, 处理原 Phase 3 的向量 + merge_detector)
 
-- 输入: `kg.jsonl` derived artifact (跟 `graph_facts` 共用同一份 derived 数据)
-- 调 embedder 给每个实体生成向量, 输入文本 = 实体名 + 实体类型
+- 输入: `kg.jsonl` (从同一份 `graph.derive` 派生工件读取, 跟 `GraphFactsWorker` 共用)
+- 调 embedder 给每个实体生成向量, 输入文本 = 实体名 + 实体类型 + 如果有 alias 列表 concat 进去 (比如「张三 / Zhang San / 张医生 / Person」). alias 字段没有就跳过这层, 不强求 schema 改.
 - 调 embedder 给每个关系生成向量, 输入文本 = 起点实体 + 关系类型 + 终点实体
 - 写向量库 (Qdrant 等)
+- merge_detector 移到这里跑 (best-effort, 失败仅 log warning, 不阻塞 `GRAPH_VECTORS` ACTIVE). 它依赖 embedder 和向量库做相似度查询, 必须在向量层之后才能跑, 不能留在事实层主链路.
 - 完成 → `DocumentIndex(modality=graph_vectors).status = ACTIVE`
 - **不调** compactor, **不生成** 描述向量
 
 #### compactor 不再在主流程调用
 
-`_maybe_compact` / `_maybe_compact_relation` 在 `GraphFactsWorker.sync()` 不调用. 描述列写入跳过 (新数据 description 字段为 NULL).
+`_maybe_compact` / `_maybe_compact_relation` 在两个 worker 都**不调用**. 描述列写入跳过 (新数据 description 字段为 NULL).
 
 老 description 数据保留, schema 不改.
 
-`GraphIndexCompactor` 类本身不删 (老数据如果需要重新压缩, 可以独立调用), 但不放在主同步路径上.
+`GraphIndexCompactor` 类本身**保留并标 deprecated**, 不删. 兼容期内不调用. 保留它的两个用途:
+
+- 老 description 数据如果运维想批量重新压缩 (极小概率), 可以独立调用
+- 后续兼容期清理任务 (清理老 `graph` 行 + 老 description) 一起删除
 
 ### 4.4 调度改造
 
-orchestrator 在 `graph_index` 任务派发时, 同时插入 `GRAPH_FACTS` 和 `GRAPH_VECTORS` 两行 PENDING `DocumentIndex`:
+#### 派发顺序: 事实层先, 向量层后 (per Planetegg msg=b0ea8862 + huangzhangshu msg=6fee2fc4)
 
-- `GRAPH_FACTS` 派给 `GraphFactsWorker`
-- `GRAPH_VECTORS` 派给 `GraphVectorsWorker`
-- 两个 worker 互不依赖, 可以并行跑
+两个 worker 都消费同一份 `kg.jsonl`, 但状态机上**不并行**, 走保守序列:
 
-`GRAPH_VECTORS` 失败不影响 `GRAPH_FACTS` 的 ACTIVE 状态. 反过来 `GRAPH_FACTS` 失败时 `GRAPH_VECTORS` 也可以独立跑 (前提是 `kg.jsonl` 已生成).
+1. orchestrator 在 `graph_index` 任务派发时, 只插入 `GRAPH_FACTS` 一行 PENDING.
+2. `GraphFactsWorker` 消费 `kg.jsonl` 写事实层.
+3. 事实层 ACTIVE 后, orchestrator (或 reconciler) **enqueue** 同一 `(document_id, parse_version)` 的 `GRAPH_VECTORS` PENDING 行.
+4. `GraphVectorsWorker` 消费同一份 `kg.jsonl` 写向量层 + merge_detector.
+5. 事实层失败 → **不 enqueue** `GraphVectorsWorker`, 向量层不进 PENDING. 避免「向量库写了半成品 + 事实层失败」的脏状态.
 
-实际依赖关系: 两者都依赖 `parser` 阶段产出的 `chunks.jsonl` 和 `kg.jsonl` 派生工件. `kg.jsonl` 是 `graph.derive` 产出的, 抽取阶段不在本次改动范围.
+#### 为什么保守序列, 不真正并行
+
+理论上两个 worker 只读同一份 `kg.jsonl`, 可以并行启动. 但从一致性和恢复角度, 保守序列优势:
+
+- **失败回滚清晰**: 事实层失败 = 整个 graph 没写, 没有半成品. 不需要清理向量库孤儿数据.
+- **重启恢复简单**: 如果 reconciler 看到「事实层 ACTIVE + 向量层 PENDING/FAILED」的行, 单独重试向量层即可, 不影响事实层.
+- **删除 collection 时同 cleanup pipeline**: 两个 modality 一起 cleanup, 不会留向量层孤儿.
+
+性能损失小: 向量层主要瓶颈是 embedding LLM 调用, 跟事实层 lineage 写入并行能省的时间不多.
+
+#### 双 PENDING 行原子事务 (废弃, 改成单行 + 后续 enqueue)
+
+之前版本提过「两行 PENDING 同一事务原子插入」, 这版调度改成串行后**不需要**: orchestrator 只插一行 (`GRAPH_FACTS`), 事实层 ACTIVE 后 reconciler enqueue 第二行. 没有同时插两行的原子性顾虑.
+
+#### 失败 / 重试语义
+
+- 事实层 PENDING / RUNNING / FAILED: reconciler 走现有的 retry pattern (max attempts + backoff).
+- 事实层 ACTIVE 后 enqueue 向量层 PENDING.
+- 向量层 PENDING / RUNNING / FAILED: reconciler 走独立的 retry stage (这是 task #7 的范围, 不重新写 worker, 只在 reconciler 周期检测「事实层 ACTIVE + 向量层 FAILED」的行 → re-enqueue 向量重试).
+- 向量层 ACTIVE 后, 整个图谱完整可用 (但事实层 ACTIVE 时图谱已经能用, 仅向量召回不可用).
 
 ### 4.5 文档级 graph 状态判定
 
@@ -148,7 +173,32 @@ ACTIVE if EXISTS (
 )
 ```
 
-文档详情接口或 UI 如果要展示「图谱完整可用 = 事实层 + 向量都 ACTIVE」, 上层做 AND 拼接.
+`is_serving` 字段在两个新模态上**独立判断**: 当 `graph_facts` ACTIVE 但 `graph_vectors` FAILED 时, 前者 `is_serving=TRUE`, 后者 `is_serving=FALSE`. 文档详情查询时两个字段独立解读, 不能合并成一个 `is_serving` 标志.
+
+**文档整体完成状态 (是否所有索引都 ACTIVE) 不聚合 `graph_vectors`**: 即使 `graph_vectors` 失败, 文档整体也仍然是可完成的状态 (因为图谱可用只看 `graph_facts`). `graph_vectors` 是补充功能, 不应该让文档卡在「向量没生成完」状态. 这是跟向量库 / 全文索引的关键区别 — 那两个是文档级必备能力, 失败要算文档失败; `graph_vectors` 是「图谱检索的额外能力」, 失败不算文档失败.
+
+文档详情接口或 UI 如果要展示「图谱完整可用 = 事实层 + 向量都 ACTIVE」, 上层做 AND 拼接, 仅作展示用途, 不影响文档整体完成判定.
+
+### 4.6 兼容清单 (按读写路径)
+
+下面把每个涉及 graph 状态的读写路径都列出来, 明确老 `graph` 行 / 新 `graph_facts` / 新 `graph_vectors` 各自怎么处理. task #3 调用路径检查会按这个清单一一确认.
+
+| 路径 | 老 `graph` (兼容期保留) | 新 `graph_facts` | 新 `graph_vectors` |
+|---|---|---|---|
+| 文档详情接口 (`document.graph_index_status`) | 读时映射: ACTIVE → ACTIVE | 直接读 | 不参与 (展示在独立字段 `graph_vectors_status`) |
+| 失败索引查询 (`/rebuild_failed_indexes`) | 读时同时认 `graph` 和 `graph_facts` 的 FAILED | 直接查 | 独立查 (失败重建只补向量层) |
+| 重建接口 (`POST /rebuild_index`) | 老 `graph` 行如果 FAILED, 重建变成 `graph_facts` + `graph_vectors` 两行 | 重建只走 `graph_facts` | 重建只走 `graph_vectors` |
+| 删除清理 (`DELETE /collection`) | cleanup pipeline 删除老 `graph` 行 + 向量库点 + lineage 表行 | cleanup 删除 `graph_facts` 行 + lineage 表行 | cleanup 删除 `graph_vectors` 行 + 向量库点 |
+| 文档级整体完成判定 | `graph` ACTIVE 计入完成 | `graph_facts` ACTIVE 计入完成 | **不参与** 整体完成判定 |
+| 图谱检索接口 (`graph_search`) 读 lineage | 读 `aperag_lineage_entity` / `aperag_lineage_relation` (跟 modality 无关) | 同上 | 同上 |
+| 图谱检索接口读向量库 | 老 `graph` 行的向量已写, 可读 | 没向量, 跳过 | 有向量, 用于第三层降级 |
+| 图谱可视化入口 | task #8 (郭子昂 自荐) 单独评估 | 同 task #8 | 同 task #8 |
+
+注意:
+
+- `graph_index_status` 这个文档级字段需要单独区分: 是否聚合 `graph_vectors`? 建议只看 `graph_facts` (跟主流程一致). 如果 UI 想展示向量层状态, 加独立字段 `graph_vectors_status`.
+- `rebuild_failed_indexes` 的语义需要清晰: 老 `graph` FAILED 时重建是补两行新 modality, 还是仍然写一行 `graph`? 建议写两行新 modality (新数据格式), 老 `graph` 行废弃 (删掉或标 superseded).
+- 删除 collection 时双 modality 必须**同 pipeline** 一起删, 避免向量层孤儿数据.
 
 ## 5. 名字驱动检索的三层降级
 
@@ -177,14 +227,19 @@ ACTIVE if EXISTS (
 1. `aperag/indexing/models.py:Modality` 加 `GRAPH_FACTS` / `GRAPH_VECTORS`.
 2. `aperag/indexing/graph.py`:
    - 拆 `GraphModalityWorker` 成 `GraphFactsWorker` (modality = `graph_facts`) 和 `GraphVectorsWorker` (modality = `graph_vectors`).
-   - `GraphFactsWorker.sync()` 只跑 Phase 1+2 + merge_detector.
-   - `GraphVectorsWorker.sync()` 跑 embedder + 向量 upsert. 输入文本按本设计 §4.3 规则.
-   - 老 `GraphModalityWorker` 保留 (兼容跑完未迁移的老任务) 或直接删除 (新调度只走两个新 worker). 这次倾向保留, 标 deprecated, Phase 6 清理一起删.
-3. `aperag/indexing/orchestrator.py` 派发逻辑: `graph` 模态作业改成同时派 `GRAPH_FACTS` + `GRAPH_VECTORS` 两行.
+   - `GraphFactsWorker.sync()` 只跑 Phase 1+2 lineage 写入. **不调** merge_detector.
+   - `GraphVectorsWorker.sync()` 跑 embedder + 向量 upsert + merge_detector (best-effort). 输入文本按本设计 §4.3 规则.
+   - 老 `GraphModalityWorker` 保留, 标 deprecated, Phase 6 清理一起删.
+3. `aperag/indexing/orchestrator.py` 派发逻辑:
+   - `graph` 模态作业改成只派 `GRAPH_FACTS` 一行 PENDING.
+   - 事实层 ACTIVE 后, reconciler 周期 enqueue 同 `(document_id, parse_version)` 的 `GRAPH_VECTORS` PENDING (这部分代码在 task #7 reconciler retry stage 实施, task #5 仅落地 worker 实现).
 4. 文档级 graph 状态判定改成本设计 §4.5 SQL.
-5. `_maybe_compact` / `_maybe_compact_relation` 不再调用. compactor 类本身保留, 但 `GraphFactsWorker` / `GraphVectorsWorker` 都不持有它.
+5. `_maybe_compact` / `_maybe_compact_relation` 不再调用. compactor 类保留并标 deprecated, 但两个新 worker 都不持有它.
 6. 描述字段写 NULL: `LineageGraphStore.upsert_entity_with_lineage` / `upsert_relation_with_lineage` 调用方传 `description_parts=[]`.
-7. 单元测试: 钉两个 worker 各自 ACTIVE 不依赖另一个; `kg.jsonl` 缺失时降级.
+7. 兼容期处理 §4.6 兼容清单的读写路径:
+   - 文档详情字段 `graph_index_status` 加映射逻辑 (老 `graph` ACTIVE → ACTIVE, 新 `graph_facts` ACTIVE → ACTIVE)
+   - `rebuild_failed_indexes` / 删除清理 / 失败索引查询都按 §4.6 处理双 modality
+8. 单元测试: 钉两个 worker 各自 ACTIVE 不依赖对方; `kg.jsonl` 缺失时降级; 老 `graph` ACTIVE 行的读路径兼容.
 
 ### task #6 (事实层并发改造)
 
@@ -192,6 +247,17 @@ ACTIVE if EXISTS (
 2. `LineageGraphStore` 抽象层加 bulk 接口. Postgres 实现走 `INSERT ... ON CONFLICT (collection_id, name) DO UPDATE` 批量执行 (~100 条一批).
 3. 受限并发: `entity_lock` 仍按实体名串行, 但跨实体可以并发. 使用 `asyncio.Semaphore` 限制并发度 (默认 4, mirror PR #1809 graph extractor).
 4. 单元测试: 钉 bulk 写入幂等 + 受限并发不互相覆盖.
+
+### task #7 (向量异步任务) — 范围澄清
+
+task #7 **不是** 重新实现 `GraphVectorsWorker` (那是 task #5 的范围). task #7 只是 **reconciler retry stage**:
+
+1. `aperag/indexing/reconciler.py` 加一个周期检测: 找出 `(document_id, parse_version)` 对应的 `graph_facts.status = ACTIVE` 但 `graph_vectors.status = FAILED` (或不存在) 的行.
+2. 对每个这种行 enqueue 新的 `GRAPH_VECTORS` PENDING (max attempts + backoff).
+3. 失败永久后 (超过 max attempts), 状态标 FAILED, 不再重试. UI 上标「向量层不可用」, 检索降级到精确 + 别名+模糊匹配.
+4. 单元测试: 钉「事实层 ACTIVE + 向量层 FAILED」会被 reconciler 重新 enqueue; max attempts 后停止重试.
+
+明书自荐做 task #7, 跟现有 reconciler pattern 一致, 不需要新 worker 实现.
 
 ## 8. 风险和兼容
 
