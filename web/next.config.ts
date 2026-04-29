@@ -19,17 +19,13 @@ const nextConfig: NextConfig = {
   pageExtensions: ['js', 'jsx', 'md', 'mdx', 'ts', 'tsx'],
 
   output: 'standalone',
+  outputFileTracingRoot: path.join(process.cwd(), '..'),
   poweredByHeader: false,
   experimental: {
     serverActions: {
       bodySizeLimit: '100mb',
     },
   },
-
-  // Will only be available on the server side
-  serverRuntimeConfig: {},
-  // Will be available on both server and client
-  publicRuntimeConfig: {},
 
   modularizeImports: {},
 
@@ -41,7 +37,7 @@ const nextConfig: NextConfig = {
       ...(config.resolve.alias ?? {}),
       '@/cosmograph/style.module.css$': path.resolve(
         process.cwd(),
-        'node_modules/@cosmograph/cosmograph/cosmograph/style.module.css.js'
+        'node_modules/@cosmograph/cosmograph/cosmograph/style.module.css.js',
       ),
     };
 

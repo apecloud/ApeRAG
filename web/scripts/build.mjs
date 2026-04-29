@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 
 const ROOT_DIR = process.cwd();
+const REPO_DIR = path.resolve(ROOT_DIR, '..');
 const BUILD_DIR = path.join(ROOT_DIR, 'build');
 
 const readme = `# Getting Started
@@ -95,12 +96,23 @@ const deleteDir = function (dir) {
 const deploy = () => {
   deleteDir(BUILD_DIR);
   fs.mkdirSync(BUILD_DIR);
-  copyDir(path.join(ROOT_DIR, './.next/standalone'), BUILD_DIR);
+  const standaloneDir = path.join(ROOT_DIR, './.next/standalone');
+  const nestedStandaloneDir = path.join(standaloneDir, path.basename(ROOT_DIR));
+  const standaloneSource = fs.existsSync(
+    path.join(nestedStandaloneDir, 'server.js'),
+  )
+    ? nestedStandaloneDir
+    : standaloneDir;
+  copyDir(standaloneSource, BUILD_DIR);
   copyDir(
     path.join(ROOT_DIR, './.next/static'),
     path.join(BUILD_DIR, './.next/static'),
   );
   copyDir(path.join(ROOT_DIR, './public'), path.join(BUILD_DIR, './public'));
+  const docsDir = path.join(REPO_DIR, 'docs');
+  if (fs.existsSync(docsDir)) {
+    copyDir(docsDir, path.join(BUILD_DIR, './docs'));
+  }
   fs.writeFileSync(path.join(BUILD_DIR, 'readme.md'), readme);
 };
 

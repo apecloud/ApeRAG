@@ -1,10 +1,9 @@
 'use client';
 import { cn } from '@/lib/utils';
-import mermaid from 'mermaid';
 import { useTranslations } from 'next-intl';
 import { useTheme } from 'next-themes';
-import panzoom from 'panzoom';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import type { PanZoom } from 'panzoom';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import './chart-mermaid.css';
 import { Card } from './ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
@@ -14,61 +13,84 @@ export const ChartMermaid = ({ children }: { children: string }) => {
   const { resolvedTheme } = useTheme();
   const [error, setError] = useState<boolean>(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [id, setId] = useState<string>();
+  const reactId = useId();
+  const id = useMemo(
+    () => `mermaid-container-${reactId.replace(/[^a-zA-Z0-9_-]/g, '')}`,
+    [reactId],
+  );
 
   const components_dmermaid = useTranslations('components.dmermaid');
 
   const [tab, setTab] = useState<string>('graph');
 
-  const renderMermaid = useCallback(async () => {
-    const isDark = resolvedTheme === 'dark';
+  useEffect(() => {
+    let cancelled = false;
 
-    try {
-      mermaid.initialize({
-        startOnLoad: true,
-        theme: isDark ? 'dark' : 'neutral',
-        securityLevel: 'loose',
-        themeVariables: {
-          fontSize: 'inherit',
-          labelBkg: 'transparent',
-          lineColor: 'var(--input)',
+    const renderMermaid = async () => {
+      const isDark = resolvedTheme === 'dark';
 
-          // Flowchart Variables
-          nodeBorder: 'var(--border)',
-          clusterBkg: 'var(--card)',
-          clusterBorder: 'var(--input)',
-          defaultLinkColor: 'var(--input)',
-          edgeLabelBackground: 'transparent',
-          titleColor: 'var(--muted-foreground)',
-          nodeTextColor: 'var(--card-foreground)',
-        },
-        themeCSS: '.labelBkg { background: none; }',
-        flowchart: {},
-      });
-      const { svg } = await mermaid.render(`mermaid-container-${id}`, children);
-      setSvg(svg);
-      setError(false);
-    } catch (err) {
-      console.log(err);
-      setError(true);
-    }
+      try {
+        const { default: mermaid } = await import('mermaid');
+        mermaid.initialize({
+          startOnLoad: true,
+          theme: isDark ? 'dark' : 'neutral',
+          securityLevel: 'loose',
+          themeVariables: {
+            fontSize: 'inherit',
+            labelBkg: 'transparent',
+            lineColor: 'var(--input)',
+
+            // Flowchart Variables
+            nodeBorder: 'var(--border)',
+            clusterBkg: 'var(--card)',
+            clusterBorder: 'var(--input)',
+            defaultLinkColor: 'var(--input)',
+            edgeLabelBackground: 'transparent',
+            titleColor: 'var(--muted-foreground)',
+            nodeTextColor: 'var(--card-foreground)',
+          },
+          themeCSS: '.labelBkg { background: none; }',
+          flowchart: {},
+        });
+        const { svg } = await mermaid.render(id, children);
+        if (!cancelled) {
+          setSvg(svg);
+          setError(false);
+        }
+      } catch (err) {
+        console.error(err);
+        if (!cancelled) {
+          setError(true);
+        }
+      }
+    };
+
+    renderMermaid();
+
+    return () => {
+      cancelled = true;
+    };
   }, [children, id, resolvedTheme]);
 
   useEffect(() => {
-    renderMermaid();
-  }, [renderMermaid]);
+    const container = containerRef.current;
+    if (!container) return;
 
-  useEffect(() => {
-    setId(String((Math.random() * 100000).toFixed(0)));
-  }, []);
+    let disposed = false;
+    let controller: PanZoom | undefined;
 
-  useEffect(() => {
-    if (containerRef.current) {
-      panzoom(containerRef.current, {
+    import('panzoom').then(({ default: createPanZoom }) => {
+      if (disposed) return;
+      controller = createPanZoom(container, {
         minZoom: 0.5,
         maxZoom: 5,
       });
-    }
+    });
+
+    return () => {
+      disposed = true;
+      controller?.dispose();
+    };
   }, []);
 
   return (
@@ -89,7 +111,7 @@ export const ChartMermaid = ({ children }: { children: string }) => {
             <div
               ref={containerRef}
               data-error={error}
-              className={`mermaid-container-${id} flex justify-center`}
+              className={`${id} flex justify-center`}
               dangerouslySetInnerHTML={{
                 __html: svg,
               }}
