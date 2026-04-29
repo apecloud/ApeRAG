@@ -58,13 +58,13 @@ export const AuditLogDetail = ({
     <>
       <Drawer direction="right" handleOnly={true}>
         <DrawerTrigger asChild>{children}</DrawerTrigger>
-        <DrawerContent className="border-border/70 bg-card flex border-l sm:min-w-lg md:min-w-xl lg:min-w-2xl">
+        <DrawerContent className="border-border/70 bg-card flex border-l data-[vaul-drawer-direction=right]:w-[calc(100vw-1rem)] data-[vaul-drawer-direction=right]:sm:w-[32rem] data-[vaul-drawer-direction=right]:sm:max-w-none data-[vaul-drawer-direction=right]:md:w-[40rem] data-[vaul-drawer-direction=right]:lg:w-[48rem]">
           <DrawerHeader className="border-border/70 border-b">
             <DrawerTitle className="font-serif text-2xl font-normal">
               {page_audit_logs('metadata.title')}
             </DrawerTitle>
           </DrawerHeader>
-          <div className="flex flex-col gap-4 overflow-auto p-4 text-sm select-text">
+          <div className="flex select-text flex-col gap-4 overflow-auto p-4 text-sm">
             <div className="border-border/70 bg-muted rounded-xl border p-3">
               <div className="text-muted-foreground font-mono text-[11px] uppercase">
                 {page_audit_logs('detail.user_agent')}
@@ -108,7 +108,7 @@ export const AuditLogDetail = ({
             </div>
 
             <div>
-              <div className="text-muted-foreground -mb-3 flex justify-between">
+              <div className="text-muted-foreground -mb-3 flex flex-col gap-1 sm:flex-row sm:justify-between">
                 <div>{page_audit_logs('detail.request_data')}</div>
                 <div>
                   {auditLog.start_time
@@ -120,7 +120,7 @@ export const AuditLogDetail = ({
             </div>
 
             <div>
-              <div className="text-muted-foreground -mb-3 flex justify-between">
+              <div className="text-muted-foreground -mb-3 flex flex-col gap-1 sm:flex-row sm:justify-between">
                 <div>{page_audit_logs('detail.response_data')}</div>
                 <div>
                   {auditLog.end_time
@@ -160,6 +160,6 @@ const AuditMeta = ({
     <div className="text-muted-foreground font-mono text-[11px] uppercase">
       {label}
     </div>
-    <div className="mt-1 font-mono text-xs break-words">{value || '--'}</div>
+    <div className="mt-1 break-words font-mono text-xs">{value || '--'}</div>
   </div>
 );

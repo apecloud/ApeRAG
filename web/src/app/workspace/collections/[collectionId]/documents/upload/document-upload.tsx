@@ -434,15 +434,15 @@ export const DocumentUpload = () => {
           const mimeType = file?.type ?? '';
           const extension = last(mimeType.split('/')) || last(filename.split('.')) || '';
           return (
-            <div className="flex w-full flex-row items-center gap-2">
-              <div className="size-6">
+            <div className="flex w-full min-w-0 flex-row items-center gap-2">
+              <div className="size-6 shrink-0">
                 <FileIcon
                   color="var(--primary)"
                   extension={extension}
                   {...get(defaultStyles, extension)}
                 />
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="max-w-md truncate">{filename}</div>
                 <div className="text-muted-foreground text-sm">
                   {(size / 1000).toFixed(0) + ' KB'}
@@ -462,7 +462,7 @@ export const DocumentUpload = () => {
       {
         header: page_documents('upload_progress'),
         cell: ({ row }) => (
-          <div className="flex w-50 flex-col">
+          <div className="flex w-44 flex-col sm:w-50">
             <Progress
               value={row.original.progress}
               className="h-1.5 transition-all"
@@ -615,8 +615,8 @@ export const DocumentUpload = () => {
         disabled={isUploading}
       >
         {/* Toolbar */}
-        <div className="flex flex-row items-center justify-between text-sm">
-          <div className="text-muted-foreground flex h-9 flex-row items-center gap-2">
+        <div className="flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-muted-foreground flex min-w-0 flex-wrap items-center gap-2 sm:h-9">
             <div
               className={cn(
                 'flex flex-row items-center gap-1',
@@ -638,33 +638,35 @@ export const DocumentUpload = () => {
             </div>
           </div>
 
-          <div className="flex flex-row gap-2">
+          <div className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-2 sm:flex sm:flex-row">
             {documents.length > 0 && (
               <FileUploadClear asChild disabled={isUploading}>
-                <Button variant="outline" className="cursor-pointer">
+                <Button
+                  variant="outline"
+                  className="cursor-pointer justify-center"
+                >
                   <BrushCleaning />
-                  <span className="hidden lg:inline">
-                    {page_documents('clear_files')}
-                  </span>
+                  <span>{page_documents('clear_files')}</span>
                 </Button>
               </FileUploadClear>
             )}
 
             {isUploading ? (
-              <Button className="cursor-pointer" onClick={stopUpload}>
+              <Button
+                className="cursor-pointer justify-center"
+                onClick={stopUpload}
+              >
                 <LoaderCircle className="animate-spin" />
-                <span className="hidden lg:inline">Stop</span>
+                <span>Stop</span>
               </Button>
             ) : (
               <Button
-                className="cursor-pointer"
+                className="cursor-pointer justify-center"
                 onClick={handleSaveToCollection}
                 disabled={step !== 2}
               >
                 <Save />
-                <span className="hidden lg:inline">
-                  {page_documents('add_documents')}
-                </span>
+                <span>{page_documents('add_documents')}</span>
               </Button>
             )}
           </div>
@@ -672,7 +674,7 @@ export const DocumentUpload = () => {
 
         {/* Main content: drop zone or file list */}
         {documents.length === 0 ? (
-          <FileUploadDropzone className="cursor-pointer rounded-lg border p-16">
+          <FileUploadDropzone className="cursor-pointer rounded-lg border p-8 sm:p-16">
             <div className="flex flex-col items-center gap-4 text-center">
               <div className="flex items-center justify-center rounded-full border p-2.5">
                 <Upload className="text-muted-foreground size-6" />
@@ -687,13 +689,16 @@ export const DocumentUpload = () => {
           </FileUploadDropzone>
         ) : (
           <>
-            <DataGrid table={table} />
+            <DataGrid
+              table={table}
+              className="overflow-x-auto [&_table]:min-w-[680px]"
+            />
             <DataGridPagination table={table} />
           </>
         )}
 
         {/* Source picker — always anchored at the bottom */}
-        <div className="flex items-center gap-1 rounded-lg border bg-muted/30 px-4 py-2">
+        <div className="flex flex-wrap items-center gap-1 rounded-lg border bg-muted/30 px-3 py-2 sm:px-4">
           {documents.length > 0 && (
             <span className="text-muted-foreground mr-2 text-xs">
               {page_documents('add_more_sources')}

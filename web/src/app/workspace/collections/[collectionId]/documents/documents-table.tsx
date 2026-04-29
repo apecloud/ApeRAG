@@ -95,7 +95,7 @@ const DocumentStatusBadge = ({ status }: { status?: string | null }) => {
     <Badge
       variant="outline"
       className={cn(
-        'rounded-sm border font-mono text-[10px] tracking-normal uppercase',
+        'rounded-sm border font-mono text-[10px] uppercase tracking-normal',
         DOCUMENT_STATUS_CLASS[status] ||
           'bg-secondary text-muted-foreground border-transparent',
       )}
@@ -455,8 +455,8 @@ export function DocumentsTable({
   return (
     <div className="flex flex-col gap-4">
       <div className="border-border/70 bg-card grid gap-3 rounded-xl border p-4 shadow-sm lg:grid-cols-[1fr_auto] lg:items-center">
-        <div className="relative max-w-xl">
-          <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+        <div className="relative max-w-xl lg:max-w-none">
+          <Search className="text-muted-foreground pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2" />
           <Input
             className="bg-background/70 h-10 rounded-lg pl-9"
             placeholder={page_documents('search_document')}
@@ -472,13 +472,14 @@ export function DocumentsTable({
             }}
           />
         </div>
-        <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-          <Button asChild className="cursor-pointer">
+        <div className="grid grid-cols-[1fr_auto_auto] items-center gap-2 sm:flex sm:flex-wrap sm:justify-end">
+          <Button asChild className="min-w-0 cursor-pointer">
             <Link
               href={`/workspace/collections/${collection.id}/documents/upload`}
+              className="justify-center"
             >
               <Plus />
-              <span className="hidden sm:inline">
+              <span className="truncate">
                 {page_documents('add_documents')}
               </span>
             </Link>
@@ -530,7 +531,10 @@ export function DocumentsTable({
           </DropdownMenu>
         </div>
       </div>
-      <DataGrid table={table} className="border-border/70 bg-card shadow-sm" />
+      <DataGrid
+        table={table}
+        className="border-border/70 bg-card overflow-x-auto shadow-sm [&_table]:min-w-[760px]"
+      />
       <DataGridPagination table={table} />
     </div>
   );

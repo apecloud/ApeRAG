@@ -65,10 +65,10 @@ export default async function Page({
       <PageContent className="max-w-7xl px-5 py-8 md:px-8 md:py-10">
         <div className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-end">
           <div className="min-w-0 flex-1">
-            <div className="text-muted-foreground font-mono text-[11px] tracking-[0.12em] uppercase">
+            <div className="text-muted-foreground font-mono text-[11px] uppercase tracking-[0.12em]">
               {page_audit_logs('metadata.label')}
             </div>
-            <h1 className="mt-2 font-serif text-4xl leading-none font-normal tracking-normal md:text-[44px]">
+            <h1 className="mt-2 font-serif text-4xl font-normal leading-none tracking-normal md:text-[44px]">
               {page_audit_logs('metadata.title')}
             </h1>
             <p className="text-muted-foreground mt-3 max-w-2xl text-sm leading-6">
@@ -76,7 +76,7 @@ export default async function Page({
             </p>
           </div>
         </div>
-        <div className="mb-6 grid gap-3 md:grid-cols-4">
+        <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
           <AuditMetric
             icon={<ScrollText className="size-4" />}
             label={page_audit_logs('metric_events')}
@@ -127,7 +127,7 @@ const AuditMetric = ({
           {icon}
         </div>
         <div>
-          <div className="font-mono text-xl leading-none tabular-nums">
+          <div className="font-mono text-xl tabular-nums leading-none">
             {value}
             {suffix ? (
               <span className="text-muted-foreground ml-1 text-xs">

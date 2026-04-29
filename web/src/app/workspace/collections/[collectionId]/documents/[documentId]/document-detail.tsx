@@ -207,7 +207,7 @@ export const DocumentDetail = ({
           flows; only the user-facing preview tab is hidden. The
           original document (PDF / image / fallback download CTA)
           remains the single content surface here. */}
-      <div className="bg-background/50 m-0 p-4">
+      <div className="bg-background/50 m-0 overflow-x-auto p-3 sm:p-4">
         {pdfPreviewUrl ? (
           <PDFDocument
             file={pdfPreviewUrl}
@@ -220,7 +220,7 @@ export const DocumentDetail = ({
                 <LoaderCircle className="size-10 animate-spin self-center opacity-50" />
               </div>
             }
-            className="flex flex-col justify-center gap-1"
+            className="flex min-w-fit flex-col justify-center gap-1"
           >
             {Array.from({ length: numPages }, (_, index) => {
               return (
@@ -242,13 +242,13 @@ export const DocumentDetail = ({
           </div>
         ) : isTextPreview && markdownContent ? (
           <Card className="border-border/70 py-0 shadow-sm">
-            <CardContent className="p-5">
+            <CardContent className="p-4 sm:p-5">
               <Markdown>{markdownContent}</Markdown>
             </CardContent>
           </Card>
         ) : (
           <Card className="border-border/70 py-0 shadow-sm">
-            <CardContent className="text-muted-foreground flex min-h-72 flex-col items-center justify-center gap-4 p-8 text-center text-sm">
+            <CardContent className="text-muted-foreground flex min-h-72 flex-col items-center justify-center gap-4 p-6 text-center text-sm sm:p-8">
               <FileText className="size-10" />
               <div className="space-y-1">
                 <div className="text-foreground text-sm font-medium">
