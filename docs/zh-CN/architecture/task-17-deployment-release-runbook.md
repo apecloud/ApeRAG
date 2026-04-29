@@ -271,7 +271,11 @@ HTTP request path 中不得出现上述重型 cleanup 调用。Redis cleanup que
 2. 先部署新 Helm release，包含 `api` 与 `indexing-worker` 两个 deployment。
 3. 确认新 API pod 不再启动 worker/reconciler/cleanup。
 4. 确认 `indexing-worker` pod Ready/Running，日志出现所有 lane 启动信息。
-5. 观察 10-15 分钟：
+5. 确认 API / worker 最终连接池 env 生效：
+   - `kubectl exec deploy/api -- env | grep -E 'DB_POOL_SIZE|DB_MAX_OVERFLOW'`
+   - `kubectl exec deploy/indexing-worker -- env | grep -E 'DB_POOL_SIZE|DB_MAX_OVERFLOW'`
+   - 预期 API 与 worker 分别符合 Helm `api.dbPoolSize/api.dbMaxOverflow` 与 `indexingWorker.dbPoolSize/indexingWorker.dbMaxOverflow`，不能都读旧 `api.env.DB_POOL_SIZE=20 / DB_MAX_OVERFLOW=40`。
+6. 观察 10-15 分钟：
    - API p95/p99；
    - `/health/live` / `/health/ready` 成功率；
    - `/api/v2/auth/user` 成功率；
@@ -279,8 +283,8 @@ HTTP request path 中不得出现上述重型 cleanup 调用。Redis cleanup que
    - Redis queue depth；
    - `DocumentIndex` status counts；
    - worker restart count。
-6. 执行 graph/indexing 压力场景，确认 API 不被 worker 负载拖垮。
-7. 执行 worker pod restart，确认 API 不受影响，任务可恢复。
+7. 执行 graph/indexing 压力场景，确认 API 不被 worker 负载拖垮。
+8. 执行 worker pod restart，确认 API 不受影响，任务可恢复。
 
 ### 6.3 发布中止条件
 

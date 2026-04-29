@@ -99,6 +99,10 @@ api:
   # DB_MAX_OVERFLOW through aperag-secret.yaml. Keep this budget separate
   # from indexingWorker.* to avoid API/worker replica rollouts exhausting
   # PostgreSQL max_connections.
+  # task #17 intentionally lowers the API default from the old 20+40 budget:
+  # after the hard cut, API pods do HTTP/auth/enqueue work only. If production
+  # observation shows API pool saturation, raise these values with the budget
+  # formula below instead of reverting all roles to the old shared 20+40 budget.
   dbPoolSize: "5"
   dbMaxOverflow: "5"
   resources:
@@ -302,6 +306,9 @@ api:
 #   sum(replicas * (pool_size + max_overflow)) + rollout_surge_budget
 #     + diagnostics_reserved + postgres_reserved
 #     < postgres_max_connections * safety_ratio
+# Default example: API 1 * (5+5) + worker 1 * (10+10) + surge 5
+# + reserved 10 = 45. This fits a PostgreSQL safety budget of 70
+# when postgres_max_connections=100 and safety_ratio=0.7.
 # PgBouncer is a future infrastructure option and does not remove this
 # budgeting requirement.
 indexingWorker:
