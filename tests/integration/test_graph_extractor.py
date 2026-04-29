@@ -68,7 +68,7 @@ def test_parse_extraction_response_handles_well_formed_json():
         '{"source": "Linus", "target": "Linux", "type": "created", "description": "Linus created Linux"}'
         "]}"
     )
-    entities, relations = ge._parse_extraction_response(raw=raw, chunk_id="c-1")
+    entities, relations = ge._parse_extraction_response(raw=raw, allowed_chunk_ids=("c-1",))
     assert len(entities) == 1
     assert entities[0] == EntityRecord(
         name="Linus",
@@ -90,7 +90,7 @@ def test_parse_extraction_response_handles_fenced_json():
     """LLM middleware that wraps responses in ``\\`\\`\\`json ... \\`\\`\\``` must
     still parse cleanly — we strip the fence before json.loads."""
     raw = '```json\n{"entities": [{"name": "Acme", "type": "organisation"}], "relations": []}\n```'
-    entities, _ = ge._parse_extraction_response(raw=raw, chunk_id="c-1")
+    entities, _ = ge._parse_extraction_response(raw=raw, allowed_chunk_ids=("c-1",))
     assert len(entities) == 1
     assert entities[0].name == "Acme"
 
@@ -107,7 +107,7 @@ def test_parse_extraction_response_warns_on_clean_json_with_zero_entities_and_re
     """
     raw = '{"entities": [], "relations": []}'
     with caplog.at_level("WARNING", logger="aperag.indexing.graph_extractor"):
-        entities, relations = ge._parse_extraction_response(raw=raw, chunk_id="c-empty")
+        entities, relations = ge._parse_extraction_response(raw=raw, allowed_chunk_ids=("c-empty",))
     assert entities == []
     assert relations == []
     matching = [r for r in caplog.records if "empty extraction result" in r.getMessage()]
@@ -116,7 +116,7 @@ def test_parse_extraction_response_warns_on_clean_json_with_zero_entities_and_re
         f"got {[r.getMessage() for r in caplog.records]}"
     )
     msg = matching[0].getMessage()
-    assert "c-empty" in msg, "warn line must include the chunk_id for cross-reference"
+    assert "c-empty" in msg, "warn line must include the chunk_ids for cross-reference"
     assert repr(raw) in msg, "warn line must include the raw response prefix for ops grep"
 
 
@@ -126,7 +126,7 @@ def test_parse_extraction_response_does_not_warn_when_entities_were_extracted(ca
     """
     raw = '{"entities": [{"name": "Linus", "type": "person", "description": "x"}], "relations": []}'
     with caplog.at_level("WARNING", logger="aperag.indexing.graph_extractor"):
-        entities, _ = ge._parse_extraction_response(raw=raw, chunk_id="c-1")
+        entities, _ = ge._parse_extraction_response(raw=raw, allowed_chunk_ids=("c-1",))
     assert len(entities) == 1
     matching = [r for r in caplog.records if "empty extraction result" in r.getMessage()]
     assert matching == [], "must not warn when extraction produced entities"
@@ -138,7 +138,7 @@ def test_parse_extraction_response_does_not_warn_on_relations_only(caplog):
     """
     raw = '{"entities": [], "relations": [{"source": "A", "target": "B", "type": "rel", "description": "x"}]}'
     with caplog.at_level("WARNING", logger="aperag.indexing.graph_extractor"):
-        _entities, relations = ge._parse_extraction_response(raw=raw, chunk_id="c-1")
+        _entities, relations = ge._parse_extraction_response(raw=raw, allowed_chunk_ids=("c-1",))
     assert len(relations) == 1
     matching = [r for r in caplog.records if "empty extraction result" in r.getMessage()]
     assert matching == [], "must not warn when extraction produced relations (even with 0 entities)"
@@ -146,7 +146,7 @@ def test_parse_extraction_response_does_not_warn_on_relations_only(caplog):
 
 def test_parse_extraction_response_returns_empty_on_malformed_json():
     raw = "not valid json — model rambled"
-    entities, relations = ge._parse_extraction_response(raw=raw, chunk_id="c-1")
+    entities, relations = ge._parse_extraction_response(raw=raw, allowed_chunk_ids=("c-1",))
     assert entities == []
     assert relations == []
 
@@ -166,7 +166,7 @@ def test_parse_extraction_response_skips_individual_malformed_records():
         '{"source": "C", "type": "missing-target"}'  # malformed
         "]}"
     )
-    entities, relations = ge._parse_extraction_response(raw=raw, chunk_id="c-1")
+    entities, relations = ge._parse_extraction_response(raw=raw, allowed_chunk_ids=("c-1",))
     names = [e.name for e in entities]
     assert names == ["Good Entity", "Another Good"]
     relation_types = [r.relation_type for r in relations]
@@ -181,7 +181,7 @@ def test_parse_extraction_response_accepts_unknown_entity_type():
         "],"
         '"relations": []}'
     )
-    entities, relations = ge._parse_extraction_response(raw=raw, chunk_id="c-1")
+    entities, relations = ge._parse_extraction_response(raw=raw, allowed_chunk_ids=("c-1",))
     assert [entity.name for entity in entities] == ["糖尿病", "Bad Type"]
     assert entities[0].entity_type == "疾病"
     assert entities[1].entity_type == ""
@@ -192,7 +192,7 @@ def test_render_prompt_allows_dynamic_entity_types():
     from aperag.indexing.llm import render_extraction_prompt
 
     prompt = render_extraction_prompt(
-        input_text="OpenAI released GPT-4o.",
+        window_chunks=[{"chunk_id": "c-x", "text": "OpenAI released GPT-4o."}],
         entity_types=[],
         language="Chinese (Simplified)",
         max_entities=8,
@@ -203,6 +203,157 @@ def test_render_prompt_allows_dynamic_entity_types():
     assert "Use only these entity types" not in prompt
     assert "skip the entity rather than invent" not in prompt
     assert "Chinese (Simplified)" in prompt
+    # Task #30 §3.1.3 hard requirements visible in the rendered prompt.
+    assert "[[chunk_id=c-x index=0]]" in prompt
+    assert "source_chunk_ids" in prompt
+    assert "['c-x']" in prompt
+    assert "OpenAI released GPT-4o." in prompt
+    # Few-shot opt-in defaults to off — no extra example block.
+    assert "[[chunk_id=c1 index=0]]\n张伟" not in prompt
+    assert "[[chunk_id=c1 index=0]]\nAcme Labs" not in prompt
+
+
+def test_render_prompt_emits_one_marker_per_window_chunk():
+    """Task #30 §3.1.3 hard requirement #1: every chunk in the window
+    must carry its own ``[[chunk_id=X index=Y]]`` boundary marker so
+    the LLM can ground entities + relations per chunk."""
+    from aperag.indexing.llm import render_extraction_prompt
+
+    prompt = render_extraction_prompt(
+        window_chunks=[
+            {"chunk_id": "c1", "text": "Alpha founded Beta in 2010."},
+            {"chunk_id": "c2", "text": "Carol joined Beta in 2020."},
+        ],
+        entity_types=[],
+        language="English",
+        max_entities=12,
+        max_relations=12,
+    )
+    assert "[[chunk_id=c1 index=0]]" in prompt
+    assert "[[chunk_id=c2 index=1]]" in prompt
+    assert "['c1', 'c2']" in prompt
+    assert "Alpha founded Beta in 2010." in prompt
+    assert "Carol joined Beta in 2020." in prompt
+    # Cross-chunk relation guidance present.
+    assert "Cross-chunk relations" in prompt
+    # Dedup / fail-safe rules surfaced.
+    assert "Deduplication" in prompt
+    assert "No fabrication" in prompt
+
+
+def test_render_prompt_few_shot_opt_in_keeps_default_off():
+    """Task #30 §3.1.3 default-off opt-in: ``few_shot_locale=None``
+    embeds no extra example, ``"zh"`` embeds the Chinese example."""
+    from aperag.indexing.llm import render_extraction_prompt
+
+    base = render_extraction_prompt(
+        window_chunks=[{"chunk_id": "c-x", "text": "Alpha"}],
+        entity_types=[],
+        language="English",
+        max_entities=8,
+        max_relations=8,
+    )
+    with_zh = render_extraction_prompt(
+        window_chunks=[{"chunk_id": "c-x", "text": "Alpha"}],
+        entity_types=[],
+        language="English",
+        max_entities=8,
+        max_relations=8,
+        few_shot_locale="zh",
+    )
+    with_cross = render_extraction_prompt(
+        window_chunks=[{"chunk_id": "c-x", "text": "Alpha"}],
+        entity_types=[],
+        language="English",
+        max_entities=8,
+        max_relations=8,
+        few_shot_locale="cross_chunk",
+    )
+
+    assert "张伟" not in base
+    assert "张伟" in with_zh
+    assert "Acme Labs is a research organization founded in 2010." in with_cross
+    assert "Acme Labs is a research organization founded in 2010." not in base
+
+
+def test_render_prompt_rejects_empty_window():
+    from aperag.indexing.llm import render_extraction_prompt
+
+    with pytest.raises(ValueError):
+        render_extraction_prompt(
+            window_chunks=[],
+            entity_types=[],
+            language="English",
+            max_entities=8,
+            max_relations=8,
+        )
+
+
+def test_parse_response_falls_back_to_single_chunk_id_when_field_missing():
+    """Single-chunk window: legacy LLM responses that omit
+    ``source_chunk_ids`` still parse, with provenance defaulting to
+    the single allowed id (task #30 §3.1.3 parser invariant)."""
+    raw = (
+        '{"entities": ['
+        '{"name": "Linus", "type": "person"}'
+        "],"
+        '"relations": ['
+        '{"source": "Linus", "target": "Linux", "type": "created"}'
+        "]}"
+    )
+    entities, relations = ge._parse_extraction_response(raw=raw, allowed_chunk_ids=("c-only",))
+    assert entities[0].source_chunk_ids == ("c-only",)
+    assert relations[0].source_chunk_ids == ("c-only",)
+
+
+def test_parse_response_skips_records_missing_provenance_in_multi_chunk_window(caplog):
+    """Multi-chunk window: ``source_chunk_ids`` is required. Missing
+    field → record skipped + warned (task #30 §3.1.3 parser invariant)."""
+    raw = (
+        '{"entities": ['
+        '{"name": "Good", "type": "person", "source_chunk_ids": ["c1"]},'
+        '{"name": "Missing Provenance", "type": "person"}'
+        "],"
+        '"relations": ['
+        '{"source": "Good", "target": "Linux", "type": "uses",'
+        ' "source_chunk_ids": ["c2"]},'
+        '{"source": "Good", "target": "Linux", "type": "no_provenance"}'
+        "]}"
+    )
+    with caplog.at_level("WARNING", logger="aperag.indexing.graph_extractor"):
+        entities, relations = ge._parse_extraction_response(raw=raw, allowed_chunk_ids=("c1", "c2"))
+    assert [e.name for e in entities] == ["Good"]
+    assert entities[0].source_chunk_ids == ("c1",)
+    assert [r.relation_type for r in relations] == ["uses"]
+    assert relations[0].source_chunk_ids == ("c2",)
+
+
+def test_parse_response_drops_out_of_allowlist_chunk_ids():
+    """Hallucinated chunk_ids must be silently dropped before the
+    non-empty check (task #30 §3.1.3 parser invariant)."""
+    raw = (
+        '{"entities": [{"name": "Mixed", "type": "thing", "source_chunk_ids": ["c1", "ghost", "c2"]}], "relations": []}'
+    )
+    entities, _ = ge._parse_extraction_response(raw=raw, allowed_chunk_ids=("c1", "c2"))
+    assert entities[0].source_chunk_ids == ("c1", "c2")
+
+
+def test_parse_response_preserves_cross_chunk_provenance():
+    """Multi-chunk window with cross-chunk relation: relation's
+    ``source_chunk_ids`` carries every chunk that contributed evidence."""
+    raw = (
+        '{"entities": ['
+        '{"name": "Acme Labs", "type": "organization",'
+        ' "source_chunk_ids": ["c1", "c2"]}'
+        "],"
+        '"relations": ['
+        '{"source": "Alice", "target": "Acme Labs", "type": "works_for",'
+        ' "source_chunk_ids": ["c1", "c2"]}'
+        "]}"
+    )
+    entities, relations = ge._parse_extraction_response(raw=raw, allowed_chunk_ids=("c1", "c2"))
+    assert entities[0].source_chunk_ids == ("c1", "c2")
+    assert relations[0].source_chunk_ids == ("c1", "c2")
 
 
 def test_resolve_entity_types_uses_collection_kg_config():
