@@ -267,32 +267,31 @@ async def combined_lifespan(app: FastAPI):
     deployment topology. Tier-3 horizontal scale-out runs separate
     worker processes; that wiring lives in a future ops launcher.
     """
-    indexing_runtime_tasks: list[asyncio.Task[None]] = []
-    indexing_shutdown: asyncio.Event | None = None
+    # task #17 (PR #1884) hard cut: API 进程不再启动 worker / reconciler /
+    # cleanup task — 这些迁到独立 ``indexing-worker`` deployment 跑
+    # ``python -m aperag.cli.indexing_worker``. API 只保留 queue / quota /
+    # metrics 给 enqueue 用, 不需要 ``indexing_runtime_tasks`` /
+    # ``indexing_shutdown`` event 了.
 
     if settings.indexing_mode == "async":
         # Lazy imports — pulling the indexing runtime symbols at app
         # start-up time keeps ``aperag/app.py`` cold-start fast and
         # confines the import surface to the wired branch.
+        # task #17 (PR #1884): API 进程不再启动任何 indexing worker /
+        # reconciler / cleanup loop — 改由独立 ``indexing-worker``
+        # deployment 跑 ``python -m aperag.cli.indexing_worker``. API
+        # 只保留轻量 enqueue runtime (queue + quota_backend + metrics +
+        # IndexingRuntime), 不构造 ProductionWorkerFactory, 不创建
+        # worker / reconciler / cleanup task. 见
+        # ``docs/zh-CN/architecture/task-system-hard-cut-v8.md``.
         from aperag.config import sync_engine
         from aperag.indexing import (
             InMemoryWorkQueue,
             NoopMetricsEmitter,
             OTLPMetricsEmitter,
             RedisWorkQueue,
-            run_cleanup_loop,
-            run_fulltext_worker,
-            run_graph_facts_worker,
-            run_graph_vectors_worker,
-            run_graph_worker,
-            run_parse_worker,
-            run_reconcile_loop,
-            run_summary_worker,
-            run_vector_worker,
-            run_vision_worker,
         )
 
-        indexing_shutdown = asyncio.Event()
         # Wave 4 T4: dispatch on ``INDEXING_QUEUE_BACKEND`` setting
         # (default ``inmemory`` for backward-compat single-pod
         # deployments; production multi-pod sets ``redis`` to enable
@@ -373,87 +372,20 @@ async def combined_lifespan(app: FastAPI):
             quota_redis = None
             quota_backend = InMemoryQuotaBackend(quota_registry)
 
-        # Worker factory — per-task lazy construction. The async
-        # worker entrypoints (``run_*_worker``) call this closure on
-        # every BLPOP'd payload to materialise the concrete
-        # :class:`ModalityWorker` for that ``(collection, modality)``
-        # pair. ``ProductionWorkerFactory`` resolves the collection
-        # row, picks the right backend (Qdrant / Elasticsearch +
-        # configured embedder / completion model), and constructs the
-        # worker — all backed by the existing build helpers
-        # (``get_collection_embedding_service_sync`` /
-        # ``get_vector_db_connector`` / ``get_object_store``) so this
-        # is composition, not re-implementation. Construction failures
-        # raise :class:`WorkerFactoryError`; the orchestrator runner
-        # catches that and finalises the row FAILED so §I.2 retry
-        # picks it up. Per architect msg=7782ebe0.
-        from aperag.indexing.worker_factory import ProductionWorkerFactory
-
-        worker_factory = ProductionWorkerFactory(engine=engine)
-
-        worker_kwargs = dict(
-            engine=engine,
-            queue=queue,
-            worker_factory=worker_factory,
-            shutdown=indexing_shutdown,
-        )
-        indexing_runtime_tasks.append(asyncio.create_task(run_vector_worker(**worker_kwargs)))
-        indexing_runtime_tasks.append(asyncio.create_task(run_fulltext_worker(**worker_kwargs)))
-        indexing_runtime_tasks.append(asyncio.create_task(run_graph_worker(**worker_kwargs)))
-        indexing_runtime_tasks.append(asyncio.create_task(run_graph_facts_worker(**worker_kwargs)))
-        indexing_runtime_tasks.append(asyncio.create_task(run_graph_vectors_worker(**worker_kwargs)))
-        indexing_runtime_tasks.append(asyncio.create_task(run_summary_worker(**worker_kwargs)))
-        indexing_runtime_tasks.append(asyncio.create_task(run_vision_worker(**worker_kwargs)))
-
-        # Wave 4 T3 chunk 2: parse worker reads ``q:parse``, runs
-        # :class:`DocParser`, and dispatches the per-modality jobs.
-        # Without this, the upload handler's :func:`push_parse` call
-        # would land in Redis with no consumer — the per-modality
-        # rows would never get inserted and documents would stay
-        # PENDING forever. The object store factory is async per the
-        # production resolver signature; this closure adapts the
-        # synchronous ``get_object_store`` helper into the
-        # ``ObjectStoreFactory`` shape :func:`run_parse_worker`
-        # expects.
-        from aperag.objectstore.base import get_object_store
-
-        async def _resolve_object_store():
-            return await asyncio.to_thread(get_object_store)
-
-        indexing_runtime_tasks.append(
-            asyncio.create_task(
-                run_parse_worker(
-                    engine=engine,
-                    queue=queue,
-                    object_store_factory=_resolve_object_store,
-                    shutdown=indexing_shutdown,
-                )
-            )
-        )
-        indexing_runtime_tasks.append(
-            asyncio.create_task(
-                run_reconcile_loop(
-                    engine=engine,
-                    queue=queue,
-                    shutdown=indexing_shutdown,
-                )
-            )
-        )
-        # Wave 4 T2: cleanup loop now consumes a per-row worker
-        # factory so each ``DocumentIndex`` row is cleaned against the
-        # right per-(collection, modality) backend. Without this the
-        # cleanup loop ran with ``workers={}`` and silently skipped
-        # every backend delete (Qdrant points / ES docs / graph
-        # entities leaked forever after document or collection delete).
-        indexing_runtime_tasks.append(
-            asyncio.create_task(
-                run_cleanup_loop(
-                    engine=engine,
-                    worker_factory=worker_factory.build_for_cleanup_row,
-                    shutdown=indexing_shutdown,
-                )
-            )
-        )
+        # task #17 (PR #1884) hard cut: API 进程不再构造 ProductionWorkerFactory
+        # 也不启动 worker / reconciler / cleanup task. 这些都迁到独立
+        # ``indexing-worker`` deployment (``python -m aperag.cli.indexing_worker``).
+        # API 只保留轻量 enqueue runtime: queue (push to broker) +
+        # quota_backend (检查租户配额) + metrics_emitter (上报 SLI).
+        #
+        # cleanup_worker_factory 之前由 ``ProductionWorkerFactory.build_for_cleanup_row``
+        # 提供给 IndexingRuntime, 让 service 层能在 API 请求路径直接执行
+        # backend cleanup. task #17 hard gate (ziang msg=cecb0d88 + huangheng
+        # msg=f97b7c5f #6) 显式禁止 API 请求路径执行重型 cleanup — 改成只
+        # 标记 DB intent (``Document.status=DELETED + gmt_deleted``), worker
+        # cleanup loop 异步扫描完成. 因此 API 这里 ``cleanup_worker_factory=None``,
+        # service 层调 cleanup 必须返回 no-op (由 task #19 ziang 的 cleanup
+        # SoT 改造保证).
 
         # Stash on app state so request handlers can dispatch via the
         # same queue / engine the workers consume.
@@ -469,9 +401,9 @@ async def combined_lifespan(app: FastAPI):
 
         # Service-layer callers (aperag/domains/**) consume the same
         # triple through the process-wide IndexingRuntime singleton —
-        # they don't have a Request handle for app.state. Workers map
-        # is empty in the async-default deployment; T3.3 follow-up
-        # populates concrete factories per modality.
+        # they don't have a Request handle for app.state.
+        # task #17: workers={} 已经是空; cleanup_worker_factory=None 强制
+        # service 层不再在 API 请求路径执行重型 backend cleanup.
         from aperag.indexing.runtime import IndexingRuntime, set_runtime
 
         set_runtime(
@@ -480,7 +412,7 @@ async def combined_lifespan(app: FastAPI):
                 queue=queue,
                 workers={},
                 metrics_emitter=metrics_emitter,
-                cleanup_worker_factory=worker_factory.build_for_cleanup_row,
+                cleanup_worker_factory=None,
                 quota_backend=quota_backend,
             )
         )
@@ -496,12 +428,11 @@ async def combined_lifespan(app: FastAPI):
         async with mcp_app.lifespan(app):
             yield
     finally:
-        if indexing_shutdown is not None:
-            indexing_shutdown.set()
-        if indexing_runtime_tasks:
-            # Drain in-flight worker / reconciler / cleanup loops with
-            # a short grace window so a SIGTERM does not abort mid-task.
-            await asyncio.gather(*indexing_runtime_tasks, return_exceptions=True)
+        # task #17 hard cut: API 进程没有 worker / reconciler / cleanup task
+        # 需要 drain — 这些都在独立 ``indexing-worker`` pod, 由它的
+        # ``aperag/cli/indexing_worker.py`` 自己 SIGTERM handler 处理.
+        # API 这里只关 queue + quota redis client + metrics provider.
+
         # Wave 4 T4: release the indexing queue's underlying connection
         # pool (Redis client owns one); InMemoryWorkQueue has no
         # ``close`` so guard with hasattr.
