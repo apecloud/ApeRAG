@@ -2495,6 +2495,195 @@ async def test_graph_vectors_worker_derive_reuses_facts_artifact(store, entity_l
         )
 
 
+# ---------------------------------------------------------------------
+# Task #6 — Phase 1+2 跨实体受限并发 (asyncio.Semaphore)
+# ---------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_graph_facts_worker_concurrent_rebuild_under_semaphore_caps_inflight(store, entity_lock, object_store):
+    """``sync_concurrency`` 必须把同时跑的 per-entity rebuild 任务上限
+    限制在配置值. 用一个能记录 in-flight 计数的 wrapper store 验证.
+    """
+    from aperag.indexing.graph import GraphFactsWorker
+
+    inflight = 0
+    max_inflight = 0
+    inflight_lock = asyncio.Lock()
+
+    class _CountingStore(InMemoryLineageGraphStore):
+        async def upsert_entity_with_lineage(self, *, record, lineage, compacted_description=None):
+            nonlocal inflight, max_inflight
+            async with inflight_lock:
+                inflight += 1
+                max_inflight = max(max_inflight, inflight)
+            await asyncio.sleep(0.01)  # 让其他任务有机会同时进入
+            try:
+                await super().upsert_entity_with_lineage(
+                    record=record,
+                    lineage=lineage,
+                    compacted_description=compacted_description,
+                )
+            finally:
+                async with inflight_lock:
+                    inflight -= 1
+
+    counting_store = _CountingStore()
+
+    async def _empty_extractor(chunks):
+        del chunks
+        return ([], [])
+
+    facts_worker = GraphFactsWorker(
+        store=counting_store,
+        extractor=_empty_extractor,
+        entity_lock=entity_lock,
+        object_store=object_store,
+        collection_id=COLLECTION_ID,
+        tenant_scope_key=DEFAULT_TENANT,
+        sync_concurrency=2,
+    )
+
+    body = serialize_kg_jsonl(
+        [
+            EntityRecord(
+                name=f"E{i}",
+                entity_type="Person",
+                description="",
+                source_chunk_ids=("c0",),
+            )
+            for i in range(10)
+        ],
+        [],
+    )
+    artifact_path = derived_artifact(
+        collection_id=COLLECTION_ID,
+        document_id="doc_A",
+        parse_version="v1",
+        filename=KG_ARTIFACT_FILENAME,
+    )
+    write_atomic(object_store, artifact_path, body)
+
+    await facts_worker.sync(
+        document_id="doc_A",
+        parse_version="v1",
+        derived_artifact_path=artifact_path,
+    )
+
+    assert max_inflight <= 2, f"Semaphore 应该限制并发 ≤ 2, 实测 {max_inflight}"
+    assert len(counting_store._entities) == 10
+
+
+@pytest.mark.asyncio
+async def test_graph_facts_worker_concurrent_rebuild_idempotent_across_runs(store, entity_lock, object_store):
+    """并发受限改造之后, 重复跑 sync 必须收敛到同一个状态 (幂等)."""
+    from aperag.indexing.graph import GraphFactsWorker
+
+    async def _empty_extractor(chunks):
+        del chunks
+        return ([], [])
+
+    facts_worker = GraphFactsWorker(
+        store=store,
+        extractor=_empty_extractor,
+        entity_lock=entity_lock,
+        object_store=object_store,
+        collection_id=COLLECTION_ID,
+        tenant_scope_key=DEFAULT_TENANT,
+        sync_concurrency=4,
+    )
+
+    body = serialize_kg_jsonl(
+        [
+            EntityRecord(
+                name=f"E{i}",
+                entity_type="Person",
+                description="",
+                source_chunk_ids=("c0",),
+            )
+            for i in range(5)
+        ],
+        [
+            RelationRecord(
+                source="E0",
+                target="E1",
+                relation_type="knows",
+                description="",
+                source_chunk_ids=("c0",),
+            ),
+        ],
+    )
+    artifact_path = derived_artifact(
+        collection_id=COLLECTION_ID,
+        document_id="doc_A",
+        parse_version="v1",
+        filename=KG_ARTIFACT_FILENAME,
+    )
+    write_atomic(object_store, artifact_path, body)
+
+    for _ in range(3):
+        await facts_worker.sync(
+            document_id="doc_A",
+            parse_version="v1",
+            derived_artifact_path=artifact_path,
+        )
+
+    e0 = await store.get_entity("E0")
+    assert e0 is not None
+    assert _lineage_keys(e0) == {("doc_A", "v1")}
+
+    rel = await store.get_relation("E0", "E1", "knows")
+    assert rel is not None
+    assert {(m.document_id, m.parse_version) for m in rel.evidence_lineage} == {("doc_A", "v1")}
+
+
+@pytest.mark.asyncio
+async def test_graph_facts_worker_sync_concurrency_one_equivalent_to_serial(store, entity_lock, object_store):
+    """``sync_concurrency=1`` 时行为应该等价于老的串行实现."""
+    from aperag.indexing.graph import GraphFactsWorker
+
+    async def _empty_extractor(chunks):
+        del chunks
+        return ([], [])
+
+    facts_worker = GraphFactsWorker(
+        store=store,
+        extractor=_empty_extractor,
+        entity_lock=entity_lock,
+        object_store=object_store,
+        collection_id=COLLECTION_ID,
+        tenant_scope_key=DEFAULT_TENANT,
+        sync_concurrency=1,
+    )
+
+    body = serialize_kg_jsonl(
+        [
+            EntityRecord(name="A", entity_type="Person", description="", source_chunk_ids=("c0",)),
+            EntityRecord(name="B", entity_type="Person", description="", source_chunk_ids=("c1",)),
+        ],
+        [],
+    )
+    artifact_path = derived_artifact(
+        collection_id=COLLECTION_ID,
+        document_id="doc_A",
+        parse_version="v1",
+        filename=KG_ARTIFACT_FILENAME,
+    )
+    write_atomic(object_store, artifact_path, body)
+
+    await facts_worker.sync(
+        document_id="doc_A",
+        parse_version="v1",
+        derived_artifact_path=artifact_path,
+    )
+
+    a = await store.get_entity("A")
+    b = await store.get_entity("B")
+    assert a is not None and b is not None
+    assert _lineage_keys(a) == {("doc_A", "v1")}
+    assert _lineage_keys(b) == {("doc_A", "v1")}
+
+
 @pytest.mark.asyncio
 async def test_graph_vectors_worker_sync_skips_phase_1_2(store, entity_lock, object_store):
     """GraphVectorsWorker.sync 不会清理 / 重建 lineage. 即使 store
