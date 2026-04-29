@@ -411,6 +411,27 @@ CR cross-check 应用：CR 时如果 PR 涉及核心 invariant 反转（lifespan
 
 **CR 应用**：CR sweeping cleanup PR 时不要 expect 单 PR 一次到位，而是 verify「本轮 grep gate 是否 surface 下一批残留 + fix-forward task 链是否 actively 推进」。spec 完整性 ≠ 单 PR 完整性，spec 完整性 = **多 PR 迭代收尾闭环**。
 
+### Lesson #15：file-move PR 必须三步 verify（task #33 P1 PR #1917 实证）
+
+**触发条件**：PR diff 含 `git mv` / 文件位置改动 / 子目录化重组（无内容改动，仅 path 变化）。
+
+**核心 insight**：`pytest --collect-only` 验证 import-time 不破，**但**不跑 fixture / test body 里的 `Path(__file__).resolve().parents[N]` 运行时路径解析；`additions:0 deletions:0` 也只 verify 内容不变，不 verify path-relative behavior。三层 verify 缺一不可。
+
+**first-application demo**（task #33 P1 PR #1917 unit_test 子目录化）：
+- collect-only baseline = 1434 = post-move = 1434（diff = 0）✅ → reviewer (含 chenyexuan / 冬柏 / huangzhangshu) 全 LGTM
+- merge 前 CI 实跑 → **15 test failures** 因 `Path(__file__).resolve().parents[2]` 现指 `tests/` 不再是 repo root
+- fix-forward `parents[2]` → `parents[3]` 修 3 文件 → CI 10/10 重跑全绿
+
+**Mandatory 三步 verify**（同 PR 内 必须 全跑）：
+
+1. **Step A — collect-only diff = 0**：`pytest <subdir>/ --collect-only -q` baseline 跟 post-move 数量一致（import 层）
+2. **Step B — pytest <subdir>/ -q 真跑**：完整跑 mv 涉及子目录的 test body（fixture / `Path(__file__)` 解析层）。**禁止仅依赖 collect-only**
+3. **Step C — `grep -n "Path(__file__)" <moved files>`**：扫所有 mv 文件硬编码相对路径，每条按新位置调整 `parents[N]` 或换 `project_root` 锚点（path resolution 层）
+
+**CR 应用**：reviewer 看 file-move PR 时按上述三步 cross-check，**仅 collect-only diff = 0 不构成 LGTM 充分依据**。reviewer cite 必须包含 Step B + Step C 实证。
+
+**关联 own-up**：冬柏 msg=cd428dc1 + chenyexuan msg=18acb5e7 双方 own-up — 仅 collect-only 不可能 catch `__file__`-relative path break，必须扩三步走。
+
 ### Mini-pattern 17：跨真源状态漂移检测
 
 跨 truth source（DB / 文件 / cache / queue / 外部服务）状态依赖必须 enumerate 自动 detection 机制（cache key 含上游 version / 周期巡检 stale check / startup sanity check 三选一）。
