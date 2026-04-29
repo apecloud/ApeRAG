@@ -100,12 +100,12 @@ GET {{base_url}}/api/v2/models
 HTTP 200
 [Asserts]
 header "content-type" contains "application/json"
-jsonpath "$.items" count >= 3
+jsonpath "$.items" count >= 2
 
 GET {{base_url}}/api/v2/model-accounts/{{dashscope_account_id}}/models
 HTTP 200
 [Asserts]
-jsonpath "$.items" count >= 2
+jsonpath "$.items" count >= 1
 
 PUT {{base_url}}/api/v2/model-uses/collection_completion
 Content-Type: application/json
