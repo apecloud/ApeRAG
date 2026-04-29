@@ -12,14 +12,15 @@ make benchmark-graph-extraction
 ```
 
 The default run uses the current ApeRAG graph extraction prompt via
-`aperag.indexing.llm.render_extraction_prompt` and does not send
-`response_format`. That matches current graph indexing behavior and gives a
-prompt-only baseline.
+`aperag.indexing.llm.render_extraction_prompt` **and sends
+`response_format={"type":"json_object"}` on every call** — task #30 A3
+PR #1920 (`01b45196`) made JSON-mode a graph extractor production
+invariant, so the benchmark mirrors production by default.
 
-To simulate the proposed JSON-mode fix:
+To explicitly compare against the legacy non-JSON-mode behavior:
 
 ```bash
-make benchmark-graph-extraction RESPONSE_FORMAT_JSON=1
+uv run python tests/benchmarks/graph_extraction/runner.py --no-response-format-json
 ```
 
 Results are written to:

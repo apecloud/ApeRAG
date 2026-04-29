@@ -134,8 +134,24 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--response-format-json",
+        dest="response_format_json",
         action="store_true",
-        help='Also send response_format={"type":"json_object"}. Current ApeRAG graph indexing does not do this yet.',
+        default=True,
+        help=(
+            "Send response_format={'type':'json_object'} on every call "
+            "(default ON — task #30 A3 PR #1920 made this a graph "
+            "extractor production invariant)."
+        ),
+    )
+    parser.add_argument(
+        "--no-response-format-json",
+        dest="response_format_json",
+        action="store_false",
+        help=(
+            "Disable JSON-mode (legacy comparison only — production "
+            "graph extractor always sets response_format=json_object "
+            "post task #30 A3)."
+        ),
     )
     parser.add_argument(
         "--chunk-window-size",
@@ -414,9 +430,17 @@ def score_result(
     sample: dict[str, Any],
     entities: list[dict[str, Any]],
     relations: list[dict[str, Any]],
-    *,
-    allowed_chunk_ids: set[str] | None = None,
 ) -> dict[str, Any]:
+    """Per-document scoring (hit-rate / dup count / description shape).
+
+    NOTE: ``source_chunk_ids`` validity intentionally lives on the
+    per-window result row (``run_window``) and is summed into the
+    per-document aggregate by :func:`aggregate_sample`. This is the
+    A3 parser invariant: each record's ``source_chunk_ids`` must be a
+    subset of **the window the record was produced in**, never of the
+    document-level union (BLOCKER fix per @ziang msg=56912dae +
+    @huangzhangshu msg=cda4dc75).
+    """
     actual_names = {normalize_name(entity.get("name")) for entity in entities}
     entity_hits = sum(1 for expected in sample["expected_entities"] if entity_hit(expected, actual_names))
     relation_hits = sum(1 for expected in sample["expected_relations"] if relation_hit(expected, relations))
@@ -427,9 +451,6 @@ def score_result(
     duplicate_relation_count = len(relations) - len(
         {(normalize_name(relation.get("source")), normalize_name(relation.get("target"))) for relation in relations}
     )
-    valid_refs = total_refs = 0
-    if allowed_chunk_ids is not None:
-        valid_refs, total_refs = source_chunk_ids_validity(entities, relations, allowed_chunk_ids)
     return {
         "entity_hits": entity_hits,
         "entity_total": len(sample["expected_entities"]),
@@ -439,8 +460,6 @@ def score_result(
         "relations_count": len(relations),
         "duplicate_entity_count": max(0, duplicate_entity_count),
         "duplicate_relation_count": max(0, duplicate_relation_count),
-        "source_chunk_ids_valid": valid_refs,
-        "source_chunk_ids_total": total_refs,
         "avg_entity_description_chars": round(
             sum(len(description) for description in entity_descriptions) / max(1, len(entity_descriptions)),
             1,
@@ -540,6 +559,8 @@ def run_window(
             "window_chunk_ids": sorted(allowed_ids),
             "entities": [],
             "relations": [],
+            "source_chunk_ids_valid": 0,
+            "source_chunk_ids_total": 0,
             "latency_s": 0.0,
             "input_tokens": 0,
             "output_tokens": 0,
@@ -550,6 +571,7 @@ def run_window(
     json_ok, parse_error, entities, relations = parse_extraction(content)
     input_tokens = int(usage.get("prompt_tokens") or usage.get("input_tokens") or 0)
     output_tokens = int(usage.get("completion_tokens") or usage.get("output_tokens") or 0)
+    valid_refs, total_refs = source_chunk_ids_validity(entities, relations, allowed_ids)
     return {
         "ok": True,
         "json_ok": json_ok,
@@ -557,6 +579,8 @@ def run_window(
         "window_chunk_ids": sorted(allowed_ids),
         "entities": entities,
         "relations": relations,
+        "source_chunk_ids_valid": valid_refs,
+        "source_chunk_ids_total": total_refs,
         "latency_s": round(latency, 4),
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
@@ -581,13 +605,14 @@ def aggregate_sample(
     """
     all_entities: list[dict[str, Any]] = []
     all_relations: list[dict[str, Any]] = []
-    allowed_ids: set[str] = set()
     timeouts_or_failures = 0
     json_ok_count = 0
     total_latency = 0.0
     total_input_tokens = 0
     total_output_tokens = 0
     parse_errors: list[str] = []
+    source_chunk_ids_valid = 0
+    source_chunk_ids_total = 0
     for row in window_results:
         if not row.get("ok"):
             timeouts_or_failures += 1
@@ -600,12 +625,19 @@ def aggregate_sample(
             json_ok_count += 1
         all_entities.extend(row.get("entities") or [])
         all_relations.extend(row.get("relations") or [])
-        allowed_ids.update(row.get("window_chunk_ids") or [])
+        # source_chunk_ids validity is window-scoped (A3 parser
+        # invariant: each record's source_chunk_ids must be a non-empty
+        # subset of the window the record was produced in, never the
+        # document-level union — BLOCKER fix per @ziang msg=56912dae +
+        # @huangzhangshu msg=cda4dc75). Per-window valid/total is
+        # computed in run_window and only summed here.
+        source_chunk_ids_valid += int(row.get("source_chunk_ids_valid") or 0)
+        source_chunk_ids_total += int(row.get("source_chunk_ids_total") or 0)
         total_latency += float(row.get("latency_s") or 0.0)
         total_input_tokens += int(row.get("input_tokens") or 0)
         total_output_tokens += int(row.get("output_tokens") or 0)
 
-    score = score_result(sample, all_entities, all_relations, allowed_chunk_ids=allowed_ids)
+    score = score_result(sample, all_entities, all_relations)
     price = prices.get(model, ModelPrice())
     estimated_cost = total_input_tokens * price.input_per_token + total_output_tokens * price.output_per_token
 
@@ -626,6 +658,8 @@ def aggregate_sample(
         "output_tokens_total": total_output_tokens,
         "estimated_cost_usd": round(float(estimated_cost), 8),
         "parse_errors": parse_errors[:3],
+        "source_chunk_ids_valid": source_chunk_ids_valid,
+        "source_chunk_ids_total": source_chunk_ids_total,
         **score,
     }
 
