@@ -280,19 +280,34 @@ def _build_outline(markdown: str) -> list[dict[str, Any]]:
     return root
 
 
+# Chunk-boundary separators in priority order. The splitter prefers a
+# paragraph break, then a line break, then a sentence terminator, and
+# only does a hard mid-text cut when none of those land in the search
+# window. Keep the list short — adding more separators (list bullets,
+# code-fence ends, …) trades simple/stable for marginal quality on
+# narrow document shapes.
+_CHUNK_BOUNDARIES: tuple[str, ...] = ("\n\n", "\n", ". ")
+
+
 def _split_chunks(markdown: str, chunking: ChunkingConfig) -> list[dict[str, Any]]:
-    """Split the parsed markdown into chunks following the outline order.
+    """Split markdown into stable, lightly-overlapping windows.
 
-    The simulator uses a deterministic byte-window strategy: walk the
-    markdown, slice into windows of approximately ``chunk_size``
-    characters honouring the nearest paragraph break, with
-    ``chunk_overlap`` characters of carry-over for context. The
-    chunk_id is ``"<sha256-prefix>:<index>"`` so the id is stable
-    across retries (depends only on content + chunking).
+    Strategy: walk the markdown character-by-character; aim for
+    ``chunk_size``-character windows; back off ``end`` to the nearest
+    boundary in ``_CHUNK_BOUNDARIES`` *within the second half* of the
+    window so a single early paragraph break cannot snap ``end`` close
+    to ``cursor`` and stall progress; carry ``chunk_overlap`` characters
+    forward only when the just-emitted window is large enough to host
+    them. The ``chunk_id`` is ``"<sha256-prefix>:<index>"`` so output is
+    deterministic across retries (depends only on content + chunking
+    knobs).
 
-    Real parser integration (T2.x) replaces this with a tokeniser-
-    aware splitter; the chunk record schema is the contract that must
-    not change.
+    The chunk record shape (``chunk_id`` / ``text`` / ``section_path``
+    / ``heading_anchor`` / ``page_idx``) is the contract consumed by
+    the indexing workers and must not change here. Heading-aware
+    section tagging is intentionally out of scope: the current
+    retrieval path does not key on it, and enriching the schema would
+    bloat the simple-stable surface.
     """
     text = markdown.strip()
     if not text:
@@ -302,16 +317,23 @@ def _split_chunks(markdown: str, chunking: ChunkingConfig) -> list[dict[str, Any
     cursor = 0
     chunk_index = 0
     content_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+    chunk_size = chunking.chunk_size
+    chunk_overlap = chunking.chunk_overlap
 
     while cursor < len(text):
-        # Aim for ``chunk_size`` characters, but back off to the
-        # nearest paragraph break so a chunk does not slice mid-
-        # sentence when we can avoid it.
-        end = min(cursor + chunking.chunk_size, len(text))
+        end = min(cursor + chunk_size, len(text))
         if end < len(text):
-            paragraph_break = text.rfind("\n\n", cursor, end)
-            if paragraph_break > cursor:
-                end = paragraph_break
+            # Only consider boundaries in the *second half* of the
+            # window so an unlucky early break (e.g. a 28-char
+            # paragraph at ``cursor``) cannot collapse ``end`` back
+            # toward ``cursor`` and re-emit a near-empty slice. This
+            # is what produced the duplicate-chunk cascade.
+            search_start = cursor + chunk_size // 2
+            for sep in _CHUNK_BOUNDARIES:
+                pos = text.rfind(sep, search_start, end)
+                if pos > cursor:
+                    end = pos + len(sep)
+                    break
 
         chunk_text = text[cursor:end].strip()
         if chunk_text:
@@ -328,7 +350,10 @@ def _split_chunks(markdown: str, chunking: ChunkingConfig) -> list[dict[str, Any
 
         if end >= len(text):
             break
-        cursor = max(end - chunking.chunk_overlap, cursor + 1)
+        # Skip overlap when the just-emitted window is too short to
+        # host it cleanly — otherwise ``end - chunk_overlap`` could
+        # fall behind ``cursor`` and stall the loop.
+        cursor = end - chunk_overlap if (end - cursor) > chunk_overlap * 2 else end
 
     return chunks
 
