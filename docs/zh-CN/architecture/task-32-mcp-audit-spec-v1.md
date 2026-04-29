@@ -210,8 +210,11 @@ graph 类 tool 输出加 unified `Result<T>` 容器：
   - schema：`aperag/domains/knowledge_graph/schemas.py` + MCP tool wrapper 同步
   - 测试：unit + e2e hurl + boundary test 钉 chunk_ids 必须在响应中出现
   - 推荐 owner：@ziang（熟 indexing/search/graph）
-- **#32-A2**：MCP tool docstring + `docs/zh-CN/integration/mcp.md` 明确 search_graph vs query_graph_entities 粒度差异
+- **#32-A2**：MCP tool docstring + 用户面文档全套统一更新
   - 不改代码 — 只改 docstring + 用户面文档
+  - 文档 grep 范围（per dongdong msg=3072630b NIT）：`docs/zh-CN/integration/mcp.md` + `docs/zh-CN/integration/mcp-api.md` + `docs/zh-CN/integration/dify.md` 三个文件全 update
+  - 验收：grep 旧「5 个工具」口径全 codebase 零命中（spec inventory 已是 15 个 tool）
+  - 内容 scope：明确 `search_graph`（chunk-level）vs `query_graph_entities`（entity-level）粒度差异
   - 推荐 owner：@dongdong（前端/文档 lane）
 - **#32-A3**：boundary test 钉 「MCP 不暴露 rerank」invariant
   - `tests/boundaries/test_no_rerank_in_mcp.py` 新建
