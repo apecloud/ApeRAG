@@ -622,10 +622,18 @@ def test_reconciler_graph_vectors_failed_retry_within_budget_flips_to_pending(en
 def test_reconciler_graph_vectors_failed_retry_overbudget_stays_permanently_failed(engine):
     """graph_vectors FAILED + retry_count > MAX_RETRY_COUNT → 永久 FAILED.
 
-    设计文档 §I.2 5-retry cap: 超预算的 graph_vectors 行应该停在 FAILED
-    并设 ``retry_after=NULL``, 让 reconciler 永远不再 re-enqueue. 操作员
-    手动 reset 才能恢复 — 这是 enrichment 失败「不阻塞事实层 + 永远不
-    silently retry forever」的边界保护.
+    设计文档 §I.2: ``MAX_RETRY_COUNT=5`` 上限语义是「初始尝试 + 至多
+    5 次 retry = 6 次总尝试」. retry_count == MAX_RETRY_COUNT (5)
+    时 ``<=`` 比较仍为 True, 那次仍然会被 reconciler flip 回 PENDING,
+    给 worker 跑第 6 次. 等 _finalize_failed 把 retry_count 提到 6 (> MAX)
+    才会清掉 retry_after, 进入永久 FAILED 状态.
+
+    本测试钉死 retry_count > MAX 的永久语义: 超预算行停在 FAILED,
+    reconciler 永远不再 re-enqueue. 操作员手动 reset 才能恢复.
+
+    边界 `retry_count == MAX_RETRY_COUNT` 仍可重试由
+    :func:`test_reconciler_graph_vectors_failed_retry_at_budget_boundary_still_retries`
+    单独钉, 防止后续把 ``<=`` 改成 ``<`` 而把 6 次总尝试缩成 5 次.
     """
     overbudget_id = _insert_row(
         engine,
@@ -643,6 +651,34 @@ def test_reconciler_graph_vectors_failed_retry_overbudget_stays_permanently_fail
     # Repeated reconcile cycles must keep the same answer — no spurious flips.
     for _ in range(3):
         assert reconcile_failed_retry(engine=engine) == 0
+
+
+def test_reconciler_graph_vectors_failed_retry_at_budget_boundary_still_retries(engine):
+    """graph_vectors FAILED + retry_count == MAX_RETRY_COUNT → 仍 flip PENDING.
+
+    huangheng PR #1874 NIT-C: 钉死 ``retry_count <= MAX_RETRY_COUNT``
+    边界 (5 <= 5 = True) 而非 ``<``. 否则后续 refactor 改成 ``<``
+    会把 5 次允许的 retry 缩成 4 次, 把总尝试 6 次缩成 5 次, 静默
+    收紧 retry budget — 用户感知到的就是「最后一次重试机会被吞」.
+    本 test 跟 overbudget test (`retry_count == MAX_RETRY_COUNT + 1`)
+    互补, 双面 pin 上限语义.
+    """
+    past = _utcnow() - timedelta(seconds=10)
+    boundary_id = _insert_row(
+        engine,
+        document_id="doc-gv-bnd",
+        parse_version="vvvvvvvvvvvvvvv4",
+        modality=Modality.GRAPH_VECTORS,
+        status=IndexStatus.FAILED,
+        retry_count=MAX_RETRY_COUNT,  # exactly at the cap — still retryable
+        retry_after=past,
+    )
+
+    flipped = reconcile_failed_retry(engine=engine)
+    assert flipped == 1, (
+        "retry_count == MAX_RETRY_COUNT must still flip to PENDING — the cap is the last allowed retry, not the cutoff"
+    )
+    assert _row(engine, boundary_id).status == IndexStatus.PENDING.value
 
 
 def test_reconciler_graph_vectors_failure_does_not_demote_facts_active(engine):
