@@ -33,7 +33,6 @@ import { DataGrid, DataGridPagination } from '@/components/data-grid';
 import { FormatDate } from '@/components/format-date';
 import { Badge } from '@/components/ui/badge';
 import { cn, objectKeys, parsePageParams } from '@/lib/utils';
-import _ from 'lodash';
 import {
   ChevronDown,
   Columns3,
@@ -67,10 +66,7 @@ const NON_TERMINAL_DOCUMENT_STATUSES = new Set([
   'DELETING',
 ]);
 
-const NON_TERMINAL_INDEX_STATUSES = new Set([
-  'PENDING',
-  'RUNNING',
-]);
+const NON_TERMINAL_INDEX_STATUSES = new Set(['PENDING', 'RUNNING']);
 
 const DOCUMENT_STATUS_CLASS: Record<string, string> = {
   COMPLETE: 'bg-accent-soft text-accent-ink border-accent-soft',
@@ -90,6 +86,9 @@ const formatFileSize = (size?: number | null) => {
   return `${(kb / 1000).toFixed(2)} MB`;
 };
 
+const formatStatus = (status: string) =>
+  status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+
 const DocumentStatusBadge = ({ status }: { status?: string | null }) => {
   if (!status) return null;
   return (
@@ -101,7 +100,7 @@ const DocumentStatusBadge = ({ status }: { status?: string | null }) => {
           'bg-secondary text-muted-foreground border-transparent',
       )}
     >
-      {_.capitalize(status)}
+      {formatStatus(status)}
     </Badge>
   );
 };
@@ -314,7 +313,8 @@ export function DocumentsTable({
           const extension =
             row.original.name?.split('.').pop()?.toLowerCase() ||
             ('unknow' as keyof typeof defaultStyles);
-          const iconProps = _.get(defaultStyles, extension);
+          const iconProps =
+            defaultStyles[extension as keyof typeof defaultStyles];
           const icon = (
             <FileIcon
               color="var(--primary)"

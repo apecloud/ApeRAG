@@ -47,7 +47,6 @@ import { getScenarioModels } from '@/features/providers/client-api';
 import type { ModelSpec } from '@/features/providers/types';
 import { cn, objectKeys } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
-import _ from 'lodash';
 import { ArrowLeft, Database, Sparkles } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import Link from 'next/link';
@@ -60,6 +59,11 @@ import { isVisibleCollectionConfigKey } from './feature-visibility';
 
 const modelSelectLabel = (m: ModelSpec) =>
   (m.display_name?.trim() || m.model_id || '').trim();
+
+const hasStringValue = (value: string | null | undefined) =>
+  value !== null && value !== undefined && value !== '';
+
+const hasModels = (group: ProviderModel) => (group.models?.length ?? 0) > 0;
 
 const modelIdInGroups = (
   groups: ProviderModel[] | undefined,
@@ -108,7 +112,7 @@ const collectionSchema = z
   .refine(
     ({ config }) => {
       if (config.enable_vector) {
-        return !_.isEmpty(config.embedding?.model_id);
+        return hasStringValue(config.embedding?.model_id);
       }
       return true;
     },
@@ -119,7 +123,7 @@ const collectionSchema = z
   .refine(
     ({ config }) => {
       if (config.enable_knowledge_graph) {
-        return !_.isEmpty(config.completion?.model_id);
+        return hasStringValue(config.completion?.model_id);
       }
       return true;
     },
@@ -402,7 +406,7 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
   });
   useEffect(() => {
     if (action === 'edit') return;
-    if (_.isEmpty(completionModels)) return;
+    if (!completionModels?.length) return;
 
     let defaultModel: ModelSpec | undefined;
     let currentModel: ModelSpec | undefined;
@@ -437,7 +441,7 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
   });
   useEffect(() => {
     if (action === 'edit') return;
-    if (_.isEmpty(embeddingModels)) return;
+    if (!embeddingModels?.length) return;
 
     let defaultModel: ModelSpec | undefined;
     let currentModel: ModelSpec | undefined;
@@ -671,25 +675,23 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
                             <SelectValue placeholder="Select a model" />
                           </SelectTrigger>
                           <SelectContent>
-                            {embeddingModels
-                              ?.filter((item) => _.size(item.models))
-                              .map((item) => {
-                                return (
-                                  <SelectGroup key={item.name}>
-                                    <SelectLabel>{item.label}</SelectLabel>
-                                    {item.models?.map((model) => {
-                                      return (
-                                        <SelectItem
-                                          key={model.model_id}
-                                          value={model.model_id || ''}
-                                        >
-                                          {modelSelectLabel(model)}
-                                        </SelectItem>
-                                      );
-                                    })}
-                                  </SelectGroup>
-                                );
-                              })}
+                            {embeddingModels?.filter(hasModels).map((item) => {
+                              return (
+                                <SelectGroup key={item.name}>
+                                  <SelectLabel>{item.label}</SelectLabel>
+                                  {item.models?.map((model) => {
+                                    return (
+                                      <SelectItem
+                                        key={model.model_id}
+                                        value={model.model_id || ''}
+                                      >
+                                        {modelSelectLabel(model)}
+                                      </SelectItem>
+                                    );
+                                  })}
+                                </SelectGroup>
+                              );
+                            })}
                             {modelUnavailable && field.value ? (
                               <SelectItem value={field.value} disabled>
                                 {field.value}（不允许当前场景）
@@ -746,25 +748,23 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
                             <SelectValue placeholder="Select a model" />
                           </SelectTrigger>
                           <SelectContent>
-                            {completionModels
-                              ?.filter((item) => _.size(item.models))
-                              .map((item) => {
-                                return (
-                                  <SelectGroup key={item.name}>
-                                    <SelectLabel>{item.label}</SelectLabel>
-                                    {item.models?.map((model) => {
-                                      return (
-                                        <SelectItem
-                                          key={model.model_id}
-                                          value={model.model_id || ''}
-                                        >
-                                          {modelSelectLabel(model)}
-                                        </SelectItem>
-                                      );
-                                    })}
-                                  </SelectGroup>
-                                );
-                              })}
+                            {completionModels?.filter(hasModels).map((item) => {
+                              return (
+                                <SelectGroup key={item.name}>
+                                  <SelectLabel>{item.label}</SelectLabel>
+                                  {item.models?.map((model) => {
+                                    return (
+                                      <SelectItem
+                                        key={model.model_id}
+                                        value={model.model_id || ''}
+                                      >
+                                        {modelSelectLabel(model)}
+                                      </SelectItem>
+                                    );
+                                  })}
+                                </SelectGroup>
+                              );
+                            })}
                             {modelUnavailable && field.value ? (
                               <SelectItem value={field.value} disabled>
                                 {field.value}（不允许当前场景）

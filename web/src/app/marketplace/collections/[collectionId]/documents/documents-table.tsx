@@ -25,16 +25,12 @@ import {
 import * as React from 'react';
 import { defaultStyles, FileIcon } from 'react-file-icon';
 
-import {
-  DOCUMENT_INDEX_TYPES,
-  type Document,
-} from '@/features/document/types';
+import { DOCUMENT_INDEX_TYPES, type Document } from '@/features/document/types';
 import type { SharedCollection } from '@/features/marketplace/types';
 
 import { DataGrid, DataGridPagination } from '@/components/data-grid';
 import { FormatDate } from '@/components/format-date';
 import { cn, objectKeys, parsePageParams } from '@/lib/utils';
-import _ from 'lodash';
 import { ChevronDown, Columns3, FileText, Search } from 'lucide-react';
 
 import { getDocumentStatusColor } from '@/app/workspace/collections/tools';
@@ -147,7 +143,8 @@ export function DocumentsTable({
           const extension =
             row.original.name?.split('.').pop()?.toLowerCase() ||
             ('unknow' as keyof typeof defaultStyles);
-          const iconProps = _.get(defaultStyles, extension);
+          const iconProps =
+            defaultStyles[extension as keyof typeof defaultStyles];
           const icon = (
             <FileIcon
               color="var(--primary)"
@@ -307,7 +304,7 @@ export function DocumentsTable({
           </DropdownMenu>
         </div>
       </div>
-      <DataGrid table={table} className="rounded-xl border-border/70" />
+      <DataGrid table={table} className="border-border/70 rounded-xl" />
       <DataGridPagination table={table} className="px-1" />
     </div>
   );
