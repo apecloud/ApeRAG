@@ -1372,7 +1372,15 @@ class GraphModalityWorker(ModalityWorker):
         """Apply the §D.3.2 algorithm so that the backend's lineage
         state for ``(document_id, parse_version)`` matches the
         artifact, while preserving every other doc / parse_v's
-        contribution to shared entities."""
+        contribution to shared entities.
+
+        以前 ``GRAPH`` 单模态把事实层(实体/关系/chunk 关联) 与向量层
+        (描述压缩 + 嵌入 + 候选合并) 一起跑. 拆分之后:
+        - :class:`GraphFactsWorker` 只跑 ``_apply_lineage_phases``;
+        - :class:`GraphVectorsWorker` 只跑 ``_post_sync_vector_pipeline``;
+        - 兼容期保留的 ``GraphModalityWorker.sync`` 维持原行为, 让
+          老 ``GRAPH`` 行的重试 / 回放仍然可用.
+        """
         body = await read_or_none_async(self._object_store, derived_artifact_path)
         if body is None:
             # §C.7 contract: empty / missing artifact means "derive
@@ -1386,7 +1394,69 @@ class GraphModalityWorker(ModalityWorker):
 
         entities, relations = parse_kg_jsonl(body)
 
-        # ---- Phase 1: lineage cleanup --------------------------------
+        pre_sync_entity_names, pre_sync_relation_keys = await self._apply_lineage_phases(
+            document_id=document_id,
+            parse_version=parse_version,
+            entities=entities,
+            relations=relations,
+        )
+
+        logger.info(
+            "graph.sync collection=%s document=%s parse_version=%s rebuilt_entities=%d rebuilt_relations=%d",
+            self._collection_id,
+            document_id,
+            parse_version,
+            len(entities),
+            len(relations),
+        )
+
+        # ---- Phase 3: Wave 7 W7-3 — compact + embed + vector upsert
+        # + snapshot-diff vector cleanup + merge candidate detect.
+        #
+        # The phase is opt-in: a worker constructed without
+        # ``embedder`` / ``vector_connector`` (e.g. unit tests, dev
+        # scripts) skips all four steps and degrades to Wave 6
+        # lineage-only behaviour. Production deployments wire the
+        # dependencies in ``worker_factory._build_graph_worker``.
+        #
+        # Step ordering (per spec §K.12.3 + huangheng msg=16a38734
+        # 7-invariant): Compactor → embed → vector upsert →
+        # snapshot-diff delete → merge detector. Out-of-order would
+        # break invariant #3 (Compactor must run before vector embed)
+        # or invariant #7 (snapshot-diff entity-name set must be
+        # captured *after* lineage rebuild + gc).
+        await self._post_sync_vector_pipeline(
+            document_id=document_id,
+            parse_version=parse_version,
+            kg_entity_records=entities,
+            kg_relation_records=relations,
+            pre_sync_entity_names=pre_sync_entity_names,
+            pre_sync_relation_keys=pre_sync_relation_keys,
+        )
+
+    # ---- Phase 1+2 shared implementation ----------------------------
+
+    async def _apply_lineage_phases(
+        self,
+        *,
+        document_id: str,
+        parse_version: str,
+        entities: Sequence[EntityRecord],
+        relations: Sequence[RelationRecord],
+        compacted_description: str | None = None,
+    ) -> tuple[set[str], set[tuple[str, str, str]]]:
+        """Run §D.3.2 Phase 1 (lineage cleanup) + Phase 2 (lineage
+        rebuild). Returns ``(pre_sync_entity_names, pre_sync_relation_keys)``
+        — the pre-Phase-1 lineage attribution sets, used by the
+        Phase 3 snapshot-diff vector GC.
+
+        ``compacted_description`` 透传给所有 upsert: ``None`` (默认)
+        表示 COALESCE 保留语义; :class:`GraphFactsWorker` 传 ``""``,
+        显式覆盖老 ``GRAPH`` 模态遗留的 description summary, 让事实层
+        切换之后旧文案不再回流到读路径.
+        """
+
+        # ---- Phase 1: lineage cleanup -------------------------------
         # Per §D.3.6 step 3 + step 4, Phase 1 removes ALL lineage
         # members for the document (across any parse_version), so a
         # new parse_version supersedes the old one cleanly within one
@@ -1424,7 +1494,11 @@ class GraphModalityWorker(ModalityWorker):
                 chunk_ids=entity_record.source_chunk_ids,
             )
             async with self._entity_lock.acquire(entity_record.name):
-                await self._store.upsert_entity_with_lineage(record=entity_record, lineage=lineage)
+                await self._store.upsert_entity_with_lineage(
+                    record=entity_record,
+                    lineage=lineage,
+                    compacted_description=compacted_description,
+                )
 
         for relation_record in relations:
             lineage = LineageMember(
@@ -1439,40 +1513,13 @@ class GraphModalityWorker(ModalityWorker):
                 relation_record.relation_type,
             )
             async with self._entity_lock.acquire(lock_key):
-                await self._store.upsert_relation_with_lineage(record=relation_record, lineage=lineage)
+                await self._store.upsert_relation_with_lineage(
+                    record=relation_record,
+                    lineage=lineage,
+                    compacted_description=compacted_description,
+                )
 
-        logger.info(
-            "graph.sync collection=%s document=%s parse_version=%s rebuilt_entities=%d rebuilt_relations=%d",
-            self._collection_id,
-            document_id,
-            parse_version,
-            len(entities),
-            len(relations),
-        )
-
-        # ---- Phase 3: Wave 7 W7-3 — compact + embed + vector upsert
-        # + snapshot-diff vector cleanup + merge candidate detect.
-        #
-        # The phase is opt-in: a worker constructed without
-        # ``embedder`` / ``vector_connector`` (e.g. unit tests, dev
-        # scripts) skips all four steps and degrades to Wave 6
-        # lineage-only behaviour. Production deployments wire the
-        # dependencies in ``worker_factory._build_graph_worker``.
-        #
-        # Step ordering (per spec §K.12.3 + huangheng msg=16a38734
-        # 7-invariant): Compactor → embed → vector upsert →
-        # snapshot-diff delete → merge detector. Out-of-order would
-        # break invariant #3 (Compactor must run before vector embed)
-        # or invariant #7 (snapshot-diff entity-name set must be
-        # captured *after* lineage rebuild + gc).
-        await self._post_sync_vector_pipeline(
-            document_id=document_id,
-            parse_version=parse_version,
-            kg_entity_records=entities,
-            kg_relation_records=relations,
-            pre_sync_entity_names=set(affected_entity_ids),
-            pre_sync_relation_keys=set(affected_relation_keys),
-        )
+        return set(affected_entity_ids), set(affected_relation_keys)
 
     # ---- Phase 3 helpers (Wave 7 W7-3) ------------------------------
 
@@ -1812,6 +1859,202 @@ class GraphModalityWorker(ModalityWorker):
         return post
 
 
+def _strip_entity_description(record: EntityRecord) -> EntityRecord:
+    """事实层切除 description 内容. 见 :class:`GraphFactsWorker` 注释."""
+    if not record.description:
+        return record
+    return EntityRecord(
+        name=record.name,
+        entity_type=record.entity_type,
+        description="",
+        source_chunk_ids=record.source_chunk_ids,
+    )
+
+
+def _strip_relation_description(record: RelationRecord) -> RelationRecord:
+    if not record.description:
+        return record
+    return RelationRecord(
+        source=record.source,
+        target=record.target,
+        relation_type=record.relation_type,
+        description="",
+        source_chunk_ids=record.source_chunk_ids,
+    )
+
+
+# ---------------------------------------------------------------------
+# GraphFactsWorker / GraphVectorsWorker — design pack §4.3 拆分.
+# ---------------------------------------------------------------------
+
+
+class GraphFactsWorker(GraphModalityWorker):
+    """事实层 worker — 只写 ``(实体, 关系, chunk 关联)``.
+
+    对应 :class:`Modality.GRAPH_FACTS`. 与 :class:`GraphModalityWorker` 的
+    区别:
+
+    * **不写 description**: ``EntityRecord.description`` /
+      ``RelationRecord.description`` 在 upsert 之前被改为空串. 配合
+      ``upsert_entity_with_lineage`` 里 ``description_parts`` 写入空文本
+      的语义 (compactor 与 search 路径都用 ``if p.text`` 过滤空 part),
+      读路径不会再看到旧描述.
+    * **覆盖老 ``GRAPH`` 模态遗留的 ``compacted_description``**:
+      upsert 时显式传 ``compacted_description=""``, 让老数据上的
+      summary 字段被清零. 这与设计文档 §4.3 第 3 点一致.
+    * **跳过 Phase 3**: 不跑 compactor / 嵌入 / 向量 upsert /
+      merge detector, 这些转给 :class:`GraphVectorsWorker`.
+
+    ACTIVE 后果是: 该文档的事实层可用 — agent / content-driven 检索
+    可以基于 entity name / chunk 关联回到原文 chunk.
+
+    构造时只需要 ``store`` / ``extractor`` / ``entity_lock`` /
+    ``object_store`` / ``collection_id`` / ``tenant_scope_key``;
+    ``compactor`` / ``embedder`` / ``vector_connector`` /
+    ``merge_detector`` 即使被传入也会被忽略 (向量层职责).
+    """
+
+    modality = Modality.GRAPH_FACTS
+
+    async def sync(
+        self,
+        *,
+        document_id: str,
+        parse_version: str,
+        derived_artifact_path: str,
+    ) -> None:
+        body = await read_or_none_async(self._object_store, derived_artifact_path)
+        if body is None:
+            logger.info(
+                "graph_facts.sync skipped — derived artifact missing or empty path=%s",
+                derived_artifact_path,
+            )
+            return
+
+        entities, relations = parse_kg_jsonl(body)
+        # 事实层不写描述: 把 description 清空再 upsert. 下游
+        # ``description_parts`` 仍然会写入一个空文本 part, 但 compactor
+        # 与读路径都用 ``if p.text`` 过滤掉空 part.
+        stripped_entities = [_strip_entity_description(e) for e in entities]
+        stripped_relations = [_strip_relation_description(r) for r in relations]
+
+        await self._apply_lineage_phases(
+            document_id=document_id,
+            parse_version=parse_version,
+            entities=stripped_entities,
+            relations=stripped_relations,
+            # 显式覆盖老 GRAPH 模态遗留的 compacted_description.
+            compacted_description="",
+        )
+
+        logger.info(
+            "graph_facts.sync collection=%s document=%s parse_version=%s rebuilt_entities=%d rebuilt_relations=%d",
+            self._collection_id,
+            document_id,
+            parse_version,
+            len(stripped_entities),
+            len(stripped_relations),
+        )
+
+
+class GraphVectorsWorker(GraphModalityWorker):
+    """向量层 worker — 实体/关系向量 + 候选合并检测.
+
+    对应 :class:`Modality.GRAPH_VECTORS`. 设计文档 §4.3:
+
+    * **derive 复用 facts 的 kg.jsonl**:
+      ``GraphVectorsWorker.derive`` 不会重跑 ``extractor``, 而是把
+      传入的 ``source_path`` 直接当作 facts 服务行 (graph_facts
+      ``DocumentIndex.derived_artifact_path``) 的 kg.jsonl 路径返回.
+      orchestrator / dispatcher 在 enqueue 这个 worker 时, 必须把
+      facts 服务行的 ``derived_artifact_path`` 当成 vectors 行的
+      ``source_path`` 注入 (step 4 完成).
+    * **sync 只跑 Phase 3 的 Step B + C + D**: 向量 upsert /
+      snapshot-diff GC / merge detector. **不跑 Step A (compactor)** —
+      因为 description 已经被事实层写空, compactor 没活干. 实现上
+      ``_post_sync_vector_pipeline`` 会自然跳过 (空 ``description_parts``
+      过滤后 compactor 拿到空 list).
+    * **不跑 Phase 1+2**: lineage 状态由事实层维护; 向量层只读 store.
+
+    第一版**不做向量 GC**. ``pre_sync_*`` 集合都传 ``set()``, snapshot-diff
+    就不会删任何旧向量. 这是为了避免事实层与向量层之间的 pre-sync
+    集合协议. 后续可以让 :class:`GraphIndexCompactor` 或 cleanup 任务
+    单独处理孤儿向量. 设计文档 §4.6 已写明这一折衷.
+
+    ACTIVE 后果是: name-driven 检索的实体向量层 (设计文档 §5 第三层)
+    可用. 失败不阻塞文档完成 — 前两层 (精确匹配 / alias+模糊) 已经够
+    用.
+    """
+
+    modality = Modality.GRAPH_VECTORS
+
+    async def derive(
+        self,
+        *,
+        document_id: str,
+        parse_version: str,
+        source_path: str,
+    ) -> DeriveResult:
+        """复用 :class:`GraphFactsWorker` 写入的 ``kg.jsonl`` artifact —
+        ``source_path`` 由 dispatcher 注入, 已经是 facts 服务行的
+        ``derived_artifact_path``.
+
+        若 ``source_path`` 为空 (facts 服务行尚未 ACTIVE), 抛
+        ``ValueError`` 让 reconciler 重排; 这与 dispatcher 传入空串
+        作为 "事实层未就绪" 的契约一致.
+        """
+        if not source_path:
+            raise ValueError(
+                "graph_vectors.derive: source_path is empty — graph_facts service row "
+                "not ready, dispatcher should not have enqueued this row yet"
+            )
+        logger.info(
+            "graph_vectors.derive collection=%s document=%s parse_version=%s reusing kg.jsonl=%s",
+            self._collection_id,
+            document_id,
+            parse_version,
+            source_path,
+        )
+        return DeriveResult(derived_artifact_path=source_path)
+
+    async def sync(
+        self,
+        *,
+        document_id: str,
+        parse_version: str,
+        derived_artifact_path: str,
+    ) -> None:
+        body = await read_or_none_async(self._object_store, derived_artifact_path)
+        if body is None:
+            logger.info(
+                "graph_vectors.sync skipped — kg.jsonl missing or empty path=%s",
+                derived_artifact_path,
+            )
+            return
+
+        entities, relations = parse_kg_jsonl(body)
+
+        # 第一版不做向量 GC: pre_sync_* 集都传空, snapshot-diff 不会删
+        # 旧向量. 设计文档 §4.6 折衷, 后续清理任务单独处理孤儿向量.
+        await self._post_sync_vector_pipeline(
+            document_id=document_id,
+            parse_version=parse_version,
+            kg_entity_records=entities,
+            kg_relation_records=relations,
+            pre_sync_entity_names=set(),
+            pre_sync_relation_keys=set(),
+        )
+
+        logger.info(
+            "graph_vectors.sync collection=%s document=%s parse_version=%s vectorised_entities=%d vectorised_relations=%d",
+            self._collection_id,
+            document_id,
+            parse_version,
+            len(entities),
+            len(relations),
+        )
+
+
 def _relation_lock_key(source: str, target: str, type: str) -> str:
     """Lock key that serialises read-modify-write on a relation edge.
 
@@ -1846,4 +2089,6 @@ __all__ = [
     "parse_kg_jsonl",
     # Modality worker
     "GraphModalityWorker",
+    "GraphFactsWorker",
+    "GraphVectorsWorker",
 ]

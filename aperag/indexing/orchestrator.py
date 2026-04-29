@@ -776,6 +776,13 @@ def _entrypoint(
 run_vector_worker = _entrypoint(Modality.VECTOR, concurrency=16)
 run_fulltext_worker = _entrypoint(Modality.FULLTEXT, concurrency=32)
 run_graph_worker = _entrypoint(Modality.GRAPH, concurrency=4)
+# 任务 #5: 老 GRAPH 单段 worker 拆分成事实层 + 向量层.
+# 事实层 (GRAPH_FACTS) 不依赖 LLM 描述压缩, 但仍要跑 entity extraction
+# (LLM 调用), 所以并发与老 GRAPH 一致 (4). 向量层 (GRAPH_VECTORS) 跑嵌入 +
+# 候选合并检测, LLM 触达更轻 (没有 extractor / compactor), 但仍是 LLM-bound,
+# 维持 4 的稳健默认; 后续可以根据生产观测单独调.
+run_graph_facts_worker = _entrypoint(Modality.GRAPH_FACTS, concurrency=4)
+run_graph_vectors_worker = _entrypoint(Modality.GRAPH_VECTORS, concurrency=4)
 run_summary_worker = _entrypoint(Modality.SUMMARY, concurrency=4)
 run_vision_worker = _entrypoint(Modality.VISION, concurrency=4)
 

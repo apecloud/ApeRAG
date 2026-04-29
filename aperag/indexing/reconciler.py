@@ -52,7 +52,7 @@ import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import Engine, and_, select, update
+from sqlalchemy import Engine, and_, insert, select, tuple_, update
 from sqlalchemy.orm import Session
 
 from aperag.indexing.models import DocumentIndex, IndexStatus, Modality
@@ -673,6 +673,84 @@ def _select_collections_needing_regen(
 
 
 # ---------------------------------------------------------------------
+# (5) Graph vectors enqueue — 任务 #5 设计文档 §4.4
+# ---------------------------------------------------------------------
+
+
+def reconcile_graph_vectors_enqueue(
+    *,
+    engine: Engine,
+    batch_size: int = RECONCILE_BATCH_SIZE,
+) -> int:
+    """事实层 ACTIVE 之后, 把缺失的向量层行 INSERT 成 PENDING.
+
+    任务 #5 设计文档 §4.4 conservative serial scheduling: 上传时
+    dispatcher 只插 ``graph_facts`` 一行; 当 ``graph_facts`` ACTIVE 之后,
+    本函数扫到这行 + 同 ``(document_id, parse_version)`` 还没有对应的
+    ``graph_vectors`` 行, 就 INSERT 一行 ``graph_vectors`` PENDING.
+    ``source_path`` 直接复用 facts 行的 ``derived_artifact_path``, 让
+    :class:`GraphVectorsWorker.derive` 不重跑 LLM extractor.
+
+    新增的 PENDING 行会在下一轮 :func:`reconcile_pending_dispatch` 里被
+    push 到 ``q:graph_vectors``, 进而被 worker 池消费.
+
+    幂等: 已经存在 ``graph_vectors`` 行的 ``(doc, parse_v)`` 跳过, 所以
+    多次循环不会重复 INSERT. 失败重试走标准
+    :func:`reconcile_failed_retry` 路径.
+
+    返回新 INSERT 的行数 (0 时为空板).
+    """
+    inserted = 0
+    with Session(engine) as session, session.begin():
+        facts_rows = list(
+            session.scalars(
+                select(DocumentIndex)
+                .where(
+                    and_(
+                        DocumentIndex.modality == Modality.GRAPH_FACTS.value,
+                        DocumentIndex.status == IndexStatus.ACTIVE.value,
+                        DocumentIndex.derived_artifact_path.is_not(None),
+                    )
+                )
+                .order_by(DocumentIndex.updated_at)
+                .limit(batch_size)
+            )
+        )
+        if not facts_rows:
+            return 0
+
+        # 一次查询找出所有已经存在的 graph_vectors 行 (按 (doc, v) 去重),
+        # 避免 N 次 round-trip.
+        pairs = [(r.document_id, r.parse_version) for r in facts_rows]
+        existing_stmt = select(DocumentIndex.document_id, DocumentIndex.parse_version).where(
+            and_(
+                DocumentIndex.modality == Modality.GRAPH_VECTORS.value,
+                tuple_(DocumentIndex.document_id, DocumentIndex.parse_version).in_(pairs),
+            )
+        )
+        existing_pairs = {tuple(row) for row in session.execute(existing_stmt)}
+
+        for facts_row in facts_rows:
+            key = (facts_row.document_id, facts_row.parse_version)
+            if key in existing_pairs:
+                continue
+            session.execute(
+                insert(DocumentIndex).values(
+                    document_id=facts_row.document_id,
+                    parse_version=facts_row.parse_version,
+                    modality=Modality.GRAPH_VECTORS.value,
+                    status=IndexStatus.PENDING.value,
+                    tenant_scope_key=facts_row.tenant_scope_key,
+                    collection_id=facts_row.collection_id,
+                    source_path=facts_row.derived_artifact_path,
+                    is_serving=False,
+                )
+            )
+            inserted += 1
+    return inserted
+
+
+# ---------------------------------------------------------------------
 # Run loop — production entrypoint.
 # ---------------------------------------------------------------------
 
@@ -698,6 +776,13 @@ async def run_reconcile_loop(
     """
     while not shutdown.is_set():
         try:
+            # 任务 #5 §4.4: graph_vectors 入队必须放在 reconcile_pending_dispatch
+            # 之前, 这样新 INSERT 的 PENDING 行会在同一轮 reconcile 周期里
+            # push 到队列, 缩短事实层 ACTIVE → 向量层 RUNNING 的等待.
+            graph_vectors_enqueued = await asyncio.to_thread(
+                reconcile_graph_vectors_enqueue,
+                engine=engine,
+            )
             pushed = await reconcile_pending_dispatch(engine=engine, queue=queue)
             retried = await asyncio.to_thread(reconcile_failed_retry, engine=engine)
             reclaimed = await asyncio.to_thread(
@@ -710,14 +795,16 @@ async def run_reconcile_loop(
                 queue=queue,
             )
             collection_regens = await reconcile_collection_descriptions_hook(engine=engine)
-            if pushed or retried or reclaimed or stuck_reenqueued or collection_regens:
+            if pushed or retried or reclaimed or stuck_reenqueued or collection_regens or graph_vectors_enqueued:
                 logger.info(
-                    "reconciler cycle: dispatched=%d retried=%d reclaimed=%d stuck_reenqueued=%d collection_regens=%d",
+                    "reconciler cycle: dispatched=%d retried=%d reclaimed=%d "
+                    "stuck_reenqueued=%d collection_regens=%d graph_vectors_enqueued=%d",
                     pushed,
                     retried,
                     reclaimed,
                     stuck_reenqueued,
                     collection_regens,
+                    graph_vectors_enqueued,
                 )
         except Exception as exc:  # noqa: BLE001 — keep the loop alive
             logger.exception("reconciler cycle failed: %s", exc)
@@ -734,6 +821,7 @@ __all__ = [
     "STUCK_PARSE_COOLDOWN_SECONDS",
     "reconcile_collection_descriptions_hook",
     "reconcile_failed_retry",
+    "reconcile_graph_vectors_enqueue",
     "reconcile_pending_dispatch",
     "reconcile_running_reclaim",
     "reconcile_stuck_documents_for_parse_reenqueue",

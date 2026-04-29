@@ -45,15 +45,36 @@ from aperag.db.base import Base
 
 
 class Modality(str, enum.Enum):
-    """5 supported modalities — design pack §C/§D Idempotency contract.
+    """Supported modalities — design pack §C/§D Idempotency contract.
 
-    Stored as ``VARCHAR`` in the DB (string-mode enum) so a future
-    sixth modality can be added without an alembic enum migration.
+    Stored as ``VARCHAR`` in the DB (string-mode enum) so new values
+    can be added without an alembic enum migration.
+
+    ``GRAPH`` is the legacy single-stage modality that wrote facts
+    (entities / relations / chunk lineage) and derived data (entity
+    descriptions, vector embeddings, merge candidates) under one row.
+    Per ``docs/zh-CN/architecture/graph_index_state_split.md`` (#indexing
+    优化 task #4) the new write path splits that into two independent
+    rows:
+
+    * ``GRAPH_FACTS`` — facts only. ACTIVE means the document can be
+      traversed back to the original chunk; the agent and content-driven
+      retrieval consider the document graph-ready at this point.
+    * ``GRAPH_VECTORS`` — entity / relation embeddings + merge candidate
+      detection. ACTIVE means the name-driven retrieval path's vector
+      layer is ready; failure here does not block document completion.
+
+    Old ``GRAPH`` rows are kept read-only for back-compat. Read paths
+    treat ``modality IN ('graph', 'graph_facts')`` as facts available,
+    and ``modality IN ('graph', 'graph_vectors')`` as vectors available,
+    until a future cleanup retires the legacy rows.
     """
 
     VECTOR = "vector"
     FULLTEXT = "fulltext"
-    GRAPH = "graph"
+    GRAPH = "graph"  # legacy single-stage value, kept for back-compat reads
+    GRAPH_FACTS = "graph_facts"  # new: facts (entities, relations, chunk lineage)
+    GRAPH_VECTORS = "graph_vectors"  # new: entity/relation vectors + merge detection
     SUMMARY = "summary"
     VISION = "vision"
 

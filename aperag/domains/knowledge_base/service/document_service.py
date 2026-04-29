@@ -103,7 +103,16 @@ logger = logging.getLogger(__name__)
 
 
 def _index_statuses_to_document_status(indexes: dict, fallback: DocumentStatus) -> DocumentStatus:
-    enabled_indexes = [index for index in indexes.values() if index]
+    """聚合 per-modality 状态成文档整体状态.
+
+    任务 #5 §4.5/§4.6 硬边界 (huangzhangshu task #3 审计 msg=23a23245 +
+    Planetegg msg=797baff4 ratify): **graph_vectors 不参与文档整体聚合**.
+    向量层是 graph 检索的增强层, 失败 / Pending 不应该让文档整体变 FAILED /
+    RUNNING. 文档"图谱事实层可用"由 ``GRAPH_FACTS`` 决定, 老 ``GRAPH``
+    单段在兼容期等价于 facts 层.
+    """
+    # 排除 GRAPH_VECTORS — 向量层不参与文档整体可用性聚合.
+    enabled_indexes = [index for key, index in indexes.items() if index and key != Modality.GRAPH_VECTORS.value.upper()]
     if not enabled_indexes:
         return fallback
 
@@ -451,7 +460,9 @@ class DocumentService:
             index_types.append(Modality.FULLTEXT)
 
         if collection_config.get("enable_knowledge_graph", False):
-            index_types.append(Modality.GRAPH)
+            # 任务 #5 §4.4: 上传时只入队事实层; 向量层由 reconciler 在
+            # 事实层 ACTIVE 后自动 INSERT.
+            index_types.append(Modality.GRAPH_FACTS)
         if collection_config.get("enable_summary", False):
             index_types.append(Modality.SUMMARY)
         if collection_config.get("enable_vision", False):
@@ -571,12 +582,26 @@ class DocumentService:
             # ``"summary"`` / ``"vision"``); the response shape uses
             # uppercase keys for backward-compat with HTTP clients,
             # so we translate via the :class:`Modality` enum.
+            #
+            # 任务 #5: 老 ``GRAPH`` 单段拆成 ``GRAPH_FACTS`` + ``GRAPH_VECTORS``.
+            # 这里把三个值都塞进 indexes 字典 (作为不同 key), 然后在
+            # ``_build_document_response`` 里按 §4.5 双场景规则映射成
+            # 单一 ``graph_index_status``: 优先 ``GRAPH_FACTS``, 否则
+            # ``GRAPH`` (兼容老数据).
             documents_dict = {}
             for row in rows:
                 doc = row.Document
                 if doc.id not in documents_dict:
                     documents_dict[doc.id] = doc
-                    doc.indexes = {"VECTOR": None, "FULLTEXT": None, "GRAPH": None, "SUMMARY": None, "VISION": None}
+                    doc.indexes = {
+                        "VECTOR": None,
+                        "FULLTEXT": None,
+                        "GRAPH": None,
+                        "GRAPH_FACTS": None,
+                        "GRAPH_VECTORS": None,
+                        "SUMMARY": None,
+                        "VISION": None,
+                    }
 
                 modality_value = row.index_type
                 if modality_value:
@@ -601,7 +626,17 @@ class DocumentService:
         """
         # Get all index information if available
         indexes = getattr(
-            document, "indexes", {"VECTOR": None, "FULLTEXT": None, "GRAPH": None, "SUMMARY": None, "VISION": None}
+            document,
+            "indexes",
+            {
+                "VECTOR": None,
+                "FULLTEXT": None,
+                "GRAPH": None,
+                "GRAPH_FACTS": None,
+                "GRAPH_VECTORS": None,
+                "SUMMARY": None,
+                "VISION": None,
+            },
         )
 
         # Parse summary from SUMMARY index's index_data
@@ -630,8 +665,19 @@ class DocumentService:
             vector_index_updated=indexes["VECTOR"]["updated_at"] if indexes["VECTOR"] else None,
             fulltext_index_status=indexes["FULLTEXT"]["status"] if indexes["FULLTEXT"] else None,
             fulltext_index_updated=indexes["FULLTEXT"]["updated_at"] if indexes["FULLTEXT"] else None,
-            graph_index_status=indexes["GRAPH"]["status"] if indexes["GRAPH"] else None,
-            graph_index_updated=indexes["GRAPH"]["updated_at"] if indexes["GRAPH"] else None,
+            # 任务 #5 §4.5 双场景兼容: GRAPH_FACTS 优先 (新数据), 否则
+            # 用老 GRAPH (兼容老数据). 文档级别的 graph 状态以事实层为准 —
+            # 向量层失败不阻塞 graph 可用 (§4.4 设计原则).
+            graph_index_status=(
+                indexes["GRAPH_FACTS"]["status"]
+                if indexes.get("GRAPH_FACTS")
+                else (indexes["GRAPH"]["status"] if indexes.get("GRAPH") else None)
+            ),
+            graph_index_updated=(
+                indexes["GRAPH_FACTS"]["updated_at"]
+                if indexes.get("GRAPH_FACTS")
+                else (indexes["GRAPH"]["updated_at"] if indexes.get("GRAPH") else None)
+            ),
             summary_index_status=indexes["SUMMARY"]["status"] if indexes.get("SUMMARY") else None,
             summary_index_updated=indexes["SUMMARY"]["updated_at"] if indexes.get("SUMMARY") else None,
             vision_index_status=indexes["VISION"]["status"] if indexes.get("VISION") else None,
@@ -957,7 +1003,9 @@ class DocumentService:
             elif index_type == "FULLTEXT":
                 index_type_enums.append(Modality.FULLTEXT)
             elif index_type == "GRAPH":
-                index_type_enums.append(Modality.GRAPH)
+                # 任务 #5: 用户传 "GRAPH" 时映射到事实层. 向量层由
+                # reconciler 在事实层 ACTIVE 后自动入队 (§4.4).
+                index_type_enums.append(Modality.GRAPH_FACTS)
             elif index_type == "SUMMARY":
                 index_type_enums.append(Modality.SUMMARY)
             elif index_type == "VISION":
@@ -975,8 +1023,11 @@ class DocumentService:
             if not collection or collection.user != user_id:
                 raise ResourceNotFoundException(f"Collection {collection_id} not found or access denied")
             collection_config = json.loads(collection.config)
-            if not collection_config.get("enable_knowledge_graph", False) and Modality.GRAPH in index_type_enums:
-                index_type_enums.remove(Modality.GRAPH)
+            if not collection_config.get("enable_knowledge_graph", False):
+                # 任务 #5: graph 关闭时三个 graph 模态都过滤掉.
+                for graph_modality in (Modality.GRAPH, Modality.GRAPH_FACTS, Modality.GRAPH_VECTORS):
+                    if graph_modality in index_type_enums:
+                        index_type_enums.remove(graph_modality)
             # Trigger rebuild for the requested modalities (Wave 3 T3.1
             # chunk 3: dispatch via the new dispatcher).
             await _create_or_update_document_indexes(
@@ -1019,10 +1070,45 @@ class DocumentService:
             # Process each document with failed indexes
             affected_documents = 0
             for document_id, failed_index_types in failed_docs:
-                # Filter out GRAPH type if not enabled in collection config
-                rebuild_types = failed_index_types
+                rebuild_types = list(failed_index_types)
+
+                # 任务 #5 §4.6 hard-gate (huangzhangshu task #3 审计 msg=23a23245
+                # + Planetegg msg=797baff4 + 符炫炜 ratify msg=3accc941):
+                # 失败行如果是 legacy ``graph``, 归一化到 ``graph_facts`` 并
+                # 在同事务里删除 legacy 行. reconciler 在 facts 层 ACTIVE
+                # 之后会自动入队 ``graph_vectors``, 这样老单段被重建后
+                # 自然进入两段新模态. 老 description / 旧向量点的清理走
+                # cleanup 的 lineage-aware 路径 (cleanup.py 已识别三个 graph
+                # 模态值, GraphFactsWorker.sync 也会显式覆盖 compacted_description=""
+                # 让残留摘要不被检索回流).
+                if Modality.GRAPH.value in rebuild_types:
+                    from sqlalchemy import and_ as _and
+                    from sqlalchemy import delete as _delete
+
+                    await session.execute(
+                        _delete(DocumentIndex).where(
+                            _and(
+                                DocumentIndex.document_id == document_id,
+                                DocumentIndex.modality == Modality.GRAPH.value,
+                            )
+                        )
+                    )
+                    rebuild_types = [
+                        Modality.GRAPH_FACTS.value if t == Modality.GRAPH.value else t for t in rebuild_types
+                    ]
+                    # 归一化后如果同时已经有 graph_facts FAILED, 会重复, 用
+                    # ``dict.fromkeys`` 保序去重.
+                    rebuild_types = list(dict.fromkeys(rebuild_types))
+
+                # Filter out GRAPH type if not enabled in collection config.
+                # 任务 #5: 三个 graph 模态值都要过滤掉, 避免重建已禁用的图谱索引.
                 if not enable_knowledge_graph:
-                    rebuild_types = [t for t in failed_index_types if t != Modality.GRAPH.value]
+                    graph_values = {
+                        Modality.GRAPH.value,
+                        Modality.GRAPH_FACTS.value,
+                        Modality.GRAPH_VECTORS.value,
+                    }
+                    rebuild_types = [t for t in rebuild_types if t not in graph_values]
 
                 if rebuild_types:
                     # Wave 3 T3.1 chunk 3: dispatch failed-rebuild via

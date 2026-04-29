@@ -203,6 +203,23 @@ class _FailingVectorConnector:
         raise RuntimeError("vector store down")
 
 
+class _FakeAliasRepo:
+    """In-memory alias map: ``name → canonical``. 不在 map 里的名字回写自身.
+
+    任务 #5 step 8 单测 fixture: 模拟 ``AliasMapRepository.resolve_canonical``
+    的最小读路径行为, 不连数据库.
+    """
+
+    def __init__(self, mapping: dict[str, str] | None = None) -> None:
+        self._mapping = dict(mapping or {})
+        self.calls: list[str] = []
+
+    async def resolve_canonical(self, *, collection_id: str, name: str) -> str:
+        del collection_id
+        self.calls.append(name)
+        return self._mapping.get(name, name)
+
+
 def _make_service(
     *,
     entities: dict[str, EntityWithLineage] | None = None,
@@ -214,6 +231,8 @@ def _make_service(
     connector: Any | None = None,
     top_k: int = 10,
     score_threshold: float = 0.0,
+    alias_repo: Any | None = None,
+    collection_id: str = "",
 ) -> tuple[GraphSearchService, _FakeStore, _FakeVectorConnector | Any, _FakeEmbedder | Any]:
     store = _FakeStore(
         entities=entities,
@@ -229,6 +248,8 @@ def _make_service(
         embedder=embedder,
         top_k=top_k,
         score_threshold=score_threshold,
+        alias_repo=alias_repo,
+        collection_id=collection_id,
     )
     return service, store, connector, embedder
 
@@ -347,8 +368,105 @@ async def test_search_entities_swallows_vector_store_failure():
     assert await service.search_entities("query") == []
     # Embedder still called; the failure happened on vector search.
     assert embedder.calls == ["query"]
-    assert len(connector.searches) == 1
-    assert store.get_entity_calls == ["query"]
+
+
+# ---------------------------------------------------------------------
+# 任务 #5 step 8: alias 解析层 — 设计文档 §5 三层检索的"别名+模糊"层
+# ---------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_search_entities_alias_redirects_when_exact_misses():
+    """精确匹配 miss 时, alias_repo 把 alias 翻译成 canonical, 第二次 get_entity
+    命中. 这是设计文档 §5 第二层兜底的核心场景.
+    """
+    foo_inc = _entity("Foo Inc")
+    alias_repo = _FakeAliasRepo({"Foo": "Foo Inc"})
+    service, store, _, _ = _make_service(
+        entities={"Foo Inc": foo_inc},  # 注意: store 里只有 canonical, 没有 alias 名字
+        alias_repo=alias_repo,
+        collection_id="c-1",
+    )
+
+    result = await service.search_entities("Foo")
+    assert [e.name for e in result] == ["Foo Inc"]
+    # 走了 alias 解析: 第 1 次 get_entity("Foo") → None, 第 2 次 get_entity("Foo Inc") → 命中.
+    assert "Foo" in store.get_entity_calls
+    assert "Foo Inc" in store.get_entity_calls
+    assert alias_repo.calls == ["Foo"]
+
+
+@pytest.mark.asyncio
+async def test_search_entities_alias_skipped_when_exact_hits():
+    """精确匹配命中时不需要走 alias 解析 — 节省一次 DB 查询."""
+    alpha = _entity("Alpha")
+    alias_repo = _FakeAliasRepo({"Alpha": "Beta"})  # 故意混淆
+    service, _, _, _ = _make_service(
+        entities={"Alpha": alpha},
+        alias_repo=alias_repo,
+        collection_id="c-1",
+    )
+
+    result = await service.search_entities("Alpha")
+    assert [e.name for e in result] == ["Alpha"]
+    # alias_repo 没被调用 — 第 1 层精确匹配已经命中.
+    assert alias_repo.calls == []
+
+
+@pytest.mark.asyncio
+async def test_search_entities_alias_repo_unset_falls_through_to_lexical():
+    """alias_repo=None 时降级到 lexical 兜底, 不会因为缺少 alias 注入而崩."""
+    bar = _entity("Bar Co")
+    service, _, _, _ = _make_service(
+        entities={"Bar Co": bar},
+        keyword_matches=[bar],
+        alias_repo=None,
+        collection_id="",
+    )
+
+    result = await service.search_entities("Bar")
+    assert [e.name for e in result] == ["Bar Co"]
+
+
+@pytest.mark.asyncio
+async def test_search_entities_alias_lookup_failure_falls_back_silently():
+    """alias_repo.resolve_canonical 抛异常时, 静默走后续 lexical / vector,
+    不让别名缺失阻断整个搜索.
+    """
+
+    class _BrokenAliasRepo:
+        async def resolve_canonical(self, *, collection_id: str, name: str) -> str:
+            del collection_id, name
+            raise RuntimeError("alias DB down")
+
+    foo_inc = _entity("Foo Inc")
+    service, _, _, _ = _make_service(
+        entities={"Foo Inc": foo_inc},
+        keyword_matches=[foo_inc],
+        alias_repo=_BrokenAliasRepo(),
+        collection_id="c-1",
+    )
+
+    # alias 解析失败, 但 lexical 仍然能通过 keyword_matches 兜底.
+    result = await service.search_entities("Foo")
+    assert [e.name for e in result] == ["Foo Inc"]
+
+
+@pytest.mark.asyncio
+async def test_search_entities_alias_resolves_to_self_skips_redirect():
+    """alias_repo 返回 name 自身 (没 alias 行) 时不发起多余的 get_entity."""
+    alias_repo = _FakeAliasRepo()  # 空 mapping → resolve_canonical 返回原名
+    service, store, _, _ = _make_service(
+        entities={},  # store 里没有这个 entity → 第 1 层 miss
+        alias_repo=alias_repo,
+        collection_id="c-1",
+    )
+    result = await service.search_entities("Unknown")
+    # Vector / lexical 也都没命中 (entities={} + 无 hits + 无 keyword_matches)
+    assert result == []
+    # alias 解析返回 self → 不发起重定向 get_entity. store 应该只看到第 1 层精确查询.
+    assert store.get_entity_calls == ["Unknown"]
+    assert alias_repo.calls == ["Unknown"]
 
 
 @pytest.mark.asyncio

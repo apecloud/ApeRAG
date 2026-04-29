@@ -392,11 +392,20 @@ def test_query_per_modality_independence_under_partial_failures(engine):
         status=IndexStatus.RUNNING,
     )
     # SUMMARY: no row at all → NOT_ENABLED in result.
+    # GRAPH_FACTS / GRAPH_VECTORS: new modalities added in #indexing优化
+    # task #5 — no rows seeded here either, so they appear NOT_ENABLED.
+    # Once the call sites switch from the legacy ``graph`` to the new
+    # split modalities, callers will hide the legacy ``graph`` field
+    # behind the §4.5 dual-scenario compatibility logic; this test
+    # only pins the per-modality independence shape, not the
+    # compatibility mapping.
     result = query_index_state_for_documents(engine=engine, collection_id="col-1", document_ids=["doc-1"])
     assert result["doc-1"] == {
         "vector": "ACTIVE",
         "fulltext": "FAILED",
         "graph": "INDEXING",
+        "graph_facts": "NOT_ENABLED",
+        "graph_vectors": "NOT_ENABLED",
         "summary": "NOT_ENABLED",
         "vision": "INDEXING",
     }
