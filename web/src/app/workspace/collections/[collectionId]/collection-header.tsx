@@ -34,7 +34,6 @@ import {
   Download,
   EllipsisVertical,
   Files,
-  FlaskConical,
   FolderSearch,
   Settings,
   Trash,
@@ -57,7 +56,6 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
   const { collection, share, loadShare } = useCollectionContext();
   const pathname = usePathname();
   const page_collections = useTranslations('page_collections');
-  const page_evaluations = useTranslations('page_collection_evaluations');
   const page_documents = useTranslations('page_documents');
   const page_graph = useTranslations('page_graph');
   const page_search = useTranslations('page_search');
@@ -98,12 +96,6 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
           icon: Files,
           label: page_documents('metadata.title'),
         },
-        {
-          href: urls.evaluations,
-          active: Boolean(pathname.match(urls.evaluations)),
-          icon: FlaskConical,
-          label: page_evaluations('metadata.title'),
-        },
         collection.config?.enable_knowledge_graph
           ? {
               href: urls.graph,
@@ -131,12 +123,10 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
       collection.config?.enable_knowledge_graph,
       page_collections,
       page_documents,
-      page_evaluations,
       page_graph,
       page_search,
       pathname,
       urls.documents,
-      urls.evaluations,
       urls.graph,
       urls.search,
       urls.settings,
