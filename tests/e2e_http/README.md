@@ -26,9 +26,9 @@ Current v1 scope:
   - inspect available models and provider configuration surfaces
   - configure public providers with user API keys
   - manage provider models, including slash-containing model names
-  - set default embedding/completion/rerank models
+  - set default embedding/completion models
   - query `/api/v1/available_models`
-  - call `/api/v1/embeddings` and `/api/v1/rerank` through real external providers
+  - call `/api/v1/embeddings` through real external providers
   - cover document staged/confirm/download/rebuild paths
   - cover document status visibility, list search by name, and collection search/history HTTP contracts
   - cover bot CRUD + agent config get/update

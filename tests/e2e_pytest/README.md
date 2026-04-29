@@ -80,11 +80,6 @@ COMPLETION_MODEL_PROVIDER_API_KEY=your_openrouter_api_key
 COMPLETION_MODEL_NAME=deepseek/deepseek-r1-distill-qwen-32b:free
 COMPLETION_MODEL_CUSTOM_PROVIDER=openrouter
 
-# Rerank Model Service Configuration
-RERANK_MODEL_PROVIDER=siliconflow
-RERANK_MODEL_PROVIDER_URL=https://api.siliconflow.cn/v1
-RERANK_MODEL_PROVIDER_API_KEY=your_siliconflow_api_key
-RERANK_MODEL_NAME=BAAI/bge-large-zh-1.5
 ```
 
 ### 4. Run Tests
@@ -133,12 +128,6 @@ pytest tests/e2e_pytest/ -x
 - `COMPLETION_MODEL_NAME`: Completion model name to use
 - `COMPLETION_MODEL_CUSTOM_PROVIDER`: Custom provider type
 
-**Rerank Model**
-- `RERANK_MODEL_PROVIDER`: Rerank model service provider name
-- `RERANK_MODEL_PROVIDER_URL`: Service provider API URL
-- `RERANK_MODEL_PROVIDER_API_KEY`: API key (required)
-- `RERANK_MODEL_NAME`: Rerank model name to use
-
 ### Recommended Configuration Combinations
 
 #### 1. Using OpenRouter + SiliconFlow
@@ -147,8 +136,6 @@ COMPLETION_MODEL_PROVIDER=openrouter
 COMPLETION_MODEL_NAME=deepseek/deepseek-r1-distill-qwen-32b:free
 EMBEDDING_MODEL_PROVIDER=siliconflow
 EMBEDDING_MODEL_NAME=BAAI/bge-m3
-RERANK_MODEL_PROVIDER=siliconflow
-RERANK_MODEL_NAME=BAAI/bge-large-zh-1.5
 ```
 
 ## Generated Artifacts
@@ -204,7 +191,7 @@ def test_something(client):
 ### Model Service Fixtures
 
 #### `setup_model_service_provider` (module scope)
-Automatically configure model service providers required for testing (completion, embedding, rerank)
+Automatically configure model service providers required for testing (completion and embedding)
 
 ### Business Object Fixtures
 

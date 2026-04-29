@@ -32,18 +32,11 @@ COMPLETION_MODEL_PROVIDER = os.getenv("COMPLETION_MODEL_PROVIDER", "openrouter")
 COMPLETION_MODEL_PROVIDER_URL = os.getenv("COMPLETION_MODEL_PROVIDER_URL", "https://openrouter.ai/api/v1")
 COMPLETION_MODEL_PROVIDER_API_KEY = os.getenv("COMPLETION_MODEL_PROVIDER_API_KEY", "")
 
-RERANK_MODEL_PROVIDER = os.getenv("RERANK_MODEL_PROVIDER", "alibabacloud")
-RERANK_MODEL_PROVIDER_URL = os.getenv("RERANK_MODEL_PROVIDER_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
-RERANK_MODEL_PROVIDER_API_KEY = os.getenv("RERANK_MODEL_PROVIDER_API_KEY", "")
-
 # The following model names are used for testing, please specify the model name using environment variables
 EMBEDDING_MODEL_NAME = os.getenv("EMBEDDING_MODEL_NAME", "text-embedding-v3")
 EMBEDDING_MODEL_CUSTOM_PROVIDER = os.getenv("EMBEDDING_MODEL_CUSTOM_PROVIDER", "openai")
 
 COMPLETION_MODEL_NAME = os.getenv("COMPLETION_MODEL_NAME", "google/gemini-2.5-flash")
 COMPLETION_MODEL_CUSTOM_PROVIDER = os.getenv("COMPLETION_MODEL_CUSTOM_PROVIDER", "openrouter")
-
-RERANK_MODEL_NAME = os.getenv("RERANK_MODEL_NAME", "gte-rerank-v2")
-RERANK_MODEL_CUSTOM_PROVIDER = os.getenv("RERANK_MODEL_CUSTOM_PROVIDER", "alibabacloud")
 
 MAX_DOCUMENT_SIZE_MB = 100

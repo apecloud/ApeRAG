@@ -117,7 +117,6 @@ const scenarioCapability: Record<ModelUseScenario, ModelCapability> = {
   agent_chat: 'chat',
   collection_completion: 'chat',
   collection_embedding: 'embedding',
-  retrieval_rerank: 'rerank',
   background_task: 'chat',
 };
 

@@ -78,11 +78,6 @@ COMPLETION_MODEL_PROVIDER_API_KEY=your_openrouter_api_key
 COMPLETION_MODEL_NAME=deepseek/deepseek-r1-distill-qwen-32b:free
 COMPLETION_MODEL_CUSTOM_PROVIDER=openrouter
 
-# Rerank 模型服务配置
-RERANK_MODEL_PROVIDER=siliconflow
-RERANK_MODEL_PROVIDER_URL=https://api.siliconflow.cn/v1
-RERANK_MODEL_PROVIDER_API_KEY=your_siliconflow_api_key
-RERANK_MODEL_NAME=BAAI/bge-large-zh-1.5
 ```
 
 ### 4. 运行测试
@@ -131,12 +126,6 @@ pytest tests/e2e_pytest/ -x
 - `COMPLETION_MODEL_NAME`: 使用的文本生成模型名称
 - `COMPLETION_MODEL_CUSTOM_PROVIDER`: 自定义提供商类型
 
-**Rerank 模型**
-- `RERANK_MODEL_PROVIDER`: Rerank 模型服务提供商名称
-- `RERANK_MODEL_PROVIDER_URL`: 服务提供商的 API URL
-- `RERANK_MODEL_PROVIDER_API_KEY`: API 密钥（必填）
-- `RERANK_MODEL_NAME`: 使用的 Rerank 模型名称
-
 ### 推荐配置组合
 
 #### 1. 使用 OpenRouter + SiliconFlow
@@ -145,8 +134,6 @@ COMPLETION_MODEL_PROVIDER=openrouter
 COMPLETION_MODEL_NAME=deepseek/deepseek-r1-distill-qwen-32b:free
 EMBEDDING_MODEL_PROVIDER=siliconflow
 EMBEDDING_MODEL_NAME=BAAI/bge-m3
-RERANK_MODEL_PROVIDER=siliconflow
-RERANK_MODEL_NAME=BAAI/bge-large-zh-1.5
 ```
 
 ## 生成产物
@@ -202,7 +189,7 @@ def test_something(client):
 ### 模型服务 Fixtures
 
 #### `setup_model_service_provider` (module scope)
-自动配置测试所需的模型服务提供商（completion、embedding、rerank）
+自动配置测试所需的模型服务提供商（completion、embedding）
 
 ### 业务对象 Fixtures
 

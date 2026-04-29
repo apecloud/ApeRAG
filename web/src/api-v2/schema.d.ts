@@ -13,9 +13,43 @@ export interface paths {
         };
         /**
          * Health Check
-         * @description Simple health check endpoint for container health monitoring
+         * @description Legacy compatibility endpoint for existing probes.
          */
-        get: operations["default_health_check"];
+        get: operations["health_health_check"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/health/live": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Live Check */
+        get: operations["health_live_check"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/health/ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Ready Check */
+        get: operations["health_ready_check"];
         put?: never;
         post?: never;
         delete?: never;
@@ -383,23 +417,6 @@ export interface paths {
         put?: never;
         /** Create Embeddings */
         post: operations["llm_create_embeddings"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/rerank": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Create Rerank */
-        post: operations["llm_create_rerank"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3375,24 +3392,6 @@ export interface components {
             /** Updated */
             updated?: string | null;
         };
-        /** Document1 */
-        Document1: {
-            /** Text */
-            text: string;
-            /** Metadata */
-            metadata?: {
-                [key: string]: unknown;
-            } | null;
-        };
-        /** Document2 */
-        Document2: {
-            /** Text */
-            text: string;
-            /** Metadata */
-            metadata?: {
-                [key: string]: unknown;
-            } | null;
-        };
         /**
          * DocumentList
          * @description A list of documents with pagination
@@ -5264,7 +5263,7 @@ export interface components {
             timeout?: number | null;
             /**
              * Top N
-             * @description Number of top results to return when reranking documents
+             * @description Number of top results to return
              */
             top_n?: number | null;
             /**
@@ -5333,7 +5332,7 @@ export interface components {
             timeout?: number | null;
             /**
              * Top N
-             * @description Number of top results to return when reranking documents
+             * @description Number of top results to return
              */
             top_n?: number | null;
             /**
@@ -5419,7 +5418,7 @@ export interface components {
          * ModelUseScenario
          * @enum {string}
          */
-        ModelUseScenario: "agent_chat" | "collection_completion" | "collection_embedding" | "retrieval_rerank" | "background_task";
+        ModelUseScenario: "agent_chat" | "collection_completion" | "collection_embedding" | "background_task";
         /**
          * ModelUseStrategy
          * @enum {string}
@@ -5809,70 +5808,6 @@ export interface components {
              */
             password?: string | null;
         };
-        /** RerankDocument */
-        RerankDocument: {
-            /** Index */
-            index: number;
-            /** Relevance Score */
-            relevance_score: number;
-            document?: components["schemas"]["Document2"] | null;
-        };
-        /**
-         * RerankRequest
-         * @description OpenAI-compatible rerank request — same legacy/new shape duality
-         *     as :class:`EmbeddingRequest`. See its docstring for the rationale.
-         */
-        RerankRequest: {
-            /**
-             * Model Id
-             * @description ApeRAG rerank model id
-             */
-            model_id?: string | null;
-            /** Query */
-            query: string;
-            /** Documents */
-            documents: string[] | components["schemas"]["Document1"][];
-            /**
-             * Top K
-             * @default 10
-             */
-            top_k: number | null;
-            /**
-             * Return Documents
-             * @default true
-             */
-            return_documents: boolean | null;
-            /**
-             * Model
-             * @description Legacy provider-model name (pre-#1697 compat). Resolved to ``model_id`` server-side.
-             */
-            model?: string | null;
-            /**
-             * Model Service Provider
-             * @description Legacy provider name (pre-#1697 compat). Resolved to ``model_id`` server-side.
-             */
-            model_service_provider?: string | null;
-            /**
-             * Custom Llm Provider
-             * @description Legacy provider dialect (pre-#1697 compat). Ignored once ``model_id`` is resolved.
-             */
-            custom_llm_provider?: string | null;
-        };
-        /** RerankResponse */
-        RerankResponse: {
-            /** Object */
-            object: string;
-            /** Data */
-            data: components["schemas"]["RerankDocument"][];
-            /** Model */
-            model: string;
-            usage: components["schemas"]["RerankUsage"];
-        };
-        /** RerankUsage */
-        RerankUsage: {
-            /** Total Tokens */
-            total_tokens: number;
-        };
         /** ResetPromptsRequest */
         ResetPromptsRequest: {
             /**
@@ -5900,13 +5835,6 @@ export interface components {
              * @example true
              */
             save_to_history: boolean | null;
-            /**
-             * Rerank
-             * @description Whether to enable rerank for search results
-             * @default false
-             * @example true
-             */
-            rerank: boolean | null;
         };
         /** SearchResult */
         SearchResult: {
@@ -6989,7 +6917,7 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    default_health_check: {
+    health_health_check: {
         parameters: {
             query?: never;
             header?: never;
@@ -7004,7 +6932,53 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+        };
+    };
+    health_live_check: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+        };
+    };
+    health_ready_check: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
                 };
             };
         };
@@ -7723,41 +7697,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EmbeddingResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    llm_create_rerank: {
-        parameters: {
-            query?: {
-                engine?: unknown;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RerankRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RerankResponse"];
                 };
             };
             /** @description Validation Error */

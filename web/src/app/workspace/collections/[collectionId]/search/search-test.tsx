@@ -106,7 +106,6 @@ export const SearchTest = ({ children }: { children: ReactNode }) => {
       const data: SearchRequest = {
         query: values.query,
         save_to_history: true,
-        rerank: true,
       };
 
       if (indexTypes.fulltext.checked) {

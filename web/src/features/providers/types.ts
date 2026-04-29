@@ -1,4 +1,4 @@
-export type ModelCapability = 'chat' | 'completion' | 'embedding' | 'rerank';
+export type ModelCapability = 'chat' | 'completion' | 'embedding';
 
 export type ModelProvider = {
   id?: string | null;
@@ -43,7 +43,6 @@ export type ModelUseScenario =
   | 'agent_chat'
   | 'collection_completion'
   | 'collection_embedding'
-  | 'retrieval_rerank'
   | 'background_task';
 
 export type ModelUse = {
