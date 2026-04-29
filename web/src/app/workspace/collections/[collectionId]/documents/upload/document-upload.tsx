@@ -14,7 +14,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import async from 'async';
 import { Bs1CircleFill, Bs2CircleFill } from 'react-icons/bs';
 import { TextImport } from './import/text-import';
 import { UrlImport } from './import/url-import';
@@ -45,7 +44,10 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table';
-import _ from 'lodash';
+import get from 'lodash/get';
+import isEmpty from 'lodash/isEmpty';
+import isEqual from 'lodash/isEqual';
+import last from 'lodash/last';
 import {
   BrushCleaning,
   ChevronRight,
@@ -81,6 +83,54 @@ type DocumentsWithFile = {
 };
 
 type AsyncTask = (callback: (error?: Error | null) => void) => void;
+
+/**
+ * Promise-based concurrency-limited iteration. Replaces `async.eachLimit`
+ * from the `async` package so we do not pay its whole-library import cost
+ * for a single call site. Semantics: run up to `limit` tasks in flight at
+ * a time; collect the first error encountered; invoke `done(err)` once the
+ * queue drains or, on error, once in-flight tasks finish.
+ */
+const runWithConcurrency = (
+  tasks: readonly AsyncTask[],
+  limit: number,
+  done: (error?: Error | null) => void,
+): void => {
+  if (tasks.length === 0) {
+    done(null);
+    return;
+  }
+  let firstError: Error | null = null;
+  let nextIndex = 0;
+  let active = 0;
+  let finished = false;
+
+  const settle = () => {
+    if (finished) return;
+    finished = true;
+    done(firstError);
+  };
+
+  const launch = () => {
+    while (!firstError && active < limit && nextIndex < tasks.length) {
+      const task = tasks[nextIndex++];
+      active++;
+      task((err) => {
+        active--;
+        if (err && firstError === null) {
+          firstError = err;
+        }
+        if (active === 0 && (firstError !== null || nextIndex >= tasks.length)) {
+          settle();
+          return;
+        }
+        launch();
+      });
+    }
+  };
+
+  launch();
+};
 
 const UPLOAD_CONCURRENCY = 5;
 const SIMULATED_PROGRESS_MAX = 95;
@@ -184,7 +234,7 @@ export const DocumentUpload = () => {
     if (!collection.id) return;
     const documentIds = documents
       .map((doc) => doc.document_id || '')
-      .filter((id) => !_.isEmpty(id));
+      .filter((id) => !isEmpty(id));
     await confirmDocuments(collection.id, documentIds);
     toast.success('Document added successfully');
     router.push(`/workspace/collections/${collection.id}/documents`);
@@ -255,7 +305,7 @@ export const DocumentUpload = () => {
               SIMULATED_PROGRESS_MAX,
             );
             setDocuments((docs) => {
-              const doc = docs.find((d) => d.file && _.isEqual(d.file, file));
+              const doc = docs.find((d) => d.file && isEqual(d.file, file));
               if (doc && doc.progress_status !== 'success') {
                 doc.progress = Number(progress.toFixed(0));
                 doc.progress_status = 'uploading';
@@ -272,7 +322,7 @@ export const DocumentUpload = () => {
           });
 
           setDocuments((docs) => {
-            const doc = docs.find((d) => d.file && _.isEqual(d.file, file));
+            const doc = docs.find((d) => d.file && isEqual(d.file, file));
             if (doc && res.document_id) {
               Object.assign(doc, {
                 ...res,
@@ -285,7 +335,7 @@ export const DocumentUpload = () => {
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
         } catch (err) {
           setDocuments((docs) => {
-            const doc = docs.find((d) => d.file && _.isEqual(d.file, file));
+            const doc = docs.find((d) => d.file && isEqual(d.file, file));
             if (doc) {
               Object.assign(doc, {
                 progress: controller.signal.aborted ? doc.progress : 0,
@@ -307,29 +357,28 @@ export const DocumentUpload = () => {
       setIsUploading(true);
       const controller = new AbortController();
       uploadControllerRef.current = controller;
-      async.eachLimit(
-        tasks,
-        UPLOAD_CONCURRENCY,
-        (task, callback) => {
-          if (controller.signal.aborted) {
-            setIsUploading(false);
-            callback();
-          } else {
-            task(callback);
-          }
-        },
-        (err) => {
-          if (uploadControllerRef.current === controller) {
-            uploadControllerRef.current = null;
-          }
-          if (err && !controller.signal.aborted) {
-            console.error('Upload error:', err);
-          } else if (!controller.signal.aborted) {
-            console.log('Upload completed');
-          }
-          setIsUploading(false);
-        },
+      const guardedTasks = tasks.map(
+        (task): AsyncTask =>
+          (callback) => {
+            if (controller.signal.aborted) {
+              setIsUploading(false);
+              callback();
+            } else {
+              task(callback);
+            }
+          },
       );
+      runWithConcurrency(guardedTasks, UPLOAD_CONCURRENCY, (err) => {
+        if (uploadControllerRef.current === controller) {
+          uploadControllerRef.current = null;
+        }
+        if (err && !controller.signal.aborted) {
+          console.error('Upload error:', err);
+        } else if (!controller.signal.aborted) {
+          console.log('Upload completed');
+        }
+        setIsUploading(false);
+      });
     },
     [collection.id],
   );
@@ -339,7 +388,7 @@ export const DocumentUpload = () => {
       setDocuments((docs) =>
         docs.filter((doc) =>
           item.file
-            ? !_.isEqual(doc.file, item.file)
+            ? !isEqual(doc.file, item.file)
             : doc.document_id !== item.document_id,
         ),
       );
@@ -383,14 +432,14 @@ export const DocumentUpload = () => {
         cell: ({ row }) => {
           const { filename, file, size } = row.original;
           const mimeType = file?.type ?? '';
-          const extension = _.last(mimeType.split('/')) || _.last(filename.split('.')) || '';
+          const extension = last(mimeType.split('/')) || last(filename.split('.')) || '';
           return (
             <div className="flex w-full flex-row items-center gap-2">
               <div className="size-6">
                 <FileIcon
                   color="var(--primary)"
                   extension={extension}
-                  {..._.get(defaultStyles, extension)}
+                  {...get(defaultStyles, extension)}
                 />
               </div>
               <div>
@@ -407,7 +456,7 @@ export const DocumentUpload = () => {
         header: page_documents('file_type'),
         cell: ({ row }) => {
           const { file, filename } = row.original;
-          return file?.type ?? _.last(filename.split('.')) ?? '—';
+          return file?.type ?? last(filename.split('.')) ?? '—';
         },
       },
       {
@@ -535,7 +584,7 @@ export const DocumentUpload = () => {
 
           files.forEach((file) => {
             const existingDoc = documents.find(
-              (doc) => doc.file && _.isEqual(doc.file, file),
+              (doc) => doc.file && isEqual(doc.file, file),
             );
             if (existingDoc) {
               newDocs.push(existingDoc);
