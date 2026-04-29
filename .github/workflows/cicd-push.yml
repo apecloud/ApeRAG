@@ -7,6 +7,10 @@ on:
     tags-ignore:
       - "*"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint-and-unit:
     runs-on: ubuntu-latest
@@ -39,6 +43,8 @@ jobs:
         with:
           version: "latest"
           python-version: "3.11"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
 
       - name: Install dependencies
         run: |
