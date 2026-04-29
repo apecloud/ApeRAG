@@ -728,12 +728,17 @@ class GraphService:
         if not entities:
             return [], {}, [], False
 
+        graph_vector_cache_state = await self._graph_vector_cache_state(collection_id=collection_id)
+        if not self._graph_vector_state_allows_embedding_layout(graph_vector_cache_state):
+            return [], {}, entities, False
+
         cache_key = self._embedding_projection_cache_key(
             collection_id=collection_id,
             backend_type=backend_type,
             max_entities=max_entities,
             collection_config=getattr(db_collection, "config", None),
             entities=entities,
+            graph_vector_cache_state=graph_vector_cache_state,
         )
         cached = await self._load_embedding_projection_cache(collection_id=collection_id, cache_key=cache_key)
         if cached is not None:
@@ -837,14 +842,15 @@ class GraphService:
             )
             point_entities.append(entity)
 
-        await self._save_embedding_projection_cache(
-            collection_id=collection_id,
-            cache_key=cache_key,
-            backend_type=backend_type,
-            max_entities=max_entities,
-            points=points,
-            cluster_labels=cluster_labels,
-        )
+        if self._graph_vector_state_allows_embedding_layout(graph_vector_cache_state):
+            await self._save_embedding_projection_cache(
+                collection_id=collection_id,
+                cache_key=cache_key,
+                backend_type=backend_type,
+                max_entities=max_entities,
+                points=points,
+                cluster_labels=cluster_labels,
+            )
 
         return points, cluster_labels, point_entities, False
 
@@ -856,6 +862,7 @@ class GraphService:
         max_entities: int,
         collection_config: Any,
         entities: list[Any],
+        graph_vector_cache_state: dict[str, Any] | None = None,
     ) -> str:
         payload = {
             "version": 1,
@@ -863,6 +870,7 @@ class GraphService:
             "backend_type": backend_type,
             "max_entities": max_entities,
             "collection_config": _stable_jsonish(collection_config),
+            "graph_vector_cache_state": _stable_jsonish(graph_vector_cache_state or {}),
             "entities": [
                 {
                     "name": getattr(entity, "name", None),
@@ -876,6 +884,85 @@ class GraphService:
         }
         encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+    async def _graph_vector_cache_state(self, *, collection_id: str) -> dict[str, Any]:
+        """Return graph-vector state that must invalidate layout cache.
+
+        The hybrid embedding layout is derived from Qdrant graph entity
+        points, while the selected entity set comes from the graph facts
+        store. Those are different truth sources; the cache key must
+        carry the upstream graph-vector serving version so a facts/vectors
+        rerun cannot keep serving a partial projection.
+        """
+        from sqlalchemy import func, select
+
+        from aperag.config import get_async_session
+        from aperag.indexing.models import DocumentIndex, IndexStatus, Modality
+
+        state: dict[str, Any] = {
+            "available": True,
+            "graph_facts_active_count": 0,
+            "graph_vectors_active_count": 0,
+            "graph_vectors_latest_updated_at": None,
+        }
+        try:
+            async for session in get_async_session():
+                rows = (
+                    await session.execute(
+                        select(
+                            DocumentIndex.modality,
+                            func.count(DocumentIndex.id),
+                            func.max(DocumentIndex.updated_at),
+                        )
+                        .where(
+                            DocumentIndex.collection_id == collection_id,
+                            DocumentIndex.status == IndexStatus.ACTIVE.value,
+                            DocumentIndex.is_serving.is_(True),
+                            DocumentIndex.modality.in_(
+                                [
+                                    Modality.GRAPH_FACTS.value,
+                                    Modality.GRAPH_VECTORS.value,
+                                ]
+                            ),
+                        )
+                        .group_by(DocumentIndex.modality)
+                    )
+                ).all()
+                for modality, count, latest_updated_at in rows:
+                    if modality == Modality.GRAPH_FACTS.value:
+                        state["graph_facts_active_count"] = int(count or 0)
+                    elif modality == Modality.GRAPH_VECTORS.value:
+                        state["graph_vectors_active_count"] = int(count or 0)
+                        state["graph_vectors_latest_updated_at"] = (
+                            latest_updated_at.isoformat() if latest_updated_at is not None else None
+                        )
+                return state
+        except Exception:
+            logger.warning(
+                "Failed to read graph vector state for hybrid layout cache",
+                extra={"collection_id": collection_id},
+                exc_info=True,
+            )
+            return {"available": False}
+        return state
+
+    @staticmethod
+    def _graph_vector_state_allows_embedding_layout(graph_vector_cache_state: dict[str, Any] | None) -> bool:
+        """Avoid embedding layouts while graph vectors are partial.
+
+        During a graph-vectors rerun, some documents can become ACTIVE
+        before others. Serving or caching that intermediate projection would leave
+        the graph-hybrid page pinned to a smaller point set until another
+        cache-key change happens. If the facts layer has split-state rows,
+        only use vectors once the vector layer has at least the same ACTIVE
+        row count. Legacy graph-only data has no split facts rows, so it
+        keeps the previous best-effort behavior.
+        """
+        if not graph_vector_cache_state or graph_vector_cache_state.get("available") is False:
+            return True
+        facts_count = int(graph_vector_cache_state.get("graph_facts_active_count") or 0)
+        vectors_count = int(graph_vector_cache_state.get("graph_vectors_active_count") or 0)
+        return facts_count <= 0 or vectors_count >= facts_count
 
     async def _load_embedding_projection_cache(
         self,

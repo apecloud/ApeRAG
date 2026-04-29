@@ -314,3 +314,104 @@ async def test_get_embedding_projection_uses_layout_cache(monkeypatch):
     assert [entity.name for entity in entities] == ["A"]
     assert layout_from_cache is True
     service._save_embedding_projection_cache.assert_not_called()
+
+
+async def test_get_embedding_projection_skips_cache_when_graph_vectors_partial():
+    class FakeStore:
+        async def list_entities(self, *, limit, offset):
+            assert limit == 1000
+            assert offset == 0
+            return [_entity("A", "person")]
+
+    service = GraphService()
+    service._graph_vector_cache_state = AsyncMock(
+        return_value={
+            "available": True,
+            "graph_facts_active_count": 10,
+            "graph_vectors_active_count": 4,
+        }
+    )
+    service._load_embedding_projection_cache = AsyncMock()
+    service._save_embedding_projection_cache = AsyncMock()
+
+    points, cluster_labels, entities, layout_from_cache = await service._get_embedding_projection(
+        backend_type="postgres",
+        db_collection=SimpleNamespace(id="col1"),
+        collection_id="col1",
+        store=FakeStore(),
+        max_entities=1000,
+    )
+
+    assert points == []
+    assert cluster_labels == {}
+    assert [entity.name for entity in entities] == ["A"]
+    assert layout_from_cache is False
+    service._load_embedding_projection_cache.assert_not_called()
+    service._save_embedding_projection_cache.assert_not_called()
+
+
+def test_embedding_projection_cache_key_includes_graph_vector_state():
+    service = GraphService()
+    entities = [_entity("A", "person")]
+
+    old_key = service._embedding_projection_cache_key(
+        collection_id="col1",
+        backend_type="postgres",
+        max_entities=1000,
+        collection_config={},
+        entities=entities,
+        graph_vector_cache_state={
+            "graph_facts_active_count": 1,
+            "graph_vectors_active_count": 1,
+            "graph_vectors_latest_updated_at": "2026-04-29T12:00:00+00:00",
+        },
+    )
+    new_key = service._embedding_projection_cache_key(
+        collection_id="col1",
+        backend_type="postgres",
+        max_entities=1000,
+        collection_config={},
+        entities=entities,
+        graph_vector_cache_state={
+            "graph_facts_active_count": 1,
+            "graph_vectors_active_count": 1,
+            "graph_vectors_latest_updated_at": "2026-04-29T12:30:00+00:00",
+        },
+    )
+
+    assert old_key != new_key
+
+
+def test_graph_vector_state_blocks_partial_embedding_layout_cache():
+    service = GraphService()
+
+    assert (
+        service._graph_vector_state_allows_embedding_layout(
+            {
+                "available": True,
+                "graph_facts_active_count": 10,
+                "graph_vectors_active_count": 4,
+            }
+        )
+        is False
+    )
+    assert (
+        service._graph_vector_state_allows_embedding_layout(
+            {
+                "available": True,
+                "graph_facts_active_count": 10,
+                "graph_vectors_active_count": 10,
+            }
+        )
+        is True
+    )
+    assert (
+        service._graph_vector_state_allows_embedding_layout(
+            {
+                "available": True,
+                "graph_facts_active_count": 0,
+                "graph_vectors_active_count": 0,
+            }
+        )
+        is True
+    )

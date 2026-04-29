@@ -314,6 +314,36 @@ async def test_search_entities_returns_entities_in_hit_order():
 
 
 @pytest.mark.asyncio
+async def test_search_entities_prefers_vector_before_keyword_matches():
+    vector_hit = _entity("Vector Match")
+    keyword_hit = _entity("Keyword Match")
+    service, store, _, _ = _make_service(
+        entities={"Vector Match": vector_hit},
+        keyword_matches=[keyword_hit],
+        hits=[SearchHit(id="v1", score=0.9, payload={"entity_name": "Vector Match"})],
+    )
+
+    result = await service.search_entities("query", top_k=2)
+
+    assert [entity.name for entity in result] == ["Vector Match", "Keyword Match"]
+    assert store.query_entities_by_keyword_calls == [("query", 1)]
+
+
+@pytest.mark.asyncio
+async def test_search_entities_hard_boosts_exact_match_over_vector_hits():
+    exact = _entity("Refund")
+    vector_hit = _entity("Tax Rebate")
+    service, _, _, _ = _make_service(
+        entities={"Refund": exact, "Tax Rebate": vector_hit},
+        hits=[SearchHit(id="v1", score=0.9, payload={"entity_name": "Tax Rebate"})],
+    )
+
+    result = await service.search_entities("Refund", top_k=2)
+
+    assert [entity.name for entity in result] == ["Refund", "Tax Rebate"]
+
+
+@pytest.mark.asyncio
 async def test_search_entities_dedupes_repeated_payload_names():
     a = _entity("Alpha")
     service, store, _, _ = _make_service(
@@ -397,8 +427,8 @@ async def test_search_entities_alias_redirects_when_exact_misses():
 
 
 @pytest.mark.asyncio
-async def test_search_entities_alias_skipped_when_exact_hits():
-    """精确匹配命中时不需要走 alias 解析 — 节省一次 DB 查询."""
+async def test_search_entities_alias_pre_step_keeps_exact_hit_top_ranked():
+    """alias 解析是 vector-first 的预处理步骤; 精确命中仍然 top-1."""
     alpha = _entity("Alpha")
     alias_repo = _FakeAliasRepo({"Alpha": "Beta"})  # 故意混淆
     service, _, _, _ = _make_service(
@@ -409,8 +439,7 @@ async def test_search_entities_alias_skipped_when_exact_hits():
 
     result = await service.search_entities("Alpha")
     assert [e.name for e in result] == ["Alpha"]
-    # alias_repo 没被调用 — 第 1 层精确匹配已经命中.
-    assert alias_repo.calls == []
+    assert alias_repo.calls == ["Alpha"]
 
 
 @pytest.mark.asyncio
