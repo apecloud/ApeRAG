@@ -584,6 +584,145 @@ def test_reconciler_graph_vectors_enqueue_skips_facts_without_artifact(engine):
 
 
 # ---------------------------------------------------------------------
+# (5c) Graph vectors retry budget — task #7
+# ---------------------------------------------------------------------
+#
+# graph_vectors 行复用通用的 reconcile_failed_retry 路径 (设计文档
+# v3.1 §4.4 + §I.2). task #7 主要把这条复用契约钉在测试里, 防止后续
+# 改造时不小心给 graph_vectors 加专属 retry 路径或绕开 MAX_RETRY_COUNT
+# 上限. 跟 task #5 step 4 实现的 reconcile_graph_vectors_enqueue
+# 一起, 形成「事实层 ACTIVE → 入队 → 失败可重试 → 超预算永久失败」
+# 闭环.
+
+
+def test_reconciler_graph_vectors_failed_retry_within_budget_flips_to_pending(engine):
+    """graph_vectors FAILED + retry_count <= MAX + retry_after 已过 → flip 回 PENDING.
+
+    钉死「graph_vectors 用通用 retry 路径」契约: 它跟 vector / fulltext / graph_facts
+    走同一条 :func:`reconcile_failed_retry`, 不需要专属代码.
+    """
+    past = _utcnow() - timedelta(seconds=10)
+    vec_id = _insert_row(
+        engine,
+        document_id="doc-gv-retry",
+        parse_version="vvvvvvvvvvvvvvv1",
+        modality=Modality.GRAPH_VECTORS,
+        status=IndexStatus.FAILED,
+        retry_count=2,
+        retry_after=past,
+    )
+
+    flipped = reconcile_failed_retry(engine=engine)
+    assert flipped == 1
+    assert _row(engine, vec_id).status == IndexStatus.PENDING.value, (
+        "graph_vectors row past backoff with budget remaining must rejoin PENDING queue"
+    )
+
+
+def test_reconciler_graph_vectors_failed_retry_overbudget_stays_permanently_failed(engine):
+    """graph_vectors FAILED + retry_count > MAX_RETRY_COUNT → 永久 FAILED.
+
+    设计文档 §I.2: ``MAX_RETRY_COUNT=5`` 上限语义是「初始尝试 + 至多
+    5 次 retry = 6 次总尝试」. retry_count == MAX_RETRY_COUNT (5)
+    时 ``<=`` 比较仍为 True, 那次仍然会被 reconciler flip 回 PENDING,
+    给 worker 跑第 6 次. 等 _finalize_failed 把 retry_count 提到 6 (> MAX)
+    才会清掉 retry_after, 进入永久 FAILED 状态.
+
+    本测试钉死 retry_count > MAX 的永久语义: 超预算行停在 FAILED,
+    reconciler 永远不再 re-enqueue. 操作员手动 reset 才能恢复.
+
+    边界 `retry_count == MAX_RETRY_COUNT` 仍可重试由
+    :func:`test_reconciler_graph_vectors_failed_retry_at_budget_boundary_still_retries`
+    单独钉, 防止后续把 ``<=`` 改成 ``<`` 而把 6 次总尝试缩成 5 次.
+    """
+    overbudget_id = _insert_row(
+        engine,
+        document_id="doc-gv-ob",
+        parse_version="vvvvvvvvvvvvvvv2",
+        modality=Modality.GRAPH_VECTORS,
+        status=IndexStatus.FAILED,
+        retry_count=MAX_RETRY_COUNT + 1,
+        retry_after=None,  # already cleared by orchestrator's _finalize_failed
+    )
+
+    flipped = reconcile_failed_retry(engine=engine)
+    assert flipped == 0, "overbudget graph_vectors row must not be re-queued"
+    assert _row(engine, overbudget_id).status == IndexStatus.FAILED.value
+    # Repeated reconcile cycles must keep the same answer — no spurious flips.
+    for _ in range(3):
+        assert reconcile_failed_retry(engine=engine) == 0
+
+
+def test_reconciler_graph_vectors_failed_retry_at_budget_boundary_still_retries(engine):
+    """graph_vectors FAILED + retry_count == MAX_RETRY_COUNT → 仍 flip PENDING.
+
+    huangheng PR #1874 NIT-C: 钉死 ``retry_count <= MAX_RETRY_COUNT``
+    边界 (5 <= 5 = True) 而非 ``<``. 否则后续 refactor 改成 ``<``
+    会把 5 次允许的 retry 缩成 4 次, 把总尝试 6 次缩成 5 次, 静默
+    收紧 retry budget — 用户感知到的就是「最后一次重试机会被吞」.
+    本 test 跟 overbudget test (`retry_count == MAX_RETRY_COUNT + 1`)
+    互补, 双面 pin 上限语义.
+    """
+    past = _utcnow() - timedelta(seconds=10)
+    boundary_id = _insert_row(
+        engine,
+        document_id="doc-gv-bnd",
+        parse_version="vvvvvvvvvvvvvvv4",
+        modality=Modality.GRAPH_VECTORS,
+        status=IndexStatus.FAILED,
+        retry_count=MAX_RETRY_COUNT,  # exactly at the cap — still retryable
+        retry_after=past,
+    )
+
+    flipped = reconcile_failed_retry(engine=engine)
+    assert flipped == 1, (
+        "retry_count == MAX_RETRY_COUNT must still flip to PENDING — the cap is the last allowed retry, not the cutoff"
+    )
+    assert _row(engine, boundary_id).status == IndexStatus.PENDING.value
+
+
+def test_reconciler_graph_vectors_failure_does_not_demote_facts_active(engine):
+    """graph_vectors 永久失败时, 同 (document, parse_version) 的
+    graph_facts 行不被影响.
+
+    设计文档 §4.5: 文档级图谱可用状态由 graph_facts ACTIVE 单独决定;
+    graph_vectors 只是补充检索向量, 失败时降级到精确匹配 + 别名 +
+    模糊匹配 (前两层降级). reconcile_failed_retry 在 graph_vectors
+    上跑时不能误碰 graph_facts 行.
+    """
+    facts_id = _insert_row(
+        engine,
+        document_id="doc-iso",
+        parse_version="vvvvvvvvvvvvvvv3",
+        modality=Modality.GRAPH_FACTS,
+        status=IndexStatus.ACTIVE,
+        is_serving=True,
+        derived_artifact_path="collections/c/documents/doc-iso/derived/parse_v3/kg.jsonl",
+    )
+    vectors_id = _insert_row(
+        engine,
+        document_id="doc-iso",
+        parse_version="vvvvvvvvvvvvvvv3",
+        modality=Modality.GRAPH_VECTORS,
+        status=IndexStatus.FAILED,
+        retry_count=MAX_RETRY_COUNT + 1,
+        retry_after=None,
+    )
+
+    reconcile_failed_retry(engine=engine)
+
+    facts_row = _row(engine, facts_id)
+    vectors_row = _row(engine, vectors_id)
+    assert facts_row.status == IndexStatus.ACTIVE.value, (
+        "graph_facts must stay ACTIVE — it does not depend on graph_vectors success"
+    )
+    assert facts_row.is_serving is True, "graph_facts is_serving must not flip on vector failure"
+    assert vectors_row.status == IndexStatus.FAILED.value, (
+        "graph_vectors stays FAILED permanently — operator-only recovery, not auto"
+    )
+
+
+# ---------------------------------------------------------------------
 # (6) §F.3 single-TX cutover in worker (per architect ruling msg=492315e8 Ruling 1)
 # ---------------------------------------------------------------------
 #
