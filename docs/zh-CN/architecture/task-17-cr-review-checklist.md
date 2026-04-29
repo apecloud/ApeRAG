@@ -455,7 +455,7 @@ CR cross-check 应用：CR 时如果 PR 涉及核心 invariant 反转（lifespan
 
 ### Lesson #12 v7 second-application demos（task #30 A2 + B1 实证累计）
 
-Lesson #12 v7「caller signature → backend schema → runtime fallback 三层 grep」入仓后（PR #1916 commit `b3c3a0e0`）3 周内连续触发 3 类 second-application demos，每类 cover 一个三层中漏 verify 的具体层次：
+Lesson #12 v7「caller signature → backend schema → runtime fallback 三层 grep」入仓后（PR #1916 commit `b3c3a0e0`，2026-04-30）数小时内连续触发 3 类 second-application demos，每类 cover 一个三层中漏 verify 的具体层次：
 
 **second-application 1 — backend schema 层漏 verify (task #32 PR #1909 GraphEvidenceRef composite key)**：
 - 来源 spec PR #1905 huangheng + 架构师 double own-up，Weston msg=7500e57d 第三 reviewer cross-check catch
