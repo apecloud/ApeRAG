@@ -8,10 +8,14 @@ import {
   getDocumentPreview,
 } from '@/features/document/server-api';
 import { toJson } from '@/lib/utils';
-import _ from 'lodash';
 import { notFound } from 'next/navigation';
 import { CollectionHeader } from '../../collection-header';
 import { DocumentDetail } from './document-detail';
+
+const truncate = (value: string, length: number) => {
+  if (value.length <= length) return value;
+  return `${value.slice(0, Math.max(0, length - 3))}...`;
+};
 
 export default async function Page({
   params,
@@ -42,7 +46,7 @@ export default async function Page({
             href: `/workspace/collections/${collectionId}/documents`,
           },
           {
-            title: _.truncate(document?.name || '', { length: 30 }),
+            title: truncate(document?.name || '', 30),
           },
         ]}
       />
