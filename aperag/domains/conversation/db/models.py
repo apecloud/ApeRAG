@@ -103,6 +103,14 @@ class ChatPeerType(str, Enum):
     WEIXIN_OFFICIAL = "weixin_official"
     WEB = "web"
     DINGTALK = "dingtalk"
+    # Internal-source flag for evaluation-run dispatched chats. The
+    # worker creates one ``Chat`` per case so the agent runtime has a
+    # real conversation to drive, but the user did not start it — so
+    # the row must not surface in the bot's chat list (per @earayu2
+    # msg=92d6fb21 + Weston msg=387ce23d). The chat-list query filters
+    # ``EVALUATION`` out by default; ``include_internal=True`` lets
+    # internal call sites (run detail trace links) still find the row.
+    EVALUATION = "evaluation"
 
 
 class TurnFeedbackType(str, Enum):

@@ -119,7 +119,9 @@ class Chat(BaseModel):
     title: Optional[str] = None
     bot_id: Optional[str] = None
     peer_id: Optional[str] = None
-    peer_type: Optional[Literal["system", "feishu", "weixin", "weixin_official", "web", "dingtalk"]] = None
+    peer_type: Optional[Literal["system", "feishu", "weixin", "weixin_official", "web", "dingtalk", "evaluation"]] = (
+        None
+    )
     status: Optional[Literal["active", "archived"]] = None
     created: Optional[datetime] = None
     updated: Optional[datetime] = None
@@ -177,7 +179,9 @@ class ChatDetails(BaseModel):
     title: Optional[str] = None
     bot_id: Optional[str] = None
     peer_id: Optional[str] = None
-    peer_type: Optional[Literal["system", "feishu", "weixin", "weixin_official", "web", "dingtalk"]] = None
+    peer_type: Optional[Literal["system", "feishu", "weixin", "weixin_official", "web", "dingtalk", "evaluation"]] = (
+        None
+    )
     history: Optional[list[AgentTurnSnapshot]] = Field(
         None,
         description=(
