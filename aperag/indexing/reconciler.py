@@ -682,23 +682,41 @@ def reconcile_graph_vectors_enqueue(
     engine: Engine,
     batch_size: int = RECONCILE_BATCH_SIZE,
 ) -> int:
-    """事实层 ACTIVE 之后, 把缺失的向量层行 INSERT 成 PENDING.
+    """事实层 ACTIVE 之后, 把缺失或者过期的向量层行入队成 PENDING.
 
-    任务 #5 设计文档 §4.4 conservative serial scheduling: 上传时
-    dispatcher 只插 ``graph_facts`` 一行; 当 ``graph_facts`` ACTIVE 之后,
-    本函数扫到这行 + 同 ``(document_id, parse_version)`` 还没有对应的
-    ``graph_vectors`` 行, 就 INSERT 一行 ``graph_vectors`` PENDING.
+    任务 #5 设计文档 §4.4 conservative serial scheduling + 任务 #15
+    stale detection (Planetegg msg=3322c22b 现场 surface + 5 方 align +
+    architect ratify msg=39c4ece8 + earayu2 拍板 msg=efc218ce):
+
+    **场景 1 — 缺失检测 (任务 #5 已实现)**: 当 ``graph_facts`` ACTIVE 之后,
+    扫到这行 + 同 ``(document_id, parse_version)`` 还没有对应的
+    ``graph_vectors`` 行, 就 INSERT 一行 ``graph_vectors`` PENDING. 这是
+    上传新文档之后的首次入队链路.
+
+    **场景 2 — stale detection (任务 #15 新增)**: 当 ``graph_facts`` 重跑后
+    (例如 reindex / cleanup-resync), ``graph_facts.updated_at`` 推进 +
+    ``graph_facts.derived_artifact_path`` 可能变, 但同 (doc, parse_v) 的
+    ``graph_vectors`` 行可能还是老 ACTIVE 状态, 导致 vector store 没新写入,
+    页面 layout 只能 fallback 到 facts. 触发条件:
+
+    * ``graph_facts.updated_at > graph_vectors.updated_at`` (事实层比向量层
+      新), 或者
+    * ``graph_vectors.source_path != graph_facts.derived_artifact_path``
+      (派生工件路径漂移)
+
+    任一条件命中, 就把 ``graph_vectors`` 行重置为 PENDING + 更新
+    ``source_path`` 为 facts 当前的 ``derived_artifact_path`` + 清掉老
+    ``error_message`` / ``retry_after`` (跟从 FAILED 重试的语义对齐). 下一轮
+    :func:`reconcile_pending_dispatch` push 到 ``q:graph_vectors``, worker
+    池消费.
+
     ``source_path`` 直接复用 facts 行的 ``derived_artifact_path``, 让
     :class:`GraphVectorsWorker.derive` 不重跑 LLM extractor.
 
-    新增的 PENDING 行会在下一轮 :func:`reconcile_pending_dispatch` 里被
-    push 到 ``q:graph_vectors``, 进而被 worker 池消费.
+    幂等性: 场景 2 不会让 ACTIVE-没漂移的 vectors 反复入队 — 时间戳 +
+    路径双判, facts 没改时 vectors 保持 ACTIVE 不被打扰.
 
-    幂等: 已经存在 ``graph_vectors`` 行的 ``(doc, parse_v)`` 跳过, 所以
-    多次循环不会重复 INSERT. 失败重试走标准
-    :func:`reconcile_failed_retry` 路径.
-
-    返回新 INSERT 的行数 (0 时为空板).
+    返回入队的行数 (INSERT + RESET-to-PENDING 之和, 0 时为空板).
     """
     inserted = 0
     with Session(engine) as session, session.begin():
@@ -719,30 +737,72 @@ def reconcile_graph_vectors_enqueue(
         if not facts_rows:
             return 0
 
-        # 一次查询找出所有已经存在的 graph_vectors 行 (按 (doc, v) 去重),
-        # 避免 N 次 round-trip.
+        # 一次查询拉所有已经存在的 graph_vectors 行 (full row, 不只是 key) —
+        # 任务 #15 需要 stale 比对, 必须知道 vectors 的 updated_at + source_path.
         pairs = [(r.document_id, r.parse_version) for r in facts_rows]
-        existing_stmt = select(DocumentIndex.document_id, DocumentIndex.parse_version).where(
-            and_(
-                DocumentIndex.modality == Modality.GRAPH_VECTORS.value,
-                tuple_(DocumentIndex.document_id, DocumentIndex.parse_version).in_(pairs),
+        existing_vectors = list(
+            session.scalars(
+                select(DocumentIndex).where(
+                    and_(
+                        DocumentIndex.modality == Modality.GRAPH_VECTORS.value,
+                        tuple_(DocumentIndex.document_id, DocumentIndex.parse_version).in_(pairs),
+                    )
+                )
             )
         )
-        existing_pairs = {tuple(row) for row in session.execute(existing_stmt)}
+        existing_by_key = {(v.document_id, v.parse_version): v for v in existing_vectors}
 
         for facts_row in facts_rows:
             key = (facts_row.document_id, facts_row.parse_version)
-            if key in existing_pairs:
+            existing = existing_by_key.get(key)
+
+            if existing is None:
+                # 场景 1: 缺失 → INSERT 新 PENDING 行.
+                session.execute(
+                    insert(DocumentIndex).values(
+                        document_id=facts_row.document_id,
+                        parse_version=facts_row.parse_version,
+                        modality=Modality.GRAPH_VECTORS.value,
+                        status=IndexStatus.PENDING.value,
+                        tenant_scope_key=facts_row.tenant_scope_key,
+                        collection_id=facts_row.collection_id,
+                        source_path=facts_row.derived_artifact_path,
+                        is_serving=False,
+                    )
+                )
+                inserted += 1
                 continue
+
+            # 场景 2: 已存在 graph_vectors 行, 检查是否 stale.
+            # 触发条件: 事实层比向量层新 OR 派生路径漂移.
+            facts_newer = (
+                existing.updated_at is not None
+                and facts_row.updated_at is not None
+                and facts_row.updated_at > existing.updated_at
+            )
+            path_drift = existing.source_path != facts_row.derived_artifact_path
+            if not (facts_newer or path_drift):
+                continue
+
+            # PENDING / RUNNING 状态的 vectors 行已经在被处理, 不要打扰它 —
+            # worker 处理完会按 source_path 写新数据, 不会拿老 artifact.
+            # 只有 ACTIVE / FAILED 状态的 stale vectors 需要被重置, 才能触发
+            # 重新拉取 + 重写 vector store.
+            if existing.status not in (
+                IndexStatus.ACTIVE.value,
+                IndexStatus.FAILED.value,
+            ):
+                continue
+
             session.execute(
-                insert(DocumentIndex).values(
-                    document_id=facts_row.document_id,
-                    parse_version=facts_row.parse_version,
-                    modality=Modality.GRAPH_VECTORS.value,
+                update(DocumentIndex)
+                .where(DocumentIndex.id == existing.id)
+                .values(
                     status=IndexStatus.PENDING.value,
-                    tenant_scope_key=facts_row.tenant_scope_key,
-                    collection_id=facts_row.collection_id,
                     source_path=facts_row.derived_artifact_path,
+                    error_message=None,
+                    retry_after=None,
+                    last_heartbeat=None,
                     is_serving=False,
                 )
             )

@@ -50,6 +50,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy import (
     Engine,
+    and_,
     create_engine,
     insert,
     select,
@@ -581,6 +582,255 @@ def test_reconciler_graph_vectors_enqueue_skips_facts_without_artifact(engine):
         derived_artifact_path=None,
     )
     assert reconcile_graph_vectors_enqueue(engine=engine) == 0
+
+
+# ---------------------------------------------------------------------
+# (5b') Graph vectors stale detection — task #15
+# (Planetegg msg=3322c22b surface + 5 方 align + architect ratify msg=39c4ece8 +
+#  earayu2 拍板 msg=efc218ce. 设计文档 §4.4 conservative serial scheduling
+#  扩展第 2 类触发: facts 重跑后 vectors stale 必须重入队.)
+# ---------------------------------------------------------------------
+
+
+def test_reconciler_graph_vectors_re_enqueues_stale_active_when_facts_updated_at_advances(engine):
+    """场景: facts 重跑 (updated_at 推进), 老 vectors ACTIVE 没漂移路径但
+    时间戳落后 → reconciler 必须重置 vectors 为 PENDING.
+    """
+    facts_artifact = "collections/c/documents/doc-1/derived/parse_v2/kg.jsonl"
+    facts_id = _insert_row(
+        engine,
+        document_id="doc-1",
+        parse_version="v1",
+        modality=Modality.GRAPH_FACTS,
+        status=IndexStatus.ACTIVE,
+        derived_artifact_path=facts_artifact,
+    )
+    # vectors ACTIVE 行, source_path 同 facts (无路径漂移), 但 updated_at 必须比 facts 早.
+    _insert_row(
+        engine,
+        document_id="doc-1",
+        parse_version="v1",
+        modality=Modality.GRAPH_VECTORS,
+        status=IndexStatus.ACTIVE,
+        source_path=facts_artifact,
+        is_serving=True,
+    )
+    # 强制 vectors.updated_at 比 facts.updated_at 早.
+    earlier = _utcnow() - timedelta(minutes=5)
+    with Session(engine) as session, session.begin():
+        session.execute(
+            update(DocumentIndex)
+            .where(
+                and_(
+                    DocumentIndex.modality == Modality.GRAPH_VECTORS.value,
+                    DocumentIndex.document_id == "doc-1",
+                )
+            )
+            .values(updated_at=earlier)
+        )
+
+    enqueued = reconcile_graph_vectors_enqueue(engine=engine)
+    assert enqueued == 1
+
+    with Session(engine) as session:
+        vectors = session.scalars(
+            select(DocumentIndex).where(DocumentIndex.modality == Modality.GRAPH_VECTORS.value)
+        ).one()
+    assert vectors.status == IndexStatus.PENDING.value
+    assert vectors.source_path == facts_artifact
+    assert vectors.is_serving is False
+    assert vectors.error_message is None
+    assert vectors.retry_after is None
+    # facts 行不变.
+    assert _row(engine, facts_id).status == IndexStatus.ACTIVE.value
+
+
+def test_reconciler_graph_vectors_re_enqueues_when_artifact_path_diverges(engine):
+    """场景: facts 重跑后 derived_artifact_path 漂移 (新 parse_version),
+    即使时间戳相同, vectors 也必须重入队 + source_path 同步.
+    """
+    new_artifact = "collections/c/documents/doc-1/derived/parse_v3/kg.jsonl"
+    old_artifact = "collections/c/documents/doc-1/derived/parse_v1/kg.jsonl"
+    _insert_row(
+        engine,
+        document_id="doc-1",
+        parse_version="v1",
+        modality=Modality.GRAPH_FACTS,
+        status=IndexStatus.ACTIVE,
+        derived_artifact_path=new_artifact,
+    )
+    _insert_row(
+        engine,
+        document_id="doc-1",
+        parse_version="v1",
+        modality=Modality.GRAPH_VECTORS,
+        status=IndexStatus.ACTIVE,
+        source_path=old_artifact,
+        is_serving=True,
+    )
+
+    enqueued = reconcile_graph_vectors_enqueue(engine=engine)
+    assert enqueued == 1
+
+    with Session(engine) as session:
+        vectors = session.scalars(
+            select(DocumentIndex).where(DocumentIndex.modality == Modality.GRAPH_VECTORS.value)
+        ).one()
+    assert vectors.status == IndexStatus.PENDING.value
+    assert vectors.source_path == new_artifact, "source_path 必须同步成 facts 当前的 artifact"
+
+
+def test_reconciler_graph_vectors_boundary_facts_equal_vectors_does_not_re_enqueue(engine):
+    """huangheng CR NIT-B (msg=33b1fc56): boundary 钉死 ``>`` 不是 ``>=``.
+    facts.updated_at == vectors.updated_at 时不应触发 stale (相等 ≠ 落后).
+    防未来 refactor 把 ``>`` 改成 ``>=`` 静默过度入队.
+    """
+    facts_artifact = "collections/c/documents/doc-1/derived/parse_v1/kg.jsonl"
+    same_time = _utcnow()
+
+    _insert_row(
+        engine,
+        document_id="doc-1",
+        parse_version="v1",
+        modality=Modality.GRAPH_FACTS,
+        status=IndexStatus.ACTIVE,
+        derived_artifact_path=facts_artifact,
+    )
+    _insert_row(
+        engine,
+        document_id="doc-1",
+        parse_version="v1",
+        modality=Modality.GRAPH_VECTORS,
+        status=IndexStatus.ACTIVE,
+        source_path=facts_artifact,
+        is_serving=True,
+    )
+    # 强制两边 updated_at 完全相等.
+    with Session(engine) as session, session.begin():
+        session.execute(
+            update(DocumentIndex)
+            .where(
+                and_(
+                    DocumentIndex.document_id == "doc-1",
+                    DocumentIndex.modality.in_(
+                        [Modality.GRAPH_FACTS.value, Modality.GRAPH_VECTORS.value],
+                    ),
+                )
+            )
+            .values(updated_at=same_time)
+        )
+
+    assert reconcile_graph_vectors_enqueue(engine=engine) == 0
+
+    with Session(engine) as session:
+        vectors = session.scalars(
+            select(DocumentIndex).where(DocumentIndex.modality == Modality.GRAPH_VECTORS.value)
+        ).one()
+    assert vectors.status == IndexStatus.ACTIVE.value, "facts == vectors 时不应触发 stale"
+    assert vectors.is_serving is True
+
+
+def test_reconciler_graph_vectors_idempotent_when_facts_unchanged(engine):
+    """幂等: facts 没改 (updated_at 不推进 + source_path 一致), vectors ACTIVE
+    不应被反复入队. 防止 reconciler 周期 30 秒重复打扰已 OK 的 vectors.
+    """
+    facts_artifact = "collections/c/documents/doc-1/derived/parse_v1/kg.jsonl"
+    _insert_row(
+        engine,
+        document_id="doc-1",
+        parse_version="v1",
+        modality=Modality.GRAPH_FACTS,
+        status=IndexStatus.ACTIVE,
+        derived_artifact_path=facts_artifact,
+    )
+    # vectors ACTIVE, 跟 facts 同 path, updated_at 比 facts 晚.
+    later = _utcnow() + timedelta(seconds=10)
+    _insert_row(
+        engine,
+        document_id="doc-1",
+        parse_version="v1",
+        modality=Modality.GRAPH_VECTORS,
+        status=IndexStatus.ACTIVE,
+        source_path=facts_artifact,
+        is_serving=True,
+    )
+    with Session(engine) as session, session.begin():
+        session.execute(
+            update(DocumentIndex).where(DocumentIndex.modality == Modality.GRAPH_VECTORS.value).values(updated_at=later)
+        )
+
+    # 跑 3 次都 0 (不重复打扰).
+    for _ in range(3):
+        assert reconcile_graph_vectors_enqueue(engine=engine) == 0
+
+    with Session(engine) as session:
+        vectors = session.scalars(
+            select(DocumentIndex).where(DocumentIndex.modality == Modality.GRAPH_VECTORS.value)
+        ).one()
+    assert vectors.status == IndexStatus.ACTIVE.value
+    assert vectors.is_serving is True
+
+
+def test_reconciler_graph_vectors_re_enqueues_failed_when_facts_updated(engine):
+    """FAILED 的 vectors 行也算 stale 候选 — facts 重跑后, 老 FAILED vectors
+    应该重置成 PENDING 重新尝试 (不消耗 retry_count, 因为根因是 facts 更新).
+    """
+    facts_artifact = "collections/c/documents/doc-1/derived/parse_v2/kg.jsonl"
+    _insert_row(
+        engine,
+        document_id="doc-1",
+        parse_version="v1",
+        modality=Modality.GRAPH_FACTS,
+        status=IndexStatus.ACTIVE,
+        derived_artifact_path=facts_artifact,
+    )
+    _insert_row(
+        engine,
+        document_id="doc-1",
+        parse_version="v1",
+        modality=Modality.GRAPH_VECTORS,
+        status=IndexStatus.FAILED,
+        source_path="old/path/kg.jsonl",
+    )
+
+    enqueued = reconcile_graph_vectors_enqueue(engine=engine)
+    assert enqueued == 1
+
+    with Session(engine) as session:
+        vectors = session.scalars(
+            select(DocumentIndex).where(DocumentIndex.modality == Modality.GRAPH_VECTORS.value)
+        ).one()
+    assert vectors.status == IndexStatus.PENDING.value
+    assert vectors.source_path == facts_artifact
+
+
+def test_reconciler_graph_vectors_skips_in_flight_pending_or_running(engine):
+    """PENDING / RUNNING 状态的 vectors 已在被处理 — 不应被打扰. 即使路径
+    漂移, worker 当前在跑 (RUNNING) 或排队等 worker (PENDING), 让它跑完就好;
+    跑完后如果 facts 又推进, 下一轮 reconciler 会再 stale-detect.
+    """
+    new_artifact = "collections/c/documents/doc-1/derived/parse_v2/kg.jsonl"
+    _insert_row(
+        engine,
+        document_id="doc-1",
+        parse_version="v1",
+        modality=Modality.GRAPH_FACTS,
+        status=IndexStatus.ACTIVE,
+        derived_artifact_path=new_artifact,
+    )
+    pending_id = _insert_row(
+        engine,
+        document_id="doc-1",
+        parse_version="v1",
+        modality=Modality.GRAPH_VECTORS,
+        status=IndexStatus.PENDING,
+        source_path="old/path/kg.jsonl",  # 漂移但 PENDING 不该被打扰
+    )
+
+    assert reconcile_graph_vectors_enqueue(engine=engine) == 0
+    # 行不变 (没被改 source_path).
+    assert _row(engine, pending_id).status == IndexStatus.PENDING.value
+    assert _row(engine, pending_id).source_path == "old/path/kg.jsonl"
 
 
 # ---------------------------------------------------------------------
