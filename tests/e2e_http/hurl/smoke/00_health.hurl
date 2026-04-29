@@ -24,10 +24,12 @@ GET {{base_url}}/health/live
 HTTP 200
 [Asserts]
 header "content-type" contains "application/json"
-jsonpath "$.status" == "healthy"
+jsonpath "$.status" == "live"
+jsonpath "$.service" == "aperag-api"
 
 GET {{base_url}}/health/ready
 HTTP 200
 [Asserts]
 header "content-type" contains "application/json"
 jsonpath "$.status" == "ready"
+jsonpath "$.service" == "aperag-api"
