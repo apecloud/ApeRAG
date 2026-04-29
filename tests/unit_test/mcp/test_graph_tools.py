@@ -118,7 +118,17 @@ def _err_response(status: int, text: str = "") -> MagicMock:
 
 @pytest.mark.asyncio
 async def test_query_graph_entities_httpx_call_shape():
-    payload = {"entities": [{"name": "X", "entity_type": "organization", "description": "d", "source_chunk_count": 2}]}
+    payload = {
+        "entities": [
+            {
+                "name": "X",
+                "entity_type": "organization",
+                "description": "d",
+                "source_chunk_count": 2,
+                "evidence_refs": [{"document_id": "doc1", "chunk_id": "c1", "parse_version": "v1"}],
+            }
+        ]
+    }
     response = _ok_response(payload)
     client = _make_async_client(response)
 
@@ -139,7 +149,26 @@ async def test_query_graph_entities_httpx_call_shape():
 
 @pytest.mark.asyncio
 async def test_expand_graph_subgraph_httpx_call_shape():
-    payload = {"entities": [], "relations": []}
+    payload = {
+        "entities": [
+            {
+                "name": "A",
+                "entity_type": "entity",
+                "description": "d",
+                "source_chunk_count": 1,
+                "evidence_refs": [{"document_id": "doc1", "chunk_id": "c1", "parse_version": "v1"}],
+            }
+        ],
+        "relations": [
+            {
+                "source": "A",
+                "target": "B",
+                "description": "rel",
+                "source_chunk_count": 1,
+                "evidence_refs": [{"document_id": "doc1", "chunk_id": "c2", "parse_version": "v1"}],
+            }
+        ],
+    }
     response = _ok_response(payload)
     client = _make_async_client(response)
 
@@ -159,7 +188,13 @@ async def test_expand_graph_subgraph_httpx_call_shape():
 
 @pytest.mark.asyncio
 async def test_get_entity_detail_httpx_call_shape_url_encodes_name():
-    payload = {"name": "墨香居", "entity_type": "organization", "description": "...", "source_chunk_count": 3}
+    payload = {
+        "name": "墨香居",
+        "entity_type": "organization",
+        "description": "...",
+        "source_chunk_count": 3,
+        "evidence_refs": [{"document_id": "doc1", "chunk_id": "c1", "parse_version": "v1"}],
+    }
     response = _ok_response(payload)
     client = _make_async_client(response)
 

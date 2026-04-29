@@ -360,6 +360,20 @@ class SuggestionActionResponse(BaseModel):
 # only) these are read-only shapes — no mutation surface.
 
 
+class GraphEvidenceRef(BaseModel):
+    """Lightweight source chunk reference for graph entity/relation evidence.
+
+    ``read_document_chunk`` is document-scoped, so MCP callers need both
+    ``document_id`` and ``chunk_id`` to follow graph evidence back to source
+    content. ``parse_version`` is carried when available to disambiguate
+    lineage across document re-parses.
+    """
+
+    document_id: str = Field(..., description="Source document ID")
+    chunk_id: str = Field(..., description="Source chunk ID")
+    parse_version: Optional[str] = Field(None, description="Parse version that produced this evidence ref")
+
+
 class GraphSearchEntity(BaseModel):
     """Entity returned by ``/graphs/entities/search`` and
     ``/graphs/entities/{name}``.
@@ -385,6 +399,10 @@ class GraphSearchEntity(BaseModel):
         examples=[3],
         ge=0,
     )
+    evidence_refs: list[GraphEvidenceRef] = Field(
+        default_factory=list,
+        description="Bounded source chunk refs for follow-up read_document_chunk calls",
+    )
 
 
 class GraphRelationView(BaseModel):
@@ -396,6 +414,16 @@ class GraphRelationView(BaseModel):
         ...,
         description="Compacted description if available, otherwise joined description parts",
         examples=["李明华经营墨香居"],
+    )
+    source_chunk_count: int = Field(
+        0,
+        description="Number of source chunks supporting this relationship",
+        examples=[2],
+        ge=0,
+    )
+    evidence_refs: list[GraphEvidenceRef] = Field(
+        default_factory=list,
+        description="Bounded source chunk refs for follow-up read_document_chunk calls",
     )
 
 
@@ -571,6 +599,7 @@ __all__ = [
     "SuggestionActionRequest",
     "SuggestionActionMergeResult",
     "SuggestionActionResponse",
+    "GraphEvidenceRef",
     "GraphSearchEntity",
     "GraphRelationView",
     "GraphEntitiesSearchResponse",
