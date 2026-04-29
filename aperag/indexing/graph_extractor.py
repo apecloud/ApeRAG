@@ -56,6 +56,7 @@ import asyncio
 import json
 import logging
 import re
+from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Mapping, Sequence
 
 from aperag.indexing.entity_types import (
@@ -76,6 +77,7 @@ _DEFAULT_LANGUAGE = "zh-CN"
 _DEFAULT_MAX_ENTITIES_PER_CHUNK = 32
 _DEFAULT_MAX_RELATIONS_PER_CHUNK = 32
 _DEFAULT_PER_CHUNK_TIMEOUT_SECONDS = 60.0
+_DEFAULT_GRAPH_EXTRACTION_WINDOW_SIZE = 1
 
 # Per-document concurrency cap for LLM extraction calls. Mirrors the
 # ``DEFAULT_LLM_CONCURRENCY = 4`` precedent in
@@ -112,6 +114,26 @@ _BOOTSTRAP_CHUNK_COUNT = 20
 # msg=cec8b206 — produces ~48 batches for the 2 395-chunk doc and
 # overlaps cleanly with the 4-way semaphore.
 _MAIN_PASS_BATCH_SIZE = 50
+
+
+@dataclass(frozen=True)
+class _GraphChunkWindow:
+    """Contiguous chunk group consumed by one graph extraction call.
+
+    A1 deliberately keeps this as an internal graph-extractor shape:
+    parser / vector / fulltext still consume the original chunk records.
+    Prompt v2 and provenance validation are owned by A3; this class only
+    centralises the window boundary contract for that later work.
+    """
+
+    chunks: tuple[Mapping[str, Any], ...]
+    chunk_ids: tuple[str, ...]
+    text: str
+
+    @property
+    def primary_chunk_id(self) -> str:
+        """Legacy provenance fallback used until A3 parses source_chunk_ids."""
+        return next((chunk_id for chunk_id in self.chunk_ids if chunk_id), "")
 
 
 def build_collection_graph_extractor(collection: Any) -> GraphExtractor:
@@ -158,6 +180,12 @@ def build_collection_graph_extractor(collection: Any) -> GraphExtractor:
     per_chunk_timeout = _resolve_float_kg_config(
         collection, "per_chunk_timeout_seconds", _DEFAULT_PER_CHUNK_TIMEOUT_SECONDS
     )
+    graph_window_size = _resolve_int_kg_config(
+        collection,
+        "graph_extraction_window_size",
+        _DEFAULT_GRAPH_EXTRACTION_WINDOW_SIZE,
+    )
+    graph_max_window_tokens = _resolve_optional_int_kg_config(collection, "graph_extraction_max_window_tokens")
 
     async def _extractor(chunks: Sequence[dict[str, Any]]) -> tuple[list[EntityRecord], list[RelationRecord]]:
         """Run the LLM extractor over every chunk in the dispatch.
@@ -191,6 +219,13 @@ def build_collection_graph_extractor(collection: Any) -> GraphExtractor:
         """
         if not chunks:
             return ([], [])
+        windows = _build_graph_chunk_windows(
+            chunks,
+            window_size=graph_window_size,
+            max_window_tokens=graph_max_window_tokens,
+        )
+        if not windows:
+            return ([], [])
 
         entities: list[EntityRecord] = []
         relations: list[RelationRecord] = []
@@ -198,17 +233,14 @@ def build_collection_graph_extractor(collection: Any) -> GraphExtractor:
         collection_id = getattr(collection, "id", "<unknown>")
 
         # ---- Pass 1: serial bootstrap (W11 dynamic-types feedback) ----
-        bootstrap = chunks[:_BOOTSTRAP_CHUNK_COUNT]
-        for chunk in bootstrap:
-            chunk_id = str(chunk.get("chunk_id") or chunk.get("id") or "")
-            text = str(chunk.get("text") or "")
-            if not text.strip():
+        bootstrap = windows[:_BOOTSTRAP_CHUNK_COUNT]
+        for window in bootstrap:
+            if not window.text.strip():
                 continue
             try:
-                ents, rels = await _extract_one_chunk(
+                ents, rels = await _extract_one_window(
                     llm=llm,
-                    text=text,
-                    chunk_id=chunk_id,
+                    window=window,
                     entity_types=tuple(active_entity_types),
                     language=prompt_language,
                     max_entities=max_entities,
@@ -217,9 +249,9 @@ def build_collection_graph_extractor(collection: Any) -> GraphExtractor:
                 )
             except Exception:  # noqa: BLE001 — per-chunk failure isolation
                 logger.exception(
-                    "graph extractor: bootstrap LLM call failed for chunk_id=%s in collection=%s; "
-                    "skipping chunk's entities/relations",
-                    chunk_id,
+                    "graph extractor: bootstrap LLM call failed for window_chunk_ids=%s in collection=%s; "
+                    "skipping window's entities/relations",
+                    window.chunk_ids,
                     collection_id,
                 )
                 continue
@@ -231,7 +263,7 @@ def build_collection_graph_extractor(collection: Any) -> GraphExtractor:
             )
 
         # ---- Pass 2: parallel gather over remaining chunks (chunked) ----
-        remaining = chunks[_BOOTSTRAP_CHUNK_COUNT:]
+        remaining = windows[_BOOTSTRAP_CHUNK_COUNT:]
         if not remaining:
             return entities, relations
 
@@ -242,18 +274,15 @@ def build_collection_graph_extractor(collection: Any) -> GraphExtractor:
         semaphore = asyncio.Semaphore(_DEFAULT_EXTRACTOR_LLM_CONCURRENCY)
 
         async def _bounded_extract(
-            chunk: Mapping[str, Any],
+            window: _GraphChunkWindow,
         ) -> tuple[list[EntityRecord], list[RelationRecord]]:
-            chunk_id = str(chunk.get("chunk_id") or chunk.get("id") or "")
-            text = str(chunk.get("text") or "")
-            if not text.strip():
+            if not window.text.strip():
                 return ([], [])
             async with semaphore:
                 try:
-                    return await _extract_one_chunk(
+                    return await _extract_one_window(
                         llm=llm,
-                        text=text,
-                        chunk_id=chunk_id,
+                        window=window,
                         entity_types=frozen_types,
                         language=prompt_language,
                         max_entities=max_entities,
@@ -262,9 +291,9 @@ def build_collection_graph_extractor(collection: Any) -> GraphExtractor:
                     )
                 except Exception:  # noqa: BLE001 — per-chunk failure isolation
                     logger.exception(
-                        "graph extractor: main LLM call failed for chunk_id=%s in collection=%s; "
-                        "skipping chunk's entities/relations",
-                        chunk_id,
+                        "graph extractor: main LLM call failed for window_chunk_ids=%s in collection=%s; "
+                        "skipping window's entities/relations",
+                        window.chunk_ids,
                         collection_id,
                     )
                     return ([], [])
@@ -284,6 +313,101 @@ def build_collection_graph_extractor(collection: Any) -> GraphExtractor:
         return entities, relations
 
     return _extractor
+
+
+def _build_graph_chunk_windows(
+    chunks: Sequence[Mapping[str, Any]],
+    *,
+    window_size: int,
+    max_window_tokens: int | None = None,
+) -> list[_GraphChunkWindow]:
+    """Group contiguous graph chunks into non-overlap extraction windows.
+
+    Hard boundaries:
+    - input order is preserved;
+    - a window contains at most ``window_size`` chunks;
+    - when present on adjacent chunks, ``document_id`` and ``parse_version``
+      must match;
+    - when present on adjacent chunks, section metadata must match;
+    - an optional approximate token cap starts a new window before overflow.
+
+    ``window_size=1`` returns one window per input chunk, preserving the
+    old extractor's bootstrap/main-pass structure.
+    """
+    if window_size <= 0:
+        raise ValueError("window_size must be positive")
+    token_cap = max_window_tokens if max_window_tokens and max_window_tokens > 0 else None
+    windows: list[_GraphChunkWindow] = []
+    current: list[Mapping[str, Any]] = []
+    current_tokens = 0
+
+    for chunk in chunks:
+        chunk_tokens = _estimate_graph_chunk_tokens(chunk)
+        if current and (
+            len(current) >= window_size
+            or _graph_window_boundary_break(current[-1], chunk)
+            or (token_cap is not None and current_tokens + chunk_tokens > token_cap)
+        ):
+            windows.append(_make_graph_chunk_window(current))
+            current = []
+            current_tokens = 0
+        current.append(chunk)
+        current_tokens += chunk_tokens
+
+    if current:
+        windows.append(_make_graph_chunk_window(current))
+    return windows
+
+
+def _make_graph_chunk_window(chunks: Sequence[Mapping[str, Any]]) -> _GraphChunkWindow:
+    chunk_tuple = tuple(chunks)
+    return _GraphChunkWindow(
+        chunks=chunk_tuple,
+        chunk_ids=tuple(_chunk_id(chunk) for chunk in chunk_tuple),
+        text="\n\n".join(str(chunk.get("text") or "") for chunk in chunk_tuple if str(chunk.get("text") or "").strip()),
+    )
+
+
+def _chunk_id(chunk: Mapping[str, Any]) -> str:
+    return str(chunk.get("chunk_id") or chunk.get("id") or "")
+
+
+def _estimate_graph_chunk_tokens(chunk: Mapping[str, Any]) -> int:
+    """Cheap deterministic token estimate for the A1 window cap.
+
+    The parser's v2 fallback splitter is character based, while older
+    document parsing paths may be tokenizer based. A1 only needs a stable
+    upper-bound guard for grouping; A2 owns the final model prompt budget.
+    """
+    text = str(chunk.get("text") or "")
+    if not text:
+        return 0
+    # CJK-heavy text tends toward one token per character; using
+    # character count is conservative for the cap and dependency-free.
+    return len(text)
+
+
+def _chunk_metadata_value(chunk: Mapping[str, Any], key: str) -> Any:
+    if key in chunk:
+        return chunk.get(key)
+    metadata = chunk.get("metadata")
+    if isinstance(metadata, Mapping):
+        return metadata.get(key)
+    return None
+
+
+def _graph_window_boundary_break(previous: Mapping[str, Any], current: Mapping[str, Any]) -> bool:
+    for key in ("document_id", "parse_version"):
+        previous_value = _chunk_metadata_value(previous, key)
+        current_value = _chunk_metadata_value(current, key)
+        if previous_value is not None and current_value is not None and str(previous_value) != str(current_value):
+            return True
+
+    previous_section = _chunk_metadata_value(previous, "section_path") or _chunk_metadata_value(
+        previous, "heading_anchor"
+    )
+    current_section = _chunk_metadata_value(current, "section_path") or _chunk_metadata_value(current, "heading_anchor")
+    return bool(previous_section and current_section and str(previous_section) != str(current_section))
 
 
 # ---------------------------------------------------------------------
@@ -321,6 +445,35 @@ async def _extract_one_chunk(
     )
     raw = await asyncio.wait_for(llm(prompt), timeout=timeout_seconds)
     return _parse_extraction_response(raw=raw, chunk_id=chunk_id)
+
+
+async def _extract_one_window(
+    *,
+    llm: Callable[[str], Awaitable[str]],
+    window: _GraphChunkWindow,
+    entity_types: tuple[str, ...],
+    language: str,
+    max_entities: int,
+    max_relations: int,
+    timeout_seconds: float,
+) -> tuple[list[EntityRecord], list[RelationRecord]]:
+    """A1 bridge from graph windows to the existing single-text prompt.
+
+    A3 replaces this bridge with boundary-marked prompt text and parses
+    model-provided ``source_chunk_ids``. Until then, default window_size=1
+    keeps production behavior equivalent; explicit >1 windows use the
+    first chunk id as legacy provenance fallback.
+    """
+    return await _extract_one_chunk(
+        llm=llm,
+        text=window.text,
+        chunk_id=window.primary_chunk_id,
+        entity_types=entity_types,
+        language=language,
+        max_entities=max_entities,
+        max_relations=max_relations,
+        timeout_seconds=timeout_seconds,
+    )
 
 
 # Cap on raw-response prefix written to the empty-result warn log —
@@ -569,6 +722,29 @@ def _resolve_int_kg_config(collection: Any, field: str, default: int) -> int:
             default,
         )
         return default
+    return value
+
+
+def _resolve_optional_int_kg_config(collection: Any, field: str) -> int | None:
+    raw = _resolve_kg_config_value(collection, field)
+    if raw is None:
+        return None
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        logger.warning(
+            "graph extractor: knowledge_graph_config.%s=%r is not an int; ignoring override",
+            field,
+            raw,
+        )
+        return None
+    if value <= 0:
+        logger.warning(
+            "graph extractor: knowledge_graph_config.%s=%d must be positive; ignoring override",
+            field,
+            value,
+        )
+        return None
     return value
 
 

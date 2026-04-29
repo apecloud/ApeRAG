@@ -4958,6 +4958,18 @@ export interface components {
              * @example 64
              */
             max_relations_per_chunk?: number | null;
+            /**
+             * Graph Extraction Window Size
+             * @description Number of consecutive chunks to combine for one graph extraction LLM call; default 1 if unset. Values above 1 only affect the graph index.
+             * @example 2
+             */
+            graph_extraction_window_size?: number | null;
+            /**
+             * Graph Extraction Max Window Tokens
+             * @description Approximate maximum input tokens for one graph extraction window. If set, the window assembler starts a new window before this limit is exceeded.
+             * @example 2000
+             */
+            graph_extraction_max_window_tokens?: number | null;
         };
         /** Login */
         Login: {

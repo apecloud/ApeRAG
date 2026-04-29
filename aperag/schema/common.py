@@ -164,6 +164,22 @@ class KnowledgeGraphConfig(BaseModel):
         ),
         examples=[64],
     )
+    graph_extraction_window_size: Optional[int] = Field(
+        None,
+        description=(
+            "Number of consecutive chunks to combine for one graph extraction LLM call; "
+            "default 1 if unset. Values above 1 only affect the graph index."
+        ),
+        examples=[2],
+    )
+    graph_extraction_max_window_tokens: Optional[int] = Field(
+        None,
+        description=(
+            "Approximate maximum input tokens for one graph extraction window. If set, "
+            "the window assembler starts a new window before this limit is exceeded."
+        ),
+        examples=[2000],
+    )
 
 
 class IndexPrompts(BaseModel):
