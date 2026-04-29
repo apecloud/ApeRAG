@@ -12,17 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Process-local indexing runtime singleton — celery T3.1 chunk 3.
+"""Process-local indexing runtime singleton.
 
-The FastAPI lifespan owns the canonical ``engine`` + ``queue`` +
-``workers`` triple (see ``aperag/app.py:combined_lifespan``). It also
-stashes them on ``app.state.indexing_*`` for HTTP routes that have a
-``Request`` handle. Service-layer code (``aperag/domains/**``) does not
-have a ``Request`` and shouldn't import FastAPI, so this module is the
-back-channel: the lifespan calls :func:`set_runtime` after building the
-triple, and service-layer callers use :func:`get_runtime` (returns
-``None`` when ``INDEXING_MODE != async`` — the legacy synchronous code
-path is dead and any caller hitting that case should log + no-op).
+The API process owns only the lightweight enqueue runtime: canonical
+``engine`` + ``queue`` + quota/metrics handles, with ``workers={}`` and
+``cleanup_worker_factory=None``. The heavy execution surface moved to
+``python -m aperag.cli.indexing_worker`` in task #17. ``app.py`` still
+stashes the enqueue handles on ``app.state.indexing_*`` for HTTP routes
+that have a ``Request`` handle. Service-layer code
+(``aperag/domains/**``) does not have a ``Request`` and shouldn't import
+FastAPI, so this module is the back-channel: the API lifespan calls
+:func:`set_runtime` after building the enqueue runtime, and service-layer
+callers use :func:`get_runtime` (returns ``None`` when the runtime has
+not been installed; callers should log + no-op rather than crash).
 
 The runtime is intentionally a single mutable global rather than a
 ``ContextVar`` because the indexing fan-out is one process-wide queue
@@ -51,8 +53,8 @@ def _default_quota_backend() -> QuotaBackend:
 @dataclass(frozen=True)
 class IndexingRuntime:
     """The runtime triple required by ``dispatch_indexing()`` and
-    ``cleanup_for_deleted_documents()``, plus the §J.1 metrics emitter
-    and Wave 4 T5 quota backend.
+    worker-side cleanup helpers when they are given a worker map/factory,
+    plus the §J.1 metrics emitter and Wave 4 T5 quota backend.
 
     ``workers`` may be empty when the deployment runs in ASYNC mode and
     cleanup is intentionally non-cascading (e.g. tests). ``queue`` may
@@ -69,7 +71,7 @@ class IndexingRuntime:
 
     ``metrics_emitter`` defaults to :class:`NoopMetricsEmitter` so older
     callers that build the runtime without specifying one keep working.
-    The lifespan in ``aperag/app.py`` swaps in
+    The API lifespan in ``aperag/app.py`` swaps in
     :class:`OTLPMetricsEmitter` when ``INDEXING_METRICS_EMITTER=otlp``.
 
     ``quota_backend`` (Wave 4 T5) is the §H.5 token-bucket the
@@ -93,8 +95,12 @@ _runtime: Optional[IndexingRuntime] = None
 
 
 def set_runtime(runtime: Optional[IndexingRuntime]) -> None:
-    """Install the process-wide indexing runtime (called by the
-    FastAPI lifespan). Pass ``None`` on shutdown to clear it."""
+    """Install the process-wide indexing runtime.
+
+    The API lifespan installs the enqueue-only runtime. Worker-side tests
+    may install richer runtimes with concrete workers. Pass ``None`` on
+    shutdown to clear it.
+    """
 
     global _runtime
     _runtime = runtime

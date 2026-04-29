@@ -15,12 +15,11 @@
 """Production worker factory — celery T3.1 follow-up.
 
 Per architect msg=7782ebe0 spec lock + PM msg=dc13c4a5 root cause:
-the FastAPI lifespan (``aperag/app.py:combined_lifespan``) used to wire
-``run_*_worker`` with a placeholder factory that raised
-``NotImplementedError`` on every dispatch — Wave 3's hard-cut deleted
-the legacy Celery indexers but never replaced this seam, so async-mode
-documents stalled at ``PENDING`` forever (e2e-http-provider gate failed
-on ``wait_for_document_indexes``).
+the original async runtime wired ``run_*_worker`` with a placeholder
+factory that raised ``NotImplementedError`` on every dispatch — Wave 3's
+hard-cut deleted the legacy Celery indexers but never replaced this seam,
+so async-mode documents stalled at ``PENDING`` forever
+(e2e-http-provider gate failed on ``wait_for_document_indexes``).
 
 This module is the seam: a per-task lazy factory that, given a
 :class:`DispatchPayload`, resolves the ``Collection`` row, picks the
@@ -1110,7 +1109,7 @@ def _get_runtime_or_raise():
 
 
 # ---------------------------------------------------------------------
-# Top-level factory — installed by the FastAPI lifespan.
+# Top-level factory — owned by the indexing-worker CLI / cleanup loop.
 # ---------------------------------------------------------------------
 
 
