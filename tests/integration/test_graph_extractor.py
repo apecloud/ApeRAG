@@ -249,6 +249,7 @@ def test_resolve_int_kg_config_reads_override():
 
     assert ge._resolve_int_kg_config(_Stub(), "max_entities_per_chunk", 32) == 64
     assert ge._resolve_int_kg_config(_Stub(), "max_relations_per_chunk", 32) == 128
+    assert ge._resolve_int_kg_config(_Stub(), "graph_extraction_window_size", 1) == 1
 
 
 def test_resolve_int_kg_config_falls_back_when_missing():
@@ -256,6 +257,66 @@ def test_resolve_int_kg_config_falls_back_when_missing():
         config = {"knowledge_graph_config": {}}
 
     assert ge._resolve_int_kg_config(_Stub(), "max_entities_per_chunk", 32) == 32
+
+
+def test_resolve_graph_window_config_reads_overrides():
+    class _Stub:
+        config = {
+            "knowledge_graph_config": {
+                "graph_extraction_window_size": 3,
+                "graph_extraction_max_window_tokens": 1200,
+            }
+        }
+
+    assert ge._resolve_int_kg_config(_Stub(), "graph_extraction_window_size", 1) == 3
+    assert ge._resolve_optional_int_kg_config(_Stub(), "graph_extraction_max_window_tokens") == 1200
+
+
+def test_build_graph_chunk_windows_window_size_one_preserves_chunk_boundaries():
+    chunks = [
+        {"chunk_id": "c-1", "text": "alpha"},
+        {"chunk_id": "c-2", "text": ""},
+        {"chunk_id": "c-3", "text": "gamma"},
+    ]
+
+    windows = ge._build_graph_chunk_windows(chunks, window_size=1)
+
+    assert [window.chunk_ids for window in windows] == [("c-1",), ("c-2",), ("c-3",)]
+    assert [window.text for window in windows] == ["alpha", "", "gamma"]
+
+
+def test_build_graph_chunk_windows_groups_contiguous_chunks_without_overlap():
+    chunks = [{"chunk_id": f"c-{i}", "text": f"text {i}"} for i in range(5)]
+
+    windows = ge._build_graph_chunk_windows(chunks, window_size=2)
+
+    assert [window.chunk_ids for window in windows] == [("c-0", "c-1"), ("c-2", "c-3"), ("c-4",)]
+    assert windows[0].text == "text 0\n\ntext 1"
+
+
+def test_build_graph_chunk_windows_respects_optional_token_cap():
+    chunks = [
+        {"chunk_id": "c-1", "text": "aaaa"},
+        {"chunk_id": "c-2", "text": "bbbb"},
+        {"chunk_id": "c-3", "text": "cccc"},
+    ]
+
+    windows = ge._build_graph_chunk_windows(chunks, window_size=3, max_window_tokens=8)
+
+    assert [window.chunk_ids for window in windows] == [("c-1", "c-2"), ("c-3",)]
+
+
+def test_build_graph_chunk_windows_respects_metadata_boundaries():
+    chunks = [
+        {"chunk_id": "c-1", "text": "a", "document_id": "doc-1", "parse_version": "v1", "section_path": "1"},
+        {"chunk_id": "c-2", "text": "b", "document_id": "doc-1", "parse_version": "v1", "section_path": "1"},
+        {"chunk_id": "c-3", "text": "c", "document_id": "doc-1", "parse_version": "v1", "section_path": "2"},
+        {"chunk_id": "c-4", "text": "d", "document_id": "doc-1", "parse_version": "v2", "section_path": "2"},
+    ]
+
+    windows = ge._build_graph_chunk_windows(chunks, window_size=4)
+
+    assert [window.chunk_ids for window in windows] == [("c-1", "c-2"), ("c-3",), ("c-4",)]
 
 
 def test_resolve_int_kg_config_rejects_non_positive():
@@ -336,6 +397,46 @@ def test_extractor_skips_chunks_with_empty_text():
     asyncio.run(_run())
 
 
+def test_extractor_uses_configured_graph_window_size(monkeypatch: pytest.MonkeyPatch):
+    """A1 config knob must reduce LLM calls by dispatching contiguous windows.
+
+    Prompt v2 owns boundary markers and source_chunk_ids; this test only
+    pins the window assembler / dispatch contract.
+    """
+
+    calls: list[str] = []
+
+    async def _stub_llm(prompt: str) -> str:
+        calls.append(prompt)
+        return '{"entities": [], "relations": []}'
+
+    _stub_integration(monkeypatch, _stub_llm)
+
+    class _WindowedCollection:
+        id = "col-windowed"
+        config = {
+            "language": "en-US",
+            "knowledge_graph_config": {
+                "entity_types": [],
+                "graph_extraction_window_size": 2,
+            },
+        }
+
+    async def _run() -> None:
+        extractor = ge.build_collection_graph_extractor(_WindowedCollection())
+        chunks = [{"chunk_id": f"c-{i}", "text": f"chunk text {i}"} for i in range(3)]
+        entities, relations = await extractor(chunks)
+        assert entities == []
+        assert relations == []
+
+    asyncio.run(_run())
+
+    assert len(calls) == 2
+    assert "chunk text 0" in calls[0]
+    assert "chunk text 1" in calls[0]
+    assert "chunk text 2" in calls[1]
+
+
 def test_extractor_isolates_per_chunk_failures(monkeypatch: pytest.MonkeyPatch):
     """The extractor closure must not abort on one chunk's LLM failure
     — the other chunks still contribute their entities. Pin the
@@ -357,7 +458,7 @@ def test_extractor_isolates_per_chunk_failures(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
         _integration,
         "build_collection_llm_callable",
-        lambda _coll: _flaky_llm,
+        lambda _coll, **_kwargs: _flaky_llm,
     )
 
     async def _run() -> None:
@@ -383,7 +484,7 @@ def test_extractor_builder_raises_when_completion_model_missing(monkeypatch: pyt
 
     import aperag.indexing.llm as _integration
 
-    def _no_llm(_coll):
+    def _no_llm(_coll, **_kwargs):
         raise ValueError("no completion model configured for collection col-x")
 
     monkeypatch.setattr(_integration, "build_collection_llm_callable", _no_llm)
@@ -423,7 +524,7 @@ def _stub_integration(monkeypatch: pytest.MonkeyPatch, llm_callable):
     short-circuits to the test stub."""
     import aperag.indexing.llm as _integration
 
-    monkeypatch.setattr(_integration, "build_collection_llm_callable", lambda _coll: llm_callable)
+    monkeypatch.setattr(_integration, "build_collection_llm_callable", lambda _coll, **_kwargs: llm_callable)
 
 
 def _entity_response(name: str, etype: str = "thing") -> str:
