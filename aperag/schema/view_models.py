@@ -22,6 +22,13 @@ from typing import Any, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel, conint
 
+# Forward ref resolution for the local ``ChatSuccessResponse`` class
+# below; ``ChatMessage`` itself lives in the conversation domain after
+# Phase 5 step 5-S3. Imported here at module top so the Pydantic class
+# body at line ~622 resolves the annotation without needing the
+# (now-stripped) end-of-file dual-hook block.
+from aperag.domains.conversation.schemas import ChatMessage  # noqa: F401
+
 # Phase 3 Step 4b (msg=1505044c): shared primitives moved to
 # `aperag.schema.common` so the `knowledge_base` domain can depend on
 # them without tripping Phase 3 G1 (``aperag.schema.view_models`` is on
@@ -36,13 +43,6 @@ from aperag.schema.common import (  # noqa: F401  re-export for back-compat
     PaginatedResponse,
     VisionChunk,
 )
-
-# Forward ref resolution for the local ``ChatSuccessResponse`` class
-# below; ``ChatMessage`` itself lives in the conversation domain after
-# Phase 5 step 5-S3. Imported here at module top so the Pydantic class
-# body at line ~622 resolves the annotation without needing the
-# (now-stripped) end-of-file dual-hook block.
-from aperag.domains.conversation.schemas import ChatMessage  # noqa: F401
 
 
 class FailResponse(BaseModel):
@@ -320,8 +320,7 @@ class NodeMergeResponse(BaseModel):
 # LlmProviderModelList / LlmProviderModelCreate /
 # LlmProviderModelCreateRequest / LlmProviderModelUpdate /
 # EmbeddingRequest / EmbeddingData / EmbeddingUsage / EmbeddingResponse /
-# Document1 / RerankRequest / Document2 / RerankDocument / RerankUsage /
-# RerankResponse moved to ``aperag.domains.model_platform.schemas``
+# Document1 / Document2 moved to ``aperag.domains.model_platform.schemas``
 # in Phase 4 Step 4-S3d; end-of-file try block re-imports them.
 
 
@@ -563,9 +562,6 @@ class EvaluationChatWithAgentResponse(RootModel[Union[ChatSuccessResponse, Agent
 # directly from the canonical modules; consumers outside
 # ``aperag/domains/**`` may continue to use either path during the
 # transition window.
-from aperag.domains.knowledge_base.schemas import (  # noqa: E402,F401
-    ExportTaskResponse,
-)
 from aperag.domains.governance.schemas import (  # noqa: E402,F401
     QuotaInfo,
     QuotaUpdateRequest,
@@ -577,6 +573,9 @@ from aperag.domains.governance.schemas import (  # noqa: E402,F401
     UpdatedQuota,
     UserQuotaInfo,
     UserQuotaList,
+)
+from aperag.domains.knowledge_base.schemas import (  # noqa: E402,F401
+    ExportTaskResponse,
 )
 from aperag.domains.knowledge_graph.schemas import (  # noqa: E402,F401
     GraphCurationRunSummary,
