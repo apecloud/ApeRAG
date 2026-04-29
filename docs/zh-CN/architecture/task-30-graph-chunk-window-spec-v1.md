@@ -81,14 +81,15 @@ earayu2 msg=622ca94d 明确「3 只是拍脑袋数字，benchmark 跑数据决�
 #### 3.1.1 5 业务边界（per #indexing优化:e7bac0ec msg=8ed5caf2）
 
 1. **配置化**（earayu2 msg=f060f1c6 hard requirement）：
-   - `kg.graph_extraction_window_size`（**初始 default `1` = 旧行为兼容回退**，benchmark 后再 confirm 默认值）
-   - `kg.graph_extraction_window_overlap`（默认 `0`，non-overlap group-of-N 第一版不滑窗）
-   - `kg.graph_extraction_max_window_tokens`（兜底 cap，超长窗口截断或拆分）
+   - **配置 schema path lock**（per ziang msg=c0ea4ecc 实施点 1）：`collection.config.knowledge_graph_config.graph_extraction_window_size` / `.graph_extraction_max_window_tokens`（跟 `aperag/schema/common.py:220` `knowledge_graph_config` + `graph_extractor.py:_resolve_kg_config_value()` 现有 schema 对齐，避免配置面漂移；spec 内文用 `kg.*` 简写表示同一路径）
+   - `graph_extraction_window_size`（**初始 default `1` = 旧行为兼容回退**，benchmark 后再 confirm 默认值）
+   - `graph_extraction_max_window_tokens`（兜底 cap，超长窗口截断或拆分）
    - **collection-level config**（每个知识库可独立配置，跟 model / 文档类型 align）
-2. **窗口边界**：
-   - 仅同 doc + 同 parse_version + 连续 chunk 合并
-   - 不跨 doc / 不跨 chapter / 不跨 section
-   - max_window_tokens 兜底
+   - **`window_overlap` 移到 backlog**（per Weston msg=a29f94ab NIT 2）：第一版仅 non-overlap (overlap=0 hardcoded)，避免重复 provenance / 重复实体 / benchmark 解读复杂度；earayu2 hard requirement 是 `window_size` configurable，不是 overlap configurable，sliding overlap 是 future feature
+2. **窗口边界**（per Weston msg=a29f94ab NIT 1 修正）：
+   - **第一版 hard gate**：同 doc + 同 parse_version + chunk 顺序 + `max_window_tokens` 兜底
+   - chapter / section 边界：仅在 chunk metadata `section_path` / `heading_anchor` **存在且连续** 时才作为 hard boundary，否则不强制（当前 parser chunk record 的 section_path 大多为 None，强制 chapter/section 边界无法稳定 enforce）
+   - 不跨 doc / 不跨 parse_version 是 hard 不可破
 3. **provenance 保留**：
    - entity / relation `source_chunk_ids` 扩 list（不再单 chunk_id）
    - prompt 让 LLM 在每条 entity / relation 输出关联到 source chunk_id
@@ -101,20 +102,21 @@ earayu2 msg=622ca94d 明确「3 只是拍脑袋数字，benchmark 跑数据决�
    - 加 `--chunk-window-size N` 参数
    - 跑 1 / 2 / 3 / 5 × 多 model 对比
 
-#### 3.1.2 4 const co-scale（per huangheng msg=29f83d1f + ziang msg=ad7dd311）
+#### 3.1.2 5 const co-scale（per huangheng msg=29f83d1f + ziang msg=ad7dd311 + Bryce msg=1ce25f3a concern 3）
 
-避免「window 变 N 但 caps 仍 per-chunk」silently 降质量：
+避免「window 变 N 但 caps 仍 per-chunk」silently 降质量 + prompt size 撑爆 model context：
 
 | 常量 | 改造 |
 | --- | --- |
 | `_DEFAULT_MAX_ENTITIES_PER_CHUNK = 32` | `_extract_one_window()` 调用处 `base * len(window_chunks)` 动态计算 |
 | `_DEFAULT_MAX_RELATIONS_PER_CHUNK = 32` | 同上 |
 | `_DEFAULT_PER_CHUNK_TIMEOUT_SECONDS = 60.0` | 第一版线性 `base * window_size`；benchmark 后看是否回退到 `base * sqrt(window_size)` 防单次过长 |
-| `_BOOTSTRAP_CHUNK_COUNT = 20` | `_BOOTSTRAP_WINDOW_COUNT = max(ceil(20 / window_size), MIN)` 保留 type discovery 收敛但减 serial cost |
+| `_BOOTSTRAP_CHUNK_COUNT = 20` | `_BOOTSTRAP_WINDOW_COUNT = max(ceil(20 / window_size), _MIN_BOOTSTRAP_WINDOW_COUNT)`，其中 `_MIN_BOOTSTRAP_WINDOW_COUNT = 1`（per Weston msg=a29f94ab NIT 3 显式命名给值，否则 boundary test 没法钉公式） — 保留 type discovery 收敛但减 serial cost |
+| **`MAX_PROMPT_TOKENS` 兜底**（新增，per Bryce concern 3） | window_size × chunk_size + prompt 模板 (~500) + few-shot opt-in (+200~400) 之和不能超过 `model.max_input_tokens` 的 80%（保留 LLM 输出空间）；超过时降级 window_size 或 disable few-shot；boundary test 钉死公式 |
 
 `window_size=1` 时所有 cap 计算结果跟旧常量字节等价（boundary test 钉死等价 + co-scale 关系不漂）。
 
-#### 3.1.3 prompt v2 — 6 hard requirement（per Weston msg=8e155097 + Planetegg msg=b81e25cf + dongdong msg=1b148f3e）
+#### 3.1.3 prompt v2 — 7 hard requirement（per Weston msg=8e155097 + Planetegg msg=b81e25cf + dongdong msg=1b148f3e + Bryce msg=1ce25f3a concern 2）
 
 1. **输入每 chunk 用 `[[chunk_id=X index=Y]]` 边界标记**（不只用空行拼接）
 2. **输出 schema 增加 `source_chunk_ids`**（每 entity / relation 必带 evidence chunk ids list）
@@ -122,9 +124,10 @@ earayu2 msg=622ca94d 明确「3 只是拍脑袋数字，benchmark 跑数据决�
 4. **去重 / 规范化**：同实体跨 chunk 出现合并规范名，不产生别名实体
 5. **fail-safe 不编造**：无文本证据不输出 / 低置信度可不输出
 6. **max output 指令跟 cap × window 同步 co-scale**（避免 silently drop）
+7. **`response_format=json_object` 必保留**（per Bryce msg=1ce25f3a concern 2）：task #14 issue #1861 PR #1877 已 wired 进 graph extractor 入口，prompt v2 改造（特别是加 few-shot + chunk 边界 token）必须验证 caller `aperag/indexing/llm.py:build_graph_llm_callable` 不动 `response_format` kwarg；否则 LLM 可能学习自由格式输出（few-shot 隐式诱导）或回写 markdown 围栏破坏 JSON parse
 
 **附加 fold**（per 我 msg=cf5040b3）：
-- few-shot 多样性：加 1-2 个中文 example（系统主用户中文）+ 1 个含跨段落关系的 example
+- few-shot 多样性：**default 不带 few-shot**（控 prompt size + 减 token cost），通过 collection-level `kg.graph_extraction_few_shot_locale` 可选 opt-in（值如 `zh` / `en` / `mixed`，配置后 prompt 加 1-2 个对应语言 example + 1 个跨段落示例）
 - 可选受控 relation schema：collection-level `kg.allowed_relation_types` 默认 free-text 兼容；配置后 prompt 加约束减 relation_type 碎片化
 
 **单立 backlog 不实施**（cost ×2 跟降本 directive 反向）：
@@ -186,44 +189,64 @@ earayu2 msg=622ca94d 明确「3 只是拍脑袋数字，benchmark 跑数据决�
   - prompt 模板加 `[[chunk_id=X]]` 边界标记 + 6 hard requirement + few-shot 多样性 + 可选受控 relation schema
   - 推荐 owner：@Bryce（task #14 issue #1861 graph extractor 改造熟悉）
 
-### Phase B（A 后启动）
+### Phase B（A 全 close 后 sequential 启动，per 冬柏 msg=39e7034a）
+
+**Phase B 不并行 A** — B1 harness 调真实 `_extract_one_window()` runtime（不 mock），必须等 A1（config + window assembler）+ A2（co-scale const）+ A3（prompt v2 + provenance）全 merge 后才启动。
 
 - **#30-B1**：A/B benchmark harness 扩展
-  - PR #1863 framework 加 `--chunk-window-size` 参数
-  - 多 model + 多 sample × window_size 矩阵
-  - 推荐 owner：@冬柏（PR #1863 framework 熟悉）
+  - PR #1863 framework 加 `--window-sizes 1,2,3,5` batch runner（现 framework 是「1 sample × 1 model = 1 run」，B1 矩阵 `4 × ≥2 × 3 = 24+ runs` 需 batch 一层）
+  - 实现 7 维度指标聚合：每 doc LLM call count / input+output token / wall time / timeout-failure rate / 实体+关系总量 / 重复率 / `source_chunk_ids` 有效率
+  - **新指标 `source_chunk_ids` 有效率**：window 内每 chunk_id 都至少被 1 entity 或 relation 引用（per A3 prompt v2 输出 schema）
+  - 推荐 owner：@冬柏（PR #1863 framework 熟悉，msg=39e7034a 已 claim sub-task ownership）
 - **#30-B2**：benchmark 跑数据 + cost / quality 对比
-  - 真实 provider 实测（OR token / Bailian）
-  - 7 维度指标收集
-  - 推荐 owner：@Planetegg（SRE / 真实 provider 验证）
+  - 真实 provider 实测（OR token / Bailian），先小矩阵 (Qwen3 30B + Gemini/Claude 类) × 3 sample 跑 JSON parse 稳定后再扩
+  - per-document 聚合（不看单次调用变少），按 model 分维度收集
+  - 推荐 owner：@Planetegg（SRE / 真实 provider 验证，msg=ea7efa7b 已 ack 验收 3 执行细节）
 - **#30-B3**：默认值 lock + spec amend
   - benchmark 数据呈现给 PM + architect + earayu2
-  - confirm 后 amend spec + 改代码默认值
+  - 「中等偏保守的最小有效窗口」选择规则 confirm 默认值
+  - amend spec + 改代码默认值（同 PR）
 
 ## 6. 验收口径
 
-### 6.1 Phase A 完成标准
+### 6.1 Phase A 完成标准（per huangzhangshu msg=0d497539 + Weston msg=a29f94ab + Bryce msg=1ce25f3a 三方 BLOCKER 1 修订）
 
-- `window_size=1` 时所有行为字节等价旧实现（boundary test 钉死）
+**关键澄清**：`window_size=1` 等价**仅限于 window assembler / caps / timeout / bootstrap 公式**层面，**不要求** prompt 文本 / LLM 输出 schema 字节等价（prompt v2 是有意 schema 改造，跟 task #32 evidence_refs 链路一致非回退）：
+
+- `window_size=1` 时**结构等价**：
+  - window assembler 输出 1 个 window 仅含 1 chunk
+  - `MAX_ENTITIES = base = 32` / `MAX_RELATIONS = base = 32` / `TIMEOUT = base = 60s`
+  - `BOOTSTRAP_WINDOW_COUNT = max(ceil(20/1), 1) = 20` 跟 `_BOOTSTRAP_CHUNK_COUNT = 20` 等价
+  - 字段缺失时 parser fallback 到唯一 chunk_id（兼容旧 schema）
+- `window_size=1` 不要求 prompt 文本字节等价（prompt v2 改造 schema/provenance 是 hard scope）
 - `window_size=N` 时 LLM 调用数减 ~`1/N`（per Planetegg msg=a6225720 验收口径）
 - entity / relation `source_chunk_ids` 扩 list + window 内全部 chunk_id 都挂上
-- prompt v2 6 hard requirement 全实施（chunk 边界 + provenance + 跨 chunk 关系 + 去重 + fail-safe + max output co-scale）
+- prompt v2 7 hard requirement 全实施（chunk 边界 + provenance + 跨 chunk 关系 + 去重 + fail-safe + max output co-scale + response_format=json_object 保留）
 
 ### 6.2 boundary test gate（CI must pass）
 
 - `tests/boundaries/test_graph_window_caps_co_scale.py` 钉:
-  - `window_size=1` cap = `_DEFAULT_MAX_ENTITIES_PER_CHUNK` (32)
+  - `window_size=1` cap = base = 32 (window assembler / caps / timeout / bootstrap **结构等价**层级，不锁 prompt 文本)
   - `window_size=N` cap = base * N（线性放大公式）
-  - bootstrap 公式 `_BOOTSTRAP_WINDOW_COUNT = max(ceil(20 / window_size), MIN)` 不漂移
+  - bootstrap 公式 `_BOOTSTRAP_WINDOW_COUNT = max(ceil(20 / window_size), _MIN_BOOTSTRAP_WINDOW_COUNT)` 不漂移
+- **A3 parser source_chunk_ids 验证 invariant**（per Weston msg=a29f94ab BLOCKER 2）：
+  - `_parse_extraction_response` / `_entity_from_dict` / `_relation_from_dict` 接收 `allowed_chunk_ids` 参数
+  - LLM 输出 `source_chunk_ids` normalize 后必须是 `allowed_chunk_ids` 的非空子集（防 LLM hallucinate window 外 chunk_id）
+  - `window_size=1` 字段缺失时 fallback 到唯一 chunk_id（兼容旧 schema）
+  - `window_size>1` 字段缺失或过滤后为空 → skip record（fail-safe 不编造）+ warning log
+  - boundary test 覆盖：invalid id 被过滤 / missing ids 单 chunk fallback / multi chunk skip
 - 现有 G1-G19 + `test_modularization_boundaries.py` + `test_worker_di_parity.py` + `test_no_rerank_in_mcp.py` 不破坏
 
-### 6.3 Phase B 数据驱动验收（per huangzhangshu msg=107a16d5 + Planetegg msg=a6225720）
+### 6.3 Phase B 数据驱动验收（per huangzhangshu msg=107a16d5 + Planetegg msg=a6225720 + huangzhangshu msg=0d497539 BLOCKER 2 修订）
 
 - A/B 必须比 **per-document 总实体 / 关系数量**（不是 per-chunk 平均）
 - 每文档 LLM call count 降幅接近 `1/window_size`
 - per-window timeout / failure rate 不显著上升
 - token usage + 总耗时真下降（单次调用变长不能抵消收益）
-- `source_chunk_ids` 有效率（agent 用 `read_document_chunk` 真实消费验证）
+- **provenance 验证用 composite key 路径**（不裸接 chunk_id）：
+  - graph extraction 内部 provenance：entity / relation lineage 必须保留 `document_id + parse_version + source_chunk_ids`（同 task #32 PR #1909 `GraphEvidenceRef` schema 路径）
+  - agent / MCP 消费验收：通过 task #32 已落地的 `evidence_refs[{document_id, chunk_id, parse_version?}]` 投影，或用 `(document_id, source_chunk_ids[i])` composite key 调 `read_document_chunk`
+  - **`chunk_id` 非全局唯一**，spec 任何位置都不允许只用裸 chunk_id 喂 `read_document_chunk`（task #32 Lesson #12 v7.1 composite key invariant）
 - 多 model 分维度看：小模型最佳 window 可能 ≠ 强模型最佳
 
 ## 7. 关联文档
