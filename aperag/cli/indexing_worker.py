@@ -33,6 +33,7 @@ import logging
 import signal
 
 # ziang msg=4ea65100 #1: 用现有 module-level ``settings``, 不引 ``get_settings()`` helper.
+from aperag.bootstrap import wire_cross_domain_di_seams
 from aperag.config import settings, sync_engine
 from aperag.indexing import (
     InMemoryWorkQueue,
@@ -59,7 +60,13 @@ from aperag.indexing.quota import (
     RedisQuotaBackend,
 )
 from aperag.indexing.worker_factory import ProductionWorkerFactory
+from aperag.llm.litellm_track import register_custom_llm_track
 from aperag.objectstore.base import get_object_store
+from aperag.observability import (
+    build_observability_config,
+    configure_logging,
+    configure_process_observability,
+)
 from aperag.observability.metrics import shutdown_metrics_provider
 
 logger = logging.getLogger(__name__)
@@ -71,6 +78,15 @@ async def _amain() -> None:
     跟 ``aperag/app.py`` lifespan 老路径行为完全等价: 选 queue / quota /
     metrics emitter 的 dispatch 逻辑相同; 启动 7 modality worker + parse +
     reconciler + cleanup 共 10 个 asyncio 后台任务; SIGTERM 时优雅退出.
+
+    跨进程 DI parity: ``wire_cross_domain_di_seams()`` 跟 ``app.py`` 启动
+    时调的同一个 helper, 把 10 个 cross-domain Protocol seam 全 wire 上
+    (PromptTemplateOps / KB marketplace + quota + search_pipeline / conv
+    quota / agent_runtime / model_platform prompt CRUD / identity init).
+    PR #1884 task #17 hard cut 把 worker 拆出 API 进程时漏 port 这步,
+    worker 一走 collection summary regen / agent runtime / quota 路径就
+    挂在 ``*Ops not wired`` AttributeError. boundary test
+    ``tests/boundaries/test_worker_di_parity.py`` 钉死两进程同集合.
     """
     shutdown = asyncio.Event()
 
@@ -78,6 +94,11 @@ async def _amain() -> None:
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, shutdown.set)
+
+    # 跨进程 DI parity. 必须先于任何 worker entrypoint 启动 — 否则
+    # parse/summary/cleanup 路径 BLPOP 出 payload 后调
+    # ``_get_*_ops()`` 时 raise.
+    wire_cross_domain_di_seams()
 
     # ziang msg=4ea65100 #2 + 跟 app.py 现有写法一致: ``QuotaPolicyRegistry``
     # 直接构造, ``RedisQuotaBackend(quota_redis, quota_registry)`` /
@@ -200,11 +221,21 @@ async def _amain() -> None:
 
 
 def main() -> None:
-    """``python -m aperag.cli.indexing_worker`` sync entrypoint."""
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s %(message)s",
-    )
+    """``python -m aperag.cli.indexing_worker`` sync entrypoint.
+
+    Process-level setup (Weston 三分类 类 2): same observability +
+    LiteLLM tracking that ``aperag/app.py`` configures at module load.
+    Worker process must mirror these so structured logs / OTLP traces /
+    LiteLLM custom-track callbacks match between API and worker. The
+    only ``app.py`` calls intentionally **not** mirrored are
+    ``configure_fastapi`` and ``register_exception_handlers`` (类 3
+    FastAPI-only).
+    """
+    observability_config = build_observability_config(settings)
+    configure_logging(observability_config)
+    configure_process_observability(observability_config)
+    register_custom_llm_track()
+
     asyncio.run(_amain())
 
 

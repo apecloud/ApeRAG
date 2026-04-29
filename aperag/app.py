@@ -34,8 +34,8 @@ configure_process_observability(observability_config)
 from fastapi import FastAPI  # noqa: E402
 from starlette.middleware.base import BaseHTTPMiddleware  # noqa: E402
 
+from aperag.bootstrap import wire_cross_domain_di_seams
 from aperag.domains.agent_runtime.api.routes import router as agent_runtime_router
-from aperag.domains.agent_runtime.runtime import set_prompt_template_ops as _ar_set_prompt_template_ops
 from aperag.domains.conversation.api.openai_routes import router as openai_router
 from aperag.domains.conversation.api.routes import (
     bots_router as bots_v2_router,
@@ -43,48 +43,19 @@ from aperag.domains.conversation.api.routes import (
 from aperag.domains.conversation.api.routes import (
     chat_router as chat_router,
 )
-from aperag.domains.conversation.service.bot_service import set_quota_ops as _conv_set_quota_ops
 from aperag.domains.evaluation.api.routes import router as evaluation_v2_router
 from aperag.domains.governance.api.apikeys_routes import router as apikeys_router
 from aperag.domains.governance.api.audit_routes import router as audit_router
 from aperag.domains.governance.api.quota_routes import router as quota_router
 from aperag.domains.identity.api.auth_routes import router as auth_router
 from aperag.domains.identity.api.config_routes import router as config_router
-from aperag.domains.identity.service.user_manager import (
-    set_bot_init_ops as _id_set_bot_init_ops,
-)
-from aperag.domains.identity.service.user_manager import (
-    set_chat_init_ops as _id_set_chat_init_ops,
-)
-from aperag.domains.identity.service.user_manager import (
-    set_quota_init_ops as _id_set_quota_init_ops,
-)
 from aperag.domains.knowledge_base.api.export_routes import router as export_router
 from aperag.domains.knowledge_base.api.routes import router as knowledge_base_router
 from aperag.domains.knowledge_base.api.settings_routes import router as settings_router
-from aperag.domains.knowledge_base.service.collection_service import (
-    set_marketplace_collection_ops as _kb_set_marketplace_collection_ops,
-)
-from aperag.domains.knowledge_base.service.collection_service import (
-    set_marketplace_ops as _kb_set_marketplace_ops,
-)
-from aperag.domains.knowledge_base.service.collection_service import (
-    set_quota_ops as _kb_set_quota_ops,
-)
-from aperag.domains.knowledge_base.service.collection_service import (
-    set_search_pipeline_ops as _kb_set_search_pipeline_ops,
-)
 from aperag.domains.knowledge_graph.api.routes import router as knowledge_graph_router
 from aperag.domains.marketplace.api.routes import router as marketplace_router
-from aperag.domains.marketplace.service.marketplace_collection_service import (
-    marketplace_collection_service as _legacy_marketplace_collection_service,
-)
-from aperag.domains.marketplace.service.marketplace_service import (
-    marketplace_service as _legacy_marketplace_service,
-)
 from aperag.domains.model_platform.api.llm_routes import router as llm_router
 from aperag.domains.model_platform.api.prompts_routes import router as prompts_router
-from aperag.domains.model_platform.api.prompts_routes import set_prompt_crud_ops as _set_prompt_crud_ops
 from aperag.domains.model_platform.api.providers_v2_routes import router as providers_v2_router
 from aperag.domains.retrieval.api.routes import router as retrieval_router
 from aperag.domains.web_access.api.routes import router as web_access_router
@@ -93,159 +64,12 @@ from aperag.llm.litellm_track import register_custom_llm_track
 from aperag.mcp import mcp_server
 from aperag.openapi_spec import custom_generate_unique_id
 from aperag.server.health import router as health_router
-from aperag.service.quota_service import quota_service as _legacy_quota_service
-from aperag.service.search_pipeline_service import search_pipeline_service as _legacy_search_pipeline_service
 
-# Wire the knowledge_base domain's consumer-owned Protocol DI slots
-# (Phase 3 Step 5b2c). All four legacy service singletons now
-# structurally satisfy the KB Protocols directly — Phase 4 Step 4-S4
-# dropped the transitional ``_MarketplaceCollectionOpsAdapter`` once
-# the ``marketplace_collection_service`` move renamed
-# ``_check_marketplace_access`` to the public ``check_marketplace_access``
-# per msg=6ab7d211 Q2.
-_kb_set_marketplace_ops(_legacy_marketplace_service)
-_kb_set_marketplace_collection_ops(_legacy_marketplace_collection_service)
-_kb_set_search_pipeline_ops(_legacy_search_pipeline_service)
-_kb_set_quota_ops(_legacy_quota_service)
-
-# Wire the conversation domain's consumer-owned QuotaOps DI slot for
-# ``bot_service``. ``quota_service`` is a standalone-infrastructure
-# module with no natural domain home, so the Protocol + DI seam is
-# the permanent integration point. The singleton structurally
-# satisfies the narrower conversation ``QuotaOps`` Protocol
-# (``check_and_consume_quota`` + ``release_quota``) directly.
-_conv_set_quota_ops(_legacy_quota_service)
-
-# Wire the agent_runtime domain's consumer-owned PromptTemplateOps DI
-# slot. ``prompt_template_service`` is a standalone-infrastructure
-# module (no natural domain home), so the Protocol + DI seam is the
-# permanent integration point — an adapter exposes the three Protocol
-# methods onto the singleton + module-level ``build_agent_query_prompt``
-# helper.
-from aperag.service.prompt_template_service import (  # noqa: E402
-    build_agent_query_prompt as _legacy_build_agent_query_prompt,
-)
-from aperag.service.prompt_template_service import (  # noqa: E402
-    prompt_template_service as _legacy_prompt_template_service,
-)
-
-
-class _PromptTemplateOpsAdapter:
-    async def resolve_agent_system_prompt(self, *, bot, user_id):
-        return await _legacy_prompt_template_service.resolve_agent_system_prompt(bot=bot, user_id=user_id)
-
-    async def resolve_agent_query_prompt(self, *, bot, user_id):
-        return await _legacy_prompt_template_service.resolve_agent_query_prompt(bot=bot, user_id=user_id)
-
-    def build_agent_query_prompt(self, chat_id, *, agent_message, user, template=None, has_chat_files=False):
-        return _legacy_build_agent_query_prompt(
-            chat_id,
-            agent_message=agent_message,
-            user=user,
-            template=template,
-            has_chat_files=has_chat_files,
-        )
-
-
-_ar_set_prompt_template_ops(_PromptTemplateOpsAdapter())
-
-# Wire the model_platform domain's prompt user-CRUD Protocol seam
-# (Phase 8 #49 G3, D7 v2 hard-cut). The same ``prompt_template_service``
-# singleton already wired into agent_runtime structurally satisfies
-# the model_platform ``PromptCRUDOps`` Protocol — the user-CRUD method
-# names map 1:1, so no adapter is needed.
-_set_prompt_crud_ops(_legacy_prompt_template_service)
-
-
-# Wire the identity domain's consumer-owned Protocol DI slots (Phase
-# 4 Step 4-S7d). ``UserManager.on_after_register`` invokes three
-# side effects — default bot + default chat collection + per-user
-# quota seed — through ``BotInitOps`` / ``ChatInitOps`` /
-# ``QuotaInitOps``. The three concrete providers live in legacy
-# ``aperag/service/`` today; Phase 5 moves bot_service and
-# chat_collection_service into the conversation domain while quota
-# stays legacy per msg=896584ee. Thin adapters below expose the
-# public Protocol surface (e.g. ``create_default_bot_for_user``)
-# onto the concrete services' existing method names; the adapters
-# collapse when Phase 5 conversation services land at the canonical
-# location.
-class _BotInitOpsAdapter:
-    async def create_default_bot_for_user(self, user_id: str) -> None:
-        # Lazy imports keep ``aperag/app.py`` start-up cost low and
-        # avoid pulling the KB domain services into the identity DI
-        # wiring path before the app is constructed.
-        from aperag.domains.conversation.db.models import BotType
-        from aperag.domains.conversation.schemas import BotCreate
-        from aperag.domains.conversation.service.bot_service import bot_service
-
-        bot_create = BotCreate(
-            title="Default Agent Bot",
-            type=BotType.AGENT,
-            description="Default agent bot created on registration.",
-            collection_ids=[],
-        )
-        await bot_service.create_bot(user=user_id, bot_in=bot_create, skip_quota_check=True)
-
-        # Wave 10 §K.13: register-time creation of the per-user
-        # hidden summary bot used by ``collection_regen_service``
-        # Stage 1. Same transaction as the user's default agent bot
-        # so a successful registration always provides both. The
-        # ``collection_regen_service`` keeps a defense-in-depth
-        # ``get_or_create_summary_bot_for_user`` lazy fallback for
-        # the edge case where this hook fails (registration does
-        # not roll back on init-hook errors per
-        # ``user_manager.py:137``).
-        await self._create_summary_bot_for_user(user_id)
-
-    @staticmethod
-    async def _create_summary_bot_for_user(user_id: str) -> None:
-        """Create the hidden ``BotType.SUMMARY, is_system=True`` row
-        for ``user_id``. Bypasses the user-facing ``bot_service.create_bot``
-        because (a) ``BotCreate.type`` is ``Literal["agent"]`` so
-        the public schema can't express ``"summary"``, and (b) system
-        bots intentionally skip user-quota / user-visibility logic.
-        """
-        from aperag.config import get_async_session
-        from aperag.domains.conversation.db.models import Bot, BotStatus, BotType
-
-        bot = Bot(
-            user=user_id,
-            title="Summary Generation Bot",
-            type=BotType.SUMMARY,
-            description="System-managed bot for collection summary regen (Wave 10 §K.13).",
-            status=BotStatus.ACTIVE,
-            config='{"agent": {"system_prompt_template": null}}',
-            is_system=True,
-        )
-        async for session in get_async_session():
-            session.add(bot)
-            try:
-                await session.commit()
-            except Exception:  # noqa: BLE001
-                # Concurrent register-time race or backfill migration
-                # already created the row — let the partial unique
-                # index reject silently. The lazy fallback in the
-                # regen service will fetch the existing row on first
-                # use.
-                await session.rollback()
-            return
-
-
-class _ChatInitOpsAdapter:
-    async def create_default_chat_for_user(self, user_id: str) -> None:
-        from aperag.domains.conversation.service.chat_collection_service import chat_collection_service
-
-        await chat_collection_service.initialize_user_chat_collection(user_id)
-
-
-class _QuotaInitOpsAdapter:
-    async def initialize_user_quota(self, user_id: str) -> None:
-        await _legacy_quota_service.initialize_user_quotas(user_id)
-
-
-_id_set_bot_init_ops(_BotInitOpsAdapter())
-_id_set_chat_init_ops(_ChatInitOpsAdapter())
-_id_set_quota_init_ops(_QuotaInitOpsAdapter())
+# Wire every cross-domain DI seam. ``aperag/cli/indexing_worker.py``
+# calls the same helper at startup so the API and indexing-worker
+# processes share an identical seam set; the boundary test
+# ``tests/boundaries/test_worker_di_parity.py`` enforces parity.
+wire_cross_domain_di_seams()
 
 
 # Initialize MCP server integration with stateless HTTP to fix OpenAI tool call sequence issues
