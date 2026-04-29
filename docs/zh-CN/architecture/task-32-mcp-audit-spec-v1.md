@@ -243,12 +243,17 @@ graph 类 tool 输出加 unified `Result<T>` 容器：
 ### 6.2 boundary test gate（CI must pass）
 
 - `tests/boundaries/test_no_rerank_in_mcp.py` 钉 MCP tool 不能再加 rerank 参数
+- **rerank grep gate allowlist 明确白名单**（per Planetegg msg=ebbe468a + task #35 验收 lane 共用）：
+  - 允许命中：迁移说明 / `docs/zh-CN/architecture/task-17-cr-review-checklist.md` 历史 changelog / `docs/modularization/breaking-changes/` 等历史文档
+  - 必 0 命中：active MCP tool schema / runtime pipeline / provider config / `aperag/llm/` 当前代码 / quickstart 当前文档
 - 现有 G1-G19 + `test_modularization_boundaries.py` + `test_worker_di_parity.py` 不破坏
 
-### 6.3 e2e smoke
+### 6.3 e2e smoke + integration
 
 - 无 rerank model 配置时 vector / fulltext / graph / MCP search 正常返回 candidates
-- entity → chunk_id 链路在 hurl test 中完整验证（query_graph_entities → read_document_chunk）
+- entity → chunk_id 链路完整验证（per Planetegg msg=ebbe468a + chenyexuan msg=8a931200 + 冬柏 msg=6fb022d5）：
+  - **integration / hurl test** 必证：`query_graph_entities` 或 `expand_graph_subgraph` 返回的 `evidence_chunk_ids` 能被 `read_document_chunk(collection_id, document_id, chunk_id)` 真实消费（不只暴露 schema 字段）
+  - 避免「字段暴露但链路仍断」的伪修复 — agent 必须能用一次完整 chain 拿到 chunk content
 
 ## 7. 关联文档
 
