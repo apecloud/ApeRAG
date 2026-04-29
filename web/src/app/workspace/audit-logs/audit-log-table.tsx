@@ -136,7 +136,7 @@ export function AuditLogTable({
                   {row.original.api_name}
                 </span>
               </AuditLogDetail>
-              <div className="text-muted-foreground truncate pt-0.5 font-mono text-xs sm:w-sm md:w-md lg:w-lg">
+              <div className="text-muted-foreground sm:w-sm md:w-md lg:w-lg truncate pt-0.5 font-mono text-xs">
                 {row.original.path}
               </div>
             </>
@@ -232,7 +232,7 @@ export function AuditLogTable({
       <div className="border-border/70 bg-card grid gap-4 rounded-xl border p-4 shadow-sm lg:grid-cols-[1fr_auto] lg:items-center">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
           <div className="relative min-w-0 flex-1 xl:min-w-80">
-            <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+            <Search className="text-muted-foreground pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2" />
             <Input
               className="bg-background/70 h-10 rounded-lg pl-9"
               placeholder={page_audit_logs('search_placeholder')}
@@ -247,9 +247,9 @@ export function AuditLogTable({
               }}
             />
           </div>
-          <div className="flex flex-col gap-2 md:flex-row md:items-center">
+          <div className="grid gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-center xl:flex xl:flex-row">
             <DateTimePicker24h
-              className="w-48"
+              className="w-full sm:w-48"
               date={query.startDate ? new Date(query.startDate) : undefined}
               onChange={(d) => {
                 handleSearch({
@@ -257,9 +257,11 @@ export function AuditLogTable({
                 });
               }}
             />
-            <span>-</span>
+            <span className="text-muted-foreground hidden text-center sm:block">
+              -
+            </span>
             <DateTimePicker24h
-              className="w-48"
+              className="w-full sm:w-48"
               date={query.endDate ? new Date(query.endDate) : undefined}
               onChange={(d) => {
                 handleSearch({
@@ -306,8 +308,11 @@ export function AuditLogTable({
           </DropdownMenu>
         </div>
       </div>
-      <div className="border-border/70 bg-card rounded-xl border p-3 shadow-sm">
-        <DataGrid table={table} className="border-border/70 rounded-lg" />
+      <div className="border-border/70 bg-card rounded-xl border p-2 shadow-sm sm:p-3">
+        <DataGrid
+          table={table}
+          className="border-border/70 overflow-x-auto rounded-lg [&_table]:min-w-[760px]"
+        />
       </div>
       <DataGridPagination table={table} />
     </div>
