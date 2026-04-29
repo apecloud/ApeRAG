@@ -5,8 +5,6 @@ WORKDIR /app
 
 COPY ./build ./
 
-RUN yarn global add pm2
-
 ENV HOSTNAME="0.0.0.0"
 ENV NODE_ENV=production
 ENV PORT=3000
@@ -15,5 +13,4 @@ EXPOSE 3000
 
 # server.js is created by next build from the standalone output
 # https://nextjs.org/docs/pages/api-reference/config/next-config-js/output
-CMD ["pm2-runtime", "start", "server.js"]
-
+CMD ["node", "server.js"]
