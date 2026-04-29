@@ -283,10 +283,13 @@ def _build_outline(markdown: str) -> list[dict[str, Any]]:
 # Chunk-boundary separators in priority order. The splitter prefers a
 # paragraph break, then a line break, then a sentence terminator, and
 # only does a hard mid-text cut when none of those land in the search
-# window. Keep the list short — adding more separators (list bullets,
-# code-fence ends, …) trades simple/stable for marginal quality on
-# narrow document shapes.
-_CHUNK_BOUNDARIES: tuple[str, ...] = ("\n\n", "\n", ". ")
+# window. The Chinese full stop (``。``) is included so dense
+# Chinese paragraphs (no ``\n``, no ``. ``) still break on sentence
+# boundaries — ApeRAG's primary corpus is Chinese-language. Keep the
+# list short: adding more separators (list bullets, code-fence ends,
+# …) trades simple/stable for marginal quality on narrow document
+# shapes.
+_CHUNK_BOUNDARIES: tuple[str, ...] = ("\n\n", "\n", "。", ". ")
 
 
 def _split_chunks(markdown: str, chunking: ChunkingConfig) -> list[dict[str, Any]]:

@@ -162,6 +162,82 @@ def test_empty_or_whitespace_input_returns_empty():
     assert _split_chunks("   \n\n  ", ChunkingConfig()) == []
 
 
+def test_chinese_full_stop_used_as_sentence_fallback():
+    """ApeRAG's primary corpus is Chinese-language. A dense Chinese
+    paragraph (no ``\\n``, no ``. ``) must still break on the
+    full-width full stop ``。`` rather than mid-sentence."""
+    # 1500-char Chinese text, no newlines, sentences ended by ``。``.
+    sentence = "这是一个测试用的中文句子内容长度大约三十字符" + "啊" * 5 + "。"
+    text = sentence * 50  # ~50 sentences of ~33 chars each → ~1650 chars
+    chunks = _split_chunks(text, ChunkingConfig(chunk_size=400, chunk_overlap=40))
+
+    # Every non-final chunk must end on the Chinese full stop, not
+    # mid-character or mid-sentence.
+    for chunk in chunks[:-1]:
+        assert chunk["text"].endswith("。"), f"chunk should end on 。, got tail: ...{chunk['text'][-20:]!r}"
+
+
+def test_chunk_size_boundary_off_by_one():
+    """Inputs of length exactly ``chunk_size`` and ``chunk_size + 1``
+    must terminate cleanly without off-by-one errors."""
+    cfg = ChunkingConfig(chunk_size=200, chunk_overlap=20)
+
+    # Exactly chunk_size → single chunk, loop terminates on first iter.
+    text_exact = "a" * cfg.chunk_size
+    chunks_exact = _split_chunks(text_exact, cfg)
+    assert len(chunks_exact) == 1
+    assert len(chunks_exact[0]["text"]) == cfg.chunk_size
+
+    # chunk_size + 1 → two chunks, first is hard-cut at chunk_size.
+    text_plus_one = "a" * (cfg.chunk_size + 1)
+    chunks_plus = _split_chunks(text_plus_one, cfg)
+    assert len(chunks_plus) >= 1
+    assert len(chunks_plus[0]["text"]) == cfg.chunk_size
+
+
+def test_crlf_paragraph_break_locks_upstream_normalization_contract():
+    """``\\r\\n\\r\\n`` is *not* matched by ``rfind('\\n\\n', ...)``
+    — the codepoint sequence is ``\\r\\n\\r\\n``, not ``\\n\\n``.
+    The chunker therefore relies on the upstream docparser to
+    normalize CRLF → LF before producing markdown. This test pins
+    the contract: if a CRLF document slips through, paragraph-break
+    detection silently falls through to the next fallback rather
+    than blowing up. If docparser ever stops normalizing, the next
+    fallback (``\\n``) catches it; this test guards against the
+    chunker re-introducing its own CRLF handling without coordination
+    with docparser."""
+    # Use content with distinct per-position characters so legitimate
+    # overlap windows do not collapse to equal strings under the
+    # set() check.
+    import string
+
+    body = (string.ascii_letters * 30)[:600]
+    text = ("a" * 150) + "\r\n\r\n" + body
+    chunks = _split_chunks(text, ChunkingConfig(chunk_size=200, chunk_overlap=20))
+
+    # Loop must terminate within a reasonable bound.
+    assert len(chunks) <= 10
+    # Distinct windows produce distinct chunk texts — no cascade.
+    chunk_texts = [c["text"] for c in chunks]
+    assert len(chunk_texts) == len(set(chunk_texts)), "cascade emitted on CRLF input"
+
+
+def test_chunk_size_equals_twice_overlap_does_not_loop():
+    """When ``chunk_size == 2 * chunk_overlap`` the guard
+    ``(end - cursor) > chunk_overlap * 2`` is False on every full
+    window, so cursor must jump to ``end`` rather than ``end -
+    chunk_overlap``. Pin this so a future change to ``>=`` cannot
+    silently re-introduce a stall."""
+    text = "a" * 1000
+    cfg = ChunkingConfig(chunk_size=4, chunk_overlap=2)
+    chunks = _split_chunks(text, cfg)
+
+    # 1000 chars / 4 chars per chunk = 250 chunks (no overlap on full
+    # windows because guard fires False).
+    assert len(chunks) == 250
+    assert all(len(c["text"]) == 4 for c in chunks)
+
+
 def test_multibyte_chars_split_cleanly_at_boundaries():
     """Python ``str`` is sequence-of-Unicode-code-points, so window
     arithmetic against ``len(text)`` already operates on character
