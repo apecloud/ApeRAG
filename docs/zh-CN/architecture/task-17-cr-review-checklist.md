@@ -93,6 +93,21 @@
 - 回滚二选一：(a) Helm release 整体回滚 / (b) 先 `kubectl scale indexing-worker --replicas=0` 确认无 worker 后再回滚 API
 - 发布 checklist 加入「执行面唯一性确认」：`kubectl get deploy,pod` 验证
 
+### 6 hard gate 与具体测试文件 mapping（冬柏 msg=d56bb0f7 补充）
+
+verify 必须落到具体 test 文件锚点，不允许抽象「verify」描述：
+
+| Hard gate | 验证脚本 / test 文件 | 默认 owner |
+|-----------|---------------------|----------|
+| #1 API 不启重型执行面 | `tests/boundaries/test_app_lifespan_no_workers.py` grep CI gate + 单测 | Bryce (#20) |
+| #2 cleanup intent DB SoT | `tests/integration/test_cleanup_recovery_redis_outage.py` Redis kill + DB scan 补漏 | ziang (#19) |
+| #3 object store 迁出 API | `tests/boundaries/test_api_no_objectstore_calls.py` grep gate + 行为测试 | ziang (#19) |
+| #4 readiness 轻量 | `tests/load/test_health_endpoints_under_load.py` p95 < 500ms + DB pool 满时仍稳定 | Planetegg (#22) |
+| #5 连接池 Helm 映射 | `tests/integration/test_helm_pool_budget.py` 验证 env 透传 + 预算公式不超 | huangzhangshu (#18) |
+| #6 回滚执行面唯一 | runbook + `tests/load/test_rollback_dryrun.py`（k8s scale + 切回，验证 no double-execute）| huangzhangshu + Planetegg |
+
+owner 可调，关键是每个 gate 有可执行 test 文件锚点。CR 时 verdict 表 §七要求填具体 test commit / 行号。
+
 ---
 
 ## 三、7 条实现修正（ziang msg=4ea65100 + msg=76f6f465 + Bryce msg=981960cd accept 版）
@@ -197,6 +212,17 @@ CR cross-check 表里任何 ✅ 标注被 surface 为 false positive 时，立�
 - 发现跨边界问题先在 PR thread 点对方，不直接跨边界大改
 - 合并 gate：5 lane（implementer + 架构 + SRE + 状态机/CR + 部署）独立给 verdict，全 ack 后 squash merge
 
+### 5.5 失败注入方法规范（冬柏 msg=d56bb0f7 补充）
+
+任何「Redis 丢消息 reconciler 补漏」/「worker crash」/「DB 写失败」类失败场景测试，**禁止 mock client 绕过真路径**。必须用真实失败注入手法：
+
+- **Redis 丢消息 / Redis 重启**：`kubectl scale redis --replicas=0` 暂停 + 恢复，或 `iptables -A OUTPUT -p tcp --dport 6379 -j DROP` 模拟网络断开
+- **worker crash**：`kubectl delete pod indexing-worker-...` 强制 pod kill，verify reconciler 60s 心跳超时回收
+- **DB 写失败**：iptables 阻断 PG 端口，或临时撤销 DB 连接权限模拟 transient failure
+- **rollout surge 连接池打满**：`kubectl rollout restart api` 触发 rollout，监测 PG `max_connections` 是否被 surge 配置打满
+
+**禁止 mock 绕过原因**：mock 测出的「reconciler 能补漏」可能在真实路径上失效，因为真实路径含 Redis 客户端重连 / asyncpg 连接池行为 / k8s probe 抢占资源等 mock 不能复现的副作用。Lesson 沉淀来源：Wave 3 PR #1729 mock 路径过 + 真路径 fail。
+
 ---
 
 ## 六、CR 历史 sediment 引用
@@ -212,11 +238,11 @@ CR cross-check 表里任何 ✅ 标注被 surface 为 false positive 时，立�
 
 ## 七、task #17 PR final review verdict（待 PR 合并前填）
 
-| 检查项 | 状态 | 备注 |
-|------|------|------|
-| §一 5 cross-check 全过 | _待填_ | |
-| §二 6 hard gate 全 verify | _待填_ | |
-| §三 7 实现修正全 fold-in | _待填_ | |
+| 检查项 | 状态 | 备注（具体 test commit / 行号 / 数据） |
+|------|------|--------------------------------------|
+| §一 5 cross-check 全过 | _待填_ | 引用具体 PR diff 行号或 commit |
+| §二 6 hard gate 全 verify（每条引用具体 test 文件 + 通过截图/数据） | _待填_ | 见 §二 mapping 子表 |
+| §三 7 实现修正全 fold-in（grep 验证应用代码 0 引入双 env / 0 嵌套 transaction / 等） | _待填_ | |
 | §四 lessons 全应用 | _待填_ | |
 | 团队 5 lane LGTM ack 收齐 | _待填_ | |
 | 架构师 v8.2 docs 入仓 | _待填_ | |
@@ -224,5 +250,15 @@ CR cross-check 表里任何 ✅ 标注被 surface 为 false positive 时，立�
 | ziang 状态机/cleanup SoT 验收 docs 入仓 | _待填_ | |
 | Weston scope 一致性 verify | _待填_ | |
 | Bryce 代码主线 file-by-file align ziang 7 修正 | _待填_ | |
+| **多文档并发压测阈值通过**（Planetegg #22 主跑，需 Planetegg + 黄章书 商定具体阈值并 attach 数据到 PR thread）| _待填_ | 例：≥100 docs × 10 concurrent × 10min sustained，p95 / PG 连接数 / 队列 backlog 数据 attach |
+| **smoke regression diff = 0**（PR merge 前后同一 hurl smoke set 全 pass，新 fail = 0） | _待填_ | 对照 6 套 hurl smoke baseline 含 web_access #1794 / 模型基准 #1863 等 |
+| 失败注入用真路径不允许 mock（按 §5.5 规范） | _待填_ | 截图或 log 引用 kubectl/iptables 操作记录 |
 
 最终 verdict 由 huangheng 在 PR 合并前填，附 thread message ID 引用。
+
+---
+
+## 八、checklist 修订记录
+
+- 2026-04-29 23:54 commit `d9438f8`：huangheng 初版，5 cross-check + 6 hard gate + 7 实现修正 + lessons + 工作流 + verdict 表
+- 2026-04-30 00:05 fold-in 冬柏 msg=d56bb0f7 补充 4 条：6 hard gate test 文件 mapping 子表（§二）/ 失败注入真路径规范（§5.5）/ 压测阈值具体化 + smoke regression baseline（§七 verdict 表新增 3 行）
