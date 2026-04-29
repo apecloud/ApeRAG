@@ -10,8 +10,8 @@ import {
   getMarketplaceGraphEntityEvidence,
   getMarketplaceGraphHybrid,
   getMarketplaceGraphRelationEvidence,
-  searchMarketplaceGraphEntities,
   searchGraphEntities,
+  searchMarketplaceGraphEntities,
 } from '@/features/knowledge-graph/client-api';
 import type {
   GraphEdge,
@@ -632,7 +632,8 @@ export const CollectionGraphHybrid = ({
     getGraphData();
   }, [getGraphData]);
 
-  // Debounced vector search against the Wave 7 entity-search endpoint.
+  // Debounced entity search. The backend chooses vector / exact /
+  // fuzzy strategies; the UI only presents one query surface.
   useEffect(() => {
     if (!searchOpen || !searchTerm.trim()) {
       setSearchResults([]);
@@ -1299,7 +1300,7 @@ export const CollectionGraphHybrid = ({
               </div>
               {searchPending && (
                 <div className="text-muted-foreground flex items-center gap-2 p-3 text-xs">
-                  <Loader2 className="size-3 animate-spin" /> 向量召回中…
+                  <Loader2 className="size-3 animate-spin" /> 查询中…
                 </div>
               )}
               {!searchPending &&

@@ -125,7 +125,7 @@ class GraphSearchService:
         self._collection_id = collection_id
 
     # ------------------------------------------------------------------
-    # search_entities — lexical fallback + vector recall path
+    # search_entities — vector-first path with name-driven fallback
     # ------------------------------------------------------------------
 
     async def search_entities(
@@ -135,11 +135,19 @@ class GraphSearchService:
     ) -> list[EntityWithLineage]:
         """Recall the top-K entities matching ``query``.
 
-        The graph state split can make vector recall temporarily
-        unavailable while the facts layer is already serving. Keep the
-        name-driven path useful by trying exact and lexical matches
-        before the vector layer. Empty / whitespace-only query returns
-        ``[]`` (no spurious recall — same convention as
+        Prefer entity-vector recall when the graph vector layer is
+        available. Exact / alias / lexical lookup remains in the path
+        as ranking guardrail and fallback:
+
+        * alias is resolved before vector recall so alias queries can
+          use the canonical entity name for embedding and exact boost;
+        * exact entity hits are hard-boosted to the front so a literal
+          entity-name query remains predictable;
+        * keyword/fuzzy lookup only supplements or handles vector
+          failures.
+
+        Empty / whitespace-only query returns ``[]`` (no spurious
+        recall — same convention as
         :meth:`LineageGraphStore.query_entities_by_keyword`).
         """
         text = (query or "").strip()
@@ -149,67 +157,69 @@ class GraphSearchService:
         if k <= 0:
             return []
 
+        canonical = await self._safe_resolve_alias(text)
+        query_for_embedding = canonical if canonical and canonical != text else text
+
+        exact_candidates: list[EntityWithLineage] = []
+        exact_seen: set[str] = set()
+        for candidate in (text, query_for_embedding):
+            if not candidate or candidate in exact_seen:
+                continue
+            exact_seen.add(candidate)
+            exact = await self._safe_get_exact_entity(candidate)
+            if exact is not None and exact.name not in {entity.name for entity in exact_candidates}:
+                exact_candidates.append(exact)
+
+        vector_entities: list[EntityWithLineage] = []
+        try:
+            embedding = await asyncio.to_thread(self._embedder.embed_query, query_for_embedding)
+        except Exception:
+            logger.warning("graph_search_service: embed failed for query=%r", text, exc_info=True)
+            embedding = None
+
+        if embedding is not None:
+            request = QueryRequest(
+                embedding=embedding,
+                top_k=k,
+                flt=Eq("indexer", GRAPH_ENTITY_INDEXER),
+                score_threshold=self._score_threshold or None,
+            )
+            try:
+                hits = await asyncio.to_thread(self._vector_connector.search, request)
+            except Exception:
+                logger.warning(
+                    "graph_search_service: vector search failed for query=%r",
+                    text,
+                    exc_info=True,
+                )
+                hits = []
+
+            names = self._entity_names_from_hits(hits)
+            if names:
+                vector_entities = await self._batch_get_entities(names)
+
         results: list[EntityWithLineage] = []
         seen_names: set[str] = set()
 
-        exact = await self._safe_get_exact_entity(text)
-        if exact is not None:
-            results.append(exact)
-            seen_names.add(exact.name)
-        else:
-            # 任务 #5 step 8: alias 解析兜底. 写路径已经把 alias 重定向
-            # 到 canonical, 所以 store 里只有 canonical entity 名字; 用户
-            # 搜的如果是 alias, get_entity 会 miss, 这时 alias_repo 把
-            # 名字翻译成 canonical 再查一次.
-            canonical = await self._safe_resolve_alias(text)
-            if canonical and canonical != text:
-                redirected = await self._safe_get_exact_entity(canonical)
-                if redirected is not None:
-                    results.append(redirected)
-                    seen_names.add(redirected.name)
+        def _append(entity: EntityWithLineage) -> bool:
+            if entity.name in seen_names:
+                return len(results) >= k
+            results.append(entity)
+            seen_names.add(entity.name)
+            return len(results) >= k
+
+        for entity in exact_candidates:
+            if _append(entity):
+                return results
+
+        for entity in vector_entities:
+            if _append(entity):
+                return results
 
         lexical_matches = await self._safe_query_entities_by_keyword(text, max(k - len(results), 0))
         for entity in lexical_matches:
-            if entity.name in seen_names:
-                continue
-            results.append(entity)
-            seen_names.add(entity.name)
-            if len(results) >= k:
+            if _append(entity):
                 return results
-
-        try:
-            embedding = await asyncio.to_thread(self._embedder.embed_query, text)
-        except Exception:
-            logger.warning("graph_search_service: embed failed for query=%r", text, exc_info=True)
-            return results
-
-        request = QueryRequest(
-            embedding=embedding,
-            top_k=max(k, k - len(results)),
-            flt=Eq("indexer", GRAPH_ENTITY_INDEXER),
-            score_threshold=self._score_threshold or None,
-        )
-        try:
-            hits = await asyncio.to_thread(self._vector_connector.search, request)
-        except Exception:
-            logger.warning(
-                "graph_search_service: vector search failed for query=%r",
-                text,
-                exc_info=True,
-            )
-            return results
-
-        names = self._entity_names_from_hits(hits)
-        if not names:
-            return results
-        vector_entities = await self._batch_get_entities(names)
-        for entity in vector_entities:
-            if entity.name in seen_names:
-                continue
-            results.append(entity)
-            seen_names.add(entity.name)
-            if len(results) >= k:
-                break
         return results
 
     async def _safe_get_exact_entity(self, text: str) -> EntityWithLineage | None:
