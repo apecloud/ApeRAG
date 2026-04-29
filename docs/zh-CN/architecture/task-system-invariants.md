@@ -48,7 +48,8 @@ sum(replicas × (pool_size + max_overflow)) + rollout_surge_budget + reserved_co
 ### 2.3 API 不拥有重型执行面
 - API request handler 不得直接调用 `cleanup_for_deleted_documents` / `delete_objects_by_prefix` / `ProductionWorkerFactory(...)` / `run_cleanup_loop`
 - API 删除文档：只标记 `Document.status=DELETED + gmt_deleted` 进 DB；重型 cleanup（向量库 / 对象存储 prefix delete）由 worker cleanup loop 异步执行
-- grep CI gate：`grep -rn 'cleanup_for_deleted_documents\|delete_objects_by_prefix\|ProductionWorkerFactory\|run_cleanup_loop' aperag/api/ aperag/views/` 必须为空
+- boundary gate：`tests/boundaries/test_api_no_cleanup.py` 用 AST 检查 `document_service._delete_document` 不调用 `cleanup_for_deleted_documents` / `delete_objects_by_prefix`，并检查 `aperag/app.py` 不构造 cleanup worker factory
+- startup gate：`tests/unit_test/test_app_lifespan_no_workers.py` 检查 `aperag/app.py` 不启动 worker / reconciler / cleanup，且 `aperag/cli/indexing_worker.py` 覆盖当前全部 lane
 
 ### 2.4 旧任务防写回（version/token gate）
 - worker 成功/失败写回必须受 DocumentIndex 当前行 + status + parse_version + is_serving 语义保护

@@ -154,11 +154,11 @@ class DocumentIndexManager:
         ...
     async def delete_document_indexes(session, document_id, index_types):
         # 显式指定 index_types；status 置 DELETING
-        # 实际删除由 Celery worker 按状态驱动
+        # 实际删除由 indexing-worker cleanup loop 按状态驱动
         ...
 ```
 
-真正的索引构建逻辑分布在 5 个功能模块里，每类索引一个 Celery task：
+真正的索引构建逻辑分布在各 modality worker 里，由独立 `indexing-worker` 进程消费 Redis-backed queue：
 
 | 模块 | 对应 `DocumentIndexType` | 职责 |
 | --- | --- | --- |
@@ -185,9 +185,9 @@ class DocumentIndexManager:
 
 indexing domain **不对外暴露 HTTP 路由** — 它是 KB 驱动的内部重建任务后端。所有 HTTP 交互都以 KB 侧的 "重建索引" / "删除索引" 路由为入口，KB 把请求翻译成 `IndexingTrigger` 调用。
 
-### 3.5 Celery task 协作
+### 3.5 indexing worker 协作
 
-索引任务的异步派发在 `aperag/tasks/document.py` 里（task module 仍在 top-level，不属于某个 domain）；task body 从 top-level `tasks/` 调 `aperag.domains.indexing.*` 做实际工作，这是 SSoT §2.1 footnote 允许的模式 — task 是基础设施，不算 domain 资产。
+索引任务的异步派发由 KB service 写入 `DocumentIndex` intent 并 enqueue 到 Redis-backed queue；`python -m aperag.cli.indexing_worker` 启动 parse、vector、fulltext、graph、graph_facts、graph_vectors、summary、vision、reconciler、cleanup 等 lane。`DocumentIndex` 行是业务状态真源，Redis 只作为可丢 transport。
 
 ---
 
@@ -402,7 +402,7 @@ _bind_view_models_reexports()
    - 调用 IndexingTrigger.create_or_update_document_indexes(collection, document_id, None)
      ↓
    - indexing.manager 为每种 index_type upsert DocumentIndex 行 (status=PENDING)
-4. Celery worker 启动 (aperag/tasks/document.py):
+4. indexing worker 启动 (`python -m aperag.cli.indexing_worker`):
    - 按 DocumentIndex 行 PENDING → RUNNING
    - document_parser 解析原始文件 → 标准化 chunk 序列
    - 对每种 index_type 调对应 worker：

@@ -13,11 +13,11 @@ position: 2
 ## 设计目标
 
 1. **默认不新增常驻基础设施**：不默认部署 Collector、Prometheus、Grafana、Loki、Tempo 等组件。
-2. **一个操作模型**：API、Celery worker、Celery beat、前端 Node 进程遵循同一套日志、trace id、健康检查和诊断约定。
+2. **一个操作模型**：API、indexing worker、前端 Node 进程遵循同一套日志、trace id、健康检查和诊断约定。
 3. **标准优先**：进程内使用 OpenTelemetry API/SDK，外部出口使用 OTLP；不要在应用代码里绑定 Logfire、Datadog 等具体后端。
 4. **自助排障优先**：任何线上问题都应该能先通过 `trace_id`、结构化日志、任务状态和诊断包定位到大致子系统。
 5. **安全默认**：prompt、文档正文、密钥、Authorization、Cookie、LLM 原始响应默认不得进入日志、span 或 metric。
-6. **面向重构稳定根**：只依赖相对稳定的根：`aperag/app.py`、`config/celery.py`、`aperag/domains/**`、`web/`、`deploy/aperag/**`。不要围绕短期 shim 或历史模块做长期设计。
+6. **面向重构稳定根**：只依赖相对稳定的根：`aperag/app.py`、`aperag/cli/indexing_worker.py`、`aperag/domains/**`、`web/`、`deploy/aperag/**`。不要围绕短期 shim 或历史模块做长期设计。
 
 非目标：
 
@@ -33,7 +33,7 @@ position: 2
 
 - `aperag/domains/**` 已经成为业务所有权边界。span、metric、日志字段应该显式带 `domain`，但不能让 domain 反向依赖某个观测后端。
 - `aperag/app.py` 是 API 进程装配点。FastAPI instrumentation 应在 `app = FastAPI(...)` 之后显式绑定 app，而不是依赖全局 monkey patch 时机。
-- `config/celery.py` 是 worker/beat 的进程根。Celery 必须和 API 使用同一套观测初始化、日志格式和 trace context propagation。
+- `aperag/cli/indexing_worker.py` 是索引 worker 的进程根。indexing worker 必须和 API 使用同一套观测初始化、日志格式和 trace context propagation。
 - 历史专用 exporter、No-op exporter、MCP monkey patch 和重复 trace 工具函数都是历史实现细节。未来应收敛为标准 OTLP 出口和明确的 integration seam。
 - 默认 `OTEL_ENABLED=True` 但没有有效 exporter 会造成“看似开启、实际无输出”的答疑成本。未来配置必须让默认行为可解释。
 
@@ -45,8 +45,8 @@ position: 2
 flowchart LR
   userRequest[User_Request] --> apiProcess[ApeRAG_API]
   apiProcess --> apiLogs[JSON_Stdout]
-  apiProcess --> celeryQueue[Celery_Broker]
-  celeryQueue --> workerProcess[Celery_Worker]
+  apiProcess --> redisQueue[Redis_Indexing_Queue]
+  redisQueue --> workerProcess[Indexing_Worker]
   workerProcess --> workerLogs[JSON_Stdout]
   apiProcess --> localTrace[Local_Trace_Context]
   workerProcess --> localTrace
@@ -61,8 +61,8 @@ flowchart LR
 
 行为：
 
-- API、worker、beat、frontend 都输出 JSON stdout 日志。
-- API 请求、中间件、Celery task、关键业务操作都创建 trace context。
+- API、indexing worker、frontend 都输出 JSON stdout 日志。
+- API 请求、中间件、indexing task、关键业务操作都创建 trace context。
 - 即使没有 exporter，日志也带 `trace_id` / `span_id`，便于通过现有日志系统或 `docker compose logs` 串联问题。
 - metrics 定义可以存在，但默认不启动远端导出。
 - 不启动额外常驻组件。
@@ -100,7 +100,7 @@ Collector 不是默认依赖，只在下列需求出现时启用：
 ```mermaid
 flowchart LR
   api[ApeRAG_API] -->|"OTLP"| collector[OTel_Collector]
-  worker[Celery_Worker] -->|"OTLP"| collector
+  worker[Indexing_Worker] -->|"OTLP"| collector
   frontend[Frontend_Node] -->|"OTLP_or_Logs"| collector
   collector --> scrub[Scrub_Filter_Sample]
   scrub --> logfire[Managed_Logfire]
@@ -153,13 +153,13 @@ OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
 | `level` | `DEBUG` / `INFO` / `WARNING` / `ERROR` |
 | `logger` | Python logger 名称 |
 | `message` | 人类可读摘要 |
-| `service.name` | `aperag-api`、`aperag-worker`、`aperag-beat` |
+| `service.name` | `aperag-api`、`aperag-indexing-worker` |
 | `service.version` | 版本号或 git sha |
 | `deployment.environment` | `development` / `staging` / `production` |
 | `trace_id` | 当前 trace id，无则为空 |
 | `span_id` | 当前 span id，无则为空 |
 | `request_id` | HTTP 请求 id，无则为空 |
-| `task_id` | Celery task id，无则为空 |
+| `task_id` | indexing task id 或 document index id，无则为空 |
 | `domain` | 业务 domain，例如 `indexing`、`retrieval` |
 | `operation` | 稳定操作名，例如 `document.parse` |
 | `outcome` | `success` / `failure` / `skipped` |
@@ -183,7 +183,7 @@ trace 的目标不是记录所有细节，而是建立跨 API、任务、检索�
 
 ```text
 http.server.request
-celery.task.run
+indexing.task.run
 document.parse
 document.chunk
 index.vector.write
@@ -211,8 +211,8 @@ evaluation.item.run
 | `aperag.document.id` | document id |
 | `aperag.bot.id` | bot id |
 | `aperag.chat.id` | chat id |
-| `aperag.task.id` | Celery task id |
-| `aperag.task.name` | Celery task name |
+| `aperag.task.id` | indexing task id 或 document index id |
+| `aperag.task.name` | indexing task name |
 | `gen_ai.provider.name` | LLM provider |
 | `gen_ai.request.model` | 模型名 |
 | `gen_ai.usage.input_tokens` | 输入 token |
@@ -224,19 +224,19 @@ evaluation.item.run
 - 如果需要定位用户输入，只记录 hash、长度、语言、token 数。
 - 大数组只记录 count。
 
-### API 到 Celery 的上下文传播
+### API 到 indexing worker 的上下文传播
 
-Celery 是 RAG 系统的主要异步边界，必须一等支持。
+Redis-backed indexing queue 是 RAG 系统的主要异步边界，必须一等支持。
 
 ```mermaid
 sequenceDiagram
   participant API as API_Process
-  participant Broker as Celery_Broker
-  participant Worker as Worker_Process
+  participant Queue as Redis_Indexing_Queue
+  participant Worker as Indexing_Worker
   participant Indexing as Indexing_Domain
   API->>API: start request span
-  API->>Broker: inject traceparent into task headers
-  Broker->>Worker: deliver task with headers
+  API->>Queue: enqueue task payload with trace context
+  Queue->>Worker: deliver task payload
   Worker->>Worker: extract traceparent
   Worker->>Indexing: run child span
   Indexing-->>Worker: structured logs with same trace_id
@@ -244,10 +244,10 @@ sequenceDiagram
 
 要求：
 
-- 发送 task 时把 W3C `traceparent` / `baggage` 注入 Celery headers。
-- worker 执行 task 时提取 headers，创建 `celery.task.run` span。
+- 发送 task 时把 W3C `traceparent` / `baggage` 注入 queue payload 或等价 metadata。
+- worker 执行 task 时提取上下文，创建 `indexing.task.run` span。
 - task retry、skip、failure 都写入 span event 和结构化日志。
-- beat 触发的任务没有上游请求，应创建新的 root trace，并在日志中标记 `trigger=beat`。
+- reconciler / cleanup 触发的任务没有上游请求，应创建新的 root trace，并在日志中标记 `trigger=reconciler` 或 `trigger=cleanup`。
 
 ## Metrics 契约
 
@@ -256,7 +256,7 @@ sequenceDiagram
 优先级：
 
 1. **业务结果指标**：文档索引成功率、失败率、耗时；检索耗时；LLM tokens/cost/error。
-2. **任务指标**：Celery task 运行时长、重试次数、失败次数、队列等待时间。
+2. **任务指标**：indexing task 运行时长、重试次数、失败次数、队列等待时间。
 3. **API 指标**：请求数、错误数、延迟直方图。
 4. **依赖指标**：Postgres、Redis、Qdrant、Elasticsearch、对象存储调用耗时和错误数。
 
@@ -268,8 +268,8 @@ aperag.document.index.errors
 aperag.retrieval.duration
 aperag.llm.tokens
 aperag.llm.cost
-aperag.celery.task.duration
-aperag.celery.task.retries
+aperag.indexing.task.duration
+aperag.indexing.task.retries
 ```
 
 metric label 必须低基数。允许 `domain`、`operation`、`status`、`provider`、`model`、`index_type`；禁止 prompt、document title、URL 原文、异常全文。
@@ -287,7 +287,7 @@ aperag/observability/
   logging.py
   tracing.py
   metrics.py
-  celery.py
+  indexing.py
   fastapi.py
   privacy.py
 ```
@@ -322,9 +322,9 @@ aperag diagnose --redact --output aperag-diagnostic.zip
 
 - 版本、git sha、启动模式、关键 feature flags。
 - 脱敏后的 env 摘要。
-- 最近 N 分钟 API/worker/beat 错误日志。
-- 最近 N 个失败 Celery task 的 task name、task id、trace id、错误类型。
-- `/health`、未来 `/ready`、未来 `/diagnostics` 的结果。
+- 最近 N 分钟 API / indexing worker 错误日志。
+- 最近 N 个失败 indexing task 的 task name、document id、trace id、错误类型。
+- `/health`、`/health/live`、`/health/ready`、`/health/diagnostics` 的结果。
 - 数据库、Redis、Qdrant、Elasticsearch、对象存储的连通性摘要。
 - LLM provider 配置可用性摘要，不包含密钥。
 
@@ -337,11 +337,12 @@ aperag diagnose --redact --output aperag-diagnostic.zip
 
 ## 健康检查和就绪检查
 
-当前 `/health` 可继续作为 liveness。未来建议区分：
+当前已区分：
 
-- `/health`：进程是否存活，只检查应用自身。
-- `/ready`：是否可以接收流量，检查数据库、Redis、必要配置、迁移状态。
-- `/diagnostics`：受保护接口，返回脱敏后的子系统健康摘要。
+- `/health`：兼容旧探针，语义等同轻量 liveness。
+- `/health/live`：进程是否存活，只检查应用自身。
+- `/health/ready`：HTTP 入口是否可以接收流量，不做 PG / Redis / Qdrant 等重依赖检查。
+- `/health/diagnostics`：受保护接口，使用隔离小预算连接检查子系统健康摘要。
 
 这样可以减少“Pod Running 但业务不可用”的答疑成本。
 
@@ -360,9 +361,9 @@ Logfire 可以作为可选托管后端，尤其适合 Python、FastAPI、Pydanti
 
 1. 新建 `aperag.observability` 作为未来唯一公共入口，停止扩展历史 `aperag.trace` API。
 2. 定义 `APERAG_OBSERVABILITY_MODE`，让默认行为从配置层自解释。
-3. 统一 API、worker、beat 的 JSON 日志格式和 trace/span 注入。
+3. 统一 API 与 indexing worker 的 JSON 日志格式和 trace/span 注入。
 4. 在 FastAPI app 创建后显式 instrument app。
-5. 为 Celery task headers 实现 W3C trace context 传播。
+5. 为 Redis-backed indexing queue payload 实现 W3C trace context 传播。
 6. 移除后端专用 exporter，主出口统一为 OTLP。
 7. 为 indexing、retrieval、LLM、agent_runtime 增加业务 span 和低基数 metric。
 8. 增加脱敏工具和测试，确保敏感字段不会进入日志/span。
@@ -373,14 +374,14 @@ Logfire 可以作为可选托管后端，尤其适合 Python、FastAPI、Pydanti
 
 默认 `local` 模式：
 
-- 不启动额外服务时，API、worker、beat 正常启动。
-- JSON 日志包含稳定字段，API 请求和 Celery task 可通过 `trace_id` 串联。
+- 不启动额外观测服务时，API 与 indexing worker 正常启动。
+- JSON 日志包含稳定字段，API 请求和 indexing task 可通过 `trace_id` 串联。
 - 用户可以仅凭日志和诊断包定位到失败 domain、operation、task、依赖和错误类型。
 - 日志和 span 不包含 prompt、文档正文或密钥。
 
 `otlp` / `collector` 模式：
 
-- 配置一个 OTLP endpoint 后，API 与 worker 的 trace 能在后端串成完整链路。
+- 配置一个 OTLP endpoint 后，API 与 indexing worker 的 trace 能在后端串成完整链路。
 - 文档上传到索引完成能看到 parse、embedding、index write 等阶段。
 - LLM 调用能看到 provider、model、tokens、latency、error/cost 摘要。
 - Collector 只作为可选增强，不影响默认部署。
