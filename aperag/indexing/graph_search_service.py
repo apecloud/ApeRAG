@@ -107,6 +107,13 @@ class GraphSearchService:
         llm: Callable[[str], Awaitable[str]] | None = None,
         top_k: int = DEFAULT_TOP_K,
         score_threshold: float = DEFAULT_SCORE_THRESHOLD,
+        # 任务 #5 step 8: alias 解析层. 用户搜的字串可能是某个 entity 的
+        # alias (例如 "Foo" → canonical "Foo Inc"). 写路径已经把 alias
+        # 重定向到 canonical, 所以 store 里只有 canonical entity 名字;
+        # 读路径需要 alias_repo.resolve_canonical 来兜底精确匹配 miss
+        # 的情况. 设计文档 §5 三层检索的"别名+模糊"层.
+        alias_repo: Any = None,
+        collection_id: str = "",
     ) -> None:
         self._store = store
         self._vector_connector = vector_connector
@@ -114,6 +121,8 @@ class GraphSearchService:
         self._llm = llm
         self._top_k = top_k
         self._score_threshold = score_threshold
+        self._alias_repo = alias_repo
+        self._collection_id = collection_id
 
     # ------------------------------------------------------------------
     # search_entities — lexical fallback + vector recall path
@@ -147,6 +156,17 @@ class GraphSearchService:
         if exact is not None:
             results.append(exact)
             seen_names.add(exact.name)
+        else:
+            # 任务 #5 step 8: alias 解析兜底. 写路径已经把 alias 重定向
+            # 到 canonical, 所以 store 里只有 canonical entity 名字; 用户
+            # 搜的如果是 alias, get_entity 会 miss, 这时 alias_repo 把
+            # 名字翻译成 canonical 再查一次.
+            canonical = await self._safe_resolve_alias(text)
+            if canonical and canonical != text:
+                redirected = await self._safe_get_exact_entity(canonical)
+                if redirected is not None:
+                    results.append(redirected)
+                    seen_names.add(redirected.name)
 
         lexical_matches = await self._safe_query_entities_by_keyword(text, max(k - len(results), 0))
         for entity in lexical_matches:
@@ -210,6 +230,30 @@ class GraphSearchService:
         except Exception:
             logger.warning("graph_search_service: lexical entity lookup failed for query=%r", text, exc_info=True)
             return []
+
+    async def _safe_resolve_alias(self, text: str) -> str:
+        """走 alias map 把 alias 翻译成 canonical entity 名字.
+
+        ``alias_repo`` / ``collection_id`` 缺省时直接返回原字符串
+        (向后兼容: GraphSearchService 不强制要求 alias 注入). 任何 alias
+        查询异常按 best-effort 降级 — 兜底层失败应该静默回退到 lexical /
+        vector, 不让别名缺失阻断整个搜索.
+        """
+        if self._alias_repo is None or not self._collection_id:
+            return text
+        try:
+            canonical = await self._alias_repo.resolve_canonical(
+                collection_id=self._collection_id,
+                name=text,
+            )
+        except Exception:
+            logger.warning(
+                "graph_search_service: alias lookup failed for query=%r",
+                text,
+                exc_info=True,
+            )
+            return text
+        return canonical or text
 
     @staticmethod
     def _entity_names_from_hits(hits: Iterable[SearchHit]) -> list[str]:
@@ -451,6 +495,7 @@ def build_graph_search_service_for(collection: Any) -> GraphSearchService:
     * ``llm`` — ``None`` in v1 (kwarg reserved for follow-up
       high-level / low-level keyword extraction; not invoked).
     """
+    from aperag.graph_curation.alias_map import AliasMapRepository
     from aperag.indexing.worker_factory import (
         _build_collection_qdrant_connector,
         _build_lineage_graph_store,
@@ -465,6 +510,8 @@ def build_graph_search_service_for(collection: Any) -> GraphSearchService:
         vector_connector=adaptor.connector,
         embedder=embedder,
         llm=None,
+        alias_repo=AliasMapRepository(),
+        collection_id=str(collection.id),
     )
 
 
