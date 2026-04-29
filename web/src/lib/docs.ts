@@ -1,12 +1,24 @@
 import { getLocale } from '@/services/cookies';
 import fs from 'fs';
-import grayMatter from 'gray-matter';
 import _ from 'lodash';
 import path from 'path';
-import readYamlFile from 'read-yaml-file';
+import { parse as parseYaml } from 'yaml';
 
 const ROOT_DIR = process.cwd();
-export const DOCS_DIR = path.join(ROOT_DIR, 'docs');
+const resolveDocsDir = () => {
+  const envDocsDir = process.env.APERAG_DOCS_DIR;
+  const candidates = [
+    envDocsDir,
+    path.join(ROOT_DIR, 'docs'),
+    path.join(ROOT_DIR, '..', 'docs'),
+  ].filter((candidate): candidate is string => Boolean(candidate));
+
+  return (
+    candidates.find((candidate) => fs.existsSync(candidate)) ?? candidates[0]
+  );
+};
+
+export const DOCS_DIR = resolveDocsDir();
 
 const getId = (pathname: string) => {
   const href = getHref(pathname);
@@ -17,8 +29,13 @@ const getId = (pathname: string) => {
 };
 
 const getHref = (pathname: string) => {
-  const url = trimSurfix(pathname.replace(ROOT_DIR, ''));
-  return url.replace(/\/(en-US|zh-CN)/, '');
+  const relativePath = path
+    .relative(DOCS_DIR, pathname)
+    .split(path.sep)
+    .join('/');
+  const routePath = relativePath.replace(/^(en-US|zh-CN)(\/|$)/, '');
+
+  return `/docs/${trimSurfix(routePath)}`.replace(/\/+/g, '/');
 };
 
 const trimSurfix = (str: string) => {
@@ -47,14 +64,25 @@ type FileMetadata = {
   keywords?: string;
   position?: number;
 };
+
+const FRONTMATTER_PATTERN = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/;
+
+const readFrontmatter = <T>(content: string): Partial<T> => {
+  const match = FRONTMATTER_PATTERN.exec(content);
+  if (!match) {
+    return {};
+  }
+
+  return (parseYaml(match[1]) as Partial<T> | null) ?? {};
+};
+
 const readFile = async (filepath: string, folder: string) => {
   const isExists = fs.existsSync(filepath);
 
   let metadata: FileMetadata = {};
 
   if (isExists) {
-    const { data } = grayMatter(fs.readFileSync(filepath, 'utf8'));
-    metadata = data as FileMetadata;
+    metadata = readFrontmatter<FileMetadata>(fs.readFileSync(filepath, 'utf8'));
   }
 
   const item: DocsSideBar = {
@@ -84,12 +112,17 @@ const readFolder = async (folderDir: string, parent: string) => {
   if (fs.existsSync(metadataFilePath)) {
     metadata = {
       ...metadata,
-      ...(await readYamlFile<FolderMetadata>(metadataFilePath)),
+      ...(parseYaml(
+        fs.readFileSync(metadataFilePath, 'utf8'),
+      ) as FolderMetadata),
     };
   }
 
-  const parentIsDocsRoot =
-    folderDir.replace(DOCS_DIR, '').split('/').length === 3;
+  const relativeFolderParts = path
+    .relative(DOCS_DIR, folderDir)
+    .split(path.sep)
+    .filter(Boolean);
+  const parentIsDocsRoot = relativeFolderParts.length === 2;
   const childrenIsParent = children.some((child) => child.type === 'folder');
 
   const item: DocsSideBar = {
