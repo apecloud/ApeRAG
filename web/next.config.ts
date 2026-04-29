@@ -1,6 +1,7 @@
 import createMDXPlugin from '@next/mdx';
 import type { NextConfig } from 'next';
 import createNextIntlPlugin from 'next-intl/plugin';
+import path from 'node:path';
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
 
@@ -33,6 +34,19 @@ const nextConfig: NextConfig = {
   modularizeImports: {},
 
   transpilePackages: [],
+
+  webpack: (config) => {
+    config.resolve ??= {};
+    config.resolve.alias = {
+      ...(config.resolve.alias ?? {}),
+      '@/cosmograph/style.module.css$': path.resolve(
+        process.cwd(),
+        'node_modules/@cosmograph/cosmograph/cosmograph/style.module.css.js'
+      ),
+    };
+
+    return config;
+  },
 };
 
 const withNextIntl = createNextIntlPlugin({
