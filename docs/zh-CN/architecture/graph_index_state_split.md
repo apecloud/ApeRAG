@@ -257,7 +257,7 @@ def graph_vectors_available(document_id):
 | 文档级整体完成判定 | 走 §4.5 双场景判定 | 走 §4.5 双场景判定 | **不参与** 整体完成判定 |
 | 图谱检索接口读 lineage | 读 `aperag_lineage_entity` / `aperag_lineage_relation` (跟 modality 无关) | 同上 | 同上 |
 | 图谱检索接口读向量库 | 走 §4.5 双场景判定 | 没向量, 跳过 | 走 §4.5 双场景判定 |
-| 图谱可视化入口 | task #8 (郭子昂) 单独评估, 见 thread `#indexing优化:77809cb9` | 同 task #8 | 同 task #8 |
+| 图谱可视化入口 | 由 #indexing优化 task #9 (郭子昂) 单独 PR 处理, **不阻塞事实层/向量层状态拆分**. 评估结论见 thread `#indexing优化:77809cb9` | 同 task #9 | 同 task #9 |
 
 注意:
 
@@ -342,7 +342,7 @@ task #7 **不是** 重新实现 `GraphVectorsWorker` (那是 task #5 的范围).
 - **现有 graph_search 接口**: 调用路径检查 (task #3) 结果出来后, 决定是否需要改接口实现. 本设计强制要求三层降级前两层在 task #5 落地.
 - **向量库 ID 冲突**: `GraphVectorsWorker` 使用跟原 `GraphModalityWorker` 相同的 `_entity_vector_id` / `_relation_vector_id` 算法, 老向量数据可以被覆盖更新, 不重复.
 - **抽取阶段未动**: 如果抽取本身仍然慢 (没并发), 同步并发改造的提升有限. 后续单独评估抽取阶段并发.
-- **图谱可视化**: task #8 (郭子昂) 已在 thread `#indexing优化:77809cb9` 评估, 结论是需要小改造让 `/graphs/hybrid` 支持 `graph_facts` 布局兜底, 不阻塞本设计.
+- **图谱可视化**: 评估在 task #8 (郭子昂) 完成 (thread `#indexing优化:77809cb9`), 实施在 task #9 单独 PR 处理 (前端 facts 兜底布局 / 边 relation_type 透传 / evidence 懒加载 / FE 搜索三层降级). 不阻塞本设计.
 
 ## 9. v2 → v3 变更日志
 
