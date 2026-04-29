@@ -1,7 +1,7 @@
 import re
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 def test_server_typed_client_uses_api_root_not_legacy_v1_base_path():

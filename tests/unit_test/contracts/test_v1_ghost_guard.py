@@ -21,7 +21,7 @@ internal v1 CRUD calls.
 import re
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 HURL_ROOT = REPO_ROOT / "tests" / "e2e_http" / "hurl"
 
 # OpenAI-compat permanent allowlist (canonical D7-1 / msg=8b6b4bc3).
