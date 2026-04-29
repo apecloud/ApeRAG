@@ -100,9 +100,9 @@ description: ApeRAG 对外 MCP 检索接口现状 inventory + 缺口识别 + 接
 
 ### 3.1 必须做（Hard scope）
 
-#### 3.1.1 补 graph element → chunk_id 链路（解 §2.1 BLOCKER）
+#### 3.1.1 补 graph element → chunk → doc 链路（解 §2.1 BLOCKER）
 
-`query_graph_entities` + `expand_graph_subgraph` 输出 schema 加 `evidence_chunk_ids: list[str]` 字段：
+**关键 fix**（per Weston msg=7500e57d）：`read_document_chunk(collection_id, document_id, chunk_id)` 是 document-scoped，chunk_id **不保证全局唯一**，所以只暴露 chunk_id 仍然断链 — agent 必须额外查 document_id 才能读 chunk。spec 早期版本写「`evidence_chunk_ids: list[str]`」不够，修订为暴露 **轻量 evidence ref** 含 `(document_id, chunk_id, parse_version)`：
 
 ```json
 // 改造后 query_graph_entities 输出
@@ -113,13 +113,23 @@ description: ApeRAG 对外 MCP 检索接口现状 inventory + 缺口识别 + 接
       "entity_type": "...",
       "description": "...",
       "source_chunk_count": 12,
-      "evidence_chunk_ids": ["chunk_abc", "chunk_def", ...]   // 新增
+      "evidence_refs": [
+        {"document_id": "doc_abc", "chunk_id": "chunk_abc", "parse_version": "v1"},
+        {"document_id": "doc_def", "chunk_id": "chunk_def", "parse_version": "v1"}
+      ]
     }
   ]
 }
 ```
 
-需要 backend `graph entity / subgraph` endpoint 同步加 evidence chunk_ids 字段（DB 层已经 join 了 chunk evidence — Wave 5 GraphFactsWorker 写入 `source_chunk_ids` list per entity / relation）。
+`parse_version` 推荐带（防 chunk 跨 parse_version 歧义）；`evidence_refs` 默认上限 10（payload 控制 + agent reasoning 优先级），仍保留 `source_chunk_count` / `total_source_chunks` 字段告知总数。
+
+**A1 scope 覆盖三处**（per Weston msg=7500e57d，避免漏 endpoint）：
+- `query_graph_entities`：entity refs
+- `expand_graph_subgraph`：entity refs + relation refs（双侧都暴露）
+- `get_entity_detail`：entity refs（或 spec 明确说明为何 defer）
+
+backend 实施口径：lineage / source_chunk 数据已存在（Wave 5 GraphFactsWorker 写入 `source_chunk_ids` list per entity / relation），endpoint / service 需要 **collect / project 到 response**（不是已经 join 好），新增 lightweight DTO `GraphEvidenceRef`（已经有 `GraphEvidenceChunk` 类似模型可参考）。
 
 #### 3.1.2 锁 MCP 不暴露 rerank（fold-in task #35）
 
@@ -205,10 +215,12 @@ graph 类 tool 输出加 unified `Result<T>` 容器：
 
 ### Phase A（必须做，并行）
 
-- **#32-A1**：补 query_graph_entities + expand_graph_subgraph 输出 `evidence_chunk_ids` 字段
-  - backend：`aperag/domains/knowledge_graph/api/graph_routes.py` + `graph_service.py` 加 evidence chunk_ids 输出
+- **#32-A1**：补 graph endpoint + MCP wrapper 输出 `evidence_refs: list[{document_id, chunk_id, parse_version?}]`（per Weston msg=7500e57d 修订 — 不再是裸 `chunk_id` list，因 chunk_id 不全局唯一）
+  - **Scope 三处全覆盖**（避免漏 endpoint）：`query_graph_entities` (entity refs) + `expand_graph_subgraph` (entity refs **+ relation refs**) + `get_entity_detail` (entity refs，或显式说明为何 defer)
+  - backend：`aperag/domains/knowledge_graph/api/graph_routes.py` + `graph_service.py` 新增 lightweight DTO `GraphEvidenceRef` (`document_id` + `chunk_id` + 可选 `parse_version`) + endpoint response 投影
   - schema：`aperag/domains/knowledge_graph/schemas.py` + MCP tool wrapper 同步
-  - 测试：unit + e2e hurl + boundary test 钉 chunk_ids 必须在响应中出现
+  - payload 控制：`evidence_refs` 默认上限 10 + 保留 `source_chunk_count` / `total_source_chunks` 告知总数
+  - 测试：unit + e2e hurl + boundary test 钉 `evidence_refs` 字段含 `document_id + chunk_id` 必须在响应中出现
   - 推荐 owner：@ziang（熟 indexing/search/graph）
 - **#32-A2**：MCP tool docstring + 用户面文档全套统一更新
   - 不改代码 — 只改 docstring + 用户面文档
@@ -236,7 +248,7 @@ graph 类 tool 输出加 unified `Result<T>` 容器：
 
 ### 6.1 Phase A 完成标准
 
-- entity → chunk_id → doc_id 完整链路：agent 一次 `query_graph_entities` 调用即可拿到 evidence_chunk_ids，再走 `read_document_chunk` 闭环（不再需要二次 `search_*` 召回）
+- entity → chunk → doc 完整链路：agent 一次 `query_graph_entities` 调用即可拿到 `evidence_refs`（含 `document_id + chunk_id + parse_version?`），再走 `read_document_chunk(collection_id, document_id, chunk_id)` 闭环（不再需要二次 `search_*` 召回，不再需要额外查 document_id）
 - MCP 接口面 grep `rerank` 字面**零命中**（test 数据迁移注释允许 allowlist）
 - search_graph vs query_graph_entities docstring 明确区分粒度
 
@@ -251,9 +263,10 @@ graph 类 tool 输出加 unified `Result<T>` 容器：
 ### 6.3 e2e smoke + integration
 
 - 无 rerank model 配置时 vector / fulltext / graph / MCP search 正常返回 candidates
-- entity → chunk_id 链路完整验证（per Planetegg msg=ebbe468a + chenyexuan msg=8a931200 + 冬柏 msg=6fb022d5）：
-  - **integration / hurl test** 必证：`query_graph_entities` 或 `expand_graph_subgraph` 返回的 `evidence_chunk_ids` 能被 `read_document_chunk(collection_id, document_id, chunk_id)` 真实消费（不只暴露 schema 字段）
+- entity → chunk → doc 链路完整验证（per Planetegg msg=ebbe468a + chenyexuan msg=8a931200 + 冬柏 msg=6fb022d5 + Weston msg=7500e57d）：
+  - **integration / hurl test** 必证：`query_graph_entities` 或 `expand_graph_subgraph` 返回的 `evidence_refs` (`document_id + chunk_id + parse_version?`) 能被 `read_document_chunk(collection_id, document_id, chunk_id)` 真实消费（不只暴露 schema 字段）
   - 避免「字段暴露但链路仍断」的伪修复 — agent 必须能用一次完整 chain 拿到 chunk content
+  - 反向验证：spec 早期版本 `evidence_chunk_ids: list[str]` 不够，因为 `chunk_id` 不全局唯一，agent 仍需查 document_id — 必须 `evidence_refs` 含 `document_id` 才闭环
 
 ## 7. 关联文档
 
