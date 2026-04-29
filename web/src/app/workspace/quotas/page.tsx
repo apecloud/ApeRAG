@@ -9,7 +9,7 @@ import { getUserQuota } from '@/features/quota/server-api';
 import { Gauge, ShieldCheck, TimerReset } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 import type { ReactNode } from 'react';
-import { QuotaRadialChart } from './quota-radial-chart';
+import { QuotaChartGrid } from './quota-chart-grid';
 
 export default async function Page() {
   const data = await getUserQuota();
@@ -57,11 +57,7 @@ export default async function Page() {
             value={totalLimit}
           />
         </div>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {data.quotas.map((quota) => (
-            <QuotaRadialChart key={quota.quota_type} data={quota} />
-          ))}
-        </div>
+        <QuotaChartGrid quotas={data.quotas} />
       </PageContent>
     </PageContainer>
   );

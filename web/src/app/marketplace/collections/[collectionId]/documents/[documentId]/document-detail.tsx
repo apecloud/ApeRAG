@@ -1,16 +1,9 @@
 'use client';
-import { Markdown } from '@/components/markdown';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import type { DocumentPreview } from '@/features/document/types';
 import { cn } from '@/lib/utils';
-import _ from 'lodash';
-import {
-  ArrowLeft,
-  Download,
-  FileText,
-  LoaderCircle,
-} from 'lucide-react';
+import { ArrowLeft, Download, FileText, LoaderCircle } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
@@ -37,6 +30,13 @@ const PDFDocument = dynamic(() => import('react-pdf').then((r) => r.Document), {
 const PDFPage = dynamic(() => import('react-pdf').then((r) => r.Page), {
   ssr: false,
 });
+const Markdown = dynamic(
+  () => import('@/components/markdown').then((r) => r.Markdown),
+  {
+    ssr: false,
+    loading: () => <div className="bg-muted h-40 animate-pulse rounded-md" />,
+  },
+);
 
 const IMAGE_EXTENSIONS = new Set([
   'png',
@@ -115,6 +115,10 @@ export const DocumentDetail = ({
     : undefined;
 
   useEffect(() => {
+    if (!pdfPreviewUrl) {
+      return;
+    }
+
     const loadPDF = async () => {
       const { pdfjs } = await import('react-pdf');
 
@@ -124,7 +128,7 @@ export const DocumentDetail = ({
       ).toString();
     };
     loadPDF();
-  }, []);
+  }, [pdfPreviewUrl]);
 
   useEffect(() => {
     setNumPages(0);
@@ -173,7 +177,7 @@ export const DocumentDetail = ({
             }
             className="flex flex-col justify-center gap-1"
           >
-            {_.times(numPages).map((index) => {
+            {Array.from({ length: numPages }, (_, index) => {
               return (
                 <div key={index} className="text-center">
                   <Card className="border-border/70 inline-block overflow-hidden rounded-xl p-0">

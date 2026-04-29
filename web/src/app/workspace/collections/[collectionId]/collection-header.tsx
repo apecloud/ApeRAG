@@ -18,7 +18,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import type { CollectionStatus } from '@/features/collection/types';
 import { cn } from '@/lib/utils';
-import _ from 'lodash';
 
 import { CollectionExport } from '@/components/collections/export-dialog';
 import { useCollectionContext } from '@/components/providers/collection-provider';
@@ -46,6 +45,19 @@ import { useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
 import { showRetrievalTestModule } from '../feature-visibility';
 import { CollectionDelete } from './collection-delete';
+
+const formatStatus = (status: string) =>
+  status
+    .toLowerCase()
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+
+const truncate = (value: string, length: number) => {
+  if (value.length <= length) return value;
+  return `${value.slice(0, Math.max(0, length - 3))}...`;
+};
 
 export const CollectionHeader = ({ className }: { className?: string }) => {
   const statusClassName: Record<CollectionStatus, string> = {
@@ -154,15 +166,13 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
                     )}
                     variant="outline"
                   >
-                    {_.upperFirst(_.lowerCase(collection.status))}
+                    {formatStatus(collection.status)}
                   </Badge>
                 )}
               </div>
               {collection.description && (
                 <CardDescription className="mt-2 max-w-3xl leading-6">
-                  {_.truncate(collection.description, {
-                    length: 220,
-                  })}
+                  {truncate(collection.description, 220)}
                 </CardDescription>
               )}
               {collection.created && (

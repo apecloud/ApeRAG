@@ -1,7 +1,6 @@
 'use client';
 import { getDocumentStatusColor } from '@/app/workspace/collections/tools';
 import { FormatDate } from '@/components/format-date';
-import { Markdown } from '@/components/markdown';
 import { useCollectionContext } from '@/components/providers/collection-provider';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -10,13 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { buildDocumentObjectUrl } from '@/features/document/client-api';
 import type { Document, DocumentPreview } from '@/features/document/types';
 import { cn } from '@/lib/utils';
-import _ from 'lodash';
-import {
-  ArrowLeft,
-  Download,
-  FileText,
-  LoaderCircle,
-} from 'lucide-react';
+import { ArrowLeft, Download, FileText, LoaderCircle } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
@@ -60,6 +53,13 @@ const PDFDocument = dynamic(() => import('react-pdf').then((r) => r.Document), {
 const PDFPage = dynamic(() => import('react-pdf').then((r) => r.Page), {
   ssr: false,
 });
+const Markdown = dynamic(
+  () => import('@/components/markdown').then((r) => r.Markdown),
+  {
+    ssr: false,
+    loading: () => <div className="bg-muted h-40 animate-pulse rounded-md" />,
+  },
+);
 
 const IMAGE_EXTENSIONS = new Set([
   'png',
@@ -80,6 +80,9 @@ const formatFileSize = (size?: number | null) => {
   if (kb < 1000) return `${kb.toFixed(2)} KB`;
   return `${(kb / 1000).toFixed(2)} MB`;
 };
+
+const capitalizeStatus = (status: string) =>
+  status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
 
 const buildDocumentDownloadUrl = (collectionId: string, documentId: string) =>
   `${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/api/v2/collections/${collectionId}/documents/${documentId}/download`;
@@ -130,6 +133,10 @@ export const DocumentDetail = ({
     : undefined;
 
   useEffect(() => {
+    if (!pdfPreviewUrl) {
+      return;
+    }
+
     const loadPDF = async () => {
       const { pdfjs } = await import('react-pdf');
 
@@ -139,7 +146,7 @@ export const DocumentDetail = ({
       ).toString();
     };
     loadPDF();
-  }, []);
+  }, [pdfPreviewUrl]);
 
   useEffect(() => {
     setNumPages(0);
@@ -184,7 +191,7 @@ export const DocumentDetail = ({
                       getDocumentStatusColor(document.status),
                     )}
                   >
-                    {_.capitalize(document.status)}
+                    {capitalizeStatus(document.status)}
                   </Badge>
                 </>
               ) : null}
@@ -215,7 +222,7 @@ export const DocumentDetail = ({
             }
             className="flex flex-col justify-center gap-1"
           >
-            {_.times(numPages).map((index) => {
+            {Array.from({ length: numPages }, (_, index) => {
               return (
                 <div key={index} className="text-center">
                   <Card className="border-border/70 inline-block overflow-hidden p-0 shadow-sm">
