@@ -35,7 +35,9 @@ from aperag.domains.knowledge_graph.schemas import (
 )
 from aperag.domains.knowledge_graph.service import (
     GraphService,
+    _count_source_chunks,
     _entity_to_search_view,
+    _lineage_to_evidence_refs,
     _relation_to_view,
 )
 from aperag.indexing.graph import (
@@ -127,7 +129,37 @@ def test_entity_view_source_chunk_count_dedupes_across_lineage():
         ]
     )
     view = _entity_to_search_view(e)
-    assert view.source_chunk_count == 4  # {a,b,c,d}
+    assert view.source_chunk_count == 5  # composite refs, not chunk-id-only refs
+
+
+def test_lineage_evidence_refs_include_document_chunk_and_parse_version():
+    e = _make_entity(
+        chunks=[
+            ("doc1", "v1", ["a", "b", "a"]),
+            ("doc1", "v2", ["b"]),
+            ("doc2", "v1", ["c"]),
+        ]
+    )
+
+    refs = _lineage_to_evidence_refs(e.source_lineage, limit=3)
+
+    assert [ref.model_dump() for ref in refs] == [
+        {"document_id": "doc1", "chunk_id": "a", "parse_version": "v1"},
+        {"document_id": "doc1", "chunk_id": "b", "parse_version": "v1"},
+        {"document_id": "doc1", "chunk_id": "b", "parse_version": "v2"},
+    ]
+    assert _count_source_chunks(list(e.source_lineage)) == 4
+
+
+def test_entity_view_exposes_bounded_evidence_refs_for_read_document_chunk():
+    e = _make_entity(chunks=[("doc1", "v1", [f"c{i}" for i in range(12)])])
+
+    view = _entity_to_search_view(e)
+
+    assert view.source_chunk_count == 12
+    assert len(view.evidence_refs) == 10
+    first = view.evidence_refs[0]
+    assert (first.document_id, first.chunk_id, first.parse_version) == ("doc1", "c0", "v1")
 
 
 def test_relation_view_uses_render_description_rule():
@@ -137,6 +169,10 @@ def test_relation_view_uses_render_description_rule():
     assert view.source == "李明华"
     assert view.target == "墨香居"
     assert view.description == "compacted"
+    assert view.source_chunk_count == 1
+    assert [ref.model_dump() for ref in view.evidence_refs] == [
+        {"document_id": "doc1", "chunk_id": "c1", "parse_version": "v1"}
+    ]
 
 
 # --- search_entities ------------------------------------------------
@@ -165,6 +201,8 @@ async def test_search_entities_projects_graph_search_service_results():
     fake_search_service.search_entities.assert_awaited_once_with(query="hello", top_k=5)
     assert [e.name for e in result.entities] == ["A", "B"]
     assert result.entities[1].description == "B compact"
+    assert result.entities[0].evidence_refs[0].document_id == "doc1"
+    assert result.entities[0].evidence_refs[0].chunk_id == "chunk-a"
 
 
 # --- expand_subgraph ------------------------------------------------
@@ -195,6 +233,8 @@ async def test_expand_subgraph_projects_entities_and_relations():
     assert [e.name for e in result.entities] == ["A", "B"]
     assert len(result.relations) == 1
     assert result.relations[0].source == "A" and result.relations[0].target == "B"
+    assert result.entities[0].evidence_refs
+    assert result.relations[0].evidence_refs
 
 
 # --- get_entity_detail ----------------------------------------------
@@ -224,6 +264,8 @@ async def test_get_entity_detail_returns_view_when_found():
 
     assert isinstance(result, GraphSearchEntity)
     assert result.name == "X"
+    assert result.evidence_refs[0].document_id == "doc1"
+    assert result.evidence_refs[0].chunk_id == "chunk-a"
     fake_store.get_entity.assert_awaited_once_with("X")
 
 

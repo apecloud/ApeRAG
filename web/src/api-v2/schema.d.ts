@@ -4414,6 +4414,32 @@ export interface components {
             page_idx?: number | null;
         };
         /**
+         * GraphEvidenceRef
+         * @description Lightweight source chunk reference for graph entity/relation evidence.
+         *
+         *     ``read_document_chunk`` is document-scoped, so MCP callers need both
+         *     ``document_id`` and ``chunk_id`` to follow graph evidence back to source
+         *     content. ``parse_version`` is carried when available to disambiguate
+         *     lineage across document re-parses.
+         */
+        GraphEvidenceRef: {
+            /**
+             * Document Id
+             * @description Source document ID
+             */
+            document_id: string;
+            /**
+             * Chunk Id
+             * @description Source chunk ID
+             */
+            chunk_id: string;
+            /**
+             * Parse Version
+             * @description Parse version that produced this evidence ref
+             */
+            parse_version?: string | null;
+        };
+        /**
          * GraphEvidenceResponse
          * @description Lazy evidence payload for a graph node or edge.
          */
@@ -4663,6 +4689,18 @@ export interface components {
              * @example 李明华经营墨香居
              */
             description: string;
+            /**
+             * Source Chunk Count
+             * @description Number of source chunks supporting this relationship
+             * @default 0
+             * @example 2
+             */
+            source_chunk_count: number;
+            /**
+             * Evidence Refs
+             * @description Bounded source chunk refs for follow-up read_document_chunk calls
+             */
+            evidence_refs?: components["schemas"]["GraphEvidenceRef"][];
         };
         /**
          * GraphSearchEntity
@@ -4702,6 +4740,11 @@ export interface components {
              * @example 3
              */
             source_chunk_count: number;
+            /**
+             * Evidence Refs
+             * @description Bounded source chunk refs for follow-up read_document_chunk calls
+             */
+            evidence_refs?: components["schemas"]["GraphEvidenceRef"][];
         };
         /** GraphSearchParams */
         GraphSearchParams: {

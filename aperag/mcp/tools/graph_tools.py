@@ -26,9 +26,11 @@ Wire shape:
 
 * :func:`query_graph_entities` — vector recall over entity names /
   descriptions; returns the top-K matching entities with
-  compacted-or-fallback descriptions.
+  compacted-or-fallback descriptions plus bounded evidence refs for
+  follow-up ``read_document_chunk`` calls.
 * :func:`expand_graph_subgraph` — n-hop expansion from anchor entity
-  names via :meth:`LineageGraphStore.expand_neighbors_n_hops`.
+  names via :meth:`LineageGraphStore.expand_neighbors_n_hops`; both
+  returned entities and relations carry bounded evidence refs.
 * :func:`get_entity_detail` — single entity lookup by canonical name.
 
 Per spec §K.12 invariant #11 (D-3 candidate detection writes only)
@@ -95,7 +97,10 @@ async def query_graph_entities(
 
     Returns:
         ``{"entities": [{"name", "entity_type", "description",
-        "source_chunk_count"}, ...]}``.
+        "source_chunk_count", "evidence_refs"}, ...]}``, where each
+        evidence ref includes ``document_id`` + ``chunk_id`` for direct
+        ``read_document_chunk(collection_id, document_id, chunk_id)``
+        follow-up.
     """
     try:
         api_key = get_api_key()
@@ -138,8 +143,10 @@ async def expand_graph_subgraph(
     Do not use this when:
     - You only need to look up a single entity; use
       ``get_entity_detail``.
-    - You want chunk-level evidence; use ``vector_search`` or
-      ``fulltext_search`` against the original chunks.
+    - You want ranked chunk-level recall; use ``graph_search``,
+      ``vector_search`` or ``fulltext_search`` against the original
+      chunks. This tool returns bounded source refs for returned graph
+      elements, not ranked chunk search results.
 
     Args:
         collection_id: The ID of the collection to traverse.
@@ -151,7 +158,8 @@ async def expand_graph_subgraph(
 
     Returns:
         ``{"entities": [...], "relations": [...]}`` where ``relations``
-        carries ``source`` / ``target`` entity names and a description.
+        carries ``source`` / ``target`` entity names, a description,
+        ``source_chunk_count`` and bounded ``evidence_refs``.
     """
     try:
         api_key = get_api_key()
@@ -197,9 +205,10 @@ async def get_entity_detail(
         name: The canonical entity name to look up.
 
     Returns:
-        ``{"name", "entity_type", "description", "source_chunk_count"}``
-        on success, ``{"error": "Entity not found"}`` when the entity
-        is missing from the lineage store.
+        ``{"name", "entity_type", "description",
+        "source_chunk_count", "evidence_refs"}`` on success,
+        ``{"error": "Entity not found"}`` when the entity is missing
+        from the lineage store.
     """
     try:
         api_key = get_api_key()

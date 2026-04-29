@@ -51,10 +51,13 @@ from aperag.domains.knowledge_graph.ports import CollectionRow
 from aperag.domains.knowledge_graph.schemas import GraphLabelsResponse, KnowledgeGraph
 from aperag.exceptions import CollectionNotFoundException
 
+_DEFAULT_GRAPH_EVIDENCE_REF_LIMIT = 10
+
 if TYPE_CHECKING:
     from aperag.domains.knowledge_graph.schemas import (
         GraphEmbeddingMapResponse,
         GraphEntitiesSearchResponse,
+        GraphEvidenceRef,
         GraphEvidenceResponse,
         GraphHybridResponse,
         GraphRelationView,
@@ -1364,6 +1367,35 @@ def _count_source_chunks(members: list[Any]) -> int:
 # ---------------------------------------------------------------------------
 
 
+def _lineage_to_evidence_refs(
+    members: Any, *, limit: int = _DEFAULT_GRAPH_EVIDENCE_REF_LIMIT
+) -> list["GraphEvidenceRef"]:
+    """Project lineage members into bounded read_document_chunk refs."""
+    from aperag.domains.knowledge_graph.schemas import GraphEvidenceRef
+
+    bounded_limit = max(0, int(limit))
+    refs: list[GraphEvidenceRef] = []
+    seen: set[tuple[str, str, str]] = set()
+    for member in sorted(members or (), key=lambda m: (str(m.document_id), str(m.parse_version))):
+        for chunk_id in getattr(member, "chunk_ids", ()) or ():
+            parse_version = getattr(member, "parse_version", None)
+            parse_version_ref = None if parse_version is None else str(parse_version)
+            ref_key = (str(member.document_id), parse_version_ref or "", str(chunk_id))
+            if ref_key in seen:
+                continue
+            seen.add(ref_key)
+            if len(refs) >= bounded_limit:
+                continue
+            refs.append(
+                GraphEvidenceRef(
+                    document_id=str(member.document_id),
+                    chunk_id=str(chunk_id),
+                    parse_version=parse_version_ref,
+                )
+            )
+    return refs
+
+
 def _entity_to_search_view(entity: Any) -> "GraphSearchEntity":
     """Project an :class:`EntityWithLineage` to the public search shape.
 
@@ -1379,18 +1411,16 @@ def _entity_to_search_view(entity: Any) -> "GraphSearchEntity":
         getattr(entity, "compacted_description", None),
         entity.description_parts or (),
     )
-    # ``source_chunk_count`` aggregates chunk ids across all lineage
-    # members (per :class:`LineageMember.chunk_ids`). Description parts
-    # only carry text, not chunk ids — those live on the lineage side.
-    chunk_ids: set[str] = set()
-    for member in entity.source_lineage or ():
-        for cid in getattr(member, "chunk_ids", ()) or ():
-            chunk_ids.add(str(cid))
+    # ``source_chunk_count`` aggregates composite document/parse/chunk
+    # refs across all lineage members (per :class:`LineageMember`).
+    # Description parts only carry text — chunk refs live on lineage.
+    source_lineage = entity.source_lineage or ()
     return GraphSearchEntity(
         name=entity.name,
         entity_type=entity.entity_type or "entity",
         description=description,
-        source_chunk_count=len(chunk_ids),
+        source_chunk_count=_count_source_chunks(list(source_lineage)),
+        evidence_refs=_lineage_to_evidence_refs(source_lineage),
     )
 
 
@@ -1403,10 +1433,13 @@ def _relation_to_view(relation: Any) -> "GraphRelationView":
         getattr(relation, "compacted_description", None),
         relation.description_parts or (),
     )
+    evidence_lineage = relation.evidence_lineage or ()
     return GraphRelationView(
         source=relation.source,
         target=relation.target,
         description=description,
+        source_chunk_count=_count_source_chunks(list(evidence_lineage)),
+        evidence_refs=_lineage_to_evidence_refs(evidence_lineage),
     )
 
 
