@@ -100,6 +100,11 @@ def build_collection_llm_callable(collection: CollectionRow) -> LLMCall:
     if not provider:
         provider = "openai" if invocation.runner_type == "openai_compatible" else invocation.provider_type
 
+    # issue #1861: 默认走 ``response_format={"type":"json_object"}`` 让
+    # provider 端 (OpenAI / DeepSeek / Qwen / Moonshot / GLM / Claude /
+    # Gemini) 强约束 JSON 输出格式. LiteLLM 对不支持的 provider 静默忽略,
+    # prompt-text + lenient parser 仍然作为兜底, 不破坏调用. 让 graph
+    # extractor 不再有"模型 chunk 漏返合法 JSON 静默 drop"的失败模式.
     svc = CompletionService(
         provider=provider,
         model=invocation.provider_model_id,
@@ -108,6 +113,7 @@ def build_collection_llm_callable(collection: CollectionRow) -> LLMCall:
         temperature=0.0,  # deterministic output for extraction
         max_tokens=None,
         caching=False,
+        response_format={"type": "json_object"},
     )
 
     async def _llm(prompt: str) -> str:
