@@ -4,6 +4,7 @@ import { browserApiClient } from '@/lib/api/typed/browser';
 
 import type {
   GraphEmbeddingMapResponse,
+  GraphHybridResponse,
   GraphLabelsResponse,
   GraphSearchEntity,
   KnowledgeGraph,
@@ -120,6 +121,22 @@ export async function getGraphEmbeddingMap(
   return data ?? null;
 }
 
+export async function getGraphHybrid(
+  collectionId: string,
+  maxEntities = 1000,
+): Promise<GraphHybridResponse | null> {
+  const { data } = await browserApiClient.GET(
+    '/api/v2/collections/{collection_id}/graphs/hybrid',
+    {
+      params: {
+        path: { collection_id: collectionId },
+        query: { max_entities: maxEntities },
+      },
+    },
+  );
+  return data ?? null;
+}
+
 export async function searchGraphEntities(
   collectionId: string,
   q: string,
@@ -170,6 +187,22 @@ export async function getMarketplaceGraphEmbeddingMap(
 ): Promise<GraphEmbeddingMapResponse | null> {
   const { data } = await browserApiClient.GET(
     '/api/v2/marketplace/collections/{collection_id}/graph/embedding-map',
+    {
+      params: {
+        path: { collection_id: collectionId },
+        query: { max_entities: maxEntities },
+      },
+    },
+  );
+  return data ?? null;
+}
+
+export async function getMarketplaceGraphHybrid(
+  collectionId: string,
+  maxEntities = 1000,
+): Promise<GraphHybridResponse | null> {
+  const { data } = await browserApiClient.GET(
+    '/api/v2/marketplace/collections/{collection_id}/graph/hybrid',
     {
       params: {
         path: { collection_id: collectionId },

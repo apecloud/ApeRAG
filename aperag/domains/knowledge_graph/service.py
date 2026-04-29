@@ -37,6 +37,7 @@ crossing the boundary.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, Dict, List
@@ -50,6 +51,7 @@ if TYPE_CHECKING:
     from aperag.domains.knowledge_graph.schemas import (
         GraphEmbeddingMapResponse,
         GraphEntitiesSearchResponse,
+        GraphHybridResponse,
         GraphRelationView,
         GraphSearchEntity,
         GraphSubgraphExpandResponse,
@@ -391,24 +393,13 @@ class GraphService:
     ) -> "GraphEmbeddingMapResponse":
         """Return a 2-D PCA projection of graph entity vectors.
 
-        The hybrid graph view joins these stable coordinates with the
-        existing topology response. Keeping coordinates and topology
-        separate lets the frontend reuse the normal graph endpoint for
-        edge metadata while this endpoint stays bounded to vector-backed
-        entities only.
+        Kept as the low-level compatibility endpoint for consumers that
+        only need vector-backed coordinates. The graph-hybrid page uses
+        ``get_hybrid_graph`` so it can share one selected entity set
+        across points, node metadata, and relation metadata.
         """
-        import asyncio
-        import math
-        import uuid as _uuid
-
-        import numpy as np
-
-        from aperag.domains.knowledge_graph.schemas import (
-            GraphEmbeddingMapResponse,
-            GraphEmbeddingPoint,
-        )
+        from aperag.domains.knowledge_graph.schemas import GraphEmbeddingMapResponse
         from aperag.indexing.worker_factory import (
-            _build_collection_qdrant_connector,
             _build_lineage_graph_store,
             _resolve_graph_backend_type,
         )
@@ -420,6 +411,130 @@ class GraphService:
             backend_type=backend_type,
             collection=db_collection,
         )
+        points, cluster_labels, _entities = await self._get_embedding_projection(
+            db_collection=db_collection,
+            collection_id=collection_id,
+            store=store,
+            max_entities=max_entities,
+        )
+        return GraphEmbeddingMapResponse(
+            points=points,
+            relations=[],
+            cluster_labels=cluster_labels,
+        )
+
+    async def get_hybrid_graph(
+        self,
+        user_id: str,
+        collection_id: str,
+        *,
+        max_entities: int = 1000,
+    ) -> "GraphHybridResponse":
+        """Return the single DTO consumed by the graph-hybrid page.
+
+        This endpoint keeps the expensive join on the backend: vector
+        projection supplies positioned nodes, the lineage store supplies
+        node/edge metadata, and relation expansion is filtered to edges
+        whose endpoints both have coordinates. The frontend can render
+        from one response instead of racing ``/graphs`` and
+        ``/embedding-map`` then repeating the join in React.
+        """
+        from aperag.domains.knowledge_graph.schemas import GraphHybridNode, GraphHybridResponse
+        from aperag.indexing.worker_factory import (
+            _build_lineage_graph_store,
+            _resolve_graph_backend_type,
+        )
+
+        db_collection = await self._get_and_validate_collection(user_id, collection_id)
+        backend_type = _resolve_graph_backend_type(db_collection)
+        store = await asyncio.to_thread(
+            _build_lineage_graph_store,
+            backend_type=backend_type,
+            collection=db_collection,
+        )
+
+        max_entities = max(1, min(int(max_entities), 5000))
+        points, cluster_labels, entities = await self._get_embedding_projection(
+            db_collection=db_collection,
+            collection_id=collection_id,
+            store=store,
+            max_entities=max_entities,
+        )
+        if not points:
+            return GraphHybridResponse(nodes=[], edges=[], cluster_labels={}, is_truncated=False)
+
+        point_names = [point.name for point in points]
+        allowed = set(point_names)
+        _subgraph_entities, relations = await store.expand_neighbors_n_hops(entity_names=point_names, hops=1)
+        relations = [rel for rel in relations if rel.source in allowed and rel.target in allowed]
+
+        adapted_entities = _adapt_lineage_entities(entities)
+        adapted_relations = _adapt_lineage_relations(relations)
+        node_items = self._to_ui_dict(adapted_entities, [], is_truncated=False)["nodes"]
+        edge_items = self._to_ui_dict([], adapted_relations, is_truncated=False)["edges"]
+        node_item_by_id = {item["id"]: item for item in node_items}
+
+        degree = {name: 0 for name in allowed}
+        for edge in edge_items:
+            source = str(edge["source"])
+            target = str(edge["target"])
+            if source in degree:
+                degree[source] += 1
+            if target in degree:
+                degree[target] += 1
+
+        nodes: list[GraphHybridNode] = []
+        for point in points:
+            base = node_item_by_id.get(
+                point.name,
+                {
+                    "id": point.name,
+                    "labels": [point.entity_type] if point.entity_type else [],
+                    "properties": {
+                        "entity_id": point.name,
+                        "entity_name": point.name,
+                        "entity_type": point.entity_type,
+                        "source_chunk_count": point.source_chunk_count,
+                    },
+                },
+            )
+            nodes.append(
+                GraphHybridNode.model_validate(
+                    {
+                        **base,
+                        "x": point.x,
+                        "y": point.y,
+                        "cluster": point.cluster,
+                        "value": max(8, min(22, 8 + degree.get(point.name, 0))),
+                    }
+                )
+            )
+
+        return GraphHybridResponse(
+            nodes=nodes,
+            edges=edge_items,
+            cluster_labels=cluster_labels,
+            is_truncated=len(entities) >= max_entities,
+        )
+
+    async def _get_embedding_projection(
+        self,
+        *,
+        db_collection: CollectionRow,
+        collection_id: str,
+        store: Any,
+        max_entities: int,
+    ) -> tuple[list[Any], dict[str, str], list[Any]]:
+        import math
+        import uuid as _uuid
+
+        import numpy as np
+
+        from aperag.domains.knowledge_graph.schemas import (
+            GraphEmbeddingPoint,
+        )
+        from aperag.indexing.worker_factory import _build_collection_qdrant_connector
+
         adaptor, _embedder, _vector_size = await asyncio.to_thread(
             _build_collection_qdrant_connector,
             db_collection,
@@ -429,7 +544,7 @@ class GraphService:
         max_entities = max(1, min(int(max_entities), 5000))
         entities = await store.list_entities(limit=max_entities, offset=0)
         if not entities:
-            return GraphEmbeddingMapResponse(points=[], relations=[], cluster_labels={})
+            return [], {}, []
 
         ids: list[str] = []
         id_to_entity: dict[str, Any] = {}
@@ -449,7 +564,7 @@ class GraphService:
 
         retrieved = await asyncio.to_thread(connector.retrieve, ids, with_vectors=True)
         if not retrieved:
-            return GraphEmbeddingMapResponse(points=[], relations=[], cluster_labels={})
+            return [], {}, []
 
         vectors: list[list[float]] = []
         kept_entities: list[Any] = []
@@ -465,14 +580,14 @@ class GraphService:
             vectors.append(vector)
             kept_entities.append(entity)
         if not vectors:
-            return GraphEmbeddingMapResponse(points=[], relations=[], cluster_labels={})
+            return [], {}, []
 
         matrix = np.asarray(vectors, dtype=np.float32)
         centered = matrix - matrix.mean(axis=0, keepdims=True)
         try:
             _u, _s, vh = np.linalg.svd(centered, full_matrices=False)
         except np.linalg.LinAlgError:
-            return GraphEmbeddingMapResponse(points=[], relations=[], cluster_labels={})
+            return [], {}, []
 
         components = vh[:2]
         coords = centered @ components.T
@@ -489,6 +604,7 @@ class GraphService:
         cluster_for_type: dict[str, int] = {}
         cluster_labels: dict[str, str] = {}
         points: list[GraphEmbeddingPoint] = []
+        point_entities: list[Any] = []
         for entity, xy in zip(kept_entities, coords, strict=True):
             entity_type = (entity.entity_type or "unknown") or "unknown"
             cluster_idx = cluster_for_type.get(entity_type)
@@ -517,12 +633,9 @@ class GraphService:
                     source_chunk_count=len(chunk_ids),
                 )
             )
+            point_entities.append(entity)
 
-        return GraphEmbeddingMapResponse(
-            points=points,
-            relations=[],
-            cluster_labels=cluster_labels,
-        )
+        return points, cluster_labels, point_entities
 
     # --------------------------------------------------------- internal helpers
     def _optimize_graph_for_visualization(self, nodes, edges, max_nodes):

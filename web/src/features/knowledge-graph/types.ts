@@ -20,6 +20,12 @@ export type GraphSearchEntity = NonNullable<
 export type GraphEmbeddingMapResponse = NonNullable<
   components['schemas']['GraphEmbeddingMapResponse']
 >;
+export type GraphHybridResponse = NonNullable<
+  components['schemas']['GraphHybridResponse']
+>;
+export type GraphHybridNode = NonNullable<
+  components['schemas']['GraphHybridNode']
+>;
 export type GraphEmbeddingPoint = NonNullable<
   components['schemas']['GraphEmbeddingPoint']
 >;

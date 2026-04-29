@@ -590,6 +590,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/marketplace/collections/{collection_id}/graph/hybrid": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Marketplace Collection Graph Hybrid
+         * @description Get positioned graph-hybrid data for MarketplaceCollection (read-only).
+         */
+        get: operations["marketplace_get_marketplace_collection_graph_hybrid"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/marketplace/collections/{collection_id}/graph/entities/search": {
         parameters: {
             query?: never;
@@ -1125,6 +1145,26 @@ export interface paths {
          * @description Return projected entity coordinates for the hybrid graph view.
          */
         get: operations["knowledge_graph_graph_embedding_map_view"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/collections/{collection_id}/graphs/hybrid": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Graph Hybrid View
+         * @description Return positioned graph nodes and relation metadata for the hybrid view.
+         */
+        get: operations["knowledge_graph_graph_hybrid_view"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4235,6 +4275,76 @@ export interface components {
              * @description Entities returned by vector recall, ordered by descending similarity score
              */
             entities: components["schemas"]["GraphSearchEntity"][];
+        };
+        /**
+         * GraphHybridNode
+         * @description Node in the graph-hybrid visualization.
+         */
+        GraphHybridNode: {
+            /**
+             * Id
+             * @description Unique identifier for the node (entity name)
+             * @example 墨香居
+             */
+            id: string;
+            /**
+             * Labels
+             * @description Labels associated with the node
+             * @example [
+             *       "墨香居"
+             *     ]
+             */
+            labels: string[];
+            /** @description Public node properties */
+            properties: components["schemas"]["GraphNodeProperties"];
+            /**
+             * X
+             * @description X coordinate in the 2-D projection of the entity vector
+             */
+            x: number;
+            /**
+             * Y
+             * @description Y coordinate in the 2-D projection of the entity vector
+             */
+            y: number;
+            /**
+             * Cluster
+             * @description entity_type bucket index (sequential, not k-means clustering)
+             */
+            cluster: number;
+            /**
+             * Value
+             * @description Display size weight derived from relation degree
+             */
+            value: number;
+        };
+        /**
+         * GraphHybridResponse
+         * @description Response for ``GET /graphs/hybrid``.
+         */
+        GraphHybridResponse: {
+            /**
+             * Nodes
+             * @description Positioned entity nodes
+             */
+            nodes: components["schemas"]["GraphHybridNode"][];
+            /**
+             * Edges
+             * @description Relations whose endpoints both have coordinates
+             */
+            edges: components["schemas"]["GraphEdge"][];
+            /**
+             * Cluster Labels
+             * @description cluster index -> entity_type label (1:1 mapping)
+             */
+            cluster_labels: {
+                [key: string]: string;
+            };
+            /**
+             * Is Truncated
+             * @description Whether the node set hit the max_entities limit
+             */
+            is_truncated: boolean;
         };
         /**
          * GraphLabelsResponse
@@ -7785,6 +7895,40 @@ export interface operations {
             };
         };
     };
+    marketplace_get_marketplace_collection_graph_hybrid: {
+        parameters: {
+            query?: {
+                max_entities?: number;
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GraphHybridResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     marketplace_search_marketplace_collection_graph_entities: {
         parameters: {
             query: {
@@ -8727,6 +8871,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GraphEmbeddingMapResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    knowledge_graph_graph_hybrid_view: {
+        parameters: {
+            query?: {
+                max_entities?: number;
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GraphHybridResponse"];
                 };
             };
             /** @description Validation Error */

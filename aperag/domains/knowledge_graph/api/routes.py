@@ -34,6 +34,7 @@ from aperag.domains.identity.service.auth_dependencies import required_user
 from aperag.domains.knowledge_graph.schemas import (
     GraphEmbeddingMapResponse,
     GraphEntitiesSearchResponse,
+    GraphHybridResponse,
     GraphLabelsResponse,
     GraphSearchEntity,
     GraphSubgraphExpandRequest,
@@ -395,6 +396,32 @@ async def graph_embedding_map_view(
         raise HTTPException(status_code=400, detail="max_entities must be between 1 and 5000")
     try:
         return await graph_service.get_embedding_map(
+            str(user.id),
+            collection_id,
+            max_entities=max_entities,
+        )
+    except CollectionNotFoundException:
+        raise HTTPException(status_code=404, detail="Collection not found")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get(
+    "/collections/{collection_id}/graphs/hybrid",
+    tags=["graph"],
+    response_model=GraphHybridResponse,
+)
+async def graph_hybrid_view(
+    request: Request,
+    collection_id: str,
+    max_entities: int = 1000,
+    user: AuthenticatedUser = Depends(required_user),
+) -> GraphHybridResponse:
+    """Return positioned graph nodes and relation metadata for the hybrid view."""
+    if not (1 <= max_entities <= 5000):
+        raise HTTPException(status_code=400, detail="max_entities must be between 1 and 5000")
+    try:
+        return await graph_service.get_hybrid_graph(
             str(user.id),
             collection_id,
             max_entities=max_entities,
