@@ -432,6 +432,91 @@ CR cross-check 应用：CR 时如果 PR 涉及核心 invariant 反转（lifespan
 
 **关联 own-up**：冬柏 msg=cd428dc1 + chenyexuan msg=18acb5e7 双方 own-up — 仅 collect-only 不可能 catch `__file__`-relative path break，必须扩三步走。
 
+### Lesson #12 v6.4：function-self-verify ≠ aggregation-chain-verify（task #30 B1 PR #1923 BLOCKER 1 实证）
+
+**触发条件**：CR 时 verify 一个 helper 函数自身正确性后，必须 walk 它在 caller 链路中的 **聚合 / 批处理 / 循环 scope** 是否仍保留 invariant。
+
+**核心 insight**：函数自身在 element-level 验证正确，**不**等于 caller 在 aggregation-level 应用正确 — 同一个 helper 在 per-element vs document-level union 调用下行为完全不同。
+
+**first-application demo**：task #36 PR #1899 fix-forward² L148 case（hurl assertion `count >= 3` 在 `/api/v2/models` endpoint 是「全部 model 计数」, 在 `/api/v2/model-uses` endpoint 是「scenario 计数」— 同 jsonpath 在不同 endpoint scope 语义不同）。
+
+**second-application demo**：task #30 B1 PR #1923 commit `163b77c1`（`source_chunk_ids_validity` 函数自身严格 verify allowed_set subset，但 caller `aggregate_sample` 用 document-level union 而非 per-window — window-0 entity 引用 window-1 chunk_id 会被 union allowed_ids 误判为 valid，跨 window 污染逃过 verify）。
+
+**实施步骤**（CR 时必走）：
+
+1. **Step A**：grep helper 函数自身 unit test，verify element-level 行为正确
+2. **Step B**：grep helper 的 caller 函数（按 import / call site 列表），列每个 caller 的 scope 维度（per-element / per-batch / per-document / per-collection）
+3. **Step C**：判断每 caller 的 scope 是否跟 helper 的 invariant 维度匹配（element 级 invariant 必须 element 级调用，不能用 union / aggregation 替代）
+4. **Step D**：缺任一 caller 的 scope-correctness verify → BLOCKER fix-forward 加 caller-chain test 钉 cross-scope 污染 case
+
+**对应 Lesson #12 v6 family**：v6.1 function scope walk / v6.2 endpoint scope walk / v6.3 data type scope walk / **v6.4 aggregation chain scope walk** — 都是「surface signal 字面相同但底层 scope 不同」反 pattern 在不同维度的应用。
+
+**CR cross-check 应用**：reviewer 看 helper + aggregation 类 PR 时，仅 cite「helper 自身 unit test pass」**不构成 LGTM 充分依据**，必须 cite 调用层 caller chain test 实证 aggregation scope 不漂。
+
+### Lesson #12 v7 second-application demos（task #30 A2 + B1 实证累计）
+
+Lesson #12 v7「caller signature → backend schema → runtime fallback 三层 grep」入仓后（PR #1916 commit `b3c3a0e0`，2026-04-30）数小时内连续触发 3 类 second-application demos，每类 cover 一个三层中漏 verify 的具体层次：
+
+**second-application 1 — backend schema 层漏 verify (task #32 PR #1909 GraphEvidenceRef composite key)**：
+- 来源 spec PR #1905 huangheng + 架构师 double own-up，Weston msg=7500e57d 第三 reviewer cross-check catch
+- 模式：caller signature 验证完整 + runtime 投影完整，但 schema 字段不含 caller 实际需要的 composite key 全集（chunk_id 单字段不能取代 document_id+chunk_id 复合键）
+- sub-form: **v7.1 composite key invariant**（已 sediment 进 PR #1916 § 四）
+
+**second-application 2 — backend schema 层漏 verify (task #30 A2 PR #1921 KnowledgeGraphConfig schema 漏 2 字段)**：
+- 来源 ziang msg=f7dc20ef + Weston msg=9f356fe9 双 reviewer 独立 surface
+- 模式：runtime resolver 读取完整 + caller 字段定义完整，但 Pydantic `BaseModel` 默认 extra-ignore policy 让未在 schema class 内显式声明的字段在 `model_validate` 时被 silently dropped
+- 修法：每个 runtime resolver 读取的 collection-level config 字段必须在 KnowledgeGraphConfig 中显式声明，跟 OpenAPI / `web/src/api-v2/schema.d.ts` 同步 regen
+- sub-form: **v7.2 Pydantic schema layer mandatory exposure** — 任何 `_resolve_*_kg_config(field)` 必须 grep verify field 在 KnowledgeGraphConfig class 中存在；不允许「runtime resolver 接 magic string field 不在 schema 中暴露」
+
+**second-application 3 — caller signature 层默认值漂移 (task #30 B1 PR #1923 response_format default false)**：
+- 来源 ziang msg=c170ad75 BLOCKER 2 catch
+- 模式：backend (graph_extractor.py:144) 已 lock `response_format={"type":"json_object"}` 作 production invariant，但 caller (benchmark runner CLI) 默认 false → benchmark baseline 不等价 production runtime
+- 修法：跨 PR caller chain 的同一 contract 在所有入口默认值必须一致；caller 默认应反映 production runtime 的 invariant，不允许「production ON / benchmark OFF」类不对称默认
+- sub-form: **v7.3 cross-PR default value alignment** — 同一 contract 在 caller chain 的多个入口（CLI / API / config / test fixture）默认值必须一致；如果 production runtime 已 lock 某 default，所有 caller 入口必须同步 lock
+
+### Lesson #12 v8：fake guardrail anti-pattern（task #30 A2 PR #1921 BLOCKER 2 实证）
+
+**触发条件**：写 verification / guardrail / cap-overflow check 函数时。
+
+**核心 insight**：guardrail 函数如果接受 synthetic / static / hardcoded 参数估算（不消费 actual runtime data），就是 **fake guardrail** — 看起来防回归，实际 runtime 真实数据永远不会触发它。
+
+**first-application demo**：task #30 A2 PR #1921 first iteration `_estimate_window_prompt_tokens(window_chunk_count, base_chunk_size=400)` — 硬编码 `base_chunk_size=400` token 估算，10 个 4000-char chunk 真实 window 估 ~5.4k 不会触发 32k cap，但实际 rendered prompt 是 ~40.5k 应该触发 — guardrail 形同虚设。
+
+**修法（fix-forward `6d2db64`）**：
+
+- guardrail 函数 signature 改为接 actual runtime data: `_estimate_window_prompt_tokens(window: _GraphChunkWindow, *, few_shot_locale: str | None = None)`
+- 内部 sum `_estimate_graph_chunk_tokens(chunk)` over 真实 chunk text + 实际 few-shot envelope (only when opt-in)
+- 保留 synthetic 调用模式 (`window_chunk_count=N, base_chunk_size=K`) 仅用于 boundary test 的公式 verify，**不用于 runtime path**
+- runtime path test 钉「10 chunks × 4000-char real text > 32k 触发 skip」实证 guardrail 真生效
+
+**实施步骤**（CR 时必走）：
+
+1. **Step A**：grep guardrail 函数 signature — 看是否 accept 真实 runtime data 或 synthetic placeholder
+2. **Step B**：runtime path call site grep — verify guardrail 调用时传的是真 runtime data（actual window / actual chunk text / actual config）
+3. **Step C**：boundary / invariant test 必须含 runtime-path test — 用 realistic large-content fixture 触发 guardrail，不能仅 synthetic placeholder
+4. **Step D**：synthetic 模式（如 boundary test 公式 verify）必须显式标注 "test-only" / "formula-only"，不允许混用
+
+**对应 Lesson family**：跟 Lesson #12 v6 (scope walk) 同根「surface check 字面 OK 不等于 runtime 行为 OK」；跟 Lesson #12 v7 (3-layer grep) 互补 — v7 cover field/value 层，v8 cover guardrail/check function 层。
+
+**CR cross-check 应用**：CR 看任何「cap / guardrail / overflow check / validation」类函数 PR 时必走 4 步；缺 runtime-path test → BLOCKER fix-forward。
+
+### Lesson #13 v3 application demo：未实证 invariant 不预先锁（task #30 A2 PR #1921 NIT defer）
+
+Lesson #13 v3 (boundary 不重复事实保证 invariant) 反过来应用：**未实证的 invariant 也不应预先锁**。锁过紧的类型约束（如 `Literal["zh", "en"]`）在 spec 时点会 cap 未来扩展空间；除非已经实战验证哪些 value 真的需要 + 哪些不需要，否则保留 `Optional[str]` open string + resolver 层 allowlist warning 给未来扩展留空间。
+
+**first-application demo**：task #30 A2 PR #1921 NIT (Weston msg=c9c561fa + ziang msg=eed0d017)：
+
+- `graph_extraction_few_shot_locale: Optional[str]` (default None)
+- 当前 A3 supports `zh` / `en` / `cross_chunk` 但 Phase B benchmark 数据没出来前不锁 Literal — 不预先把 value space cap 死
+- 等 Phase B 跑完 benchmark 数据看哪些 locale 真用 + 哪些没用，再决定是否收紧到 Literal
+
+**判断准则**：
+
+- 已实证 invariant（DB 删 row + dir 整删 + enum hard-cut 等）→ Lesson #13 v3 boundary test 不重复 fact
+- 未实证 invariant（type narrowing / value space cap / behavior contract pre-locked）→ 也不应预先锁，给 Phase B 数据出来后再 narrow
+
+**对应 Lesson #13 v3 family**：v3 (boundary 不重复事实保证) + 本条 (未实证 invariant 不预先锁) — 都是「不在错误时机 codify」的应用，不同方向（v3 是 over-codify 浪费，本条是 over-codify 限制扩展）。
+
 ### Mini-pattern 17：跨真源状态漂移检测
 
 跨 truth source（DB / 文件 / cache / queue / 外部服务）状态依赖必须 enumerate 自动 detection 机制（cache key 含上游 version / 周期巡检 stale check / startup sanity check 三选一）。
@@ -499,6 +584,9 @@ CR cross-check 表里任何 ✅ 标注被 surface 为 false positive 时，立�
 - PR #1909 (commit `8d5ffa97`): `GraphEvidenceRef` composite key + `_lineage_to_evidence_refs` 投影层，Lesson #12 v7.1 backend 投影层 textbook
 - PR #1912 (commit `eb2a805b`): `tests/integration/test_graph_evidence_refs_chain.py` 跨 endpoint chained chain 4 case 验证，Lesson #12 v7.1 acceptance 层 textbook（跟 PR #1909 配对完整）
 - task #35 6 轮 fix-forward 收尾 (PR #1899/#1897/#1898/#1906/#1910/#1911 + task #40 final 验收) ，Lesson #14 架构 invariant 删除多轮迭代收尾 first-application demo
+- PR #1921 (commit `6d2db64`): A2 5 const co-scale + Pydantic schema layer 漏 own-up + fake guardrail anti-pattern 双 BLOCKER fix-forward — Lesson #12 v7.2 + v8 first-application demo
+- PR #1923 (commit `163b77c1`): B1 benchmark harness window-scoped validity + response_format default ON 双 BLOCKER fix-forward — Lesson #12 v6.4 + v7.3 first/second-application demo
+- PR #1922 (commit `0058507e`): chenyexuan task #33 P1 Lesson #15 file-move 3-step verify sediment（独立条目）— task #33 Layer 2 sediment trail
 
 ---
 
@@ -543,3 +631,9 @@ CR cross-check 表里任何 ✅ 标注被 surface 为 false positive 时，立�
   - **Lesson #13 v3**（boundary 不重复事实保证 invariant，只覆盖可能 drift 的 contract）— 架构师 msg=036dd8b2 升格，task #46 PR #1906 first-application demo
   - **Migration chain 时序 invariant**（enum hard-cut PR 必先 chain DELETE FROM 旧 enum value migration）— task #47 PR #1910 first-application（migration `3c7d2f81b5e9` chain 在 ziang `a8f4c2d9e1b7` 后）
   - **Lesson #14**（架构 invariant 删除多轮迭代收尾 — sweeping cleanup directive 单 PR 无法一次性 cover，多轮 grep gate verify + fix-forward task 迭代是工程常态）— task #35 6 轮 fix-forward 实证 first-application demo
+- 2026-04-30 task #30 Phase A 全闭环后 huangheng follow-up 子 PR 2（本次 commit）：§ 四 新增 4 lesson sediment（task #30 A2 + B1 实证累计 + 跨 PR cross-reviewer 独立 forensics 多 reviewer catch first/second-application demo）：
+  - **Lesson #12 v6.4**（function-self-verify ≠ aggregation-chain-verify — helper 函数自身正确不等于 caller 在 aggregation/批处理/loop scope 应用正确）— task #36 PR #1899 fix-forward² L148 endpoint scope first-application + task #30 B1 PR #1923 commit `163b77c1` source_chunk_ids window-scoped second-application
+  - **Lesson #12 v7 second-application demos** 累计 3 类（v7.1 composite key invariant 已 sediment 进 PR #1916 / **v7.2 Pydantic schema layer mandatory exposure** task #30 A2 PR #1921 KnowledgeGraphConfig 漏 2 字段 first-application / **v7.3 cross-PR default value alignment** task #30 B1 PR #1923 response_format default 漂移 first-application）
+  - **Lesson #12 v8**（fake guardrail anti-pattern — guardrail 函数 signature 必须接 actual runtime data 不能仅 synthetic placeholder）— task #30 A2 PR #1921 `_estimate_window_prompt_tokens(window_chunk_count, base_chunk_size=400)` first iteration first-application + fix-forward `6d2db64` 修法
+  - **Lesson #13 v3 application demo**（未实证 invariant 不预先锁 — type narrowing / value space cap pre-locking 反过来应用 v3 不重复事实保证）— task #30 A2 PR #1921 NIT defer `Optional[str]` vs `Literal["zh", "en"]` first-application
+  - § 六 sediment 引用追加 PR #1921 / PR #1923 / PR #1922 (chenyexuan Lesson #15 trail) 三 commit cross-link
