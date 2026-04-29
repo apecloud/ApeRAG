@@ -17,7 +17,7 @@ Top-level layout:
 - `testdata/`: stable input files used by HTTP tests
 
 Current v1 scope:
-- Readiness endpoint: `GET /health`
+- Readiness endpoint: `GET /health/ready` (legacy `GET /health` stays available for backward compatibility)
 - Auth smoke: login, current user, logout
 - Collection smoke: create, get, list, update, delete
 - Document smoke: upload, get detail, delete

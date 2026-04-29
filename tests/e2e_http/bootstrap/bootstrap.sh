@@ -23,13 +23,13 @@ wait_for_health() {
   local i
 
   for ((i = 1; i <= attempts; i++)); do
-    if curl --silent --show-error --fail "${E2E_BASE_URL}/health" >/dev/null; then
+    if curl --silent --show-error --fail "${E2E_BASE_URL}/health/ready" >/dev/null; then
       return 0
     fi
     sleep "${sleep_seconds}"
   done
 
-  echo "Timed out waiting for ${E2E_BASE_URL}/health" >&2
+  echo "Timed out waiting for ${E2E_BASE_URL}/health/ready" >&2
   return 1
 }
 

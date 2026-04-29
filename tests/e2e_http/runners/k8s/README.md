@@ -4,7 +4,7 @@ This runner keeps the same bootstrap and Hurl suite while swapping only the laun
 
 Current mode:
 - default behavior uses `kubectl port-forward` against a target service
-- the runner then waits for `GET /health`
+- the runner then waits for `GET /health/ready`
 - `down.sh` tears down the background port-forward process
 
 Key environment variables:

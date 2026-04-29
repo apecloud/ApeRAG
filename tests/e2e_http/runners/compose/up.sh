@@ -105,7 +105,7 @@ echo "Compose runner starting (shape=${label}, services='${E2E_COMPOSE_SERVICES}
 docker compose ${E2E_COMPOSE_PROFILES} -f docker-compose.yml up -d --build ${E2E_COMPOSE_SERVICES}
 
 for ((i = 1; i <= E2E_HEALTH_ATTEMPTS; i++)); do
-  if curl --silent --show-error --fail "${E2E_BASE_URL}/health" >/dev/null; then
+  if curl --silent --show-error --fail "${E2E_BASE_URL}/health/ready" >/dev/null; then
     echo "Compose runner ready at ${E2E_BASE_URL} (shape=${label})"
     exit 0
   fi
