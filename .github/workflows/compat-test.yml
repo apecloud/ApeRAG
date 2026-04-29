@@ -67,6 +67,8 @@ jobs:
         with:
           version: "latest"
           python-version: "3.11"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
 
       - name: Install dependencies
         run: make env-install
@@ -207,6 +209,8 @@ jobs:
         with:
           version: "latest"
           python-version: "3.11"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
 
       - name: Install dependencies
         run: make env-install
