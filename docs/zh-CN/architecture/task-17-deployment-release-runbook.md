@@ -38,6 +38,18 @@ PostgreSQL 中的业务状态仍是唯一真源：
 
 Redis 消息丢失时，worker/reconciler/cleanup loop 必须能从 DB 状态补回。
 
+### 1.3 全局并发 / quota 口径
+
+task #17 只保证 RedisQuotaBackend 的跨副本基础设施配置在 API/worker 拆分后仍可初始化运行，不承诺 worker 已经实际调用 `quota_backend.acquire()` 做跨副本限流。
+
+已知 gap：
+
+- `RedisQuotaBackend` 和 Lua atomic token bucket 已存在；
+- 当前 worker 消费路径尚未接入 `quota_backend.acquire()`；
+- collection/provider 等更细维度也不在 task #17 范围内。
+
+因此部署验收中若发现 worker 并发超过预期，应记录为 task #24 backlog 风险，不作为 task #17 hard-cut blocker。task #24 负责「图谱/索引 worker quota 接入 + 多维度扩展（collection_id/provider）跨副本限流生效」。
+
 ## 2. Helm 改造要求
 
 ### 2.1 新增 `indexing-worker-deployment.yaml`
@@ -318,4 +330,3 @@ HTTP request path 中不得出现上述重型 cleanup 调用。Redis cleanup que
 | `DocumentIndex` status counts | PENDING/RUNNING 不永久堆积 |
 | Worker restart count | 不持续增长 |
 | Worker 独立重启 | API 不受影响，任务可恢复 |
-
