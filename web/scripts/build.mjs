@@ -25,29 +25,6 @@ lsof -t -i:3000 | xargs kill
 \`\`\`
 
 
-# deploy with pm2
-
-\`\`\`
-yarn global add pm2
-\`\`\`
-
-
-## start
-\`\`\`
-pm2 start /path/to/server.js
-\`\`\`
-
-## logs
-\`\`\`
-pm2 list
-pm2 logs
-\`\`\`
-
-## stop
-\`\`\`
-pm2 stop server
-\`\`\`
-
 `;
 
 /**

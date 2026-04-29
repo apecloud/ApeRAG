@@ -20,7 +20,7 @@ ApeRAG 由两个独立镜像组成，`docker-compose.yml` 里分别对应 `api` 
 | 镜像 | 用途 | Dockerfile | 基础镜像 |
 |------|------|-----------|---------|
 | `apecloud/aperag` | FastAPI API 进程 + 独立 indexing-worker 进程 | [`Dockerfile`](https://github.com/apecloud/ApeRAG/blob/main/Dockerfile) | `python:3.11.13-slim`（多阶段 + uv） |
-| `apecloud/aperag-frontend` | Next.js standalone 构建产物 + PM2 runtime | [`web/Dockerfile`](https://github.com/apecloud/ApeRAG/blob/main/web/Dockerfile) | `node:20.18.0-alpine` |
+| `apecloud/aperag-frontend` | Next.js standalone 构建产物 + Node.js runtime | [`web/Dockerfile`](https://github.com/apecloud/ApeRAG/blob/main/web/Dockerfile) | `node:20.18.0-alpine` |
 
 默认镜像仓库是 `apecloud-registry.cn-zhangjiakou.cr.aliyuncs.com`（阿里云张家口）；`docker-compose.yml` 在本机使用时会回退到 Docker Hub（`${REGISTRY:-docker.io}`）。
 
@@ -118,7 +118,7 @@ Entrypoint 是 [`scripts/entrypoint.sh`](https://github.com/apecloud/ApeRAG/blob
 
 ## 前端镜像细节
 
-[`web/Dockerfile`](https://github.com/apecloud/ApeRAG/blob/main/web/Dockerfile) 是一个 runtime-only 的镜像：它假设 `web/build/` 已经在宿主机上构建好，直接把它拷进容器，再装 PM2、用 `pm2-runtime start server.js` 启动。
+[`web/Dockerfile`](https://github.com/apecloud/ApeRAG/blob/main/web/Dockerfile) 是一个 runtime-only 的镜像：它假设 `web/build/` 已经在宿主机上构建好，直接把它拷进容器，用 Next.js standalone 产物里的 `server.js` 启动。镜像不再额外安装 PM2，避免 runtime image build 阶段产生不必要的 npm/yarn 网络依赖。
 
 所以完整的前端构建流程是两步：
 
