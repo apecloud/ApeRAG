@@ -32,7 +32,7 @@ DIAGNOSTICS_DB_CONNECT_TIMEOUT_SECONDS = 1
 router = APIRouter(tags=["health"])
 
 
-@router.get("/")
+@router.get("")
 async def health_check() -> dict[str, str]:
     """Legacy compatibility endpoint for existing probes."""
     return {"status": "healthy", "service": "aperag-api"}
@@ -129,4 +129,3 @@ def _probe_database() -> None:
             connection.execute(text("SELECT 1"))
     finally:
         engine.dispose()
-
