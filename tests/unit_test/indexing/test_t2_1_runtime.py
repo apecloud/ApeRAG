@@ -73,6 +73,7 @@ from aperag.indexing import (
     parse_document,
     process_one_task,
     reconcile_failed_retry,
+    reconcile_graph_vectors_enqueue,
     reconcile_pending_dispatch,
     reconcile_running_reclaim,
 )
@@ -124,6 +125,7 @@ def _insert_row(
     retry_count: int = 0,
     retry_after: datetime | None = None,
     last_heartbeat: datetime | None = None,
+    derived_artifact_path: str | None = None,
 ) -> int:
     """Insert a row + return its id. Defaults are "valid PENDING dispatch"."""
     with Session(engine) as session, session.begin():
@@ -141,6 +143,7 @@ def _insert_row(
                 retry_count=retry_count,
                 retry_after=retry_after,
                 last_heartbeat=last_heartbeat,
+                derived_artifact_path=derived_artifact_path,
             )
             .returning(DocumentIndex.id)
         )
@@ -493,6 +496,91 @@ def test_reconciler_failed_retry_flips_elapsed_backoff_only(engine):
     assert _row(engine, overbudget_id).status == IndexStatus.FAILED.value, (
         "row past the §I.2 5-retry cap stays FAILED until operator intervention"
     )
+
+
+# ---------------------------------------------------------------------
+# (5b) Reconciler graph_vectors enqueue — 任务 #5 设计文档 §4.4
+# ---------------------------------------------------------------------
+
+
+def test_reconciler_graph_vectors_enqueue_inserts_pending_row_after_facts_active(engine):
+    """事实层 ACTIVE 之后, reconciler 应该 INSERT 一行 graph_vectors PENDING,
+    source_path 复用 facts 行的 derived_artifact_path.
+    """
+    facts_artifact = "collections/c/documents/d/derived/parse_v1/kg.jsonl"
+    facts_id = _insert_row(
+        engine,
+        document_id="doc-1",
+        parse_version="v1",
+        modality=Modality.GRAPH_FACTS,
+        status=IndexStatus.ACTIVE,
+        derived_artifact_path=facts_artifact,
+    )
+
+    inserted = reconcile_graph_vectors_enqueue(engine=engine)
+    assert inserted == 1
+
+    # vectors 行应该被 INSERT 进来
+    with Session(engine) as session:
+        vectors_rows = list(
+            session.scalars(
+                select(DocumentIndex).where(
+                    DocumentIndex.modality == Modality.GRAPH_VECTORS.value,
+                )
+            )
+        )
+    assert len(vectors_rows) == 1
+    v = vectors_rows[0]
+    assert v.document_id == "doc-1"
+    assert v.parse_version == "v1"
+    assert v.status == IndexStatus.PENDING.value
+    assert v.source_path == facts_artifact
+    assert v.is_serving is False
+    # facts 行不变
+    assert _row(engine, facts_id).status == IndexStatus.ACTIVE.value
+
+
+def test_reconciler_graph_vectors_enqueue_idempotent(engine):
+    """已经存在 graph_vectors 行的 (doc, parse_v) 跳过, 不重复 INSERT."""
+    _insert_row(
+        engine,
+        document_id="doc-1",
+        parse_version="v1",
+        modality=Modality.GRAPH_FACTS,
+        status=IndexStatus.ACTIVE,
+        derived_artifact_path="kg.jsonl",
+    )
+    # 跑一次 — INSERT 1 行
+    assert reconcile_graph_vectors_enqueue(engine=engine) == 1
+    # 跑第二次 — 应该 0 行
+    assert reconcile_graph_vectors_enqueue(engine=engine) == 0
+
+
+def test_reconciler_graph_vectors_enqueue_skips_non_active_facts(engine):
+    """事实层不在 ACTIVE 状态 (PENDING / RUNNING / FAILED) 不入队向量层."""
+    for status in (IndexStatus.PENDING, IndexStatus.RUNNING, IndexStatus.FAILED):
+        _insert_row(
+            engine,
+            document_id=f"doc-{status.value}",
+            parse_version="v1",
+            modality=Modality.GRAPH_FACTS,
+            status=status,
+            derived_artifact_path="kg.jsonl",
+        )
+    assert reconcile_graph_vectors_enqueue(engine=engine) == 0
+
+
+def test_reconciler_graph_vectors_enqueue_skips_facts_without_artifact(engine):
+    """事实层没设 derived_artifact_path 时跳过 (理论上不应该发生, 但容错)."""
+    _insert_row(
+        engine,
+        document_id="doc-1",
+        parse_version="v1",
+        modality=Modality.GRAPH_FACTS,
+        status=IndexStatus.ACTIVE,
+        derived_artifact_path=None,
+    )
+    assert reconcile_graph_vectors_enqueue(engine=engine) == 0
 
 
 # ---------------------------------------------------------------------

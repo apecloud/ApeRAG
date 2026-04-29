@@ -84,14 +84,18 @@ class IndexingMode(str, enum.Enum):
     INLINE = "inline"
 
 
-# Default modality set the dispatcher fans out to. The 5 Wave 1
-# modalities are the design-pack canonical (§C.6 + §D.2). Callers can
-# narrow this (e.g. summary-only collection) by passing an explicit
+# Default modality set the dispatcher fans out to. Callers can narrow
+# this (e.g. summary-only collection) by passing an explicit
 # ``modalities`` list to :func:`dispatch_indexing`.
+#
+# 任务 #5: 老 ``Modality.GRAPH`` 拆分为 ``GRAPH_FACTS`` (事实层) +
+# ``GRAPH_VECTORS`` (向量层). 上传时 dispatcher 只插事实层一行;
+# 向量层由 :func:`reconcile_graph_vectors_enqueue` 在事实层 ACTIVE 之后
+# 自动 INSERT + 入队 (设计文档 §4.4 conservative serial scheduling).
 DEFAULT_MODALITIES: tuple[Modality, ...] = (
     Modality.VECTOR,
     Modality.FULLTEXT,
-    Modality.GRAPH,
+    Modality.GRAPH_FACTS,
     Modality.SUMMARY,
     Modality.VISION,
 )
@@ -272,7 +276,9 @@ def modalities_for_collection(
     if enable_fulltext:
         requested.append(Modality.FULLTEXT)
     if enable_graph:
-        requested.append(Modality.GRAPH)
+        # 任务 #5: 上传时只入队事实层; 向量层由 reconciler 在事实层
+        # ACTIVE 之后自动 enqueue (设计文档 §4.4).
+        requested.append(Modality.GRAPH_FACTS)
     if enable_summary:
         requested.append(Modality.SUMMARY)
     if enable_vision:

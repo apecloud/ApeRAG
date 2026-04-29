@@ -552,6 +552,87 @@ def _build_graph_worker(
     )
 
 
+def _build_graph_facts_worker(
+    *,
+    collection: Any,
+    object_store: Any,
+    payload: DispatchPayload,
+) -> ModalityWorker:
+    """构造事实层 worker. 任务 #5 设计文档 §4.3.
+
+    与 :func:`_build_graph_worker` 的区别: 不接 compactor / embedder /
+    vector_connector / merge_detector. 事实层 sync 只跑 Phase 1+2 lineage,
+    不再做向量 / 压缩 / 候选合并.
+    """
+    from aperag.indexing.graph import GraphFactsWorker
+    from aperag.indexing.graph_extractor import build_collection_graph_extractor
+
+    backend_type = _resolve_graph_backend_type(collection)
+    store = _build_lineage_graph_store(backend_type=backend_type, collection=collection)
+    lock = _resolve_entity_lock(backend_type=backend_type)
+    extractor = build_collection_graph_extractor(collection)
+    tenant_scope_key = _resolve_tenant_scope_key(payload=payload)
+    entity_type_merger = _build_graph_type_merger(collection)
+
+    return GraphFactsWorker(
+        store=store,
+        extractor=extractor,
+        entity_lock=lock,
+        object_store=object_store,
+        collection_id=collection.id,
+        tenant_scope_key=tenant_scope_key,
+        entity_type_merger=entity_type_merger,
+    )
+
+
+def _build_graph_vectors_worker(
+    *,
+    collection: Any,
+    object_store: Any,
+    payload: DispatchPayload,
+) -> ModalityWorker:
+    """构造向量层 worker. 任务 #5 设计文档 §4.3.
+
+    向量层依赖 embedder + vector_connector + merge_detector. 不需要
+    extractor (向量层 derive 复用事实层的 kg.jsonl), 但因为父类
+    :class:`GraphModalityWorker.__init__` 仍然要求 ``extractor`` 字段,
+    我们传一个永不被调用的占位 extractor — :class:`GraphVectorsWorker`
+    覆盖了 ``derive``, 所以 extractor 不会被走到. 不传 compactor 也是
+    有意为之 (描述已经被事实层写空, compactor 没活干).
+    """
+    from aperag.indexing.graph import GraphVectorsWorker
+
+    backend_type = _resolve_graph_backend_type(collection)
+    store = _build_lineage_graph_store(backend_type=backend_type, collection=collection)
+    lock = _resolve_entity_lock(backend_type=backend_type)
+    tenant_scope_key = _resolve_tenant_scope_key(payload=payload)
+
+    vector_connector, embedder = _build_collection_graph_vector_writer(collection)
+    merge_detector = _build_collection_merge_candidate_detector(
+        collection=collection,
+        store=store,
+        vector_connector=vector_connector,
+        embedder=embedder,
+    )
+
+    async def _unused_extractor(_chunks):  # pragma: no cover — derive 已经 override
+        # 走到这里说明 GraphVectorsWorker.derive 没生效, 这是逻辑错误.
+        raise WorkerFactoryError("graph_vectors worker received call to extractor; derive should reuse facts artifact")
+
+    return GraphVectorsWorker(
+        store=store,
+        extractor=_unused_extractor,
+        entity_lock=lock,
+        object_store=object_store,
+        collection_id=collection.id,
+        tenant_scope_key=tenant_scope_key,
+        compactor=None,
+        embedder=embedder,
+        vector_connector=vector_connector,
+        merge_detector=merge_detector,
+    )
+
+
 def _build_graph_type_merger(collection: Any):
     collection_id = str(getattr(collection, "id", ""))
 
@@ -1041,7 +1122,14 @@ _MODALITY_BUILDERS: Mapping[Modality, Callable[..., ModalityWorker]] = {
     Modality.SUMMARY: _build_summary_worker,
     Modality.VISION: _build_vision_worker,
     Modality.GRAPH: _build_graph_worker,
+    Modality.GRAPH_FACTS: _build_graph_facts_worker,
+    Modality.GRAPH_VECTORS: _build_graph_vectors_worker,
 }
+
+# 三个 graph 模态: 老 GRAPH (单段, 兼容期保留) + 新 GRAPH_FACTS / GRAPH_VECTORS.
+# 它们都共享 ``_build_graph_*`` 一族的 ``payload`` 注入语义 (tenant scope key
+# 来自 payload), 也都映射到同一个 lineage store 的 cleanup view.
+_GRAPH_MODALITIES = frozenset({Modality.GRAPH, Modality.GRAPH_FACTS, Modality.GRAPH_VECTORS})
 
 
 class ProductionWorkerFactory:
@@ -1091,7 +1179,7 @@ class ProductionWorkerFactory:
             "collection": collection,
             "object_store": self._object_store,
         }
-        if payload.modality is Modality.GRAPH:
+        if payload.modality in _GRAPH_MODALITIES:
             kwargs["payload"] = payload
 
         try:
@@ -1298,7 +1386,7 @@ def _build_cleanup_view_sync(collection: Any, modality: Modality) -> CleanupWork
     in :func:`asyncio.to_thread` so the SQLAlchemy collection load
     + sync client construction does not block the orchestrator loop.
     """
-    if modality is Modality.GRAPH:
+    if modality in _GRAPH_MODALITIES:
         backend_type = _resolve_graph_backend_type(collection)
         store = _build_lineage_graph_store(backend_type=backend_type, collection=collection)
         lock = _resolve_entity_lock(backend_type=backend_type)

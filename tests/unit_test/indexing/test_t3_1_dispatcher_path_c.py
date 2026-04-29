@@ -219,17 +219,19 @@ def test_dispatcher_inline_requires_workers(engine):
 
 
 def test_modalities_for_collection_helper_yields_canonical_subset_order():
+    # 任务 #5: 上传时只入队 GRAPH_FACTS, GRAPH_VECTORS 由 reconciler
+    # 在事实层 ACTIVE 之后自动 INSERT (设计文档 §4.4).
     assert modalities_for_collection() == (
         Modality.VECTOR,
         Modality.FULLTEXT,
-        Modality.GRAPH,
+        Modality.GRAPH_FACTS,
         Modality.SUMMARY,
         Modality.VISION,
     )
     assert modalities_for_collection(enable_vision=False) == (
         Modality.VECTOR,
         Modality.FULLTEXT,
-        Modality.GRAPH,
+        Modality.GRAPH_FACTS,
         Modality.SUMMARY,
     )
     assert modalities_for_collection(

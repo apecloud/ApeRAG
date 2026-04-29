@@ -162,8 +162,15 @@ def _is_graph_worker(worker: ModalityWorker) -> bool:
     optional Nebula / Neo4j extras (graph imports those lazily). We
     duck-type instead: only the graph worker exposes ``_store`` (a
     LineageGraphStore) AND ``_entity_lock``.
+
+    任务 #5: 老 ``GRAPH`` 单段拆成 ``GRAPH_FACTS`` + ``GRAPH_VECTORS``.
+    三个值都映射到同一个 lineage store, 所以 cleanup 也都走 graph 路径.
     """
-    return getattr(worker, "modality", None) is Modality.GRAPH
+    return getattr(worker, "modality", None) in {
+        Modality.GRAPH,
+        Modality.GRAPH_FACTS,
+        Modality.GRAPH_VECTORS,
+    }
 
 
 @dataclass(frozen=True)
