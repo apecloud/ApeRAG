@@ -45,14 +45,22 @@ class AsyncDocumentIndexRepositoryMixin(AsyncRepositoryProtocol):
     """
 
     async def has_recent_graph_index_updates(self, collection_id: str, since_time: datetime) -> int:
-        """Count the number of successful graph index updates since a given time."""
+        """Count the number of successful graph index updates since a given time.
+
+        任务 #5 §4.5/§4.6 双场景兼容: ``modality IN ('graph', 'graph_facts')``
+        都算 "图谱事实层可用". 老 GRAPH 模态在兼容期保留, 新写入走 GRAPH_FACTS.
+        向量层 (``GRAPH_VECTORS``) 不在这里 — 描述 / 候选合并的失败不算
+        "图谱索引更新".
+        """
 
         async def _query(session):
             stmt = select(func.count()).where(
                 and_(
                     Document.id == DocumentIndex.document_id,
                     Document.collection_id == collection_id,
-                    DocumentIndex.modality == Modality.GRAPH.value,
+                    DocumentIndex.modality.in_(
+                        [Modality.GRAPH.value, Modality.GRAPH_FACTS.value],
+                    ),
                     DocumentIndex.status == IndexStatus.ACTIVE.value,
                     DocumentIndex.is_serving.is_(True),
                     DocumentIndex.updated_at > since_time,

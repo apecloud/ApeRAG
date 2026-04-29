@@ -451,7 +451,9 @@ class DocumentService:
             index_types.append(Modality.FULLTEXT)
 
         if collection_config.get("enable_knowledge_graph", False):
-            index_types.append(Modality.GRAPH)
+            # 任务 #5 §4.4: 上传时只入队事实层; 向量层由 reconciler 在
+            # 事实层 ACTIVE 后自动 INSERT.
+            index_types.append(Modality.GRAPH_FACTS)
         if collection_config.get("enable_summary", False):
             index_types.append(Modality.SUMMARY)
         if collection_config.get("enable_vision", False):
@@ -571,12 +573,26 @@ class DocumentService:
             # ``"summary"`` / ``"vision"``); the response shape uses
             # uppercase keys for backward-compat with HTTP clients,
             # so we translate via the :class:`Modality` enum.
+            #
+            # 任务 #5: 老 ``GRAPH`` 单段拆成 ``GRAPH_FACTS`` + ``GRAPH_VECTORS``.
+            # 这里把三个值都塞进 indexes 字典 (作为不同 key), 然后在
+            # ``_build_document_response`` 里按 §4.5 双场景规则映射成
+            # 单一 ``graph_index_status``: 优先 ``GRAPH_FACTS``, 否则
+            # ``GRAPH`` (兼容老数据).
             documents_dict = {}
             for row in rows:
                 doc = row.Document
                 if doc.id not in documents_dict:
                     documents_dict[doc.id] = doc
-                    doc.indexes = {"VECTOR": None, "FULLTEXT": None, "GRAPH": None, "SUMMARY": None, "VISION": None}
+                    doc.indexes = {
+                        "VECTOR": None,
+                        "FULLTEXT": None,
+                        "GRAPH": None,
+                        "GRAPH_FACTS": None,
+                        "GRAPH_VECTORS": None,
+                        "SUMMARY": None,
+                        "VISION": None,
+                    }
 
                 modality_value = row.index_type
                 if modality_value:
@@ -601,7 +617,17 @@ class DocumentService:
         """
         # Get all index information if available
         indexes = getattr(
-            document, "indexes", {"VECTOR": None, "FULLTEXT": None, "GRAPH": None, "SUMMARY": None, "VISION": None}
+            document,
+            "indexes",
+            {
+                "VECTOR": None,
+                "FULLTEXT": None,
+                "GRAPH": None,
+                "GRAPH_FACTS": None,
+                "GRAPH_VECTORS": None,
+                "SUMMARY": None,
+                "VISION": None,
+            },
         )
 
         # Parse summary from SUMMARY index's index_data
@@ -630,8 +656,19 @@ class DocumentService:
             vector_index_updated=indexes["VECTOR"]["updated_at"] if indexes["VECTOR"] else None,
             fulltext_index_status=indexes["FULLTEXT"]["status"] if indexes["FULLTEXT"] else None,
             fulltext_index_updated=indexes["FULLTEXT"]["updated_at"] if indexes["FULLTEXT"] else None,
-            graph_index_status=indexes["GRAPH"]["status"] if indexes["GRAPH"] else None,
-            graph_index_updated=indexes["GRAPH"]["updated_at"] if indexes["GRAPH"] else None,
+            # 任务 #5 §4.5 双场景兼容: GRAPH_FACTS 优先 (新数据), 否则
+            # 用老 GRAPH (兼容老数据). 文档级别的 graph 状态以事实层为准 —
+            # 向量层失败不阻塞 graph 可用 (§4.4 设计原则).
+            graph_index_status=(
+                indexes["GRAPH_FACTS"]["status"]
+                if indexes.get("GRAPH_FACTS")
+                else (indexes["GRAPH"]["status"] if indexes.get("GRAPH") else None)
+            ),
+            graph_index_updated=(
+                indexes["GRAPH_FACTS"]["updated_at"]
+                if indexes.get("GRAPH_FACTS")
+                else (indexes["GRAPH"]["updated_at"] if indexes.get("GRAPH") else None)
+            ),
             summary_index_status=indexes["SUMMARY"]["status"] if indexes.get("SUMMARY") else None,
             summary_index_updated=indexes["SUMMARY"]["updated_at"] if indexes.get("SUMMARY") else None,
             vision_index_status=indexes["VISION"]["status"] if indexes.get("VISION") else None,
@@ -957,7 +994,9 @@ class DocumentService:
             elif index_type == "FULLTEXT":
                 index_type_enums.append(Modality.FULLTEXT)
             elif index_type == "GRAPH":
-                index_type_enums.append(Modality.GRAPH)
+                # 任务 #5: 用户传 "GRAPH" 时映射到事实层. 向量层由
+                # reconciler 在事实层 ACTIVE 后自动入队 (§4.4).
+                index_type_enums.append(Modality.GRAPH_FACTS)
             elif index_type == "SUMMARY":
                 index_type_enums.append(Modality.SUMMARY)
             elif index_type == "VISION":
@@ -975,8 +1014,11 @@ class DocumentService:
             if not collection or collection.user != user_id:
                 raise ResourceNotFoundException(f"Collection {collection_id} not found or access denied")
             collection_config = json.loads(collection.config)
-            if not collection_config.get("enable_knowledge_graph", False) and Modality.GRAPH in index_type_enums:
-                index_type_enums.remove(Modality.GRAPH)
+            if not collection_config.get("enable_knowledge_graph", False):
+                # 任务 #5: graph 关闭时三个 graph 模态都过滤掉.
+                for graph_modality in (Modality.GRAPH, Modality.GRAPH_FACTS, Modality.GRAPH_VECTORS):
+                    if graph_modality in index_type_enums:
+                        index_type_enums.remove(graph_modality)
             # Trigger rebuild for the requested modalities (Wave 3 T3.1
             # chunk 3: dispatch via the new dispatcher).
             await _create_or_update_document_indexes(
@@ -1019,10 +1061,16 @@ class DocumentService:
             # Process each document with failed indexes
             affected_documents = 0
             for document_id, failed_index_types in failed_docs:
-                # Filter out GRAPH type if not enabled in collection config
+                # Filter out GRAPH type if not enabled in collection config.
+                # 任务 #5: 三个 graph 模态值都要过滤掉, 避免重建已禁用的图谱索引.
                 rebuild_types = failed_index_types
                 if not enable_knowledge_graph:
-                    rebuild_types = [t for t in failed_index_types if t != Modality.GRAPH.value]
+                    graph_values = {
+                        Modality.GRAPH.value,
+                        Modality.GRAPH_FACTS.value,
+                        Modality.GRAPH_VECTORS.value,
+                    }
+                    rebuild_types = [t for t in failed_index_types if t not in graph_values]
 
                 if rebuild_types:
                     # Wave 3 T3.1 chunk 3: dispatch failed-rebuild via
