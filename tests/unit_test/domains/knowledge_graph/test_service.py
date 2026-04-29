@@ -99,7 +99,8 @@ async def test_get_hybrid_graph_joins_projection_and_lineage_metadata(monkeypatc
     service = GraphService()
     service._get_and_validate_collection = AsyncMock(return_value=SimpleNamespace(id="col1"))
 
-    async def fake_projection(*, db_collection, collection_id, store, max_entities):
+    async def fake_projection(*, backend_type, db_collection, collection_id, store, max_entities):
+        assert backend_type == "postgres"
         assert collection_id == "col1"
         assert max_entities == 1000
         assert isinstance(store, FakeStore)
@@ -124,6 +125,7 @@ async def test_get_hybrid_graph_joins_projection_and_lineage_metadata(monkeypatc
             ],
             {"0": "person", "1": "organization"},
             [_entity("A", "person"), _entity("B", "organization")],
+            False,
         )
 
     service._get_embedding_projection = fake_projection
@@ -140,3 +142,49 @@ async def test_get_hybrid_graph_joins_projection_and_lineage_metadata(monkeypatc
     ]
     assert [(edge.source, edge.target) for edge in graph.edges] == [("A", "B")]
     assert graph.cluster_labels == {"0": "person", "1": "organization"}
+    assert graph.layout_from_cache is False
+
+
+async def test_get_embedding_projection_uses_layout_cache(monkeypatch):
+    from aperag.domains.knowledge_graph.schemas import GraphEmbeddingPoint
+    from aperag.indexing import worker_factory
+
+    class FakeStore:
+        async def list_entities(self, *, limit, offset):
+            assert limit == 1000
+            assert offset == 0
+            return [_entity("A", "person")]
+
+    cached_points = [
+        GraphEmbeddingPoint(
+            name="A",
+            entity_type="person",
+            cluster=0,
+            x=1.0,
+            y=2.0,
+            source_chunk_count=0,
+        )
+    ]
+
+    service = GraphService()
+    service._load_embedding_projection_cache = AsyncMock(return_value=(cached_points, {"0": "person"}))
+    service._save_embedding_projection_cache = AsyncMock()
+    monkeypatch.setattr(
+        worker_factory,
+        "_build_collection_qdrant_connector",
+        lambda collection: (_ for _ in ()).throw(AssertionError("vector connector should not be built on cache hit")),
+    )
+
+    points, cluster_labels, entities, layout_from_cache = await service._get_embedding_projection(
+        backend_type="postgres",
+        db_collection=SimpleNamespace(id="col1"),
+        collection_id="col1",
+        store=FakeStore(),
+        max_entities=1000,
+    )
+
+    assert points == cached_points
+    assert cluster_labels == {"0": "person"}
+    assert [entity.name for entity in entities] == ["A"]
+    assert layout_from_cache is True
+    service._save_embedding_projection_cache.assert_not_called()

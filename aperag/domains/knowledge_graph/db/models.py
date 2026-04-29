@@ -34,6 +34,7 @@ from sqlalchemy import (
     Column,
     DateTime,
     Index,
+    Integer,
     Numeric,
     String,
     Text,
@@ -159,10 +160,33 @@ class LineageEntityAlias(Base):
     gmt_updated = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 
 
+class GraphHybridLayoutCache(Base):
+    """Cached 2-D projection for the graph-hybrid overview.
+
+    The cache key is derived from the collection/backend/max_entities and
+    the selected entities' lineage/description signature. It avoids
+    repeating vector fetch + PCA work when the graph data has not changed.
+    """
+
+    __tablename__ = "graph_hybrid_layout_cache"
+    __table_args__ = (Index("idx_graph_hybrid_layout_cache_collection_updated", "collection_id", "gmt_updated"),)
+
+    collection_id = Column(String(64), primary_key=True, nullable=False)
+    cache_key = Column(String(64), primary_key=True, nullable=False)
+    backend_type = Column(String(32), nullable=False)
+    max_entities = Column(Integer, nullable=False)
+    entity_count = Column(Integer, nullable=False)
+    points_json = Column(JSON, nullable=False)
+    cluster_labels = Column(JSON, nullable=False)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+
 __all__ = [
     "GraphCurationRun",
     "GraphCurationRunStatus",
     "GraphCurationSuggestion",
     "GraphCurationSuggestionStatus",
+    "GraphHybridLayoutCache",
     "LineageEntityAlias",
 ]
