@@ -22,6 +22,8 @@ TASK17_BASE_URL="${TASK17_BASE_URL:-${E2E_BASE_URL:-http://127.0.0.1:8000}}"
 TASK17_HEALTH_SAMPLES="${TASK17_HEALTH_SAMPLES:-20}"
 TASK17_HEALTH_P95_MS="${TASK17_HEALTH_P95_MS:-500}"
 TASK17_CURL_TIMEOUT_SECONDS="${TASK17_CURL_TIMEOUT_SECONDS:-3}"
+TASK17_OBSERVE_SECONDS="${TASK17_OBSERVE_SECONDS:-0}"
+TASK17_OBSERVE_INTERVAL_SECONDS="${TASK17_OBSERVE_INTERVAL_SECONDS:-2}"
 
 TASK17_API_REPLICAS="${TASK17_API_REPLICAS:-2}"
 TASK17_API_DB_POOL_SIZE="${TASK17_API_DB_POOL_SIZE:-5}"
@@ -136,6 +138,9 @@ check_endpoint_latency() {
       return
     fi
     printf '%s\n' "${ms}" >>"${tmp}"
+    if [[ "${TASK17_OBSERVE_SECONDS}" != "0" && "${i}" -lt "${samples}" ]]; then
+      sleep "${TASK17_OBSERVE_INTERVAL_SECONDS}"
+    fi
   done
 
   local p95 p99
@@ -157,10 +162,21 @@ check_health_contract() {
     return
   fi
 
+  local samples="${TASK17_HEALTH_SAMPLES}"
+  if [[ "${TASK17_OBSERVE_SECONDS}" != "0" ]]; then
+    samples="$(
+      awk -v duration="${TASK17_OBSERVE_SECONDS}" -v interval="${TASK17_OBSERVE_INTERVAL_SECONDS}" \
+        'BEGIN { printf "%d\n", int((duration + interval - 0.000001) / interval) }'
+    )"
+    if [[ "${samples}" -lt 1 ]]; then
+      samples=1
+    fi
+  fi
+
   log "Checking API probe endpoints at ${TASK17_BASE_URL}"
-  check_endpoint_latency "/health"
-  check_endpoint_latency "/health/live"
-  check_endpoint_latency "/health/ready"
+  check_endpoint_latency "/health" "${samples}"
+  check_endpoint_latency "/health/live" "${samples}"
+  check_endpoint_latency "/health/ready" "${samples}"
 
   if [[ -n "${TASK17_DIAGNOSTICS_URL}" ]]; then
     local auth_args=()

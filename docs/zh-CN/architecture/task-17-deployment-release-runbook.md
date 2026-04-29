@@ -367,6 +367,14 @@ task #17 合并前必须跑一轮本地或等价测试环境稳定性验收。�
    `scripts/task17_local_stability_check.sh`，确保 worker 压力不会让 API
    `/health/live`、`/health/ready` 或 `/api/v2/auth/user` 失稳。
 
+   压测期间建议打开持续采样窗口：
+
+   ```bash
+   export TASK17_OBSERVE_SECONDS=600
+   export TASK17_OBSERVE_INTERVAL_SECONDS=2
+   ./scripts/task17_local_stability_check.sh
+   ```
+
 5. 跑现有 HTTP smoke baseline，要求 PR 前后新增失败数为 0：
 
    ```bash
