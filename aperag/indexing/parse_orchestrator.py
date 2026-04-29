@@ -28,8 +28,8 @@ This module ships the dispatch surface that promotes parse to async:
   paths. Reads the source artifact, runs :func:`parse_document`, then
   fans out via :func:`dispatch_indexing` to the 5 per-modality queues.
 * :func:`run_parse_worker_loop` + :func:`run_parse_worker` — the
-  long-lived BLPOP loop wired into the FastAPI lifespan, mirroring the
-  per-modality ``run_*_worker`` entrypoints.
+  long-lived BLPOP loop started by ``python -m aperag.cli.indexing_worker``,
+  mirroring the per-modality ``run_*_worker`` entrypoints.
 
 Why no DocumentIndex row for parse: the per-modality rows are inserted
 **after** parse completes (so they can carry the real

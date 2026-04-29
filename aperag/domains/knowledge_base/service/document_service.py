@@ -133,18 +133,19 @@ def _markdown_path_from_derived_artifact(derived_artifact_path: str | None) -> s
 
 
 # ---------------------------------------------------------------------
-# New-API wrappers — celery T3.1 chunk 3 (replace legacy
+# New-API wrappers — indexing T3.1 chunk 3 (replace legacy
 # ``document_index_manager.{create_or_update,delete}_document_indexes``).
 # ---------------------------------------------------------------------
 #
 # The legacy ABC was hard-deleted in chunk 2; these two helpers are the
 # minimum-blast-radius adapters that keep the existing 5 call sites
 # compiling while routing to the new ``aperag.indexing`` surface
-# (``dispatch_indexing()`` for INSERT, ``cleanup_for_deleted_documents()``
-# for DELETE). Both consume the process-local
-# :class:`aperag.indexing.runtime.IndexingRuntime` populated by the
-# FastAPI lifespan; if the runtime is absent (test environment, or
-# ``INDEXING_MODE != async``), they log + no-op rather than crash.
+# (``dispatch_indexing()`` for INSERT; DELETE writes a durable
+# ``Document.status=DELETED + gmt_deleted`` intent and the worker cleanup
+# loop performs object-store/backend cleanup). The INSERT helper consumes
+# the process-local :class:`aperag.indexing.runtime.IndexingRuntime`
+# populated by the API lifespan; if the runtime is absent (test
+# environment or pre-startup), it logs + no-ops rather than crashing.
 
 
 async def _create_or_update_document_indexes(

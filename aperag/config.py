@@ -372,7 +372,7 @@ class Config(BaseSettings):
 
 
 def get_sync_database_url(url: str):
-    """Convert async database URL to sync version for celery"""
+    """Convert async database URL to a sync SQLAlchemy URL."""
     if url.startswith("postgresql+asyncpg://"):
         return url.replace("postgresql+asyncpg://", "postgresql://")
     if url.startswith("postgres+asyncpg://"):

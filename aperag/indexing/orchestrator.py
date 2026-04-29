@@ -213,8 +213,8 @@ class RedisWorkQueue:
 
     Lazy-connects on first ``push`` / ``pop``; the underlying
     ``redis.asyncio.Redis`` client owns its own pool. Production
-    deployments share one client per process (FastAPI lifespan
-    instantiates one and stashes on app.state.indexing_queue).
+    deployments share one client per process: API lifespan for enqueue,
+    indexing-worker CLI for dequeue.
     """
 
     #: Redis list key template — keyed by modality so each modality
