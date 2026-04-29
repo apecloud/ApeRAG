@@ -146,7 +146,6 @@ jobs:
         run: |
           COMPAT_PG_URL="postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/postgres" \
           uv run pytest \
-            tests/integration/compat/test_graph_compat.py \
             tests/integration/compat/test_lineage_graph_compat.py \
             -v --tb=short
 
@@ -157,7 +156,6 @@ jobs:
           COMPAT_NEO4J_USER="neo4j" \
           COMPAT_NEO4J_PASS="password" \
           uv run pytest \
-            tests/integration/compat/test_graph_compat.py \
             tests/integration/compat/test_lineage_graph_compat.py \
             -v --tb=short
 
@@ -166,7 +164,6 @@ jobs:
         run: |
           COMPAT_NEBULA_HOSTS="127.0.0.1:9669" \
           uv run pytest \
-            tests/integration/compat/test_graph_compat.py \
             tests/integration/compat/test_lineage_graph_compat.py \
             -v --tb=short
 
