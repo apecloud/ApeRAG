@@ -57,14 +57,30 @@ def main() -> int:
     # Local import: keep the module fast to ``--help`` and avoid a hard
     # dep on SQLAlchemy when the repo is consumed for non-DB reasons.
     from sqlalchemy import create_engine, text
+    from sqlalchemy.exc import ProgrammingError
 
     engine = create_engine(database_url, future=True)
     with engine.connect() as conn:
-        current = conn.execute(text("SELECT version_num FROM alembic_version")).scalar()
+        # ``alembic_version`` is created the first time alembic touches
+        # the DB; a truly fresh deploy does not have the table yet, in
+        # which case Postgres raises ``UndefinedTable`` and SQLAlchemy
+        # wraps it as ``ProgrammingError``. Convert that into a
+        # human-friendly hint instead of a stack trace — the right
+        # next step is ``alembic upgrade head`` to build the schema
+        # from scratch.
+        try:
+            current = conn.execute(text("SELECT version_num FROM alembic_version")).scalar()
+        except ProgrammingError:
+            print(
+                "alembic_version table does not exist — this is a fresh database; "
+                "run `alembic upgrade head` (or `make db-migrate`) to build the schema instead.",
+                file=sys.stderr,
+            )
+            return 1
         if current is None:
             print(
                 "alembic_version table is empty — this is a fresh database; "
-                "run `alembic upgrade head` to build the schema instead.",
+                "run `alembic upgrade head` (or `make db-migrate`) to build the schema instead.",
                 file=sys.stderr,
             )
             return 1
