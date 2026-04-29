@@ -12,12 +12,12 @@
 #      ``openai_compatible``) accounts using the secrets from
 #      ``E2E_ALIBABACLOUD_API_KEY`` / ``E2E_OPENROUTER_API_KEY``.
 #   3. Per-account models are created via ``POST /api/v2/models`` for the
-#      embedding / rerank / chat capabilities the rest of the suite needs.
+#      embedding / chat capabilities the rest of the suite needs.
 #   4. ``PUT /api/v2/model-uses/{scenario}`` wires the canonical
 #      collection-completion / collection-embedding / background-task
 #      scenarios.
-#   5. The OpenAI-compat ``POST /api/v1/embeddings`` and ``POST /api/v1/rerank``
-#      endpoints accept ``{model_id}`` and round-trip a real provider call.
+#   5. The OpenAI-compat ``POST /api/v1/embeddings`` endpoint accepts
+#      ``{model_id}`` and round-trips a real provider call.
 
 POST {{base_url}}/api/v2/auth/login
 Content-Type: application/json
@@ -79,21 +79,6 @@ dashscope_embedding_model_id: jsonpath "$.id"
 [Asserts]
 jsonpath "$.capability" == "embedding"
 jsonpath "$.runner_type" == "openai_compatible"
-
-POST {{base_url}}/api/v2/models
-Content-Type: application/json
-{
-  "account_id": "{{dashscope_account_id}}",
-  "provider_model_id": "gte-rerank-v2",
-  "display_name": "DashScope gte-rerank-v2",
-  "capability": "rerank"
-}
-HTTP 200
-[Captures]
-dashscope_rerank_model_id: jsonpath "$.id"
-[Asserts]
-jsonpath "$.capability" == "rerank"
-jsonpath "$.runner_type" == "dashscope_rerank"
 
 POST {{base_url}}/api/v2/models
 Content-Type: application/json
@@ -179,23 +164,3 @@ jsonpath "$.data[0].index" == 0
 jsonpath "$.data[1].index" == 1
 jsonpath "$.usage.total_tokens" > 0
 
-POST {{base_url}}/api/v1/rerank
-Content-Type: application/json
-{
-  "model_id": "{{dashscope_rerank_model_id}}",
-  "query": "capital of France",
-  "documents": [
-    "Paris is the capital of France.",
-    "Tokyo is the capital of Japan.",
-    "Pasta is often served with tomato sauce."
-  ],
-  "top_k": 2,
-  "return_documents": true
-}
-HTTP 200
-[Asserts]
-jsonpath "$.object" == "list"
-jsonpath "$.model" == "{{dashscope_rerank_model_id}}"
-jsonpath "$.data[0].index" == 0
-jsonpath "$.data[0].document.text" == "Paris is the capital of France."
-jsonpath "$.usage.total_tokens" > 0

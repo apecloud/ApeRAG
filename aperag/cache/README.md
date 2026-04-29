@@ -22,7 +22,6 @@ Namespaces:
 | `llm_completion` | non-streaming completion |
 | `embedding` | per-input embedding vectors |
 | `embedding_dimension` | embedding dimension probes |
-| `rerank` | query/documents rerank calls |
 | `web_search` | search responses, excluding unavailable results |
 | `web_read` | per-URL successful read results |
 | `parser_preflight` | parser health probes |
@@ -51,7 +50,6 @@ CACHE_TTL=86400
 CACHE_REDIS_URL=
 CACHE_LLM_TTL_SECONDS=
 CACHE_EMBEDDING_TTL_SECONDS=
-CACHE_RERANK_TTL_SECONDS=
 CACHE_WEB_SEARCH_TTL_SECONDS=600
 CACHE_WEB_READ_TTL_SECONDS=3600
 CACHE_PARSER_PREFLIGHT_TTL_SECONDS=60

@@ -66,8 +66,7 @@ POST {{base_url}}/api/v2/collections/{{collection_id}}/searches
 Content-Type: application/json
 {
   "query": "hello",
-  "save_to_history": false,
-  "rerank": false
+  "save_to_history": false
 }
 HTTP 400
 
@@ -77,7 +76,6 @@ Content-Type: application/json
 {
   "query": "",
   "save_to_history": false,
-  "rerank": false,
   "vector_search": { "topk": 1, "similarity": 0.5 }
 }
 HTTP 400

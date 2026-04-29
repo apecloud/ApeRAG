@@ -188,7 +188,7 @@ def test_fulltext_sync_is_replace_idempotent_on_double_call():
 def test_vector_and_fulltext_share_chunk_ids_for_hybrid_dedup():
     """Per §C.6: vector + fulltext share ``chunks.jsonl``. The
     backend records on both sides MUST therefore share the same
-    ``chunk_id`` set so the search-layer rerank dedup can match them.
+    ``chunk_id`` set so the search-layer hybrid dedup can match them.
     """
     store = InMemoryObjectStore()
     vec_backend = InMemoryVectorBackend()

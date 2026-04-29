@@ -2,7 +2,7 @@
 
 ApeRAG 不再使用 LiteLLM 内置缓存。
 
-LLM、embedding、rerank 的缓存由 `aperag/cache` 中的 Redis-backed 应用级缓存负责。当前设计请参考 `aperag/cache/README.md`。
+LLM、embedding 的缓存由 `aperag/cache` 中的 Redis-backed 应用级缓存负责。当前设计请参考 `aperag/cache/README.md`。
 
 LLM 服务上的 `caching` 参数仍然保留：
 

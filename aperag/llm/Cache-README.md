@@ -2,7 +2,7 @@
 
 ApeRAG no longer uses LiteLLM's built-in cache.
 
-LLM, embedding, and rerank caching is owned by the Redis-backed application
+LLM and embedding caching is owned by the Redis-backed application
 cache in `aperag/cache`. See `aperag/cache/README.md` for the current design.
 
 The service-level `caching` flag is still supported:
