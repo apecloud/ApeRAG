@@ -330,3 +330,78 @@ HTTP request path 中不得出现上述重型 cleanup 调用。Redis cleanup que
 | `DocumentIndex` status counts | PENDING/RUNNING 不永久堆积 |
 | Worker restart count | 不持续增长 |
 | Worker 独立重启 | API 不受影响，任务可恢复 |
+
+## 9. 本地稳定性验收入口
+
+task #17 合并前必须跑一轮本地或等价测试环境稳定性验收。推荐流程：
+
+1. 部署新拓扑，确认 `api` 与 `indexing-worker` 是两个独立 Deployment。
+2. 设置环境变量并先跑轻量检查：
+
+   ```bash
+   export NO_PROXY=127.0.0.1,localhost
+   export TASK17_BASE_URL=http://127.0.0.1:8000
+   export TASK17_API_REPLICAS=2
+   export TASK17_API_DB_POOL_SIZE=5
+   export TASK17_API_DB_MAX_OVERFLOW=5
+   export TASK17_WORKER_REPLICAS=1
+   export TASK17_WORKER_DB_POOL_SIZE=10
+   export TASK17_WORKER_DB_MAX_OVERFLOW=10
+   export TASK17_POSTGRES_MAX_CONNECTIONS=100
+   ./scripts/task17_local_stability_check.sh
+   ```
+
+3. 如果是 Kubernetes 环境，补充命名空间和可选破坏性检查：
+
+   ```bash
+   export TASK17_K8S_NAMESPACE=demo
+   export TASK17_RESTART_WORKER=1
+   ./scripts/task17_local_stability_check.sh
+   ```
+
+4. 运行多文档并发上传/索引压测。压测期间与压测结束后各跑一次
+   `scripts/task17_local_stability_check.sh`，确保 worker 压力不会让 API
+   `/health/live`、`/health/ready` 或 `/api/v2/auth/user` 失稳。
+
+5. 跑现有 HTTP smoke baseline，要求 PR 前后新增失败数为 0：
+
+   ```bash
+   make test-http-smoke
+   ```
+
+### 9.1 task #17 hard gate 与验证入口对位
+
+| Hard gate | 验证入口 |
+|---|---|
+| API 不启动重型执行面 | `scripts/task17_local_stability_check.sh` Kubernetes 日志扫描 + CR grep gate |
+| cleanup intent 真源是 DB | cleanup 单测 / `tests/boundaries` grep gate；Redis 消息丢失恢复由压测补充验证 |
+| object store cleanup 迁出 API | grep gate，确保 API request path 无 `delete_objects_by_prefix()` |
+| readiness 轻量 | `scripts/task17_local_stability_check.sh` 对 `/health/live`、`/health/ready` 采样，默认 p95 ≤ 500ms |
+| 连接池 Helm 映射 | Helm template review + `scripts/task17_local_stability_check.sh` 预算公式检查 |
+| 回滚执行面唯一 | runbook §7 + Kubernetes 拓扑检查，禁止旧 API worker 与新 `indexing-worker` 双执行 |
+
+### 9.2 压测口径
+
+本轮最低验收口径：`10` 份以上文档，至少 `5` 并发上传，持续观察不少于
+`10` 分钟，覆盖 vector / fulltext / graph_facts / graph_vectors 状态推进。若测试环境
+模型或 provider 配额允许，推荐提升到 `100` 份文档、`10` 并发。
+
+验收报告必须在 PR thread 附上：
+
+- 文档数、并发数、持续时间；
+- API `/health/live` / `/health/ready` p95；
+- PostgreSQL 当前连接数与预算公式；
+- Redis queue depth 趋势；
+- `DocumentIndex` PENDING / RUNNING / ACTIVE / FAILED 计数；
+- worker 重启或 Redis 丢消息等失败注入结果。
+
+### 9.3 失败注入约定
+
+失败注入尽量走真实部署路径，不 mock Redis client 或 worker 内部函数。
+
+- worker 独立重启：`kubectl delete pod -l app.aperag.io/component=indexing-worker`
+- Redis 短暂不可用：优先使用测试环境内的网络隔离或 Redis pod restart；不能在共享线上环境直接做破坏性注入。
+- Redis 消息丢失恢复：允许手动清空测试 queue 或重启 worker 后依赖 DB scan/reconciler 补漏，但必须记录命令和恢复前后 `DocumentIndex` 计数。
+
+如果当前环境不允许破坏性注入，PR 可以先通过非破坏性检查，但必须在验收报告里明确标为
+`SKIP`，并说明替代证据。
