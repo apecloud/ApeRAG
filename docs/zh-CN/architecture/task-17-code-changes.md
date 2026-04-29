@@ -40,16 +40,15 @@ import asyncio
 import logging
 import signal
 
-from aperag.config import get_settings, sync_engine
+from aperag.config import settings, sync_engine
 from aperag.indexing import (
     InMemoryQuotaBackend,
     InMemoryWorkQueue,
     NoopMetricsEmitter,
     OTLPMetricsEmitter,
-    ProductionWorkerFactory,
+    QuotaPolicyRegistry,
     RedisQuotaBackend,
     RedisWorkQueue,
-    cleanup_orphan_parse_versions,
     run_cleanup_loop,
     run_fulltext_worker,
     run_graph_facts_worker,
@@ -61,13 +60,13 @@ from aperag.indexing import (
     run_vector_worker,
     run_vision_worker,
 )
+from aperag.indexing.worker_factory import ProductionWorkerFactory
 from aperag.objectstore.base import get_object_store
 
 logger = logging.getLogger(__name__)
 
 
 async def _amain() -> None:
-    settings = get_settings()
     shutdown = asyncio.Event()
 
     # SIGTERM / SIGINT 优雅退出
@@ -84,9 +83,10 @@ async def _amain() -> None:
     if settings.indexing_quota_backend == "redis":
         from redis.asyncio import Redis
         quota_redis = Redis.from_url(settings.indexing_quota_redis_url)
-        quota_backend = RedisQuotaBackend(quota_redis, registry=settings.indexing_quota_registry)
+        quota_backend = RedisQuotaBackend(quota_redis, QuotaPolicyRegistry())
     else:
-        quota_backend = InMemoryQuotaBackend()
+        quota_redis = None
+        quota_backend = InMemoryQuotaBackend(QuotaPolicyRegistry())
 
     if settings.indexing_metrics_emitter == "otlp":
         metrics_emitter = OTLPMetricsEmitter()
@@ -234,7 +234,7 @@ if settings.indexing_mode == "async":
   避免 graph worker 压力时 readiness 误判把 API pod 摘流量.
 - ``/health/diagnostics`` (admin only): 深度依赖检查 (PG / Redis / Qdrant).
   独立 endpoint, 用 reserved 极小连接预算 + 严格短超时, 不占主业务 pool.
-  不作 kube probe 触发器, 仅供 oncall / Grafana scrape.
+  不作 kube probe 触发器, 仅供内网 / admin token / 发布脚本使用.
 
 老 ``/health`` endpoint 重定向到 ``/health/live`` 兼容老调用方 (KubeBlocks
 监控等). 新部署的 helm probe 直接用 ``/health/live`` + ``/health/ready``.
@@ -269,19 +269,19 @@ async def diagnostics() -> dict:
     """深度依赖检查, admin only.
     
     用 reserved 极小连接预算 (max 1 PG conn + 1 Redis conn) + 严格 1s timeout,
-    **不占主业务 pool**. 仅供 oncall + Grafana scrape, **不作 kube probe**.
+    **不占主业务 pool**. 仅供内网 / admin token / 发布脚本使用, **不作 kube probe**.
+    实现时必须接入已有鉴权或仅暴露在集群内网；不能把未鉴权的深度依赖探针暴露到公网。
     """
-    from aperag.config import get_settings
+    from aperag.config import get_sync_database_url, settings
     from sqlalchemy import text
 
     result: dict = {"pg": "unknown", "redis": "unknown", "qdrant": "unknown"}
 
-    settings = get_settings()
     # 用独立小预算 engine, 不污染主 pool. 短超时 1s.
     try:
         from sqlalchemy import create_engine
         diag_engine = create_engine(
-            settings.database_url,
+            get_sync_database_url(settings.database_url),
             pool_size=1,
             max_overflow=0,
             pool_timeout=1,
@@ -347,47 +347,43 @@ async def _delete_document_indexes(...):
     # API 请求路径承担 Qdrant / ES / Neo4j / Postgres 的重型 IO
 ```
 
-### 3.4.2 改造方案 (薄 mark + 异步 cleanup)
+### 3.4.2 改造方案 (薄 DB intent + worker 异步 cleanup)
 
 ```python
-# ✅ 改造后: API 只标记 cleanup intent + 入队
-async def _delete_document_indexes(self, document_id: str, ...) -> None:
-    """标记文档为待清理状态 + 入队 cleanup 任务.
-    
-    重型 backend cleanup (向量库 / 全文 / 图谱 lineage / 对象存储) 
-    由 worker cleanup loop 异步执行, **不在 API 请求路径上做**.
-    """
-    async def _mark_for_cleanup(session: AsyncSession) -> None:
-        # 1. UPDATE Document SET status='DELETED' (软删除)
-        await session.execute(
-            update(Document)
-            .where(Document.id == document_id)
-            .values(status=DocumentStatus.DELETED, gmt_deleted=utc_now()),
-        )
-        
-        # 2. INSERT cleanup queue 行 (复用现有 cleanup_queue 表 / 或者
-        #    只标记 status=DELETED, 让现有 cleanup_for_deleted_documents 
-        #    定期扫描)
-    
-    await self.db_ops.execute_with_transaction(_mark_for_cleanup)
-    
-    # 3. 触发 reconciler 周期任务在下一轮 (30s 内) 处理实际 backend cleanup.
-    #    reconciler 会调 cleanup_for_deleted_documents 在 worker 进程异步跑.
-    _trigger_index_reconciliation()
+# ✅ 改造后: API 只写 durable DB intent.
+# DocumentService._delete_document() 已经在外层 transaction 里写:
+#   Document.status = DELETED
+#   Document.gmt_deleted = utc_now()
+# 所以 _delete_document_indexes() 不再嵌套 transaction, 也不再调用
+# cleanup_for_deleted_documents().
+#
+# 重型 cleanup (向量库 / 全文 / 图谱 lineage / object store prefix delete)
+# 全部由 worker cleanup loop 异步执行.
+async def _delete_document_indexes(*, document_id: str) -> None:
+    logger.info(
+        "document=%s marked deleted; backend/object-store cleanup will be picked up by indexing-worker",
+        document_id,
+    )
 ```
 
 ### 3.4.3 reconciler 端补偿
 
-(``aperag/indexing/reconciler.py``) 已有 ``run_cleanup_loop`` 周期扫描 ``Document.status='DELETED'`` 的行 + 调用 ``cleanup_for_deleted_documents``. 该 cleanup loop 现在跑在 **indexing-worker pod 进程**, 不在 API 进程, 满足 hard gate.
+``run_cleanup_loop`` 在 ``aperag/indexing/cleanup.py`` 中运行, task #17 需要补/确认一条 durable scan:
 
-注: 当前 ``run_cleanup_loop`` 在 ``aperag/indexing/cleanup.py`` 里. 改造时需要 verify 现有 cleanup loop 已经覆盖 "API 标记 DELETED → worker 异步 cleanup" 流程, 不需要新增逻辑. 如果有 gap, 在 task #17 同 PR 内补.
+1. 扫 ``Document.status=DELETED`` 或 ``Document.gmt_deleted IS NOT NULL`` 且仍存在 ``DocumentIndex`` 行的 document.
+2. 对这些 document 调用 ``cleanup_for_deleted_documents`` 执行 backend cleanup.
+3. 同一个 worker cleanup 阶段删除 object store prefix（原 API 里的 ``delete_objects_by_prefix``），保证对象存储 IO 也不在 API 请求路径上。
+4. backend/object-store transient failure 时保留 ``DocumentIndex`` 行和 DB intent，下轮继续扫。
+5. Redis cleanup queue 如果后续新增，只能做 wake-up transport；cleanup intent 真源仍然是 DB。
+
+该 cleanup loop 跑在 **indexing-worker pod 进程**, 不在 API 进程, 满足 hard gate。
 
 ### 3.4.4 验收 grep gate
 
-CI grep verify: ``aperag/domains/`` 路径下不能直接调用 ``cleanup_for_deleted_documents`` / ``cleanup_orphan_parse_versions`` / 任何 Qdrant ``delete_by_filter`` / ES ``delete_by_query`` / Neo4j cypher DELETE.
+CI grep verify: ``aperag/domains/`` 路径下不能直接调用 ``cleanup_for_deleted_documents`` / ``cleanup_orphan_parse_versions`` / ``delete_objects_by_prefix`` / 任何 Qdrant ``delete_by_filter`` / ES ``delete_by_query`` / Neo4j cypher DELETE.
 
 ```bash
-grep -rn "cleanup_for_deleted_documents\|cleanup_orphan_parse_versions\|delete_by_filter\|delete_by_query" aperag/domains/
+grep -rn "cleanup_for_deleted_documents\|cleanup_orphan_parse_versions\|delete_objects_by_prefix\|delete_by_filter\|delete_by_query" aperag/domains/
 # 应返回 0 命中 (除文档/注释)
 ```
 
@@ -397,31 +393,15 @@ grep -rn "cleanup_for_deleted_documents\|cleanup_orphan_parse_versions\|delete_b
 
 按 Weston msg=4e74f4f4 第 5 条 + ziang msg=7ff9efd7 第 5 条收紧: **不 hard-code PG max_connections 实际值**, 给配置公式让 ops 按现场 PG 限制配置.
 
-### 3.5.1 ``aperag/config.py`` 改造
+### 3.5.1 应用代码不新增 pool env alias
 
-```python
-# 当前 (单一 pool):
-DB_POOL_SIZE: int = 20  # 老 settings, 单进程
-DB_MAX_OVERFLOW: int = 40
+应用代码继续只读取现有 ``DB_POOL_SIZE`` / ``DB_MAX_OVERFLOW`` / ``DB_POOL_TIMEOUT`` 等字段。
+task #17 不引入 ``API_DB_POOL_SIZE`` / ``INDEXING_WORKER_DB_POOL_SIZE``，也不新增
+``get_engine(role=...)``。原因是 ``aperag/config.py`` 目前在 import 时创建全局
+``async_engine`` / ``sync_engine``，role-based engine 会牵动大量全局调用方。
 
-# 改造后 (按进程类型拆分):
-API_DB_POOL_SIZE: int = 10
-API_DB_MAX_OVERFLOW: int = 10
-INDEXING_WORKER_DB_POOL_SIZE: int = 20
-INDEXING_WORKER_DB_MAX_OVERFLOW: int = 20
-
-# Engine 构造时按 process role 选预算:
-def get_engine(role: str = "api") -> Engine:
-    if role == "api":
-        pool_size = API_DB_POOL_SIZE
-        max_overflow = API_DB_MAX_OVERFLOW
-    elif role == "indexing-worker":
-        pool_size = INDEXING_WORKER_DB_POOL_SIZE
-        max_overflow = INDEXING_WORKER_DB_MAX_OVERFLOW
-    else:
-        raise ValueError(f"unknown role: {role}")
-    return create_engine(database_url, pool_size=pool_size, max_overflow=max_overflow, ...)
-```
+API 与 worker 的差异放在 Helm 层解决：两个 deployment 分别注入不同的
+``DB_POOL_SIZE`` / ``DB_MAX_OVERFLOW``，应用进程内仍然是单一配置模型。
 
 ### 3.5.2 部署预算公式 (写进 helm values 注释)
 
@@ -429,8 +409,8 @@ def get_engine(role: str = "api") -> Engine:
 # deploy/aperag/values.yaml (新加)
 # 
 # PostgreSQL 连接预算公式:
-#   sum_per_role = api_replicas * (API_DB_POOL_SIZE + API_DB_MAX_OVERFLOW)
-#                + indexing_worker_replicas * (INDEXING_WORKER_DB_POOL_SIZE + INDEXING_WORKER_DB_MAX_OVERFLOW)
+#   sum_per_role = api_replicas * (api.dbPoolSize + api.dbMaxOverflow)
+#                + indexing_worker_replicas * (indexingWorker.dbPoolSize + indexingWorker.dbMaxOverflow)
 #                + rollout_surge_budget (= max(api_replicas, worker_replicas) * (POOL + OVERFLOW))
 #                + diagnostics_reserved (= 5 per pod)
 #   
@@ -451,15 +431,13 @@ def get_engine(role: str = "api") -> Engine:
 
 api:
   replicas: 2
-  env:
-    API_DB_POOL_SIZE: "10"
-    API_DB_MAX_OVERFLOW: "10"
+  dbPoolSize: 10
+  dbMaxOverflow: 10
 
 indexingWorker:
   replicas: 1
-  env:
-    INDEXING_WORKER_DB_POOL_SIZE: "20"
-    INDEXING_WORKER_DB_MAX_OVERFLOW: "20"
+  dbPoolSize: 20
+  dbMaxOverflow: 20
 ```
 
 ---
@@ -499,14 +477,11 @@ spec:
           env:
             # 共享 ConfigMap / Secret 配置 (DB / Redis / Qdrant URL 等)
             {{- include "aperag.commonEnv" . | nindent 12 }}
-            # worker 独立连接池预算
-            - name: INDEXING_WORKER_DB_POOL_SIZE
+            # worker 独立连接池预算：Helm 值映射到应用现有 env，不新增应用层 alias
+            - name: DB_POOL_SIZE
               value: {{ .Values.indexingWorker.dbPoolSize | default "20" | quote }}
-            - name: INDEXING_WORKER_DB_MAX_OVERFLOW
+            - name: DB_MAX_OVERFLOW
               value: {{ .Values.indexingWorker.dbMaxOverflow | default "20" | quote }}
-            # 标记 process role, get_engine() 据此选预算
-            - name: APERAG_PROCESS_ROLE
-              value: "indexing-worker"
           resources:
             {{- toYaml .Values.indexingWorker.resources | nindent 12 }}
           # liveness probe: 进程级 (检查 python -m aperag.cli.indexing_worker 还在跑)
@@ -585,7 +560,7 @@ readinessProbe:
 2. ``tests/integration/test_indexing_worker_startup.py``: ``python -m aperag.cli.indexing_worker`` 启动后, 10 个 task 都跑.
 3. ``tests/integration/test_health_endpoints.py``: ``/health/live`` 永远 200 / ``/health/ready`` 永远 200 (不查重型依赖) / ``/health/diagnostics`` admin only + 隔离连接池.
 4. ``tests/integration/test_api_no_cleanup_in_request_path.py``: grep verify ``aperag/domains/`` 不直接调 ``cleanup_*`` / ``delete_by_*`` (CI gate).
-5. ``tests/integration/test_pool_budget_per_role.py``: ``get_engine(role="api")`` 跟 ``get_engine(role="indexing-worker")`` 返回不同 pool size.
+5. ``tests/integration/test_pool_budget_helm_values.py``: Helm 渲染后 API 与 indexing-worker deployment 分别注入不同 ``DB_POOL_SIZE`` / ``DB_MAX_OVERFLOW``，应用代码不新增 pool env alias.
 
 ### 3.7.2 现有 17 单测全继承
 
