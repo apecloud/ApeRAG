@@ -154,9 +154,7 @@ def test_allowed_scenarios_default_by_capability():
     assert default_allowed_scenarios(ModelCapability.EMBEDDING) == [
         ModelUseScenario.COLLECTION_EMBEDDING,
     ]
-    assert default_allowed_scenarios(ModelCapability.RERANK) == [
-        ModelUseScenario.RETRIEVAL_RERANK,
-    ]
+    assert default_allowed_scenarios(ModelCapability.RERANK) == []
 
 
 def test_allowed_scenarios_missing_key_uses_default_but_empty_list_is_explicit():

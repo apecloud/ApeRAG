@@ -43,7 +43,6 @@ class ModelUseScenario(str, Enum):
     AGENT_CHAT = "agent_chat"
     COLLECTION_COMPLETION = "collection_completion"
     COLLECTION_EMBEDDING = "collection_embedding"
-    RETRIEVAL_RERANK = "retrieval_rerank"
     BACKGROUND_TASK = "background_task"
 
 

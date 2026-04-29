@@ -61,7 +61,6 @@ async def vector_search(
     *,
     top_k: int = 5,
     similarity_threshold: float | None = None,
-    rerank: bool = True,
 ) -> Dict[str, Any]:
     """Vector similarity search within a collection (§B.1).
 
@@ -95,7 +94,6 @@ async def vector_search(
         top_k: Maximum number of results to return (default: 5).
         similarity_threshold: Minimum similarity score [0, 1]; ``None``
             uses the collection's default threshold.
-        rerank: Whether to apply reranker on returned candidates (default: True).
 
     Returns:
         Search results with ``items`` ranked by vector similarity. Each
@@ -110,7 +108,6 @@ async def vector_search(
 
         search_data: Dict[str, Any] = {
             "query": query,
-            "rerank": rerank,
             "vector_search": vector_payload,
         }
 

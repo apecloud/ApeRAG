@@ -36,14 +36,13 @@ CAPABILITY_SCENARIOS: dict[ModelCapability, tuple[ModelUseScenario, ...]] = {
         ModelUseScenario.BACKGROUND_TASK,
     ),
     ModelCapability.EMBEDDING: (ModelUseScenario.COLLECTION_EMBEDDING,),
-    ModelCapability.RERANK: (ModelUseScenario.RETRIEVAL_RERANK,),
+    ModelCapability.RERANK: (),
 }
 
 SCENARIO_CAPABILITY: dict[ModelUseScenario, ModelCapability] = {
     ModelUseScenario.AGENT_CHAT: ModelCapability.CHAT,
     ModelUseScenario.COLLECTION_COMPLETION: ModelCapability.CHAT,
     ModelUseScenario.COLLECTION_EMBEDDING: ModelCapability.EMBEDDING,
-    ModelUseScenario.RETRIEVAL_RERANK: ModelCapability.RERANK,
     ModelUseScenario.BACKGROUND_TASK: ModelCapability.CHAT,
 }
 

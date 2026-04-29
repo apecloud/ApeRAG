@@ -59,7 +59,6 @@ async def fulltext_search(
     *,
     top_k: int = 5,
     keywords: list[str] | None = None,
-    rerank: bool = True,
 ) -> Dict[str, Any]:
     """Full-text keyword search within a collection (§B.3).
 
@@ -92,8 +91,6 @@ async def fulltext_search(
         top_k: Maximum number of results to return (default: 5).
         keywords: Optional explicit keyword list overriding the
             auto-extracted keywords from the query.
-        rerank: Whether to apply reranker on returned candidates
-            (default: True).
 
     Returns:
         Search results with ``items`` carrying ``recall_type =
@@ -109,7 +106,6 @@ async def fulltext_search(
 
         search_data: Dict[str, Any] = {
             "query": query,
-            "rerank": rerank,
             "fulltext_search": fulltext_payload,
         }
 
