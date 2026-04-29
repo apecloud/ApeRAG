@@ -34,7 +34,7 @@ if [[ "${E2E_K8S_USE_PORT_FORWARD:-1}" == "1" ]]; then
 fi
 
 for ((i = 1; i <= E2E_HEALTH_ATTEMPTS; i++)); do
-  if curl --silent --show-error --fail "${E2E_BASE_URL}/health" >/dev/null; then
+  if curl --silent --show-error --fail "${E2E_BASE_URL}/health/ready" >/dev/null; then
     echo "K8s runner ready at ${E2E_BASE_URL}"
     exit 0
   fi

@@ -236,8 +236,9 @@ if settings.indexing_mode == "async":
   独立 endpoint, 用 reserved 极小连接预算 + 严格短超时, 不占主业务 pool.
   不作 kube probe 触发器, 仅供内网 / admin token / 发布脚本使用.
 
-老 ``/health`` endpoint 重定向到 ``/health/live`` 兼容老调用方 (KubeBlocks
-监控等). 新部署的 helm probe 直接用 ``/health/live`` + ``/health/ready``.
+老 ``/health`` endpoint 保持原 payload 并直接返回 200，兼容老调用方 (KubeBlocks
+监控等)，避免不跟随 307 redirect 的探针误判。新部署的 helm probe 直接用
+``/health/live`` + ``/health/ready``.
 """
 
 from fastapi import APIRouter, Response, status
@@ -308,18 +309,18 @@ async def diagnostics() -> dict:
     return result
 
 
-# 老 ``/health`` 重定向到 ``/health/live``, 兼容老 helm probe 配置.
-@router.get("/health", tags=["health"])
+# 老 ``/health`` 保持原 payload 并直接 200, 兼容老 helm probe 配置.
+@router.get("", tags=["health"])
 async def legacy_health() -> dict:
-    """Legacy endpoint → ``/health/live``. 老 helm 配置兼容."""
-    return await liveness()
+    """Legacy endpoint. 老 helm 配置兼容."""
+    return {"status": "healthy", "service": "aperag-api"}
 ```
 
 API ``app.py`` 注册 router:
 
 ```python
 from aperag.server.health import router as health_router
-app.include_router(health_router)
+app.include_router(health_router, prefix="/health")
 ```
 
 helm probe 配置 (新):
@@ -546,7 +547,8 @@ readinessProbe:
   failureThreshold: 3
 ```
 
-老 ``/health`` 通过 ``aperag/server/health.py`` 的 redirect 兼容 (回避 helm 旧配置缓存导致 break).
+老 ``/health`` 通过 ``aperag/server/health.py`` 保持原响应并直接 200 兼容
+(回避不跟随 redirect 的老探针配置导致 break).
 
 ---
 
@@ -587,8 +589,8 @@ PR #1871 / #1875 / #1876 / #1877 / #1879 ship 的 17 个新单测 (graph state m
 3. **删除** ``aperag/app.py`` 内的 ``indexing_runtime_tasks`` list + ``indexing_shutdown`` event + shutdown 时的 ``asyncio.gather(*tasks)``.
 4. **不**保留 ``ENABLE_INDEXING_WORKERS=False`` 类 conditional flag — 不留双模式.
 5. **不**保留 ``aperag.indexing.runtime`` 内的 worker_factory injection (改成只 wire enqueue).
-6. helm 老 ``/health`` probe 路径通过 ``aperag/server/health.py`` redirect 兼容, 但 helm template **直接更新成** ``/health/live`` + ``/health/ready`` (不留模板分支).
-7. **删除** 老 ``/health`` endpoint 在 ``aperag/app.py:568-571`` 的 inline 定义 (移到 ``aperag/server/health.py``, 仅作 redirect).
+6. helm 老 ``/health`` probe 路径通过 ``aperag/server/health.py`` 直接 200 兼容, 但 helm template **直接更新成** ``/health/live`` + ``/health/ready`` (不留模板分支).
+7. **删除** 老 ``/health`` endpoint 在 ``aperag/app.py:568-571`` 的 inline 定义 (移到 ``aperag/server/health.py``, 仅作兼容入口).
 
 ---
 
@@ -619,7 +621,7 @@ PR #1871 / #1875 / #1876 / #1877 / #1879 ship 的 17 个新单测 (graph state m
 ### 3.10.1 风险
 
 1. ``run_graph_worker`` 兼容期保留 — 如果生产没有老 GRAPH 模态行, 启动它是无害但浪费. 后续 spec 单列删除.
-2. helm 老 ``/health`` probe 仍指向老路径的旧部署版本 — ``aperag/server/health.py`` 通过 redirect 兼容.
+2. helm 老 ``/health`` probe 仍指向老路径的旧部署版本 — ``aperag/server/health.py`` 通过直接 200 兼容.
 3. PG 连接数公式可能跟现场 KubeBlocks Postgres 限制不匹配 — values 注释里给公式, ops 调整 pool / replica.
 4. cleanup 路径迁出后, API ``DELETE /document/{id}`` 响应时间会变快 (不再同步 cleanup), 但 cleanup 完成时延变长 (受 reconciler 30s 周期影响). 接受 short-term 用户感知差异 — 用户期待是"删除提交即可", 不期待"删除立刻持久化".
 

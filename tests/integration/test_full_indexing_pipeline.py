@@ -505,8 +505,8 @@ async def _run_phase1_workers_until_quiet(
     Returns a dict keyed by Modality with the final row state.
 
     Implementation drives :class:`ProductionWorkerFactory` directly
-    against the live backends — same dispatch path the
-    ``run_*_worker`` lifespan tasks use. Each modality is processed
+    against the live backends — same dispatch path the indexing-worker
+    CLI uses. Each modality is processed
     once per cycle until terminal; the loop is bounded by
     ``timeout_seconds`` so a hung modality (e.g. unreachable Qdrant)
     fails the test loud rather than blocking forever.
@@ -636,7 +636,7 @@ def test_phase1_full_pipeline_vector_fulltext_summary_active_graph_vision_failed
             runtime = get_runtime()
             assert runtime is not None and runtime.queue is not None, (
                 "Phase 1 Layer 2 requires a live IndexingRuntime — the e2e-http-compose "
-                "lane bootstraps it via FastAPI lifespan; ensure the test runs against "
+                "lane bootstraps it via the indexing-worker CLI; ensure the test runs against "
                 "the live API process."
             )
             await dispatch_indexing(
@@ -655,7 +655,7 @@ def test_phase1_full_pipeline_vector_fulltext_summary_active_graph_vision_failed
             )
 
             # Drive the pool inline so the test does not depend on the
-            # lifespan worker tasks racing with the assertion.
+            # worker CLI tasks racing with the assertion.
             finalised = await _run_phase1_workers_until_quiet(
                 engine=engine,
                 document_id=document_id,

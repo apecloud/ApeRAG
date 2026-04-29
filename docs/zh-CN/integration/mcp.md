@@ -22,7 +22,7 @@ ApeRAG 内置了一个 [Model Context Protocol (MCP)](https://modelcontextprotoc
 默认部署无需额外配置即可启用 MCP：
 
 - **Docker Compose**：`docker-compose up -d` 即可，`api` 服务的 `8000:8000` 端口同时暴露 REST API 和 MCP Server。
-- **健康检查**：`curl http://localhost:8000/health` 正常即说明主进程和 MCP 子挂载都已启动。
+- **健康检查**：`curl http://localhost:8000/health/ready` 正常即说明主进程 HTTP 入口和 MCP 子挂载都已启动；`/health` 保留为旧探针兼容入口。
 - **关闭 MCP**：目前没有提供关闭开关；MCP Server 与主进程共生。
 
 可选环境变量：

@@ -4,7 +4,7 @@ This runner is the first convenience launcher for the HTTP E2E suite.
 
 Responsibilities:
 - start the ApeRAG environment
-- wait for `GET /health`
+- wait for `GET /health/ready`
 - leave execution of bootstrap and Hurl requests to other layers
 
 Non-responsibilities:
