@@ -76,6 +76,16 @@ export E2E_OPENROUTER_API_KEY=...
 ./tests/e2e_http/scripts/run_compose_full.sh
 ```
 
+Provider-aware local flow for a named deployment shape:
+
+```bash
+export E2E_ALIBABACLOUD_API_KEY=...
+export E2E_OPENROUTER_API_KEY=...
+make test-http-full-compose-lite
+make test-http-full-compose-qdrant-nebula
+make test-http-full-compose-qdrant-neo4j
+```
+
 Typical local flow against a Kubernetes-backed environment:
 
 ```bash
