@@ -1,5 +1,4 @@
 'use client';
-import { Markdown } from '@/components/markdown';
 import {
   Drawer,
   DrawerContent,
@@ -9,7 +8,16 @@ import {
 } from '@/components/ui/drawer';
 import type { AuditLog } from '@/features/audit/types';
 import { useFormatter, useTranslations } from 'next-intl';
+import dynamic from 'next/dynamic';
 import { useMemo } from 'react';
+
+// Markdown 携带 remark/rehype/highlight 等共享大包. 只有 drawer 打开后才需要
+// 渲染 request_data / response_data 的 JSON 代码块, 拆 dynamic chunk 把
+// 它从 audit-logs 路由首屏 bundle 中移走.
+const Markdown = dynamic(
+  () => import('@/components/markdown').then((m) => ({ default: m.Markdown })),
+  { ssr: false, loading: () => null },
+);
 
 export const AuditLogDetail = ({
   auditLog,
