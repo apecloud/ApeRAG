@@ -23,12 +23,16 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   # ───────────────────────────────────────────────────────
   # Job 1: Graph store compatibility (PG always, Neo4j/Nebula opt-in)
   # ───────────────────────────────────────────────────────
   graph-compat:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -172,6 +176,7 @@ jobs:
   # ───────────────────────────────────────────────────────
   vector-compat:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
