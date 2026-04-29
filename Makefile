@@ -54,7 +54,8 @@ help:
 	@printf "  make test-http-smoke-compose / test-http-full-compose\n"
 	@printf "  make test-http-smoke-compose-{lite,qdrant-neo4j,qdrant-nebula}   (per-shape shortcuts)\n"
 	@printf "  make test-http-up-k8s / test-http-down-k8s\n"
-	@printf "  make test-http-smoke-k8s / test-http-full-k8s\n\n"
+	@printf "  make test-http-smoke-k8s / test-http-full-k8s\n"
+	@printf "  make benchmark-graph-extraction   Run manual OpenRouter KG extraction benchmark\n\n"
 	@printf "Build / API\n"
 	@printf "  make openapi-generate     Export code-first OpenAPI specs\n"
 	@printf "  make openapi-check        Verify code-first OpenAPI export\n"
@@ -207,7 +208,7 @@ static-check:
 	uvx mypy ./aperag
 
 # Testing suite
-.PHONY: test-all test-unit test-integration test-e2e test-e2e-perf \
+.PHONY: test-all test-unit test-integration test-e2e test-e2e-perf benchmark-graph-extraction \
 	test-http-bootstrap test-http-smoke test-http-full \
 	test-http-up-compose test-http-down-compose test-http-smoke-compose test-http-full-compose \
 	test-http-smoke-compose-lite test-http-smoke-compose-qdrant-neo4j test-http-smoke-compose-qdrant-nebula \
@@ -263,6 +264,17 @@ test-e2e-perf:
 		--benchmark-storage=tests/report \
 		--benchmark-save=benchmark-result-$$(date +%Y%m%d%H%M%S) \
 		tests/e2e_pytest/
+
+benchmark-graph-extraction:
+	@RESPONSE_FORMAT_ARG=""; \
+	if [ "$${RESPONSE_FORMAT_JSON:-}" = "1" ]; then \
+		RESPONSE_FORMAT_ARG="--response-format-json"; \
+	fi; \
+	uv run python tests/benchmarks/graph_extraction/runner.py \
+		$${MODELS:+--models "$${MODELS}"} \
+		$${CONCURRENCY:+--concurrency "$${CONCURRENCY}"} \
+		$${ATTEMPTS:+--attempts "$${ATTEMPTS}"} \
+		$${RESPONSE_FORMAT_ARG}
 
 test-http-bootstrap:
 	@./tests/e2e_http/bootstrap/bootstrap.sh
