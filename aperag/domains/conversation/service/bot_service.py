@@ -101,6 +101,17 @@ class BotService:
             if not collections or len(collections) != len(collection_ids):
                 raise ResourceNotFoundException("Collection", collection_ids)
 
+    async def validate_agent_model(self, user: str, bot_config: BotConfig):
+        completion = bot_config.agent.completion if bot_config and bot_config.agent else None
+        if not completion or not completion.model_id:
+            return
+        from aperag.domains.model_platform.schemas import ModelUseScenario
+        from aperag.domains.model_platform.service.model_service import model_platform_service
+
+        await model_platform_service.ensure_model_allowed_for_scenario(
+            user, completion.model_id, ModelUseScenario.AGENT_CHAT
+        )
+
     async def create_bot(self, user: str, bot_in: BotCreate, skip_quota_check: bool = False) -> Bot:
         bot_type = bot_in.type or BotType.AGENT
         if bot_type != BotType.AGENT:
@@ -111,6 +122,7 @@ class BotService:
                 await _get_quota_ops().check_and_consume_quota(user, "max_bot_count", 1, session)
 
             await self.validate_collections(user, bot_in.config)
+            await self.validate_agent_model(user, bot_in.config)
 
             config_str = "{}"
             if bot_in.config:
@@ -164,6 +176,7 @@ class BotService:
             new_config_str = json.dumps(bot_in.config.model_dump(exclude_none=True))
 
         await self.validate_collections(user, bot_in.config)
+        await self.validate_agent_model(user, bot_in.config)
 
         async def _update_bot_atomically(session):
             from sqlalchemy import select

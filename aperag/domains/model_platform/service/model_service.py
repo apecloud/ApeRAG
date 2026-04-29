@@ -19,8 +19,104 @@ from aperag.domains.model_platform.schemas import (
     ModelUseUpdate,
     ModelValidationResponse,
 )
-from aperag.exceptions import PermissionDeniedError, ResourceNotFoundException
+from aperag.exceptions import PermissionDeniedError, ResourceNotFoundException, ValidationException
 from aperag.llm.runtime.resolver import infer_runner_type
+
+ALLOWED_SCENARIOS_EXTRA_KEY = "allowed_scenarios"
+
+CAPABILITY_SCENARIOS: dict[ModelCapability, tuple[ModelUseScenario, ...]] = {
+    ModelCapability.CHAT: (
+        ModelUseScenario.AGENT_CHAT,
+        ModelUseScenario.COLLECTION_COMPLETION,
+        ModelUseScenario.BACKGROUND_TASK,
+    ),
+    ModelCapability.COMPLETION: (
+        ModelUseScenario.AGENT_CHAT,
+        ModelUseScenario.COLLECTION_COMPLETION,
+        ModelUseScenario.BACKGROUND_TASK,
+    ),
+    ModelCapability.EMBEDDING: (ModelUseScenario.COLLECTION_EMBEDDING,),
+    ModelCapability.RERANK: (ModelUseScenario.RETRIEVAL_RERANK,),
+}
+
+SCENARIO_CAPABILITY: dict[ModelUseScenario, ModelCapability] = {
+    ModelUseScenario.AGENT_CHAT: ModelCapability.CHAT,
+    ModelUseScenario.COLLECTION_COMPLETION: ModelCapability.CHAT,
+    ModelUseScenario.COLLECTION_EMBEDDING: ModelCapability.EMBEDDING,
+    ModelUseScenario.RETRIEVAL_RERANK: ModelCapability.RERANK,
+    ModelUseScenario.BACKGROUND_TASK: ModelCapability.CHAT,
+}
+
+
+def _capability_value(capability) -> str:
+    return capability.value if hasattr(capability, "value") else str(capability)
+
+
+def _scenario_value(scenario) -> str:
+    return scenario.value if hasattr(scenario, "value") else str(scenario)
+
+
+def _normalise_capability(capability) -> ModelCapability:
+    if isinstance(capability, ModelCapability):
+        return capability
+    return ModelCapability(str(capability))
+
+
+def _normalise_scenario(scenario) -> ModelUseScenario:
+    if isinstance(scenario, ModelUseScenario):
+        return scenario
+    return ModelUseScenario(str(scenario))
+
+
+def default_allowed_scenarios(capability) -> list[ModelUseScenario]:
+    """Return the backward-compatible scenario set for models without explicit configuration."""
+    return list(CAPABILITY_SCENARIOS[_normalise_capability(capability)])
+
+
+def allowed_scenarios_for_model(model) -> list[ModelUseScenario]:
+    extra = model.extra or {}
+    raw = extra.get(ALLOWED_SCENARIOS_EXTRA_KEY)
+    if raw is None:
+        return default_allowed_scenarios(model.capability)
+    scenarios: list[ModelUseScenario] = []
+    for item in raw:
+        try:
+            scenario = _normalise_scenario(item)
+        except ValueError as exc:
+            raise ValidationException(f"Unknown model scenario '{item}'") from exc
+        if scenario not in scenarios:
+            scenarios.append(scenario)
+    return scenarios
+
+
+def _validate_allowed_scenarios(capability, scenarios: list[ModelUseScenario] | None) -> list[str] | None:
+    if scenarios is None:
+        return None
+    model_capability = _normalise_capability(capability)
+    valid_scenarios = set(CAPABILITY_SCENARIOS[model_capability])
+    normalised: list[ModelUseScenario] = []
+    for item in scenarios:
+        scenario = _normalise_scenario(item)
+        if scenario not in valid_scenarios:
+            raise ValidationException(
+                f"Scenario '{scenario.value}' is not valid for model capability '{model_capability.value}'"
+            )
+        if scenario not in normalised:
+            normalised.append(scenario)
+    return [scenario.value for scenario in normalised]
+
+
+def _model_extra_with_allowed_scenarios(
+    extra: dict | None,
+    capability,
+    scenarios: list[ModelUseScenario] | None,
+) -> dict:
+    next_extra = dict(extra or {})
+    allowed = _validate_allowed_scenarios(capability, scenarios)
+    if allowed is not None:
+        next_extra[ALLOWED_SCENARIOS_EXTRA_KEY] = allowed
+    return next_extra
+
 
 BUILTIN_PROVIDERS = [
     ModelProvider(
@@ -105,6 +201,7 @@ def _model_to_schema(model) -> Model:
         supports_tool_calling=model.supports_tool_calling,
         supports_multimodal_embedding=getattr(model, "supports_multimodal_embedding", False) or False,
         status=model.status,
+        allowed_scenarios=allowed_scenarios_for_model(model),
         extra=model.extra or {},
         created=model.gmt_created,
         updated=model.gmt_updated,
@@ -150,6 +247,26 @@ def _normalise_provider_type(value: str | None) -> str | None:
 
 
 class ModelPlatformService:
+    async def ensure_model_allowed_for_scenario(
+        self, user_id: str, model_id: str | None, scenario: ModelUseScenario | str
+    ) -> None:
+        if not model_id:
+            return
+        model = await async_db_ops.query_model(model_id, user_id)
+        if model is None:
+            raise ResourceNotFoundException("Model", model_id)
+        expected_capability = SCENARIO_CAPABILITY[_normalise_scenario(scenario)]
+        model_capability = _normalise_capability(model.capability)
+        if model_capability != expected_capability:
+            raise ValidationException(
+                f"Model '{model_id}' capability '{model_capability.value}' cannot be used for scenario "
+                f"'{_scenario_value(scenario)}'"
+            )
+        allowed = allowed_scenarios_for_model(model)
+        normalised_scenario = _normalise_scenario(scenario)
+        if normalised_scenario not in allowed:
+            raise ValidationException(f"Model '{model_id}' is not allowed for scenario '{normalised_scenario.value}'")
+
     async def list_providers(self) -> ModelProviderList:
         providers = await async_db_ops.query_model_providers()
         return ModelProviderList(items=[_provider_to_schema(provider) for provider in providers] or BUILTIN_PROVIDERS)
@@ -249,8 +366,20 @@ class ModelPlatformService:
             raise ResourceNotFoundException("ModelAccount", account_id)
         return ModelValidationResponse(ok=bool(account), message=None if account else "Model account not found")
 
-    async def list_models(self, user_id: str, account_id: str | None = None) -> ModelList:
+    async def list_models(
+        self,
+        user_id: str,
+        account_id: str | None = None,
+        capability: ModelCapability | None = None,
+        scenario: ModelUseScenario | None = None,
+    ) -> ModelList:
         models = await async_db_ops.query_models(user_id=user_id, account_id=account_id)
+        if scenario is not None:
+            capability = SCENARIO_CAPABILITY[scenario]
+        if capability is not None:
+            models = [model for model in models if _normalise_capability(model.capability) == capability]
+        if scenario is not None:
+            models = [model for model in models if scenario in allowed_scenarios_for_model(model)]
         return ModelList(items=[_model_to_schema(model) for model in models])
 
     async def create_model(self, user_id: str, request: ModelCreate) -> Model:
@@ -265,11 +394,50 @@ class ModelPlatformService:
         )
         payload = request.model_dump()
         payload.pop("runner_type", None)
+        allowed_scenarios = payload.pop("allowed_scenarios", None)
+        if allowed_scenarios is None and ALLOWED_SCENARIOS_EXTRA_KEY in payload.get("extra", {}):
+            allowed_scenarios = payload["extra"][ALLOWED_SCENARIOS_EXTRA_KEY]
+        payload["extra"] = _model_extra_with_allowed_scenarios(
+            payload.get("extra"),
+            request.capability,
+            allowed_scenarios,
+        )
         model = await async_db_ops.create_model(user_id=user_id, runner_type=runner_type, **payload)
         return _model_to_schema(model)
 
     async def update_model(self, model_id: str, user_id: str, request: ModelUpdate) -> Model:
-        model = await async_db_ops.update_model(model_id, user_id, request.model_dump(exclude_unset=True))
+        payload = request.model_dump(exclude_unset=True)
+        if "allowed_scenarios" in payload:
+            existing = await async_db_ops.query_model(model_id, user_id)
+            if existing is None:
+                raise ResourceNotFoundException("Model", model_id)
+            capability = payload.get("capability") or existing.capability
+            extra = dict(existing.extra or {})
+            if payload.get("extra"):
+                extra.update(payload["extra"])
+            payload["extra"] = _model_extra_with_allowed_scenarios(
+                extra,
+                capability,
+                payload.pop("allowed_scenarios"),
+            )
+        elif "capability" in payload:
+            extra = payload.get("extra")
+            if extra and ALLOWED_SCENARIOS_EXTRA_KEY in extra:
+                payload["extra"] = _model_extra_with_allowed_scenarios(
+                    extra,
+                    payload["capability"],
+                    extra[ALLOWED_SCENARIOS_EXTRA_KEY],
+                )
+        elif payload.get("extra") and ALLOWED_SCENARIOS_EXTRA_KEY in payload["extra"]:
+            existing = await async_db_ops.query_model(model_id, user_id)
+            if existing is None:
+                raise ResourceNotFoundException("Model", model_id)
+            payload["extra"] = _model_extra_with_allowed_scenarios(
+                payload["extra"],
+                existing.capability,
+                payload["extra"][ALLOWED_SCENARIOS_EXTRA_KEY],
+            )
+        model = await async_db_ops.update_model(model_id, user_id, payload)
         if model is None:
             raise ResourceNotFoundException("Model", model_id)
         return _model_to_schema(model)
@@ -283,15 +451,10 @@ class ModelPlatformService:
         return ModelUseList(items=[_model_use_to_schema(item) for item in uses])
 
     async def update_model_use(self, user_id: str, scenario: ModelUseScenario, request: ModelUseUpdate) -> ModelUse:
-        capability_by_scenario = {
-            ModelUseScenario.AGENT_CHAT: ModelCapability.CHAT,
-            ModelUseScenario.COLLECTION_COMPLETION: ModelCapability.CHAT,
-            ModelUseScenario.COLLECTION_EMBEDDING: ModelCapability.EMBEDDING,
-            ModelUseScenario.RETRIEVAL_RERANK: ModelCapability.RERANK,
-            ModelUseScenario.BACKGROUND_TASK: ModelCapability.CHAT,
-        }
+        for model_id in [request.primary_model_id, *request.fallback_model_ids]:
+            await self.ensure_model_allowed_for_scenario(user_id, model_id, scenario)
         payload = request.model_dump()
-        payload["capability"] = capability_by_scenario[scenario].value
+        payload["capability"] = SCENARIO_CAPABILITY[scenario].value
         item = await async_db_ops.upsert_model_use(user_id, scenario.value, payload)
         return _model_use_to_schema(item)
 

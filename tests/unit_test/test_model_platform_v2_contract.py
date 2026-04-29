@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 from fastapi import FastAPI
 
 from aperag.domains.model_platform.api.providers_v2_routes import router
@@ -6,7 +8,13 @@ from aperag.domains.model_platform.schemas import (
     ModelCapability,
     ModelCreate,
     ModelProvider,
+    ModelUpdate,
     ModelUseScenario,
+)
+from aperag.domains.model_platform.service.model_service import (
+    _model_extra_with_allowed_scenarios,
+    allowed_scenarios_for_model,
+    default_allowed_scenarios,
 )
 from aperag.openapi_spec import build_full_openapi_spec, custom_generate_unique_id, filter_public_openapi
 
@@ -119,3 +127,75 @@ def test_model_v2_openapi_exposes_supports_multimodal_embedding():
         assert "supports_multimodal_embedding" in properties, (
             f"{schema_name} missing supports_multimodal_embedding capability flag"
         )
+
+
+def test_model_v2_openapi_exposes_allowed_scenarios():
+    """Scenario allowlists are an API-level model property even though the
+    MVP stores them under ``Model.extra`` for DB compatibility."""
+    spec = _provider_v2_spec()
+    schemas = spec["components"]["schemas"]
+
+    for schema_name in ("Model", "ModelCreate", "ModelUpdate"):
+        assert schema_name in schemas, f"{schema_name} schema missing from v2 OpenAPI"
+        properties = schemas[schema_name].get("properties", {})
+        assert "allowed_scenarios" in properties, f"{schema_name} missing allowed_scenarios"
+
+    parameters = spec["paths"]["/api/v2/models"]["get"].get("parameters", [])
+    assert any(parameter.get("name") == "scenario" for parameter in parameters)
+    assert any(parameter.get("name") == "capability" for parameter in parameters)
+
+
+def test_allowed_scenarios_default_by_capability():
+    assert default_allowed_scenarios(ModelCapability.CHAT) == [
+        ModelUseScenario.AGENT_CHAT,
+        ModelUseScenario.COLLECTION_COMPLETION,
+        ModelUseScenario.BACKGROUND_TASK,
+    ]
+    assert default_allowed_scenarios(ModelCapability.EMBEDDING) == [
+        ModelUseScenario.COLLECTION_EMBEDDING,
+    ]
+    assert default_allowed_scenarios(ModelCapability.RERANK) == [
+        ModelUseScenario.RETRIEVAL_RERANK,
+    ]
+
+
+def test_allowed_scenarios_missing_key_uses_default_but_empty_list_is_explicit():
+    model_without_key = SimpleNamespace(capability=ModelCapability.CHAT, extra={"owner": "kept"})
+    model_with_empty_allowlist = SimpleNamespace(
+        capability=ModelCapability.CHAT,
+        extra={"allowed_scenarios": []},
+    )
+
+    assert allowed_scenarios_for_model(model_without_key) == [
+        ModelUseScenario.AGENT_CHAT,
+        ModelUseScenario.COLLECTION_COMPLETION,
+        ModelUseScenario.BACKGROUND_TASK,
+    ]
+    assert allowed_scenarios_for_model(model_with_empty_allowlist) == []
+
+
+def test_model_create_and_update_accept_allowed_scenarios_without_extra_coupling():
+    create = ModelCreate(
+        account_id="acct_1",
+        provider_model_id="qwen/qwen3-30b-a3b-instruct-2507",
+        display_name="Qwen3 30B",
+        capability=ModelCapability.CHAT,
+        allowed_scenarios=[ModelUseScenario.COLLECTION_COMPLETION],
+    )
+    update = ModelUpdate(allowed_scenarios=[ModelUseScenario.BACKGROUND_TASK])
+
+    assert create.model_dump()["allowed_scenarios"] == [ModelUseScenario.COLLECTION_COMPLETION]
+    assert update.model_dump(exclude_unset=True)["allowed_scenarios"] == [ModelUseScenario.BACKGROUND_TASK]
+    assert "allowed_scenarios" not in create.extra
+
+
+def test_allowed_scenarios_patch_preserves_other_extra_keys():
+    extra = _model_extra_with_allowed_scenarios(
+        {"owner": "ops", "notes": {"tier": "prod"}},
+        ModelCapability.CHAT,
+        [ModelUseScenario.COLLECTION_COMPLETION],
+    )
+
+    assert extra["owner"] == "ops"
+    assert extra["notes"] == {"tier": "prod"}
+    assert extra["allowed_scenarios"] == [ModelUseScenario.COLLECTION_COMPLETION.value]
