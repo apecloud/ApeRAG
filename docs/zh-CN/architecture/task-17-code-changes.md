@@ -207,8 +207,8 @@ if settings.indexing_mode == "async":
 
 ```python
 # ❌ 删除从 aperag.indexing 的 import:
-# - run_vector_worker / run_fulltext_worker / run_graph_worker / 
-#   run_graph_facts_worker / run_graph_vectors_worker / 
+# - run_vector_worker / run_fulltext_worker / run_graph_worker /
+#   run_graph_facts_worker / run_graph_vectors_worker /
 #   run_summary_worker / run_vision_worker
 # - run_parse_worker
 # - run_reconcile_loop / run_cleanup_loop
@@ -248,7 +248,7 @@ router = APIRouter()
 @router.get("/health/live", tags=["health"])
 async def liveness() -> dict:
     """Liveness probe: 进程活着即返回 200.
-    
+
     不查任何上游. kubelet 杀 pod 的唯一依据是这个 endpoint 不响应.
     """
     return {"status": "alive"}
@@ -257,7 +257,7 @@ async def liveness() -> dict:
 @router.get("/health/ready", tags=["health"])
 async def readiness() -> dict:
     """Readiness probe: HTTP 入口可接受请求.
-    
+
     **不查 DB / Redis / Qdrant** — 避免 kube probe 变成连接数放大器.
     业务依赖故障应该体现在请求路径里 (5xx + retry), 不应让 readiness 摘流量.
     """
@@ -267,7 +267,7 @@ async def readiness() -> dict:
 @router.get("/health/diagnostics", tags=["health"], include_in_schema=False)
 async def diagnostics() -> dict:
     """深度依赖检查, admin only.
-    
+
     用 reserved 极小连接预算 (max 1 PG conn + 1 Redis conn) + 严格 1s timeout,
     **不占主业务 pool**. 仅供内网 / admin token / 发布脚本使用, **不作 kube probe**.
     实现时必须接入已有鉴权或仅暴露在集群内网；不能把未鉴权的深度依赖探针暴露到公网。
@@ -342,7 +342,7 @@ helm probe 配置 (新):
 async def _delete_document_indexes(...):
     ...
     # 这里会通过 runtime 触发 cleanup_for_deleted_documents()
-    # 同步遍历每个 modality 的 backend 调 delete_by_filter / 
+    # 同步遍历每个 modality 的 backend 调 delete_by_filter /
     # delete_by_query / 图谱 lineage cleanup
     # API 请求路径承担 Qdrant / ES / Neo4j / Postgres 的重型 IO
 ```
@@ -407,19 +407,19 @@ API 与 worker 的差异放在 Helm 层解决：两个 deployment 分别注入�
 
 ```yaml
 # deploy/aperag/values.yaml (新加)
-# 
+#
 # PostgreSQL 连接预算公式:
 #   sum_per_role = api_replicas * (api.dbPoolSize + api.dbMaxOverflow)
 #                + indexing_worker_replicas * (indexingWorker.dbPoolSize + indexingWorker.dbMaxOverflow)
 #                + rollout_surge_budget (= max(api_replicas, worker_replicas) * (POOL + OVERFLOW))
 #                + diagnostics_reserved (= 5 per pod)
-#   
+#
 # 必须满足: sum_per_role < postgres_max_connections * safety_ratio (建议 0.7)
 #
 # 新加坡现状 (黄章书 msg=b3bf4733): api_replicas=1, worker_replicas=1, postgres_max_connections=56
 #   1*(10+10) + 1*(20+20) + 1*(20+20) [rollout surge] + 5 = 85 > 56 * 0.7 = 39
 #   → 现场需要扩 PG max_connections 到 >= 130 或缩小 pool size.
-# 
+#
 # 标准 4 节点环境推荐:
 #   postgres_max_connections=200 (KubeBlocks 默认), safety_ratio=0.7 → 上限 140
 #   api_replicas=2, worker_replicas=3:

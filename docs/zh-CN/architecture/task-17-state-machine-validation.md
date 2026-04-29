@@ -70,4 +70,3 @@ rg "run_(parse|vector|fulltext|graph|graph_facts|graph_vectors|summary|vision)_w
 - worker restart count
 
 任一信号异常，优先 scale worker、调低 worker pool 或暂停 worker。不得把 worker 重新塞回 API lifespan 作为回退方式。
-
