@@ -17,6 +17,12 @@ export type GraphEdgeProperties = NonNullable<
 export type GraphSearchEntity = NonNullable<
   components['schemas']['GraphSearchEntity']
 >;
+export type GraphEvidenceResponse = NonNullable<
+  components['schemas']['GraphEvidenceResponse']
+>;
+export type GraphRelationEvidenceRequest = NonNullable<
+  components['schemas']['GraphRelationEvidenceRequest']
+>;
 export type GraphEmbeddingMapResponse = NonNullable<
   components['schemas']['GraphEmbeddingMapResponse']
 >;

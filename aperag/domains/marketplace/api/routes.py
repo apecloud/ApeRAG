@@ -40,7 +40,9 @@ from aperag.domains.identity.service.auth_dependencies import optional_user, req
 from aperag.domains.knowledge_graph.schemas import (
     GraphEmbeddingMapResponse,
     GraphEntitiesSearchResponse,
+    GraphEvidenceResponse,
     GraphHybridResponse,
+    GraphRelationEvidenceRequest,
     KnowledgeGraph,
 )
 from aperag.domains.knowledge_graph.service import graph_service
@@ -392,4 +394,73 @@ async def search_marketplace_collection_graph_entities(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error searching marketplace collection graph entities {collection_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get(
+    "/marketplace/collections/{collection_id}/graph/entities/{name}/evidence",
+    tags=["graph"],
+    response_model=GraphEvidenceResponse,
+)
+async def get_marketplace_collection_graph_entity_evidence(
+    request: Request,
+    collection_id: str,
+    name: str,
+    limit: int = Query(5, ge=1, le=20),
+    user: AuthenticatedUser = Depends(optional_user),
+) -> GraphEvidenceResponse:
+    """Get bounded source chunks for a MarketplaceCollection graph entity."""
+    try:
+        user_id = str(user.id) if user else ""
+        marketplace_info = await marketplace_collection_service.check_marketplace_access(user_id, collection_id)
+        owner_user_id = marketplace_info["owner_user_id"]
+        return await graph_service.get_entity_evidence(
+            str(owner_user_id),
+            collection_id,
+            entity_name=name,
+            limit=limit,
+        )
+    except CollectionNotPublishedError:
+        raise HTTPException(status_code=404, detail="Collection not found or not published")
+    except CollectionMarketplaceAccessDeniedError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error getting marketplace collection graph entity evidence {collection_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.post(
+    "/marketplace/collections/{collection_id}/graph/relations/evidence",
+    tags=["graph"],
+    response_model=GraphEvidenceResponse,
+)
+async def get_marketplace_collection_graph_relation_evidence(
+    request: Request,
+    collection_id: str,
+    payload: GraphRelationEvidenceRequest,
+    user: AuthenticatedUser = Depends(optional_user),
+) -> GraphEvidenceResponse:
+    """Get bounded source chunks for a MarketplaceCollection graph relation."""
+    try:
+        user_id = str(user.id) if user else ""
+        marketplace_info = await marketplace_collection_service.check_marketplace_access(user_id, collection_id)
+        owner_user_id = marketplace_info["owner_user_id"]
+        return await graph_service.get_relation_evidence(
+            str(owner_user_id),
+            collection_id,
+            source=payload.source,
+            target=payload.target,
+            relation_type=payload.relation_type,
+            limit=payload.limit,
+        )
+    except CollectionNotPublishedError:
+        raise HTTPException(status_code=404, detail="Collection not found or not published")
+    except CollectionMarketplaceAccessDeniedError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error getting marketplace collection graph relation evidence {collection_id}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")

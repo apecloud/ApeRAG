@@ -41,6 +41,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import math
 from dataclasses import asdict, is_dataclass
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, Dict, List
@@ -54,6 +55,7 @@ if TYPE_CHECKING:
     from aperag.domains.knowledge_graph.schemas import (
         GraphEmbeddingMapResponse,
         GraphEntitiesSearchResponse,
+        GraphEvidenceResponse,
         GraphHybridResponse,
         GraphRelationView,
         GraphSearchEntity,
@@ -387,6 +389,74 @@ class GraphService:
             return None
         return _entity_to_search_view(entity)
 
+    async def get_entity_evidence(
+        self,
+        user_id: str,
+        collection_id: str,
+        *,
+        entity_name: str,
+        limit: int = 5,
+    ) -> "GraphEvidenceResponse":
+        """Return bounded source chunks for one graph entity."""
+        import asyncio
+
+        from aperag.domains.knowledge_graph.schemas import GraphEvidenceResponse
+        from aperag.indexing.worker_factory import _build_lineage_graph_store, _resolve_graph_backend_type
+
+        db_collection = await self._get_and_validate_collection(user_id, collection_id)
+        backend_type = _resolve_graph_backend_type(db_collection)
+        store = await asyncio.to_thread(_build_lineage_graph_store, backend_type=backend_type, collection=db_collection)
+        entity = await store.get_entity(entity_name)
+        members = list(getattr(entity, "source_lineage", ()) or ()) if entity is not None else []
+        chunks = await self._load_evidence_chunks(
+            user_id=user_id,
+            collection_id=collection_id,
+            members=members,
+            limit=limit,
+        )
+        return GraphEvidenceResponse(
+            subject_type="entity",
+            entity_name=entity_name,
+            total_source_chunks=_count_source_chunks(members),
+            chunks=chunks,
+        )
+
+    async def get_relation_evidence(
+        self,
+        user_id: str,
+        collection_id: str,
+        *,
+        source: str,
+        target: str,
+        relation_type: str,
+        limit: int = 5,
+    ) -> "GraphEvidenceResponse":
+        """Return bounded source chunks for one graph relation."""
+        import asyncio
+
+        from aperag.domains.knowledge_graph.schemas import GraphEvidenceResponse
+        from aperag.indexing.worker_factory import _build_lineage_graph_store, _resolve_graph_backend_type
+
+        db_collection = await self._get_and_validate_collection(user_id, collection_id)
+        backend_type = _resolve_graph_backend_type(db_collection)
+        store = await asyncio.to_thread(_build_lineage_graph_store, backend_type=backend_type, collection=db_collection)
+        relation = await store.get_relation(source, target, relation_type)
+        members = list(getattr(relation, "evidence_lineage", ()) or ()) if relation is not None else []
+        chunks = await self._load_evidence_chunks(
+            user_id=user_id,
+            collection_id=collection_id,
+            members=members,
+            limit=limit,
+        )
+        return GraphEvidenceResponse(
+            subject_type="relation",
+            source=source,
+            target=target,
+            relation_type=relation_type,
+            total_source_chunks=_count_source_chunks(members),
+            chunks=chunks,
+        )
+
     async def get_embedding_map(
         self,
         user_id: str,
@@ -467,11 +537,9 @@ class GraphService:
             max_entities=max_entities,
         )
         if not points:
-            return GraphHybridResponse(
-                nodes=[],
-                edges=[],
-                cluster_labels={},
-                is_truncated=False,
+            return await self._get_facts_layout_graph(
+                store=store,
+                max_entities=max_entities,
                 layout_from_cache=layout_from_cache,
             )
 
@@ -528,7 +596,114 @@ class GraphService:
             cluster_labels=cluster_labels,
             is_truncated=len(entities) >= max_entities,
             layout_from_cache=layout_from_cache,
+            layout_source="embedding",
         )
+
+    async def _get_facts_layout_graph(
+        self,
+        *,
+        store: Any,
+        max_entities: int,
+        layout_from_cache: bool,
+    ) -> "GraphHybridResponse":
+        """Build graph-hybrid data from facts when vectors are absent."""
+        from aperag.domains.knowledge_graph.schemas import GraphHybridNode, GraphHybridResponse
+
+        entities = await store.list_entities(limit=max_entities, offset=0)
+        if not entities:
+            return GraphHybridResponse(
+                nodes=[],
+                edges=[],
+                cluster_labels={},
+                is_truncated=False,
+                layout_from_cache=layout_from_cache,
+                layout_source="facts",
+            )
+
+        names = [entity.name for entity in entities]
+        allowed = set(names)
+        _subgraph_entities, relations = await store.expand_neighbors_n_hops(entity_names=names, hops=1)
+        relations = [rel for rel in relations if rel.source in allowed and rel.target in allowed]
+
+        adapted_entities = _adapt_lineage_entities(entities)
+        adapted_relations = _adapt_lineage_relations(relations)
+        node_items = self._to_ui_dict(adapted_entities, [], is_truncated=False)["nodes"]
+        edge_items = self._to_ui_dict([], adapted_relations, is_truncated=False)["edges"]
+
+        degree = {name: 0 for name in allowed}
+        for edge in edge_items:
+            source = str(edge["source"])
+            target = str(edge["target"])
+            if source in degree:
+                degree[source] += 1
+            if target in degree:
+                degree[target] += 1
+
+        coordinates, cluster_labels = self._facts_layout_coordinates(entities=entities, degree=degree)
+        nodes: list[GraphHybridNode] = []
+        for item in node_items:
+            node_id = str(item["id"])
+            x, y, cluster = coordinates.get(node_id, (0.0, 0.0, 0))
+            nodes.append(
+                GraphHybridNode.model_validate(
+                    {
+                        **item,
+                        "x": x,
+                        "y": y,
+                        "cluster": cluster,
+                        "value": max(8, min(22, 8 + degree.get(node_id, 0))),
+                    }
+                )
+            )
+
+        return GraphHybridResponse(
+            nodes=nodes,
+            edges=edge_items,
+            cluster_labels=cluster_labels,
+            is_truncated=len(entities) >= max_entities,
+            layout_from_cache=layout_from_cache,
+            layout_source="facts",
+        )
+
+    def _facts_layout_coordinates(
+        self,
+        *,
+        entities: list[Any],
+        degree: dict[str, int],
+    ) -> tuple[dict[str, tuple[float, float, int]], dict[str, str]]:
+        cluster_for_type: dict[str, int] = {}
+        grouped: dict[int, list[Any]] = {}
+        cluster_labels: dict[str, str] = {}
+        for entity in entities:
+            entity_type = (getattr(entity, "entity_type", None) or "unknown") or "unknown"
+            cluster = cluster_for_type.get(entity_type)
+            if cluster is None:
+                cluster = len(cluster_for_type)
+                cluster_for_type[entity_type] = cluster
+                cluster_labels[str(cluster)] = entity_type
+                grouped[cluster] = []
+            grouped[cluster].append(entity)
+
+        coordinates: dict[str, tuple[float, float, int]] = {}
+        cluster_count = max(1, len(grouped))
+        group_radius = 760.0 if cluster_count > 1 else 0.0
+        for cluster, members in grouped.items():
+            members.sort(key=lambda e: (-degree.get(e.name, 0), e.name))
+            angle = (2.0 * math.pi * cluster) / cluster_count
+            center_x = math.cos(angle) * group_radius
+            center_y = math.sin(angle) * group_radius
+            local_radius = max(120.0, 46.0 * math.sqrt(max(1, len(members))))
+            for idx, entity in enumerate(members):
+                if len(members) == 1:
+                    x = center_x
+                    y = center_y
+                else:
+                    local_angle = (2.0 * math.pi * idx) / len(members)
+                    ring = local_radius + 18.0 * (idx % 3)
+                    x = center_x + math.cos(local_angle) * ring
+                    y = center_y + math.sin(local_angle) * ring
+                coordinates[entity.name] = (float(x), float(y), cluster)
+        return coordinates, cluster_labels
 
     async def _get_embedding_projection(
         self,
@@ -785,6 +960,93 @@ class GraphService:
                 exc_info=True,
             )
 
+    async def _load_evidence_chunks(
+        self,
+        *,
+        user_id: str,
+        collection_id: str,
+        members: list[Any],
+        limit: int,
+    ) -> list[Any]:
+        from aperag.domains.knowledge_graph.schemas import GraphEvidenceChunk
+        from aperag.indexing.object_store import derived_artifact
+        from aperag.indexing.parser import read_chunks
+        from aperag.objectstore.base import get_object_store
+
+        bounded_limit = max(1, min(int(limit), 20))
+        ordered_refs: list[tuple[str, str, str]] = []
+        seen_refs: set[tuple[str, str, str]] = set()
+        for member in sorted(members, key=lambda m: (m.document_id, m.parse_version)):
+            for chunk_id in getattr(member, "chunk_ids", ()) or ():
+                ref = (str(member.document_id), str(member.parse_version), str(chunk_id))
+                if ref in seen_refs:
+                    continue
+                seen_refs.add(ref)
+                ordered_refs.append(ref)
+        if not ordered_refs:
+            return []
+
+        document_names: dict[str, str | None] = {}
+        store = get_object_store()
+        chunks_by_doc_parse: dict[tuple[str, str], dict[str, dict[str, Any]]] = {}
+        results: list[GraphEvidenceChunk] = []
+        for document_id, parse_version, chunk_id in ordered_refs:
+            if len(results) >= bounded_limit:
+                break
+            if document_id not in document_names:
+                document = await self.db_ops.query_document(user_id, collection_id, document_id)
+                if document is None:
+                    document_names[document_id] = None
+                else:
+                    document_names[document_id] = getattr(document, "name", None)
+            if document_names[document_id] is None:
+                continue
+
+            doc_parse_key = (document_id, parse_version)
+            if doc_parse_key not in chunks_by_doc_parse:
+                chunks_path = derived_artifact(
+                    collection_id=collection_id,
+                    document_id=document_id,
+                    parse_version=parse_version,
+                    filename="chunks.jsonl",
+                )
+                try:
+                    chunk_records = await asyncio.to_thread(read_chunks, store, chunks_path)
+                except Exception:
+                    logger.warning(
+                        "Failed to load graph evidence chunks collection=%s document=%s parse_version=%s",
+                        collection_id,
+                        document_id,
+                        parse_version,
+                        exc_info=True,
+                    )
+                    chunk_records = []
+                chunks_by_doc_parse[doc_parse_key] = {
+                    str(record.get("chunk_id")): record for record in chunk_records if record.get("chunk_id")
+                }
+            chunk = chunks_by_doc_parse[doc_parse_key].get(chunk_id)
+            if chunk is None:
+                continue
+            text = str(chunk.get("text") or "")
+            if len(text) > 500:
+                text = text[:500].rstrip() + "..."
+            page_idx = chunk.get("page_idx")
+            if not isinstance(page_idx, int):
+                page_idx = None
+            results.append(
+                GraphEvidenceChunk(
+                    document_id=document_id,
+                    document_name=document_names[document_id],
+                    parse_version=parse_version,
+                    chunk_id=chunk_id,
+                    text=text,
+                    section_path=chunk.get("section_path"),
+                    heading_anchor=chunk.get("heading_anchor"),
+                    page_idx=page_idx,
+                )
+            )
+        return results
+
     # --------------------------------------------------------- internal helpers
     def _optimize_graph_for_visualization(self, nodes, edges, max_nodes):
         """Pick the top ``max_nodes`` entities by degree, filter edges to
@@ -824,7 +1086,7 @@ class GraphService:
             "description",
             "source_chunk_count",
         ]
-        default_edge_fields = ["weight", "description", "keywords", "source_chunk_count"]
+        default_edge_fields = ["weight", "description", "keywords", "relation_type", "source_chunk_count"]
 
         def extract_properties(obj, fields):
             raw = {}
@@ -966,6 +1228,7 @@ def _adapt_lineage_relations(relations: list[Any]) -> List[SimpleNamespace]:
             "weight": 1.0,
             "description": description,
             "keywords": "",
+            "relation_type": rel.relation_type,
             "source_chunk_count": len(chunk_ids),
         }
         out.append(
@@ -999,6 +1262,14 @@ def _stable_jsonish(value: Any) -> Any:
     if isinstance(value, (list, tuple)):
         return [_stable_jsonish(item) for item in value]
     return repr(value)
+
+
+def _count_source_chunks(members: list[Any]) -> int:
+    refs: set[tuple[str, str, str]] = set()
+    for member in members:
+        for chunk_id in getattr(member, "chunk_ids", ()) or ():
+            refs.add((str(member.document_id), str(member.parse_version), str(chunk_id)))
+    return len(refs)
 
 
 # ---------------------------------------------------------------------------

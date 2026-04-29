@@ -103,6 +103,7 @@ class GraphEdgeProperties(BaseModel):
         description="Keywords associated with the relationship",
         examples=["书店活力,活动"],
     )
+    relation_type: Optional[str] = Field(None, description="Canonical relationship type", examples=["经营"])
     source_chunk_count: Optional[conint(ge=0)] = Field(
         None,
         description="Number of source chunks supporting this relationship; raw chunk IDs are not exposed",
@@ -440,6 +441,42 @@ class GraphSubgraphExpandResponse(BaseModel):
     )
 
 
+class GraphEvidenceChunk(BaseModel):
+    """Bounded source chunk returned when a graph item is selected."""
+
+    document_id: str = Field(..., description="Source document ID")
+    document_name: Optional[str] = Field(None, description="Source document name")
+    parse_version: str = Field(..., description="Parse version that produced the lineage member")
+    chunk_id: str = Field(..., description="Source chunk ID")
+    text: str = Field(..., description="Truncated chunk text")
+    section_path: Optional[str] = Field(None, description="Source section path")
+    heading_anchor: Optional[str] = Field(None, description="Source heading anchor")
+    page_idx: Optional[int] = Field(None, description="Source page index when available")
+
+
+class GraphEvidenceResponse(BaseModel):
+    """Lazy evidence payload for a graph node or edge."""
+
+    subject_type: Literal["entity", "relation"] = Field(..., description="Evidence subject type")
+    entity_name: Optional[str] = Field(None, description="Entity name when subject_type is entity")
+    source: Optional[str] = Field(None, description="Relation source entity")
+    target: Optional[str] = Field(None, description="Relation target entity")
+    relation_type: Optional[str] = Field(None, description="Relation type when subject_type is relation")
+    total_source_chunks: int = Field(..., ge=0, description="Total source chunk references before limiting")
+    chunks: list[GraphEvidenceChunk] = Field(..., description="Bounded source chunk snippets")
+
+
+class GraphRelationEvidenceRequest(BaseModel):
+    """Request body for lazy relation evidence lookup."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source: str = Field(..., description="Relation source entity")
+    target: str = Field(..., description="Relation target entity")
+    relation_type: str = Field(..., description="Relation type")
+    limit: int = Field(5, ge=1, le=20, description="Maximum evidence chunks to return")
+
+
 class GraphEmbeddingPoint(BaseModel):
     """Single point in the 2-D projection of entity vectors."""
 
@@ -512,6 +549,10 @@ class GraphHybridResponse(BaseModel):
         False,
         description="Whether the 2-D projection was served from the layout cache",
     )
+    layout_source: Literal["embedding", "facts"] = Field(
+        "embedding",
+        description="Whether node coordinates came from entity vectors or from the facts-layer fallback layout",
+    )
 
 
 __all__ = [
@@ -533,8 +574,11 @@ __all__ = [
     "GraphSearchEntity",
     "GraphRelationView",
     "GraphEntitiesSearchResponse",
+    "GraphEvidenceChunk",
+    "GraphEvidenceResponse",
     "GraphSubgraphExpandRequest",
     "GraphSubgraphExpandResponse",
+    "GraphRelationEvidenceRequest",
     "GraphEmbeddingPoint",
     "GraphEmbeddingMapRelation",
     "GraphEmbeddingMapResponse",

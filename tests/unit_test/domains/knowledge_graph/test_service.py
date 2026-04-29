@@ -2,6 +2,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from aperag.domains.knowledge_graph.service import GraphService
+from aperag.indexing.graph import LineageMember
 
 
 def _entity(name: str, entity_type: str = "entity") -> SimpleNamespace:
@@ -141,8 +142,133 @@ async def test_get_hybrid_graph_joins_projection_and_lineage_metadata(monkeypatc
         ("B", 3.0, 4.0, 1, 9),
     ]
     assert [(edge.source, edge.target) for edge in graph.edges] == [("A", "B")]
+    assert graph.edges[0].properties.relation_type == "related_to"
     assert graph.cluster_labels == {"0": "person", "1": "organization"}
     assert graph.layout_from_cache is False
+    assert graph.layout_source == "embedding"
+
+
+async def test_get_hybrid_graph_falls_back_to_facts_layout_without_vectors(monkeypatch):
+    class FakeStore:
+        async def list_entities(self, *, limit, offset):
+            assert limit == 1000
+            assert offset == 0
+            return [_entity("A", "person"), _entity("B", "organization")]
+
+        async def expand_neighbors_n_hops(self, *, entity_names, hops):
+            assert entity_names == ["A", "B"]
+            assert hops == 1
+            return (
+                [_entity("A", "person"), _entity("B", "organization")],
+                [_relation("A", "B")],
+            )
+
+    from aperag.indexing import worker_factory
+
+    monkeypatch.setattr(worker_factory, "_resolve_graph_backend_type", lambda collection: "postgres")
+    monkeypatch.setattr(
+        worker_factory,
+        "_build_lineage_graph_store",
+        lambda *, backend_type, collection: FakeStore(),
+    )
+
+    service = GraphService()
+    service._get_and_validate_collection = AsyncMock(return_value=SimpleNamespace(id="col1"))
+
+    async def fake_projection(*, backend_type, db_collection, collection_id, store, max_entities):
+        return ([], {}, [_entity("A", "person"), _entity("B", "organization")], False)
+
+    service._get_embedding_projection = fake_projection
+
+    graph = await service.get_hybrid_graph(user_id="user1", collection_id="col1", max_entities=1000)
+
+    assert [node.id for node in graph.nodes] == ["A", "B"]
+    assert [(edge.source, edge.target) for edge in graph.edges] == [("A", "B")]
+    assert graph.cluster_labels == {"0": "person", "1": "organization"}
+    assert graph.layout_source == "facts"
+
+
+async def test_get_entity_evidence_loads_bounded_chunks(monkeypatch):
+    class FakeStore:
+        async def get_entity(self, name):
+            assert name == "A"
+            return SimpleNamespace(
+                source_lineage=[
+                    LineageMember(
+                        document_id="doc1",
+                        parse_version="v1",
+                        tenant_scope_key="tenant",
+                        chunk_ids=("c1", "c2", "c1"),
+                    ),
+                    LineageMember(
+                        document_id="missing",
+                        parse_version="v1",
+                        tenant_scope_key="tenant",
+                        chunk_ids=("ignored",),
+                    ),
+                ]
+            )
+
+    from aperag.indexing import object_store as object_store_module
+    from aperag.indexing import parser as parser_module
+    from aperag.indexing import worker_factory
+    from aperag.objectstore import base as objectstore_base
+
+    monkeypatch.setattr(worker_factory, "_resolve_graph_backend_type", lambda collection: "postgres")
+    monkeypatch.setattr(
+        worker_factory,
+        "_build_lineage_graph_store",
+        lambda *, backend_type, collection: FakeStore(),
+    )
+    monkeypatch.setattr(
+        object_store_module,
+        "derived_artifact",
+        lambda *, collection_id, document_id, parse_version, filename: (
+            f"{collection_id}/{document_id}/{parse_version}/{filename}"
+        ),
+    )
+    monkeypatch.setattr(objectstore_base, "get_object_store", lambda: object())
+    monkeypatch.setattr(
+        parser_module,
+        "read_chunks",
+        lambda store, path: [
+            {
+                "chunk_id": "c1",
+                "text": "first " * 120,
+                "section_path": "1",
+                "heading_anchor": "intro",
+                "page_idx": 3,
+            },
+            {
+                "chunk_id": "c2",
+                "text": "second",
+                "section_path": None,
+                "heading_anchor": None,
+                "page_idx": "bad",
+            },
+        ],
+    )
+
+    service = GraphService()
+    service._get_and_validate_collection = AsyncMock(return_value=SimpleNamespace(id="col1"))
+    service.db_ops.query_document = AsyncMock(
+        side_effect=[
+            SimpleNamespace(name="Document One"),
+            None,
+        ]
+    )
+
+    response = await service.get_entity_evidence(user_id="user1", collection_id="col1", entity_name="A", limit=2)
+
+    assert response.subject_type == "entity"
+    assert response.entity_name == "A"
+    assert response.total_source_chunks == 3
+    assert [chunk.chunk_id for chunk in response.chunks] == ["c1", "c2"]
+    assert response.chunks[0].document_name == "Document One"
+    assert response.chunks[0].text.endswith("...")
+    assert len(response.chunks[0].text) <= 503
+    assert response.chunks[0].page_idx == 3
+    assert response.chunks[1].page_idx is None
 
 
 async def test_get_embedding_projection_uses_layout_cache(monkeypatch):

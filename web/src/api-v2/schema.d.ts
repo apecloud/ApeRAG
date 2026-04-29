@@ -630,6 +630,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/marketplace/collections/{collection_id}/graph/entities/{name}/evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Marketplace Collection Graph Entity Evidence
+         * @description Get bounded source chunks for a MarketplaceCollection graph entity.
+         */
+        get: operations["marketplace_get_marketplace_collection_graph_entity_evidence"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/marketplace/collections/{collection_id}/graph/relations/evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Get Marketplace Collection Graph Relation Evidence
+         * @description Get bounded source chunks for a MarketplaceCollection graph relation.
+         */
+        post: operations["marketplace_get_marketplace_collection_graph_relation_evidence"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/settings": {
         parameters: {
             query?: never;
@@ -1127,6 +1167,46 @@ export interface paths {
         get: operations["knowledge_graph_graph_entity_detail_view"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/collections/{collection_id}/graphs/entities/{name}/evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Graph Entity Evidence View
+         * @description Return bounded source chunks for a selected graph entity.
+         */
+        get: operations["knowledge_graph_graph_entity_evidence_view"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/collections/{collection_id}/graphs/relations/evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Graph Relation Evidence View
+         * @description Return bounded source chunks for a selected graph relation.
+         */
+        post: operations["knowledge_graph_graph_relation_evidence_view"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2628,7 +2708,7 @@ export interface components {
             /** Peer Id */
             peer_id?: string | null;
             /** Peer Type */
-            peer_type?: ("system" | "feishu" | "weixin" | "weixin_official" | "web" | "dingtalk") | null;
+            peer_type?: ("system" | "feishu" | "weixin" | "weixin_official" | "web" | "dingtalk" | "evaluation") | null;
             /** Status */
             status?: ("active" | "archived") | null;
             /** Created */
@@ -2647,7 +2727,7 @@ export interface components {
             /** Peer Id */
             peer_id?: string | null;
             /** Peer Type */
-            peer_type?: ("system" | "feishu" | "weixin" | "weixin_official" | "web" | "dingtalk") | null;
+            peer_type?: ("system" | "feishu" | "weixin" | "weixin_official" | "web" | "dingtalk" | "evaluation") | null;
             /**
              * History
              * @description Phase 8 D8.5-BE (#92): historical conversation turns as canonical ``AgentTurnSnapshot`` envelopes — each turn carries the same ``UIMessagePart[]`` shape the FE consumes from the live SSE stream (D8 §2 wire/at-rest byte-equal). Replaces the legacy ``list[list[ChatMessage]]`` shape; FE renders historical turns with the same renderer used for live turns.
@@ -4189,6 +4269,12 @@ export interface components {
              */
             keywords?: string | null;
             /**
+             * Relation Type
+             * @description Canonical relationship type
+             * @example 经营
+             */
+            relation_type?: string | null;
+            /**
              * Source Chunk Count
              * @description Number of source chunks supporting this relationship; raw chunk IDs are not exposed
              * @example 2
@@ -4283,6 +4369,94 @@ export interface components {
             entities: components["schemas"]["GraphSearchEntity"][];
         };
         /**
+         * GraphEvidenceChunk
+         * @description Bounded source chunk returned when a graph item is selected.
+         */
+        GraphEvidenceChunk: {
+            /**
+             * Document Id
+             * @description Source document ID
+             */
+            document_id: string;
+            /**
+             * Document Name
+             * @description Source document name
+             */
+            document_name?: string | null;
+            /**
+             * Parse Version
+             * @description Parse version that produced the lineage member
+             */
+            parse_version: string;
+            /**
+             * Chunk Id
+             * @description Source chunk ID
+             */
+            chunk_id: string;
+            /**
+             * Text
+             * @description Truncated chunk text
+             */
+            text: string;
+            /**
+             * Section Path
+             * @description Source section path
+             */
+            section_path?: string | null;
+            /**
+             * Heading Anchor
+             * @description Source heading anchor
+             */
+            heading_anchor?: string | null;
+            /**
+             * Page Idx
+             * @description Source page index when available
+             */
+            page_idx?: number | null;
+        };
+        /**
+         * GraphEvidenceResponse
+         * @description Lazy evidence payload for a graph node or edge.
+         */
+        GraphEvidenceResponse: {
+            /**
+             * Subject Type
+             * @description Evidence subject type
+             * @enum {string}
+             */
+            subject_type: "entity" | "relation";
+            /**
+             * Entity Name
+             * @description Entity name when subject_type is entity
+             */
+            entity_name?: string | null;
+            /**
+             * Source
+             * @description Relation source entity
+             */
+            source?: string | null;
+            /**
+             * Target
+             * @description Relation target entity
+             */
+            target?: string | null;
+            /**
+             * Relation Type
+             * @description Relation type when subject_type is relation
+             */
+            relation_type?: string | null;
+            /**
+             * Total Source Chunks
+             * @description Total source chunk references before limiting
+             */
+            total_source_chunks: number;
+            /**
+             * Chunks
+             * @description Bounded source chunk snippets
+             */
+            chunks: components["schemas"]["GraphEvidenceChunk"][];
+        };
+        /**
          * GraphHybridNode
          * @description Node in the graph-hybrid visualization.
          */
@@ -4357,6 +4531,13 @@ export interface components {
              * @default false
              */
             layout_from_cache: boolean;
+            /**
+             * Layout Source
+             * @description Whether node coordinates came from entity vectors or from the facts-layer fallback layout
+             * @default embedding
+             * @enum {string}
+             */
+            layout_source: "embedding" | "facts";
         };
         /**
          * GraphLabelsResponse
@@ -4432,6 +4613,33 @@ export interface components {
              * @example 3
              */
             source_chunk_count?: number | null;
+        };
+        /**
+         * GraphRelationEvidenceRequest
+         * @description Request body for lazy relation evidence lookup.
+         */
+        GraphRelationEvidenceRequest: {
+            /**
+             * Source
+             * @description Relation source entity
+             */
+            source: string;
+            /**
+             * Target
+             * @description Relation target entity
+             */
+            target: string;
+            /**
+             * Relation Type
+             * @description Relation type
+             */
+            relation_type: string;
+            /**
+             * Limit
+             * @description Maximum evidence chunks to return
+             * @default 5
+             */
+            limit: number;
         };
         /**
          * GraphRelationView
@@ -7976,6 +8184,78 @@ export interface operations {
             };
         };
     };
+    marketplace_get_marketplace_collection_graph_entity_evidence: {
+        parameters: {
+            query?: {
+                limit?: number;
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                collection_id: string;
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GraphEvidenceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    marketplace_get_marketplace_collection_graph_relation_evidence: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GraphRelationEvidenceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GraphEvidenceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     Settings_get_settings: {
         parameters: {
             query?: {
@@ -8849,6 +9129,78 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GraphSearchEntity"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    knowledge_graph_graph_entity_evidence_view: {
+        parameters: {
+            query?: {
+                limit?: number;
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                collection_id: string;
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GraphEvidenceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    knowledge_graph_graph_relation_evidence_view: {
+        parameters: {
+            query?: {
+                engine?: unknown;
+            };
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GraphRelationEvidenceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GraphEvidenceResponse"];
                 };
             };
             /** @description Validation Error */
