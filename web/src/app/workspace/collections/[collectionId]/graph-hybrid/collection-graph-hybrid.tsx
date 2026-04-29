@@ -1766,18 +1766,16 @@ const EdgeContent = ({
         <InfoTile label="关系类型" value={relationType || edge.type || '-'} />
       </section>
 
-      <section className="space-y-2">
-        <div className="text-muted-foreground text-xs font-medium">
-          关系描述
-        </div>
-        {description ? (
+      {description && (
+        <section className="space-y-2">
+          <div className="text-muted-foreground text-xs font-medium">
+            关系描述
+          </div>
           <p className="text-foreground/90 text-sm leading-relaxed">
             {description}
           </p>
-        ) : (
-          <p className="text-muted-foreground text-xs italic">无描述</p>
-        )}
-      </section>
+        </section>
+      )}
 
       <EvidenceSection evidence={evidence} pending={evidencePending} />
 
@@ -1953,14 +1951,10 @@ const PathBlock = ({
                       </span>
                     )}
                   </div>
-                  {edge.properties.description ? (
+                  {edge.properties.description && (
                     <p className="line-clamp-2 leading-relaxed">
                       {edge.properties.description}
                     </p>
-                  ) : (
-                    <span className="text-muted-foreground/60 italic">
-                      (无关系描述)
-                    </span>
                   )}
                 </div>
               )}
