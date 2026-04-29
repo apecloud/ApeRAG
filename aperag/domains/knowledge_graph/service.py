@@ -38,7 +38,10 @@ crossing the boundary.
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import logging
+from dataclasses import asdict, is_dataclass
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, Dict, List
 
@@ -411,7 +414,8 @@ class GraphService:
             backend_type=backend_type,
             collection=db_collection,
         )
-        points, cluster_labels, _entities = await self._get_embedding_projection(
+        points, cluster_labels, _entities, layout_from_cache = await self._get_embedding_projection(
+            backend_type=backend_type,
             db_collection=db_collection,
             collection_id=collection_id,
             store=store,
@@ -421,6 +425,7 @@ class GraphService:
             points=points,
             relations=[],
             cluster_labels=cluster_labels,
+            layout_from_cache=layout_from_cache,
         )
 
     async def get_hybrid_graph(
@@ -454,14 +459,21 @@ class GraphService:
         )
 
         max_entities = max(1, min(int(max_entities), 5000))
-        points, cluster_labels, entities = await self._get_embedding_projection(
+        points, cluster_labels, entities, layout_from_cache = await self._get_embedding_projection(
+            backend_type=backend_type,
             db_collection=db_collection,
             collection_id=collection_id,
             store=store,
             max_entities=max_entities,
         )
         if not points:
-            return GraphHybridResponse(nodes=[], edges=[], cluster_labels={}, is_truncated=False)
+            return GraphHybridResponse(
+                nodes=[],
+                edges=[],
+                cluster_labels={},
+                is_truncated=False,
+                layout_from_cache=layout_from_cache,
+            )
 
         point_names = [point.name for point in points]
         allowed = set(point_names)
@@ -515,16 +527,18 @@ class GraphService:
             edges=edge_items,
             cluster_labels=cluster_labels,
             is_truncated=len(entities) >= max_entities,
+            layout_from_cache=layout_from_cache,
         )
 
     async def _get_embedding_projection(
         self,
         *,
+        backend_type: str,
         db_collection: CollectionRow,
         collection_id: str,
         store: Any,
         max_entities: int,
-    ) -> tuple[list[Any], dict[str, str], list[Any]]:
+    ) -> tuple[list[Any], dict[str, str], list[Any], bool]:
         import math
         import uuid as _uuid
 
@@ -533,6 +547,24 @@ class GraphService:
         from aperag.domains.knowledge_graph.schemas import (
             GraphEmbeddingPoint,
         )
+
+        max_entities = max(1, min(int(max_entities), 5000))
+        entities = await store.list_entities(limit=max_entities, offset=0)
+        if not entities:
+            return [], {}, [], False
+
+        cache_key = self._embedding_projection_cache_key(
+            collection_id=collection_id,
+            backend_type=backend_type,
+            max_entities=max_entities,
+            collection_config=getattr(db_collection, "config", None),
+            entities=entities,
+        )
+        cached = await self._load_embedding_projection_cache(collection_id=collection_id, cache_key=cache_key)
+        if cached is not None:
+            points, cluster_labels = cached
+            return points, cluster_labels, entities, True
+
         from aperag.indexing.worker_factory import _build_collection_qdrant_connector
 
         adaptor, _embedder, _vector_size = await asyncio.to_thread(
@@ -540,11 +572,6 @@ class GraphService:
             db_collection,
         )
         connector = adaptor.connector
-
-        max_entities = max(1, min(int(max_entities), 5000))
-        entities = await store.list_entities(limit=max_entities, offset=0)
-        if not entities:
-            return [], {}, []
 
         ids: list[str] = []
         id_to_entity: dict[str, Any] = {}
@@ -564,7 +591,7 @@ class GraphService:
 
         retrieved = await asyncio.to_thread(connector.retrieve, ids, with_vectors=True)
         if not retrieved:
-            return [], {}, []
+            return [], {}, entities, False
 
         vectors: list[list[float]] = []
         kept_entities: list[Any] = []
@@ -580,14 +607,14 @@ class GraphService:
             vectors.append(vector)
             kept_entities.append(entity)
         if not vectors:
-            return [], {}, []
+            return [], {}, entities, False
 
         matrix = np.asarray(vectors, dtype=np.float32)
         centered = matrix - matrix.mean(axis=0, keepdims=True)
         try:
             _u, _s, vh = np.linalg.svd(centered, full_matrices=False)
         except np.linalg.LinAlgError:
-            return [], {}, []
+            return [], {}, entities, False
 
         components = vh[:2]
         coords = centered @ components.T
@@ -635,7 +662,128 @@ class GraphService:
             )
             point_entities.append(entity)
 
-        return points, cluster_labels, point_entities
+        await self._save_embedding_projection_cache(
+            collection_id=collection_id,
+            cache_key=cache_key,
+            backend_type=backend_type,
+            max_entities=max_entities,
+            points=points,
+            cluster_labels=cluster_labels,
+        )
+
+        return points, cluster_labels, point_entities, False
+
+    def _embedding_projection_cache_key(
+        self,
+        *,
+        collection_id: str,
+        backend_type: str,
+        max_entities: int,
+        collection_config: Any,
+        entities: list[Any],
+    ) -> str:
+        payload = {
+            "version": 1,
+            "collection_id": collection_id,
+            "backend_type": backend_type,
+            "max_entities": max_entities,
+            "collection_config": _stable_jsonish(collection_config),
+            "entities": [
+                {
+                    "name": getattr(entity, "name", None),
+                    "entity_type": getattr(entity, "entity_type", None),
+                    "source_lineage": _stable_jsonish(getattr(entity, "source_lineage", None)),
+                    "description_parts": _stable_jsonish(getattr(entity, "description_parts", None)),
+                    "compacted_description": getattr(entity, "compacted_description", None),
+                }
+                for entity in entities
+            ],
+        }
+        encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+    async def _load_embedding_projection_cache(
+        self,
+        *,
+        collection_id: str,
+        cache_key: str,
+    ) -> tuple[list[Any], dict[str, str]] | None:
+        from pydantic import ValidationError
+
+        from aperag.config import get_async_session
+        from aperag.domains.knowledge_graph.db.models import GraphHybridLayoutCache
+        from aperag.domains.knowledge_graph.schemas import GraphEmbeddingPoint
+
+        try:
+            async for session in get_async_session():
+                row = await session.get(GraphHybridLayoutCache, (collection_id, cache_key))
+                if row is None:
+                    return None
+                try:
+                    points = [GraphEmbeddingPoint.model_validate(item) for item in row.points_json or []]
+                    cluster_labels = {str(k): str(v) for k, v in (row.cluster_labels or {}).items()}
+                except (TypeError, ValidationError, ValueError):
+                    logger.warning(
+                        "Ignoring invalid graph hybrid layout cache row",
+                        extra={"collection_id": collection_id, "cache_key": cache_key},
+                        exc_info=True,
+                    )
+                    return None
+                return points, cluster_labels
+        except Exception:
+            logger.warning(
+                "Failed to read graph hybrid layout cache",
+                extra={"collection_id": collection_id, "cache_key": cache_key},
+                exc_info=True,
+            )
+        return None
+
+    async def _save_embedding_projection_cache(
+        self,
+        *,
+        collection_id: str,
+        cache_key: str,
+        backend_type: str,
+        max_entities: int,
+        points: list[Any],
+        cluster_labels: dict[str, str],
+    ) -> None:
+        from sqlalchemy import delete
+
+        from aperag.config import get_async_session
+        from aperag.domains.knowledge_graph.db.models import GraphHybridLayoutCache
+
+        try:
+            async for session in get_async_session():
+                await session.merge(
+                    GraphHybridLayoutCache(
+                        collection_id=collection_id,
+                        cache_key=cache_key,
+                        backend_type=backend_type,
+                        max_entities=max_entities,
+                        entity_count=len(points),
+                        points_json=[
+                            point.model_dump(mode="json") if hasattr(point, "model_dump") else dict(point)
+                            for point in points
+                        ],
+                        cluster_labels=dict(cluster_labels),
+                    )
+                )
+                await session.execute(
+                    delete(GraphHybridLayoutCache).where(
+                        GraphHybridLayoutCache.collection_id == collection_id,
+                        GraphHybridLayoutCache.max_entities == max_entities,
+                        GraphHybridLayoutCache.cache_key != cache_key,
+                    )
+                )
+                await session.commit()
+                return
+        except Exception:
+            logger.warning(
+                "Failed to write graph hybrid layout cache",
+                extra={"collection_id": collection_id, "cache_key": cache_key},
+                exc_info=True,
+            )
 
     # --------------------------------------------------------- internal helpers
     def _optimize_graph_for_visualization(self, nodes, edges, max_nodes):
@@ -834,6 +982,23 @@ def _adapt_lineage_relations(relations: list[Any]) -> List[SimpleNamespace]:
             )
         )
     return out
+
+
+def _stable_jsonish(value: Any) -> Any:
+    """Return a deterministic JSON-serialisable projection for hashing."""
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if is_dataclass(value):
+        return _stable_jsonish(asdict(value))
+    if hasattr(value, "model_dump"):
+        return _stable_jsonish(value.model_dump(mode="json"))
+    if isinstance(value, dict):
+        return {str(k): _stable_jsonish(v) for k, v in sorted(value.items(), key=lambda item: str(item[0]))}
+    if isinstance(value, (set, frozenset)):
+        return [_stable_jsonish(item) for item in sorted(value, key=repr)]
+    if isinstance(value, (list, tuple)):
+        return [_stable_jsonish(item) for item in value]
+    return repr(value)
 
 
 # ---------------------------------------------------------------------------

@@ -480,6 +480,10 @@ class GraphEmbeddingMapResponse(BaseModel):
         ...,
         description="cluster index -> entity_type label (1:1 mapping)",
     )
+    layout_from_cache: bool = Field(
+        False,
+        description="Whether the 2-D projection was served from the layout cache",
+    )
 
 
 class GraphHybridNode(GraphNode):
@@ -503,6 +507,10 @@ class GraphHybridResponse(BaseModel):
     is_truncated: bool = Field(
         ...,
         description="Whether the node set hit the max_entities limit",
+    )
+    layout_from_cache: bool = Field(
+        False,
+        description="Whether the 2-D projection was served from the layout cache",
     )
 
 

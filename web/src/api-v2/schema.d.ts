@@ -4227,6 +4227,12 @@ export interface components {
             cluster_labels: {
                 [key: string]: string;
             };
+            /**
+             * Layout From Cache
+             * @description Whether the 2-D projection was served from the layout cache
+             * @default false
+             */
+            layout_from_cache: boolean;
         };
         /**
          * GraphEmbeddingPoint
@@ -4345,6 +4351,12 @@ export interface components {
              * @description Whether the node set hit the max_entities limit
              */
             is_truncated: boolean;
+            /**
+             * Layout From Cache
+             * @description Whether the 2-D projection was served from the layout cache
+             * @default false
+             */
+            layout_from_cache: boolean;
         };
         /**
          * GraphLabelsResponse
