@@ -94,6 +94,17 @@ neo4j:
 api:
   dataPath: /data/aperag
   replicaCount: 1
+  # Helm-level role-specific database pool budget for the API deployment.
+  # These values map to the existing application env names DB_POOL_SIZE and
+  # DB_MAX_OVERFLOW through aperag-secret.yaml. Keep this budget separate
+  # from indexingWorker.* to avoid API/worker replica rollouts exhausting
+  # PostgreSQL max_connections.
+  # task #17 intentionally lowers the API default from the old 20+40 budget:
+  # after the hard cut, API pods do HTTP/auth/enqueue work only. If production
+  # observation shows API pool saturation, raise these values with the budget
+  # formula below instead of reverting all roles to the old shared 20+40 budget.
+  dbPoolSize: "5"
+  dbMaxOverflow: "5"
   resources:
   # We usually recommend not to specify default resources and to leave this as a conscious
   # choice for the user. This also increases chances charts run on environments with little
@@ -105,11 +116,10 @@ api:
   # requests:
   #   cpu: 100m
   #   memory: 128Mi
-  # Wave 3 T3.1 chunk 3: the celery-worker pod is gone (in-process
-  # ``aperag.indexing`` runtime spawned inside this api pod by the
-  # FastAPI lifespan). The previous podAffinity-with-celery-worker rule
-  # is no longer applicable; the soft anti-affinity for spreading api
-  # replicas across nodes is preserved.
+  # task #17: API and indexing execution plane are hard-cut. API pods
+  # handle HTTP and enqueue only; indexing workers, reconciler, and cleanup
+  # loops run in indexingWorker pods. The soft anti-affinity for spreading
+  # API replicas across nodes is preserved.
   affinity:
     podAntiAffinity:
       preferredDuringSchedulingIgnoredDuringExecution:
@@ -274,7 +284,7 @@ api:
 
   livenessProbe:
     httpGet:
-      path: /health
+      path: /health/live
       port: 8000
     initialDelaySeconds: 10
     periodSeconds: 10
@@ -283,7 +293,7 @@ api:
     successThreshold: 1
   readinessProbe:
     httpGet:
-      path: /health
+      path: /health/ready
       port: 8000
     initialDelaySeconds: 5
     periodSeconds: 5
@@ -291,12 +301,36 @@ api:
     failureThreshold: 3
     successThreshold: 1
 
-# Wave 3 T3.1 chunk 3: ``celery-worker`` / ``celerybeat`` / ``flower``
-# value blocks were removed alongside the corresponding template
-# deletions. The new in-process ``aperag.indexing`` runtime
-# (worker pool + reconciler + cleanup loops) is spawned by the FastAPI
-# lifespan inside the ``api`` deployment, so no separate worker / beat
-# / monitoring pods are needed.
+# task #17: ``api`` and ``indexingWorker`` use separate DB pool budgets.
+# Before raising replica counts, verify:
+#   sum(replicas * (pool_size + max_overflow)) + rollout_surge_budget
+#     + diagnostics_reserved + postgres_reserved
+#     < postgres_max_connections * safety_ratio
+# Default example: API 1 * (5+5) + worker 1 * (10+10) + surge 5
+# + reserved 10 = 45. This fits a PostgreSQL safety budget of 70
+# when postgres_max_connections=100 and safety_ratio=0.7.
+# PgBouncer is a future infrastructure option and does not remove this
+# budgeting requirement.
+indexingWorker:
+  enabled: true
+  replicaCount: 1
+  # Maps to existing DB_POOL_SIZE / DB_MAX_OVERFLOW env names in the worker
+  # container. Do not add application-level API_DB_POOL_SIZE or
+  # INDEXING_WORKER_DB_POOL_SIZE aliases.
+  dbPoolSize: "10"
+  dbMaxOverflow: "10"
+  resources: {}
+  affinity: {}
+  livenessProbe:
+    exec:
+      command:
+        - /bin/sh
+        - -c
+        - pgrep -f "aperag.cli.indexing_worker" >/dev/null
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 6
 
 # Frontend configuration
 frontend:

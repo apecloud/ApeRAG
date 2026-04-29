@@ -88,7 +88,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Awaitable, Callable, Mapping, Optional
 
-from sqlalchemy import Engine, and_, delete, func, select
+from sqlalchemy import Engine, and_, delete, func, or_, select
 from sqlalchemy.orm import Session
 
 from aperag.indexing.base import ModalityWorker
@@ -202,6 +202,20 @@ class CleanupWorkerResolution:
 
     worker: Optional[ModalityWorker]
     transient: bool
+
+
+@dataclass(frozen=True)
+class DeletedDocumentCleanupTarget:
+    """Durable DB-backed cleanup intent for task #17.
+
+    API delete only tombstones the ``Document`` row. The worker cleanup
+    loop reconstructs the object-store prefix from the DB row and uses
+    remaining ``DocumentIndex`` rows as the retry signal for backend
+    cleanup.
+    """
+
+    document_id: str
+    object_store_prefix: str
 
 
 async def _resolve_cleanup_worker(
@@ -586,6 +600,127 @@ def _select_rows_for_documents(engine: Engine, document_ids: list[str]) -> list[
         return list(session.scalars(select(DocumentIndex).where(DocumentIndex.document_id.in_(document_ids))))
 
 
+def find_deleted_document_cleanup_targets(
+    *,
+    engine: Engine,
+    batch_size: int = CLEANUP_BATCH_SIZE,
+) -> list[DeletedDocumentCleanupTarget]:
+    """Return deleted documents that still have index rows to clean.
+
+    Task #17 moves heavy document delete cleanup out of the API request
+    path. The durable intent source is the DB:
+
+    - ``Document.status = DELETED`` or ``Document.gmt_deleted IS NOT NULL``
+    - at least one remaining ``DocumentIndex`` row for that document
+
+    Redis cleanup wakeups, if any are added later, are only transport.
+    This scan must be sufficient on its own after Redis loss.
+    """
+    from aperag.domains.knowledge_base.db.models import Document, DocumentStatus
+
+    with Session(engine) as session:
+        indexed_documents = (
+            select(
+                DocumentIndex.document_id.label("document_id"),
+                func.min(DocumentIndex.updated_at).label("oldest_index_updated_at"),
+            )
+            .group_by(DocumentIndex.document_id)
+            .subquery()
+        )
+        stmt = (
+            select(Document)
+            .join(indexed_documents, indexed_documents.c.document_id == Document.id)
+            .where(
+                or_(
+                    Document.status == DocumentStatus.DELETED,
+                    Document.gmt_deleted.is_not(None),
+                )
+            )
+            .order_by(indexed_documents.c.oldest_index_updated_at, Document.id)
+            .limit(batch_size)
+        )
+        return [
+            DeletedDocumentCleanupTarget(
+                document_id=document.id,
+                object_store_prefix=document.object_store_base_path(),
+            )
+            for document in session.scalars(stmt)
+        ]
+
+
+async def cleanup_deleted_document_intents(
+    *,
+    engine: Engine,
+    workers: Optional[Mapping[Modality, ModalityWorker]] = None,
+    worker_factory: Optional[WorkerFactoryForRow] = None,
+    batch_size: int = CLEANUP_BATCH_SIZE,
+    object_store: Any | None = None,
+) -> dict[str, int]:
+    """Cleanup tombstoned documents discovered from DB state.
+
+    This is task #17's worker-owned replacement for the previous API
+    request-path cleanup. Object-store prefix deletion runs first; if it
+    fails, the ``DocumentIndex`` rows are intentionally left in place so
+    the next cleanup cycle can retry from the same DB intent.
+    """
+    targets = await asyncio.to_thread(
+        find_deleted_document_cleanup_targets,
+        engine=engine,
+        batch_size=batch_size,
+    )
+    counts = {
+        "documents_seen": len(targets),
+        "object_store_deleted": 0,
+        "object_store_deferred": 0,
+        "backend_deleted": 0,
+        "graph_lineage_cleaned": 0,
+        "rows_deleted": 0,
+        "backend_skipped": 0,
+        "transient_deferred": 0,
+    }
+    if not targets:
+        return counts
+
+    if object_store is None:
+        from aperag.objectstore.base import get_object_store
+
+        object_store = await asyncio.to_thread(get_object_store)
+
+    ready_document_ids: list[str] = []
+    for target in targets:
+        try:
+            await asyncio.to_thread(object_store.delete_objects_by_prefix, target.object_store_prefix)
+            counts["object_store_deleted"] += 1
+            ready_document_ids.append(target.document_id)
+        except Exception as exc:  # noqa: BLE001 — leave rows for retry
+            logger.exception(
+                "cleanup object-store prefix delete failed document=%s prefix=%s: %s",
+                target.document_id,
+                target.object_store_prefix,
+                exc,
+            )
+            counts["object_store_deferred"] += 1
+
+    if not ready_document_ids:
+        return counts
+
+    sub_counts = await cleanup_for_deleted_documents(
+        engine=engine,
+        workers=workers,
+        worker_factory=worker_factory,
+        document_ids=ready_document_ids,
+    )
+    for key in (
+        "backend_deleted",
+        "graph_lineage_cleaned",
+        "rows_deleted",
+        "backend_skipped",
+        "transient_deferred",
+    ):
+        counts[key] += sub_counts[key]
+    return counts
+
+
 async def _cleanup_graph_lineage_for_document(worker: ModalityWorker, document_id: str) -> None:
     """Remove all graph lineage members for ``document_id``.
 
@@ -762,10 +897,13 @@ async def run_cleanup_loop(
 ) -> None:
     """Run cleanup scans every ``interval_seconds``.
 
-    Two scans per cycle (Wave 3 Pattern B integration per architect
+    Three scans per cycle (Wave 3 Pattern B integration per architect
     msg=3890c9d7):
 
     - :func:`cleanup_orphan_parse_versions` — orphan parse_v GC (path A)
+    - :func:`cleanup_deleted_document_intents` — task #17 DB-backed
+      document delete cleanup, including object-store prefix deletion
+      and backend cleanup outside the API request path
     - :func:`cleanup_expired_documents_hook` — soft-delete documents
       stuck in UPLOADED status > 1 day (replaces legacy
       ``cleanup_expired_documents_task`` Celery beat schedule)
@@ -796,6 +934,28 @@ async def run_cleanup_loop(
         except Exception as exc:  # noqa: BLE001 — keep loop alive
             logger.exception("cleanup cycle failed: %s", exc)
         try:
+            counts = await cleanup_deleted_document_intents(
+                engine=engine,
+                workers=workers,
+                worker_factory=worker_factory,
+            )
+            if any(counts.values()):
+                logger.info(
+                    "cleanup deleted documents: documents_seen=%d object_store_deleted=%d "
+                    "object_store_deferred=%d backend_deleted=%d graph_lineage_cleaned=%d "
+                    "rows_deleted=%d backend_skipped=%d transient_deferred=%d",
+                    counts["documents_seen"],
+                    counts["object_store_deleted"],
+                    counts["object_store_deferred"],
+                    counts["backend_deleted"],
+                    counts["graph_lineage_cleaned"],
+                    counts["rows_deleted"],
+                    counts["backend_skipped"],
+                    counts["transient_deferred"],
+                )
+        except Exception as exc:  # noqa: BLE001 — keep loop alive
+            logger.exception("cleanup deleted-document cycle failed: %s", exc)
+        try:
             await cleanup_expired_documents_hook()
         except Exception as exc:  # noqa: BLE001 — Pattern B hook never crashes loop
             logger.exception("cleanup_expired_documents_hook failed: %s", exc)
@@ -824,10 +984,12 @@ __all__ = [
     "CLEANUP_INTERVAL_SECONDS",
     "ORPHAN_COOLDOWN_SECONDS",
     "WorkerFactoryForRow",
+    "cleanup_deleted_document_intents",
     "cleanup_expired_documents_hook",
     "cleanup_for_deleted_collections",
     "cleanup_for_deleted_documents",
     "cleanup_orphan_parse_versions",
+    "find_deleted_document_cleanup_targets",
     "find_orphan_parse_versions",
     "run_cleanup_loop",
 ]

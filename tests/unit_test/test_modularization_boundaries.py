@@ -873,28 +873,6 @@ def test_phase5_di_critical_wirings_at_app_startup():
     )
 
 
-def test_app_lifespan_launches_all_graph_indexing_worker_lanes():
-    """Graph state split adds new queue consumers, not just new factories.
-
-    Task #12 regression guard: PR #1871 registered ``graph_facts`` and
-    ``graph_vectors`` with the orchestrator/factory/reconciler, but the
-    FastAPI lifespan still launched only the legacy ``graph`` worker.
-    That leaves ``q:graph_facts`` / ``q:graph_vectors`` with producers
-    and no consumers in the real app process.
-    """
-    import aperag.indexing as indexing
-
-    for name in ("run_graph_worker", "run_graph_facts_worker", "run_graph_vectors_worker"):
-        assert hasattr(indexing, name), f"aperag.indexing must re-export {name} for app lifespan imports"
-
-    app_source = (REPO_ROOT / "aperag" / "app.py").read_text(encoding="utf-8")
-    for name in ("run_graph_worker", "run_graph_facts_worker", "run_graph_vectors_worker"):
-        assert name in app_source, f"aperag/app.py must import {name}"
-        assert f"asyncio.create_task({name}(**worker_kwargs))" in app_source, (
-            f"FastAPI lifespan must launch every graph worker lane; missing create_task for {name}"
-        )
-
-
 def test_phase5_domain_routes_never_use_pep_563_future_annotations():
     """Lesson 9a-quatuordec codification: FastAPI route modules must
     not use ``from __future__ import annotations``. PEP 563

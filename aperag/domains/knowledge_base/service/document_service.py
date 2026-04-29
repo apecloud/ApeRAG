@@ -276,34 +276,6 @@ async def _resolve_parser_config_for_collection(collection_id: str, session: Asy
     return parser_config
 
 
-async def _delete_document_indexes(*, document_id: str) -> None:
-    """Replacement for legacy ``document_index_manager.
-    delete_document_indexes``.
-
-    Wave 3 T3.1 chunk 3: routes to
-    :func:`aperag.indexing.cleanup.cleanup_for_deleted_documents` which
-    handles the modality fan-out (graph lineage cleanup vs flat
-    backend delete) + DELETEs the ``document_index`` rows.
-    """
-    from aperag.indexing.cleanup import cleanup_for_deleted_documents
-    from aperag.indexing.runtime import get_runtime
-
-    runtime = get_runtime()
-    if runtime is None:
-        logger.warning(
-            "_delete_document_indexes(document=%s): IndexingRuntime not installed; skipping cleanup",
-            document_id,
-        )
-        return
-
-    await cleanup_for_deleted_documents(
-        engine=runtime.engine,
-        workers=runtime.workers,
-        worker_factory=runtime.cleanup_worker_factory,
-        document_ids=[document_id],
-    )
-
-
 def _trigger_index_reconciliation():
     """No-op — Wave 3 T3.1 chunk 3.
 
@@ -920,24 +892,36 @@ class DocumentService:
             logger.warning(f"Document {document_id} not found for deletion, skipping.")
             return
 
-        # Cleanup all per-modality index rows + backend state (Wave 3
-        # T3.1 chunk 3: routes to ``aperag.indexing.cleanup.
-        # cleanup_for_deleted_documents`` which handles the modality
-        # fan-out + DELETEs the ``document_index`` rows).
-        await _delete_document_indexes(document_id=document.id)
+        # task #17 (PR #1884) hard gate (ziang msg=cecb0d88 + huangheng
+        # msg=f97b7c5f #6 + Weston msg=4e74f4f4 BLOCKER 4):
+        # **API 请求路径不能直接执行重型 cleanup**.
+        #
+        # 老代码 (Wave 3 T3.1) 在这里同步调:
+        #   1. ``cleanup_for_deleted_documents()`` — graph lineage 清理 +
+        #      Qdrant/ES/Neo4j 后端 delete + DocumentIndex 行删除
+        #   2. ``async_obj_store.delete_objects_by_prefix()`` — 对象存储
+        #      整个文档 prefix 下所有文件 (original / chunks / kg.jsonl /
+        #      summary / vision artifact)
+        # 这两条路径都是重型 IO (Qdrant 删点 / ES delete-by-query / Neo4j
+        # cypher / S3 list+delete), 在 API 请求路径上同步跑会:
+        # - 占用 API 进程的 DB 连接池 + 事件循环 + 线程池, 跟 graph 索引
+        #   worker 共进程时把 ``/health`` 一起拖死 (新加坡 503 同根)
+        # - rollout 时新 API 还在做删除, 老 API 已经收到 SIGTERM
+        # - object store provider 慢/超时把 API 删除请求一起拖慢
+        #
+        # 修法: API 只**标记 DB intent** (``Document.status=DELETED`` +
+        # ``gmt_deleted``); 重型 cleanup (含 object store prefix delete)
+        # 由独立 ``indexing-worker`` deployment 的 cleanup loop 异步
+        # 扫描 ``Document.status=DELETED + DocumentIndex rows`` 自动跑.
+        #
+        # cleanup intent 真源 = DB (per ziang msg=cecb0d88: Redis 队列只是
+        # 可丢 transport, 丢消息时 cleanup loop 仍能从 DB 补回来).
+        #
+        # 异步 cleanup 实施在 task #19 (@ziang) 的 ``aperag/indexing/cleanup.py``
+        # 加 deleted Document scan + ``tests/boundaries/test_api_no_cleanup.py``
+        # grep CI gate.
 
-        # Delete from object store
-        async_obj_store = get_async_object_store()
-        metadata = json.loads(document.doc_metadata) if document.doc_metadata else {}
-        if metadata.get("object_path"):
-            try:
-                # Use delete_objects_by_prefix to remove all related files (original, chunks, etc.)
-                await async_obj_store.delete_objects_by_prefix(document.object_store_base_path())
-                logger.info(f"Deleted objects from object store with prefix: {document.object_store_base_path()}")
-            except Exception as e:
-                logger.warning(f"Failed to delete objects for document {document.id} from object store: {e}")
-
-        # Mark document as deleted
+        # Mark document as deleted (durable cleanup intent in DB).
         document.status = DocumentStatus.DELETED
         document.gmt_deleted = utc_now()
         session.add(document)

@@ -190,9 +190,10 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       volumes:
-        # uploaded files volume (Wave 3 T3.1: previously shared with
-        # the celery-worker pod; now consumed solely by the in-process
-        # ``aperag.indexing`` runtime inside this api pod)
+        # Uploaded files and local object-store data. API keeps this mount
+        # for request handling and enqueueing, but task #17 moves indexing
+        # workers, reconciler, and cleanup execution into the separate
+        # indexing-worker deployment.
         - name: data
           hostPath:
             path: {{ .Values.api.dataPath }}
