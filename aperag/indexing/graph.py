@@ -1255,6 +1255,7 @@ class GraphModalityWorker(ModalityWorker):
         vector_connector: "VectorStoreConnector | None" = None,
         merge_detector: "MergeCandidateDetector | None" = None,
         entity_type_merger: EntityTypeMerger | None = None,
+        sync_concurrency: int = 4,
     ) -> None:
         """Construct a graph worker bound to a single tenant scope.
 
@@ -1298,6 +1299,11 @@ class GraphModalityWorker(ModalityWorker):
         self._vector_connector = vector_connector
         self._merge_detector = merge_detector
         self._entity_type_merger = entity_type_merger
+        # 任务 #6 (设计文档 §3 第 3 点): Phase 1 cleanup + Phase 2 rebuild
+        # 跨实体可以并发 (entity_lock 仍按实体名串行), 用 Semaphore 限制
+        # 同时跑的 per-entity 任务数. 默认 4 mirror PR #1809 graph
+        # extractor; 单元测试 / 单进程环境可以传更小的值.
+        self._sync_concurrency = max(1, int(sync_concurrency))
 
     # ---- derive -----------------------------------------------------
 
@@ -1463,19 +1469,26 @@ class GraphModalityWorker(ModalityWorker):
         # sync call. The schema still tracks (doc, parse_v) members
         # so a future multi-version coexistence (if requested) is
         # unblocked at the storage level.
+        #
+        # 任务 #6 (设计文档 §3 第 3 点): 跨实体并发跑, 受 ``sync_concurrency``
+        # Semaphore 限制. 同实体 RMW 仍由 ``entity_lock`` 串行 (Nebula
+        # backend 的 RMW 竞态保护不变).
 
         affected_entity_ids = await self._store.find_entity_ids_with_lineage(document_id=document_id)
-        for entity_name in affected_entity_ids:
-            async with self._entity_lock.acquire(entity_name):
+        affected_relation_keys = await self._store.find_relation_keys_with_lineage(document_id=document_id)
+
+        cleanup_sem = asyncio.Semaphore(self._sync_concurrency)
+
+        async def _cleanup_entity(entity_name: str) -> None:
+            async with cleanup_sem, self._entity_lock.acquire(entity_name):
                 await self._store.remove_entity_lineage_member(
                     entity_name=entity_name,
                     document_id=document_id,
                 )
                 await self._store.gc_entity_if_orphan(entity_name)
 
-        affected_relation_keys = await self._store.find_relation_keys_with_lineage(document_id=document_id)
-        for source, target, rel_type in affected_relation_keys:
-            async with self._entity_lock.acquire(_relation_lock_key(source, target, rel_type)):
+        async def _cleanup_relation(source: str, target: str, rel_type: str) -> None:
+            async with cleanup_sem, self._entity_lock.acquire(_relation_lock_key(source, target, rel_type)):
                 await self._store.remove_relation_lineage_member(
                     source=source,
                     target=target,
@@ -1484,23 +1497,36 @@ class GraphModalityWorker(ModalityWorker):
                 )
                 await self._store.gc_relation_if_orphan(source, target, rel_type)
 
-        # ---- Phase 2: lineage rebuild -------------------------------
+        await asyncio.gather(*(_cleanup_entity(name) for name in affected_entity_ids))
+        await asyncio.gather(
+            *(_cleanup_relation(s, t, rt) for s, t, rt in affected_relation_keys),
+        )
 
-        for entity_record in entities:
+        # ---- Phase 2: lineage rebuild -------------------------------
+        #
+        # 任务 #6: rebuild 同样跨实体并发, ``entity_lock`` 仍按实体串行
+        # 防止跟同实体的 cleanup 任务交叉. 不同实体之间不需要全局锁,
+        # backend ON CONFLICT (Postgres) / per-entity Cypher MERGE
+        # (Neo4j) / Nebula RMW with EntityLock 都能在 per-entity 层面
+        # 自洽. ``compacted_description`` 透传到所有 upsert.
+
+        rebuild_sem = asyncio.Semaphore(self._sync_concurrency)
+
+        async def _rebuild_entity(entity_record: EntityRecord) -> None:
             lineage = LineageMember(
                 document_id=document_id,
                 parse_version=parse_version,
                 tenant_scope_key=self._tenant_scope_key,
                 chunk_ids=entity_record.source_chunk_ids,
             )
-            async with self._entity_lock.acquire(entity_record.name):
+            async with rebuild_sem, self._entity_lock.acquire(entity_record.name):
                 await self._store.upsert_entity_with_lineage(
                     record=entity_record,
                     lineage=lineage,
                     compacted_description=compacted_description,
                 )
 
-        for relation_record in relations:
+        async def _rebuild_relation(relation_record: RelationRecord) -> None:
             lineage = LineageMember(
                 document_id=document_id,
                 parse_version=parse_version,
@@ -1512,12 +1538,15 @@ class GraphModalityWorker(ModalityWorker):
                 relation_record.target,
                 relation_record.relation_type,
             )
-            async with self._entity_lock.acquire(lock_key):
+            async with rebuild_sem, self._entity_lock.acquire(lock_key):
                 await self._store.upsert_relation_with_lineage(
                     record=relation_record,
                     lineage=lineage,
                     compacted_description=compacted_description,
                 )
+
+        await asyncio.gather(*(_rebuild_entity(r) for r in entities))
+        await asyncio.gather(*(_rebuild_relation(r) for r in relations))
 
         return set(affected_entity_ids), set(affected_relation_keys)
 
