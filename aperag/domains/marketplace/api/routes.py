@@ -40,6 +40,7 @@ from aperag.domains.identity.service.auth_dependencies import optional_user, req
 from aperag.domains.knowledge_graph.schemas import (
     GraphEmbeddingMapResponse,
     GraphEntitiesSearchResponse,
+    GraphHybridResponse,
     KnowledgeGraph,
 )
 from aperag.domains.knowledge_graph.service import graph_service
@@ -325,6 +326,38 @@ async def get_marketplace_collection_graph_embedding_map(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error getting marketplace collection graph embedding map {collection_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get(
+    "/marketplace/collections/{collection_id}/graph/hybrid",
+    tags=["graph"],
+    response_model=GraphHybridResponse,
+)
+async def get_marketplace_collection_graph_hybrid(
+    request: Request,
+    collection_id: str,
+    max_entities: int = Query(1000, ge=1, le=5000),
+    user: AuthenticatedUser = Depends(optional_user),
+) -> GraphHybridResponse:
+    """Get positioned graph-hybrid data for MarketplaceCollection (read-only)."""
+    try:
+        user_id = str(user.id) if user else ""
+        marketplace_info = await marketplace_collection_service.check_marketplace_access(user_id, collection_id)
+        owner_user_id = marketplace_info["owner_user_id"]
+        return await graph_service.get_hybrid_graph(
+            str(owner_user_id),
+            collection_id,
+            max_entities=max_entities,
+        )
+    except CollectionNotPublishedError:
+        raise HTTPException(status_code=404, detail="Collection not found or not published")
+    except CollectionMarketplaceAccessDeniedError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error getting marketplace collection graph hybrid {collection_id}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 

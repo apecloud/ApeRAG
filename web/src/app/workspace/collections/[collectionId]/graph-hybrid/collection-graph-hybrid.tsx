@@ -4,18 +4,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  getGraphEmbeddingMap,
-  getKnowledgeGraph,
-  getMarketplaceGraphEmbeddingMap,
-  getMarketplaceKnowledgeGraph,
+  getGraphHybrid,
+  getMarketplaceGraphHybrid,
   searchMarketplaceGraphEntities,
   searchGraphEntities,
 } from '@/features/knowledge-graph/client-api';
 import type {
   GraphEdge,
-  GraphNode,
+  GraphHybridNode,
   GraphSearchEntity,
-  KnowledgeGraph,
 } from '@/features/knowledge-graph/types';
 import { ApiClientError } from '@/lib/api/typed/errors';
 import { CANVAS_DARK, COLORS } from '@/lib/design-tokens';
@@ -125,17 +122,13 @@ const endpointId = (endpoint: unknown) => {
   return String(endpoint || '');
 };
 
-// PCA-positioned hybrid node — extends GraphNode with the layout-fixed
-// coordinates that come from the `/embedding-map` endpoint. fx/fy are
+// PCA-positioned hybrid node — extends the backend hybrid DTO with the
+// d3-force pinned coordinates. fx/fy are
 // the d3-force "pinned" coordinates, which short-circuits the
 // simulation so the visual reflects the real PCA projection.
-type HybridNode = GraphNode & {
-  value: number;
-  x: number;
-  y: number;
+type HybridNode = GraphHybridNode & {
   fx: number;
   fy: number;
-  cluster: number;
 };
 
 type GraphCamera = {
@@ -213,73 +206,28 @@ export const CollectionGraphHybrid = ({
     setGraphError(undefined);
 
     try {
-      const [embedding, topology] = await Promise.all([
-        marketplace
-          ? getMarketplaceGraphEmbeddingMap(params.collectionId, 1000)
-          : getGraphEmbeddingMap(params.collectionId, 1000),
-        marketplace
-          ? getMarketplaceKnowledgeGraph(params.collectionId)
-          : (getKnowledgeGraph(params.collectionId) as Promise<
-              KnowledgeGraph | undefined
-            >),
-      ]);
+      const hybrid = marketplace
+        ? await getMarketplaceGraphHybrid(params.collectionId, 1000)
+        : await getGraphHybrid(params.collectionId, 1000);
 
-      if (!embedding || embedding.points.length === 0) {
+      if (!hybrid || hybrid.nodes.length === 0) {
         setGraphData({ nodes: [], links: [] });
         setClusterLabels({});
         return;
       }
 
-      const kgNodesByName = new Map<string, GraphNode>();
-      for (const n of topology?.nodes ?? []) {
-        kgNodesByName.set(String(n.id), n);
-      }
-
-      // Build hybrid nodes — PCA coordinates first, KG metadata joined
-      // by entity name. Nodes that don't have a KG match still render
-      // (we want the full PCA cloud); the detail panel handles missing
-      // descriptions gracefully.
-      const nodes: HybridNode[] = embedding.points.map((p) => {
-        const kg = kgNodesByName.get(p.name);
-        return {
-          ...(kg ?? {
-            id: p.name,
-            labels: [],
-            properties: { entity_type: p.entity_type ?? undefined },
-          }),
-          id: p.name,
-          value: NODE_MIN,
-          x: p.x,
-          y: p.y,
-          fx: p.x,
-          fy: p.y,
-          cluster: p.cluster,
-        };
-      });
-
-      // Filter KG edges to only those joining two PCA-positioned nodes.
-      // Compute degree-based node `value` (mirrors /graph) so the
-      // canvas painter renders bigger circles for hub nodes.
-      const nameToIndex = new Map(nodes.map((n, i) => [n.id, i]));
-      const links: GraphEdge[] = [];
-      for (const edge of topology?.edges ?? []) {
-        const sId = String(edge.source);
-        const tId = String(edge.target);
-        const sIdx = nameToIndex.get(sId);
-        const tIdx = nameToIndex.get(tId);
-        if (sIdx === undefined || tIdx === undefined) continue;
-        links.push(edge);
-        nodes[sIdx].value += 1;
-        nodes[tIdx].value += 1;
-      }
-      for (const n of nodes) {
-        n.value = Math.max(NODE_MIN, Math.min(n.value, NODE_MAX));
-      }
+      const nodes: HybridNode[] = hybrid.nodes.map((node) => ({
+        ...node,
+        value: Math.max(NODE_MIN, Math.min(node.value, NODE_MAX)),
+        fx: node.x,
+        fy: node.y,
+      }));
+      const links: GraphEdge[] = hybrid.edges ?? [];
 
       setGraphData({ nodes, links });
 
       const labels: Record<number, string> = {};
-      for (const [k, v] of Object.entries(embedding.cluster_labels)) {
+      for (const [k, v] of Object.entries(hybrid.cluster_labels)) {
         labels[Number(k)] = v;
       }
       setClusterLabels(labels);

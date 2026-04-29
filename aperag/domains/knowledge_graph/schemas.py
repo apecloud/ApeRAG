@@ -482,6 +482,30 @@ class GraphEmbeddingMapResponse(BaseModel):
     )
 
 
+class GraphHybridNode(GraphNode):
+    """Node in the graph-hybrid visualization."""
+
+    x: float = Field(..., description="X coordinate in the 2-D projection of the entity vector")
+    y: float = Field(..., description="Y coordinate in the 2-D projection of the entity vector")
+    cluster: int = Field(..., description="entity_type bucket index (sequential, not k-means clustering)")
+    value: int = Field(..., description="Display size weight derived from relation degree", ge=1)
+
+
+class GraphHybridResponse(BaseModel):
+    """Response for ``GET /graphs/hybrid``."""
+
+    nodes: list[GraphHybridNode] = Field(..., description="Positioned entity nodes")
+    edges: list[GraphEdge] = Field(..., description="Relations whose endpoints both have coordinates")
+    cluster_labels: dict[str, str] = Field(
+        ...,
+        description="cluster index -> entity_type label (1:1 mapping)",
+    )
+    is_truncated: bool = Field(
+        ...,
+        description="Whether the node set hit the max_entities limit",
+    )
+
+
 __all__ = [
     "GraphLabelsResponse",
     "GraphNodeProperties",
@@ -506,4 +530,6 @@ __all__ = [
     "GraphEmbeddingPoint",
     "GraphEmbeddingMapRelation",
     "GraphEmbeddingMapResponse",
+    "GraphHybridNode",
+    "GraphHybridResponse",
 ]
