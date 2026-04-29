@@ -1,0 +1,87 @@
+{{- if .Values.indexingWorker.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    {{- include "aperag.labels" . | nindent 4 }}
+  name: indexing-worker
+spec:
+  replicas: {{ .Values.indexingWorker.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "aperag.selectorLabels" . | nindent 6 }}
+      {{- include "indexingWorker.labels" . | nindent 6 }}
+  revisionHistoryLimit: 1
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "aperag.selectorLabels" . | nindent 8 }}
+        {{- include "indexingWorker.labels" . | nindent 8 }}
+    spec:
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- range . }}
+        - name: {{ . }}
+        {{- end }}
+      {{- end }}
+      containers:
+        - command:
+            - /bin/sh
+            - -c
+            - |
+              mkdir -p /data/.cache
+              mkdir -p /root/.cache
+              ln -sf /data/.cache/huggingface /root/.cache/
+              ln -sf /data/.cache/torch /root/.cache/
+              /app/scripts/entrypoint.sh python -m aperag.cli.indexing_worker
+          env:
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION
+              value: python
+            # Helm role-specific pool settings intentionally map to the
+            # existing application env names. Do not add app-level
+            # API_DB_POOL_SIZE / INDEXING_WORKER_DB_POOL_SIZE aliases.
+            - name: DB_POOL_SIZE
+              value: {{ .Values.indexingWorker.dbPoolSize | quote }}
+            - name: DB_MAX_OVERFLOW
+              value: {{ .Values.indexingWorker.dbMaxOverflow | quote }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          name: aperag-indexing-worker
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.indexingWorker.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.indexingWorker.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - mountPath: /data
+              name: data
+            - name: env-config
+              mountPath: /app/.env
+              subPath: .env
+              readOnly: true
+      restartPolicy: Always
+      {{- with .Values.indexingWorker.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: data
+          hostPath:
+            path: {{ .Values.api.dataPath }}
+        - name: env-config
+          secret:
+            secretName: aperag-env
+{{- end }}

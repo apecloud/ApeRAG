@@ -55,6 +55,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 app.aperag.io/component: api
 {{- end }}
 
+{{- define "indexingWorker.labels" -}}
+app.aperag.io/component: indexing-worker
+{{- end }}
+
 {{- define "frontend.labels" -}}
 app.aperag.io/component: frontend
 {{- end }}
