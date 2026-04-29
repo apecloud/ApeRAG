@@ -79,7 +79,7 @@ Nebula / Neo4j 比 Lite 的 fail rate **高 3x**。多 PR cross-check 实证（t
 ## 4. 决策追溯
 
 - Planetegg msg=b29b1f91 + msg=46a0c5de — gate wording 起草 + ledger 收 6 fail sample 证 known-signature 集中
-- huangheng msg=14a00712 / msg=7e99530f — 多 PR forensics + Lesson #12 v5 own-up（trust framing 反模式延伸到 CI status 解读）
+- huangheng / Weston / ziang / Planetegg 多 PR cross-check forensics（task #17 PR #1893 / #1885 / #1886 / #1890 / #1891 / #1899）+ Lesson #12 v5 own-up（trust framing 反模式延伸到 CI status 解读，sediment 进 cr-review-checklist § 四 PR #1916）
 - 架构师 msg=2c69a921 — base-too-old 假设证伪（实际是 worker DI bug，task #17 hot-fix #1893 修，不是 CI flake）
 - PM msg=cd08a03f — Layer 2 P0 优先级 ratify（A+C 路径，不直接拆 nightly）
 
