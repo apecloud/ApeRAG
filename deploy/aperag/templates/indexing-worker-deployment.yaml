@@ -47,6 +47,35 @@ spec:
                   fieldPath: status.hostIP
             - name: PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION
               value: python
+            {{- if .Values.postgres.enabled }}
+            # entrypoint.sh waits for PostgreSQL before Python loads /app/.env,
+            # so these must be real container env vars rather than only .env
+            # entries in the mounted aperag-env Secret.
+            - name: POSTGRES_HOST
+              value: {{ .Values.postgres.POSTGRES_HOST | quote }}
+            - name: POSTGRES_PORT
+              value: {{ .Values.postgres.POSTGRES_PORT | quote }}
+            - name: POSTGRES_DB
+              value: {{ .Values.postgres.POSTGRES_DB | quote }}
+            - name: POSTGRES_USER
+              {{- if .Values.postgres.POSTGRES_CREDENTIALS_SECRET_NAME }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgres.POSTGRES_CREDENTIALS_SECRET_NAME }}
+                  key: username
+              {{- else }}
+              value: {{ .Values.postgres.POSTGRES_USER | default "postgres" | quote }}
+              {{- end }}
+            - name: POSTGRES_PASSWORD
+              {{- if .Values.postgres.POSTGRES_CREDENTIALS_SECRET_NAME }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgres.POSTGRES_CREDENTIALS_SECRET_NAME }}
+                  key: password
+              {{- else }}
+              value: {{ .Values.postgres.POSTGRES_PASSWORD | default "postgres" | quote }}
+              {{- end }}
+            {{- end }}
             # Helm role-specific pool settings intentionally map to the
             # existing application env names. Do not add app-level
             # API_DB_POOL_SIZE / INDEXING_WORKER_DB_POOL_SIZE aliases.
