@@ -27,9 +27,11 @@ from aperag.indexing.base import DeriveResult, ModalityWorker
 from aperag.indexing.cleanup import (
     CLEANUP_INTERVAL_SECONDS,
     ORPHAN_COOLDOWN_SECONDS,
+    cleanup_deleted_document_intents,
     cleanup_for_deleted_collections,
     cleanup_for_deleted_documents,
     cleanup_orphan_parse_versions,
+    find_deleted_document_cleanup_targets,
     find_orphan_parse_versions,
     run_cleanup_loop,
 )
@@ -298,7 +300,9 @@ __all__ = [
     "CLEANUP_INTERVAL_SECONDS",
     "ORPHAN_COOLDOWN_SECONDS",
     "find_orphan_parse_versions",
+    "find_deleted_document_cleanup_targets",
     "cleanup_orphan_parse_versions",
+    "cleanup_deleted_document_intents",
     "cleanup_for_deleted_documents",
     "cleanup_for_deleted_collections",
     "run_cleanup_loop",
