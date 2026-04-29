@@ -103,7 +103,16 @@ logger = logging.getLogger(__name__)
 
 
 def _index_statuses_to_document_status(indexes: dict, fallback: DocumentStatus) -> DocumentStatus:
-    enabled_indexes = [index for index in indexes.values() if index]
+    """聚合 per-modality 状态成文档整体状态.
+
+    任务 #5 §4.5/§4.6 硬边界 (huangzhangshu task #3 审计 msg=23a23245 +
+    Planetegg msg=797baff4 ratify): **graph_vectors 不参与文档整体聚合**.
+    向量层是 graph 检索的增强层, 失败 / Pending 不应该让文档整体变 FAILED /
+    RUNNING. 文档"图谱事实层可用"由 ``GRAPH_FACTS`` 决定, 老 ``GRAPH``
+    单段在兼容期等价于 facts 层.
+    """
+    # 排除 GRAPH_VECTORS — 向量层不参与文档整体可用性聚合.
+    enabled_indexes = [index for key, index in indexes.items() if index and key != Modality.GRAPH_VECTORS.value.upper()]
     if not enabled_indexes:
         return fallback
 
@@ -1061,16 +1070,45 @@ class DocumentService:
             # Process each document with failed indexes
             affected_documents = 0
             for document_id, failed_index_types in failed_docs:
+                rebuild_types = list(failed_index_types)
+
+                # 任务 #5 §4.6 hard-gate (huangzhangshu task #3 审计 msg=23a23245
+                # + Planetegg msg=797baff4 + 符炫炜 ratify msg=3accc941):
+                # 失败行如果是 legacy ``graph``, 归一化到 ``graph_facts`` 并
+                # 在同事务里删除 legacy 行. reconciler 在 facts 层 ACTIVE
+                # 之后会自动入队 ``graph_vectors``, 这样老单段被重建后
+                # 自然进入两段新模态. 老 description / 旧向量点的清理走
+                # cleanup 的 lineage-aware 路径 (cleanup.py 已识别三个 graph
+                # 模态值, GraphFactsWorker.sync 也会显式覆盖 compacted_description=""
+                # 让残留摘要不被检索回流).
+                if Modality.GRAPH.value in rebuild_types:
+                    from sqlalchemy import and_ as _and
+                    from sqlalchemy import delete as _delete
+
+                    await session.execute(
+                        _delete(DocumentIndex).where(
+                            _and(
+                                DocumentIndex.document_id == document_id,
+                                DocumentIndex.modality == Modality.GRAPH.value,
+                            )
+                        )
+                    )
+                    rebuild_types = [
+                        Modality.GRAPH_FACTS.value if t == Modality.GRAPH.value else t for t in rebuild_types
+                    ]
+                    # 归一化后如果同时已经有 graph_facts FAILED, 会重复, 用
+                    # ``dict.fromkeys`` 保序去重.
+                    rebuild_types = list(dict.fromkeys(rebuild_types))
+
                 # Filter out GRAPH type if not enabled in collection config.
                 # 任务 #5: 三个 graph 模态值都要过滤掉, 避免重建已禁用的图谱索引.
-                rebuild_types = failed_index_types
                 if not enable_knowledge_graph:
                     graph_values = {
                         Modality.GRAPH.value,
                         Modality.GRAPH_FACTS.value,
                         Modality.GRAPH_VECTORS.value,
                     }
-                    rebuild_types = [t for t in failed_index_types if t not in graph_values]
+                    rebuild_types = [t for t in rebuild_types if t not in graph_values]
 
                 if rebuild_types:
                     # Wave 3 T3.1 chunk 3: dispatch failed-rebuild via
