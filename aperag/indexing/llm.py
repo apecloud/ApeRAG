@@ -48,7 +48,7 @@ behavioural change.
 from __future__ import annotations
 
 import logging
-from typing import Any, Awaitable, Callable, Dict, Optional
+from typing import Any, Awaitable, Callable, Dict, Mapping, Optional, Sequence
 
 from aperag.db.ops import db_ops
 from aperag.domains.knowledge_graph.ports import CollectionRow
@@ -145,9 +145,10 @@ def build_collection_llm_callable(
 ENTITY_RELATION_EXTRACTION: str = """\
 You are an information-extraction assistant building a knowledge graph.
 
-Read the TEXT below and return a single JSON object with two arrays:
-``entities`` and ``relations``. Do not output anything outside the JSON
-object.
+Read the TEXT below — it is composed of one or more chunks separated by
+``[[chunk_id=<id> index=<n>]]`` boundary markers — and return a single
+JSON object with two arrays: ``entities`` and ``relations``. Do not
+output anything outside the JSON object.
 
 **Rules**
 
@@ -164,11 +165,31 @@ object.
    in the ``entities`` list. No self-loops (source != target).
 6. ``weight`` is an integer 1-10 expressing how strongly the text
    supports the relation; default to 5 when unsure.
-7. Cap: at most {max_entities} entities and {max_relations} relations.
-   If the text contains more, prefer the most specific and the
-   most-mentioned.
+7. Cap: at most {max_entities} entities and {max_relations} relations
+   for the whole window. If the text contains more, prefer the most
+   specific and the most-mentioned.
 8. If the text has no extractable entities, return
    ``{{"entities": [], "relations": []}}``.
+9. **Provenance — REQUIRED**: every entity and every relation MUST carry
+   ``source_chunk_ids``: a non-empty list of the boundary-marker
+   ``chunk_id`` values whose text supports it. Use only ids from this
+   allowlist: {allowed_chunk_ids}. The list of allowed ids matches the
+   ``chunk_id`` values in the boundary markers above; do not invent
+   new ids.
+10. **Cross-chunk relations**: when an entity defined in one chunk
+    appears in another, prefer to extract a relation linking them. Set
+    ``source_chunk_ids`` to every chunk_id whose text contributes
+    evidence for the relation (typically the chunks that mention each
+    side).
+11. **Deduplication & normalisation**: when the same entity appears in
+    multiple chunks (same name and type), emit it once with
+    ``source_chunk_ids`` covering every supporting chunk. Pick a single
+    canonical name across chunks — do not output two entities for an
+    obvious surface variant of the same thing.
+12. **No fabrication / fail-safe**: if you cannot ground a candidate
+    entity or relation in the actual text, drop it. Low-confidence
+    candidates may also be skipped. Returning fewer-but-correct beats
+    over-eager extraction.
 
 **JSON schema**
 
@@ -176,20 +197,23 @@ object.
 {{
   "entities": [
     {{"name": "<string>", "entity_type": "<existing or new type string>",
-      "description": "<string>"}}
+      "description": "<string>",
+      "source_chunk_ids": ["<chunk_id>", "..."]}}
   ],
   "relations": [
     {{"source": "<entity name>", "target": "<entity name>",
       "relation_type": "<short relation type>",
-      "description": "<string>", "weight": <int 1-10>}}
+      "description": "<string>", "weight": <int 1-10>,
+      "source_chunk_ids": ["<chunk_id>", "..."]}}
   ]
 }}
 ```
 
-**Example** (English):
+**Example** (single chunk):
 
 Text:
 ```
+[[chunk_id=c1 index=0]]
 Alice, a researcher at Acme Labs, collaborated with Bob on the project.
 ```
 
@@ -198,26 +222,29 @@ Output:
 {{
   "entities": [
     {{"name": "Alice", "entity_type": "Person",
-      "description": "A researcher at Acme Labs."}},
+      "description": "A researcher at Acme Labs.",
+      "source_chunk_ids": ["c1"]}},
     {{"name": "Bob", "entity_type": "Person",
-      "description": "A collaborator on the project."}},
+      "description": "A collaborator on the project.",
+      "source_chunk_ids": ["c1"]}},
     {{"name": "Acme Labs", "entity_type": "Organization",
-      "description": "Research organization where Alice works."}}
+      "description": "Research organization where Alice works.",
+      "source_chunk_ids": ["c1"]}}
   ],
   "relations": [
     {{"source": "Alice", "target": "Bob",
       "relation_type": "collaborated_with",
       "description": "Alice and Bob collaborated on a project.",
-      "weight": 7}},
+      "weight": 7, "source_chunk_ids": ["c1"]}},
     {{"source": "Alice", "target": "Acme Labs",
       "relation_type": "works_for",
       "description": "Alice is a researcher employed by Acme Labs.",
-      "weight": 8}}
+      "weight": 8, "source_chunk_ids": ["c1"]}}
   ]
 }}
 ```
 
----
+{few_shot_examples}---
 
 TEXT:
 ```
@@ -229,20 +256,54 @@ Output (JSON only):"""
 
 def render_extraction_prompt(
     *,
-    input_text: str,
+    window_chunks: "Sequence[Mapping[str, Any]]",
     entity_types: list[str] | tuple[str, ...],
     language: str,
     max_entities: int,
     max_relations: int,
+    few_shot_locale: Optional[str] = None,
 ) -> str:
-    """Fill in the extraction prompt template for one chunk.
+    """Fill in the extraction prompt template for one extraction window.
 
-    Kept as a simple function so tests can snapshot the exact rendered
-    string and catch accidental prompt regressions. The template is
-    identical to the legacy ``graphindex.prompts.ENTITY_RELATION_EXTRACTION``
-    text (relocated here verbatim during Wave 5 P1).
+    A "window" is one or more consecutive chunks from the same document
+    /parse_version that the graph extractor groups together for a
+    single LLM call (task #30 §3.1.1). For ``len(window_chunks) == 1``
+    the rendered prompt is structurally equivalent to the legacy
+    single-chunk shape — there is exactly one boundary marker and the
+    LLM still grounds every entity / relation in that single chunk —
+    but the v2 prompt now requires ``source_chunk_ids`` on every
+    record (task #30 §3.1.3 hard requirement #2). For ``len > 1`` the
+    window text carries one ``[[chunk_id=<id> index=<n>]]`` marker per
+    chunk and the prompt encourages cross-chunk relations + dedup.
+
+    ``few_shot_locale`` (task #30 §3.1.3 default-off opt-in): when set
+    to ``"zh"`` / ``"en"`` / ``"cross_chunk"`` the prompt embeds an
+    extra few-shot example to bias the LLM toward the corresponding
+    output style. Default ``None`` = no extra example (keeps the
+    prompt token budget tight per Bryce Concern 3 / huangheng A2 5th
+    co-scale const).
+
+    Kept as a function (rather than inlined) so tests can snapshot the
+    exact rendered string and catch accidental prompt regressions.
     """
     from aperag.indexing.entity_types import format_entity_types_for_prompt
+
+    if not window_chunks:
+        raise ValueError("render_extraction_prompt: window_chunks must be non-empty")
+
+    chunk_blocks: list[str] = []
+    chunk_ids: list[str] = []
+    for index, chunk in enumerate(window_chunks):
+        raw_id = chunk.get("chunk_id") or chunk.get("id") or ""
+        chunk_id = str(raw_id)
+        if not chunk_id:
+            raise ValueError(f"render_extraction_prompt: window_chunks[{index}] missing chunk_id / id")
+        text = str(chunk.get("text") or "")
+        chunk_blocks.append(f"[[chunk_id={chunk_id} index={index}]]\n{text}")
+        chunk_ids.append(chunk_id)
+
+    input_text = "\n\n".join(chunk_blocks)
+    allowed_chunk_ids_repr = ", ".join(repr(cid) for cid in chunk_ids)
 
     return ENTITY_RELATION_EXTRACTION.format(
         input_text=input_text,
@@ -250,7 +311,98 @@ def render_extraction_prompt(
         language=language,
         max_entities=max_entities,
         max_relations=max_relations,
+        allowed_chunk_ids=f"[{allowed_chunk_ids_repr}]",
+        few_shot_examples=_few_shot_examples_block(few_shot_locale),
     )
+
+
+# Few-shot example library (task #30 §3.1.3 default-off opt-in). The
+# library is small on purpose — every example adds prompt tokens that
+# trade off against the per-window cap (Bryce Concern 3 / huangheng A2
+# 5th co-scale const). New locales should be small, focused, and only
+# exercised when a real benchmark shows the locale wins.
+_FEW_SHOT_EXAMPLES: Dict[str, str] = {
+    "zh": """**Example** (Chinese):
+
+Text:
+```
+[[chunk_id=c1 index=0]]
+张伟在阿里云研究院担任高级研究员，与李娜共同负责图谱抽取项目。
+```
+
+Output:
+```
+{{
+  "entities": [
+    {{"name": "张伟", "entity_type": "Person",
+      "description": "阿里云研究院的高级研究员，负责图谱抽取项目。",
+      "source_chunk_ids": ["c1"]}},
+    {{"name": "李娜", "entity_type": "Person",
+      "description": "图谱抽取项目的合作研究员。",
+      "source_chunk_ids": ["c1"]}},
+    {{"name": "阿里云研究院", "entity_type": "Organization",
+      "description": "张伟所在的研究机构。",
+      "source_chunk_ids": ["c1"]}}
+  ],
+  "relations": [
+    {{"source": "张伟", "target": "阿里云研究院",
+      "relation_type": "works_for",
+      "description": "张伟受雇于阿里云研究院。",
+      "weight": 8, "source_chunk_ids": ["c1"]}},
+    {{"source": "张伟", "target": "李娜",
+      "relation_type": "collaborated_with",
+      "description": "张伟与李娜共同负责图谱抽取项目。",
+      "weight": 7, "source_chunk_ids": ["c1"]}}
+  ]
+}}
+```
+
+""",
+    "cross_chunk": """**Example** (cross-chunk relation):
+
+Text:
+```
+[[chunk_id=c1 index=0]]
+Acme Labs is a research organization founded in 2010.
+
+[[chunk_id=c2 index=1]]
+Alice, a senior researcher, joined Acme Labs in 2020.
+```
+
+Output:
+```
+{{
+  "entities": [
+    {{"name": "Acme Labs", "entity_type": "Organization",
+      "description": "A research organization founded in 2010.",
+      "source_chunk_ids": ["c1", "c2"]}},
+    {{"name": "Alice", "entity_type": "Person",
+      "description": "A senior researcher who joined Acme Labs in 2020.",
+      "source_chunk_ids": ["c2"]}}
+  ],
+  "relations": [
+    {{"source": "Alice", "target": "Acme Labs",
+      "relation_type": "works_for",
+      "description": "Alice joined Acme Labs as a senior researcher in 2020.",
+      "weight": 8, "source_chunk_ids": ["c1", "c2"]}}
+  ]
+}}
+```
+
+""",
+}
+
+
+def _few_shot_examples_block(locale: Optional[str]) -> str:
+    """Return the rendered few-shot block for ``locale`` or ``""`` when
+    the opt-in is off / the locale is unknown.
+
+    A warning at the call site already covers unknown locales so the
+    template-rendering path stays branch-free.
+    """
+    if not locale:
+        return ""
+    return _FEW_SHOT_EXAMPLES.get(locale, "")
 
 
 __all__ = [

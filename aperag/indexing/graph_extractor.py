@@ -415,6 +415,74 @@ def _graph_window_boundary_break(previous: Mapping[str, Any], current: Mapping[s
 # ---------------------------------------------------------------------
 
 
+async def _extract_one_window(
+    *,
+    llm: Callable[[str], Awaitable[str]],
+    window: _GraphChunkWindow,
+    entity_types: tuple[str, ...],
+    language: str,
+    max_entities: int,
+    max_relations: int,
+    timeout_seconds: float,
+    few_shot_locale: str | None = None,
+) -> tuple[list[EntityRecord], list[RelationRecord]]:
+    """Window extraction: render the v2 prompt over the window's chunks,
+    call the LLM, parse the JSON response, return record lists.
+
+    A1 introduced the :class:`_GraphChunkWindow` shape and dispatched
+    every window through this entrypoint with the legacy single-text
+    bridge. A3 replaces that bridge with boundary-marked prompt text +
+    a parser that validates the LLM's ``source_chunk_ids`` against the
+    window allowlist (spec §3.1.3 + §6.2):
+
+    - ``window_size == 1`` — the prompt emits a single
+      ``[[chunk_id=...]]`` block and the parser falls back to the
+      lone allowed id when the LLM omits ``source_chunk_ids``,
+      preserving the structural-equivalence contract that A1 already
+      proves with its 35 integration tests.
+    - ``window_size > 1`` — the prompt emits one boundary marker per
+      chunk and the parser requires the LLM to populate
+      ``source_chunk_ids`` against the allowlist; missing or
+      out-of-allowlist ids are skipped + warned so a hallucinated
+      chunk_id never poisons provenance.
+
+    Wraps the LLM call in :func:`asyncio.wait_for` with the per-window
+    timeout so a stuck LLM does not block the worker forever; on
+    timeout we propagate :class:`asyncio.TimeoutError` to the caller
+    which already logs + skips the window.
+    """
+    from aperag.indexing.llm import render_extraction_prompt
+
+    if not window.chunks:
+        return ([], [])
+
+    allowed_chunk_ids = tuple(window.chunk_ids)
+    if any(not cid for cid in allowed_chunk_ids):
+        # Defensive: A1's _build_graph_chunk_windows already drops
+        # chunks with no chunk_id, so this should be unreachable. If
+        # it still fires (someone hand-builds a window in tests) we
+        # cannot ground provenance — drop the window.
+        logger.warning(
+            "graph extractor: window contains a chunk with empty chunk_id; skipping window (window_size=%d)",
+            len(window.chunks),
+        )
+        return ([], [])
+
+    prompt = render_extraction_prompt(
+        window_chunks=window.chunks,
+        entity_types=list(entity_types),
+        language=language,
+        max_entities=max_entities,
+        max_relations=max_relations,
+        few_shot_locale=few_shot_locale,
+    )
+    raw = await asyncio.wait_for(llm(prompt), timeout=timeout_seconds)
+    return _parse_extraction_response(
+        raw=raw,
+        allowed_chunk_ids=allowed_chunk_ids,
+    )
+
+
 async def _extract_one_chunk(
     *,
     llm: Callable[[str], Awaitable[str]],
@@ -426,48 +494,18 @@ async def _extract_one_chunk(
     max_relations: int,
     timeout_seconds: float,
 ) -> tuple[list[EntityRecord], list[RelationRecord]]:
-    """Single-chunk extraction: render the prompt, call the LLM, parse
-    the JSON response, return record lists.
+    """Backward-compatible single-chunk wrapper around
+    :func:`_extract_one_window`.
 
-    Wraps the LLM call in :func:`asyncio.wait_for` with the per-chunk
-    timeout so a stuck LLM does not block the worker forever; on
-    timeout we propagate :class:`asyncio.TimeoutError` to the caller
-    which already logs + skips the chunk.
+    Existing callers (and a few legacy tests) still pass a single
+    ``text`` + ``chunk_id`` pair. We wrap them in a synthetic
+    ``_GraphChunkWindow`` so the v2 prompt + parser invariant runs
+    through one entrypoint.
     """
-    from aperag.indexing.llm import render_extraction_prompt
-
-    prompt = render_extraction_prompt(
-        input_text=text,
-        entity_types=list(entity_types),
-        language=language,
-        max_entities=max_entities,
-        max_relations=max_relations,
-    )
-    raw = await asyncio.wait_for(llm(prompt), timeout=timeout_seconds)
-    return _parse_extraction_response(raw=raw, chunk_id=chunk_id)
-
-
-async def _extract_one_window(
-    *,
-    llm: Callable[[str], Awaitable[str]],
-    window: _GraphChunkWindow,
-    entity_types: tuple[str, ...],
-    language: str,
-    max_entities: int,
-    max_relations: int,
-    timeout_seconds: float,
-) -> tuple[list[EntityRecord], list[RelationRecord]]:
-    """A1 bridge from graph windows to the existing single-text prompt.
-
-    A3 replaces this bridge with boundary-marked prompt text and parses
-    model-provided ``source_chunk_ids``. Until then, default window_size=1
-    keeps production behavior equivalent; explicit >1 windows use the
-    first chunk id as legacy provenance fallback.
-    """
-    return await _extract_one_chunk(
+    window = _make_graph_chunk_window([{"chunk_id": chunk_id, "text": text}])
+    return await _extract_one_window(
         llm=llm,
-        text=window.text,
-        chunk_id=window.primary_chunk_id,
+        window=window,
         entity_types=entity_types,
         language=language,
         max_entities=max_entities,
@@ -486,7 +524,7 @@ _EMPTY_RESULT_LOG_RAW_PREFIX_CHARS: int = 500
 def _log_empty_extraction_if_applicable(
     *,
     raw: str,
-    chunk_id: str,
+    allowed_chunk_ids: tuple[str, ...],
     entities_count: int,
     relations_count: int,
 ) -> None:
@@ -516,10 +554,10 @@ def _log_empty_extraction_if_applicable(
         return
     raw_prefix = raw[:_EMPTY_RESULT_LOG_RAW_PREFIX_CHARS]
     logger.warning(
-        "graph extractor: empty extraction result for chunk_id=%s "
+        "graph extractor: empty extraction result for chunk_ids=%s "
         "(LLM response parsed cleanly but produced 0 entities + 0 relations); "
         "raw response prefix (%d chars max): %r",
-        chunk_id,
+        list(allowed_chunk_ids),
         _EMPTY_RESULT_LOG_RAW_PREFIX_CHARS,
         raw_prefix,
     )
@@ -528,7 +566,7 @@ def _log_empty_extraction_if_applicable(
 def _parse_extraction_response(
     *,
     raw: str,
-    chunk_id: str,
+    allowed_chunk_ids: tuple[str, ...],
 ) -> tuple[list[EntityRecord], list[RelationRecord]]:
     """Parse the LLM's JSON response into entity / relation records.
 
@@ -538,35 +576,52 @@ def _parse_extraction_response(
     middleware still work. Malformed payloads return ``([], [])``;
     individual records that fail to parse are logged + skipped so a
     single bad row does not drop the rest.
+
+    Provenance invariant (task #30 §3.1.3 hard requirement #2 + parser
+    invariant agreed in #indexing优化:f0614ea1): every record's
+    ``source_chunk_ids`` must be a non-empty subset of the window's
+    allowlist. ``window_size == 1`` is the legacy compat path — when
+    the LLM omits ``source_chunk_ids`` we fall back to the single
+    allowed id. ``window_size > 1`` requires the LLM to populate the
+    field; missing / out-of-allowlist records are skipped + warned.
     """
     payload = _strip_code_fence(raw)
     try:
         parsed = json.loads(payload)
     except json.JSONDecodeError:
         logger.warning(
-            "graph extractor: chunk_id=%s response is not valid JSON; skipping entities/relations from this chunk",
-            chunk_id,
+            "graph extractor: chunk_ids=%s response is not valid JSON; skipping entities/relations from this window",
+            list(allowed_chunk_ids),
         )
         return ([], [])
 
     if not isinstance(parsed, Mapping):
         logger.warning(
-            "graph extractor: chunk_id=%s response is JSON but not an object; got %s",
-            chunk_id,
+            "graph extractor: chunk_ids=%s response is JSON but not an object; got %s",
+            list(allowed_chunk_ids),
             type(parsed).__name__,
         )
         return ([], [])
+
+    allowed_set = frozenset(allowed_chunk_ids)
+    fallback_chunk_id = allowed_chunk_ids[0] if len(allowed_chunk_ids) == 1 else None
 
     entities: list[EntityRecord] = []
     for raw_entity in parsed.get("entities", []) or []:
         if not isinstance(raw_entity, Mapping):
             continue
         try:
-            entities.append(_entity_from_dict(raw_entity, chunk_id=chunk_id))
+            entities.append(
+                _entity_from_dict(
+                    raw_entity,
+                    allowed_chunk_ids=allowed_set,
+                    fallback_chunk_id=fallback_chunk_id,
+                )
+            )
         except (KeyError, ValueError, TypeError) as exc:
             logger.warning(
-                "graph extractor: chunk_id=%s skipping malformed entity %r: %s",
-                chunk_id,
+                "graph extractor: chunk_ids=%s skipping malformed entity %r: %s",
+                list(allowed_chunk_ids),
                 raw_entity,
                 exc,
             )
@@ -576,18 +631,24 @@ def _parse_extraction_response(
         if not isinstance(raw_relation, Mapping):
             continue
         try:
-            relations.append(_relation_from_dict(raw_relation, chunk_id=chunk_id))
+            relations.append(
+                _relation_from_dict(
+                    raw_relation,
+                    allowed_chunk_ids=allowed_set,
+                    fallback_chunk_id=fallback_chunk_id,
+                )
+            )
         except (KeyError, ValueError, TypeError) as exc:
             logger.warning(
-                "graph extractor: chunk_id=%s skipping malformed relation %r: %s",
-                chunk_id,
+                "graph extractor: chunk_ids=%s skipping malformed relation %r: %s",
+                list(allowed_chunk_ids),
                 raw_relation,
                 exc,
             )
 
     _log_empty_extraction_if_applicable(
         raw=raw,
-        chunk_id=chunk_id,
+        allowed_chunk_ids=allowed_chunk_ids,
         entities_count=len(entities),
         relations_count=len(relations),
     )
@@ -607,7 +668,54 @@ def _strip_code_fence(raw: str) -> str:
     return raw.strip()
 
 
-def _entity_from_dict(raw: Mapping[str, Any], *, chunk_id: str) -> EntityRecord:
+def _resolve_source_chunk_ids(
+    raw: Mapping[str, Any],
+    *,
+    allowed_chunk_ids: frozenset[str],
+    fallback_chunk_id: str | None,
+) -> tuple[str, ...]:
+    """Read + validate ``source_chunk_ids`` against the window allowlist.
+
+    Single-chunk window (``fallback_chunk_id`` is set) — missing field
+    falls back to the single allowed id (legacy compat).
+
+    Multi-chunk window (``fallback_chunk_id is None``) — the field
+    must be a non-empty list of allowlisted strings; otherwise we
+    raise ``ValueError`` so the caller skips + warns the record.
+
+    Out-of-allowlist ids are silently dropped before the empty-check
+    so an LLM that hallucinates a chunk_id does not poison provenance.
+    """
+    raw_ids = raw.get("source_chunk_ids")
+    if raw_ids is None:
+        if fallback_chunk_id is None:
+            raise ValueError("source_chunk_ids is required for multi-chunk windows; the LLM omitted the field")
+        return (fallback_chunk_id,)
+
+    if not isinstance(raw_ids, (list, tuple)):
+        raise ValueError(f"source_chunk_ids must be a list, got {type(raw_ids).__name__}")
+
+    cleaned: list[str] = []
+    seen: set[str] = set()
+    for entry in raw_ids:
+        cid = str(entry).strip()
+        if not cid or cid not in allowed_chunk_ids or cid in seen:
+            continue
+        cleaned.append(cid)
+        seen.add(cid)
+    if not cleaned:
+        if fallback_chunk_id is not None:
+            return (fallback_chunk_id,)
+        raise ValueError("source_chunk_ids has no values inside the window allowlist")
+    return tuple(cleaned)
+
+
+def _entity_from_dict(
+    raw: Mapping[str, Any],
+    *,
+    allowed_chunk_ids: frozenset[str],
+    fallback_chunk_id: str | None,
+) -> EntityRecord:
     name = str(raw["name"]).strip()
     if not name:
         raise ValueError("entity name cannot be empty")
@@ -615,27 +723,42 @@ def _entity_from_dict(raw: Mapping[str, Any], *, chunk_id: str) -> EntityRecord:
     # canonical Wave 11 string field as ``entity_type``.
     entity_type = normalize_entity_type(raw.get("entity_type") or raw.get("type") or "")
     description = str(raw.get("description") or "")
+    source_chunk_ids = _resolve_source_chunk_ids(
+        raw,
+        allowed_chunk_ids=allowed_chunk_ids,
+        fallback_chunk_id=fallback_chunk_id,
+    )
     return EntityRecord(
         name=name,
         entity_type=entity_type,
         description=description,
-        source_chunk_ids=(chunk_id,) if chunk_id else (),
+        source_chunk_ids=source_chunk_ids,
     )
 
 
-def _relation_from_dict(raw: Mapping[str, Any], *, chunk_id: str) -> RelationRecord:
+def _relation_from_dict(
+    raw: Mapping[str, Any],
+    *,
+    allowed_chunk_ids: frozenset[str],
+    fallback_chunk_id: str | None,
+) -> RelationRecord:
     source = str(raw["source"]).strip()
     target = str(raw["target"]).strip()
     if not source or not target:
         raise ValueError("relation source/target cannot be empty")
     rel_type = str(raw.get("relation_type") or raw.get("type") or "")
     description = str(raw.get("description") or "")
+    source_chunk_ids = _resolve_source_chunk_ids(
+        raw,
+        allowed_chunk_ids=allowed_chunk_ids,
+        fallback_chunk_id=fallback_chunk_id,
+    )
     return RelationRecord(
         source=source,
         target=target,
         relation_type=rel_type,
         description=description,
-        source_chunk_ids=(chunk_id,) if chunk_id else (),
+        source_chunk_ids=source_chunk_ids,
     )
 
 
