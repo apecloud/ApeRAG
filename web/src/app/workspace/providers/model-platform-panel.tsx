@@ -72,10 +72,11 @@ const capabilityMeta: Record<ModelCapability, { label: string }> = {
   embedding: {
     label: '向量',
   },
-  rerank: {
-    label: '重排',
-  },
 };
+
+const isSupportedModelCapability = (
+  capability: string,
+): capability is ModelCapability => capability in capabilityMeta;
 
 const scenarioMeta: Array<{
   id: ModelUseScenario;
@@ -85,7 +86,6 @@ const scenarioMeta: Array<{
   { id: 'agent_chat', label: 'Agent 对话', capability: 'chat' },
   { id: 'collection_completion', label: '知识库问答', capability: 'chat' },
   { id: 'collection_embedding', label: '文档向量', capability: 'embedding' },
-  { id: 'retrieval_rerank', label: '检索重排', capability: 'rerank' },
   { id: 'background_task', label: '后台任务', capability: 'chat' },
 ];
 
@@ -95,7 +95,6 @@ const scenariosForCapability = (capability: ModelCapability) =>
 const modelCapabilityOptions: ModelCapability[] = [
   'chat',
   'embedding',
-  'rerank',
 ];
 
 const modelPresets: ModelPreset[] = [
@@ -155,23 +154,11 @@ const modelPresets: ModelPreset[] = [
     embeddingDimensions: 1024,
   },
   {
-    providerType: 'dashscope',
-    providerModelId: 'gte-rerank-v2',
-    displayName: 'GTE Rerank v2',
-    capability: 'rerank',
-  },
-  {
     providerType: 'jina',
     providerModelId: 'jina-embeddings-v3',
     displayName: 'Jina Embeddings v3',
     capability: 'embedding',
     embeddingDimensions: 1024,
-  },
-  {
-    providerType: 'jina',
-    providerModelId: 'jina-reranker-v2-base-multilingual',
-    displayName: 'Jina Reranker v2',
-    capability: 'rerank',
   },
   {
     providerType: 'openai_compatible',
@@ -587,7 +574,9 @@ function ProviderHero({
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
             {provider.supported_capabilities.map((capability) => (
-              <CapabilityBadge key={capability} capability={capability} />
+              isSupportedModelCapability(capability) ? (
+                <CapabilityBadge key={capability} capability={capability} />
+              ) : null
             ))}
           </div>
         </div>

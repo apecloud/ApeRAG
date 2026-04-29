@@ -14,8 +14,6 @@ from tests.e2e_pytest.config import (
     EMBEDDING_MODEL_NAME,
     EMBEDDING_MODEL_PROVIDER,
     EMBEDDING_MODEL_PROVIDER_API_KEY,
-    RERANK_MODEL_PROVIDER,
-    RERANK_MODEL_PROVIDER_API_KEY,
 )
 from tests.e2e_pytest.utils import assert_dict_subset
 
@@ -33,7 +31,7 @@ def api_key(cookie_client):
 
 @pytest.fixture(scope="module")
 def setup_model_service_provider(cookie_client):
-    """Setup completion/embedding/rerank model service provider for testing."""
+    """Setup completion and embedding model service providers for testing."""
     resp = cookie_client.put(
         f"/api/v1/llm_providers/{COMPLETION_MODEL_PROVIDER}",
         json={"api_key": COMPLETION_MODEL_PROVIDER_API_KEY},
@@ -44,10 +42,6 @@ def setup_model_service_provider(cookie_client):
         json={"api_key": EMBEDDING_MODEL_PROVIDER_API_KEY},
     )
     assert resp.status_code == HTTPStatus.OK, f"Failed to create embedding model service provider: {resp.text}"
-    resp = cookie_client.put(
-        f"/api/v1/llm_providers/{RERANK_MODEL_PROVIDER}", json={"api_key": RERANK_MODEL_PROVIDER_API_KEY}
-    )
-    assert resp.status_code == HTTPStatus.OK, f"Failed to create rerank model service provider: {resp.text}"
 
 
 @pytest.fixture(scope="module")

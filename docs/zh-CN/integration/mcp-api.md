@@ -71,7 +71,6 @@ ApeRAG 通过 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) �
 | `use_graph_index` | bool | true | 图谱检索（关系查询） |
 | `use_summary_index` | bool | true | 摘要检索 |
 | `use_vision_index` | bool | true | 视觉检索（图片搜索） |
-| `rerank` | bool | true | AI 重排序 |
 | `topk` | int | 5 | 每种方式返回的结果数 |
 
 **返回格式**：
@@ -146,7 +145,6 @@ results = search_collection(
 | `query` | string | 必需 | 搜索问题 |
 | `use_vector_index` | bool | true | 向量检索 |
 | `use_fulltext_index` | bool | true | 全文检索 |
-| `rerank` | bool | true | 重排序 |
 | `topk` | int | 5 | 返回结果数 |
 
 **返回格式**：与 `search_collection` 相同
