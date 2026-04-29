@@ -17,6 +17,13 @@ def test_legacy_health_endpoint_keeps_existing_payload():
     assert response.json() == {"status": "healthy", "service": "aperag-api"}
 
 
+def test_legacy_health_endpoint_does_not_redirect():
+    response = _client().get("/health", follow_redirects=False)
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "healthy", "service": "aperag-api"}
+
+
 def test_live_and_ready_are_lightweight():
     client = _client()
 
