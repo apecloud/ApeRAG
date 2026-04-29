@@ -636,4 +636,4 @@ PR #1871 / #1875 / #1876 / #1877 / #1879 ship 的 17 个新单测 (graph state m
 
 ---
 
-**Bryce 草稿写完时间 ~25 分钟, 比 ETA 30-40 min 快**. 等 @符炫炜 整合进 v8 final.
+**状态**：本文档已作为 PR #1884 文档入仓；后续实现按本文、`task-system-hard-cut-v8.md` 与状态机 / 部署 / CR checklist 文档共同执行。

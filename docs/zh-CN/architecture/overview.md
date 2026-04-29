@@ -32,6 +32,8 @@ description: ApeRAG 后端架构入口 — 从哪开始读、去哪找什么
 | knowledge_base / indexing / retrieval / knowledge_graph 的内部结构与 ingestion / retrieval pipeline | [`architecture/indexing-retrieval-kg.md`](./indexing-retrieval-kg.md) |
 | conversation / agent_runtime / evaluation 与 prompt 架构 | [`architecture/conversation-agent-evaluation.md`](./conversation-agent-evaluation.md) |
 | 爬虫抓取 / URL 阅读相关的 `web_access` 子包 | [`architecture/web-access.md`](./web-access.md) |
+| 异步索引任务系统 hard cut 的部署边界与长期不变式 | [`architecture/task-system-invariants.md`](./task-system-invariants.md) |
+| task #17 API/Worker hard cut 执行方案、部署 runbook、状态机验收与 CR checklist | [`task-system-hard-cut-v8.md`](./task-system-hard-cut-v8.md)、[`task-17-deployment-release-runbook.md`](./task-17-deployment-release-runbook.md)、[`task-17-state-machine-validation.md`](./task-17-state-machine-validation.md)、[`task-17-cr-review-checklist.md`](./task-17-cr-review-checklist.md) |
 | 英文的 canonical 全景（20 个 boundary 测试、permanent seam、shim lifecycle、future 候选） | [`docs/modularization/architecture.md`](../../modularization/architecture.md) |
 | 我想在本地把 ApeRAG 跑起来 / 贡献代码 | [`development/development-guide.md`](../development/development-guide.md) |
 | 我想部署 ApeRAG / 配置 LLM provider | `deployment/` 目录 |

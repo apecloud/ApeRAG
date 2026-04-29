@@ -1,8 +1,8 @@
-# ApeRAG 异步任务系统重构 — v8 final 执行方案（5 方共识 + earayu2 ratify-ready）
+# ApeRAG 异步任务系统重构 — v8.2 执行方案（5 方共识 + PR 文档版）
 
 **起草**：@符炫炜 总架构师定稿
 **日期**：2026-04-29
-**版本**：v8 final — earayu2 directive msg=074b8019「今天做完明天发布」节奏 + 5 方独立 evidence-based 共识 + 全部 BLOCKER 收紧
+**版本**：v8.2 — earayu2 directive msg=074b8019「今天做完明天发布」节奏 + msg=c1c4ba2f「先补文档，协调一致后宣布开工」+ 5 方独立 evidence-based 共识 + 全部 BLOCKER 收紧
 
 ---
 
@@ -10,7 +10,9 @@
 
 ### 推荐：候选 B — 保留 ApeRAG 内嵌 task system + 一次性部署 hard cut
 
-**1 句话**：保留现有 `aperag/indexing/*` 模块位置不动 + 新增薄 `aperag/cli/indexing_worker.py` 启动入口 + 拆 API/worker deployment + probe 分层 + 连接池公式预算 + 全局并发跨副本 + 删除 cleanup 路径迁出 API + 部署级 e2e 压测验收 + spec lock fold 进 architecture.md。
+**1 句话**：保留现有 `aperag/indexing/*` 模块位置不动 + 新增薄 `aperag/cli/indexing_worker.py` 启动入口 + 拆 API/worker deployment + probe 分层 + 连接池公式预算 + 全局并发跨副本 + 删除 cleanup 路径迁出 API + 部署级 e2e 压测验收。
+
+**同 PR 文档项**：本文件归档 spec lock，并在 [`task-system-invariants.md`](./task-system-invariants.md) 补 architecture invariant；这是文档 fold-in，不计入 8 项 runtime hard cut 主线。
 
 **不做**：
 - ❌ 不引入 Dramatiq / Celery / RQ
@@ -63,7 +65,7 @@
 ## 三、代码改造（@Bryce msg=1c46bf74 + @ziang msg=32ac48e3 详细 file-by-file）
 
 详细 file-by-file 改造见：
-- 本 PR 同 commit 的代码 diff（按 §3 总结 8 项主线改动逐一 implement）
+- 本 PR 后续代码 diff（按 §3 总结 8 项主线改动逐一 implement）
 - @ziang msg=32ac48e3 thread 章节 + 7 项 CR 修正（msg=981960cd Bryce accept）
 - 实施时严格按 §10 mandatory checklist + §7 状态机失败场景验收
 
@@ -78,7 +80,7 @@
 7. **验收测试** 5 个新 integration test + 17 老单测继承 + 黄章书 7 hard gate 部署级压测
 8. **Hard cut 删除清单**（不留兼容路径，7 项）
 
-**Spec lock document fold** 进 `docs/zh-CN/architecture/task-system-hard-cut-v8.md` + `architecture.md` 加 invariant 段 — 是 task #17 同 PR 文档归档项，不计入运行时主线（per Weston BLOCKER 1 修订）。
+**Spec lock document fold** 进 `docs/zh-CN/architecture/task-system-hard-cut-v8.md` + `docs/zh-CN/architecture/task-system-invariants.md` — 是 task #17 同 PR 文档归档项，不计入运行时主线（per Weston BLOCKER 1 修订）。
 
 工作量估算：+750 / -160 LOC，~6-7 人时
 
@@ -105,9 +107,9 @@
 - 必须挂载与 API 相同 PVC / 配置 / Secret
 
 ### 4.5 Probe 语义（关键 hard gate）
-- API liveness：`/live` 仅证明进程活，不访问 PG/Redis/Qdrant/LLM
-- API readiness：`/ready` 仅证明 HTTP 入口可接，短超时，**不能成为连接池放大器**
-- API diagnostics：`/diagnostics/dependencies` 给发布脚本 / 人工，独立小预算 + 严格 timeout
+- API liveness：`/health/live` 仅证明进程活，不访问 PG/Redis/Qdrant/LLM；旧 `/health` 保留为 liveness 兼容入口
+- API readiness：`/health/ready` 仅证明 HTTP 入口可接，短超时，**不能成为连接池放大器**
+- API diagnostics：`/health/diagnostics` 给发布脚本 / 人工，独立小预算 + 严格 timeout，不作为 kube readiness 默认探针
 - Worker liveness/readiness：进程 + 事件循环活；Redis queue 可连接；不做昂贵 provider 检查
 
 ### 4.6 连接池预算公式
@@ -146,10 +148,10 @@ sum(replicas × (pool_size + max_overflow)) + rollout_surge_budget + reserved_co
 5. API rollout → 验证公网入口
 6. Worker rollout → 验证 queue / reconciler / cleanup
 7. 触发小文档 reindex smoke
-8. 观察 10-15 分钟（API latency / `/live` / PG conn count / Redis backlog / worker logs）
+8. 观察 10-15 分钟（API latency / `/health/live` / PG conn count / Redis backlog / worker logs）
 
 ### 5.3 发布验收（必须全过）
-- API 在 graph 压力下 `/live` 稳定 + `/api/v2/auth/user` 401 正常
+- API 在 graph 压力下 `/health/live` 稳定 + `/api/v2/auth/user` 401 正常
 - Worker pod 可单独重启，API 不重启不摘流
 - Redis queue 丢消息后 reconciler 能从 DB 补漏
 - 旧 parse_version/token 不能写坏新 serving
@@ -216,7 +218,7 @@ sum(replicas × (pool_size + max_overflow)) + rollout_surge_budget + reserved_co
 ### 7.4 必补测试 7 项（详见 ziang §7.4）
 
 ### 7.5 发布观测 6 信号
-API p95/p99 / `/live` `/ready` 成功率 / PG active connections / Redis queue depth / DocumentIndex status counts / worker restart count
+API p95/p99 / `/health/live` `/health/ready` 成功率 / PG active connections / Redis queue depth / DocumentIndex status counts / worker restart count
 
 ---
 
@@ -234,7 +236,7 @@ API p95/p99 / `/live` `/ready` 成功率 / PG active connections / Redis queue d
 
 ---
 
-## 九、Spec lock fold 进 architecture.md（document only，不动代码）
+## 九、Spec lock fold 进 architecture 文档（document only，不动代码）
 
 ### 9.1 6 条 YAGNI 边界（永远不做）
 1. 任务优先级（FIFO 够）
@@ -302,36 +304,36 @@ task #17 主 PR + 子 PR 来时按以下检查走 CR：
 
 | Milestone | 内容 | 责任 | ETA |
 |---|---|---|---|
-| M1 | v8 final ratify | 架构师定稿 + earayu2 ratify | **现在** |
-| M2 | task #17 主 task + 子 task 创建 | @不穷 | ratify 后立即 |
-| M3 | 代码实施 | @Bryce 主线 + @明书 / @cuiwenbo 协助 | 今晚 |
-| M4 | 部署改造（Helm） | @huangzhangshu | 今晚 |
+| M1 | v8.2 文档补齐进 PR #1884 | 全员按文件边界补文档 | **现在** |
+| M2 | 文档协调一致 + earayu2 宣布开工 | 全员给 ready / blocker | 文档 ready 后 |
+| M3 | 代码实施 | @Bryce 主线 + @明书 / @cuiwenbo 协助 | 开工后 |
+| M4 | 部署改造（Helm） | @huangzhangshu | 开工后 |
 | ~~M5~~ | ~~task #18-21~~ | （后续独立切片候选，不在 v8 ratify 默认项，需 earayu2 单独批准启动 — per Weston msg=d2c46eb7 BLOCKER 2 + ziang msg=cd4761aa） | 单独决策 |
-| M6 | CR | @huangheng 5 cross-check + @ziang 状态机 + @Weston 架构 | 今晚 |
-| M7 | 验收压测 + spec lock fold | @huangzhangshu + 架构师 | 今晚 |
+| M6 | CR | @huangheng 5 cross-check + @ziang 状态机 + @Weston 架构 | 实施后 |
+| M7 | 验收压测 + spec lock fold | @huangzhangshu + 架构师 | 实施后 |
 | M8 | Ship | 全员 | 明天 |
 
 ---
 
-## 十二、待 earayu2 一句话 ratify
+## 十二、文档 ready 后待 earayu2 宣布开工
 
-按 earayu2 directive 团队 OWN 推荐 — 不让你做技术决策，只 ratify 5 方共识：
+按 earayu2 directive 团队 OWN 推荐 — 技术方案由团队收敛；本 PR 当前先补齐文档并协调一致：
 
-1. ✅ ratify 候选 B + 8 项 task #17 主线（薄 CLI + lifespan 删 + Helm + probe + 连接池公式 + 全局并发 + cleanup 迁出 + e2e 压测）
-2. ✅ ratify §9.3 后续独立切片候选（task #18-21）作为独立 task 路径 — **是否启动**单独 product 决策（不混进 task #17 主 PR / 不阻塞主线）
-3. ✅ ratify §9.1 YAGNI 6 条 + §9.2 escape hatch 4 条作 architecture invariant
-4. ✅ ratify §6.1 回滚 binary（不允许中间态）+ §6.4 「执行面唯一性确认」checklist
-5. ✅ ratify §4.7 PgBouncer 后续选项不在 task #17
+1. 候选 B + 8 项 task #17 主线已作为团队推荐进入 PR 文档（薄 CLI + lifespan 删 + Helm + probe + 连接池公式 + 全局并发 + cleanup 迁出 + e2e 压测）
+2. §9.3 后续独立切片候选（task #18-21）只保留为后续路径；**是否启动**需单独 product 决策
+3. §9.1 YAGNI 6 条 + §9.2 escape hatch 4 条作为 architecture invariant
+4. §6.1 回滚 binary（不允许中间态）+ §6.4 「执行面唯一性确认」作为发布硬门槛
+5. §4.7 PgBouncer 是后续基础设施选项，不在 task #17 主线
 
-批准后 @不穷 立即建 task #17-21 → @Bryce / @huangzhangshu / 团队今晚 implement → 明天 ship。
+task #17 已创建并由 @Bryce claim。PR #1884 先补齐本文档、部署 runbook、状态机验收文档并协调一致；待 @earayu2 宣布开工后，再按 task #17 主线实现。task #18-21 仅作为后续候选，需单独批准。
 
 ---
 
 **附录**：
-- v1-v7 报告均 obsolete，本 v8 final 是定稿
+- v1-v7 报告均 obsolete，本 v8.2 是 PR 文档版定稿
 - 5 方独立 evidence-based 推荐 100% 收敛
 - 全部 BLOCKER + cross-check + Lesson refinement 收紧
-- 详细 file-by-file 改造见 Bryce 章节（thread + agent worktree 文档）
+- 详细 file-by-file 改造见本 PR 内 `docs/zh-CN/architecture/task-17-code-changes.md` 及后续代码 diff
 - 详细部署 / 发布 / 回滚见 huangzhangshu §4-§6（msg=5be8396e）
 - 详细状态机 / 失败场景见 ziang §7（msg=ba559be9）
 - 详细架构评审见 Weston §8（msg=0212ae33）

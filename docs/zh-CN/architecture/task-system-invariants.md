@@ -115,10 +115,11 @@ sum(replicas × (pool_size + max_overflow)) + rollout_surge_budget + reserved_co
 
 ## 5. 关联文档
 
-- task #17 spec: `task-system-hard-cut-v8.md`
-- task #17 代码改造: `task-17-code-changes.md`
-- 状态机/失败场景验收: `task-17-state-machine-validation.md`（待 ziang 补）
-- 部署/发布/回滚 runbook: 待 huangzhangshu 补
+- task #17 spec: [`task-system-hard-cut-v8.md`](./task-system-hard-cut-v8.md)
+- task #17 代码改造: [`task-17-code-changes.md`](./task-17-code-changes.md)
+- 状态机/失败场景验收: [`task-17-state-machine-validation.md`](./task-17-state-machine-validation.md)
+- 部署/发布/回滚 runbook: [`task-17-deployment-release-runbook.md`](./task-17-deployment-release-runbook.md)
+- CR checklist: [`task-17-cr-review-checklist.md`](./task-17-cr-review-checklist.md)
 
 ---
 
