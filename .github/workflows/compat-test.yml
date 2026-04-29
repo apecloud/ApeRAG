@@ -19,6 +19,10 @@ on:
         type: boolean
         default: true
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # ───────────────────────────────────────────────────────
   # Job 1: Graph store compatibility (PG always, Neo4j/Nebula opt-in)
