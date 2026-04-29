@@ -16,7 +16,7 @@ description: ApeRAG 后端架构入口 — 从哪开始读、去哪找什么
 - **跨 domain 依赖有明确规则**：provider 已搬进 `aperag/domains/` 的直接 import；没搬进的通过 consumer 自持 `Protocol` + module-level DI slot + 共享 bootstrap helper（`aperag/bootstrap/__init__.py`）注入。
 - **有测试守住边界**：`tests/unit_test/test_modularization_boundaries.py` 实现 G1–G19 共 20 条边界测试，跟 `make lint` / `make test-unit` 一起跑在 CI。
 - **HTTP API 全程字节稳定**：`scripts/export_openapi.py --check` 在整个重构过程每次 squash merge 都通过。
-- **运行时分两个独立进程部署**（task #17 hard cut，2026-04-29 ship）：`aperag-api` 只跑 FastAPI HTTP 入口 + 轻量入队；`aperag-indexing-worker` 跑 parse / vector / fulltext / graph_facts / graph_vectors / summary / vision / reconciler / cleanup 等 10 条 lane。两进程通过 single-source-of-truth `wire_cross_domain_di_seams()` helper 保证 DI parity，受 `tests/boundaries/test_worker_di_parity.py` AST 等价性 gate 守护。
+- **运行时分两个独立进程部署**（task #17 hard cut，2026-04-29 ship）：`aperag-api` 只跑 FastAPI HTTP 入口 + 轻量入队；`aperag-indexing-worker` 跑 parse / vector / fulltext / graph / graph_facts / graph_vectors / summary / vision / reconciler / cleanup 共 10 条 lane。两进程通过 single-source-of-truth `wire_cross_domain_di_seams()` helper 保证 DI parity，受 `tests/boundaries/test_worker_di_parity.py` AST 等价性 gate 守护。
 
 详细的 phase 产出、domain 清单、gate 列表、permanent seam 定义见 [`docs/modularization/architecture.md`](../../modularization/architecture.md)（英文，canonical source-of-truth，本目录所有文档都以它为基准）。
 
