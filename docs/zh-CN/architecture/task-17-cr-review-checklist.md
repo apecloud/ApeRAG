@@ -163,6 +163,30 @@ owner 可调，关键是每个 gate 有可执行 test 文件锚点。CR 时 verd
 4. **lifespan startup launch**：进程启动入口（API / worker deployment lifecycle）
 5. **e2e narrative 测试**：PENDING → ACTIVE 端到端真链路 verify
 
+### Lesson #11 v5：entry-point migration sub-check（架构师 + huangheng + Weston 联名升级）
+
+**触发条件**：进程 split / lifecycle hard cut（worker / scheduler / async consumer 从 source 进程搬到 target 进程）。
+
+**核心 insight**：原 Lesson #11 步 4「lifespan startup launch」只 cover「launch worker」单一概念，没显式覆盖「source 进程的 init 代码必须 port 到 target」。task #17 hard cut 把 worker 从 `app.py` lifespan 搬到 `cli/indexing_worker.py` 时，10 个 cross-domain DI setter 是 init 代码不是 worker spawn，所以漏 port → e2e-http-provider 失败 + 5 PR 卡 phase 2 close。
+
+**实施 3 步**：
+
+1. **Step A: grep**：扫 source 进程顶层所有 `*_set_*_ops()` / `configure_*()` / `register_*()` / DI setter call site（不只 worker entrypoint）
+2. **Step B: 三分类决策**（Weston msg=d05e56c0 三分类框架）：
+   - **类 1 必须对称 port**：domain ops + runtime ops setter → boundary test 钉等价
+   - **类 2 process-level 显式决策**：logging / observability / metrics / shutdown hook / register_custom_llm_track → PR description 必须显式写明 worker 是否需要 + 理由
+   - **类 3 明确排除**：FastAPI-only / 网络绑定 / 路由 → boundary test 反向钉不漏进 worker
+3. **Step C: AST boundary test**：用 import alias canonical-name + bi-directional check + allowlist 外置 frozenset 自动 detect 未来漂移（架构师 3 refinement: walk lifespan / 函数体 / 实参 detect / allowlist 强制更新）
+
+**task #17 hot-fix 实证清单（PR #1893 commit `d4b65e27`）**：
+
+- **类 1（10 setter）**：KB 4（`set_marketplace_ops` / `set_marketplace_collection_ops` / `set_search_pipeline_ops` / `set_quota_ops`）+ conv 1（`set_quota_ops`）+ agent runtime 1（`set_prompt_template_ops`）+ model_platform 1（`set_prompt_crud_ops`）+ identity 3（`set_bot_init_ops` / `set_chat_init_ops` / `set_quota_init_ops`）
+- **类 2（3 process-level）**：`configure_logging` / `configure_process_observability` / `register_custom_llm_track`
+- **类 3（2 FastAPI-only）**：`configure_fastapi` / `register_exception_handlers`（不进 worker）
+- **实施模式**：`aperag/bootstrap/__init__.py` 单一 source of truth + `wire_cross_domain_di_seams()` 函数 + `tests/boundaries/test_worker_di_parity.py` AST 级 3 重防回归（call site / setter 集合 / FastAPI-only 反向）
+
+**CR cross-check 应用**：未来 PR 如果涉及进程 split / lifecycle hard cut，CR 必走完 3 步 + 三分类决策矩阵；缺任一类的 PR 不允许 LGTM 通过。
+
 ### Lesson #12：grep-all-callers checklist
 
 shared utility / 默认行为 / 函数签名改动必须 grep 全 caller，不允许信 PR description / function 名 framing。
@@ -176,6 +200,36 @@ shared utility / 默认行为 / 函数签名改动必须 grep 全 caller，不�
 「本地实证通过」≠「CI 全绿」。PR ratify / squash merge 前必须 verify GitHub Actions `lint-and-unit` 全绿，不能仅凭本地 pytest / 部署级压测数据放行。
 
 来源：task #17 PR #1884 ratify 过程中 huangheng 在 verdict 表只 check 了部署级压测（Planetegg 153.66s / 40 ACTIVE）+ § 二 6 hard gate 实证文件，漏 verify 了 `lint-and-unit` CI status；CI 在 PR 合并前刚好暴露 `tests/boundaries/test_app_lifespan_launches_all_graph_indexing_worker_lanes` 与 task #17 hard cut 冲突（PR #1876 时代加的，task #17 让 lifespan 不再 launch worker，老 test 不可能再过），Weston 用 `335fe586` 删掉 obsolete test 让 CI 转绿。CR verdict 表 § 七 必须新增「PR `lint-and-unit` CI 全绿」一行 mandatory，verify 后才能 ratify。
+
+### Lesson #12 v5：CI status 解读 trust framing 反模式（架构师升格独立条目）
+
+**触发条件**：CI 失败 / variant matrix 部分红时，第一反应贴「flaky / matrix shape」标签前必须 grep 实证。
+
+**核心 insight**：Lesson #12 grep-all-callers 不只是「shared utility default 改动前 grep 全 caller」，**CI status 解读阶段 trust framing 也是同模式**。task #17 PR #1893 hot-fix CI 1/3 e2e-http-provider fail 时，huangheng 第一反应贴 matrix flake / provider key 标签（msg=3fa1854c），没 grep 跨 PR 同 variant fail pattern → PM forensics 5 PR 数据 surface 真根因（pre-existing Neo4j flake，跟 hot-fix 无因果）。huangheng own-up：trust framing 反模式延伸到 CI 解读阶段。
+
+**实施步骤**：
+
+1. **Step A**：CI fail surface 时不直接贴 flaky / matrix flake / 环境问题标签
+2. **Step B**：grep 跨 PR 数据 — `gh run list --branch ...` / `gh api repos/.../check-runs` 看 main + 同期其他 PR 同 variant 是否同失败
+3. **Step C**：grep 失败 stack vs PR diff 文件路径交集，零交集 → 高置信度 pre-existing
+4. **Step D**：多 reviewer 独立 forensics（不 trust 单一 framing — 自我 + 跨 reviewer cross-check）
+
+**示例**：架构师 msg=df1ed687 + Planetegg msg=7b1ec4eb + ziang msg=96a455bc + Bryce msg=ac2b8fe4 四方独立 grep verify Neo4j variant fail，互相 cross-check 同根因，避免 trust 单一 framing — 这是 Lesson #12 v5 正确实施的 first-application demo。
+
+### Lesson #12 v6：grep line number ≠ 执行顺序，必 walk function scope
+
+**触发条件**：CR 判断代码 init 顺序 / 调用顺序 / 时序时。
+
+**核心 insight**：仅靠 grep 行号不足以判断执行顺序，必须 walk function scope 看 callee 在哪个 function（`main()` outer sync vs `_amain()` async）+ function 间调用关系。task #17 PR #1893 CR 时 huangheng 把 `cli/indexing_worker.py:235-237 configure_logging` 误判为 `_amain` 内 wire 之后（NIT 2 顺序非对称），实际是 sync `main()` 在 `asyncio.run(_amain())` **之前**执行（架构师 msg=c605cc1f + Weston msg=3b02abee 纠正）。huangheng own-up：scope walk verify 缺失。
+
+**实施步骤**：
+
+1. **Step A**：grep 找到 call site 行号
+2. **Step B**：确认 call site 在哪个 function scope（不能仅看行号大小判断顺序）
+3. **Step C**：追溯 function call graph（`main()` → `asyncio.run(_amain())`）确认实际执行顺序
+4. **Step D**：跨 reviewer cross-check 顺序判断（避免单 reviewer 漏看 outer function）
+
+**对应 Lesson #12 同根**：行号 / status / 错误类型 / 函数名 这类 surface signal 都是 trust-framing 反模式入口，必须 grep + scope walk + cross-reviewer verify。
 
 ### Lesson #13：invariant evolution 必须双侧 rewrite obsolete regression test
 
@@ -248,13 +302,14 @@ CR cross-check 表里任何 ✅ 标注被 surface 为 false positive 时，立�
 
 ## 六、CR 历史 sediment 引用
 
-- `memory/feedback_e2e_dataflow_trace.md` Lesson #11 + Lesson #12 + extension v3 + extension v4 + Lesson #13
+- `memory/feedback_e2e_dataflow_trace.md` Lesson #11 + Lesson #11 v5 (entry-point migration) + Lesson #12 + extension v3 + extension v4 + Lesson #12 v5 (CI status trust framing) + Lesson #12 v6 (scope walk for ordering) + Lesson #13
 - `memory/feedback_collab_before_solo_pr.md` 同 tag/scope 多 agent 默认 co-design 单 PR
 - `memory/feedback_object_store_path_drift.md` `OBJECT_STORE_LOCAL_ROOT_DIR` 漂移诊断 playbook
 - `memory/feedback_one_shot_no_phased_rollout.md` 一次性不分阶段 directive
 - `memory/feedback_simple_stable_deploy_and_forget.md` simple-stable + 私有化部署免维护
 - `memory/feedback_cr_must_cross_reference_arch_doc.md` CR 必对照架构文档逐条 invariant 走
 - `memory/project_task17_pr_1884_active_focus.md` task #17 ship 完成节点（merge `5a0aa804` / 6 hard gate 全实证 / Planetegg 压测数据 / phase 2 directive）
+- PR #1893 hot-fix: `aperag/bootstrap/__init__.py` + `wire_cross_domain_di_seams()` + `tests/boundaries/test_worker_di_parity.py` AST 级 3 重防回归 (commit `d4b65e27`)，Lesson #11 v5 first-application demo
 
 ---
 
@@ -286,4 +341,6 @@ CR cross-check 表里任何 ✅ 标注被 surface 为 false positive 时，立�
 - 2026-04-29 23:54 commit `d9438f8`：huangheng 初版，5 cross-check + 6 hard gate + 7 实现修正 + lessons + 工作流 + verdict 表
 - 2026-04-30 00:05 fold-in 冬柏 msg=d56bb0f7 补充 4 条：6 hard gate test 文件 mapping 子表（§二）/ 失败注入真路径规范（§5.5）/ 压测阈值具体化 + smoke regression baseline（§七 verdict 表新增 3 行）
 - 2026-04-30 01:13 task #17 PR #1884 squash merge 至 main（commit `5a0aa804`），架构师 final ratify msg=10954036，PM 确认 msg=c96816c4
-- 2026-04-30 phase 2 huangheng follow-up（本次 commit）：§ 七 verdict 表全部 backfill ship 实数据 / 新增「PR `lint-and-unit` CI 全绿」mandatory 行 / § 四 新增 Lesson #12 extension v4（CI gate mandatory）+ Lesson #13（invariant evolution dual-side rewrite obsolete regression test）/ § 六 sediment 引用追加 phase 2 ship 节点
+- 2026-04-30 phase 2 huangheng follow-up（commit `3b30923`）：§ 七 verdict 表全部 backfill ship 实数据 / 新增「PR `lint-and-unit` CI 全绿」mandatory 行 / § 四 新增 Lesson #12 extension v4（CI gate mandatory）+ Lesson #13（invariant evolution dual-side rewrite obsolete regression test）/ § 六 sediment 引用追加 phase 2 ship 节点
+- 2026-04-30 02:03 task #17 hot-fix PR #1893 squash merge 至 main（commit `d4b65e27`），DI wire-up gap 修复（worker CLI 缺 10 个 cross-domain DI setter）；架构师 final ratify msg=df6811e4 / msg=b04ed722，PM ratify msg=5e73ce8b
+- 2026-04-30 phase 2 huangheng follow-up post-hot-fix rebase sediment（本次 commit）：§ 四 新增 Lesson #11 v5（entry-point migration sub-check + Weston 三分类框架 + task #17 hot-fix 10+3+2 setter 实证清单）+ Lesson #12 v5（CI status 解读 trust framing 反模式，架构师升格独立条目）+ Lesson #12 v6（grep line number ≠ 执行顺序，必 walk function scope，huangheng NIT 2 own-up 升格）；§ 六 sediment 引用追加 PR #1893 hot-fix bootstrap module + boundary test 锚点
