@@ -176,15 +176,18 @@ earayu2 msg=622ca94d 明确「3 只是拍脑袋数字，benchmark 跑数据决�
 ### Phase A（必须做，并行）
 
 - **#30-A1**：config knob + window assembler
-  - collection-level `kg.graph_extraction_window_size` / `window_overlap` / `max_window_tokens` config
-  - graph extractor 入口 sliding / non-overlap window builder
+  - collection-level config（per ziang msg=e0812e7e NIT 同步）：
+    - `collection.config.knowledge_graph_config.graph_extraction_window_size`
+    - `collection.config.knowledge_graph_config.graph_extraction_max_window_tokens`
+    - `window_overlap` 第一版 hardcoded `0`（移到 backlog，per Weston msg=a29f94ab NIT 2）
+  - graph extractor 入口 non-overlap window builder（第一版不滑窗）
   - 同 doc + 同 parse_version + 连续 chunk + token cap 边界
   - 推荐 owner：@ziang 或 @Bryce（熟 indexing pipeline）
-- **#30-A2**：4 const co-scale + boundary test
-  - 4 const 改 `_extract_one_window()` 调用处动态计算
-  - boundary test 钉「`window_size=1` 字节等价旧行为」+ 钉 cap × window co-scale 关系
+- **#30-A2**：5 const co-scale + boundary test（per Bryce msg=1ce25f3a concern 3 加 5th const）
+  - 5 const 改 `_extract_one_window()` 调用处动态计算（max_entities / max_relations / timeout / bootstrap / max_prompt_tokens）
+  - boundary test 钉「`window_size=1` window assembler / caps / timeout / bootstrap **结构等价**旧行为」+ 钉 cap × window co-scale 关系（**结构等价非字节等价**，prompt v2 schema 改造跟 task #32 evidence_refs 路径一致非回退，per huangzhangshu msg=0d497539 + Weston msg=a29f94ab + Bryce msg=1ce25f3a 三方 BLOCKER 1 修订）
   - 推荐 owner：@huangheng（boundary test lane）— 跟 task #32 A3 + cr-checklist follow-up 子 PR 同 lane
-- **#30-A3**：provenance + prompt v2
+- **#30-A3**：provenance + prompt v2（**7 hard requirement**，per Bryce msg=1ce25f3a concern 2 加第 7 项 `response_format=json_object` 必保留）
   - entity / relation `source_chunk_ids` 扩 list
   - prompt 模板加 `[[chunk_id=X]]` 边界标记 + 6 hard requirement + few-shot 多样性 + 可选受控 relation schema
   - 推荐 owner：@Bryce（task #14 issue #1861 graph extractor 改造熟悉）
