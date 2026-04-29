@@ -813,6 +813,7 @@ class PostgresLineageGraphStore:
             already in ``names``) for the next-hop frontier."""
             if not names:
                 return set()
+            next_frontier: set[str] = set()
             relation_stmt = select(
                 _LineageRelationRow.source,
                 _LineageRelationRow.target,
