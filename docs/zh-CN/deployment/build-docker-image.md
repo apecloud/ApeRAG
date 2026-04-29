@@ -15,11 +15,11 @@ position: 1
 
 ## 镜像构成
 
-ApeRAG 由两个独立镜像组成，`docker-compose.yml` 里分别对应 `api` / `celeryworker` / `celerybeat` / `flower`（共用后端镜像）和 `frontend`：
+ApeRAG 由两个独立镜像组成，`docker-compose.yml` 里分别对应 `api` / `indexing-worker`（共用后端镜像）和 `frontend`：
 
 | 镜像 | 用途 | Dockerfile | 基础镜像 |
 |------|------|-----------|---------|
-| `apecloud/aperag` | FastAPI 主进程 + Celery worker/beat/flower | [`Dockerfile`](https://github.com/apecloud/ApeRAG/blob/main/Dockerfile) | `python:3.11.13-slim`（多阶段 + uv） |
+| `apecloud/aperag` | FastAPI API 进程 + 独立 indexing-worker 进程 | [`Dockerfile`](https://github.com/apecloud/ApeRAG/blob/main/Dockerfile) | `python:3.11.13-slim`（多阶段 + uv） |
 | `apecloud/aperag-frontend` | Next.js standalone 构建产物 + PM2 runtime | [`web/Dockerfile`](https://github.com/apecloud/ApeRAG/blob/main/web/Dockerfile) | `node:20.18.0-alpine` |
 
 默认镜像仓库是 `apecloud-registry.cn-zhangjiakou.cr.aliyuncs.com`（阿里云张家口）；`docker-compose.yml` 在本机使用时会回退到 Docker Hub（`${REGISTRY:-docker.io}`）。
@@ -114,7 +114,7 @@ make build VERSION=v1.2.3 BUILDX_PLATFORM=linux/amd64
 - Runtime 镜像里不保留 `build-essential` / `git` / `uv` 等构建工具，面向最终用户的镜像保持较小体积
 - 依赖层 (`uv sync`) 与代码层 (`COPY . /app`) 分离，只改业务代码不会使依赖缓存失效
 
-Entrypoint 是 [`scripts/entrypoint.sh`](https://github.com/apecloud/ApeRAG/blob/main/scripts/entrypoint.sh)，会先等 PostgreSQL 起来、确保 `pgvector` 扩展存在，再 `exec` 真正的启动命令（`scripts/start-api.sh` / `scripts/start-celery-worker.sh` 等）。
+Entrypoint 是 [`scripts/entrypoint.sh`](https://github.com/apecloud/ApeRAG/blob/main/scripts/entrypoint.sh)，会先等 PostgreSQL 起来、确保 `pgvector` 扩展存在，再 `exec` 真正的启动命令（`scripts/start-api.sh` 或 `python -m aperag.cli.indexing_worker`）。
 
 ## 前端镜像细节
 
@@ -131,7 +131,9 @@ Entrypoint 是 [`scripts/entrypoint.sh`](https://github.com/apecloud/ApeRAG/blob
 
 ## Docker Compose
 
-打完镜像后，根目录的 [`docker-compose.yml`](https://github.com/apecloud/ApeRAG/blob/main/docker-compose.yml) 是最常用的 orchestration 入口。除了 `api` / `celeryworker` / `celerybeat` / `flower` / `frontend`，还包含所有必需的基础设施服务：`postgres`（含 pgvector）、`redis`、`qdrant`、`es`（Elasticsearch 带 IK 分词器）。
+打完镜像后，根目录的 [`docker-compose.yml`](https://github.com/apecloud/ApeRAG/blob/main/docker-compose.yml) 是最常用的 orchestration 入口。除了 `api` / `indexing-worker` / `frontend`，还包含所有必需的基础设施服务：`postgres`（含 pgvector）、`redis`、`qdrant`、`es`（Elasticsearch 带 IK 分词器）。
+
+`api` 只负责 HTTP 请求、认证和任务入队；`indexing-worker` 负责 parse / vector / fulltext / graph / graph_facts / graph_vectors / summary / vision worker lanes，以及 reconciler 和 cleanup loop。默认 `docker compose up -d` 会同时启动这两个后端进程。
 
 两个可选图数据库服务通过 Docker Compose profile 控制，默认不启动：
 

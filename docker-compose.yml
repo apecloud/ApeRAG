@@ -75,14 +75,41 @@ services:
     ports:
       - "3000:3000"
 
-  # Wave 3 T3.1 chunk 3: Celery infrastructure (celeryworker /
-  # celerybeat / flower) was hard-deleted alongside the
-  # ``aperag/tasks/`` + ``config/celery.py`` layers. The new
-  # in-process ``aperag.indexing`` runtime (worker pool + reconciler +
-  # cleanup loops) is spawned by the FastAPI lifespan inside the
-  # ``aperag-api`` container, so no separate worker/beat/flower
-  # containers are needed. ``run_reconcile_loop`` (30 s) replaces
-  # ``celerybeat``; ``run_*_worker`` tasks replace ``celeryworker``.
+  indexing-worker:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-v0.0.0-nightly}
+    container_name: aperag-indexing-worker
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      es:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+        required: false
+    volumes:
+      - ~/.cache:/root/.cache
+      - aperag-shared-data:/shared
+    env_file:
+      - .env
+      - envs/docker.env.overrides
+    environment:
+      # Keep the local compose connection budget close to the Helm split:
+      # API handles auth/enqueue; indexing-worker owns parse/index/cleanup.
+      - DB_POOL_SIZE=10
+      - DB_MAX_OVERFLOW=10
+    command: ["/app/scripts/entrypoint.sh", "python", "-m", "aperag.cli.indexing_worker"]
+    restart: on-failure
+
+  # Celery infrastructure (celeryworker / celerybeat / flower) was
+  # hard-deleted alongside the ``aperag/tasks/`` + ``config/celery.py``
+  # layers. The API no longer starts indexing workers from FastAPI
+  # lifespan; the dedicated ``indexing-worker`` service owns worker
+  # lanes, reconciler, and cleanup loops.
 
   # ==============================================
   # Infrastructure Services (always available)

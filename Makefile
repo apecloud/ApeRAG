@@ -40,6 +40,7 @@ help:
 	@printf "  make stack-logs           Tail stack logs\n\n"
 	@printf "Services\n"
 	@printf "  make serve-api            Run backend API locally\n"
+	@printf "  make serve-worker         Run indexing worker locally\n"
 	@printf "  make serve-web            Run frontend locally\n\n"
 	@printf "Tests\n"
 	@printf "  make test-all             Run unit + integration + pytest E2E suites\n"
@@ -93,7 +94,7 @@ env-dev: env-install
 	@echo "   1. Activate virtual environment: source .venv/bin/activate"
 	@echo "   2. Start databases: make infra-up"
 	@echo "   3. Apply migrations: make db-migrate"
-	@echo "   4. Run services: make serve-api, make serve-web"
+	@echo "   4. Run services: make serve-api, make serve-worker, make serve-web"
 
 # Environment cleanup
 env-clean:
@@ -177,15 +178,15 @@ stack-logs:
 # Development Services
 ##################################################
 
-# Local development services
-# Wave 3 T3.1 chunk 3: ``serve-worker`` / ``serve-beat`` / ``serve-flower``
-# targets removed alongside the Celery infrastructure deletion. The
-# in-process ``aperag.indexing`` runtime (worker pool + reconciler +
-# cleanup loops) is spawned by the FastAPI lifespan when ``serve-api``
-# starts, so no separate worker / beat / monitoring command is needed.
-.PHONY: serve-api serve-web
+# Local development services. Celery-era ``serve-beat`` / ``serve-flower``
+# targets are gone; the dedicated indexing worker CLI owns worker lanes,
+# reconciler, and cleanup loops.
+.PHONY: serve-api serve-worker serve-web
 serve-api: db-migrate
 	uvicorn aperag.app:app --host 0.0.0.0 --log-config scripts/uvicorn-log-config.yaml
+
+serve-worker:
+	python -m aperag.cli.indexing_worker
 
 serve-web:
 	cd ./web && yarn dev
