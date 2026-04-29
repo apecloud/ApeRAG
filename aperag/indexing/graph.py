@@ -1635,7 +1635,11 @@ class GraphModalityWorker(ModalityWorker):
             return None
         parts_text = [p.text for p in entity.description_parts if p.text]
         try:
-            return await self._compactor.compact_if_oversized(parts_text)
+            return await self._compactor.compact_if_oversized(
+                parts_text,
+                subject_kind="entity",
+                subject_label=entity.name,
+            )
         except Exception:  # noqa: BLE001 — compactor LLM may flake
             logger.warning(
                 "graph.sync compactor failed for entity=%r (non-fatal)",
@@ -1649,7 +1653,11 @@ class GraphModalityWorker(ModalityWorker):
             return None
         parts_text = [p.text for p in relation.description_parts if p.text]
         try:
-            return await self._compactor.compact_if_oversized(parts_text)
+            return await self._compactor.compact_if_oversized(
+                parts_text,
+                subject_kind="relation",
+                subject_label=f"{relation.source} -> {relation.target}",
+            )
         except Exception:  # noqa: BLE001
             logger.warning(
                 "graph.sync compactor failed for relation=%s->%s:%s (non-fatal)",
