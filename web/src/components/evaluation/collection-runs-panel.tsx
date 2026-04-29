@@ -82,11 +82,15 @@ const isBotMissingError = (message: string): boolean => {
 type StartRunFormState = {
   datasetId: string;
   name: string;
+  answerModel: string;
+  judgeModel: string;
 };
 
 const defaultStartRunForm: StartRunFormState = {
   datasetId: '',
   name: '',
+  answerModel: '',
+  judgeModel: '',
 };
 
 export const CollectionRunsPanel = ({
@@ -148,6 +152,11 @@ export const CollectionRunsPanel = ({
       const payload = await createEvaluationRun({
         dataset_id: startRunForm.datasetId,
         name: startRunForm.name.trim() || undefined,
+        // Both default to the collection's configured LLM when blank.
+        // The BE substitutes `collection.config.completion.model` if the
+        // request omits these fields (per Wave 10 PR #1850).
+        answer_model: startRunForm.answerModel.trim() || undefined,
+        judge_model: startRunForm.judgeModel.trim() || undefined,
       });
 
       toast.success(t('start_run_success'));
@@ -370,6 +379,42 @@ export const CollectionRunsPanel = ({
                   }))
                 }
               />
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium text-slate-900">
+                {t('answer_model_label')}
+              </label>
+              <Input
+                value={startRunForm.answerModel}
+                placeholder={t('answer_model_placeholder')}
+                onChange={(event) =>
+                  setStartRunForm((prev) => ({
+                    ...prev,
+                    answerModel: event.currentTarget.value,
+                  }))
+                }
+              />
+              <p className="text-muted-foreground text-xs">
+                {t('answer_model_helper')}
+              </p>
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium text-slate-900">
+                {t('judge_model_label')}
+              </label>
+              <Input
+                value={startRunForm.judgeModel}
+                placeholder={t('judge_model_placeholder')}
+                onChange={(event) =>
+                  setStartRunForm((prev) => ({
+                    ...prev,
+                    judgeModel: event.currentTarget.value,
+                  }))
+                }
+              />
+              <p className="text-muted-foreground text-xs">
+                {t('judge_model_helper')}
+              </p>
             </div>
           </div>
           <DialogFooter>
