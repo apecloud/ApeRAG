@@ -55,6 +55,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import re
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Mapping, Sequence
@@ -99,6 +100,179 @@ _DEFAULT_EXTRACTOR_LLM_CONCURRENCY = 4
 # chunks run in parallel against the frozen type list. 20 was
 # picked per huangheng spec msg=80b01696.
 _BOOTSTRAP_CHUNK_COUNT = 20
+
+# task #30 A2 5 const co-scale (per spec § 3.1.2 + huangheng msg=29f83d1f
+# + ziang msg=ad7dd311):
+#
+# When ``graph_extraction_window_size > 1`` is enabled, the per-chunk
+# caps inherited from the single-chunk era would silently degrade
+# extraction quality (a 3-chunk window produces ~3× the entity /
+# relation candidates but the LLM is still capped at 32 / 32 / 60s).
+# A2 scales these caps linearly with ``len(window.chunk_ids)`` at the
+# ``_extract_one_window()`` call site, so ``window_size=1`` is byte-
+# equivalent to the legacy behaviour and ``window_size=N`` gets
+# proportional headroom. Bootstrap is scaled in *windows* not chunks
+# so the type-discovery serial loop does not become 60+ chunks of
+# wall-clock cost.
+#
+# All four scaling formulas live next to the const they scale; the
+# 5th const ``_DEFAULT_MAX_PROMPT_TOKENS`` is a defensive guardrail
+# for the prompt-size growth introduced by A3's per-chunk
+# ``[[chunk_id=...]]`` boundary markers + few-shot opt-in (Bryce
+# msg=1ce25f3a concern 3 — without an explicit cap, ``window_size=5``
+# + few-shot can push past an 8k-context model's input budget).
+
+_BOOTSTRAP_WINDOW_COUNT_MIN = 1
+"""Floor for the bootstrap window count regardless of ``window_size``.
+
+We always run *at least* one window serially so the W11 dynamic-types
+feedback loop has something to feed forward; otherwise a tiny document
+with ``window_size > _BOOTSTRAP_CHUNK_COUNT`` would skip bootstrap
+entirely and freeze the active type list at the empty-set initial
+state."""
+
+_DEFAULT_MAX_PROMPT_TOKENS = 32000
+"""Defensive ceiling on the rendered prompt size (chars, treated as a
+1:1 token proxy per ``_estimate_graph_chunk_tokens``).
+
+A2 5th const co-scale guardrail. Computed as the conservative input
+budget for current production providers (Qwen 32k / Claude 200k / GPT-4
+128k) — windows that would render past this ceiling are skipped + warned
+so an over-eager ``window_size=5`` config does not silently truncate the
+LLM input on the smallest model in the matrix. ``MAX_PROMPT_TOKENS`` can
+be overridden per collection via ``knowledge_graph_config
+.graph_extraction_max_prompt_tokens`` once benchmark data (Phase B) tells
+us the right per-provider ceiling."""
+
+
+def _scaled_max_entities(base: int, window_chunk_count: int) -> int:
+    """Per-window ``max_entities`` cap = ``base × window_chunk_count``.
+
+    ``window_chunk_count == 1`` returns ``base`` (byte-equivalent to the
+    pre-A2 single-chunk behaviour); larger windows get proportional
+    headroom so the LLM is not capped at the single-chunk budget while
+    consuming N× the input. Linear scaling preserves the per-chunk
+    quality target — `window_size=3` allows up to 3× the entities a
+    single chunk would, matching the input growth.
+    """
+    if window_chunk_count <= 0:
+        return base
+    return base * window_chunk_count
+
+
+def _scaled_max_relations(base: int, window_chunk_count: int) -> int:
+    """Per-window ``max_relations`` cap = ``base × window_chunk_count``.
+
+    Same linear formula as :func:`_scaled_max_entities`. Cross-chunk
+    relations (per spec § 3.1.3 hard requirement #3) emerge precisely
+    when the window covers multiple chunks, so the relation budget must
+    grow with window size or those new relations are silently truncated.
+    """
+    if window_chunk_count <= 0:
+        return base
+    return base * window_chunk_count
+
+
+def _scaled_timeout(base: float, window_chunk_count: int) -> float:
+    """Per-window LLM-call timeout = ``base × window_chunk_count`` (linear v1).
+
+    A 3-chunk window roughly triples the LLM input + output so the
+    single-chunk 60s timeout would fire spuriously on the long-tail
+    completions. Linear is a conservative first-pass — Phase B benchmark
+    data may show LLM completion time scales sub-linearly (sqrt) once
+    we have multi-model latency p95 measurements, but the linear bound
+    never under-estimates the real budget so it is safe to ship as v1.
+    """
+    if window_chunk_count <= 0:
+        return base
+    return base * float(window_chunk_count)
+
+
+def _bootstrap_window_count(window_size: int) -> int:
+    """Bootstrap loop length scaled into *windows*, not raw chunks.
+
+    Pre-A2 we ran the first ``_BOOTSTRAP_CHUNK_COUNT`` (20) chunks
+    serially so each chunk's freshly-discovered entity types fed forward
+    into the next chunk's prompt (W11 dynamic-types feedback). With
+    ``window_size > 1`` running 20 *windows* serially would mean
+    ``20 × window_size`` chunks of wall-clock cost — a 3-chunk window
+    config would push bootstrap to 60 chunks, which is wasteful: the
+    active type list typically saturates well before chunk 60 in any
+    realistic document.
+
+    Formula: ``max(ceil(_BOOTSTRAP_CHUNK_COUNT / window_size),
+    _BOOTSTRAP_WINDOW_COUNT_MIN)``. ``window_size=1`` returns 20
+    (byte-equivalent to legacy); ``window_size=3`` returns 7
+    (~21 chunks of bootstrap, close to legacy 20); ``window_size=5``
+    returns 4 (~20 chunks). The floor of 1 ensures the feedback loop
+    always runs at least once.
+    """
+    if window_size <= 0:
+        return _BOOTSTRAP_WINDOW_COUNT_MIN
+    return max(math.ceil(_BOOTSTRAP_CHUNK_COUNT / window_size), _BOOTSTRAP_WINDOW_COUNT_MIN)
+
+
+_PROMPT_ENVELOPE_TOKENS = 500
+"""Fixed cost of the ``ENTITY_RELATION_EXTRACTION`` template + JSON output schema."""
+
+_PER_CHUNK_MARKER_OVERHEAD_TOKENS = 50
+"""Per-chunk overhead for A3's ``[[chunk_id=X index=Y]]`` boundary marker."""
+
+_FEW_SHOT_ENVELOPE_TOKENS = 400
+"""Additional cost when ``few_shot_locale`` is opt-in (zh / en / cross_chunk)."""
+
+
+def _estimate_window_prompt_tokens(
+    window: "_GraphChunkWindow | None" = None,
+    *,
+    window_chunk_count: int | None = None,
+    base_chunk_size: int | None = None,
+    few_shot_locale: str | None = None,
+) -> int:
+    """Token estimate for the prompt rendered over a window.
+
+    Two calling modes:
+
+    1. **Runtime path (preferred)** — pass ``window`` (the
+       :class:`_GraphChunkWindow` actually being dispatched). The function
+       sums ``_estimate_graph_chunk_tokens`` over the real chunk texts so
+       the guardrail fires deterministically on large content (Weston
+       msg=9f356fe9 BLOCKER 2). Few-shot envelope is added only when the
+       opt-in ``few_shot_locale`` is set.
+
+    2. **Synthetic path (testing only)** — pass ``window_chunk_count`` +
+       ``base_chunk_size`` to estimate a hypothetical config. Used by the
+       boundary tests to pin the linear-scaling formula and to detect
+       pathological configs (e.g. ``chunk_size=4000 × window_size=10``).
+
+    Total ≈ ``_PROMPT_ENVELOPE_TOKENS + (chunk_size + per_chunk_marker) × N
+    [+ _FEW_SHOT_ENVELOPE_TOKENS if few_shot_locale is set]``.
+
+    For the 32k default ceiling this comfortably fits ``window_size=5``
+    with 400-token chunks (~3.7k tokens) but flags pathological runtime
+    inputs — e.g. a window with 10 actual 4000-char chunks renders to
+    ~40.5k tokens and is skipped + warned by the cap-overflow guard.
+    """
+    if window is not None:
+        chunk_token_total = sum(_estimate_graph_chunk_tokens(chunk) for chunk in window.chunks)
+        marker_total = _PER_CHUNK_MARKER_OVERHEAD_TOKENS * len(window.chunks)
+        few_shot = _FEW_SHOT_ENVELOPE_TOKENS if few_shot_locale else 0
+        return _PROMPT_ENVELOPE_TOKENS + chunk_token_total + marker_total + few_shot
+
+    # Synthetic path — boundary test pins the formula via explicit
+    # window_chunk_count + base_chunk_size + assumed few-shot envelope.
+    if window_chunk_count is None or window_chunk_count <= 0:
+        return 0
+    chunk_size = base_chunk_size if base_chunk_size is not None else 400
+    # Synthetic path keeps few-shot envelope on by default for the
+    # pathological-config guard test (conservative — counts even when
+    # off, so guardrail still fires under worst-case assumptions).
+    return (
+        _PROMPT_ENVELOPE_TOKENS
+        + _FEW_SHOT_ENVELOPE_TOKENS
+        + (chunk_size + _PER_CHUNK_MARKER_OVERHEAD_TOKENS) * window_chunk_count
+    )
+
 
 # Maximum number of chunks dispatched per ``asyncio.gather`` batch
 # in the main pass. Pre-fix the main pass called
@@ -186,6 +360,13 @@ def build_collection_graph_extractor(collection: Any) -> GraphExtractor:
         _DEFAULT_GRAPH_EXTRACTION_WINDOW_SIZE,
     )
     graph_max_window_tokens = _resolve_optional_int_kg_config(collection, "graph_extraction_max_window_tokens")
+    graph_max_prompt_tokens = _resolve_int_kg_config(
+        collection,
+        "graph_extraction_max_prompt_tokens",
+        _DEFAULT_MAX_PROMPT_TOKENS,
+    )
+    bootstrap_window_count = _bootstrap_window_count(graph_window_size)
+    few_shot_locale = _resolve_optional_str_kg_config(collection, "graph_extraction_few_shot_locale")
 
     async def _extractor(chunks: Sequence[dict[str, Any]]) -> tuple[list[EntityRecord], list[RelationRecord]]:
         """Run the LLM extractor over every chunk in the dispatch.
@@ -233,9 +414,29 @@ def build_collection_graph_extractor(collection: Any) -> GraphExtractor:
         collection_id = getattr(collection, "id", "<unknown>")
 
         # ---- Pass 1: serial bootstrap (W11 dynamic-types feedback) ----
-        bootstrap = windows[:_BOOTSTRAP_CHUNK_COUNT]
+        # task #30 A2: bootstrap loop length scaled into *windows* not raw
+        # chunks via :func:`_bootstrap_window_count`. ``window_size=1``
+        # returns 20 (byte-equivalent legacy); larger window sizes shrink
+        # bootstrap proportionally so the serial type-discovery loop does
+        # not balloon the wall-clock cost.
+        bootstrap = windows[:bootstrap_window_count]
         for window in bootstrap:
             if not window.text.strip():
+                continue
+            window_chunk_count = max(len(window.chunk_ids), 1)
+            estimated_prompt_tokens = _estimate_window_prompt_tokens(window=window, few_shot_locale=few_shot_locale)
+            if estimated_prompt_tokens > graph_max_prompt_tokens:
+                logger.warning(
+                    "graph extractor: bootstrap window with %d chunks would render to ~%d tokens, "
+                    "exceeding max_prompt_tokens=%d for collection=%s; skipping window "
+                    "(window_chunk_ids=%s) — consider lowering graph_extraction_window_size or "
+                    "raising graph_extraction_max_prompt_tokens",
+                    window_chunk_count,
+                    estimated_prompt_tokens,
+                    graph_max_prompt_tokens,
+                    collection_id,
+                    window.chunk_ids,
+                )
                 continue
             try:
                 ents, rels = await _extract_one_window(
@@ -243,9 +444,10 @@ def build_collection_graph_extractor(collection: Any) -> GraphExtractor:
                     window=window,
                     entity_types=tuple(active_entity_types),
                     language=prompt_language,
-                    max_entities=max_entities,
-                    max_relations=max_relations,
-                    timeout_seconds=per_chunk_timeout,
+                    max_entities=_scaled_max_entities(max_entities, window_chunk_count),
+                    max_relations=_scaled_max_relations(max_relations, window_chunk_count),
+                    timeout_seconds=_scaled_timeout(per_chunk_timeout, window_chunk_count),
+                    few_shot_locale=few_shot_locale,
                 )
             except Exception:  # noqa: BLE001 — per-chunk failure isolation
                 logger.exception(
@@ -263,7 +465,9 @@ def build_collection_graph_extractor(collection: Any) -> GraphExtractor:
             )
 
         # ---- Pass 2: parallel gather over remaining chunks (chunked) ----
-        remaining = windows[_BOOTSTRAP_CHUNK_COUNT:]
+        # task #30 A2: slice using bootstrap_window_count (windows) not
+        # _BOOTSTRAP_CHUNK_COUNT (chunks); see :func:`_bootstrap_window_count`.
+        remaining = windows[bootstrap_window_count:]
         if not remaining:
             return entities, relations
 
@@ -278,6 +482,20 @@ def build_collection_graph_extractor(collection: Any) -> GraphExtractor:
         ) -> tuple[list[EntityRecord], list[RelationRecord]]:
             if not window.text.strip():
                 return ([], [])
+            window_chunk_count = max(len(window.chunk_ids), 1)
+            estimated_prompt_tokens = _estimate_window_prompt_tokens(window=window, few_shot_locale=few_shot_locale)
+            if estimated_prompt_tokens > graph_max_prompt_tokens:
+                logger.warning(
+                    "graph extractor: main-pass window with %d chunks would render to ~%d tokens, "
+                    "exceeding max_prompt_tokens=%d for collection=%s; skipping window "
+                    "(window_chunk_ids=%s)",
+                    window_chunk_count,
+                    estimated_prompt_tokens,
+                    graph_max_prompt_tokens,
+                    collection_id,
+                    window.chunk_ids,
+                )
+                return ([], [])
             async with semaphore:
                 try:
                     return await _extract_one_window(
@@ -285,9 +503,10 @@ def build_collection_graph_extractor(collection: Any) -> GraphExtractor:
                         window=window,
                         entity_types=frozen_types,
                         language=prompt_language,
-                        max_entities=max_entities,
-                        max_relations=max_relations,
-                        timeout_seconds=per_chunk_timeout,
+                        max_entities=_scaled_max_entities(max_entities, window_chunk_count),
+                        max_relations=_scaled_max_relations(max_relations, window_chunk_count),
+                        timeout_seconds=_scaled_timeout(per_chunk_timeout, window_chunk_count),
+                        few_shot_locale=few_shot_locale,
                     )
                 except Exception:  # noqa: BLE001 — per-chunk failure isolation
                     logger.exception(
@@ -869,6 +1088,28 @@ def _resolve_optional_int_kg_config(collection: Any, field: str) -> int | None:
         )
         return None
     return value
+
+
+def _resolve_optional_str_kg_config(collection: Any, field: str) -> str | None:
+    """Optional string config resolver (task #30 A2 / A3 — few_shot_locale).
+
+    Mirrors :func:`_resolve_optional_int_kg_config` but for str values:
+    returns ``None`` when unset / empty / non-string. Used by the A2
+    ``_extractor`` to forward A3's opt-in ``few_shot_locale`` (``zh`` /
+    ``cross_chunk`` / ``None``) into the per-window prompt rendering.
+    """
+    raw = _resolve_kg_config_value(collection, field)
+    if raw is None:
+        return None
+    if not isinstance(raw, str):
+        logger.warning(
+            "graph extractor: knowledge_graph_config.%s=%r is not a string; ignoring override",
+            field,
+            raw,
+        )
+        return None
+    value = raw.strip()
+    return value or None
 
 
 def _resolve_float_kg_config(collection: Any, field: str, default: float) -> float:
