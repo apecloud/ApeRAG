@@ -92,6 +92,7 @@ from aperag.exception_handlers import register_exception_handlers
 from aperag.llm.litellm_track import register_custom_llm_track
 from aperag.mcp import mcp_server
 from aperag.openapi_spec import custom_generate_unique_id
+from aperag.server.health import router as health_router
 from aperag.service.quota_service import quota_service as _legacy_quota_service
 from aperag.service.search_pipeline_service import search_pipeline_service as _legacy_search_pipeline_service
 
@@ -495,13 +496,7 @@ register_exception_handlers(app)
 register_custom_llm_track()
 
 
-# Health check endpoint
-@app.get("/health")
-async def health_check():
-    """Simple health check endpoint for container health monitoring"""
-    return {"status": "healthy", "service": "aperag-api"}
-
-
+app.include_router(health_router)
 app.include_router(auth_router, prefix="/api/v2/auth")
 app.include_router(export_router, prefix="/api/v2")  # KB-domain export router (Phase 8 #47 G1, D7 v2 hard-cut)
 app.include_router(audit_router, prefix="/api/v2")  # Governance: audit-logs (hard-cut to v2 in #50)
