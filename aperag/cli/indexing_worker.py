@@ -60,6 +60,7 @@ from aperag.indexing.quota import (
 )
 from aperag.indexing.worker_factory import ProductionWorkerFactory
 from aperag.objectstore.base import get_object_store
+from aperag.observability.metrics import shutdown_metrics_provider
 
 logger = logging.getLogger(__name__)
 
@@ -102,14 +103,17 @@ async def _amain() -> None:
         quota_backend = RedisQuotaBackend(quota_redis, quota_registry)
     else:
         quota_backend = InMemoryQuotaBackend(quota_registry)
-    del quota_backend  # 当前 worker entrypoint 不直接消费 quota_backend, 但保留引用让 redis 不被 close.
+    # quota_backend / metrics_emitter 当前 worker entrypoint 不直接 acquire (跟 app.py
+    # 现状一致, 真正 acquire 接线点是 task #24). 保留构造让 quota_redis 引用不被
+    # 提前回收, 也保证 OTLP MeterProvider 在 worker 启动时就 install.
+    _ = quota_backend
 
     # 选 metrics emitter (生产 OTLP, dev noop).
     if settings.indexing_metrics_emitter.lower() == "otlp":
         metrics_emitter = OTLPMetricsEmitter()
     else:
         metrics_emitter = NoopMetricsEmitter()
-    del metrics_emitter  # 同上, 跟 app.py 一致语义.
+    _ = metrics_emitter
 
     # ProductionWorkerFactory: per-task 懒构造. worker entrypoint 在 BLPOP 出
     # payload 后调用, 按 (collection_id, modality) 构造 ModalityWorker.
@@ -164,7 +168,26 @@ async def _amain() -> None:
 
     await shutdown.wait()
     logger.info("indexing-worker shutdown signal received, draining %d tasks...", len(tasks))
-    await asyncio.gather(*tasks, return_exceptions=True)
+
+    # cuiwenbo msg=f7868d2c #3 + Weston msg=ce324047 #2: 给 graceful drain 设 25s 上限
+    # (kubelet 默认 30s grace), 超时强制 cancel, 避免某个 worker 不响应 shutdown
+    # event 时挂到 SIGKILL 丢 in-flight 状态.
+    try:
+        await asyncio.wait_for(
+            asyncio.gather(*tasks, return_exceptions=True),
+            timeout=25.0,
+        )
+    except asyncio.TimeoutError:
+        logger.warning("indexing-worker shutdown timeout after 25s, cancelling %d tasks", len(tasks))
+        for t in tasks:
+            t.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+    # cuiwenbo msg=f7868d2c #2 + Weston msg=ce324047 #1: flush OTLP MeterProvider,
+    # 否则 PeriodicExportingMetricReader 残留样本会随 worker 退出丢失 (跟 app.py
+    # finally 段调 shutdown_metrics_provider 等价).
+    with contextlib.suppress(Exception):
+        await asyncio.to_thread(shutdown_metrics_provider)
 
     # 关闭 RedisWorkQueue / quota redis. 失败 swallow (跟 app.py 同样模式).
     if hasattr(queue, "close"):
