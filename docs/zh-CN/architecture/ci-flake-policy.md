@@ -19,9 +19,11 @@
 | `e2e-http-qdrant-nebula` | 15 | 3 | 2 | **15%** flake（3x lite） |
 | `e2e-http-qdrant-neo4j` | 15 | 3 | 2 | **15%** flake（3x lite） |
 
-Nebula / Neo4j 比 Lite 的 fail rate **高 3x**。多 PR cross-check 实证（task #17 PR #1893 / #1885 / #1886 / #1890 / #1891 / #1899）失败 signature 集中在 `aperag/domains/retrieval/runtime.py:1056` `ValidationException: Model specification is required for agent runtime v3`，跟 PR diff 无因果（同 main 同 commit 不同 run 结果不一致）。
+Nebula / Neo4j 比 Lite 的 fail rate **高 3x**。多 PR cross-check 实证（task #17 PR #1893 / #1885 / #1886 / #1890 / #1891 / #1899）失败 signature 集中在 `aperag/domains/agent_runtime/runtime.py:1056` `ValidationException: Model specification is required for agent runtime v3`，跟 PR diff 无因果（同 main 同 commit 不同 run 结果不一致）。
 
 短期不能修根因（需要进一步定位 provider bootstrap / model_use 写入 / agent runtime 启动间的竞态），但**保留 PR-trigger gate 信号**比拆 nightly 更重要 — 这些 shape 历史上抓到过真实 worker DI / compose / provider config 问题（task #17 hot-fix #1893 暴露的 worker DI seam 缺失就是这条 gate 抓的）。
+
+> ⚠️ **本文档是 short-term codify，不是永久放行**：人工放行不豁免 root cause 调查（per §3 责任 lane），所有放行案例应 ledger 收集进 §5 sunset criteria；white-list signature 修复后 §2.2 整段删除。
 
 ## 2. 放行规则（Codify）
 
@@ -38,9 +40,10 @@ Nebula / Neo4j 比 Lite 的 fail rate **高 3x**。多 PR cross-check 实证（t
 1. **shape 数量限制**：仅 1 个 shape 失败（Nebula **或** Neo4j；不允许两个同时失败 + 放行）
 2. **失败 signature 白名单**：失败日志必须命中 `runtime.py:1056` **且** `ValidationException: Model specification is required for agent runtime v3`
 3. **PR diff 零交集**（任一触碰即不允许放行）：
-   - `aperag/domains/retrieval/` (含 agent_runtime / pipeline)
+   - `aperag/domains/agent_runtime/` (含 V3 turn / runtime)
+   - `aperag/domains/retrieval/` (含 search pipeline)
    - `aperag/domains/model_platform/` (含 model bootstrap / provider config)
-   - `aperag/domains/llm/` (含 model_use / completion service)
+   - `aperag/llm/` (顶层；含 model_use / completion service)
    - `aperag/mcp/` (含 search runtime)
    - `aperag/indexing/` (含 worker / DI wire-up)
    - `.github/workflows/e2e-http-*.yml` (含 provider env / shape 配置)
