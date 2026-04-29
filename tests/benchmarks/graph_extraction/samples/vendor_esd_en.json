@@ -1,0 +1,39 @@
+{
+  "id": "vendor_esd_en",
+  "description": "English vendor ESD test model chunk.",
+  "language": "English",
+  "text": "Texas Instruments application notes describe several electrostatic discharge test models used to qualify semiconductor devices. The Human Body Model (HBM) simulates a charged person touching an integrated circuit, while the Charged Device Model (CDM) simulates a charged device discharging when it contacts a grounded surface. IEC 61000-4-2 is commonly used for system-level ESD immunity testing and defines contact discharge and air discharge test methods. Device-level qualification is often performed before board-level validation, and PCB layout, grounding, and transient voltage suppressor (TVS) devices are used to improve ESD robustness.",
+  "expected_entities": [
+    "Texas Instruments",
+    "electrostatic discharge",
+    "semiconductor devices",
+    "Human Body Model (HBM)",
+    "charged person",
+    "integrated circuit",
+    "Charged Device Model (CDM)",
+    "charged device",
+    "grounded surface",
+    "IEC 61000-4-2",
+    "contact discharge",
+    "air discharge",
+    "device-level qualification",
+    "board-level validation",
+    "PCB layout",
+    "grounding",
+    "transient voltage suppressor (TVS) devices",
+    "ESD robustness"
+  ],
+  "expected_relations": [
+    ["Texas Instruments", "electrostatic discharge"],
+    ["Human Body Model (HBM)", "charged person"],
+    ["Human Body Model (HBM)", "integrated circuit"],
+    ["Charged Device Model (CDM)", "charged device"],
+    ["Charged Device Model (CDM)", "grounded surface"],
+    ["IEC 61000-4-2", "contact discharge"],
+    ["IEC 61000-4-2", "air discharge"],
+    ["device-level qualification", "board-level validation"],
+    ["PCB layout", "ESD robustness"],
+    ["grounding", "ESD robustness"],
+    ["transient voltage suppressor (TVS) devices", "ESD robustness"]
+  ]
+}
