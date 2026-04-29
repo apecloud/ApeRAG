@@ -47,9 +47,14 @@ import pytest
 
 from tests.e2e_pytest.config import (
     API_BASE_URL,
-    EMBEDDING_MODEL_CUSTOM_PROVIDER,
+    COMPLETION_MODEL_NAME,
+    COMPLETION_MODEL_PROVIDER,
+    COMPLETION_MODEL_PROVIDER_API_KEY,
+    COMPLETION_MODEL_PROVIDER_URL,
     EMBEDDING_MODEL_NAME,
     EMBEDDING_MODEL_PROVIDER,
+    EMBEDDING_MODEL_PROVIDER_API_KEY,
+    EMBEDDING_MODEL_PROVIDER_URL,
 )
 
 # ---------------------------------------------------------------------
@@ -83,6 +88,10 @@ API_HEALTH_PROBE_LATENCY_BUDGET_SECONDS: float = 0.5
 
 REQUIRES_DEPLOYMENT_RUN_TOKEN = "RUN_TASK_17_E2E"
 
+pytest_plugins = ("tests.e2e_pytest.conftest",)
+
+_TASK17_MODEL_IDS: dict[str, str] = {}
+
 pytestmark = pytest.mark.skipif(
     os.getenv(REQUIRES_DEPLOYMENT_RUN_TOKEN) != "1",
     reason=(
@@ -95,6 +104,107 @@ pytestmark = pytest.mark.skipif(
 # ---------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------
+
+
+def _provider_type(provider: str) -> str:
+    return {
+        "openrouter": "openai_compatible",
+        "alibabacloud": "dashscope",
+        "dashscope": "dashscope",
+        "openai_compatible": "openai_compatible",
+        "openai": "openai",
+        "jina": "jina",
+        "jina_ai": "jina",
+    }.get(provider, provider)
+
+
+@pytest.fixture(scope="module")
+def setup_model_service_provider(cookie_client):
+    """Configure v2 model-platform rows for the freshly registered e2e user.
+
+    The shared e2e fixture still targets the removed v1 ``llm_providers``
+    route. This deployment gate intentionally uses the current v2 model
+    platform so graph extraction can resolve collection completion and
+    embedding models by canonical ``model_id``.
+    """
+
+    def create_account(*, provider: str, base_url: str, api_key: str, suffix: str) -> str:
+        resp = cookie_client.post(
+            "/api/v2/model-accounts",
+            json={
+                "provider_type": _provider_type(provider),
+                "name": f"task17-{suffix}-{uuid.uuid4().hex[:8]}",
+                "display_name": f"Task17 {suffix}",
+                "base_url": base_url,
+                "api_key": api_key,
+            },
+        )
+        assert resp.status_code == HTTPStatus.OK, resp.text
+        return resp.json()["id"]
+
+    completion_account_id = create_account(
+        provider=COMPLETION_MODEL_PROVIDER,
+        base_url=COMPLETION_MODEL_PROVIDER_URL,
+        api_key=COMPLETION_MODEL_PROVIDER_API_KEY,
+        suffix="completion",
+    )
+    if (
+        EMBEDDING_MODEL_PROVIDER == COMPLETION_MODEL_PROVIDER
+        and EMBEDDING_MODEL_PROVIDER_URL == COMPLETION_MODEL_PROVIDER_URL
+        and EMBEDDING_MODEL_PROVIDER_API_KEY == COMPLETION_MODEL_PROVIDER_API_KEY
+    ):
+        embedding_account_id = completion_account_id
+    else:
+        embedding_account_id = create_account(
+            provider=EMBEDDING_MODEL_PROVIDER,
+            base_url=EMBEDDING_MODEL_PROVIDER_URL,
+            api_key=EMBEDDING_MODEL_PROVIDER_API_KEY,
+            suffix="embedding",
+        )
+
+    resp = cookie_client.post(
+        "/api/v2/models",
+        json={
+            "account_id": completion_account_id,
+            "provider_model_id": COMPLETION_MODEL_NAME,
+            "display_name": f"Task17 completion {COMPLETION_MODEL_NAME}",
+            "capability": "chat",
+            "context_window": 8192,
+            "extra": {"allowed_scenarios": ["collection_completion", "background_task"]},
+        },
+    )
+    assert resp.status_code == HTTPStatus.OK, resp.text
+    _TASK17_MODEL_IDS["completion"] = resp.json()["id"]
+
+    resp = cookie_client.post(
+        "/api/v2/models",
+        json={
+            "account_id": embedding_account_id,
+            "provider_model_id": EMBEDDING_MODEL_NAME,
+            "display_name": f"Task17 embedding {EMBEDDING_MODEL_NAME}",
+            "capability": "embedding",
+            "embedding_dimensions": int(os.getenv("TASK_17_E2E_EMBEDDING_DIMENSIONS", "1536")),
+            "extra": {"allowed_scenarios": ["collection_embedding"]},
+        },
+    )
+    assert resp.status_code == HTTPStatus.OK, resp.text
+    _TASK17_MODEL_IDS["embedding"] = resp.json()["id"]
+
+    for scenario, model_id in (
+        ("collection_completion", _TASK17_MODEL_IDS["completion"]),
+        ("background_task", _TASK17_MODEL_IDS["completion"]),
+        ("collection_embedding", _TASK17_MODEL_IDS["embedding"]),
+    ):
+        resp = cookie_client.put(
+            f"/api/v2/model-uses/{scenario}",
+            json={
+                "primary_model_id": model_id,
+                "fallback_model_ids": [],
+                "strategy": "single",
+                "enabled": True,
+            },
+        )
+        assert resp.status_code == HTTPStatus.OK, resp.text
 
 
 @pytest.fixture
@@ -116,11 +226,8 @@ def concurrent_collection(client):
             "enable_knowledge_graph": True,
             "enable_summary": False,
             "enable_vision": False,
-            "embedding": {
-                "model": EMBEDDING_MODEL_NAME,
-                "model_service_provider": EMBEDDING_MODEL_PROVIDER,
-                "custom_llm_provider": EMBEDDING_MODEL_CUSTOM_PROVIDER,
-            },
+            "embedding": {"model_id": _TASK17_MODEL_IDS["embedding"]},
+            "completion": {"model_id": _TASK17_MODEL_IDS["completion"], "temperature": 0.1},
         },
     }
     resp = client.post("/api/v2/collections", json=payload)
