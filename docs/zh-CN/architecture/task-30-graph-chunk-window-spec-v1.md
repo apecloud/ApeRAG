@@ -188,8 +188,11 @@ earayu2 msg=622ca94d 明确「3 只是拍脑袋数字，benchmark 跑数据决�
   - boundary test 钉「`window_size=1` window assembler / caps / timeout / bootstrap **结构等价**旧行为」+ 钉 cap × window co-scale 关系（**结构等价非字节等价**，prompt v2 schema 改造跟 task #32 evidence_refs 路径一致非回退，per huangzhangshu msg=0d497539 + Weston msg=a29f94ab + Bryce msg=1ce25f3a 三方 BLOCKER 1 修订）
   - 推荐 owner：@huangheng（boundary test lane）— 跟 task #32 A3 + cr-checklist follow-up 子 PR 同 lane
 - **#30-A3**：provenance + prompt v2（**7 hard requirement**，per Bryce msg=1ce25f3a concern 2 加第 7 项 `response_format=json_object` 必保留）
-  - entity / relation `source_chunk_ids` 扩 list
-  - prompt 模板加 `[[chunk_id=X]]` 边界标记 + 6 hard requirement + few-shot 多样性 + 可选受控 relation schema
+  - entity / relation `source_chunk_ids` 扩 list（schema 跟 task #32 PR #1909 `GraphEvidenceRef` 同源 — composite key (`document_id, chunk_id, parse_version?`)，`chunk_id` 非全局唯一 invariant）
+  - prompt v2 改造：7 hard requirement 全实施（chunk 边界 `[[chunk_id=X index=Y]]` 标记 + `source_chunk_ids` 输出 + 跨 chunk 关系鼓励 + 去重规范化 + fail-safe 不编造 + max output co-scale + `response_format=json_object` 必保留）
+  - **parser invariant**（per Weston msg=a29f94ab BLOCKER 2 + ziang msg=c0ea4ecc 实施点 2）：`_parse_extraction_response` / `_entity_from_dict` / `_relation_from_dict` 接收 `allowed_chunk_ids` 参数 + `source_chunk_ids` normalize 必须是 `allowed_chunk_ids` 非空子集 + window_size=1 字段缺失 fallback 到唯一 chunk_id（兼容旧 schema）+ window_size>1 缺失或过滤后为空 → skip record + warning log
+  - **few-shot default off**（per Bryce msg=1ce25f3a concern 3 防 prompt size 撑爆）：通过 collection-level `kg.graph_extraction_few_shot_locale` opt-in（值 `zh` / `en` / `mixed`，配置后加 1-2 个对应语言 example + 1 个跨段落示例）
+  - 可选受控 relation schema：collection-level `kg.allowed_relation_types` 默认 free-text 兼容
   - 推荐 owner：@Bryce（task #14 issue #1861 graph extractor 改造熟悉）
 
 ### Phase B（A 全 close 后 sequential 启动，per 冬柏 msg=39e7034a）
