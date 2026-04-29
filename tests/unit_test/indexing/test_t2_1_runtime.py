@@ -680,6 +680,56 @@ def test_reconciler_graph_vectors_re_enqueues_when_artifact_path_diverges(engine
     assert vectors.source_path == new_artifact, "source_path 必须同步成 facts 当前的 artifact"
 
 
+def test_reconciler_graph_vectors_boundary_facts_equal_vectors_does_not_re_enqueue(engine):
+    """huangheng CR NIT-B (msg=33b1fc56): boundary 钉死 ``>`` 不是 ``>=``.
+    facts.updated_at == vectors.updated_at 时不应触发 stale (相等 ≠ 落后).
+    防未来 refactor 把 ``>`` 改成 ``>=`` 静默过度入队.
+    """
+    facts_artifact = "collections/c/documents/doc-1/derived/parse_v1/kg.jsonl"
+    same_time = _utcnow()
+
+    _insert_row(
+        engine,
+        document_id="doc-1",
+        parse_version="v1",
+        modality=Modality.GRAPH_FACTS,
+        status=IndexStatus.ACTIVE,
+        derived_artifact_path=facts_artifact,
+    )
+    _insert_row(
+        engine,
+        document_id="doc-1",
+        parse_version="v1",
+        modality=Modality.GRAPH_VECTORS,
+        status=IndexStatus.ACTIVE,
+        source_path=facts_artifact,
+        is_serving=True,
+    )
+    # 强制两边 updated_at 完全相等.
+    with Session(engine) as session, session.begin():
+        session.execute(
+            update(DocumentIndex)
+            .where(
+                and_(
+                    DocumentIndex.document_id == "doc-1",
+                    DocumentIndex.modality.in_(
+                        [Modality.GRAPH_FACTS.value, Modality.GRAPH_VECTORS.value],
+                    ),
+                )
+            )
+            .values(updated_at=same_time)
+        )
+
+    assert reconcile_graph_vectors_enqueue(engine=engine) == 0
+
+    with Session(engine) as session:
+        vectors = session.scalars(
+            select(DocumentIndex).where(DocumentIndex.modality == Modality.GRAPH_VECTORS.value)
+        ).one()
+    assert vectors.status == IndexStatus.ACTIVE.value, "facts == vectors 时不应触发 stale"
+    assert vectors.is_serving is True
+
+
 def test_reconciler_graph_vectors_idempotent_when_facts_unchanged(engine):
     """幂等: facts 没改 (updated_at 不推进 + source_path 一致), vectors ACTIVE
     不应被反复入队. 防止 reconciler 周期 30 秒重复打扰已 OK 的 vectors.
