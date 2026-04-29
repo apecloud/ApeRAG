@@ -18,10 +18,14 @@ function mergeHeaders(
   return headers;
 }
 
-async function serverFetch(request: Request, cookieHeader: string, lang: string) {
+async function serverFetch(
+  request: Request,
+  cookieHeader: string,
+  lang: string,
+) {
   const response = await fetch(
     new Request(request, {
-      cache: request.cache || 'no-store',
+      cache: 'no-store',
       headers: mergeHeaders(request.headers, {
         Cookie: cookieHeader,
         Lang: lang,

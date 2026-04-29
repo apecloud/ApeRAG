@@ -32,6 +32,7 @@ type BotContextProps = {
   mention: boolean;
   collections: CollectionView[];
   providerModels: ProviderModels;
+  providerModelsReload?: () => Promise<void>;
   chatDelete?: (chat: Chat) => void;
   chatCreate?: () => void;
   chatsReload?: () => void;
@@ -70,12 +71,8 @@ export const BotProvider = ({
   const [providerModels, setProviderModels] = useState<ProviderModels>([]);
   const botChatsBasePath = workspace ? '/workspace/bots' : '/bots';
 
-  const loadData = useCallback(async () => {
-    const [models, collectionsRes] = await Promise.all([
-      getScenarioModels('agent_chat'),
-      listCollections(),
-    ]);
-
+  const loadProviderModels = useCallback(async () => {
+    const models = await getScenarioModels('agent_chat');
     const items: ProviderModels = [
       {
         label: 'Chat Models',
@@ -88,9 +85,17 @@ export const BotProvider = ({
         })),
       },
     ];
-    setCollections(collectionsRes?.items ?? []);
     setProviderModels(items);
   }, []);
+
+  const loadData = useCallback(async () => {
+    const [, collectionsRes] = await Promise.all([
+      loadProviderModels(),
+      listCollections(),
+    ]);
+
+    setCollections(collectionsRes?.items ?? []);
+  }, [loadProviderModels]);
 
   const botCreate = useCallback(async () => {
     const created = await createBot({
@@ -176,6 +181,7 @@ export const BotProvider = ({
         chats,
         collections,
         providerModels,
+        providerModelsReload: loadProviderModels,
         chatDelete,
         chatCreate,
         chatsReload,

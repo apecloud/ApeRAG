@@ -41,6 +41,12 @@ export function createBrowserApiClient() {
   const client = createClient<paths>({
     baseUrl: apiBaseUrl,
     credentials: 'include',
+    fetch: (request: Request) =>
+      fetch(
+        new Request(request, {
+          cache: 'no-store',
+        }),
+      ),
   });
   client.use(errorMiddleware);
   return client;

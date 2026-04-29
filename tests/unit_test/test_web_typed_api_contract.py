@@ -6,16 +6,22 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 def test_server_typed_client_uses_api_root_not_legacy_v1_base_path():
     server_client = REPO_ROOT / "web/src/lib/api/typed/server.ts"
+    browser_client = REPO_ROOT / "web/src/lib/api/typed/browser.ts"
     env_template = REPO_ROOT / "web/deploy/env.local.template"
     configmap = REPO_ROOT / "web/deploy/yaml/configmap.yaml"
 
     server_source = server_client.read_text()
+    browser_source = browser_client.read_text()
 
     assert "API_SERVER_BASE_PATH" in env_template.read_text()
     assert "API_SERVER_BASE_PATH" in configmap.read_text()
     assert "API_SERVER_BASE_PATH" not in server_source
     assert "process.env.API_SERVER_ENDPOINT || 'http://localhost:8000'" in server_source
     assert "if (!response.ok)" in server_source
+    assert "cache: 'no-store'" in server_source
+    assert "cache: 'no-store'" in browser_source
+    assert "request.cache || 'no-store'" not in server_source
+    assert "request.cache || 'no-store'" not in browser_source
 
 
 def test_api_key_feature_uses_v2_typed_api_boundary():
@@ -294,7 +300,12 @@ def test_provider_feature_uses_v2_typed_api_boundary():
     assert "from '@/features/providers/client-api'" in bot_provider
     assert "from '@/features/providers/types'" in bot_provider
     assert "getScenarioModels(" in bot_provider
+    assert "providerModelsReload" in bot_provider
     assert "getAvailableModels(" not in joined
+
+    provider_client = sources[REPO_ROOT / "web/src/features/providers/client-api.ts"]
+    assert "getModels({ scenario })" in provider_client
+    assert "params: { query: input }" in provider_client
 
 
 def test_prompt_feature_uses_v2_typed_api_boundary():
@@ -1182,6 +1193,7 @@ def test_phase1_fe_complete_identity_auth_admin_audit_adapter_boundary():
     assert "from '@/api'" not in chat_input
     assert "apiClient.chatDocumentsApi" not in chat_input
     assert "from '@/features/bot/client-api'" in chat_input
+    assert "providerModelsReload?.()" in chat_input
     bot_client_api = (REPO_ROOT / "web/src/features/bot/client-api.ts").read_text()
     assert "uploadChatDocument" in bot_client_api
     assert "getChatDocument" in bot_client_api

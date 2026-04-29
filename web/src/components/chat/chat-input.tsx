@@ -1,11 +1,3 @@
-import {
-  getChatDocument,
-  uploadChatDocument,
-} from '@/features/bot/client-api';
-import type { ChatDetails } from '@/features/bot/types';
-import type { Collection } from '@/features/collection/types';
-import type { UploadDocumentStatus } from '@/features/document/types';
-import type { ModelSpec } from '@/features/providers/types';
 import { PageContent } from '@/components/page-container';
 import { useBotContext } from '@/components/providers/bot-provider';
 import { Button } from '@/components/ui/button';
@@ -34,6 +26,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { getChatDocument, uploadChatDocument } from '@/features/bot/client-api';
+import type { ChatDetails } from '@/features/bot/types';
+import type { Collection } from '@/features/collection/types';
+import type { UploadDocumentStatus } from '@/features/document/types';
+import type { ModelSpec } from '@/features/providers/types';
 import { cn } from '@/lib/utils';
 import { useInterval } from 'ahooks';
 import { motion } from 'framer-motion';
@@ -104,7 +101,7 @@ export const ChatInput = ({
   const { mention, bot } = useBotContext();
   const [isComposing, setIsComposing] = useState<boolean>(false);
   const { open, isMobile } = useSidebar();
-  const { providerModels, collections } = useBotContext();
+  const { providerModels, providerModelsReload, collections } = useBotContext();
   const [mentionOpen, setMentionOpen] = useState<boolean>(false);
   const locale = useLocale();
   const [query, setQuery] = useState<string>('');
@@ -148,10 +145,7 @@ export const ChatInput = ({
           }
           return [...items];
         });
-        const res = await getChatDocument(
-          chatId,
-          attachment.document_id || '',
-        );
+        const res = await getChatDocument(chatId, attachment.document_id || '');
 
         setAttachments((items) => {
           const item = items.find((item) => item.id === attachment.id);
@@ -413,42 +407,44 @@ export const ChatInput = ({
           {CHAT_FILE_UPLOAD_ENABLED && (
             <div className="flex flex-wrap gap-2">
               {attachments.map((attachment) => {
-              const extension = _.last(attachment.file.type.split('/')) || '';
-              return (
-                <div
-                  key={attachment.id}
-                  className="bg-accent group hover:bg-accent/80 relative flex flex-row items-center gap-1 rounded-md border p-1 text-xs transition-colors"
-                >
-                  <div className="size-6">
-                    {['success', 'failed'].includes(
-                      attachment.progress_status,
-                    ) ? (
-                      <FileIcon
-                        color="var(--primary)"
-                        extension={extension}
-                        {..._.get(defaultStyles, extension)}
-                      />
-                    ) : (
-                      <LoaderCircle className="size-6 animate-spin opacity-50" />
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <div className="w-30 truncate">{attachment.file.name}</div>
-                    <div className="text-muted-foreground flex flex-row justify-between">
-                      <span>
-                        {(attachment.file.size / 1000).toFixed(0) + ' Kb'}
-                      </span>
-                      <span>{attachment.progress_status}</span>
+                const extension = _.last(attachment.file.type.split('/')) || '';
+                return (
+                  <div
+                    key={attachment.id}
+                    className="bg-accent group hover:bg-accent/80 relative flex flex-row items-center gap-1 rounded-md border p-1 text-xs transition-colors"
+                  >
+                    <div className="size-6">
+                      {['success', 'failed'].includes(
+                        attachment.progress_status,
+                      ) ? (
+                        <FileIcon
+                          color="var(--primary)"
+                          extension={extension}
+                          {..._.get(defaultStyles, extension)}
+                        />
+                      ) : (
+                        <LoaderCircle className="size-6 animate-spin opacity-50" />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <div className="w-30 truncate">
+                        {attachment.file.name}
+                      </div>
+                      <div className="text-muted-foreground flex flex-row justify-between">
+                        <span>
+                          {(attachment.file.size / 1000).toFixed(0) + ' Kb'}
+                        </span>
+                        <span>{attachment.progress_status}</span>
+                      </div>
+                    </div>
+                    <div
+                      onClick={() => handleDeleteAttachment(attachment)}
+                      className="bg-accent absolute -top-2 -right-2 z-10 flex size-6 cursor-pointer flex-col justify-center rounded-full p-1 text-center opacity-0 transition-opacity group-hover:opacity-100"
+                    >
+                      <Trash2 className="m-auto size-3 text-rose-500" />
                     </div>
                   </div>
-                  <div
-                    onClick={() => handleDeleteAttachment(attachment)}
-                    className="bg-accent absolute -top-2 -right-2 z-10 flex size-6 cursor-pointer flex-col justify-center rounded-full p-1 text-center opacity-0 transition-opacity group-hover:opacity-100"
-                  >
-                    <Trash2 className="m-auto size-3 text-rose-500" />
-                  </div>
-                </div>
-              );
+                );
               })}
             </div>
           )}
@@ -579,6 +575,11 @@ export const ChatInput = ({
                   value={modelName}
                   disabled={disabled}
                   defaultValue={modelName}
+                  onOpenChange={(open) => {
+                    if (open) {
+                      providerModelsReload?.();
+                    }
+                  }}
                   onValueChange={(v) => {
                     setModelName(v);
                   }}

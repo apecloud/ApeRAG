@@ -61,8 +61,13 @@ export async function validateModelAccount(accountId: string) {
   return data;
 }
 
-export async function getModels(): Promise<Model[]> {
-  const { data } = await browserApiClient.GET('/api/v2/models');
+export async function getModels(input?: {
+  capability?: ModelCapability;
+  scenario?: ModelUseScenario;
+}): Promise<Model[]> {
+  const { data } = await browserApiClient.GET('/api/v2/models', {
+    params: { query: input },
+  });
   return (data?.items ?? []) as Model[];
 }
 
@@ -131,6 +136,6 @@ export function isModelAllowedForScenario(
 }
 
 export async function getScenarioModels(scenario: ModelUseScenario) {
-  const models = await getModels();
+  const models = await getModels({ scenario });
   return models.filter((model) => isModelAllowedForScenario(model, scenario));
 }
