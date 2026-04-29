@@ -505,8 +505,11 @@ async def _run_phase1_workers_until_quiet(
     Returns a dict keyed by Modality with the final row state.
 
     Implementation drives :class:`ProductionWorkerFactory` directly
-    against the live backends — same dispatch path the indexing-worker
-    CLI uses. Each modality is processed
+    against the live backends — same dispatch path the
+    ``run_*_worker`` loops in ``aperag/cli/indexing_worker.py`` use
+    (post-task #17 the FastAPI lifespan no longer launches workers;
+    they live in the standalone indexing-worker deployment).
+    Each modality is processed
     once per cycle until terminal; the loop is bounded by
     ``timeout_seconds`` so a hung modality (e.g. unreachable Qdrant)
     fails the test loud rather than blocking forever.
@@ -636,8 +639,9 @@ def test_phase1_full_pipeline_vector_fulltext_summary_active_graph_vision_failed
             runtime = get_runtime()
             assert runtime is not None and runtime.queue is not None, (
                 "Phase 1 Layer 2 requires a live IndexingRuntime — the e2e-http-compose "
-                "lane bootstraps it via the indexing-worker CLI; ensure the test runs against "
-                "the live API process."
+                "lane bootstraps it on the API side for the queue/quota wiring this test "
+                "uses; ensure the test runs against the live API process. (Worker "
+                "execution itself moved to the indexing-worker deployment in task #17.)"
             )
             await dispatch_indexing(
                 engine=runtime.engine,
@@ -654,8 +658,8 @@ def test_phase1_full_pipeline_vector_fulltext_summary_active_graph_vision_failed
                 mode=IndexingMode.ASYNC,
             )
 
-            # Drive the pool inline so the test does not depend on the
-            # worker CLI tasks racing with the assertion.
+            # Drive the pool inline so the test does not depend on a
+            # separate indexing-worker process racing with the assertion.
             finalised = await _run_phase1_workers_until_quiet(
                 engine=engine,
                 document_id=document_id,
