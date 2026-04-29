@@ -33,6 +33,7 @@ help:
 	@printf "  make db-migrate           Apply database migrations\n"
 	@printf "  make db-check             Verify schema matches SQLAlchemy models (no pending diff)\n"
 	@printf "  make db-revision          Create a new alembic migration\n"
+	@printf "  make db-stamp-init        One-off (PR #1859 cutover): reset alembic_version to the new init revision\n"
 	@printf "  make infra-up             Start infra dependencies only\n"
 	@printf "  make stack-up             Start the full local stack\n"
 	@printf "  make stack-down           Stop the local stack\n"
@@ -104,7 +105,7 @@ env-clean:
 ##################################################
 
 # Database schema management
-.PHONY: db-revision db-migrate db-check
+.PHONY: db-revision db-migrate db-check db-stamp-init
 db-revision:
 	@uv run alembic -c aperag/alembic.ini revision --autogenerate
 
@@ -113,6 +114,13 @@ db-migrate:
 
 db-check:
 	@uv run alembic -c aperag/alembic.ini check
+
+# One-off cutover helper for PR #1859: reset alembic_version to the new
+# init revision when the existing row points at a now-deleted history.
+# Idempotent — safe to re-run. Will be removed in a future cleanup once
+# every known deployment has been stamped.
+db-stamp-init:
+	@uv run python scripts/stamp_init_migration.py
 
 # Docker Compose infrastructure
 
