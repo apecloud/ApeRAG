@@ -231,6 +231,68 @@ shared utility / 默认行为 / 函数签名改动必须 grep 全 caller，不�
 
 **对应 Lesson #12 同根**：行号 / status / 错误类型 / 函数名 这类 surface signal 都是 trust-framing 反模式入口，必须 grep + scope walk + cross-reviewer verify。
 
+### Lesson #12 v6 sub-form：scope walk 三层覆盖（架构师 msg=9c5c32d1 升级）
+
+`scope walk` 不只「function/method 边界」单一形态，task #36 PR #1899 fix-forward² 实战 surface 三个 sub-form，架构师 msg=9c5c32d1 同意 fold sub-form：
+
+- **v6.1 function scope**：原 v6 — callee 在哪个 function（sync `main()` vs async `_amain()`）+ function call graph 追溯
+- **v6.2 endpoint scope**：同 jsonpath 字符串在不同 endpoint 语义不同（task #36 fix-forward² L148 case：`count >= 3` 在 `/api/v2/models` endpoint 是「全部 model 计数」, 在 `/api/v2/model-uses` endpoint 是「scenario 计数」— 同 jsonpath 字符串语义完全不同。huangheng over-fix 误把 model-uses 的 L148 跟 models 的 L103 同改 → Bryce `git show 623c7c72` verify ziang commit context 挡住）
+- **v6.3 data type scope**：count assertion 关联的不同 data source / list vs dict / 不同字段类型 — 跟 v6.2 同根「surface signal 字面相同但底层语义不同，必须 walk 上下文 context」
+
+**实施步骤补充**：每条 surface signal（line number / jsonpath string / status code / 错误类型 / 函数名）必须 walk 至少一层上下文（function / endpoint / data type）才能 ground 判断。
+
+### Lesson #12 v7：grep 必跨 caller signature → backend schema → runtime fallback 三层
+
+**触发条件**：判断系统某 contract（默认值 / 字段是否暴露 / 行为是否启用）的实际 runtime 行为时。
+
+**核心 insight**：grep caller chain 找到入口 default 不等于 grep 完整 — 必须跨：
+
+1. **Caller signature 层**（MCP tool / API endpoint default 参数）
+2. **Backend schema validation 层**（Pydantic Field default / serializer 默认）
+3. **Runtime fallback 行为层**（when missing config 是 raise / silent skip / silent fallback）
+
+三层任一层 default 不一致 → contract drift（用户从 sig 看到 True，runtime 实际 False，运维 + 文档 + 用户预期都错位）。这跟 Lesson #12 v6（行号 ≠ 执行顺序，必 walk function scope）同源「grep 表层 ≠ 真实运行行为」。
+
+**实证来源**：rerank task #34 调研中（earayu2 msg=70cb0f6b），huangheng msg=e539848f 初版 grep 只覆盖 caller chain 入口（MCP tool `rerank: bool = True`）+ retrieval pipeline `_rerank` 实施层；架构师 msg=b12fec5d thoroughness=very thorough trace 补 `retrieval/schemas.py:287 SearchRequest.rerank: Optional[bool] = Field(False, ...)` schema-layer 默认覆盖（MCP tool sig True 被 backend schema False 覆盖，实际 runtime default 已经是 False）+ `pipeline.py:630-632` graceful fallback 路径。huangheng own-up msg=e5c6b105 修法建议 1（MCP True → False）方向对但理由错（不是 runtime default 故障，是 sig/schema contract drift）。
+
+### Lesson #12 v7.1：composite key invariant（修改返回字段时必须 verify 下游 caller 所有 required parameter 能从新返回 reconstruct）
+
+**触发条件**：新增 / 修改 endpoint 返回字段时，下游 caller signature 含 composite key（多字段 required parameter）。
+
+**核心 insight**：单字段（chunk_id）不能取代 composite key（document_id + chunk_id）。修改返回字段时必须 grep verify 下游 caller 所有 required parameter 都能从新返回 reconstruct，否则 agent / consumer 拿到字段也无法 chained 调用。
+
+**实证来源**：task #32 spec v1 PR #1905 § 3.1.1 早期版本写 `evidence_chunk_ids: list[str]`（只 chunk_id），但 `read_document_chunk(collection_id, document_id, chunk_id)` 是 document-scoped composite key — chunk_id **不全局唯一**，必须 composite。huangheng CR (msg=cba16b73) + 架构师初版 spec 双侧漏 caller signature verify，Weston msg=7500e57d 第三 reviewer cross-check catch BLOCKER → spec fix-forward `74d0951` 改 `evidence_refs: [{document_id, chunk_id, parse_version?}]`。huangheng + 架构师 double own-up msg=64c0c838 / msg=fbe0ee8a。
+
+**实施步骤**：修改返回字段 PR 必走 4 步：
+
+1. **Step A**：grep 全部 downstream caller（per Lesson #12 grep-all-callers）
+2. **Step B**：列每个 caller 的 required parameter 全集
+3. **Step C**：verify 新返回字段能 reconstruct 全部 required parameter（不只是「相关字段」）
+4. **Step D**：缺任一 required parameter → 立刻 surface BLOCKER fix spec / impl，不允许「下个 PR 补」
+
+### Lesson #12 v7.1 sub-form：backend 投影层 + acceptance 跨 endpoint chained chain 双层 verify（架构师 msg=f04b36a8 升级）
+
+composite key invariant 应在「**backend 投影层**（PR #1909 commit `8d5ffa97` textbook）+ **acceptance 跨 endpoint chained chain**（PR #1912 commit `eb2a805b` textbook）双层 verify」。单层 verify 容易漏 endpoint 间一致性 drift。
+
+**backend 层 verify 模式**（PR #1909 demo）：
+
+- 投影层 schema 定义 composite key（`GraphEvidenceRef(document_id, chunk_id, parse_version?)`）
+- service projection 函数 (`_lineage_to_evidence_refs`) 实现 composite key dedup（`seen: set[tuple[str, str, str]]`）+ 确定性排序 + per-member 迭代 + bounded limit
+- unit test 钉投影层 schema 字段（`test_entity_view_exposes_bounded_evidence_refs_for_read_document_chunk`）
+
+**acceptance 层 verify 模式**（PR #1912 demo）：
+
+- patch-based isolation：复用 D9 base helpers（`_patch_doc_lookup` + `document_service.get_document_chunks`）
+- minimal fixture 跟 backend 投影层 unit test 字段对齐（`document_id="doc1" / chunk_id="chunk-a" / parse_version="v1"`）
+- 跨 endpoint chained call assertion：`entity.evidence_refs[0].document_id + chunk_id` → `read_document_chunk(collection_id, document_id, chunk_id)` → 返回 chunk content
+- patch-level sanity round-trip check（防 stub 自身 silent 漂移）— huangheng msg=ad42c07b + Weston msg=a25a3820 独立 surface 同 idiom 验证 v6 cross-reviewer cross-check
+
+**双层 verify 必要性**：
+
+- 单 backend 层 verify：会漏「字段返回 OK 但 caller 实际无法 chained 调用」的 endpoint 间 drift
+- 单 acceptance 层 verify：会漏「字段定义不一致」的 backend schema drift
+- 双层联合：覆盖 schema correctness + chained chain executability，缺一不可
+
 ### Lesson #13：invariant evolution 必须双侧 rewrite obsolete regression test
 
 invariant 演化时（旧 invariant → 新 invariant 反向），单纯加新 test 不够，必须主动 search + delete/rewrite 与新 invariant 冲突的旧 regression test，并在 PR description 显式声明这次 invariant 反转。
@@ -245,6 +307,109 @@ invariant 演化时（旧 invariant → 新 invariant 反向），单纯加新 t
 PR #1884 完成时新 test 已加，但旧 PR #1876 test 漏删 → CI fail → fix-forward 删 obsolete test。Lesson：invariant 反转 PR 必须主动 grep 全 codebase 找旧 invariant test 同时删，不能等 CI 暴露后补救。
 
 CR cross-check 应用：CR 时如果 PR 涉及核心 invariant 反转（lifespan worker / cleanup intent SoT / readiness 行为 / API 是否触 heavy 路径等），必须 grep 旧 invariant 关键词找 obsolete test 并要求作者 in-PR 删除，不允许「下个 PR 补」。
+
+### Lesson #13 v2.1：import-level dual-side rewrite（删 source 必删对应 obsolete test 文件 / 函数）
+
+**触发条件**：PR 删除 source 模块 / 类 / 函数。
+
+**核心 insight**：删除 source 后 obsolete regression test 文件如果 `from <deleted module> import ...`，pytest collection ERROR → 卡死整套 unit test runner（不只是单个 test fail）。invariant 反转 PR 必须主动 grep + delete obsolete test 文件 / 函数，不能等 CI 暴露。
+
+**first-application demo**：task #17 PR #1884 deleted `app.py lifespan worker launch`，PR #1876 时代旧 test `test_app_lifespan_launches_all_graph_indexing_worker_lanes` 漏删 → CI fail → Weston commit `335fe586` fix-forward 删除。
+
+**second-application demo**：task #36 PR #1899 deleted `aperag/llm/rerank/rerank_service.py` (RerankService class)，但 `tests/unit_test/llm/test_rerank_service.py` 漏删 → pytest ImportError → fix-forward `fdb5f161` 整文件删 + 4 BONUS 顺手 cleanup（test_v1_ghost_guard / test_model_platform_v1_compat / test_model_runtime_resolver / hurl files）。
+
+**实施步骤**：source 删除 PR 必走 grep + 删除 4 类 obsolete test artifact:
+
+1. 直接 import 删除 module 的 test 文件
+2. 测试已删除 endpoint / API path 的 test 函数
+3. 测试已删除 schema 字段的 test 函数
+4. hurl / e2e fixture 创建已删除资源（model / scenario）的 hurl block
+
+### Lesson #13 v2.2：value-level dual-side rewrite（删 source 字段 / 数据必删对应 stale assertion / count）
+
+**触发条件**：PR 删除 source 字段 / 模型 record / config option。
+
+**核心 insight**：删除 source 数据后 obsolete test data assertion（count / value / count >= N）如果未同步 update，CI fail。这是 Lesson #13 v2.1 import-level 的 value-level 延伸 — 不只删 import，还要 update 依赖该数据的 test 数值。
+
+**first-application demo**：task #36 PR #1899 fix-forward²（commit `629bb4ef`）— 删除 `dashscope_rerank` model registration in `10_provider_llm.hurl`，但 L103 + L108 `count >= 3` / `count >= 2` assertion 未同步 update。BLOCKER² catch (msg=3e4898bc) → 改 L103 `>= 2` + L108 `>= 1`（保留 L148 `>= 3` for model-uses endpoint per Lesson #12 v6.2 endpoint scope walk）。
+
+**second-application demo**：task #47 PR #1910 删除 `ModelCapability.RERANK` enum value，同 PR `tests/unit_test/test_model_platform_v2_contract.py` 删 `default_allowed_scenarios(RERANK) == []` 断言（value-level dual-side rewrite）— 一次性 PR 内完成，不需 fix-forward²。
+
+**实施步骤**：删除字段 / 数据 PR 必同步 update：
+
+1. test 数据 fixture 中创建 / 引用该字段的所有 block
+2. test count assertion（jsonpath count >= N，N 跟实际创建数量挂钩）
+3. test value assertion（exact value match / `== []` 等死值断言）
+4. allowlist / forbidden_set 配置常量（如该字段在 forbidden 列表里）
+
+**Lesson #12 v6.2 联动**：value-level update 时必须 walk endpoint scope — 同 jsonpath count 在不同 endpoint 语义不同（PR #1899 fix-forward² L103/L108 是 models endpoint vs L148 是 model-uses endpoint）。
+
+### Lesson #13 v3：boundary test 不重复事实保证 invariant，只覆盖可能 drift 的 contract（架构师 msg=036dd8b2 升格）
+
+**触发条件**：删除/移除某 invariant 时，决定 boundary test 覆盖范围。
+
+**核心 insight**：boundary test 是为「可能 drift 的 contract」设计 — 如果某 invariant 已经被「事实保证」（删除整 dir、DB migration 删 row、enum 整删等），不需要 boundary test 重复测试事实保证 invariant。
+
+**first-application demo**：task #46 PR #1906 `tests/boundaries/test_no_rerank_in_mcp.py`：
+
+- ✅ 覆盖 invariant 1（MCP tool signatures no rerank param）+ invariant 3（schema fields no Rerank）— 这两类是「contract 层」，可能 drift 通过未来 PR 误加回
+- ❌ 不覆盖 invariant 2（`aperag/llm/rerank/` 模块 import）— 整 dir 已删除，任何 import 触发 `ModuleNotFoundError` 自动 catch → **事实保证**
+- ❌ 不覆盖 invariant 4（`model_use` scenario `retrieval_rerank` string literal）— DB migration 已 DELETE + enum 覆盖 → **事实保证**
+
+**判断准则**：如果某 invariant 的违反方式只能通过「重新创建已删除的模块 / 数据」实现（高门槛，明显工程行为），事实保证够用 — boundary test 重复覆盖增加维护成本无收益。如果违反方式是「在新 PR 加回字段 / 参数」（低门槛，容易 silent drift），boundary test 必须钉死。
+
+**实施步骤**：设计 boundary test 范围时三步：
+
+1. **Step A**：列出全部 invariant
+2. **Step B**：每个 invariant 判断违反路径：高门槛（重创已删资源）vs 低门槛（新 PR 加字段）
+3. **Step C**：高门槛 invariant 走「事实保证」路径（不写 boundary test）+ 文档显式标注为何不写 + 跨 PR 引用为何 missing test 是 by-design / 低门槛 invariant 必走 boundary test 钉
+
+### Migration chain 时序 invariant：enum hard-cut PR 必先 chain DELETE FROM 旧 enum value migration
+
+**触发条件**：PR 修改 SQLAlchemy / Pydantic enum (删除 enum value)，且 DB 表中可能有该 enum value 的 row。
+
+**核心 insight**：enum hard-cut 部署后，应用启动期反序列化 DB 中现有 row 时，遇到已删除 enum value → ValueError / DeserializationError → 启动失败。必须先 chain DB migration `DELETE FROM <table> WHERE <column> = '<old_value>'`，再 deploy enum 删除代码。
+
+**first-application demo**：task #47 PR #1910 删除 `ModelCapability.RERANK = "rerank"` enum value：
+
+- 新 migration `20260430034600-3c7d2f81b5e9.py` chain 在 ziang `a8f4c2d9e1b7`（task #38 PR #1898 删除 `model_use.scenario='retrieval_rerank'`）之后
+- migration upgrade: `op.execute("DELETE FROM model WHERE capability = 'rerank'")`
+- migration docstring 显式说明 "before the enum hard-cut"
+- downgrade: `pass` + docstring 注明 "deleted rows cannot be reconstructed safely"
+
+**实施步骤**：enum hard-cut PR 必走 4 步：
+
+1. **Step A**：grep DB schema 列出所有可能含旧 enum value 的 column / table
+2. **Step B**：写 migration `DELETE FROM <table> WHERE <column> = '<old_value>'` chain 在最新已合并 migration 后
+3. **Step C**：migration docstring 显式说明 "before the enum hard-cut" + downgrade `pass` + 不可逆理由
+4. **Step D**：CR 时 verify migration 在 enum 删除代码之前 chain（migration revision DAG）
+
+**对应 Lesson #12 v7 (caller sig + backend schema + runtime fallback 三层)**：DB 是 backend schema 层的具体实施，enum hard-cut 必须 chain DB migration 是 v7 在 DB 实施层的样态。
+
+### Lesson #14：架构 invariant 删除多轮迭代收尾（task #35 6 轮 fix-forward 实证）
+
+**触发条件**：PR description 含「彻底删除」/「全删」/「整删」类 sweeping cleanup directive。
+
+**核心 insight**：架构 invariant 删除涉及多 layer（runtime / schema / DB / config / docs / generated artifacts / deploy / env / CI），单 PR 通常无法一次性 cover 全集。每轮 grep gate verify surface 下一批残留 → fix-forward task → 多轮迭代收尾是工程常态，**不是 spec 失败**。
+
+**first-application demo**：task #35「彻底删除 rerank」走完 **6 轮迭代**：
+
+1. **task #36 BE core**（PR #1899）：pipeline._rerank + 4 runner + RerankService + invocation_service + endpoint
+2. **task #37/#39 UI/docs**（PR #1897/#1908）：前端 SearchTest + quickstart docs + MCP docs
+3. **task #38 MCP + DB scenario**（PR #1898）：MCP tool 参数 + model_use retrieval_rerank scenario migration
+4. **task #46 boundary test**（PR #1906）：test_no_rerank_in_mcp invariant lock
+5. **task #47 model_platform residual**（PR #1910）：ModelCapability.RERANK enum + DashScope/Jina presets + DB row migration
+6. **task #49 deploy/env + comment residual**（PR #1911）：CACHE_RERANK_TTL_SECONDS env/values/secrets + view_models stale shim comment
+7. **task #40 final 验收**：32 tests pass + helm lint + grep gate 0 active path → task #35 正式 close
+
+**实施模式**（避免「spec 失败」误判）：
+
+1. **Step A**：spec 列「彻底删除」directive 是正确，**不需要预先列尽全集**（list 必有遗漏）
+2. **Step B**：每轮 fix-forward 走 grep gate verify → surface 残留 → 立 fix-forward task
+3. **Step C**：迭代到 grep gate 0 active path 闭环（仅剩 allowlist：boundary test 自身 / 历史 migration 记录 / 删除说明 docstring）
+4. **Step D**：最终 验收 lane（task #40 模式）跑 final grep gate + smoke + helm lint 三层 confirm
+
+**CR 应用**：CR sweeping cleanup PR 时不要 expect 单 PR 一次到位，而是 verify「本轮 grep gate 是否 surface 下一批残留 + fix-forward task 链是否 actively 推进」。spec 完整性 ≠ 单 PR 完整性，spec 完整性 = **多 PR 迭代收尾闭环**。
 
 ### Mini-pattern 17：跨真源状态漂移检测
 
@@ -302,7 +467,7 @@ CR cross-check 表里任何 ✅ 标注被 surface 为 false positive 时，立�
 
 ## 六、CR 历史 sediment 引用
 
-- `memory/feedback_e2e_dataflow_trace.md` Lesson #11 + Lesson #11 v5 (entry-point migration) + Lesson #12 + extension v3 + extension v4 + Lesson #12 v5 (CI status trust framing) + Lesson #12 v6 (scope walk for ordering) + Lesson #13
+- `memory/feedback_e2e_dataflow_trace.md` Lesson #11 + Lesson #11 v5 (entry-point migration) + Lesson #12 + extension v3 + extension v4 + Lesson #12 v5 (CI status trust framing) + Lesson #12 v6 (scope walk) + v6 sub-form (v6.1/v6.2/v6.3) + Lesson #12 v7 (3-layer grep) + v7.1 (composite key invariant) + v7.1 sub-form (backend + acceptance 双层 verify) + Lesson #13 + v2.1 (import-level) + v2.2 (value-level) + v3 (boundary 不重复事实保证) + Migration chain 时序 invariant + Lesson #14 (架构 invariant 删除多轮迭代收尾)
 - `memory/feedback_collab_before_solo_pr.md` 同 tag/scope 多 agent 默认 co-design 单 PR
 - `memory/feedback_object_store_path_drift.md` `OBJECT_STORE_LOCAL_ROOT_DIR` 漂移诊断 playbook
 - `memory/feedback_one_shot_no_phased_rollout.md` 一次性不分阶段 directive
@@ -310,6 +475,9 @@ CR cross-check 表里任何 ✅ 标注被 surface 为 false positive 时，立�
 - `memory/feedback_cr_must_cross_reference_arch_doc.md` CR 必对照架构文档逐条 invariant 走
 - `memory/project_task17_pr_1884_active_focus.md` task #17 ship 完成节点（merge `5a0aa804` / 6 hard gate 全实证 / Planetegg 压测数据 / phase 2 directive）
 - PR #1893 hot-fix: `aperag/bootstrap/__init__.py` + `wire_cross_domain_di_seams()` + `tests/boundaries/test_worker_di_parity.py` AST 级 3 重防回归 (commit `d4b65e27`)，Lesson #11 v5 first-application demo
+- PR #1909 (commit `8d5ffa97`): `GraphEvidenceRef` composite key + `_lineage_to_evidence_refs` 投影层，Lesson #12 v7.1 backend 投影层 textbook
+- PR #1912 (commit `eb2a805b`): `tests/integration/test_graph_evidence_refs_chain.py` 跨 endpoint chained chain 4 case 验证，Lesson #12 v7.1 acceptance 层 textbook（跟 PR #1909 配对完整）
+- task #35 6 轮 fix-forward 收尾 (PR #1899/#1897/#1898/#1906/#1910/#1911 + task #40 final 验收) ，Lesson #14 架构 invariant 删除多轮迭代收尾 first-application demo
 
 ---
 
@@ -343,4 +511,14 @@ CR cross-check 表里任何 ✅ 标注被 surface 为 false positive 时，立�
 - 2026-04-30 01:13 task #17 PR #1884 squash merge 至 main（commit `5a0aa804`），架构师 final ratify msg=10954036，PM 确认 msg=c96816c4
 - 2026-04-30 phase 2 huangheng follow-up（commit `3b30923`）：§ 七 verdict 表全部 backfill ship 实数据 / 新增「PR `lint-and-unit` CI 全绿」mandatory 行 / § 四 新增 Lesson #12 extension v4（CI gate mandatory）+ Lesson #13（invariant evolution dual-side rewrite obsolete regression test）/ § 六 sediment 引用追加 phase 2 ship 节点
 - 2026-04-30 02:03 task #17 hot-fix PR #1893 squash merge 至 main（commit `d4b65e27`），DI wire-up gap 修复（worker CLI 缺 10 个 cross-domain DI setter）；架构师 final ratify msg=df6811e4 / msg=b04ed722，PM ratify msg=5e73ce8b
-- 2026-04-30 phase 2 huangheng follow-up post-hot-fix rebase sediment（本次 commit）：§ 四 新增 Lesson #11 v5（entry-point migration sub-check + Weston 三分类框架 + task #17 hot-fix 10+3+2 setter 实证清单）+ Lesson #12 v5（CI status 解读 trust framing 反模式，架构师升格独立条目）+ Lesson #12 v6（grep line number ≠ 执行顺序，必 walk function scope，huangheng NIT 2 own-up 升格）；§ 六 sediment 引用追加 PR #1893 hot-fix bootstrap module + boundary test 锚点
+- 2026-04-30 phase 2 huangheng follow-up post-hot-fix rebase sediment（commit `99f721a`，PR #1891 第 2 commit）：§ 四 新增 Lesson #11 v5（entry-point migration sub-check + Weston 三分类框架 + task #17 hot-fix 10+3+2 setter 实证清单）+ Lesson #12 v5（CI status 解读 trust framing 反模式，架构师升格独立条目）+ Lesson #12 v6（grep line number ≠ 执行顺序，必 walk function scope，huangheng NIT 2 own-up 升格）；§ 六 sediment 引用追加 PR #1893 hot-fix bootstrap module + boundary test 锚点
+- 2026-04-30 task #32 Phase A close 后 huangheng follow-up 子 PR（本次 commit）：§ 四 新增 7 lesson sediment（task #32 + task #35 全 close 后多轮迭代实证累计）：
+  - **Lesson #12 v6 sub-form**（v6.1 function scope / v6.2 endpoint scope / v6.3 data type scope）— 架构师 msg=9c5c32d1 升级，task #36 PR #1899 fix-forward² L148 case 实战 surface
+  - **Lesson #12 v7**（caller signature → backend schema → runtime fallback 三层 grep）— task #34 rerank 调研 huangheng msg=e539848f own-up + 架构师 msg=b12fec5d thoroughness=very thorough trace 实证
+  - **Lesson #12 v7.1**（composite key invariant — 修改返回字段必 verify 下游 caller 所有 required parameter 能 reconstruct）— task #32 spec PR #1905 Weston msg=7500e57d BLOCKER catch + huangheng + 架构师 double own-up
+  - **Lesson #12 v7.1 sub-form**（backend 投影层 + acceptance 跨 endpoint chained chain 双层 verify）— 架构师 msg=f04b36a8 升级，PR #1909 commit `8d5ffa97` backend textbook + PR #1912 commit `eb2a805b` acceptance textbook 配对完整
+  - **Lesson #13 v2.1**（import-level dual-side rewrite — 删 source 必删对应 obsolete test 文件 / 函数）— task #17 PR #1884 first-application + task #36 PR #1899 fix-forward¹ second-application
+  - **Lesson #13 v2.2**（value-level dual-side rewrite — 删 source 字段 / 数据必同步 update stale assertion / count）— task #36 PR #1899 fix-forward² L103/L108 first-application + task #47 PR #1910 contract test second-application
+  - **Lesson #13 v3**（boundary 不重复事实保证 invariant，只覆盖可能 drift 的 contract）— 架构师 msg=036dd8b2 升格，task #46 PR #1906 first-application demo
+  - **Migration chain 时序 invariant**（enum hard-cut PR 必先 chain DELETE FROM 旧 enum value migration）— task #47 PR #1910 first-application（migration `3c7d2f81b5e9` chain 在 ziang `a8f4c2d9e1b7` 后）
+  - **Lesson #14**（架构 invariant 删除多轮迭代收尾 — sweeping cleanup directive 单 PR 无法一次性 cover，多轮 grep gate verify + fix-forward task 迭代是工程常态）— task #35 6 轮 fix-forward 实证 first-application demo
