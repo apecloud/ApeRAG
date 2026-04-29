@@ -16,7 +16,7 @@ ApeRAG 是一款具备多模态索引、AI 智能体、MCP 支持及可扩展 K8
 
 ## 集成原理
 
-ApeRAG 侧没有 Dify 专属的适配代码，整条链路完全基于标准的 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/)：Dify 的 Agent 节点支持把任意 MCP Server 挂成工具集，ApeRAG 启动时就内置了一个 MCP Server（路径 `/mcp/`，与 REST API 共生于 8000 端口）。Dify Agent 通过 HTTP + `Authorization: Bearer <ApeRAG API Key>` 直接调用 ApeRAG 的 5 个工具：知识库检索、聊天文件检索、网页搜索、网页抓取、知识库列表。
+ApeRAG 侧没有 Dify 专属的适配代码，整条链路完全基于标准的 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/)：Dify 的 Agent 节点支持把任意 MCP Server 挂成工具集，ApeRAG 启动时就内置了一个 MCP Server（路径 `/mcp/`，与 REST API 共生于 8000 端口）。Dify Agent 通过 HTTP + `Authorization: Bearer <ApeRAG API Key>` 直接调用 ApeRAG 的集合/文档元数据、向量/全文/图谱检索、Graph 实体/关系查询、文档读取、网页搜索与网页抓取工具。
 
 如果想先了解 ApeRAG MCP 的架构细节与客户端配置通用说明，参见 [MCP 集成指南](./mcp.md)；每个工具的完整参数与返回 schema 见 [MCP API 参考](./mcp-api.md)。
 
@@ -70,7 +70,7 @@ ApeRAG 侧没有 Dify 专属的适配代码，整条链路完全基于标准的 
 
 ### 2.3 配置成功
 
-Dify 会自动拉取 ApeRAG MCP Server 暴露的工具清单。配置成功后应能看到 `list_collections`、`search_collection`、`search_chat_files`、`web_search`、`web_read` 五个工具。
+Dify 会自动拉取 ApeRAG MCP Server 暴露的工具清单。配置成功后应能看到集合/文档、检索、Graph、文档读取和网页相关工具，例如 `list_collections`、`vector_search`、`fulltext_search`、`graph_search`、`query_graph_entities`、`read_document_chunk`、`web_search`、`web_read`。
 
 <div align="center">
   <img src="/images/zh-CN/dify/step2-mcp-success.png" alt="MCP 配置成功" width="800" />
@@ -108,7 +108,7 @@ Dify 会自动拉取 ApeRAG MCP Server 暴露的工具清单。配置成功后�
 
 ### Prompt 参考
 
-下列 Prompt 针对 ApeRAG 现有的 5 个 MCP 工具（`list_collections` / `search_collection` / `search_chat_files` / `web_search` / `web_read`）编写，可直接贴到 Dify Agent 的系统提示词位置：
+下列 Prompt 针对 ApeRAG 当前 MCP 工具集编写，可直接贴到 Dify Agent 的系统提示词位置：
 
 ```markdown
 # ApeRAG 智能助手
@@ -132,18 +132,34 @@ Dify 会自动拉取 ApeRAG MCP Server 暴露的工具清单。配置成功后�
 4. **清晰归属**：始终标注来源
 
 ### 搜索执行
-- **知识库搜索**：默认同时开启向量、全文、图谱、摘要、视觉五种检索方式
+- **知识库搜索**：按问题选择 `vector_search` / `fulltext_search` / `graph_search`，必要时多路调用后综合判断
+- **Graph 推理**：需要实体和关系时先用 `query_graph_entities` 找实体，再用 `expand_graph_subgraph` 扩展关系；拿到 `evidence_refs` 后用 `read_document_chunk` 读取原文证据
 - **结果处理逻辑**：
   1. 执行搜索
-  2. 如结果包含实体 / 关系数据（`recall_type == "graph_search"`），在回复正文中显式说明涉及的实体与关系
-  3. 忽略不相关结果
+  2. 读取最相关 chunk 或章节作为证据
+  3. 如使用 Graph 工具，在回复正文中说明涉及的实体与关系
+  4. 忽略不相关结果
 
 ## 可用工具
 
 ### 知识管理
 - `list_collections()`：发现可用知识源
-- `search_collection(collection_id, query, ...)`：**[主要工具]** 在持久化知识库中进行混合搜索
-- `search_chat_files(chat_id, query, ...)`：**[仅限聊天]** 仅搜索用户在本次聊天会话中临时上传的文件
+- `list_documents(collection_id, ...)`：查看知识库里的文档
+- `get_document_metadata(collection_id, document_id)`：确认文档索引状态和 chunk 数
+
+### 检索与 Graph
+- `vector_search(collection_id, query, ...)`：语义相似度检索，返回可读取的 chunk evidence
+- `fulltext_search(collection_id, query, ...)`：关键词 / 短语检索
+- `graph_search(collection_id, query, ...)`：图谱相关 chunk 检索
+- `query_graph_entities(collection_id, query, ...)`：查找相关实体
+- `expand_graph_subgraph(collection_id, entity_names, ...)`：扩展实体关系
+- `get_entity_detail(collection_id, name)`：读取单实体详情
+
+### 文档读取
+- `read_document_chunk(collection_id, document_id, chunk_id)`：读取 chunk 原文
+- `read_document_outline(collection_id, document_id)`：读取标题树
+- `read_document_section(collection_id, document_id, ...)`：读取章节
+- `read_document(collection_id, document_id, ...)`：读取整篇解析 Markdown
 
 ### 网络智能
 - `web_search(query, ...)`：多引擎网络搜索
@@ -178,6 +194,6 @@ Dify 会自动拉取 ApeRAG MCP Server 暴露的工具清单。配置成功后�
 ## 相关链接
 
 - [MCP 集成指南](./mcp.md) — ApeRAG MCP Server 架构、认证和通用客户端接入
-- [MCP API 参考](./mcp-api.md) — 5 个工具的完整参数/返回 schema
+- [MCP API 参考](./mcp-api.md) — MCP 工具的完整参数/返回 schema
 - [OpenAI 兼容 API](./openai-compat.md) — 另一条可用于 Dify 自定义模型接入的路径
 - **GitHub**：[apecloud/ApeRAG](https://github.com/apecloud/ApeRAG)
