@@ -756,7 +756,7 @@ class Neo4jLineageGraphStore:
                 return set()
             relation_query = (
                 f"MATCH (r:{_RELATION_LABEL} {{collection_id: $collection_id}}) "
-                f"WHERE {{endpoint_predicate}} "
+                "WHERE {endpoint_predicate} "
                 f"RETURN r.source AS source, r.target AS target, r.relation_type AS relation_type, "
                 f"       r.evidence_lineage AS evidence_lineage, "
                 f"       r.description_parts AS description_parts, "
@@ -788,13 +788,13 @@ class Neo4jLineageGraphStore:
             # matching composite index instead of evaluating an OR over
             # the full per-collection relation label set.
             source_result = await session.run(
-                relation_query.format(endpoint_predicate="r.source IN $names"),
+                relation_query.replace("{endpoint_predicate}", "r.source IN $names"),
                 collection_id=self._collection_id,
                 names=names,
             )
             await _consume(source_result)
             target_result = await session.run(
-                relation_query.format(endpoint_predicate="r.target IN $names"),
+                relation_query.replace("{endpoint_predicate}", "r.target IN $names"),
                 collection_id=self._collection_id,
                 names=names,
             )
