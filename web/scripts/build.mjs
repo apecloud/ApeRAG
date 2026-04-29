@@ -73,7 +73,7 @@ const copyDir = (src, dest) => {
   };
 
   if (!fs.existsSync(dest)) {
-    fs.mkdirSync(dest);
+    fs.mkdirSync(dest, { recursive: true });
   }
   copy(src, dest);
 };
