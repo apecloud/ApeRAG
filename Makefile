@@ -109,7 +109,7 @@ db-revision:
 	@uv run alembic -c aperag/alembic.ini revision --autogenerate
 
 db-migrate:
-	@uv run alembic -c aperag/alembic.ini upgrade head
+	@uv run alembic -c aperag/alembic.ini upgrade heads
 
 db-check:
 	@uv run alembic -c aperag/alembic.ini check
@@ -414,4 +414,3 @@ info:
 	@echo "LOCAL_PLATFORM: $(LOCAL_PLATFORM)"
 	@echo "REGISTRY: $(REGISTRY)"
 	@echo "HOST ARCH: $(UNAME_M)"
-
