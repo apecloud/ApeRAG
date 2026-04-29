@@ -1351,10 +1351,25 @@ class _StubCompactor:
     def __init__(self, response: str | None = None, raise_after: int = 0) -> None:
         self.response = response
         self.calls: list[list[str]] = []
+        self.kwarg_calls: list[dict[str, str]] = []
         self._raise_after = raise_after
 
-    async def compact_if_oversized(self, parts: list[str]) -> str | None:
+    async def compact_if_oversized(
+        self,
+        parts: list[str],
+        *,
+        subject_kind: str,
+        subject_label: str,
+        language: str = "en",
+    ) -> str | None:
         self.calls.append(list(parts))
+        self.kwarg_calls.append(
+            {
+                "subject_kind": subject_kind,
+                "subject_label": subject_label,
+                "language": language,
+            }
+        )
         if self._raise_after and len(self.calls) >= self._raise_after:
             raise RuntimeError("simulated compactor failure")
         return self.response
@@ -1609,6 +1624,87 @@ async def test_w7_phase3_compactor_runs_before_embed(store, entity_lock, object_
     entity = await store.get_entity("Linus")
     assert entity is not None
     assert entity.compacted_description == "COMPACTED"
+
+
+@pytest.mark.asyncio
+async def test_w7_phase3_compactor_receives_entity_and_relation_context(
+    store,
+    entity_lock,
+    object_store,
+):
+    """Regression for #1866: GraphModalityWorker must pass the
+    compactor's required subject context for both entity and relation
+    compaction calls."""
+    entities_per_doc = {
+        "doc_A": [
+            EntityRecord(
+                name="Alice",
+                entity_type="Person",
+                description="Alice description",
+                source_chunk_ids=("c0",),
+            ),
+            EntityRecord(
+                name="Bob",
+                entity_type="Person",
+                description="Bob description",
+                source_chunk_ids=("c0",),
+            ),
+        ]
+    }
+    relations_per_doc = {
+        "doc_A": [
+            RelationRecord(
+                source="Alice",
+                target="Bob",
+                relation_type="knows",
+                description="Alice knows Bob",
+                source_chunk_ids=("c0",),
+            )
+        ]
+    }
+    compactor = _StubCompactor(response=None)
+    vector = _StubVectorConnector()
+    worker = _phase3_worker(
+        store=store,
+        entity_lock=entity_lock,
+        object_store=object_store,
+        document_id="doc_A",
+        entities_per_doc=entities_per_doc,
+        relations_per_doc=relations_per_doc,
+        compactor=compactor,
+        embedder=_stub_embedder,
+        vector_connector=vector,
+    )
+
+    await _derive_then_sync(
+        worker=worker,
+        document_id="doc_A",
+        parse_version="v1",
+        object_store=object_store,
+    )
+
+    assert compactor.calls == [
+        ["Alice description"],
+        ["Bob description"],
+        ["Alice knows Bob"],
+    ]
+    assert compactor.kwarg_calls == [
+        {
+            "subject_kind": "entity",
+            "subject_label": "Alice",
+            "language": "en",
+        },
+        {
+            "subject_kind": "entity",
+            "subject_label": "Bob",
+            "language": "en",
+        },
+        {
+            "subject_kind": "relation",
+            "subject_label": "Alice -> Bob",
+            "language": "en",
+        },
+    ]
 
 
 @pytest.mark.asyncio
