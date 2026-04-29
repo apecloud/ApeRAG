@@ -16,7 +16,7 @@
 LLM Error Types
 
 This module defines a comprehensive hierarchy of exceptions for LLM operations,
-including completion, embedding, and rerank services.
+including completion and embedding services.
 """
 
 from typing import Any, Dict, Optional
@@ -257,58 +257,6 @@ class BatchProcessingError(EmbeddingError):
         self.reason = reason
 
 
-# Rerank-specific errors
-class RerankError(LLMError):
-    """Base class for rerank-specific errors"""
-
-    pass
-
-
-class InvalidDocumentError(RerankError):
-    """Raised when documents for reranking are invalid"""
-
-    def __init__(self, reason: str = "Invalid document format", document_count: int = None):
-        message = f"Invalid documents for reranking: {reason}"
-        if document_count is not None:
-            message += f" (document count: {document_count})"
-        super().__init__(message, {"reason": reason, "document_count": document_count})
-        self.reason = reason
-        self.document_count = document_count
-
-
-class TooManyDocumentsError(RerankError):
-    """Raised when too many documents are provided for reranking"""
-
-    def __init__(
-        self, document_count: Optional[int] = None, max_documents: Optional[int] = None, model_name: str = None
-    ):
-        if document_count is not None and max_documents is not None:
-            message = f"Too many documents for reranking: {document_count} exceeds maximum {max_documents}"
-        else:
-            message = "Too many documents for reranking: document count exceeds model's limit"
-        if model_name:
-            message += f" for model '{model_name}'"
-        super().__init__(
-            message, {"document_count": document_count, "max_documents": max_documents, "model_name": model_name}
-        )
-        self.document_count = document_count
-        self.max_documents = max_documents
-        self.model_name = model_name
-
-
-class ScoreOutOfRangeError(RerankError):
-    """Raised when rerank scores are out of expected range"""
-
-    def __init__(self, score: float, expected_range: tuple = (0.0, 1.0), model_name: str = None):
-        message = f"Rerank score {score} is out of expected range {expected_range}"
-        if model_name:
-            message += f" for model '{model_name}'"
-        super().__init__(message, {"score": score, "expected_range": expected_range, "model_name": model_name})
-        self.score = score
-        self.expected_range = expected_range
-        self.model_name = model_name
-
-
 # Utility functions for error handling
 def wrap_litellm_error(
     e: Exception, service_type: str = "LLM", provider_name: str = None, model_name: str = None
@@ -318,7 +266,7 @@ def wrap_litellm_error(
 
     Args:
         e: The original exception from litellm
-        service_type: Type of service ("completion", "embedding", "rerank", etc.)
+        service_type: Type of service ("completion", "embedding", etc.)
         provider_name: Name of the LLM provider
         model_name: Name of the model
 
@@ -364,12 +312,6 @@ def wrap_litellm_error(
         if any(keyword in error_msg for keyword in ["empty text", "no input"]):
             return EmptyTextError()
 
-    elif service_type == "rerank":
-        if any(keyword in error_msg for keyword in ["too many documents", "document limit"]):
-            return TooManyDocumentsError(None, None, model_name)  # Pass None when exact counts are unavailable
-        if any(keyword in error_msg for keyword in ["invalid document", "document format"]):
-            return InvalidDocumentError("Invalid document format detected")
-
     elif service_type == "completion":
         if any(keyword in error_msg for keyword in ["invalid prompt", "prompt format"]):
             return InvalidPromptError("Invalid prompt format detected")
@@ -393,9 +335,7 @@ def is_retryable_error(error: LLMError) -> bool:
         return False
 
     # Input validation errors are not retryable
-    if isinstance(
-        error, (InvalidPromptError, TextTooLongError, EmptyTextError, InvalidDocumentError, TooManyDocumentsError)
-    ):
+    if isinstance(error, (InvalidPromptError, TextTooLongError, EmptyTextError)):
         return False
 
     # API errors that might be temporary

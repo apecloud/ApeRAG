@@ -18,7 +18,7 @@ model_platform domain.
 Model_platform route handlers accept ``Depends(required_user)`` typed
 as ``AuthenticatedUser`` so they do not bind to ``aperag.db.models.User``.
 
-``aperag.llm.*`` (embedding / rerank / completion runtime wrappers
+``aperag.llm.*`` (embedding / completion runtime wrappers
 over HTTP APIs) is **not** part of this domain — it stays as shared
 infrastructure (Phase 4 canonical msg=d47fa490 Section 7, sibling of
 ``aperag.config`` / ``aperag.db.base``) and can be imported freely

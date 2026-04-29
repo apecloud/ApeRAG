@@ -4,7 +4,7 @@ This directory is reserved for broader HTTP coverage after the smoke layer is st
 
 Current files:
 - `10_provider_llm.hurl`
-  provider configuration, available models, model CRUD, default models, embeddings, rerank
+  provider configuration, available models, model CRUD, default models, embeddings
 - `11_document_full.hurl`
   staged upload, confirm, list/detail, download, rebuild indexes
 - `12_bot.hurl`

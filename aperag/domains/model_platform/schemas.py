@@ -6,7 +6,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Literal, Optional, Union
 
-from pydantic import BaseModel, Field, confloat, conint
+from pydantic import BaseModel, Field
 
 from aperag.schema.common import PageResult
 
@@ -241,60 +241,7 @@ class EmbeddingResponse(BaseModel):
     usage: EmbeddingUsage
 
 
-class Document1(BaseModel):
-    text: str
-    metadata: Optional[dict[str, Any]] = None
-
-
-class RerankRequest(BaseModel):
-    """OpenAI-compatible rerank request — same legacy/new shape duality
-    as :class:`EmbeddingRequest`. See its docstring for the rationale.
-    """
-
-    model_id: Optional[str] = Field(None, description="ApeRAG rerank model id")
-    query: str
-    documents: Union[list[str], list[Document1]]
-    top_k: Optional[conint(ge=1, le=1000)] = 10
-    return_documents: Optional[bool] = True
-    model: Optional[str] = Field(
-        None,
-        description="Legacy provider-model name (pre-#1697 compat). Resolved to ``model_id`` server-side.",
-    )
-    model_service_provider: Optional[str] = Field(
-        None,
-        description="Legacy provider name (pre-#1697 compat). Resolved to ``model_id`` server-side.",
-    )
-    custom_llm_provider: Optional[str] = Field(
-        None,
-        description="Legacy provider dialect (pre-#1697 compat). Ignored once ``model_id`` is resolved.",
-    )
-
-
-class Document2(BaseModel):
-    text: str
-    metadata: Optional[dict[str, Any]] = None
-
-
-class RerankDocument(BaseModel):
-    index: int
-    relevance_score: confloat(ge=0.0, le=1.0)
-    document: Optional[Document2] = None
-
-
-class RerankUsage(BaseModel):
-    total_tokens: int
-
-
-class RerankResponse(BaseModel):
-    object: str
-    data: list[RerankDocument]
-    model: str
-    usage: RerankUsage
-
-
 __all__ = [
-    "Document1",
-    "Document2",
     "EmbeddingData",
     "EmbeddingRequest",
     "EmbeddingResponse",
@@ -316,8 +263,4 @@ __all__ = [
     "ModelUseStrategy",
     "ModelUseUpdate",
     "ModelValidationResponse",
-    "RerankDocument",
-    "RerankRequest",
-    "RerankResponse",
-    "RerankUsage",
 ]

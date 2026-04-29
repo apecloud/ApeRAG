@@ -284,8 +284,8 @@ class ModelPlatformService:
 
         Returns ``None`` when no matching ``Model`` row exists for the
         user (or for ``user_id="public"`` system models). Used by the
-        permanent OpenAI-compat ``/api/v1/embeddings`` + ``/api/v1/rerank``
-        routes (Weston msg=80e873c1 / Blocker A) to keep pre-#1697
+        permanent OpenAI-compat ``/api/v1/embeddings`` route
+        (Weston msg=80e873c1 / Blocker A) to keep pre-#1697
         callers working after the model-platform refactor without
         touching v3.
 

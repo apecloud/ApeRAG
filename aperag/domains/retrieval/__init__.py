@@ -15,7 +15,7 @@
 """Canonical ``retrieval`` domain.
 
 Owns the hybrid-search pipeline (vector / fulltext / graph / summary /
-vision recall + rerank) and the thin persistence-aware wrapper that
+vision recall) and the thin persistence-aware wrapper that
 backs ``POST|GET|DELETE /api/v2/collections/{id}/searches*``.
 
 Cross-domain contract is captured by ``aperag.domains.retrieval.ports``:

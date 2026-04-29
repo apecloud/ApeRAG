@@ -3,7 +3,6 @@
 The end-state allowlist (canonical D7-1 / msg=8b6b4bc3) is:
 
 - ``/api/v1/embeddings`` — OpenAI-compatible public endpoint, permanent ``/api/v1`` mount
-- ``/api/v1/rerank``     — OpenAI-compatible public endpoint, permanent ``/api/v1`` mount
 
 Phase 8 task #44 (H3) cleaned the provider-aware Hurl suite to use
 ``/api/v2/providers/*``. The G* hard-cut series (#1 G1 export, #2 G2
@@ -29,7 +28,6 @@ HURL_ROOT = REPO_ROOT / "tests" / "e2e_http" / "hurl"
 OPENAI_COMPAT_V1_ALLOWLIST: frozenset[str] = frozenset(
     {
         "/api/v1/embeddings",
-        "/api/v1/rerank",
     }
 )
 

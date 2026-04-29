@@ -19,12 +19,12 @@ PR #1697 collapses the legacy ``llm_provider`` / ``model_service_provider``
 ``model_provider`` / ``model_account`` / ``model`` schema. Two pieces of
 external contract have to keep working through the cut:
 
-* Blocker A (Weston msg=80e873c1) — ``/api/v1/embeddings`` and
-  ``/api/v1/rerank`` are permanent OpenAI-compat allowlist routes;
-  legacy callers still send ``{model, model_service_provider,
-  custom_llm_provider}``. The new schema accepts both shapes — the
-  triple is resolved server-side via ``ModelPlatformService``. New
-  ``{model_id}`` callers must keep working too.
+* Blocker A (Weston msg=80e873c1) — ``/api/v1/embeddings`` is the
+  permanent OpenAI-compat allowlist route; legacy callers still send
+  ``{model, model_service_provider, custom_llm_provider}``. The new
+  schema accepts both shapes — the triple is resolved server-side via
+  ``ModelPlatformService``. New ``{model_id}`` callers must keep
+  working too.
 
 * Blocker C — collection / bot config blobs already in the database
   hold the legacy triple. Pydantic silently dropped extras after the
@@ -46,7 +46,7 @@ from sqlalchemy.orm import sessionmaker
 
 from aperag.db.ops import AsyncDatabaseOps
 from aperag.domains.model_platform.db.models import ModelAccount
-from aperag.domains.model_platform.schemas import EmbeddingRequest, RerankRequest
+from aperag.domains.model_platform.schemas import EmbeddingRequest
 from aperag.domains.model_platform.service.model_service import ModelPlatformService
 from aperag.schema.common import ModelSpec
 from aperag.utils.utils import utc_now
@@ -73,31 +73,6 @@ def test_embedding_request_accepts_legacy_triple_without_model_id():
     assert request.model == "text-embedding-v3"
     assert request.model_service_provider == "alibabacloud"
     assert request.custom_llm_provider == "openai"
-
-
-def test_rerank_request_accepts_new_model_id_shape():
-    request = RerankRequest.model_validate(
-        {
-            "model_id": "mdl_rerank",
-            "query": "q",
-            "documents": ["a", "b"],
-        }
-    )
-    assert request.model_id == "mdl_rerank"
-
-
-def test_rerank_request_accepts_legacy_triple():
-    request = RerankRequest.model_validate(
-        {
-            "query": "q",
-            "documents": ["a"],
-            "model": "gte-rerank-v2",
-            "model_service_provider": "alibabacloud",
-        }
-    )
-    assert request.model_id is None
-    assert request.model == "gte-rerank-v2"
-    assert request.model_service_provider == "alibabacloud"
 
 
 def test_model_spec_parses_new_model_id_shape():

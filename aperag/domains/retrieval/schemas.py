@@ -284,11 +284,6 @@ class SearchRequest(BaseModel):
         description="Whether to save search result to database history",
         examples=[True],
     )
-    rerank: Optional[bool] = Field(
-        False,
-        description="Whether to enable rerank for search results",
-        examples=[True],
-    )
 
 
 __all__ = [

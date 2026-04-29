@@ -18,8 +18,7 @@ Carved from legacy ``aperag/views/export.py``. URLs migrated to v2
 (``/api/v2/collections/{id}/export`` + ``/api/v2/export-tasks/*``);
 mounted at ``/api/v2`` in ``aperag/app.py`` per D7 canonical
 (uniform ``/api/v2`` for all backend routes; OpenAI-compat
-``/api/v1/embeddings`` + ``/api/v1/rerank`` are the only remaining
-v1 allowlist).
+``/api/v1/embeddings`` is the only remaining v1 allowlist).
 """
 
 import logging

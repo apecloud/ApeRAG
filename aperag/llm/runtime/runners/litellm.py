@@ -25,15 +25,3 @@ class LiteLLMRunner:
             input=inputs,
             encoding_format="float",
         )
-
-    async def rerank(self, invocation: ResolvedModelInvocation, query: str, documents: list[str], **kwargs):
-        return await litellm.arerank(
-            custom_llm_provider=invocation.runner_config.get("provider"),
-            model=invocation.provider_model_id,
-            api_base=invocation.base_url,
-            api_key=invocation.api_key,
-            query=query,
-            documents=documents,
-            return_documents=False,
-            **kwargs,
-        )
