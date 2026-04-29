@@ -48,7 +48,7 @@ behavioural change.
 from __future__ import annotations
 
 import logging
-from typing import Awaitable, Callable
+from typing import Any, Awaitable, Callable, Dict, Optional
 
 from aperag.db.ops import db_ops
 from aperag.domains.knowledge_graph.ports import CollectionRow
@@ -63,7 +63,11 @@ The new indexing pipeline's graph extractor consumes this exact shape
 (``aperag.indexing.graph_extractor`` line ~165)."""
 
 
-def build_collection_llm_callable(collection: CollectionRow) -> LLMCall:
+def build_collection_llm_callable(
+    collection: CollectionRow,
+    *,
+    response_format: Optional[Dict[str, Any]] = None,
+) -> LLMCall:
     """Construct the per-collection async LLM callable.
 
     Reads the collection's completion config (provider, model, base_url,
@@ -80,6 +84,15 @@ def build_collection_llm_callable(collection: CollectionRow) -> LLMCall:
     :class:`aperag.indexing.worker_factory.WorkerFactoryError` so the
     orchestrator finalises the row FAILED with operator-facing
     diagnostics (Wave 3 lesson #10 explicit-fail-not-silent pattern).
+
+    ``response_format`` (issue #1861, task #14): 透传给 ``CompletionService``
+    的 LiteLLM provider-side 强约束. **默认 ``None``** 保留共享 builder 的
+    向后兼容行为 — collection_regen / evaluation worker / dataset_generator /
+    summary worker / graph curation 等非 graph extractor 调用方共用此
+    builder, 不能默认注入 JSON 模式. 只有 graph extractor 调用入口
+    (``aperag.indexing.graph_extractor.build_collection_graph_extractor``)
+    显式传 ``{"type": "json_object"}`` 让 graph extraction 走 provider-side
+    JSON 强约束.
     """
     config = parseCollectionConfig(collection.config)
     if not config.completion or not config.completion.model_id:
@@ -100,6 +113,12 @@ def build_collection_llm_callable(collection: CollectionRow) -> LLMCall:
     if not provider:
         provider = "openai" if invocation.runner_type == "openai_compatible" else invocation.provider_type
 
+    # issue #1861 (task #14): ``response_format`` 由 caller 显式传入决定是否
+    # 启用 provider-side JSON 强约束. **默认 None 不开启** — 共享 builder 给
+    # collection_regen / evaluation / summary worker / graph curation 等非
+    # graph extractor 模块复用 (huangzhangshu grep 实证 msg=1c06455d), 在
+    # builder 默认开启 JSON 模式会越界影响这些模块. 只有 graph extractor
+    # 入口显式传 ``response_format={"type":"json_object"}``.
     svc = CompletionService(
         provider=provider,
         model=invocation.provider_model_id,
@@ -108,6 +127,7 @@ def build_collection_llm_callable(collection: CollectionRow) -> LLMCall:
         temperature=0.0,  # deterministic output for extraction
         max_tokens=None,
         caching=False,
+        response_format=response_format,
     )
 
     async def _llm(prompt: str) -> str:

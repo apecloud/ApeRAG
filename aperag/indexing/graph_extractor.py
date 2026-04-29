@@ -134,7 +134,15 @@ def build_collection_graph_extractor(collection: Any) -> GraphExtractor:
     from aperag.indexing.worker_factory import WorkerFactoryError
 
     try:
-        llm = build_collection_llm_callable(collection)
+        # issue #1861 (task #14): graph extractor 是 builder 共享 caller 集合
+        # 里唯一确定输出 JSON-only 的 caller, 显式开启 provider-side 强约束
+        # ``response_format={"type":"json_object"}``. 共享 builder 默认仍是
+        # None, 不影响 collection_regen / evaluation / summary worker /
+        # graph_curation 等 prose-output caller.
+        llm = build_collection_llm_callable(
+            collection,
+            response_format={"type": "json_object"},
+        )
     except Exception as exc:  # noqa: BLE001 — wrap for orchestrator
         raise WorkerFactoryError(
             f"graph extractor: completion model not configured for collection "

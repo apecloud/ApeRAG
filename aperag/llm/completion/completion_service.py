@@ -43,7 +43,17 @@ class CompletionService:
         max_tokens: Optional[int] = None,
         vision: bool = False,
         caching: bool = True,
+        response_format: Optional[Dict[str, Any]] = None,
     ):
+        """构造 CompletionService.
+
+        ``response_format`` (issue #1861): 透传给 ``litellm.acompletion`` 的
+        provider-side 强约束. 例如 ``{"type": "json_object"}`` 让 OpenAI /
+        DeepSeek / Qwen / Moonshot / GLM / Claude / Gemini 后端保证返回合法
+        JSON. LiteLLM 对不支持的 provider 静默忽略, 不破坏调用. 默认 ``None``
+        保留老语义 (chat / summary / agent-runtime 等仍按 prompt-text 控制
+        输出格式), 只有 graph extractor 这种 JSON-only 用例显式传入.
+        """
         super().__init__()
         self.provider = provider
         self.model = model
@@ -53,6 +63,7 @@ class CompletionService:
         self.max_tokens = max_tokens
         self.vision = vision
         self.caching = caching
+        self.response_format = response_format
 
     def is_vision_model(self) -> bool:
         return self.vision
@@ -107,17 +118,8 @@ class CompletionService:
             messages = self._build_messages(history, prompt, images, memory)
 
             async def compute() -> str:
-                response = await litellm.acompletion(
-                    custom_llm_provider=self.provider,
-                    model=self.model,
-                    base_url=self.base_url,
-                    api_key=self.api_key,
-                    temperature=self.temperature,
-                    max_tokens=self.max_tokens,
-                    messages=messages,
-                    stream=False,
-                    caching=False,
-                )
+                kwargs = self._litellm_kwargs(messages=messages, stream=False)
+                response = await litellm.acompletion(**kwargs)
                 return self._extract_content_from_response(response)
 
             if not self.caching:
@@ -145,17 +147,7 @@ class CompletionService:
             self._validate_inputs(prompt, images)
             messages = self._build_messages(history, prompt, images, memory)
 
-            response = await litellm.acompletion(
-                custom_llm_provider=self.provider,
-                model=self.model,
-                base_url=self.base_url,
-                api_key=self.api_key,
-                temperature=self.temperature,
-                max_tokens=self.max_tokens,
-                messages=messages,
-                stream=True,
-                caching=False,
-            )
+            response = await litellm.acompletion(**self._litellm_kwargs(messages=messages, stream=True))
 
             # Process the raw stream and yield clean text chunks
             async for chunk in response:
@@ -188,17 +180,7 @@ class CompletionService:
             messages = self._build_messages(history, prompt, images, memory)
 
             def compute() -> str:
-                response = litellm.completion(
-                    custom_llm_provider=self.provider,
-                    model=self.model,
-                    base_url=self.base_url,
-                    api_key=self.api_key,
-                    temperature=self.temperature,
-                    max_tokens=self.max_tokens,
-                    messages=messages,
-                    stream=False,
-                    caching=False,
-                )
+                response = litellm.completion(**self._litellm_kwargs(messages=messages, stream=False))
                 return self._extract_content_from_response(response)
 
             if not self.caching:
@@ -248,4 +230,28 @@ class CompletionService:
             "vision": self.vision,
             "stream": stream,
             "messages": messages,
+            # issue #1861: response_format 影响 LLM 输出, 必须进 cache key.
+            "response_format": self.response_format,
         }
+
+    def _litellm_kwargs(self, *, messages: List[Dict], stream: bool) -> dict[str, Any]:
+        """构造 ``litellm.{,a}completion`` 的统一 kwargs.
+
+        集中处理 ``response_format`` (issue #1861) 透传逻辑: 仅当
+        ``self.response_format`` 非 None 时显式传, 保持老调用对未声明
+        ``response_format`` 的 chat / summary / agent-runtime 路径行为不变.
+        """
+        kwargs: dict[str, Any] = {
+            "custom_llm_provider": self.provider,
+            "model": self.model,
+            "base_url": self.base_url,
+            "api_key": self.api_key,
+            "temperature": self.temperature,
+            "max_tokens": self.max_tokens,
+            "messages": messages,
+            "stream": stream,
+            "caching": False,
+        }
+        if self.response_format is not None:
+            kwargs["response_format"] = self.response_format
+        return kwargs
