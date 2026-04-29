@@ -714,7 +714,12 @@ class _RaceProvocateurStore(InMemoryLineageGraphStore):
         *,
         record: EntityRecord,
         lineage: LineageMember,
+        compacted_description: str | None = None,
     ) -> None:
+        # ``compacted_description`` 透传给父类的 in-memory store,
+        # 保持与 :class:`LineageGraphStore` Protocol 一致 (新模态拆分
+        # 后父类 sync 总会传这个 kwarg).
+        del compacted_description  # provocateur 关注 race window, 不读这个字段
         async with self._guard:
             row = self._entities.get(record.name)
             # Yield AFTER reading current state but BEFORE writing
@@ -2318,3 +2323,223 @@ async def test_w8_bulk_upsert_picks_up_last_entity_type():
     got = await s.get_entity("Alice")
     assert got is not None
     assert got.entity_type == "Researcher"
+
+
+# ---------------------------------------------------------------------
+# Task #5 — GraphFactsWorker / GraphVectorsWorker 拆分
+# ---------------------------------------------------------------------
+
+
+def _make_facts_worker(
+    *,
+    store: InMemoryLineageGraphStore,
+    entity_lock: EntityLock,
+    object_store: InMemoryObjectStore,
+    document_id: str,
+    entities_per_doc: dict[str, list[EntityRecord]] | None = None,
+    relations_per_doc: dict[str, list[RelationRecord]] | None = None,
+):
+    from aperag.indexing.graph import GraphFactsWorker
+
+    async def extractor(chunks):
+        del chunks
+        return (
+            list((entities_per_doc or {}).get(document_id, [])),
+            list((relations_per_doc or {}).get(document_id, [])),
+        )
+
+    return GraphFactsWorker(
+        store=store,
+        extractor=extractor,
+        entity_lock=entity_lock,
+        object_store=object_store,
+        collection_id=COLLECTION_ID,
+        tenant_scope_key=DEFAULT_TENANT,
+    )
+
+
+@pytest.mark.asyncio
+async def test_graph_facts_worker_writes_lineage_but_clears_description(store, entity_lock, object_store):
+    """事实层 worker 完成 sync 之后, entity 应该有 lineage member, 但
+    description_parts 里的文本应该是空 (compactor / search 路径会用
+    ``if p.text`` 过滤掉空 part).
+    """
+    facts_worker = _make_facts_worker(
+        store=store,
+        entity_lock=entity_lock,
+        object_store=object_store,
+        document_id="doc_A",
+        entities_per_doc={
+            "doc_A": [
+                EntityRecord(
+                    name="Alice",
+                    entity_type="Person",
+                    description="原始抽取出来的描述,事实层应该把它清空",
+                    source_chunk_ids=("c0",),
+                )
+            ]
+        },
+    )
+
+    _write_doc_chunks_jsonl(object_store=object_store, document_id="doc_A", parse_version="v1")
+    derive_result = await facts_worker.derive(document_id="doc_A", parse_version="v1", source_path="<irrelevant>")
+    await facts_worker.sync(
+        document_id="doc_A",
+        parse_version="v1",
+        derived_artifact_path=derive_result.derived_artifact_path,
+    )
+
+    got = await store.get_entity("Alice")
+    assert got is not None
+    # Phase 2 lineage rebuild 仍然写了 (doc_A, v1) member
+    assert _lineage_keys(got) == {("doc_A", "v1")}
+    # description_parts 还是有一个 (doc_A, v1) part, 但文本为空
+    parts = list(got.description_parts)
+    assert len(parts) == 1
+    assert parts[0].key() == ("doc_A", "v1")
+    assert parts[0].text == ""
+
+
+@pytest.mark.asyncio
+async def test_graph_facts_worker_overwrites_legacy_compacted_description(store, entity_lock, object_store):
+    """事实层 worker 应该把老 GRAPH 模态遗留的 compacted_description
+    覆盖成空串. 设计文档 §4.3 第 3 点.
+    """
+    # 先模拟老 GRAPH 模态留下来的 compacted_description
+    await store.upsert_entity_with_lineage(
+        record=EntityRecord(
+            name="Alice",
+            entity_type="Person",
+            description="老描述",
+            source_chunk_ids=("c0",),
+        ),
+        lineage=LineageMember(
+            document_id="doc_A",
+            parse_version="v0",
+            tenant_scope_key=DEFAULT_TENANT,
+            chunk_ids=("c0",),
+        ),
+        compacted_description="老 GRAPH 模态留下的 LLM summary",
+    )
+
+    facts_worker = _make_facts_worker(
+        store=store,
+        entity_lock=entity_lock,
+        object_store=object_store,
+        document_id="doc_A",
+        entities_per_doc={
+            "doc_A": [
+                EntityRecord(
+                    name="Alice",
+                    entity_type="Person",
+                    description="新描述",
+                    source_chunk_ids=("c0",),
+                )
+            ]
+        },
+    )
+
+    _write_doc_chunks_jsonl(object_store=object_store, document_id="doc_A", parse_version="v1")
+    derive_result = await facts_worker.derive(document_id="doc_A", parse_version="v1", source_path="<irrelevant>")
+    await facts_worker.sync(
+        document_id="doc_A",
+        parse_version="v1",
+        derived_artifact_path=derive_result.derived_artifact_path,
+    )
+
+    got = await store.get_entity("Alice")
+    assert got is not None
+    # 老 compacted_description 被显式覆盖为空串
+    assert got.compacted_description == ""
+
+
+@pytest.mark.asyncio
+async def test_graph_vectors_worker_derive_reuses_facts_artifact(store, entity_lock, object_store):
+    """GraphVectorsWorker.derive 应该把传入的 source_path (facts 服务行
+    的 derived_artifact_path) 直接当成自己的 artifact 返回, 不再重跑
+    extractor. source_path 为空时应该报错让 reconciler 重排.
+    """
+    from aperag.indexing.graph import GraphVectorsWorker
+
+    async def extractor(chunks):  # pragma: no cover — 不应被调用
+        del chunks
+        raise AssertionError("GraphVectorsWorker.derive 不应该重跑 extractor")
+
+    vectors_worker = GraphVectorsWorker(
+        store=store,
+        extractor=extractor,
+        entity_lock=entity_lock,
+        object_store=object_store,
+        collection_id=COLLECTION_ID,
+        tenant_scope_key=DEFAULT_TENANT,
+    )
+
+    facts_artifact_path = derived_artifact(
+        collection_id=COLLECTION_ID,
+        document_id="doc_A",
+        parse_version="v1",
+        filename=KG_ARTIFACT_FILENAME,
+    )
+    derive_result = await vectors_worker.derive(
+        document_id="doc_A",
+        parse_version="v1",
+        source_path=facts_artifact_path,
+    )
+    assert derive_result.derived_artifact_path == facts_artifact_path
+
+    with pytest.raises(ValueError, match="not ready"):
+        await vectors_worker.derive(
+            document_id="doc_A",
+            parse_version="v1",
+            source_path="",
+        )
+
+
+@pytest.mark.asyncio
+async def test_graph_vectors_worker_sync_skips_phase_1_2(store, entity_lock, object_store):
+    """GraphVectorsWorker.sync 不会清理 / 重建 lineage. 即使 store
+    里没有该实体的 lineage, sync 不会自己调 upsert (因为 vectors 层
+    依赖事实层的 ACTIVE 状态).
+
+    在没有 vector_connector / embedder 时, Phase 3 也短路 (Wave 6
+    backward-compat), 所以 sync 是 no-op (除了读 kg.jsonl).
+    """
+    from aperag.indexing.graph import GraphVectorsWorker
+
+    async def extractor(chunks):
+        del chunks
+        return ([], [])
+
+    vectors_worker = GraphVectorsWorker(
+        store=store,
+        extractor=extractor,
+        entity_lock=entity_lock,
+        object_store=object_store,
+        collection_id=COLLECTION_ID,
+        tenant_scope_key=DEFAULT_TENANT,
+    )
+
+    # 准备一个最小的 kg.jsonl (1 entity, 0 relation)
+    body = serialize_kg_jsonl(
+        [EntityRecord(name="Alice", entity_type="Person", description="d", source_chunk_ids=("c0",))],
+        [],
+    )
+    artifact_path = derived_artifact(
+        collection_id=COLLECTION_ID,
+        document_id="doc_A",
+        parse_version="v1",
+        filename=KG_ARTIFACT_FILENAME,
+    )
+    write_atomic(object_store, artifact_path, body)
+
+    # store 里没有任何 entity (没跑 facts worker)
+    assert await store.get_entity("Alice") is None
+
+    await vectors_worker.sync(
+        document_id="doc_A",
+        parse_version="v1",
+        derived_artifact_path=artifact_path,
+    )
+
+    # 仍然没有 — vectors 层不写 lineage
+    assert await store.get_entity("Alice") is None
