@@ -38,8 +38,8 @@ else
   GRAPH_DB_TYPE="${GRAPH_DB_TYPE:-postgresql}"
 
   case "${VECTOR_DB_TYPE}" in
-    qdrant)   default_services="postgres redis es qdrant api" ;;
-    pgvector) default_services="postgres redis es api" ;;
+    qdrant)   default_services="postgres redis es qdrant api indexing-worker" ;;
+    pgvector) default_services="postgres redis es api indexing-worker" ;;
     *)
       echo "VECTOR_DB_TYPE must be one of: qdrant, pgvector (got '${VECTOR_DB_TYPE}')" >&2
       exit 2

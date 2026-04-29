@@ -87,10 +87,10 @@ ApeRAG 需要可用的模型才能完成问答和部分索引任务。你可以�
 如果索引长时间没有完成，优先查看：
 
 ```bash
-docker-compose logs -f api celeryworker
+docker compose logs -f api indexing-worker
 ```
 
-如果部署中有单独 worker 服务，也需要查看 worker 日志。
+其中 `api` 只负责 HTTP 请求与任务入队，`indexing-worker` 负责解析、索引、reconciler 和 cleanup。
 
 ## 5. 发起第一次问答
 
