@@ -97,19 +97,17 @@ def _kw_only_params(func) -> set[str]:
 def test_vector_search_signature_matches_b1_lock():
     """``vector_search`` signature follows §B.1: ``collection_id`` +
     ``query`` positional, then a ``*,`` kw-only barrier with
-    ``top_k`` / ``similarity_threshold`` / ``rerank``.
+    ``top_k`` / ``similarity_threshold``.
     """
     params = _params(vector_search)
     assert list(params)[:2] == ["collection_id", "query"]
     assert _kw_only_params(vector_search) == {
         "top_k",
         "similarity_threshold",
-        "rerank",
-    }, "§B.1 requires kw-only `top_k / similarity_threshold / rerank`."
+    }, "§B.1 requires kw-only `top_k / similarity_threshold`."
     assert params["top_k"].default == 5
     # similarity_threshold defaults to None to mean "use collection default".
     assert params["similarity_threshold"].default is None
-    assert params["rerank"].default is True
 
 
 def test_graph_search_signature_matches_b2_lock():
@@ -127,18 +125,16 @@ def test_graph_search_signature_matches_b2_lock():
 
 def test_fulltext_search_signature_matches_b3_lock():
     """``fulltext_search`` signature follows §B.3: collection_id +
-    query positional then kw-only top_k + keywords + rerank.
+    query positional then kw-only top_k + keywords.
     """
     params = _params(fulltext_search)
     assert list(params)[:2] == ["collection_id", "query"]
     assert _kw_only_params(fulltext_search) == {
         "top_k",
         "keywords",
-        "rerank",
-    }, "§B.3 requires kw-only `top_k / keywords / rerank`."
+    }, "§B.3 requires kw-only `top_k / keywords`."
     assert params["top_k"].default == 5
     assert params["keywords"].default is None
-    assert params["rerank"].default is True
 
 
 def test_web_search_signature_matches_b4_canonical():

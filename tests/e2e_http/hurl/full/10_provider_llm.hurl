@@ -14,8 +14,8 @@
 #   3. Per-account models are created via ``POST /api/v2/models`` for the
 #      embedding / rerank / chat capabilities the rest of the suite needs.
 #   4. ``PUT /api/v2/model-uses/{scenario}`` wires the canonical
-#      collection-completion / collection-embedding / retrieval-rerank /
-#      background-task scenarios.
+#      collection-completion / collection-embedding / background-task
+#      scenarios.
 #   5. The OpenAI-compat ``POST /api/v1/embeddings`` and ``POST /api/v1/rerank``
 #      endpoints accept ``{model_id}`` and round-trip a real provider call.
 
@@ -147,18 +147,6 @@ HTTP 200
 [Asserts]
 jsonpath "$.primary_model_id" == "{{dashscope_embedding_model_id}}"
 
-PUT {{base_url}}/api/v2/model-uses/retrieval_rerank
-Content-Type: application/json
-{
-  "primary_model_id": "{{dashscope_rerank_model_id}}",
-  "fallback_model_ids": [],
-  "strategy": "single",
-  "enabled": true
-}
-HTTP 200
-[Asserts]
-jsonpath "$.primary_model_id" == "{{dashscope_rerank_model_id}}"
-
 PUT {{base_url}}/api/v2/model-uses/background_task
 Content-Type: application/json
 {
@@ -172,7 +160,7 @@ HTTP 200
 GET {{base_url}}/api/v2/model-uses
 HTTP 200
 [Asserts]
-jsonpath "$.items" count >= 4
+jsonpath "$.items" count >= 3
 
 POST {{base_url}}/api/v1/embeddings
 Content-Type: application/json
