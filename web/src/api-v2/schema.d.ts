@@ -5020,6 +5020,8 @@ export interface components {
              * @enum {string}
              */
             status: "ACTIVE" | "INACTIVE";
+            /** Allowed Scenarios */
+            allowed_scenarios?: components["schemas"]["ModelUseScenario"][];
             /** Extra */
             extra?: {
                 [key: string]: unknown;
@@ -5157,6 +5159,8 @@ export interface components {
              * @default false
              */
             supports_multimodal_embedding: boolean;
+            /** Allowed Scenarios */
+            allowed_scenarios?: components["schemas"]["ModelUseScenario"][] | null;
             /** Extra */
             extra?: {
                 [key: string]: unknown;
@@ -5370,6 +5374,8 @@ export interface components {
             supports_multimodal_embedding?: boolean | null;
             /** Status */
             status?: ("ACTIVE" | "INACTIVE") | null;
+            /** Allowed Scenarios */
+            allowed_scenarios?: components["schemas"]["ModelUseScenario"][] | null;
             /** Extra */
             extra?: {
                 [key: string]: unknown;
@@ -10931,6 +10937,8 @@ export interface operations {
     model_platform_list_model_account_models_view: {
         parameters: {
             query?: {
+                capability?: components["schemas"]["ModelCapability"] | null;
+                scenario?: components["schemas"]["ModelUseScenario"] | null;
                 engine?: unknown;
             };
             header?: never;
@@ -10964,6 +10972,8 @@ export interface operations {
     model_platform_list_models_view: {
         parameters: {
             query?: {
+                capability?: components["schemas"]["ModelCapability"] | null;
+                scenario?: components["schemas"]["ModelUseScenario"] | null;
                 engine?: unknown;
             };
             header?: never;

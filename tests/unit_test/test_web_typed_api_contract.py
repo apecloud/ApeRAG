@@ -232,7 +232,7 @@ def test_provider_feature_uses_v2_typed_api_boundary():
 
     Migrates `components/providers/bot-provider.tsx` off the legacy
     `apiClient.defaultApi.availableModelsPost` + `ModelSpec from '@/api'` and
-    onto the existing `features/providers/*` adapter (`getAvailableModels` +
+    onto the existing `features/providers/*` adapter (`getScenarioModels` +
     `ModelSpec` from `@/features/providers/types`). The `features/providers`
     adapter was migrated in an earlier phase to the typed
     `/api/v2/providers/*` surface, so this batch only swaps the caller and
@@ -293,7 +293,8 @@ def test_provider_feature_uses_v2_typed_api_boundary():
     bot_provider = sources[REPO_ROOT / "web/src/components/providers/bot-provider.tsx"]
     assert "from '@/features/providers/client-api'" in bot_provider
     assert "from '@/features/providers/types'" in bot_provider
-    assert "getAvailableModels(" in bot_provider
+    assert "getScenarioModels(" in bot_provider
+    assert "getAvailableModels(" not in joined
 
 
 def test_prompt_feature_uses_v2_typed_api_boundary():
@@ -628,7 +629,7 @@ def test_collection_feature_uses_v2_typed_api_boundary():
     # #4 batch 5 additions: the collection-form provider call and the
     # export-dialog task calls must be gone from the four migrated
     # callers. `@/api` is banned across the migrated call-sites; the
-    # `features/providers::getAvailableModels` cross-domain adapter call
+    # `features/providers::getScenarioModels` cross-domain adapter call
     # is allowed and is not what these negative assertions target.
     form_tsx = sources[REPO_ROOT / "web/src/app/workspace/collections/collection-form.tsx"]
     list_tsx = sources[REPO_ROOT / "web/src/app/workspace/collections/collection-list.tsx"]

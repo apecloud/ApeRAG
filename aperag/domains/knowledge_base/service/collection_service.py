@@ -157,6 +157,23 @@ class CollectionService:
         else:
             self.db_ops = AsyncDatabaseOps(session)  # Create custom instance for transaction control
 
+    async def validate_collection_models(self, user: str, config) -> None:
+        if config is None:
+            return
+        from aperag.domains.model_platform.schemas import ModelUseScenario
+        from aperag.domains.model_platform.service.model_service import model_platform_service
+
+        completion = getattr(config, "completion", None)
+        if completion and completion.model_id:
+            await model_platform_service.ensure_model_allowed_for_scenario(
+                user, completion.model_id, ModelUseScenario.COLLECTION_COMPLETION
+            )
+        embedding = getattr(config, "embedding", None)
+        if embedding and embedding.model_id:
+            await model_platform_service.ensure_model_allowed_for_scenario(
+                user, embedding.model_id, ModelUseScenario.COLLECTION_EMBEDDING
+            )
+
     async def build_collection_response(self, instance: CollectionRow) -> Collection:
         """Build Collection response object for API return."""
         return Collection(
@@ -186,6 +203,7 @@ class CollectionService:
         is_validate, error_msg = validate_source_connect_config(collection_config)
         if not is_validate:
             raise ValidationException(error_msg)
+        await self.validate_collection_models(user, collection_config)
 
         # Create collection and consume quota in a single transaction
         async def _create_collection_with_quota(session):
@@ -391,6 +409,7 @@ class CollectionService:
         # users who truly need a different model should create a new collection and
         # re-ingest their data.
         self._reject_embedding_change(instance, collection)
+        await self.validate_collection_models(user, collection.config)
 
         # Direct call to repository method, which handles its own transaction
         config_str = dumpCollectionConfig(collection.config)

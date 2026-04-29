@@ -11,11 +11,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
+import { Switch } from '@/components/ui/switch';
 import {
   createModel,
   createModelAccount,
   deleteModelAccount,
+  isModelAllowedForScenario,
+  updateModel,
   updateModelAccount,
   updateModelUse,
   validateModelAccount,
@@ -28,9 +30,10 @@ import type {
   ModelProvider,
   ModelUseScenario,
 } from '@/features/providers/types';
+import { cn } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -85,6 +88,9 @@ const scenarioMeta: Array<{
   { id: 'retrieval_rerank', label: '检索重排', capability: 'rerank' },
   { id: 'background_task', label: '后台任务', capability: 'chat' },
 ];
+
+const scenariosForCapability = (capability: ModelCapability) =>
+  scenarioMeta.filter((scenario) => scenario.capability === capability);
 
 const modelCapabilityOptions: ModelCapability[] = [
   'chat',
@@ -411,6 +417,33 @@ export function ModelPlatformPanel({ data }: { data: ModelPlatformViewModel }) {
     }
   };
 
+  const saveAllowedScenario = async (
+    model: Model,
+    scenario: ModelUseScenario,
+    checked: boolean,
+  ) => {
+    if (!model.id) return;
+    const current = new Set(model.allowed_scenarios ?? []);
+    if (checked) {
+      current.add(scenario);
+    } else {
+      current.delete(scenario);
+    }
+
+    setSaving(`scenario:${model.id}:${scenario}`);
+    try {
+      await updateModel(model.id, {
+        allowed_scenarios: Array.from(current),
+      });
+      toast.success('可用场景已更新');
+      router.refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '更新失败');
+    } finally {
+      setSaving(null);
+    }
+  };
+
   if (!selectedProvider) {
     return (
       <div className="rounded-lg border bg-white p-8">
@@ -456,6 +489,7 @@ export function ModelPlatformPanel({ data }: { data: ModelPlatformViewModel }) {
               saving={saving}
               onModelFormChange={setModelForm}
               onAddModel={addModel}
+              onAllowedScenarioChange={saveAllowedScenario}
             />
           </div>
         </section>
@@ -661,6 +695,7 @@ function ModelFolder({
   saving,
   onModelFormChange,
   onAddModel,
+  onAllowedScenarioChange,
 }: {
   account: ModelAccount | undefined;
   configuredModels: Model[];
@@ -670,18 +705,29 @@ function ModelFolder({
   saving: string | null;
   onModelFormChange: (value: ModelForm) => void;
   onAddModel: (source: ModelPreset | ModelForm) => void;
+  onAllowedScenarioChange: (
+    model: Model,
+    scenario: ModelUseScenario,
+    checked: boolean,
+  ) => void;
 }) {
   return (
     <section className="grid gap-4">
       <SectionTitle title="Models" />
       <div className="overflow-hidden rounded-lg border">
-        <div className="grid grid-cols-[minmax(0,1fr)_120px_112px] border-b bg-slate-50 px-4 py-2 text-xs font-medium text-slate-500">
+        <div className="grid grid-cols-[minmax(0,1fr)_120px_minmax(220px,1fr)_112px] border-b bg-slate-50 px-4 py-2 text-xs font-medium text-slate-500">
           <span>模型</span>
           <span>能力</span>
+          <span>可用场景</span>
           <span aria-hidden />
         </div>
         {configuredModels.map((model) => (
-          <ModelRow key={model.id ?? model.provider_model_id} model={model} />
+          <ModelRow
+            key={model.id ?? model.provider_model_id}
+            model={model}
+            saving={saving}
+            onAllowedScenarioChange={onAllowedScenarioChange}
+          />
         ))}
         {presets
           .filter((preset) => !configuredModelKeys.has(presetKey(preset)))
@@ -746,9 +792,22 @@ function ModelFolder({
   );
 }
 
-function ModelRow({ model }: { model: Model }) {
+function ModelRow({
+  model,
+  saving,
+  onAllowedScenarioChange,
+}: {
+  model: Model;
+  saving: string | null;
+  onAllowedScenarioChange: (
+    model: Model,
+    scenario: ModelUseScenario,
+    checked: boolean,
+  ) => void;
+}) {
+  const scenarios = scenariosForCapability(model.capability);
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_120px_112px] items-center border-b px-4 py-3">
+    <div className="grid grid-cols-[minmax(0,1fr)_120px_minmax(220px,1fr)_112px] items-center border-b px-4 py-3">
       <div className="min-w-0">
         <div className="truncate text-sm font-medium">{model.display_name}</div>
         <div className="text-muted-foreground mt-1 truncate text-xs">
@@ -756,6 +815,31 @@ function ModelRow({ model }: { model: Model }) {
         </div>
       </div>
       <CapabilityBadge capability={model.capability} />
+      <div className="flex flex-wrap gap-3">
+        {scenarios.map((scenario) => {
+          const savingKey = `scenario:${model.id}:${scenario.id}`;
+          return (
+            <label
+              key={scenario.id}
+              className="flex items-center gap-2 text-xs text-slate-700"
+            >
+              <Switch
+                checked={Boolean(
+                  model.allowed_scenarios?.includes(scenario.id),
+                )}
+                disabled={saving !== null || !model.id}
+                onCheckedChange={(checked) =>
+                  onAllowedScenarioChange(model, scenario.id, checked)
+                }
+              />
+              <span>{scenario.label}</span>
+              {saving === savingKey ? (
+                <Loader2 className="size-3 animate-spin text-slate-400" />
+              ) : null}
+            </label>
+          );
+        })}
+      </div>
       <div aria-hidden />
     </div>
   );
@@ -773,7 +857,7 @@ function PresetRow({
   onAdd: () => void;
 }) {
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_120px_112px] items-center border-b px-4 py-3">
+    <div className="grid grid-cols-[minmax(0,1fr)_120px_minmax(220px,1fr)_112px] items-center border-b px-4 py-3">
       <div className="min-w-0">
         <div className="truncate text-sm font-medium text-slate-700">
           {preset.displayName}
@@ -783,6 +867,7 @@ function PresetRow({
         </div>
       </div>
       <CapabilityBadge capability={preset.capability} />
+      <div className="text-muted-foreground text-xs">启用后按默认场景开放</div>
       <div className="flex justify-end">
         <Button size="sm" variant="outline" disabled={disabled} onClick={onAdd}>
           {loading ? <Loader2 className="size-4 animate-spin" /> : null}
@@ -817,15 +902,22 @@ function DefaultModels({
         {scenarioMeta.map((scenario) => {
           const candidates = models.filter(
             (model): model is Model & { id: string } =>
-              model.capability === scenario.capability && Boolean(model.id),
+              Boolean(model.id) &&
+              isModelAllowedForScenario(model, scenario.id),
           );
           const value =
             uses.find((item) => item.scenario === scenario.id)
               ?.primary_model_id ?? '';
+          const selectedModel = models.find((model) => model.id === value);
+          const selectedIsInvalid =
+            Boolean(value) && !candidates.some((model) => model.id === value);
           return (
             <div
               key={scenario.id}
-              className="grid gap-2 rounded-lg border bg-white p-3"
+              className={cn(
+                'grid gap-2 rounded-lg border bg-white p-3',
+                selectedIsInvalid && 'border-red-300 bg-red-50/40',
+              )}
             >
               <div className="flex items-center justify-between gap-3">
                 <span className="text-sm font-medium">{scenario.label}</span>
@@ -838,7 +930,12 @@ function DefaultModels({
                 }
                 disabled={saving !== null || candidates.length === 0}
               >
-                <SelectTrigger className="w-full">
+                <SelectTrigger
+                  className={cn(
+                    'w-full',
+                    selectedIsInvalid && 'border-red-300',
+                  )}
+                >
                   <SelectValue
                     placeholder={
                       candidates.length ? '选择默认模型' : '暂无可用模型'
@@ -846,6 +943,11 @@ function DefaultModels({
                   />
                 </SelectTrigger>
                 <SelectContent>
+                  {selectedIsInvalid && selectedModel?.id ? (
+                    <SelectItem value={selectedModel.id} disabled>
+                      {selectedModel.display_name}（不允许当前场景）
+                    </SelectItem>
+                  ) : null}
                   {candidates.map((model) => (
                     <SelectItem key={model.id} value={model.id}>
                       {model.display_name}
@@ -853,6 +955,11 @@ function DefaultModels({
                   ))}
                 </SelectContent>
               </Select>
+              {selectedIsInvalid ? (
+                <p className="text-xs text-red-600">
+                  当前默认模型未开放给这个场景，请选择一个允许的模型后再保存。
+                </p>
+              ) : null}
             </div>
           );
         })}

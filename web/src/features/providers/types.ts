@@ -35,6 +35,7 @@ export type Model = {
   supports_vision?: boolean;
   supports_tool_calling?: boolean;
   supports_multimodal_embedding?: boolean;
+  allowed_scenarios?: ModelUseScenario[];
   status?: 'ACTIVE' | 'INACTIVE';
 };
 
@@ -83,6 +84,14 @@ export type ModelCreateInput = {
   supports_vision?: boolean;
   supports_tool_calling?: boolean;
   supports_multimodal_embedding?: boolean;
+  allowed_scenarios?: ModelUseScenario[];
+};
+
+export type ModelUpdateInput = {
+  display_name?: string;
+  capability?: ModelCapability;
+  allowed_scenarios?: ModelUseScenario[];
+  status?: 'ACTIVE' | 'INACTIVE';
 };
 
 export type ModelPlatformViewModel = {

@@ -116,6 +116,7 @@ class Model(BaseModel):
     # collection's embedder spec model and the gate self-disables.
     supports_multimodal_embedding: bool = False
     status: Literal["ACTIVE", "INACTIVE"] = "ACTIVE"
+    allowed_scenarios: list[ModelUseScenario] = Field(default_factory=list)
     extra: dict[str, Any] = Field(default_factory=dict)
     created: Optional[datetime] = None
     updated: Optional[datetime] = None
@@ -135,6 +136,7 @@ class ModelCreate(BaseModel):
     supports_vision: bool = False
     supports_tool_calling: bool = False
     supports_multimodal_embedding: bool = False
+    allowed_scenarios: Optional[list[ModelUseScenario]] = None
     extra: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -151,6 +153,7 @@ class ModelUpdate(BaseModel):
     supports_tool_calling: Optional[bool] = None
     supports_multimodal_embedding: Optional[bool] = None
     status: Optional[Literal["ACTIVE", "INACTIVE"]] = None
+    allowed_scenarios: Optional[list[ModelUseScenario]] = None
     extra: Optional[dict[str, Any]] = None
 
 

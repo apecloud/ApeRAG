@@ -13,7 +13,7 @@ import {
 import type { Bot, Chat, ChatDetails } from '@/features/bot/types';
 import { listCollections } from '@/features/collection/client-api';
 import type { CollectionView } from '@/features/collection/types';
-import { getAvailableModels } from '@/features/providers/client-api';
+import { getScenarioModels } from '@/features/providers/client-api';
 import type { ModelSpec } from '@/features/providers/types';
 import { useLocale } from 'next-intl';
 import { useParams, useRouter } from 'next/navigation';
@@ -72,7 +72,7 @@ export const BotProvider = ({
 
   const loadData = useCallback(async () => {
     const [models, collectionsRes] = await Promise.all([
-      getAvailableModels(['chat']),
+      getScenarioModels('agent_chat'),
       listCollections(),
     ]);
 

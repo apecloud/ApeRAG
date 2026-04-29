@@ -1,10 +1,5 @@
 'use client';
 
-import {
-  TITLE_LANGUAGES,
-  type TitleLanguage,
-} from '@/features/collection/types';
-import type { ModelSpec } from '@/features/providers/types';
 import { useCollectionContext } from '@/components/providers/collection-provider';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -44,11 +39,16 @@ import {
   regenCollectionSummary,
   updateCollection,
 } from '@/features/collection/client-api';
-import { getAvailableModels } from '@/features/providers/client-api';
+import {
+  TITLE_LANGUAGES,
+  type TitleLanguage,
+} from '@/features/collection/types';
+import { getScenarioModels } from '@/features/providers/client-api';
+import type { ModelSpec } from '@/features/providers/types';
 import { cn, objectKeys } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ArrowLeft, Database, Sparkles } from 'lucide-react';
 import _ from 'lodash';
+import { ArrowLeft, Database, Sparkles } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -60,6 +60,16 @@ import { isVisibleCollectionConfigKey } from './feature-visibility';
 
 const modelSelectLabel = (m: ModelSpec) =>
   (m.display_name?.trim() || m.model_id || '').trim();
+
+const modelIdInGroups = (
+  groups: ProviderModel[] | undefined,
+  modelId: string | null | undefined,
+) => {
+  if (!modelId || groups === undefined) return true;
+  return groups.some((group) =>
+    group.models?.some((model) => model.model_id === modelId),
+  );
+};
 
 const collectionModelSchema = z
   .object({
@@ -108,9 +118,7 @@ const collectionSchema = z
   )
   .refine(
     ({ config }) => {
-      if (
-        config.enable_knowledge_graph
-      ) {
+      if (config.enable_knowledge_graph) {
         return !_.isEmpty(config.completion?.model_id);
       }
       return true;
@@ -203,7 +211,8 @@ const CollectionGeneratedSummary = () => {
     }
   };
 
-  const text = typeof collection?.summary === 'string' ? collection.summary : '';
+  const text =
+    typeof collection?.summary === 'string' ? collection.summary : '';
 
   return (
     <FormItem>
@@ -300,39 +309,34 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
    * set completion、embedding models used in model select component
    */
   const loadModels = useCallback(async () => {
-    const models = await getAvailableModels(['chat', 'embedding']);
-    setCompletionModels(
-      [
-        {
-          label: page_collections('completion_model'),
-          name: 'chat',
-          models: models
-            .filter((m) => m.capability === 'chat')
-            .map((m) => ({
-              model_id: m.id,
-              display_name: m.display_name,
-              temperature: 0.1,
-              tags: [],
-            })),
-        },
-      ],
-    );
-    setEmbeddingModels(
-      [
-        {
-          label: page_collections('embedding_model'),
-          name: 'embedding',
-          models: models
-            .filter((m) => m.capability === 'embedding')
-            .map((m) => ({
-              model_id: m.id,
-              display_name: m.display_name,
-              temperature: 0.1,
-              tags: [],
-            })),
-        },
-      ],
-    );
+    const [completion, embedding] = await Promise.all([
+      getScenarioModels('collection_completion'),
+      getScenarioModels('collection_embedding'),
+    ]);
+    setCompletionModels([
+      {
+        label: page_collections('completion_model'),
+        name: 'chat',
+        models: completion.map((m) => ({
+          model_id: m.id,
+          display_name: m.display_name,
+          temperature: 0.1,
+          tags: [],
+        })),
+      },
+    ]);
+    setEmbeddingModels([
+      {
+        label: page_collections('embedding_model'),
+        name: 'embedding',
+        models: embedding.map((m) => ({
+          model_id: m.id,
+          display_name: m.display_name,
+          temperature: 0.1,
+          tags: [],
+        })),
+      },
+    ]);
   }, [page_collections]);
 
   /**
@@ -340,6 +344,19 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
    */
   const handleCreateOrUpdate = useCallback(
     async (values: FormValueType) => {
+      if (
+        !modelIdInGroups(completionModels, values.config.completion?.model_id)
+      ) {
+        toast.error('当前补全模型未开放给知识库问答场景，请重新选择。');
+        return;
+      }
+      if (
+        !modelIdInGroups(embeddingModels, values.config.embedding?.model_id)
+      ) {
+        toast.error('当前向量模型未开放给文档向量场景，请重新选择。');
+        return;
+      }
+
       const payload = {
         ...values,
         config: {
@@ -364,7 +381,15 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
         }
       }
     },
-    [action, collection.id, common_tips, loadCollection, router],
+    [
+      action,
+      collection.id,
+      common_tips,
+      completionModels,
+      embeddingModels,
+      loadCollection,
+      router,
+    ],
   );
 
   /**
@@ -376,17 +401,18 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
     name: 'config.completion.model_id',
   });
   useEffect(() => {
+    if (action === 'edit') return;
     if (_.isEmpty(completionModels)) return;
 
     let defaultModel: ModelSpec | undefined;
     let currentModel: ModelSpec | undefined;
-    let defaultProvider: ProviderModel | undefined;
-    let currentProvider: ProviderModel | undefined;
     completionModels?.forEach((provider) => {
       provider.models?.forEach((m) => {
+        if (!defaultModel) {
+          defaultModel = m;
+        }
         if (m.model_id === completionModelName) {
           currentModel = m;
-          currentProvider = provider;
         }
       });
     });
@@ -395,7 +421,7 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
       'config.completion.model_id',
       currentModel?.model_id || defaultModel?.model_id || '',
     );
-  }, [completionModelName, completionModels, form]);
+  }, [action, completionModelName, completionModels, form]);
 
   /**
    * Watch embeddingModelName
@@ -415,14 +441,13 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
 
     let defaultModel: ModelSpec | undefined;
     let currentModel: ModelSpec | undefined;
-    let defaultProvider: ProviderModel | undefined;
-    let currentProvider: ProviderModel | undefined;
-
     embeddingModels?.forEach((provider) => {
       provider.models?.forEach((m) => {
+        if (!defaultModel) {
+          defaultModel = m;
+        }
         if (m.model_id === embeddingModelName) {
           currentModel = m;
-          currentProvider = provider;
         }
       });
     });
@@ -446,7 +471,7 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
           onSubmit={form.handleSubmit(handleCreateOrUpdate)}
           className="flex flex-col gap-5"
         >
-          <Card className="gap-0 overflow-hidden rounded-xl border-border/70 py-0">
+          <Card className="border-border/70 gap-0 overflow-hidden rounded-xl py-0">
             <CardHeader className="border-border/70 bg-muted/60 border-b px-5 py-4">
               <div className="flex items-start gap-3">
                 <div className="bg-accent-soft text-accent-ink flex size-10 shrink-0 items-center justify-center rounded-lg">
@@ -534,7 +559,7 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
             </CardContent>
           </Card>
 
-          <Card className="gap-0 overflow-hidden rounded-xl border-border/70 py-0">
+          <Card className="border-border/70 gap-0 overflow-hidden rounded-xl py-0">
             <CardHeader className="border-border/70 bg-muted/60 border-b px-5 py-4">
               <CardTitle className="text-base font-medium">
                 {page_collections('index_types')}
@@ -567,9 +592,7 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
                               <div className="flex items-center gap-2 leading-none font-medium">
                                 {item.title}
                                 {item.disabled && (
-                                  <Badge>
-                                    {page_collections('required')}
-                                  </Badge>
+                                  <Badge>{page_collections('required')}</Badge>
                                 )}
                               </div>
                               <p className="text-muted-foreground text-sm font-medium">
@@ -592,7 +615,7 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
             </CardContent>
           </Card>
 
-          <Card className="gap-0 overflow-hidden rounded-xl border-border/70 py-0">
+          <Card className="border-border/70 gap-0 overflow-hidden rounded-xl py-0">
             <CardHeader className="border-border/70 bg-muted/60 border-b px-5 py-4">
               <div className="flex items-start gap-3">
                 <div className="bg-card text-primary flex size-9 shrink-0 items-center justify-center rounded-lg border">
@@ -615,6 +638,10 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
                 name="config.embedding.model_id"
                 render={({ field }) => {
                   const embeddingLocked = action === 'edit';
+                  const modelUnavailable = !modelIdInGroups(
+                    embeddingModels,
+                    field.value,
+                  );
                   return (
                     <FormItem>
                       <FormLabel>
@@ -635,6 +662,7 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
                           <SelectTrigger
                             className={cn(
                               'w-full md:w-7/12',
+                              modelUnavailable && 'border-red-300',
                               embeddingLocked
                                 ? 'cursor-not-allowed opacity-70'
                                 : 'cursor-pointer',
@@ -662,13 +690,26 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
                                   </SelectGroup>
                                 );
                               })}
+                            {modelUnavailable && field.value ? (
+                              <SelectItem value={field.value} disabled>
+                                {field.value}（不允许当前场景）
+                              </SelectItem>
+                            ) : null}
                           </SelectContent>
                         </Select>
                       </FormControl>
-                      <FormDescription>
-                        {embeddingLocked
-                          ? page_collections('embedding_model_locked_description')
-                          : page_collections('embedding_model_description')}
+                      <FormDescription
+                        className={modelUnavailable ? 'text-red-600' : ''}
+                      >
+                        {modelUnavailable
+                          ? embeddingLocked
+                            ? '当前向量模型未开放给文档向量场景。向量模型在编辑页不可更换，请先到模型管理恢复该场景，或新建 collection。'
+                            : '当前向量模型未开放给文档向量场景，保存前需要更换。'
+                          : embeddingLocked
+                            ? page_collections(
+                                'embedding_model_locked_description',
+                              )
+                            : page_collections('embedding_model_description')}
                       </FormDescription>
                     </FormItem>
                   );
@@ -680,53 +721,73 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
               <FormField
                 control={form.control}
                 name="config.completion.model_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>
-                      {page_collections('completion_model')}
-                    </FormLabel>
-                    <FormControl className="ml-auto">
-                      <Select
-                        {...field}
-                        onValueChange={field.onChange}
-                        value={field.value || ''}
+                render={({ field }) => {
+                  const modelUnavailable = !modelIdInGroups(
+                    completionModels,
+                    field.value,
+                  );
+                  return (
+                    <FormItem>
+                      <FormLabel>
+                        {page_collections('completion_model')}
+                      </FormLabel>
+                      <FormControl className="ml-auto">
+                        <Select
+                          {...field}
+                          onValueChange={field.onChange}
+                          value={field.value || ''}
+                        >
+                          <SelectTrigger
+                            className={cn(
+                              'w-full cursor-pointer md:w-7/12',
+                              modelUnavailable && 'border-red-300',
+                            )}
+                          >
+                            <SelectValue placeholder="Select a model" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {completionModels
+                              ?.filter((item) => _.size(item.models))
+                              .map((item) => {
+                                return (
+                                  <SelectGroup key={item.name}>
+                                    <SelectLabel>{item.label}</SelectLabel>
+                                    {item.models?.map((model) => {
+                                      return (
+                                        <SelectItem
+                                          key={model.model_id}
+                                          value={model.model_id || ''}
+                                        >
+                                          {modelSelectLabel(model)}
+                                        </SelectItem>
+                                      );
+                                    })}
+                                  </SelectGroup>
+                                );
+                              })}
+                            {modelUnavailable && field.value ? (
+                              <SelectItem value={field.value} disabled>
+                                {field.value}（不允许当前场景）
+                              </SelectItem>
+                            ) : null}
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <FormDescription
+                        className={modelUnavailable ? 'text-red-600' : ''}
                       >
-                        <SelectTrigger className="w-full cursor-pointer md:w-7/12">
-                          <SelectValue placeholder="Select a model" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {completionModels
-                            ?.filter((item) => _.size(item.models))
-                            .map((item) => {
-                              return (
-                                <SelectGroup key={item.name}>
-                                  <SelectLabel>{item.label}</SelectLabel>
-                                  {item.models?.map((model) => {
-                                    return (
-                                      <SelectItem
-                                        key={model.model_id}
-                                        value={model.model_id || ''}
-                                      >
-                                        {modelSelectLabel(model)}
-                                      </SelectItem>
-                                    );
-                                  })}
-                                </SelectGroup>
-                              );
-                            })}
-                        </SelectContent>
-                      </Select>
-                    </FormControl>
-                    <FormDescription>
-                      {page_collections('completion_model_description')}
-                    </FormDescription>
-                  </FormItem>
-                )}
+                        {modelUnavailable
+                          ? '当前补全模型未开放给知识库问答场景，保存前需要更换。'
+                          : page_collections('completion_model_description')}
+                      </FormDescription>
+                    </FormItem>
+                  );
+                }}
               />
             </CardContent>
           </Card>
 
-          <div className="flex flex-col-reverse gap-3 border-border/70 bg-background/80 py-2 sm:flex-row sm:justify-end">
+          <div className="border-border/70 bg-background/80 flex flex-col-reverse gap-3 py-2 sm:flex-row sm:justify-end">
             {action === 'add' && (
               <Button variant="outline" asChild>
                 <Link href="/workspace/collections">

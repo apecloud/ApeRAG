@@ -9,6 +9,7 @@ import type {
   ModelCapability,
   ModelCreateInput,
   ModelProvider,
+  ModelUpdateInput,
   ModelUse,
   ModelUseScenario,
 } from './types';
@@ -72,6 +73,14 @@ export async function createModel(input: ModelCreateInput) {
   return data;
 }
 
+export async function updateModel(modelId: string, input: ModelUpdateInput) {
+  const { data } = await browserApiClient.PUT('/api/v2/models/{model_id}', {
+    params: { path: { model_id: modelId } },
+    body: input as never,
+  });
+  return data;
+}
+
 export async function getModelUses(): Promise<ModelUse[]> {
   const { data } = await browserApiClient.GET('/api/v2/model-uses');
   return (data?.items ?? []) as ModelUse[];
@@ -99,8 +108,29 @@ export async function updateModelUse(
   return data;
 }
 
-export async function getAvailableModels(capabilities: ModelCapability[] = []) {
+const scenarioCapability: Record<ModelUseScenario, ModelCapability> = {
+  agent_chat: 'chat',
+  collection_completion: 'chat',
+  collection_embedding: 'embedding',
+  retrieval_rerank: 'rerank',
+  background_task: 'chat',
+};
+
+export function getScenarioCapability(scenario: ModelUseScenario) {
+  return scenarioCapability[scenario];
+}
+
+export function isModelAllowedForScenario(
+  model: Pick<Model, 'capability' | 'allowed_scenarios'>,
+  scenario: ModelUseScenario,
+) {
+  return (
+    model.capability === scenarioCapability[scenario] &&
+    Boolean(model.allowed_scenarios?.includes(scenario))
+  );
+}
+
+export async function getScenarioModels(scenario: ModelUseScenario) {
   const models = await getModels();
-  if (!capabilities.length) return models;
-  return models.filter((model) => capabilities.includes(model.capability));
+  return models.filter((model) => isModelAllowedForScenario(model, scenario));
 }

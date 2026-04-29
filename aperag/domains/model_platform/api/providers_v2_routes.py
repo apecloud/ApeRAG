@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Path, Response
+from fastapi import APIRouter, Depends, Path, Query, Response
 
 from aperag.domains.identity.service.auth_dependencies import required_user
 from aperag.domains.model_platform.ports import AuthenticatedUser
@@ -8,6 +8,7 @@ from aperag.domains.model_platform.schemas import (
     ModelAccountCreate,
     ModelAccountList,
     ModelAccountUpdate,
+    ModelCapability,
     ModelList,
     ModelProviderList,
     ModelUpdate,
@@ -69,14 +70,23 @@ async def validate_model_account_view(
 
 @router.get("/model-accounts/{account_id}/models", response_model=ModelList)
 async def list_model_account_models_view(
-    account_id: str, user: AuthenticatedUser = Depends(required_user)
+    account_id: str,
+    capability: ModelCapability | None = Query(None),
+    scenario: ModelUseScenario | None = Query(None),
+    user: AuthenticatedUser = Depends(required_user),
 ) -> ModelList:
-    return await model_platform_service.list_models(str(user.id), account_id=account_id)
+    return await model_platform_service.list_models(
+        str(user.id), account_id=account_id, capability=capability, scenario=scenario
+    )
 
 
 @router.get("/models", response_model=ModelList)
-async def list_models_view(user: AuthenticatedUser = Depends(required_user)) -> ModelList:
-    return await model_platform_service.list_models(str(user.id))
+async def list_models_view(
+    capability: ModelCapability | None = Query(None),
+    scenario: ModelUseScenario | None = Query(None),
+    user: AuthenticatedUser = Depends(required_user),
+) -> ModelList:
+    return await model_platform_service.list_models(str(user.id), capability=capability, scenario=scenario)
 
 
 @router.post("/models", response_model=Model)
