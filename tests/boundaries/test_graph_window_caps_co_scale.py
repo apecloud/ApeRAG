@@ -1,4 +1,4 @@
-"""Boundary gate for task #30 A2: 5-const co-scale + structure equivalence.
+"""Boundary gate for task #30 A2: 5-const co-scale + structure equivalence + schema exposure.
 
 Background — task #30 introduces a graph-only multi-chunk extraction
 window (per-collection ``graph_extraction_window_size``). When
@@ -176,7 +176,7 @@ def test_bootstrap_window_count_handles_zero_window_size_defensively():
 def test_default_max_prompt_tokens_covers_window_size_5_with_400_token_chunks():
     """The default 32k ceiling must comfortably fit the realistic
     Phase A benchmark matrix (window_size up to 5, chunk_size 400)."""
-    assert _estimate_window_prompt_tokens(5) < _DEFAULT_MAX_PROMPT_TOKENS
+    assert _estimate_window_prompt_tokens(window_chunk_count=5) < _DEFAULT_MAX_PROMPT_TOKENS
 
 
 def test_estimate_window_prompt_tokens_scales_linearly_with_window_size():
@@ -184,19 +184,20 @@ def test_estimate_window_prompt_tokens_scales_linearly_with_window_size():
     envelope (template + few-shot) is a fixed cost. This invariant
     must hold for the cap-overflow check in the bootstrap + main pass
     to behave deterministically."""
-    base = _estimate_window_prompt_tokens(1)
+    base = _estimate_window_prompt_tokens(window_chunk_count=1)
     # Each additional window chunk adds (chunk_size + per_chunk_overhead) tokens
-    delta_per_chunk = _estimate_window_prompt_tokens(2) - base
+    delta_per_chunk = _estimate_window_prompt_tokens(window_chunk_count=2) - base
     assert delta_per_chunk > 0
-    assert _estimate_window_prompt_tokens(3) == base + delta_per_chunk * 2
-    assert _estimate_window_prompt_tokens(5) == base + delta_per_chunk * 4
+    assert _estimate_window_prompt_tokens(window_chunk_count=3) == base + delta_per_chunk * 2
+    assert _estimate_window_prompt_tokens(window_chunk_count=5) == base + delta_per_chunk * 4
 
 
 def test_estimate_window_prompt_tokens_handles_empty_window():
     """An empty window has zero prompt cost (in practice unreachable
     but defensive against future refactors)."""
-    assert _estimate_window_prompt_tokens(0) == 0
-    assert _estimate_window_prompt_tokens(-1) == 0
+    assert _estimate_window_prompt_tokens(window_chunk_count=0) == 0
+    assert _estimate_window_prompt_tokens(window_chunk_count=-1) == 0
+    assert _estimate_window_prompt_tokens() == 0  # no args at all
 
 
 def test_estimate_window_prompt_tokens_warns_pathological_config():
@@ -206,8 +207,116 @@ def test_estimate_window_prompt_tokens_warns_pathological_config():
     × 10-window = ~40.5k tokens, comfortably above the 32k Qwen
     context-window safety floor that the default ``MAX_PROMPT_TOKENS``
     targets."""
-    pathological = _estimate_window_prompt_tokens(10, base_chunk_size=4000)
+    pathological = _estimate_window_prompt_tokens(window_chunk_count=10, base_chunk_size=4000)
     assert pathological > _DEFAULT_MAX_PROMPT_TOKENS
+
+
+def test_estimate_window_prompt_tokens_runtime_path_uses_actual_window_text():
+    """Weston msg=9f356fe9 BLOCKER 2 fix: when called with the real
+    :class:`_GraphChunkWindow`, the estimator must sum
+    ``_estimate_graph_chunk_tokens`` over the actual chunk texts (not
+    a fixed 400-char assumption). A window with 10 actual 4000-char
+    chunks must render to ~40.5k tokens and trip the default 32k cap.
+
+    Without this runtime-path branch, the 5th const ``MAX_PROMPT_TOKENS``
+    would be a fake guardrail — large-content windows would slip past
+    the 5400-token estimate (10 chunks × 400 fixed) regardless of real
+    chunk size. This test pins the runtime contract.
+    """
+    from aperag.indexing.graph_extractor import _GraphChunkWindow
+
+    # Realistic large-content window: 10 chunks × ~4000 chars each.
+    big_chunk_text = "x" * 4000
+    big_window = _GraphChunkWindow(
+        chunks=tuple({"chunk_id": f"c{i}", "text": big_chunk_text} for i in range(10)),
+        chunk_ids=tuple(f"c{i}" for i in range(10)),
+        text="\n\n".join(big_chunk_text for _ in range(10)),
+    )
+    runtime_estimate = _estimate_window_prompt_tokens(window=big_window)
+    assert runtime_estimate > _DEFAULT_MAX_PROMPT_TOKENS, (
+        f"runtime path estimate ({runtime_estimate}) must exceed "
+        f"_DEFAULT_MAX_PROMPT_TOKENS ({_DEFAULT_MAX_PROMPT_TOKENS}) "
+        "to trip the cap-overflow guard on realistic large-content windows"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Schema exposure (ziang msg=f7dc20ef + Weston msg=9f356fe9 BLOCKER 1)
+# ---------------------------------------------------------------------------
+
+
+def test_knowledge_graph_config_exposes_max_prompt_tokens_and_few_shot_locale():
+    """Lesson #12 v7 caller / backend schema / runtime fallback 三层 grep:
+    A2's 5th const + few-shot opt-in must be settable through the
+    public ``KnowledgeGraphConfig`` API surface, not just a runtime
+    resolver-only override. ``Pydantic BaseModel`` defaults to ignoring
+    unknown fields, so missing schema entries silently drop the values
+    on ``model_validate``.
+
+    This test pins the schema-exposure invariant: a ``KnowledgeGraphConfig``
+    instantiated with both new knobs must round-trip through ``model_dump``
+    without losing the values.
+    """
+    from aperag.schema.common import KnowledgeGraphConfig
+
+    cfg = KnowledgeGraphConfig.model_validate(
+        {
+            "graph_extraction_window_size": 3,
+            "graph_extraction_max_window_tokens": 2000,
+            "graph_extraction_max_prompt_tokens": 16000,
+            "graph_extraction_few_shot_locale": "zh",
+        }
+    )
+
+    assert cfg.graph_extraction_max_prompt_tokens == 16000, (
+        "graph_extraction_max_prompt_tokens must round-trip through KnowledgeGraphConfig "
+        "(if Pydantic drops it silently, runtime resolver reads the default and the "
+        "5th const override is unreachable through the public API surface)"
+    )
+    assert cfg.graph_extraction_few_shot_locale == "zh", (
+        "graph_extraction_few_shot_locale must round-trip through KnowledgeGraphConfig "
+        "(spec § 3.1.3 default-off opt-in only works if the field is settable via API)"
+    )
+    # Round-trip: dump + reload must preserve both values
+    payload = cfg.model_dump()
+    cfg2 = KnowledgeGraphConfig.model_validate(payload)
+    assert cfg2.graph_extraction_max_prompt_tokens == 16000
+    assert cfg2.graph_extraction_few_shot_locale == "zh"
+
+
+def test_knowledge_graph_config_max_prompt_tokens_and_few_shot_locale_default_to_none():
+    """Defaults must be ``None`` so runtime resolver applies the
+    ``_DEFAULT_MAX_PROMPT_TOKENS = 32000`` / ``few_shot_locale=None``
+    legacy-equivalent behaviour when the collection does not set them.
+    """
+    from aperag.schema.common import KnowledgeGraphConfig
+
+    cfg = KnowledgeGraphConfig()
+    assert cfg.graph_extraction_max_prompt_tokens is None
+    assert cfg.graph_extraction_few_shot_locale is None
+
+
+def test_estimate_window_prompt_tokens_runtime_path_few_shot_off_default():
+    """Few-shot envelope is opt-in: ``few_shot_locale=None`` must not
+    add the 400-token few-shot cost to the runtime estimate. Spec
+    § 3.1.3 default-off opt-in contract verified at the cost-estimation
+    layer."""
+    from aperag.indexing.graph_extractor import (
+        _FEW_SHOT_ENVELOPE_TOKENS,
+        _GraphChunkWindow,
+    )
+
+    chunk_text = "x" * 100
+    window = _GraphChunkWindow(
+        chunks=({"chunk_id": "c0", "text": chunk_text},),
+        chunk_ids=("c0",),
+        text=chunk_text,
+    )
+    off_estimate = _estimate_window_prompt_tokens(window=window, few_shot_locale=None)
+    on_estimate = _estimate_window_prompt_tokens(window=window, few_shot_locale="zh")
+    assert on_estimate - off_estimate == _FEW_SHOT_ENVELOPE_TOKENS, (
+        "few-shot envelope must add exactly _FEW_SHOT_ENVELOPE_TOKENS only when opt-in"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -229,4 +338,4 @@ def test_window_size_1_full_structure_equivalence():
     # provider-context-window guardrail. We assert the default is large
     # enough that window_size=1 never trips it for the realistic
     # 400-token chunk size.
-    assert _estimate_window_prompt_tokens(1) < _DEFAULT_MAX_PROMPT_TOKENS
+    assert _estimate_window_prompt_tokens(window_chunk_count=1) < _DEFAULT_MAX_PROMPT_TOKENS

@@ -4970,6 +4970,18 @@ export interface components {
              * @example 2000
              */
             graph_extraction_max_window_tokens?: number | null;
+            /**
+             * Graph Extraction Max Prompt Tokens
+             * @description Defensive ceiling on the rendered graph-extraction prompt size (chars, treated as a 1:1 token proxy). Default 32000 if unset — windows that would render past this ceiling are skipped + warned so an over-eager graph_extraction_window_size config does not silently truncate the LLM input on the smallest model in the matrix. Override per-collection when a provider has a larger context window (Claude 200k / GPT-4 128k).
+             * @example 16000
+             */
+            graph_extraction_max_prompt_tokens?: number | null;
+            /**
+             * Graph Extraction Few Shot Locale
+             * @description Few-shot example locale for the graph extraction prompt. Default off (None) — enables the few-shot examples in the prompt template only when explicitly configured. Supported values: 'zh' (Chinese single-chunk example), 'en' (English single-chunk example), 'cross_chunk' (cross-chunk relation example). Adds ~400 prompt tokens when enabled.
+             * @example zh
+             */
+            graph_extraction_few_shot_locale?: string | null;
         };
         /** Login */
         Login: {

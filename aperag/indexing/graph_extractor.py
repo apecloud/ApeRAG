@@ -212,28 +212,66 @@ def _bootstrap_window_count(window_size: int) -> int:
     return max(math.ceil(_BOOTSTRAP_CHUNK_COUNT / window_size), _BOOTSTRAP_WINDOW_COUNT_MIN)
 
 
-def _estimate_window_prompt_tokens(window_chunk_count: int, base_chunk_size: int = 400) -> int:
-    """Cheap token estimate for the prompt rendered over a window.
+_PROMPT_ENVELOPE_TOKENS = 500
+"""Fixed cost of the ``ENTITY_RELATION_EXTRACTION`` template + JSON output schema."""
 
-    Uses A1's ``_estimate_graph_chunk_tokens`` 1-char-per-token proxy,
-    plus a fixed estimate for the prompt envelope:
+_PER_CHUNK_MARKER_OVERHEAD_TOKENS = 50
+"""Per-chunk overhead for A3's ``[[chunk_id=X index=Y]]`` boundary marker."""
 
-    - Prompt template (``ENTITY_RELATION_EXTRACTION``): ~500 tokens
-    - Per-chunk ``[[chunk_id=...]]`` boundary markers: ~50 tokens × N
-    - Few-shot examples (when opt-in): ~400 tokens
+_FEW_SHOT_ENVELOPE_TOKENS = 400
+"""Additional cost when ``few_shot_locale`` is opt-in (zh / en / cross_chunk)."""
 
-    Total ≈ ``500 + (chunk_size + 50) × N + 400``. For the 32k default
-    ceiling this comfortably fits ``window_size=5`` with 400-token
-    chunks (~3.7k tokens) but flags pathological configs early — e.g.
-    a ``chunk_size=2000`` × ``window_size=10`` doc that would render to
-    25k+ tokens and overflow most production models' context.
+
+def _estimate_window_prompt_tokens(
+    window: "_GraphChunkWindow | None" = None,
+    *,
+    window_chunk_count: int | None = None,
+    base_chunk_size: int | None = None,
+    few_shot_locale: str | None = None,
+) -> int:
+    """Token estimate for the prompt rendered over a window.
+
+    Two calling modes:
+
+    1. **Runtime path (preferred)** — pass ``window`` (the
+       :class:`_GraphChunkWindow` actually being dispatched). The function
+       sums ``_estimate_graph_chunk_tokens`` over the real chunk texts so
+       the guardrail fires deterministically on large content (Weston
+       msg=9f356fe9 BLOCKER 2). Few-shot envelope is added only when the
+       opt-in ``few_shot_locale`` is set.
+
+    2. **Synthetic path (testing only)** — pass ``window_chunk_count`` +
+       ``base_chunk_size`` to estimate a hypothetical config. Used by the
+       boundary tests to pin the linear-scaling formula and to detect
+       pathological configs (e.g. ``chunk_size=4000 × window_size=10``).
+
+    Total ≈ ``_PROMPT_ENVELOPE_TOKENS + (chunk_size + per_chunk_marker) × N
+    [+ _FEW_SHOT_ENVELOPE_TOKENS if few_shot_locale is set]``.
+
+    For the 32k default ceiling this comfortably fits ``window_size=5``
+    with 400-token chunks (~3.7k tokens) but flags pathological runtime
+    inputs — e.g. a window with 10 actual 4000-char chunks renders to
+    ~40.5k tokens and is skipped + warned by the cap-overflow guard.
     """
-    if window_chunk_count <= 0:
+    if window is not None:
+        chunk_token_total = sum(_estimate_graph_chunk_tokens(chunk) for chunk in window.chunks)
+        marker_total = _PER_CHUNK_MARKER_OVERHEAD_TOKENS * len(window.chunks)
+        few_shot = _FEW_SHOT_ENVELOPE_TOKENS if few_shot_locale else 0
+        return _PROMPT_ENVELOPE_TOKENS + chunk_token_total + marker_total + few_shot
+
+    # Synthetic path — boundary test pins the formula via explicit
+    # window_chunk_count + base_chunk_size + assumed few-shot envelope.
+    if window_chunk_count is None or window_chunk_count <= 0:
         return 0
-    prompt_envelope = 500
-    per_chunk_overhead = 50
-    few_shot_envelope = 400  # conservative — counts even when off
-    return prompt_envelope + few_shot_envelope + (base_chunk_size + per_chunk_overhead) * window_chunk_count
+    chunk_size = base_chunk_size if base_chunk_size is not None else 400
+    # Synthetic path keeps few-shot envelope on by default for the
+    # pathological-config guard test (conservative — counts even when
+    # off, so guardrail still fires under worst-case assumptions).
+    return (
+        _PROMPT_ENVELOPE_TOKENS
+        + _FEW_SHOT_ENVELOPE_TOKENS
+        + (chunk_size + _PER_CHUNK_MARKER_OVERHEAD_TOKENS) * window_chunk_count
+    )
 
 
 # Maximum number of chunks dispatched per ``asyncio.gather`` batch
@@ -386,7 +424,7 @@ def build_collection_graph_extractor(collection: Any) -> GraphExtractor:
             if not window.text.strip():
                 continue
             window_chunk_count = max(len(window.chunk_ids), 1)
-            estimated_prompt_tokens = _estimate_window_prompt_tokens(window_chunk_count)
+            estimated_prompt_tokens = _estimate_window_prompt_tokens(window=window, few_shot_locale=few_shot_locale)
             if estimated_prompt_tokens > graph_max_prompt_tokens:
                 logger.warning(
                     "graph extractor: bootstrap window with %d chunks would render to ~%d tokens, "
@@ -445,7 +483,7 @@ def build_collection_graph_extractor(collection: Any) -> GraphExtractor:
             if not window.text.strip():
                 return ([], [])
             window_chunk_count = max(len(window.chunk_ids), 1)
-            estimated_prompt_tokens = _estimate_window_prompt_tokens(window_chunk_count)
+            estimated_prompt_tokens = _estimate_window_prompt_tokens(window=window, few_shot_locale=few_shot_locale)
             if estimated_prompt_tokens > graph_max_prompt_tokens:
                 logger.warning(
                     "graph extractor: main-pass window with %d chunks would render to ~%d tokens, "
