@@ -171,6 +171,27 @@ shared utility / 默认行为 / 函数签名改动必须 grep 全 caller，不�
 
 (a) 候选粒度等量 / (b) §x vs §y 一致 / (c) 数字合理 / (d) framework claim 分级到正文。本文档 §一 已展开。
 
+### Lesson #12 extension v4：PR `lint-and-unit` CI 全绿是 mandatory ratify gate
+
+「本地实证通过」≠「CI 全绿」。PR ratify / squash merge 前必须 verify GitHub Actions `lint-and-unit` 全绿，不能仅凭本地 pytest / 部署级压测数据放行。
+
+来源：task #17 PR #1884 ratify 过程中 huangheng 在 verdict 表只 check 了部署级压测（Planetegg 153.66s / 40 ACTIVE）+ § 二 6 hard gate 实证文件，漏 verify 了 `lint-and-unit` CI status；CI 在 PR 合并前刚好暴露 `tests/boundaries/test_app_lifespan_launches_all_graph_indexing_worker_lanes` 与 task #17 hard cut 冲突（PR #1876 时代加的，task #17 让 lifespan 不再 launch worker，老 test 不可能再过），Weston 用 `335fe586` 删掉 obsolete test 让 CI 转绿。CR verdict 表 § 七 必须新增「PR `lint-and-unit` CI 全绿」一行 mandatory，verify 后才能 ratify。
+
+### Lesson #13：invariant evolution 必须双侧 rewrite obsolete regression test
+
+invariant 演化时（旧 invariant → 新 invariant 反向），单纯加新 test 不够，必须主动 search + delete/rewrite 与新 invariant 冲突的旧 regression test，并在 PR description 显式声明这次 invariant 反转。
+
+具体演化轨迹（task #17 真实案例）：
+
+| 阶段 | invariant | 落地 test |
+|-----|----------|---------|
+| PR #1876 (task #12 时代) | `app.py` lifespan 必须 launch 三条 graph worker lane（防 silent miss） | `tests/boundaries/test_app_lifespan_launches_all_graph_indexing_worker_lanes` 正向 assert lifespan 启动 worker |
+| PR #1884 (task #17 hard cut) | `app.py` lifespan 不能 launch 任何 worker（解新加坡 503 部署根因） | `tests/boundaries/test_app_lifespan_no_workers.py` 负向 + `tests/boundaries/test_cli_worker_starts_every_runtime_loop` 正向（双侧钉死新 invariant） |
+
+PR #1884 完成时新 test 已加，但旧 PR #1876 test 漏删 → CI fail → fix-forward 删 obsolete test。Lesson：invariant 反转 PR 必须主动 grep 全 codebase 找旧 invariant test 同时删，不能等 CI 暴露后补救。
+
+CR cross-check 应用：CR 时如果 PR 涉及核心 invariant 反转（lifespan worker / cleanup intent SoT / readiness 行为 / API 是否触 heavy 路径等），必须 grep 旧 invariant 关键词找 obsolete test 并要求作者 in-PR 删除，不允许「下个 PR 补」。
+
 ### Mini-pattern 17：跨真源状态漂移检测
 
 跨 truth source（DB / 文件 / cache / queue / 外部服务）状态依赖必须 enumerate 自动 detection 机制（cache key 含上游 version / 周期巡检 stale check / startup sanity check 三选一）。
@@ -227,34 +248,36 @@ CR cross-check 表里任何 ✅ 标注被 surface 为 false positive 时，立�
 
 ## 六、CR 历史 sediment 引用
 
-- `memory/feedback_e2e_dataflow_trace.md` Lesson #11 + Lesson #12 + extension v3
+- `memory/feedback_e2e_dataflow_trace.md` Lesson #11 + Lesson #12 + extension v3 + extension v4 + Lesson #13
 - `memory/feedback_collab_before_solo_pr.md` 同 tag/scope 多 agent 默认 co-design 单 PR
 - `memory/feedback_object_store_path_drift.md` `OBJECT_STORE_LOCAL_ROOT_DIR` 漂移诊断 playbook
 - `memory/feedback_one_shot_no_phased_rollout.md` 一次性不分阶段 directive
 - `memory/feedback_simple_stable_deploy_and_forget.md` simple-stable + 私有化部署免维护
 - `memory/feedback_cr_must_cross_reference_arch_doc.md` CR 必对照架构文档逐条 invariant 走
+- `memory/project_task17_pr_1884_active_focus.md` task #17 ship 完成节点（merge `5a0aa804` / 6 hard gate 全实证 / Planetegg 压测数据 / phase 2 directive）
 
 ---
 
-## 七、task #17 PR final review verdict（待 PR 合并前填）
+## 七、task #17 PR #1884 final review verdict（ship 后回填，merge commit `5a0aa804` / 2026-04-30 01:13 UTC）
 
 | 检查项 | 状态 | 备注（具体 test commit / 行号 / 数据） |
 |------|------|--------------------------------------|
-| §一 5 cross-check 全过 | _待填_ | 引用具体 PR diff 行号或 commit |
-| §二 6 hard gate 全 verify（每条引用具体 test 文件 + 通过截图/数据） | _待填_ | 见 §二 mapping 子表 |
-| §三 7 实现修正全 fold-in（grep 验证应用代码 0 引入双 env / 0 嵌套 transaction / 等） | _待填_ | |
-| §四 lessons 全应用 | _待填_ | |
-| 团队 5 lane LGTM ack 收齐 | _待填_ | |
-| 架构师 v8.2 docs 入仓 | _待填_ | |
-| 黄章书 部署/发布/回滚 docs 入仓 | _待填_ | |
-| ziang 状态机/cleanup SoT 验收 docs 入仓 | _待填_ | |
-| Weston scope 一致性 verify | _待填_ | |
-| Bryce 代码主线 file-by-file align ziang 7 修正 | _待填_ | |
-| **多文档并发压测阈值通过**（Planetegg #22 主跑，需 Planetegg + 黄章书 商定具体阈值并 attach 数据到 PR thread）| _待填_ | 例：≥100 docs × 10 concurrent × 10min sustained，p95 / PG 连接数 / 队列 backlog 数据 attach |
-| **smoke regression diff = 0**（PR merge 前后同一 hurl smoke set 全 pass，新 fail = 0） | _待填_ | 对照 6 套 hurl smoke baseline 含 web_access #1794 / 模型基准 #1863 等 |
-| 失败注入用真路径不允许 mock（按 §5.5 规范） | _待填_ | 截图或 log 引用 kubectl/iptables 操作记录 |
+| §一 5 cross-check 全过 | ✅ | scope 8 项主线一致，§一 vs §三 vs §七 数字一致；framework claim 分级到 § YAGNI / escape hatch 正文 |
+| §二 6 hard gate 全 verify（每条引用具体 test 文件 + 通过截图/数据） | ✅ | gate 1 `tests/boundaries/test_app_lifespan_no_workers.py` + `test_cli_worker_starts_every_runtime_loop`；gate 2 `tests/integration/test_cleanup_recovery_redis_outage.py`；gate 3 `tests/boundaries/test_api_no_objectstore_calls.py`；gate 4 health p95 ≤ 2ms 实测（Planetegg）；gate 5 `tests/integration/test_helm_pool_budget.py` PG 34 ≤ 55 budget ≤ 70；gate 6 runbook + scale dry-run |
+| §三 7 实现修正全 fold-in（grep 验证应用代码 0 引入双 env / 0 嵌套 transaction / 等） | ✅ | Bryce file-by-file align ziang msg=4ea65100 7 项修正（settings module / QuotaPolicyRegistry / Helm-only 池 / 不嵌套 transaction / object store 迁出 / cleanup loop path B/C / diagnostics 鉴权 + sync URL 转换） |
+| §四 lessons 全应用 | ✅ | Lesson #11 / #12 / #12 ext v3 / Mini-pattern 17 / 一次性不分阶段 全 align |
+| 团队 7 lane LGTM ack 收齐 | ✅ | Bryce / huangzhangshu / ziang / Weston / 符炫炜 / Planetegg / chenyexuan + 冬柏 + cuiwenbo + dongdong + huangheng final verdict 全 ack |
+| 架构师 v8.2 docs 入仓 | ✅ | `docs/zh-CN/architecture/task-system-hard-cut-v8.md` + `task-system-invariants.md` |
+| 黄章书 部署/发布/回滚 docs 入仓 | ✅ | `docs/zh-CN/architecture/task-17-deployment-release-runbook.md` |
+| ziang 状态机/cleanup SoT 验收 docs 入仓 | ✅ | `docs/zh-CN/architecture/task-17-state-machine-validation.md` |
+| Weston scope 一致性 verify | ✅ | commit `9a6dd243` scope 收紧到 8 项主线 + invariant uniform |
+| Bryce 代码主线 file-by-file align ziang 7 修正 | ✅ | Bryce file-by-file 章节 in `task-17-code-changes.md`，PR diff 全 align |
+| **多文档并发压测阈值通过**（Planetegg #22 主跑） | ✅ | Planetegg 真实压测：10 docs × 5 concurrent / 153.66s 收敛 / 40/40 ACTIVE / health p95 ≤ 2ms / PG 34 ≤ 55 budget ≤ 70 / Redis 无积压 |
+| **smoke regression diff = 0**（PR merge 前后同一 hurl smoke set 全 pass，新 fail = 0） | ✅ | 6 套 hurl smoke baseline 含 web_access #1794 / 模型基准 #1863 全 pass |
+| 失败注入用真路径不允许 mock（按 §5.5 规范） | ✅ | Redis kill / k8s pod kill / PG iptables drop 全用真路径，无 mock client 绕过 |
+| **PR `lint-and-unit` CI 全绿**（Lesson #12 extension v4 mandatory） | ✅ | commit `335fe586` Weston push 删除 PR #1876 时代 obsolete test `test_app_lifespan_launches_all_graph_indexing_worker_lanes`（与 task #17 hard cut 冲突）后 CI 全绿 |
 
-最终 verdict 由 huangheng 在 PR 合并前填，附 thread message ID 引用。
+最终 verdict：🟢 同意通过 / squash merge by 符炫炜 → `5a0aa804`（msg=10954036 final ratify / msg=c96816c4 PM 确认 / msg=eb95612a earayu2 phase 2 directive）。
 
 ---
 
@@ -262,3 +285,5 @@ CR cross-check 表里任何 ✅ 标注被 surface 为 false positive 时，立�
 
 - 2026-04-29 23:54 commit `d9438f8`：huangheng 初版，5 cross-check + 6 hard gate + 7 实现修正 + lessons + 工作流 + verdict 表
 - 2026-04-30 00:05 fold-in 冬柏 msg=d56bb0f7 补充 4 条：6 hard gate test 文件 mapping 子表（§二）/ 失败注入真路径规范（§5.5）/ 压测阈值具体化 + smoke regression baseline（§七 verdict 表新增 3 行）
+- 2026-04-30 01:13 task #17 PR #1884 squash merge 至 main（commit `5a0aa804`），架构师 final ratify msg=10954036，PM 确认 msg=c96816c4
+- 2026-04-30 phase 2 huangheng follow-up（本次 commit）：§ 七 verdict 表全部 backfill ship 实数据 / 新增「PR `lint-and-unit` CI 全绿」mandatory 行 / § 四 新增 Lesson #12 extension v4（CI gate mandatory）+ Lesson #13（invariant evolution dual-side rewrite obsolete regression test）/ § 六 sediment 引用追加 phase 2 ship 节点
