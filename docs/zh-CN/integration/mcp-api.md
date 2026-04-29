@@ -85,7 +85,7 @@ chunk = read_document_chunk(
 - `expand_graph_subgraph`：从实体名扩展邻居和关系，适合关系探索。
 - `get_entity_detail`：已知实体名时获取详情。
 
-task #32 Phase A 后，Graph 元素响应会携带 `evidence_refs`。每个 ref 至少包含：
+Graph 元素响应当前已携带 `evidence_refs`（task #32 Phase A 落地，PR #1909 + PR #1912）。每个 ref 至少包含：
 
 ```json
 {
