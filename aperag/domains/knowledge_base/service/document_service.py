@@ -277,19 +277,6 @@ async def _resolve_parser_config_for_collection(collection_id: str, session: Asy
     return parser_config
 
 
-def _trigger_index_reconciliation():
-    """No-op — Wave 3 T3.1 chunk 3.
-
-    The legacy Celery beat-driven ``reconcile_indexes_task`` is gone;
-    the new ``aperag.indexing.reconciler.run_reconcile_loop`` runs
-    continuously inside the FastAPI process so manual triggering is
-    unnecessary. Kept as a no-op shim so the existing call sites
-    compile; the periodic 30-s loop picks up any newly-PENDING rows
-    immediately.
-    """
-    return None
-
-
 class DocumentService:
     """Document service that handles business logic for documents"""
 
@@ -750,9 +737,6 @@ class DocumentService:
 
         response = await self.db_ops.execute_with_transaction(_create_documents_atomically)
 
-        # Trigger index reconciliation after successful document creation
-        _trigger_index_reconciliation()
-
         return DocumentList(items=response)
 
     async def list_documents(
@@ -942,13 +926,10 @@ class DocumentService:
             return await self._delete_document(session, user, collection_id, document_id)
 
         result = await self.db_ops.execute_with_transaction(_delete_document_atomically)
-
-        # Trigger reconciliation to process the deletion
-        _trigger_index_reconciliation()
         return result
 
     async def delete_documents(self, user: str, collection_id: str, document_ids: List[str]) -> dict:
-        """Delete multiple documents and trigger index reconciliation."""
+        """Delete multiple documents."""
 
         async def _delete_documents_atomically(session: AsyncSession):
             deleted_ids = []
@@ -958,9 +939,6 @@ class DocumentService:
             return {"deleted_ids": deleted_ids, "status": "success"}
 
         result = await self.db_ops.execute_with_transaction(_delete_documents_atomically)
-
-        # Trigger reconciliation to process deletions
-        _trigger_index_reconciliation()
         return result
 
     async def rebuild_document_indexes(
@@ -1022,7 +1000,6 @@ class DocumentService:
             return {"code": "200", "message": f"Index rebuild initiated for types: {', '.join(index_types)}"}
 
         result = await self.db_ops.execute_with_transaction(_rebuild_document_indexes_atomically)
-        _trigger_index_reconciliation()
         return result
 
     async def rebuild_failed_indexes(self, user_id: str, collection_id: str) -> dict:
@@ -1115,7 +1092,6 @@ class DocumentService:
             }
 
         result = await self.db_ops.execute_with_transaction(_rebuild_failed_indexes_atomically)
-        _trigger_index_reconciliation()
         return result
 
     async def get_document_chunks(self, user_id: str, collection_id: str, document_id: str) -> List[Chunk]:
@@ -1648,9 +1624,6 @@ class DocumentService:
                     failed_count += 1
 
         await self.db_ops.execute_with_transaction(_confirm_documents_atomically)
-
-        # Trigger index reconciliation
-        _trigger_index_reconciliation()
 
         return ConfirmDocumentsResponse(
             confirmed_count=confirmed_count, failed_count=failed_count, failed_documents=failed_documents
