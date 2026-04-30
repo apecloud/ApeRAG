@@ -303,6 +303,138 @@ class Chunk(BaseModel):
     metadata: Optional[dict[str, Any]] = None
 
 
+# task #61 P1-D3 (PR for #87): expose the deployment-wide vector backend
+# identity + capability matrix on collection metadata reads.
+#
+# Unlike ``CollectionConfig.graph_backend_type`` which is a per-collection
+# choice (`postgres` / `neo4j` / `nebula`), the active vector backend is
+# deployment-wide via ``settings.vector_db_type`` (``aperag/config.py``).
+# Per architect msg=bc92ca70 we project that single deployment value onto
+# every collection read, so the FE can render a static "vector backend
+# identity + capability matrix" panel without per-collection migration or
+# per-collection runtime probe.
+#
+# Capability flags are **static declarations** — they mirror the spec
+# decisions surfaced by task #83 (P1-V1~V4, vector adapter behavior fixes).
+# The matrix is intentionally additive: new flags can be added without
+# breaking older clients that bind to a subset of fields.
+class VectorBackendCapabilities(BaseModel):
+    """Static capability matrix for the deployment's vector backend.
+
+    Per task-61 spec § 2.3 P1-D3 (`task-61-db-adapter-compat-spec-v1.md`)
+    the capability flags are documented declarations of behavior that the
+    FE may surface in a "what does this backend support" panel. Flag
+    values are derived from the spec decisions logged on task #83 (vector
+    adapter behavior); they are not measured at runtime. If task #83
+    re-frames the declared values the static matrix below should track.
+    """
+
+    supports_atomic_batch_upsert: bool = Field(
+        ...,
+        description=(
+            "Whether the backend guarantees atomic visibility of a batch upsert. "
+            "Per task #83 P1-V2."
+        ),
+    )
+    supports_filter_or_with_empty_parts: bool = Field(
+        ...,
+        description=(
+            "Whether the backend accepts a top-level OR filter that contains "
+            "empty/no-op parts. Per task #83 P1-V3."
+        ),
+    )
+    supports_legacy_mode: bool = Field(
+        ...,
+        description=(
+            "Whether the backend exposes a legacy compatibility mode that the "
+            "platform may still create/read. Per task #83 P1-V4."
+        ),
+    )
+
+
+class VectorBackendInfo(BaseModel):
+    """Deployment vector backend identity + capability projection.
+
+    Read-only on collection metadata. Projected from
+    ``settings.vector_db_type``; **not** persisted per collection. If a
+    future task introduces a per-collection vector backend override, this
+    schema can stay; the projection helper would then read from the
+    collection row first and fall back to ``settings.vector_db_type``.
+    """
+
+    type: Literal["pgvector", "qdrant"] = Field(
+        ...,
+        description=(
+            "Active deployment vector backend identity, projected from "
+            "``settings.vector_db_type``."
+        ),
+    )
+    capabilities: VectorBackendCapabilities = Field(
+        ...,
+        description="Static capability declaration for the deployment vector backend.",
+    )
+
+
+# Per task #83 P1-V* spec declaration. Capability values do **not**
+# change at runtime — the dict key is the ``settings.vector_db_type``
+# lookup. Cross-PR consistency: the 2 connector-level truth flags
+# (``supports_atomic_batch_upsert`` + ``supports_legacy_mode``) mirror
+# the ``aperag/vectorstore/base.py::BACKEND_CAPABILITIES`` ClassVar
+# attached to each connector by task #83 (PR #1948). The 3rd flag
+# (``supports_filter_or_with_empty_parts``) is schema-layer-only —
+# task #83 P1-V3 makes both adapters reject empty Or parts uniformly,
+# so the flag stays False for every backend; it remains in the schema
+# so the FE can render the declared behavior explicitly per spec
+# § 2.3 P1-D3 「显示『允许差异但显式』」(per architect msg=fe7e48cb
+# cross-PR ground-truth-source = connector ClassVar).
+_STATIC_VECTOR_BACKEND_CAPABILITIES: dict[str, VectorBackendCapabilities] = {
+    "pgvector": VectorBackendCapabilities(
+        # PGVector inherits PG transactional semantics for batch upsert
+        # — mirror of ``PGVectorConnector.BACKEND_CAPABILITIES`` per
+        # task #83 PR #1948.
+        supports_atomic_batch_upsert=True,
+        # Post task #83 P1-V3 (PR #1948): translator-level
+        # defense-in-depth rejects empty Or parts on top of the
+        # ``Or.__post_init__`` DSL-level reject, uniformly across
+        # adapters.
+        supports_filter_or_with_empty_parts=False,
+        # PGVector has no separate legacy schema mode — mirror of
+        # ``PGVectorConnector.BACKEND_CAPABILITIES`` per task #83.
+        supports_legacy_mode=False,
+    ),
+    "qdrant": VectorBackendCapabilities(
+        # Qdrant batch upsert is best-effort; per task #83 P1-V2.
+        # Mirror of ``QdrantConnector.BACKEND_CAPABILITIES``.
+        supports_atomic_batch_upsert=False,
+        # Per task #83 P1-V3 (PR #1948): Qdrant translator also
+        # rejects empty Or parts. Uniform with PGVector.
+        supports_filter_or_with_empty_parts=False,
+        # Qdrant exposes a legacy collection mode; per task #83 P1-V4.
+        # Mirror of ``QdrantConnector.BACKEND_CAPABILITIES``.
+        supports_legacy_mode=True,
+    ),
+}
+
+
+def project_vector_backend_info(vector_db_type: str) -> Optional[VectorBackendInfo]:
+    """Build a static :class:`VectorBackendInfo` for the active backend.
+
+    The argument is the raw ``settings.vector_db_type`` string. Unknown
+    backends return ``None`` rather than raising — the projection field is
+    declared ``Optional[VectorBackendInfo]`` so the FE can render a
+    "unknown backend" placeholder without a hard failure on misconfigured
+    deployments.
+    """
+
+    backend = (vector_db_type or "").strip().lower()
+    capabilities = _STATIC_VECTOR_BACKEND_CAPABILITIES.get(backend)
+    if capabilities is None:
+        return None
+    # mypy: ``backend`` is checked against the dict keys, which match the
+    # ``Literal['pgvector', 'qdrant']`` shape. Pydantic will re-validate.
+    return VectorBackendInfo(type=backend, capabilities=capabilities)  # type: ignore[arg-type]
+
+
 __all__ = [
     "ModelSpec",
     "KnowledgeGraphConfig",
@@ -312,4 +444,7 @@ __all__ = [
     "PaginatedResponse",
     "VisionChunk",
     "Chunk",
+    "VectorBackendCapabilities",
+    "VectorBackendInfo",
+    "project_vector_backend_info",
 ]

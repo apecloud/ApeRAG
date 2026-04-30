@@ -833,7 +833,19 @@
     "export_knowledge_base_failed_description": "An error occurred during export. Please try again.",
     "export_knowledge_base_retry": "Retry",
     "export_knowledge_base_too_many_tasks": "An export task is already in progress. Please wait for it to complete.",
-    "export_knowledge_base_link_expired": "The export link has expired. Please export again."
+    "export_knowledge_base_link_expired": "The export link has expired. Please export again.",
+    "vector_backend_card_title": "Vector backend",
+    "vector_backend_card_description": "Read-only deployment vector backend identity and capability matrix. Configured per deployment, not per collection.",
+    "vector_backend_identity": "Active backend",
+    "vector_backend_unknown_placeholder": "The active vector backend is not in the static capability matrix.",
+    "vector_backend_capability_supported": "Supported",
+    "vector_backend_capability_unsupported": "Not supported",
+    "vector_backend_capability_atomic_batch_upsert": "Atomic batch upsert",
+    "vector_backend_capability_atomic_batch_upsert_description": "Whether the backend guarantees atomic visibility of a batch upsert.",
+    "vector_backend_capability_filter_or_empty_parts": "Tolerate empty Or parts",
+    "vector_backend_capability_filter_or_empty_parts_description": "Whether the backend accepts a top-level Or filter that contains empty/no-op parts.",
+    "vector_backend_capability_legacy_mode": "Legacy compatibility mode",
+    "vector_backend_capability_legacy_mode_description": "Whether the backend exposes a legacy collection mode that the platform may still create or read."
   },
   "page_docs": {
     "metadata": {

@@ -44,6 +44,7 @@ from aperag.schema.common import (
     CollectionConfig,
     PageResult,
     PaginatedResponse,
+    VectorBackendInfo,
     VisionChunk,
 )
 
@@ -98,6 +99,26 @@ class Collection(BaseModel):
     # msg=e4120886 reproducer).
     summary: Optional[str] = Field(None, description="Auto-generated long-form knowledge-base summary")
     config: Optional[CollectionConfig] = None
+    # task #61 P1-D3 (PR for #87): read-only projection of the deployment
+    # vector backend identity + capability matrix. **Intentionally placed
+    # on Collection (read response) and NOT inside CollectionConfig.**
+    # ``CollectionConfig`` is reused as the create/update input shape, so
+    # putting vector_backend there would expose the field on the OpenAPI
+    # ``CollectionCreate``/``CollectionUpdate`` input schemas and let
+    # callers mistake a deployment-wide setting for a per-collection
+    # editable knob (per dongdong msg=c2593fdd + PM msg=caf7e4df + spec
+    # P1-D3 read-only projection lock). Projected by
+    # ``collection_service.build_collection_response()`` from
+    # ``settings.vector_db_type``; ``None`` for unknown backends so the FE
+    # can render a placeholder without a hard failure.
+    vector_backend: Optional[VectorBackendInfo] = Field(
+        None,
+        description=(
+            "Read-only deployment vector backend identity + static capability "
+            "matrix. Projected from ``settings.vector_db_type``; not editable "
+            "per collection."
+        ),
+    )
     status: Optional[Literal["ACTIVE", "INACTIVE", "DELETED"]] = None
     created: Optional[datetime] = None
     updated: Optional[datetime] = None

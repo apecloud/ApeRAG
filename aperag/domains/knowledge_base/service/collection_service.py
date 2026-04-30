@@ -67,8 +67,9 @@ from aperag.domains.retrieval.schemas import (
     SearchResultItem,
     SearchResultList,
 )
+from aperag.config import settings
 from aperag.exceptions import ValidationException
-from aperag.schema.common import PageResult
+from aperag.schema.common import PageResult, project_vector_backend_info
 from aperag.schema.utils import dumpCollectionConfig, parseCollectionConfig
 from aperag.utils.constant import QuotaType
 from aperag.utils.utils import utc_now
@@ -191,6 +192,16 @@ class CollectionService:
             type=instance.type,
             status=getattr(instance, "status", None),
             config=parseCollectionConfig(instance.config),
+            # task #61 P1-D3 (PR for #87): static read-only projection of
+            # the deployment vector backend identity + capability matrix.
+            # The value is identical for every collection in the
+            # deployment because ``settings.vector_db_type`` is a
+            # deployment-wide env var (``aperag/config.py``); the
+            # projection is intentionally not persisted per row. Returns
+            # ``None`` when the configured backend is not in the static
+            # capability matrix so the FE can render a placeholder
+            # without a hard failure on misconfigured deployments.
+            vector_backend=project_vector_backend_info(settings.vector_db_type),
             created=instance.gmt_created.isoformat(),
             updated=instance.gmt_updated.isoformat(),
         )
