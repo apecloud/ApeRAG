@@ -38,7 +38,7 @@ import logging
 import mimetypes
 import os
 import re
-from typing import List
+from typing import Any, List
 
 from fastapi import HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
@@ -1101,73 +1101,64 @@ class DocumentService:
 
         # Use database operations with proper session management
         async def _get_document_chunks(session):
-            # Wave 3 §F.1 schema migration: legacy
-            # ``DocumentIndex.index_data`` JSON blob (which used to
-            # carry ``context_ids``) is gone. The chunk id list now
-            # lives in the ``derived/parse_<v>/chunks.jsonl`` artifact
-            # on the object store, addressed by the row's
-            # ``derived_artifact_path``. Plumbing the object-store
-            # read path into this HTTP handler is a chenyexuan T3.1
-            # commit 4b follow-up; for now we exercise the §F.1
-            # partial-unique invariant via a serving-row probe and
-            # return an empty chunk list (degraded but safe — clients
-            # see "no chunks indexed" until the read path lands).
             stmt = select(DocumentIndex.derived_artifact_path).filter(
+                DocumentIndex.collection_id == collection_id,
                 DocumentIndex.document_id == document_id,
                 DocumentIndex.modality == Modality.VECTOR.value,
                 DocumentIndex.is_serving.is_(True),
             )
             result = await session.execute(stmt)
-            _ = result.scalars().first()
-            ctx_ids: list[str] = []
-            if not ctx_ids:
+            chunks_path = result.scalars().first()
+            if not chunks_path:
                 return []
 
-            # 2. Retrieve chunks via the vector-store connector. We go through
-            # the connector (not the raw qdrant client) because in multitenant
-            # mode it (a) routes to the correct global Qdrant collection based
-            # on vector_size and (b) enforces the tenant-id guard.
             try:
-                collection_obj = await self.db_ops.query_collection(user_id, collection_id)
-                vector_size = None
-                if collection_obj is not None:
+                async_obj_store = get_async_object_store()
+                get_result = await async_obj_store.get(chunks_path)
+                if not get_result:
+                    return []
+
+                stream, _ = get_result
+                body = b""
+                async for data in stream:
+                    body += data
+
+                chunks: list[Chunk] = []
+                for line_no, raw_line in enumerate(body.decode("utf-8", errors="replace").splitlines(), start=1):
+                    if not raw_line.strip():
+                        continue
                     try:
-                        from aperag.llm.embed.base_embedding import get_collection_embedding_service_sync
-
-                        _, vector_size = get_collection_embedding_service_sync(collection_obj)
-                    except Exception:
-                        vector_size = None
-
-                from aperag.config import get_vector_db_connector as _get_vdb
-
-                vector_store_adaptor = _get_vdb(
-                    collection=generate_vector_db_collection_name(collection_id=collection_id),
-                    vector_size=vector_size,
-                )
-                points = vector_store_adaptor.connector.retrieve(ids=ctx_ids)
-
-                # 3. Format the response using the shared payload flattener,
-                # which understands both the modern {text, metadata} shape
-                # and the legacy LlamaIndex _node_content JSON blob.
-                from aperag.vectorstore.dto import flatten_node_payload
-
-                chunks = []
-                for point in points:
-                    flat = flatten_node_payload(point.payload or {})
+                        record: dict[str, Any] = json.loads(raw_line)
+                    except json.JSONDecodeError:
+                        logger.warning("Skipping malformed chunks.jsonl line %s at %s", line_no, chunks_path)
+                        continue
+                    chunk_id = record.get("chunk_id") or record.get("id")
+                    if not chunk_id:
+                        logger.warning("Skipping chunk without chunk_id at %s line %s", chunks_path, line_no)
+                        continue
+                    metadata = {
+                        key: value
+                        for key, value in {
+                            "section_path": record.get("section_path"),
+                            "heading_anchor": record.get("heading_anchor"),
+                            "page_idx": record.get("page_idx"),
+                        }.items()
+                        if value is not None
+                    }
+                    raw_metadata = record.get("metadata")
+                    if isinstance(raw_metadata, dict):
+                        metadata.update(raw_metadata)
                     chunks.append(
                         Chunk(
-                            id=point.id,
-                            text=flat.get("text") or "",
-                            metadata=flat.get("metadata") or {},
+                            id=str(chunk_id),
+                            text=str(record.get("text") or ""),
+                            metadata=metadata,
                         )
                     )
-
                 return chunks
             except Exception as e:
-                logger.error(
-                    f"Failed to retrieve chunks from vector store for document {document_id}: {e}", exc_info=True
-                )
-                raise HTTPException(status_code=500, detail="Failed to retrieve chunks from vector store")
+                logger.error("Failed to read chunks.jsonl for document %s at %s: %s", document_id, chunks_path, e)
+                raise HTTPException(status_code=500, detail="Failed to retrieve document chunks")
 
         # Execute query with proper session management
         return await self.db_ops._execute_query(_get_document_chunks)

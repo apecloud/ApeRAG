@@ -57,6 +57,9 @@ from aperag.utils.utils import generate_vector_db_collection_name
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_SEARCH_TOP_K = 5
+DEFAULT_VECTOR_SIMILARITY = 0.5
+
 
 class CollectionRow(Protocol):
     """Structural view of the legacy ``aperag.db.models.Collection``
@@ -73,6 +76,18 @@ class CollectionRow(Protocol):
     id: str
     user: str
     config: Any
+
+
+def _top_k_or_default(value: Optional[int]) -> int:
+    if value is None:
+        return DEFAULT_SEARCH_TOP_K
+    return max(1, int(value))
+
+
+def _similarity_or_default(value: Optional[float]) -> float:
+    if value is None:
+        return DEFAULT_VECTOR_SIMILARITY
+    return float(value)
 
 
 def _render_graph_context_text(entities: list[Any], relations: list[Any]) -> str:
@@ -284,11 +299,13 @@ class SearchPipelineService:
         self,
         collection: CollectionRow,
         query: str,
-        top_k: int,
-        similarity_threshold: float,
+        top_k: Optional[int],
+        similarity_threshold: Optional[float],
         chat_id: Optional[str] = None,
     ) -> List[DocumentWithScore]:
         try:
+            resolved_top_k = _top_k_or_default(top_k)
+            resolved_similarity = _similarity_or_default(similarity_threshold)
             collection_name = generate_vector_db_collection_name(collection.id)
             embedding_model, vector_size = get_collection_embedding_service_sync(collection)
             vectordb_ctx = build_vector_db_context(collection_name, vector_size=vector_size)
@@ -298,8 +315,8 @@ class SearchPipelineService:
             query_fn = partial(
                 context_manager.query,
                 query,
-                score_threshold=similarity_threshold,
-                topk=top_k,
+                score_threshold=resolved_similarity,
+                topk=resolved_top_k,
                 vector=vector,
                 index_types=["vector"],
                 chat_id=chat_id,
@@ -324,7 +341,7 @@ class SearchPipelineService:
         self,
         collection: CollectionRow,
         query: str,
-        top_k: int,
+        top_k: Optional[int],
         keywords: Optional[List[str]],
         user_id: str,
         chat_id: Optional[str] = None,
@@ -351,8 +368,10 @@ class SearchPipelineService:
             logger.info("Skipping fulltext search for collection %s because enable_fulltext=false", collection.id)
             return []
 
+        resolved_top_k = _top_k_or_default(top_k)
         index_name = generate_fulltext_index_name(collection.id)
         final_keywords = list(keywords or [])
+        explicit_keywords = bool(final_keywords)
         if not final_keywords:
             extractor_ctx = {
                 "index_name": index_name,
@@ -363,13 +382,17 @@ class SearchPipelineService:
             }
             final_keywords = await extract_keywords(query, extractor_ctx)
 
-        final_keywords = list(set(final_keywords))
+        final_keywords = list(dict.fromkeys(final_keywords))
         if not final_keywords:
             logger.warning(
                 "Fulltext keyword extraction degraded for collection %s; falling back to raw query token",
                 collection.id,
             )
             final_keywords = [query]
+
+        raw_query = query.strip()
+        if raw_query and raw_query not in final_keywords:
+            final_keywords.append(raw_query)
 
         es_config = {
             "request_timeout": settings.es_timeout,
@@ -387,7 +410,7 @@ class SearchPipelineService:
                 "bool": {
                     "should": [{"match": {"content": kw}} for kw in final_keywords]
                     + [{"match": {"title": kw}} for kw in final_keywords],
-                    "minimum_should_match": "80%",
+                    "minimum_should_match": "80%" if explicit_keywords else 1,
                     "filter": [{"term": {"collection_id": str(collection.id)}}],
                 }
             }
@@ -408,7 +431,7 @@ class SearchPipelineService:
                 index=index_name,
                 query=es_query,
                 sort=[{"_score": {"order": "desc"}}],
-                size=top_k * 3,
+                size=resolved_top_k * 3,
                 routing=str(collection.id),
             )
             hits = resp.body["hits"]["hits"]
@@ -429,9 +452,15 @@ class SearchPipelineService:
         for hit in hits:
             source = hit.get("_source", {})
             metadata = {
+                "collection_id": source.get("collection_id"),
                 "source": source.get("name", ""),
                 "document_id": source.get("document_id"),
+                "parse_version": source.get("parse_version"),
                 "chunk_id": source.get("chunk_id"),
+                "section_path": source.get("section_path"),
+                "heading_anchor": source.get("heading_anchor"),
+                "page_idx": source.get("page_idx"),
+                "index_modality": "fulltext",
                 "recall_type": "fulltext_search",
             }
             if source.get("title"):
@@ -452,7 +481,7 @@ class SearchPipelineService:
         self,
         collection: CollectionRow,
         query: str,
-        top_k: int,
+        top_k: Optional[int],
     ) -> List[DocumentWithScore]:
         """Knowledge-graph retrieval path via :class:`GraphSearchService`.
 
@@ -504,7 +533,7 @@ class SearchPipelineService:
             )
             return []
 
-        anchors = await service.search_entities(query=query, top_k=top_k)
+        anchors = await service.search_entities(query=query, top_k=_top_k_or_default(top_k))
         if not anchors:
             return []
         anchor_names = [e.name for e in anchors]
@@ -518,10 +547,12 @@ class SearchPipelineService:
         self,
         collection: CollectionRow,
         query: str,
-        top_k: int,
-        similarity_threshold: float,
+        top_k: Optional[int],
+        similarity_threshold: Optional[float],
     ) -> List[DocumentWithScore]:
         try:
+            resolved_top_k = _top_k_or_default(top_k)
+            resolved_similarity = _similarity_or_default(similarity_threshold)
             collection_name = generate_vector_db_collection_name(collection.id)
             embedding_model, vector_size = get_collection_embedding_service_sync(collection)
             vectordb_ctx = build_vector_db_context(collection_name, vector_size=vector_size)
@@ -531,8 +562,8 @@ class SearchPipelineService:
             query_fn = partial(
                 context_manager.query,
                 query,
-                score_threshold=similarity_threshold,
-                topk=top_k,
+                score_threshold=resolved_similarity,
+                topk=resolved_top_k,
                 vector=vector,
                 index_types=["summary"],
             )
@@ -556,21 +587,23 @@ class SearchPipelineService:
         self,
         collection: CollectionRow,
         query: str,
-        top_k: int,
-        similarity_threshold: float,
+        top_k: Optional[int],
+        similarity_threshold: Optional[float],
     ) -> List[DocumentWithScore]:
         try:
+            resolved_top_k = _top_k_or_default(top_k)
+            resolved_similarity = _similarity_or_default(similarity_threshold)
             collection_name = generate_vector_db_collection_name(collection.id)
             embedding_model, vector_size = get_collection_embedding_service_sync(collection)
             vectordb_ctx = build_vector_db_context(collection_name, vector_size=vector_size)
             context_manager = ContextManager(collection_name, embedding_model, settings.vector_db_type, vectordb_ctx)
 
             vector = await asyncio.to_thread(embedding_model.embed_query, query)
-            expanded_top_k = top_k * 2
+            expanded_top_k = resolved_top_k * 2
             query_fn = partial(
                 context_manager.query,
                 query,
-                score_threshold=similarity_threshold,
+                score_threshold=resolved_similarity,
                 topk=expanded_top_k,
                 vector=vector,
                 index_types=["vision"],
