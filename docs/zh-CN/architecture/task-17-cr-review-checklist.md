@@ -517,6 +517,213 @@ Lesson #13 v3 (boundary 不重复事实保证 invariant) 反过来应用：**未
 
 **对应 Lesson #13 v3 family**：v3 (boundary 不重复事实保证) + 本条 (未实证 invariant 不预先锁) — 都是「不在错误时机 codify」的应用，不同方向（v3 是 over-codify 浪费，本条是 over-codify 限制扩展）。
 
+### Lesson #12 v7.4：external API raw contract verify（task #61 P0-B PR #1930 实证）
+
+Lesson #12 v7 三层 grep（caller signature / backend schema / runtime fallback）应用到**跨 backend adapter** 时必须扩展第 4 层：**外部 API raw contract 实测**。in-tree docstring 假设的「backend 返回值约定」可能跟外部 API 实际行为不一致 — trust docstring assumption 不 grep verify external API runtime behavior 是 v7 反 pattern 的跨边界变体。
+
+**first-application demo**：task #61 P0-B PR #1930 first iteration（commit `052665fc`）的 Qdrant euclid raw score convention：
+
+- `aperag/vectorstore/base.py` docstring 写「Qdrant native ... yields negative L2 distance」假设跟 PGVector `_score_expr = -(<->)` 同 convention
+- 实际 Qdrant `query_points()` Euclid distance 返 **positive L2 (smaller-is-better)** per `qdrant_client.local.LocalCollection.search()` `DistanceOrder.SMALLER_IS_BETTER`
+- shared helper `normalize_score("euclid", positive_L2)` 走 `max(0.0, -positive_L2) = 0.0` → 全 clamp 成 score=1.0；threshold pushdown 反向无效 → Weston msg=86e05a8e local `:memory:` 复现 `score_threshold=0.9 → []` empty
+- huangheng line-level CR (msg=5eb7315c) miss own-up：直接读 base.py docstring 没 grep verify external API raw return convention，trust in-tree assumption 是 v7 三层 grep 反 pattern 跨边界扩展（应该有 v7.4 第 4 层 external API contract verify）
+
+**修法（fix-forward `1e30a00e`）**：
+
+- shared helper `normalize_score` / `denormalize_threshold_to_native` 接口稳定（input contract = canonical higher-is-better raw）
+- Qdrant adapter `search()` 在 euclid path 自己 negate raw `p.score` 再进 helper；threshold pushdown 在 euclid path `native_threshold = -inv` 翻回正 L2 upper-bound
+- base.py docstring 显式声明 「Canonical raw conventions assumed below」+ 标注 Qdrant Euclid 是 asymmetric metric，adapter 负责 raw → canonical 转换
+- responsibility 在 adapter 层 cohesive；不暴露 `backend=` 参数避免 helper 接口扩散
+
+**实施步骤**（v7 sub-form 升级到 4 层 grep）：
+
+1. **Layer 1**：caller signature grep（v7 现有）
+2. **Layer 2**：backend schema layer grep（v7 现有，v7.2 sediment）
+3. **Layer 3**：runtime fallback grep（v7 现有）
+4. **Layer 4 (新)**：external API raw contract grep — 跨 backend adapter / 第三方 SDK / 外部 service 边界时，必须 grep 真实 SDK / API 文档 verify return value 方向 + 范围 + sign convention，不 trust in-tree docstring 假设
+
+**对应 Lesson family**：v7 (3-layer in-tree grep) + 本条 v7.4 (external API contract 4th layer) — 跨边界 contract verify 是 v7 family 的跨进程扩展，跟 v6.4 (function-self-verify ≠ aggregation-chain-verify) 同根「single-source verify 不等于 chain verify」。
+
+**CR cross-check 应用**：CR 看「跨 backend adapter / 第三方 SDK 调用」类 PR 时必走 4 层 grep；Layer 4 缺位 → BLOCKER fix-forward。
+
+### Lesson #12 v8 second-application：test docstring fake guardrail（task #61 P0-G1 PR #1927 实证）
+
+Lesson #12 v8 (fake guardrail anti-pattern) 跨 layer 应用：**test 层 docstring 也可能是 fake guardrail**。case docstring 声明「contract X must hold」但 assertion 不 pin contract X → docstring 看起来防回归，实际 backend 漂移 contract X 时 case 仍 pass 不 catch。
+
+**second-application demo**：task #61 P0-G1 PR #1927 first iteration（commit `381d7a75`）的 `bulk_upsert_entity_with_lineage_parts` 测试 case：
+
+- `_round_trip` docstring 写「3 distinct (document_id, parse_version) parts visible」+ assertion 仅 `keys == {("doc-A", "v1"), ...}` — 钉 lineage key 但**没钉 description 文本**
+- backend 正确写 lineage 但 bulk path 把 description text 丢掉（或 replay 后保留旧文本）→ docstring 声称防该回归，assertion 不 catch
+- huangzhangshu testing primary CR (msg=5bbc5d1a) catch：「会漏掉一种真实回归：后端正确写 lineage key，但 bulk 路径把 description text 丢掉或 replay 后保留旧文本」
+
+**修法（fix-forward `1953933a`）**：
+
+- `_round_trip`：3 个 (doc_id, parse_version) parts 加 `got.description_parts` key→text 全 verify (`from-doc-A-v1` / `from-doc-A-v2` / `from-doc-B-v1`)
+- `_dedup_last_wins_within_bulk`：钉 same-key parts 必须 keep `last-write` not `first-write`
+- `_replaces_existing_same_key`：钉 bulk 必须 overwrite single 写的 description text (`bulk` not `single`)
+- `_replay_is_idempotent`：钉 replay 必须 overwrite first call's description（last-wins on replay，**顺手 fold 第 4 处** — 原 NIT 提 3 处但 replay 同 family）
+
+**实施步骤**（CR 看 boundary / contract test 类 PR 时必走）：
+
+1. **Step A**：每个 case docstring 列出的 contract claim → 对应 assertion 必须 pin
+2. **Step B**：assertion 缺位 → docstring 不能声称防该回归，要么补 assertion 要么改 docstring 不夸大
+3. **Step C**：跨 case 找同一 contract 的 dual-side 应用（如 single + bulk 双路径必须双侧 assertion）— Lesson #13 v2.x dual-side rewrite 跟 v8 在 test 层交叉
+
+**对应 Lesson family**：v8 first-application 在 production code (`_estimate_window_prompt_tokens` synthetic placeholder) / 本条 second-application 在 test layer (docstring claim ≠ assertion pin) — 都是「surface check 字面 OK 不等于实际 verify」。
+
+### Lesson #12 v9：first-principles verify catch surface signal mistakes（task #61 双独立 source 实证）
+
+Lesson #12 v5 (CI status 解读 trust framing 反模式) 升级到 PR scope verify 阶段：**reviewer A surface signal X 后，reviewer B / spec author / 架构师不应直接 fold X 进 P0 list 而不做 first-principles re-verify**。double-trust framing 会让 mis-characterized P0 候选混进 fix scope，浪费 fix PR 工作 + spec lock 后 fix-forward。
+
+**first-application demo**：task #61 P0-V1 重新定性（Bryce msg=23a2f514 catch huangheng + 架构师双 first-look 错）：
+
+- huangheng msg=ed2f2973 surface「Qdrant `qdrant_connector.py:668-670` legacy mode 不做 tenant filter → cross-tenant data leak P0 risk」
+- 架构师 spec PR #1928 first draft cite 上述 file:line 为「P0-V1 数据正确性 risk CRITICAL」
+- Bryce first-principles verify catch：实际 Qdrant legacy mode `_resolve_collection_name()` (line 442-446) 把 `collection_name = tenant_id` per-tenant **物理 collection 隔离**，`retrieve()` 内部不需要 filter — 不构成 cross-tenant leak。huangheng + 架构师都没 walk `_resolve_collection_name()` 的 legacy branch 实证 collection 隔离机制。
+- 重新定性：P0-V1 降级 P1-V4 defense-in-depth 不对称（legacy 路径少一层 belt-and-braces filter）+ legacy mode deprecation follow-up 候选
+
+**second-application demo**：task #61 P0-B PR #1930 Qdrant euclid raw direction（Weston msg=86e05a8e catch Bryce + huangheng + 架构师三 reviewer 同时 miss）：
+
+- Bryce P0-B fix PR `052665fc` first iteration `normalize_score("euclid", raw)` 假设 PGVector 风格 negative L2
+- huangheng line-level CR (msg=5eb7315c) verify P0-B 数学正确，但**没 grep verify Qdrant 实际 raw score convention**（trust base.py docstring 假设）
+- 架构师 ratify standing (msg=06902347) 也跟 huangheng 同样 miss
+- Weston local `:memory:` 复现 `score_threshold=0.9 → []` empty + near/mid/far 全返 1.0 → first-principles verify catch real correctness bug
+
+**判断准则**：
+
+- reviewer A surface signal X → reviewer B 必须**独立 first-principles re-verify**（不只是 trust framing fold-in）
+- spec author / architect 在 spec lock 前必须跑「first-principles pre-check」每条 P0：「为什么这是 leak/correctness/atomicity 风险？换种实现可能不是？」
+- multi-reviewer cross-check 收敛后还有 surface signal mistake 漏过 → 是 cross-reviewer 各自 trust framing 没 first-principles verify 的 systemic 问题，不是 single-reviewer 失误
+
+**对应 Lesson family**：v5 (CI status trust framing) + 本条 v9 (PR scope first-principles verify) — 都是「reviewer 不能用 framing 替代实际 verify」的不同 layer 应用；v5 cover CI status 层，v9 cover PR signal/evidence 层。
+
+**CR cross-check 应用**：CR 看 multi-reviewer chain reference 同一 P0/BLOCKER claim 时必须独立 first-principles re-verify；缺位 → BLOCKER fix-forward 复发。
+
+### Lesson #13 v2.3：deploy manifest dual-side rewrite（task #61 P0-D1 PR #1929 实证）
+
+Lesson #13 v2.x dual-side rewrite 应用到 **deploy / k8s / Helm manifest 层**：当一组配套 manifest（API deployment + worker deployment + sidecar 等）共享 invariant（同 backend 凭据 / 同 env config / 同 secret refs）时，单侧 manifest 改动必须 dual-side 同步；否则跨 service / 跨进程 silent drift。
+
+**first-application demo**：task #61 P0-D1 PR #1929（commit `9720342`）Helm Neo4j worker env injection：
+
+- `deploy/aperag/templates/api-deployment.yaml` 已注入 `NEO4J_URI` / `NEO4J_USERNAME` / `NEO4J_PASSWORD` env / secret refs
+- `deploy/aperag/templates/indexing-worker-deployment.yaml` 缺对应 Neo4j env 注入 — 仅挂 `aperag-env` 默认空值
+- 后果：Helm `GRAPH_DB_TYPE=neo4j` 时 API 读图谱有凭据，worker 写图谱拿空 Neo4j config → graph 写入路径全静默失败 → DB 0 entity / 0 relation → API 返回空数据 + Singapore graph 可视化「empty + error 混淆」FE surface 现象的 deploy root cause
+- cuiwenbo task #70 P1 候选 2「FE 状态分离 / 后端 200+empty 区分」surface 当时归 FE root cause，实际是这条 deploy gap 的 silent fan-out 现象
+
+**修法（PR #1929）**：
+
+- worker deployment 加 `{{- if .Values.neo4j.enabled }}` 条件块 + `NEO4J_URI` / `USERNAME` / `PASSWORD` env / secret refs，跟 API deployment Neo4j 注入完全 mirror
+- `helm template --set neo4j.enabled=true --set api.env.GRAPH_DB_TYPE=neo4j` render 实证 worker manifest 包含 `NEO4J_URI=bolt://neo4j-cluster-neo4j:7687` + secret refs
+
+**实施步骤**（CR 看 deploy / Helm / k8s manifest 类 PR 必走）：
+
+1. **Step A**：grep 同套 manifest 集合（api-deployment / worker-deployment / sidecar / cron / init / scale-helper），看 secret refs / env vars / volume mounts 是否完整 mirror
+2. **Step B**：`helm template --set <toggle>` render 实证目标 manifest 真有目标 env，不只 source mirror 看上去对（Lesson #11 v5 entry-point migration sub-check 思路 — manifest render 实证类比 startup-time wire-in verify）
+3. **Step C**：grep 跨 backend (Neo4j / Nebula / PG / Qdrant / PGVector) — 每 backend 的 env / secret 注入是否对每个消费 service 都 dual-side mirror，不能某 backend 修了 api 漏 worker
+4. **Step D**：跨 backend follow-up scope inventory 必须显式标注（如 dongdong msg=4201465a 「Nebula 缺 Helm first-class dependency/secret」/「shape matrix 缺 3 组合」/「typed schema 缺 vector backend capability 暴露」），不能 silent assume PR 修一 backend 等于全 backend cover
+
+**对应 Lesson family**：v2.1 (import-level dual-side) + v2.2 (value-level dual-side) + 本条 v2.3 (deploy manifest dual-side) — 都是「invariant evolution dual-side rewrite 必须同步」的不同 layer 应用；v2.1/v2.2 cover code 层，v2.3 cover yaml/manifest 层。跟 Lesson #11 v5 entry-point migration sub-check 互补 —— v5 是 startup-time wire-in 跨 process parity，v2.3 是 deploy-time manifest 跨 service parity。
+
+**CR cross-check 应用**：CR 看 deploy / Helm / docker-compose / e2e shape env / typed schema 类 PR 必走 4 步；缺 manifest render 实证 OR 跨 service mirror 缺位 → BLOCKER fix-forward。
+
+### Lesson #13 v3 application demo 2：cross-source default value alignment（task #30 B3 PR #1925 实证）
+
+Lesson #13 v3 (boundary 不重复事实保证) 跨 source application：**同 default value 在多 source 暴露时（code const / Pydantic Field description / FE generated TypeScript schema / 架构 spec doc），任一 source 改动必须同步全 source**，否则 reader / API consumer / FE typed schema 三方拿到漂移 default。
+
+**first-application demo**：task #30 B3 PR #1925（commit `dae43f5`）`graph_extraction_window_size` 默认值锁定：
+
+- `aperag/indexing/graph_extractor.py:81` `_DEFAULT_GRAPH_EXTRACTION_WINDOW_SIZE = 1 → 2` ✅ 第 1 source
+- `aperag/schema/common.py:170` `KnowledgeGraphConfig.graph_extraction_window_size` description 「default 1 if unset」→「default 2 if unset」+ override 推荐文案 ✅ 第 2 source
+- `web/src/api-v2/schema.d.ts:4963` generated TypeScript description 必须 regen — 第一版 PR diff 漏（commit `67f578f` 仅修 spec NIT 没 regen schema），Weston msg=1e6b0838 BLOCKER catch
+- `docs/zh-CN/architecture/task-30-graph-chunk-window-spec-v1.md` § 3.1.1 line 85「初始 default `1` = 旧行为兼容回退」内部不一致（§ 4.2 lock default=2 但 § 3.1.1 仍说 1）— huangheng msg=bf785b12 NIT + Planetegg msg=c63acbf5 + Weston msg=1e6b0838 三独立 source 同时 surface
+
+**修法（fix-forward `dae43f5`）**：
+
+- `web/src/api-v2/schema.d.ts:4963` regen 跟 Pydantic Field description align
+- spec § 3.1.1 line 85 重写「B3 lock default `2`...保守 override `1` / 强模型 Gemini override `5`」
+
+**实施步骤**（CR 看 default value / public-facing constant / typed schema exposed value 类 PR 必走）：
+
+1. **Step A**：grep 同 default value 在 codebase 所有 source — Python const / Pydantic Field / Field description / FE schema.d.ts / 架构 spec doc / migration default / Helm values default — 必须 enumerate 全 source
+2. **Step B**：每 source 是否同步更新；missed source → BLOCKER（如 schema.d.ts 漏 regen → FE / API consumer 拿旧 default 是 typed contract drift）
+3. **Step C**：spec doc 内部一致性（不同 § 章节引用同一 default 必须同值，避免 reader 在不同段落看到漂移）— Lesson #14 architect invariant evolution multi-iteration cleanup 同 family
+4. **Step D**：generated schema (OpenAPI / TypeScript / GraphQL) 必须 explicit `make`/`yarn generate` regen + commit，不只手改 Pydantic 假定 generation
+
+**对应 Lesson family**：v3 (boundary 不重复事实保证) 反 pattern — default value 是事实但其 exposure source 必须 dual/multi-side rewrite 同步；本条 cross-source alignment 是 v3 跨 source layer 的 dual-side 应用，跟 v2.1/v2.2/v2.3 dual-side rewrite family 同根。跟 Lesson #14 architect invariant evolution multi-iteration cleanup 互补 — 默认值漂浮也是 invariant evolution 漏 source。
+
+**CR cross-check 应用**：CR 看 default value 改动类 PR 必走 4 步；schema.d.ts / spec 章节内部不一致 缺位 → BLOCKER fix-forward。
+
+### Lesson #14 application demo：task #30 B3 spec internal default 漂浮 cleanup（task #30 B3 PR #1925 实证）
+
+Lesson #14 (架构 invariant 删除多轮迭代收尾) 应用到 **spec 内部 default value 漂浮 cleanup**：spec § 早期章节（spec lock 时点的「初始 default」描述）在 default 经 benchmark 数据 lock 后必须同步收尾，不能只改 § 4.x lock 章节留 § 3.x 「初始 default」历史残留。
+
+**second-application demo**：task #30 B3 PR #1925 fix-forward `dae43f5` § 3.1.1 line 85 cleanup：
+
+- spec § 4.2 在 B3 PR amend 时 lock default=2 + 完整 sweet spot rationale + B2 evidence 表
+- spec § 3.1.1 line 85（「5 业务边界」初始 default 描述章节）仍写「初始 default `1` = 旧行为兼容回退，benchmark 后再 confirm 默认值」— 内部不一致
+- maintainer / reader 阅读时如先看 § 3.1.1 不看 § 4.2 lock 章节会拿旧 default
+- huangheng / Planetegg / Weston 三独立 source 同时 surface 该 NIT — sediment 强度 high 升格为 v3 cross-source alignment + Lesson #14 multi-iteration cleanup demo
+
+**修法（fix-forward `dae43f5`）**：
+
+- spec § 3.1.1 line 85 重写「B3 lock default `2` per § 4.2 sweet spot；保守 override `1` / 强模型 Gemini override `5`」
+
+**对应 Lesson family**：first-application 在 task #35 6 轮 fix-forward (PR #1899/1897/1898/1906/1910/1911) — 大型 sweeping cleanup directive 单 PR 无法一次 cover；本条 second-application 在 spec doc 内部 default 漂浮 cleanup — small-scale invariant evolution 单 spec 多 § 章节也需要 multi-iteration cleanup 收尾。Lesson #14 不仅 cover 跨 PR 大型 invariant 删除，也 cover 跨 § 同 spec 内部 invariant evolution。
+
+**CR cross-check 应用**：CR 看 spec amend 类 PR 必 grep 全 spec 跨 § 章节同 invariant 引用，避免 lock 章节修了 描述章节漂移。
+
+### Lesson #16：CI workflow paths filter dead reference 反 pattern（task #61 P0-W1 PR #1926 实证）
+
+CI workflow `paths:` filter（GitHub Actions / GitLab CI / 等）跟实际 source code 路径 drift 是「silent CI gate bypass」反 pattern — 比 Lesson #12 v8 fake guardrail 更隐性：fake guardrail 至少 CI 跑了但语义失语；workflow paths filter dead reference **CI 根本不跑**，所有 cross-adapter / cross-backend / cross-domain regression test 形同虚设。
+
+**first-application demo**：task #61 P0-W1 PR #1926（commit `a0403cf`）compat-test paths filter dead reference：
+
+- `.github/workflows/compat-test.yml` paths filter 指向 `aperag/domains/knowledge_graph/graphindex/**`
+- Wave 7 graph 层重写时 graph store impl 已迁到 `aperag/indexing/graph_storage/{neo4j,nebula,postgres}.py`，旧 `aperag/domains/knowledge_graph/graphindex/` 目录已删（dead reference 不是 stale）
+- 后果：任何 PR 修 `aperag/indexing/graph_storage/*.py` 都不 trigger Backend-Compat-Test workflow — 30+ cross-backend test 形同虚设
+- 冬柏 task #67 testing scan (msg=3e93bb64) 实证「该目录已被 Wave 7 删除 — `ls` 直接 No such file or directory」+ chenyexuan workflow gate audit (msg=f298011e) surface paths filter stale
+- task #25 Neo4j labels 500 vs Nebula/PG pass 这种 P0 cross-adapter bug 没在 compat-test 抓到的 root cause — workflow filter dead reference 完全跳过实际 backend code path
+
+**修法（PR #1926）**：
+
+- 加 `aperag/indexing/graph_storage/**` 真实 graph store impl 路径
+- 保留 legacy `aperag/domains/knowledge_graph/graphindex/**` defensive fallback（low cost，移除 footgun）
+- inline comment 写明 historical drift + invariant defense rationale
+
+**实施步骤**（CR 看 file-move / dir-rename / wave-style 重写 类 PR 必走）：
+
+1. **Step A**：grep 全仓 `.github/workflows/*.yml` paths filter — 列出所有引用 source 目录的 filter
+2. **Step B**：file-move 后实证目标目录存在（`ls` 不 No such file or directory）；若 source 目录已删则 paths filter 是 dead reference 必同步修
+3. **Step C**：file-move 跟 workflow paths filter sync 是 Lesson #15 file-move 3-step verify 第 4 步扩展（grep `.github/workflows/*.yml` paths 同步）— Lesson #15 升级到 v2 4-step verify
+4. **Step D**：CI gate 真触发实证 — paths filter 修后下一个修目标目录的 PR 必看 workflow 真 trigger（不是 source mirror 看上去对）
+
+**对应 Lesson family**：跟 Lesson #15 (file-move 3-step verify) 同 family — Lesson #15 cover code import / hurl reference / boundary test fixture 三步，本条扩展第 4 步 CI workflow paths sync。跟 Lesson #12 v8 fake guardrail 同根「surface check 形同虚设」但 v8 是 guardrail 函数 fake，本条是 CI gate 全 dead。
+
+**CR cross-check 应用**：CR 看 file-move / wave-style 重写 类 PR 必走 4 步；workflow paths filter sync 缺位 → BLOCKER fix-forward。
+
+### Lesson #17：backend 收敛 contract 优于上层 fork（task #69 + task #70 cross-PR 一次性收敛实证）
+
+simple-stable + private-deploy paramount directive (earayu2 msg=1224bec8) 在 cross-adapter / cross-backend contract 设计时具体应用：**当 backend 可以在 adapter 层收敛同一 contract（同 score 范围 / 同 score 方向 / 同 filter exception 类型 / 同 capability flag）时，优先 push backend adapter 收敛而不是让上层（FE / agent / MCP / API consumer）加 backend-aware branch 复制 backend 差异**。
+
+**核心 insight**：上层 fork (FE 加 `metric === 'cosine' ? ...` / `1 - score` / `score < 0.5 ? "low" : "high"` 类条件分支) 把 backend 差异复制到所有消费 surface，每加一个新消费 surface 都得 dup branch logic — 长期维护成本高 + drift risk 高。backend adapter 层收敛 (在 backend code 接口处一刀切转换成统一 contract) 维护点单一 + 上层消费 simple unconditional。
+
+**first-application demo**：task #69 P0-B（PR #1930 vector adapter score normalization）+ task #70 P1 候选 1 cross-PR 一次性收敛：
+
+- task #70 cuiwenbo msg=dfebf706 surface FE「PGVector cosine_distance（0=match）vs Qdrant cosine_similarity（1=match）— 同 query 跨 adapter 显示语义反向」P1 候选 1，初版修法是「FE 加 distance/similarity 标签 + branch」
+- task #69 P0-B 实施时 backend 一刀切收敛 0-1 higher=better contract（`normalize_score()` + `SearchHit.__post_init__` validator + `VectorStoreConnector.search()` docstring contract）
+- cuiwenbo verify (msg=cedc7703) FE 三处调用点都是 raw 显示无 manual flip：`web/src/...search-result-drawer.tsx:88` + `agent-turn-renderer.tsx:1161` + `message-reference.tsx:63` 全 `(score || 0).toFixed(2)` pattern
+- backend 收敛后 task #70 P1 候选 1 自动 fully resolved + FE 0 改动 — 「FE 加 distance/similarity 标签」修法变 obsolete
+
+**判断准则**（CR 看 cross-adapter / cross-backend 差异类 PR 时）：
+
+1. **第一选择**：backend adapter 层是否能用 helper / DTO validator / Protocol contract docstring 一刀切收敛差异？如果能 → 选这条
+2. **第二选择**：差异本质不可收敛（如 hint 名称 `ef_search` vs `hnsw_ef`）→ explicit capability declaration in adapter Protocol docstring + `typed schema` 暴露 capability flag，让上层 read flag 而不是 read backend type
+3. **最后才选**：上层加 backend-aware branch — 仅当上述两条不可行时（如 FE 必须做 backend-specific UI），且必须显式标注「FE branch 是 last-resort，跟 spec § X cross-link 防 silent drift」
+
+**对应 Lesson family**：跟 simple-stable + 私有化部署免维护 directive (`memory/feedback_simple_stable_deploy_and_forget.md`) 同源。跟 Lesson #11 v5 (entry-point migration cross-process parity) 互补 — v5 是「同 entry-point 跨 process」parity，#17 是「同 contract 跨 backend」parity，同 family 不同维度。跟 Lesson #14 (架构 invariant 删除多轮迭代) 配对 — 上层 backend-aware fork 一旦累积，未来收敛时是 multi-iteration cleanup（task #35 6 轮 fix-forward 实证），#17 在设计时点防止 fork。
+
+**CR cross-check 应用**：CR 看「上层加 backend-aware branch / 处理 backend 差异」类 PR 时必先问「能否 backend adapter 层收敛？」；若能 → push backend 收敛 PR 不接受上层 fork PR。
+
 ### Mini-pattern 17：跨真源状态漂移检测
 
 跨 truth source（DB / 文件 / cache / queue / 外部服务）状态依赖必须 enumerate 自动 detection 机制（cache key 含上游 version / 周期巡检 stale check / startup sanity check 三选一）。
@@ -587,6 +794,12 @@ CR cross-check 表里任何 ✅ 标注被 surface 为 false positive 时，立�
 - PR #1921 (commit `6d2db64`): A2 5 const co-scale + Pydantic schema layer 漏 own-up + fake guardrail anti-pattern 双 BLOCKER fix-forward — Lesson #12 v7.2 + v8 first-application demo
 - PR #1923 (commit `163b77c1`): B1 benchmark harness window-scoped validity + response_format default ON 双 BLOCKER fix-forward — Lesson #12 v6.4 + v7.3 first/second-application demo
 - PR #1922 (commit `0058507e`): chenyexuan task #33 P1 Lesson #15 file-move 3-step verify sediment（独立条目）— task #33 Layer 2 sediment trail
+- PR #1926 (commit `a0403cf`): chenyexuan task #61 P0-W1 `compat-test.yml` paths filter dead reference fix（`aperag/indexing/graph_storage/**` 真实路径加进 + 保留 legacy `aperag/domains/knowledge_graph/graphindex/**` defensive fallback）— Lesson #16 first-application demo + Lesson #15 file-move 3-step verify 升级到 v2 4-step（CI workflow paths sync 第 4 步）
+- PR #1929 (commit `9720342`): dongdong task #61 P0-D1 `indexing-worker-deployment.yaml` Helm Neo4j env / secret refs mirror API deployment — Lesson #13 v2.3 deploy manifest dual-side rewrite first-application demo
+- PR #1930 (commit `7ab474b9`): Bryce task #61 P0-A + P0-B cross-adapter filter fail-loud + score normalization — Lesson #12 v8 first-cleanup（Qdrant `_normalize_filter_input` `return None` 静默退化 → `UnsupportedFilterError(TypeError)` fail-loud）+ Lesson #12 v7.4 first-application demo（commit `1e30a00e` Weston BLOCKER fix-forward Qdrant Euclid raw direction asymmetry — external API raw convention verify）+ Lesson #12 v9 second-application demo（Weston msg=86e05a8e first-principles verify catch huangheng + Bryce + 架构师三 reviewer chain trust framing miss）
+- PR #1928 (commit `ed8def22`): 架构师 task #61 spec v1 入仓（DB adapter contract matrix + capability/degradation 显式 list + sub-task 拆分 + sample 限制免责章节）— task #61 spec source of truth
+- PR #1927 (commit `9c94cbc1`): 冬柏 task #61 P0-G1 `bulk_upsert_entity_with_lineage_parts` cross-backend test 38 cases × Neo4j/Nebula/PG — Lesson #12 v8 second-application demo（test docstring fake guardrail commit `1953933a` huangzhangshu testing primary CR catch description_parts text key→value assertion 缺位 fix-forward）+ Lesson #12 v5 cross-reviewer cross-check 实战实证（huangheng + ziang + huangzhangshu 三 reviewer 独立 surface 不同维度 invariant fold-in）
+- PR #1925 (commit `43648f94`): 架构师 task #30 B3 `_DEFAULT_GRAPH_EXTRACTION_WINDOW_SIZE = 1 → 2` lock + B2 evidence + sample 限制免责章节 — Lesson #13 v3 application demo 2 first-application（commit `dae43f5` cross-source default value alignment：Pydantic Field description + `web/src/api-v2/schema.d.ts:4963` regen + spec § 3.1.1 line 85 cleanup 三 source 同步）+ Lesson #14 application demo（spec § 3.1.1 「初始 default `1`」历史残留 multi-iteration cleanup）+ Lesson #12 v5 cross-reviewer cross-check（PM CI status 误报 × 2 实证 必 grep verify）
 
 ---
 
@@ -637,3 +850,15 @@ CR cross-check 表里任何 ✅ 标注被 surface 为 false positive 时，立�
   - **Lesson #12 v8**（fake guardrail anti-pattern — guardrail 函数 signature 必须接 actual runtime data 不能仅 synthetic placeholder）— task #30 A2 PR #1921 `_estimate_window_prompt_tokens(window_chunk_count, base_chunk_size=400)` first iteration first-application + fix-forward `6d2db64` 修法
   - **Lesson #13 v3 application demo**（未实证 invariant 不预先锁 — type narrowing / value space cap pre-locking 反过来应用 v3 不重复事实保证）— task #30 A2 PR #1921 NIT defer `Optional[str]` vs `Literal["zh", "en"]` first-application
   - § 六 sediment 引用追加 PR #1921 / PR #1923 / PR #1922 (chenyexuan Lesson #15 trail) 三 commit cross-link
+- 2026-04-30 task #30 全 phases + task #61 全 P0 闭环后 huangheng follow-up 子 PR 3（本次 commit）：§ 四 新增 8 lesson sediment（task #30 B3 + task #61 全 P0 实证累计 + cross-PR 多独立 source 同源 catch trail）+ § 六 sediment 引用追加 PR #1925 / #1926 / #1927 / #1928 / #1929 / #1930 六 commit cross-link：
+  - **Lesson #12 v7.4**（external API raw contract verify — Lesson #12 v7 三层 grep 跨 backend adapter / 第三方 SDK 边界扩展第 4 层 external API contract verify）— task #61 P0-B PR #1930 first-iteration `normalize_score("euclid", positive_L2)` Qdrant raw direction asymmetry first-application + fix-forward `1e30a00e` Qdrant adapter 边界 negate raw + threshold pushdown sign flip
+  - **Lesson #12 v8 second-application**（test docstring fake guardrail — case docstring 声称 contract X must hold 但 assertion 不 pin contract X，docstring 看起来防回归实际 backend 漂移 contract X 时 case 仍 pass）— task #61 P0-G1 PR #1927 first-iteration `_round_trip` 钉 lineage key 不钉 description text first-application + fix-forward `1953933a` 4 处 case `description_parts` text key→value 全 verify
+  - **Lesson #12 v9**（first-principles verify catch surface signal mistakes — reviewer A surface signal 后 reviewer B / spec author / 架构师不应直接 trust framing fold-in，必须独立 first-principles re-verify 防 mis-characterized P0/BLOCKER 候选混进 fix scope）— task #61 P0-V1 重新定性 Bryce msg=23a2f514 first-application catch huangheng + 架构师双 first-look 错（Qdrant legacy mode physical collection 隔离机制）+ task #61 P0-B Qdrant euclid raw direction Weston msg=86e05a8e second-application catch Bryce + huangheng + 架构师三 reviewer 同时 miss
+  - **Lesson #13 v2.3**（deploy manifest dual-side rewrite — invariant evolution dual-side rewrite family 跨 yaml/manifest 层应用：API + worker + sidecar 等同套 manifest 共享 invariant 必须 dual-side 同步）— task #61 P0-D1 PR #1929 commit `9720342` `indexing-worker-deployment.yaml` Helm Neo4j env / secret refs mirror API deployment first-application demo
+  - **Lesson #13 v3 application demo 2**（cross-source default value alignment — 同 default value 跨 multi-source 暴露时（code const / Pydantic Field / FE generated TypeScript schema / 架构 spec doc）任一改动必须 multi-source 同步）— task #30 B3 PR #1925 commit `dae43f5` `_DEFAULT_GRAPH_EXTRACTION_WINDOW_SIZE` Pydantic + schema.d.ts + spec § 3.1.1/§ 4.2 三 source 同步 first-application
+  - **Lesson #14 application demo**（spec 内部 default value 漂浮 multi-iteration cleanup — 跨 § 章节同 invariant 引用必须同值，不能 lock 章节修了描述章节漂移）— task #30 B3 PR #1925 fix-forward `dae43f5` § 3.1.1 line 85 「初始 default `1`」历史残留 cleanup second-application demo（first-application 在 task #35 6 轮 fix-forward）
+  - **Lesson #16**（CI workflow paths filter dead reference 反 pattern — workflow `paths:` filter 跟实际 source code 路径 drift 是「silent CI gate bypass」反 pattern，比 fake guardrail 更隐性：CI 根本不跑 cross-adapter / cross-backend regression test 形同虚设；Lesson #15 file-move 3-step verify 升级到 v2 4-step 加 grep `.github/workflows/*.yml` paths 同步）— task #61 P0-W1 PR #1926 commit `a0403cf` compat-test paths filter dead reference fix first-application demo + 冬柏 msg=3e93bb64 + chenyexuan msg=f298011e 双独立 source 同时 surface
+  - **Lesson #17**（backend 收敛 contract 优于上层 fork — simple-stable + private-deploy paramount directive earayu2 msg=1224bec8 在 cross-adapter / cross-backend contract 设计时具体应用：当 backend 可以在 adapter 层收敛同一 contract 时优先 push backend adapter 收敛而不是让上层 FE / agent / MCP / API consumer 加 backend-aware branch）— task #69 P0-B PR #1930 + task #70 P1 候选 1 cross-PR 一次性收敛 first-application demo（cuiwenbo msg=cedc7703 实证三处 FE 调用点 raw 显示无 manual flip → backend 收敛后 FE 0 改动 + task #70 P1 候选 1 fully resolved）
+- 2026-04-30 sediment 多源同源 catch trail (task #61 close 累计实证)：
+  - **cross-PR 双独立 source 同源** 多次 demo（Lesson #12 v9 Bryce + Weston / Lesson #16 chenyexuan + 冬柏 / Lesson #17 cuiwenbo + Bryce / Lesson #13 v3 application demo 2 huangheng + Planetegg + Weston 三独立 source）— sediment 强度 high 验证 framework 跨 reviewer 独立 surface 同源 invariant 是 systemic 信号
+  - **architect msg=03c892e0 + msg=daaeeab5** 总结性 sediment dispatch 显式列「Lesson #16 / v3.1 / v9 双 source / v7 extension / #17 simple-stable family / 3 deploy capability + 本 PR Lesson #14 cleanup demo + v7.3 cross-source default + 描述 NIT 反 fake guardrail demo」全 8+ 项 — 全 sediment 候选 cross-link 完整
