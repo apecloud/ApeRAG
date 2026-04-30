@@ -436,21 +436,49 @@ class GraphCurationService(AsyncBaseRepository):
 
     @staticmethod
     def _suggestion_to_dict(suggestion: GraphCurationSuggestion) -> dict[str, Any]:
+        entities = list(suggestion.entity_snapshots or [])
+        target_entity = GraphCurationService._target_entity_projection(
+            entities=entities,
+            target_entity_id=str(suggestion.target_entity_id),
+        )
         return {
             "id": suggestion.id,
             "run_id": suggestion.run_id,
+            "suggestion_batch_id": suggestion.run_id,
             "collection_id": suggestion.collection_id,
             "status": suggestion.status,
             "entity_ids": list(suggestion.entity_ids or []),
-            "entities": list(suggestion.entity_snapshots or []),
+            "entities": entities,
             "target_entity_id": suggestion.target_entity_id,
+            "suggested_target_entity": target_entity,
             "confidence_score": float(suggestion.confidence_score),
             "reason": suggestion.reason,
+            "merge_reason": suggestion.reason,
             "evidence": suggestion.evidence or {},
+            "evidence_refs": list(suggestion.evidence_refs or []),
             "resolution_note": suggestion.resolution_note,
             "created": suggestion.gmt_created.isoformat() if suggestion.gmt_created else None,
             "updated": suggestion.gmt_updated.isoformat() if suggestion.gmt_updated else None,
             "operated_at": suggestion.gmt_operated.isoformat() if suggestion.gmt_operated else None,
+        }
+
+    @staticmethod
+    def _target_entity_projection(
+        *,
+        entities: Sequence[dict[str, Any]],
+        target_entity_id: str,
+    ) -> dict[str, str]:
+        for entity in entities:
+            entity_id = str(entity.get("entity_id") or "")
+            entity_name = str(entity.get("entity_name") or entity_id)
+            if target_entity_id in {entity_id, entity_name}:
+                return {
+                    "entity_name": entity_name or target_entity_id,
+                    "entity_type": str(entity.get("entity_type") or ""),
+                }
+        return {
+            "entity_name": target_entity_id,
+            "entity_type": "",
         }
 
     async def _mark_run_running(self, run_id: str) -> None:
@@ -586,6 +614,7 @@ class GraphCurationService(AsyncBaseRepository):
                         confidence_score=suggestion["confidence_score"],
                         reason=suggestion["reason"],
                         evidence=suggestion["evidence"],
+                        evidence_refs=suggestion.get("evidence_refs"),
                     )
                 )
             await session.execute(

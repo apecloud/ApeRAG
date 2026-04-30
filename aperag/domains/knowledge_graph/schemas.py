@@ -151,6 +151,34 @@ class MergeSuggestionsRequest(BaseModel):
     )
 
 
+class GraphEvidenceRef(BaseModel):
+    """Lightweight source chunk reference for graph entity/relation evidence.
+
+    ``read_document_chunk`` is document-scoped, so MCP callers need both
+    ``document_id`` and ``chunk_id`` to follow graph evidence back to source
+    content. ``parse_version`` is carried when available to disambiguate
+    lineage across document re-parses.
+    """
+
+    document_id: str = Field(..., description="Source document ID")
+    chunk_id: str = Field(..., description="Source chunk ID")
+    parse_version: Optional[str] = Field(None, description="Parse version that produced this evidence ref")
+
+
+GraphCurationSuggestionStatusLiteral = Literal[
+    "PENDING",
+    "APPLY_PENDING",
+    "APPLYING",
+    "APPLIED",
+    "APPLY_FAILED",
+    "ACCEPTED",
+    "REJECTED",
+    "DISMISSED",
+    "EXPIRED",
+    "SUPERSEDED",
+]
+
+
 class GraphCurationRunSummary(BaseModel):
     """
     Summary of an asynchronous graph-curation run.
@@ -196,6 +224,15 @@ class GraphMergeSuggestionEntity(BaseModel):
     )
 
 
+class GraphMergeSuggestionTargetEntity(BaseModel):
+    """
+    Legacy FE-compatible target entity projection.
+    """
+
+    entity_name: str = Field(..., description="Recommended target entity display name", examples=["墨香居"])
+    entity_type: str = Field(..., description="Recommended target entity type", examples=["ORGANIZATION"])
+
+
 class GraphMergeSuggestionItem(BaseModel):
     """
     Persisted merge suggestion produced by graph curation.
@@ -203,8 +240,13 @@ class GraphMergeSuggestionItem(BaseModel):
 
     id: str = Field(..., description="Suggestion ID", examples=["gcs_abcd1234efgh5678"])
     run_id: str = Field(..., description="Run that produced this suggestion", examples=["gcr_abcd1234efgh5678"])
+    suggestion_batch_id: str = Field(
+        ...,
+        description="Backward-compatible alias of run_id for the existing FE review panel",
+        examples=["gcr_abcd1234efgh5678"],
+    )
     collection_id: str = Field(..., description="Collection ID", examples=["col123"])
-    status: Literal["PENDING", "ACCEPTED", "REJECTED", "EXPIRED", "SUPERSEDED"] = Field(
+    status: GraphCurationSuggestionStatusLiteral = Field(
         ..., description="Suggestion lifecycle status", examples=["PENDING"]
     )
     entity_ids: list[str] = Field(
@@ -221,6 +263,10 @@ class GraphMergeSuggestionItem(BaseModel):
         description="Recommended surviving entity ID if the suggestion is accepted",
         examples=["e_moxiangju"],
     )
+    suggested_target_entity: GraphMergeSuggestionTargetEntity = Field(
+        ...,
+        description="Backward-compatible target entity projection for the existing FE review panel",
+    )
     confidence_score: confloat(ge=0.0, le=1.0) = Field(
         ...,
         description="Aggregated confidence score for this suggestion",
@@ -231,9 +277,18 @@ class GraphMergeSuggestionItem(BaseModel):
         description="Human-readable explanation from pairwise LLM adjudication",
         examples=["两个实体都在描述同一家旧书店，名称和上下文高度重合。"],
     )
+    merge_reason: str = Field(
+        ...,
+        description="Backward-compatible alias of reason for the existing FE review panel",
+        examples=["两个实体都在描述同一家旧书店，名称和上下文高度重合。"],
+    )
     evidence: Optional[dict[str, Any]] = Field(
         None,
         description="Structured supporting evidence used to generate the suggestion",
+    )
+    evidence_refs: list[GraphEvidenceRef] = Field(
+        default_factory=list,
+        description="Display-ready source chunk refs supporting this suggestion",
     )
     resolution_note: Optional[str] = Field(
         None,
@@ -334,7 +389,7 @@ class SuggestionActionResponse(BaseModel):
         description="The action that was performed (normalized to lowercase)",
         examples=["accept"],
     )
-    suggestion_status: Literal["ACCEPTED", "REJECTED"] = Field(
+    suggestion_status: GraphCurationSuggestionStatusLiteral = Field(
         ...,
         description="Suggestion status after action processing",
         examples=["ACCEPTED"],
@@ -358,20 +413,6 @@ class SuggestionActionResponse(BaseModel):
 # Per §K.12 invariant #12 (grep-zero on legacy naming) the names are
 # ``Graph*`` only; per invariant #11 (D-3 candidate detection writes
 # only) these are read-only shapes — no mutation surface.
-
-
-class GraphEvidenceRef(BaseModel):
-    """Lightweight source chunk reference for graph entity/relation evidence.
-
-    ``read_document_chunk`` is document-scoped, so MCP callers need both
-    ``document_id`` and ``chunk_id`` to follow graph evidence back to source
-    content. ``parse_version`` is carried when available to disambiguate
-    lineage across document re-parses.
-    """
-
-    document_id: str = Field(..., description="Source document ID")
-    chunk_id: str = Field(..., description="Source chunk ID")
-    parse_version: Optional[str] = Field(None, description="Parse version that produced this evidence ref")
 
 
 class GraphSearchEntity(BaseModel):
@@ -593,6 +634,7 @@ __all__ = [
     "MergeSuggestionsRequest",
     "GraphCurationRunSummary",
     "GraphMergeSuggestionEntity",
+    "GraphMergeSuggestionTargetEntity",
     "GraphMergeSuggestionItem",
     "MergeSuggestionsRunResponse",
     "MergeSuggestionsResponse",

@@ -392,6 +392,7 @@ class MergeCandidateDetector(AsyncBaseRepository):
                         confidence_score=row["confidence_score"],
                         reason=row["reason"],
                         evidence=row["evidence"],
+                        evidence_refs=row.get("evidence_refs"),
                     )
                 )
 

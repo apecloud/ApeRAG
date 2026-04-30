@@ -43,7 +43,10 @@ from aperag.domains.knowledge_graph.schemas import (
     GraphSubgraphExpandResponse,
     KnowledgeGraph,
     MergeSuggestionsRequest,
+    MergeSuggestionsResponse,
+    MergeSuggestionsRunResponse,
     SuggestionActionRequest,
+    SuggestionActionResponse,
 )
 from aperag.domains.knowledge_graph.service import graph_service
 from aperag.exceptions import CollectionNotFoundException
@@ -187,6 +190,7 @@ async def merge_nodes_view(
 @router.post(
     "/collections/{collection_id}/graphs/merge-suggestions",
     tags=["graph"],
+    response_model=MergeSuggestionsRunResponse,
 )
 async def merge_suggestions_view(
     request: Request,
@@ -213,6 +217,7 @@ async def merge_suggestions_view(
 @router.get(
     "/collections/{collection_id}/graphs/merge-suggestions",
     tags=["graph"],
+    response_model=MergeSuggestionsResponse,
 )
 async def get_merge_suggestions_view(
     request: Request,
@@ -242,6 +247,7 @@ async def get_merge_suggestions_view(
 @router.post(
     "/collections/{collection_id}/graphs/merge-suggestions/{suggestion_id}/action",
     tags=["graph"],
+    response_model=SuggestionActionResponse,
 )
 async def handle_suggestion_action_view(
     request: Request,

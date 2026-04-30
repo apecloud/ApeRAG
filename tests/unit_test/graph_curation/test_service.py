@@ -7,6 +7,11 @@
 #     http://www.apache.org/licenses/LICENSE-2.0
 
 
+from datetime import datetime, timezone
+from decimal import Decimal
+from types import SimpleNamespace
+
+from aperag.domains.knowledge_graph.db.models import GraphCurationSuggestionStatus
 from aperag.domains.knowledge_graph.schemas import SuggestionActionRequest
 from aperag.graph_curation.candidate_generation import CandidatePair
 from aperag.graph_curation.dto import CurationEntity as Entity
@@ -104,3 +109,55 @@ def test_suggestion_action_request_normalizes_case_insensitively():
     request = SuggestionActionRequest(action=" REJECT ")
 
     assert request.action == "reject"
+
+
+def test_suggestion_to_dict_exposes_evidence_refs_and_new_status():
+    created = datetime(2026, 4, 30, tzinfo=timezone.utc)
+    suggestion = SimpleNamespace(
+        id="gcs_1",
+        run_id="gcr_1",
+        collection_id="col1",
+        status=GraphCurationSuggestionStatus.APPLY_PENDING,
+        entity_ids=["e1", "e2"],
+        entity_snapshots=[
+            {
+                "entity_id": "e1",
+                "entity_name": "墨香居",
+                "entity_type": "ORGANIZATION",
+                "description": "",
+                "source_chunk_count": 1,
+            },
+            {
+                "entity_id": "e2",
+                "entity_name": "旧书店",
+                "entity_type": "ORGANIZATION",
+                "description": "",
+                "source_chunk_count": 1,
+            },
+        ],
+        target_entity_id="e1",
+        confidence_score=Decimal("0.910"),
+        reason="same entity",
+        evidence={"pair_count": 1},
+        evidence_refs=[
+            {"document_id": "doc1", "chunk_id": "chunk1", "parse_version": "v1"},
+        ],
+        resolution_note=None,
+        gmt_created=created,
+        gmt_updated=created,
+        gmt_operated=None,
+    )
+
+    out = GraphCurationService._suggestion_to_dict(suggestion)
+
+    assert out["status"] == GraphCurationSuggestionStatus.APPLY_PENDING
+    assert out["suggestion_batch_id"] == "gcr_1"
+    assert out["merge_reason"] == "same entity"
+    assert out["suggested_target_entity"] == {
+        "entity_name": "墨香居",
+        "entity_type": "ORGANIZATION",
+    }
+    assert out["confidence_score"] == 0.91
+    assert out["evidence_refs"] == [
+        {"document_id": "doc1", "chunk_id": "chunk1", "parse_version": "v1"},
+    ]

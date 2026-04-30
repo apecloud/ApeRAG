@@ -74,8 +74,13 @@ class GraphCurationRunStatus(str, Enum):
 
 class GraphCurationSuggestionStatus(str, Enum):
     PENDING = "PENDING"
+    APPLY_PENDING = "APPLY_PENDING"
+    APPLYING = "APPLYING"
+    APPLIED = "APPLIED"
+    APPLY_FAILED = "APPLY_FAILED"
     ACCEPTED = "ACCEPTED"
     REJECTED = "REJECTED"
+    DISMISSED = "DISMISSED"
     EXPIRED = "EXPIRED"
     SUPERSEDED = "SUPERSEDED"
 
@@ -127,6 +132,7 @@ class GraphCurationSuggestion(Base):
     confidence_score = Column(Numeric(6, 3), nullable=False)
     reason = Column(Text, nullable=False)
     evidence = Column(JSON, nullable=True)
+    evidence_refs = Column(JSON, nullable=True)
     resolution_note = Column(Text, nullable=True)
     operated_by = Column(String(256), nullable=True)
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
