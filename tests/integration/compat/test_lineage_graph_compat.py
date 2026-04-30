@@ -912,6 +912,14 @@ async def test_bulk_upsert_entity_with_lineage_parts_round_trip(store, collectio
     assert keys == {("doc-A", "v1"), ("doc-A", "v2"), ("doc-B", "v1")}, (
         f"all 3 (document_id, parse_version) members must be visible after bulk; got {keys}"
     )
+    # Per @huangzhangshu msg=5bbc5d1a — description_parts text must
+    # round-trip alongside lineage keys; a backend that wrote the
+    # lineage member but dropped the description text would silently
+    # break agent context retrieval.
+    parts_by_key = {(p.document_id, p.parse_version): p.text for p in got.description_parts}
+    assert parts_by_key[("doc-A", "v1")] == "from-doc-A-v1"
+    assert parts_by_key[("doc-A", "v2")] == "from-doc-A-v2"
+    assert parts_by_key[("doc-B", "v1")] == "from-doc-B-v1"
 
 
 @pytest.mark.asyncio
@@ -932,6 +940,14 @@ async def test_bulk_upsert_entity_with_lineage_parts_dedup_last_wins_within_bulk
     assert got is not None
     matching = [lm for lm in got.source_lineage if lm.document_id == "doc-A" and lm.parse_version == "v1"]
     assert len(matching) == 1, f"same-key parts must collapse to one member; got {len(matching)}"
+    # Per @huangzhangshu msg=5bbc5d1a — last-wins is on description
+    # text not just lineage member. A backend that collapsed to one
+    # member but kept the FIRST description text would silently break
+    # the contract.
+    parts_by_key = {(p.document_id, p.parse_version): p.text for p in got.description_parts}
+    assert parts_by_key[("doc-A", "v1")] == "last-write", (
+        f"same-key dedup MUST keep last description text; got {parts_by_key.get(('doc-A', 'v1'))!r}"
+    )
 
 
 @pytest.mark.asyncio
@@ -950,6 +966,14 @@ async def test_bulk_upsert_entity_with_lineage_parts_replaces_existing_same_key(
     assert got is not None
     matching = [lm for lm in got.source_lineage if lm.document_id == "doc-A" and lm.parse_version == "v1"]
     assert len(matching) == 1, "single + bulk on same key must collapse to one member"
+    # Per @huangzhangshu msg=5bbc5d1a — bulk's strip-then-append MUST
+    # keep the bulk-side description text (not the prior single
+    # upsert's). A backend that kept the single-side text would silently
+    # fail the strip semantics.
+    parts_by_key = {(p.document_id, p.parse_version): p.text for p in got.description_parts}
+    assert parts_by_key[("doc-A", "v1")] == "bulk", (
+        f"bulk write MUST overwrite single-write description; got {parts_by_key.get(('doc-A', 'v1'))!r}"
+    )
 
 
 @pytest.mark.asyncio
@@ -1019,3 +1043,11 @@ async def test_bulk_upsert_entity_with_lineage_parts_replay_is_idempotent(store,
     assert got is not None
     matching = [lm for lm in got.source_lineage if lm.document_id == "doc-A" and lm.parse_version == "v1"]
     assert len(matching) == 1, f"replay must be idempotent (no duplicate member); got {len(matching)}"
+    # Per @huangzhangshu msg=5bbc5d1a — replay safety is not just about
+    # member dedup; the replay's description text MUST overwrite the
+    # first call's (last-wins on replay). A backend that kept the first
+    # text would silently fail forward-progress on retry.
+    parts_by_key = {(p.document_id, p.parse_version): p.text for p in got.description_parts}
+    assert parts_by_key[("doc-A", "v1")] == "v1-replay", (
+        f"replay MUST overwrite description (last-wins); got {parts_by_key.get(('doc-A', 'v1'))!r}"
+    )
