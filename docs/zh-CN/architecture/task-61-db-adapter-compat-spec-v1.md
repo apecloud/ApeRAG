@@ -11,7 +11,7 @@ description: ApeRAG vector + graph adapter 跨实现行为兼容性审计 + capa
 
 ### 1.1 Vector adapter (PGVector / Qdrant) — huangheng msg=ed2f2973 + Bryce msg=8e895471 grep 实证
 
-11 finding dedupe 后（Bryce + huangheng 同时 surface 部分项已合并）：4 P0 + 3 P1 + 4 P2 (file:line)：
+11 finding dedupe 后（Bryce + huangheng 同时 surface 部分项已合并 + Bryce msg=23a2f514 first-principles verify 后 P0-V1 下沉 P1-V4）：3 P0 + 4 P1 + 4 P2 (file:line)：
 
 | # | 路径 | 现象 |
 | --- | --- | --- |
@@ -177,12 +177,12 @@ P0/P1 contract 锁定后启动:
 - 每条 P0 必修项: adapter 实现 fix + boundary test 钉死 + capability declaration 入仓
 - `tests/integration/compat/test_vector_compat.py` + `test_lineage_graph_compat.py` cross-backend 跑 30+ case (含 § 1.2 冬柏 surface 3 missing methods 加进去) **跑过非 skip**
 - `compat-test.yml` workflow 真触发（PR #1926 merged）
-- P0-V1 Qdrant legacy cross-tenant filter 永久 boundary test 钉死
 
 ### 5.2 P1 完成标准
 
 - 每条 P1 差异: 行为统一 OR explicit capability declaration in adapter Protocol docstring + `typed schema` 暴露 capability flag
 - FE 消费侧（cuiwenbo / dongdong lane）按 capability flag 显示对应 UI
+- **P1-V4 defense-in-depth** Qdrant legacy cross-tenant filter — boundary test 钉跨 mode 一致 (即使 collection-level 隔离成立，query-level filter 也补一层 belt-and-braces)
 
 ### 5.3 boundary test gate (per Weston msg=13dd5e91 BLOCKER 修订 — score normalization test 显式)
 
