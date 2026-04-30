@@ -2,7 +2,11 @@
 
 **生效日期**：2026-04-30（task #33 Layer 2 P0 codify）
 
-**适用范围**：所有 PR 的 `.github/workflows/e2e-http-{lite,qdrant-nebula,qdrant-neo4j}.yml` 三 variant CI。
+**适用范围**：
+- baseline PR-trigger CI：`.github/workflows/e2e-http-{lite,qdrant-nebula,qdrant-neo4j}.yml` 三 variant。
+- extended targeted/manual CI（task #61 P1-D1）：`.github/workflows/e2e-http-{qdrant-postgres,pgvector-neo4j,pgvector-nebula}.yml` 三 variant。它们只在 workflow 手动触发或 backend/shape surface 相关 PR 触发。
+
+下文 §1 的 fail-rate 数据和 §2.2 人工放行白名单只覆盖已有历史样本的 baseline Nebula / Neo4j shape；新增 extended shapes 暂无历史白名单，失败时必须 rerun 或定位，不直接套用 §2.2。
 
 **编辑历史**：
 - 2026-04-30 chenyexuan 初版 — fold-in Planetegg msg=46a0c5de gate wording + huangheng / Weston / ziang 多 PR cross-check forensics 实证。

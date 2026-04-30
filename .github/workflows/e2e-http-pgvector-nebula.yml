@@ -1,0 +1,36 @@
+name: E2E HTTP pgvector + Nebula
+
+# Extended deployment shape: pgvector (vector) + Nebula (graph).
+# Runs on manual dispatch and on PRs that touch backend/shape surfaces.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - ".github/workflows/e2e-http-*.yml"
+      - "docker-compose.yml"
+      - "envs/**"
+      - "aperag/config.py"
+      - "tests/e2e_http/**"
+      - "aperag/indexing/**"
+      - "aperag/graph_curation/**"
+      - "aperag/vectorstore/**"
+      - "aperag/domains/retrieval/**"
+      - "aperag/domains/knowledge_graph/**"
+      - "deploy/aperag/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e-http-compose:
+    if: ${{ !github.event.pull_request.draft }}
+    uses: ./.github/workflows/e2e-http-shape.yml
+    secrets: inherit
+    with:
+      shape: pgvector-nebula
