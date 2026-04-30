@@ -137,10 +137,19 @@ def test_translate_context_manager_shape():
 
 
 def test_translate_rejects_unknown_node_loudly():
+    """Pinned by task #61 P0-A: pgvector translator must raise the same
+    cross-adapter ``UnsupportedFilterError`` (subclass of ``TypeError`` so
+    the existing ``except TypeError`` callers keep working)."""
+    from aperag.vectorstore.base import UnsupportedFilterError
+
     class Bogus:
         pass
 
-    with pytest.raises(TypeError, match="Unsupported VectorFilter node"):
+    with pytest.raises(UnsupportedFilterError, match="Unsupported VectorFilter node"):
+        _translate_filter(Bogus())  # type: ignore[arg-type]
+
+    # Backwards-compat: TypeError parent still catches it.
+    with pytest.raises(TypeError):
         _translate_filter(Bogus())  # type: ignore[arg-type]
 
 

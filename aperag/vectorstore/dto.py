@@ -184,12 +184,33 @@ class SearchHit:
     reconstruction) is the caller's responsibility, implemented via the
     ``flatten_node_payload`` helper so neither the connector nor each
     call site has to know about LlamaIndex internals.
+
+    ``score`` is the **normalized similarity** in ``[0, 1]`` where higher
+    is better, regardless of which distance metric (cosine / euclid /
+    dot) the underlying backend used. Adapters apply
+    :func:`aperag.vectorstore.base.normalize_score` before constructing
+    this DTO. The validator below enforces the range so a backend that
+    forgets to normalize is caught at the boundary instead of silently
+    polluting downstream score-threshold logic (task #61 P0-B).
     """
 
     id: str
     score: float
     payload: Dict[str, Any] = field(default_factory=dict)
     vector: Optional[List[float]] = None
+
+    def __post_init__(self) -> None:
+        # NaN comparisons all return False, so the explicit check catches
+        # both "out of range" and "score is NaN" without branching.
+        s = self.score
+        if not isinstance(s, (int, float)):
+            raise TypeError(f"SearchHit.score must be float in [0, 1], got {type(s).__name__}")
+        if not (0.0 <= float(s) <= 1.0):
+            raise ValueError(
+                f"SearchHit.score must lie in the normalized [0, 1] range, got {s!r}; "
+                "adapters must call aperag.vectorstore.base.normalize_score before "
+                "constructing SearchHit (task #61 P0-B contract)."
+            )
 
 
 # ---------------------------------------------------------------------------
