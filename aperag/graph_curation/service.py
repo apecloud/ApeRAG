@@ -241,6 +241,24 @@ class GraphCurationService(AsyncBaseRepository):
         # in W7-8). ``edges_redirected`` / ``edges_collapsed`` are 0
         # by design — alias redirect happens at indexer write-time via
         # the decorator, not as a per-merge count we can surface.
+        #
+        # ⚠️ DEPRECATED (task #31 A3, spec § 3.1.5 — Lesson #14 multi-
+        # iteration cleanup family): the ``merge_result`` carries
+        # ``compacted_description`` / ``unified_description`` only on
+        # the legacy ``LineageEntityMerger.merge_entities`` path —
+        # post-Wave-5 the description-free apply variant
+        # (``merge_entities_apply_description_free``) returns ``None``
+        # / ``""`` for both fields. This sync ``handle_action()`` API
+        # is preserved for back-compat with existing callers that
+        # consume ``merge_result.description`` in the response;
+        # follow-up cleanup once all consumers migrate to the async
+        # accept-apply path will drop this field from the response
+        # shape entirely. The boundary test
+        # ``tests/boundaries/test_graph_curation_description_free.py``
+        # explicitly allowlists ``merge_result.compacted_description``
+        # via the ``NON_ENTITY_BASE_NAMES`` mechanism (it is a
+        # ``LineageMergeResult`` field, not an ``entity`` description
+        # read).
         merge_description = merge_result.compacted_description or merge_result.unified_description
         chunk_ids: set[str] = set()
         target_after = await merger._store.get_entity(merge_result.final_target)  # noqa: SLF001

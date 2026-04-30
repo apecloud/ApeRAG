@@ -43,6 +43,24 @@ the description-free invariant is documented in
 ``docs/zh-CN/architecture/task-31-graph-node-merge-spec-v1.md``
 § 3.1.5 + the Wave 5 sediment, and this test is the mechanical
 enforcer.
+
+**Lesson #18 候选 second-application demo trail (PR #1941)**: when
+the spec § 3.1.5 ratify (符炫炜 + Bryce + ziang + huangzhangshu +
+Weston multi-source review) listed exactly 6 detector / snapshot
+call sites + 1 apply-path variant, every reviewer + the spec
+author missed a 7th hidden read at
+``aperag/graph_curation/service.py:845`` —
+``text = entity.description or entity.name`` inside
+``GraphCurationService._fetch_shadow_neighbors``. The boundary
+gate caught it on first run (force-fix forward), turning
+``reviewer-as-detector`` into ``CI-as-detector`` per the
+Lesson #18 thesis. This is the canonical
+**lesson sediment + mechanical gate 双 layer codification** value
+demo: spec author + reviewers + AST scan together produced 0
+false negatives only because the mechanical gate was paired with
+the human-text lesson sediment. Lesson #12 v9 (first-principles
+verify) is the human-side counterpart; Lesson #18 is the CI-side
+counterpart.
 """
 
 from __future__ import annotations
