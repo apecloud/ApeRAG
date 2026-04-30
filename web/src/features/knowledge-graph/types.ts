@@ -20,6 +20,9 @@ export type GraphSearchEntity = NonNullable<
 export type GraphEvidenceResponse = NonNullable<
   components['schemas']['GraphEvidenceResponse']
 >;
+export type GraphEvidenceRef = NonNullable<
+  components['schemas']['GraphEvidenceRef']
+>;
 export type GraphRelationEvidenceRequest = NonNullable<
   components['schemas']['GraphRelationEvidenceRequest']
 >;
@@ -68,9 +71,15 @@ export const SUGGESTION_ACTIONS = [
 // list in lockstep with `aperag/schema/view_models.py::MergeSuggestions*`.
 export type MergeSuggestionStatus =
   | 'PENDING'
+  | 'APPLY_PENDING'
+  | 'APPLYING'
+  | 'APPLIED'
+  | 'APPLY_FAILED'
   | 'ACCEPTED'
   | 'REJECTED'
-  | 'EXPIRED';
+  | 'DISMISSED'
+  | 'EXPIRED'
+  | 'SUPERSEDED';
 
 export interface MergeSuggestionTargetEntity {
   entity_name: string;
@@ -84,9 +93,15 @@ export interface MergeSuggestionItem {
   entity_ids: string[];
   confidence_score: number;
   merge_reason: string;
+  reason?: string;
+  evidence?: Record<string, unknown> | null;
+  evidence_refs?: GraphEvidenceRef[];
   suggested_target_entity: MergeSuggestionTargetEntity;
+  target_entity_id?: string;
   status: MergeSuggestionStatus;
   created: string;
+  updated?: string;
+  resolution_note?: string | null;
   operated_at?: string;
 }
 

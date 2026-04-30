@@ -447,6 +447,7 @@ class GraphCurationService(AsyncBaseRepository):
             "confidence_score": float(suggestion.confidence_score),
             "reason": suggestion.reason,
             "evidence": suggestion.evidence or {},
+            "evidence_refs": list(suggestion.evidence_refs or []),
             "resolution_note": suggestion.resolution_note,
             "created": suggestion.gmt_created.isoformat() if suggestion.gmt_created else None,
             "updated": suggestion.gmt_updated.isoformat() if suggestion.gmt_updated else None,
@@ -586,6 +587,7 @@ class GraphCurationService(AsyncBaseRepository):
                         confidence_score=suggestion["confidence_score"],
                         reason=suggestion["reason"],
                         evidence=suggestion["evidence"],
+                        evidence_refs=suggestion.get("evidence_refs"),
                     )
                 )
             await session.execute(

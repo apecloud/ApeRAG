@@ -4212,6 +4212,68 @@ export interface components {
             reference_context?: string | null;
         };
         /**
+         * GraphCurationRunSummary
+         * @description Summary of an asynchronous graph-curation run.
+         */
+        GraphCurationRunSummary: {
+            /**
+             * Id
+             * @description Run ID
+             * @example gcr_abcd1234efgh5678
+             */
+            id: string;
+            /**
+             * Collection Id
+             * @description Collection ID
+             * @example col123
+             */
+            collection_id: string;
+            /**
+             * Status
+             * @description Run lifecycle status
+             * @example COMPLETED
+             * @enum {string}
+             */
+            status: "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
+            /**
+             * Stats
+             * @description Best-effort execution stats for the latest run
+             */
+            stats?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Error Message
+             * @description Failure message if the run failed
+             * @example LLM adjudication timed out
+             */
+            error_message?: string | null;
+            /**
+             * Created
+             * @description Creation timestamp
+             * @example 2026-04-23T00:00:00Z
+             */
+            created?: string | null;
+            /**
+             * Updated
+             * @description Last update timestamp
+             * @example 2026-04-23T00:02:00Z
+             */
+            updated?: string | null;
+            /**
+             * Started
+             * @description Run start timestamp
+             * @example 2026-04-23T00:00:05Z
+             */
+            started?: string | null;
+            /**
+             * Finished
+             * @description Run finish timestamp
+             * @example 2026-04-23T00:02:00Z
+             */
+            finished?: string | null;
+        };
+        /**
          * GraphEdge
          * @description Knowledge graph edge representing a relationship
          */
@@ -4580,6 +4642,141 @@ export interface components {
              *     ]
              */
             labels: string[];
+        };
+        /**
+         * GraphMergeSuggestionEntity
+         * @description Snapshot of an entity at suggestion-generation time.
+         */
+        GraphMergeSuggestionEntity: {
+            /**
+             * Entity Id
+             * @description Entity ID
+             * @example e_moxiangju
+             */
+            entity_id: string;
+            /**
+             * Entity Name
+             * @description Entity name
+             * @example 墨香居
+             */
+            entity_name: string;
+            /**
+             * Entity Type
+             * @description Entity type
+             * @example ORGANIZATION
+             */
+            entity_type: string;
+            /**
+             * Description
+             * @description Entity description
+             * @example 这条老巷子里唯一的旧书店
+             */
+            description: string;
+            /**
+             * Source Chunk Count
+             * @description Number of source chunks referenced by this entity
+             * @example 3
+             */
+            source_chunk_count: number;
+        };
+        /**
+         * GraphMergeSuggestionItem
+         * @description Persisted merge suggestion produced by graph curation.
+         */
+        GraphMergeSuggestionItem: {
+            /**
+             * Id
+             * @description Suggestion ID
+             * @example gcs_abcd1234efgh5678
+             */
+            id: string;
+            /**
+             * Run Id
+             * @description Run that produced this suggestion
+             * @example gcr_abcd1234efgh5678
+             */
+            run_id: string;
+            /**
+             * Collection Id
+             * @description Collection ID
+             * @example col123
+             */
+            collection_id: string;
+            /**
+             * Status
+             * @description Suggestion lifecycle status
+             * @example PENDING
+             * @enum {string}
+             */
+            status: "PENDING" | "APPLY_PENDING" | "APPLYING" | "APPLIED" | "APPLY_FAILED" | "ACCEPTED" | "REJECTED" | "DISMISSED" | "EXPIRED" | "SUPERSEDED";
+            /**
+             * Entity Ids
+             * @description Entity IDs in the candidate merge set
+             * @example [
+             *       "e_moxiangju",
+             *       "e_old_bookstore"
+             *     ]
+             */
+            entity_ids: string[];
+            /**
+             * Entities
+             * @description Entity snapshots captured when the suggestion was generated
+             */
+            entities: components["schemas"]["GraphMergeSuggestionEntity"][];
+            /**
+             * Target Entity Id
+             * @description Recommended surviving entity ID if the suggestion is accepted
+             * @example e_moxiangju
+             */
+            target_entity_id: string;
+            /**
+             * Confidence Score
+             * @description Aggregated confidence score for this suggestion
+             * @example 0.91
+             */
+            confidence_score: number;
+            /**
+             * Reason
+             * @description Human-readable explanation from pairwise LLM adjudication
+             * @example 两个实体都在描述同一家旧书店，名称和上下文高度重合。
+             */
+            reason: string;
+            /**
+             * Evidence
+             * @description Structured supporting evidence used to generate the suggestion
+             */
+            evidence?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Evidence Refs
+             * @description Display-ready source chunk refs supporting this suggestion
+             */
+            evidence_refs?: components["schemas"]["GraphEvidenceRef"][];
+            /**
+             * Resolution Note
+             * @description System note explaining why the suggestion left pending state
+             * @example superseded_by:gcs_other
+             */
+            resolution_note?: string | null;
+            /**
+             * Created
+             * @description Creation timestamp
+             * @example 2026-04-23T00:02:00Z
+             */
+            created?: string | null;
+            /**
+             * Updated
+             * @description Last update timestamp
+             * @example 2026-04-23T00:05:00Z
+             */
+            updated?: string | null;
+            /**
+             * Operated At
+             * @description User-operation timestamp for accepted/rejected suggestions
+             * @example 2026-04-23T00:05:00Z
+             */
+            operated_at?: string | null;
         };
         /**
          * GraphNode
@@ -5008,6 +5205,38 @@ export interface components {
          * @description Start a new graph-curation analysis run.
          */
         MergeSuggestionsRequest: Record<string, never>;
+        /**
+         * MergeSuggestionsResponse
+         * @description Latest persisted graph-curation run and its suggestions.
+         */
+        MergeSuggestionsResponse: {
+            /** @description Latest graph-curation run for this collection, if any */
+            run?: components["schemas"]["GraphCurationRunSummary"] | null;
+            /**
+             * Suggestions
+             * @description Suggestions from the latest run, ordered by confidence score
+             */
+            suggestions: components["schemas"]["GraphMergeSuggestionItem"][];
+        };
+        /**
+         * MergeSuggestionsRunResponse
+         * @description Response returned when starting a graph-curation run.
+         */
+        MergeSuggestionsRunResponse: {
+            run: components["schemas"]["GraphCurationRunSummary"];
+            /**
+             * Started
+             * @description Whether a new run was actually scheduled
+             * @example true
+             */
+            started: boolean;
+            /**
+             * Message
+             * @description Human-readable status message
+             * @example Graph curation run started
+             */
+            message: string;
+        };
         /**
          * MineruTokenTestRequest
          * @description Request body for POST /collections/test-mineru-token.
@@ -6244,6 +6473,52 @@ export interface components {
             total: number;
         };
         /**
+         * SuggestionActionMergeResult
+         * @description Merge result returned when accepting a graph-curation suggestion.
+         */
+        SuggestionActionMergeResult: {
+            /**
+             * Target Entity Id
+             * @description Surviving entity ID after merge
+             * @example e_moxiangju
+             */
+            target_entity_id: string;
+            /**
+             * Merged Source Ids
+             * @description Merged-away entity IDs
+             * @example [
+             *       "e_old_bookstore"
+             *     ]
+             */
+            merged_source_ids: string[];
+            /**
+             * Description
+             * @description Merged description of the surviving entity
+             */
+            description: string;
+            /**
+             * Source Chunk Ids
+             * @description Source chunk IDs preserved on the surviving entity
+             * @example [
+             *       "chunk_1",
+             *       "chunk_8"
+             *     ]
+             */
+            source_chunk_ids: string[];
+            /**
+             * Edges Redirected
+             * @description Number of redirected edges
+             * @example 5
+             */
+            edges_redirected: number;
+            /**
+             * Edges Collapsed
+             * @description Number of duplicate edges collapsed
+             * @example 2
+             */
+            edges_collapsed: number;
+        };
+        /**
          * SuggestionActionRequest
          * @description Request to take action on a merge suggestion
          */
@@ -6255,6 +6530,47 @@ export interface components {
              * @enum {string}
              */
             action: "accept" | "reject";
+        };
+        /**
+         * SuggestionActionResponse
+         * @description Response containing suggestion action results
+         */
+        SuggestionActionResponse: {
+            /**
+             * Status
+             * @description Status of the action operation
+             * @example success
+             * @enum {string}
+             */
+            status: "success" | "error";
+            /**
+             * Message
+             * @description Detailed message about the action operation
+             * @example Suggestion msug123 has been accepted and merge completed
+             */
+            message: string;
+            /**
+             * Suggestion Id
+             * @description The suggestion ID that was processed
+             * @example msug123
+             */
+            suggestion_id: string;
+            /**
+             * Action
+             * @description The action that was performed (normalized to lowercase)
+             * @example accept
+             * @enum {string}
+             */
+            action: "accept" | "reject";
+            /**
+             * Suggestion Status
+             * @description Suggestion status after action processing
+             * @example ACCEPTED
+             * @enum {string}
+             */
+            suggestion_status: "PENDING" | "APPLY_PENDING" | "APPLYING" | "APPLIED" | "APPLY_FAILED" | "ACCEPTED" | "REJECTED" | "DISMISSED" | "EXPIRED" | "SUPERSEDED";
+            /** @description Merge operation result (only present when action is 'accept') */
+            merge_result?: components["schemas"]["SuggestionActionMergeResult"] | null;
         };
         /** SummarySearchParams */
         SummarySearchParams: {
@@ -8953,9 +9269,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["MergeSuggestionsResponse"];
                 };
             };
             /** @description Validation Error */
@@ -8992,9 +9306,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["MergeSuggestionsRunResponse"];
                 };
             };
             /** @description Validation Error */
@@ -9032,9 +9344,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["SuggestionActionResponse"];
                 };
             };
             /** @description Validation Error */
