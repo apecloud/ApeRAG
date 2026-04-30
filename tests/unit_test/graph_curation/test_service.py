@@ -14,7 +14,7 @@ from types import SimpleNamespace
 import pytest
 
 from aperag.domains.knowledge_graph.db.models import GraphCurationSuggestionStatus
-from aperag.domains.knowledge_graph.schemas import SuggestionActionRequest
+from aperag.domains.knowledge_graph.schemas import SuggestionActionRequest, SuggestionActionResponse
 from aperag.graph_curation.candidate_generation import CandidatePair
 from aperag.graph_curation.dto import CurationEntity as Entity
 from aperag.graph_curation.service import GraphCurationService, MergeJudgement
@@ -114,9 +114,49 @@ def test_extract_json_object_ignores_non_json_prefix_suffix():
 
 
 def test_suggestion_action_request_normalizes_case_insensitively():
-    request = SuggestionActionRequest(action=" REJECT ")
+    request = SuggestionActionRequest(action=" DISMISS ")
 
-    assert request.action == "reject"
+    assert request.action == "dismiss"
+
+
+def test_suggestion_action_response_requires_valid_success_shapes():
+    payloads = [
+        {
+            "status": "success",
+            "message": "Suggestion gcs_1 has been rejected",
+            "suggestion_id": "gcs_1",
+            "action": "reject",
+            "suggestion_status": GraphCurationSuggestionStatus.REJECTED.value,
+            "merge_result": None,
+        },
+        {
+            "status": "success",
+            "message": "Suggestion gcs_1 has been dismissed",
+            "suggestion_id": "gcs_1",
+            "action": "dismiss",
+            "suggestion_status": GraphCurationSuggestionStatus.DISMISSED.value,
+            "merge_result": None,
+        },
+        {
+            "status": "success",
+            "message": "Suggestion gcs_1 has been accepted and merge completed",
+            "suggestion_id": "gcs_1",
+            "action": "accept",
+            "suggestion_status": GraphCurationSuggestionStatus.ACCEPTED.value,
+            "merge_result": {
+                "target_entity_id": "e1",
+                "merged_source_ids": ["e2"],
+                "description": "",
+                "source_chunk_ids": ["c1"],
+                "edges_redirected": 0,
+                "edges_collapsed": 0,
+            },
+        },
+    ]
+
+    responses = [SuggestionActionResponse.model_validate(payload) for payload in payloads]
+
+    assert [response.action for response in responses] == ["reject", "dismiss", "accept"]
 
 
 def test_suggestion_to_dict_exposes_evidence_refs_and_new_status():

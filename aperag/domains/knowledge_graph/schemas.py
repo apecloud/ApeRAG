@@ -341,9 +341,9 @@ class SuggestionActionRequest(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    action: Literal["accept", "reject"] = Field(
+    action: Literal["accept", "reject", "dismiss"] = Field(
         ...,
-        description="Action to take on the suggestion (case-insensitive, e.g., 'Accept', 'REJECT', 'accept')",
+        description="Action to take on the suggestion (case-insensitive, e.g., 'Accept', 'REJECT', 'dismiss')",
         examples=["accept"],
     )
 
@@ -384,7 +384,7 @@ class SuggestionActionResponse(BaseModel):
         examples=["Suggestion msug123 has been accepted and merge completed"],
     )
     suggestion_id: str = Field(..., description="The suggestion ID that was processed", examples=["msug123"])
-    action: Literal["accept", "reject"] = Field(
+    action: Literal["accept", "reject", "dismiss"] = Field(
         ...,
         description="The action that was performed (normalized to lowercase)",
         examples=["accept"],

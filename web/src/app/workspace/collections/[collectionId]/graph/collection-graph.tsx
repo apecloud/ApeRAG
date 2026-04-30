@@ -2,6 +2,7 @@
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import {
+  getMergeSuggestions as fetchMergeSuggestions,
   getKnowledgeGraph,
   getMarketplaceKnowledgeGraph,
   runMergeSuggestions,
@@ -42,6 +43,7 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  GitMerge,
   Layers3,
   LoaderCircle,
   Maximize,
@@ -205,6 +207,24 @@ export const CollectionGraph = ({
     useState<MergeSuggestionsResponse>();
   const [mergeSuggestionOpen, setMergeSuggestionOpen] =
     useState<boolean>(false);
+  const [mergeSuggestionLoading, setMergeSuggestionLoading] =
+    useState<boolean>(false);
+  const [mergeSuggestionRunning, setMergeSuggestionRunning] =
+    useState<boolean>(false);
+  const emptyMergeSuggestionResponse = useMemo<MergeSuggestionsResponse>(
+    () => ({
+      suggestions: [],
+      total_analyzed_nodes: 0,
+      processing_time_seconds: 0,
+      from_cache: false,
+      generated_at: '',
+      total_suggestions: 0,
+      pending_count: 0,
+      accepted_count: 0,
+      rejected_count: 0,
+    }),
+    [],
+  );
 
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
@@ -268,13 +288,27 @@ export const CollectionGraph = ({
     }
   }, [NODE_MIN, marketplace, page_graph, params.collectionId]);
 
-  const getMergeSuggestions = useCallback(async () => {
+  const loadMergeSuggestions = useCallback(async () => {
     if (typeof params.collectionId !== 'string' || marketplace) return;
+    setMergeSuggestionLoading(true);
     try {
-      const suggestionRes = await runMergeSuggestions(params.collectionId);
+      const suggestionRes = await fetchMergeSuggestions(params.collectionId);
       setMergeSuggestion(suggestionRes);
     } catch {
       setMergeSuggestion(undefined);
+    } finally {
+      setMergeSuggestionLoading(false);
+    }
+  }, [marketplace, params.collectionId]);
+
+  const runMergeSuggestionScan = useCallback(async () => {
+    if (typeof params.collectionId !== 'string' || marketplace) return;
+    setMergeSuggestionRunning(true);
+    try {
+      const suggestionRes = await runMergeSuggestions(params.collectionId);
+      setMergeSuggestion(suggestionRes);
+    } finally {
+      setMergeSuggestionRunning(false);
     }
   }, [marketplace, params.collectionId]);
 
@@ -385,8 +419,8 @@ export const CollectionGraph = ({
 
   useEffect(() => {
     getGraphData();
-    getMergeSuggestions();
-  }, [getGraphData, getMergeSuggestions]);
+    loadMergeSuggestions();
+  }, [getGraphData, loadMergeSuggestions]);
 
   useEffect(() => {
     if (!graphData || !graphRef.current) return;
@@ -531,24 +565,32 @@ export const CollectionGraph = ({
             </PopoverContent>
           </Popover>
 
-          {!marketplace && !_.isEmpty(mergeSuggestion?.suggestions) && (
+          {!marketplace && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Badge
+                <Button
+                  size="icon"
                   variant="outline"
-                  className="h-6 min-w-6 cursor-pointer rounded-full px-1.5 font-mono tabular-nums"
-                  style={{
-                    backgroundColor: COLORS.accentSoft,
-                    color: COLORS.accentInk,
-                    borderColor: COLORS.subtleStrong,
-                  }}
+                  className="relative cursor-pointer"
                   onClick={() => setMergeSuggestionOpen(true)}
                 >
-                  {mergeSuggestion?.suggestions?.length &&
-                  mergeSuggestion?.suggestions?.length > 10
-                    ? '10+'
-                    : mergeSuggestion?.suggestions?.length}
-                </Badge>
+                  <GitMerge />
+                  {mergeSuggestion?.pending_count ? (
+                    <Badge
+                      variant="outline"
+                      className="absolute -top-2 -right-2 h-5 min-w-5 rounded-full px-1 font-mono text-[10px] tabular-nums"
+                      style={{
+                        backgroundColor: COLORS.accentSoft,
+                        color: COLORS.accentInk,
+                        borderColor: COLORS.subtleStrong,
+                      }}
+                    >
+                      {mergeSuggestion.pending_count > 10
+                        ? '10+'
+                        : mergeSuggestion.pending_count}
+                    </Badge>
+                  ) : null}
+                </Button>
               </TooltipTrigger>
               <TooltipContent>
                 {page_graph('merge_infomation', {
@@ -564,10 +606,14 @@ export const CollectionGraph = ({
             className="cursor-pointer"
             onClick={() => {
               getGraphData();
-              getMergeSuggestions();
+              loadMergeSuggestions();
             }}
           >
-            <LoaderCircle className={loading ? 'animate-spin' : ''} />
+            <LoaderCircle
+              className={
+                loading || mergeSuggestionLoading ? 'animate-spin' : ''
+              }
+            />
           </Button>
 
           <Button
@@ -894,11 +940,13 @@ export const CollectionGraph = ({
             setActiveNode(node);
           }}
         />
-        {mergeSuggestion && (
+        {!marketplace && (
           <CollectionGraphNodeMerge
-            dataSource={mergeSuggestion}
+            dataSource={mergeSuggestion ?? emptyMergeSuggestionResponse}
             open={mergeSuggestionOpen}
-            onRefresh={getMergeSuggestions}
+            onRefresh={loadMergeSuggestions}
+            onRun={runMergeSuggestionScan}
+            running={mergeSuggestionRunning}
             onClose={() => {
               setActiveNode(undefined);
               setMergeSuggestionOpen(false);

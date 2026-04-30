@@ -203,8 +203,8 @@ class GraphCurationService(AsyncBaseRepository):
     ) -> dict[str, Any]:
         collection = await self._get_and_validate_collection(user_id, collection_id)
         action_normalized = (action or "").strip().lower()
-        if action_normalized not in {"accept", "reject"}:
-            raise ValueError("action must be one of: accept, reject")
+        if action_normalized not in {"accept", "reject", "dismiss"}:
+            raise ValueError("action must be one of: accept, reject, dismiss")
 
         async def _load(session: AsyncSession):
             stmt = select(GraphCurationSuggestion).where(
@@ -228,9 +228,26 @@ class GraphCurationService(AsyncBaseRepository):
             )
             return {
                 "status": "success",
+                "message": f"Suggestion {suggestion_id} has been rejected",
                 "suggestion_id": suggestion_id,
                 "action": "reject",
                 "suggestion_status": GraphCurationSuggestionStatus.REJECTED.value,
+                "merge_result": None,
+            }
+
+        if action_normalized == "dismiss":
+            await self._mark_suggestion_status(
+                suggestion_id=suggestion_id,
+                status=GraphCurationSuggestionStatus.DISMISSED,
+                operated_by=user_id,
+                resolution_note="dismissed_by_user",
+            )
+            return {
+                "status": "success",
+                "message": f"Suggestion {suggestion_id} has been dismissed",
+                "suggestion_id": suggestion_id,
+                "action": "dismiss",
+                "suggestion_status": GraphCurationSuggestionStatus.DISMISSED.value,
                 "merge_result": None,
             }
 
@@ -297,6 +314,7 @@ class GraphCurationService(AsyncBaseRepository):
 
         return {
             "status": "success",
+            "message": f"Suggestion {suggestion_id} has been accepted and merge completed",
             "suggestion_id": suggestion_id,
             "action": "accept",
             "suggestion_status": GraphCurationSuggestionStatus.ACCEPTED.value,
@@ -482,6 +500,7 @@ class GraphCurationService(AsyncBaseRepository):
     @staticmethod
     def _suggestion_to_dict(suggestion: GraphCurationSuggestion) -> dict[str, Any]:
         entities = list(suggestion.entity_snapshots or [])
+        evidence_refs = list(suggestion.evidence_refs or [])
         target_entity = GraphCurationService._target_entity_projection(
             entities=entities,
             target_entity_id=str(suggestion.target_entity_id),
@@ -500,7 +519,7 @@ class GraphCurationService(AsyncBaseRepository):
             "reason": suggestion.reason,
             "merge_reason": suggestion.reason,
             "evidence": suggestion.evidence or {},
-            "evidence_refs": list(suggestion.evidence_refs or []),
+            "evidence_refs": evidence_refs,
             "resolution_note": suggestion.resolution_note,
             "created": suggestion.gmt_created.isoformat() if suggestion.gmt_created else None,
             "updated": suggestion.gmt_updated.isoformat() if suggestion.gmt_updated else None,

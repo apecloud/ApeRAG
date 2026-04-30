@@ -23,6 +23,9 @@ export type GraphEvidenceResponse = NonNullable<
 export type GraphEvidenceRef = NonNullable<
   components['schemas']['GraphEvidenceRef']
 >;
+export type GraphMergeSuggestionEntity = NonNullable<
+  components['schemas']['GraphMergeSuggestionEntity']
+>;
 export type GraphRelationEvidenceRequest = NonNullable<
   components['schemas']['GraphRelationEvidenceRequest']
 >;
@@ -43,17 +46,11 @@ export type MergeSuggestionsRequest = NonNullable<
   components['schemas']['MergeSuggestionsRequest']
 >;
 
-// The OpenAPI schema currently models this as just `{ action }`, but the
-// backend accepts an optional `target_entity_data` override when the
-// caller wants to change the resolved name/type before an "accept" run.
-// Mirror that here so callers don't need to cast.
 type RawSuggestionActionRequest = NonNullable<
   components['schemas']['SuggestionActionRequest']
 >;
 
-export type SuggestionActionRequest = RawSuggestionActionRequest & {
-  target_entity_data?: MergeSuggestionTargetEntity;
-};
+export type SuggestionActionRequest = RawSuggestionActionRequest;
 
 export type SuggestionAction = NonNullable<
   RawSuggestionActionRequest['action']
@@ -62,6 +59,7 @@ export type SuggestionAction = NonNullable<
 export const SUGGESTION_ACTIONS = [
   'accept',
   'reject',
+  'dismiss',
 ] as const satisfies readonly SuggestionAction[];
 
 // The merge-suggestions endpoints return `{[key: string]: unknown}` in the
@@ -91,6 +89,7 @@ export interface MergeSuggestionItem {
   collection_id: string;
   suggestion_batch_id: string;
   entity_ids: string[];
+  entities?: GraphMergeSuggestionEntity[];
   confidence_score: number;
   merge_reason: string;
   reason?: string;
