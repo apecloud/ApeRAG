@@ -60,6 +60,27 @@ def test_normalize_unknown_type_raises_unsupported_filter_error():
         qc._normalize_filter_input(object())
 
 
+def test_translate_or_with_zero_translatable_parts_raises():
+    """Pinned by task #61 P1-V3: an Or filter that ends up with zero
+    translatable parts (after the construction guard is bypassed) MUST
+    raise rather than produce a vacuous ``Filter(should=[])`` that
+    Qdrant would treat as "match everything".
+
+    ``Or.__post_init__`` already rejects empty ``parts`` at construction;
+    we exercise the translator-level defense-in-depth path by mutating
+    a frozen dataclass via ``object.__setattr__`` to simulate a
+    downstream caller that ended up with empty parts.
+    """
+    from aperag.vectorstore.base import UnsupportedFilterError
+    from aperag.vectorstore.filters import Eq, Or
+
+    or_node = Or(parts=(Eq(key="k", value="v"),))
+    object.__setattr__(or_node, "parts", ())
+
+    with pytest.raises(UnsupportedFilterError, match="zero translatable parts"):
+        qc._translate_filter(or_node)
+
+
 # ---------------------------------------------------------------------------
 # leaf nodes
 # ---------------------------------------------------------------------------

@@ -300,6 +300,59 @@ def test_retrieve_drops_foreign_tenant_points(shared_client):
     assert retrieved_ids == set(ids_a), f"leaked foreign points: {retrieved_ids - set(ids_a)}"
 
 
+def test_retrieve_legacy_mode_filters_stray_foreign_payload(shared_client):
+    """Pinned by task #61 P1-V4: even in legacy (per-tenant physical
+    collection) mode the ``retrieve()`` post-filter must drop any
+    point that carries a ``TENANT_PAYLOAD_KEY`` payload whose value
+    doesn't match the connector's tenant id.
+
+    Primary isolation in legacy mode is the physical collection name
+    (``collection_name == tenant_id``) — a stray foreign-tenant point
+    can't normally reach a legacy collection. But tooling drift /
+    migration mistakes / re-ingest scripts could accidentally write
+    one. The defense-in-depth filter catches that case before it
+    surfaces as a cross-tenant data leak.
+
+    Legacy rows that don't carry ``TENANT_PAYLOAD_KEY`` at all (the
+    common case in legacy mode) pass through unchanged — backward-
+    compatible with the historical legacy data.
+    """
+    legacy = _make_connector("col_legacy_owner", client=shared_client, multitenant=False)
+
+    # Seed 3 points: 1 with no payload key (typical legacy row), 1
+    # with the matching tenant id, 1 with a *foreign* tenant id (the
+    # stray case the filter must catch).
+    no_payload_id = str(uuid.uuid4())
+    own_payload_id = str(uuid.uuid4())
+    foreign_payload_id = str(uuid.uuid4())
+    shared_client.upsert(
+        collection_name=legacy.collection_name,
+        points=[
+            rest.PointStruct(id=no_payload_id, vector=VEC_A, payload={}),
+            rest.PointStruct(
+                id=own_payload_id,
+                vector=VEC_A,
+                payload={TENANT_PAYLOAD_KEY: legacy.tenant.id},
+            ),
+            rest.PointStruct(
+                id=foreign_payload_id,
+                vector=VEC_A,
+                payload={TENANT_PAYLOAD_KEY: "col_some_other_tenant"},
+            ),
+        ],
+        wait=True,
+    )
+
+    out = legacy.retrieve([no_payload_id, own_payload_id, foreign_payload_id])
+    out_ids = {p.id for p in out}
+
+    # The no-payload + own-payload rows pass through; the foreign-
+    # payload row is filtered.
+    assert no_payload_id in out_ids, "legacy row without TENANT_PAYLOAD_KEY must pass through (backward compat)"
+    assert own_payload_id in out_ids, "own-tenant payload must pass through"
+    assert foreign_payload_id not in out_ids, "stray foreign-tenant payload must be dropped (P1-V4 defense-in-depth)"
+
+
 # ---------------------------------------------------------------------------
 # delete_by_filter
 # ---------------------------------------------------------------------------

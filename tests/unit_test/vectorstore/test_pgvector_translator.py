@@ -153,6 +153,32 @@ def test_translate_rejects_unknown_node_loudly():
         _translate_filter(Bogus())  # type: ignore[arg-type]
 
 
+def test_translate_or_with_zero_translatable_parts_raises():
+    """Pinned by task #61 P1-V3: an Or filter that ends up with zero
+    translatable parts (after the construction guard is bypassed) MUST
+    raise rather than degrade to a vacuous "always-true" SQL fragment.
+
+    ``Or.__post_init__`` already rejects empty ``parts`` at construction;
+    we exercise the translator-level defense-in-depth path by
+    constructing the dataclass directly. Cross-adapter parity with the
+    Qdrant translator's identical guard.
+    """
+    import dataclasses
+
+    from aperag.vectorstore.base import UnsupportedFilterError
+    from aperag.vectorstore.filters import Eq, Or
+
+    # ``object.__setattr__`` works around the frozen dataclass so we
+    # can simulate a downstream caller that built an Or via
+    # ``dataclasses.replace`` with empty ``parts``.
+    or_node = Or(parts=(Eq(key="k", value="v"),))
+    object.__setattr__(or_node, "parts", ())
+    assert dataclasses.is_dataclass(or_node)
+
+    with pytest.raises(UnsupportedFilterError, match="zero translatable parts"):
+        _translate_filter(or_node)
+
+
 # ---------------------------------------------------------------------------
 # vector literal
 # ---------------------------------------------------------------------------

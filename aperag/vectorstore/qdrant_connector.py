@@ -51,6 +51,7 @@ from qdrant_client.http.exceptions import UnexpectedResponse
 
 from aperag.vectorstore.base import (
     UnsupportedFilterError,
+    VectorBackendCapabilities,
     VectorStoreConnector,
     denormalize_threshold_to_native,
     normalize_score,
@@ -271,6 +272,21 @@ def _translate_filter(flt: Optional[VectorFilter]) -> Optional[rest.Filter]:
     if isinstance(flt, Or):
         subs = [_translate_filter(p) for p in flt.parts]
         subs = [s for s in subs if s is not None]
+        # task #61 P1-V3 defense-in-depth: ``Or.__post_init__`` already
+        # rejects empty ``parts`` at DSL construction, so this list is
+        # normally non-empty. The translator-level guard catches future
+        # refactors that bypass the DSL constructor (e.g.
+        # ``dataclasses.replace(or_node, parts=())``) before they reach
+        # Qdrant. Without this, ``rest.Filter(should=[])`` is a vacuous
+        # disjunction that Qdrant treats as "match everything" — a
+        # silent data-correctness footgun. Cross-adapter parity with
+        # the pgvector ``_SqlFilter._walk`` Or-empty guard.
+        if not subs:
+            raise UnsupportedFilterError(
+                "qdrant: Or filter has zero translatable parts after pruning; "
+                "an empty Or is a vacuous disjunction that would match every "
+                "point in the collection (task #61 P1-V3)."
+            )
         return rest.Filter(should=subs)
     if isinstance(flt, Not):
         sub = _translate_filter(flt.inner)
@@ -415,6 +431,18 @@ def _extract_vector(p: Any) -> Optional[List[float]]:
 
 class QdrantVectorStoreConnector(VectorStoreConnector):
     """Qdrant implementation of ``VectorStoreConnector``."""
+
+    #: Static capability declaration (task #61 P1-V2 / P1-V4).
+    #: Qdrant's ``client.upsert(points, wait=True)`` is best-effort
+    #: per-point — a mid-batch failure can leave a partial write — so
+    #: ``supports_atomic_batch_upsert=False``. The legacy
+    #: (``multitenant=False``) layout is supported, where each ApeRAG
+    #: collection gets its own physical Qdrant collection; new
+    #: deployments default to multitenant.
+    BACKEND_CAPABILITIES = VectorBackendCapabilities(
+        supports_atomic_batch_upsert=False,
+        supports_legacy_mode=True,
+    )
 
     def __init__(self, ctx: Dict[str, Any], **kwargs: Any) -> None:
         super().__init__(ctx, **kwargs)
@@ -713,11 +741,27 @@ class QdrantVectorStoreConnector(VectorStoreConnector):
             )
             for p in raw
         ]
-        # Represent "no vector requested" as empty list rather than None
-        # to keep VectorPoint.__post_init__ happy (vector must be list).
-        if not self.multitenant:
-            return out
-        return [p for p in out if p.payload.get(TENANT_PAYLOAD_KEY) == self._tenant.id]
+        # task #61 P1-V4 defense-in-depth: apply the same payload-level
+        # tenant filter to BOTH multitenant and legacy modes. In
+        # multitenant mode the filter is the primary tenant-isolation
+        # layer (the physical collection is shared). In legacy mode
+        # the primary isolation is the per-tenant physical collection
+        # name (``collection_name == tenant_id``) — this connector is
+        # already bound to a tenant-specific physical collection, so
+        # foreign-tenant ids cannot return cross-tenant data — but the
+        # ``TENANT_PAYLOAD_KEY in payload`` short-circuit means legacy
+        # rows that don't carry the payload key still pass through
+        # unchanged, while a stray multitenant-style row that ended up
+        # in a legacy collection (e.g. via tooling drift) would be
+        # filtered out. Lesson #14 multi-iteration cleanup family —
+        # legacy mode is preserved for migration rollback only; a
+        # future PR can drop the mode entirely once telemetry confirms
+        # zero production usage.
+        return [
+            p
+            for p in out
+            if TENANT_PAYLOAD_KEY not in p.payload or p.payload.get(TENANT_PAYLOAD_KEY) == self._tenant.id
+        ]
 
     # ================================================================ delete
     def delete(self, ids: Sequence[str]) -> None:
