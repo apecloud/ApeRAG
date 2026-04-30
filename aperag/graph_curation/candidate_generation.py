@@ -36,11 +36,16 @@ class CandidatePair:
 
 
 def entity_snapshot(entity: Entity) -> dict[str, Any]:
+    # Wave 5 description-NULL invariant (task #31 A3, spec § 3.1.5):
+    # snapshot must not surface ``entity.description`` — Wave 5 graph
+    # extractor stopped emitting descriptions, so reading here would
+    # serialize an empty string at best and a stale fragment at worst.
+    # Reviewers / async accept-apply workers operate on name + type +
+    # source_chunk_count instead.
     return {
         "entity_id": entity.entity_id,
         "entity_name": entity.name,
         "entity_type": entity.type,
-        "description": entity.description,
         "source_chunk_count": len(entity.source_chunk_ids or ()),
     }
 
@@ -176,9 +181,12 @@ def _lexical_signals(left: Entity, right: Entity) -> dict[str, Any]:
     if name_token_overlap >= 0.5:
         signals["name_token_overlap"] = round(name_token_overlap, 3)
 
-    description_overlap = _jaccard(_tokens(left.description), _tokens(right.description))
-    if description_overlap >= 0.2:
-        signals["description_token_overlap"] = round(description_overlap, 3)
+    # Wave 5 description-NULL invariant (task #31 A3, spec § 3.1.5):
+    # ``description`` is no longer a valid lexical signal — Wave 5
+    # graph extractor stopped emitting descriptions, so a Jaccard over
+    # description tokens would compare two empty bags and never trip.
+    # Removed entirely to enforce the invariant via shape (no read =
+    # no silent regression to "" vs "" comparisons that always pass).
 
     return signals
 
@@ -193,8 +201,12 @@ def _pair_score(signals: Dict[str, Any]) -> float:
         score += 0.30
     if signals.get("name_token_overlap"):
         score += min(float(signals["name_token_overlap"]) * 0.35, 0.30)
-    if signals.get("description_token_overlap"):
-        score += min(float(signals["description_token_overlap"]) * 0.20, 0.15)
+    # Wave 5 description-NULL invariant (task #31 A3, spec § 3.1.5):
+    # ``description_token_overlap`` weight removed — _lexical_signals no
+    # longer emits the signal post Wave 5 (descriptions are NULL), so
+    # this branch is dead. Removed to keep scoring weights canonical
+    # across detector + service paths and let the boundary test
+    # (test_graph_curation_description_free) grep-zero this surface.
     if signals.get("shared_chunk_count"):
         score += min(int(signals["shared_chunk_count"]) * 0.20, 0.50)
     if signals.get("vector_score") is not None:

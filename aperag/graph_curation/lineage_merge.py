@@ -189,6 +189,20 @@ class LineageEntityMerger:
         Empty ``source_names`` is a no-op (returns immediately with
         ``LineageMergeResult(final_target=target_name, ...,
         merged_source_ids=[])``).
+
+        ⚠️ **Wave 5 description-NULL invariant note** (task #31 A3,
+        spec § 3.1.5): this is the *legacy* description-bearing path
+        — it still calls the LLM unified description / Compactor /
+        ``__curation_merge__`` sentinel write / vector embed write.
+        It is preserved for the manual / sync ``handle_action()`` API
+        compatibility lane (per spec § 3.1.5 «老 ``lineage_merge.py``
+        路径保留作 manual API 兼容，标 deprecation Lesson #14 multi-
+        iteration cleanup follow-up»). The async accept-apply worker
+        introduced by task #31 must use
+        :meth:`merge_entities_apply_description_free` instead — that
+        variant skips every LLM/compactor/vector-embed step so it
+        respects the Wave 5 invariant that
+        ``EntityRecord.description`` is always ``NULL``/``""``.
         """
         if not source_names:
             return LineageMergeResult(
@@ -326,6 +340,161 @@ class LineageEntityMerger:
             merged_source_ids=list(source_names),
             unified_description=unified,
             compacted_description=compacted,
+        )
+
+    async def merge_entities_apply_description_free(
+        self,
+        *,
+        target_name: str,
+        source_names: Sequence[str],
+        merged_by: str | None = None,
+    ) -> LineageMergeResult:
+        """Wave 5 description-NULL apply variant — task #31 A3 (spec
+        § 3.1.5).
+
+        Async accept-apply worker entry point. Mirrors
+        :meth:`merge_entities` step ordering (1 → 2 → 3 → 6a → 8) but
+        deliberately **skips** the four description-bearing steps
+        forbidden by the Wave 5 invariant:
+
+        * Step 4 — LLM unified description **(skipped)**: graph
+          extractor no longer emits ``description_parts`` after Wave
+          5, so unifying empty fragments would call the LLM with no
+          input and burn budget for no value.
+        * Step 5 — :class:`GraphIndexCompactor` pass **(skipped)**:
+          there is no unified description to compact.
+        * Step 6b — final ``__curation_merge__`` sentinel upsert
+          **(skipped)**: nothing to anchor; the canonical entity
+          carries no description text post Wave 5.
+        * Step 7 — vector layer write **(skipped)**: graph entity
+          vectors are owned by the ``graph_vectors`` worker (Wave 5
+          task #5 / #7 split). The merger never re-embeds a
+          description here — the orphan source vectors are GC'd by
+          the ``q:graph_vector`` clean-up lane (task #11) so the
+          accept-apply path does not need to call the vector store at
+          all (no write, no delete).
+
+        What still runs:
+
+        1. ``alias_repo.resolve_canonical(target_name)`` — flatten
+           any pre-existing alias chain so the final target is
+           canonical (1-hop guarantee, same as legacy step 1).
+        2. ``alias_repo.upsert_alias(alias=source, target=...)`` per
+           source — guarantees future indexer writes redirect.
+           :class:`AliasCycleError` propagates.
+        3. ``store.get_entity`` for target + sources — needed only to
+           read ``source_lineage`` so per-doc lineage members can be
+           re-anchored under the canonical name. ``description_parts``
+           is post-Wave-5 always ``[]`` and is **not** read.
+        4. (Step 6a equivalent) Re-anchor each source's
+           ``source_lineage`` members under the target name with
+           ``EntityRecord.description=""`` so per-doc tracking is
+           preserved (invariant #1, L1 不污染) without re-introducing
+           description residue.
+        5. (Step 8 equivalent) Delete sources from L1 only — vector
+           store is left to task #11 GC, mirroring how every other
+           description-free path treats orphan vectors.
+
+        Failure mode is identical to :meth:`merge_entities` — the
+        merge is not a single SQL transaction across all steps; the
+        alias upsert (step 2) is transactional inside
+        :class:`AliasMapRepository`, and every downstream write is
+        keyed on ``(document_id, parse_version)`` so a retried merge
+        is idempotent.
+
+        Returns ``LineageMergeResult`` with
+        ``unified_description=""`` and ``compacted_description=None``
+        — fields are kept on the result shape for backward-compat
+        with the legacy caller (UI layer reuses the same shape) but
+        new callers should ignore them.
+        """
+        if not source_names:
+            return LineageMergeResult(
+                final_target=target_name,
+                merged_source_ids=[],
+                unified_description="",
+                compacted_description=None,
+            )
+
+        # Step 1 — flatten target chain (1-hop).
+        final_target = await self._alias_repo.resolve_canonical(collection_id=self._collection_id, name=target_name)
+
+        # Step 2 — record alias rows. Cycle reject propagates as
+        # AliasCycleError so the caller can abort cleanly.
+        for src in source_names:
+            await self._alias_repo.upsert_alias(
+                collection_id=self._collection_id,
+                alias_name=src,
+                target=final_target,
+                merged_by=merged_by,
+            )
+
+        # Step 3 — read target + sources (lineage only; description_parts
+        # is empty post-Wave-5 and is intentionally not read here).
+        target_entity = await self._store.get_entity(final_target)
+        if target_entity is None:
+            # Target was GC'd between merge initiation and execution —
+            # alias rows already written; no L1 update can succeed.
+            logger.warning(
+                "lineage_merger(description_free): target %r missing at merge time (collection=%s); "
+                "alias rows written but no L1 update performed",
+                final_target,
+                self._collection_id,
+            )
+            return LineageMergeResult(
+                final_target=final_target,
+                merged_source_ids=list(source_names),
+                unified_description="",
+                compacted_description=None,
+            )
+
+        source_entities: list[EntityWithLineage] = []
+        for src in source_names:
+            row = await self._store.get_entity(src)
+            if row is not None:
+                source_entities.append(row)
+
+        # Step 6a equivalent — re-anchor source lineage members under
+        # the target name with ``description=""`` so per-doc tracking
+        # is preserved without leaking Wave-5-erased description text.
+        # We re-anchor per ``LineageMember`` instead of per
+        # ``DescriptionPart`` because post-Wave-5 entities carry
+        # lineage rows but no description parts, and the indexer write
+        # contract still requires a record + lineage tuple.
+        bulk_parts: list[tuple[EntityRecord, LineageMember]] = []
+        for src in source_entities:
+            for member in src.source_lineage:
+                chunk_ids = tuple(member.chunk_ids)
+                bulk_parts.append(
+                    (
+                        EntityRecord(
+                            name=final_target,
+                            entity_type=target_entity.entity_type,
+                            description="",
+                            source_chunk_ids=chunk_ids,
+                        ),
+                        LineageMember(
+                            document_id=member.document_id,
+                            parse_version=member.parse_version,
+                            tenant_scope_key=member.tenant_scope_key,
+                            chunk_ids=chunk_ids,
+                        ),
+                    )
+                )
+        if bulk_parts:
+            await self._store.bulk_upsert_entity_with_lineage_parts(parts=bulk_parts)
+
+        # Step 8 equivalent — delete sources from L1 only. Vector
+        # cleanup is owned by the ``q:graph_vector`` GC lane
+        # (task #11) per the description-free contract.
+        for src_entity in source_entities:
+            await self._store.delete_entity(src_entity.name)
+
+        return LineageMergeResult(
+            final_target=final_target,
+            merged_source_ids=list(source_names),
+            unified_description="",
+            compacted_description=None,
         )
 
     # ------------------------------------------------------------------
