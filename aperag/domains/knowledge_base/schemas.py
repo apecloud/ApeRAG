@@ -37,14 +37,16 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal, Optional
 
-from pydantic import AnyUrl, BaseModel, Field, conint
+from pydantic import AnyUrl, BaseModel, Field, computed_field, conint
 
 from aperag.schema.common import (
     Chunk,
     CollectionConfig,
     PageResult,
     PaginatedResponse,
+    VectorBackendInfo,
     VisionChunk,
+    project_vector_backend_info,
 )
 
 __all__ = [
@@ -103,6 +105,34 @@ class Collection(BaseModel):
     updated: Optional[datetime] = None
     is_published: Optional[bool] = Field(False, description="Whether the collection is published to marketplace")
     published_at: Optional[datetime] = Field(None, description="Publication time, null when not published")
+
+    # task #61 P1-D3 (PR for #87): read-only projection of the deployment
+    # vector backend identity + capability matrix. Modelled as a Pydantic
+    # v2 ``@computed_field`` so it is **only** present on the OpenAPI
+    # output schema (``Collection-Output``) and is **not** part of any
+    # input shape that reuses :class:`Collection` (e.g.
+    # ``CollectionCreate``/``CollectionUpdate``, plus the request-side
+    # composites ``Agent-Input.collections`` /
+    # ``CreateTurnRequest.collections`` that inherit ``Collection-Input``).
+    # Per dongdong msg=fa88e97b BLOCKER: marking ``vector_backend`` as a
+    # plain ``Optional[VectorBackendInfo]`` field would have leaked the
+    # deployment-wide setting onto every input shape that references
+    # ``Collection`` and let callers think they could submit a
+    # per-collection override on agent / chat requests — exactly the
+    # error this projection lock is meant to prevent (per architect
+    # msg=0044261f read-only output projection lock + PM msg=caf7e4df).
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def vector_backend(self) -> Optional[VectorBackendInfo]:
+        # Lazy import keeps the module import graph compatible with the
+        # G1 boundary rules: ``aperag.config`` is allowed from a domain
+        # schema, but importing it at module-load time on every domain
+        # schema introduces a settings-side-effect at import which a few
+        # tests intentionally avoid. Doing the import inside the property
+        # also matches the existing ``utils.py`` lazy-resolver style.
+        from aperag.config import settings
+
+        return project_vector_backend_info(settings.vector_db_type)
 
 
 class Document(BaseModel):

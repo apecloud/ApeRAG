@@ -175,7 +175,15 @@ class CollectionService:
             )
 
     async def build_collection_response(self, instance: CollectionRow) -> Collection:
-        """Build Collection response object for API return."""
+        """Build Collection response object for API return.
+
+        ``Collection.vector_backend`` is a Pydantic v2 ``@computed_field``
+        (per task #61 P1-D3 / PR for #87 — read-only projection of the
+        deployment vector backend identity + capability matrix). It is
+        populated automatically on serialization, so it is intentionally
+        **not** passed as a constructor argument — passing it would also
+        not work because computed fields are not accepted as input.
+        """
         return Collection(
             id=instance.id,
             title=instance.title,

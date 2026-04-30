@@ -115,5 +115,18 @@
   "export_knowledge_base_failed_description": "导出过程中发生错误，请稍后重试。",
   "export_knowledge_base_retry": "重试",
   "export_knowledge_base_too_many_tasks": "已有导出任务进行中，请等待完成后重试。",
-  "export_knowledge_base_link_expired": "导出链接已过期，请重新导出。"
+  "export_knowledge_base_link_expired": "导出链接已过期，请重新导出。",
+
+  "vector_backend_card_title": "向量后端",
+  "vector_backend_card_description": "部署级向量后端身份与能力矩阵的只读展示，由部署配置决定，不可在知识库内调整。",
+  "vector_backend_identity": "当前后端",
+  "vector_backend_unknown_placeholder": "当前向量后端未在静态能力矩阵中声明，无法展示具体能力。",
+  "vector_backend_capability_supported": "支持",
+  "vector_backend_capability_unsupported": "不支持",
+  "vector_backend_capability_atomic_batch_upsert": "批量原子写入",
+  "vector_backend_capability_atomic_batch_upsert_description": "向量后端是否对批量 upsert 提供原子可见性保证。",
+  "vector_backend_capability_filter_or_empty_parts": "允许空 Or 片段",
+  "vector_backend_capability_filter_or_empty_parts_description": "向量后端是否接受顶层 Or 过滤中包含空或 no-op 子句。",
+  "vector_backend_capability_legacy_mode": "兼容传统模式",
+  "vector_backend_capability_legacy_mode_description": "向量后端是否暴露平台仍可创建或读取的兼容/历史集合模式。"
 }
