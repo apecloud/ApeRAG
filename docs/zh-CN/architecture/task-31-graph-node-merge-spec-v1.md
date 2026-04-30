@@ -208,9 +208,9 @@ boundary test grep gate（per § 5.2）:
 现有 `aperag/graph_curation/service.py:534` sync `handle_action()` 末尾 `suggestion.status = GraphCurationSuggestionStatus.ACCEPTED`（merge 已 sync 执行完成后写入），ACCEPTED 在历史代码中是 **terminal status = 「merge 已执行完成」**。新 async path 如果复用 `ACCEPTED` 表示「已批准但未 apply」会让旧数据和新数据同名不同义 → 引入新 enum value `apply_pending` 表示新 async 决策态，**`ACCEPTED` 保留作 legacy terminal/back-compat read-only value，新 async path 不再写**（FE typed schema 显示兼容 + DB 存在但新代码 zero-write）。
 
 跟 cuiwenbo msg=61800dd6 NIT 2 FE 现有 enum (`PENDING/ACCEPTED/REJECTED/EXPIRED`) align 选择：
-- spec lock **lowercase** + 新加 `dismissed/apply_pending/applying/applied/apply_failed` 5 enum value
+- spec lock **lowercase** + 新加 `apply_pending/applying/applied/apply_failed` 4 enum value（`dismissed` 已存在于现有 enum，不算新加 — per huangzhangshu PR comment <https://github.com/apecloud/ApeRAG/pull/1931#issuecomment-4350226415> + msg=d575e03c）
 - FE typed schema 同步扩展 `MergeSuggestionStatus` (Lesson #13 v3 dual-side rewrite + Lesson #14 multi-iteration cleanup — `EXPIRED` 老值保留作 backward compat 历史 placeholder，新代码不再写入；`ACCEPTED` 同样保留作 legacy terminal read-only)
-- Migration chain 时序：PG enum 加 5 新 value `DISMISSED/APPLY_PENDING/APPLYING/APPLIED/APPLY_FAILED`（`alembic upgrade head` 跨 backend 跑过）— `ACCEPTED` 保留 legacy semantic
+- Migration chain 时序：PG enum 加 4 新 value `APPLY_PENDING/APPLYING/APPLIED/APPLY_FAILED`（`alembic upgrade head` 跨 backend 跑过）— `ACCEPTED` 保留 legacy semantic
 
 测试可区分「用户已批准（apply_pending）」「worker 应用中（applying）」「worker 已应用（applied）」「应用失败待重试（apply_failed）」四状态 + 历史 ACCEPTED legacy read。
 
