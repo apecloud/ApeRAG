@@ -724,6 +724,148 @@ simple-stable + private-deploy paramount directive (earayu2 msg=1224bec8) 在 cr
 
 **CR cross-check 应用**：CR 看「上层加 backend-aware branch / 处理 backend 差异」类 PR 时必先问「能否 backend adapter 层收敛？」；若能 → push backend 收敛 PR 不接受上层 fork PR。
 
+### Lesson #12 v9 third + fourth + fifth-application demos（task #31 Phase A 累计实证）
+
+Lesson #12 v9 (first-principles verify catch surface signal mistakes) 在 task #31 Phase A 4 PR 实施过程中累计 3 个 same-hour multi-source first-principles catch trust-framing miss 实证 — sediment 强度从 first/second-application 升级到 systemic 信号「reviewer chain 必独立 first-principles re-verify，不能 trust prev reviewer / spec author / architect framing fold-in」。
+
+**third-application demo (PR #1935 task #76 A2)**：架构师 msg=bd361311 own-up + ziang impl-side catch + dongdong fix-forward catch 双 same-PR multi-source
+
+- **(a) DISMISSED enum 假设错误**：`task #31 spec v1` § 3.1.6 (fix-forward 6 huangzhangshu PR comment 引导) 假设「DISMISSED 已存在于 main enum」— ziang impl-side grep main `aperag/domains/knowledge_graph/db/models.py:107` 实证：实际 main enum 仅 `PENDING/ACCEPTED/REJECTED/EXPIRED/SUPERSEDED` 5 值，**没有 DISMISSED**。huangzhangshu PR comment + cuiwenbo + 架构师 trust framing 全 miss，ziang impl 时第一性原理 grep main 才发现。
+- **(b) response_model legacy FE field filter**：dongdong msg=99aa83ea catch ziang first-iteration A2 BLOCKER：FastAPI response_model 按 `GraphMergeSuggestionItem` canonical schema 过滤会让 legacy FE `collection-graph-node-merge.tsx` 读取的 `suggestion_batch_id` / `merge_reason` / `suggested_target_entity` 字段消失 → review panel 运行时报错或显示空。ziang fix-forward `3b447dfe` 加 projection layer 保 backward compat。
+
+**fourth-application demo (PR #1938 task #75 A1)**：Weston msg=04c9e5ee 第一性原理 trace `integration.py:35-37/49-61` + `tasks.py:17-26` upstream raise points catch surface 真 BLOCKER
+
+- 架构师 ratify msg=8a1a1533 trust framing trust 了 worker catch 注释 "task already persisted FAILED" 没 grep verify 上游 raise 点
+- Weston 实证：3 raise points BEFORE `graph_curation_service.generate_run()`（collection not found / backend resolve fail / log+re-raise 无 mark failed）→ run 永远卡 PENDING → 后续 `start_run()` 见 active PENDING/RUNNING `created=False` → 不 re-enqueue → collection 手动 full sweep 永久卡死
+- 架构师 msg=7af40610 own-up: trust framing miss + 升格 spec v1.1 amend 候选「worker fail-safe invariant」
+
+**fifth-application demo (PR #1940 task #78 A4)**：Weston catch `SuggestionActionResponse.message` required field 漂移
+
+- A4 first-iteration 加 response_model wire-up 但 `handle_action()` accept/reject/dismiss 三 success return 漏 `message` field
+- response_model `SuggestionActionResponse.message: str` required → service.py response shape miss → response_model validation fail (FastAPI `ResponseValidationError` → HTTP 500，不是 request body 校验的 422)
+- Weston catch 修法 `4769cd57`: 三条 action path 补 `message` field + 加 `test_suggestion_action_response_requires_valid_success_shapes` boundary test 用 `SuggestionActionResponse.model_validate(...)` 钉 shape — 升格为 mini-pattern 20「response_model wire-up 必跑 model_validate gate」
+
+**判断准则升级**（v9 systemic 信号确立后）：
+
+- multi-reviewer / spec author / architect chain 中 **任一 reviewer 第一性原理 catch surface signal mistake** → 必 surface own-up + sediment fold（不只是单点修，要 sediment family pattern）
+- spec lock 后 impl 阶段如果出现 **multi-source same-hour catch (3+ reviewer 同 hour 内独立 catch 同 PR)** → 是 framework systemic 强信号，必升 Lesson framework 应用 + spec amend 候选
+- impl-side catch upstream code path / response_model contract / external API convention 三类 cross-boundary verify → 都属 v9 family，必走 first-principles grep verify upstream not 信 local docstring/comment
+
+### Migration chain 时序 second-application demo（task #31 Phase A2 PR #1935 实证）
+
+Migration chain 时序 invariant (first-app: task #47 PR #1910 enum hard-cut migration 时序) 在 task #31 Phase A2 累计 second-application demo — 实证「现有 table extend pattern 跟新建 table chain pattern 时序约束不同」。
+
+**first-application** (task #47 PR #1910): 新建 enum hard-cut migration `3c7d2f81b5e9` 必先 chain ziang `a8f4c2d9e1b7` DELETE FROM 旧 enum value migration — 防 enum value 在 cutover 时点存在窗口期歧义。
+
+**second-application** (task #31 PR #1935 task #76 A2 commit `6fc6f64f`)：
+
+- **复用现有** `graph_curation_suggestions` table — 仅 extend status enum 5 新 value（`APPLY_PENDING/APPLYING/APPLIED/APPLY_FAILED/DISMISSED` per architect msg=bd361311 own-up DISMISSED 实际不存在 main 实证修正）+ 加 `evidence_refs` JSON column（per task #61 evidence_refs 模式）
+- migration chain 在 latest head 后 + `alembic upgrade head` 跨 backend (PG) 跑过 + boundary test `test_accepted_status_write_is_legacy_service_only` grep gate 钉 main 全 codebase 仅 `aperag/graph_curation/service.py:534` 允许写 `ACCEPTED`（legacy sync handle_action 路径）
+- response_model `GraphMergeSuggestionItem` typed schema 加 legacy compatibility fields projection (`suggestion_batch_id=run_id` alias / `merge_reason=reason` alias / `suggested_target_entity` 从 target snapshot 投影 + fallback)
+- FE typed schema sync `MergeSuggestionStatus` typed enum 7 active value + 3 legacy read-only (`ACCEPTED / EXPIRED / SUPERSEDED`)
+
+**判断准则**：
+
+- 现有 table extend = enum value extend + column add；不引入新 table 防 schema 漂移 + Lesson #14 multi-iteration cleanup family
+- 同 PR 内 backward-compat projection layer 跟 forward-canonical schema 双侧 cover — Phase A2 先 land + Phase A4 FE 切 canonical 字段 sequencing 不破 review panel
+- ACCEPTED legacy 语义保留 zero-write grep gate 钉死跨 codebase（防 future 误用 ACCEPTED 表示「已批准待 apply」造成同名不同义）— Lesson #14 多轮迭代渐进式 deprecation 一致
+
+### Lesson #17 second-application demo：response_model projection layer 保 backward-compat（task #31 Phase A2 PR #1935 实证）
+
+Lesson #17 (backend 收敛 contract 优于上层 fork) 在 task #31 Phase A2 累计 second-application demo — 实证「backend 收敛 canonical contract 时同时保 legacy projection 是 simple-stable backward-compat 收敛 pattern，不是 fork」。
+
+**first-application** (task #69 P0-B PR #1930 + task #70 P1 候选 1 cross-PR)：backend 一刀切收敛 0-1 higher=better contract，FE 三处 raw 显示 `(score || 0).toFixed(2)` 自动 align，0 改动。
+
+**second-application** (PR #1935 commit `3b447dfe`)：
+
+- backend canonical schema `GraphMergeSuggestionItem`: `run_id / reason / target_entity_id / entities / confidence_score / status / created/updated/operated_at / evidence_refs / legacy aliases (suggestion_batch_id=run_id / merge_reason=reason / suggested_target_entity 从 target snapshot 投影)` — A4 (PR #1940) `observed_types/type_conflict/suggested_entity_type/affected_doc_count` 是 **FE-derived display**（FE 从 `entities` / `suggested_target_entity` / `evidence_refs` 推导），不是 PR #1935 backend projection（per Weston msg=7690b723 cite accuracy verify）
+- legacy compat projection: `suggestion_batch_id=run_id` (alias) / `merge_reason=reason` (alias) / `suggested_target_entity` 从 target snapshot 投影 + fallback to `target_entity_id`
+- FE 现有 review panel 读 legacy 字段不破 → A4 (PR #1940) 切 canonical 字段后 legacy projection 标 deprecation marker → 老 backward-compat 在 release cycle 后清理 (Lesson #14 multi-iteration cleanup family)
+
+**判断准则**：
+
+- backend 收敛 contract 时如有 legacy consumer 在飞，必须**同 PR** 加 projection layer 保 backward-compat（不是 deferral，是 same-PR fold-in）
+- projection layer 必 cite 「迁移完成后 deprecation marker → 标准 release cycle 后删」trail，防 legacy projection 永久残留 → Lesson #14 family
+- 跟 fork pattern 区分：fork 是上层 add backend-aware branch（消费面 dup logic），projection 是 backend 同一接口暴露双视图（消费面单一 logic 接 projection field 或 canonical field）—— projection 是收敛不是 fork
+
+### Lesson #18：lesson sediment + mechanical gate 双 layer codification（"一记一 enforce"）
+
+正式建立 Lesson #18：每一 lesson family 入仓 sediment 必配套相应 mechanical gate（`tests/unit_test/contracts/` 类 unit test / `tests/boundaries/` 类 AST gate）— **lesson 文字 layer (cr-checklist § 四)** + **mechanical gate layer** 双 layer codification = 完整 invariant defense。
+
+**核心 insight**：lesson 文字 only 不够（reviewer 漏 / spec author 漏 / 多 reviewer chain trust framing 集体漏）— mechanical gate 自动 force-fix 是把 reviewer-as-detector 换成 CI-as-detector 的高 ROI codification family。
+
+**first-application demo (PR #1933 task #33 P3 chenyexuan)**：cross-source default value alignment gate
+- lesson layer: cr-checklist § 四 Lesson #13 v3 application demo 2（task #30 B3 PR #1925 default=2 lock 三 source 同步实证）
+- mechanical gate: `tests/unit_test/contracts/test_graph_extraction_window_size_default_consistency.py` 4-source default value parity AST scan + Python const + Pydantic Field examples + TS schema @example + spec § 3.1.1/§ 4.2 lock 行
+- 配对效果: future default 改动只有 4 source 全同步才能过 CI，reviewer 不再当 drift detector
+
+**second-application demo (PR #1941 task #31 A3 chenyexuan)**：description-free read scope mechanical gate **bonus catch reviewer + spec author miss**
+- lesson layer: cr-checklist § 四 Lesson #14 application demo（Wave 5 description-NULL invariant 多轮迭代收尾，Wave 5 task #5 facts/vectors split + task #11 trigger pin + task #31 spec lock 三轮）
+- mechanical gate: `tests/boundaries/test_graph_curation_description_free.py` 4 AST 断言 grep zero match `description` read in `graph_curation/**` + `merge_candidate_detector.py` + `merge_entities_apply_description_free` body
+- **bonus catch trail**: gate 自动 surface `aperag/graph_curation/service.py:845` `entity.description or entity.name` hidden read（spec § 3.1.5 6+1 enumerate 之外，多 reviewer + 架构师 spec lock 6 fix-forward 都没 surface 的 7th site）
+- 配对效果实证: mechanical gate first-principles enforce 互补 Lesson #12 v9 reviewer first-principles verify — gate 把 reviewer 漏的 invariant violation force-fix
+
+**third-application demo (PR #1941 fix-forward `8116639` per huangzhangshu BLOCKER msg=2deb5407)**：mechanical gate 自身 protection scope test 防「whole-file exclude 静默失效」
+- huangzhangshu testing-lane catch BLOCKER: `test_graph_curation_modules_do_not_read_entity_description()` 整文件跳过 `dto.py`，spec § 3.1.5 明确 `CurationEntity.from_lineage` 列入 6 个 description-free call site 之一 → gate 不防未来回归
+- chenyexuan fix-forward `8116639`: `dto.py` 纳入 AST scan + 加 2 sister tests
+  - `test_dto_module_is_in_boundary_scope` (synthetic-AST positive control): 构造 fake `from_lineage` body 读 `entity.compacted_description` feed 同一 offender detector 断言 surface
+  - `test_dto_field_declaration_is_not_a_false_positive` (live negative control): confirm 生产 `dto.py` 0 offenders + docstring 引导 future maintainer "fix walker, NOT re-allowlist file"
+- 配对效果: mechanical gate **自身的 protection scope** 也要被 mechanical-test 防止「whole-file exclude 静默失效」死循环
+
+**判断准则**：
+
+- 任一 lesson family 入仓 sediment 时**必同步 propose mechanical gate 候选**（unit test / AST scan / 跨 source consistency check 任选适合 layer）
+- 单纯 lesson 文字 fold-in 是不完整 invariant defense — 强烈推荐配套 mechanical gate sub-PR（chenyexuan PR #1933 codify pattern 是模板）
+- gate 自身 protection scope 也要被 mechanical-test 包住 — 防 future maintainer 退回 whole-file allowlist 死循环
+
+**对应 Lesson family**：
+- 跟 Lesson #12 v8 (fake guardrail anti-pattern) 互补 — v8 是 gate 函数自身 fake，#18 是 gate 入仓策略两 layer 配对完整性
+- 跟 Lesson #12 v9 (first-principles verify) 互补 — v9 是 reviewer first-principles verify (PR-level)，#18 是 CI gate first-principles enforce (codebase-level systemic)
+- 跟 Lesson #15 file-move 3-step verify 互补 — Lesson #15 是 single-PR file-move 验证步骤；#18 是 lesson family 累计入仓时配套 codification 策略
+
+**CR cross-check 应用**：CR 看任一 sediment fold-in 类 PR 时必走「lesson 文字 + mechanical gate 候选 propose」检查；缺 mechanical gate 候选 → 留作 follow-up sub-PR 不阻塞 main fold，但必须 cite 候选 trail。
+
+### Mini-pattern 19：spec lock pre-check grep main 实证 enum/contract assumption（task #31 PR #1935 + #1938 + #1940 累计实证）
+
+per 架构师 msg=bd361311 + msg=7af40610 own-up + 后续累计 same-hour multi-source catch — 升级版 mini-pattern：spec 抽象描述「现有 X enum / table / Protocol method / response schema 已有 value Y / column Z / signature S / required field F」时**必 grep main 实证 codebase**（不能信反 reviewer 的 PR comment 主张作为 ground truth）。spec lock 前 architect / spec author 必跑 `grep -n "Y" <现有文件>` 实证。
+
+**应用范围三层**:
+- **layer 1 spec → impl**：spec 描述现有 enum/table 内容必 grep main verify (PR #1935 DISMISSED enum 假设错误 first-application demo)
+- **layer 2 impl → response_model contract**：实施 response_model wire-up 时 service.py handler return shape 必跑 `model_validate(actual_handler_return)` boundary gate (PR #1940 SuggestionActionResponse.message field 漂移 second-application demo — 见 mini-pattern 20)
+- **layer 3 impl catch path → upstream raise points**：worker catch comment / handler 注释假设「上游 task 内已 mark failed」必 grep `<下游所有 caller>.py` raise 点 verify (PR #1938 worker catch fail-safe BLOCKER third-application demo)
+
+**对应 Lesson family**：
+- 跟 Lesson #12 v7 (3-layer in-tree grep) 互补 — v7 cover field/value 跨 in-tree layer，mini-pattern 19 cover spec authority 层 + cross-boundary contract 层
+- 跟 Lesson #12 v9 first-principles verify 同根 — v9 是 PR-level reviewer first-principles，mini-pattern 19 是 spec lock pre-check first-principles，前置防 spec drift 进入 impl
+
+**CR cross-check 应用**：spec lock pre-check / spec amend / impl wire-up response_model / impl catch path 类 PR 必走 3 layer grep；缺位 → BLOCKER fix-forward。
+
+### Mini-pattern 20：response_model wire-up 必跑 model_validate gate（task #31 PR #1940 实证）
+
+per architect msg=b6726ac9 升格 — 「PR adds response_model wire-up 必跑 `model_validate(actual_handler_return_shape)` boundary gate」。防 schemas.py field add 漂浮到 service.py response shape miss 反 pattern。
+
+**first-application demo (PR #1940 task #78 A4 commit `4769cd57`)**:
+
+- A4 first-iteration 加 `response_model = SuggestionActionResponse` wire-up + 改 `handle_action()` accept/reject/dismiss 三 success return shape
+- BUT `SuggestionActionResponse.message: str` required field — accept/reject/dismiss 三 path success return 都漏 `message` field → response_model validation fail (FastAPI `ResponseValidationError` → HTTP 500，不是 request body 校验的 422)
+- Weston catch 修法 `4769cd57`:
+  - 三 action path 补 `message` field
+  - **加 `test_suggestion_action_response_requires_valid_success_shapes` boundary test 用 `SuggestionActionResponse.model_validate(...)` 钉三条返回 shape**
+  - boundary test 防 future schemas.py field add 漂浮 — 任意 future field add 必 break test 强制 service.py 同步
+
+**实施步骤**（CR 看 PR adds/modifies response_model wire-up 类 PR 必走）：
+
+1. **Step A**: grep `response_model = ` 找 wire-up 点 + 对应 schemas.py model 字段
+2. **Step B**: grep handler `service.py` return statement / dict literal — list 实际 return shape 字段
+3. **Step C**: 跨 step A field list / step B return shape — required fields 在 schemas 但不在 return shape → BLOCKER
+4. **Step D**: PR 必含 `model_validate(actual_handler_return)` boundary test 钉死 — 不只 unit test 单 path success path，要每 success branch（accept / reject / dismiss / 任意 action enum value）独立 model_validate
+
+**对应 Lesson family**：
+- 跟 Lesson #12 v7.2 (Pydantic schema layer mandatory exposure) 互补 — v7.2 cover Pydantic 字段定义层暴露完整性，mini-pattern 20 cover Pydantic 字段定义跟 service handler return shape 一致性
+- 跟 Lesson #18 (lesson sediment + mechanical gate 双 layer codification) 一致 — mini-pattern 20 自身就是 mechanical gate 的具体应用 (`SuggestionActionResponse.model_validate(...)` boundary test)
+
+**CR cross-check 应用**：CR 看 response_model 加/改 / API contract change 类 PR 必走 4 步；缺 model_validate boundary test → BLOCKER fix-forward。
+
 ### Mini-pattern 17：跨真源状态漂移检测
 
 跨 truth source（DB / 文件 / cache / queue / 外部服务）状态依赖必须 enumerate 自动 detection 机制（cache key 含上游 version / 周期巡检 stale check / startup sanity check 三选一）。
@@ -800,6 +942,12 @@ CR cross-check 表里任何 ✅ 标注被 surface 为 false positive 时，立�
 - PR #1928 (commit `ed8def22`): 架构师 task #61 spec v1 入仓（DB adapter contract matrix + capability/degradation 显式 list + sub-task 拆分 + sample 限制免责章节）— task #61 spec source of truth
 - PR #1927 (commit `9c94cbc1`): 冬柏 task #61 P0-G1 `bulk_upsert_entity_with_lineage_parts` cross-backend test 38 cases × Neo4j/Nebula/PG — Lesson #12 v8 second-application demo（test docstring fake guardrail commit `1953933a` huangzhangshu testing primary CR catch description_parts text key→value assertion 缺位 fix-forward）+ Lesson #12 v5 cross-reviewer cross-check 实战实证（huangheng + ziang + huangzhangshu 三 reviewer 独立 surface 不同维度 invariant fold-in）
 - PR #1925 (commit `43648f94`): 架构师 task #30 B3 `_DEFAULT_GRAPH_EXTRACTION_WINDOW_SIZE = 1 → 2` lock + B2 evidence + sample 限制免责章节 — Lesson #13 v3 application demo 2 first-application（commit `dae43f5` cross-source default value alignment：Pydantic Field description + `web/src/api-v2/schema.d.ts:4963` regen + spec § 3.1.1 line 85 cleanup 三 source 同步）+ Lesson #14 application demo（spec § 3.1.1 「初始 default `1`」历史残留 multi-iteration cleanup）+ Lesson #12 v5 cross-reviewer cross-check（PM CI status 误报 × 2 实证 必 grep verify）
+- PR #1933 (commit `1024ef9e`): chenyexuan task #33 P3 `tests/unit_test/contracts/test_graph_extraction_window_size_default_consistency.py` cross-source default value parity 4-source unit gate — Lesson #18 first-application demo（lesson sediment cr-checklist § 四 Lesson #13 v3 demo 2 + mechanical gate `tests/unit_test/contracts/` 一记一 enforce 配对完整 invariant defense）
+- PR #1935 (commit `6fc6f64f`): ziang task #31 Phase A2 GraphCurationSuggestion status enum +5 新值 `APPLY_PENDING/APPLYING/APPLIED/APPLY_FAILED/DISMISSED`（per architect msg=bd361311 own-up DISMISSED 实际不存在 main 实证修正）+ `evidence_refs` JSON column + ACCEPTED legacy zero-write grep gate + `GraphMergeSuggestionItem` response_model projection layer (`suggestion_batch_id=run_id` alias / `merge_reason=reason` alias / `suggested_target_entity` 从 target snapshot 投影) — Lesson #12 v9 third-application demo (双 same-PR multi-source: ziang DISMISSED enum impl-side catch + dongdong msg=99aa83ea response_model legacy filter BLOCKER) + Migration chain 时序 second-application demo + Lesson #17 second-application demo (backend canonical schema + legacy compat projection layer 同 PR fold-in 保 backward-compat) + mini-pattern 19 first-application demo (spec lock pre-check grep main 实证 enum/contract assumption — 架构师 own-up)
+- PR #1938 (commit `4cd2e6f1`): Bryce task #31 Phase A1 `cli/indexing_worker.py` 11th lane `graph_curation_run` + 独立 `q:graph_curation_run` Redis key + `push/pop_graph_curation_run` API + `service.py:114-123` API enqueue 改 + `_mark_run_failed_best_effort` worker catch fail-safe (commit `825b55d3` per Weston msg=04c9e5ee BLOCKER catch trace upstream raise points `integration.py:35-37/49-61` + `tasks.py:17-26`) + boundary test lane symbolic dual-side — Lesson #12 v9 fourth-application demo (Weston upstream raise points first-principles trace catch 架构师 + Bryce 双 trust-framing miss "task already persisted FAILED" comment) + mini-pattern 19 layer 3 (impl catch path → upstream raise points 三层 grep verify 边界)
+- PR #1940 (commit `b5452944`): dongdong+cuiwenbo task #31 Phase A4 复用 `/graphs/merge-suggestions` endpoint + extend `SUGGESTION_ACTIONS` 加 `dismiss` + 7 active state + legacy `accepted/EXPIRED/SUPERSEDED` read-only display + `observed_types`/`type_conflict`/`suggested_entity_type` UI + Pydantic Field validator `confidence_score [0, 1]` (per Lesson #17 backend 收敛 contract + PR #1930 SearchHit.score 同 pattern) + `SuggestionActionResponse.message` required field fix-forward `4769cd57` (per Weston catch) + `test_suggestion_action_response_requires_valid_success_shapes` boundary test — Lesson #12 v9 fifth-application demo (Weston response_model contract catch service.py 三 action path success return shape miss `message` field) + mini-pattern 20 first-application demo (PR adds response_model wire-up 必跑 `model_validate(actual_handler_return_shape)` boundary gate)
+- PR #1941 (commit `0535bf4`): chenyexuan task #31 Phase A3 description-free 6+1 sites refactor (`candidate_generation.py:43/179-181/196-197` + `dto.py:59-65/101-105` + `merge_candidate_detector.py:257-284/322-328` + `lineage_merge.py:246-317` apply description-free variant) + boundary AST gate `tests/boundaries/test_graph_curation_description_free.py` 6 断言 — Lesson #18 second-application demo (boundary AST gate 自动 catch `service.py:_fetch_shadow_neighbors:845` `entity.description or .name` hidden read 7th site，spec author + 6 reviewer 集体漏) + Lesson #18 third-application demo (fix-forward `8116639` per huangzhangshu BLOCKER msg=2deb5407 加 2 sister tests 防 「whole-file exclude 静默削弱 gate」回潮 — gate 自身 protection scope 也要被 mechanical-test 包住) + Lesson #14 multi-iteration cleanup (Wave 5 description-NULL invariant 第三轮收尾，老 `lineage_merge.merge_entities` 路径保留 deprecation marker)
+- PR #1932 (commit `dc79aad6`): huangheng follow-up 子 PR 1 task #61 + task #30 B3 close-out sediment fold-in (Lesson #12 v7.4 / v8 second-app / v9 first-app + second-app / #13 v2.3 / v3 demo 2 / #14 demo / #16 / #17 八 lesson sediment + 6 PR commit cross-link)，本轮（子 PR 2）继续累计入仓
 
 ---
 
@@ -862,3 +1010,14 @@ CR cross-check 表里任何 ✅ 标注被 surface 为 false positive 时，立�
 - 2026-04-30 sediment 多源同源 catch trail (task #61 close 累计实证)：
   - **cross-PR 双独立 source 同源** 多次 demo（Lesson #12 v9 Bryce + Weston / Lesson #16 chenyexuan + 冬柏 / Lesson #17 cuiwenbo + Bryce / Lesson #13 v3 application demo 2 huangheng + Planetegg + Weston 三独立 source）— sediment 强度 high 验证 framework 跨 reviewer 独立 surface 同源 invariant 是 systemic 信号
   - **architect msg=03c892e0 + msg=daaeeab5** 总结性 sediment dispatch 显式列「Lesson #16 / v3.1 / v9 双 source / v7 extension / #17 simple-stable family / 3 deploy capability + 本 PR Lesson #14 cleanup demo + v7.3 cross-source default + 描述 NIT 反 fake guardrail demo」全 8+ 项 — 全 sediment 候选 cross-link 完整
+- 2026-04-30 task #31 Phase A 全 4/4 闭环后 huangheng follow-up 子 PR 2（本次 commit）+ task #31 Phase B B1 lane：§ 四 新增 6 lesson sediment（task #31 Phase A 4 PR + task #33 P3 PR #1933 codify 累计实证 + 多 PR same-hour multi-source first-principles catch trust-framing miss）：
+  - **Lesson #12 v9 third + fourth + fifth-application demos**（PR #1935 ziang DISMISSED enum impl-side catch + dongdong response_model legacy field filter BLOCKER 双 same-PR multi-source / PR #1938 Weston worker catch fail-safe BLOCKER catch upstream raise points trace `integration.py:35-37/49-61` + `tasks.py:17-26` / PR #1940 Weston SuggestionActionResponse.message required field shape miss catch）— sediment 强度从 first/second-app 升级 systemic 信号「reviewer chain 必独立 first-principles re-verify」
+  - **Migration chain 时序 second-application demo**（PR #1935 task #76 A2 commit `6fc6f64f`：复用 `graph_curation_suggestions` table extend pattern 跟 PR #1910 新建 enum hard-cut migration 时序约束不同；5 new enum value `APPLY_PENDING/APPLYING/APPLIED/APPLY_FAILED/DISMISSED` + `evidence_refs` JSON column + ACCEPTED legacy zero-write grep gate）
+  - **Lesson #17 second-application demo**（PR #1935 commit `3b447dfe`：backend 收敛 canonical contract 时同 PR fold-in legacy projection layer 保 backward-compat — `suggestion_batch_id=run_id` alias / `merge_reason=reason` alias / `suggested_target_entity` 从 target snapshot 投影 + fallback to `target_entity_id`）— 收敛 contract 不是 fork，配 deprecation marker 跟 Lesson #14 multi-iteration cleanup family
+  - **Lesson #18 (formally established): lesson sediment + mechanical gate 双 layer codification「一记一 enforce」**（每 lesson family 入仓 sediment 必配套 mechanical gate, lesson 文字 layer + mechanical gate layer 双 layer = 完整 invariant defense, reviewer-as-detector → CI-as-detector 高 ROI codification）
+    - first-app: PR #1933 task #33 P3 chenyexuan `tests/unit_test/contracts/test_graph_extraction_window_size_default_consistency.py` 4-source default value parity
+    - second-app: PR #1941 task #31 A3 chenyexuan `tests/boundaries/test_graph_curation_description_free.py` 4 AST 断言 + bonus catch `service.py:_fetch_shadow_neighbors:845` hidden read（spec author + 6 reviewer 集体漏 7th site）
+    - third-app: PR #1941 fix-forward `8116639` per huangzhangshu BLOCKER msg=2deb5407 加 2 sister tests (`test_dto_module_is_in_boundary_scope` synthetic-AST positive + `test_dto_field_declaration_is_not_a_false_positive` live negative) 防 「whole-file exclude 静默削弱 gate」回潮
+  - **mini-pattern 19**: spec lock pre-check grep main 实证 enum/contract assumption（per architect msg=bd361311 own-up 升级版） — 应用范围三层（layer 1 spec → impl 现有 enum/table 内容 grep main verify / layer 2 impl → response_model contract 跑 model_validate boundary gate / layer 3 impl catch path → upstream raise points 三层 grep verify 边界）
+  - **mini-pattern 20**: PR adds response_model wire-up 必跑 `model_validate(actual_handler_return_shape)` boundary gate（per architect msg=b6726ac9 + PR #1940 first-application demo via `test_suggestion_action_response_requires_valid_success_shapes`）— 防 schemas.py field add 漂浮到 service.py response shape miss 反 pattern
+  - § 六 sediment 引用追加 PR #1933 / #1935 / #1938 / #1940 / #1941 五 commit cross-link + PR #1932 (上轮 fold) reference
